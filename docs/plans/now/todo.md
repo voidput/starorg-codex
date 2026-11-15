@@ -6,54 +6,34 @@ updated: 2026-11-15
 
 # Now
 
-M0: skeleton and decisions — [[specs/starorg-codex-v1]] ([plain](../specs/starorg-codex-v1.md))
+Open items only; done work is in [CHANGELOG.md](../../../CHANGELOG.md) (v0.3.0 is released, `main`
+is pushed). Spec: [[specs/starorg-codex-v1]] ([plain](../specs/starorg-codex-v1.md)) and its
+addendum [[specs/starorg-codex-v1-addendum]] ([plain](../specs/starorg-codex-v1-addendum.md)).
 
-- [x] Cargo workspace, pinned toolchain, release profile (panic=unwind) ([#1](https://github.com/voidput/starorg-codex/issues/1))
-- [x] StarBreaker mirror fork + pinned git dependency + adapter crate ([#2](https://github.com/voidput/starorg-codex/issues/2))
-- [x] starorg-data worker with central-directory entry-count check (eocd.rs) ([#3](https://github.com/voidput/starorg-codex/issues/3))
-- [x] INI reader/writer (byte-identical round trip) ([#4](https://github.com/voidput/starorg-codex/issues/4))
-- [x] GameSource trait + install discovery (LUG prefix, Windows defaults) ([#5](https://github.com/voidput/starorg-codex/issues/5))
-- [x] CI on Ubuntu + Windows (cargo test --workspace --locked) ([#6](https://github.com/voidput/starorg-codex/issues/6))
-- [ ] release-please + throwaway v0.0.1 through the build matrix ([#7](https://github.com/voidput/starorg-codex/issues/7))
-- [x] Tauri 2 + Svelte 5 app shell with StarOrg/RSI+ design tokens ([#8](https://github.com/voidput/starorg-codex/issues/8))
-- [ ] decide release location (Q1) and Windows tester (Q19) ([#9](https://github.com/voidput/starorg-codex/issues/9)); the update check's default repo follows it (docs/updates.md, Private repo caveat)
+Release and Windows
+
+- [ ] Windows tester (Q19) ([#9](https://github.com/voidput/starorg-codex/issues/9)); the release location (Q1) is settled: the repo is public and the update check's default works ([updates](../../updates.md#release-location-spec-q1))
 - [ ] Windows tester runs [windows-test-checklist](../../windows-test-checklist.md) on a real install and files the report ([#9](https://github.com/voidput/starorg-codex/issues/9))
 - [ ] Owner: Azure Artifact Signing + `AZURE_*` secrets/variables ([#16](https://github.com/voidput/starorg-codex/issues/16); steps in [windows](../../windows.md))
 - [ ] Owner: delete the duplicate Partner Center app "StarOrgCodex" (identity `StarOrgLabs.StarOrgCodex`, never submitted). Keep "StarOrg Codex" (Store ID 9NWHZD6MLMLD, identity `StarOrgLabs.293108C0BE3BF`), which the repo variables MSIX_* / MS_STORE_* point at
+- [ ] Project board: check that closed issues (#1–#8, #10–#15) are Done and #9, #16–#18 match their state
 
-M1 + M2 (merged into main; verification fixes 2026-11-14, local only, not pushed)
+Apply, hooks and blueprints
 
-- [x] Shared `user.cfg` ledger race: re-read under the cfg lock, short wait on contention ([#10](https://github.com/voidput/starorg-codex/issues/10))
-- [x] Built-in patches `hockrow-p2m4-desc`, `hockrow-recoveritem-desc` with data entries ([#14](https://github.com/voidput/starorg-codex/issues/14))
-- [x] Ambiguous owned names never marked ([#17](https://github.com/voidput/starorg-codex/issues/17))
-- [x] Hook block: no-final-newline round trip, continued `exit`, LF block in CRLF scripts ([#11](https://github.com/voidput/starorg-codex/issues/11))
-- [x] One validator (`validate.rs`), BOM rule unconditional, test hooks only behind the `test-hooks` feature ([#10](https://github.com/voidput/starorg-codex/issues/10))
 - [ ] M1/M2 in-game checks (spec 13): owner plays a session with an applied LIVE file ([#10](https://github.com/voidput/starorg-codex/issues/10), [#14](https://github.com/voidput/starorg-codex/issues/14))
-- [ ] Push main and get the Ubuntu + Windows CI apply tests green ([#10](https://github.com/voidput/starorg-codex/issues/10))
 - [ ] Owner: replace the Smart Citizen block in the real `sc-prelaunch.sh` with `hook install` (agents never edit the real prefix) ([#11](https://github.com/voidput/starorg-codex/issues/11))
-- [ ] Project board: move #10, #11, #13, #14, #17 to match (needs a push first)
 
-Fleet import and ship ordering — addendum §6 (branch `fleet-order`, local only, not pushed)
+Fleet import and ship ordering (addendum §6)
 
-- [x] Core: hull catalogue, importer (HangarXPLOR JSON/CSV, text), matcher, `ship-names` generator, stale hash ([#15](https://github.com/voidput/starorg-codex/issues/15))
-- [x] CLI `fleet import|list|match|clear`, `build --ship-names` ([#15](https://github.com/voidput/starorg-codex/issues/15))
-- [x] App contract, real backend, mocks, Ships screen, renders and keyboard check ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] In-game checks (spec §13, Fleet rows): list sort (Q23), long vs short name (Q25), where the prefix shows, symbols ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] Owner: try an RSI+ export (`fleet import --dry-run`) and report store names that need aliases ([#15](https://github.com/voidput/starorg-codex/issues/15))
 
-Developer mode — addendum §7
+Developer mode (addendum §7)
 
-- [x] Core explorer index, record replies, dataset shapes, rows and diff; `dev-worker` protocol and streamed exports ([#15](https://github.com/voidput/starorg-codex/issues/15)) — [[specs/starorg-codex-v1-addendum]]
-- [x] App contract (21 `dev_*` commands, `dev-disabled`), real worker client, mocks, Explorer / Datasets / Diff screens, renders and keyboard check ([#15](https://github.com/voidput/starorg-codex/issues/15))
-- [x] CLI `dev record|export-type|types` ([#15](https://github.com/voidput/starorg-codex/issues/15))
-- [x] Strings: the generator filter is back beside the group tree ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] Published dumps as a dataset source (follow-up; needs the "Use published game data" switch built) ([#15](https://github.com/voidput/starorg-codex/issues/15))
-- [ ] Backlinks ("Referenced by", Q-D2) and the `starorg-gamedata` domain outputs as a source once that crate is on main ([#15](https://github.com/voidput/starorg-codex/issues/15))
+- [ ] Backlinks ("Referenced by", Q-D2) and the `starorg-gamedata` domain outputs as a source ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] Owner: open Explorer on LIVE in the real app and try a type export ([#15](https://github.com/voidput/starorg-codex/issues/15))
 
-Local MCP server (experimental) — addendum §10
+Local MCP server, experimental (addendum §10)
 
-- [x] Query layer port (fuzzy, obtain, where, shops) with golden compare against sc-gamedata ([#15](https://github.com/voidput/starorg-codex/issues/15))
-- [x] `starorg-mcp` crate, `starorg-codex mcp` (stdio), app Settings -> Experimental (loopback HTTP), Activity ([#15](https://github.com/voidput/starorg-codex/issues/15))
-- [x] Extraction memory: prune item-sources, item-tags, blueprints, armor; worker per dataset ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] Owner: connect Claude Code / Claude Desktop to the app's server on a real install and try the tools ([#15](https://github.com/voidput/starorg-codex/issues/15))

@@ -42,8 +42,11 @@ libraries` step in `.github/workflows/ci.yml`).
   `scripts/gen-notices.sh` (needs `cargo install cargo-about --locked --features cli` and
   `npm ci` in `app/`) and commit `THIRD_PARTY_NOTICES.md`. New dependencies must use a license
   allowed in `deny.toml`.
-- Docs live in `docs/` (an Obsidian-compatible vault): link new notes from `docs/Home.md` and
-  `docs/README.md`.
+- Docs live in `docs/` (an Obsidian-compatible vault): kebab-case file names, wikilinks only in
+  the two index notes (always with a plain link next to them). Link new notes from `docs/Home.md`
+  and `docs/README.md`, give them frontmatter with `python3 scripts/obsidian_frontmatter.py`, and
+  check with `python3 scripts/obsidian_frontmatter.py --check`. The script skips notes that already
+  have frontmatter, so bump `updated:` by hand when you edit one.
 
 ## License
 
