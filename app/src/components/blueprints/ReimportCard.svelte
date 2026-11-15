@@ -19,7 +19,7 @@
   import { api, toContractError } from '@/lib/contract/client';
   import type { ChannelRef, CharactersView, ImportReport, RescanReport } from '@/lib/contract/types';
   import { toast } from '@/lib/stores/toast.svelte';
-  import { characterLabel } from '@/lib/characters';
+  import { characterLabel, newestId } from '@/lib/characters';
 
   let { target, view, shown, ondone }: { target: ChannelRef; view: CharactersView; shown: string | null; ondone: () => void } = $props();
 
@@ -40,7 +40,8 @@
   function start(m: Mode) {
     mode = m;
     replace = false;
-    character = shown ?? view.active.resolved ?? chars[0]?.id ?? null;
+    // With the same-name notice, the notice says: re-import into the current (newest) one.
+    character = (view.notice ? newestId(chars) : null) ?? shown ?? view.active.resolved ?? chars[0]?.id ?? null;
     rescan = null;
     reimport = null;
     failed = null;
@@ -113,7 +114,7 @@
         {#if mode === 'rescan'}
           Reads Game.log and every log backup of {target.channel} from the start and rebuilds the blueprints found there. Entries from Smart Citizen or StarOrg Tools stay unless you tick Replace.
         {:else}
-          {view.last_import ? `Reads ${view.last_import} again (the picker opens if it moved)` : 'Pick the owned-blueprints export file you saved'} and adds it to one character. Blueprints from the game logs or StarOrg Tools are never removed.
+          {view.last_import ? `Reads ${view.last_import} again (the picker opens if it moved)` : 'Pick the owned-blueprints export file you saved (you pick it again to confirm)'} and adds it to one character. Blueprints from the game logs or StarOrg Tools are never removed.
         {/if}
       </Dialog.Description>
     </Dialog.Header>

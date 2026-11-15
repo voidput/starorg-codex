@@ -683,6 +683,8 @@ export interface ActiveCharacter {
   resolved: string | null;
   /** Auto passed over the newest character (it owns nothing): its id, for a hint. */
   fallback_from: string | null;
+  /** Auto: another character (not merged with the one used) owns far more; its id. */
+  larger: string | null;
 }
 
 export interface CharactersView {

@@ -1101,6 +1101,32 @@ fn auto_falls_back_and_settings_follow_merges() {
             .as_deref(),
         Some("300003")
     );
+
+    // Another character's set unreadable (truncated) and an odd id the repair kept: the
+    // view, the status and the apply still work; the apply says what was not read.
+    std::fs::write(
+        bp.join("characters.json"),
+        r#"{"repair": 1, "characters": {
+            "100001": {"name": "Old_Pilot", "last_seen": "2026-01-01T00:00:00.000Z"},
+            "ab-c": {"name": "Odd_Pilot", "last_seen": "2026-02-01T00:00:00.000Z"},
+            "300003": {"account_id": "900", "name": "Test_Pilot", "last_seen": "2026-03-02T10:00:00.000Z"}}}"#,
+    )
+    .unwrap();
+    std::fs::write(bp.join("100001.json"), b"{\"schema\": 1, \"entries\": {").unwrap();
+    let mut st = starorg_core::state::ChannelState::load(&data).unwrap();
+    st.active_character = None;
+    st.save(&data).unwrap();
+    let v = f.backend.list_characters(f.live()).unwrap();
+    assert_eq!(v.characters.len(), 3);
+    assert_eq!(v.active.resolved.as_deref(), Some("300003"));
+    f.backend.channel_status(f.live()).unwrap();
+    let (r, _) = f.apply(false);
+    let unread: Vec<_> = r
+        .warnings
+        .iter()
+        .filter(|w| w.kind == "owned-unread")
+        .collect();
+    assert_eq!(unread.len(), 2, "{:?}", r.warnings);
 }
 
 fn bp_line(t: &str, name: &str) -> String {

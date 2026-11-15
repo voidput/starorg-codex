@@ -19,7 +19,9 @@
   import ImportDialog from '@/components/blueprints/ImportDialog.svelte';
   import BlueprintFinder from '@/components/blueprints/BlueprintFinder.svelte';
   import ReimportCard from '@/components/blueprints/ReimportCard.svelte';
-  import { characterLabel, fallbackHint } from '@/lib/characters';
+  import { characterLabel, fallbackHint, largerHint, newestId } from '@/lib/characters';
+  import * as Alert from '@/components/ui/alert';
+  import Info from '@lucide/svelte/icons/info';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { CharacterMode, CharactersView, StarOrgStatus, SyncReport } from '@/lib/contract/types';
   import { fmtDateTime } from '@/lib/format';
@@ -48,7 +50,8 @@
         view = v;
         starorg = s;
         error = null;
-        pullInto ??= v.active.resolved ?? v.characters[0]?.id ?? null;
+        // Same as the notice and the re-import: the current (newest) character when two share a name.
+        pullInto ??= (v.notice ? newestId(v.characters) : null) ?? v.active.resolved ?? v.characters[0]?.id ?? null;
       })
       .catch((e) => !stale && (error = toContractError(e)));
     return () => (stale = true);
@@ -143,9 +146,21 @@
         {/if}
         <p class="text-muted-foreground text-[12px]" aria-live="polite">
           {#if v.active.mode === 'union'}Owned by any of {v.characters.length} characters counts.{:else}Now using <span class="text-foreground font-medium">{name(v.active.resolved)}</span>.{/if}
-          {#if v.active.mode === 'auto' && fallbackHint(v.characters, v.active.resolved, v.active.fallback_from)}{fallbackHint(v.characters, v.active.resolved, v.active.fallback_from)}{/if}
           {#if v.unattributed}{v.unattributed} blueprint{v.unattributed === 1 ? ' was' : 's were'} seen before any login in a log file and belong to no character.{/if}
         </p>
+        {#if v.active.mode === 'auto'}
+          {@const hint = fallbackHint(v.characters, v.active.resolved, v.active.fallback_from) ?? largerHint(v.characters, v.active.resolved, v.active.larger)}
+          {#if hint}
+            <Alert.Root variant="warning">
+              <Info aria-hidden="true" />
+              <Alert.Title>Check whose blueprints are marked</Alert.Title>
+              <Alert.Description>
+                <p>{hint}</p>
+                <div class="mt-2"><Button variant="outline" size="sm" onclick={() => setMode('union')}>Use Any of my characters</Button></div>
+              </Alert.Description>
+            </Alert.Root>
+          {/if}
+        {/if}
       </Card.Content>
     </Card.Root>
 

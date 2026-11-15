@@ -1261,6 +1261,7 @@ impl RealBackend {
                     character: None,
                     resolved: None,
                     fallback_from: None,
+                    larger: None,
                 },
                 unattributed: 0,
                 last_scan: None,
@@ -1299,8 +1300,7 @@ impl RealBackend {
             Some("any") => (CharacterMode::Union, None),
             Some(g) => (CharacterMode::Manual, Some(chars.canonical(g))),
         };
-        let (resolved, fallback_from) =
-            blueprints::auto_character(&data, &chars).unwrap_or((None, None));
+        let pick = blueprints::auto_character(&data, &chars).unwrap_or_default();
         Ok(CharactersView {
             channel: ch.name.clone(),
             characters: chars
@@ -1318,8 +1318,9 @@ impl RealBackend {
             active: ActiveCharacter {
                 mode,
                 character,
-                resolved,
-                fallback_from,
+                resolved: pick.used,
+                fallback_from: pick.fallback_from,
+                larger: pick.larger,
             },
             unattributed: blueprints::load_unattributed(&data)
                 .map(|s| s.entries.len() as u32)

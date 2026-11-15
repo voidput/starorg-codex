@@ -243,6 +243,7 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
             character: None,
             resolved: Some(CHARACTERS[0].0.into()),
             fallback_from: None,
+            larger: None,
         },
         exact_groups,
         owned: owned_sets,
@@ -2396,6 +2397,7 @@ impl Backend for MockBackend {
                         .map(|(id, _, _)| id.to_string())
                         .find(|id| !c.forgotten.contains(id)),
                     fallback_from: None,
+                    larger: None,
                 };
             }
             Ok(characters_view(c))

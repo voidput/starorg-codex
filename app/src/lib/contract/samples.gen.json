@@ -10052,6 +10052,7 @@
     "active": {
       "character": null,
       "fallback_from": null,
+      "larger": null,
       "mode": "auto",
       "resolved": "1000000000001"
     },

@@ -1249,6 +1249,10 @@ pub struct ActiveCharacter {
     /// `auto` passed over the newest character (it owns nothing): its geid, for a hint.
     #[serde(default)]
     pub fallback_from: Option<String>,
+    /// `auto`: another character (not merged with the one used) owns far more; "Any of my
+    /// characters" may be what the user wants. Its geid, for a hint.
+    #[serde(default)]
+    pub larger: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

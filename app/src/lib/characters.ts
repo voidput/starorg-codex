@@ -21,9 +21,26 @@ export function characterLabel(c: Named, all: Named[]): string {
   return newest.id === c.id ? `${c.name} · newest` : `${c.name} · last seen ${date(c.last_seen)}`;
 }
 
+const labelOf = (all: Named[], id: string): string => {
+  const c = (Array.isArray(all) ? all : []).find((x) => x.id === id);
+  return c ? characterLabel(c, all) : id;
+};
+
 /** Hint when auto passed over the newest character (it owns nothing), else null. */
 export function fallbackHint(all: Named[], resolved: string | null, from: string | null): string | null {
   if (!from || !resolved) return null;
-  const name = (id: string) => (Array.isArray(all) ? all : []).find((x) => x.id === id)?.name ?? id;
-  return `Using ${name(resolved)}'s blueprints: the newest character (${name(from)}) has none. Pick one under One character, or choose Any of my characters.`;
+  return `Using ${labelOf(all, resolved)}'s blueprints: the newest character, ${labelOf(all, from)}, has none. Pick one under One character, or choose Any of my characters.`;
+}
+
+/** Hint when another character owns far more than the one auto uses, else null. */
+export function largerHint(all: Named[], resolved: string | null, larger: string | null): string | null {
+  if (!larger || !resolved) return null;
+  return `${labelOf(all, larger)} owns far more blueprints than ${labelOf(all, resolved)}, which [Owned] uses now. If both are you, choose Any of my characters.`;
+}
+
+/** The character with the newest session (ties: the first), or null. */
+export function newestId(all: Named[]): string | null {
+  const list = Array.isArray(all) ? all : [];
+  if (!list.length) return null;
+  return list.reduce((a, b) => ((b.last_seen ?? '') > (a.last_seen ?? '') ? b : a)).id;
 }
