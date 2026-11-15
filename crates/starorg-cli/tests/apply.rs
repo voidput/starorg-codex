@@ -429,7 +429,23 @@ fn game_running_is_exit_3_and_changes_nothing() {
         .env("WINEPREFIX", &f.prefix)
         .spawn()
         .unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    // Wait until the renamed process is visible (a fixed sleep was too short on slow
+    // CI runners), up to 10 s.
+    let pid = game.id();
+    let t0 = std::time::Instant::now();
+    loop {
+        let cmd = std::fs::read(format!("/proc/{pid}/cmdline")).unwrap_or_default();
+        // argv[0] is the game path only after `exec -a` (before it, bash's own command line
+        // merely contains the string).
+        if String::from_utf8_lossy(&cmd).starts_with("C:\\Program Files") {
+            break;
+        }
+        assert!(
+            t0.elapsed() < std::time::Duration::from_secs(10),
+            "fake game never started"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
     let (code, v) = f.json(&["apply", "--channel", "LIVE"]);
     let (code_h, _) = f.json(&["apply", "--channel", "HOTFIX"]);
     game.kill().unwrap();
