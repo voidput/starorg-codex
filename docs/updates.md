@@ -69,6 +69,7 @@ and 12 (release, updater); this note is the as-built reference and the owner's c
 | deb, rpm | Download only: "update it with your package manager or from the release page" |
 | Windows portable zip, built from source, CLI | Download only |
 | Any build whose `updater-public-key.txt` is still the placeholder | Download only |
+| Microsoft Store build (feature `store`) | Store only: no check, no banner, no install; Settings says "Updates come from the Microsoft Store." ([windows](windows.md)) |
 
 The bundle type is the one Tauri stamps into the binary at bundling. The manifest used is the
 checked release's own `https://github.com/<repo>/releases/download/<tag>/latest.json`, and the
@@ -116,4 +117,6 @@ cannot download. Nothing breaks, but updates do not work until Q1 is decided:
   real request against a public repo.
 - Contract samples include `update_status`, `check_for_updates` and `check_for_updates_failed`
   (Rust mock, fixed version 0.1.0 and clock). `npm test` checks the banner rules over them.
-- Renders: browser mock with `?update=available|failed|skipped` (`&notes=1` opens What's new).
+- Renders: browser mock with `?update=available|failed|skipped|store` (`&notes=1` opens What's new).
+- Store flavour: `cargo test -p starorg-strings-app --features store --lib update` (CI runs it):
+  `store_builds_never_request_or_install` checks no request and no updater call.

@@ -17,6 +17,8 @@ M0: skeleton and decisions — [[specs/starorg-strings-v1]] ([plain](../specs/st
 - [ ] release-please + throwaway v0.0.1 through the build matrix ([#7](https://github.com/voidput/starorg-strings/issues/7))
 - [x] Tauri 2 + Svelte 5 app shell with StarOrg/RSI+ design tokens ([#8](https://github.com/voidput/starorg-strings/issues/8))
 - [ ] decide release location (Q1) and Windows tester (Q19) ([#9](https://github.com/voidput/starorg-strings/issues/9)); the update check's default repo follows it (docs/updates.md, Private repo caveat)
+- [ ] Windows tester runs [windows-test-checklist](../../windows-test-checklist.md) on a real install and files the report ([#9](https://github.com/voidput/starorg-strings/issues/9))
+- [ ] Owner: Partner Center account, reserve "StarOrg Strings", set `MSIX_*` variables; Azure Artifact Signing + `AZURE_*` secrets/variables ([#16](https://github.com/voidput/starorg-strings/issues/16); steps in [windows](../../windows.md))
 - [ ] Owner: updater key: `npx tauri signer generate`, add `TAURI_SIGNING_PRIVATE_KEY` + `_PASSWORD` secrets, paste the public key into `app/src-tauri/updater-public-key.txt`, copy to 1Password ([#15](https://github.com/voidput/starorg-strings/issues/15); steps in [updates](../../updates.md))
 
 M1 + M2 (merged into main; verification fixes 2026-11-14, local only, not pushed)
