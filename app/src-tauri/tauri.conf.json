@@ -51,6 +51,13 @@
     ],
     "category": "Utility",
     "shortDescription": "Star Citizen text enhancements",
+    "copyright": "Copyright (c) 2026 StarOrg Tools. MIT License.",
+    "license": "MIT",
+    "homepage": "https://github.com/voidput/starorg-strings",
+    "resources": {
+      "../../LICENSE": "LICENSE",
+      "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

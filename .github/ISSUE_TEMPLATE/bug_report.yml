@@ -1,0 +1,57 @@
+name: Bug report
+description: Something in the app or the CLI does not work as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report. Security problems go to SECURITY.md, not here.
+        Diagnostics exports (Activity -> Export diagnostics) replace your user name and paths; attach one if you can.
+  - type: input
+    id: version
+    attributes:
+      label: StarOrg Codex version
+      description: Footer -> About in the app, or `starorg-strings version`.
+      placeholder: 0.0.2
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform and package
+      options:
+        - Windows - installer (NSIS/MSI)
+        - Windows - Microsoft Store
+        - Windows - CLI
+        - Linux - AppImage
+        - Linux - deb/rpm
+        - Linux - CLI
+        - Built from source
+    validations:
+      required: true
+  - type: input
+    id: channel
+    attributes:
+      label: Game channel and build
+      description: As shown in the footer, e.g. LIVE 4.x.y.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Diagnostics or logs
+      description: Paste or attach the diagnostics export. Check it for anything you do not want to share first.
+      render: text

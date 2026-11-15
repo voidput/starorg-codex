@@ -1,7 +1,7 @@
 ---
 title: CI and security checks
 tags: [ci, security]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # CI and security checks
@@ -12,7 +12,7 @@ comment; Dependabot (`github-actions`) moves the SHA and comment together. Each 
 
 | Workflow | Triggers | Jobs |
 |---|---|---|
-| CI (`ci.yml`) | PR, push `main`/`dev` | `rust` (fmt, clippy, tests on Linux + Windows, release worker test, Tauri crate checks), `deny` (cargo-deny, all checks), `cli-deps` (CLI tree has no GTK/HTTP), `ui` (lint, check, unit tests in `app/`), `notify-failure` |
+| CI (`ci.yml`) | PR, push `main`/`dev` | `rust` (fmt, clippy, tests on Linux + Windows, release worker test, Tauri crate checks), `deny` (cargo-deny, all checks), `cli-deps` (CLI tree has no GTK/HTTP), `ui` (lint, check, unit tests in `app/`), `notices` (`THIRD_PARTY_NOTICES.md` up to date; warning only, so Dependabot lock bumps stay green), `notify-failure` |
 | Security (`security.yml`) | push `main`, PR, weekly Mon 06:17 UTC, manual | `codeql` (rust, javascript-typescript, actions; `security-and-quality`; `build-mode: none` so no GTK build), `cargo-audit` (RustSec advisories via cargo-deny), `npm-audit` (`app/`: prod moderate+, all high+), `dependency-review` (PRs, fails on high+), `secrets` (gitleaks, full history), `notify-failure` |
 | Scorecard (`scorecard.yml`) | push `main`, weekly Mon 06:41 UTC, manual | OpenSSF Scorecard; publishes the score and uploads SARIF to Code scanning. Never fails the build |
 | Notify CI Failure (`notify-failure.yml`) | `workflow_call` only | Posts a red Discord embed. No-ops when the webhook secret is unset. GitHub-hosted runner only (public repo: never self-hosted) |

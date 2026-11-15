@@ -1,7 +1,7 @@
 ---
 title: Microsoft Store listing (draft)
 tags: [docs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Microsoft Store listing (draft)
@@ -37,8 +37,11 @@ How it works
 Privacy: no account, no telemetry, no analytics. With the default settings the app makes no
 network request at all.
 
-StarOrg Codex is a fan-made tool. It is not affiliated with or endorsed by Cloud Imperium Games
-or Roberts Space Industries. Star Citizen is a trademark of Cloud Imperium Rights LLC.
+StarOrg Codex is an unofficial Star Citizen fan project, not affiliated with the Cloud Imperium
+group of companies. All content in this app not authored by its host or users are property of
+their respective owners. Star Citizen®, Roberts Space Industries® and Cloud Imperium® are
+registered trademarks of Cloud Imperium Rights LLC. StarOrg Codex ships no game assets: it reads
+the files of your own installation and changes only your own local files.
 
 Requires a Star Citizen installation.
 

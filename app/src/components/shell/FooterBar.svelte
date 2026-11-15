@@ -1,11 +1,14 @@
 <script lang="ts">
-  /** Footer bar (spec 9.3): 24 px mono — build, Data.p4k date, cache state, running job, Privacy. */
+  /** Footer bar (spec 9.3): 24 px mono — build, Data.p4k date, cache state, running job, Privacy, About. */
   import { app } from '@/lib/stores/app.svelte';
   import { fmtDate } from '@/lib/format';
   import ShieldCheck from '@lucide/svelte/icons/shield-check';
+  import Info from '@lucide/svelte/icons/info';
   import PrivacyDialog from './PrivacyDialog.svelte';
+  import AboutDialog from './AboutDialog.svelte';
 
   let privacy = $state(false);
+  let about = $state(false);
 
   const ch = $derived(app.channel);
   const cache = $derived(ch ? { fresh: 'cache ready', missing: 'no cache', stale: 'cache stale' }[ch.cache] : '');
@@ -30,5 +33,13 @@
   >
     <ShieldCheck class="size-3" aria-hidden="true" /> Privacy
   </button>
+  <button
+    type="button"
+    class="hover:text-foreground focus-visible:ring-ring/60 flex items-center gap-1 rounded-sm outline-none focus-visible:ring-2"
+    onclick={() => (about = true)}
+  >
+    <Info class="size-3" aria-hidden="true" /> About
+  </button>
 </footer>
 <PrivacyDialog bind:open={privacy} />
+<AboutDialog bind:open={about} />
