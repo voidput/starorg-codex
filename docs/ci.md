@@ -29,7 +29,7 @@ per ecosystem, so CI and Security run once per batch; limit 5 open PRs each. `ta
 | Secret | Required | Use |
 |---|---|---|
 | `DISCORD_CI_WEBHOOK` | optional | Discord webhook for failure pings; unset means no notification |
-| `GITHUB_TOKEN` | automatic | gitleaks, dependency review, CodeQL |
+| `GITHUB_TOKEN` | automatic | dependency review, CodeQL (gitleaks runs as the pinned CLI, no token or licence) |
 | `TAURI_SIGNING_*` | handled elsewhere | release signing, see [release process](release.md) |
 
 ## Repo settings to enable (manual)
