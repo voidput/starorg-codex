@@ -48,7 +48,7 @@ registry! {
 
     // containers, // containers.ts
 
-    // fps_weapons, // fps-weapons.ts
+    fps_weapons, // fps-weapons.ts
 
     // item_sources, // item-sources.ts
 

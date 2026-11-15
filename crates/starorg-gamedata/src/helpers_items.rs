@@ -29,6 +29,33 @@ pub fn number(x: f64) -> Value {
     serde_json::Number::from_f64(x).map_or(Value::Null, Value::Number)
 }
 
+const NBSP: char = '\u{a0}';
+
+/// `a.localeCompare(b)`: [`crate::collate::locale_compare`] plus the no-break space, which
+/// game names carry (`Arrowhead\u{a0}"Pathfinder"`). ICU gives U+00A0 the primary and
+/// secondary weight of a space and a higher tertiary one, so it sorts with the space and
+/// only breaks a tie (left to right, with case). `collate` puts it before every space.
+/// Belongs in `collate` itself; kept here so this batch touches no shared module.
+pub fn locale_compare(a: &str, b: &str) -> std::cmp::Ordering {
+    use crate::collate::locale_compare as icu;
+    use std::cmp::Ordering;
+    if !a.contains(NBSP) && !b.contains(NBSP) {
+        return icu(a, b);
+    }
+    let a2 = a.replace(NBSP, " ");
+    let b2 = b.replace(NBSP, " ");
+    // Primary and secondary levels: case only differs at the tertiary one.
+    let base = icu(&a2.to_lowercase(), &b2.to_lowercase());
+    if base != Ordering::Equal {
+        return base;
+    }
+    let tertiary = |c: char| u8::from(c == NBSP || c.is_uppercase());
+    a.chars()
+        .map(tertiary)
+        .cmp(b.chars().map(tertiary))
+        .then_with(|| icu(&a2, &b2))
+}
+
 /// `/^<prefix>(\w+)$/` and `/^(\w+)<suffix>$/`: the captured part, when non-empty and all
 /// ASCII word characters.
 fn word(s: &str) -> Option<&str> {
@@ -494,6 +521,37 @@ mod tests {
 
     fn json_of<T: serde::Serialize>(v: &T) -> Value {
         serde_json::to_value(v).unwrap()
+    }
+
+    #[test]
+    fn locale_compare_sorts_no_break_spaces_like_node() {
+        // Node 24 (ICU 78): [...].sort((a, b) => a.localeCompare(b))
+        let mut v = vec![
+            "Arrowhead\u{a0}\"Pathfinder\"",
+            "Arrowhead \"Boneyard\"",
+            "Arrowhead \"Pathfinder\"",
+            "Arrowhead\u{a0}\"pathfinder\"",
+            "arrowhead\u{a0}\"Pathfinder\"",
+            "Arrowhead\u{a0}Sniper",
+            "Arrowhead Sniper",
+            "LH86\u{a0}\"Voyager\" Pistol",
+            "LH86 \"Pathfinder\" Pistol",
+        ];
+        v.sort_by(|a, b| locale_compare(a, b));
+        assert_eq!(
+            v,
+            vec![
+                "Arrowhead \"Boneyard\"",
+                "arrowhead\u{a0}\"Pathfinder\"",
+                "Arrowhead \"Pathfinder\"",
+                "Arrowhead\u{a0}\"pathfinder\"",
+                "Arrowhead\u{a0}\"Pathfinder\"",
+                "Arrowhead Sniper",
+                "Arrowhead\u{a0}Sniper",
+                "LH86 \"Pathfinder\" Pistol",
+                "LH86\u{a0}\"Voyager\" Pistol",
+            ]
+        );
     }
 
     #[test]
