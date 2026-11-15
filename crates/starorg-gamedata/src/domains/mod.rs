@@ -72,7 +72,7 @@ registry! {
 
     // reputation, // reputation.ts
 
-    // salvage, // salvage.ts
+    salvage, // salvage.ts
 
     // ships, // ships.ts
 
