@@ -1,2 +1,4 @@
 # Test fixtures are byte-exact (CRLF/BOM matter); never convert line endings.
 crates/*/tests/fixtures/** -text
+# Generated contract samples are compared byte for byte.
+app/src/lib/contract/samples.gen.json -text
