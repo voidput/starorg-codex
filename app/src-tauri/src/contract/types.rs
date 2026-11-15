@@ -42,6 +42,8 @@ pub enum ErrorCode {
     /// Network feature used while its switch is off.
     NetworkOff,
     Cancelled,
+    /// The feature waits on something outside the app (StarOrg sync: SC-ORG-BOT#1659).
+    NotImplemented,
     Internal,
 }
 

@@ -9,7 +9,7 @@
   import * as Dialog from '@/components/ui/dialog';
   import { Button } from '@/components/ui/button';
   import { Skeleton } from '@/components/ui/skeleton';
-  import { api, toContractError } from '@/lib/contract/client';
+  import { api, inTauri, toContractError } from '@/lib/contract/client';
   import type { Diagnostics } from '@/lib/contract/types';
   import { toast } from '@/lib/stores/toast.svelte';
 
@@ -40,8 +40,18 @@
       toast('error', 'Copy failed', 'Select the text and copy it by hand.');
     }
   }
-  function save() {
+  async function save() {
     if (!d) return;
+    // In the app: a native save dialog in Rust (the webview has no file access).
+    if (inTauri()) {
+      try {
+        const where = await api.saveDiagnostics();
+        if (where) toast('success', 'Diagnostics saved', where);
+      } catch (e) {
+        toast('error', 'Save failed', toContractError(e).message);
+      }
+      return;
+    }
     const url = URL.createObjectURL(new Blob([d.text], { type: 'text/plain' }));
     const a = Object.assign(document.createElement('a'), { href: url, download: d.file_name });
     a.click();

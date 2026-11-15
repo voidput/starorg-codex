@@ -44,6 +44,7 @@ interface Samples {
   starorg_push: T.SyncReport;
   patch_detail: T.PatchDetail;
   export_diagnostics: T.Diagnostics;
+  save_diagnostics: string | null;
   hooks_status: T.HooksStatus;
   doctor: T.DoctorReport;
 }

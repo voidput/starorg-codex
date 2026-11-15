@@ -838,6 +838,11 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const [out, redacted] = redact(text);
       return { file_name: 'starorg-strings-diagnostics-20261114-213005.txt', text: out, redacted };
     },
+    // The browser has no native save dialog: the UI downloads a blob instead and never calls this.
+    save_diagnostics: () => {
+      addLog('info', null, null, 'Saved diagnostics');
+      return '~/starorg-strings-diagnostics-20261114-213005.txt';
+    },
   };
 
   if (startReady) {

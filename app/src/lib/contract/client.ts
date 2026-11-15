@@ -62,6 +62,7 @@ export interface CommandMap {
   hooks_uninstall: [Record<string, never>, T.HooksStatus];
   doctor: [Record<string, never>, T.DoctorReport];
   export_diagnostics: [Record<string, never>, T.Diagnostics];
+  save_diagnostics: [Record<string, never>, string | null];
 }
 
 export type Command = keyof CommandMap;
@@ -121,6 +122,7 @@ export const COMMANDS = [
   'hooks_uninstall',
   'doctor',
   'export_diagnostics',
+  'save_diagnostics',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -266,5 +268,7 @@ export const api = {
   hooksUninstall: () => call('hooks_uninstall', none),
   doctor: () => call('doctor', none),
   exportDiagnostics: () => call('export_diagnostics', none),
+  /** Native save dialog (Tauri only); the path comes back for display, null = cancelled. */
+  saveDiagnostics: () => call('save_diagnostics', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
 };

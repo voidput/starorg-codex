@@ -3,14 +3,17 @@
 //! - [`types`]: every request and response shape, mirrored in `app/src/lib/contract/types.ts`.
 //! - [`Backend`]: what the UI can ask for. Commands are thin: they unpack the request, call the
 //!   backend off the main thread and forward progress as [`types::JOB_EVENT`] events.
-//! - [`mock::MockBackend`]: synthetic data and in-memory state, until the M1 (apply core,
-//!   hooks, import) and M2 (game data, enhancements) backends are merged. A real backend
-//!   implements the same trait and is selected in [`crate::run`]; the commands do not change.
+//! - [`real::RealBackend`]: the default, over `starorg-core` and `starorg-data`.
+//! - `mock::MockBackend`: synthetic data and in-memory state, for UI work without a game
+//!   install (feature `mock-backend`) and for the contract tests. [`crate::run`] picks one;
+//!   the commands do not change.
 //!
 //! Command names are snake_case and take one argument named `req` (or none), so the TS client
 //! is a straight `invoke(name, { req })`.
 
+#[cfg(any(test, feature = "mock-backend"))]
 pub mod mock;
+pub mod schema;
 pub mod types;
 
 use std::sync::Arc;
@@ -97,8 +100,11 @@ pub trait Backend: Send + Sync + 'static {
     fn hooks_uninstall(&self) -> CmdResult<HooksStatus>;
 
     fn doctor(&self) -> CmdResult<DoctorReport>;
-    /// Redacted doctor + recent log; the real backend also offers to save it via a dialog.
+    /// Redacted doctor + recent log, shown in full before it is copied or saved.
     fn export_diagnostics(&self) -> CmdResult<Diagnostics>;
+    /// Save the same text through a native save dialog. The path shown back is for display;
+    /// `None` = cancelled (or no dialog, as in the browser mock).
+    fn save_diagnostics(&self) -> CmdResult<Option<String>>;
 }
 
 /// Managed state: the selected backend.
@@ -188,6 +194,7 @@ commands! {
     hooks_uninstall() -> HooksStatus;
     doctor() -> DoctorReport;
     export_diagnostics() -> Diagnostics;
+    save_diagnostics() -> Option<String>;
 }
 
 /// Apply streams [`JOB_EVENT`] events while it runs.
@@ -263,6 +270,7 @@ macro_rules! contract_handler {
             $crate::contract::hooks_uninstall,
             $crate::contract::doctor,
             $crate::contract::export_diagnostics,
+            $crate::contract::save_diagnostics,
         ]
     };
 }
@@ -321,6 +329,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "hooks_uninstall",
     "doctor",
     "export_diagnostics",
+    "save_diagnostics",
 ];
 
 #[cfg(test)]

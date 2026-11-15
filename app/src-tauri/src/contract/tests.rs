@@ -198,6 +198,7 @@ fn samples() -> Value {
         "starorg_push": b.starorg_push("LIVE".into()).unwrap(),
         "patch_detail": b.patch_detail(PatchRef { target: live(), id: "syn-moved-key".into() }).unwrap(),
         "export_diagnostics": b.export_diagnostics().unwrap(),
+        "save_diagnostics": b.save_diagnostics().unwrap(),
         "hooks_status": b.hooks_status().unwrap(),
         "doctor": b.doctor().unwrap(),
     })
@@ -205,10 +206,24 @@ fn samples() -> Value {
 
 /// `samples.gen.json` is what the TS types are checked against (`samples.check.ts`).
 /// Regenerate with `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app`.
+/// Objects with sorted keys, whatever serde_json's `preserve_order` feature says (starorg-data
+/// turns it on for the whole build).
+fn sorted(v: Value) -> Value {
+    match v {
+        Value::Object(m) => {
+            let b: std::collections::BTreeMap<String, Value> =
+                m.into_iter().map(|(k, v)| (k, sorted(v))).collect();
+            Value::Object(b.into_iter().collect())
+        }
+        Value::Array(a) => Value::Array(a.into_iter().map(sorted).collect()),
+        other => other,
+    }
+}
+
 #[test]
 fn samples_match_the_committed_file() {
     let path = app_src().join("samples.gen.json");
-    let text = serde_json::to_string_pretty(&samples()).unwrap() + "\n";
+    let text = serde_json::to_string_pretty(&sorted(samples())).unwrap() + "\n";
     if std::env::var_os("UPDATE_CONTRACT_SAMPLES").is_some() {
         std::fs::write(&path, &text).unwrap();
         return;
@@ -262,6 +277,7 @@ fn ts_unions_list_every_variant() {
                 E::Busy,
                 E::NetworkOff,
                 E::Cancelled,
+                E::NotImplemented,
                 E::Internal,
             ]),
         ),

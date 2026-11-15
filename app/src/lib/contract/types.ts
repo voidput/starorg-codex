@@ -12,7 +12,7 @@ export const JOB_EVENT = 'job-progress';
 
 // Errors --------------------------------------------------------------------------------
 
-export type ErrorCode = 'invalid' | 'not-found' | 'needs-decision' | 'busy' | 'network-off' | 'cancelled' | 'internal';
+export type ErrorCode = 'invalid' | 'not-found' | 'needs-decision' | 'busy' | 'network-off' | 'cancelled' | 'not-implemented' | 'internal';
 
 export interface AppError {
   code: ErrorCode;
