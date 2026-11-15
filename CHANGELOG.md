@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.1.0](https://github.com/voidput/starorg-strings/compare/v0.0.2...v0.1.0) (2026-11-15)
+
+
+### Features
+
+* **app:** About dialog in the footer with license, notices and fan disclaimer ([e9df094](https://github.com/voidput/starorg-strings/commit/e9df0943dc63e8a4fffead9d60518f3776e6f478))
+* **app:** group trees on the Datasets and Diff screens ([c33519a](https://github.com/voidput/starorg-strings/commit/c33519a42b45ed582a3da16d6f16c4bf1286ecc4)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** Preferences step in the setup wizard ([7cfe586](https://github.com/voidput/starorg-strings/commit/7cfe586e2768732f13b3c2b00785a8d4b251ba7a))
+* **app:** StarOrg Tools environment, What to sync switches and Sync now ([0d88223](https://github.com/voidput/starorg-strings/commit/0d88223850537060dda130f198ae9067659edda6)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** StarOrg Tools sign-in, pull, push and hangar in the real backend ([5b2505f](https://github.com/voidput/starorg-strings/commit/5b2505f16524cbf5d189828e9c7478358ba05ffd)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** Support and Buy me a coffee links in the footer and About ([254a06a](https://github.com/voidput/starorg-strings/commit/254a06ade4b2ab5a0bd3857419f040d570fa6e77))
+* **contract:** dev_groups and dev_diff_groups for the group trees ([140f5af](https://github.com/voidput/starorg-strings/commit/140f5af132d7f324a73d74b1a15cc0e9651dd80d)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **scripts:** add a user-local Linux installer for the CLI and AppImage ([46ec8ea](https://github.com/voidput/starorg-strings/commit/46ec8ea5cd80029fa2765755ea868cb03233ef6d))
+
+
+### Bug Fixes
+
+* **dev:** name dataset values by record name; tell shared titles apart; name list positions ([ac55e0f](https://github.com/voidput/starorg-strings/commit/ac55e0f37ffe154107e608dd70dacb5673b2fdae)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **dev:** name records from their own name fields only; Show IDs hides inline stock text ([8523ece](https://github.com/voidput/starorg-strings/commit/8523ece66107609faab92adc10d4f0bc6b6c323a)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **dev:** total order for group-tree siblings; Diff tree follows Match by; fit 1024 ([b51dd16](https://github.com/voidput/starorg-strings/commit/b51dd16fbef06f7e6664875fdea804301bd4fa4c)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **starorg:** honest sign-out, STARORG_ENV only on a bare sync set, safer push times ([06057ce](https://github.com/voidput/starorg-strings/commit/06057ce4dbce254c0a4a40eb0b08f49a24129f95)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+
 ## [0.0.2](https://github.com/voidput/starorg-strings/compare/v0.0.1...v0.0.2) (2026-11-15)
 
 
