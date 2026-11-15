@@ -10,11 +10,12 @@
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import { updates } from '@/lib/stores/update.svelte';
-  import { checkLine, requestHint } from '@/lib/update';
+  import { applyUpdateSwitch, checkLine, requestHint } from '@/lib/update';
   import { fmtDateTime } from '@/lib/format';
   import { cn } from '@/lib/utils';
 
-  let { checked, onchange }: { checked: boolean; onchange: (v: boolean) => void } = $props();
+  /** `onchange` saves the switch and resolves once the save has landed (false on failure). */
+  let { checked, onchange }: { checked: boolean; onchange: (v: boolean) => Promise<boolean> } = $props();
 
   const st = $derived(updates.status);
   const line = $derived(st ? checkLine({ ...st, enabled: checked }) : null);
@@ -25,10 +26,8 @@
   });
   const tone = { muted: 'text-muted-foreground', success: 'text-success', info: 'text-foreground', warning: 'text-foreground' } as const;
 
-  async function toggle(v: boolean) {
-    onchange(v);
-    if (v) await updates.enabled();
-    else await updates.refresh();
+  function toggle(v: boolean) {
+    void applyUpdateSwitch(v, { save: onchange, check: () => updates.enabled(), refresh: () => updates.refresh() });
   }
   async function saveRepo() {
     if (!st) return;

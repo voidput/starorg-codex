@@ -38,11 +38,12 @@
   const accents: Accent[] = ['cyan', 'green', 'amber', 'orange', 'rose', 'violet'];
   const swatch: Record<Accent, string> = { cyan: '#3cc8ff', green: '#3ddc97', amber: '#ffd166', orange: '#ff9f43', rose: '#ff6b9d', violet: '#a78bfa' };
 
-  function patch(f: (s: Settings) => void) {
-    if (!app.settings) return;
+  /** Resolves once the save has landed (false if it failed); most callers do not wait. */
+  function patch(f: (s: Settings) => void): Promise<boolean> {
+    if (!app.settings) return Promise.resolve(false);
     const s = structuredClone($state.snapshot(app.settings)) as Settings;
     f(s);
-    void app.saveSettings(s);
+    return app.saveSettings(s);
   }
   import Check from '@lucide/svelte/icons/check';
   let rescanning = $state(false);

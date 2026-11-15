@@ -40,3 +40,16 @@ export function checkLine(s: UpdateStatus): { tone: 'muted' | 'success' | 'info'
 export function requestHint(repo: string): string {
   return `When the app starts (at most once a day) and when you press Check now: one request to api.github.com for the releases of ${repo}. It sends only "StarOrg-Strings/<version>" as its user agent: no account, token or install id.`;
 }
+
+/** Settings switch for the update check: the save must land before the check or status
+ *  read, because Rust reads the switch from app.json and each IPC call runs on its own
+ *  thread (a check sent alongside the save could see the old value). Nothing runs after a
+ *  failed save. */
+export async function applyUpdateSwitch(
+  on: boolean,
+  io: { save: (on: boolean) => Promise<boolean>; check: () => Promise<void>; refresh: () => Promise<void> },
+): Promise<void> {
+  if (!(await io.save(on))) return;
+  if (on) await io.check();
+  else await io.refresh();
+}

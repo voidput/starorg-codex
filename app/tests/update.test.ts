@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { bannerRelease, bannerTitle, checkLine, requestHint } from '../src/lib/update.ts';
+import { applyUpdateSwitch, bannerRelease, bannerTitle, checkLine, requestHint } from '../src/lib/update.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const available = samples.check_for_updates;
@@ -49,4 +49,43 @@ test('the hint names the host and what is sent', () => {
   assert.match(h, /api\.github\.com/);
   assert.match(h, /StarOrg-Strings\/<version>/);
   assert.match(h, /no account, token or install id/);
+});
+
+// Regression: the switch used to fire the save without waiting, so the check (which reads
+// app.json in Rust on another thread) often ran first and skipped. A slow save and a fast
+// check reproduce that ordering.
+function recorder(saveOk: boolean, saveMs: number) {
+  const log: string[] = [];
+  const io = {
+    save: (on: boolean) =>
+      new Promise<boolean>((res) =>
+        setTimeout(() => {
+          log.push(`save:${on}`);
+          res(saveOk);
+        }, saveMs),
+      ),
+    check: async () => void log.push('check'),
+    refresh: async () => void log.push('refresh'),
+  };
+  return { log, io };
+}
+
+test('turning the switch on checks only after the save has landed', async () => {
+  const { log, io } = recorder(true, 30);
+  await applyUpdateSwitch(true, io);
+  assert.deepEqual(log, ['save:true', 'check']);
+});
+
+test('turning the switch off reads the status only after the save has landed', async () => {
+  const { log, io } = recorder(true, 30);
+  await applyUpdateSwitch(false, io);
+  assert.deepEqual(log, ['save:false', 'refresh']);
+});
+
+test('a failed save runs no check and no status read', async () => {
+  for (const on of [true, false]) {
+    const { log, io } = recorder(false, 5);
+    await applyUpdateSwitch(on, io);
+    assert.deepEqual(log, [`save:${on}`]);
+  }
 });
