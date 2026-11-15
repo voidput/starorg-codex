@@ -147,10 +147,15 @@ pub fn write_sound(
     let idx = a.audio()?;
     let wem = idx.media_bytes(a, s)?;
     let duration = audio::duration(&wem);
+    // A Vorbis stream ww2ogg cannot rebuild (a few per ship) is kept as the original WEM.
     let (bytes, ext) = if raw {
         (wem, "wem")
     } else {
-        audio::decode(&wem)?
+        match audio::decode(&wem) {
+            Ok(x) => x,
+            Err(_) if starbreaker_wem::WemFile::parse(&wem).is_ok() => (wem, "wem"),
+            Err(e) => return Err(e),
+        }
     };
     let out = if ext == "ogg" { out_ogg } else { out_wem };
     write_file(out, &bytes)?;
