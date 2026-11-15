@@ -1,14 +1,18 @@
 //! HTTPS transport for [`starorg_core::source::dump`] (addendum §1).
 //!
-//! This is the only crate with an HTTP client outside the updater. It is linked only when
-//! the network feature is built in, and used only when the user turned "Use published
-//! game data" on. It talks to two hosts, both read only:
+//! This is the only crate with an HTTP client outside the updater plugin. The CLI links it
+//! only with the `published-dumps` feature; the app links it for the two opt-in network
+//! switches. It talks to two hosts, both read only:
 //!
 //! - `api.github.com`: the release for a tag, the commit a tag points at, the commit's
-//!   tree (git blob ids, which the core verifies every file against);
+//!   tree (git blob ids, which the core verifies every file against), and the app's own
+//!   release list ([`releases`], used only when "Check for updates" is on);
 //! - `raw.githubusercontent.com`: the dataset files at that commit.
 //!
-//! Requests carry a generic `User-Agent` and nothing about the user or the install.
+//! Requests carry a generic `User-Agent` and nothing about the user or the install: no
+//! token, no cookie, no install id.
+
+pub mod releases;
 
 use serde::Deserialize;
 use starorg_core::source::SourceError;
