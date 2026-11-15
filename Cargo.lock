@@ -3627,6 +3627,7 @@ dependencies = [
  "starorg-cli",
  "starorg-core",
  "starorg-data",
+ "starorg-mcp",
  "starorg-net",
  "tempfile",
  "toml 0.9.12+spec-1.1.0",
@@ -3675,6 +3676,20 @@ dependencies = [
  "starorg-data",
  "tempfile",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "starorg-mcp"
+version = "0.0.0"
+dependencies = [
+ "getrandom 0.3.4",
+ "serde",
+ "serde_json",
+ "sha2",
+ "starorg-core",
+ "starorg-gamedata",
+ "starorg-mcp",
+ "tempfile",
 ]
 
 [[package]]

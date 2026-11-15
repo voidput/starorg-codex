@@ -10,6 +10,7 @@ mod dev_cmds;
 mod fleet_cmds;
 mod gamedata_cmd;
 mod hook_cmds;
+mod mcp_cmd;
 mod version_cmd;
 
 use clap::{Args, Parser, Subcommand};
@@ -265,6 +266,15 @@ pub enum Command {
         #[command(subcommand)]
         cmd: DevCmd,
     },
+    /// Experimental: a local MCP server on stdin/stdout with read-only game data tools
+    /// (search, item, where to buy/found, how to obtain, missions, compare, strings, diff).
+    /// For Claude Code / Claude Desktop; see docs/mcp.md. Reads only; no network.
+    Mcp {
+        /// Default channel for tools that are not given one (default: the app's default
+        /// channel, else LIVE).
+        #[arg(long, value_name = "NAME")]
+        channel: Option<String>,
+    },
     /// Internal: extract one Data.p4k in a separate process (spec 3.3).
     #[command(hide = true)]
     ExtractWorker {
@@ -491,6 +501,11 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
+    let args: Vec<OsString> = args.into_iter().map(Into::into).collect();
+    // The MCP server's extraction worker: one dataset per process (starorg_mcp::worker).
+    if let Some(code) = starorg_mcp::worker::worker_main(&args) {
+        return ExitCode::from(code as u8);
+    }
     let cli = match Cli::try_parse_from(args) {
         Ok(c) => c,
         Err(e) => {
@@ -591,6 +606,7 @@ where
         Command::Blueprints { cmd } => blueprint_cmds::run(&cli.global, cmd),
         Command::Fleet { cmd } => fleet_cmds::run(&cli.global, cmd),
         Command::Dev { cmd } => dev_cmds::run(&cli.global, cmd),
+        Command::Mcp { channel } => mcp_cmd::run(&cli.global, channel.as_deref()),
         Command::ExtractWorker {
             p4k,
             out,

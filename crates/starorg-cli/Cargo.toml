@@ -20,6 +20,8 @@ path = "src/main.rs"
 [dependencies]
 starorg-core.workspace = true
 starorg-data.workspace = true
+# Experimental local MCP server, stdio only here (no `http` feature: ci.yml's cli-deps job).
+starorg-mcp.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
