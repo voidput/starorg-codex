@@ -58,7 +58,19 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/applications/starorg-strings-app.desktop": "linux/starorg-strings-app.desktop"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/applications/starorg-strings-app.desktop": "linux/starorg-strings-app.desktop"
+        }
+      }
+    }
   },
   "plugins": {
     "updater": {
