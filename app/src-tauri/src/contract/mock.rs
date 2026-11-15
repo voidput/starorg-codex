@@ -301,7 +301,8 @@ impl MockBackend {
                     theme: Theme::System,
                     accent: Accent::Cyan,
                     palette: Palette::Void,
-                    reduce_effects: cfg!(target_os = "linux"),
+                    // Fixed, not per OS: the mock feeds samples.gen.json, which must match on every runner.
+                    reduce_effects: true,
                 },
                 network: NetworkSettings {
                     check_updates: false,
@@ -324,7 +325,7 @@ impl MockBackend {
                 push_count: 0,
             },
             hooks: HooksStatus {
-                supported: cfg!(target_os = "linux"),
+                supported: true,
                 cli_on_path: true,
                 scripts: vec![
                     HookScript {
