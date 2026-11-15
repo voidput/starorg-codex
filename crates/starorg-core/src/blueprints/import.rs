@@ -33,9 +33,40 @@ pub struct Export {
     pub blueprints: Vec<ExportEntry>,
 }
 
+/// The export's text: UTF-8 with or without a byte-order mark, or UTF-16 with one (what
+/// Windows Notepad writes as "Unicode" when the file was opened and saved there).
+pub fn decode(bytes: &[u8]) -> Result<std::borrow::Cow<'_, str>, String> {
+    let utf16 = |rest: &[u8], le: bool| -> Result<String, String> {
+        if !rest.len().is_multiple_of(2) {
+            return Err("not a Smart Citizen export (odd UTF-16 length)".into());
+        }
+        let units = rest.as_chunks::<2>().0.iter().map(|c| {
+            if le {
+                u16::from_le_bytes([c[0], c[1]])
+            } else {
+                u16::from_be_bytes([c[0], c[1]])
+            }
+        });
+        char::decode_utf16(units)
+            .collect::<Result<String, _>>()
+            .map_err(|e| format!("not a Smart Citizen export (bad UTF-16: {e})"))
+    };
+    if let Some(rest) = bytes.strip_prefix(b"\xFF\xFE") {
+        return utf16(rest, true).map(Into::into);
+    }
+    if let Some(rest) = bytes.strip_prefix(b"\xFE\xFF") {
+        return utf16(rest, false).map(Into::into);
+    }
+    let body = bytes.strip_prefix(crate::ini::BOM).unwrap_or(bytes);
+    std::str::from_utf8(body)
+        .map(Into::into)
+        .map_err(|e| format!("not a Smart Citizen export (not UTF-8 text: {e})"))
+}
+
 /// Parse an export. Refuses anything but version 1 with a clear message.
 pub fn parse_export(bytes: &[u8]) -> Result<Export, String> {
-    let v: serde_json::Value = serde_json::from_slice(bytes)
+    let text = decode(bytes)?;
+    let v: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| format!("not a Smart Citizen export (invalid JSON: {e})"))?;
     match v.get("version").and_then(serde_json::Value::as_u64) {
         Some(1) => {}
@@ -74,6 +105,9 @@ pub struct ImportReport {
     pub unmatched: Vec<String>,
     /// Several catalog matches: stored with every candidate and flagged, never guessed.
     pub ambiguous: Vec<Ambiguous>,
+    /// `replace`: entries from an earlier Smart Citizen import that this export no longer
+    /// has (display names). Entries from the logs or StarOrg Tools are never removed.
+    pub removed: Vec<String>,
     pub exported_at: Option<String>,
     /// The catalog was empty: nothing can match.
     pub empty_catalog: bool,
@@ -82,14 +116,40 @@ pub struct ImportReport {
 impl ImportReport {
     /// Anything to write.
     pub fn changes(&self) -> bool {
-        !self.imported.is_empty() || !self.ambiguous.is_empty() || !self.known.is_empty()
+        !self.imported.is_empty()
+            || !self.ambiguous.is_empty()
+            || !self.known.is_empty()
+            || !self.removed.is_empty()
     }
 }
 
 /// Merge `export` into `set` (union, never deletes). Returns the report; `set` is changed in
 /// place, so pass a clone for a dry run.
 pub fn merge(export: &Export, catalog: &dyn BlueprintCatalog, set: &mut OwnedSet) -> ImportReport {
+    merge_with(export, catalog, set, false)
+}
+
+/// [`merge`], or with `replace` a re-import: the Smart Citizen source is taken off every
+/// entry first (entries with no other source go), so the set ends up holding what this export
+/// says plus what the logs and StarOrg Tools said. With an empty catalog nothing is removed.
+pub fn merge_with(
+    export: &Export,
+    catalog: &dyn BlueprintCatalog,
+    set: &mut OwnedSet,
+    replace: bool,
+) -> ImportReport {
     let idx = index(catalog);
+    let before: BTreeSet<String> = set.entries.keys().cloned().collect();
+    let mut stripped: Vec<(String, String)> = Vec::new();
+    if replace && !idx.is_empty() {
+        for (k, e) in set.entries.iter_mut() {
+            if e.sources.iter().any(|s| s.kind == SOURCE_SMART_CITIZEN) {
+                e.sources.retain(|s| s.kind != SOURCE_SMART_CITIZEN);
+                stripped.push((k.clone(), e.name.clone()));
+            }
+        }
+        set.entries.retain(|_, e| !e.sources.is_empty());
+    }
     let mut rep = ImportReport {
         total: export.blueprints.len(),
         exported_at: export.exported_at.clone(),
@@ -115,7 +175,7 @@ pub fn merge(export: &Export, catalog: &dyn BlueprintCatalog, set: &mut OwnedSet
             rep.unmatched.push(e.name.clone());
             continue;
         };
-        let known = set.entries.contains_key(&key);
+        let known = before.contains(&key);
         set.add(
             &e.name,
             Source {
@@ -144,7 +204,41 @@ pub fn merge(export: &Export, catalog: &dyn BlueprintCatalog, set: &mut OwnedSet
             rep.imported.push(e.name.clone());
         }
     }
+    // What the last import had and this one does not.
+    rep.removed = stripped
+        .into_iter()
+        .filter(|(k, _)| !set.entries.contains_key(k))
+        .map(|(_, n)| n)
+        .collect();
     rep
+}
+
+/// `blueprints/import.json`: the last Smart Citizen export used for this channel, so a
+/// re-import can read it again without the picker. A local path only; never uploaded.
+pub const LAST_JSON: &str = "import.json";
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LastImport {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub smart_citizen: Option<std::path::PathBuf>,
+}
+
+pub fn last_import(channel_data: &std::path::Path) -> LastImport {
+    crate::fsutil::read_json(&super::dir(channel_data).join(LAST_JSON))
+        .ok()
+        .flatten()
+        .unwrap_or_default()
+}
+
+pub fn save_last_import(
+    channel_data: &std::path::Path,
+    file: &std::path::Path,
+) -> Result<(), String> {
+    let last = LastImport {
+        smart_citizen: Some(file.to_path_buf()),
+    };
+    crate::fsutil::write_json(&super::dir(channel_data).join(LAST_JSON), &last)
+        .map_err(|e| e.to_string())
 }
 
 /// Display name of an export entry (tags stripped), for messages.
@@ -240,5 +334,81 @@ mod tests {
         assert!(r.empty_catalog);
         assert_eq!(r.unmatched.len(), 5);
         assert!(set.entries.is_empty());
+    }
+
+    /// The export as Windows tools leave it: a UTF-8 BOM, CRLF line ends, a `\r` or a
+    /// trailing space inside a name; or re-saved as UTF-16 ("Unicode") by Notepad.
+    #[test]
+    fn windows_exports_parse_and_match() {
+        let crlf = EXPORT
+            .replace('\n', "\r\n")
+            .replace("\"Already Logged\"", "\"Already Logged\\r\"")
+            .replace(
+                "\"[H] [E-S2] Test Helmet\"",
+                "\"[H] [E-S2] Test Helmet \\u00a0\"",
+            );
+        let mut bom = crate::ini::BOM.to_vec();
+        bom.extend(crlf.as_bytes());
+        let mut le = vec![0xFF, 0xFE];
+        le.extend(crlf.encode_utf16().flat_map(u16::to_le_bytes));
+        let mut be = vec![0xFE, 0xFF];
+        be.extend(crlf.encode_utf16().flat_map(u16::to_be_bytes));
+        for bytes in [bom, le, be] {
+            let ex = parse_export(&bytes).unwrap();
+            let mut set = OwnedSet::new(Some("1001"));
+            let r = merge(&ex, &catalog(), &mut set);
+            assert!(r.unmatched == vec!["[M] Nowhere Item"], "{r:?}");
+            assert!(set.entries.contains_key("already logged"));
+            assert_eq!(set.entries["already logged"].name, "Already Logged");
+            assert_eq!(set.entries["test helmet"].name, "Test Helmet");
+        }
+        assert!(parse_export(&[0xFF, 0xFE, 0x7B]).is_err());
+    }
+
+    #[test]
+    fn replace_reimport_removes_only_what_the_export_dropped() {
+        let ex = parse_export(EXPORT.as_bytes()).unwrap();
+        let mut set = OwnedSet::new(Some("1001"));
+        merge(&ex, &catalog(), &mut set);
+        set.add(
+            "Test Helmet",
+            Source {
+                kind: SOURCE_LOG.into(),
+                time: None,
+                file: None,
+            },
+        );
+        let fewer = parse_export(
+            br#"{"version": 1, "blueprints": [{"name": "Already Logged", "completed": true}]}"#,
+        )
+        .unwrap();
+        // Plain import: union, nothing removed.
+        let mut plain = set.clone();
+        let r = merge(&fewer, &catalog(), &mut plain);
+        assert!(r.removed.is_empty());
+        assert_eq!(plain.entries.len(), 4);
+        // Replace: the rifle and the twin go; the helmet stays (also in the log).
+        let r = merge_with(&fewer, &catalog(), &mut set, true);
+        assert_eq!(r.removed, vec!["Fake Rifle 'Kestrel'", "Twin Name"]);
+        assert_eq!(r.known, vec!["Already Logged"]);
+        assert!(r.imported.is_empty());
+        assert_eq!(
+            set.entries.keys().collect::<Vec<_>>(),
+            vec!["already logged", "test helmet"]
+        );
+        assert_eq!(set.entries["test helmet"].sources.len(), 1);
+        // An empty catalog removes nothing.
+        let mut keep = set.clone();
+        let r = merge_with(&fewer, &ListCatalog::default(), &mut keep, true);
+        assert!(r.removed.is_empty() && keep == set);
+    }
+
+    #[test]
+    fn last_import_round_trip() {
+        let d = tempfile::tempdir().unwrap();
+        assert_eq!(last_import(d.path()), LastImport::default());
+        let f = d.path().join("owned-blueprints.json");
+        save_last_import(d.path(), &f).unwrap();
+        assert_eq!(last_import(d.path()).smart_citizen, Some(f));
     }
 }

@@ -16,6 +16,7 @@ pub mod catalog;
 pub mod finder;
 pub mod import;
 pub mod logscan;
+pub mod repair;
 
 use crate::fsutil;
 use serde::{Deserialize, Serialize};
@@ -32,6 +33,48 @@ pub const SCAN_JSON: &str = "scan.json";
 pub const SOURCE_LOG: &str = "log";
 pub const SOURCE_SMART_CITIZEN: &str = "import:smart-citizen";
 
+/// Characters that are invisible in a name but break an exact comparison: the byte-order mark
+/// a Windows editor puts in front of a file (and that ends up glued to the first name), and
+/// zero-width spaces/joiners.
+fn invisible(ch: char) -> bool {
+    matches!(
+        ch,
+        '\u{FEFF}' | '\u{200B}' | '\u{200C}' | '\u{200D}' | '\u{2060}'
+    )
+}
+
+/// A name as it is stored and shown: invisible characters dropped, control characters
+/// (a stray `\r` from a CRLF line) and runs of whitespace folded to one space, trimmed.
+pub fn clean_name(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut space = false;
+    for ch in name.chars() {
+        if invisible(ch) {
+            continue;
+        }
+        if ch.is_whitespace() || ch.is_control() {
+            space = !out.is_empty();
+            continue;
+        }
+        if space {
+            out.push(' ');
+            space = false;
+        }
+        out.push(ch);
+    }
+    out
+}
+
+/// A character id (`geid`, `accountId`) as stored: digits only once invisible characters,
+/// `\r` and spaces are dropped; `None` when anything else is left.
+pub fn clean_id(id: &str) -> Option<String> {
+    let s: String = id
+        .chars()
+        .filter(|c| !invisible(*c) && !c.is_whitespace() && !c.is_control())
+        .collect();
+    (!s.is_empty() && s.bytes().all(|b| b.is_ascii_digit())).then_some(s)
+}
+
 /// Drop every leading `[...]` group (Smart Citizen's Tag Builder prefixes such as
 /// `[CIV-S3-A]` or `[H]`, repeatable), then trim.
 pub fn strip_tags(name: &str) -> &str {
@@ -45,19 +88,20 @@ pub fn strip_tags(name: &str) -> &str {
     s.trim()
 }
 
-/// Matching key: tags stripped, quotes and apostrophes unified, whitespace collapsed,
-/// lower case.
+/// Matching key: tags stripped, quotes and apostrophes unified, whitespace (and control
+/// characters such as a stray `\r`) collapsed, invisible characters dropped, lower case.
 pub fn normalize(name: &str) -> String {
     let mut out = String::with_capacity(name.len());
     let mut space = false;
-    for ch in strip_tags(name).chars() {
+    let name: String = name.chars().filter(|c| !invisible(*c)).collect();
+    for ch in strip_tags(&name).chars() {
         let ch = match ch {
             '\u{2018}' | '\u{2019}' | '\u{201A}' | '\u{201B}' | '\u{2032}' | '`' | '\u{00B4}'
             | '\u{02BC}' => '\'',
             '\u{201C}' | '\u{201D}' | '\u{201E}' | '\u{201F}' | '\u{2033}' => '"',
             c => c,
         };
-        if ch.is_whitespace() {
+        if ch.is_whitespace() || ch.is_control() {
             space = !out.is_empty();
             continue;
         }
@@ -143,7 +187,7 @@ impl OwnedSet {
         let e = self.entries.entry(key).or_insert_with(|| {
             new = true;
             OwnedEntry {
-                name: strip_tags(raw_name).to_string(),
+                name: clean_name(strip_tags(raw_name)),
                 ids: Vec::new(),
                 ambiguous: false,
                 favorite: false,
@@ -152,6 +196,70 @@ impl OwnedSet {
         });
         e.add_source(src);
         new
+    }
+
+    /// Union another set's entries into this one: sources kept (earliest time per kind),
+    /// ids unioned, favourite and ambiguous flags kept. Returns how many names were new.
+    pub fn absorb(&mut self, other: OwnedSet) -> usize {
+        let mut new = 0;
+        for (k, e) in other.entries {
+            match self.entries.get_mut(&k) {
+                Some(mine) => mine.absorb(e),
+                None => {
+                    new += 1;
+                    self.entries.insert(k, e);
+                }
+            }
+        }
+        new
+    }
+
+    /// Re-key every entry with the current [`normalize`] and clean its display name, merging
+    /// entries that now share a key. Returns how many entries changed key, name or merged.
+    pub fn rekey(&mut self) -> usize {
+        let mut changed = 0;
+        let old = std::mem::take(&mut self.entries);
+        for (k, mut e) in old {
+            let nk = normalize(&e.name);
+            let nk = if nk.is_empty() { normalize(&k) } else { nk };
+            if nk.is_empty() {
+                changed += 1;
+                continue;
+            }
+            let name = clean_name(&e.name);
+            if nk != k || name != e.name {
+                changed += 1;
+                e.name = name;
+            }
+            match self.entries.get_mut(&nk) {
+                Some(mine) => {
+                    changed += 1;
+                    mine.absorb(e);
+                }
+                None => {
+                    self.entries.insert(nk, e);
+                }
+            }
+        }
+        changed
+    }
+}
+
+impl OwnedEntry {
+    fn absorb(&mut self, e: OwnedEntry) {
+        for s in e.sources {
+            self.add_source(s);
+        }
+        let had_ids = !self.ids.is_empty() && !e.ids.is_empty();
+        for id in e.ids {
+            if !self.ids.contains(&id) {
+                self.ids.push(id);
+            }
+        }
+        self.ids.sort();
+        // Two matches that disagree are a guess either way: listed, never marked.
+        self.ambiguous |= e.ambiguous || (had_ids && self.ids.len() > 1);
+        self.favorite |= e.favorite;
     }
 }
 
@@ -170,14 +278,54 @@ pub struct Character {
 pub struct Characters {
     #[serde(default)]
     pub characters: BTreeMap<String, Character>,
+    /// Ids merged into another character (old geid -> kept geid): the same account's character
+    /// after a reset or a wipe gets a new geid (see [`repair`]). Log lines and settings that
+    /// name an old id resolve through this.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub aliases: BTreeMap<String, String>,
+    /// Version of the one-time store repair ([`repair::REPAIR_VERSION`]) already run.
+    #[serde(default, skip_serializing_if = "is_zero_u32")]
+    pub repair: u32,
+}
+
+fn is_zero_u32(n: &u32) -> bool {
+    *n == 0
 }
 
 impl Characters {
-    /// Record a login line; keeps the latest name.
-    pub fn seen(&mut self, geid: &str, account_id: Option<&str>, name: &str, time: Option<&str>) {
+    /// The kept id for `geid` (itself unless it was merged into another).
+    pub fn canonical(&self, geid: &str) -> String {
+        let mut g = geid;
+        // Bounded: a cycle (hand-edited file) stops instead of looping.
+        for _ in 0..8 {
+            match self.aliases.get(g) {
+                Some(n) if n != g => g = n,
+                _ => break,
+            }
+        }
+        g.to_string()
+    }
+
+    /// Record a login line; keeps the latest name. Ids and names are cleaned first (a CRLF
+    /// log or a pasted value must not make a second character) and merged ids resolve to
+    /// the character they were merged into.
+    /// Returns the id the line counts for, `None` when the id is not a number.
+    pub fn seen(
+        &mut self,
+        geid: &str,
+        account_id: Option<&str>,
+        name: &str,
+        time: Option<&str>,
+    ) -> Option<String> {
+        let geid = clean_id(geid)?;
+        let geid = self.canonical(&geid);
+        let account_id = account_id.and_then(clean_id);
+        let account_id = account_id.as_deref();
+        let name = clean_name(name);
+        let name = name.as_str();
         let c = self
             .characters
-            .entry(geid.to_string())
+            .entry(geid.clone())
             .or_insert_with(|| Character {
                 account_id: None,
                 name: name.to_string(),
@@ -197,6 +345,7 @@ impl Characters {
         if let Some(a) = account_id {
             c.account_id = Some(a.to_string());
         }
+        Some(geid)
     }
 
     /// The character of the newest session.
@@ -207,15 +356,20 @@ impl Characters {
             .map(|(g, _)| g.as_str())
     }
 
-    /// Resolve `<name|geid>`. A name must match exactly one geid (case-insensitive).
+    /// Resolve `<name|geid>`. A name must match exactly one geid (case-insensitive). A merged
+    /// geid resolves to the character it was merged into.
     pub fn resolve(&self, who: &str) -> Result<String, ResolveError> {
-        if self.characters.contains_key(who) {
-            return Ok(who.to_string());
+        let who = clean_name(who);
+        let who = who.as_str();
+        let g = self.canonical(who);
+        if self.characters.contains_key(&g) {
+            return Ok(g);
         }
+        let key = normalize(who);
         let hits: Vec<&String> = self
             .characters
             .iter()
-            .filter(|(_, c)| c.name.eq_ignore_ascii_case(who))
+            .filter(|(_, c)| normalize(&c.name) == key)
             .map(|(g, _)| g)
             .collect();
         match hits.as_slice() {
@@ -502,5 +656,55 @@ mod tests {
         let e = &s.entries["x"];
         assert_eq!(e.sources.len(), 1);
         assert_eq!(e.sources[0].time.as_deref(), Some("2026-01"));
+    }
+
+    #[test]
+    fn stray_windows_characters_do_not_make_new_keys() {
+        assert_eq!(normalize("Test Helmet\r"), "test helmet");
+        assert_eq!(
+            normalize("\u{FEFF}[H] Test\u{200B} Helmet\u{00A0}"),
+            "test helmet"
+        );
+        assert_eq!(clean_name(" Test_Pilot\r\n"), "Test_Pilot");
+        assert_eq!(clean_id("\u{FEFF}1001\r"), Some("1001".into()));
+        assert_eq!(clean_id("10 01"), Some("1001".into()));
+        assert_eq!(clean_id("abc"), None);
+        assert_eq!(clean_id("\r"), None);
+        let mut c = Characters::default();
+        assert_eq!(
+            c.seen("1001\r", Some("77\r"), "Test_Pilot\r", Some("t1"))
+                .as_deref(),
+            Some("1001")
+        );
+        c.seen("\u{FEFF}1001", Some("77"), " Test_Pilot", Some("t2"));
+        assert_eq!(c.characters.len(), 1);
+        assert_eq!(c.characters["1001"].name, "Test_Pilot");
+        assert_eq!(c.characters["1001"].account_id.as_deref(), Some("77"));
+        assert_eq!(c.resolve("test_pilot\r").unwrap(), "1001");
+        assert!(c.seen("x1", None, "Bad", None).is_none());
+    }
+
+    #[test]
+    fn merged_ids_resolve_and_seen_follows_aliases() {
+        let mut c = Characters::default();
+        c.seen("2002", Some("77"), "Pilot", Some("t2"));
+        c.aliases.insert("1001".into(), "2002".into());
+        assert_eq!(c.resolve("1001").unwrap(), "2002");
+        assert_eq!(
+            c.seen("1001", Some("77"), "Pilot", Some("t1")).as_deref(),
+            Some("2002")
+        );
+        assert_eq!(c.characters.len(), 1);
+        // A hand-edited cycle stops.
+        c.aliases.insert("2002".into(), "1001".into());
+        let _ = c.canonical("1001");
+        // Old files without the new fields still read.
+        let old: Characters = serde_json::from_str(r#"{"characters":{"5":{"name":"N"}}}"#).unwrap();
+        assert_eq!((old.repair, old.aliases.len()), (0, 0));
+        let back = serde_json::to_string(&old).unwrap();
+        assert!(
+            !back.contains("aliases") && !back.contains("repair"),
+            "{back}"
+        );
     }
 }

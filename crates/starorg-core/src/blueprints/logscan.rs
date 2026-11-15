@@ -182,9 +182,13 @@ pub struct Store {
     pub unattributed: Option<OwnedSet>,
     pub scan: ScanState,
     dirty_sets: std::collections::BTreeSet<String>,
+    /// Sets merged into another character: their files are removed on save.
+    removed_sets: std::collections::BTreeSet<String>,
     dirty_unattributed: bool,
     dirty_characters: bool,
     dirty_scan: bool,
+    /// Back the store up here before the next save writes anything (a merge or a rebuild).
+    pub(crate) backup: Option<PathBuf>,
 }
 
 impl Store {
@@ -200,6 +204,7 @@ impl Store {
     }
 
     pub fn set_mut(&mut self, channel_data: &Path, geid: &str) -> Result<&mut OwnedSet, String> {
+        self.removed_sets.remove(geid);
         if !self.sets.contains_key(geid) {
             let s = super::load_set(channel_data, geid)?;
             self.sets.insert(geid.to_string(), s);
@@ -208,7 +213,30 @@ impl Store {
         Ok(self.sets.get_mut(geid).expect("inserted above"))
     }
 
-    fn unattributed_mut(&mut self, channel_data: &Path) -> Result<&mut OwnedSet, String> {
+    /// Take a character's set out of the store; its file is removed on save.
+    pub(crate) fn take_set(&mut self, channel_data: &Path, geid: &str) -> Result<OwnedSet, String> {
+        let s = match self.sets.remove(geid) {
+            Some(s) => s,
+            None => super::load_set(channel_data, geid)?,
+        };
+        self.dirty_sets.remove(geid);
+        self.removed_sets.insert(geid.to_string());
+        Ok(s)
+    }
+
+    /// Ids whose set files the next save removes.
+    pub fn removed_sets(&self) -> impl Iterator<Item = &str> {
+        self.removed_sets.iter().map(String::as_str)
+    }
+
+    pub(crate) fn mark_scan(&mut self) {
+        self.dirty_scan = true;
+    }
+
+    pub(crate) fn unattributed_mut(
+        &mut self,
+        channel_data: &Path,
+    ) -> Result<&mut OwnedSet, String> {
         if self.unattributed.is_none() {
             self.unattributed = Some(super::load_unattributed(channel_data)?);
         }
@@ -220,8 +248,17 @@ impl Store {
         self.dirty_characters = true;
     }
 
-    /// Write what changed.
+    /// Write what changed. Merged-away sets are removed last, after the set they were merged
+    /// into is written.
     pub fn save(&self, channel_data: &Path) -> Result<(), String> {
+        let dirty = !self.dirty_sets.is_empty()
+            || !self.removed_sets.is_empty()
+            || self.dirty_unattributed
+            || self.dirty_characters
+            || self.dirty_scan;
+        if dirty && let Some(b) = &self.backup {
+            super::repair::backup(channel_data, b)?;
+        }
         for g in &self.dirty_sets {
             if let Some(s) = self.sets.get(g) {
                 super::save_set(channel_data, s)?;
@@ -238,6 +275,14 @@ impl Store {
         if self.dirty_scan {
             fsutil::write_json(&super::dir(channel_data).join(SCAN_JSON), &self.scan)
                 .map_err(|e| e.to_string())?;
+        }
+        for g in &self.removed_sets {
+            let p = super::set_path(channel_data, g)?;
+            match std::fs::remove_file(&p) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+                Err(e) => return Err(format!("{}: {e}", p.display())),
+            }
         }
         Ok(())
     }
@@ -262,6 +307,16 @@ pub struct ScanReport {
     /// opened.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub disabled: bool,
+    /// Characters merged into another one after this scan (same account, new geid).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub merged: Vec<super::repair::Merge>,
+    /// Characters that share a name but not an account: kept apart, listed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub same_name: Vec<Vec<String>>,
+    /// The one-time repair of an older store ran before this scan ([`super::repair::ensure`]).
+    /// Set even when the import is off: the caller saves the store when it changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub repaired: Option<super::repair::Repaired>,
 }
 
 /// Log files of a channel: `logbackups/*.log` (oldest first), then `Game.log`.
@@ -324,10 +379,17 @@ pub fn scan_if(
     deadline: Option<Instant>,
 ) -> ScanReport {
     if !import_game_log {
-        return ScanReport {
+        let mut rep = ScanReport {
             disabled: true,
             ..ScanReport::default()
         };
+        match super::repair::ensure(channel_data, store) {
+            Ok(r) => rep.repaired = r,
+            Err(e) => rep
+                .warnings
+                .push(format!("repairing the blueprint store: {e}")),
+        }
+        return rep;
     }
     scan(channel_dir, channel_data, store, deadline)
 }
@@ -340,6 +402,12 @@ pub fn scan(
     deadline: Option<Instant>,
 ) -> ScanReport {
     let mut rep = ScanReport::default();
+    match super::repair::ensure(channel_data, store) {
+        Ok(r) => rep.repaired = r,
+        Err(e) => rep
+            .warnings
+            .push(format!("repairing the blueprint store: {e}")),
+    }
     let old = std::mem::take(&mut store.scan.files);
     let mut new_files = BTreeMap::new();
     let mut newest_login: Option<(Option<String>, String)> = None;
@@ -376,11 +444,23 @@ pub fn scan(
         }
     }
     rep.out_of_time = stopped;
-    rep.last_character = newest_login.map(|(_, g)| g);
     if new_files != old {
         store.dirty_scan = true;
     }
     store.scan.files = new_files;
+    match super::repair::consolidate(channel_data, store) {
+        Ok(c) => {
+            rep.merged = c.merged;
+            rep.same_name = c.same_name;
+        }
+        Err(e) => rep.warnings.push(format!("merging characters: {e}")),
+    }
+    for (g, _) in &mut rep.new_blueprints {
+        if let Some(x) = g {
+            *x = store.characters.canonical(x);
+        }
+    }
+    rep.last_character = newest_login.map(|(_, g)| store.characters.canonical(&g));
     rep
 }
 
@@ -428,7 +508,12 @@ fn scan_file(
             }
         }
     }
-    let (start, mut geid) = resume.map_or((0, None), |s| (s.offset, s.geid.clone()));
+    let (start, mut geid) = resume.map_or((0, None), |s| {
+        (
+            s.offset,
+            s.geid.as_deref().map(|g| store.characters.canonical(g)),
+        )
+    });
     let want = size - start;
     if want > MAX_READ {
         rep.warnings.push(format!(
@@ -450,10 +535,14 @@ fn scan_file(
                 name,
                 time,
             } => {
+                let Some(g) =
+                    store
+                        .characters
+                        .seen(&g, account_id.as_deref(), &name, time.as_deref())
+                else {
+                    continue;
+                };
                 rep.logins += 1;
-                store
-                    .characters
-                    .seen(&g, account_id.as_deref(), &name, time.as_deref());
                 store.mark_characters();
                 if newest_login
                     .as_ref()
@@ -707,5 +796,141 @@ mod tests {
         let r = scan(&ch, &data, &mut s, Some(Instant::now()));
         assert!(r.out_of_time);
         assert_eq!(r.files_read, 0);
+    }
+
+    /// A Windows `Game.log`: UTF-8 BOM, CRLF lines. The character is reset between sessions
+    /// (same account and name, new geid): one character, not two, holding both sessions'
+    /// blueprints.
+    #[test]
+    fn crlf_log_and_a_reset_character_stay_one() {
+        let (_d, ch, data) = setup();
+        let reset = L1.replace("geid 1001", "geid 3003");
+        let crlf = |t: String| t.replace('\n', "\r\n");
+        std::fs::write(
+            ch.join("logbackups/old.log"),
+            format!(
+                "\u{FEFF}{}",
+                crlf(format!(
+                    "{L1}{}",
+                    bp("2026-01-02T03:06:00.000Z", "[L] Arms One")
+                ))
+            ),
+        )
+        .unwrap();
+        std::fs::write(
+            ch.join("Game.log"),
+            crlf(format!(
+                "<2026-03-01T00:00:00.000Z> start\n{}{}",
+                reset.replace("2026-01-02T03:04:05.000Z", "2026-03-01T00:01:00.000Z"),
+                bp("2026-03-01T00:02:00.000Z", "Legs Two")
+            )),
+        )
+        .unwrap();
+        let r = run(&ch, &data);
+        assert_eq!(r.logins, 2);
+        assert_eq!(r.merged.len(), 1, "{r:?}");
+        let chars = crate::blueprints::load_characters(&data).unwrap();
+        assert_eq!(chars.characters.len(), 1);
+        let (g, c) = chars.characters.iter().next().unwrap();
+        assert_eq!((g.as_str(), c.name.as_str()), ("3003", "Test_Pilot"));
+        assert_eq!(chars.aliases["1001"], "3003");
+        let set = crate::blueprints::load_set(&data, "3003").unwrap();
+        assert_eq!(
+            set.entries.keys().collect::<Vec<_>>(),
+            vec!["arms one", "legs two"]
+        );
+        let sel = crate::blueprints::select(&data, None).unwrap();
+        assert_eq!(sel.count, 2, "newest session owns both");
+
+        // Re-reading everything from scratch keeps one character.
+        let mut s = Store::load(&data).unwrap();
+        let rb = super::super::repair::rebuild_from_logs(&ch, &data, &mut s, false, None).unwrap();
+        s.save(&data).unwrap();
+        assert!(!rb.changes(), "{rb:?}");
+        assert_eq!(
+            crate::blueprints::load_characters(&data)
+                .unwrap()
+                .characters
+                .len(),
+            1
+        );
+    }
+
+    /// Same name on two accounts: kept apart, listed for a notice.
+    #[test]
+    fn same_name_on_another_account_is_listed_not_merged() {
+        let (_d, ch, data) = setup();
+        let other = L2
+            .replace("accountId 77", "accountId 88")
+            .replace("Alt_Pilot", "test_pilot");
+        std::fs::write(ch.join("Game.log"), format!("{L1}{other}")).unwrap();
+        let r = run(&ch, &data);
+        assert!(r.merged.is_empty());
+        assert_eq!(r.same_name, vec![vec!["1001".to_string(), "2002".into()]]);
+        assert_eq!(
+            crate::blueprints::load_characters(&data)
+                .unwrap()
+                .characters
+                .len(),
+            2
+        );
+    }
+
+    /// Re-scan from scratch: the log part is rebuilt, an imported entry stays; a dry run
+    /// (no save) writes nothing; `replace` drops the import too.
+    #[test]
+    fn rebuild_keeps_imports_unless_replace() {
+        let (_d, ch, data) = setup();
+        std::fs::write(
+            ch.join("Game.log"),
+            format!("{L1}{}", bp("2026-01-02T03:06:00.000Z", "Arms One")),
+        )
+        .unwrap();
+        run(&ch, &data);
+        let mut s = Store::load(&data).unwrap();
+        let set = s.set_mut(&data, "1001").unwrap();
+        set.add(
+            "Imported Rifle",
+            Source {
+                kind: crate::blueprints::SOURCE_SMART_CITIZEN.into(),
+                time: None,
+                file: None,
+            },
+        );
+        // A name the log no longer has (as if the old scan had read a line wrongly).
+        set.add(
+            "Ghost Entry",
+            Source {
+                kind: SOURCE_LOG.into(),
+                time: None,
+                file: Some("Game.log".into()),
+            },
+        );
+        s.save(&data).unwrap();
+        let disk = || crate::blueprints::load_set(&data, "1001").unwrap();
+        let before = disk();
+
+        let mut dry = Store::load(&data).unwrap();
+        let r = super::super::repair::rebuild_from_logs(&ch, &data, &mut dry, false, None).unwrap();
+        assert_eq!(r.characters.len(), 1);
+        assert_eq!(r.characters[0].removed, vec!["Ghost Entry"]);
+        assert!(r.characters[0].added.is_empty());
+        assert_eq!(disk(), before, "dry run: nothing written");
+
+        let mut s = Store::load(&data).unwrap();
+        super::super::repair::rebuild_from_logs(&ch, &data, &mut s, false, None).unwrap();
+        s.save(&data).unwrap();
+        assert_eq!(
+            disk().entries.keys().collect::<Vec<_>>(),
+            vec!["arms one", "imported rifle"]
+        );
+        let backups = crate::blueprints::dir(&data).join(super::super::repair::BACKUPS);
+        assert_eq!(std::fs::read_dir(&backups).unwrap().count(), 1);
+
+        let mut s = Store::load(&data).unwrap();
+        let r = super::super::repair::rebuild_from_logs(&ch, &data, &mut s, true, None).unwrap();
+        s.save(&data).unwrap();
+        assert_eq!(r.characters[0].removed, vec!["Imported Rifle"]);
+        assert_eq!(disk().entries.keys().collect::<Vec<_>>(), vec!["arms one"]);
     }
 }
