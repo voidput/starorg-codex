@@ -316,10 +316,10 @@ pub fn locate(kind: Kind, path: &Path, forbidden: &[PathBuf]) -> Result<Script, 
     if !path.exists() {
         return Err((true, format!("{} not found", path.display())));
     }
-    let real =
-        std::fs::canonicalize(path).map_err(|e| (false, format!("{}: {e}", path.display())))?;
+    let real = crate::fsutil::canonicalize(path)
+        .map_err(|e| (false, format!("{}: {e}", path.display())))?;
     for f in forbidden {
-        let f = std::fs::canonicalize(f).unwrap_or_else(|_| f.clone());
+        let f = crate::fsutil::canonicalize(f).unwrap_or_else(|_| f.clone());
         if real.starts_with(&f) {
             return Err((
                 false,

@@ -309,7 +309,7 @@ pub fn locate_ini(channel_dir: &Path) -> Result<IniTarget, String> {
     let link_meta = std::fs::symlink_metadata(&r.path).ok();
     let exists = r.path.exists();
     let real = if exists {
-        std::fs::canonicalize(&r.path).map_err(|e| format!("{}: {e}", r.path.display()))?
+        fsutil::canonicalize(&r.path).map_err(|e| format!("{}: {e}", r.path.display()))?
     } else if link_meta.is_some_and(|m| m.file_type().is_symlink()) {
         // A link to a missing file (as `remove` leaves a linked global.ini): follow it by
         // hand and write the file it names; the link itself is never replaced (spec 7.4).
@@ -332,8 +332,7 @@ pub fn locate_ini(channel_dir: &Path) -> Result<IniTarget, String> {
     } else {
         fsutil::canonical_lenient(&r.path)
     };
-    let canon_dir =
-        std::fs::canonicalize(channel_dir).unwrap_or_else(|_| channel_dir.to_path_buf());
+    let canon_dir = fsutil::canonicalize(channel_dir).unwrap_or_else(|_| channel_dir.to_path_buf());
     let rel = r.path.strip_prefix(channel_dir).unwrap_or(&r.path);
     let is_link = real != canon_dir.join(rel);
     Ok(IniTarget {
@@ -687,7 +686,7 @@ enum Guard {
 
 fn run_guards(ctx: &Ctx, t: &Target<'_>, check_p4k: bool) -> Guard {
     let mut warnings = Vec::new();
-    if fsutil::is_elevated() {
+    if fsutil::elevation_blocks_apply() {
         return Guard::Stop(
             Outcome::Failed,
             exit::ERROR,
@@ -712,11 +711,7 @@ fn run_guards(ctx: &Ctx, t: &Target<'_>, check_p4k: bool) -> Guard {
         ));
     }
     if check_p4k {
-        let logs = t
-            .prefix
-            .as_deref()
-            .map(crate::discovery::prefix_launcher_logs)
-            .unwrap_or_default();
+        let logs = crate::discovery::launcher_logs(t.prefix.as_deref());
         if running::pipeline_running(&logs, &t.channel.name) {
             return Guard::Stop(
                 Outcome::Skipped,
@@ -765,13 +760,16 @@ fn write_probe(dir: &Path) -> Result<(), String> {
             "cannot write in {}: {e}{}",
             d.display(),
             if cfg!(windows) {
-                " (grant your user write access, e.g. icacls \"<folder>\" /grant \"%USERNAME%\":(OI)(CI)M)"
+                format!(
+                    " (grant your user write access, e.g. icacls \"{}\" /grant \"%USERNAME%\":(OI)(CI)M)",
+                    d.display()
+                )
             } else {
-                ""
+                String::new()
             }
         )
     })?;
-    std::fs::remove_file(&probe).map_err(|e| e.to_string())
+    fsutil::remove_retry(&probe).map_err(|e| e.to_string())
 }
 
 /// Channels (other than `t`) whose `user.cfg` resolves to `real`.
@@ -1269,7 +1267,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     if fsutil::sha256_file(&ini.real).ok().as_deref() != Some(out_sha.as_str()) {
         let restore = match &cur_bytes {
             Some(b) => fsutil::write_via(&tmp, &ini.real, b),
-            None => std::fs::remove_file(&ini.real),
+            None => fsutil::remove_retry(&ini.real),
         };
         undo_cfg(ctx);
         let _ = std::fs::remove_file(&intent_path);
@@ -1491,7 +1489,7 @@ pub fn remove(ctx: &Ctx, t: &Target<'_>, yes: bool) -> Report {
                 ),
             ));
         }
-        if let Err(e) = std::fs::remove_file(&ini.real) {
+        if let Err(e) = fsutil::remove_retry(&ini.real) {
             return fail(r, format!("cannot delete {}: {e}", ini.real.display()));
         }
         if ini.is_link {

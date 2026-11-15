@@ -69,10 +69,7 @@ impl DiscoveryEnv {
             TargetOs::Linux
         };
         let drives = if os == TargetOs::Windows {
-            (b'C'..=b'Z')
-                .map(|d| PathBuf::from(format!("{}:\\", d as char)))
-                .filter(|p| p.is_dir())
-                .collect()
+            windows_drives()
         } else {
             Vec::new()
         };
@@ -259,7 +256,7 @@ impl Install {
             out.push(p);
         }
         for p in out.clone() {
-            if let Ok(c) = std::fs::canonicalize(&p)
+            if let Ok(c) = crate::fsutil::canonicalize(&p)
                 && !out.contains(&c)
             {
                 out.push(c);
@@ -326,6 +323,83 @@ pub fn prefix_launcher_logs(prefix: &Path) -> Vec<PathBuf> {
     logs
 }
 
+/// The RSI Launcher's own logs on Windows, newest first: `%APPDATA%\rsilauncher\logs\log.log`
+/// and `log.old.log` (matched without case, so the same code runs on synthetic trees on Linux).
+///
+/// The launcher's settings file (`launcher store.json`) also names the library folder, but it
+/// is encrypted with a key inside the launcher; we do not read it. The logs name the library
+/// on every install and launch, and the default paths below cover a fresh install.
+pub fn windows_launcher_logs(appdata: &Path) -> Vec<PathBuf> {
+    ["log.log", "log.old.log"]
+        .into_iter()
+        .filter_map(|name| {
+            find_existing_ci(appdata, &["rsilauncher", "logs", name])
+                .ok()
+                .flatten()
+        })
+        .collect()
+}
+
+/// The launcher logs that belong to an install: inside its Wine prefix on Linux; on Windows
+/// (no prefix) the logs in `%APPDATA%`. Used by the "launcher is installing" guard.
+pub fn launcher_logs(prefix: Option<&Path>) -> Vec<PathBuf> {
+    match prefix {
+        Some(p) => prefix_launcher_logs(p),
+        None if cfg!(windows) => std::env::var_os("APPDATA")
+            .filter(|v| !v.is_empty())
+            .map(|a| windows_launcher_logs(Path::new(&a)))
+            .unwrap_or_default(),
+        None => Vec::new(),
+    }
+}
+
+/// Drive roots to look for installs on: every fixed or removable volume with a drive letter
+/// (external game drives count), never network shares or optical drives, which can stall a
+/// directory listing for seconds. From the OS volume list (`GetDriveTypeW` through
+/// `sysinfo`); if that is empty, every letter whose root exists.
+#[cfg(windows)]
+pub fn windows_drives() -> Vec<PathBuf> {
+    let mounts: Vec<PathBuf> =
+        sysinfo::Disks::new_with_refreshed_list_specifics(sysinfo::DiskRefreshKind::nothing())
+            .map(|d| d.iter().map(|d| d.mount_point().to_path_buf()).collect())
+            .unwrap_or_default();
+    let roots = drive_roots(&mounts);
+    if !roots.is_empty() {
+        return roots;
+    }
+    (b'C'..=b'Z')
+        .map(|d| PathBuf::from(format!("{}:\\", d as char)))
+        .filter(|p| p.is_dir())
+        .collect()
+}
+
+#[cfg(not(windows))]
+pub fn windows_drives() -> Vec<PathBuf> {
+    Vec::new()
+}
+
+/// Drive-letter roots (`C:\`) from a volume mount list, sorted (C before D) and without
+/// duplicates; folder mount points and volume GUID paths are dropped (a drive root scan
+/// reaches them anyway).
+pub fn drive_roots(mounts: &[PathBuf]) -> Vec<PathBuf> {
+    let mut out: Vec<PathBuf> = mounts
+        .iter()
+        .filter_map(|m| {
+            let s = m.to_string_lossy();
+            let s = s.strip_prefix(r"\\?\").unwrap_or(&s);
+            let b = s.as_bytes();
+            let root = b.len() >= 2
+                && b[0].is_ascii_alphabetic()
+                && b[1] == b':'
+                && s[2..].trim_matches(['\\', '/']).is_empty();
+            root.then(|| PathBuf::from(format!("{}:\\", (b[0] as char).to_ascii_uppercase())))
+        })
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// Read the first non-empty line of a LUG Helper config file.
 fn read_conf_line(path: &Path) -> Option<PathBuf> {
     let text = std::fs::read_to_string(path).ok()?;
@@ -335,7 +409,11 @@ fn read_conf_line(path: &Path) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Common library paths on Windows drives (spec 10.1 step 3).
+/// Common library paths on Windows drives (spec 10.1 step 3): `<drive>\Program Files\Roberts
+/// Space Industries\StarCitizen` (the launcher default), `<drive>\Roberts Space
+/// Industries\StarCitizen`, `<drive>\Games\Roberts Space Industries\StarCitizen`,
+/// `<drive>\StarCitizen`, then `<drive>\<any folder>\StarCitizen`. Folders we may not list
+/// (`System Volume Information`) are skipped.
 pub fn windows_common_roots(drives: &[PathBuf]) -> Vec<PathBuf> {
     let mut out = Vec::new();
     for d in drives {
@@ -345,6 +423,7 @@ pub fn windows_common_roots(drives: &[PathBuf]) -> Vec<PathBuf> {
                 .join("StarCitizen"),
         );
         out.push(d.join("Roberts Space Industries").join("StarCitizen"));
+        out.push(d.join("StarCitizen"));
         out.push(
             d.join("Games")
                 .join("Roberts Space Industries")
@@ -436,7 +515,7 @@ pub fn discover(req: &DiscoveryRequest, env: &DiscoveryEnv) -> Discovery {
                 if !is_wine_prefix(&prefix) {
                     continue;
                 }
-                let prefix = std::fs::canonicalize(&prefix).unwrap_or(prefix);
+                let prefix = crate::fsutil::canonicalize(&prefix).unwrap_or(prefix);
                 for log in prefix_launcher_logs(&prefix) {
                     for hit in launcher_log::read_tail(&log) {
                         if let Some(root) = map_windows_path(&prefix, &hit.library_root) {
@@ -459,8 +538,7 @@ pub fn discover(req: &DiscoveryRequest, env: &DiscoveryEnv) -> Discovery {
         }
         TargetOs::Windows => {
             if let Some(appdata) = &env.appdata {
-                for name in ["log.log", "log.old.log"] {
-                    let log = appdata.join("rsilauncher").join("logs").join(name);
+                for log in windows_launcher_logs(appdata) {
                     for hit in launcher_log::read_tail(&log) {
                         cands.push(Candidate {
                             root: PathBuf::from(&hit.library_root),
@@ -482,13 +560,22 @@ pub fn discover(req: &DiscoveryRequest, env: &DiscoveryEnv) -> Discovery {
     finish(cands)
 }
 
+/// Two canonical roots are one install: equal paths, and on Windows also paths that differ
+/// only in case (a launcher log may spell the folder differently from the disk).
+fn same_root(a: &Path, b: &Path) -> bool {
+    a == b
+        || (cfg!(windows)
+            && a.to_string_lossy()
+                .eq_ignore_ascii_case(&b.to_string_lossy()))
+}
+
 fn finish(cands: Vec<Candidate>) -> Discovery {
     let mut installs: Vec<Install> = Vec::new();
     for c in cands {
-        let Ok(root) = std::fs::canonicalize(&c.root) else {
+        let Ok(root) = crate::fsutil::canonicalize(&c.root) else {
             continue;
         };
-        if installs.iter().any(|i| i.root == root) {
+        if installs.iter().any(|i| same_root(&i.root, &root)) {
             continue;
         }
         let channels = list_channels(&root);
@@ -619,7 +706,7 @@ mod tests {
         );
         let i = &d.installs[0];
         assert_eq!(i.found_by, FoundBy::WinePrefixEnv);
-        assert_eq!(i.root, fs::canonicalize(&lib).unwrap());
+        assert_eq!(i.root, crate::fsutil::canonicalize(&lib).unwrap());
         assert_eq!(i.channels[0].name, "LIVE");
     }
 
@@ -644,7 +731,10 @@ mod tests {
         let d = discover(&req, &linux_env(t.path()));
         assert_eq!(d.installs.len(), 1, "default library has no channels");
         assert_eq!(d.installs[0].found_by, FoundBy::PrefixOption);
-        assert_eq!(d.installs[0].root, fs::canonicalize(&other).unwrap());
+        assert_eq!(
+            d.installs[0].root,
+            crate::fsutil::canonicalize(&other).unwrap()
+        );
     }
 
     #[test]
@@ -684,10 +774,210 @@ mod tests {
         assert_eq!(
             roots,
             vec![
-                fs::canonicalize(d.join("Roberts Space Industries/StarCitizen")).unwrap(),
-                fs::canonicalize(d.join("MyGames/StarCitizen")).unwrap(),
+                crate::fsutil::canonicalize(&d.join("Roberts Space Industries/StarCitizen"))
+                    .unwrap(),
+                crate::fsutil::canonicalize(&d.join("MyGames/StarCitizen")).unwrap(),
             ]
         );
+    }
+
+    fn windows_env(appdata: Option<PathBuf>, drives: Vec<PathBuf>) -> DiscoveryEnv {
+        DiscoveryEnv {
+            os: TargetOs::Windows,
+            home: None,
+            xdg_config_home: None,
+            wineprefix: None,
+            appdata,
+            drives,
+        }
+    }
+
+    /// A launcher log line naming `channel_dir`, JSON-escaped like the real launcher writes.
+    fn launch_line(channel: &str, channel_dir: &Path) -> String {
+        let p = channel_dir.display().to_string().replace('\\', "\\\\");
+        format!(
+            "{{ \"t\":\"2026-11-12 12:21:30.287\", \"[main][info] \": \"[Launcher::launch] Launching Star Citizen {channel} from ({p})\"  }},\n"
+        )
+    }
+
+    #[test]
+    fn windows_launcher_log_finds_library_anywhere_and_any_case() {
+        let t = tempfile::tempdir().unwrap();
+        let lib = t.path().join("E/Games/RSI/StarCitizen");
+        make_channel(&lib, "LIVE");
+        make_channel(&lib, "EPTU");
+        // Folder names in another case than the launcher writes them.
+        let logs = t.path().join("AppData/Roaming/RSILauncher/Logs");
+        fs::create_dir_all(&logs).unwrap();
+        fs::write(
+            logs.join("LOG.old.log"),
+            launch_line("EPTU", &lib.join("EPTU")),
+        )
+        .unwrap();
+        fs::write(logs.join("log.log"), b"{ not json },\n").unwrap();
+        let appdata = t.path().join("AppData/Roaming");
+        assert_eq!(windows_launcher_logs(&appdata).len(), 2);
+        let d = discover(
+            &DiscoveryRequest::default(),
+            &windows_env(Some(appdata), vec![]),
+        );
+        assert_eq!(d.installs.len(), 1);
+        let i = &d.installs[0];
+        assert_eq!(i.found_by, FoundBy::LauncherLog);
+        assert_eq!(i.root, crate::fsutil::canonicalize(&lib).unwrap());
+        assert_eq!(i.prefix, None);
+        let names: Vec<_> = i.channels.iter().map(|c| c.name.as_str()).collect();
+        assert_eq!(names, ["LIVE", "EPTU"]);
+        // No logs at all: nothing, no error.
+        assert!(windows_launcher_logs(&t.path().join("none")).is_empty());
+    }
+
+    #[test]
+    fn windows_drive_root_and_folder_on_drive() {
+        let t = tempfile::tempdir().unwrap();
+        let d = t.path().join("F");
+        make_channel(&d.join("StarCitizen"), "LIVE");
+        make_channel(
+            &d.join("Program Files/Roberts Space Industries/StarCitizen"),
+            "PTU",
+        );
+        let found = discover(
+            &DiscoveryRequest::default(),
+            &windows_env(None, vec![d.clone()]),
+        );
+        let roots: Vec<_> = found.installs.iter().map(|i| i.root.clone()).collect();
+        assert_eq!(
+            roots,
+            vec![
+                crate::fsutil::canonicalize(
+                    &d.join("Program Files/Roberts Space Industries/StarCitizen")
+                )
+                .unwrap(),
+                crate::fsutil::canonicalize(&d.join("StarCitizen")).unwrap(),
+            ],
+            "launcher default first, then the drive-root folder, each once"
+        );
+        assert!(
+            found
+                .installs
+                .iter()
+                .all(|i| i.found_by == FoundBy::DefaultPath)
+        );
+    }
+
+    #[test]
+    fn drive_roots_from_volume_mounts() {
+        let p = |s: &str| PathBuf::from(s);
+        assert_eq!(
+            drive_roots(&[
+                p(r"D:\"),
+                p(r"c:\"),
+                p(r"\\?\Volume{1234}\"),
+                p(r"C:\Mount\Games"),
+                p("D:"),
+                p(r"\\?\E:\")
+            ]),
+            vec![p(r"C:\"), p(r"D:\"), p(r"E:\")]
+        );
+        assert!(drive_roots(&[]).is_empty());
+    }
+
+    #[test]
+    fn long_install_paths_still_list() {
+        let t = tempfile::tempdir().unwrap();
+        // Well past Windows' old 260-character MAX_PATH.
+        let mut lib = t.path().to_path_buf();
+        for i in 0..6 {
+            lib.push(format!("a-rather-long-folder-name-number-{i}-for-max-path"));
+        }
+        lib.push("StarCitizen");
+        make_channel(&lib, "LIVE");
+        let req = DiscoveryRequest {
+            game_dir: Some(lib.clone()),
+            prefix: None,
+        };
+        let d = discover(&req, &windows_env(None, vec![]));
+        assert_eq!(d.installs.len(), 1);
+        assert_eq!(d.installs[0].channels[0].name, "LIVE");
+        assert!(d.installs[0].channels[0].p4k.is_file());
+    }
+
+    /// Native Windows only (runs on the windows-latest CI job).
+    #[cfg(windows)]
+    mod native {
+        use super::*;
+
+        #[test]
+        fn process_env_is_windows_with_appdata_and_system_drive() {
+            let env = DiscoveryEnv::from_process();
+            assert_eq!(env.os, TargetOs::Windows);
+            assert!(env.appdata.is_some());
+            let sys = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into());
+            let want = PathBuf::from(format!("{}\\", sys.to_ascii_uppercase()));
+            assert!(
+                env.drives.contains(&want),
+                "{:?} lacks {want:?}",
+                env.drives
+            );
+            assert!(env.drives.iter().all(|d| d.to_string_lossy().len() == 3));
+        }
+
+        #[test]
+        fn roots_are_plain_paths_and_case_insensitive() {
+            let t = tempfile::tempdir().unwrap();
+            let lib = t
+                .path()
+                .join("Roberts Space Industries")
+                .join("StarCitizen");
+            make_channel(&lib, "LIVE");
+            // The user types the folder in another case and with forward slashes.
+            let typed = PathBuf::from(lib.display().to_string().to_uppercase().replace('\\', "/"));
+            let req = DiscoveryRequest {
+                game_dir: Some(typed),
+                prefix: None,
+            };
+            let d = discover(&req, &DiscoveryEnv::from_process());
+            let root = &d.installs[0].root;
+            assert!(
+                !root.to_string_lossy().starts_with(r"\\?\"),
+                "{}",
+                root.display()
+            );
+            // Windows returns the on-disk casing here; Wine (used to try these tests on
+            // Linux) keeps the typed one. Either way it is the same folder.
+            let want = crate::fsutil::canonicalize(&lib).unwrap();
+            assert!(
+                same_root(root, &want),
+                "{} vs {}",
+                root.display(),
+                want.display()
+            );
+            // A second spelling of the same folder is not a second install.
+            let lower = PathBuf::from(lib.display().to_string().to_lowercase());
+            let d2 = finish(vec![
+                Candidate {
+                    root: lib.clone(),
+                    prefix: None,
+                    found_by: FoundBy::LauncherLog,
+                },
+                Candidate {
+                    root: lower,
+                    prefix: None,
+                    found_by: FoundBy::DefaultPath,
+                },
+            ]);
+            assert_eq!(d2.installs.len(), 1);
+            let ch = d.installs[0].channel("live").unwrap();
+            assert!(ch.p4k.ends_with("Data.p4k"));
+        }
+
+        #[test]
+        fn launcher_logs_follow_appdata() {
+            // The guard reads %APPDATA%; with no launcher on the runner that is empty, never
+            // an error.
+            let logs = launcher_logs(None);
+            assert!(logs.iter().all(|l| l.is_file()));
+        }
     }
 
     #[test]

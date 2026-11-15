@@ -776,7 +776,7 @@ fn link_info(p: &Path) -> Value {
         "path": p,
         "exists": p.exists(),
         "is_link": link,
-        "real": std::fs::canonicalize(p).ok(),
+        "real": fsutil::canonicalize(p).ok(),
     })
 }
 
