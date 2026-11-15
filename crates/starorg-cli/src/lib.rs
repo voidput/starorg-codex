@@ -65,6 +65,25 @@ pub enum Command {
         /// Give up after this many seconds (exit 3).
         #[arg(long, value_name = "SECONDS")]
         timeout: Option<u64>,
+        /// Enhancement preset: recommended (default), minimal or everything.
+        #[arg(long, value_name = "NAME", conflicts_with_all = ["profile", "no_enhancements"])]
+        preset: Option<String>,
+        /// A profile.toml (`preset = ...` plus an optional `[enhance]` table).
+        #[arg(long, value_name = "FILE", conflicts_with = "no_enhancements")]
+        profile: Option<PathBuf>,
+        /// Write the stock text unchanged (byte-identical to the file in Data.p4k).
+        #[arg(long)]
+        no_enhancements: bool,
+        /// Owned blueprints of the active character, for `[Owned]` markers: an owned-set
+        /// JSON (`{"entries": {...}}`) or a JSON list of names.
+        #[arg(long, value_name = "FILE")]
+        owned_blueprints: Option<PathBuf>,
+        /// Also write the coverage report (spec 13) to this file.
+        #[arg(long, value_name = "FILE")]
+        coverage_out: Option<PathBuf>,
+        /// Also write every generated edit (key, category, record, added text) as JSON.
+        #[arg(long, value_name = "FILE")]
+        edits_out: Option<PathBuf>,
     },
     /// Write a channel's GameData (items, ships, contracts, ...) as JSON to a file.
     Gamedata {
@@ -125,7 +144,26 @@ where
             channel,
             out,
             timeout,
-        } => commands::build(&cli.global, &channel, &out, timeout),
+            preset,
+            profile,
+            no_enhancements,
+            owned_blueprints,
+            coverage_out,
+            edits_out,
+        } => commands::build(
+            &cli.global,
+            &commands::BuildArgs {
+                channel: &channel,
+                out: &out,
+                timeout,
+                preset,
+                profile,
+                no_enhancements,
+                owned_blueprints,
+                coverage_out,
+                edits_out,
+            },
+        ),
         Command::Gamedata {
             channel,
             out,

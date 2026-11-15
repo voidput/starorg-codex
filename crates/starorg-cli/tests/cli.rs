@@ -164,6 +164,7 @@ fn real_build_equals_stock() {
     let mut args = vec![
         "build",
         "--json",
+        "--no-enhancements",
         "--channel",
         "LIVE",
         "--out",
@@ -242,6 +243,64 @@ fn output_inside_wine_prefix_is_refused() {
     }
     assert!(!pfx.join("out.ini").exists());
     assert!(!pfx.join("drive_c/users").exists());
+}
+
+/// Extra report files of `build` get the same guard as `--out`.
+#[test]
+fn build_report_files_inside_wine_prefix_are_refused() {
+    let t = tempfile::tempdir().unwrap();
+    let (pfx, root) = fake_prefix(t.path());
+    let ok_out = t.path().join("x.ini");
+    for flag in ["--coverage-out", "--edits-out"] {
+        let bad = pfx.join("drive_c/report.json");
+        let o = run(&[
+            "build",
+            "--game-dir",
+            root.to_str().unwrap(),
+            "--channel",
+            "LIVE",
+            "--out",
+            ok_out.to_str().unwrap(),
+            flag,
+            bad.to_str().unwrap(),
+        ]);
+        assert_eq!(o.status.code(), Some(2), "{flag}: {o:?}");
+        assert!(!bad.exists());
+    }
+    assert!(!ok_out.exists());
+}
+
+/// Profile and owned-set problems are usage errors, found before anything is read.
+#[test]
+fn build_profile_errors_are_exit_2() {
+    let t = tempfile::tempdir().unwrap();
+    fake_install(t.path());
+    let out = t.path().join("x.ini");
+    let bad_profile = t.path().join("profile.toml");
+    std::fs::write(&bad_profile, "[enhance]\nno_such_switch = true\n").unwrap();
+    let bad_owned = t.path().join("owned.json");
+    std::fs::write(&bad_owned, "42").unwrap();
+    let base = [
+        "build",
+        "--game-dir",
+        t.path().to_str().unwrap(),
+        "--channel",
+        "LIVE",
+        "--out",
+        out.to_str().unwrap(),
+    ];
+    for extra in [
+        vec!["--preset", "loud"],
+        vec!["--profile", bad_profile.to_str().unwrap()],
+        vec!["--owned-blueprints", bad_owned.to_str().unwrap()],
+        vec!["--preset", "minimal", "--no-enhancements"],
+    ] {
+        let mut args = base.to_vec();
+        args.extend(extra.iter().copied());
+        let o = run(&args);
+        assert_eq!(o.status.code(), Some(2), "{extra:?}: {o:?}");
+    }
+    assert!(!out.exists());
 }
 
 #[test]
