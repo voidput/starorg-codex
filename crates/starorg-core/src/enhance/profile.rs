@@ -449,6 +449,55 @@ fn diff(cur: &toml::Value, def: &toml::Value, path: &str) -> Option<toml::Value>
     }
 }
 
+/// Remove from `over` (an `[enhance]` table) every key whose value equals `base`'s, and
+/// the tables that leaves empty, so the settings read the same ([`Profile::from_toml`]).
+/// A tag style compares as read (not listed = `medium`). Keys `base` has no field for, and
+/// values of another type, stay. Returns the removed keys as `enhance.mission.max_list`.
+pub fn drop_defaults(over: &mut toml::Table, base: &Profile) -> Result<Vec<String>, ProfileError> {
+    let def = toml::Value::try_from(base).map_err(|e| ProfileError::Toml(e.to_string()))?;
+    let mut out = Vec::new();
+    if let toml::Value::Table(d) = &def {
+        prune(over, d, "enhance", false, &mut out);
+    }
+    Ok(out)
+}
+
+fn prune(
+    over: &mut toml::Table,
+    def: &toml::Table,
+    path: &str,
+    styles: bool,
+    out: &mut Vec<String>,
+) {
+    let keys: Vec<String> = over.keys().cloned().collect();
+    for k in keys {
+        let p = format!("{path}.{k}");
+        let Some(v) = over.get_mut(&k) else { continue };
+        let gone = if styles {
+            let same = *v == style_at(def, &k);
+            if same {
+                out.push(p);
+            }
+            same
+        } else {
+            match (v, def.get(&k)) {
+                (toml::Value::Table(sub), Some(toml::Value::Table(d))) => {
+                    prune(sub, d, &p, k == "styles", out);
+                    sub.is_empty()
+                }
+                (v, Some(d)) if *v == *d => {
+                    out.push(p);
+                    true
+                }
+                _ => false,
+            }
+        };
+        if gone {
+            over.remove(&k);
+        }
+    }
+}
+
 /// `over` without the keys `base` (a serialised profile) has no field for, which are
 /// listed in `unknown`. Tables whose keys are data, not fields (`styles`), pass whole.
 fn known_only(
@@ -696,6 +745,57 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn drop_defaults_removes_only_values_equal_to_the_preset() {
+        let base = Profile::default();
+        let mut over: toml::Table = toml::from_str(
+            "ships = true\nbranding = true\nno_such = 1\nlines_off = []\n[mission]\nmax_list = 25\ntitle_em = true\nowned_em = 0\n[tags.components]\nenabled = true\nseparator = \"-\"\n[tags.components.styles]\nsize = \"medium\"\n[tags.ship_weapons.styles]\ndamage = \"short\"\nsize = \"long\"\n[tags.missiles.styles]\ntracking = \"medium\"\n",
+        )
+        .unwrap();
+        let before = over.clone();
+        let read = |t: &toml::Table| {
+            Profile::from_toml(
+                &toml::to_string(&toml::Table::from_iter([(
+                    "enhance".to_string(),
+                    toml::Value::Table(t.clone()),
+                )]))
+                .unwrap(),
+            )
+            .unwrap()
+        };
+        let mut dropped = drop_defaults(&mut over, &base).unwrap();
+        dropped.sort();
+        assert_eq!(
+            dropped,
+            [
+                "enhance.lines_off",
+                "enhance.mission.max_list",
+                "enhance.mission.title_em",
+                "enhance.ships",
+                "enhance.tags.components.enabled",
+                "enhance.tags.components.separator",
+                "enhance.tags.components.styles.size",
+                "enhance.tags.missiles.styles.tracking",
+                "enhance.tags.ship_weapons.styles.damage",
+            ]
+        );
+        assert_eq!(read(&over), read(&before));
+        let expect: toml::Table = toml::from_str(
+            "branding = true\nno_such = 1\n[mission]\nowned_em = 0\n[tags.ship_weapons.styles]\nsize = \"long\"\n",
+        )
+        .unwrap();
+        assert_eq!(over, expect);
+        // Idempotent.
+        assert!(drop_defaults(&mut over, &base).unwrap().is_empty());
+        // Against another preset: `ships = false` is Minimal's default, `true` is a choice.
+        let mut m: toml::Table = toml::from_str("ships = false\nmissions = true\n").unwrap();
+        assert_eq!(
+            drop_defaults(&mut m, &Profile::minimal()).unwrap(),
+            ["enhance.ships"]
+        );
+        assert_eq!(m.keys().collect::<Vec<_>>(), ["missions"]);
     }
 
     #[test]

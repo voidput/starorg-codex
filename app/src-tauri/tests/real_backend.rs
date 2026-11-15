@@ -2064,3 +2064,53 @@ fn measure_strings_owners_on_real_live() {
         }
     }
 }
+
+/// A schema-1 `profile.toml` is rewritten once when the channel is listed: one Activity
+/// line that names only the setting whose value changed, a backup, a sparse file. A file
+/// that cannot be read warns once, not on every refresh.
+#[test]
+fn schema1_profile_migrates_once_with_one_activity_line() {
+    let f = Fake::new();
+    f.setup_live();
+    let data = f.dirs.channel_dir(&f.install_id(), "LIVE");
+    let path = data.join("profile.toml");
+    let old = "preset = \"recommended\"\nschema = 1\n[enhance]\nbranding = true\nships = true\ncolour_test = false\n[enhance.mission]\nmax_list = 25\nowned_em = 0\ntitle_em = true\ntitle_rep_em = 2\n[enhance.tags.ship_weapons.styles]\ndamage = \"short\"\n[patches]\ndisabled = []\n";
+    std::fs::write(&path, old).unwrap();
+    let lines = |needle: &str| -> Vec<String> {
+        f.backend
+            .activity(200)
+            .unwrap()
+            .into_iter()
+            .map(|e| e.message)
+            .filter(|m| m.contains(needle))
+            .collect()
+    };
+    f.backend.overview().unwrap();
+    f.backend.overview().unwrap();
+    let got = lines("Profile updated");
+    assert_eq!(
+        got,
+        [
+            "Profile updated: owned_em now follows the current default (it was saved at the old one); removed 5 saved defaults (no change); a backup is in profile.toml.bak-schema1"
+        ],
+    );
+    assert_eq!(
+        std::fs::read_to_string(data.join("profile.toml.bak-schema1")).unwrap(),
+        old
+    );
+    let now: toml::Table = toml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+    let expect: toml::Table =
+        toml::from_str("branding = true\n[mission]\ntitle_rep_em = 2\n").unwrap();
+    assert_eq!(now["schema"].as_integer(), Some(3));
+    assert_eq!(now["enhance"].as_table().unwrap(), &expect);
+    let p = f.backend.get_profile(f.live()).unwrap();
+    assert_eq!((p.mission.owned_em, p.mission.title_rep_em), (4, 2));
+    assert!(p.branding);
+
+    // Unreadable: one warning however often the channel is listed.
+    std::fs::write(&path, "schema = 1\n[enhance\n").unwrap();
+    f.backend.overview().unwrap();
+    f.backend.overview().unwrap();
+    assert_eq!(lines("could not be updated to the new format").len(), 1);
+    assert_eq!(lines("Profile updated").len(), 1);
+}

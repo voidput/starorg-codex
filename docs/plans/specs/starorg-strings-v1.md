@@ -645,20 +645,47 @@ options, the branding stamp switch, and which built-in patches are disabled. Unk
 kept on write so an older app version does not drop newer settings. A profile hash goes into
 the applied manifest.
 
-**Only changes are stored (`schema = 2`).** The `[enhance]` table holds only the settings that
+**Only changes are stored (`schema = 3`).** The `[enhance]` table holds only the settings that
 differ from the named preset; a profile equal to a preset has no `[enhance]` at all. A default
 a later build changes therefore reaches everyone who left that setting alone (the hash already
 counts only settings off the defaults, so writing sparse does not change it).
 
-Schema-1 files (builds up to the `[Owned]` colour change) wrote every key out, so `owned_em = 0`
-stayed pinned after its default became 4. Every reader treats a schema-1 file as migrated, and
-the app rewrites it once: each colour/marker key (`header_em`, `label_em`, `title_bp_em`,
-`title_rep_em`, `title_owned`, `owned_em`, `owned_line`, `missing_marker`, `missing_em`,
-`variant_em`, `reward_em`, `colour_test`) still at its schema-1 default is dropped, everything
-else stays as saved, `schema` becomes 2, the old file is kept as `profile.toml.bak-schema1` and
-one Activity line names the keys. Only `owned_em` changes its effective value; a non-default
-value is a real choice and is kept, and a schema-2 `owned_em = 0` is never touched. The profile
-hash is unchanged, so the one re-apply prompt comes from `OUTPUT_VERSION` 4.
+A tag element not listed in a `styles` map is `medium`. Where the preset gives an element
+another style (Recommended's ship-weapon `damage = "short"`), choosing Medium is stored as an
+explicit `damage = "medium"`, because reading merges `[enhance]` over the preset and cannot
+remove a key; readers drop `medium` entries again, so equal settings compare and hash the same.
+
+Schema-1 files (builds up to the `[Owned]` colour change) wrote every key out, so a value saved
+at its default stayed pinned when that default changed (`owned_em = 0` after it became 4).
+Every reader treats an older file as migrated, and the app rewrites it once:
+
+1. schema 1 only: each colour/marker key (`header_em`, `label_em`, `title_bp_em`, `title_rep_em`,
+   `title_owned`, `owned_em`, `owned_line`, `missing_marker`, `missing_em`, `variant_em`,
+   `reward_em`, `colour_test`) still at its schema-1 default is dropped, so it follows the
+   current default; only `owned_em` changes its effective value;
+2. every other `[enhance]` key equal to the **current** default of the file's preset is
+   dropped too (`max_list = 25`, `title_em = true`, tag settings, …). Nothing changes now, but
+   a later default change reaches it. A tag style compares as read (not listed = `medium`).
+
+Schema 2 was the first sparse build: its saves held only changes, but its migration did only
+step 1, so a schema-1 file it rewrote still pins the other defaults. A schema-2 file gets step 2
+only (its `owned_em = 0` is a choice and stays).
+
+Values that differ, unknown keys and values of the wrong type stay as saved; tables left empty
+go; `schema` becomes 3. The old file is kept as `profile.toml.bak-schema<N>` of its schema (an
+existing backup is kept), and one Activity line names the keys whose value changed ("… now
+follows the current default") and only counts the others ("removed N saved defaults (no
+change)"). The profile hash is unchanged except for `owned_em`, so the one re-apply prompt comes
+from `OUTPUT_VERSION` 4. A current file is never migrated, so a deliberate `owned_em = 0` saved
+by this build stays.
+
+Trade-off: a schema-1 file cannot tell a value the user picked from one that was written out
+because every key was. A value the user deliberately set to what is (or, for the colour keys,
+was) the default is dropped with the rest and will follow a later default change. A value that
+differs from the current default can be set again in the app and is then stored; one equal to
+the current default is never stored, by design. To recover the old file exactly, copy the backup
+over `profile.toml`; it has its old schema, so the next start migrates it again, but its values
+are still there to read and set again by hand.
 
 Presets shipped: **Recommended** (all v1 stat blocks, name tags, mission info, patches),
 **Minimal** (name tags and patches only), **Everything**.

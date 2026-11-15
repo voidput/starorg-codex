@@ -171,6 +171,41 @@ impl Found {
     }
 }
 
+/// The Activity line for a schema-1 `profile.toml` rewrite: names the settings whose value
+/// changed (they now follow the current default) and only counts the ones saved at the
+/// current default (nothing changes for them).
+fn migration_note(m: &state::Migration) -> String {
+    let mut parts = Vec::new();
+    if !m.followed.is_empty() {
+        let keys: Vec<&str> = m
+            .followed
+            .iter()
+            .map(|k| k.rsplit('.').next().unwrap_or(k))
+            .collect();
+        parts.push(if keys.len() == 1 {
+            format!(
+                "{} now follows the current default (it was saved at the old one)",
+                keys[0]
+            )
+        } else {
+            format!(
+                "{} now follow the current defaults (they were saved at the old ones)",
+                keys.join(", ")
+            )
+        });
+    }
+    match m.unpinned.len() {
+        0 => {}
+        1 => parts.push("removed 1 saved default (no change)".into()),
+        n => parts.push(format!("removed {n} saved defaults (no change)")),
+    }
+    format!(
+        "Profile updated: {}; a backup is in {}",
+        parts.join("; "),
+        state::profile_backup_name(m.from)
+    )
+}
+
 fn discovery_id(root: &Path) -> String {
     let h = fsutil::sha256_hex(fsutil::canonical_lenient(root).to_string_lossy().as_bytes());
     format!("found-{}", &h[..10])
@@ -669,21 +704,8 @@ impl RealBackend {
     fn migrate_profile(&self, f: &Found, ch: &Channel) {
         let data = self.data_dir(f, ch);
         match state::migrate_profile_file(&data) {
-            Ok(Some(dropped)) if !dropped.is_empty() => {
-                let keys: Vec<&str> = dropped
-                    .iter()
-                    .map(|k| k.rsplit('.').next().unwrap_or(k))
-                    .collect();
-                self.log(
-                    LogLevel::Info,
-                    None,
-                    Some(&ch.name),
-                    &format!(
-                        "Profile updated: {} now follow the current defaults (they were saved at the old ones; a backup is in {})",
-                        keys.join(", "),
-                        state::PROFILE_SCHEMA1_BAK
-                    ),
-                );
+            Ok(Some(m)) if !m.is_empty() => {
+                self.log(LogLevel::Info, None, Some(&ch.name), &migration_note(&m));
             }
             Ok(_) => {}
             Err(e) => {
@@ -3265,8 +3287,40 @@ impl RealBackend {
 
 #[cfg(test)]
 mod tests {
-    use super::{check_profile, convert, user_patch_id};
+    use super::{check_profile, convert, migration_note, user_patch_id};
     use crate::contract::types::Preset;
+    use starorg_core::state::Migration;
+
+    #[test]
+    fn migration_note_claims_a_change_only_for_changed_values() {
+        let v = |k: &[&str]| k.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let both = Migration {
+            from: 1,
+            followed: v(&["enhance.mission.owned_em"]),
+            unpinned: v(&["enhance.ships", "enhance.mission.max_list"]),
+        };
+        assert_eq!(
+            migration_note(&both),
+            "Profile updated: owned_em now follows the current default (it was saved at the old one); removed 2 saved defaults (no change); a backup is in profile.toml.bak-schema1"
+        );
+        let only = Migration {
+            from: 2,
+            followed: Vec::new(),
+            unpinned: v(&["enhance.ships"]),
+        };
+        let s = migration_note(&only);
+        assert!(s.contains("removed 1 saved default (no change)"), "{s}");
+        assert!(s.ends_with("profile.toml.bak-schema2"), "{s}");
+        assert!(!s.contains("now follow"), "{s}");
+        let two = Migration {
+            from: 1,
+            followed: v(&["enhance.mission.owned_em", "enhance.mission.label_em"]),
+            unpinned: Vec::new(),
+        };
+        assert!(
+            migration_note(&two).contains("owned_em, label_em now follow the current defaults")
+        );
+    }
 
     #[test]
     fn presets_pass_the_profile_check_and_junk_does_not() {
