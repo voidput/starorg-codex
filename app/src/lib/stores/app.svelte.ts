@@ -61,6 +61,8 @@ class AppState {
   draft = $state.raw<Draft | null>(null);
   /** A search the Strings screen takes on its next open (a loc key from the Dev screens). */
   stringsSearch = $state<string | null>(null);
+  /** A Settings section (card id, e.g. 'network') the Settings screen scrolls to on its next open. */
+  settingsSection = $state<string | null>(null);
   pending = $state.raw<Pending | null>(null);
 
   install = $derived(this.overview?.installs.find((i) => i.id === this.installId) ?? this.overview?.installs[0] ?? null);

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { jumpToSection } from '@/lib/scroll';
   /**
    * App frame (spec 9.3): sidebar, header with channel switcher / status / Apply, footer bar,
    * toasts, command palette (Ctrl/Cmd+K), Alt+0..9 screen shortcuts, skip link. The setup wizard
@@ -46,10 +47,14 @@
   function go(s: ScreenId) {
     app.go(s);
   }
-  // Every navigation (sidebar, palette, Alt+n, links inside screens) moves focus to <main>.
+  // Every navigation (sidebar, palette, Alt+n, links inside screens) moves focus to <main>, or
+  // to a Settings section when one was asked for (footer Privacy -> Network settings).
   $effect(() => {
     if (app.navSeq === 0) return;
     void tick().then(() => {
+      const section = app.settingsSection;
+      app.settingsSection = null;
+      if (section && app.screen === 'settings' && jumpToSection(section, 'instant')) return;
       main?.focus();
       main?.scrollTo({ top: 0 });
     });

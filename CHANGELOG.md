@@ -1,5 +1,40 @@
 # Changelog
 
+## [0.0.2](https://github.com/voidput/starorg-strings/compare/v0.0.1...v0.0.2) (2026-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* rename the app to StarOrg Codex
+
+### Features
+
+* **app:** Developer mode contract, dev-worker client and mock ([b3ca32d](https://github.com/voidput/starorg-strings/commit/b3ca32dc3eb70fcbf9faee4eb61765bfb0ce14c5)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** Explorer, Datasets and Diff screens behind Developer mode ([92f4de8](https://github.com/voidput/starorg-strings/commit/92f4de80699df0a326933360f7e50caa82eb30d0)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** Privacy button in the footer with what leaves the computer ([9262829](https://github.com/voidput/starorg-strings/commit/9262829cd02137e87ffc3af21ce695d7fbae5c2d)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** Settings -&gt; Experimental -&gt; Local MCP server ([3ed8771](https://github.com/voidput/starorg-strings/commit/3ed87710a1f1a14d6d3775c4a846f38d415782b1)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **cli:** dev record, export-type and types ([544bba0](https://github.com/voidput/starorg-strings/commit/544bba01fab337327e16ff2108f9fde7e86a0e20)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **core:** explorer index, record replies, dataset shapes and diff for Developer mode ([e5dac63](https://github.com/voidput/starorg-strings/commit/e5dac63e272703be81c9d4beb9692a1e53a89863)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **data:** dev-worker protocol, explorer database and streamed exports ([dccd11a](https://github.com/voidput/starorg-strings/commit/dccd11a5675fdd54a2eda768d4109906471887f8)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **gamedata:** port sc-gamedata's query layer (fuzzy, obtain, where, shops) ([15e0beb](https://github.com/voidput/starorg-strings/commit/15e0beb6612e3ac4903ea2b54f9241d27d1a53ef)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **mcp:** experimental local MCP server, stdio in the CLI ([eb7f3b6](https://github.com/voidput/starorg-strings/commit/eb7f3b60a10bc338c9cf02cb7b78c4c70d828e94)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* rename the app to StarOrg Codex ([2155578](https://github.com/voidput/starorg-strings/commit/2155578d6a24c6fbab235541a94a9137859320f1)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+
+
+### Bug Fixes
+
+* **app:** bring back the Strings generator filter beside the group tree ([fcbbe46](https://github.com/voidput/starorg-strings/commit/fcbbe46e8f8924cc7c2bb94f1844fa3da2025074)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** Privacy -&gt; Network settings opens Settings at the Network card ([224b8f7](https://github.com/voidput/starorg-strings/commit/224b8f76d9e81a97452ee119c5e4c7ef7a397e55)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **app:** Settings section links no longer shift the whole window ([56c7f74](https://github.com/voidput/starorg-strings/commit/56c7f74d308d929fbcc2ee69fa43a390595f0089)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **dev:** render ragged dataset rows without dropping columns ([2a83739](https://github.com/voidput/starorg-strings/commit/2a8373902ee8a3fcc071e435533dc46da08ca1e6)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **mcp:** mark inexact name matches; resolve ship weapons and components ([b861bc3](https://github.com/voidput/starorg-strings/commit/b861bc3bd010b604743de0ce43d62bb25c2054f2)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+
+
+### Performance Improvements
+
+* **gamedata:** prune blueprint item records; count loot pools once per report ([9ecfaf4](https://github.com/voidput/starorg-strings/commit/9ecfaf4b391dae96076f002a1abce4a9ae432607)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+* **gamedata:** prune item records as they load in the three item-wide domains ([08bd33a](https://github.com/voidput/starorg-strings/commit/08bd33a160b6a7ab5ecec758d54fa60206f65ca3)), closes [#15](https://github.com/voidput/starorg-strings/issues/15)
+
 ## 0.0.1 (2026-11-15)
 
 
