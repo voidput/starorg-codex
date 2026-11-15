@@ -24,6 +24,21 @@ pub struct GenEdit {
     pub suffix: String,
     /// Replaces the whole value instead of prefix/suffix.
     pub whole: Option<String>,
+    /// The stock part loses its trailing `\n` escapes and spaces (spec 5.1, 6.2).
+    pub trim_stock: bool,
+}
+
+impl From<&crate::enhance::GenEdit> for GenEdit {
+    fn from(e: &crate::enhance::GenEdit) -> Self {
+        Self {
+            key: e.key.clone(),
+            generator: e.category.name().to_string(),
+            prefix: e.prefix.clone(),
+            suffix: e.suffix.clone(),
+            whole: None,
+            trim_stock: e.trim_stock,
+        }
+    }
 }
 
 /// Where a key's final value came from.
@@ -102,23 +117,40 @@ pub fn merge(
             continue;
         };
         let sv = stock.value_at(line).unwrap_or_default();
-        let (value, op, added, part) = match &g.whole {
-            Some(w) => (w.clone(), Op::GeneratedWhole, vec![w.as_str()], w.clone()),
-            None => (
-                format!("{}{sv}{}", g.prefix, g.suffix),
-                Op::GeneratedParts,
-                vec![g.prefix.as_str(), g.suffix.as_str()],
-                format!("{}{}", g.prefix, g.suffix),
-            ),
+        // Parts are checked with the generators' own rules (enhance::check, spec 7.3), so
+        // `apply` keeps exactly what `build` keeps (including CIG's open-tail values);
+        // a whole replacement goes through the general value rules.
+        let checked: Result<(String, String), String> = match &g.whole {
+            Some(w) => validate::check_value(sv, w, Op::GeneratedWhole, &[w.as_str()])
+                .map(|()| (w.clone(), w.clone()))
+                .map_err(|r| r.name().to_string()),
+            None => {
+                let stock_part = if g.trim_stock {
+                    crate::enhance::trim_tail(sv)
+                } else {
+                    sv
+                };
+                crate::enhance::check::check_generated(sv, stock_part, &g.prefix, &g.suffix)
+                    .map(|()| {
+                        (
+                            format!("{}{stock_part}{}", g.prefix, g.suffix),
+                            format!("{}{}", g.prefix, g.suffix),
+                        )
+                    })
+                    .map_err(|r| r.name().to_string())
+            }
         };
-        match validate::check_value(sv, &value, op, &added) {
-            Ok(()) => {
+        match checked {
+            Ok((value, part)) => {
                 gen_values.insert(line, (value, part));
                 gen_src.insert(line, g.generator.clone());
             }
             Err(rule) => {
                 m.counts.dropped += 1;
-                m.warnings.push(drop_warning(&g.key, "generated", &rule));
+                m.warnings.push(Warning::new(
+                    "dropped-edit",
+                    format!("{}: generated value dropped ({rule})", g.key),
+                ));
             }
         }
     }
@@ -255,6 +287,7 @@ mod tests {
                 prefix: "[S] ".into(),
                 suffix: String::new(),
                 whole: None,
+                trim_stock: false,
             },
             GenEdit {
                 key: "f".into(),
@@ -262,6 +295,7 @@ mod tests {
                 prefix: String::new(),
                 suffix: " x".into(),
                 whole: None,
+                trim_stock: false,
             },
         ];
         let text = "schema = 1\nid = \"p\"\ntitle = \"t\"\n[[loc]]\nkey = \"a\"\nop = \"append\"\nvalue = \" <EM4>bad\"\n";
@@ -309,5 +343,28 @@ mod tests {
         assert_eq!(m.counts.dropped, 3);
         assert!(m.warnings.iter().any(|w| w.kind == "override-ignored"));
         assert_eq!(m.provenance[&1], Source::Override);
+    }
+
+    #[test]
+    fn trim_stock_drops_the_stock_tail() {
+        let s = StockIni::parse(b"\xEF\xBB\xBFd=Prose\\n\\n  \r\n".to_vec());
+        let g = [GenEdit {
+            key: "d".into(),
+            generator: "ships".into(),
+            prefix: String::new(),
+            suffix: "\\n\\nStats".into(),
+            whole: None,
+            trim_stock: true,
+        }];
+        let m = merge(
+            &s,
+            &GameData::default(),
+            None,
+            &g,
+            &PatchSet::default(),
+            &[],
+        );
+        let out = String::from_utf8(s.render(&m.edits)).unwrap();
+        assert!(out.ends_with("d=Prose\\n\\nStats\r\n"), "{out:?}");
     }
 }

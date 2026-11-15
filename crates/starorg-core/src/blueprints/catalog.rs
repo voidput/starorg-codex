@@ -1,11 +1,13 @@
 //! Blueprint display names to match imported names against (addendum §4).
 //!
-//! The real catalog is the English display name of each blueprint's output item in
-//! `GameData` (spec 6.1: `CraftingBlueprintRecord` → produced entity → its name). M2 fills
-//! the `GameData` side; until then [`GameData`] yields an empty catalog and tests use
+//! The real catalog is [`GameDataCatalog`]: the English display name of each blueprint's
+//! output item (spec 6.1: `CraftingBlueprintRecord` → produced entity → its name key →
+//! the stock `global.ini` text). Tests and the hidden `--test-catalog` option use
 //! [`ListCatalog`].
 
 use super::normalize;
+use crate::enhance::stock_name;
+use crate::ini::StockIni;
 use crate::model::GameData;
 use std::collections::BTreeMap;
 
@@ -21,10 +23,38 @@ pub trait BlueprintCatalog {
     fn blueprints(&self) -> Vec<CatalogEntry>;
 }
 
-impl BlueprintCatalog for GameData {
-    /// Empty until GameData carries blueprint records and their resolved names (M2).
+/// Blueprints of one build: `GameData` records, named through the stock text of the same
+/// build. A blueprint whose produced item has no name key, or whose name is a placeholder,
+/// is left out (it cannot be matched by name).
+pub struct GameDataCatalog<'a> {
+    pub game_data: &'a GameData,
+    pub stock: &'a StockIni,
+}
+
+impl<'a> GameDataCatalog<'a> {
+    pub fn new(game_data: &'a GameData, stock: &'a StockIni) -> Self {
+        Self { game_data, stock }
+    }
+}
+
+impl BlueprintCatalog for GameDataCatalog<'_> {
     fn blueprints(&self) -> Vec<CatalogEntry> {
-        Vec::new()
+        self.game_data
+            .blueprints
+            .iter()
+            .filter_map(|bp| {
+                let name = stock_name(self.stock, bp.produces_name_key.as_deref())?;
+                let id = if bp.id.is_empty() {
+                    bp.short_name().to_string()
+                } else {
+                    bp.id.clone()
+                };
+                Some(CatalogEntry {
+                    id,
+                    name: name.to_string(),
+                })
+            })
+            .collect()
     }
 }
 
@@ -92,6 +122,7 @@ mod tests {
         let i = index(&c);
         assert_eq!(i["alpha helmet"], vec!["bp_a", "bp_b"]);
         assert_eq!(i["beta core"], vec!["Beta Core"]);
-        assert!(index(&GameData::default()).is_empty());
+        let stock = StockIni::parse(b"\xEF\xBB\xBF".to_vec());
+        assert!(index(&GameDataCatalog::new(&GameData::default(), &stock)).is_empty());
     }
 }

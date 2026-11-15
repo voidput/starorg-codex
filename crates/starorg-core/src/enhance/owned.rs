@@ -33,28 +33,10 @@ impl OwnedBlueprints for NoneOwned {
 }
 
 /// Fold a display name for matching: strip leading `[...]` tag groups, unify quotes and
-/// apostrophes, collapse whitespace, lower case (addendum §4).
+/// apostrophes, collapse whitespace, lower case (addendum §4). The same key the blueprint
+/// store uses.
 pub fn normalize_name(name: &str) -> String {
-    let mut s = name.trim();
-    while let Some(rest) = s.strip_prefix('[') {
-        match rest.find(']') {
-            Some(end) => s = rest[end + 1..].trim_start(),
-            None => break,
-        }
-    }
-    let mapped: String = s
-        .chars()
-        .map(|c| match c {
-            '\u{2018}' | '\u{2019}' | '\u{201B}' | '`' | '\u{00B4}' => '\'',
-            '\u{201C}' | '\u{201D}' => '"',
-            c => c,
-        })
-        .collect();
-    mapped
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .to_lowercase()
+    crate::blueprints::normalize(name)
 }
 
 /// An owned set given as blueprint ids/record names and/or display names (normalised).

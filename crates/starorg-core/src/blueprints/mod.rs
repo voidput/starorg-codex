@@ -265,6 +265,9 @@ pub struct Selection {
     /// Normalised names.
     #[serde(skip)]
     pub names: BTreeSet<String>,
+    /// Matched `GameData` blueprint ids (lower case), from entries an import matched.
+    #[serde(skip)]
+    pub ids: BTreeSet<String>,
     pub count: usize,
     /// Empty when the set is empty, so channels without blueprint data never look stale.
     pub hash: String,
@@ -326,13 +329,24 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
         Choice::Character(g) => ("character", vec![g.clone()]),
     };
     let mut names = BTreeSet::new();
+    let mut ids = BTreeSet::new();
     for g in &geids {
-        names.extend(load_set(channel_data, g)?.entries.into_keys());
+        for (k, e) in load_set(channel_data, g)?.entries {
+            // An ambiguous match lists every candidate; only a unique id marks by id.
+            if !e.ambiguous {
+                ids.extend(e.ids.iter().map(|i| i.to_ascii_lowercase()));
+            }
+            names.insert(k);
+        }
     }
     let hash = if names.is_empty() {
         String::new()
     } else {
-        let joined: Vec<&str> = names.iter().map(String::as_str).collect();
+        let mut joined: Vec<&str> = names.iter().map(String::as_str).collect();
+        if !ids.is_empty() {
+            joined.push("\0ids");
+            joined.extend(ids.iter().map(String::as_str));
+        }
         fsutil::sha256_hex(joined.join("\n").as_bytes())
     };
     Ok(Selection {
@@ -340,8 +354,20 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
         characters: geids,
         count: names.len(),
         names,
+        ids,
         hash,
     })
+}
+
+/// The selected owned set feeds the mission generator's `[Owned]` markers (spec 6.5): a
+/// blueprint is owned when its id or record name was matched on import, or when its
+/// display name normalises to an owned name (log entries carry names only).
+impl crate::enhance::owned::OwnedBlueprints for Selection {
+    fn owns(&self, bp: &crate::enhance::owned::BlueprintRef<'_>) -> bool {
+        (!bp.id.is_empty() && self.ids.contains(&bp.id.to_ascii_lowercase()))
+            || (!bp.record.is_empty() && self.ids.contains(&bp.record.to_ascii_lowercase()))
+            || (!bp.name.is_empty() && self.names.contains(&normalize(bp.name)))
+    }
 }
 
 #[cfg(test)]

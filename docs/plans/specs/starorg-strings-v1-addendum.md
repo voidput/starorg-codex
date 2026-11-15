@@ -176,6 +176,27 @@ tracked **per character**, never merged.
 - **Privacy.** Names, geids and account ids stay in `blueprints/*.json` in the data folder;
   `doctor` shows counts only.
 
+## 3-4. M1 + M2 integration (merge into main)
+
+- **Catalog.** `GameDataCatalog` names each `GameData` blueprint by its produced item's name
+  key looked up in the same build's stock `global.ini` (placeholders left out); the id is the
+  blueprint record GUID. `blueprints import` takes it from the extraction cache, or extracts
+  from `Data.p4k` (read only) on a miss; a real import caches that extraction, a dry run
+  writes nothing (only the worker's empty temp work folder under the cache dir remains).
+- **Owner's export, LIVE 4.10.200.58746, real GameData (dry run, 2026-11-15):** 269 entries,
+  244 new, 23 already known from the logs, 2 ambiguous (2 candidates each: two blueprints
+  produce items with the same English name), 0 unmatched, 0 not completed, 0 duplicates;
+  1.3 s, 0.89 GB peak (one extraction). The stand-in catalog above gave 199 / 22 / 25.
+- **`[Owned]` on apply.** `apply` now runs the generators (profile `preset` + `[enhance]`
+  from `profile.toml`) with the channel's selected owned set (`blueprints::Selection`
+  implements `OwnedBlueprints`): owned by matched blueprint id (non-ambiguous imports) or by
+  normalised display name (log entries carry names only). Generated parts are validated with
+  the generators' rules (`enhance::check`, which allows CIG's open-tail values) so `apply`
+  and `build` keep the same edits: on the fake LIVE install `apply` output was byte-identical
+  to `build --owned-blueprints <the same set>` (3,294 edits, 0 dropped, 280 `[Owned]`
+  bullets for the imported character).
+- **One name key.** `enhance::owned::normalize_name` is `blueprints::normalize`.
+
 ## 5. StarOrg Tools account link (OAuth, like RSI+) — import and sync blueprints
 
 Native "Connect StarOrg Tools" in the app (and `starorg-strings starorg login|logout|status`,

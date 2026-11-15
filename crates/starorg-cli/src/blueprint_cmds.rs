@@ -1,19 +1,20 @@
 //! `blueprints scan|characters|list|use|import` (addendum §3, §4).
 
-use crate::apply_cmds::{ctx, find_channel, install, lookup, register};
+use crate::apply_cmds::{ctx, find_channel, install, lookup, register, source};
 use crate::commands::{JSON_SCHEMA, fail};
 use crate::{BlueprintCmd, GlobalOpts, exit};
 use serde_json::json;
-use starorg_core::apply::Ctx;
-use starorg_core::blueprints::catalog::{BlueprintCatalog, ListCatalog};
+use starorg_core::apply::{self, Ctx, Target};
+use starorg_core::blueprints::catalog::{BlueprintCatalog, GameDataCatalog, ListCatalog};
 use starorg_core::blueprints::import::{self, EXPORT_LIMIT};
 use starorg_core::blueprints::logscan::{self, ScanReport, Store};
 use starorg_core::blueprints::{self, Characters, Choice};
 use starorg_core::cache::{self, KeyInputs};
-use starorg_core::discovery::Channel;
+use starorg_core::discovery::{Channel, Install};
 use starorg_core::fsutil;
+use starorg_core::ini::StockIni;
 use starorg_core::lock::{self, Lock, LockError};
-use starorg_core::model::GameData;
+use starorg_core::source::{Budget, Loaded};
 use starorg_core::state::ChannelState;
 use starorg_data::starbreaker::STARBREAKER_COMMIT;
 use std::path::Path;
@@ -352,17 +353,49 @@ fn use_cmd(g: &GlobalOpts, channel: &str, who: &str) -> ExitCode {
     ExitCode::from(exit::OK)
 }
 
-/// GameData of the current build from the extraction cache (no extraction).
-fn cached_gamedata(c: &Ctx, id: Option<&str>, ch: &Channel) -> Option<GameData> {
-    let fp = ch.fingerprint().ok()?;
-    let cache_dir = c.dirs.channel_cache(id?, &ch.name);
-    cache::load(
-        &cache_dir,
-        &KeyInputs::local(&fp, STARBREAKER_COMMIT),
-        c.min_stock_keys,
-    )
-    .ok()
-    .map(|l| l.game_data)
+/// Stock text and GameData of the channel's current build, to name blueprints. From the
+/// extraction cache when it has this build; otherwise extracted from `Data.p4k` (read only).
+/// A real import caches the extraction like an apply does; a dry run reads the cache but
+/// writes nothing, not even the cache or a lock file.
+fn channel_data(
+    g: &GlobalOpts,
+    c: &Ctx,
+    i: &Install,
+    id: Option<&str>,
+    ch: &Channel,
+    dry_run: bool,
+) -> Result<Loaded, ExitCode> {
+    let fp = ch.fingerprint().ok();
+    if let (true, Some(id)) = (fp.is_some(), id)
+        && c.use_cache
+        && !dry_run
+    {
+        let t = Target::new(i, Some(id.to_string()), ch);
+        let source = source(g, c)?;
+        if !g.quiet && !g.json {
+            eprintln!("Loading {} blueprint names ...", ch.name);
+        }
+        let mut warnings = Vec::new();
+        return apply::load_channel(c, &t, source.as_ref(), &Budget::unlimited(), &mut warnings)
+            .map_err(|e| fail(g, exit::ERROR, "extraction", &e));
+    }
+    if let (Some(fp), Some(id)) = (&fp, id)
+        && c.use_cache
+        && let Ok(l) = cache::load(
+            &c.dirs.channel_cache(id, &ch.name),
+            &KeyInputs::local(fp, STARBREAKER_COMMIT),
+            c.min_stock_keys,
+        )
+    {
+        return Ok(l);
+    }
+    let source = source(g, c)?;
+    if !g.quiet && !g.json {
+        eprintln!("Extracting {} from {} ...", ch.name, ch.p4k.display());
+    }
+    source
+        .load(ch, &Budget::unlimited())
+        .map_err(|e| fail(g, exit::ERROR, "extraction", &e.to_string()))
 }
 
 fn import_cmd(
@@ -409,14 +442,23 @@ fn import_cmd(
             Err(e) => return e,
         }
     };
-    let catalog: Box<dyn BlueprintCatalog> = match test_catalog {
+    let loaded;
+    let stock;
+    let catalog: Box<dyn BlueprintCatalog + '_> = match test_catalog {
         Some(p) => match std::fs::read_to_string(p) {
             Ok(t) => Box::new(ListCatalog::parse(&t)),
             Err(e) => {
                 return fail(g, exit::ERROR, "io", &format!("{}: {e}", p.display()));
             }
         },
-        None => Box::new(cached_gamedata(&c, id.as_deref(), ch).unwrap_or_default()),
+        None => {
+            loaded = match channel_data(g, &c, &i, id.as_deref(), ch, dry_run) {
+                Ok(l) => l,
+                Err(code) => return code,
+            };
+            stock = StockIni::parse(loaded.base_ini);
+            Box::new(GameDataCatalog::new(&loaded.game_data, &stock))
+        }
     };
     let data = c
         .dirs
@@ -507,7 +549,7 @@ fn import_cmd(
         println!("  owned after import: {count_after}");
     }
     if rep.empty_catalog {
-        let msg = "no blueprint names to match against: GameData has no blueprint records yet (M2); nothing imported";
+        let msg = "no blueprint names to match against: this build's GameData has no named blueprints; nothing imported";
         if dry_run {
             eprintln!("  warning: {msg}");
         } else {

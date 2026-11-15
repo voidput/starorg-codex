@@ -486,7 +486,7 @@ impl Report {
                 change: b.and_then(|b| b.change),
                 version: b.map(|b| b.version.clone()),
             },
-            counts: counts_json(&Counts::default()),
+            counts: counts_json(&Counts::default(), &crate::enhance::Generated::default()),
             patches: Vec::new(),
             patch_entries: Vec::new(),
             warnings: Vec::new(),
@@ -511,10 +511,21 @@ impl Report {
 }
 
 /// `counts` in the shape of spec 8. Categories stay 0 until the M2 generators exist.
-fn counts_json(c: &Counts) -> serde_json::Value {
+/// Per-category counts are what the generators offered; `changed`, `dropped` and the patch
+/// and override counts are after the merge.
+fn counts_json(c: &Counts, g: &crate::enhance::Generated) -> serde_json::Value {
+    use crate::enhance::Category as C;
+    let n = |cs: &[C]| cs.iter().map(|&x| g.count(x)).sum::<usize>();
     serde_json::json!({
-        "changed": c.changed, "ships": 0, "components": 0, "ship_weapons": 0,
-        "fps_weapons": 0, "missiles": 0, "missions": 0, "loc_patches": c.loc_patches,
+        "changed": c.changed,
+        "ships": n(&[C::Ships]),
+        "components": n(&[C::Components, C::ComponentTags]),
+        "ship_weapons": n(&[C::ShipWeapons, C::ShipWeaponTags]),
+        "fps_weapons": n(&[C::FpsWeapons]),
+        "missiles": n(&[C::Missiles, C::MissileTags]),
+        "missions": n(&[C::MissionTitles, C::MissionDescriptions]),
+        "generated": c.generated,
+        "loc_patches": c.loc_patches,
         "overrides": c.overrides, "dropped": c.dropped,
     })
 }
@@ -760,6 +771,26 @@ fn load_stock(
     Ok(loaded)
 }
 
+/// Stock text and `GameData` of a channel's current build: from the cache, or extracted
+/// (one extraction at a time) and cached. With `ctx.use_cache` off it neither reads nor
+/// writes the cache.
+pub fn load_channel(
+    ctx: &Ctx,
+    t: &Target<'_>,
+    source: &dyn GameSource,
+    budget: &Budget,
+    warnings: &mut Vec<Warning>,
+) -> Result<crate::source::Loaded, String> {
+    let key_inputs = t
+        .channel
+        .fingerprint()
+        .ok()
+        .map(|fp| KeyInputs::local(&fp, &ctx.starbreaker_commit));
+    load_stock(ctx, t, key_inputs.as_ref(), source, budget, warnings).map_err(|e| match e {
+        LoadErr::Skip(w) | LoadErr::Fail(w) => w,
+    })
+}
+
 /// Apply one channel (spec 7.1).
 pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSource) -> Report {
     let started = Instant::now();
@@ -879,7 +910,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     };
     r.warnings.extend(loaded.warnings.iter().cloned());
 
-    // 5. Build: data patches -> generators (M2) -> merge -> loc patches -> overrides.
+    // 5. Build: data patches -> generators -> merge -> loc patches -> overrides.
     let stock = StockIni::parse(loaded.base_ini);
     for b in &inputs.overrides_bad {
         r.warnings.push(Warning::new("override-ignored", b.clone()));
@@ -890,15 +921,24 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             format!("{k} folds to the same key on lines {lines:?}; left out"),
         ));
     }
+    let enhance_profile = match inputs.profile.enhance() {
+        Ok(p) => p,
+        Err(e) => return fail(r, format!("profile.toml: {e}")),
+    };
+    let generated =
+        crate::enhance::generate(&loaded.game_data, &stock, &enhance_profile, &inputs.owned);
+    r.warnings.extend(generated.warnings.iter().cloned());
+    let gen_edits: Vec<merge::GenEdit> =
+        generated.edits.values().map(merge::GenEdit::from).collect();
     let merged = merge::merge(
         &stock,
         &loaded.game_data,
         t.build(),
-        &[],
+        &gen_edits,
         &inputs.patches,
         &inputs.overrides,
     );
-    r.counts = counts_json(&merged.counts);
+    r.counts = counts_json(&merged.counts, &generated);
     r.patches = patch::summarise(&inputs.patches, &merged.patch_outcomes);
     r.patch_entries = merged.patch_outcomes.clone();
     r.warnings.extend(merged.warnings.iter().cloned());

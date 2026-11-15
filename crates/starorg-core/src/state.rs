@@ -95,6 +95,19 @@ impl Profile {
         fsutil::write_atomic(&Self::path(channel_dir), s.as_bytes())
     }
 
+    /// The generator settings: `preset` plus the optional `[enhance]` table (spec 4.7).
+    /// Other tables (`patches`, unknown keys) are not the generators' business.
+    pub fn enhance(&self) -> Result<crate::enhance::profile::Profile, String> {
+        let mut t = toml::Table::new();
+        for k in ["preset", "enhance"] {
+            if let Some(v) = self.table.get(k) {
+                t.insert(k.into(), v.clone());
+            }
+        }
+        let text = toml::to_string(&t).map_err(|e| e.to_string())?;
+        crate::enhance::profile::Profile::from_toml(&text).map_err(|e| e.to_string())
+    }
+
     /// Ids of built-in patches the user switched off.
     pub fn disabled_patches(&self) -> Vec<String> {
         self.table
