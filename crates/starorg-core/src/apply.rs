@@ -1525,7 +1525,10 @@ pub fn remove(ctx: &Ctx, t: &Target<'_>, yes: bool) -> Report {
                             "our g_language line was changed since; left alone",
                         ));
                     }
-                    r.user_cfg.action = Some(format!("{o:?}"));
+                    if let UndoOutcome::StillUsed { channels } = &o {
+                        r.user_cfg.shared_with = channels.clone();
+                    }
+                    r.user_cfg.action = Some(o.kebab().to_string());
                 }
                 Err(e) => return fail(r, format!("user.cfg: {e}")),
             },

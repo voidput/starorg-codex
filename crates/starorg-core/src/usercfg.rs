@@ -234,11 +234,13 @@ pub fn locate(channel_dir: &Path) -> Result<CfgTarget, ResolveError> {
     } else if is_link {
         // A dangling link: follow it by hand so we never replace it with a file.
         let target = std::fs::read_link(&r.path).unwrap_or_else(|_| r.path.clone());
-        if target.is_absolute() {
+        // Normalise so the ledger and the cfg lock key match the existing-file case.
+        let joined = if target.is_absolute() {
             target
         } else {
             channel_dir.join(target)
-        }
+        };
+        fsutil::canonical_lenient(&joined)
     } else {
         fsutil::canonical_lenient(&r.path)
     };
@@ -336,6 +338,18 @@ pub enum UndoOutcome {
     ChangedSince,
 }
 
+impl UndoOutcome {
+    /// Stable machine name (matches the serde spelling).
+    pub fn kebab(&self) -> &'static str {
+        match self {
+            Self::NotOurs => "not-ours",
+            Self::StillUsed { .. } => "still-used",
+            Self::Reverted => "reverted",
+            Self::ChangedSince => "changed-since",
+        }
+    }
+}
+
 /// Take `channel_ref` off the ledger of `target` and revert the line when nobody needs it.
 pub fn release(
     dirs: &AppDirs,
@@ -377,6 +391,27 @@ pub fn release(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn dangling_relative_link_is_normalised() {
+        let t = tempfile::tempdir().unwrap();
+        let live = t.path().join("game/LIVE");
+        std::fs::create_dir_all(&live).unwrap();
+        std::fs::create_dir_all(t.path().join("shared")).unwrap();
+        std::os::unix::fs::symlink("../../shared/USER.cfg", live.join("USER.cfg")).unwrap();
+        let c = locate(&live).unwrap();
+        assert!(c.is_link && !c.exists);
+        let want = std::fs::canonicalize(t.path().join("shared"))
+            .unwrap()
+            .join("USER.cfg");
+        assert_eq!(c.real, want);
+        assert!(
+            !c.real
+                .components()
+                .any(|p| p == std::path::Component::ParentDir)
+        );
+    }
 
     #[test]
     fn language_line_matching() {
