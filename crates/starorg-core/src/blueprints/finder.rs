@@ -129,6 +129,19 @@ fn item_type(item: Option<&ItemIdentity>) -> Option<String> {
     )
 }
 
+/// Types the record path does not say (`$templates`, bare `vehiclegear`), by a word in the
+/// record name. Checked before the path.
+const RECORD_TYPES: &[(&str, &str)] = &[
+    ("_hmg_", "HMG"),
+    ("crossbow", "Crossbow"),
+    ("shipmining_pod", "Ore pod"),
+    ("mining_modules", "Mining module"),
+    ("tachyoncannon", "Tachyon cannon"),
+    ("neutroncannon", "Neutron cannon"),
+    ("neutronrepeater", "Neutron repeater"),
+    ("lasergatling", "Laser gatling"),
+];
+
 /// Armor slots, by a word in the record name (`ccc_medium_armor_arms_01`).
 const ARMOR_SLOTS: &[(&str, &str)] = &[
     ("helmet", "Helmet"),
@@ -243,6 +256,14 @@ pub fn classify(bp: &Blueprint, item: Option<&ItemIdentity>, group: Option<&str>
             None,
         ),
         _ => (None, None),
+    };
+    let ty = match kind {
+        Kind::FpsWeapon | Kind::ShipWeapon | Kind::ShipComponent => RECORD_TYPES
+            .iter()
+            .find(|(w, _)| record.contains(w))
+            .map(|(_, l)| l.to_string())
+            .or(ty),
+        _ => ty,
     };
     Classified { kind, ty, class }
 }
@@ -359,7 +380,14 @@ pub struct ChannelInput {
     pub characters: Characters,
     /// Owned sets of `characters` (missing ones count as empty).
     pub sets: Vec<OwnedSet>,
+    /// `unattributed.json`: seen before any login line; owner [`UNATTRIBUTED`].
+    pub unattributed: Option<OwnedSet>,
+    /// Set files that could not be read.
+    pub unreadable: u32,
 }
+
+/// Owner id of the unattributed set (no geid is all letters).
+pub const UNATTRIBUTED: &str = "unattributed";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Owner {
@@ -371,7 +399,8 @@ pub struct Owner {
     /// Earliest source time.
     pub acquired: Option<String>,
     pub favorite: bool,
-    /// Matched several blueprints on import: listed, never marked (§4).
+    /// The name could be several blueprints (an import that matched several, or a name
+    /// several blueprints have): listed, never marked (§4).
     pub ambiguous: bool,
 }
 
@@ -389,9 +418,13 @@ pub struct Row {
     pub manufacturer_name: Option<String>,
     pub size: Option<u8>,
     pub grade: Option<String>,
-    /// Channels whose build has this blueprint (empty: in no read build).
+    /// Channels whose build has this blueprint (name rows: their candidates' channels).
     pub channels: Vec<String>,
+    /// Name rows: the blueprints the name could be (several); empty = in no read build.
+    pub candidates: Vec<String>,
     pub owners: Vec<Owner>,
+    /// Owners of an ambiguous name that could be this blueprint ("maybe owned").
+    pub maybe: Vec<Owner>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -410,8 +443,10 @@ pub struct FinderChannel {
     /// Blueprints in this build; `None` = game data not read yet.
     pub catalog: Option<u32>,
     pub characters: u32,
-    /// Owned entries over all characters.
+    /// Owned entries over all characters (and the unattributed set).
     pub owned: u32,
+    /// Set files that could not be read or placed (no character id): not shown.
+    pub skipped: u32,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
@@ -435,7 +470,9 @@ fn row_of(c: &CatalogItem) -> Row {
         size: c.size,
         grade: c.grade.clone(),
         channels: Vec::new(),
+        candidates: Vec::new(),
         owners: Vec::new(),
+        maybe: Vec::new(),
     }
 }
 
@@ -470,10 +507,13 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
             }
         }
     }
+    // Catalogue rows end here; name rows come after.
+    let catalog_rows = rows.len();
     let mut chars: BTreeMap<String, FinderCharacter> = BTreeMap::new();
     let mut channels = Vec::new();
     for inp in inputs {
         let mut owned = 0u32;
+        let mut skipped = inp.unreadable;
         for (g, c) in &inp.characters.characters {
             let e = chars.entry(g.clone()).or_insert_with(|| FinderCharacter {
                 id: g.clone(),
@@ -481,6 +521,8 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
                 last_seen: c.last_seen.clone(),
                 channels: Vec::new(),
             });
+            // TODO(aliases): once `Characters.aliases` lands (branch blueprints-windows-fix),
+            // canonicalise `g` through them here so renamed/merged characters join up.
             if c.last_seen > e.last_seen {
                 e.name = c.name.clone();
                 e.last_seen = c.last_seen.clone();
@@ -488,8 +530,27 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
             e.channels.push(inp.channel.clone());
         }
         let names = names_in.get(inp.channel.as_str());
+        let mut sets: Vec<(&str, &OwnedSet)> = Vec::new();
         for set in &inp.sets {
-            let Some(geid) = &set.geid else { continue };
+            match &set.geid {
+                Some(g) => sets.push((g.as_str(), set)),
+                // A set without its character id cannot be placed: counted, shown.
+                None => skipped += 1,
+            }
+        }
+        if let Some(u) = inp.unattributed.as_ref().filter(|u| !u.entries.is_empty()) {
+            sets.push((UNATTRIBUTED, u));
+            let e = chars
+                .entry(UNATTRIBUTED.to_string())
+                .or_insert_with(|| FinderCharacter {
+                    id: UNATTRIBUTED.into(),
+                    name: "Unattributed".into(),
+                    last_seen: None,
+                    channels: Vec::new(),
+                });
+            e.channels.push(inp.channel.clone());
+        }
+        for (geid, set) in sets {
             for (norm, e) in &set.entries {
                 owned += 1;
                 let unique = |m: Option<&HashMap<String, Vec<String>>>| {
@@ -497,18 +558,51 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
                         .filter(|v| v.len() == 1)
                         .map(|v| v[0].clone())
                 };
-                // By matched id first (an ambiguous entry matches nothing), then by a name
-                // only one blueprint has: in this channel's build, else in any read build.
-                let key = if e.ambiguous {
-                    None
-                } else {
-                    e.ids
+                let several = |m: Option<&HashMap<String, Vec<String>>>| {
+                    m.and_then(|m| m.get(norm)).filter(|v| v.len() > 1).cloned()
+                };
+                // By matched id first, then by a name only one blueprint has: in this
+                // channel's build, else in any read build. An import marked ambiguous, or a
+                // name several blueprints have, matches none of them: its own row lists the
+                // candidates, and each candidate shows it as "maybe owned".
+                let (key, candidates) = if e.ambiguous {
+                    let ids: Vec<String> = e
+                        .ids
                         .iter()
                         .map(|i| i.to_ascii_lowercase())
-                        .find(|k| by_key.contains_key(k))
+                        .filter(|k| by_key.get(k).is_some_and(|&i| i < catalog_rows))
+                        .collect();
+                    let any = |m: Option<&HashMap<String, Vec<String>>>| {
+                        m.and_then(|m| m.get(norm))
+                            .filter(|v| !v.is_empty())
+                            .cloned()
+                    };
+                    let c = if ids.is_empty() {
+                        any(names)
+                            .or_else(|| any(Some(&names_all)))
+                            .unwrap_or_default()
+                    } else {
+                        ids
+                    };
+                    (None, c)
+                } else {
+                    let k = e
+                        .ids
+                        .iter()
+                        .map(|i| i.to_ascii_lowercase())
+                        .find(|k| by_key.get(k).is_some_and(|&i| i < catalog_rows))
                         .or_else(|| unique(names))
-                        .or_else(|| unique(Some(&names_all)))
+                        .or_else(|| unique(Some(&names_all)));
+                    let c = if k.is_some() {
+                        Vec::new()
+                    } else {
+                        several(names)
+                            .or_else(|| several(Some(&names_all)))
+                            .unwrap_or_default()
+                    };
+                    (k, c)
                 };
+                let ambiguous = key.is_none() && (e.ambiguous || !candidates.is_empty());
                 let key = key.unwrap_or_else(|| format!("name:{norm}"));
                 let i = *by_key.entry(key.clone()).or_insert_with(|| {
                     rows.push(Row {
@@ -523,40 +617,31 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
                         size: None,
                         grade: None,
                         channels: Vec::new(),
+                        candidates: Vec::new(),
                         owners: Vec::new(),
+                        maybe: Vec::new(),
                     });
                     rows.len() - 1
                 });
+                for c in &candidates {
+                    if !rows[i].candidates.contains(c) {
+                        rows[i].candidates.push(c.clone());
+                    }
+                }
                 let owner = Owner {
                     channel: inp.channel.clone(),
-                    character: geid.clone(),
+                    character: geid.to_string(),
                     sources: e.sources.iter().map(|s| s.kind.clone()).collect(),
                     acquired: e.sources.iter().filter_map(|s| s.time.clone()).min(),
                     favorite: e.favorite,
-                    ambiguous: e.ambiguous,
+                    ambiguous,
                 };
-                let r = &mut rows[i];
-                match r
-                    .owners
-                    .iter_mut()
-                    .find(|o| o.channel == owner.channel && o.character == owner.character)
-                {
-                    // Two entries of one set on one blueprint (a log name and an import).
-                    Some(o) => {
-                        for s in owner.sources {
-                            if !o.sources.contains(&s) {
-                                o.sources.push(s);
-                            }
-                        }
-                        o.acquired = match (o.acquired.take(), owner.acquired) {
-                            (Some(a), Some(b)) => Some(a.min(b)),
-                            (a, b) => a.or(b),
-                        };
-                        o.favorite |= owner.favorite;
-                        o.ambiguous &= owner.ambiguous;
+                for c in &candidates {
+                    if let Some(&ci) = by_key.get(c) {
+                        add_owner(&mut rows[ci].maybe, owner.clone());
                     }
-                    None => r.owners.push(owner),
                 }
+                add_owner(&mut rows[i].owners, owner);
             }
         }
         channels.push(FinderChannel {
@@ -564,15 +649,82 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
             catalog: inp.catalog.as_ref().map(|c| c.len() as u32),
             characters: inp.characters.characters.len() as u32,
             owned,
+            skipped,
         });
+    }
+    // A name row takes what all its candidates agree on (kind, type, maker, size ...).
+    for i in catalog_rows..rows.len() {
+        let cands: Vec<Row> = rows[i]
+            .candidates
+            .iter()
+            .filter_map(|k| by_key.get(k).map(|&j| rows[j].clone()))
+            .collect();
+        let Some(first) = cands.first() else { continue };
+        let same = |f: &dyn Fn(&Row) -> String| cands.iter().all(|c| f(c) == f(first));
+        let r = &mut rows[i];
+        if same(&|c| format!("{:?}", c.kind)) {
+            r.kind = first.kind;
+        }
+        macro_rules! common {
+            ($($f:ident),*) => {$(
+                if same(&|c| format!("{:?}", c.$f)) {
+                    r.$f = first.$f.clone();
+                }
+            )*};
+        }
+        common!(
+            type_label,
+            class,
+            manufacturer,
+            manufacturer_name,
+            size,
+            grade
+        );
+        for c in &cands {
+            for ch in &c.channels {
+                if !r.channels.contains(ch) {
+                    r.channels.push(ch.clone());
+                }
+            }
+        }
     }
     rows.sort_by(|a, b| (a.name.to_lowercase(), &a.key).cmp(&(b.name.to_lowercase(), &b.key)));
     let mut characters: Vec<FinderCharacter> = chars.into_values().collect();
-    characters.sort_by(|a, b| (a.name.to_lowercase(), &a.id).cmp(&(b.name.to_lowercase(), &b.id)));
+    characters.sort_by(|a, b| {
+        ((a.id == UNATTRIBUTED), a.name.to_lowercase(), &a.id).cmp(&(
+            (b.id == UNATTRIBUTED),
+            b.name.to_lowercase(),
+            &b.id,
+        ))
+    });
     Finder {
         channels,
         characters,
         rows,
+    }
+}
+
+/// One owner per channel and character; two entries of one set on one blueprint (a log name
+/// and an import) merge.
+fn add_owner(list: &mut Vec<Owner>, owner: Owner) {
+    match list
+        .iter_mut()
+        .find(|o| o.channel == owner.channel && o.character == owner.character)
+    {
+        Some(o) => {
+            for s in owner.sources {
+                if !o.sources.contains(&s) {
+                    o.sources.push(s);
+                }
+            }
+            o.acquired = match (o.acquired.take(), owner.acquired) {
+                (Some(a), Some(b)) => Some(a.min(b)),
+                (a, b) => a.or(b),
+            };
+            o.favorite |= owner.favorite;
+            o.ambiguous &= owner.ambiguous;
+        }
+        None => list.push(owner),
     }
 }
 
