@@ -251,6 +251,13 @@ fn samples() -> Value {
         .unwrap()
     );
     // Outside json! (its recursion limit).
+    v["query_strings_by_owner"] = json!(
+        b.query_strings(StringsQuery {
+            sort: StringSort::Owner,
+            ..query("ui_SYN")
+        })
+        .unwrap()
+    );
     let (off, available, failed) = update_samples();
     v["update_status"] = json!(off);
     v["check_for_updates"] = json!(available);
@@ -703,6 +710,34 @@ fn ts_unions_list_every_variant() {
                 StringSort::Category,
                 StringSort::Source,
                 StringSort::Group,
+                StringSort::Owner,
+            ]),
+        ),
+        (
+            "OwnerField",
+            names(&[
+                OwnerField::Name,
+                OwnerField::ShortName,
+                OwnerField::Description,
+                OwnerField::Title,
+                OwnerField::Career,
+                OwnerField::Role,
+            ]),
+        ),
+        (
+            "OwnerKind",
+            names(&[
+                OwnerKind::Ship,
+                OwnerKind::GroundVehicle,
+                OwnerKind::Component,
+                OwnerKind::ShipWeapon,
+                OwnerKind::FpsWeapon,
+                OwnerKind::Missile,
+                OwnerKind::Mission,
+                OwnerKind::Reputation,
+                OwnerKind::Manufacturer,
+                OwnerKind::Named,
+                OwnerKind::Key,
             ]),
         ),
         (
@@ -1334,6 +1369,65 @@ fn strings_query_filters_and_pages_the_whole_table() {
     assert!(p.rows.iter().all(|r| r.source != StringSource::Unmodified));
     q.offset = p.total - 1;
     assert_eq!(b.query_strings(q).unwrap().rows.len(), 1);
+}
+
+/// Strings owners: every page row has an owner (a readable-key fallback when nothing owns
+/// the key), search matches owner names, the owner sort puts owned keys first, and a shared
+/// key lists every owner in its detail.
+#[test]
+fn strings_rows_carry_readable_owners() {
+    let b = MockBackend::default();
+    let p = b
+        .query_strings(StringsQuery {
+            limit: 1000,
+            ..query("")
+        })
+        .unwrap();
+    assert!(p.rows.iter().all(|r| r.owner.is_some()));
+    let ui_page = b.query_strings(query("ui_SYN")).unwrap();
+    let ui = &ui_page.rows[0];
+    let o = ui.owner.as_deref().unwrap();
+    assert_eq!((o.kind, o.field, ui.owners), (OwnerKind::Key, None, 0));
+    assert_eq!(o.name, starorg_core::groups::owners::pretty_key(&ui.key));
+    // Only the owner says "Sample Rifle": the key and text do not.
+    let hits = b.query_strings(query("sample rifle 1")).unwrap();
+    assert!(hits.total > 0);
+    assert!(hits.rows.iter().all(|r| {
+        let o = r.owner.as_deref().unwrap();
+        o.kind == OwnerKind::FpsWeapon && o.field == Some(OwnerField::Description)
+    }));
+    // Owned keys first, A-Z by owner name.
+    let sorted = b
+        .query_strings(StringsQuery {
+            sort: StringSort::Owner,
+            limit: 50,
+            ..query("")
+        })
+        .unwrap();
+    let names: Vec<String> = sorted
+        .rows
+        .iter()
+        .map(|r| r.owner.as_deref().unwrap().name.to_lowercase())
+        .collect();
+    assert!(names.windows(2).all(|w| w[0] <= w[1]), "{names:?}");
+    assert!(sorted.rows.iter().all(|r| r.owners > 0));
+    // A shared ship-weapon key lists both owners, primary first.
+    let lasers = b
+        .query_strings(StringsQuery {
+            limit: 50,
+            ..query("SYN_Laser")
+        })
+        .unwrap();
+    let shared = lasers.rows.iter().find(|r| r.owners > 1).unwrap();
+    let d = b
+        .string_detail(KeyRequest {
+            target: live(),
+            key: shared.key.clone(),
+        })
+        .unwrap();
+    assert_eq!(d.owners.len() as u32, shared.owners);
+    assert_eq!(Some(&d.owners[0]), shared.owner.as_deref());
+    assert!(d.owners[1].name.ends_with("Turret"));
 }
 
 /// Addendum 8.4: one group per row, tree counts follow the facet rule, a parent selects its

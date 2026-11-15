@@ -31,6 +31,7 @@ interface Samples {
   get_profile: T.Profile;
   query_strings: T.StringsPage;
   query_strings_by_size: T.StringsPage;
+  query_strings_by_owner: T.StringsPage;
   read_string_groups: T.GroupState;
   string_detail: T.StringDetail;
   set_override: T.OverrideResult;

@@ -26,6 +26,7 @@
  */
 import { clampGb, memoryView } from '../memory';
 import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
+import { prettyKey } from '../strowner';
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
 import samples from './samples.gen.json';
@@ -118,6 +119,33 @@ export function mockGroup(cat: string, i: number): [string, string | null, numbe
       return [pick(['interface/hud', 'interface/menus', 'interface/mobiglas', 'dialogue/voice', 'other']), null, null];
   }
 }
+
+/** Owners of synthetic row `i`, primary first (same rules as `mock::mock_owners` in Rust). */
+export function mockOwners(cat: string, i: number, original: string, group: string, manufacturer: string | null): T.KeyOwner[] {
+  const detail = manufacturer ? (MOCK_MANUFACTURERS.find(([c]) => c === manufacturer)?.[1] ?? null) : null;
+  const own = (name: string, field: T.OwnerField, kind: T.OwnerKind, d: string | null = detail): T.KeyOwner => ({ name, field, kind, detail: d });
+  switch (cat) {
+    case 'ships':
+      return [own(`Sample Hull ${i}`, 'description', group === 'ships/ground' ? 'ground-vehicle' : 'ship')];
+    case 'components':
+      return [own(original, 'name', 'component')];
+    case 'ship-weapons':
+      return i % 5 === 0 ? [own(original, 'name', 'ship-weapon'), own(`${original} Turret`, 'name', 'component')] : [own(original, 'name', 'ship-weapon')];
+    case 'missiles':
+      return [own(original, 'name', 'missile')];
+    case 'fps-weapons':
+      return [own(`Sample Rifle ${i}`, 'description', 'fps-weapon')];
+    case 'missions':
+      return [own(original, 'title', 'mission', null)];
+    case 'items':
+      return [own(original, 'name', 'named', null)];
+    default:
+      return [];
+  }
+}
+
+/** A page row without an owner gets the readable key (as `strings_query::with_fallback`). */
+const withFallback = (r: T.StringRow): T.StringRow => (r.owner ? r : { ...r, owner: { name: prettyKey(r.key), field: null, kind: 'key', detail: null } });
 
 /** The type hierarchy (ids, parents, labels) as the Rust mock wrote it into the samples. */
 const HIERARCHY = () => SAMPLES.query_strings.groups.map((g) => ({ id: g.id, parent: g.parent, label: g.label }));
@@ -259,7 +287,8 @@ function syntheticStrings(): T.StringRow[] {
       else result = `${original}\\n\\n--- STATS ---\\nDamage: 12.5  |  RPM: 600`;
     }
     const [group, manufacturer, size] = mockGroup(cat, i);
-    rows[i] = { key, original, result, source, category: cat, group, group_label: groupLabel(group), manufacturer, size };
+    const owners = mockOwners(cat, i, original, group, manufacturer);
+    rows[i] = { key, original, result, source, category: cat, group, group_label: groupLabel(group), manufacturer, size, owner: owners[0] ?? null, owners: owners.length };
   }
   return rows;
 }
@@ -495,7 +524,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       row.source = 'edited';
     }
     const also_used_by = row.group.startsWith('components/') && row.size === 1 ? ['HUD'] : [];
-    return { row, provenance, override_value: ov, also_used_by };
+    const owners = mockOwners(row.category, Number(row.key.slice(-5)) || 0, row.original, row.group, row.manufacturer);
+    return { row: withFallback(row), provenance, override_value: ov, also_used_by, owners };
   };
   const offers = (c: Chan): T.RestoreOffers => {
     const s = c.summary;
@@ -946,7 +976,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         const ov = c.overrides.get(base.key);
         const r = ov === undefined ? base : { ...base, result: ov, source: 'edited' as const };
         if (req.changed_only && r.source === 'unmodified') continue;
-        if (needle && !r.key.toLowerCase().includes(needle) && !r.original.toLowerCase().includes(needle) && !r.result.toLowerCase().includes(needle)) continue;
+        const has = (t: string | null | undefined) => !!t && t.toLowerCase().includes(needle);
+        if (needle && !has(r.key) && !has(r.original) && !has(r.result) && !has(r.owner?.name) && !has(r.owner?.detail)) continue;
         const srcOk = !req.sources.length || req.sources.includes(r.source);
         const catOk = !req.categories.length || req.categories.includes(r.category);
         const typeOk = inGroups(r.group);
@@ -976,6 +1007,14 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       else if (req.sort === 'key-desc') hits.sort((a, b) => cmp(b.key, a.key));
       else if (req.sort === 'category') hits.sort((a, b) => cmp(a.category, b.category) || cmp(a.key, b.key));
       else if (req.sort === 'group') hits.sort((a, b) => rank(a) - rank(b) || cmp(a.key, b.key));
+      else if (req.sort === 'owner') {
+        const FIELDS: T.OwnerField[] = ['name', 'short-name', 'description', 'title', 'career', 'role'];
+        const k = (r: T.StringRow) => [r.owner ? 0 : 1, r.owner?.name.toLowerCase() ?? '', r.owner?.field ? FIELDS.indexOf(r.owner.field) : -1] as const;
+        hits.sort((a, b) => {
+          const [x, y] = [k(a), k(b)];
+          return x[0] - y[0] || cmp(x[1], y[1]) || x[2] - y[2] || cmp(a.key, b.key);
+        });
+      }
       else hits.sort((a, b) => cmp(a.source, b.source) || cmp(a.key, b.key));
       const total = hits.length;
       const limit = Math.min(Math.max(req.limit, 1), 1000);
@@ -1000,7 +1039,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         nodes = [...[...sizesSeen].sort((a, b) => a - b).map((s) => ({ id: String(s), parent: null, label: `Size ${s}`, ...(tree.get(String(s)) ?? zero) })), { id: 'none', parent: null, label: 'No size', ...(tree.get('none') ?? zero) }];
       }
       const group_state: T.GroupState = (c.exactGroups ?? c.summary.channel === 'LIVE') ? 'exact' : 'approximate';
-      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits), sources: fc(srcCounts), categories: fc(catCounts), groups: nodes, group_state };
+      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits).map(withFallback), sources: fc(srcCounts), categories: fc(catCounts), groups: nodes, group_state };
     },
     read_string_groups: async ({ req }): Promise<T.GroupState> => {
       const c = chan(req);

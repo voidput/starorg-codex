@@ -182,6 +182,8 @@ struct LoadedData {
     game_data: Arc<GameData>,
     /// Strings grouping of this build, computed once per cache entry (addendum 8.2).
     groups: Arc<starorg_core::groups::GroupIndex>,
+    /// Key owners of this build, built on the first Strings table (about 55 ms on LIVE).
+    owners: std::sync::OnceLock<Arc<starorg_core::groups::owners::OwnerIndex>>,
 }
 
 impl LoadedData {
@@ -193,7 +195,17 @@ impl LoadedData {
             stock: Arc::new(stock),
             game_data: Arc::new(l.game_data),
             groups: Arc::new(groups),
+            owners: std::sync::OnceLock::new(),
         }
+    }
+
+    fn owners(&self) -> &Arc<starorg_core::groups::owners::OwnerIndex> {
+        self.owners.get_or_init(|| {
+            Arc::new(starorg_core::groups::owners::OwnerIndex::build(
+                &self.stock,
+                &self.game_data,
+            ))
+        })
     }
 
     fn group_meta(&self) -> strings_query::GroupMeta {
@@ -850,6 +862,7 @@ impl RealBackend {
             overrides: &inp.overrides,
             owned: &inp.owned,
             groups: &d.groups,
+            owners: d.owners(),
             ship_names: inp.ship_names.active(),
         }));
         if profile.is_none() {

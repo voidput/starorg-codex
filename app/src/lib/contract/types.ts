@@ -419,7 +419,21 @@ export interface SaveProfileRequest {
 // Strings -------------------------------------------------------------------------------
 
 export type StringSource = 'unmodified' | 'enhanced' | 'patched' | 'edited';
-export type StringSort = 'key' | 'key-desc' | 'category' | 'source' | 'group';
+export type StringSort = 'key' | 'key-desc' | 'category' | 'source' | 'group' | 'owner';
+/** Which field of its owner a key is. */
+export type OwnerField = 'name' | 'short-name' | 'description' | 'title' | 'career' | 'role';
+/** What owns a key; `named` = the text of a sibling key, `key` = nothing (readable key). */
+export type OwnerKind = 'ship' | 'ground-vehicle' | 'component' | 'ship-weapon' | 'fps-weapon' | 'missile' | 'mission' | 'reputation' | 'manufacturer' | 'named' | 'key';
+
+/** The thing a key belongs to, in words (from the cached GameData; no Developer mode). */
+export interface KeyOwner {
+  name: string;
+  /** `null` for `kind: 'key'`. */
+  field: OwnerField | null;
+  kind: OwnerKind;
+  /** Manufacturer display name. */
+  detail: string | null;
+}
 /** What the Strings group tree shows (addendum 8.4). */
 export type GroupBy = 'none' | 'type' | 'manufacturer' | 'size';
 /** `approximate`: the loc-reference pass has not run for this build yet. */
@@ -454,6 +468,10 @@ export interface StringRow {
   group_label: string;
   manufacturer: string | null;
   size: number | null;
+  /** Primary owner; always set on page rows (a `kind: 'key'` fallback when nothing owns it). */
+  owner: KeyOwner | null;
+  /** Distinct owners of the key; above 1 the grid lists them. */
+  owners: number;
 }
 
 /** A node of the group tree. Type: group id; manufacturer: code or `none`; size: `"1"`..`"12"` or `none`. */
@@ -498,6 +516,8 @@ export interface StringDetail {
   override_value: string | null;
   /** Labels of other groups whose records also use the key. */
   also_used_by: string[];
+  /** Every owner of the key, primary first. */
+  owners: KeyOwner[];
 }
 
 export interface KeyRequest {

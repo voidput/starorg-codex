@@ -8,12 +8,14 @@ use starorg_core::blueprints::Selection;
 use starorg_core::build::BuildInfo;
 use starorg_core::enhance::{self, Category, profile::Profile as EnhanceProfile};
 use starorg_core::groups::GroupIndex;
+use starorg_core::groups::owners::{self, OwnerIndex};
 use starorg_core::ini::StockIni;
 use starorg_core::merge::{self, Source};
 use starorg_core::model::GameData;
 use starorg_core::patch::{self, PatchSet};
 use starorg_core::state::Override;
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// One row's history.
 #[derive(Debug, Clone)]
@@ -32,6 +34,37 @@ pub struct Table {
     pub counts: ApplyCounts,
     /// "Also used by" per row (Q-G3), from the group index.
     pub also: Vec<Vec<String>>,
+    /// Owners per row (same order as `rows`), for the detail's full list.
+    pub owners: Arc<OwnerIndex>,
+}
+
+/// A core owner in contract terms.
+pub fn key_owner(o: owners::Owner<'_>) -> KeyOwner {
+    use owners::{Field as F, OwnerKind as K};
+    KeyOwner {
+        name: o.name.to_string(),
+        field: Some(match o.field {
+            F::Name => OwnerField::Name,
+            F::ShortName => OwnerField::ShortName,
+            F::Description => OwnerField::Description,
+            F::Title => OwnerField::Title,
+            F::Career => OwnerField::Career,
+            F::Role => OwnerField::Role,
+        }),
+        kind: match o.kind {
+            K::Ship => OwnerKind::Ship,
+            K::GroundVehicle => OwnerKind::GroundVehicle,
+            K::Component => OwnerKind::Component,
+            K::ShipWeapon => OwnerKind::ShipWeapon,
+            K::FpsWeapon => OwnerKind::FpsWeapon,
+            K::Missile => OwnerKind::Missile,
+            K::Mission => OwnerKind::Mission,
+            K::Reputation => OwnerKind::Reputation,
+            K::Manufacturer => OwnerKind::Manufacturer,
+            K::Named => OwnerKind::Named,
+        },
+        detail: o.detail.map(str::to_string),
+    }
 }
 
 /// The UI category of a generator (`StringRow::category`).
@@ -75,6 +108,8 @@ pub struct Inputs<'a> {
     pub owned: &'a Selection,
     /// Groups of the stock keys, in `stock.entries()` order.
     pub groups: &'a GroupIndex,
+    /// Owners of the stock keys, in `stock.entries()` order (built lazily per build).
+    pub owners: &'a Arc<OwnerIndex>,
     /// The channel's active ship-name settings (addendum §6.5).
     pub ship_names: Option<&'a starorg_core::fleet::store::ShipNames>,
 }
@@ -168,6 +203,8 @@ pub fn build(i: &Inputs<'_>) -> Table {
             group_label: g.label.to_string(),
             manufacturer: i.groups.manufacturer(row_no).map(|m| m.code.clone()),
             size: i.groups.size(row_no).map(u32::from),
+            owner: i.owners.primary(row_no).map(|o| Box::new(key_owner(o))),
+            owners: i.owners.count(row_no) as u32,
         });
         also.push(
             i.groups
@@ -188,6 +225,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
         summary: patch::summarise(i.patches, &merged.patch_outcomes),
         counts,
         also,
+        owners: i.owners.clone(),
     }
 }
 
@@ -199,7 +237,7 @@ impl Table {
 
     /// The layers of one key, the winner last (spec 9.4 Strings detail).
     pub fn detail(&self, i: usize, override_value: Option<String>) -> StringDetail {
-        let row = self.rows[i].clone();
+        let row = crate::contract::strings_query::with_fallback(self.rows[i].clone());
         let info = &self.info[i];
         let unchanged = row.result == row.original;
         let mut p = vec![Provenance {
@@ -243,6 +281,7 @@ impl Table {
             provenance: p,
             override_value,
             also_used_by: self.also.get(i).cloned().unwrap_or_default(),
+            owners: self.owners.owners(i).map(key_owner).collect(),
         }
     }
 }

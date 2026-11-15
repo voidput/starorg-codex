@@ -563,6 +563,10 @@ pub(super) fn synthetic_strings() -> Vec<StringRow> {
                 (original.clone(), StringSource::Unmodified)
             };
             let (group, manufacturer, size) = mock_group(cat, i);
+            let (owner, owners) = match mock_owners(cat, i, &original, group, manufacturer).as_slice() {
+                [] => (None, 0),
+                list => (Some(Box::new(list[0].clone())), list.len() as u32),
+            };
             StringRow {
                 key,
                 original,
@@ -573,9 +577,77 @@ pub(super) fn synthetic_strings() -> Vec<StringRow> {
                 group_label: group_label(group).into(),
                 manufacturer: manufacturer.map(str::to_string),
                 size,
+                owner,
+                owners,
             }
         })
         .collect()
+}
+
+/// The owners of synthetic row `i` (primary first; empty for `ui` rows, which fall back to
+/// the readable key). Every 5th ship weapon is shared with a turret copy. The TS mock
+/// (`mockOwners` in `mock.ts`) uses the same rules.
+pub fn mock_owners(
+    cat: &str,
+    i: usize,
+    original: &str,
+    group: &str,
+    manufacturer: Option<&str>,
+) -> Vec<KeyOwner> {
+    let detail = manufacturer.and_then(|m| {
+        MOCK_MANUFACTURERS
+            .iter()
+            .find(|(c, _)| *c == m)
+            .map(|(_, l)| l.to_string())
+    });
+    let own = |name: String, field: OwnerField, kind: OwnerKind| KeyOwner {
+        name,
+        field: Some(field),
+        kind,
+        detail: detail.clone(),
+    };
+    match cat {
+        "ships" => vec![own(
+            format!("Sample Hull {i}"),
+            OwnerField::Description,
+            if group == "ships/ground" {
+                OwnerKind::GroundVehicle
+            } else {
+                OwnerKind::Ship
+            },
+        )],
+        "components" => vec![own(original.into(), OwnerField::Name, OwnerKind::Component)],
+        "ship-weapons" => {
+            let mut v = vec![own(
+                original.into(),
+                OwnerField::Name,
+                OwnerKind::ShipWeapon,
+            )];
+            if i.is_multiple_of(5) {
+                v.push(own(
+                    format!("{original} Turret"),
+                    OwnerField::Name,
+                    OwnerKind::Component,
+                ));
+            }
+            v
+        }
+        "missiles" => vec![own(original.into(), OwnerField::Name, OwnerKind::Missile)],
+        "fps-weapons" => vec![own(
+            format!("Sample Rifle {i}"),
+            OwnerField::Description,
+            OwnerKind::FpsWeapon,
+        )],
+        "missions" => vec![KeyOwner {
+            detail: None,
+            ..own(original.into(), OwnerField::Title, OwnerKind::Mission)
+        }],
+        "items" => vec![KeyOwner {
+            detail: None,
+            ..own(original.into(), OwnerField::Name, OwnerKind::Named)
+        }],
+        _ => Vec::new(),
+    }
 }
 
 /// Synthetic manufacturers (codes and names made up for the mock).
@@ -667,6 +739,12 @@ pub fn mock_group(cat: &str, i: usize) -> (&'static str, Option<&'static str>, O
     }
 }
 
+/// Row number of a synthetic key (its last five digits).
+fn mock_index(key: &str) -> usize {
+    let tail = &key[key.len().saturating_sub(5)..];
+    tail.parse().unwrap_or(0)
+}
+
 fn detail(mut row: StringRow, ov: Option<String>) -> StringDetail {
     let mut provenance = vec![Provenance {
         layer: Layer::Stock,
@@ -708,11 +786,19 @@ fn detail(mut row: StringRow, ov: Option<String>) -> StringDetail {
     } else {
         Vec::new()
     };
+    let owners = mock_owners(
+        &row.category,
+        mock_index(&row.key),
+        &row.original,
+        &row.group,
+        row.manufacturer.as_deref(),
+    );
     StringDetail {
-        row,
+        row: super::strings_query::with_fallback(row),
         provenance,
         override_value: ov,
         also_used_by,
+        owners,
     }
 }
 

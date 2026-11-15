@@ -404,28 +404,34 @@ fn setup_plan_apply_status_remove_round_trip() {
             group_by: GroupBy::Type,
         })
         .unwrap();
-    assert_eq!(page.total, 1);
-    assert_eq!(page.rows[0].key, "item_NameA");
+    // The name key, and the description key through its owner (Strings owners).
+    assert_eq!(page.total, 2);
+    assert_eq!(page.rows[0].key, "item_DescA,P");
+    assert_eq!(page.rows[1].key, "item_NameA");
+    let owner = |r: &StringRow| r.owner.as_deref().cloned().unwrap();
+    assert_eq!(
+        (owner(&page.rows[0]).name, owner(&page.rows[0]).field),
+        ("Filler Alpha".to_string(), Some(OwnerField::Description))
+    );
+    assert_eq!(owner(&page.rows[1]).kind, OwnerKind::Named);
     // Groups (addendum 8): the app-started extraction ran the loc-reference pass.
     assert_eq!(page.group_state, GroupState::Exact);
-    assert_eq!(page.rows[0].group, "items/misc");
-    let rifle = f
-        .backend
-        .query_strings(StringsQuery {
-            target: f.live(),
-            search: String::new(),
-            sources: vec![],
-            categories: vec![],
-            changed_only: false,
-            sort: StringSort::Group,
-            offset: 0,
-            limit: 1000,
-            groups: vec!["fps-weapons".into()],
-            manufacturers: vec![],
-            sizes: vec![2],
-            group_by: GroupBy::Size,
-        })
-        .unwrap();
+    assert_eq!(page.rows[1].group, "items/misc");
+    let rifle_query = |f: &Fake| StringsQuery {
+        target: f.live(),
+        search: String::new(),
+        sources: vec![],
+        categories: vec![],
+        changed_only: false,
+        sort: StringSort::Group,
+        offset: 0,
+        limit: 1000,
+        groups: vec!["fps-weapons".into()],
+        manufacturers: vec![],
+        sizes: vec![2],
+        group_by: GroupBy::Size,
+    };
+    let rifle = f.backend.query_strings(rifle_query(&f)).unwrap();
     assert_eq!(rifle.total, 1, "{:?}", rifle.rows);
     let r = &rifle.rows[0];
     assert_eq!(
@@ -436,6 +442,25 @@ fn setup_plan_apply_status_remove_round_trip() {
     // KSAR has no manufacturer_NameKSAR in the fake stock: no manufacturer facet.
     assert_eq!(r.manufacturer, None);
     assert!(rifle.groups.iter().any(|g| g.id == "2" && g.count == 1));
+    // Named by its own text; no GameData record in the fake build.
+    assert_eq!(owner(r).name, "Fake Rifle Kestrel", "{:?}", r.owner);
+    // A key nobody owns: the readable key.
+    let filler = f
+        .backend
+        .query_strings(StringsQuery {
+            search: "filler_key_007".into(),
+            sort: StringSort::Owner,
+            group_by: GroupBy::None,
+            groups: vec![],
+            sizes: vec![],
+            ..rifle_query(&f)
+        })
+        .unwrap();
+    let o = owner(&filler.rows[0]);
+    assert_eq!(
+        (o.kind, o.name.as_str()),
+        (OwnerKind::Key, "filler · key 007")
+    );
     assert_eq!(rifle.groups.last().unwrap().id, "none");
     let fmt = f
         .backend
@@ -1646,4 +1671,97 @@ fn local_mcp_server_is_off_until_switched_on_and_needs_its_token() {
         .unwrap();
     assert!(!off.running);
     assert!(std::net::TcpStream::connect(&addr).is_err());
+}
+
+/// Strings owners on the user's real LIVE install, read only (the game folder is only read;
+/// the cache entry must already exist). Prints time and memory of the first Strings query
+/// (game data load, groups, owners, table) and of a warm one, and a few real rows. Run with
+/// `--ignored --nocapture`.
+#[test]
+#[ignore]
+fn measure_strings_owners_on_real_live() {
+    fn status(field: &str) -> u64 {
+        std::fs::read_to_string("/proc/self/status")
+            .ok()
+            .and_then(|s| {
+                s.lines()
+                    .find(|l| l.starts_with(field))
+                    .and_then(|l| l.split_whitespace().nth(1)?.parse().ok())
+            })
+            .unwrap_or(0)
+    }
+    let b = RealBackend::new(RealConfig::from_env().unwrap());
+    let o = b.overview().unwrap();
+    let (install, _) = o
+        .installs
+        .iter()
+        .find_map(|i| {
+            i.channels
+                .iter()
+                .find(|c| c.channel == "LIVE")
+                .map(|c| (i.id.clone(), c.clone()))
+        })
+        .expect("a LIVE channel");
+    let target = ChannelRef {
+        install,
+        channel: "LIVE".into(),
+    };
+    let q = |search: &str, sort: StringSort| StringsQuery {
+        target: target.clone(),
+        search: search.into(),
+        sources: vec![],
+        categories: vec![],
+        changed_only: false,
+        sort,
+        offset: 0,
+        limit: 200,
+        groups: vec![],
+        manufacturers: vec![],
+        sizes: vec![],
+        group_by: GroupBy::Type,
+    };
+    let rss0 = status("VmRSS:");
+    let t = std::time::Instant::now();
+    let first = b.query_strings(q("", StringSort::Group)).unwrap();
+    let cold = t.elapsed();
+    let rss1 = status("VmRSS:");
+    let t = std::time::Instant::now();
+    b.query_strings(q("", StringSort::Key)).unwrap();
+    let warm_key = t.elapsed();
+    let t = std::time::Instant::now();
+    let by_owner = b.query_strings(q("", StringSort::Owner)).unwrap();
+    let warm_sort = t.elapsed();
+    let t = std::time::Instant::now();
+    let gladius = b.query_strings(q("gladius", StringSort::Owner)).unwrap();
+    let warm_search = t.elapsed();
+    println!(
+        "keys {}: cold query {cold:?} (RSS {} -> {} MiB, peak {} MiB), key sort {warm_key:?}, owner sort {warm_sort:?}, search {warm_search:?}",
+        first.all,
+        rss0 / 1024,
+        rss1 / 1024,
+        status("VmHWM:") / 1024
+    );
+    println!(
+        "first by owner: {:?}",
+        by_owner.rows.first().map(|r| (&r.key, &r.owner))
+    );
+    println!("gladius: {} rows", gladius.total);
+    for key in [
+        "item_DescCOOL_AEGS_S01_Bracer",
+        "vehicle_NameAEGS_Gladius",
+        "vehicle_focus_combat",
+        "manufacturer_DescAEGS",
+        "Pyro1_L2_03_desc",
+        "item_Desc_fta_medium_helmet_01_04_10",
+        "hud_law_TrespassAreaRevokedAuthorisation",
+    ] {
+        let p = b.query_strings(q(key, StringSort::Key)).unwrap();
+        if let Some(r) = p.rows.iter().find(|r| r.key == key) {
+            let o = r.owner.as_deref().unwrap();
+            println!(
+                "{key} -> {} | {:?} | {:?} | {:?} | {} owners | group {}",
+                o.name, o.field, o.kind, o.detail, r.owners, r.group_label
+            );
+        }
+    }
 }

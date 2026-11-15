@@ -11580,6 +11580,13 @@
         "key": "item_NameSYN_Cooler_S2_00001",
         "manufacturer": "SYNA",
         "original": "Sample Cooler 1",
+        "owner": {
+          "detail": "Alpha Synthetics",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 1"
+        },
+        "owners": 1,
         "result": "My cooler",
         "size": 2,
         "source": "edited"
@@ -11591,6 +11598,13 @@
         "key": "item_NameSYN_Cooler_S2_00009",
         "manufacturer": "SYNB",
         "original": "Sample Cooler 9",
+        "owner": {
+          "detail": "Beta Works",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 9"
+        },
+        "owners": 1,
         "result": "[S2-A] Sample Cooler 9",
         "size": 2,
         "source": "enhanced"
@@ -11602,6 +11616,13 @@
         "key": "item_NameSYN_Cooler_S2_00017",
         "manufacturer": "SYNC",
         "original": "Sample Cooler 17",
+        "owner": {
+          "detail": "Gamma Test Yards",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 17"
+        },
+        "owners": 1,
         "result": "Sample Cooler 17",
         "size": 2,
         "source": "unmodified"
@@ -11622,6 +11643,762 @@
       },
       {
         "count": 10005,
+        "id": "unmodified"
+      }
+    ],
+    "total": 11375
+  },
+  "query_strings_by_owner": {
+    "all": 91000,
+    "categories": [
+      {
+        "count": 11375,
+        "id": "ui"
+      }
+    ],
+    "group_state": "exact",
+    "groups": [
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "ships",
+        "label": "Ships & vehicles",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "ships/ships",
+        "label": "Ships",
+        "parent": "ships"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "ships/ground",
+        "label": "Ground vehicles",
+        "parent": "ships"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "ships/paints",
+        "label": "Paints",
+        "parent": "ships"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components",
+        "label": "Ship components",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/coolers",
+        "label": "Coolers",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/power-plants",
+        "label": "Power plants",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/shields",
+        "label": "Shields",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/quantum-drives",
+        "label": "Quantum drives",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/jump-drives",
+        "label": "Jump drives",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/radars",
+        "label": "Radars",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/thrusters",
+        "label": "Thrusters",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/fuel",
+        "label": "Fuel tanks & intakes",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/armor",
+        "label": "Armor",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/turrets",
+        "label": "Turrets & mounts",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/missile-racks",
+        "label": "Missile racks",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/mining-salvage",
+        "label": "Mining & salvage",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/flight",
+        "label": "Flight controllers & computers",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "components/other",
+        "label": "Other components",
+        "parent": "components"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "ship-weapons",
+        "label": "Ship weapons",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "ship-weapons/guns",
+        "label": "Guns",
+        "parent": "ship-weapons"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "ship-weapons/countermeasures",
+        "label": "Countermeasures",
+        "parent": "ship-weapons"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "missiles",
+        "label": "Missiles & bombs",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "fps-weapons",
+        "label": "FPS weapons",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "fps-weapons/weapons",
+        "label": "Weapons",
+        "parent": "fps-weapons"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "fps-weapons/attachments",
+        "label": "Attachments",
+        "parent": "fps-weapons"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "fps-weapons/gadgets",
+        "label": "Gadgets & grenades",
+        "parent": "fps-weapons"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor",
+        "label": "Armor",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor/helmets",
+        "label": "Helmets",
+        "parent": "armor"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor/torso",
+        "label": "Torso",
+        "parent": "armor"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor/arms",
+        "label": "Arms",
+        "parent": "armor"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor/legs",
+        "label": "Legs",
+        "parent": "armor"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor/undersuits",
+        "label": "Undersuits",
+        "parent": "armor"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor/backpacks",
+        "label": "Backpacks",
+        "parent": "armor"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "armor/other",
+        "label": "Other armor",
+        "parent": "armor"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing",
+        "label": "Clothing",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing/hats",
+        "label": "Hats",
+        "parent": "clothing"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing/torso",
+        "label": "Shirts & jackets",
+        "parent": "clothing"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing/hands",
+        "label": "Gloves",
+        "parent": "clothing"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing/legs",
+        "label": "Pants",
+        "parent": "clothing"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing/feet",
+        "label": "Shoes",
+        "parent": "clothing"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing/backpacks",
+        "label": "Backpacks",
+        "parent": "clothing"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "clothing/other",
+        "label": "Other clothing",
+        "parent": "clothing"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "consumables",
+        "label": "Consumables",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "consumables/food",
+        "label": "Food",
+        "parent": "consumables"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "consumables/drink",
+        "label": "Drink",
+        "parent": "consumables"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "consumables/medical",
+        "label": "Medical",
+        "parent": "consumables"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "consumables/other",
+        "label": "Other consumables",
+        "parent": "consumables"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "cargo",
+        "label": "Cargo & commodities",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "cargo/cargo",
+        "label": "Cargo",
+        "parent": "cargo"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "cargo/commodities",
+        "label": "Commodities & resources",
+        "parent": "cargo"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "items",
+        "label": "Other items",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "items/usables",
+        "label": "Usables",
+        "parent": "items"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "items/displays",
+        "label": "Displays & props",
+        "parent": "items"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "items/doors-seats",
+        "label": "Doors & seats",
+        "parent": "items"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "items/misc",
+        "label": "Misc",
+        "parent": "items"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "missions",
+        "label": "Missions & contracts",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "missions/contracts",
+        "label": "Contracts",
+        "parent": "missions"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "missions/text",
+        "label": "Mission text",
+        "parent": "missions"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "missions/locations",
+        "label": "Mission locations",
+        "parent": "missions"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "missions/givers",
+        "label": "Organizations & givers",
+        "parent": "missions"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "blueprints",
+        "label": "Blueprints & crafting",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "reputation",
+        "label": "Reputation",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "locations",
+        "label": "Locations",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "locations/star-map",
+        "label": "Star map",
+        "parent": "locations"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "locations/areas",
+        "label": "Areas",
+        "parent": "locations"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "manufacturers",
+        "label": "Manufacturers",
+        "parent": null
+      },
+      {
+        "count": 2275,
+        "edited": 0,
+        "enhanced": 249,
+        "id": "dialogue",
+        "label": "Dialogue",
+        "parent": null
+      },
+      {
+        "count": 2275,
+        "edited": 0,
+        "enhanced": 249,
+        "id": "dialogue/voice",
+        "label": "Voice lines",
+        "parent": "dialogue"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "dialogue/conversations",
+        "label": "Conversations",
+        "parent": "dialogue"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "dialogue/comms",
+        "label": "Comms",
+        "parent": "dialogue"
+      },
+      {
+        "count": 6825,
+        "edited": 0,
+        "enhanced": 752,
+        "id": "interface",
+        "label": "Interface",
+        "parent": null
+      },
+      {
+        "count": 2275,
+        "edited": 0,
+        "enhanced": 251,
+        "id": "interface/hud",
+        "label": "HUD",
+        "parent": "interface"
+      },
+      {
+        "count": 2275,
+        "edited": 0,
+        "enhanced": 251,
+        "id": "interface/mobiglas",
+        "label": "mobiGlas",
+        "parent": "interface"
+      },
+      {
+        "count": 2275,
+        "edited": 0,
+        "enhanced": 250,
+        "id": "interface/menus",
+        "label": "Menus & settings",
+        "parent": "interface"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "interface/input",
+        "label": "Input & hints",
+        "parent": "interface"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "interface/chat",
+        "label": "Chat & emotes",
+        "parent": "interface"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "interface/journal",
+        "label": "Journal",
+        "parent": "interface"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "interface/other",
+        "label": "Other interface",
+        "parent": "interface"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "game-modes",
+        "label": "Game modes",
+        "parent": null
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "game-modes/arena-commander",
+        "label": "Arena Commander",
+        "parent": "game-modes"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "game-modes/star-marine",
+        "label": "Star Marine",
+        "parent": "game-modes"
+      },
+      {
+        "count": 0,
+        "edited": 0,
+        "enhanced": 0,
+        "id": "game-modes/other",
+        "label": "Other modes",
+        "parent": "game-modes"
+      },
+      {
+        "count": 2275,
+        "edited": 0,
+        "enhanced": 250,
+        "id": "other",
+        "label": "Other",
+        "parent": null
+      }
+    ],
+    "offset": 0,
+    "rows": [
+      {
+        "category": "ui",
+        "group": "interface/hud",
+        "group_label": "HUD",
+        "key": "ui_SYN_Label_00007",
+        "manufacturer": null,
+        "original": "Label 7",
+        "owner": {
+          "detail": null,
+          "field": null,
+          "kind": "key",
+          "name": "ui · SYN_Label_00007"
+        },
+        "owners": 0,
+        "result": "Label 7",
+        "size": null,
+        "source": "unmodified"
+      },
+      {
+        "category": "ui",
+        "group": "interface/menus",
+        "group_label": "Menus & settings",
+        "key": "ui_SYN_Label_00015",
+        "manufacturer": null,
+        "original": "Label 15",
+        "owner": {
+          "detail": null,
+          "field": null,
+          "kind": "key",
+          "name": "ui · SYN_Label_00015"
+        },
+        "owners": 0,
+        "result": "Label 15",
+        "size": null,
+        "source": "unmodified"
+      },
+      {
+        "category": "ui",
+        "group": "interface/mobiglas",
+        "group_label": "mobiGlas",
+        "key": "ui_SYN_Label_00023",
+        "manufacturer": null,
+        "original": "Label 23",
+        "owner": {
+          "detail": null,
+          "field": null,
+          "kind": "key",
+          "name": "ui · SYN_Label_00023"
+        },
+        "owners": 0,
+        "result": "Label 23",
+        "size": null,
+        "source": "unmodified"
+      }
+    ],
+    "sources": [
+      {
+        "count": 1251,
+        "id": "enhanced"
+      },
+      {
+        "count": 117,
+        "id": "patched"
+      },
+      {
+        "count": 10007,
         "id": "unmodified"
       }
     ],
@@ -11687,6 +12464,13 @@
         "key": "item_NameSYN_Cooler_S2_00001",
         "manufacturer": "SYNA",
         "original": "Sample Cooler 1",
+        "owner": {
+          "detail": "Alpha Synthetics",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 1"
+        },
+        "owners": 1,
         "result": "My cooler",
         "size": 2,
         "source": "edited"
@@ -11698,6 +12482,13 @@
         "key": "item_NameSYN_Cooler_S2_00009",
         "manufacturer": "SYNB",
         "original": "Sample Cooler 9",
+        "owner": {
+          "detail": "Beta Works",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 9"
+        },
+        "owners": 1,
         "result": "[S2-A] Sample Cooler 9",
         "size": 2,
         "source": "enhanced"
@@ -11709,6 +12500,13 @@
         "key": "item_NameSYN_Cooler_S2_00017",
         "manufacturer": "SYNC",
         "original": "Sample Cooler 17",
+        "owner": {
+          "detail": "Gamma Test Yards",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 17"
+        },
+        "owners": 1,
         "result": "Sample Cooler 17",
         "size": 2,
         "source": "unmodified"
@@ -12169,6 +12967,14 @@
     "detail": {
       "also_used_by": [],
       "override_value": "My cooler",
+      "owners": [
+        {
+          "detail": "Alpha Synthetics",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 1"
+        }
+      ],
       "provenance": [
         {
           "by": "Data.p4k",
@@ -12192,6 +12998,13 @@
         "key": "item_NameSYN_Cooler_S2_00001",
         "manufacturer": "SYNA",
         "original": "Sample Cooler 1",
+        "owner": {
+          "detail": "Alpha Synthetics",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 1"
+        },
+        "owners": 1,
         "result": "My cooler",
         "size": 2,
         "source": "edited"
@@ -12205,6 +13018,14 @@
     "detail": {
       "also_used_by": [],
       "override_value": "My cooler",
+      "owners": [
+        {
+          "detail": "Alpha Synthetics",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 1"
+        }
+      ],
       "provenance": [
         {
           "by": "Data.p4k",
@@ -12228,6 +13049,13 @@
         "key": "item_NameSYN_Cooler_S2_00001",
         "manufacturer": "SYNA",
         "original": "Sample Cooler 1",
+        "owner": {
+          "detail": "Alpha Synthetics",
+          "field": "name",
+          "kind": "component",
+          "name": "Sample Cooler 1"
+        },
+        "owners": 1,
         "result": "My cooler",
         "size": 2,
         "source": "edited"
@@ -12457,6 +13285,14 @@
   "string_detail": {
     "also_used_by": [],
     "override_value": null,
+    "owners": [
+      {
+        "detail": "Alpha Synthetics",
+        "field": "description",
+        "kind": "ship",
+        "name": "Sample Hull 0"
+      }
+    ],
     "provenance": [
       {
         "by": "Data.p4k",
@@ -12480,6 +13316,13 @@
       "key": "vehicle_DescSYN_Ship_00000",
       "manufacturer": "SYNA",
       "original": "Synthetic hull 0. A test ship description.\\nSecond line.",
+      "owner": {
+        "detail": "Alpha Synthetics",
+        "field": "description",
+        "kind": "ship",
+        "name": "Sample Hull 0"
+      },
+      "owners": 1,
       "result": "Synthetic hull 0. A test ship description.\\nSecond line. (fixed)",
       "size": null,
       "source": "patched"

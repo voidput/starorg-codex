@@ -68,6 +68,30 @@ fn flat_id(by: GroupBy, r: &StringRow) -> String {
     }
 }
 
+/// Search: key, stock and result text, owner name and manufacturer. `needle` is lower case.
+fn matches(r: &StringRow, needle: &str) -> bool {
+    let has = |s: &str| s.to_lowercase().contains(needle);
+    has(&r.key)
+        || has(&r.original)
+        || has(&r.result)
+        || r.owner
+            .as_deref()
+            .is_some_and(|o| has(&o.name) || o.detail.as_deref().is_some_and(has))
+}
+
+/// A page row without an owner gets the readable key (`kind: key`).
+pub fn with_fallback(mut r: StringRow) -> StringRow {
+    if r.owner.is_none() {
+        r.owner = Some(Box::new(KeyOwner {
+            name: starorg_core::groups::owners::pretty_key(&r.key),
+            field: None,
+            kind: OwnerKind::Key,
+            detail: None,
+        }));
+    }
+    r
+}
+
 pub fn run<'a>(
     rows: impl Iterator<Item = Cow<'a, StringRow>>,
     all: u32,
@@ -87,11 +111,7 @@ pub fn run<'a>(
         if req.changed_only && r.source == StringSource::Unmodified {
             continue;
         }
-        if !needle.is_empty()
-            && !r.key.to_lowercase().contains(&needle)
-            && !r.original.to_lowercase().contains(&needle)
-            && !r.result.to_lowercase().contains(&needle)
-        {
+        if !needle.is_empty() && !matches(&r, &needle) {
             continue;
         }
         let src_ok = req.sources.is_empty() || req.sources.contains(&r.source);
@@ -154,6 +174,19 @@ pub fn run<'a>(
                 }
             };
             hits.sort_by(|a, b| (rank(a), &a.key).cmp(&(rank(b), &b.key)));
+        }
+        StringSort::Owner => {
+            // Key order first; the owner sort is stable, so it stays the tie-break without a
+            // key copy per row.
+            hits.sort_by(|a, b| a.key.cmp(&b.key));
+            hits.sort_by_cached_key(|r| {
+                let o = r.owner.as_deref();
+                (
+                    o.is_none(),
+                    o.map(|o| o.name.to_lowercase()).unwrap_or_default(),
+                    o.and_then(|o| o.field).map(|f| f as u8),
+                )
+            });
         }
     }
     let total = hits.len() as u32;
@@ -239,7 +272,7 @@ pub fn run<'a>(
             .into_iter()
             .skip(req.offset as usize)
             .take(limit)
-            .map(Cow::into_owned)
+            .map(|r| with_fallback(r.into_owned()))
             .collect(),
         sources: fc(src_counts),
         categories: fc(cat_counts),

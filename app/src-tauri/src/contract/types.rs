@@ -746,6 +746,52 @@ pub enum StringSort {
     /// Group order of the active `group_by` (hierarchy order, manufacturer name, size),
     /// then key.
     Group,
+    /// Owner name A-Z (case-insensitive), then field, then key; keys without an owner last.
+    Owner,
+}
+
+/// Which field of its owner a key is (Strings owners).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OwnerField {
+    Name,
+    ShortName,
+    Description,
+    Title,
+    Career,
+    Role,
+}
+
+/// What owns a key.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OwnerKind {
+    Ship,
+    GroundVehicle,
+    Component,
+    ShipWeapon,
+    FpsWeapon,
+    Missile,
+    Mission,
+    Reputation,
+    Manufacturer,
+    /// No record: the owner is the text of a sibling key (`item_Name*` for its `item_Desc*`)
+    /// or the key's own text.
+    Named,
+    /// Nobody: `name` is the key made readable (`item desc · COOL_AEGS_S01_Bracer`).
+    Key,
+}
+
+/// The thing a key belongs to, in words: `Bracer` + `description` (Ship component, Aegis
+/// Dynamics). Built from the cached GameData and the stock file; no Developer mode.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyOwner {
+    pub name: String,
+    /// `None` for `kind: key`.
+    pub field: Option<OwnerField>,
+    pub kind: OwnerKind,
+    /// Manufacturer display name, when the owner has one.
+    pub detail: Option<String>,
 }
 
 /// What the Strings group tree shows (addendum 8.4).
@@ -789,7 +835,8 @@ pub struct GroupNode {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StringsQuery {
     pub target: ChannelRef,
-    /// Matches key, original and result, case-insensitive.
+    /// Matches key, original, result and the owner's name and manufacturer,
+    /// case-insensitive.
     pub search: String,
     pub sources: Vec<StringSource>,
     pub categories: Vec<String>,
@@ -823,6 +870,13 @@ pub struct StringRow {
     /// Manufacturer code (`AEGS`), for keys of an item with a named manufacturer.
     pub manufacturer: Option<String>,
     pub size: Option<u32>,
+    /// The primary owner. Always set on rows of a [`StringsPage`] (a `kind: key` fallback
+    /// when nothing owns the key); boxed because most table rows have none.
+    #[serde(default)]
+    pub owner: Option<Box<KeyOwner>>,
+    /// Distinct owners of the key (0 = none; above 1 the UI lists them).
+    #[serde(default)]
+    pub owners: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -873,6 +927,9 @@ pub struct StringDetail {
     pub override_value: Option<String>,
     /// Labels of other groups whose records also use the key (Q-G3).
     pub also_used_by: Vec<String>,
+    /// Every owner of the key, the primary one first (empty when nothing owns it).
+    #[serde(default)]
+    pub owners: Vec<KeyOwner>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
