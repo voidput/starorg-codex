@@ -2,6 +2,10 @@
 # On release_created the matrix builds installers and CLI binaries, uploads them with SLSA
 # attestations, then a checksum job uploads SHA256SUMS. With the updater signing secret set,
 # the AppImage and Windows installers also get .sig files and latest.json (docs/updates.md). Tauri/app steps skip until app/ exists (#8).
+# Windows extras (docs/windows.md, docs/release.md): Azure Artifact Signing signs the NSIS/MSI
+# installers and the CLI exe only when the AZURE_* secrets and variables exist; the store job
+# packs an unsigned .msix for Partner Center only when the MSIX_* variables exist. Without them
+# both are skipped with a notice and the release is exactly as before.
 # See docs/release.md for the throwaway v0.0.1 dry run.
 name: Release
 on:
@@ -56,6 +60,28 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y musl-tools
       - name: Build
         run: cargo build --release --locked -p starorg-cli --target ${{ matrix.target }}
+      - name: Windows code signing (Azure Artifact Signing)
+        if: runner.os == 'Windows'
+        id: winsign
+        uses: ./.github/actions/windows-signing
+        with:
+          has-secrets: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          profile: ${{ vars.AZURE_SIGNING_PROFILE }}
+      - name: Sign the CLI exe
+        if: runner.os == 'Windows' && steps.winsign.outputs.enabled == 'true'
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          ENDPOINT: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
+        run: |
+          artifact-signing-cli -e "$ENDPOINT" -a "$ACCOUNT" -c "$PROFILE" -d "StarOrg Strings CLI" \
+            "target/${{ matrix.target }}/release/starorg-strings.exe"
       - name: Package
         shell: bash
         env:
@@ -146,6 +172,19 @@ jobs:
             echo "args=" >> "$GITHUB_OUTPUT"
             echo "::notice::No updater artifacts: add the TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) secrets and the public key in app/src-tauri/updater-public-key.txt (docs/updates.md)."
           fi
+      # Authenticode for the direct download (docs/windows.md): Tauri runs bundle.windows.signCommand
+      # on the app exe, the NSIS installer and uninstaller and the MSI. Only with every AZURE_*
+      # secret and variable set; otherwise the installers stay unsigned exactly as before.
+      - name: Windows code signing (Azure Artifact Signing)
+        if: steps.app.outputs.present == 'true' && runner.os == 'Windows'
+        id: winsign
+        uses: ./.github/actions/windows-signing
+        with:
+          has-secrets: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
+          endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
+          account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
+          profile: ${{ vars.AZURE_SIGNING_PROFILE }}
+          write-tauri-config: app/src-tauri/tauri.signing.conf.json
       # Windows: NSIS and MSI. Linux: AppImage, deb, rpm. Version comes from the workspace crate.
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         if: steps.app.outputs.present == 'true'
@@ -155,6 +194,10 @@ jobs:
           # Empty without the secret; the bundler reads it only with createUpdaterArtifacts.
           TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
+          # Read by artifact-signing-cli inside signCommand; empty unless signing is configured.
+          AZURE_CLIENT_ID: ${{ steps.winsign.outputs.enabled == 'true' && secrets.AZURE_CLIENT_ID || '' }}
+          AZURE_CLIENT_SECRET: ${{ steps.winsign.outputs.enabled == 'true' && secrets.AZURE_CLIENT_SECRET || '' }}
+          AZURE_TENANT_ID: ${{ steps.winsign.outputs.enabled == 'true' && secrets.AZURE_TENANT_ID || '' }}
         with:
           projectPath: app
           tagName: ${{ needs.release-please.outputs.tag_name }}
@@ -162,7 +205,7 @@ jobs:
           # latest.json lists the AppImage and NSIS/MSI updaters with their signatures.
           uploadUpdaterJson: ${{ steps.signing.outputs.enabled == 'true' }}
           updaterJsonPreferNsis: true
-          args: ${{ runner.os == 'Windows' && '--bundles nsis,msi' || '--bundles appimage,deb,rpm' }} ${{ steps.signing.outputs.args }}
+          args: ${{ runner.os == 'Windows' && '--bundles nsis,msi' || '--bundles appimage,deb,rpm' }} ${{ steps.signing.outputs.args }} ${{ steps.winsign.outputs.enabled == 'true' && '--config src-tauri/tauri.signing.conf.json' || '' }}
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         if: steps.app.outputs.present == 'true'
         with:
@@ -173,9 +216,128 @@ jobs:
             target/release/bundle/**/*.deb
             target/release/bundle/**/*.rpm
 
-  checksums:
-    needs: [release-please, cli, app]
+  # Microsoft Store package (docs/windows.md, "Microsoft Store"). The Store flavour never checks
+  # GitHub or installs updates (feature `store`). Unsigned on purpose: Partner Center signs what
+  # it publishes, so this .msix is for Store submission only, not for sideloading. Needs the
+  # repo variables MSIX_IDENTITY_NAME, MSIX_PUBLISHER (CN=...) and MSIX_PUBLISHER_DISPLAY_NAME
+  # from Partner Center -> Product identity; without them every step after the check is skipped.
+  store:
+    name: store (msix)
+    needs: release-please
     if: needs.release-please.outputs.release_created == 'true'
+    runs-on: windows-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      MSIX_IDENTITY_NAME: ${{ vars.MSIX_IDENTITY_NAME }}
+      MSIX_PUBLISHER: ${{ vars.MSIX_PUBLISHER }}
+      MSIX_PUBLISHER_DISPLAY_NAME: ${{ vars.MSIX_PUBLISHER_DISPLAY_NAME }}
+      VERSION: ${{ needs.release-please.outputs.version }}
+      TAG: ${{ needs.release-please.outputs.tag_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Store identity
+        id: identity
+        shell: bash
+        run: |
+          if [ ! -f app/package.json ] || [ ! -f app/src-tauri/Cargo.toml ]; then
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::app/ not present, no Store package."
+          elif [ -n "$MSIX_IDENTITY_NAME" ] && [ -n "$MSIX_PUBLISHER" ] && [ -n "$MSIX_PUBLISHER_DISPLAY_NAME" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Store package: set the repo variables MSIX_IDENTITY_NAME, MSIX_PUBLISHER and MSIX_PUBLISHER_DISPLAY_NAME (docs/windows.md)."
+          fi
+      - name: Install toolchain from rust-toolchain.toml
+        if: steps.identity.outputs.configured == 'true'
+        shell: bash
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        if: steps.identity.outputs.configured == 'true'
+        with:
+          key: store
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: steps.identity.outputs.configured == 'true'
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: npm ci
+        if: steps.identity.outputs.configured == 'true'
+        working-directory: app
+        run: npm ci
+      # The app exe only (assets are embedded): no installer, no updater artifacts. The worker
+      # runs from the same exe, so nothing else goes into the package.
+      - name: Build the Store flavour
+        if: steps.identity.outputs.configured == 'true'
+        working-directory: app
+        run: npx tauri build --no-bundle --features store
+      - name: Stage the package (AppxManifest.xml, logos)
+        if: steps.identity.outputs.configured == 'true'
+        shell: bash
+        run: node app/scripts/msix.ts stage --exe target/release/starorg-strings-app.exe --version "$VERSION" --out .tmp/msix
+      - name: makeappx pack
+        if: steps.identity.outputs.configured == 'true'
+        shell: pwsh
+        run: |
+          $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+          $makeappx = Get-ChildItem -Path $kits -Filter makeappx.exe -Recurse -ErrorAction SilentlyContinue |
+            Where-Object { $_.Directory.Name -eq 'x64' } |
+            Sort-Object { [version]$_.Directory.Parent.Name } -ErrorAction SilentlyContinue |
+            Select-Object -Last 1
+          if (-not $makeappx) { throw "makeappx.exe not found under $kits (Windows SDK)" }
+          New-Item -ItemType Directory -Force dist | Out-Null
+          $out = "dist\starorg-strings_${env:VERSION}_x64_store-submission-unsigned.msix"
+          & $makeappx.FullName pack /d .tmp\msix /p $out /o
+          if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        if: steps.identity.outputs.configured == 'true'
+        with:
+          subject-path: dist/*.msix
+      - name: Upload to the release
+        if: steps.identity.outputs.configured == 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/*.msix --clobber
+      # Optional, off by default: submit the package to Partner Center with the msstore CLI.
+      # Needs the repo variable MSSTORE_SUBMIT=true and the Partner Center API secrets
+      # (docs/windows.md, "Automatic submission"). Otherwise the owner uploads the .msix by hand.
+      - name: Check the Partner Center secrets
+        if: steps.identity.outputs.configured == 'true' && vars.MSSTORE_SUBMIT == 'true'
+        shell: bash
+        env:
+          HAS_ALL: ${{ secrets.MSSTORE_TENANT_ID != '' && secrets.MSSTORE_SELLER_ID != '' && secrets.MSSTORE_CLIENT_ID != '' && secrets.MSSTORE_CLIENT_SECRET != '' && vars.MSSTORE_PRODUCT_ID != '' }}
+        run: |
+          if [ "$HAS_ALL" != "true" ]; then
+            echo "::error::MSSTORE_SUBMIT is true but a Partner Center secret or MSSTORE_PRODUCT_ID is missing (docs/windows.md)"
+            exit 1
+          fi
+      - uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
+        if: steps.identity.outputs.configured == 'true' && vars.MSSTORE_SUBMIT == 'true'
+      # --noCommit: the package lands in a draft submission; the owner reviews and submits it
+      # in Partner Center (listing text, screenshots, age rating stay hand-made).
+      - name: Submit to Partner Center (msstore, draft)
+        if: steps.identity.outputs.configured == 'true' && vars.MSSTORE_SUBMIT == 'true'
+        shell: pwsh
+        env:
+          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
+          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
+          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
+          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
+          MSSTORE_PRODUCT_ID: ${{ vars.MSSTORE_PRODUCT_ID }}
+        run: |
+          msstore reconfigure --tenantId $env:MSSTORE_TENANT_ID --sellerId $env:MSSTORE_SELLER_ID --clientId $env:MSSTORE_CLIENT_ID --clientSecret $env:MSSTORE_CLIENT_SECRET
+          $pkg = Get-ChildItem dist\*.msix | Select-Object -First 1
+          msstore publish $pkg.FullName --appId $env:MSSTORE_PRODUCT_ID --noCommit
+          if ($LASTEXITCODE -ne 0) { throw "msstore publish failed ($LASTEXITCODE)" }
+  checksums:
+    needs: [release-please, cli, app, store]
+    # The Store package is extra: a failed store job must not keep SHA256SUMS off the release.
+    if: ${{ !cancelled() && needs.release-please.outputs.release_created == 'true' && needs.cli.result == 'success' && needs.app.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -189,5 +351,5 @@ jobs:
           mkdir out && cd out
           gh release download "$TAG" -R "$REPO" --pattern '*' --skip-existing
           rm -f SHA256SUMS latest.json
-          sha256sum * | tee SHA256SUMS
+          sha256sum -- * | tee SHA256SUMS
           gh release upload "$TAG" -R "$REPO" SHA256SUMS --clobber

@@ -53,6 +53,14 @@ jobs:
         run: |
           cargo clippy --all-targets --locked -- -D warnings
           cargo test --locked
+      # Microsoft Store flavour (docs/windows.md): no release check, no updater, "Updates come
+      # from the Microsoft Store". Built by release.yml's store job for the .msix.
+      - name: Store flavour
+        if: hashFiles('app/src-tauri/Cargo.toml') != ''
+        working-directory: app/src-tauri
+        run: |
+          cargo clippy --all-targets --locked --features store -- -D warnings
+          cargo test --locked --features store --lib update
 
   deny:
     runs-on: ubuntu-latest
