@@ -26,6 +26,11 @@ memchr.workspace = true
 [target.'cfg(windows)'.dependencies]
 sysinfo = { version = "0.40", default-features = false, features = ["system", "disk"] }
 
+# Linux only: the memory limit's RLIMIT_DATA fallback (memlimit.rs) through rustix's safe
+# getrlimit/setrlimit; already in the tree through tempfile.
+[target.'cfg(target_os = "linux")'.dependencies]
+rustix = { version = "1", default-features = false, features = ["std", "process"] }
+
 [features]
 # Test-only overrides (see fsutil::elevation_blocks_apply). Never in a release binary: only
 # the dev-dependencies of starorg-cli and the app turn it on, and CI checks the normal tree.

@@ -21,6 +21,7 @@ pub mod groups;
 pub mod hooks;
 pub mod ini;
 pub mod lock;
+pub mod memlimit;
 pub mod merge;
 pub mod model;
 pub mod patch;

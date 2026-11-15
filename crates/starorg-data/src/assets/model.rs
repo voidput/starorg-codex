@@ -38,26 +38,15 @@ impl ModelPreset {
     }
 }
 
-/// A rough peak-memory need of one export, from LIVE 4.10 (addendum 7.16): a Print shell of
-/// an Idris about 1.75 GB, a Full Javelin about 6.4-6.9 GB, a Full Idris about 10.9 GB.
-pub fn memory_need(p: ModelPreset) -> u64 {
-    const GB: u64 = 1024 * 1024 * 1024;
-    match p {
-        ModelPreset::Full => 8 * GB,
-        ModelPreset::PrintShell => 2 * GB,
-    }
+/// The peak-memory estimate of one export of `name` (`starorg_core::memlimit::model_estimate`,
+/// from LIVE 4.10, addendum 7.16): a Print shell about 1.4 GB (an Idris 1.75 GB), Full about
+/// 6.4-6.9 GB (a Javelin), about 11 GB for capital ships (an Idris 10.9 GB).
+pub fn memory_need(o: &ModelOptions, name: &str) -> u64 {
+    starorg_core::memlimit::model_estimate(o.preset == ModelPreset::Full, o.lod, name)
 }
 
 /// The warning the CLI prints and the app shows before a Full export.
 pub const FULL_MEMORY_NOTE: &str = "Full exports need a lot of memory: about 6.5 GB for an Aegis Javelin and 11 GB for an Idris (Print shell: under 2 GB).";
-
-/// Memory available now (Linux `MemAvailable`), bytes; `None` elsewhere.
-pub fn mem_available() -> Option<u64> {
-    let s = std::fs::read_to_string("/proc/meminfo").ok()?;
-    let line = s.lines().find(|l| l.starts_with("MemAvailable:"))?;
-    let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
-    Some(kb * 1024)
-}
 
 /// Highest LOD offered (ships carry 0-3 or 0-4).
 pub const MAX_LOD: u32 = 4;

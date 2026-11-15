@@ -10,9 +10,15 @@
 //! `<dir>/<name>.json` (atomically) and prints one JSON [`Measurement`] line on stdout.
 //! Exit 0 on success, 1 on a failed extraction, 2 on bad arguments. It writes nothing but
 //! that file, and refuses an `--out` inside the game's channel folder or Wine prefix.
+//!
+//! Memory limit (addendum 7.17): [`ProcessExtractor::limit`] refuses a dataset whose
+//! measured peak is over the limit or over the free memory before it starts one, runs the
+//! worker under the cap (`starorg_core::memlimit::apply`), and reports a worker stopped by it
+//! as "Stopped: needed more than X GB ...".
 
 use crate::rss;
 use serde::{Deserialize, Serialize};
+use starorg_core::memlimit;
 use starorg_gamedata::domain::{FileSource, NoFiles};
 use starorg_gamedata::pipeline::{self, Game};
 use starorg_gamedata::source::{self, ArchiveFiles, DataCoreSource};
@@ -21,6 +27,7 @@ use std::ffi::OsString;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 /// The hidden subcommand both binaries answer to.
@@ -130,6 +137,8 @@ pub fn worker_main(args: &[OsString]) -> Option<i32> {
         eprintln!("{WORKER_ARG}: needs --p4k, --out and --dataset");
         return Some(2);
     };
+    // The parent's memory limit, when it set one (memlimit::apply).
+    memlimit::arm_from_env();
     if let Some(r) = protected_root(&p4k, &out) {
         eprintln!(
             "{WORKER_ARG}: --out {} is inside {}; refusing",
@@ -164,10 +173,16 @@ pub fn protected_root(p4k: &Path, out: &Path) -> Option<PathBuf> {
     protected.into_iter().find(|r| out_abs.starts_with(r))
 }
 
+/// The memory limit in bytes, read at every extraction (the app's slider can move while
+/// the server runs). `None` = no limit.
+pub type LimitFn = Arc<dyn Fn() -> Option<u64> + Send + Sync>;
+
 /// Starts `exe mcp-extract-worker` per dataset (the CLI binary or the app binary).
 pub struct ProcessExtractor {
     pub exe: PathBuf,
     pub timeout: Duration,
+    /// The memory limit for each worker (none by default).
+    pub limit: Option<LimitFn>,
 }
 
 impl ProcessExtractor {
@@ -175,12 +190,40 @@ impl ProcessExtractor {
         Self {
             exe,
             timeout: WORKER_TIMEOUT,
+            limit: None,
         }
+    }
+
+    /// Each worker capped at what `limit` answers when it starts.
+    pub fn with_limit(mut self, limit: LimitFn) -> Self {
+        self.limit = Some(limit);
+        self
+    }
+}
+
+/// Before a worker starts: refuse `dataset` when its measured peak is over `limit`, or over
+/// the memory free now (`available`).
+pub fn guard(dataset: &str, limit: Option<u64>, available: Option<u64>) -> Result<(), String> {
+    let what = format!("Extracting {dataset}");
+    match memlimit::check(memlimit::dataset_estimate(dataset), limit, available) {
+        memlimit::Fit::Ok => Ok(()),
+        memlimit::Fit::OverLimit { need, limit } => {
+            Err(memlimit::over_limit_message(&what, need, limit))
+        }
+        memlimit::Fit::LowFree { need, free } => Err(format!(
+            "{what} may need about {}, and only {} of memory is free now (is the game running?). Close something and ask again.",
+            memlimit::human(need),
+            memlimit::human(free)
+        )),
     }
 }
 
 impl Extractor for ProcessExtractor {
     fn extract(&self, p4k: &Path, dataset: &str, out: &Path) -> Result<Measurement, String> {
+        let limit = self.limit.as_ref().and_then(|f| f());
+        if limit.is_some() {
+            guard(dataset, limit, memlimit::meminfo().available)?;
+        }
         let mut cmd = Command::new(&self.exe);
         cmd.arg(WORKER_ARG)
             .arg("--p4k")
@@ -188,8 +231,9 @@ impl Extractor for ProcessExtractor {
             .arg("--out")
             .arg(out)
             .arg("--dataset")
-            .arg(dataset)
-            .stdin(Stdio::null())
+            .arg(dataset);
+        let mut cmd = memlimit::apply(cmd, limit);
+        cmd.stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         #[cfg(windows)]
@@ -237,6 +281,12 @@ impl Extractor for ProcessExtractor {
         let stdout = t_out.join().unwrap_or_default();
         let stderr = t_err.join().unwrap_or_default();
         if !status.success() {
+            if memlimit::exit_was_memory(&status, limit) {
+                return Err(format!(
+                    "extracting {dataset}: {}",
+                    memlimit::stopped_message(limit.unwrap_or_default())
+                ));
+            }
             let tail: Vec<&str> = stderr.lines().rev().take(3).collect();
             let tail: Vec<&str> = tail.into_iter().rev().collect();
             return Err(format!(
@@ -264,6 +314,20 @@ mod tests {
         assert_eq!(worker_main(&a(&["x", WORKER_ARG, "--bogus"])), Some(2));
         assert!(extractable().contains(&"game-item-tags"));
         assert!(extractable().contains(&strings::NAME));
+    }
+
+    #[test]
+    fn guard_refuses_over_the_limit_or_the_free_memory() {
+        let gb = memlimit::GIB;
+        let e = guard("game-ships", Some(3 * gb / 2), Some(20 * gb)).unwrap_err();
+        assert!(
+            e.contains("4.1 GB") && e.contains("1.5 GB memory limit"),
+            "{e}"
+        );
+        assert!(guard("game-armor", Some(3 * gb / 2), Some(20 * gb)).is_ok());
+        let e = guard("game-item-tags", Some(8 * gb), Some(gb / 2)).unwrap_err();
+        assert!(e.contains("free"), "{e}");
+        assert!(guard("game-ships", None, None).is_ok());
     }
 
     #[test]

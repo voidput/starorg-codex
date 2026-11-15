@@ -12,6 +12,7 @@ mod fleet_cmds;
 mod gamedata_cmd;
 mod hook_cmds;
 mod mcp_cmd;
+mod mem_opts;
 mod sync_cmds;
 mod version_cmd;
 
@@ -287,6 +288,16 @@ pub enum Command {
     Dev {
         #[command(subcommand)]
         cmd: DevCmd,
+        /// Memory limit in GB for this run (default: the app's setting, else 5 GB or half the
+        /// RAM; 0 = none). A model export estimated above it is refused; a run that grows
+        /// past it is stopped with a message.
+        #[arg(
+            long,
+            value_name = "GB",
+            env = "STARORG_MEMORY_LIMIT_GB",
+            global = true
+        )]
+        memory_limit: Option<String>,
     },
     /// Experimental: a local MCP server on stdin/stdout with read-only game data tools
     /// (search, item, where to buy/found, how to obtain, missions, compare, strings, diff).
@@ -296,6 +307,10 @@ pub enum Command {
         /// channel, else LIVE).
         #[arg(long, value_name = "NAME")]
         channel: Option<String>,
+        /// Memory limit in GB for each extraction worker (default: the app's setting, else
+        /// 5 GB or half the RAM; 0 = none). A dataset measured above it is refused.
+        #[arg(long, value_name = "GB", env = "STARORG_MEMORY_LIMIT_GB")]
+        memory_limit: Option<String>,
     },
     /// Internal: extract one Data.p4k in a separate process (spec 3.3).
     #[command(hide = true)]
@@ -733,8 +748,22 @@ where
         Command::Blueprints { cmd } => blueprint_cmds::run(&cli.global, cmd),
         Command::Fleet { cmd } => fleet_cmds::run(&cli.global, cmd),
         Command::Sync { cmd } => sync_cmds::run(&cli.global, cmd),
-        Command::Dev { cmd } => dev_cmds::run(&cli.global, cmd),
-        Command::Mcp { channel } => mcp_cmd::run(&cli.global, channel.as_deref()),
+        Command::Dev { cmd, memory_limit } => {
+            match mem_opts::resolve(&cli.global, memory_limit.as_deref()) {
+                Ok(l) => {
+                    mem_opts::arm_here(&cli.global, l, memory_limit.is_some());
+                    dev_cmds::run(&cli.global, cmd)
+                }
+                Err(code) => code,
+            }
+        }
+        Command::Mcp {
+            channel,
+            memory_limit,
+        } => match mem_opts::resolve(&cli.global, memory_limit.as_deref()) {
+            Ok(l) => mcp_cmd::run(&cli.global, channel.as_deref(), l),
+            Err(code) => code,
+        },
         Command::ExtractWorker {
             p4k,
             out,

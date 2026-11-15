@@ -9,6 +9,7 @@ use crate::commands::{JSON_SCHEMA, canonical_lenient, fail, refuse_protected, ru
 use crate::{DevCmd, GlobalOpts, exit};
 use serde_json::json;
 use starorg_core::assetcache::{self, AssetCache, Kind};
+use starorg_core::memlimit;
 use starorg_data::assets::audio::{self, SoundRef};
 use starorg_data::assets::files;
 use starorg_data::assets::model::{self, ModelOptions, ModelPreset};
@@ -382,8 +383,32 @@ fn export_model(
             Err(e) => fail(g, exit::ERROR, "error", &e.to_string()),
         };
     }
-    if o.preset == ModelPreset::Full && !g.quiet && !g.json {
-        eprintln!("starorg-strings: {}", model::FULL_MEMORY_NOTE);
+    // The memory limit (addendum 7.17): an export estimated above it is refused up front;
+    // more than the free memory is a warning (the limit still applies).
+    let need = model::memory_need(&o, what);
+    match memlimit::check(
+        need,
+        crate::mem_opts::current(),
+        memlimit::meminfo().available,
+    ) {
+        memlimit::Fit::OverLimit { need, limit } => {
+            return fail(
+                g,
+                exit::ERROR,
+                "memory-limit",
+                &memlimit::over_limit_message("Exporting this model", need, limit),
+            );
+        }
+        memlimit::Fit::LowFree { need, free } if !g.quiet && !g.json => {
+            eprintln!(
+                "starorg-strings: {}",
+                memlimit::low_free_message("This export", need, free)
+            );
+        }
+        _ if o.preset == ModelPreset::Full && !g.quiet && !g.json => {
+            eprintln!("starorg-strings: {}", model::FULL_MEMORY_NOTE);
+        }
+        _ => {}
     }
     let (a, lock) = match open(g, &t, testing) {
         Ok(x) => x,

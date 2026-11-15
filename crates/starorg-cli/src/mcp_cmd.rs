@@ -12,7 +12,8 @@ use starorg_mcp::worker::ProcessExtractor;
 use std::process::ExitCode;
 use std::sync::Arc;
 
-pub fn run(g: &GlobalOpts, channel: Option<&str>) -> ExitCode {
+/// `limit`: bytes per extraction worker (`--memory-limit`), `None` = no limit.
+pub fn run(g: &GlobalOpts, channel: Option<&str>, limit: Option<u64>) -> ExitCode {
     let Some(dirs) = AppDirs::from_env() else {
         return fail(
             g,
@@ -36,7 +37,8 @@ pub fn run(g: &GlobalOpts, channel: Option<&str>) -> ExitCode {
         game_dir: g.game_dir.clone(),
         prefix: g.prefix.clone(),
     };
-    let mut cfg = starorg_mcp::config_from_env(&req, &dirs, Arc::new(ProcessExtractor::new(exe)));
+    let extractor = ProcessExtractor::new(exe).with_limit(Arc::new(move || limit));
+    let mut cfg = starorg_mcp::config_from_env(&req, &dirs, Arc::new(extractor));
     if let Some(ch) = channel {
         if !cfg.channels.iter().any(|c| c.name.eq_ignore_ascii_case(ch)) {
             let have: Vec<&str> = cfg.channels.iter().map(|c| c.name.as_str()).collect();
@@ -53,13 +55,14 @@ pub fn run(g: &GlobalOpts, channel: Option<&str>) -> ExitCode {
     if !quiet {
         let names: Vec<&str> = cfg.channels.iter().map(|c| c.name.as_str()).collect();
         eprintln!(
-            "starorg-strings mcp: experimental, read-only; channels {} (cache {})",
+            "starorg-strings mcp: experimental, read-only; channels {} (cache {}; memory limit per extraction {})",
             if names.is_empty() {
                 "none found".to_string()
             } else {
                 names.join(", ")
             },
-            cfg.cache_dir.display()
+            cfg.cache_dir.display(),
+            limit.map_or("none".to_string(), starorg_core::memlimit::human)
         );
     }
     let notify: starorg_mcp::store::Notify = Arc::new(move |m: String| {
