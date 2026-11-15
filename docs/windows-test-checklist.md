@@ -18,8 +18,8 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
 
 ## 1. Install
 
-- [ ] Download `StarOrg Codex_<version>_x64-setup.exe` and `SHA256SUMS` from the release.
-- [ ] Optional: in PowerShell, `Get-FileHash '.\StarOrg Codex_<version>_x64-setup.exe'` matches
+- [ ] Download `StarOrg.Codex_<version>_x64-setup.exe` and `SHA256SUMS` from the release.
+- [ ] Optional: in PowerShell, `Get-FileHash '.\StarOrg.Codex_<version>_x64-setup.exe'` matches
       the line in `SHA256SUMS`.
 - [ ] Run the installer. If SmartScreen says "Windows protected your PC", note it, then
       More info -> Run anyway. No administrator (UAC) prompt appears.

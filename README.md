@@ -51,9 +51,10 @@ desktop app for Windows and Linux, plus the `starorg-codex` command-line tool.
 ## Install
 
 Downloads are on the [releases page](https://github.com/voidput/starorg-codex/releases). Every
-file is listed in `SHA256SUMS` and carries a build provenance attestation.
+file is listed in `SHA256SUMS`; the installers and CLI archives also carry a build provenance
+attestation (`gh attestation verify <file> -R voidput/starorg-codex`).
 
-**Windows 10/11:** run `StarOrg Codex_<version>_x64-setup.exe` (per user, no admin rights). The
+**Windows 10/11:** run `StarOrg.Codex_<version>_x64-setup.exe` (per user, no admin rights). The
 `.msi` and a portable CLI zip are there too; a Microsoft Store version is planned. Details,
 SmartScreen and signing: [docs/windows.md](docs/windows.md).
 

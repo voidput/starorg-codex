@@ -11,7 +11,7 @@ get it, from the same code:
 
 | | Direct download (GitHub release) | Microsoft Store |
 |---|---|---|
-| Files | `StarOrg Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-codex-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
+| Files | `StarOrg.Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-codex-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
 | Signed | Yes once Azure Artifact Signing is set up ([Code signing](#code-signing)); until then unsigned | Signed by Microsoft when published |
 | Updates | In the app (Settings -> Network -> Check for updates, off by default), signed with the updater key ([updates](updates.md)) | Only through the Store. The app never checks GitHub and never installs an update ("Updates come from the Microsoft Store.") |
 | App data | `%APPDATA%\StarOrg Tools\Codex\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\` (extracted game text; the Developer mode asset cache in `assets\`, 2 GB by default or a folder you choose; MCP datasets in `mcp\`) | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
@@ -36,7 +36,7 @@ for one release that prints a deprecation line.
 
 ## Install (direct download)
 
-1. Download `StarOrg Codex_<version>_x64-setup.exe` from the release page.
+1. Download `StarOrg.Codex_<version>_x64-setup.exe` from the release page.
 2. Run it. It installs for your user only and never asks for administrator rights.
 3. **While the builds are unsigned**, SmartScreen shows "Windows protected your PC". Choose
    **More info -> Run anyway**. Check the file first if you like: `SHA256SUMS` on the release
@@ -163,7 +163,7 @@ Owner setup (once):
    exe, the NSIS installer and the MSI, or the job fails), and the signing step finds the
    newest `signtool.exe` of the runner's Windows SDK and the Azure CLI itself, so a runner image
    update does not break it. A spot check on a downloaded file is still worth it once:
-   `Get-AuthenticodeSignature '.\StarOrg Codex_<v>_x64-setup.exe'` shows `Valid`.
+   `Get-AuthenticodeSignature '.\StarOrg.Codex_<v>_x64-setup.exe'` shows `Valid`.
 
 SmartScreen reputation still builds up per certificate over the first downloads; a signed
 build may show the prompt for a while.

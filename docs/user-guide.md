@@ -159,7 +159,7 @@ that for you: run Remove first.
 
 For players who want to look things up in the game data. Read only on the game.
 
-- **Explorer:** the item finder (sections such as Ships & vehicles, Ship weapons, Armor;
+- **Explorer:** the item finder (sections such as Ships & vehicles, Ship weapons, Armor & clothing;
   search with prefixes like `type:cooler maker:alpha`, typo-tolerant; quick filters such as
   *Player-usable*, *Has model*, *Has sounds*; grouping and compare), the record's JSON with
   readable references, its sounds (play or export) and **Export model** (GLB, optionally STL).
