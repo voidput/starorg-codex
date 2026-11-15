@@ -2,7 +2,8 @@
   /**
    * Strings (spec 9.4): every key of the channel (about 91,000) in a virtualised grid. Rows are
    * fetched in pages as they scroll into view, so the DOM holds about 40 rows at any time.
-   * Search, source facets, groups and "changed only" filter on the backend. Keyboard: arrows,
+   * Search, source facets, the generator (category) filter, groups and "changed only" filter
+   * on the backend. Keyboard: arrows,
    * Page Up/Down, Home/End move the row; Enter opens the detail sheet. One row is always in the
    * tab order: the active row, or the first visible one once the active row has scrolled out of
    * the window. Columns follow the grid's width (Group goes first, then Original).
@@ -45,6 +46,9 @@
   let debounced = $state('');
   let sources = $state<StringSource[]>([]);
   let changedOnly = $state(false);
+  /** Which generator touched the row (`StringRow.category`); separate from the group tree. */
+  let category = $state<string>('all');
+  let categoryFacets = $state<FacetCount[]>([]);
   let sort = $state<StringSort>('group');
 
   let total = $state<number | null>(null);
@@ -124,7 +128,7 @@
   const groupBy = $derived<GroupBy>(prefs.groupBy);
   const effSort = $derived<StringSort>(groupBy === 'none' && sort === 'group' ? 'key' : sort);
   const qkey = $derived(
-    JSON.stringify([tkey, prefsFor === tkey, debounced, sources, changedOnly, effSort, prefs.groupBy, prefs.groups, prefs.manufacturers, prefs.sizes, app.rev, groupsRev]),
+    JSON.stringify([tkey, prefsFor === tkey, debounced, sources, category, changedOnly, effSort, prefs.groupBy, prefs.groups, prefs.manufacturers, prefs.sizes, app.rev, groupsRev]),
   );
 
   function query(offset: number) {
@@ -132,7 +136,7 @@
       target: $state.snapshot(target!),
       search: debounced,
       sources: [...sources],
-      categories: [],
+      categories: category === 'all' ? [] : [category],
       changed_only: changedOnly,
       sort: effSort,
       offset,
@@ -154,6 +158,7 @@
       total = r.total;
       all = r.all;
       sourceFacets = r.sources;
+      categoryFacets = r.categories;
       groupNodes = r.groups;
       groupState = r.group_state;
       const dim = r.groups.length && prefs.groupBy !== 'none' ? ({ type: 'groups', manufacturer: 'manufacturers', size: 'sizes' } as const)[prefs.groupBy] : null;
@@ -278,6 +283,13 @@
     { id: 'key-desc', label: 'Key Z–A' },
     { id: 'category', label: 'Generator' },
     { id: 'source', label: 'Source' },
+  ]);
+  const catOptions = $derived([
+    { id: 'all', label: 'All generators' },
+    ...(categoryFacets.length ? categoryFacets : Object.keys(CATEGORY_LABEL).map((id) => ({ id, count: 0 }))).map((f) => ({
+      id: f.id,
+      label: `${CATEGORY_LABEL[f.id] ?? f.id} (${int(f.count)})`,
+    })),
   ]);
   const groupBys: { id: GroupBy; label: string }[] = [
     { id: 'none', label: 'No grouping' },
@@ -460,6 +472,7 @@
         {/if}
       </div>
     {/if}
+    <SelectField ariaLabel="Generator" options={catOptions} value={category} onchange={(v) => (category = v)} class="min-w-40" />
     <SelectField ariaLabel="Sort" options={sorts} value={effSort} onchange={(v) => (sort = v)} />
     <SwitchRow id="changed-only" size="sm" label="Changed only" checked={changedOnly} onchange={(v) => (changedOnly = v)} class="py-0" />
   </div>
