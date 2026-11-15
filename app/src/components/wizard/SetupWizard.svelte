@@ -29,6 +29,8 @@
   import { cn } from '@/lib/utils';
 
   let { onclose }: { onclose: () => void } = $props();
+  /** Opened again after a first setup (Settings, palette, "Set up PTU"): other words, same steps. */
+  const again = !(app.overview?.first_run ?? true);
 
   const params = new URLSearchParams(window.location.search);
   const jump = params.get('wizard') as StepId | null;
@@ -197,15 +199,15 @@
 
 <div class="bg-background tactical-grid fixed inset-0 z-40 flex items-stretch justify-center overflow-y-auto p-4 sm:p-6" role="presentation">
   <div
-    class="glass chamfer-md shadow-glow-md border-primary/30 relative my-auto flex h-full max-h-[760px] w-full max-w-5xl flex-col border"
+    class="glass chamfer-md chamfer-edge shadow-glow-md border-primary/30 relative [--chamfer-edge:color-mix(in_oklab,var(--primary)_30%,transparent)] my-auto flex h-full max-h-[760px] w-full max-w-5xl flex-col border"
     role="dialog"
     aria-modal="true"
     aria-labelledby="wizard-title"
   >
     <header class="flex items-start justify-between gap-4 border-b px-6 pt-5 pb-4">
       <div>
-        <div class="eyebrow text-primary">First-run setup</div>
-        <h1 id="wizard-title" class="text-h1">Set up StarOrg Strings</h1>
+        <div class="eyebrow text-primary">{again ? 'Setup' : 'First-run setup'}</div>
+        <h1 id="wizard-title" class="text-h1">{again ? 'Set up channels again' : 'Set up StarOrg Strings'}</h1>
       </div>
       <Button variant="ghost" size="sm" onclick={requestClose} disabled={phase === 'running'}>
         {#if phase === 'done'}Close{:else}<X aria-hidden="true" /> Set up later{/if}
@@ -296,7 +298,9 @@
   <Dialog.Content>
     <Dialog.Header>
       <Dialog.Title>Leave setup for now?</Dialog.Title>
-      <Dialog.Description>Nothing has been written to the game yet. Your choices are kept, and setup continues where you left off next time.</Dialog.Description>
+      <Dialog.Description>
+        {#if again}This setup has not written anything yet; channels set up before stay as they are. Your choices are kept for next time.{:else}Nothing has been written to the game yet. Your choices are kept, and setup continues where you left off next time.{/if}
+      </Dialog.Description>
     </Dialog.Header>
     <Dialog.Footer>
       <Button variant="outline" onclick={() => (guard = false)}>Keep setting up</Button>

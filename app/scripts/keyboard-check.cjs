@@ -44,6 +44,22 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.locator('#sd-value').waitFor({ state: 'detached' });
   check('Escape closes the sheet and focus returns to the row', (await active()).row === String(91000 + 1), JSON.stringify(await active()));
 
+  // Tab order: scroll the active row out of the window with the wheel, then Tab back into the grid.
+  await page.locator('[data-row="90999"]').focus();
+  await page.evaluate(() => {
+    const g = document.querySelector('[role=grid] [role=rowgroup]:last-child');
+    g.scrollTop = 0;
+    g.dispatchEvent(new Event('scroll'));
+  });
+  await page.waitForTimeout(200);
+  await page.getByRole('searchbox', { name: 'Search keys and text' }).focus();
+  let inGrid = false;
+  for (let i = 0; i < 12 && !inGrid; i++) {
+    await page.keyboard.press('Tab');
+    inGrid = !!(await active()).row;
+  }
+  check('Tab reaches a row after the active one scrolled away', inGrid, JSON.stringify(await active()));
+
   // Override: add, reject, reset.
   await page.getByRole('searchbox', { name: 'Search keys and text' }).fill('Laser_S3_00002');
   await page.getByText(/^1 of /).waitFor();
@@ -53,14 +69,20 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.getByRole('button', { name: 'Reset to built text' }).waitFor();
   check('Override saved', true);
   await page.locator('#sd-value').fill('My laser\nsecond');
+  check('Save is off while a live check fails', await page.getByRole('button', { name: 'Save edit' }).isDisabled());
+  await page.locator('#sd-value').fill('My laser ~ second');
   await page.getByRole('button', { name: 'Save edit' }).click();
   const rej = await page.getByRole('alert').filter({ hasText: 'Not saved' }).textContent();
-  check('Rejected override names the rule', /newline/.test(rej ?? ''), rej?.trim());
+  check('Rejected override names the rule in words', /Game variable missing/.test(rej ?? '') && /variable-tokens/.test(rej ?? ''), rej?.trim());
+  await page.locator('#sd-value').fill('My laser ~ third');
+  check('Rejection clears on input', (await page.getByRole('alert').filter({ hasText: 'Not saved' }).count()) === 0);
+  await page.locator('#sd-value').fill('My laser');
   await page.getByRole('button', { name: 'Reset to built text' }).click();
   await page.getByRole('button', { name: /Remove edit\? Click again/ }).click();
   await page.getByRole('button', { name: 'Reset to built text' }).waitFor({ state: 'detached' });
   check('Override reset', true);
   await page.keyboard.press('Escape');
+  await page.locator('#sd-value').waitFor({ state: 'detached' });
 
   // Tag builder: Alt+Right on a focused part moves it and keeps focus.
   await page.keyboard.press('Alt+2');
@@ -76,10 +98,50 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   check('Draft shows unsaved', await page.getByText('Unsaved changes').isVisible());
   // Category tabs with arrow keys.
   await page.getByRole('tab', { name: /Name tags/ }).focus();
-  await page.keyboard.press('ArrowDown');
-  check('ArrowDown in categories selects Missions', (await page.getByRole('tab', { selected: true }).textContent())?.includes('Missions'));
+  await page.keyboard.press('ArrowUp');
+  check('ArrowUp in categories selects Missions', (await page.getByRole('tab', { selected: true }).textContent())?.includes('Missions'));
+
+  // Unsaved draft: leaving asks (Save / Discard / Stay); a refresh keeps the draft.
+  await page.getByRole('main').focus();
+  await page.keyboard.press('Alt+3');
+  await page.getByRole('heading', { name: 'Save your changes first?' }).waitFor();
+  check('Leaving with unsaved edits asks first', true);
+  await page.getByRole('button', { name: 'Stay' }).click();
+  check('Stay keeps the screen and the draft', (await page.locator('#page-title').textContent()) === 'Enhancements' && (await page.getByText('Unsaved changes').isVisible()));
+  await page.getByRole('radio', { name: /HOTFIX/ }).click();
+  await page.getByRole('heading', { name: 'Save your changes first?' }).waitFor();
+  check('Channel switch with unsaved edits asks first', true);
+  await page.getByRole('button', { name: 'Stay' }).click();
+  await page.getByRole('button', { name: /^Apply to LIVE/ }).click();
+  await page.getByRole('heading', { name: 'Apply without your unsaved changes?' }).waitFor();
+  check('Header Apply with unsaved edits offers Save & apply', await page.getByRole('dialog').getByRole('button', { name: 'Save & apply' }).isVisible());
+  await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
+  await page.keyboard.press('Alt+1');
+  await page.getByRole('dialog').getByRole('button', { name: 'Discard changes' }).click();
+  await page.getByRole('heading', { name: 'LIVE' }).waitFor();
+  check('Discard leaves the screen', (await page.locator('#page-title').textContent()) === 'Home');
+
+  // Apply can be stopped while it reads game data.
+  const slow = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await slow.goto(BASE.replace('delay=0', 'delay=700') + '&screen=home');
+  await slow.getByRole('heading', { name: 'LIVE' }).waitFor();
+  await slow.getByRole('button', { name: /^Apply to LIVE/ }).click();
+  await slow.getByRole('button', { name: /^Stop:/ }).click();
+  await slow.getByText('Stopped. Nothing was written to the game.').waitFor({ timeout: 8000 });
+  check('Stop cancels the apply before it writes', true);
+  await slow.close();
+
+  // Game running: Apply is off and says why.
+  const run = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await run.goto(BASE + '&screen=backups&running=LIVE');
+  await run.getByText('Timeline · LIVE').waitFor();
+  check('Game running: header Apply off with a reason', (await run.getByRole('button', { name: /^Apply to LIVE/ }).isDisabled()) && (await run.locator('#apply-blocked').isVisible()));
+  check('Game running: Backups actions off', await run.getByRole('button', { name: 'Undo last apply' }).isDisabled());
+  await run.close();
 
   // Backups: Undo dialog focus trap + Escape.
+  await page.getByRole('dialog').waitFor({ state: 'detached' });
   await page.keyboard.press('Alt+6');
   await page.getByText('Timeline · LIVE').waitFor();
   await page.getByRole('button', { name: 'Undo last apply' }).click();

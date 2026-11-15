@@ -93,6 +93,13 @@
             <div class="text-muted-foreground text-[12px]">Exported {fmtDateTime(r.exported_at)} · {int(r.total)} entries · {r.not_completed} only tracked (not imported) · {r.duplicates} duplicates</div>
           </div>
         </div>
+        {#if r.empty_catalog}
+          <Alert.Root variant="warning">
+            <TriangleAlert aria-hidden="true" />
+            <Alert.Title>Nothing could be matched yet</Alert.Title>
+            <Alert.Description>Game data has not been read for this channel, so no blueprint names are known. Apply once, then import again.</Alert.Description>
+          </Alert.Root>
+        {/if}
         <dl class="grid grid-cols-2 gap-2 sm:grid-cols-4">
           <div class="rounded-md border px-3 py-2"><dt class="text-muted-foreground text-[12px]">New</dt><dd class="mono text-[16px] font-semibold">{r.imported.length}</dd></div>
           <div class="rounded-md border px-3 py-2"><dt class="text-muted-foreground text-[12px]">Already known</dt><dd class="mono text-[16px] font-semibold">{r.known.length}</dd></div>

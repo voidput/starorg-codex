@@ -43,6 +43,32 @@
     f(s);
     void app.saveSettings(s);
   }
+  import Check from '@lucide/svelte/icons/check';
+  let rescanning = $state(false);
+  /** Re-scan looks for installs again (discover_installs), then reloads the overview. */
+  async function rescan() {
+    rescanning = true;
+    try {
+      const found = await api.discoverInstalls(false);
+      toast('success', `Found ${found.length} install${found.length === 1 ? '' : 's'}`, found.map((f) => f.found_by_label).join(', ') || null);
+    } catch (e) {
+      toast('error', 'Re-scan failed', toContractError(e).message);
+    } finally {
+      rescanning = false;
+      await app.refresh();
+    }
+  }
+  function accentKey(e: KeyboardEvent, i: number) {
+    const n = accents.length;
+    const j = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % n : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + n) % n : -1;
+    if (j < 0) return;
+    e.preventDefault();
+    const a = accents[j]!;
+    patch((x) => (x.appearance.accent = a));
+    ((e.currentTarget as HTMLElement).parentElement?.children[j] as HTMLElement | undefined)?.focus();
+  }
+  import { api, toContractError } from '@/lib/contract/client';
+  import { toast } from '@/lib/stores/toast.svelte';
 </script>
 
 {#if app.settings}
@@ -54,7 +80,7 @@
       {/each}
     </nav>
     <Card.Root id="game">
-      <Card.Header><Card.Title tabindex={-1}>Game</Card.Title><Card.Description>Where StarOrg Strings writes, and which channels are set up.</Card.Description></Card.Header>
+      <Card.Header><Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Game</Card.Title><Card.Description>Where StarOrg Strings writes, and which channels are set up.</Card.Description></Card.Header>
       <Card.Content class="grid gap-3">
         {#if app.install}
           <div class="grid gap-0.5">
@@ -82,12 +108,12 @@
         {/if}
         <div class="flex flex-wrap gap-2">
           <Button variant="outline" size="sm" onclick={() => (app.wizard = true)}><Wand aria-hidden="true" /> Run setup again</Button>
-          <Button variant="ghost" size="sm" onclick={() => app.refresh()}><FolderSearch aria-hidden="true" /> Re-scan</Button>
+          <Button variant="ghost" size="sm" disabled={rescanning} onclick={rescan}><FolderSearch aria-hidden="true" /> {rescanning ? 'Looking…' : 'Re-scan'}</Button>
         </div>
       </Card.Content>
     </Card.Root>
     <Card.Root id="appearance">
-      <Card.Header><Card.Title tabindex={-1}>Appearance</Card.Title></Card.Header>
+      <Card.Header><Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Appearance</Card.Title></Card.Header>
       <Card.Content class="grid gap-3">
         <div class="flex flex-wrap items-center gap-3">
           <span class="w-24">Theme</span>
@@ -101,16 +127,19 @@
         <div class="flex flex-wrap items-center gap-3">
           <span class="w-24" id="accent-label">Accent</span>
           <div role="radiogroup" aria-labelledby="accent-label" class="flex gap-1.5">
-            {#each accents as a (a)}
+            {#each accents as a, i (a)}
+              {@const on = s.appearance.accent === a}
               <button
                 type="button"
                 role="radio"
-                aria-checked={s.appearance.accent === a}
-                aria-label={a}
-                class={cn('focus-visible:ring-ring size-6 rounded-full border-2 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background', s.appearance.accent === a ? 'border-foreground' : 'border-transparent')}
+                aria-checked={on}
+                aria-label={a[0]!.toUpperCase() + a.slice(1)}
+                tabindex={on ? 0 : -1}
+                class={cn('focus-visible:ring-ring flex size-6 items-center justify-center rounded-full border-2 outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-background', on ? 'border-foreground' : 'border-transparent')}
                 style="background: {swatch[a]}"
                 onclick={() => patch((x) => (x.appearance.accent = a))}
-              ></button>
+                onkeydown={(e) => accentKey(e, i)}
+              >{#if on}<Check class="size-3.5 text-black" strokeWidth={3} aria-hidden="true" />{/if}</button>
             {/each}
           </div>
         </div>
@@ -123,12 +152,12 @@
             onchange={(v) => patch((x) => (x.appearance.palette = v))}
           />
         </div>
-        <SwitchRow id="reduce-effects" label="Reduce effects" hint="Solid surfaces instead of blur. On by default on Linux, where WebKitGTK draws blur slowly on NVIDIA." checked={s.appearance.reduce_effects} onchange={(v) => patch((x) => (x.appearance.reduce_effects = v))} />
+        <SwitchRow id="reduce-effects" label="Reduce effects" hint="Solid surfaces instead of see-through blur, for a smoother window. On by default on Linux (the Linux web view draws blur slowly on some graphics cards)." checked={s.appearance.reduce_effects} onchange={(v) => patch((x) => (x.appearance.reduce_effects = v))} />
       </Card.Content>
     </Card.Root>
     <Card.Root id="network">
       <Card.Header>
-        <Card.Title tabindex={-1}>Network</Card.Title>
+        <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Network</Card.Title>
         <Card.Description>All off by default. With these off, StarOrg Strings' own code makes no network request.</Card.Description>
       </Card.Header>
       <Card.Content class="grid gap-1">
@@ -143,7 +172,7 @@
     <DoctorCard />
     <Card.Root id="cli">
       <Card.Header>
-        <Card.Title tabindex={-1}>Command line</Card.Title>
+        <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Command line</Card.Title>
         <Card.Description>Everything the app does is also a command; scripts and launch hooks use it.</Card.Description>
       </Card.Header>
       <Card.Content class="grid gap-2">

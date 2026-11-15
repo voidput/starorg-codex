@@ -3,9 +3,12 @@
    * Strings (spec 9.4): every key of the channel (about 91,000) in a virtualised grid. Rows are
    * fetched in pages as they scroll into view, so the DOM holds about 40 rows at any time.
    * Search, source facets, category and "changed only" filter on the backend. Keyboard: arrows,
-   * Page Up/Down, Home/End move the row; Enter opens the detail sheet.
+   * Page Up/Down, Home/End move the row; Enter opens the detail sheet. One row is always in the
+   * tab order: the active row, or the first visible one once the active row has scrolled out of
+   * the window. Columns follow the grid's width (Category goes first, then Original).
    */
   import Search from '@lucide/svelte/icons/search';
+  import Check from '@lucide/svelte/icons/check';
   import { tick, untrack } from 'svelte';
   import { Input } from '@/components/ui/input';
   import { Skeleton } from '@/components/ui/skeleton';
@@ -43,6 +46,8 @@
   let scroller = $state<HTMLElement | null>(null);
   let scrollTop = $state(0);
   let viewH = $state(600);
+  let gridW = $state(1000);
+  let grid = $state<HTMLElement | null>(null);
   let active = $state(0);
   let openKey = $state<string | null>(null);
   let sheet = $state(false);
@@ -127,6 +132,25 @@
     ro.observe(scroller);
     return () => ro.disconnect();
   });
+  $effect(() => {
+    if (!grid) return;
+    const ro = new ResizeObserver(() => (gridW = grid!.clientWidth));
+    ro.observe(grid);
+    return () => ro.disconnect();
+  });
+  const showOriginal = $derived(gridW >= 620);
+  const showCategory = $derived(gridW >= 880);
+  const colCount = $derived(3 + Number(showOriginal) + Number(showCategory));
+  const cols = $derived(
+    showCategory
+      ? 'grid grid-cols-[minmax(200px,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_96px_104px]'
+      : showOriginal
+        ? 'grid grid-cols-[minmax(180px,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_92px]'
+        : 'grid grid-cols-[minmax(160px,1.2fr)_minmax(0,1.4fr)_92px]',
+  );
+  /** The row in the tab order: the active one while it is in the DOM, else the first visible one. */
+  const firstShown = $derived(Math.min(Math.max(0, (total ?? 1) - 1), Math.floor(scrollTop / ROW)));
+  const tabRow = $derived(active >= first && active <= last ? active : firstShown);
 
   function rowAt(i: number) {
     return pages[Math.floor(i / PAGE)]?.[i % PAGE] ?? null;
@@ -190,7 +214,6 @@
     { id: 'source', label: 'Source' },
   ];
   const SRC: StringSource[] = ['unmodified', 'enhanced', 'patched', 'edited'];
-  const cols = 'grid grid-cols-[minmax(180px,1.2fr)_minmax(0,1.4fr)_92px] xl:grid-cols-[minmax(220px,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_96px_104px]';
 </script>
 
 <div class="flex h-full min-h-[420px] flex-col gap-3">
@@ -216,6 +239,7 @@
           )}
           onclick={() => toggleSource(s)}
         >
+          {#if sources.includes(s)}<Check class="text-primary size-3.5" aria-hidden="true" />{/if}
           {SOURCE_LABEL[s]} <span class="mono text-[11px]">{int(facetCount(s))}</span>
         </button>
       {/each}
@@ -233,7 +257,8 @@
       role="grid"
       aria-label="Strings"
       aria-rowcount={(total ?? 0) + 1}
-      aria-colcount={5}
+      aria-colcount={colCount}
+      bind:this={grid}
       tabindex="-1"
       class="bg-card flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border"
       onkeydown={onKey}
@@ -241,10 +266,10 @@
       <div role="rowgroup" class="border-b">
         <div role="row" aria-rowindex={1} class={cn(cols, 'text-muted-foreground h-8 items-center gap-3 px-3 text-[12px] font-medium')}>
           <span role="columnheader">Key</span>
-          <span role="columnheader" class="hidden xl:block">Original</span>
+          {#if showOriginal}<span role="columnheader">Original</span>{/if}
           <span role="columnheader">Result</span>
           <span role="columnheader">Source</span>
-          <span role="columnheader" class="hidden xl:block">Category</span>
+          {#if showCategory}<span role="columnheader">Category</span>{/if}
         </div>
       </div>
       <div bind:this={scroller} role="rowgroup" class="relative min-h-0 flex-1 overflow-y-auto" onscroll={() => (scrollTop = scroller?.scrollTop ?? 0)}>
@@ -263,7 +288,7 @@
                 data-row={v.i}
                 aria-rowindex={v.i + 2}
                 aria-selected={active === v.i}
-                tabindex={active === v.i ? 0 : -1}
+                tabindex={tabRow === v.i ? 0 : -1}
                 class={cn(
                   cols,
                   'hover:bg-accent/60 focus-visible:ring-ring/60 absolute right-0 left-0 cursor-pointer items-center gap-3 border-b border-border/60 px-3 outline-none focus-visible:ring-2 focus-visible:ring-inset',
@@ -278,10 +303,10 @@
               >
                 {#if r}
                   <span role="gridcell" class="mono truncate text-[12px]" title={r.key}>{r.key}</span>
-                  <span role="gridcell" class="text-muted-foreground hidden truncate xl:block">{r.original}</span>
+                  {#if showOriginal}<span role="gridcell" class="text-muted-foreground truncate">{r.original}</span>{/if}
                   <span role="gridcell" class="truncate">{r.result}</span>
                   <span role="gridcell"><ToneBadge tone={SOURCE_TONE[r.source]} label={SOURCE_LABEL[r.source]} icon={null} /></span>
-                  <span role="gridcell" class="text-muted-foreground hidden truncate text-[12px] xl:block">{CATEGORY_LABEL[r.category] ?? r.category}</span>
+                  {#if showCategory}<span role="gridcell" class="text-muted-foreground truncate text-[12px]">{CATEGORY_LABEL[r.category] ?? r.category}</span>{/if}
                 {:else}
                   <span role="gridcell" class="col-span-full"><Skeleton class="h-4 w-2/3" /></span>
                 {/if}

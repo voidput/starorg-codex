@@ -38,7 +38,7 @@
 {:else if scanning && !installs.length}
   <div class="grid gap-2"><Skeleton class="h-24" /><Skeleton class="h-24" /></div>
 {:else if !installs.length}
-  <div class="tactical-grid flex flex-col items-center gap-2 rounded-lg border px-6 py-8 text-center">
+  <div class="bg-muted/20 flex flex-col items-center gap-2 rounded-lg border border-dashed px-6 py-8 text-center">
     <FolderSearch class="text-primary size-8" aria-hidden="true" />
     <div class="font-semibold">No Star Citizen install found</div>
     <p class="text-muted-foreground max-w-md">Browse to the StarCitizen folder, or run a deeper scan of /mnt, removable media and your home folder.</p>

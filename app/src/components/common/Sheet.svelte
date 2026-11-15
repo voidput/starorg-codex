@@ -14,10 +14,20 @@
     width = 'w-[min(560px,calc(100vw-48px))]',
     children,
     footer,
-  }: { open: boolean; title: string; description?: string | null; width?: string; children: Snippet; footer?: Snippet } = $props();
+    beforeClose = null,
+  }: {
+    open: boolean;
+    title: string;
+    description?: string | null;
+    width?: string;
+    children: Snippet;
+    footer?: Snippet;
+    /** Return false to keep the sheet open (the screen asks first, e.g. unsaved text). */
+    beforeClose?: (() => boolean) | null;
+  } = $props();
 </script>
 
-<Dialog.Root bind:open>
+<Dialog.Root bind:open={() => open, (v) => { if (v || !beforeClose || beforeClose()) open = v; }}>
   <Dialog.Content
     class={cn(
       'top-0 right-0 left-auto flex h-full max-w-none translate-x-0 translate-y-0 flex-col gap-0 rounded-none border-l p-0 sm:max-w-none data-open:zoom-in-100 data-closed:zoom-out-100 data-open:slide-in-from-right-8',

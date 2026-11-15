@@ -20,6 +20,10 @@
   import BackupsScreen from '@/components/screens/BackupsScreen.svelte';
   import ActivityScreen from '@/components/screens/ActivityScreen.svelte';
   import SetupWizard from '@/components/wizard/SetupWizard.svelte';
+  import UnsavedDialog from '@/components/common/UnsavedDialog.svelte';
+  import FullEmpty from '@/components/common/FullEmpty.svelte';
+  import { Button } from '@/components/ui/button';
+  import Wand from '@lucide/svelte/icons/wand-sparkles';
   import { findNav, NAV_ITEMS, type ScreenId } from '@/lib/nav';
   import { app } from '@/lib/stores/app.svelte';
 
@@ -27,6 +31,8 @@
   let palette = $state(false);
   let main = $state<HTMLElement | null>(null);
   const page = $derived(findNav(app.screen));
+  /** Screens that work on one channel's files show "Set up <channel>" instead of an error. */
+  const needsSetup = $derived(!!app.channel && !app.channel.set_up && ['enhancements', 'strings', 'patches', 'blueprints', 'backups'].includes(app.screen));
 
   function go(s: ScreenId) {
     app.go(s);
@@ -40,13 +46,21 @@
     });
   });
 
+  /** A dialog or sheet is open, or the user is typing: screen shortcuts stay quiet. */
+  function shortcutsOff(e: KeyboardEvent): boolean {
+    if (app.wizard || document.querySelector('[data-slot=dialog-content][data-state=open]')) return true;
+    const t = e.target as HTMLElement | null;
+    return !!t?.closest('input, textarea, select, [contenteditable=true]');
+  }
+
   function onKey(e: KeyboardEvent) {
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      if (app.wizard) return;
       e.preventDefault();
       palette = !palette;
       return;
     }
-    if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-8]$/.test(e.key) && !app.wizard) {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-8]$/.test(e.key) && !shortcutsOff(e)) {
       const n = NAV_ITEMS.find((i) => i.key === e.key);
       if (n) {
         e.preventDefault();
@@ -72,7 +86,12 @@
       <div class="flex min-w-0 flex-1 flex-col">
         <AppHeader {page} />
         <main id="main" bind:this={main} tabindex="-1" aria-labelledby="page-title" class="min-h-0 flex-1 overflow-y-auto px-6 py-5 outline-none">
-          {#if app.screen === 'home'}
+          {#if needsSetup && app.channel}
+            <FullEmpty icon={Wand} title={`${app.channel.channel} is not set up`}>
+              Set up {app.channel.channel} to see its {page.label.toLowerCase()}. Setup asks before anything is written to the game.
+              {#snippet actions()}<Button onclick={() => (app.wizard = true)}><Wand aria-hidden="true" /> Set up {app.channel?.channel}</Button>{/snippet}
+            </FullEmpty>
+          {:else if app.screen === 'home'}
             <HomeScreen />
           {:else if app.screen === 'enhancements'}
             <EnhancementsScreen />
@@ -97,6 +116,7 @@
   {#if app.wizard}
     <SetupWizard onclose={() => { app.wizard = false; void app.refresh(); }} />
   {/if}
-  <CommandPalette bind:open={palette} go={(s) => go(s)} />
+  {#if !app.wizard}<CommandPalette bind:open={palette} go={(s) => go(s)} />{/if}
+  <UnsavedDialog />
   <Toaster />
 </Tooltip.Provider>

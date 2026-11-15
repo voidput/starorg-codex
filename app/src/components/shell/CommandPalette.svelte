@@ -1,5 +1,8 @@
 <script lang="ts">
-  /** Ctrl/Cmd+K command palette (spec 9.3): go to a screen, switch channel, apply, re-run setup. */
+  /**
+   * Ctrl/Cmd+K command palette (spec 9.3): go to a screen, switch channel, apply, re-run setup.
+   * Apply is listed only when writing is allowed (not while the game runs or a job runs).
+   */
   import * as Dialog from '@/components/ui/dialog';
   import { Input } from '@/components/ui/input';
   import { NAV_ITEMS, type ScreenId } from '@/lib/nav';
@@ -19,7 +22,7 @@
   const cmds = $derived<Cmd[]>([
     ...NAV_ITEMS.map((n) => ({ id: `go-${n.id}`, label: `Go to ${n.label}`, hint: `Alt+${n.key}`, run: () => go(n.id) })),
     ...app.channels.map((c) => ({ id: `ch-${c.channel}`, label: `Switch to ${c.channel}`, hint: 'Channel', run: () => app.selectChannel(c.channel) })),
-    ...(app.channel?.set_up ? [{ id: 'apply', label: `Apply to ${app.channel.channel}`, hint: 'Action', run: () => void app.apply() }] : []),
+    ...(app.channel?.set_up && !app.blocked ? [{ id: 'apply', label: `Apply to ${app.channel.channel}`, hint: 'Action', run: () => app.requestApply() }] : []),
     { id: 'setup', label: 'Run setup again', hint: 'Action', run: () => (app.wizard = true) },
   ]);
   const shown = $derived(cmds.filter((c) => c.label.toLowerCase().includes(q.trim().toLowerCase())));

@@ -1,5 +1,9 @@
 <script lang="ts">
-  /** Apply on the chosen channels with progress per sub-step, then Done with CLI automation (spec 9.4 steps 3, 6). */
+  /**
+   * Apply on the chosen channels with progress per sub-step and Stop while the core can still stop
+   * (reading game data is the long, memory-heavy part), then Done with CLI automation (spec 9.4).
+   * A returned report that is not "applied" (skipped: game running, ...) is shown as such.
+   */
   import Check from '@lucide/svelte/icons/check';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import Circle from '@lucide/svelte/icons/circle';
@@ -12,6 +16,11 @@
   import type { ContractError } from '@/lib/contract/client';
   import { int } from '@/lib/format';
   import { cn } from '@/lib/utils';
+  import Square from '@lucide/svelte/icons/square';
+  import { Button } from '@/components/ui/button';
+  import PathText from '@/components/common/PathText.svelte';
+  import { describeOutcome } from '@/lib/outcome';
+  import { app } from '@/lib/stores/app.svelte';
 
   let {
     channels,
@@ -46,10 +55,17 @@
     <li class="bg-card/80 rounded-lg border">
       <div class="flex items-center justify-between border-b px-3 py-2">
         <span class="font-semibold">{ch}</span>
-        {#if rep}
+        {#if rep && rep.result === 'applied'}
           <span class="text-success flex items-center gap-1.5"><Check class="size-4" aria-hidden="true" /> {int(rep.counts.changed)} strings changed</span>
+        {:else if rep}
+          <span class="text-warning flex items-center gap-1.5"><TriangleAlert class="size-4" aria-hidden="true" /> {describeOutcome(rep, 'apply').title}</span>
         {:else if job}
-          <span class="text-muted-foreground">{job.label}</span>
+          <span class="text-muted-foreground flex items-center gap-2">
+            {job.label}
+            {#if job.cancellable && job.phase === 'running'}
+              <Button variant="outline" size="xs" onclick={() => app.cancel()} aria-label={`Stop applying to ${ch}`}><Square aria-hidden="true" /> Stop</Button>
+            {/if}
+          </span>
         {:else}
           <span class="text-muted-foreground">Waiting</span>
         {/if}
@@ -67,7 +83,14 @@
             </li>
           {/each}
         </ol>
-        {#if rep}
+        {#if rep && rep.result !== 'applied'}
+          <Alert.Root variant="warning">
+            <TriangleAlert aria-hidden="true" />
+            <Alert.Title>{describeOutcome(rep, 'apply').title}</Alert.Title>
+            <Alert.Description>{describeOutcome(rep, 'apply').detail}</Alert.Description>
+          </Alert.Root>
+        {:else if rep}
+          {#if rep.recovered}<p class="text-muted-foreground text-[12px]">{rep.recovered}</p>{/if}
           {#if rep.warnings.length}
             <Alert.Root variant="warning">
               <TriangleAlert aria-hidden="true" />
@@ -76,7 +99,7 @@
             </Alert.Root>
           {/if}
           <dl class="text-muted-foreground grid grid-cols-[7rem_1fr] gap-x-3 text-[12px]">
-            <dt>Written</dt><dd class="mono break-all">{rep.target}</dd>
+            <dt>Written</dt><dd class="min-w-0"><PathText path={rep.target} /></dd>
             <dt>Backup</dt><dd class="mono">{rep.backup ?? 'none needed'}</dd>
           </dl>
         {/if}

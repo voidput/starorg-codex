@@ -15,6 +15,8 @@
   import { Skeleton } from '@/components/ui/skeleton';
   import ConfirmButton from '@/components/common/ConfirmButton.svelte';
   import ActionDialog from '@/components/common/ActionDialog.svelte';
+  import RemoveDialog from '@/components/common/RemoveDialog.svelte';
+  import PathText from '@/components/common/PathText.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
@@ -54,28 +56,25 @@
     dialog = v ? d : null;
   };
 
-  async function done(msg: string, detail: string) {
-    toast('success', msg, detail);
-    tick++;
-    await app.refresh();
-  }
-  async function doRemove() {
-    const r = await api.removeChanges(app.target!);
-    await done(r.result === 'nothing-to-do' ? 'Nothing to remove' : `Removed StarOrg changes from ${r.channel}`, 'The game shows its stock text again.');
-  }
+  const running = $derived(ch?.game_running ? `Game running: close it to change the file on ${ch.channel}.` : null);
+  const undoBackup = $derived(list?.offers.undo_last_apply ? (list.backups.find((b) => b.id === list!.offers.undo_last_apply) ?? null) : null);
+
   async function doUndo() {
-    const r = await api.undoLastApply(app.target!);
-    await done(`Undid the last apply on ${r.channel}`, `Restored backup ${r.backup ?? ''}.`);
+    const target = app.target!;
+    await app.write('undo', () => api.undoLastApply(target), { inline: true });
+    tick++;
   }
   async function doRestore(id: string, allow: boolean) {
-    const r = await api.restoreBackup({ target: app.target!, backup: id, allow_build_mismatch: allow });
-    await done(`Restored a backup on ${r.channel}`, `Backup ${r.backup ?? id} is in place.`);
+    const target = app.target!;
+    await app.write('restore', () => api.restoreBackup({ target, backup: id, allow_build_mismatch: allow }), { inline: true });
+    tick++;
   }
   async function backupNow() {
     if (!app.target) return;
     try {
       const b = await api.backupNow(app.target);
-      await done('Backed up', `${originLabel(b)} saved as ${b.id}.`);
+      toast('success', 'Backed up', `${originLabel(b)} saved as ${b.id}.`);
+      tick++;
     } catch (e) {
       toast('error', 'Backup failed', toContractError(e).message);
     }
@@ -98,32 +97,37 @@
 {:else}
   {@const o = list.offers}
   <div class="grid gap-4">
-    <section aria-label="Restore actions" class="grid gap-3 lg:grid-cols-3">
-      <div class="bg-card grid content-between gap-3 rounded-lg border p-4">
+    {#if running}
+      <Alert.Root variant="warning"><TriangleAlert aria-hidden="true" /><Alert.Description>{running}</Alert.Description></Alert.Root>
+    {/if}
+    <section aria-label="Restore actions" class="grid items-start gap-3 lg:grid-cols-3">
+      <div class="bg-card flex flex-col gap-3 self-start rounded-lg border p-4">
         <div>
           <h2 class="font-semibold">Remove StarOrg changes</h2>
-          <p class="text-muted-foreground mt-1 text-[12.5px]">Back to the game's stock text. {o.remove_foreign ? 'The file in place is from another tool; it is backed up first.' : ''}</p>
+          <p class="text-muted-foreground mt-1 text-[12.5px]">Back to the game's stock text. {o.remove_foreign ? `The file in place is from ${ch.foreign_tool ?? 'another tool'}; it is backed up, then removed.` : ''}</p>
         </div>
-        <div><Button variant="outline" size="sm" disabled={!o.remove} onclick={() => open('remove')}><Eraser aria-hidden="true" /> Remove changes</Button></div>
+        <div><Button variant="outline" size="sm" disabled={!o.remove || !!running} onclick={() => open('remove')}><Eraser aria-hidden="true" /> Remove changes</Button></div>
         {#if !o.remove}<p class="text-muted-foreground text-[12px]">Nothing to remove: the game shows stock text.</p>{/if}
       </div>
-      <div class="bg-card grid content-between gap-3 rounded-lg border p-4">
+      <div class="bg-card flex flex-col gap-3 self-start rounded-lg border p-4">
         <div>
           <h2 class="font-semibold">Undo last apply</h2>
-          <p class="text-muted-foreground mt-1 text-[12.5px]">Put back the file from before the last apply, for this build.</p>
+          <p class="text-muted-foreground mt-1 text-[12.5px]">
+            {#if undoBackup}Goes back to the file from {fmtDateTime(undoBackup.created)}, before the last apply.{:else}Put back the file from before the last apply, for this build.{/if}
+          </p>
         </div>
-        <div><Button variant="outline" size="sm" disabled={!o.undo_last_apply} onclick={() => open('undo')}><Undo2 aria-hidden="true" /> Undo last apply</Button></div>
+        <div><Button variant="outline" size="sm" disabled={!o.undo_last_apply || !!running} onclick={() => open('undo')}><Undo2 aria-hidden="true" /> Undo last apply</Button></div>
         {#if !o.undo_last_apply}<p class="text-muted-foreground text-[12px]">No earlier apply of this build to go back to.</p>{/if}
       </div>
       {#if o.restore_foreign}
         {@const f = o.restore_foreign}
-        <div class="bg-card grid content-between gap-3 rounded-lg border p-4">
+        <div class="bg-card flex flex-col gap-3 self-start rounded-lg border p-4">
           <div>
             <h2 class="font-semibold">Restore the file from before StarOrg Strings</h2>
             <p class="text-muted-foreground mt-1 text-[12.5px]">{f.tool ?? 'Another tool'}'s file, made for <span class="mono">{buildLabel(f.made_for)}</span>.</p>
             {#if f.build_mismatch}<p class="text-warning mt-1 flex items-center gap-1 text-[12px]"><TriangleAlert class="size-3.5" aria-hidden="true" /> Made for another game build</p>{/if}
           </div>
-          <div><Button variant="outline" size="sm" onclick={() => open('foreign')}><History aria-hidden="true" /> Restore it</Button></div>
+          <div><Button variant="outline" size="sm" disabled={!!running} onclick={() => open('foreign')}><History aria-hidden="true" /> Restore it</Button></div>
         </div>
       {/if}
     </section>
@@ -132,7 +136,7 @@
       <div class="flex flex-wrap items-center gap-2">
         <h2 id="tl-title" class="eyebrow text-muted-foreground">Timeline · {list.channel}</h2>
         <span class="flex-1"></span>
-        <span class="text-muted-foreground mono hidden truncate text-[11.5px] lg:inline" title={list.folder}>{list.folder}</span>
+        <span class="text-muted-foreground hidden max-w-[50%] text-[11.5px] lg:inline"><PathText path={list.folder} /></span>
         <Button variant="outline" size="sm" onclick={backupNow}><HardDriveDownload aria-hidden="true" /> Back up now</Button>
       </div>
       {#if !list.backups.length}
@@ -152,9 +156,9 @@
                 </div>
               </div>
               <div class="flex items-center gap-1.5">
-                <Button variant="ghost" size="sm" aria-label={`Restore backup from ${fmtDateTime(b.created)}`} onclick={() => open('restore', b)}>Restore</Button>
+                <Button variant="ghost" size="sm" disabled={!!running} aria-label={`Restore backup from ${fmtDateTime(b.created)}`} onclick={() => open('restore', b)}>Restore</Button>
                 {#if b.pinned}
-                  <Button variant="ghost" size="sm" disabled title="Kept: the file from before StarOrg Strings">Delete</Button>
+                  <span class="text-muted-foreground px-2 text-[12px]">Always kept</span>
                 {:else}
                   <ConfirmButton size="sm" variant="ghost" confirmLabel="Delete? Click again" aria-label={`Delete backup from ${fmtDateTime(b.created)}`} onconfirm={() => del(b)}>Delete</ConfirmButton>
                 {/if}
@@ -162,18 +166,25 @@
             </li>
           {/each}
         </ol>
-        <p class="text-muted-foreground text-[12px]">The newest {list.keep_newest} backups per channel are kept, plus the file from before StarOrg Strings.</p>
+        <p class="text-muted-foreground text-[12px]">
+          Kept automatically: the newest {list.keep_newest} backups of this channel, the newest backup of each of the last {list.keep_builds} game builds, and the file from before StarOrg Strings. Older ones are deleted after an apply.
+        </p>
       {/if}
     </section>
   </div>
 
-  <ActionDialog bind:open={isOpen('remove'), setOpen('remove')} title={`Remove StarOrg changes from ${ch.channel}?`} confirmLabel="Remove changes" destructive onconfirm={doRemove}>
-    <p>The game goes back to its stock English text. Your settings and edits are kept; apply again any time.</p>
-    {#if o.remove_foreign}<p class="text-muted-foreground">{ch.foreign_tool ?? 'Another tool'}'s file is in place. It is backed up first, so you can restore it later.</p>{/if}
-  </ActionDialog>
+  <RemoveDialog bind:open={isOpen('remove'), setOpen('remove')} channel={ch} ondone={() => tick++} />
 
-  <ActionDialog bind:open={isOpen('undo'), setOpen('undo')} title={`Undo the last apply on ${ch.channel}?`} confirmLabel="Undo last apply" onconfirm={doUndo}>
-    <p>Puts back the file from before the last apply (backup <span class="mono">{o.undo_last_apply}</span>). Settings that changed since stay changed; the channel shows “Re-apply needed”.</p>
+  <ActionDialog
+    bind:open={isOpen('undo'), setOpen('undo')}
+    title={`Undo the last apply on ${ch.channel}?`}
+    description={undoBackup ? `Puts back the file from ${fmtDateTime(undoBackup.created)}, before the last apply.` : 'Puts back the file from before the last apply.'}
+    confirmLabel="Undo last apply"
+    busyLabel="Restoring…"
+    disabledReason={running}
+    onconfirm={doUndo}
+  >
+    <p>Backup <span class="mono">{o.undo_last_apply}</span>. Settings that changed since stay changed; the channel shows “Re-apply needed”.</p>
   </ActionDialog>
 
   {#if o.restore_foreign}
@@ -181,11 +192,15 @@
     <ActionDialog
       bind:open={isOpen('foreign'), setOpen('foreign')}
       title="Restore the file from before StarOrg Strings?"
+      description={`Puts ${f.tool ?? 'the other tool'}'s file back in place of ours.`}
       confirmLabel={`Restore ${f.tool ?? 'the old'} file`}
+      busyLabel="Restoring…"
+      destructive
+      disabledReason={running}
       ack={f.build_mismatch ? 'I understand that text added since that build will show as raw @keys until the other tool updates it.' : null}
       onconfirm={() => doRestore(f.backup, f.build_mismatch)}
     >
-      <p>This puts {f.tool ?? 'the other tool'}'s file back in place of ours.</p>
+      <p>Our text is backed up first. Run only one text tool per channel.</p>
       <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1">
         <dt class="text-muted-foreground">Made for</dt><dd class="mono">{buildLabel(f.made_for)}</dd>
         <dt class="text-muted-foreground">Game is now</dt><dd class="mono">{buildLabel(f.current)}</dd>
@@ -201,11 +216,14 @@
     <ActionDialog
       bind:open={isOpen('restore'), setOpen('restore')}
       title="Restore this backup?"
+      description={`${BACKUP_REASON[b.reason]}, ${fmtDateTime(b.created)}: ${originLabel(b)}.`}
       confirmLabel="Restore backup"
+      busyLabel="Restoring…"
+      destructive={b.origin === 'foreign'}
+      disabledReason={running}
       ack={mismatch(b.build) ? 'I understand that this file was made for another build and new text may show as raw @keys.' : b.origin === 'foreign' ? `Put ${b.foreign_tool ?? 'the other tool'}'s file back instead of ours.` : null}
       onconfirm={() => doRestore(b.id, mismatch(b.build))}
     >
-      <p>{BACKUP_REASON[b.reason]}, {fmtDateTime(b.created)}: {originLabel(b)}.</p>
       <dl class="grid grid-cols-[max-content_1fr] gap-x-4 gap-y-1">
         <dt class="text-muted-foreground">Made for</dt><dd class="mono">{buildLabel(b.build)}</dd>
         <dt class="text-muted-foreground">Game is now</dt><dd class="mono">{buildLabel(ch.build)}</dd>

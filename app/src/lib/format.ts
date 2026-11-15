@@ -1,4 +1,5 @@
 import type { ApplyState, BackupReason, Build, JobKind, PatchState, StringSource } from './contract/types';
+import { staleWords } from './messages';
 
 /** Short build label: "4.10.0 · 13165946". */
 export function buildLabel(b: Build): string {
@@ -32,7 +33,7 @@ export function statusView(s: ApplyState, setUp: boolean): { label: string; tone
     case 'stale':
       return s.reasons.includes('build')
         ? { label: 'Game updated', tone: 'warning', hint: 'The game was patched; re-apply to match the new build.' }
-        : { label: 'Re-apply needed', tone: 'warning', hint: `Changed since the last apply: ${s.reasons.join(', ')}.` };
+        : { label: 'Re-apply needed', tone: 'warning', hint: `Changed since the last apply: ${staleWords(s.reasons)}.` };
     case 'changed-by-another-tool':
       return { label: s.tool ? `Changed by ${s.tool}` : 'Changed by another tool', tone: 'info', hint: 'A text file from another tool is in place.' };
     case 'not-applied':
@@ -59,6 +60,8 @@ export interface ToneView {
   label: string;
   tone: StatusTone;
   hint: string;
+  /** On, but not written on this build (the switch reads "On, skipped"). */
+  skipped?: boolean;
 }
 
 /** Patch states in words (spec 4.5); mismatch states are warnings, never colour alone. */
@@ -68,21 +71,23 @@ export function patchStateView(s: PatchState, enabled: boolean): ToneView {
     case 'applies':
       return { label: 'Applied', tone: 'success', hint: 'The stock text matches; the fix is written on apply.' };
     case 'not-needed':
-      return { label: 'Not needed', tone: 'muted', hint: 'The game text already reads the way the patch would make it.' };
+      return { label: 'Not needed', tone: 'muted', hint: 'The game text already reads the way the patch would make it.', skipped: true };
     case 'nothing-to-add':
-      return { label: 'Nothing to add', tone: 'muted', hint: 'The text the patch adds is already there.' };
+      return { label: 'Nothing to add', tone: 'muted', hint: 'The text the patch adds is already there.', skipped: true };
     case 'target-changed':
-      return { label: 'Mismatch', tone: 'warning', hint: 'The stock text changed in this build; the patch is skipped and reported.' };
+      return { label: 'Mismatch', tone: 'warning', hint: 'The stock text changed in this build; the patch is skipped and reported.', skipped: true };
     case 'missing':
-      return { label: 'Key missing', tone: 'warning', hint: 'The key is not in this build.' };
+      return { label: 'Key missing', tone: 'warning', hint: 'The key is not in this build.', skipped: true };
     case 'out-of-range':
-      return { label: 'Other build', tone: 'muted', hint: 'Written for a different game version range.' };
+      return { label: 'Other build', tone: 'muted', hint: 'Written for a different game version range.', skipped: true };
     case 'conflict':
-      return { label: 'Conflict', tone: 'destructive', hint: 'Another patch changes the same key.' };
+      return { label: 'Conflict', tone: 'destructive', hint: 'Another patch changes the same key.', skipped: true };
     case 'disabled':
       return { label: 'Off', tone: 'muted', hint: 'You turned this patch off.' };
+    case 'no-data':
+      return { label: 'No data', tone: 'muted', hint: 'This game data source has no records of this kind, so nothing could be checked.', skipped: true };
     case 'retired':
-      return { label: 'Retired', tone: 'muted', hint: 'Fixed upstream; kept for older builds.' };
+      return { label: 'Retired', tone: 'muted', hint: 'Fixed upstream; kept for older builds.', skipped: true };
   }
 }
 

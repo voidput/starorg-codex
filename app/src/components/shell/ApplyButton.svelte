@@ -9,8 +9,10 @@
     busy = false,
     disabled = false,
     onclick,
+    describedby = undefined,
+    title = undefined,
     class: className = '',
-  }: { label: string; busy?: boolean; disabled?: boolean; onclick: () => void; class?: string } = $props();
+  }: { label: string; busy?: boolean; disabled?: boolean; onclick: () => void; describedby?: string; title?: string; class?: string } = $props();
 </script>
 
 <button
@@ -21,6 +23,8 @@
   )}
   disabled={disabled || busy}
   aria-busy={busy}
+  aria-describedby={describedby}
+  {title}
   {onclick}
 >
   {#if busy}<LoaderCircle class="size-4 animate-spin" aria-hidden="true" />{:else}<Rocket class="size-4" aria-hidden="true" />{/if}

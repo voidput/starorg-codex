@@ -220,6 +220,20 @@
 @utility chamfer-md {
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
 }
+/* clip-path cuts the 1px border at the chamfered corners; this draws the cut edge back in.
+   Needs a positioned element; colour from --chamfer-edge (default: the border token). */
+@utility chamfer-edge {
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    --e: var(--chamfer-edge, var(--border));
+    background:
+      linear-gradient(135deg, transparent calc(50% - 1px), var(--e) calc(50% - 0.5px), var(--e) calc(50% + 0.5px), transparent calc(50% + 1px)) top left / 12px 12px no-repeat,
+      linear-gradient(135deg, transparent calc(50% - 1px), var(--e) calc(50% - 0.5px), var(--e) calc(50% + 0.5px), transparent calc(50% + 1px)) bottom right / 12px 12px no-repeat;
+  }
+}
 @utility glass {
   background-color: var(--glass);
   backdrop-filter: blur(var(--glass-blur));

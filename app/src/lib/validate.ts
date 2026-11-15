@@ -4,11 +4,17 @@
  * Values are raw ini text: a line break is the two characters `\n`.
  */
 
-export type RuleId = 'newline' | 'em-tags' | 'variables' | 'format-specifiers' | 'percent' | 'length';
+import type { OverrideRule } from './contract/types';
+import { RULE_TEXT } from './messages';
+
+/** Rule ids are M1's `validate::Rule::name()` (the contract's OverrideRule). */
+export type RuleId = OverrideRule;
 
 export interface RuleCheck {
   rule: RuleId;
   ok: boolean;
+  /** Plain words, from the message catalogue: the check's name, and the problem when it fails. */
+  check: string;
   label: string;
   message: string;
 }
@@ -69,20 +75,33 @@ function inOrder(needles: string[], hay: string[]): boolean {
   return j === needles.length;
 }
 
+/** Count of each opening <EMn> tag. */
+function emOpens(s: string): Map<string, number> {
+  const m = new Map<string, number>();
+  for (const x of s.matchAll(/<EM(\d)>/g)) m.set(x[1]!, (m.get(x[1]!) ?? 0) + 1);
+  return m;
+}
+
 export function checkOverride(original: string, value: string): RuleCheck[] {
   const o = percentTokens(original);
   const v = percentTokens(value);
   const formatKey = o.specs.length > 0;
   const stockSig = emSignature(original);
   const sig = emSignature(value);
+  const stockOpens = emOpens(original);
+  const opens = emOpens(value);
   const vars = variables(original);
   const bytes = new TextEncoder().encode(value).length;
+  const c = (rule: RuleId, ok: boolean, message: string = RULE_TEXT[rule].message): RuleCheck => ({ rule, ok, check: RULE_TEXT[rule].check, label: RULE_TEXT[rule].label, message });
   return [
-    { rule: 'newline', ok: !/[\r\n]|[\u0000-\u0008\u000b-\u001f]/.test(value), label: 'One line', message: 'A line break must be written as the two characters \\n; no other control characters.' },
-    { rule: 'em-tags', ok: sig === stockSig || sig === '', label: 'EM tags', message: stockSig ? `Keep the stock tag shape (${stockSig}) or balance every <EMn> with </EMn>.` : 'Every <EMn> needs its closing </EMn>, not nested.' },
-    { rule: 'variables', ok: inOrder(vars, variables(value)), label: 'Game variables', message: vars.length ? `Keep ${vars.join(', ')} in this order.` : 'No ~variable(…) tokens in the stock text.' },
-    { rule: 'format-specifiers', ok: o.specs.join() === v.specs.join(), label: 'Placeholders', message: o.specs.length ? `Keep ${o.specs.join(' ')} exactly, in this order.` : 'The stock text has no %s / %d placeholders; do not add any.' },
-    { rule: 'percent', ok: !(formatKey && v.literal), label: 'Percent signs', message: 'This key has placeholders, so a plain % must be written %%.' },
-    { rule: 'length', ok: bytes <= 65536, label: 'Length', message: `At most 64 KiB (now ${bytes.toLocaleString('en-US')} bytes).` },
+    // eslint-disable-next-line no-control-regex
+    c('control-character', !/[\u0000-\u001f\u007f]/.test(value)),
+    c('added-em-unbalanced', sig === '' || sig === stockSig, 'Every <EMn> you add needs its closing </EMn>, not nested.'),
+    c('em-signature', [...stockOpens].every(([n, k]) => (opens.get(n) ?? 0) >= k), stockSig || stockOpens.size ? "Keep the original's highlight tags." : 'The original has no highlight tags.'),
+    c('variable-tokens', inOrder(vars, variables(value)), vars.length ? `Keep ${vars.join(', ')} in this order.` : 'The original has no ~variable(...) tokens.'),
+    c('format-specifiers', o.specs.join() === v.specs.join(), o.specs.length ? `Keep ${o.specs.join(' ')} exactly, in this order.` : 'The original has no %s / %d placeholders; do not add any.'),
+    c('format-key', !(formatKey && v.literal), 'This key has placeholders, so a plain % must be written %%.'),
+    c('percent-rule', formatKey || !/% [A-Za-z]/.test(value)),
+    c('too-long', bytes <= 65536, `At most 64 KiB (now ${bytes.toLocaleString('en-US')} bytes).`),
   ];
 }

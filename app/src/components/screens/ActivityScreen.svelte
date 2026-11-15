@@ -60,6 +60,7 @@
       toast('error', 'Copy failed', 'The clipboard is not available.');
     }
   }
+  import { logText } from '@/lib/messages';
 </script>
 
 <div class="grid gap-3">
@@ -86,12 +87,14 @@
     <ol class="bg-card divide-y rounded-lg border" aria-label="Log, newest first">
       {#each shown as e (e.id)}
         {@const l = lv[e.level]}
+        {@const m = logText(e.message)}
         <li class="grid grid-cols-[176px_96px_minmax(0,1fr)] items-start gap-3 px-4 py-2 lg:grid-cols-[176px_100px_124px_minmax(0,1fr)]">
           <time class="mono text-muted-foreground text-[12px]" datetime={e.time}>{fmtDateTime(e.time)}</time>
           <span class={cn('inline-flex items-center gap-1 text-[12px] font-medium', l.cls)}><l.icon class="size-3.5" aria-hidden="true" />{l.label}</span>
           <span class="text-muted-foreground hidden text-[12px] lg:block">{e.job ? JOB_LABEL[e.job] : 'App'}{e.channel ? ` · ${e.channel}` : ''}</span>
           <span class="min-w-0 break-words">
-            <span class="text-muted-foreground text-[12px] lg:hidden">{e.job ? JOB_LABEL[e.job] : 'App'}{e.channel ? ` · ${e.channel}` : ''} — </span>{e.message}
+            <span class="text-muted-foreground text-[12px] lg:hidden">{e.job ? JOB_LABEL[e.job] : 'App'}{e.channel ? ` · ${e.channel}` : ''} — </span>{m.text}
+            {#if m.raw}<span class="mono text-muted-foreground block text-[11.5px]">{m.raw}</span>{/if}
           </span>
         </li>
       {/each}

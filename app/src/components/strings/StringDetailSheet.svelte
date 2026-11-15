@@ -2,6 +2,8 @@
   /**
    * One key's detail (spec 9.4 Strings): rendered preview, word diff, provenance (winner and the
    * layers it beat), and the override editor with live rule checks (spec 7.3) and Reset.
+   * Save stays off while a live check fails; the core's own refusal names the rule in words.
+   * Closing with unsaved text asks first.
    */
   import Crown from '@lucide/svelte/icons/crown';
   import CircleCheck from '@lucide/svelte/icons/circle-check';
@@ -19,6 +21,9 @@
   import type { ChannelRef, Layer, StringDetail, StringRow } from '@/lib/contract/types';
   import { CATEGORY_LABEL, SOURCE_LABEL, SOURCE_TONE } from '@/lib/format';
   import { checkOverride } from '@/lib/validate';
+  import { ruleText } from '@/lib/messages';
+  import ErrorState from '@/components/common/ErrorState.svelte';
+  import { type ContractError } from '@/lib/contract/client';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
 
@@ -33,27 +38,37 @@
   let value = $state('');
   let rejected = $state<{ rule: string | null; message: string | null } | null>(null);
   let busy = $state(false);
-  let loadMs = $state<number | null>(null);
+  let loadError = $state<ContractError | null>(null);
+  let retry = $state(0);
+  let askClose = $state(false);
 
   $effect(() => {
     const k = rowKey;
+    void retry;
     if (!open || !k || !target) return;
     const t = $state.snapshot(target);
     let stale = false;
     detail = null;
     rejected = null;
-    const t0 = performance.now();
+    loadError = null;
+    askClose = false;
     api
       .stringDetail({ target: t, key: k })
       .then((d) => {
         if (stale) return;
         detail = d;
         value = d.override_value ?? d.row.result;
-        loadMs = Math.round(performance.now() - t0);
       })
-      .catch((e) => !stale && toast('error', `Could not open ${k}`, toContractError(e).message));
+      .catch((e) => !stale && (loadError = toContractError(e)));
     return () => (stale = true);
   });
+
+  /** Unsaved text: the first close attempt asks instead of dropping it. */
+  function beforeClose(): boolean {
+    if (!changed || askClose) return true;
+    askClose = true;
+    return false;
+  }
 
   const stock = $derived(detail?.provenance.find((p) => p.layer === 'stock')?.text ?? detail?.row.original ?? '');
   const checks = $derived(detail ? checkOverride(stock, value) : []);
@@ -67,7 +82,8 @@
     try {
       const r = await api.setOverride({ target, key: detail.row.key, value });
       if (!r.accepted) {
-        rejected = { rule: r.rule, message: r.message };
+        const t = ruleText(r.rule);
+        rejected = { rule: r.rule, message: r.message ?? t.message };
         return;
       }
       rejected = null;
@@ -99,8 +115,10 @@
   }
 </script>
 
-<Sheet bind:open title={rowKey ?? ''} description={detail ? `${CATEGORY_LABEL[detail.row.category] ?? detail.row.category} · opened in ${loadMs ?? '–'} ms` : null}>
-  {#if !detail}
+<Sheet bind:open title={rowKey ?? ''} description={detail ? (CATEGORY_LABEL[detail.row.category] ?? detail.row.category) : null} {beforeClose}>
+  {#if loadError}
+    <ErrorState title={`Could not open ${rowKey ?? 'this key'}`} error={loadError} onretry={() => retry++} />
+  {:else if !detail}
     <div class="grid gap-3"><Skeleton class="h-20 w-full" /><Skeleton class="h-32 w-full" /></div>
   {:else}
     {@const d = detail}
@@ -137,33 +155,54 @@
           <h3 id="sd-edit" class="eyebrow text-muted-foreground">Your edit</h3>
           {#if d.override_value !== null}<ToneBadge tone="info" label="Edited" />{/if}
         </div>
+        <p class="text-muted-foreground text-[12px]" id="sd-pin">
+          Your edit replaces this key's text as it is. Stats StarOrg Strings builds into it stop updating after a game patch.
+          {#if value !== stock}<button type="button" class="text-primary underline-offset-2 hover:underline" onclick={() => { value = stock; rejected = null; }}>Start from stock text</button>{/if}
+        </p>
         <label for="sd-value" class="text-muted-foreground text-[12px]">Raw text as in global.ini. Write a line break as \n; tags as &lt;EM4&gt;…&lt;/EM4&gt;.</label>
         <textarea
           id="sd-value"
           bind:value
+          oninput={() => (rejected = null)}
           rows="5"
           spellcheck="false"
           aria-invalid={failing.length > 0 || rejected !== null}
-          aria-describedby="sd-checks{rejected ? ' sd-rejected' : ''}"
+          aria-describedby="sd-pin sd-checks{rejected ? ' sd-rejected' : ''}"
           class="mono border-input bg-background focus-visible:ring-ring/50 aria-invalid:border-destructive w-full resize-y rounded-md border px-3 py-2 outline-none focus-visible:ring-3"
         ></textarea>
         <ul id="sd-checks" class="grid gap-1 sm:grid-cols-2" aria-label="Rule checks">
           {#each checks as c (c.rule)}
             <li class={cn('flex items-start gap-1.5 text-[12px]', c.ok ? 'text-muted-foreground' : 'text-destructive')}>
               {#if c.ok}<CircleCheck class="text-success mt-px size-3.5 shrink-0" aria-hidden="true" />{:else}<CircleX class="mt-px size-3.5 shrink-0" aria-hidden="true" />{/if}
-              <span><span class="font-medium">{c.label}: {c.ok ? 'ok' : 'breaks the rule'}.</span>{#if !c.ok}{' '}{c.message}{/if}</span>
+              <span>{#if c.ok}{c.check}<span class="sr-only">: ok</span>{:else}<span class="font-medium">{c.label}.</span>{' '}{c.message}{/if}</span>
             </li>
           {/each}
         </ul>
         {#if rejected}
           <Alert.Root variant="destructive" role="alert" id="sd-rejected">
             <CircleAlert aria-hidden="true" />
-            <Alert.Title>Not saved: rule “{rejected.rule ?? 'unknown'}”</Alert.Title>
-            <Alert.Description>{rejected.message}</Alert.Description>
+            <Alert.Title>Not saved: {ruleText(rejected.rule).label}</Alert.Title>
+            <Alert.Description>
+              {rejected.message}
+              {#if rejected.rule}<span class="mono text-muted-foreground mt-0.5 block text-[11.5px]">rule {rejected.rule}</span>{/if}
+            </Alert.Description>
+          </Alert.Root>
+        {/if}
+        {#if askClose && changed}
+          <Alert.Root variant="warning" role="alert">
+            <CircleAlert aria-hidden="true" />
+            <Alert.Title>Your edit is not saved</Alert.Title>
+            <Alert.Description>
+              <div class="mt-1 flex flex-wrap gap-2">
+                <Button size="xs" variant="outline" onclick={() => { askClose = false; }}>Keep editing</Button>
+                <Button size="xs" variant="destructive" onclick={() => { value = d.override_value ?? d.row.result; open = false; }}>Discard and close</Button>
+              </div>
+            </Alert.Description>
           </Alert.Root>
         {/if}
         <div class="flex flex-wrap items-center gap-2">
-          <Button size="sm" disabled={!changed || busy} onclick={save}>Save edit</Button>
+          <Button size="sm" disabled={!changed || busy || failing.length > 0} aria-describedby={failing.length ? 'sd-save-why' : undefined} onclick={save}>Save edit</Button>
+          {#if changed && failing.length}<span id="sd-save-why" class="text-destructive text-[12px]">Fix {failing.length === 1 ? 'the rule' : `the ${failing.length} rules`} marked above to save.</span>{/if}
           <Button variant="ghost" size="sm" disabled={!changed} onclick={() => (value = d.override_value ?? d.row.result)}>Discard</Button>
           <span class="flex-1"></span>
           {#if d.override_value !== null}

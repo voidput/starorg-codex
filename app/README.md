@@ -9,6 +9,7 @@ npm ci
 npm run tauri dev                        # hot-reload window (vite on 127.0.0.1:1420)
 npm run tauri build -- --no-bundle       # release binary: <target>/release/starorg-strings-app
 npm run check                            # svelte-check
+npm test                                 # node --test: apply outcomes, message catalogue
 cargo test -p starorg-strings-app        # gpu workaround, contract and IPC command tests (mock runtime)
 ```
 
@@ -38,7 +39,19 @@ cargo test -p starorg-strings-app        # gpu workaround, contract and IPC comm
   setup wizard at a step, `?state=ready` starts with LIVE applied, HOTFIX behind a game update,
   backups, two overrides and launch-hook history (`&starorg=1` also signs in to StarOrg Tools),
   `?theme=dark|light`, `?delay=<ms>` per mock job step,
-  `?screen=<home|enhancements|strings|patches|blueprints|backups|activity|settings>`.
+  `?screen=<home|enhancements|strings|patches|blueprints|backups|activity|settings>`. States for
+  renders take channel names: `&running=LIVE`, `&interrupted=LIVE`, `&foreign=LIVE`,
+  `&builderr=LIVE`, `&nobackups=LIVE`; also `&channels=5`, `&installs=0`, `&fail=overview`,
+  `&log=empty`, `&accent=amber&palette=black`.
+- **Outcomes, not errors:** M1 returns guards and refusals as a report (`skipped` + `reason`,
+  `needs-decision`, `up-to-date`, `failed`), so every apply / remove / undo / restore goes through
+  `app.write()` and `src/lib/outcome.ts`; `Err(AppError)` is only for calls that could not run.
+- **Profile = M2's `enhance::Profile`:** field for field, plus `preset` and `patches_disabled`;
+  `profile_schema` gives the labels for the core's line and tag element ids. Rule names are M1's
+  `validate::Rule::name()`. `contract::tests::contract_matches_core_names` compares both with the
+  core sources (skipped until they are in the workspace, or set `STARORG_CORE_SRC`).
+- **Copy:** words for core values (rule names, stale reasons, hook log prefixes) live in
+  `src/lib/messages.ts`; the raw value stays in a mono detail line.
 - Keyboard: Ctrl/Cmd+K command palette, Alt+1..8 screens, arrows in the sidebar, channel
   switcher and Enhancements categories; Strings grid: arrows, Page Up/Down, Home/End, Enter opens
   a key; Tag Builder: Alt+Left/Right moves a focused part. Escape leaves the wizard (with a guard

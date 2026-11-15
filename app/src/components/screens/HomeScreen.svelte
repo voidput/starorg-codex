@@ -2,6 +2,8 @@
   /**
    * Home (spec 9.4): the current channel's status card (applied build vs game build, last apply,
    * warnings), quick actions, stat tiles from the last apply, and other channels as rows.
+   * The one Apply button is in the header; the card offers only the action the status calls for
+   * (re-apply after a game update, replace another tool's file, set up the channel).
    */
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Wand from '@lucide/svelte/icons/wand-sparkles';
@@ -9,11 +11,11 @@
   import FolderSearch from '@lucide/svelte/icons/folder-search';
   import { Button } from '@/components/ui/button';
   import * as Alert from '@/components/ui/alert';
-  import ConfirmButton from '@/components/common/ConfirmButton.svelte';
+  import RemoveDialog from '@/components/common/RemoveDialog.svelte';
+  import PathText from '@/components/common/PathText.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import ApplyStatusPill from '@/components/shell/ApplyStatusPill.svelte';
-  import ApplyButton from '@/components/shell/ApplyButton.svelte';
   import { Skeleton } from '@/components/ui/skeleton';
   import FlaskConical from '@lucide/svelte/icons/flask-conical';
   import Archive from '@lucide/svelte/icons/archive';
@@ -23,23 +25,15 @@
   import Stat from '@/components/common/Stat.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import { app } from '@/lib/stores/app.svelte';
-  import { api, toContractError } from '@/lib/contract/client';
-  import { toast } from '@/lib/stores/toast.svelte';
+  import RotateCw from '@lucide/svelte/icons/rotate-cw';
+  import Replace from '@lucide/svelte/icons/replace';
+  import Eraser from '@lucide/svelte/icons/eraser';
   import { buildLabel, fmtDateTime, fmtMs, int, sameBuild, statusView } from '@/lib/format';
 
   const ch = $derived(app.channel);
   const others = $derived(app.channels.filter((c) => c.channel !== ch?.channel));
-
-  async function remove() {
-    if (!app.target) return;
-    try {
-      const r = await api.removeChanges(app.target);
-      toast('success', r.result === 'nothing-to-do' ? 'Nothing to remove' : `Removed StarOrg changes from ${r.channel}`, 'The game shows its stock text again.');
-    } catch (e) {
-      toast('error', 'Remove failed', toContractError(e).message);
-    }
-    await app.refresh();
-  }
+  let removing = $state(false);
+  const disabledWhy = $derived(app.blocked ?? undefined);
 </script>
 
 {#if app.loading && !app.overview}
@@ -54,6 +48,15 @@
 {:else if ch}
   {@const s = statusView(ch.status, ch.set_up)}
   <div class="flex flex-col gap-4">
+    {#if ch.status.state === 'changed-by-another-tool'}
+      <Alert.Root variant="warning">
+        <TriangleAlert aria-hidden="true" />
+        <Alert.Title>{ch.foreign_tool ?? 'Another tool'} changed the text on {ch.channel}</Alert.Title>
+        <Alert.Description>
+          Applying replaces {ch.foreign_tool ? `${ch.foreign_tool}'s` : 'its'} file with ours (a backup is kept). Do not run two text tools on one channel: each undoes the other at every launch.
+        </Alert.Description>
+      </Alert.Root>
+    {/if}
     {#if ch.status.state === 'stale' && ch.status.reasons.includes('build')}
       <Alert.Root variant="warning">
         <RefreshCw aria-hidden="true" />
@@ -77,7 +80,7 @@
         <Alert.Description class="mono break-all">{ch.build_error}</Alert.Description>
       </Alert.Root>
     {/if}
-    <article class="bg-card chamfer-md shadow-glow-sm relative border" aria-labelledby="status-title">
+    <article class="bg-card chamfer-md chamfer-edge shadow-glow-sm relative border" aria-labelledby="status-title">
       <div class="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
         <div>
           <div class="eyebrow text-muted-foreground">Channel status</div>
@@ -96,7 +99,7 @@
             {#if sameBuild(ch.applied_build, ch.build)}
               <ToneBadge tone="success" label="Matches the game" />
             {:else}
-              <ToneBadge tone="warning" label="Older than the game" hint="Re-apply to match the current build" />
+              <ToneBadge tone="warning" label="Made for another build" hint="Re-apply to match the build the game has now" />
             {/if}
           {:else}
             <span class="text-muted-foreground">Nothing of ours is in place</span>
@@ -114,30 +117,38 @@
           {/if}
         </dd>
         <dt class="text-muted-foreground">Install</dt>
-        <dd class="mono truncate" title={app.install.root}>{app.install.root}</dd>
+        <dd class="min-w-0"><PathText path={app.install.root} /></dd>
         <dt class="text-muted-foreground">Data.p4k</dt>
         <dd class="mono">{fmtDateTime(ch.p4k_time)}</dd>
-        {#if ch.foreign_file && ch.foreign_tool}
-          <dt class="text-muted-foreground">Other tool</dt>
-          <dd>{ch.foreign_tool}'s file is in place. Applying keeps a backup of it.</dd>
-        {/if}
+
       </dl>
       {#if ch.game_running}
         <div class="px-5 pb-3">
-          <Alert.Root variant="warning"><TriangleAlert aria-hidden="true" /><Alert.Description>The game is running on {ch.channel}. Close it to apply.</Alert.Description></Alert.Root>
+          <Alert.Root variant="warning"><TriangleAlert aria-hidden="true" /><Alert.Description>The game is running on {ch.channel}. Close it to apply, remove or restore.</Alert.Description></Alert.Root>
         </div>
       {/if}
-      <div class="flex flex-wrap items-center gap-2 border-t px-5 py-3">
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-2 border-t px-5 py-3">
         {#if ch.set_up}
-          <ApplyButton label={`Apply to ${ch.channel}`} busy={app.busy} disabled={ch.game_running} onclick={() => app.apply()} />
-          <Button variant="outline" size="sm" disabled={app.busy} onclick={() => app.apply(true)}><FlaskConical aria-hidden="true" /> Dry run</Button>
-          {#if ch.status.state !== 'not-applied'}
-            <ConfirmButton variant="outline" size="sm" confirmLabel="Remove? Click again" onconfirm={remove}>Remove changes</ConfirmButton>
-          {/if}
-          <span class="flex-1"></span>
-          <Button variant="ghost" size="sm" onclick={() => app.go('enhancements')}><Sparkles aria-hidden="true" /> Enhancements</Button>
-          <Button variant="ghost" size="sm" onclick={() => app.go('strings')}><Table2 aria-hidden="true" /> Strings</Button>
-          <Button variant="ghost" size="sm" onclick={() => app.go('backups')}><Archive aria-hidden="true" /> Backups</Button>
+          <div class="flex flex-wrap items-center gap-2">
+            {#if ch.status.state === 'stale'}
+              <Button size="sm" disabled={!!app.blocked} title={disabledWhy} onclick={() => app.requestApply()}>
+                <RotateCw aria-hidden="true" /> {ch.status.reasons.includes('build') ? 'Re-apply for the new build' : 'Re-apply with your changes'}
+              </Button>
+            {:else if ch.status.state === 'changed-by-another-tool'}
+              <Button size="sm" disabled={!!app.blocked} title={disabledWhy} onclick={() => app.requestApply()}>
+                <Replace aria-hidden="true" /> Replace {ch.foreign_tool ? `${ch.foreign_tool}'s` : 'the other'} file with ours
+              </Button>
+            {/if}
+            <Button variant="outline" size="sm" disabled={!!app.blocked} title={disabledWhy} onclick={() => app.apply(true)}><FlaskConical aria-hidden="true" /> Dry run</Button>
+            {#if ch.status.state !== 'not-applied'}
+              <Button variant="outline" size="sm" disabled={!!app.blocked} title={disabledWhy} onclick={() => (removing = true)}><Eraser aria-hidden="true" /> Remove changes</Button>
+            {/if}
+          </div>
+          <nav aria-label="Go to" class="ml-auto flex flex-wrap items-center gap-1">
+            <Button variant="ghost" size="sm" onclick={() => app.go('enhancements')}><Sparkles aria-hidden="true" /> Enhancements</Button>
+            <Button variant="ghost" size="sm" onclick={() => app.go('strings')}><Table2 aria-hidden="true" /> Strings</Button>
+            <Button variant="ghost" size="sm" onclick={() => app.go('backups')}><Archive aria-hidden="true" /> Backups</Button>
+          </nav>
         {:else}
           <Button onclick={() => (app.wizard = true)}><Wand aria-hidden="true" /> Set up {ch.channel}</Button>
         {/if}
@@ -170,4 +181,7 @@
       </section>
     {/if}
   </div>
+{/if}
+{#if ch}
+  <RemoveDialog bind:open={removing} channel={ch} />
 {/if}

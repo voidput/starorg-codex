@@ -31,6 +31,7 @@
 
   const picked = $derived(install.channels.filter((c) => draft.channels[c.channel]?.consent));
   const presetName = $derived({ recommended: 'Recommended', minimal: 'Minimal', everything: 'Everything' }[draft.preset]);
+  import PathText from '@/components/common/PathText.svelte';
 </script>
 
 {#snippet edit(step: StepId, what: string)}
@@ -40,7 +41,7 @@
 <dl class="bg-card/80 divide-y rounded-lg border">
   <div class="grid grid-cols-[9rem_1fr_auto] items-start gap-3 px-3 py-2">
     <dt class="text-muted-foreground">Game</dt>
-    <dd class="mono min-w-0 break-all">{install.root}</dd>
+    <dd class="min-w-0"><PathText path={install.root} /></dd>
     {@render edit('install', 'game')}
   </div>
   <div class="grid grid-cols-[9rem_1fr_auto] items-start gap-3 px-3 py-2">
@@ -81,9 +82,9 @@
         </header>
         <dl class="grid grid-cols-[9rem_1fr] gap-x-3 gap-y-1 px-3 py-2">
           <dt class="text-muted-foreground">Writes</dt>
-          <dd class="mono break-all">{c.target}{#if c.link_target}<span class="text-muted-foreground"> → {c.link_target}</span>{/if}</dd>
+          <dd class="min-w-0"><PathText path={c.target} />{#if c.link_target}<span class="text-muted-foreground"> → <PathText path={c.link_target} /></span>{/if}</dd>
           <dt class="text-muted-foreground">Backups</dt>
-          <dd class="mono break-all">{c.backup_dir}</dd>
+          <dd class="min-w-0"><PathText path={c.backup_dir} /></dd>
           <dt class="text-muted-foreground">user.cfg</dt>
           <dd>{#if c.user_cfg_line}adds <span class="mono">{c.user_cfg_line}</span>{:else}No change needed{/if}</dd>
           {#if c.replaces_tool}
