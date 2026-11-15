@@ -1002,7 +1002,9 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         .unwrap();
     assert_eq!(r.file, "moved.json");
     // The picker opened in the folder of the last import (ours, from import.json).
-    assert_eq!(*f.pick_dir.lock().unwrap(), Some(Some(f.base.clone())));
+    // Compare the plain form: on Windows the app strips the `\\?\` prefix (fsutil::canonicalize).
+    let plain = starorg_core::fsutil::canonicalize(&f.base).unwrap();
+    assert_eq!(*f.pick_dir.lock().unwrap(), Some(Some(plain)));
     assert_eq!(
         f.backend.list_characters(f.live()).unwrap().characters[0].owned,
         0
