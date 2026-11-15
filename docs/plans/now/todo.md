@@ -17,6 +17,8 @@ M0: skeleton and decisions — [[specs/starorg-strings-v1]] ([plain](../specs/st
 - [ ] release-please + throwaway v0.0.1 through the build matrix ([#7](https://github.com/voidput/starorg-strings/issues/7))
 - [x] Tauri 2 + Svelte 5 app shell with StarOrg/RSI+ design tokens ([#8](https://github.com/voidput/starorg-strings/issues/8))
 - [ ] decide release location (Q1) and Windows tester (Q19) ([#9](https://github.com/voidput/starorg-strings/issues/9)); the update check's default repo follows it (docs/updates.md, Private repo caveat)
+- [ ] Windows tester runs [windows-test-checklist](../../windows-test-checklist.md) on a real install and files the report ([#9](https://github.com/voidput/starorg-strings/issues/9))
+- [ ] Owner: Azure Artifact Signing + `AZURE_*` secrets/variables ([#16](https://github.com/voidput/starorg-strings/issues/16); steps in [windows](../../windows.md))
 - [ ] Owner: delete the duplicate Partner Center app "StarOrgStrings" (identity `StarOrgLabs.StarOrgStrings`, never submitted). Keep "StarOrg Strings" (Store ID 9NWHZD6MLMLD, identity `StarOrgLabs.293108C0BE3BF`), which the repo variables MSIX_* / MS_STORE_* point at
 
 M1 + M2 (merged into main; verification fixes 2026-11-14, local only, not pushed)
@@ -30,3 +32,11 @@ M1 + M2 (merged into main; verification fixes 2026-11-14, local only, not pushed
 - [ ] Push main and get the Ubuntu + Windows CI apply tests green ([#10](https://github.com/voidput/starorg-strings/issues/10))
 - [ ] Owner: replace the Smart Citizen block in the real `sc-prelaunch.sh` with `hook install` (agents never edit the real prefix) ([#11](https://github.com/voidput/starorg-strings/issues/11))
 - [ ] Project board: move #10, #11, #13, #14, #17 to match (needs a push first)
+
+Fleet import and ship ordering — addendum §6 (branch `fleet-order`, local only, not pushed)
+
+- [x] Core: hull catalogue, importer (HangarXPLOR JSON/CSV, text), matcher, `ship-names` generator, stale hash ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] CLI `fleet import|list|match|clear`, `build --ship-names` ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] App contract, real backend, mocks, Ships screen, renders and keyboard check ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] In-game checks (spec §13, Fleet rows): list sort (Q23), long vs short name (Q25), where the prefix shows, symbols ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] Owner: try an RSI+ export (`fleet import --dry-run`) and report store names that need aliases ([#15](https://github.com/voidput/starorg-strings/issues/15))

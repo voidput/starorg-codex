@@ -44,6 +44,7 @@ pub fn category_of(generator: &str) -> &'static str {
         "missiles" | "missile-tags" => "missiles",
         "mission-titles" | "mission-descriptions" => "missions",
         "branding" => "ui",
+        "ship-names" => "ships",
         _ => "other",
     }
 }
@@ -74,15 +75,18 @@ pub struct Inputs<'a> {
     pub owned: &'a Selection,
     /// Groups of the stock keys, in `stock.entries()` order.
     pub groups: &'a GroupIndex,
+    /// The channel's active ship-name settings (addendum §6.5).
+    pub ship_names: Option<&'a starorg_core::fleet::store::ShipNames>,
 }
 
 pub fn build(i: &Inputs<'_>) -> Table {
     let patched = patch::data_overlay(i.patches, i.game_data, i.build);
-    let generated = enhance::generate(
+    let generated = enhance::generate_with(
         patched.as_ref().unwrap_or(i.game_data),
         i.stock,
         i.profile,
         i.owned,
+        i.ship_names,
     );
     let gen_edits: Vec<merge::GenEdit> =
         generated.edits.values().map(merge::GenEdit::from).collect();

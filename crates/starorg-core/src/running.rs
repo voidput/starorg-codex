@@ -9,7 +9,8 @@
 //! environment cannot be read or the path cannot be parsed, the game counts as running for
 //! every channel: wrongly skipping an apply is the safe mistake.
 //!
-//! **Windows.** `StarCitizen.exe` whose image path is inside the channel folder.
+//! **Windows.** `StarCitizen.exe` whose image path is inside the channel folder (case and
+//! `\\?\` ignored). A game process whose path cannot be read blocks every channel.
 //!
 //! `RSI Launcher.exe` is found the same way and only gives a warning.
 
@@ -124,7 +125,7 @@ pub fn scan() -> Vec<Seen> {
         let prefix = std::fs::read(e.path().join("environ"))
             .ok()
             .and_then(|env| prefix_from_environ(&env))
-            .map(|p| std::fs::canonicalize(&p).unwrap_or(p));
+            .map(|p| crate::fsutil::canonicalize(&p).unwrap_or(p));
         out.push(Seen {
             pid,
             exe: m.exe,
@@ -136,38 +137,58 @@ pub fn scan() -> Vec<Seen> {
     out
 }
 
+/// Windows: every process's image path from the OS (Toolhelp snapshot and
+/// `QueryFullProcessImageNameW`, through `sysinfo`); no PowerShell, no console window, a few
+/// milliseconds per check.
 #[cfg(windows)]
 pub fn scan() -> Vec<Seen> {
-    // No extra crate and no unsafe code: ask PowerShell for the image paths.
-    let o = std::process::Command::new("powershell")
-        .args([
-            "-NoProfile",
-            "-NonInteractive",
-            "-Command",
-            "Get-Process -Name StarCitizen,'RSI Launcher' -ErrorAction SilentlyContinue | ForEach-Object { \"$($_.Id)|$($_.Path)\" }",
-        ])
-        .output();
-    let Ok(o) = o else { return Vec::new() };
-    String::from_utf8_lossy(&o.stdout)
-        .lines()
-        .filter_map(|l| {
-            let (pid, path) = l.trim().split_once('|')?;
-            let m = classify_arg(path).or_else(|| {
-                // Path can be empty for processes we may not query: count as the game.
-                path.is_empty().then_some(Matched {
-                    exe: Exe::Game,
-                    channel: None,
-                })
-            })?;
-            Some(Seen {
-                pid: pid.parse().ok()?,
-                exe: m.exe,
-                channel: m.channel,
-                prefix: None,
-                image: (!path.is_empty()).then(|| PathBuf::from(path)),
-            })
-        })
-        .collect()
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System, UpdateKind};
+    let Ok(mut sys) = System::new() else {
+        // No process list at all: count the game as running for every channel.
+        return vec![Seen {
+            pid: 0,
+            exe: Exe::Game,
+            channel: None,
+            prefix: None,
+            image: None,
+        }];
+    };
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_exe(UpdateKind::Always),
+    );
+    let me = std::process::id();
+    let mut out: Vec<Seen> = sys
+        .processes()
+        .iter()
+        .filter(|(pid, _)| pid.as_u32() != me)
+        .filter_map(|(pid, p)| seen_windows(pid.as_u32(), &p.name().to_string_lossy(), p.exe()))
+        .collect();
+    out.sort_by_key(|s| s.pid);
+    out
+}
+
+/// One Windows process from its image name and (when the OS let us read it) image path.
+/// With a path, the path decides; without one (a protected or elevated process), the name
+/// does, and the game then counts as running for every channel: wrongly skipping an apply is
+/// the safe mistake.
+pub fn seen_windows(pid: u32, name: &str, image: Option<&Path>) -> Option<Seen> {
+    let image = image.filter(|p| !p.as_os_str().is_empty());
+    let m = match image {
+        Some(img) => classify_arg(&img.to_string_lossy())?,
+        None => Matched {
+            channel: None,
+            ..classify_arg(name)?
+        },
+    };
+    Some(Seen {
+        pid,
+        exe: m.exe,
+        channel: m.channel,
+        prefix: None,
+        image: image.map(Path::to_path_buf),
+    })
 }
 
 #[cfg(not(any(target_os = "linux", windows)))]
@@ -181,8 +202,12 @@ pub fn blocks(seen: &Seen, prefix: Option<&Path>, channel: &str, channel_dir: &P
         return false;
     }
     if let Some(img) = &seen.image {
-        // Windows: image inside the channel folder.
-        return img.starts_with(channel_dir);
+        // Windows: image inside the channel folder, compared without case and without the
+        // `\\?\` prefix (the OS reports `C:\...`).
+        return crate::fsutil::windows_path_within(
+            &img.to_string_lossy(),
+            &channel_dir.to_string_lossy(),
+        );
     }
     let Some(ch) = &seen.channel else {
         return true;
@@ -194,7 +219,7 @@ pub fn blocks(seen: &Seen, prefix: Option<&Path>, channel: &str, channel_dir: &P
         (None, _) => true,
         (Some(_), None) => true,
         (Some(p), Some(want)) => {
-            let want = std::fs::canonicalize(want).unwrap_or_else(|_| want.to_path_buf());
+            let want = crate::fsutil::canonicalize(want).unwrap_or_else(|_| want.to_path_buf());
             *p == want
         }
     }
@@ -288,9 +313,46 @@ mod tests {
     }
 
     #[test]
+    fn windows_processes_by_image_path_or_name() {
+        let img = Path::new(
+            r"C:\Program Files\Roberts Space Industries\StarCitizen\PTU\Bin64\StarCitizen.exe",
+        );
+        let s = seen_windows(7, "StarCitizen.exe", Some(img)).unwrap();
+        assert_eq!((s.exe, s.channel.as_deref()), (Exe::Game, Some("PTU")));
+        let live = Path::new(r"\\?\C:\Program Files\Roberts Space Industries\StarCitizen\LIVE");
+        let ptu = Path::new(r"c:\program files\roberts space industries\starcitizen\ptu");
+        assert!(!blocks(&s, None, "LIVE", live));
+        assert!(blocks(&s, None, "PTU", ptu));
+        // Path not readable: the name decides and every channel is blocked.
+        let hidden = seen_windows(8, "StarCitizen.exe", None).unwrap();
+        assert_eq!((hidden.exe, hidden.channel.as_deref()), (Exe::Game, None));
+        assert!(blocks(&hidden, None, "LIVE", live));
+        let l = seen_windows(9, "RSI Launcher.exe", Some(Path::new(""))).unwrap();
+        assert_eq!(l.exe, Exe::Launcher);
+        assert!(!blocks(&l, None, "LIVE", live));
+        assert!(
+            seen_windows(
+                10,
+                "notepad.exe",
+                Some(Path::new(r"C:\Windows\notepad.exe"))
+            )
+            .is_none()
+        );
+        // A different program that happens to be called StarCitizen.exe elsewhere still
+        // only blocks the channel folder it runs from.
+        let other = seen_windows(
+            11,
+            "StarCitizen.exe",
+            Some(Path::new(r"D:\Mods\StarCitizen.exe")),
+        )
+        .unwrap();
+        assert!(!blocks(&other, None, "LIVE", live));
+    }
+
+    #[test]
     fn blocking_rules() {
         let t = tempfile::tempdir().unwrap();
-        let p = std::fs::canonicalize(t.path()).unwrap();
+        let p = crate::fsutil::canonicalize(t.path()).unwrap();
         let other = p.join("other");
         std::fs::create_dir_all(&other).unwrap();
         let seen = |channel: Option<&str>, prefix: Option<PathBuf>| Seen {

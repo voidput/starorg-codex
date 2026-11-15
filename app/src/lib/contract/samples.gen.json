@@ -2,6 +2,30 @@
   "activity": [
     {
       "channel": "LIVE",
+      "id": 8,
+      "job": "import",
+      "level": "info",
+      "message": "Fleet import: 4 hulls, 0 unmatched, 1 ambiguous",
+      "time": "2026-11-14T21:30:05Z"
+    },
+    {
+      "channel": "LIVE",
+      "id": 7,
+      "job": "import",
+      "level": "info",
+      "message": "Fleet import: 4 hulls, 1 unmatched, 1 ambiguous",
+      "time": "2026-11-14T21:30:05Z"
+    },
+    {
+      "channel": "LIVE",
+      "id": 6,
+      "job": "import",
+      "level": "info",
+      "message": "Fleet import (dry run): 4 hulls, 1 unmatched, 1 ambiguous",
+      "time": "2026-11-14T21:30:05Z"
+    },
+    {
+      "channel": "LIVE",
       "id": 5,
       "job": null,
       "level": "info",
@@ -14,30 +38,6 @@
       "job": "apply",
       "level": "warn",
       "message": "Applied: 11254 strings changed, 1 warning(s)",
-      "time": "2026-11-14T21:30:05Z"
-    },
-    {
-      "channel": "LIVE",
-      "id": 3,
-      "job": "apply",
-      "level": "warn",
-      "message": "Applied: 11254 strings changed, 1 warning(s)",
-      "time": "2026-11-14T21:30:05Z"
-    },
-    {
-      "channel": null,
-      "id": 2,
-      "job": null,
-      "level": "info",
-      "message": "Set up LIVE, HOTFIX (skipped: PTU)",
-      "time": "2026-11-14T21:30:05Z"
-    },
-    {
-      "channel": null,
-      "id": 1,
-      "job": null,
-      "level": "info",
-      "message": "Found 2 installs: LUG Helper config, Lutris game entry",
       "time": "2026-11-14T21:30:05Z"
     }
   ],
@@ -449,11 +449,982 @@
   "export_diagnostics": {
     "file_name": "starorg-strings-diagnostics-20261114-213005.txt",
     "redacted": 5,
-    "text": "StarOrg Strings diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 7 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
+    "text": "StarOrg Strings diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 7 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 0 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import (dry run): 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
   },
   "export_user_patch": {
     "file_name": "user-sample-label-fix.patch.toml",
     "text": "schema = 1\nid = \"user-sample-label-fix\"\ntitle = \"Sample label fix\"\ndescription = \"Synthetic user patch.\"\n\n[[loc]]\nkey = \"ui_SYN_Label_00007\"\nop = \"replace\"\nfind = \"Label\"\nvalue = \"Sign\"\n"
+  },
+  "fleet_clear": {
+    "catalog": [
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Bastion",
+        "maker": "axis",
+        "name": "Axis Bastion",
+        "npc_shared": 2,
+        "short": "Bastion"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Vigil",
+        "maker": "axis",
+        "name": "Axis Vigil",
+        "npc_shared": 2,
+        "short": "Vigil"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Harrier",
+        "maker": "kstl",
+        "name": "Kestrel Harrier",
+        "npc_shared": 2,
+        "short": "Harrier"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Kite",
+        "maker": "kstl",
+        "name": "Kestrel Kite",
+        "npc_shared": 2,
+        "short": "Kite"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk I",
+        "npc_shared": 2,
+        "short": "Talon Mk I"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon_Mk2",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk II",
+        "npc_shared": 2,
+        "short": "Talon Mk II"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Beacon",
+        "maker": "orbw",
+        "name": "Orbit Works Beacon",
+        "npc_shared": 2,
+        "short": "Beacon"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern",
+        "npc_shared": 2,
+        "short": "Lantern"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern_Pro",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern Pro",
+        "npc_shared": 2,
+        "short": "Lantern Pro"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Barge",
+        "maker": "rdge",
+        "name": "Ridge Freight Barge",
+        "npc_shared": 2,
+        "short": null
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler",
+        "npc_shared": 2,
+        "short": "Hauler"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler_XL",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler XL",
+        "npc_shared": 2,
+        "short": "Hauler XL"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Drifter",
+        "maker": "soln",
+        "name": "Solen Drifter",
+        "npc_shared": 2,
+        "short": "Drifter"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Prospect",
+        "maker": "soln",
+        "name": "Solen Prospect",
+        "npc_shared": 2,
+        "short": "Prospect"
+      },
+      {
+        "ground": true,
+        "hull": "vehicle_NameSOLN_Rover",
+        "maker": "soln",
+        "name": "Solen Rover",
+        "npc_shared": 0,
+        "short": "Rover"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Heron",
+        "maker": "trne",
+        "name": "Tarne Heron",
+        "npc_shared": 2,
+        "short": "Heron"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Wren",
+        "maker": "trne",
+        "name": "Tarne Wren",
+        "npc_shared": 2,
+        "short": "Wren"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Hornbill",
+        "maker": "vlmr",
+        "name": "Volmar Hornbill",
+        "npc_shared": 2,
+        "short": "Hornbill"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Moth",
+        "maker": "vlmr",
+        "name": "Volmar Moth",
+        "npc_shared": 2,
+        "short": "Moth"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Pike",
+        "maker": "vlmr",
+        "name": "Volmar Pike",
+        "npc_shared": 2,
+        "short": "Pike"
+      }
+    ],
+    "catalog_ready": true,
+    "channel": "HOTFIX",
+    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "format": null,
+    "imported_at": null,
+    "invalid": false,
+    "not_in_game": [
+      "starlance"
+    ],
+    "overrides": [],
+    "owned": [],
+    "pending": [],
+    "scope": "shared",
+    "settings": {
+      "enabled": true,
+      "groups": [
+        {
+          "id": "combat",
+          "name": "Combat"
+        }
+      ],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": "combat",
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Rusty",
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "shared_settings": {
+      "enabled": true,
+      "groups": [
+        {
+          "id": "combat",
+          "name": "Combat"
+        }
+      ],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": "combat",
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Rusty",
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "warnings": []
+  },
+  "fleet_import": {
+    "added_to_order": 0,
+    "ambiguous": [
+      {
+        "candidates": [
+          "vehicle_NameKSTL_Talon",
+          "vehicle_NameKSTL_Talon_Mk2"
+        ],
+        "count": 1,
+        "maker": "KSTL",
+        "name": "Talon",
+        "names": []
+      }
+    ],
+    "dry_run": true,
+    "empty_catalog": false,
+    "file": "synthetic-fleet.json",
+    "format": "xplor-json",
+    "hulls": [
+      {
+        "count": 2,
+        "hull": "vehicle_NameKSTL_Kite",
+        "name": "Kestrel Kite",
+        "names": [
+          "Needle"
+        ],
+        "new": true
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameORBW_Lantern",
+        "name": "Orbit Works Lantern",
+        "names": [
+          "Rusty"
+        ],
+        "new": true
+      },
+      {
+        "count": 2,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "name": "Ridge Freight Hauler",
+        "names": [],
+        "new": true
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameVLMR_Pike",
+        "name": "Volmar Pike",
+        "names": [],
+        "new": true
+      }
+    ],
+    "merge": false,
+    "not_in_game": 0,
+    "skipped": 1,
+    "total": 9,
+    "unmatched": [
+      {
+        "candidates": [],
+        "count": 1,
+        "maker": "TRNE",
+        "name": "Starlance",
+        "names": []
+      }
+    ]
+  },
+  "fleet_import_applied": {
+    "added_to_order": 4,
+    "ambiguous": [
+      {
+        "candidates": [
+          "vehicle_NameKSTL_Talon",
+          "vehicle_NameKSTL_Talon_Mk2"
+        ],
+        "count": 1,
+        "maker": "KSTL",
+        "name": "Talon",
+        "names": []
+      }
+    ],
+    "dry_run": false,
+    "empty_catalog": false,
+    "file": "synthetic-fleet.json",
+    "format": "xplor-json",
+    "hulls": [
+      {
+        "count": 2,
+        "hull": "vehicle_NameKSTL_Kite",
+        "name": "Kestrel Kite",
+        "names": [
+          "Needle"
+        ],
+        "new": true
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameORBW_Lantern",
+        "name": "Orbit Works Lantern",
+        "names": [
+          "Rusty"
+        ],
+        "new": true
+      },
+      {
+        "count": 2,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "name": "Ridge Freight Hauler",
+        "names": [],
+        "new": true
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameVLMR_Pike",
+        "name": "Volmar Pike",
+        "names": [],
+        "new": true
+      }
+    ],
+    "merge": false,
+    "not_in_game": 0,
+    "skipped": 1,
+    "total": 9,
+    "unmatched": [
+      {
+        "candidates": [],
+        "count": 1,
+        "maker": "TRNE",
+        "name": "Starlance",
+        "names": []
+      }
+    ]
+  },
+  "fleet_match": {
+    "catalog": [
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Bastion",
+        "maker": "axis",
+        "name": "Axis Bastion",
+        "npc_shared": 2,
+        "short": "Bastion"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Vigil",
+        "maker": "axis",
+        "name": "Axis Vigil",
+        "npc_shared": 2,
+        "short": "Vigil"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Harrier",
+        "maker": "kstl",
+        "name": "Kestrel Harrier",
+        "npc_shared": 2,
+        "short": "Harrier"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Kite",
+        "maker": "kstl",
+        "name": "Kestrel Kite",
+        "npc_shared": 2,
+        "short": "Kite"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk I",
+        "npc_shared": 2,
+        "short": "Talon Mk I"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon_Mk2",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk II",
+        "npc_shared": 2,
+        "short": "Talon Mk II"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Beacon",
+        "maker": "orbw",
+        "name": "Orbit Works Beacon",
+        "npc_shared": 2,
+        "short": "Beacon"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern",
+        "npc_shared": 2,
+        "short": "Lantern"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern_Pro",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern Pro",
+        "npc_shared": 2,
+        "short": "Lantern Pro"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Barge",
+        "maker": "rdge",
+        "name": "Ridge Freight Barge",
+        "npc_shared": 2,
+        "short": null
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler",
+        "npc_shared": 2,
+        "short": "Hauler"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler_XL",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler XL",
+        "npc_shared": 2,
+        "short": "Hauler XL"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Drifter",
+        "maker": "soln",
+        "name": "Solen Drifter",
+        "npc_shared": 2,
+        "short": "Drifter"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Prospect",
+        "maker": "soln",
+        "name": "Solen Prospect",
+        "npc_shared": 2,
+        "short": "Prospect"
+      },
+      {
+        "ground": true,
+        "hull": "vehicle_NameSOLN_Rover",
+        "maker": "soln",
+        "name": "Solen Rover",
+        "npc_shared": 0,
+        "short": "Rover"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Heron",
+        "maker": "trne",
+        "name": "Tarne Heron",
+        "npc_shared": 2,
+        "short": "Heron"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Wren",
+        "maker": "trne",
+        "name": "Tarne Wren",
+        "npc_shared": 2,
+        "short": "Wren"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Hornbill",
+        "maker": "vlmr",
+        "name": "Volmar Hornbill",
+        "npc_shared": 2,
+        "short": "Hornbill"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Moth",
+        "maker": "vlmr",
+        "name": "Volmar Moth",
+        "npc_shared": 2,
+        "short": "Moth"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Pike",
+        "maker": "vlmr",
+        "name": "Volmar Pike",
+        "npc_shared": 2,
+        "short": "Pike"
+      }
+    ],
+    "catalog_ready": true,
+    "channel": "LIVE",
+    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "format": "xplor-json",
+    "imported_at": "2026-11-14T21:30:05Z",
+    "invalid": false,
+    "not_in_game": [
+      "starlance"
+    ],
+    "overrides": [],
+    "owned": [
+      {
+        "count": 2,
+        "hull": "vehicle_NameKSTL_Kite",
+        "names": [
+          "Needle"
+        ]
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameORBW_Lantern",
+        "names": [
+          "Rusty"
+        ]
+      },
+      {
+        "count": 2,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "names": []
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameVLMR_Pike",
+        "names": []
+      }
+    ],
+    "pending": [
+      {
+        "candidates": [
+          "vehicle_NameKSTL_Talon",
+          "vehicle_NameKSTL_Talon_Mk2"
+        ],
+        "count": 1,
+        "maker": "KSTL",
+        "name": "Talon",
+        "names": []
+      }
+    ],
+    "scope": "shared",
+    "settings": {
+      "enabled": false,
+      "groups": [],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": null,
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "shared_settings": {
+      "enabled": false,
+      "groups": [],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": null,
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "warnings": []
+  },
+  "fleet_view": {
+    "catalog": [
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Bastion",
+        "maker": "axis",
+        "name": "Axis Bastion",
+        "npc_shared": 2,
+        "short": "Bastion"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Vigil",
+        "maker": "axis",
+        "name": "Axis Vigil",
+        "npc_shared": 2,
+        "short": "Vigil"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Harrier",
+        "maker": "kstl",
+        "name": "Kestrel Harrier",
+        "npc_shared": 2,
+        "short": "Harrier"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Kite",
+        "maker": "kstl",
+        "name": "Kestrel Kite",
+        "npc_shared": 2,
+        "short": "Kite"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk I",
+        "npc_shared": 2,
+        "short": "Talon Mk I"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon_Mk2",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk II",
+        "npc_shared": 2,
+        "short": "Talon Mk II"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Beacon",
+        "maker": "orbw",
+        "name": "Orbit Works Beacon",
+        "npc_shared": 2,
+        "short": "Beacon"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern",
+        "npc_shared": 2,
+        "short": "Lantern"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern_Pro",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern Pro",
+        "npc_shared": 2,
+        "short": "Lantern Pro"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Barge",
+        "maker": "rdge",
+        "name": "Ridge Freight Barge",
+        "npc_shared": 2,
+        "short": null
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler",
+        "npc_shared": 2,
+        "short": "Hauler"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler_XL",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler XL",
+        "npc_shared": 2,
+        "short": "Hauler XL"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Drifter",
+        "maker": "soln",
+        "name": "Solen Drifter",
+        "npc_shared": 2,
+        "short": "Drifter"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Prospect",
+        "maker": "soln",
+        "name": "Solen Prospect",
+        "npc_shared": 2,
+        "short": "Prospect"
+      },
+      {
+        "ground": true,
+        "hull": "vehicle_NameSOLN_Rover",
+        "maker": "soln",
+        "name": "Solen Rover",
+        "npc_shared": 0,
+        "short": "Rover"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Heron",
+        "maker": "trne",
+        "name": "Tarne Heron",
+        "npc_shared": 2,
+        "short": "Heron"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Wren",
+        "maker": "trne",
+        "name": "Tarne Wren",
+        "npc_shared": 2,
+        "short": "Wren"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Hornbill",
+        "maker": "vlmr",
+        "name": "Volmar Hornbill",
+        "npc_shared": 2,
+        "short": "Hornbill"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Moth",
+        "maker": "vlmr",
+        "name": "Volmar Moth",
+        "npc_shared": 2,
+        "short": "Moth"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Pike",
+        "maker": "vlmr",
+        "name": "Volmar Pike",
+        "npc_shared": 2,
+        "short": "Pike"
+      }
+    ],
+    "catalog_ready": true,
+    "channel": "LIVE",
+    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "format": "xplor-json",
+    "imported_at": "2026-11-14T21:30:05Z",
+    "invalid": false,
+    "not_in_game": [
+      "starlance"
+    ],
+    "overrides": [],
+    "owned": [
+      {
+        "count": 2,
+        "hull": "vehicle_NameKSTL_Kite",
+        "names": [
+          "Needle"
+        ]
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameORBW_Lantern",
+        "names": [
+          "Rusty"
+        ]
+      },
+      {
+        "count": 2,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "names": []
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameVLMR_Pike",
+        "names": []
+      }
+    ],
+    "pending": [
+      {
+        "candidates": [
+          "vehicle_NameKSTL_Talon",
+          "vehicle_NameKSTL_Talon_Mk2"
+        ],
+        "count": 1,
+        "maker": "KSTL",
+        "name": "Talon",
+        "names": []
+      }
+    ],
+    "scope": "shared",
+    "settings": {
+      "enabled": true,
+      "groups": [
+        {
+          "id": "combat",
+          "name": "Combat"
+        }
+      ],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": "combat",
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Rusty",
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "shared_settings": {
+      "enabled": true,
+      "groups": [
+        {
+          "id": "combat",
+          "name": "Combat"
+        }
+      ],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": "combat",
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Rusty",
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "warnings": []
   },
   "get_profile": {
     "branding": false,
@@ -2294,6 +3265,301 @@
     "warnings": []
   },
   "save_diagnostics": "~/starorg-strings-diagnostics-20261114-213005.txt",
+  "save_ship_names": {
+    "catalog": [
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Bastion",
+        "maker": "axis",
+        "name": "Axis Bastion",
+        "npc_shared": 2,
+        "short": "Bastion"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameAXIS_Vigil",
+        "maker": "axis",
+        "name": "Axis Vigil",
+        "npc_shared": 2,
+        "short": "Vigil"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Harrier",
+        "maker": "kstl",
+        "name": "Kestrel Harrier",
+        "npc_shared": 2,
+        "short": "Harrier"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Kite",
+        "maker": "kstl",
+        "name": "Kestrel Kite",
+        "npc_shared": 2,
+        "short": "Kite"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk I",
+        "npc_shared": 2,
+        "short": "Talon Mk I"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameKSTL_Talon_Mk2",
+        "maker": "kstl",
+        "name": "Kestrel Talon Mk II",
+        "npc_shared": 2,
+        "short": "Talon Mk II"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Beacon",
+        "maker": "orbw",
+        "name": "Orbit Works Beacon",
+        "npc_shared": 2,
+        "short": "Beacon"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern",
+        "npc_shared": 2,
+        "short": "Lantern"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameORBW_Lantern_Pro",
+        "maker": "orbw",
+        "name": "Orbit Works Lantern Pro",
+        "npc_shared": 2,
+        "short": "Lantern Pro"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Barge",
+        "maker": "rdge",
+        "name": "Ridge Freight Barge",
+        "npc_shared": 2,
+        "short": null
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler",
+        "npc_shared": 2,
+        "short": "Hauler"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameRDGE_Hauler_XL",
+        "maker": "rdge",
+        "name": "Ridge Freight Hauler XL",
+        "npc_shared": 2,
+        "short": "Hauler XL"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Drifter",
+        "maker": "soln",
+        "name": "Solen Drifter",
+        "npc_shared": 2,
+        "short": "Drifter"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameSOLN_Prospect",
+        "maker": "soln",
+        "name": "Solen Prospect",
+        "npc_shared": 2,
+        "short": "Prospect"
+      },
+      {
+        "ground": true,
+        "hull": "vehicle_NameSOLN_Rover",
+        "maker": "soln",
+        "name": "Solen Rover",
+        "npc_shared": 0,
+        "short": "Rover"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Heron",
+        "maker": "trne",
+        "name": "Tarne Heron",
+        "npc_shared": 2,
+        "short": "Heron"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameTRNE_Wren",
+        "maker": "trne",
+        "name": "Tarne Wren",
+        "npc_shared": 2,
+        "short": "Wren"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Hornbill",
+        "maker": "vlmr",
+        "name": "Volmar Hornbill",
+        "npc_shared": 2,
+        "short": "Hornbill"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Moth",
+        "maker": "vlmr",
+        "name": "Volmar Moth",
+        "npc_shared": 2,
+        "short": "Moth"
+      },
+      {
+        "ground": false,
+        "hull": "vehicle_NameVLMR_Pike",
+        "maker": "vlmr",
+        "name": "Volmar Pike",
+        "npc_shared": 2,
+        "short": "Pike"
+      }
+    ],
+    "catalog_ready": true,
+    "channel": "LIVE",
+    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "format": "xplor-json",
+    "imported_at": "2026-11-14T21:30:05Z",
+    "invalid": false,
+    "not_in_game": [
+      "starlance"
+    ],
+    "overrides": [],
+    "owned": [
+      {
+        "count": 2,
+        "hull": "vehicle_NameKSTL_Kite",
+        "names": [
+          "Needle"
+        ]
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameORBW_Lantern",
+        "names": [
+          "Rusty"
+        ]
+      },
+      {
+        "count": 2,
+        "hull": "vehicle_NameRDGE_Hauler",
+        "names": []
+      },
+      {
+        "count": 1,
+        "hull": "vehicle_NameVLMR_Pike",
+        "names": []
+      }
+    ],
+    "pending": [
+      {
+        "candidates": [
+          "vehicle_NameKSTL_Talon",
+          "vehicle_NameKSTL_Talon_Mk2"
+        ],
+        "count": 1,
+        "maker": "KSTL",
+        "name": "Talon",
+        "names": []
+      }
+    ],
+    "scope": "shared",
+    "settings": {
+      "enabled": true,
+      "groups": [
+        {
+          "id": "combat",
+          "name": "Combat"
+        }
+      ],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": "combat",
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Rusty",
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "shared_settings": {
+      "enabled": true,
+      "groups": [
+        {
+          "id": "combat",
+          "name": "Combat"
+        }
+      ],
+      "prefix_short": false,
+      "rest": "stock",
+      "separator": " ",
+      "ships": [
+        {
+          "group": "combat",
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Rusty",
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": null,
+          "short": null
+        },
+        {
+          "group": null,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": null,
+          "short": null
+        }
+      ],
+      "style": "numeric",
+      "symbol": "*"
+    },
+    "warnings": []
+  },
   "set_override": {
     "accepted": true,
     "detail": {

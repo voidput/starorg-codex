@@ -21,6 +21,7 @@ npm-debug.log*
 
 # Written by release.yml at build time (signing config with the updater pubkey)
 app/src-tauri/tauri.updater.conf.json
+app/src-tauri/tauri.signing.conf.json
 
 # Bundles if built outside target/
 *.AppImage

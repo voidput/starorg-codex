@@ -230,7 +230,7 @@ pub fn locate(channel_dir: &Path) -> Result<CfgTarget, ResolveError> {
         .unwrap_or(false);
     let exists = r.path.exists();
     let real = if exists {
-        std::fs::canonicalize(&r.path).unwrap_or_else(|_| r.path.clone())
+        fsutil::canonicalize(&r.path).unwrap_or_else(|_| r.path.clone())
     } else if is_link {
         // A dangling link: follow it by hand so we never replace it with a file.
         let target = std::fs::read_link(&r.path).unwrap_or_else(|_| r.path.clone());
@@ -375,7 +375,7 @@ pub fn release(
         Some(text) => match undo(&text, ledger.previous.as_deref(), ledger.added_newline) {
             Some(new_text) => {
                 if ledger.created && new_text.is_empty() && !target.is_link {
-                    std::fs::remove_file(&target.real)?;
+                    fsutil::remove_retry(&target.real)?;
                 } else {
                     write(target, &new_text)?;
                 }

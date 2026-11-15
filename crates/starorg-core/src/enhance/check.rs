@@ -36,6 +36,15 @@ pub fn check_generated(
     Ok(())
 }
 
+/// Check a generated value that replaces the stock value (a ship rename with its prefix).
+/// A format key stays stock; the rest are the whole-value rules (spec 7.3).
+pub fn check_replaced(stock: &str, value: &str) -> Result<(), Rule> {
+    if is_format_value(stock) {
+        return Err(Rule::FormatKey);
+    }
+    check_value(stock, value, Op::GeneratedWhole, &[value])
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

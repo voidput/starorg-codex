@@ -31,8 +31,9 @@ starorg-net = { workspace = true, optional = true }
 published-dumps = ["dep:starorg-net"]
 # Hidden test hooks (--test-stock-ini, --test-pause-after-write-ms, blueprints import
 # --test-catalog). Never in a release binary; the integration tests turn it on through the
-# self dev-dependency below.
-test-hooks = []
+# self dev-dependency below. It also turns on starorg-core's test hooks (the
+# STARORG_TEST_ALLOW_ELEVATED override, so the apply flow runs on elevated Windows CI runners).
+test-hooks = ["starorg-core/test-hooks"]
 
 [dev-dependencies]
 starorg-cli = { path = ".", features = ["test-hooks"] }

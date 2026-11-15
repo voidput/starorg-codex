@@ -15,7 +15,12 @@ Spec section 12 is the design. This note covers how the files fit and the M0 dry
   Tauri and UI steps switch on once `app/package.json` / `app/src-tauri/Cargo.toml` exist.
 - `.github/workflows/release.yml`: on push to `main`, release-please; on `release_created`, the CLI
   matrix (musl tar.gz, Windows zip), the Tauri matrix (Windows NSIS+MSI, Linux AppImage+deb+rpm, `latest.json`),
-  SLSA attestations, then a `SHA256SUMS` upload.
+  SLSA attestations, the `store` job (unsigned `.msix` for Microsoft Store submission, only with
+  the `MSIX_*` variables), then a `SHA256SUMS` upload (which no longer waits on a successful store job).
+- `.github/actions/windows-signing`: Azure Artifact Signing for the NSIS/MSI installers and the
+  Windows CLI exe, only when the `AZURE_*` secrets and variables exist ([windows](windows.md#code-signing)).
+- `app/scripts/msix.ts`: writes `AppxManifest.xml` and stages the Store package
+  (`app/tests/msix.test.ts`, golden `app/tests/fixtures/AppxManifest.golden.xml`).
 - `release-please-config.json`, `.release-please-manifest.json`: version `0.0.0`, tags `vX.Y.Z`,
   minor bumps before 1.0.
 
@@ -47,6 +52,23 @@ Optional: without them (or with the placeholder in `app/src-tauri/updater-public
 without `.sig`/`latest.json` and the app offers download only. Key setup: [updates](updates.md).
 Repo setting: Actions may create PRs. The private repo cannot verify attestations publicly; see the
 release-location decision in spec section 12.
+
+Windows extras, all optional (setup steps in [windows](windows.md)):
+
+| Name | Kind | For |
+|---|---|---|
+| `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` | secrets | Artifact Signing app registration |
+| `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` | variables | Artifact Signing account and certificate profile |
+| `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME` | variables | Store package identity (Partner Center -> Product identity) |
+| `MS_STORE_SUBMIT` (`true`), `MS_STORE_ID` | variables | Optional draft submission with the msstore CLI |
+| `MS_STORE_TENANT_ID`, `MS_STORE_SELLER_ID`, `MS_STORE_CLIENT_ID`, `MS_STORE_CLIENT_SECRET` | secrets | Partner Center API, only with `MS_STORE_SUBMIT` |
+
+Each missing group gives a notice in the run and leaves that part out; a release never fails for
+lack of signing or Store setup.
+
+Windows release checks (after the run): the store job log names the `.msix` it uploaded (or the
+notice); with signing on, `Get-AuthenticodeSignature` on the setup exe and the MSI says `Valid`;
+`SHA256SUMS` lists the `.msix` too.
 
 ## Throwaway v0.0.1 dry run
 

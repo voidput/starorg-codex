@@ -184,6 +184,10 @@ pub struct Applied {
     /// Hash of the owned-blueprint names used (empty when none; older records lack it).
     #[serde(default)]
     pub owned_hash: String,
+    /// Hash of the effective ship-name settings (addendum §6.4); empty when off. Older
+    /// records lack it and read as empty, so nobody goes stale on upgrade.
+    #[serde(default)]
+    pub ship_names_hash: String,
     pub app_version: String,
     pub output_sha256: String,
     pub time: String,
@@ -230,6 +234,9 @@ pub struct Inputs {
     pub owned_choice: Option<String>,
     /// The channel's `active_character` setting.
     pub owned_setting: Option<String>,
+    /// Ship-name settings after the channel scope is resolved (addendum §6.4).
+    pub ship_names: crate::fleet::store::Effective,
+    pub ship_names_hash: String,
 }
 
 /// Read the current inputs of a channel. `profile_file` replaces `profile.toml`; `character`
@@ -262,7 +269,10 @@ pub fn current_inputs(
     };
     let choice = one_off.clone().or_else(|| setting.clone());
     let owned = blueprints::select(&data, choice.as_deref())?;
+    let ship_names = crate::fleet::store::effective(&ctx.dirs, &profile);
     Ok(Inputs {
+        ship_names_hash: ship_names.hash(),
+        ship_names,
         owned,
         owned_choice: one_off,
         owned_setting: setting,
@@ -309,7 +319,7 @@ pub fn locate_ini(channel_dir: &Path) -> Result<IniTarget, String> {
     let link_meta = std::fs::symlink_metadata(&r.path).ok();
     let exists = r.path.exists();
     let real = if exists {
-        std::fs::canonicalize(&r.path).map_err(|e| format!("{}: {e}", r.path.display()))?
+        fsutil::canonicalize(&r.path).map_err(|e| format!("{}: {e}", r.path.display()))?
     } else if link_meta.is_some_and(|m| m.file_type().is_symlink()) {
         // A link to a missing file (as `remove` leaves a linked global.ini): follow it by
         // hand and write the file it names; the link itself is never replaced (spec 7.4).
@@ -332,8 +342,7 @@ pub fn locate_ini(channel_dir: &Path) -> Result<IniTarget, String> {
     } else {
         fsutil::canonical_lenient(&r.path)
     };
-    let canon_dir =
-        std::fs::canonicalize(channel_dir).unwrap_or_else(|_| channel_dir.to_path_buf());
+    let canon_dir = fsutil::canonicalize(channel_dir).unwrap_or_else(|_| channel_dir.to_path_buf());
     let rel = r.path.strip_prefix(channel_dir).unwrap_or(&r.path);
     let is_link = real != canon_dir.join(rel);
     Ok(IniTarget {
@@ -403,6 +412,9 @@ fn stale_reasons(a: &Applied, inp: &Inputs, ctx: &Ctx) -> Vec<String> {
     }
     if inp.owned.hash != a.owned_hash {
         r.push("owned blueprints".into());
+    }
+    if inp.ship_names_hash != a.ship_names_hash {
+        r.push("ship names".into());
     }
     if ctx.app_version != a.app_version {
         r.push("app version".into());
@@ -574,6 +586,7 @@ fn counts_json(c: &Counts, g: &crate::enhance::Generated) -> serde_json::Value {
         "fps_weapons": n(&[C::FpsWeapons]),
         "missiles": n(&[C::Missiles, C::MissileTags]),
         "missions": n(&[C::MissionTitles, C::MissionDescriptions]),
+        "ship_names": n(&[C::ShipNames]),
         "generated": c.generated,
         "loc_patches": c.loc_patches,
         "overrides": c.overrides, "dropped": c.dropped,
@@ -687,7 +700,7 @@ enum Guard {
 
 fn run_guards(ctx: &Ctx, t: &Target<'_>, check_p4k: bool) -> Guard {
     let mut warnings = Vec::new();
-    if fsutil::is_elevated() {
+    if fsutil::elevation_blocks_apply() {
         return Guard::Stop(
             Outcome::Failed,
             exit::ERROR,
@@ -712,11 +725,7 @@ fn run_guards(ctx: &Ctx, t: &Target<'_>, check_p4k: bool) -> Guard {
         ));
     }
     if check_p4k {
-        let logs = t
-            .prefix
-            .as_deref()
-            .map(crate::discovery::prefix_launcher_logs)
-            .unwrap_or_default();
+        let logs = crate::discovery::launcher_logs(t.prefix.as_deref());
         if running::pipeline_running(&logs, &t.channel.name) {
             return Guard::Stop(
                 Outcome::Skipped,
@@ -765,13 +774,16 @@ fn write_probe(dir: &Path) -> Result<(), String> {
             "cannot write in {}: {e}{}",
             d.display(),
             if cfg!(windows) {
-                " (grant your user write access, e.g. icacls \"<folder>\" /grant \"%USERNAME%\":(OI)(CI)M)"
+                format!(
+                    " (grant your user write access, e.g. icacls \"{}\" /grant \"%USERNAME%\":(OI)(CI)M)",
+                    d.display()
+                )
             } else {
-                ""
+                String::new()
             }
         )
     })?;
-    std::fs::remove_file(&probe).map_err(|e| e.to_string())
+    fsutil::remove_retry(&probe).map_err(|e| e.to_string())
 }
 
 /// Channels (other than `t`) whose `user.cfg` resolves to `real`.
@@ -1035,11 +1047,14 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     };
     // Data patches are an overlay for the generators; merge evaluates them on the original.
     let patched = patch::data_overlay(&inputs.patches, &loaded.game_data, t.build());
-    let generated = crate::enhance::generate(
+    r.warnings
+        .extend(inputs.ship_names.warnings.iter().cloned());
+    let generated = crate::enhance::generate_with(
         patched.as_ref().unwrap_or(&loaded.game_data),
         &stock,
         &enhance_profile,
         &inputs.owned,
+        inputs.ship_names.active(),
     );
     r.warnings.extend(generated.warnings.iter().cloned());
     let gen_edits: Vec<merge::GenEdit> =
@@ -1233,6 +1248,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         cache_key: key_inputs.as_ref().map(KeyInputs::key).unwrap_or_default(),
         profile_hash: inputs.profile_hash.clone(),
         owned_hash: inputs.owned.hash.clone(),
+        ship_names_hash: inputs.ship_names_hash.clone(),
         patch_set_hash: inputs.patches.hash(),
         overrides_hash: inputs.overrides_hash.clone(),
         app_version: ctx.app_version.clone(),
@@ -1291,7 +1307,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     if fsutil::sha256_file(&ini.real).ok().as_deref() != Some(out_sha.as_str()) {
         let restore = match &cur_bytes {
             Some(b) => fsutil::write_via(&tmp, &ini.real, b),
-            None => std::fs::remove_file(&ini.real),
+            None => fsutil::remove_retry(&ini.real),
         };
         undo_cfg(ctx);
         let _ = std::fs::remove_file(&intent_path);
@@ -1513,7 +1529,7 @@ pub fn remove(ctx: &Ctx, t: &Target<'_>, yes: bool) -> Report {
                 ),
             ));
         }
-        if let Err(e) = std::fs::remove_file(&ini.real) {
+        if let Err(e) = fsutil::remove_retry(&ini.real) {
             return fail(r, format!("cannot delete {}: {e}", ini.real.display()));
         }
         if ini.is_link {

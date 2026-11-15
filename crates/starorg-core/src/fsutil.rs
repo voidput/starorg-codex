@@ -61,31 +61,46 @@ pub fn fsync_dir(dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// `rename`, retrying briefly on Windows when a scanner or indexer holds a just-written
-/// file open (ERROR_ACCESS_DENIED / sharing violation). Elsewhere a plain rename.
-pub fn rename_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+/// Run a file operation, retrying briefly on Windows while a virus scanner, the search
+/// indexer or a sync client holds the file open (`ERROR_ACCESS_DENIED` 5,
+/// `ERROR_SHARING_VIOLATION` 32, `ERROR_LOCK_VIOLATION` 33): 20 tries over about 5 s.
+/// Elsewhere it runs once. Other errors return at once.
+pub fn retry_locked<T>(mut op: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
     #[cfg(windows)]
     {
         let mut last = None;
         for i in 0..20u64 {
-            match std::fs::rename(from, to) {
-                Ok(()) => return Ok(()),
-                Err(e)
-                    if e.kind() == std::io::ErrorKind::PermissionDenied
-                        || e.raw_os_error() == Some(32) =>
-                {
+            match op() {
+                Ok(v) => return Ok(v),
+                Err(e) if is_transient_lock(&e) => {
                     last = Some(e);
                     std::thread::sleep(std::time::Duration::from_millis(25 * (i + 1)));
                 }
                 Err(e) => return Err(e),
             }
         }
-        Err(last.unwrap_or_else(|| std::io::Error::other("rename failed")))
+        Err(last.unwrap_or_else(|| std::io::Error::other("file stayed locked")))
     }
     #[cfg(not(windows))]
     {
-        std::fs::rename(from, to)
+        op()
     }
+}
+
+/// Windows error codes that mean "someone else has the file open right now".
+pub fn is_transient_lock(e: &std::io::Error) -> bool {
+    e.kind() == std::io::ErrorKind::PermissionDenied
+        || matches!(e.raw_os_error(), Some(5 | 32 | 33))
+}
+
+/// `rename` with [`retry_locked`].
+pub fn rename_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+    retry_locked(|| std::fs::rename(from, to))
+}
+
+/// `remove_file` with [`retry_locked`].
+pub fn remove_retry(path: &Path) -> std::io::Result<()> {
+    retry_locked(|| std::fs::remove_file(path))
 }
 
 /// Write `bytes` to `tmp`, fsync it, rename it over `target`, fsync the folder. `tmp` must be
@@ -173,6 +188,92 @@ pub fn read_limited(path: &Path, limit: u64) -> std::io::Result<Option<Vec<u8>>>
     Ok(Some(buf))
 }
 
+/// `std::fs::canonicalize`, but on Windows without the `\\?\` prefix when the plain form
+/// means the same path (see [`strip_verbatim`]). Every path we compare, store or show goes
+/// through this one function, so two spellings of one folder never meet: a running game's
+/// image path is `C:\...`, and std's canonical form is `\\?\C:\...`.
+pub fn canonicalize(p: &Path) -> std::io::Result<PathBuf> {
+    let c = std::fs::canonicalize(p)?;
+    #[cfg(windows)]
+    {
+        if let Some(plain) = c.to_str().and_then(strip_verbatim) {
+            return Ok(PathBuf::from(plain));
+        }
+    }
+    Ok(c)
+}
+
+/// The plain form of a Windows verbatim path, when it is safe to use: `\\?\C:\x` is
+/// `C:\x` and `\\?\UNC\srv\share\x` is `\\srv\share\x`. `None` (keep the verbatim
+/// form) when the plain form would be read differently: 260 characters or more, a reserved
+/// device name (`CON`, `NUL`, `COM1`, ...), a component ending in a dot or space, a `/`,
+/// `.` or `..` components. Pure string code, so it is tested on every OS; std itself adds
+/// the prefix again for long paths when it calls Windows.
+pub fn strip_verbatim(s: &str) -> Option<String> {
+    let plain = if let Some(rest) = s.strip_prefix(r"\\?\UNC\") {
+        format!(r"\\{rest}")
+    } else {
+        let rest = s.strip_prefix(r"\\?\")?;
+        let b = rest.as_bytes();
+        if b.len() < 3 || !b[0].is_ascii_alphabetic() || b[1] != b':' || b[2] != b'\\' {
+            return None;
+        }
+        rest.to_string()
+    };
+    if plain.len() >= 260 || plain.contains('/') {
+        return None;
+    }
+    let body = plain.trim_start_matches('\\');
+    for (i, comp) in body.split('\\').enumerate() {
+        if comp.is_empty() {
+            // Only a trailing separator (`C:\`) may be empty.
+            if i + 1 == body.split('\\').count() {
+                continue;
+            }
+            return None;
+        }
+        if i == 0 && comp.ends_with(':') {
+            continue;
+        }
+        if comp == "." || comp == ".." || comp.ends_with(['.', ' ']) || reserved_name(comp) {
+            return None;
+        }
+    }
+    Some(plain)
+}
+
+/// DOS device names, which Windows reads as devices in any folder and with any extension.
+fn reserved_name(comp: &str) -> bool {
+    let stem = comp.split('.').next().unwrap_or(comp).trim_end();
+    let up = stem.to_ascii_uppercase();
+    matches!(
+        up.as_str(),
+        "CON" | "PRN" | "AUX" | "NUL" | "CONIN$" | "CONOUT$"
+    ) || ((up.starts_with("COM") || up.starts_with("LPT"))
+        && up.len() == 4
+        && matches!(up.as_bytes()[3], b'1'..=b'9'))
+}
+
+/// Is the Windows path `child` inside `dir` (or equal to it)? Components compare without
+/// case, `\` and `/` both separate, and a `\\?\` prefix on either side is ignored. Used for
+/// process image paths, which Windows reports in plain form. Pure string code (tested on every
+/// OS).
+pub fn windows_path_within(child: &str, dir: &str) -> bool {
+    fn comps(s: &str) -> Vec<String> {
+        let s = strip_verbatim(s).unwrap_or_else(|| {
+            s.strip_prefix(r"\\?\")
+                .map(str::to_string)
+                .unwrap_or_else(|| s.to_string())
+        });
+        s.split(['\\', '/'])
+            .filter(|c| !c.is_empty() && *c != ".")
+            .map(str::to_lowercase)
+            .collect()
+    }
+    let (c, d) = (comps(child), comps(dir));
+    !d.is_empty() && c.len() >= d.len() && c[..d.len()] == d[..]
+}
+
 /// Canonical form of a path that may not exist yet: canonicalise the deepest existing
 /// ancestor and append the rest.
 pub fn canonical_lenient(p: &Path) -> PathBuf {
@@ -180,7 +281,7 @@ pub fn canonical_lenient(p: &Path) -> PathBuf {
     let mut existing = abs.as_path();
     let mut rest = Vec::new();
     loop {
-        if let Ok(c) = std::fs::canonicalize(existing) {
+        if let Ok(c) = canonicalize(existing) {
             let mut out = c;
             for r in rest.iter().rev() {
                 out.push(r);
@@ -251,7 +352,14 @@ pub fn current_uid() -> Option<u32> {
     line.split_whitespace().nth(2)?.parse().ok()
 }
 
-/// Is this process running as root (Linux) or elevated (Windows)? Refuse to apply if so.
+/// Is this process running as root (Linux) or elevated (Windows)? Apply refuses if so
+/// (through [`elevation_blocks_apply`]); diagnostics show the plain answer.
+///
+/// Windows: the process token's integrity level, read from `whoami /groups` (the SID
+/// `S-1-16-12288` "High Mandatory Level" or `S-1-16-16384` "System" is present only in an
+/// elevated or SYSTEM process; SIDs are not translated, so this works in every language).
+/// Asked once per process: elevation cannot change while a process runs. If `whoami` cannot
+/// run, `net session` decides (it succeeds only elevated, but needs the Server service).
 pub fn is_elevated() -> bool {
     #[cfg(unix)]
     {
@@ -259,18 +367,91 @@ pub fn is_elevated() -> bool {
     }
     #[cfg(windows)]
     {
-        // `net session` succeeds only in an elevated process. No unsafe code, no extra crate.
-        std::process::Command::new("net")
-            .arg("session")
-            .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
-            .is_ok_and(|s| s.success())
+        static ELEVATED: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+        *ELEVATED.get_or_init(windows_elevated)
     }
     #[cfg(not(any(unix, windows)))]
     {
         false
     }
+}
+
+#[cfg(windows)]
+fn windows_elevated() -> bool {
+    let system32 = system32();
+    let mut whoami = std::process::Command::new(system32.join("whoami.exe"));
+    whoami.args(["/groups", "/fo", "csv", "/nh"]);
+    if let Ok(o) = no_console_window(&mut whoami)
+        .stderr(std::process::Stdio::null())
+        .output()
+        && o.status.success()
+    {
+        return groups_show_elevated(&String::from_utf8_lossy(&o.stdout));
+    }
+    let mut net = std::process::Command::new(system32.join("net.exe"));
+    net.arg("session");
+    no_console_window(&mut net)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success())
+}
+
+/// `%SystemRoot%\System32`: system tools are started by full path, never through `PATH`.
+#[cfg(windows)]
+pub fn system32() -> PathBuf {
+    std::env::var_os("SystemRoot")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .unwrap_or_else(|| PathBuf::from(r"C:\Windows"))
+        .join("System32")
+}
+
+/// Does `whoami /groups` output list an elevated (High) or System integrity level?
+pub fn groups_show_elevated(text: &str) -> bool {
+    text.lines().any(|l| {
+        let l = l.to_ascii_uppercase();
+        l.contains("S-1-16-12288") || l.contains("S-1-16-16384")
+    })
+}
+
+/// Windows: start a console program without flashing a console window over the GUI
+/// (`CREATE_NO_WINDOW`). Elsewhere a no-op.
+pub fn no_console_window(cmd: &mut std::process::Command) -> &mut std::process::Command {
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
+
+#[cfg(feature = "test-hooks")]
+static TEST_ALLOW_ELEVATED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// Test hook (feature `test-hooks` only, never in a release binary): let apply, remove and
+/// restore run in an elevated process. GitHub's Windows runners are administrators with UAC
+/// off, so without this the apply-flow tests could not run there. Child processes get the
+/// same with `STARORG_TEST_ALLOW_ELEVATED=1`.
+#[cfg(feature = "test-hooks")]
+pub fn test_allow_elevated(on: bool) {
+    TEST_ALLOW_ELEVATED.store(on, std::sync::atomic::Ordering::SeqCst);
+}
+
+/// The apply guard: refuse when root or elevated (spec 11). Without the `test-hooks` feature
+/// this is exactly [`is_elevated`].
+pub fn elevation_blocks_apply() -> bool {
+    #[cfg(feature = "test-hooks")]
+    {
+        if TEST_ALLOW_ELEVATED.load(std::sync::atomic::Ordering::SeqCst)
+            || std::env::var_os("STARORG_TEST_ALLOW_ELEVATED").is_some_and(|v| v == "1")
+        {
+            return false;
+        }
+    }
+    is_elevated()
 }
 
 /// Is the file at `path` (already resolved) a regular file owned by the current user?
@@ -348,6 +529,75 @@ mod tests {
         assert_eq!(names, vec!["x.json"]);
         assert!(read_limited(&p, 3).is_err(), "oversized input is rejected");
         assert!(read_limited(&t.path().join("none"), 3).unwrap().is_none());
+    }
+
+    #[test]
+    fn verbatim_prefix_is_dropped_only_when_safe() {
+        let ok = |a: &str, b: &str| assert_eq!(strip_verbatim(a).as_deref(), Some(b), "{a}");
+        ok(
+            r"\\?\C:\Program Files\Roberts Space Industries\StarCitizen",
+            r"C:\Program Files\Roberts Space Industries\StarCitizen",
+        );
+        ok(r"\\?\D:\", r"D:\");
+        ok(r"\\?\UNC\nas\games\StarCitizen", r"\\nas\games\StarCitizen");
+        for keep in [
+            r"C:\plain",
+            r"\\?\Volume{0d7e}\x",
+            r"\\?\C:\Games\NUL",
+            r"\\?\C:\Games\com1.log",
+            r"\\?\C:\Games\trailing.",
+            r"\\?\C:\Games\trailing \x",
+            r"\\?\C:\a/b",
+            r"\\?\C:\a\..\b",
+        ] {
+            assert_eq!(strip_verbatim(keep), None, "{keep}");
+        }
+        let long = format!(r"\\?\C:\{}", "x".repeat(300));
+        assert_eq!(strip_verbatim(&long), None, "long paths keep the prefix");
+    }
+
+    #[test]
+    fn windows_containment_ignores_case_separators_and_prefix() {
+        let dir = r"\\?\C:\Program Files\Roberts Space Industries\StarCitizen\LIVE";
+        assert!(windows_path_within(
+            r"c:\program files\roberts space industries\starcitizen\live\Bin64\StarCitizen.exe",
+            dir
+        ));
+        assert!(windows_path_within(
+            r"C:/Program Files/Roberts Space Industries/StarCitizen/LIVE",
+            dir
+        ));
+        assert!(!windows_path_within(
+            r"C:\Program Files\Roberts Space Industries\StarCitizen\LIVE2\Bin64\StarCitizen.exe",
+            dir
+        ));
+        assert!(!windows_path_within(
+            r"D:\Program Files\Roberts Space Industries\StarCitizen\LIVE\Bin64\StarCitizen.exe",
+            dir
+        ));
+        assert!(!windows_path_within(r"C:\x", ""));
+    }
+
+    #[test]
+    fn whoami_integrity_levels() {
+        let medium = "\"Everyone\",\"Well-known group\",\"S-1-1-0\",\"Mandatory group\"\r\n\"Mandatory Label\\Medium Mandatory Level\",\"Label\",\"S-1-16-8192\",\"\"\r\n";
+        assert!(!groups_show_elevated(medium));
+        // Localised group names, same SID.
+        let high = "\"Etiqueta obligatoria\\Nivel obligatorio alto\",\"Etiqueta\",\"S-1-16-12288\",\"\"\r\n";
+        assert!(groups_show_elevated(high));
+        assert!(groups_show_elevated(
+            "\"x\",\"Label\",\"s-1-16-16384\",\"\""
+        ));
+        assert!(!groups_show_elevated(""));
+    }
+
+    #[test]
+    fn canonicalize_is_plain_and_stable() {
+        let t = tempfile::tempdir().unwrap();
+        let c = canonicalize(t.path()).unwrap();
+        assert!(!c.to_string_lossy().starts_with(r"\\?\"), "{}", c.display());
+        assert_eq!(canonicalize(&c).unwrap(), c);
+        assert_eq!(canonical_lenient(&c.join("a/b")), c.join("a/b"));
     }
 
     #[test]

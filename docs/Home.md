@@ -10,6 +10,10 @@ updated: 2026-11-14
 - [[release|Release process]] ([plain](release.md))
 - [[updates|Updates: check, install, signing]] ([plain](updates.md))
 - [[ci|CI and security checks]] ([plain](ci.md))
+- [[windows|Windows: install, Store, signing, troubleshooting]] ([plain](windows.md))
+- [[windows-test-checklist|Windows real-install test checklist]] ([plain](windows-test-checklist.md))
+- [[store-listing|Microsoft Store listing draft]] ([plain](store-listing.md))
+- [[privacy|Privacy policy]] ([plain](privacy.md))
 - [[plans/specs/starorg-strings-v1|v1 spec]] ([plain](plans/specs/starorg-strings-v1.md))
 - [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps, LUG hooks, dev mode, strings grouping]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
 

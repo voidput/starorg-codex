@@ -87,6 +87,8 @@ const shots = [
     await p.getByText('Will be added to').waitFor();
   }],
   ['blueprints-starorg-connected', 'blueprints', async (p) => p.getByText(/Signed in as/).waitFor(), '&starorg=1'],
+  ['ships', 'ships', async (p) => p.getByRole('listbox', { name: 'My ships, in order' }).waitFor(), '&fleet=grouped'],
+  ['ships-empty', 'ships', async (p) => p.getByText('Make your own ship list').waitFor()],
   ['backups', 'backups', async (p) => p.getByText('Timeline · LIVE').waitFor()],
   ['backups-foreign-restore', 'backups', async (p) => {
     await p.getByRole('button', { name: 'Restore it' }).click();
@@ -157,6 +159,10 @@ const shots = [
     await p.getByText('0.2.0 is available (this is 0.1.0).').waitFor();
     await p.evaluate(toNetwork);
   }, '&update=available'],
+  ['settings-updates-store', 'settings', async (p) => {
+    await p.getByText('Updates come from the Microsoft Store.').waitFor();
+    await p.evaluate(toNetwork);
+  }, '&update=store'],
   ['settings-updates-failed', 'settings', async (p) => {
     await p.getByText(/^Can't see releases for someone\/private-fork/).waitFor();
     await p.evaluate(toNetwork);

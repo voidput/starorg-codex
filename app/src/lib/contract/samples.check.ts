@@ -49,6 +49,12 @@ interface Samples {
   save_diagnostics: string | null;
   hooks_status: T.HooksStatus;
   doctor: T.DoctorReport;
+  fleet_view: T.FleetView;
+  fleet_import: T.FleetImportReport;
+  fleet_import_applied: T.FleetImportReport;
+  fleet_match: T.FleetView;
+  save_ship_names: T.FleetView;
+  fleet_clear: T.FleetView;
   update_status: T.UpdateStatus;
   check_for_updates: T.UpdateStatus;
   check_for_updates_failed: T.UpdateStatus;

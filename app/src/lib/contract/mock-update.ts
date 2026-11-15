@@ -5,7 +5,8 @@
  * repo looks private. A start-up check runs once per session (the 24 h throttle).
  *
  * URL switches: `?update=available` (switch on, already checked: banner shows),
- * `?update=failed` (switch on, a private mirror), `?update=skipped` (0.2.0 skipped).
+ * `?update=failed` (switch on, a private mirror), `?update=skipped` (0.2.0 skipped),
+ * `?update=store` (the Microsoft Store build: no switch, no check, no banner).
  */
 import type { Args, Result } from './client';
 import { ContractError } from './client';
@@ -49,7 +50,10 @@ export function createUpdateMock(settings: () => T.Settings, params: URLSearchPa
     }
   };
   const mode = params.get('update');
-  if (mode) {
+  if (mode === 'store') {
+    st.install = 'store';
+    st.install_note = 'Updates come from the Microsoft Store.';
+  } else if (mode) {
     settings().network.check_updates = true;
     if (mode === 'failed') st.prefs.repo = 'someone/private-fork';
     run();
@@ -58,6 +62,7 @@ export function createUpdateMock(settings: () => T.Settings, params: URLSearchPa
   return {
     update_status: () => view(),
     check_for_updates: ({ req }) => {
+      if (st.install === 'store') return req.force ? fail('invalid', st.install_note) : view();
       const on = settings().network.check_updates;
       if (!on) return req.force ? fail('network-off', 'Turn on "Check for updates" under Settings -> Network first.') : view();
       if (req.force || st.last_checked === null) run();
@@ -86,6 +91,7 @@ export function createUpdateMock(settings: () => T.Settings, params: URLSearchPa
       return null;
     },
     install_update: () => {
+      if (st.install === 'store') fail('invalid', st.install_note);
       if (!settings().network.check_updates) fail('network-off', 'Turn on "Check for updates" under Settings -> Network first.');
       return fail('internal', 'The mock backend does not install updates.');
     },

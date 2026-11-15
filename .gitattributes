@@ -2,3 +2,7 @@
 crates/*/tests/fixtures/** -text
 # Generated contract samples are compared byte for byte.
 app/src/lib/contract/samples.gen.json -text
+# Shared ship-name test vectors (Rust writes, Rust and TS read).
+fixtures/ship-names-vectors.json -text
+# Golden files for the UI scripts (AppxManifest.xml is CRLF) are compared byte for byte.
+app/tests/fixtures/** -text

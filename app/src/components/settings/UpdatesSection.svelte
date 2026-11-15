@@ -2,7 +2,8 @@
   /**
    * Settings -> Network -> Check for updates (docs/updates.md). The switch is the consent
    * (spec 11); with it on: pre-releases, the repo (a public mirror works), the last result and
-   * "Check now". Requests and the 24 h throttle are decided in Rust.
+   * "Check now". Requests and the 24 h throttle are decided in Rust. The Microsoft Store build
+   * shows only a line saying the Store updates it: no switch, no check, nothing to install.
    */
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import { updates } from '@/lib/stores/update.svelte';
-  import { applyUpdateSwitch, checkLine, requestHint } from '@/lib/update';
+  import { applyUpdateSwitch, checkLine, requestHint, storeManaged } from '@/lib/update';
   import { fmtDateTime } from '@/lib/format';
   import { cn } from '@/lib/utils';
 
@@ -35,6 +36,12 @@
   }
 </script>
 
+{#if storeManaged(st)}
+  <div class="flex items-start gap-2 py-1.5">
+    <ToneBadge tone="muted" label="Microsoft Store" />
+    <p class="text-[13px]" role="status">{st?.install_note || 'Updates come from the Microsoft Store.'}</p>
+  </div>
+{:else}
 <SwitchRow id="net-updates" label="Check for updates" hint={requestHint(st?.prefs.repo ?? 'voidput/starorg-strings')} {checked} onchange={toggle} />
 {#if checked && st}
   <div class="mb-1 ml-11.5 grid gap-2.5 border-l pl-3">
@@ -57,4 +64,5 @@
       <p class="text-muted-foreground text-[12px]">{st.install_note}</p>
     </div>
   </div>
+{/if}
 {/if}
