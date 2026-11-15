@@ -383,7 +383,7 @@ fn export_model(
             Err(e) => fail(g, exit::ERROR, "error", &e.to_string()),
         };
     }
-    // The memory limit (addendum 7.17): an export estimated above it is refused up front;
+    // The memory limit (addendum 7.18): an export estimated above it is refused up front;
     // more than the free memory is a warning (the limit still applies).
     let need = model::memory_need(&o, what);
     match memlimit::check(

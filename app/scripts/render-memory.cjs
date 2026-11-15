@@ -1,4 +1,4 @@
-// Headless renders of the memory limit (addendum 7.17): the warning before Developer mode and
+// Headless renders of the memory limit (addendum 7.18): the warning before Developer mode and
 // the MCP server are turned on, Settings > Advanced > Memory limit (default and a small limit),
 // the model export dialog's limit line and the Files reminder; mock backend, dark and light,
 // at 1280x800 and 1024x700. Writes PNGs to .tmp/renders/memory/. Never opens a window.

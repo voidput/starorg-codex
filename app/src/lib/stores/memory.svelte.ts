@@ -1,5 +1,5 @@
 /**
- * The memory limit of the Developer mode and MCP workers (addendum 7.17), shared by the
+ * The memory limit of the Developer mode and MCP workers (addendum 7.18), shared by the
  * Settings row, the warning dialog and the short reminders. Read on first use and again
  * whenever the warning opens (free memory changes).
  */

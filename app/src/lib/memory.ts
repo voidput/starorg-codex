@@ -1,5 +1,5 @@
 /**
- * Memory limit of the Developer mode and MCP workers (addendum 7.17): wording shared by the
+ * Memory limit of the Developer mode and MCP workers (addendum 7.18): wording shared by the
  * warning dialog, the Settings row and the short reminders.
  */
 import type { MemoryEnforcement, MemoryStatus } from './contract/types';
@@ -21,11 +21,11 @@ export function limitText(gb: number): string {
 export function enforcementText(e: MemoryEnforcement): string {
   switch (e) {
     case 'cgroup':
-      return 'Each worker is stopped cleanly at 90% of the limit; a hard cap (cgroup, opt-in) sits 10% (at least 512 MB) above it.';
+      return 'Each worker is stopped cleanly at 90% of the limit (what "fits" means here); a hard cap (cgroup, opt-in) sits 10% (at least 512 MB) above it.';
     case 'rlimit':
-      return 'Each worker is stopped cleanly at 90% of the limit; a hard cap (RLIMIT_DATA) sits 10% (at least 512 MB) above it.';
+      return 'Each worker is stopped cleanly at 90% of the limit (what "fits" means here); a hard cap (RLIMIT_DATA) sits 10% (at least 512 MB) above it.';
     case 'watchdog':
-      return 'Each worker is stopped cleanly at 90% of the limit (Windows has no hard cap here).';
+      return 'Each worker is stopped cleanly at 90% of the limit (what "fits" means here; Windows has no hard cap).';
   }
 }
 
@@ -51,13 +51,23 @@ export function fitsCount(s: Pick<MemoryStatus, 'estimates'>): [number, number] 
 /** The view for a saved limit (null = default) over a base status, as `MemoryStatus::build`. */
 export function memoryView(base: MemoryStatus, gb: number | null): MemoryStatus {
   const limit = gb ?? base.default_gb;
-  const bytes = limit * GIB;
   return {
     ...structuredClone(base),
     limit_gb: limit,
     is_default: gb === null,
-    estimates: (Array.isArray(base.estimates) ? base.estimates : []).map((e) => ({ ...e, fits: e.bytes <= bytes })),
+    estimates: (Array.isArray(base.estimates) ? base.estimates : []).map((e) => ({ ...e, fits: fits(e.bytes, limit, base.stop_percent) })),
   };
+}
+
+/** Where a worker under `limitGb` is stopped (`memlimit::stop_at`): `stopPercent` of it. */
+export function stopAt(limitGb: number, stopPercent: number): number {
+  const limit = Math.round(limitGb * GIB);
+  return Math.floor(limit / 100) * stopPercent;
+}
+
+/** Whether a job needing `bytes` passes under `limitGb` (`memlimit::fits`). */
+export function fits(bytes: number, limitGb: number, stopPercent: number): boolean {
+  return bytes <= stopAt(limitGb, stopPercent);
 }
 
 /** Rounded to the step and kept inside the slider (`Bounds::clamp`). */

@@ -1,4 +1,4 @@
-//! The memory limit on the real backend (addendum 7.17): the setting round trip through
+//! The memory limit on the real backend (addendum 7.18): the setting round trip through
 //! `config.toml`, and the real `dev-worker` (this package's binary, on a synthetic DCB)
 //! stopped by a tiny limit and reported as such instead of a plain crash.
 
@@ -101,17 +101,17 @@ fn the_limit_is_saved_in_config_toml_and_clamped() {
     let f = fake();
     let s = f.backend.memory_status().unwrap();
     assert!(s.is_default);
-    assert!(s.min_gb == 1.0 && s.step_gb == 0.5 && s.max_gb >= s.min_gb);
+    assert!(s.min_gb == 1.5 && s.step_gb == 0.5 && s.max_gb >= s.min_gb);
     assert!(s.default_gb <= 5.0 && s.limit_gb == s.default_gb);
     assert!(s.estimates.windows(2).all(|w| w[0].bytes <= w[1].bytes));
     let s = f
         .backend
         .set_memory_limit(MemoryLimitRequest { gb: Some(0.3) })
         .unwrap();
-    assert_eq!(s.limit_gb, 1.0, "clamped to the slider");
+    assert_eq!(s.limit_gb, 1.5, "clamped to the slider");
     let text = std::fs::read_to_string(f.dirs.config_toml()).unwrap();
     assert!(
-        text.contains("[dev]") && text.contains("memory_limit_gb = 1.0"),
+        text.contains("[dev]") && text.contains("memory_limit_gb = 1.5"),
         "{text}"
     );
     let s = f

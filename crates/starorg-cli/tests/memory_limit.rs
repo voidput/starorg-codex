@@ -1,4 +1,4 @@
-//! `--memory-limit` / `STARORG_MEMORY_LIMIT_GB` of `dev` and `mcp` (addendum 7.17): bad
+//! `--memory-limit` / `STARORG_MEMORY_LIMIT_GB` of `dev` and `mcp` (addendum 7.18): bad
 //! values are usage errors, a model export estimated above the limit is refused before the
 //! archive is read, and `0` lifts the limit.
 
@@ -51,6 +51,8 @@ fn a_model_over_the_limit_is_refused_up_front() {
         let err = String::from_utf8_lossy(&o.stderr);
         assert_eq!(o.status.code(), Some(1), "{err}");
         assert!(err.contains("more than the 1.5 GB memory limit"), "{err}");
+        // Says exactly how to raise it: Full at LOD 1 (about 6.5 GB) needs 7.5 GB.
+        assert!(err.contains("--memory-limit 7.5"), "{err}");
         let v: serde_json::Value =
             serde_json::from_str(String::from_utf8_lossy(&o.stdout).lines().last().unwrap())
                 .unwrap();
@@ -76,6 +78,19 @@ fn bad_values_are_usage_errors() {
     assert!(String::from_utf8_lossy(&o.stderr).contains("not a number of GB"));
     let o = run(t.path(), &["mcp", "--memory-limit", "-3"], &[]);
     assert_eq!(o.status.code(), Some(2));
+    // An empty STARORG_MEMORY_LIMIT_GB= is unset, not a usage error.
+    let o = run(
+        t.path(),
+        &["dev", "types", "--game-dir", "/nonexistent"],
+        &[("STARORG_MEMORY_LIMIT_GB", "")],
+    );
+    assert_ne!(
+        o.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(!String::from_utf8_lossy(&o.stderr).contains("not a number of GB"));
 }
 
 /// Read-only check on a real archive (`STARORG_REAL_P4K=<Data.p4k>`, output under

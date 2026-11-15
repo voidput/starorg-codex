@@ -734,7 +734,7 @@ impl AssetBackend for RealBackend {
         } else {
             &req.name
         };
-        // The memory limit (addendum 7.17): over it is refused; under it but over the free
+        // The memory limit (addendum 7.18): over it is refused; under it but over the free
         // memory asks first ("Export anyway"), and the fresh worker runs under the cap.
         let need = model::memory_need(&o, name);
         match memlimit::check(need, self.memory_limit(), memlimit::meminfo().available) {

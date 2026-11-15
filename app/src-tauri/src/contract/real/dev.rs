@@ -94,7 +94,7 @@ pub struct Worker {
     pub(super) last_used: Mutex<Instant>,
     /// Why it stopped, when it did by itself.
     pub(super) died: Mutex<Option<String>>,
-    /// The memory limit it runs under (addendum 7.17), bytes.
+    /// The memory limit it runs under (addendum 7.18), bytes.
     limit: Option<u64>,
 }
 
@@ -111,9 +111,11 @@ fn death_reason(child: &mut Child, limit: Option<u64>, fallback: &str) -> String
         }
     };
     match status {
-        Some(s) if starorg_core::memlimit::exit_was_memory(&s, limit) => {
+        // Its stderr is not kept: only the watchdog's exit code counts as a memory stop.
+        Some(s) if starorg_core::memlimit::exit_was_memory(&s, limit, None) => {
             starorg_core::memlimit::stopped_message(limit.unwrap_or_default())
         }
+        Some(s) if !s.success() => starorg_core::memlimit::unexpected_message("the explorer", &s),
         _ => fallback.to_string(),
     }
 }

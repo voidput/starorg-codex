@@ -153,13 +153,15 @@ byte-identical (`scripts/compare-gamedata.sh`).
 
 Each extraction worker is held to the memory limit (Settings > Advanced > Memory limit in the
 app; `starorg-strings mcp --memory-limit <GB>` or `STARORG_MEMORY_LIMIT_GB` on the command line;
-default the app's setting, else 5 GB or half the RAM; `0` = none). A dataset whose measured peak
-(table above) is over the limit, or over the memory free at that moment, is refused before a
-worker starts, as a tool error: "Extracting game-ships needs about 4.1 GB, more than the 1.5 GB
-memory limit. Raise the limit ...". A worker that grows past 90% of the limit stops itself with
+default the app's setting, else 5 GB or half the RAM; `0` = none). A worker is stopped at 90% of
+the limit, so a dataset is refused before a worker starts, as a tool error, when its measured
+peak (table above) is over that point or over the memory free at that moment: "Extracting
+game-ships needs about 4.1 GB, more than the 1.5 GB memory limit allows ... Set the limit to at
+least 5 GB ...". `search` needs `game-ships`, so it wants a limit of at least 5 GB (the default
+on machines with 10 GB of RAM or more). A worker that grows past 90% anyway stops itself with
 "Stopped: needed more than X GB ..."; a hard cap (`RLIMIT_DATA` on Linux) sits 10% (at least
 512 MB) above as a last resort. The server process itself is not limited. Turning the server on
-in the app shows these numbers first. Details: addendum 7.17.
+in the app shows these numbers first. Details: addendum 7.18.
 
 ## Security and privacy
 

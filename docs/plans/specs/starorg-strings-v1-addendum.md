@@ -1392,7 +1392,7 @@ game-folder refusal (channel, sibling channel, install root; no Wine prefix), fr
 - A 3D preview in the app (exports only).
 - Progress labels inside a model export (the protocol carries done/total only).
 
-### 7.17 Memory limit for the Developer mode and MCP workers (branch `ram-limit`, 2026-11-15)
+### 7.18 Memory limit (Developer mode and MCP workers; branch `ram-limit`, 2026-11-15)
 
 Owner request: "in devmode/mcp mode give a warning it may eat lots of ram and give it a ram
 limiter slider". Code: `starorg_core::memlimit` (shared), the app's `contract/real/memory.rs`,
@@ -1404,17 +1404,24 @@ limiter slider". Code: `starorg_core::memlimit` (shared), the app's `contract/re
   peaks (7.16 and docs/mcp.md: Explorer/Files 0.5-1 GB, Print shell 1.4-1.8 GB, Full 6-7 GB and
   an Idris about 11 GB; MCP datasets up to 1.5 GB, ship components 2.2 GB, ships 4.1 GB; every
   worker at least 0.5-0.9 GB for the archive index), this computer's total and free RAM, and the
-  limit. Short reminders stay: the Dev mode and MCP hints, the MCP card and its Activity panel,
+  limit; each worker has its own cap. Rows that do not fit under the limit are marked, and the
+  MCP dialog says so when Ships (4.1 GB, needed by `search`) does not fit (an 8 GB machine's
+  default is 4 GB). Short reminders stay: the Dev mode and MCP hints, the MCP card and its Activity panel,
   the Files screen line, and the model export dialog (the preset's estimate against the limit).
 - **Setting.** `[dev] memory_limit_gb` in `config.toml` (shared with the CLI). Slider in Settings
-  > Advanced > Memory limit: 1 GB .. total RAM - 2 GB, 0.5 GB steps; default **5 GB** or half the
+  > Advanced > Memory limit: **1.5 GB** .. total RAM - 2 GB, 0.5 GB steps (1.5 GB, not 1 GB: the
+  workers' baseline is 0.92-0.94 GB while the archive index is built, above 90% of 1 GB; under
+  3.5 GB of RAM the row and the dialog explain that workers compete with the system for it,
+  `MemoryStatus.note`); default **5 GB** or half the
   RAM when that is less (deviation from the 4 GB first agreed: the MCP `ships` extraction peaks
   at 3.9-4.1 GB, above the watchdog's 90% of 4 GB, so 4 GB would break `search` out of the box).
-  It lists which measured jobs fit. Contract: `memory_status`, `set_memory_limit`
+  It lists which measured jobs fit, judged like the guard (below). Contract: `memory_status`, `set_memory_limit`
   (`MemoryStatus`, `MemoryEstimate`, `MemoryEnforcement`, `MemoryLimitRequest`). A value is read at
-  every worker start; a running worker keeps its cap. A hand-edited value below 1 GB is honoured.
+  every worker start; a running worker keeps its cap. A hand-edited value below the slider is honoured.
 - **CLI.** `dev ... --memory-limit <GB>` and `mcp --memory-limit <GB>`, or
-  `STARORG_MEMORY_LIMIT_GB`; default the setting, else as above; `0` = none. `dev` runs in the
+  `STARORG_MEMORY_LIMIT_GB`; default the setting, else as above; `0` = none; an empty
+  `STARORG_MEMORY_LIMIT_GB=` counts as unset. A refusal names the limit that would pass
+  (`--memory-limit 7.5` for a Full export at LOD 1). `dev` runs in the
   CLI's own process, which arms itself; `mcp` caps each extraction worker (not the server).
 - **Scope.** Only the `dev-worker`, the asset workers (shared and per model export) and the
   `mcp-extract-worker`. Setup and apply (`extract-worker`) are never limited.
@@ -1423,22 +1430,30 @@ limiter slider". Code: `starorg_core::memlimit` (shared), the app's `contract/re
 "out of memory" notifications on the owner's desktop):
 
 1. *Soft guard before a start* (`memlimit::check`): a model export (estimate per preset, LOD and
-   ship: capital ships by name, Full 11 GB) or an MCP dataset whose estimate is over the limit is
-   refused with "... needs about X GB, more than the Y GB memory limit. Raise the limit ...". Over
+   ship: capital ships by name, Full 11 GB) or an MCP dataset whose estimate is over the
+   watchdog's stop point (`memlimit::stop_at`, 90% of the limit) is refused with "... needs
+   about X GB, more than the Y GB memory limit allows ... Set the limit to at least Z GB ...".
+   The guard, `MemoryEstimate.fits` and the TS view (`fits`/`stopAt` in `app/src/lib/memory.ts`,
+   using `MemoryStatus.stop_percent`) all use that one threshold, so a job that passes is never
+   then stopped for being in the 90-100% band (review finding: `game-item-sources`, 1.5 GB, at a
+   1.5 GB limit). A test checks `check(need) == Ok` implies `need <= stop_at`. Over
    the limit's free memory but under the limit: the app asks ("Export anyway", replacing the old
    fixed Full 8 GB / Print 2 GB check); the MCP extractor refuses (no one to ask); the CLI warns.
-   Explorer and Files starts (about 1 GB, the slider's minimum) are not pre-checked.
+   Explorer and Files starts (about 1 GB, under the slider's minimum) are not pre-checked.
 2. *Watchdog while running* (primary stop): the parent passes the limit in
    `STARORG_WORKER_MEMORY_LIMIT`; the worker's first act (`memlimit::arm_from_env`) starts a thread
-   that reads its anonymous resident memory every 25 ms (`RssAnon`; page cache from reading the
-   archive does not count; Windows: committed private bytes via `sysinfo`) and at **90%** prints
-   `memory-limit: Stopped: needed more than X GB. ...` and exits with code 7. The parent maps exit
-   7 (or, past the hard cap, SIGABRT/SIGKILL; Windows 0xC0000409/0xC0000017) to that message: the
-   explorer/asset worker status and the call's error, the MCP tool error.
+   that reads its anonymous memory every 25 ms (`RssAnon` + `VmSwap`; page cache from reading the
+   archive does not count; Windows: committed private bytes, one `sysinfo` instance refreshing
+   only its own process, every 100 ms) and at **90%** prints `memory-limit: Stopped: needed more
+   than X GB. ...` and exits with code 7. The parent calls only exit 7 a memory stop (the MCP
+   extractor, which keeps the worker's stderr, also Rust's "memory allocation of N bytes failed"
+   after a hard-cap abort): the explorer/asset worker status and the call's error, the MCP tool
+   error. Any other abort or kill reads "the explorer stopped unexpectedly (signal ...)".
 3. *Hard cap, last resort, with headroom* (`limit + max(10%, 512 MB)`): Linux `RLIMIT_DATA` in the
-   worker (rustix, safe API): an allocation past it fails and the worker aborts, a clean exit to
-   us with no kernel OOM kill and no desktop notification; `RLIMIT_CORE` is set to 0 in workers so
-   that abort leaves no crash-reporter popup. `RLIMIT_AS` is not used: thread stacks and malloc
+   worker (rustix, safe API): an allocation past it fails and the worker aborts, no kernel OOM kill
+   and no desktop notification. Workers are made non-dumpable (`PR_SET_DUMPABLE` 0, rustix
+   `set_dumpable_behavior`), so that abort is never handed to systemd-coredump and no crash
+   reporter pops up (`RLIMIT_CORE=0` alone does not stop a core-pattern pipe). `RLIMIT_AS` is not used: thread stacks and malloc
    arenas reserve far more address space than they touch. `Data.p4k` is **not** memory-mapped
    (StarBreaker's `MappedP4k` reads with `pread` from a pool of handles), so neither limit counts
    the archive. A cgroup v2 `memory.max` (`systemd-run --user --scope -p MemoryMax=... -p
@@ -1449,22 +1464,24 @@ limiter slider". Code: `starorg_core::memlimit` (shared), the app's `contract/re
 
 **Measured on LIVE 4.10.200.58746** (release, read only, game not running, limit 1.5 GB):
 `ProcessExtractor` refused `game-ships` up front in under 1 ms ("needs about 4.1 GB, more than
-the 1.5 GB memory limit") and extracted `game-armor` (1.26 s, peak 0.95 GB) with the worker's
+the 1.5 GB memory limit allows") and extracted `game-armor` (1.26 s, peak 0.95 GB) with the worker's
 `Max data size` at 2147483648 (1.5 GB + 512 MB, `/proc/<pid>/limits`). `game-ships` started
 directly under the same limit (guard bypassed) was stopped by its watchdog with exit 7 and the
 message, its anonymous memory peaking at 1.38 GB (25 ms polling; 1.74 GB at the first version's
 100 ms), no file written.
 
-**Tests.** Core: slider bounds and clamping, config round trip, CLI resolution, estimates and
-the guard, exit mapping (`ExitStatus::from_raw`), command wrapping; `tests/memlimit_child.rs`
+**Tests.** Core: slider bounds and clamping, the low-RAM note, config round trip, CLI
+resolution (empty env unset), estimates, the guard against the stop point over a grid of needs
+and limits and `limit_for`, usage parsing (`RssAnon` + `VmSwap`), exit mapping (`ExitStatus::from_raw`), command wrapping; `tests/memlimit_child.rs`
 starts its own test binary as a child that allocates past 256 MB and is stopped by the watchdog
 (exit 7, `RLIMIT_DATA` 768 MB shown from `/proc/self/limits`), and one under the limit finishes;
-the cgroup case runs only with `STARORG_TEST_REAL_CGROUP=1` (CI). MCP: the guard. CLI: flag and
-env refusal of a Full export, bad values, and the real-archive check above
+the cgroup case runs only with `STARORG_TEST_REAL_CGROUP=1`, which nothing sets (not CI
+either: runners may lack a user systemd; on a desktop a failing scope pops a notification). MCP: the guard. CLI: flag and
+env refusal of a Full export with the limit that would pass, bad and empty values, and the real-archive check above
 (`STARORG_REAL_P4K`, `STARORG_REAL_OUT`). App: contract samples, mock round trip,
 `tests/real_memory.rs` (setting saved and clamped; the real `dev-worker` under a 1 MB limit
 reports "Stopped: needed more than 1 MB" and opens again after the limit is raised). TS:
-`tests/memory.test.ts`. Renders: `app/scripts/render-memory.cjs` (`.tmp/renders/memory/`).
+`tests/memory.test.ts` (the same `fits` as Rust, checked against the samples). Renders: `app/scripts/render-memory.cjs` (`.tmp/renders/memory/`).
 
 **Not done.** A Windows hard cap (Job Object; needs an `unsafe` exception or a safe crate); the
 CLI `dev` runs in-process, so its cap is `RLIMIT_DATA` + watchdog, never a cgroup; estimates are

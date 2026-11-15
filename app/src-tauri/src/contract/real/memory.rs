@@ -1,5 +1,5 @@
 //! The memory limit of the Developer mode and MCP workers in the real backend (addendum
-//! 7.17): `[dev] memory_limit_gb` in `config.toml`, read at every worker start, so a change
+//! 7.18): `[dev] memory_limit_gb` in `config.toml`, read at every worker start, so a change
 //! applies to the next worker (a running one keeps the cap it started with).
 
 use super::{RealBackend, io};

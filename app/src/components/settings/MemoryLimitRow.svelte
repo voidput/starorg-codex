@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Settings > Advanced > Memory limit (addendum 7.17): the cap of each Developer mode and MCP
+   * Settings > Advanced > Memory limit (addendum 7.18): the cap of each Developer mode and MCP
    * worker, 1 GB .. RAM - 2 GB in 0.5 GB steps, saved in config.toml ([dev] memory_limit_gb).
    * Lists which measured jobs fit under it. Normal setup and apply are never limited.
    */
@@ -10,7 +10,7 @@
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
   import { Button } from '@/components/ui/button';
   import { toContractError } from '@/lib/contract/client';
-  import { enforcementText, fitsCount, gbText, limitText, machineText } from '@/lib/memory';
+  import { enforcementText, fits as fitsUnder, fitsCount, gbText, limitText, machineText } from '@/lib/memory';
   import { loadMemory, memory, saveMemoryLimit } from '@/lib/stores/memory.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
 
@@ -21,8 +21,7 @@
 
   const s = $derived(memory.status);
   const value = $derived(draft ?? s?.limit_gb ?? 0);
-  const bytes = $derived(value * 1024 ** 3);
-  const fits = $derived(s ? s.estimates.map((e) => ({ ...e, fits: e.bytes <= bytes })) : []);
+  const fits = $derived(s ? s.estimates.map((e) => ({ ...e, fits: fitsUnder(e.bytes, value, s.stop_percent) })) : []);
   const counts = $derived(fitsCount({ estimates: fits }));
 
   async function save(gb: number | null) {
@@ -74,6 +73,7 @@
         </div>
       {/each}
     </div>
-    <p class="text-muted-foreground text-[11.5px]">{enforcementText(s.enforcement)} Command line: <span class="mono">--memory-limit GB</span> or <span class="mono">STARORG_MEMORY_LIMIT_GB</span> (0 = none).</p>
+    {#if s.note}<p class="text-warning text-[12px]" role="status">{s.note}</p>{/if}
+    <p class="text-muted-foreground text-[11.5px]">{enforcementText(s.enforcement)} Command line: <span class="mono whitespace-nowrap">--memory-limit GB</span> or <span class="mono whitespace-nowrap">STARORG_MEMORY_LIMIT_GB</span> (0 = none).</p>
   {/if}
 </div>

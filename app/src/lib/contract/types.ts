@@ -1059,7 +1059,7 @@ export interface McpToggle {
   enabled: boolean;
 }
 
-/** How the memory cap is held on this machine (addendum 7.17). */
+/** How the memory cap is held on this machine (addendum 7.18). */
 export type MemoryEnforcement = 'cgroup' | 'rlimit' | 'watchdog';
 
 export interface MemoryEstimate {
@@ -1080,8 +1080,12 @@ export interface MemoryStatus {
   step_gb: number;
   default_gb: number;
   enforcement: MemoryEnforcement;
+  /** A worker is stopped at this share of the limit; `fits` is measured against it. */
+  stop_percent: number;
   /** Smallest first. */
   estimates: MemoryEstimate[];
+  /** Set on machines with too little RAM for a comfortable limit. */
+  note: string | null;
 }
 
 export interface MemoryLimitRequest {

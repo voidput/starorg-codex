@@ -1,4 +1,4 @@
-//! Memory limit for the Developer mode and MCP worker processes (addendum 7.17).
+//! Memory limit for the Developer mode and MCP worker processes (addendum 7.18).
 //!
 //! The explorer (`dev-worker`), the asset workers (`asset-worker`, one fresh per model export)
 //! and the MCP extraction worker (`mcp-extract-worker`) can each take several GB. This module
@@ -9,24 +9,29 @@
 //!   the RAM when that is less ([`bounds`]). The CLI's `--memory-limit` and
 //!   [`ENV_LIMIT_GB`] override it ([`effective_limit`]).
 //! - **Estimates** of the measured peaks ([`estimates`], [`dataset_estimate`],
-//!   [`model_estimate`]) and the soft guard before a start ([`check`]).
+//!   [`model_estimate`]) and the soft guard before a start ([`check`]). The guard and every
+//!   "fits" compare with [`stop_at`] (90% of the limit), the point where the watchdog stops a
+//!   worker, so a job that passes the guard is not then stopped.
 //! - **The guard while it runs** (primary): the limit travels to the child in [`ENV_CHILD`]
 //!   ([`apply`]); the child calls [`arm_from_env`] first thing, which starts a watchdog
 //!   thread that stops the process cleanly (exit [`EXIT_MEMORY`], our own message) at
-//!   [`STOP_PERCENT`] of the limit, measured every 25 ms as anonymous resident memory
-//!   (Linux `RssAnon`; the archive is read with `pread` into the page cache, which is not
-//!   counted) or committed private bytes (Windows).
+//!   [`STOP_PERCENT`] of the limit, measured every 25 ms as anonymous memory (Linux
+//!   `RssAnon` + `VmSwap`; the archive is read with `pread` into the page cache, which is not
+//!   counted) or every 100 ms as committed private bytes (Windows).
 //! - **The hard cap** (last resort), with [`headroom`] above the limit (10%, at least
 //!   512 MB) so the watchdog always acts first: on Linux the child lowers its own
 //!   `RLIMIT_DATA` (an allocation past it fails and the worker aborts; no kernel OOM kill,
-//!   so no desktop "out of memory" notification; core dumps are switched off for workers so
-//!   no crash reporter pops up either). Not `RLIMIT_AS`: thread stacks and allocator arenas
-//!   reserve far more address space than they use. A cgroup v2 `memory.max`
-//!   (`systemd-run --user --scope -p MemoryMax=...`) is opt-in with [`ENV_CGROUP`]: it also
-//!   caps page cache and child processes, but a hit is a kernel OOM kill, which KDE and
-//!   GNOME announce with a system notification. Windows has no hard cap: a Job Object with a
-//!   process memory limit needs `unsafe` FFI, which the workspace forbids.
-//! - **The verdict** on a child that died ([`exit_was_memory`], [`stopped_message`]).
+//!   so no desktop "out of memory" notification). Workers are made non-dumpable
+//!   (`PR_SET_DUMPABLE` 0), so such an abort is never handed to systemd-coredump and no crash
+//!   reporter pops up (`RLIMIT_CORE=0` would not stop a core-pattern pipe). Not `RLIMIT_AS`:
+//!   thread stacks and allocator arenas reserve far more address space than they use. A
+//!   cgroup v2 `memory.max` (`systemd-run --user --scope -p MemoryMax=...`) is opt-in with
+//!   [`ENV_CGROUP`]: it also caps page cache and child processes, but a hit is a kernel OOM
+//!   kill, which KDE and GNOME announce with a system notification. Windows has no hard cap:
+//!   a Job Object with a process memory limit needs `unsafe` FFI, which the workspace
+//!   forbids.
+//! - **The verdict** on a child that died ([`exit_was_memory`], [`stopped_message`],
+//!   [`unexpected_message`]).
 //!
 //! Normal setup and apply (the `extract-worker`) are never limited.
 
@@ -37,8 +42,9 @@ use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 pub const GIB: u64 = 1024 * 1024 * 1024;
-/// Slider bounds and step, in GB (GiB).
-pub const MIN_GB: f64 = 1.0;
+/// Slider bounds and step, in GB (GiB). The minimum leaves the workers' baseline (0.92-0.94 GB
+/// while the archive index is built) under the watchdog's 90%.
+pub const MIN_GB: f64 = 1.5;
 pub const STEP_GB: f64 = 0.5;
 /// Left for the system and the game when the slider is at its top.
 pub const RESERVE_GB: f64 = 2.0;
@@ -59,8 +65,12 @@ pub const ENV_CGROUP: &str = "STARORG_MEMORY_CGROUP";
 pub const EXIT_MEMORY: i32 = 7;
 /// The watchdog stops a worker at this share of the limit (percent).
 pub const STOP_PERCENT: u64 = 90;
-/// How often the watchdog looks.
-pub const POLL: Duration = Duration::from_millis(25);
+/// How often the watchdog looks (Windows: a `sysinfo` refresh per look, so less often).
+pub const POLL: Duration = if cfg!(windows) {
+    Duration::from_millis(100)
+} else {
+    Duration::from_millis(25)
+};
 /// The watchdog's stderr line starts with this.
 pub const MARKER: &str = "memory-limit:";
 
@@ -134,8 +144,9 @@ fn floor_step(gb: f64) -> f64 {
     (gb / STEP_GB).floor() * STEP_GB
 }
 
-/// The slider for a machine with `total` bytes of RAM: 1 GB .. total - 2 GB in 0.5 GB steps,
-/// default 5 GB or half the RAM when that is less (never below 1 GB).
+/// The slider for a machine with `total` bytes of RAM: 1.5 GB .. total - 2 GB in 0.5 GB
+/// steps, default 5 GB or half the RAM when that is less (never below 1.5 GB; see
+/// [`low_ram_note`] for machines where that is most of the RAM).
 pub fn bounds(total: Option<u64>) -> Bounds {
     let max_gb = match total {
         Some(t) => floor_step(t as f64 / GIB as f64 - RESERVE_GB).max(MIN_GB),
@@ -149,6 +160,19 @@ pub fn bounds(total: Option<u64>) -> Bounds {
         step_gb: STEP_GB,
         default_gb,
     }
+}
+
+/// Shown with the slider when the machine has less than [`MIN_GB`] + [`RESERVE_GB`] of RAM:
+/// the workers then compete with the system and the game for most of it.
+pub fn low_ram_note(total: Option<u64>) -> Option<String> {
+    let t = total?;
+    (t < gb_bytes(MIN_GB + RESERVE_GB)).then(|| {
+        format!(
+            "This computer has {} of RAM. Each Developer mode or MCP worker needs at least about 1 GB, so the limit cannot go below {}; close the game and other programs before using them, or expect them to stop.",
+            human(t),
+            human(gb_bytes(MIN_GB))
+        )
+    })
 }
 
 impl Bounds {
@@ -216,6 +240,11 @@ pub fn parse_gb(s: &str) -> Result<Option<f64>, String> {
     }
 }
 
+/// `None` for a missing or empty value (`STARORG_MEMORY_LIMIT_GB=` is unset).
+fn set_value(v: Option<&str>) -> Option<&str> {
+    v.filter(|e| !e.trim().is_empty())
+}
+
 /// The CLI's limit in bytes: `flag` (`--memory-limit`), else [`ENV_LIMIT_GB`], else the
 /// setting, else the default. `None` = no limit (`0`).
 pub fn effective_limit(
@@ -224,7 +253,7 @@ pub fn effective_limit(
     cfg: &Config,
     total: Option<u64>,
 ) -> Result<Option<u64>, String> {
-    let gb = match flag.or(env.filter(|e| !e.trim().is_empty())) {
+    let gb = match set_value(flag).or(set_value(env)) {
         Some(s) => parse_gb(s)?,
         None => Some(limit_gb(cfg, total)),
     };
@@ -376,9 +405,30 @@ pub enum Fit {
     },
 }
 
+/// Where the watchdog stops a worker under `limit`: [`STOP_PERCENT`] of it. The guard and
+/// every "fits" use this, not the limit itself, so a job that passes is not then stopped.
+pub fn stop_at(limit: u64) -> u64 {
+    limit / 100 * STOP_PERCENT
+}
+
+/// The smallest slider value (GB, a [`STEP_GB`] multiple) under which `need` fits.
+pub fn limit_for(need: u64) -> f64 {
+    let gb = need as f64 * 100.0 / STOP_PERCENT as f64 / GIB as f64;
+    let mut l = ((gb / STEP_GB).ceil() * STEP_GB).max(MIN_GB);
+    while stop_at(gb_bytes(l)) < need {
+        l += STEP_GB;
+    }
+    l
+}
+
+/// Whether `need` fits under `limit` (what the watchdog allows).
+pub fn fits(need: u64, limit: u64) -> bool {
+    need <= stop_at(limit)
+}
+
 pub fn check(need: u64, limit: Option<u64>, available: Option<u64>) -> Fit {
     if let Some(l) = limit
-        && need > l
+        && !fits(need, l)
     {
         return Fit::OverLimit { need, limit: l };
     }
@@ -390,13 +440,18 @@ pub fn check(need: u64, limit: Option<u64>, available: Option<u64>) -> Fit {
     Fit::Ok
 }
 
-/// "Exporting this model needs about 11 GB, more than the 4 GB memory limit. ..."
+/// "Exporting this model needs about 7 GB, more than the 5 GB memory limit allows. Set it to
+/// at least 8 GB ..."
 pub fn over_limit_message(what: &str, need: u64, limit: u64) -> String {
+    let to = limit_for(need);
     format!(
-        "{what} needs about {}, more than the {} memory limit. {}",
+        "{what} needs about {}, more than the {} memory limit allows (a worker is stopped at {}% of it). Set the limit to at least {} (Settings > Advanced > Memory limit; command line: --memory-limit {} or STARORG_MEMORY_LIMIT_GB={}), or pick a smaller dataset or export.",
         human(need),
         human(limit),
-        RAISE
+        STOP_PERCENT,
+        human(gb_bytes(to)),
+        to,
+        to
     )
 }
 
@@ -558,32 +613,20 @@ pub fn command_limit(cmd: &Command) -> Option<u64> {
 }
 
 /// Whether a child started under `limit` that ended with `status` (and that we did not stop
-/// ourselves) hit the limit: its watchdog's [`EXIT_MEMORY`]; past the hard cap on Linux
-/// SIGABRT (an allocation refused by `RLIMIT_DATA` aborts) or SIGKILL (the opt-in cgroup's
-/// OOM kill); on Windows an abort (`0xC0000409`) or `STATUS_NO_MEMORY`.
-pub fn exit_was_memory(status: &ExitStatus, limit: Option<u64>) -> bool {
-    if limit.is_none() {
+/// ourselves) was stopped for memory: its watchdog's [`EXIT_MEMORY`], or, past the hard cap,
+/// Rust's "memory allocation of N bytes failed" in its `stderr` when the caller kept it. Any
+/// other abort or kill is not called a memory stop (see [`unexpected_message`]).
+pub fn exit_was_memory(status: &ExitStatus, limit: Option<u64>, stderr: Option<&str>) -> bool {
+    if limit.is_none() || status.success() {
         return false;
     }
-    if status.code() == Some(EXIT_MEMORY) {
-        return true;
-    }
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::ExitStatusExt;
-        matches!(status.signal(), Some(6) | Some(9))
-    }
-    #[cfg(windows)]
-    {
-        matches!(
-            status.code().map(|c| c as u32),
-            Some(0xC000_0409) | Some(0xC000_0017)
-        )
-    }
-    #[cfg(not(any(unix, windows)))]
-    {
-        false
-    }
+    status.code() == Some(EXIT_MEMORY)
+        || stderr.is_some_and(|e| e.contains("memory allocation of") && e.contains("failed"))
+}
+
+/// A worker that ended by itself for no reason we can name.
+pub fn unexpected_message(what: &str, status: &ExitStatus) -> String {
+    format!("{what} stopped unexpectedly ({status})")
 }
 
 // ---------------------------------------------------------------------------------------
@@ -606,44 +649,77 @@ pub fn cgroup_memory_max() -> Option<u64> {
     v.trim().parse().ok()
 }
 
-/// This process's memory as the watchdog counts it: Linux anonymous resident memory
-/// (`RssAnon`; file pages of the archive read are not counted), Windows committed private
-/// bytes.
-pub fn own_usage() -> Option<u64> {
-    #[cfg(windows)]
-    {
-        use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
-        let pid = sysinfo::get_current_pid().ok()?;
-        let mut sys = System::new().ok()?;
-        sys.refresh_processes_specifics(
-            ProcessesToUpdate::Some(&[pid]),
-            false,
-            ProcessRefreshKind::nothing().with_memory(),
-        );
-        sys.process(pid).map(|p| p.virtual_memory())
-    }
-    #[cfg(not(windows))]
-    {
-        let s = std::fs::read_to_string("/proc/self/status").ok()?;
-        s.lines()
-            .find_map(|l| l.strip_prefix("RssAnon:"))
+/// `RssAnon` + `VmSwap` of a `/proc/<pid>/status` text: anonymous memory, resident or
+/// swapped out (file pages of the archive read are not counted).
+pub fn parse_usage(status: &str) -> Option<u64> {
+    let kb = |name: &str| {
+        status
+            .lines()
+            .find_map(|l| l.strip_prefix(name))
             .and_then(|v| v.trim().strip_suffix("kB"))
             .and_then(|v| v.trim().parse::<u64>().ok())
-            .map(|kb| kb * 1024)
+    };
+    let anon = kb("RssAnon:")?;
+    Some((anon + kb("VmSwap:").unwrap_or(0)) * 1024)
+}
+
+/// Reads this process's memory as the watchdog counts it: Linux [`parse_usage`] of
+/// `/proc/self/status`, Windows committed private bytes (one `sysinfo` instance, refreshing
+/// only this process).
+pub struct UsageProbe {
+    #[cfg(windows)]
+    sys: Option<(sysinfo::System, sysinfo::Pid)>,
+}
+
+impl UsageProbe {
+    pub fn new() -> Self {
+        Self {
+            #[cfg(windows)]
+            sys: sysinfo::get_current_pid()
+                .ok()
+                .and_then(|pid| sysinfo::System::new().ok().map(|s| (s, pid))),
+        }
     }
+
+    pub fn read(&mut self) -> Option<u64> {
+        #[cfg(windows)]
+        {
+            use sysinfo::{ProcessRefreshKind, ProcessesToUpdate};
+            let (sys, pid) = self.sys.as_mut()?;
+            sys.refresh_processes_specifics(
+                ProcessesToUpdate::Some(&[*pid]),
+                false,
+                ProcessRefreshKind::nothing().with_memory(),
+            );
+            sys.process(*pid).map(|p| p.virtual_memory())
+        }
+        #[cfg(not(windows))]
+        {
+            parse_usage(&std::fs::read_to_string("/proc/self/status").ok()?)
+        }
+    }
+}
+
+impl Default for UsageProbe {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// One reading of [`UsageProbe`].
+pub fn own_usage() -> Option<u64> {
+    UsageProbe::new().read()
 }
 
 #[cfg(target_os = "linux")]
 fn set_rlimit_data(limit: u64) -> bool {
-    use rustix::process::{Resource, Rlimit, getrlimit, setrlimit};
-    // An abort at the hard cap leaves no core dump (no crash reporter notification).
-    let _ = setrlimit(
-        Resource::Core,
-        Rlimit {
-            current: Some(0),
-            maximum: getrlimit(Resource::Core).maximum,
-        },
-    );
+    use rustix::process::{
+        DumpableBehavior, Resource, Rlimit, getrlimit, set_dumpable_behavior, setrlimit,
+    };
+    // An abort at the hard cap leaves no core dump: a non-dumpable process is never handed to
+    // the core pattern (systemd-coredump), so no crash reporter notification. RLIMIT_CORE=0
+    // alone would not stop a pipe handler.
+    let _ = set_dumpable_behavior(DumpableBehavior::NotDumpable);
     let cur = getrlimit(Resource::Data);
     let max = cur.maximum;
     let soft = max.map_or(limit, |m| m.min(limit));
@@ -686,12 +762,13 @@ pub type OnStop = Box<dyn Fn(&str) + Send + 'static>;
 /// limit.
 pub fn arm(limit: u64, exit_code: i32, on_stop: OnStop) -> Armed {
     let hard = hard_cap(limit);
-    let stop_at = limit / 100 * STOP_PERCENT;
+    let stop_at = stop_at(limit);
     let _ = std::thread::Builder::new()
         .name("memory-watchdog".into())
         .spawn(move || {
+            let mut probe = UsageProbe::new();
             loop {
-                if own_usage().is_some_and(|u| u >= stop_at) {
+                if probe.read().is_some_and(|u| u >= stop_at) {
                     on_stop(&stopped_message(limit));
                     std::process::exit(exit_code);
                 }
@@ -728,7 +805,7 @@ mod tests {
         let b = bounds(Some(32 * GIB));
         assert_eq!(
             (b.min_gb, b.max_gb, b.step_gb, b.default_gb),
-            (1.0, 30.0, 0.5, 5.0)
+            (1.5, 30.0, 0.5, 5.0)
         );
         // Half the RAM when that is less than 5 GB.
         let b = bounds(Some(6 * GIB));
@@ -736,17 +813,56 @@ mod tests {
         // 7.6 GB usable: max floors to a step.
         let b = bounds(Some(gb_bytes(7.6)));
         assert_eq!((b.max_gb, b.default_gb), (5.5, 3.5));
-        // Tiny machines: never below 1 GB.
+        // Tiny machines: never below 1.5 GB, with a note.
         let b = bounds(Some(2 * GIB));
-        assert_eq!((b.max_gb, b.default_gb), (1.0, 1.0));
+        assert_eq!((b.max_gb, b.default_gb), (1.5, 1.5));
+        assert!(low_ram_note(Some(2 * GIB)).unwrap().contains("2 GB of RAM"));
+        assert_eq!(low_ram_note(Some(8 * GIB)), None);
+        assert_eq!(low_ram_note(None), None);
         let b = bounds(None);
         assert_eq!((b.max_gb, b.default_gb), (UNKNOWN_MAX_GB, 5.0));
         let b = bounds(Some(16 * GIB));
         assert_eq!(b.clamp(3.2), 3.0);
         assert_eq!(b.clamp(3.3), 3.5);
-        assert_eq!(b.clamp(0.1), 1.0);
+        assert_eq!(b.clamp(0.1), 1.5);
         assert_eq!(b.clamp(99.0), 14.0);
         assert_eq!(b.clamp(f64::NAN), 5.0);
+    }
+
+    /// One source of truth: whatever the guard lets through is under the watchdog's stop,
+    /// and `limit_for` always gives a limit the job passes.
+    #[test]
+    fn the_guard_never_passes_what_the_watchdog_stops() {
+        let mut need = 50 * 1024 * 1024;
+        while need < 20 * GIB {
+            for tenth in 10..=300 {
+                let limit = GIB / 10 * tenth;
+                if check(need, Some(limit), None) == Fit::Ok {
+                    assert!(need <= stop_at(limit), "{need} at {limit}");
+                    assert!(fits(need, limit));
+                } else {
+                    assert!(need > stop_at(limit));
+                }
+            }
+            let l = limit_for(need);
+            assert_eq!(check(need, Some(gb_bytes(l)), None), Fit::Ok, "{need}");
+            if l > MIN_GB {
+                assert_ne!(
+                    check(need, Some(gb_bytes(l - STEP_GB)), None),
+                    Fit::Ok,
+                    "{need}: {l} is not the smallest"
+                );
+            }
+            need = need * 23 / 20;
+        }
+    }
+
+    #[test]
+    fn usage_counts_anonymous_and_swapped() {
+        let s = "VmRSS:\t 900 kB\nRssAnon:\t 600 kB\nRssFile:\t 300 kB\nVmSwap:\t 100 kB\n";
+        assert_eq!(parse_usage(s), Some(700 * 1024));
+        assert_eq!(parse_usage("RssAnon: 5 kB\n"), Some(5 * 1024));
+        assert_eq!(parse_usage("nothing"), None);
     }
 
     #[test]
@@ -792,6 +908,11 @@ mod tests {
         );
         assert_eq!(effective_limit(None, Some("8"), &c, t), Ok(Some(8 * GIB)));
         assert_eq!(effective_limit(None, Some(" "), &c, t), Ok(Some(6 * GIB)));
+        // An empty value (STARORG_MEMORY_LIMIT_GB=) is unset, not an error.
+        assert_eq!(
+            effective_limit(Some(""), Some(""), &c, t),
+            Ok(Some(6 * GIB))
+        );
         assert_eq!(effective_limit(None, None, &c, t), Ok(Some(6 * GIB)));
         assert_eq!(
             effective_limit(None, None, &Config::default(), t),
@@ -839,9 +960,26 @@ mod tests {
         assert_eq!(check(gb10(13), None, None), Fit::Ok);
         let m = over_limit_message("Extracting game-ships", gb10(41), gb_bytes(1.5));
         assert!(
-            m.contains("4.1 GB") && m.contains("1.5 GB memory limit"),
+            m.contains("4.1 GB")
+                && m.contains("1.5 GB memory limit allows")
+                && m.contains("at least 5 GB")
+                && m.contains("--memory-limit 5"),
             "{m}"
         );
+        // The reviewer's repro: item-sources (1.5 GB) under a 1.5 GB limit would reach the
+        // watchdog's 1.35 GB, so it is refused up front.
+        assert!(matches!(
+            check(
+                dataset_estimate("game-item-sources"),
+                Some(gb_bytes(1.5)),
+                None
+            ),
+            Fit::OverLimit { .. }
+        ));
+        assert_eq!(limit_for(dataset_estimate("game-item-sources")), 2.0);
+        assert_eq!(limit_for(gb10(41)), 5.0);
+        assert_eq!(limit_for(gb10(110)), 12.5);
+        assert_eq!(limit_for(1), MIN_GB);
         assert_eq!(
             stopped_message(gb_bytes(1.5)),
             format!("Stopped: needed more than 1.5 GB. {RAISE}")
@@ -901,13 +1039,27 @@ mod tests {
     fn exits_that_mean_the_limit() {
         use std::os::unix::process::ExitStatusExt;
         let l = Some(GIB);
-        assert!(exit_was_memory(&ExitStatus::from_raw(EXIT_MEMORY << 8), l));
-        assert!(exit_was_memory(&ExitStatus::from_raw(6), l)); // SIGABRT: RLIMIT_DATA
-        assert!(exit_was_memory(&ExitStatus::from_raw(9), l)); // SIGKILL: cgroup OOM
-        assert!(!exit_was_memory(&ExitStatus::from_raw(1 << 8), l));
-        assert!(!exit_was_memory(
+        let abort = ExitStatus::from_raw(6);
+        assert!(exit_was_memory(
             &ExitStatus::from_raw(EXIT_MEMORY << 8),
+            l,
             None
         ));
+        // An abort or kill is a memory stop only with Rust's allocation-failure line.
+        assert!(!exit_was_memory(&abort, l, None));
+        assert!(!exit_was_memory(&ExitStatus::from_raw(9), l, None));
+        assert!(!exit_was_memory(&abort, l, Some("thread 'main' panicked")));
+        assert!(exit_was_memory(
+            &abort,
+            l,
+            Some("memory allocation of 8388608 bytes failed\n")
+        ));
+        assert!(!exit_was_memory(&ExitStatus::from_raw(1 << 8), l, None));
+        assert!(!exit_was_memory(
+            &ExitStatus::from_raw(EXIT_MEMORY << 8),
+            None,
+            None
+        ));
+        assert!(unexpected_message("the explorer", &abort).contains("stopped unexpectedly"));
     }
 }

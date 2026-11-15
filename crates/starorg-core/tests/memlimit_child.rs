@@ -1,11 +1,12 @@
-//! The memory limit really stops a child (addendum 7.17): this test binary starts itself as
+//! The memory limit really stops a child (addendum 7.18): this test binary starts itself as
 //! the child (`child_allocates`, ignored unless asked for), capped by `memlimit::apply`, and
 //! the child allocates and touches memory until it is stopped.
 //!
 //! The watchdog stops it cleanly at 90% of the limit (exit `EXIT_MEMORY`), well before the
 //! hard cap (`RLIMIT_DATA` on Linux, 512 MB above), so no allocation fails and the kernel
-//! kills nothing. The opt-in cgroup cap runs only with `STARORG_TEST_REAL_CGROUP=1` (CI): on
-//! a desktop a cgroup scope that ends badly shows up as a system notification. Caps are
+//! kills nothing. The opt-in cgroup cap runs only with `STARORG_TEST_REAL_CGROUP=1` (not
+//! set anywhere by default, CI included: a runner may have no user systemd, and on a desktop
+//! a cgroup scope that ends badly shows up as a system notification). Caps are
 //! small (256 MB) so the tests never weigh on the machine.
 
 use starorg_core::memlimit::{self, EXIT_MEMORY, GIB, MARKER};
@@ -69,7 +70,7 @@ fn assert_stopped(o: &Output, limit: u64, hard: &str) {
     let out = String::from_utf8_lossy(&o.stdout);
     let err = String::from_utf8_lossy(&o.stderr);
     assert_eq!(o.status.code(), Some(EXIT_MEMORY), "{out}\n{err}");
-    assert!(memlimit::exit_was_memory(&o.status, Some(limit)));
+    assert!(memlimit::exit_was_memory(&o.status, Some(limit), None));
     assert!(!out.contains("allocated"), "{out}");
     let human = memlimit::human(limit);
     assert!(err.contains(&format!("{MARKER} {human} ({hard})")), "{err}");
@@ -106,7 +107,7 @@ fn a_child_over_its_limit_is_stopped_cleanly_and_reported() {
     }
 }
 
-/// The opt-in cgroup cap (`STARORG_MEMORY_CGROUP=1`): CI only.
+/// The opt-in cgroup cap (`STARORG_MEMORY_CGROUP=1`): only with `STARORG_TEST_REAL_CGROUP=1`.
 #[test]
 fn the_cgroup_cap_when_asked_for() {
     if std::env::var("STARORG_TEST_REAL_CGROUP").as_deref() != Ok("1") || !cfg!(target_os = "linux")

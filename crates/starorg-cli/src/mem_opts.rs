@@ -1,4 +1,4 @@
-//! `--memory-limit <GB>` / `STARORG_MEMORY_LIMIT_GB` of `dev` and `mcp` (addendum 7.17).
+//! `--memory-limit <GB>` / `STARORG_MEMORY_LIMIT_GB` of `dev` and `mcp` (addendum 7.18).
 //!
 //! Default: the app's setting (`config.toml` `[dev] memory_limit_gb`), else 5 GB or half the
 //! RAM when that is less; `0` = no limit. `dev` runs in this process, so it holds the cap

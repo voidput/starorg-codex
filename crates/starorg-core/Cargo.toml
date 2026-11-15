@@ -26,8 +26,9 @@ memchr.workspace = true
 [target.'cfg(windows)'.dependencies]
 sysinfo = { version = "0.40", default-features = false, features = ["system", "disk"] }
 
-# Linux only: the memory limit's RLIMIT_DATA fallback (memlimit.rs) through rustix's safe
-# getrlimit/setrlimit; already in the tree through tempfile.
+# Linux only: the memory limit's default hard cap, RLIMIT_DATA, and the workers'
+# non-dumpable flag (memlimit.rs), through rustix's safe getrlimit/setrlimit/prctl wrappers;
+# already in the tree through tempfile.
 [target.'cfg(target_os = "linux")'.dependencies]
 rustix = { version = "1", default-features = false, features = ["std", "process"] }
 

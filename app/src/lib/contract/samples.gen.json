@@ -4935,8 +4935,10 @@
     "is_default": true,
     "limit_gb": 5.0,
     "max_gb": 30.0,
-    "min_gb": 1.0,
+    "min_gb": 1.5,
+    "note": null,
     "step_gb": 0.5,
+    "stop_percent": 90,
     "total_bytes": 34359738368
   },
   "open_link": null,
@@ -6873,8 +6875,10 @@
     "is_default": false,
     "limit_gb": 6.0,
     "max_gb": 30.0,
-    "min_gb": 1.0,
+    "min_gb": 1.5,
+    "note": null,
     "step_gb": 0.5,
+    "stop_percent": 90,
     "total_bytes": 34359738368
   },
   "set_override": {

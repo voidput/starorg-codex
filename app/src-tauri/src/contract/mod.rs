@@ -166,7 +166,7 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     /// Start (`enabled: true`) or stop the server; returns its state.
     fn set_mcp_enabled(&self, req: McpToggle) -> CmdResult<McpStatus>;
 
-    // Memory limit of the Developer mode and MCP workers (addendum 7.17).
+    // Memory limit of the Developer mode and MCP workers (addendum 7.18).
     fn memory_status(&self) -> CmdResult<MemoryStatus>;
     /// Save the limit (`config.toml` `[dev] memory_limit_gb`); `gb: None` resets it.
     fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus>;

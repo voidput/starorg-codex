@@ -1828,7 +1828,7 @@ pub struct McpToggle {
 }
 
 // ---------------------------------------------------------------------------------------
-// Memory limit of the Developer mode and MCP workers (addendum 7.17)
+// Memory limit of the Developer mode and MCP workers (addendum 7.18)
 // ---------------------------------------------------------------------------------------
 
 /// How the cap is held on this machine.
@@ -1870,8 +1870,13 @@ pub struct MemoryStatus {
     pub step_gb: f64,
     pub default_gb: f64,
     pub enforcement: MemoryEnforcement,
+    /// A worker is stopped at this share of the limit (percent); `fits` is measured against
+    /// it, not the limit itself.
+    pub stop_percent: u32,
     /// Smallest first.
     pub estimates: Vec<MemoryEstimate>,
+    /// Set on machines with too little RAM for a comfortable limit.
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -1914,15 +1919,17 @@ impl MemoryStatus {
             step_gb: b.step_gb,
             default_gb: b.default_gb,
             enforcement,
+            stop_percent: m::STOP_PERCENT as u32,
             estimates: m::estimates()
                 .into_iter()
                 .map(|e| MemoryEstimate {
                     id: e.id.into(),
                     label: e.label.into(),
                     bytes: e.bytes,
-                    fits: e.bytes <= limit,
+                    fits: m::fits(e.bytes, limit),
                 })
                 .collect(),
+            note: m::low_ram_note(info.total),
         }
     }
 }

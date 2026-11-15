@@ -11,7 +11,7 @@
 //! Exit 0 on success, 1 on a failed extraction, 2 on bad arguments. It writes nothing but
 //! that file, and refuses an `--out` inside the game's channel folder or Wine prefix.
 //!
-//! Memory limit (addendum 7.17): [`ProcessExtractor::limit`] refuses a dataset whose
+//! Memory limit (addendum 7.18): [`ProcessExtractor::limit`] refuses a dataset whose
 //! measured peak is over the limit or over the free memory before it starts one, runs the
 //! worker under the cap (`starorg_core::memlimit::apply`), and reports a worker stopped by it
 //! as "Stopped: needed more than X GB ...".
@@ -281,7 +281,7 @@ impl Extractor for ProcessExtractor {
         let stdout = t_out.join().unwrap_or_default();
         let stderr = t_err.join().unwrap_or_default();
         if !status.success() {
-            if memlimit::exit_was_memory(&status, limit) {
+            if memlimit::exit_was_memory(&status, limit, Some(&stderr)) {
                 return Err(format!(
                     "extracting {dataset}: {}",
                     memlimit::stopped_message(limit.unwrap_or_default())

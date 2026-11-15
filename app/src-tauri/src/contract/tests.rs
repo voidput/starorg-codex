@@ -260,24 +260,31 @@ fn samples() -> Value {
 fn memory_limit_round_trip_on_the_mock() {
     let b = MockBackend::default();
     let s = b.memory_status().unwrap();
-    // 32 GB machine: 1 .. 30 GB in 0.5 GB steps, default 5 GB.
+    // 32 GB machine: 1.5 .. 30 GB in 0.5 GB steps, default 5 GB; fits = under the 90% stop.
     assert_eq!(
         (s.min_gb, s.max_gb, s.step_gb, s.default_gb),
-        (1.0, 30.0, 0.5, 5.0)
+        (1.5, 30.0, 0.5, 5.0)
     );
+    assert_eq!(s.stop_percent, 90);
+    assert!(s.note.is_none());
     assert!(s.is_default && s.limit_gb == 5.0);
     let fits = |s: &MemoryStatus, id: &str| s.estimates.iter().find(|e| e.id == id).unwrap().fits;
     assert!(fits(&s, "mcp-ships") && !fits(&s, "model-full"));
     let s = b
-        .set_memory_limit(MemoryLimitRequest { gb: Some(7.3) })
+        .set_memory_limit(MemoryLimitRequest { gb: Some(7.8) })
         .unwrap();
-    assert_eq!(s.limit_gb, 7.5);
+    // Full (7 GB) fits at 8 GB (stop 7.2 GB), not at 7.5 GB (stop 6.75 GB).
+    assert_eq!(s.limit_gb, 8.0);
     assert!(!s.is_default && fits(&s, "model-full") && !fits(&s, "model-full-capital"));
+    let s = b
+        .set_memory_limit(MemoryLimitRequest { gb: Some(7.5) })
+        .unwrap();
+    assert!(!fits(&s, "model-full"));
     assert_eq!(
         b.set_memory_limit(MemoryLimitRequest { gb: Some(0.2) })
             .unwrap()
             .limit_gb,
-        1.0
+        1.5
     );
     assert_eq!(
         b.set_memory_limit(MemoryLimitRequest { gb: Some(99.0) })

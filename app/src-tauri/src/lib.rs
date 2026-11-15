@@ -104,7 +104,7 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
     // `dev-worker --p4k <P>` (or `--dcb <F> [--ini <F>]`): the Developer mode explorer
     // (addendum 7.2). Read only; exports go only to paths from a native save dialog.
     if args.get(1).map(|a| a.as_os_str()) == Some("dev-worker".as_ref()) {
-        // The memory limit the app put on it (addendum 7.17): 90% watchdog + hard cap above it.
+        // The memory limit the app put on it (addendum 7.18): 90% watchdog + hard cap above it.
         starorg_core::memlimit::arm_from_env();
         return Some(match starorg_data::devworker::parse_args(&args[2..]) {
             Ok(input) => starorg_data::devworker::run(&input),

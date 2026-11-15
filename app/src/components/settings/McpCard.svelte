@@ -18,7 +18,7 @@
   import { reminderText } from '@/lib/memory';
   import { ensureMemory, memory } from '@/lib/stores/memory.svelte';
 
-  /** Turning the server on asks first: its extraction workers can use several GB (7.17). */
+  /** Turning the server on asks first: its extraction workers can use several GB (7.18). */
   let warning = $state(false);
   $effect(() => ensureMemory());
 

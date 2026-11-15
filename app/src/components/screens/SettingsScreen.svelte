@@ -50,7 +50,7 @@
     return app.saveSettings(s);
   }
   import Check from '@lucide/svelte/icons/check';
-  /** Turning Developer mode on asks first: its workers can use several GB (addendum 7.17). */
+  /** Turning Developer mode on asks first: its workers can use several GB (addendum 7.18). */
   let devWarning = $state(false);
   async function devModeOn() {
     if (!(await patch((x) => (x.advanced.developer_mode = true)))) throw new Error('Developer mode was not turned on; see the message above.');
