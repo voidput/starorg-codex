@@ -36,7 +36,7 @@ registry! {
 
     armor, // armor.ts
 
-    // blueprints, // blueprints.ts
+    blueprints, // blueprints.ts
 
     cargo, // cargo.ts
 
@@ -54,7 +54,7 @@ registry! {
 
     item_tags, // item-tags.ts
 
-    // law, // law.ts
+    law, // law.ts
 
     loot, // loot.ts
 
@@ -64,13 +64,13 @@ registry! {
 
     mining_spawns, // mining-spawns.ts
 
-    // missions, // missions.ts
+    missions, // missions.ts
 
     quantum, // quantum.ts
 
     refining, // refining.ts
 
-    // reputation, // reputation.ts
+    reputation, // reputation.ts
 
     salvage, // salvage.ts
 
@@ -82,7 +82,7 @@ registry! {
 
     weapons, // weapons.ts
 
-    // wikelo, // wikelo.ts -> game-wikelo-trades
+    wikelo, // wikelo.ts -> game-wikelo-trades
 }
 
 /// A domain by output name (`game-manufacturers`) or short name (`manufacturers`).
