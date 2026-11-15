@@ -31,5 +31,5 @@ updated: 2026-11-15
 
 ## Repo
 
-- [README](../README.md) · [Contributing](../CONTRIBUTING.md) · [Code of Conduct](../CODE_OF_CONDUCT.md) · [Security policy](../SECURITY.md) · [License (MIT)](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md) · [Changelog](../CHANGELOG.md)
+- [README](../README.md) · [Contributing](../CONTRIBUTING.md) · [Agent and repo guide](../AGENTS.md) · [Patches and pull requests](../PATCH.md) · [Code of Conduct](../CODE_OF_CONDUCT.md) · [Security policy](../SECURITY.md) · [License (MIT)](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md) · [Changelog](../CHANGELOG.md)
 - [App (Tauri + Svelte) README](../app/README.md) · [starorg-gamedata README](../crates/starorg-gamedata/README.md)

@@ -116,7 +116,8 @@ Both links are also in the app (footer and Footer -> About); they open your brow
 ## Development
 
 Rust workspace (`crates/`) plus the Tauri 2 + Svelte 5 app (`app/`). See
-[CONTRIBUTING.md](CONTRIBUTING.md) for the checks and commit rules, [app/README.md](app/README.md)
+[CONTRIBUTING.md](CONTRIBUTING.md) for the checks and commit rules, [AGENTS.md](AGENTS.md) for the
+repo map and rules (also for AI agents), [PATCH.md](PATCH.md) for text patches and pull requests, [app/README.md](app/README.md)
 for the app, and [docs/](docs/README.md) for specs, decisions and the release process. Security
 issues: [SECURITY.md](SECURITY.md).
 

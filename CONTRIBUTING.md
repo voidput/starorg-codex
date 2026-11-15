@@ -4,6 +4,9 @@ Thanks for helping. Bugs and ideas go to [issues](https://github.com/voidput/sta
 (templates provided); security problems go to [SECURITY.md](SECURITY.md), never a public issue.
 Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
+Also read [AGENTS.md](AGENTS.md) (repo map, every CI gate, rules for AI agents and people) and
+[PATCH.md](PATCH.md) (text patches for `global.ini` and how to send a code patch).
+
 ## Pull requests
 
 - Branch from `main`; one topic per PR. Fill in the PR template.
