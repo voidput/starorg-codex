@@ -60,7 +60,7 @@ registry! {
 
     manufacturers, // manufacturers.ts
 
-    // mining, // mining.ts
+    mining, // mining.ts
 
     // mining_spawns, // mining-spawns.ts
 
