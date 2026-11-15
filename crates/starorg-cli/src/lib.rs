@@ -6,6 +6,7 @@
 mod apply_cmds;
 mod blueprint_cmds;
 mod commands;
+mod dev_cmds;
 mod fleet_cmds;
 mod gamedata_cmd;
 mod hook_cmds;
@@ -259,6 +260,11 @@ pub enum Command {
         #[command(subcommand)]
         cmd: FleetCmd,
     },
+    /// Developer tools: DataCore records as JSON, type exports, type counts. Read only.
+    Dev {
+        #[command(subcommand)]
+        cmd: DevCmd,
+    },
     /// Internal: extract one Data.p4k in a separate process (spec 3.3).
     #[command(hide = true)]
     ExtractWorker {
@@ -373,6 +379,68 @@ pub enum BlueprintCmd {
         #[cfg(feature = "test-hooks")]
         #[arg(long, hide = true, value_name = "FILE")]
         test_catalog: Option<PathBuf>,
+    },
+}
+
+/// `--test-dcb <FILE>`: a raw DCB instead of the channel's Data.p4k (test hook).
+#[derive(Debug, Clone, Default, Args)]
+pub struct TestDcbArg {
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, hide = true, value_name = "FILE")]
+    pub test_dcb: Option<PathBuf>,
+}
+
+impl From<TestDcbArg> for dev_cmds::TestDcb {
+    fn from(a: TestDcbArg) -> Self {
+        #[cfg(feature = "test-hooks")]
+        return dev_cmds::TestDcb(a.test_dcb);
+        #[cfg(not(feature = "test-hooks"))]
+        {
+            let _ = a;
+            dev_cmds::TestDcb(None)
+        }
+    }
+}
+
+/// Developer mode from the command line (addendum 7.9): read only, no setting needed.
+#[derive(Debug, Subcommand)]
+pub enum DevCmd {
+    /// One record as JSON on stdout (StarBreaker's form: references as relative paths).
+    Record {
+        /// A GUID, a record path or a record name.
+        #[arg(value_name = "PATH|GUID|NAME")]
+        what: String,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        /// One line instead of indented JSON.
+        #[arg(long)]
+        compact: bool,
+        #[command(flatten)]
+        test_dcb: TestDcbArg,
+    },
+    /// Every record of one struct type, streamed to a file as one JSON array.
+    ExportType {
+        #[arg(value_name = "TYPE")]
+        name: String,
+        #[arg(long, value_name = "FILE")]
+        out: PathBuf,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        /// One compact record per line instead of one array.
+        #[arg(long)]
+        ndjson: bool,
+        /// Main records only (sub-records of shared files left out).
+        #[arg(long)]
+        main_only: bool,
+        #[command(flatten)]
+        test_dcb: TestDcbArg,
+    },
+    /// Struct types with their record and main-record counts.
+    Types {
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        #[command(flatten)]
+        test_dcb: TestDcbArg,
     },
 }
 
@@ -522,6 +590,7 @@ where
         Command::Hook { cmd } => hook_cmds::run(&cli.global, cmd),
         Command::Blueprints { cmd } => blueprint_cmds::run(&cli.global, cmd),
         Command::Fleet { cmd } => fleet_cmds::run(&cli.global, cmd),
+        Command::Dev { cmd } => dev_cmds::run(&cli.global, cmd),
         Command::ExtractWorker {
             p4k,
             out,

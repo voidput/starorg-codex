@@ -37,6 +37,8 @@ test-hooks = ["starorg-core/test-hooks"]
 
 [dev-dependencies]
 starorg-cli = { path = ".", features = ["test-hooks"] }
+# A synthetic DCB for the `dev` command tests.
+starorg-data = { workspace = true, features = ["synthetic-dcb"] }
 tempfile.workspace = true
 toml.workspace = true
 
