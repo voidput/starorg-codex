@@ -2404,13 +2404,19 @@ Missions among the contract options). No contract change: the profile fields exi
   while collapsed and the card no longer stretches to its grid row. A `card/collapse.ts` context
   drives `Card.Title` / `Card.Description` / `Card.Content`; without it the card parts render as
   before. `bare` wraps a component that renders its own card: "Fix owned blueprints"
-  (`ReimportCard`, key `blueprints.reimport`). The auto-mode owner warning ("Check whose
-  blueprints are marked") sits above the cards, outside any of them, so collapsing never hides
-  it (mock: `&bphint=larger`). State: `starorg.cards.collapsed.v1` in localStorage (a list of card keys,
+  (`ReimportCard`, key `blueprints.reimport`). The warnings sit above the cards, outside any of
+  them, so collapsing never hides them: the auto-mode owner warning ("Check whose blueprints are
+  marked", mock `&bphint=larger`) and the name notice ("Two characters, one name", moved out of
+  ReimportCard, with "Use Any of my characters"; mock `&bpnotice=1`). `/` on a collapsed finder
+  card opens it and focuses the search. State: `starorg.cards.collapsed.v1` in localStorage (a list of card keys,
   `blueprints.finder|character|starorg|markers`), validated on read, re-read before each write.
 - **Collapsible finder groups.** With Group by set, each group header is a button with the
   group's count (Enter/Space, Left/Right, Up/Down/Home/End move between headers), plus
-  "Collapse all" / "Expand all" and "N groups, M collapsed" in the count line. Remembered per
+  "Collapse all" / "Expand all" and "N groups, M collapsed" in the count line (also with one
+  group). Collapse all merges: groups collapsed outside the current search or filter stay
+  collapsed. With a search or filter, matches only in collapsed groups are counted ("N matches
+  in collapsed groups", `bpfinder.hiddenMatches`) with an Expand link for just those groups. The
+  stored state is read while deriving, so the first render has it (no expanded flash). Remembered per
   install/channel, scope and group-by (`starorg.blueprints.groups.v1:<install>/<channel>/<scope>/<group>`).
   Paging (`bpfinder.pageRows`): a collapsed group keeps its header and its rows neither count
   toward the 200 nor toward "Show N more (M left)"; once a row is cut off, later groups wait for
@@ -2422,7 +2428,8 @@ Missions among the contract options). No contract change: the profile fields exi
   (reputation tag, "Highlight title tags", item rewards, details, section header / label /
   reward colours) and a note that links to the new tab; nothing is listed twice. With contracts
   off, the tab says so with "Turn on contracts". The in-game preview on this tab puts a
-  contract with a blueprint list ([Owned] / [Missing]) first (`bpmarkers.previewOrder`).
+  contract with a blueprint list ([Owned] / [Missing]) first (`bpmarkers.previewOrder`); the
+  mock previews (Rust and TS) show [BP Owned] in the title while `title_owned` is on.
 - **Markers in game** (Blueprints screen): the saved profile's state in one list, e.g.
   `[Owned] blue · [Missing] off · [BP Owned] off` (`bpmarkers.markerSummary`; says "contracts
   off" / "no blueprint list" when that is why), and "Edit blueprint markers", which opens

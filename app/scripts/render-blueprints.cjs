@@ -64,6 +64,21 @@ const shots = [
     for (const t of ['Blueprints', 'Character for \\[Owned\\] tags']) await p.locator('#main [data-slot=card-toggle]', { hasText: new RegExp(`^\\s*${t}`) }).click();
     await p.getByText('Check whose blueprints are marked').waitFor({ state: 'visible' });
   }, '&bphint=larger'],
+  ['bp-notice-collapsed', 'blueprints', async (p) => {
+    await ready(p);
+    await p.locator('#main [data-slot=card-toggle]', { hasText: /Fix owned blueprints/ }).click();
+    await p.getByText('Two characters, one name').waitFor({ state: 'visible' });
+    await p.evaluate(() => document.getElementById('main')?.scrollTo({ top: 0 }));
+  }, '&bpnotice=1'],
+  ['bp-hidden-matches', 'blueprints', async (p) => {
+    await ready(p);
+    await p.getByRole('radio', { name: /^All \d/ }).click();
+    await p.getByRole('combobox', { name: 'Group by' }).click();
+    await p.getByRole('option', { name: 'Category' }).click();
+    await p.getByRole('button', { name: 'Collapse all' }).click();
+    await p.getByRole('searchbox', { name: 'Search blueprints' }).fill('armor');
+    await p.getByText(/in collapsed groups/).waitFor();
+  }, ''],
   ['enh-blueprints', 'blueprints', async (p) => {
     await ready(p);
     await p.getByRole('button', { name: 'Edit blueprint markers' }).click();

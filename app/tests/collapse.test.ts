@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CARDS_KEY, GROUPS_KEY, arrowToggle, parseCollapsed, readCollapsed, withCollapsed, writeCollapsed } from '../src/lib/collapse.ts';
-import { DEFAULT_PREFS, pageRows, query, type FinderPrefs } from '../src/lib/bpfinder.ts';
+import { DEFAULT_PREFS, hiddenMatches, pageRows, query, type FinderPrefs } from '../src/lib/bpfinder.ts';
 import { emWord, markerLine, markerSummary, previewOrder } from '../src/lib/bpmarkers.ts';
 import type { BlueprintFinder, BlueprintRow, PreviewItem, Profile } from '../src/lib/contract/types.ts';
 
@@ -137,6 +137,26 @@ test('the real finder view pages by group and drops a collapsed category', () =>
   assert.equal(open.total - shut.total, first.rows.length);
   assert.equal(shut.lines.filter((l) => l.row && l.group === first.id).length, 0);
   assert.equal(shut.lines.find((l) => l.group === first.id)?.collapsed, true);
+});
+
+test('hidden matches: rows only in collapsed groups, and those groups', () => {
+  const v = G([['a', 2], ['b', 3], ['c', 1]]);
+  assert.deepEqual(hiddenMatches(v, new Set()), { count: 0, groups: [] });
+  assert.deepEqual(hiddenMatches(v, new Set(['b', 'c'])), { count: 4, groups: ['b', 'c'] });
+  assert.deepEqual(hiddenMatches({ groups: null }, new Set(['b'])), { count: 0, groups: [] });
+  // Character groups share rows: a row also in an expanded group is in view.
+  const shared = { groups: [{ id: 'x', label: 'X', rows: [row('r1'), row('r2')] }, { id: 'y', label: 'Y', rows: [row('r1')] }] };
+  assert.deepEqual(hiddenMatches(shared, new Set(['x'])), { count: 1, groups: ['x'] });
+  assert.deepEqual(hiddenMatches(shared, new Set(['y'])), { count: 0, groups: [] });
+});
+
+test('a search that matches only a collapsed category says how many', () => {
+  const v = view(P({ owned: 'all', group: 'kind', search: 'armor' }));
+  const shut = new Set((v.groups ?? []).map((g) => g.id));
+  const h = hiddenMatches(v, shut);
+  assert.ok(h.count > 0);
+  assert.equal(h.count, v.rows.length);
+  assert.equal(pageRows(v, 200, shut).total, 0);
 });
 
 const profile = (): Profile => structuredClone(samples.get_profile);
