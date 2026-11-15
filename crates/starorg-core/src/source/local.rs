@@ -22,6 +22,7 @@ use std::time::{Duration, Instant};
 const BASE_INI: &str = "base.ini";
 const GAMEDATA_JSON: &str = "gamedata.json";
 const META_JSON: &str = "meta.json";
+const KEYREFS_JSON: &str = "keyrefs.json";
 /// Keep at most this much of the worker's stderr for error messages.
 const STDERR_KEEP: usize = 4096;
 
@@ -50,6 +51,8 @@ pub struct LocalExtraction {
     /// Read only the stock `global.ini` (skip DataCore); `game_data` comes back empty. Used
     /// as the text source of a published dump.
     pub ini_only: bool,
+    /// Also run the loc-reference pass (`--keyrefs`): the app sets this, launch hooks do not.
+    pub keyrefs: bool,
     /// Extra worker arguments, for tests (e.g. the hidden `--test-panic`).
     #[doc(hidden)]
     pub extra_args: Vec<String>,
@@ -61,6 +64,7 @@ impl LocalExtraction {
             worker: worker.into(),
             work_root: None,
             ini_only: false,
+            keyrefs: false,
             extra_args: Vec::new(),
         }
     }
@@ -68,6 +72,12 @@ impl LocalExtraction {
     /// The same worker, reading only the stock `global.ini`.
     pub fn ini_only(mut self) -> Self {
         self.ini_only = true;
+        self
+    }
+
+    /// The same worker, also running the loc-reference pass for Strings grouping.
+    pub fn with_keyrefs(mut self) -> Self {
+        self.keyrefs = true;
         self
     }
 
@@ -81,6 +91,7 @@ impl LocalExtraction {
             .arg("--out")
             .arg(out)
             .args(self.ini_only.then_some("--ini-only"))
+            .args((self.keyrefs && !self.ini_only).then_some("--keyrefs"))
             .args(&self.extra_args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
@@ -184,9 +195,14 @@ impl GameSource for LocalExtraction {
         let meta: Meta = serde_json::from_slice(&std::fs::read(out.join(META_JSON))?)
             .map_err(|e| bad(META_JSON, &e))?;
         game_data.build = channel.build.clone();
+        // Optional: a bad file only costs exact grouping, never the extraction.
+        let keyrefs = std::fs::read(out.join(KEYREFS_JSON))
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok());
         Ok(Loaded {
             base_ini,
             game_data,
+            keyrefs,
             origin: Origin::LocalExtraction {
                 starbreaker_commit: meta.starbreaker_commit,
             },

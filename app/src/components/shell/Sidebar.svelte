@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Sidebar (spec 9.3): grouped nav, collapses to icons, resizable 168-384 px by drag or arrow keys
-   * on the handle. Arrow Up/Down move between items (roving focus); Alt+1..7 jump from anywhere (App).
+   * on the handle. Arrow Up/Down move between items (roving focus); Alt+1..9 jump from anywhere (App).
    */
   import House from '@lucide/svelte/icons/house';
   import Sparkles from '@lucide/svelte/icons/sparkles';
@@ -9,6 +9,7 @@
   import Wrench from '@lucide/svelte/icons/wrench';
   import Archive from '@lucide/svelte/icons/archive';
   import BookOpenCheck from '@lucide/svelte/icons/book-open-check';
+  import Rocket from '@lucide/svelte/icons/rocket';
   import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Settings from '@lucide/svelte/icons/settings';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
@@ -19,7 +20,7 @@
 
   let { current = $bindable<ScreenId>('home'), version = '' }: { current: ScreenId; version?: string } = $props();
 
-  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, backups: Archive, activity: ScrollText, settings: Settings } as const;
+  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, backups: Archive, activity: ScrollText, settings: Settings } as const;
   const MIN = 168;
   const MAX = 384;
   const KEY = 'starorg:sidebar';

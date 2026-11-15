@@ -30,6 +30,8 @@ interface Samples {
   build_preview: T.PreviewItem[];
   get_profile: T.Profile;
   query_strings: T.StringsPage;
+  query_strings_by_size: T.StringsPage;
+  read_string_groups: T.GroupState;
   string_detail: T.StringDetail;
   set_override: T.OverrideResult;
   set_override_rejected: T.OverrideResult;
@@ -47,6 +49,12 @@ interface Samples {
   save_diagnostics: string | null;
   hooks_status: T.HooksStatus;
   doctor: T.DoctorReport;
+  fleet_view: T.FleetView;
+  fleet_import: T.FleetImportReport;
+  fleet_import_applied: T.FleetImportReport;
+  fleet_match: T.FleetView;
+  save_ship_names: T.FleetView;
+  fleet_clear: T.FleetView;
   update_status: T.UpdateStatus;
   check_for_updates: T.UpdateStatus;
   check_for_updates_failed: T.UpdateStatus;

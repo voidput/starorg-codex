@@ -366,7 +366,7 @@ fn use_cmd(g: &GlobalOpts, channel: &str, who: &str) -> ExitCode {
 /// extraction cache when it has this build; otherwise extracted from `Data.p4k` (read only).
 /// A real import caches the extraction like an apply does; a dry run reads the cache but
 /// writes nothing, not even the cache or a lock file.
-fn channel_data(
+pub(crate) fn channel_data(
     g: &GlobalOpts,
     c: &Ctx,
     i: &Install,

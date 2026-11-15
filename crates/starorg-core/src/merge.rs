@@ -33,9 +33,19 @@ impl From<&crate::enhance::GenEdit> for GenEdit {
         Self {
             key: e.key.clone(),
             generator: e.category.name().to_string(),
-            prefix: e.prefix.clone(),
-            suffix: e.suffix.clone(),
-            whole: None,
+            // A rename is a whole value here: merge needs the final value and the generated
+            // part, which are the same for it.
+            prefix: if e.replace.is_some() {
+                String::new()
+            } else {
+                e.prefix.clone()
+            },
+            suffix: if e.replace.is_some() {
+                String::new()
+            } else {
+                e.suffix.clone()
+            },
+            whole: e.replace.as_ref().map(|_| e.value("")),
             trim_stock: e.trim_stock,
         }
     }

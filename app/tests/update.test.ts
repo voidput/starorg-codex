@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { applyUpdateSwitch, bannerRelease, bannerTitle, checkLine, requestHint } from '../src/lib/update.ts';
+import { applyUpdateSwitch, bannerRelease, bannerTitle, checkLine, requestHint, storeManaged } from '../src/lib/update.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const available = samples.check_for_updates;
@@ -88,4 +88,14 @@ test('a failed save runs no check and no status read', async () => {
     await applyUpdateSwitch(on, io);
     assert.deepEqual(log, [`save:${on}`]);
   }
+});
+
+test('Microsoft Store build: no banner even with a newer release, Settings shows the Store line', () => {
+  const store = { ...available, install: 'store', install_note: 'Updates come from the Microsoft Store.' };
+  assert.equal(storeManaged(store), true);
+  assert.equal(bannerRelease(store), null, 'the Store updates this build');
+  assert.equal(storeManaged(available), false);
+  assert.equal(storeManaged({ ...available, install: 'download-only' }), false);
+  assert.equal(storeManaged(null), false);
+  assert.equal(bannerRelease({ ...available, install: 'download-only' })?.version, '0.2.0');
 });

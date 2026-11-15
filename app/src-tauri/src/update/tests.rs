@@ -491,3 +491,41 @@ fn user_agent_is_name_and_version_only() {
         format!("StarOrg-Strings/{}", env!("CARGO_PKG_VERSION"))
     );
 }
+
+#[test]
+fn store_builds_never_request_or_install() {
+    let fake = Fake::default();
+    fake.set(ok(LIST));
+    let rec = Arc::new(RecordingHost::default());
+    let u = Updater::new(
+        Store::Memory(Box::default()),
+        Box::new(fake.clone()),
+        Box::new(SystemClock),
+        Version::parse("0.1.0").unwrap(),
+        (UpdateInstall::Store, host::STORE_NOTE.into()),
+    );
+    u.host().set(HostRef(rec.clone()));
+    // Start-up check with the switch on: nothing requested, nothing to offer.
+    let s = u.check(true, false).unwrap();
+    assert_eq!(s.install, UpdateInstall::Store);
+    assert_eq!(s.install_note, "Updates come from the Microsoft Store.");
+    assert_eq!(s.check, UpdateCheck::NotChecked);
+    // "Check now" and "Install" are refused with the Store note.
+    let e = u.check(true, true).unwrap_err();
+    assert_eq!(
+        (e.code, e.message.as_str()),
+        (ErrorCode::Invalid, host::STORE_NOTE)
+    );
+    let e = u.install(true).unwrap_err();
+    assert_eq!(
+        (e.code, e.message.as_str()),
+        (ErrorCode::Invalid, host::STORE_NOTE)
+    );
+    assert_eq!(u.install(false).unwrap_err().message, host::STORE_NOTE);
+    assert_eq!(fake.calls(), 0, "a Store build made a release request");
+    assert!(
+        rec.installs.lock().unwrap().is_empty(),
+        "a Store build ran the updater"
+    );
+    assert!(rec.opened.lock().unwrap().is_empty());
+}

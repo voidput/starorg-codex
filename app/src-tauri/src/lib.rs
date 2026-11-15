@@ -51,25 +51,27 @@ fn backend() -> (BackendState, contract::real::DialogSlot, update::HostSlot) {
 /// Start the GUI. [`gpu::apply`] must already have run (see `main.rs`).
 pub fn run() {
     let (state, dialogs, update_host) = backend();
-    builder(tauri::Builder::default(), DiscoveryConfig::default(), state)
-        .plugin(tauri_plugin_dialog::init())
-        // Used from Rust only (update::host); the webview has no updater permission. The key
-        // comes from updater-public-key.txt, not from tauri.conf.json.
-        .plugin(
-            tauri_plugin_updater::Builder::new()
-                .pubkey(update::host::UPDATER_PUBKEY.trim())
-                .build(),
-        )
-        .setup(move |app| {
-            dialogs.set(contract::real::TauriDialogs(app.handle().clone()));
-            update_host.set(update::host::TauriUpdateHost(app.handle().clone()));
-            Ok(())
-        })
-        .run(tauri::generate_context!())
-        .expect("error while running StarOrg Strings");
+    let app = builder(tauri::Builder::default(), DiscoveryConfig::default(), state)
+        .plugin(tauri_plugin_dialog::init());
+    // Used from Rust only (update::host); the webview has no updater permission. The key
+    // comes from updater-public-key.txt, not from tauri.conf.json. Not in the Store
+    // flavour: the Store updates that build, and nothing there may replace the app.
+    #[cfg(not(feature = "store"))]
+    let app = app.plugin(
+        tauri_plugin_updater::Builder::new()
+            .pubkey(update::host::UPDATER_PUBKEY.trim())
+            .build(),
+    );
+    app.setup(move |app| {
+        dialogs.set(contract::real::TauriDialogs(app.handle().clone()));
+        update_host.set(update::host::TauriUpdateHost(app.handle().clone()));
+        Ok(())
+    })
+    .run(tauri::generate_context!())
+    .expect("error while running StarOrg Strings");
 }
 
-/// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only]`: the extraction
+/// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only] [--keyrefs]`: the extraction
 /// worker the real backend starts (spec 3.3), the same protocol as the CLI's hidden
 /// subcommand. Returns the exit code, or `None` when the arguments are not a worker call.
 pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
@@ -80,12 +82,14 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
     let mut p4k: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
     let mut ini_only = false;
+    let mut keyrefs = false;
     let mut it = args[2..].iter();
     while let Some(a) = it.next() {
         match a.to_str() {
             Some("--p4k") => p4k = it.next().map(PathBuf::from),
             Some("--out") => out = it.next().map(PathBuf::from),
             Some("--ini-only") => ini_only = true,
+            Some("--keyrefs") => keyrefs = true,
             _ => {
                 eprintln!("extract-worker: unknown argument {}", a.to_string_lossy());
                 return Some(2);
@@ -114,10 +118,13 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
         );
         return Some(2);
     }
-    Some(starorg_data::worker::run_with(
+    Some(starorg_data::worker::run_opts(
         &p4k,
         &out,
         starorg_data::worker::TestHook::None,
-        ini_only,
+        starorg_data::extract::Options {
+            ini_only,
+            keyrefs: keyrefs && !ini_only,
+        },
     ))
 }

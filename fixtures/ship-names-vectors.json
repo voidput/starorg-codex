@@ -1,0 +1,696 @@
+{
+  "about": "Shared test vectors for the ship-names prefix and sort rules (addendum 6.9). Written by `UPDATE_SHIP_NAME_VECTORS=1 cargo test -p starorg-core shared_vectors`; read by the Rust and the TypeScript tests.",
+  "cases": [
+    {
+      "expected": {
+        "edits": [
+          {
+            "key": "vehicle_NameDRAK_Vulture",
+            "value": "01 Drake Vulture"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius",
+            "value": "02 Needle"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius_short",
+            "value": "Needle"
+          },
+          {
+            "key": "vehicle_NameMISC_Prospector",
+            "value": "03 MISC Prospector"
+          }
+        ],
+        "not_in_build": [],
+        "preview": [
+          "01 Drake Vulture",
+          "02 Needle",
+          "03 MISC Prospector",
+          "Aegis Avenger Titan",
+          "Anvil Arrow",
+          "Argo MOLE",
+          "Crusader C2 Hercules Starlifter",
+          "Drake Cutlass Black",
+          "Kruger P-52 Merlin",
+          "Origin 890 Jump",
+          "RSI Aurora MR",
+          "Tumbril Cyclone"
+        ]
+      },
+      "name": "numeric, space",
+      "settings": {
+        "enabled": true,
+        "groups": [],
+        "prefix_short": false,
+        "rest": "stock",
+        "separator": " ",
+        "ships": [
+          {
+            "group": null,
+            "hull": "vehicle_NameDRAK_Vulture",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameAEGS_Gladius",
+            "name": "Needle",
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameMISC_Prospector",
+            "name": null,
+            "short": null
+          }
+        ],
+        "style": "numeric",
+        "symbol": "*"
+      }
+    },
+    {
+      "expected": {
+        "edits": [
+          {
+            "key": "vehicle_NameDRAK_Vulture",
+            "value": "01-Drake Vulture"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius",
+            "value": "02-Needle"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius_short",
+            "value": "02-Needle"
+          },
+          {
+            "key": "vehicle_NameMISC_Prospector",
+            "value": "03-MISC Prospector"
+          },
+          {
+            "key": "vehicle_NameMISC_Prospector_short",
+            "value": "03-Prospector"
+          }
+        ],
+        "not_in_build": [],
+        "preview": [
+          "01-Drake Vulture",
+          "02-Needle",
+          "03-MISC Prospector",
+          "Aegis Avenger Titan",
+          "Anvil Arrow",
+          "Argo MOLE",
+          "Crusader C2 Hercules Starlifter",
+          "Drake Cutlass Black",
+          "Kruger P-52 Merlin",
+          "Origin 890 Jump",
+          "RSI Aurora MR",
+          "Tumbril Cyclone"
+        ]
+      },
+      "name": "numeric, dash, prefix short",
+      "settings": {
+        "enabled": true,
+        "groups": [],
+        "prefix_short": true,
+        "rest": "stock",
+        "separator": "-",
+        "ships": [
+          {
+            "group": null,
+            "hull": "vehicle_NameDRAK_Vulture",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameAEGS_Gladius",
+            "name": "Needle",
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameMISC_Prospector",
+            "name": null,
+            "short": null
+          }
+        ],
+        "style": "numeric",
+        "symbol": "*"
+      }
+    },
+    {
+      "expected": {
+        "edits": [
+          {
+            "key": "vehicle_NameDRAK_Vulture",
+            "value": "01. Drake Vulture"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius",
+            "value": "02. Needle"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius_short",
+            "value": "Needle"
+          },
+          {
+            "key": "vehicle_NameMISC_Prospector",
+            "value": "03. MISC Prospector"
+          },
+          {
+            "key": "vehicle_NameAEGS_Avenger_Titan",
+            "value": "04. Aegis Avenger Titan"
+          },
+          {
+            "key": "vehicle_NameANVL_Arrow",
+            "value": "05. Anvil Arrow"
+          },
+          {
+            "key": "vehicle_NameARGO_Mole",
+            "value": "06. Argo MOLE"
+          },
+          {
+            "key": "vehicle_NameCRUS_Starlifter_C2",
+            "value": "07. Crusader C2 Hercules Starlifter"
+          },
+          {
+            "key": "vehicle_NameDRAK_Cutlass_Black",
+            "value": "08. Drake Cutlass Black"
+          },
+          {
+            "key": "vehicle_NameKRIG_P52_Merlin",
+            "value": "09. Kruger P-52 Merlin"
+          },
+          {
+            "key": "vehicle_NameORIG_890Jump",
+            "value": "10. Origin 890 Jump"
+          },
+          {
+            "key": "vehicle_NameRSI_Aurora_MR",
+            "value": "11. RSI Aurora MR"
+          },
+          {
+            "key": "vehicle_NameTMBL_Cyclone",
+            "value": "12. Tumbril Cyclone"
+          }
+        ],
+        "not_in_build": [],
+        "preview": [
+          "01. Drake Vulture",
+          "02. Needle",
+          "03. MISC Prospector",
+          "04. Aegis Avenger Titan",
+          "05. Anvil Arrow",
+          "06. Argo MOLE",
+          "07. Crusader C2 Hercules Starlifter",
+          "08. Drake Cutlass Black",
+          "09. Kruger P-52 Merlin",
+          "10. Origin 890 Jump",
+          "11. RSI Aurora MR",
+          "12. Tumbril Cyclone"
+        ]
+      },
+      "name": "numeric, rest numbered",
+      "settings": {
+        "enabled": true,
+        "groups": [],
+        "prefix_short": false,
+        "rest": "numbered",
+        "separator": ". ",
+        "ships": [
+          {
+            "group": null,
+            "hull": "vehicle_NameDRAK_Vulture",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameAEGS_Gladius",
+            "name": "Needle",
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameMISC_Prospector",
+            "name": null,
+            "short": null
+          }
+        ],
+        "style": "numeric",
+        "symbol": "*"
+      }
+    },
+    {
+      "expected": {
+        "edits": [
+          {
+            "key": "vehicle_NameAEGS_Gladius",
+            "value": "Needle"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius_short",
+            "value": "Needle"
+          }
+        ],
+        "not_in_build": [],
+        "preview": [
+          "Aegis Avenger Titan",
+          "Anvil Arrow",
+          "Argo MOLE",
+          "Crusader C2 Hercules Starlifter",
+          "Drake Cutlass Black",
+          "Drake Vulture",
+          "Kruger P-52 Merlin",
+          "MISC Prospector",
+          "Needle",
+          "Origin 890 Jump",
+          "RSI Aurora MR",
+          "Tumbril Cyclone"
+        ]
+      },
+      "name": "none = rename only",
+      "settings": {
+        "enabled": true,
+        "groups": [],
+        "prefix_short": true,
+        "rest": "numbered",
+        "separator": " ",
+        "ships": [
+          {
+            "group": null,
+            "hull": "vehicle_NameDRAK_Vulture",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameAEGS_Gladius",
+            "name": "Needle",
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameMISC_Prospector",
+            "name": null,
+            "short": null
+          }
+        ],
+        "style": "none",
+        "symbol": "*"
+      }
+    },
+    {
+      "expected": {
+        "edits": [
+          {
+            "key": "vehicle_NameDRAK_Vulture",
+            "value": "* Drake Vulture"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius",
+            "value": "* Needle"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius_short",
+            "value": "Needle"
+          },
+          {
+            "key": "vehicle_NameMISC_Prospector",
+            "value": "* MISC Prospector"
+          }
+        ],
+        "not_in_build": [],
+        "preview": [
+          "* Drake Vulture",
+          "* MISC Prospector",
+          "* Needle",
+          "Aegis Avenger Titan",
+          "Anvil Arrow",
+          "Argo MOLE",
+          "Crusader C2 Hercules Starlifter",
+          "Drake Cutlass Black",
+          "Kruger P-52 Merlin",
+          "Origin 890 Jump",
+          "RSI Aurora MR",
+          "Tumbril Cyclone"
+        ]
+      },
+      "name": "symbol",
+      "settings": {
+        "enabled": true,
+        "groups": [],
+        "prefix_short": false,
+        "rest": "stock",
+        "separator": " ",
+        "ships": [
+          {
+            "group": null,
+            "hull": "vehicle_NameDRAK_Vulture",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameAEGS_Gladius",
+            "name": "Needle",
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameMISC_Prospector",
+            "name": null,
+            "short": null
+          }
+        ],
+        "style": "symbol",
+        "symbol": "*"
+      }
+    },
+    {
+      "expected": {
+        "edits": [
+          {
+            "key": "vehicle_NameRSI_Aurora_MR",
+            "value": "A1 RSI Aurora MR"
+          },
+          {
+            "key": "vehicle_NameTMBL_Cyclone",
+            "value": "A2 Tumbril Cyclone"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius",
+            "value": "B1 Aegis Gladius"
+          },
+          {
+            "key": "vehicle_NameANVL_Arrow",
+            "value": "B2 Anvil Arrow"
+          },
+          {
+            "key": "vehicle_NameDRAK_Cutlass_Black",
+            "value": "C1 Bucket"
+          },
+          {
+            "key": "vehicle_NameDRAK_Cutlass_Black_short",
+            "value": "Bkt"
+          },
+          {
+            "key": "vehicle_NameCRUS_Starlifter_C2",
+            "value": "C2 Crusader C2 Hercules Starlifter"
+          }
+        ],
+        "not_in_build": [
+          "vehicle_NameNOPE_Missing"
+        ],
+        "preview": [
+          "A1 RSI Aurora MR",
+          "A2 Tumbril Cyclone",
+          "Aegis Avenger Titan",
+          "Argo MOLE",
+          "B1 Aegis Gladius",
+          "B2 Anvil Arrow",
+          "C1 Bucket",
+          "C2 Crusader C2 Hercules Starlifter",
+          "Drake Vulture",
+          "Kruger P-52 Merlin",
+          "MISC Prospector",
+          "Origin 890 Jump"
+        ]
+      },
+      "name": "group letters",
+      "settings": {
+        "enabled": true,
+        "groups": [
+          {
+            "id": "combat",
+            "name": "Combat"
+          },
+          {
+            "id": "cargo",
+            "name": "Cargo"
+          }
+        ],
+        "prefix_short": false,
+        "rest": "stock",
+        "separator": " ",
+        "ships": [
+          {
+            "group": "combat",
+            "hull": "vehicle_NameAEGS_Gladius",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "cargo",
+            "hull": "vehicle_NameDRAK_Cutlass_Black",
+            "name": "Bucket",
+            "short": "Bkt"
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameRSI_Aurora_MR",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "combat",
+            "hull": "vehicle_NameANVL_Arrow",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "cargo",
+            "hull": "vehicle_NameCRUS_Starlifter_C2",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameNOPE_Missing",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "nogroup",
+            "hull": "vehicle_Nametmbl_cyclone",
+            "name": null,
+            "short": null
+          }
+        ],
+        "style": "group-letter",
+        "symbol": "*"
+      }
+    },
+    {
+      "expected": {
+        "edits": [
+          {
+            "key": "vehicle_NameRSI_Aurora_MR",
+            "value": "01 RSI Aurora MR"
+          },
+          {
+            "key": "vehicle_NameRSI_Aurora_MR_short",
+            "value": "01 Aurora MR"
+          },
+          {
+            "key": "vehicle_NameTMBL_Cyclone",
+            "value": "02 Tumbril Cyclone"
+          },
+          {
+            "key": "vehicle_NameTMBL_Cyclone_short",
+            "value": "02 Cyclone"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius",
+            "value": "03 Aegis Gladius"
+          },
+          {
+            "key": "vehicle_NameAEGS_Gladius_short",
+            "value": "03 Gladius"
+          },
+          {
+            "key": "vehicle_NameANVL_Arrow",
+            "value": "04 Anvil Arrow"
+          },
+          {
+            "key": "vehicle_NameANVL_Arrow_short",
+            "value": "04 Arrow"
+          },
+          {
+            "key": "vehicle_NameDRAK_Cutlass_Black",
+            "value": "05 Bucket"
+          },
+          {
+            "key": "vehicle_NameDRAK_Cutlass_Black_short",
+            "value": "05 Bkt"
+          },
+          {
+            "key": "vehicle_NameCRUS_Starlifter_C2",
+            "value": "06 Crusader C2 Hercules Starlifter"
+          },
+          {
+            "key": "vehicle_NameCRUS_Starlifter_C2_short",
+            "value": "06 C2 Hercules"
+          }
+        ],
+        "not_in_build": [
+          "vehicle_NameNOPE_Missing"
+        ],
+        "preview": [
+          "01 RSI Aurora MR",
+          "02 Tumbril Cyclone",
+          "03 Aegis Gladius",
+          "04 Anvil Arrow",
+          "05 Bucket",
+          "06 Crusader C2 Hercules Starlifter",
+          "Aegis Avenger Titan",
+          "Argo MOLE",
+          "Drake Vulture",
+          "Kruger P-52 Merlin",
+          "MISC Prospector",
+          "Origin 890 Jump"
+        ]
+      },
+      "name": "numeric over groups",
+      "settings": {
+        "enabled": true,
+        "groups": [
+          {
+            "id": "combat",
+            "name": "Combat"
+          },
+          {
+            "id": "cargo",
+            "name": "Cargo"
+          }
+        ],
+        "prefix_short": true,
+        "rest": "stock",
+        "separator": " ",
+        "ships": [
+          {
+            "group": "combat",
+            "hull": "vehicle_NameAEGS_Gladius",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "cargo",
+            "hull": "vehicle_NameDRAK_Cutlass_Black",
+            "name": "Bucket",
+            "short": "Bkt"
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameRSI_Aurora_MR",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "combat",
+            "hull": "vehicle_NameANVL_Arrow",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "cargo",
+            "hull": "vehicle_NameCRUS_Starlifter_C2",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": null,
+            "hull": "vehicle_NameNOPE_Missing",
+            "name": null,
+            "short": null
+          },
+          {
+            "group": "nogroup",
+            "hull": "vehicle_Nametmbl_cyclone",
+            "name": null,
+            "short": null
+          }
+        ],
+        "style": "numeric",
+        "symbol": "*"
+      }
+    }
+  ],
+  "catalog": [
+    {
+      "hull": "vehicle_NameAEGS_Gladius",
+      "name": "Aegis Gladius",
+      "short": "Gladius",
+      "short_key": "vehicle_NameAEGS_Gladius_short"
+    },
+    {
+      "hull": "vehicle_NameAEGS_Avenger_Titan",
+      "name": "Aegis Avenger Titan",
+      "short": "Avenger Titan",
+      "short_key": "vehicle_NameAEGS_Avenger_Titan_short"
+    },
+    {
+      "hull": "vehicle_NameANVL_Arrow",
+      "name": "Anvil Arrow",
+      "short": "Arrow",
+      "short_key": "vehicle_NameANVL_Arrow_short"
+    },
+    {
+      "hull": "vehicle_NameDRAK_Cutlass_Black",
+      "name": "Drake Cutlass Black",
+      "short": "Cutlass Black",
+      "short_key": "vehicle_NameDRAK_Cutlass_Black_short"
+    },
+    {
+      "hull": "vehicle_NameDRAK_Vulture",
+      "name": "Drake Vulture",
+      "short": null,
+      "short_key": null
+    },
+    {
+      "hull": "vehicle_NameMISC_Prospector",
+      "name": "MISC Prospector",
+      "short": "Prospector",
+      "short_key": "vehicle_NameMISC_Prospector_short"
+    },
+    {
+      "hull": "vehicle_NameRSI_Aurora_MR",
+      "name": "RSI Aurora MR",
+      "short": "Aurora MR",
+      "short_key": "vehicle_NameRSI_Aurora_MR_short"
+    },
+    {
+      "hull": "vehicle_NameORIG_890Jump",
+      "name": "Origin 890 Jump",
+      "short": "890 Jump",
+      "short_key": "vehicle_NameORIG_890Jump_short"
+    },
+    {
+      "hull": "vehicle_NameCRUS_Starlifter_C2",
+      "name": "Crusader C2 Hercules Starlifter",
+      "short": "C2 Hercules",
+      "short_key": "vehicle_NameCRUS_Starlifter_C2_short"
+    },
+    {
+      "hull": "vehicle_NameARGO_Mole",
+      "name": "Argo MOLE",
+      "short": "MOLE",
+      "short_key": "vehicle_NameARGO_Mole_short"
+    },
+    {
+      "hull": "vehicle_NameKRIG_P52_Merlin",
+      "name": "Kruger P-52 Merlin",
+      "short": "P-52 Merlin",
+      "short_key": "vehicle_NameKRIG_P52_Merlin_short"
+    },
+    {
+      "hull": "vehicle_NameTMBL_Cyclone",
+      "name": "Tumbril Cyclone",
+      "short": "Cyclone",
+      "short_key": "vehicle_NameTMBL_Cyclone_short"
+    }
+  ],
+  "schema": 1,
+  "sort_rule": "case-insensitive, character by character (unconfirmed, Q23)"
+}

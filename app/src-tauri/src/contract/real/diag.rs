@@ -13,72 +13,10 @@ use starorg_core::patch::{self, LoadedPatch};
 use starorg_core::paths::resolve_ci;
 use starorg_core::state::INTENT_JSON;
 use starorg_core::usercfg;
-use std::collections::BTreeMap;
 
 // ---------------------------------------------------------------------------------------
 // Strings
 // ---------------------------------------------------------------------------------------
-
-pub fn query(t: &Table, req: &StringsQuery) -> StringsPage {
-    let needle = req.search.to_lowercase();
-    let mut src_counts: BTreeMap<String, u32> = BTreeMap::new();
-    let mut cat_counts: BTreeMap<String, u32> = BTreeMap::new();
-    let mut hits: Vec<&StringRow> = Vec::new();
-    for r in &t.rows {
-        if req.changed_only && r.source == StringSource::Unmodified {
-            continue;
-        }
-        if !needle.is_empty()
-            && !r.key.to_lowercase().contains(&needle)
-            && !r.original.to_lowercase().contains(&needle)
-            && !r.result.to_lowercase().contains(&needle)
-        {
-            continue;
-        }
-        let src_ok = req.sources.is_empty() || req.sources.contains(&r.source);
-        let cat_ok = req.categories.is_empty() || req.categories.contains(&r.category);
-        // Facet counts ignore their own facet, so a chip shows what picking it would give.
-        if cat_ok {
-            *src_counts.entry(kebab(&r.source)).or_default() += 1;
-        }
-        if src_ok {
-            *cat_counts.entry(r.category.clone()).or_default() += 1;
-        }
-        if src_ok && cat_ok {
-            hits.push(r);
-        }
-    }
-    match req.sort {
-        StringSort::Key => hits.sort_by(|a, b| a.key.cmp(&b.key)),
-        StringSort::KeyDesc => hits.sort_by(|a, b| b.key.cmp(&a.key)),
-        StringSort::Category => {
-            hits.sort_by(|a, b| (&a.category, &a.key).cmp(&(&b.category, &b.key)))
-        }
-        StringSort::Source => {
-            hits.sort_by(|a, b| (kebab(&a.source), &a.key).cmp(&(kebab(&b.source), &b.key)))
-        }
-    }
-    let total = hits.len() as u32;
-    let limit = req.limit.clamp(1, 1000) as usize;
-    let fc = |m: BTreeMap<String, u32>| {
-        m.into_iter()
-            .map(|(id, count)| FacetCount { id, count })
-            .collect()
-    };
-    StringsPage {
-        total,
-        all: t.rows.len() as u32,
-        offset: req.offset,
-        rows: hits
-            .into_iter()
-            .skip(req.offset as usize)
-            .take(limit)
-            .cloned()
-            .collect(),
-        sources: fc(src_counts),
-        categories: fc(cat_counts),
-    }
-}
 
 /// One changed row per category, as the in-game preview shows them.
 pub fn preview(t: &Table) -> Vec<PreviewItem> {

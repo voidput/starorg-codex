@@ -6,6 +6,7 @@
 mod apply_cmds;
 mod blueprint_cmds;
 mod commands;
+mod fleet_cmds;
 mod gamedata_cmd;
 mod hook_cmds;
 mod version_cmd;
@@ -56,6 +57,10 @@ pub struct GlobalOpts {
     #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "FILE")]
     pub test_stock_ini: Option<PathBuf>,
+    /// Test hook: GameData JSON to go with `--test-stock-ini` (default: empty GameData).
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, global = true, hide = true, value_name = "FILE")]
+    pub test_gamedata: Option<PathBuf>,
     /// Test hook: sleep this many milliseconds between writing global.ini and recording it.
     #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "MS")]
@@ -71,6 +76,14 @@ impl GlobalOpts {
     pub fn test_stock_ini(&self) -> Option<&std::path::Path> {
         #[cfg(feature = "test-hooks")]
         return self.test_stock_ini.as_deref();
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
+
+    /// `--test-gamedata` (only in builds with the `test-hooks` feature).
+    pub fn test_gamedata(&self) -> Option<&std::path::Path> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_gamedata.as_deref();
         #[cfg(not(feature = "test-hooks"))]
         None
     }
@@ -134,6 +147,10 @@ pub enum Command {
         /// Also write every generated edit (key, category, record, added text) as JSON.
         #[arg(long, value_name = "FILE")]
         edits_out: Option<PathBuf>,
+        /// Ship order and renames from a ship-names.toml (addendum §6.4), used as given:
+        /// nothing is written unless it says `enabled = true`.
+        #[arg(long, value_name = "FILE", conflicts_with = "no_enhancements")]
+        ship_names: Option<PathBuf>,
     },
     /// Write a channel's GameData (items, ships, contracts, ...) as JSON to a file.
     Gamedata {
@@ -237,6 +254,11 @@ pub enum Command {
         #[command(subcommand)]
         cmd: BlueprintCmd,
     },
+    /// Your fleet (RSI+ / FleetYards / FleetView export or a list) for ship order and names.
+    Fleet {
+        #[command(subcommand)]
+        cmd: FleetCmd,
+    },
     /// Internal: extract one Data.p4k in a separate process (spec 3.3).
     #[command(hide = true)]
     ExtractWorker {
@@ -247,6 +269,9 @@ pub enum Command {
         /// Read only the stock global.ini (skip DataCore).
         #[arg(long)]
         ini_only: bool,
+        /// Also write keyrefs.json (the loc-reference pass for Strings grouping).
+        #[arg(long, conflicts_with = "ini_only")]
+        keyrefs: bool,
         /// Test hook: panic inside the guarded extraction.
         #[arg(long, hide = true)]
         test_panic: bool,
@@ -351,6 +376,47 @@ pub enum BlueprintCmd {
     },
 }
 
+#[derive(Debug, Subcommand)]
+pub enum FleetCmd {
+    /// Import a fleet: HangarXPLOR JSON or CSV (RSI+ "Export fleet", FleetYards, FleetView,
+    /// hangar.link) or a plain list, one ship per line. Replaces the fleet list unless
+    /// --merge. Writes only the app's own files; reads the game read-only.
+    Import {
+        /// The file, or `-` for stdin.
+        #[arg(value_name = "FILE|-")]
+        file: PathBuf,
+        /// Print the report; write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Add to the current fleet (count = the larger) instead of replacing it.
+        #[arg(long)]
+        merge: bool,
+        #[arg(long, value_name = "FORMAT", default_value = "auto",
+              value_parser = ["auto", "xplor-json", "xplor-csv", "text"])]
+        format: String,
+        /// The build whose ships to match against (default: the default channel, else LIVE).
+        #[arg(long, value_name = "NAME")]
+        channel: Option<String>,
+    },
+    /// The fleet file, the ship-names settings in use for a channel, and the listed ships
+    /// in order with their final names.
+    List {
+        #[arg(long, value_name = "NAME")]
+        channel: Option<String>,
+    },
+    /// Match an unmatched or ambiguous row by hand: a hull id, or `none` (not in the game).
+    Match {
+        #[arg(value_name = "ROW NAME")]
+        name: String,
+        #[arg(value_name = "HULL|none")]
+        hull: String,
+        #[arg(long, value_name = "NAME")]
+        channel: Option<String>,
+    },
+    /// Forget the imported fleet (hand matches and the ship order are kept).
+    Clear,
+}
+
 /// Parse `args` (including the program name) and run. Never panics on bad input.
 pub fn run<I, T>(args: I) -> ExitCode
 where
@@ -380,6 +446,7 @@ where
             owned_blueprints,
             coverage_out,
             edits_out,
+            ship_names,
         } => commands::build(
             &cli.global,
             &commands::BuildArgs {
@@ -392,6 +459,7 @@ where
                 owned_blueprints,
                 coverage_out,
                 edits_out,
+                ship_names,
             },
         ),
         Command::Gamedata {
@@ -453,14 +521,16 @@ where
         Command::Version => version_cmd::version(&cli.global),
         Command::Hook { cmd } => hook_cmds::run(&cli.global, cmd),
         Command::Blueprints { cmd } => blueprint_cmds::run(&cli.global, cmd),
+        Command::Fleet { cmd } => fleet_cmds::run(&cli.global, cmd),
         Command::ExtractWorker {
             p4k,
             out,
             ini_only,
+            keyrefs,
             test_panic,
             test_hang,
         } => {
-            use starorg_data::worker::{TestHook, run_with};
+            use starorg_data::worker::{TestHook, run_opts};
             // The worker writes only below --out; never inside the game or its prefix.
             let out_abs = commands::canonical_lenient(&out);
             let p4k_abs = commands::canonical_lenient(&p4k);
@@ -487,7 +557,8 @@ where
             } else {
                 TestHook::None
             };
-            ExitCode::from(run_with(&p4k, &out, hook, ini_only) as u8)
+            let opts = starorg_data::extract::Options { ini_only, keyrefs };
+            ExitCode::from(run_opts(&p4k, &out, hook, opts) as u8)
         }
     }
 }

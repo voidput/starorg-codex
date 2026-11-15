@@ -65,6 +65,18 @@ pub struct Extraction {
     pub dcb_entry: String,
     /// Non-fatal findings, as `(kind, detail)`.
     pub warnings: Vec<(String, String)>,
+    /// The loc-reference pass (addendum 8.2), when asked for.
+    pub keyrefs: Option<starorg_core::groups::KeyRefs>,
+}
+
+/// What to extract.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct Options {
+    /// Steps 1 to 3 only: the stock `global.ini`.
+    pub ini_only: bool,
+    /// Also run the loc-reference pass for Strings grouping (app-started extractions only,
+    /// so launch hooks stay as fast as before; Q-G1).
+    pub keyrefs: bool,
 }
 
 /// Text of a panic payload.
@@ -141,6 +153,18 @@ pub fn extract(p4k: &Path) -> Result<Extraction, ExtractError> {
 /// Steps 1 to 5, or with `ini_only` steps 1 to 3 for the stock `global.ini` alone (the text
 /// source of a published dump): `game_data` is then empty and `dcb_entry` is empty.
 pub fn extract_with(p4k: &Path, ini_only: bool) -> Result<Extraction, ExtractError> {
+    extract_opts(
+        p4k,
+        Options {
+            ini_only,
+            keyrefs: false,
+        },
+    )
+}
+
+/// [`extract_with`] with every option.
+pub fn extract_opts(p4k: &Path, opts: Options) -> Result<Extraction, ExtractError> {
+    let ini_only = opts.ini_only;
     let mut warnings = Vec::new();
     let (archive, count_check) = guarded("archive open", || open_checked(p4k))?;
     if count_check == CountCheck::Unchecked {
@@ -167,6 +191,7 @@ pub fn extract_with(p4k: &Path, ini_only: bool) -> Result<Extraction, ExtractErr
             count_check,
             dcb_entry: String::new(),
             warnings,
+            keyrefs: None,
         });
     }
 
@@ -190,7 +215,7 @@ pub fn extract_with(p4k: &Path, ini_only: bool) -> Result<Extraction, ExtractErr
 
     // Step 5: parse the DataCore and fill GameData. StarBreaker accessors may panic on
     // malformed data; rayon re-raises a worker-thread panic here, inside the guard.
-    let (datacore, game_data) = guarded("DataCore queries", || {
+    let (datacore, game_data, keyrefs) = guarded("DataCore queries", || {
         let store = DataCoreStore::parse(&dcb).map_err(ExtractError::DataCore)?;
         let stock = StockIni::parse(base_ini.clone());
         let has = |t: &str| store.has_struct(t);
@@ -204,7 +229,10 @@ pub fn extract_with(p4k: &Path, ini_only: bool) -> Result<Extraction, ExtractErr
             records: summary.records as u64,
             struct_defs: summary.struct_defs as u64,
         });
-        Ok((summary, gd))
+        let keyrefs = opts
+            .keyrefs
+            .then(|| crate::keyrefs::collect(store.scan_key_refs(), &stock));
+        Ok((summary, gd, keyrefs))
     })?;
 
     Ok(Extraction {
@@ -215,6 +243,7 @@ pub fn extract_with(p4k: &Path, ini_only: bool) -> Result<Extraction, ExtractErr
         count_check,
         dcb_entry: dcb_info.name,
         warnings,
+        keyrefs,
     })
 }
 

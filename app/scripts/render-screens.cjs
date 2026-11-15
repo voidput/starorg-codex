@@ -34,6 +34,37 @@ const shots = [
     await p.getByRole('button', { name: /^Edited/ }).click();
     await p.getByText(/^2 of /).waitFor();
   }],
+  // Strings groups (addendum 8.5): tree open with a selection, rail, manufacturer mode, the
+  // approximate state while the game data is read, and the narrow popover (below 1,000 px).
+  ['strings-groups', 'strings', async (p) => {
+    await p.locator('[data-row="0"]').getByRole('gridcell').first().waitFor();
+    const tree = p.getByRole('tree', { name: 'Groups' });
+    await tree.getByRole('treeitem', { name: /^Ship components,/ }).locator('button').click();
+    await tree.getByRole('treeitem', { name: /^Coolers,/ }).click();
+    await tree.getByRole('treeitem', { name: /^Shields,/ }).click({ modifiers: ['Control'] });
+    await p.getByRole('button', { name: 'Remove filter Shields' }).waitFor();
+  }],
+  ['strings-groups-rail', 'strings', async (p) => {
+    await p.locator('[data-row="0"]').getByRole('gridcell').first().waitFor();
+    await p.getByRole('button', { name: 'Hide groups' }).click();
+    await p.getByRole('button', { name: 'Show groups' }).waitFor();
+  }],
+  ['strings-groups-manufacturer', 'strings', async (p) => {
+    await p.locator('[data-row="0"]').getByRole('gridcell').first().waitFor();
+    await p.getByRole('combobox', { name: 'Group by' }).click();
+    await p.getByRole('option', { name: 'Group by manufacturer' }).click();
+    await p.getByRole('treeitem', { name: /^Beta Works,/ }).click();
+    await p.getByRole('button', { name: 'Remove filter Beta Works' }).waitFor();
+  }],
+  ['strings-groups-approximate', 'strings', async (p) => {
+    await p.getByText('Approximate groups – reading game data…').waitFor();
+  }, '&groups=approximate&groupsread=slow'],
+  ['strings-groups-narrow', 'strings', async (p) => {
+    await p.locator('[data-row="0"]').getByRole('gridcell').first().waitFor();
+    await p.getByRole('button', { name: /^Groups/ }).click();
+    await p.getByRole('dialog', { name: 'Groups' }).getByRole('treeitem', { name: /^Armor,/ }).click();
+    await p.getByRole('button', { name: 'Remove filter Armor' }).waitFor();
+  }],
   ['strings-detail-rejected', 'strings', async (p) => {
     await p.getByRole('searchbox', { name: 'Search keys and text' }).fill('Cooler_S2_00001');
     await p.getByText(/^1 of /).waitFor();
@@ -56,6 +87,8 @@ const shots = [
     await p.getByText('Will be added to').waitFor();
   }],
   ['blueprints-starorg-connected', 'blueprints', async (p) => p.getByText(/Signed in as/).waitFor(), '&starorg=1'],
+  ['ships', 'ships', async (p) => p.getByRole('listbox', { name: 'My ships, in order' }).waitFor(), '&fleet=grouped'],
+  ['ships-empty', 'ships', async (p) => p.getByText('Make your own ship list').waitFor()],
   ['backups', 'backups', async (p) => p.getByText('Timeline · LIVE').waitFor()],
   ['backups-foreign-restore', 'backups', async (p) => {
     await p.getByRole('button', { name: 'Restore it' }).click();
@@ -126,6 +159,10 @@ const shots = [
     await p.getByText('0.2.0 is available (this is 0.1.0).').waitFor();
     await p.evaluate(toNetwork);
   }, '&update=available'],
+  ['settings-updates-store', 'settings', async (p) => {
+    await p.getByText('Updates come from the Microsoft Store.').waitFor();
+    await p.evaluate(toNetwork);
+  }, '&update=store'],
   ['settings-updates-failed', 'settings', async (p) => {
     await p.getByText(/^Can't see releases for someone\/private-fork/).waitFor();
     await p.evaluate(toNetwork);
@@ -152,9 +189,15 @@ const shots = [
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: theme, reducedMotion: 'reduce' });
       for (const [name, screen, prep, extra, collapsed] of shots) {
         if (only && !only.test(name)) continue;
+        // The group pane exists from 1,000 px, the popover form below.
+        if (name.startsWith('strings-groups') && name.endsWith('-narrow') !== w < 1000) continue;
         const page = await ctx.newPage();
         page.setDefaultTimeout(8000);
-        await page.addInitScript((c) => localStorage.setItem('starorg:sidebar', JSON.stringify({ w: 208, collapsed: c })), !!collapsed);
+        await page.addInitScript((c) => {
+          localStorage.setItem('starorg:sidebar', JSON.stringify({ w: 208, collapsed: c }));
+          // Each shot starts from default Strings group prefs (the context is shared).
+          for (const k of Object.keys(localStorage)) if (k.startsWith('starorg.strings.')) localStorage.removeItem(k);
+        }, !!collapsed);
         const tag = `${name}-${theme}-${w}x${h}`;
         page.on('pageerror', (e) => errors.push(`${tag}: ${e.message}`));
         page.on('console', (m) => m.type() === 'error' && errors.push(`${tag} console: ${m.text()}`));

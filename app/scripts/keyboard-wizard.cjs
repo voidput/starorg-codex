@@ -46,7 +46,7 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
   await p.waitForTimeout(200);
   console.log('guard shown:', await p.getByRole('heading', { name: 'Leave setup for now?' }).isVisible());
   await p.keyboard.press('Escape');
-  await p.keyboard.press('Alt+7');
+  await p.keyboard.press('Alt+8');
   console.log('errors:', errs.length ? errs : 'none');
   await b.close();
 })().catch((e) => { console.error(e); process.exit(1); });

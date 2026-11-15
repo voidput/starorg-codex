@@ -1,0 +1,123 @@
+# Azure Artifact Signing (formerly Trusted Signing) for the Windows direct downloads
+# (docs/windows.md, "Code signing"). Decides whether signing is configured and, if so, installs
+# artifact-signing-cli and optionally writes a Tauri config overlay with bundle.windows.signCommand.
+# Never fails a release because signing is missing or not ready: with any input empty, or when the
+# preflight cannot reach the certificate profile, `enabled` is false and the caller builds unsigned.
+#
+# Secrets cannot be read inside a composite action, so the caller passes only whether the three
+# AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID secrets exist, and sets them as env on
+# the step that signs (artifact-signing-cli reads them from the environment).
+name: Windows signing setup
+description: Detect Azure Artifact Signing configuration and prepare the signing tool.
+inputs:
+  has-secrets:
+    description: "'true' when the AZURE_CLIENT_ID, AZURE_CLIENT_SECRET and AZURE_TENANT_ID secrets all exist"
+    required: true
+  endpoint:
+    description: Artifact Signing account endpoint (repo variable AZURE_SIGNING_ENDPOINT), e.g. https://eus.codesigning.azure.net
+    required: false
+    default: ""
+  account:
+    description: Artifact Signing account name (repo variable AZURE_SIGNING_ACCOUNT)
+    required: false
+    default: ""
+  profile:
+    description: Certificate profile name (repo variable AZURE_SIGNING_PROFILE)
+    required: false
+    default: ""
+  write-tauri-config:
+    description: When set, write a tauri.conf overlay with bundle.windows.signCommand to this path
+    required: false
+    default: ""
+outputs:
+  enabled:
+    description: "'true' when signing is configured and the tool is installed"
+    value: ${{ steps.decide.outputs.enabled }}
+runs:
+  using: composite
+  steps:
+    - name: Signing configured?
+      id: decide
+      shell: bash
+      env:
+        HAS_SECRETS: ${{ inputs.has-secrets }}
+        ENDPOINT: ${{ inputs.endpoint }}
+        ACCOUNT: ${{ inputs.account }}
+        PROFILE: ${{ inputs.profile }}
+      run: |
+        if [ "$HAS_SECRETS" = "true" ] && [ -n "$ENDPOINT" ] && [ -n "$ACCOUNT" ] && [ -n "$PROFILE" ]; then
+          if ! [[ "$ENDPOINT" =~ ^https://[a-z0-9-]+\.codesigning\.azure\.net/?$ ]]; then
+            echo "::error::AZURE_SIGNING_ENDPOINT must look like https://<region>.codesigning.azure.net"
+            exit 1
+          fi
+          if ! [[ "$ACCOUNT" =~ ^[A-Za-z0-9-]{3,64}$ && "$PROFILE" =~ ^[A-Za-z0-9-]{3,64}$ ]]; then
+            echo "::error::AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE: letters, digits and dashes only"
+            exit 1
+          fi
+          # Preflight: can the CI app reach the certificate profile? A missing profile (identity
+          # validation pending) or a missing Signer role gives 403/404; build unsigned with a
+          # warning instead of failing the release. AZURE_* come from the calling step's env.
+          tok=$(curl -s -X POST "https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token" \
+            --data-urlencode "client_id=${AZURE_CLIENT_ID}" --data-urlencode "client_secret=${AZURE_CLIENT_SECRET}" \
+            --data-urlencode "grant_type=client_credentials" --data-urlencode "scope=https://codesigning.azure.net/.default" \
+            | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{process.stdout.write(JSON.parse(d).access_token||"")}catch{}})')
+          if [ -z "$tok" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Windows binaries are NOT signed: Azure rejected the AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID login (expired or wrong client secret?)."
+            exit 0
+          fi
+          echo "::add-mask::$tok"
+          code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" \
+            "${ENDPOINT%/}/codesigningaccounts/${ACCOUNT}/certificateprofiles/${PROFILE}/sign/eku?api-version=2023-06-15-preview")
+          if [ "$code" != "200" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Windows binaries are NOT signed: certificate profile '${PROFILE}' on '${ACCOUNT}' answered HTTP ${code} (profile not created yet, or starorg-strings-ci lacks the Artifact Signing Certificate Profile Signer role). docs/windows.md"
+            exit 0
+          fi
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "enabled=false" >> "$GITHUB_OUTPUT"
+          echo "::notice::Windows binaries are not code-signed: add the AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, AZURE_TENANT_ID secrets and the AZURE_SIGNING_ENDPOINT, AZURE_SIGNING_ACCOUNT, AZURE_SIGNING_PROFILE variables (docs/windows.md)."
+        fi
+    # Pinned version; it calls signtool (Windows SDK) and the Azure CLI, both on windows-latest.
+    - name: Install artifact-signing-cli
+      if: steps.decide.outputs.enabled == 'true'
+      shell: bash
+      run: cargo install artifact-signing-cli --version 0.12.0 --locked
+    # artifact-signing-cli 0.12.0 defaults to one hard-coded SDK folder (10.0.26100.0) and Azure
+    # CLI path. Find the newest signtool and az on this runner instead and hand both over through
+    # SIGNTOOL_PATH / AZURE_CLI_PATH, so a runner image with another SDK still signs.
+    - name: Locate signtool and the Azure CLI
+      if: steps.decide.outputs.enabled == 'true'
+      shell: pwsh
+      run: |
+        $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+        $signtool = Get-ChildItem -Path $kits -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+          Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+){3}$' } |
+          Sort-Object { [version]$_.Directory.Parent.Name } |
+          Select-Object -Last 1
+        if (-not $signtool) { throw "signtool.exe not found under $kits (Windows SDK)" }
+        $az = Get-Command az.cmd -ErrorAction SilentlyContinue
+        if (-not $az) { $az = Get-Command az -ErrorAction SilentlyContinue }
+        if (-not $az) { throw "Azure CLI (az) not found on PATH" }
+        "SIGNTOOL_PATH=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "AZURE_CLI_PATH=$($az.Source)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host "signtool: $($signtool.FullName)"
+        Write-Host "az: $($az.Source)"
+    - name: Tauri signCommand overlay
+      if: steps.decide.outputs.enabled == 'true' && inputs.write-tauri-config != ''
+      shell: bash
+      env:
+        OUT: ${{ inputs.write-tauri-config }}
+        ENDPOINT: ${{ inputs.endpoint }}
+        ACCOUNT: ${{ inputs.account }}
+        PROFILE: ${{ inputs.profile }}
+      # Object form: no shell splitting of the description; %1 is the file Tauri signs.
+      run: |
+        node -e '
+          const { ENDPOINT, ACCOUNT, PROFILE, OUT } = process.env;
+          const args = ["-e", ENDPOINT, "-a", ACCOUNT, "-c", PROFILE, "-d", "StarOrg Strings", "%1"];
+          const cfg = { bundle: { windows: { signCommand: { cmd: "artifact-signing-cli", args } } } };
+          require("fs").writeFileSync(OUT, JSON.stringify(cfg, null, 2) + "\n");
+        '
+        echo "wrote $OUT"

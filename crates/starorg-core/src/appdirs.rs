@@ -79,6 +79,16 @@ impl AppDirs {
         self.data.join("patches")
     }
 
+    /// `fleet.json`: the imported fleet (addendum §6.4).
+    pub fn fleet_json(&self) -> PathBuf {
+        self.data.join("fleet.json")
+    }
+
+    /// `ship-names.toml`: shared order, groups, renames and prefix style.
+    pub fn ship_names_toml(&self) -> PathBuf {
+        self.data.join("ship-names.toml")
+    }
+
     pub fn cfg_dir(&self) -> PathBuf {
         self.data.join("cfg")
     }

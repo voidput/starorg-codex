@@ -69,6 +69,11 @@ struct MockChannel {
     owned: HashMap<String, Vec<OwnedBlueprint>>,
     /// Characters whose entries were deleted (`forget_character`).
     forgotten: BTreeSet<String>,
+    /// Groups from the loc-reference pass (LIVE); other channels start approximate, as after
+    /// a launch hook, until `read_string_groups`.
+    exact_groups: bool,
+    /// The `[ship_names]` part of the channel's profile (scope, own list).
+    names_profile: starorg_core::state::Profile,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +91,9 @@ struct MockState {
     cancel: BTreeSet<String>,
     /// User patch files exported or deleted, so "import" can bring one back.
     patch_files: Vec<(PatchView, String)>,
+    /// `fleet.json` and the shared `ship-names.toml`, in memory.
+    fleet: starorg_core::fleet::store::FleetFile,
+    ship_names: starorg_core::fleet::store::ShipNames,
 }
 
 /// Synthetic, stateful backend. `delay` slows long jobs so progress can be seen in the UI;
@@ -235,6 +243,7 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
         owned(&["Synthetic Rifle Mk1", "Sample Undersuit"], "log"),
     );
     owned_sets.insert(CHARACTERS[2].0.to_string(), Vec::new());
+    let exact_groups = summary.channel == "LIVE";
     MockChannel {
         summary,
         backups: Vec::new(),
@@ -246,8 +255,10 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
             character: None,
             resolved: Some(CHARACTERS[0].0.into()),
         },
+        exact_groups,
         owned: owned_sets,
         forgotten: BTreeSet::new(),
+        names_profile: Default::default(),
     }
 }
 
@@ -348,6 +359,8 @@ impl MockBackend {
             picked: false,
             cancel: BTreeSet::new(),
             patch_files: Vec::new(),
+            fleet: Default::default(),
+            ship_names: Default::default(),
         };
         let me = Self {
             state: Mutex::new(state),
@@ -501,15 +514,109 @@ fn synthetic_strings() -> Vec<StringRow> {
             } else {
                 (original.clone(), StringSource::Unmodified)
             };
+            let (group, manufacturer, size) = mock_group(cat, i);
             StringRow {
                 key,
                 original,
                 result,
                 source,
                 category: cat.into(),
+                group: group.into(),
+                group_label: group_label(group).into(),
+                manufacturer: manufacturer.map(str::to_string),
+                size,
             }
         })
         .collect()
+}
+
+/// Synthetic manufacturers (codes and names made up for the mock).
+pub const MOCK_MANUFACTURERS: &[(&str, &str)] = &[
+    ("SYNA", "Alpha Synthetics"),
+    ("SYNB", "Beta Works"),
+    ("SYNC", "Gamma Test Yards"),
+    ("SYND", "Delta Sample Co"),
+];
+
+fn group_label(id: &str) -> &'static str {
+    starorg_core::groups::rules::HIERARCHY
+        .iter()
+        .find(|g| g.id == id)
+        .map(|g| g.label)
+        .unwrap_or("Other")
+}
+
+/// The group, manufacturer and size of synthetic row `i` of category `cat`. The TS mock
+/// (`mockGroup` in `mock.ts`) uses the same table; a test pins a few rows of it.
+pub fn mock_group(cat: &str, i: usize) -> (&'static str, Option<&'static str>, Option<u32>) {
+    let k = i / 8;
+    let mfr = Some(MOCK_MANUFACTURERS[k % MOCK_MANUFACTURERS.len()].0);
+    let pick = |v: &[&'static str]| v[k % v.len()];
+    match cat {
+        "ships" => (
+            pick(&["ships/ships", "ships/ships", "ships/ground", "ships/paints"]),
+            mfr,
+            None,
+        ),
+        "components" => (
+            pick(&[
+                "components/coolers",
+                "components/power-plants",
+                "components/shields",
+                "components/quantum-drives",
+                "components/radars",
+                "components/thrusters",
+            ]),
+            mfr,
+            Some((i % 4 + 1) as u32),
+        ),
+        "ship-weapons" => (
+            if k.is_multiple_of(5) {
+                "ship-weapons/countermeasures"
+            } else {
+                "ship-weapons/guns"
+            },
+            mfr,
+            Some((i % 6 + 1) as u32),
+        ),
+        "missiles" => ("missiles", mfr, Some((i % 3 + 1) as u32)),
+        "fps-weapons" => (
+            pick(&[
+                "fps-weapons/weapons",
+                "fps-weapons/weapons",
+                "fps-weapons/attachments",
+                "fps-weapons/gadgets",
+            ]),
+            mfr,
+            None,
+        ),
+        "missions" => (
+            pick(&["missions/contracts", "missions/text", "missions/givers"]),
+            None,
+            None,
+        ),
+        "items" => {
+            let g = pick(&[
+                "armor/helmets",
+                "armor/torso",
+                "clothing/torso",
+                "consumables/food",
+                "items/misc",
+            ]);
+            (g, if k % 5 < 3 { mfr } else { None }, None)
+        }
+        _ => (
+            pick(&[
+                "interface/hud",
+                "interface/menus",
+                "interface/mobiglas",
+                "dialogue/voice",
+                "other",
+            ]),
+            None,
+            None,
+        ),
+    }
 }
 
 fn detail(mut row: StringRow, ov: Option<String>) -> StringDetail {
@@ -548,10 +655,16 @@ fn detail(mut row: StringRow, ov: Option<String>) -> StringDetail {
         row.result = v.clone();
         row.source = StringSource::Edited;
     }
+    let also_used_by = if row.group.starts_with("components/") && row.size == Some(1) {
+        vec!["HUD".to_string()]
+    } else {
+        Vec::new()
+    };
     StringDetail {
         row,
         provenance,
         override_value: ov,
+        also_used_by,
     }
 }
 
@@ -744,6 +857,227 @@ fn starorg_view(s: &mut MockState, channel: &str) {
         .collect();
     s.starorg.push_count = union.len() as u32;
     s.starorg.enabled = s.settings.network.starorg;
+}
+
+/// Synthetic hulls for the Ships screen: invented makers and names, no CIG text.
+pub(crate) const MOCK_HULLS: &[(&str, &str, Option<&str>, &str, bool)] = &[
+    (
+        "vehicle_NameKSTL_Kite",
+        "Kestrel Kite",
+        Some("Kite"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameKSTL_Talon",
+        "Kestrel Talon Mk I",
+        Some("Talon Mk I"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameKSTL_Talon_Mk2",
+        "Kestrel Talon Mk II",
+        Some("Talon Mk II"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameKSTL_Harrier",
+        "Kestrel Harrier",
+        Some("Harrier"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameORBW_Lantern",
+        "Orbit Works Lantern",
+        Some("Lantern"),
+        "orbw",
+        false,
+    ),
+    (
+        "vehicle_NameORBW_Lantern_Pro",
+        "Orbit Works Lantern Pro",
+        Some("Lantern Pro"),
+        "orbw",
+        false,
+    ),
+    (
+        "vehicle_NameORBW_Beacon",
+        "Orbit Works Beacon",
+        Some("Beacon"),
+        "orbw",
+        false,
+    ),
+    (
+        "vehicle_NameRDGE_Hauler",
+        "Ridge Freight Hauler",
+        Some("Hauler"),
+        "rdge",
+        false,
+    ),
+    (
+        "vehicle_NameRDGE_Hauler_XL",
+        "Ridge Freight Hauler XL",
+        Some("Hauler XL"),
+        "rdge",
+        false,
+    ),
+    (
+        "vehicle_NameRDGE_Barge",
+        "Ridge Freight Barge",
+        None,
+        "rdge",
+        false,
+    ),
+    (
+        "vehicle_NameVLMR_Moth",
+        "Volmar Moth",
+        Some("Moth"),
+        "vlmr",
+        false,
+    ),
+    (
+        "vehicle_NameVLMR_Hornbill",
+        "Volmar Hornbill",
+        Some("Hornbill"),
+        "vlmr",
+        false,
+    ),
+    (
+        "vehicle_NameVLMR_Pike",
+        "Volmar Pike",
+        Some("Pike"),
+        "vlmr",
+        false,
+    ),
+    (
+        "vehicle_NameSOLN_Drifter",
+        "Solen Drifter",
+        Some("Drifter"),
+        "soln",
+        false,
+    ),
+    (
+        "vehicle_NameSOLN_Prospect",
+        "Solen Prospect",
+        Some("Prospect"),
+        "soln",
+        false,
+    ),
+    (
+        "vehicle_NameSOLN_Rover",
+        "Solen Rover",
+        Some("Rover"),
+        "soln",
+        true,
+    ),
+    (
+        "vehicle_NameTRNE_Wren",
+        "Tarne Wren",
+        Some("Wren"),
+        "trne",
+        false,
+    ),
+    (
+        "vehicle_NameTRNE_Heron",
+        "Tarne Heron",
+        Some("Heron"),
+        "trne",
+        false,
+    ),
+    (
+        "vehicle_NameAXIS_Bastion",
+        "Axis Bastion",
+        Some("Bastion"),
+        "axis",
+        false,
+    ),
+    (
+        "vehicle_NameAXIS_Vigil",
+        "Axis Vigil",
+        Some("Vigil"),
+        "axis",
+        false,
+    ),
+];
+
+/// The "file" the mock import reads: HangarXPLOR JSON with made-up pledges and names.
+pub(crate) const MOCK_FLEET_FILE: &str = r#"[
+ {"ship_code":"KSTL_Kite","ship_name":"Needle","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Kite","lti":true,"warbond":false,"entity_type":"ship","pledge_id":"90000001","pledge_name":"Synthetic pledge","pledge_date":"January 01, 2950","pledge_cost":"$10.00 USD"},
+ {"ship_code":"KSTL_Kite","ship_name":"Kite","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Kite","entity_type":"ship"},
+ {"ship_name":"Talon","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Talon","entity_type":"ship"},
+ {"ship_code":"ORBW_Lantern","ship_name":"Rusty","manufacturer_code":"ORBW","manufacturer_name":"Orbit Works","name":"Lantern","entity_type":"ship"},
+ {"ship_code":"RDGE_Hauler","ship_name":"Hauler","manufacturer_code":"RDGE","manufacturer_name":"Ridge Freight","name":"Hauler","entity_type":"ship"},
+ {"ship_code":"RDGE_Hauler","ship_name":"Hauler","manufacturer_code":"RDGE","manufacturer_name":"Ridge Freight","name":"Hauler","entity_type":"ship"},
+ {"ship_code":"VLMR_Pike","ship_name":"Pike","manufacturer_code":"VLMR","manufacturer_name":"Volmar","name":"Pike","entity_type":"ship"},
+ {"ship_code":"TRNE_Starlance","ship_name":"Starlance","manufacturer_code":"TRNE","manufacturer_name":"Tarne","name":"Starlance","entity_type":"ship"},
+ {"name":"Synthetic paint pack","entity_type":"skin"}
+]"#;
+
+fn mock_catalog() -> starorg_core::fleet::Catalog {
+    use starorg_core::fleet::Hull;
+    starorg_core::fleet::Catalog::new(
+        MOCK_HULLS
+            .iter()
+            .map(|&(id, name, short, maker, ground)| Hull {
+                hull: id.into(),
+                name: name.into(),
+                short: short.map(str::to_string),
+                short_key: short.map(|_| format!("{id}_short")),
+                maker: Some(maker.into()),
+                flyable: true,
+                ground,
+                npc_shared: if ground { 0 } else { 2 },
+                namesake: true,
+            })
+            .collect(),
+    )
+}
+
+fn mock_fleet_view(c: &MockChannel, s: &MockState) -> FleetView {
+    use starorg_core::fleet::store::{Effective, Scope, channel_settings, scope_of};
+    let scope = scope_of(&c.names_profile);
+    let raw = match scope {
+        Scope::Channel => channel_settings(&c.names_profile).unwrap_or_default(),
+        _ => s.ship_names.clone(),
+    };
+    let (settings, warnings, invalid) = raw.validated();
+    let eff = Effective {
+        scope,
+        settings,
+        warnings,
+        invalid,
+    };
+    let cat = mock_catalog();
+    let overrides: Vec<starorg_core::state::Override> = c
+        .overrides
+        .iter()
+        .enumerate()
+        .map(|(i, (k, v))| starorg_core::state::Override {
+            line: i + 1,
+            key: k.clone(),
+            value: v.clone(),
+        })
+        .collect();
+    super::fleet::view(super::fleet::ViewParts {
+        channel: &c.summary.channel,
+        catalog: Some(&cat),
+        fleet: &s.fleet,
+        effective: &eff,
+        shared: &s.ship_names,
+        overrides: &overrides,
+        fleet_file: "~/.local/share/starorg-strings/fleet.json".into(),
+        settings_file: if scope == Scope::Channel {
+            format!(
+                "~/.local/share/starorg-strings/channels/{INSTALL_ID}/{}/profile.toml",
+                c.summary.channel
+            )
+        } else {
+            "~/.local/share/starorg-strings/ship-names.toml".into()
+        },
+    })
 }
 
 impl Backend for MockBackend {
@@ -1339,73 +1673,41 @@ impl Backend for MockBackend {
     }
 
     fn query_strings(&self, req: StringsQuery) -> CmdResult<StringsPage> {
-        let overrides = self.with_channel(&req.target, |c, _| Ok(c.overrides.clone()))?;
+        let (overrides, exact) = self.with_channel(&req.target, |c, _| {
+            Ok((c.overrides.clone(), c.exact_groups))
+        })?;
         let all = self.strings();
-        let needle = req.search.to_lowercase();
-        let rows_iter = all.iter().map(|r| match overrides.get(&r.key) {
-            Some(v) => StringRow {
+        let rows = all.iter().map(|r| match overrides.get(&r.key) {
+            Some(v) => std::borrow::Cow::Owned(StringRow {
                 result: v.clone(),
                 source: StringSource::Edited,
                 ..r.clone()
-            },
-            None => r.clone(),
-        });
-        let mut src_counts: BTreeMap<String, u32> = BTreeMap::new();
-        let mut cat_counts: BTreeMap<String, u32> = BTreeMap::new();
-        let mut hits: Vec<StringRow> = Vec::new();
-        for r in rows_iter {
-            if req.changed_only && r.source == StringSource::Unmodified {
-                continue;
-            }
-            if !needle.is_empty()
-                && !r.key.to_lowercase().contains(&needle)
-                && !r.original.to_lowercase().contains(&needle)
-                && !r.result.to_lowercase().contains(&needle)
-            {
-                continue;
-            }
-            let src_ok = req.sources.is_empty() || req.sources.contains(&r.source);
-            let cat_ok = req.categories.is_empty() || req.categories.contains(&r.category);
-            // Facet counts ignore their own facet, so a chip shows what picking it would give.
-            if cat_ok {
-                *src_counts.entry(serde_plain(&r.source)).or_default() += 1;
-            }
-            if src_ok {
-                *cat_counts.entry(r.category.clone()).or_default() += 1;
-            }
-            if src_ok && cat_ok {
-                hits.push(r);
-            }
-        }
-        match req.sort {
-            StringSort::Key => hits.sort_by(|a, b| a.key.cmp(&b.key)),
-            StringSort::KeyDesc => hits.sort_by(|a, b| b.key.cmp(&a.key)),
-            StringSort::Category => {
-                hits.sort_by(|a, b| (&a.category, &a.key).cmp(&(&b.category, &b.key)))
-            }
-            StringSort::Source => hits.sort_by(|a, b| {
-                (serde_plain(&a.source), &a.key).cmp(&(serde_plain(&b.source), &b.key))
             }),
-        }
-        let total = hits.len() as u32;
-        let limit = req.limit.clamp(1, 1000) as usize;
-        let rows = hits
-            .into_iter()
-            .skip(req.offset as usize)
-            .take(limit)
-            .collect();
-        let fc = |m: BTreeMap<String, u32>| {
-            m.into_iter()
-                .map(|(id, count)| FacetCount { id, count })
-                .collect()
+            None => std::borrow::Cow::Borrowed(r),
+        });
+        let meta = super::strings_query::GroupMeta {
+            state: if exact {
+                GroupState::Exact
+            } else {
+                GroupState::Approximate
+            },
+            manufacturers: MOCK_MANUFACTURERS
+                .iter()
+                .map(|(c, l)| (c.to_string(), l.to_string()))
+                .collect(),
         };
-        Ok(StringsPage {
-            total,
-            all: all.len() as u32,
-            offset: req.offset,
+        Ok(super::strings_query::run(
             rows,
-            sources: fc(src_counts),
-            categories: fc(cat_counts),
+            all.len() as u32,
+            &req,
+            &meta,
+        ))
+    }
+
+    fn read_string_groups(&self, req: ChannelRef) -> CmdResult<GroupState> {
+        self.with_channel(&req, |c, _| {
+            c.exact_groups = true;
+            Ok(GroupState::Exact)
         })
     }
 
@@ -1790,6 +2092,84 @@ impl Backend for MockBackend {
                 };
             }
             Ok(characters_view(c))
+        })
+    }
+
+    fn fleet_view(&self, req: FleetViewRequest) -> CmdResult<FleetView> {
+        self.with_channel(&req.target, |c, s| Ok(mock_fleet_view(c, s)))
+    }
+
+    fn fleet_import(&self, req: FleetImportRequest) -> CmdResult<FleetImportReport> {
+        use starorg_core::fleet::import;
+        let (file, text) = match &req.source {
+            FleetSource::Text { text } => (None, text.clone()),
+            FleetSource::File | FleetSource::Last => (
+                Some("synthetic-fleet.json".to_string()),
+                MOCK_FLEET_FILE.to_string(),
+            ),
+        };
+        let parsed = super::fleet::parse(text.as_bytes())?;
+        let out = self.with_channel(&req.target, |_, s| {
+            let cat = mock_catalog();
+            let mut out = import::run(&parsed, &cat, &s.fleet, req.merge);
+            let mut appended = 0;
+            if !req.dry_run {
+                out.fleet.imported_at = Some(NOW.into());
+                s.fleet = out.fleet.clone();
+                appended = s.ship_names.append(&out.added);
+            }
+            Ok(super::fleet::report(
+                &out,
+                file.clone(),
+                req.dry_run,
+                appended,
+            ))
+        })?;
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Import),
+            Some(&req.target.channel),
+            &format!(
+                "Fleet import{}: {} hulls, {} unmatched, {} ambiguous",
+                if req.dry_run { " (dry run)" } else { "" },
+                out.hulls.len(),
+                out.unmatched.len(),
+                out.ambiguous.len()
+            ),
+        );
+        Ok(out)
+    }
+
+    fn fleet_match(&self, req: FleetMatchRequest) -> CmdResult<FleetView> {
+        self.with_channel(&req.target, |c, s| {
+            let cat = mock_catalog();
+            let target = super::fleet::match_target(&cat, req.hull.as_deref())?;
+            let added = starorg_core::fleet::import::hand_match(&mut s.fleet, &req.name, target);
+            s.ship_names.append(added.as_slice());
+            Ok(mock_fleet_view(c, s))
+        })
+    }
+
+    fn save_ship_names(&self, req: SaveShipNamesRequest) -> CmdResult<FleetView> {
+        use starorg_core::fleet::store::{Scope, set_channel};
+        let new = super::fleet::to_core(&req.settings)?;
+        self.with_channel(&req.target, |c, s| {
+            let scope = super::fleet::core_scope(req.scope);
+            if scope == Scope::Shared {
+                s.ship_names.merge_from(&new);
+            }
+            set_channel(&mut c.names_profile, scope, Some(&new));
+            Ok(mock_fleet_view(c, s))
+        })
+    }
+
+    fn fleet_clear(&self, req: ChannelRef) -> CmdResult<FleetView> {
+        self.with_channel(&req, |c, s| {
+            s.fleet.hulls.clear();
+            s.fleet.pending.clear();
+            s.fleet.imported_at = None;
+            s.fleet.format = None;
+            Ok(mock_fleet_view(c, s))
         })
     }
 

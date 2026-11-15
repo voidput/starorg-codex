@@ -45,15 +45,24 @@ fn squash(s: &str) -> String {
 /// True when `short_name` equals `key` with its `item_Name`/`item_Desc`/`item_ShortName`/
 /// `vehicle_Name`/`vehicle_Desc` prefix removed, ignoring case and underscores.
 pub fn named_after(key: &str, short_name: &str) -> bool {
+    stem(key).is_some_and(|s| s == squash(short_name))
+}
+
+/// The record name a key is named after, lower case without underscores: `item_NameAEGS_X`
+/// -> `aegsx`. `None` when the key has no namesake prefix or nothing after it.
+pub fn stem(key: &str) -> Option<String> {
     let k = key.strip_prefix('@').unwrap_or(key);
     let lower = k.to_ascii_lowercase();
-    let Some(rest) = PREFIXES
+    let rest = PREFIXES
         .iter()
-        .find_map(|p| lower.strip_prefix(p).map(|_| &k[p.len()..]))
-    else {
-        return false;
-    };
-    !rest.is_empty() && squash(rest) == squash(short_name)
+        .find_map(|p| lower.strip_prefix(p).map(|_| &k[p.len()..]))?;
+    let s = squash(rest);
+    (!s.is_empty()).then_some(s)
+}
+
+/// `short_name` folded the way [`stem`] folds keys.
+pub fn squash_name(short_name: &str) -> String {
+    squash(short_name)
 }
 
 /// Outcome for one key.

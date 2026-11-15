@@ -84,6 +84,51 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.keyboard.press('Escape');
   await page.locator('#sd-value').waitFor({ state: 'detached' });
 
+  // Strings group tree (addendum 8.5): one tab stop, tree keys, selection chips, F6 cycle.
+  await page.getByRole('searchbox', { name: 'Search keys and text' }).fill('');
+  await page.getByText('91,000 of 91,000 keys').waitFor();
+  const tree = page.getByRole('tree', { name: 'Groups' });
+  await tree.getByRole('treeitem', { name: /^Ship components,/ }).waitFor();
+  const focusedItem = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
+  check('Tree has one tab stop', (await tree.locator('[role=treeitem][tabindex="0"]').count()) === 1);
+  await page.getByRole('searchbox', { name: 'Search keys and text' }).focus();
+  await page.keyboard.press('F6');
+  check('F6 from the filter bar goes to the grid', !!(await active()).row, JSON.stringify(await active()));
+  await page.keyboard.press('F6');
+  check('F6 from the grid goes to the tree', /^All groups/.test(await focusedItem()), await focusedItem());
+  await page.keyboard.press('Shift+F6');
+  check('Shift+F6 goes back to the grid', !!(await active()).row);
+  await page.keyboard.press('F6');
+  await page.keyboard.press('ArrowDown');
+  check('ArrowDown moves to the first group', /^Ships & vehicles,/.test(await focusedItem()), await focusedItem());
+  await page.keyboard.press('ArrowRight');
+  check('ArrowRight opens a group', (await tree.getByRole('treeitem', { name: /^Ships & vehicles,/ }).getAttribute('aria-expanded')) === 'true');
+  await page.keyboard.press('ArrowRight');
+  check('ArrowRight again moves to the first child', /^Ships,/.test(await focusedItem()), await focusedItem());
+  await page.keyboard.press('ArrowLeft');
+  check('ArrowLeft returns to the parent', /^Ships & vehicles,/.test(await focusedItem()), await focusedItem());
+  const before = await page.getByText(/ of 91,000 keys$/).textContent();
+  await page.keyboard.press('Enter');
+  await page.getByRole('button', { name: 'Remove filter Ships & vehicles' }).waitFor();
+  const after = await page.getByText(/ of 91,000 keys$/).textContent();
+  check('Enter selects the group and filters the grid', before !== after && (await tree.getByRole('treeitem', { name: /^Ships & vehicles,/ }).getAttribute('aria-selected')) === 'true', `${before} -> ${after}`);
+  await page.keyboard.press('c');
+  check('Typeahead jumps to Clothing', /^Clothing,/.test(await focusedItem()), await focusedItem());
+  await page.keyboard.press('Control+Enter');
+  await page.getByRole('button', { name: 'Remove filter Clothing' }).waitFor();
+  check('Ctrl+Enter adds a second group', (await page.getByRole('group', { name: 'Group filters' }).getByRole('button', { name: /^Remove filter/ }).count()) === 2);
+  await page.keyboard.press('End');
+  check('End moves to the last group', /^Other,/.test(await focusedItem()), await focusedItem());
+  await page.keyboard.press('Home');
+  check('Home moves to All groups', /^All groups/.test(await focusedItem()), await focusedItem());
+  await page.keyboard.press('Escape');
+  await page.getByRole('group', { name: 'Group filters' }).waitFor({ state: 'detached' });
+  check('Escape clears the selection and the chips', true);
+  await page.getByRole('button', { name: 'Hide groups' }).click();
+  await page.getByRole('button', { name: 'Show groups' }).click();
+  await tree.waitFor();
+  check('Collapse to the rail and back', true);
+
   // Tag builder: Alt+Right on a focused part moves it and keeps focus.
   await page.keyboard.press('Alt+2');
   await page.getByRole('tab', { name: /Name tags/ }).click();
@@ -142,7 +187,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
 
   // Backups: Undo dialog focus trap + Escape.
   await page.getByRole('dialog').waitFor({ state: 'detached' });
-  await page.keyboard.press('Alt+6');
+  await page.keyboard.press('Alt+7');
   await page.getByText('Timeline · LIVE').waitFor();
   await page.getByRole('button', { name: 'Undo last apply' }).click();
   await page.getByRole('heading', { name: /Undo the last apply/ }).waitFor();

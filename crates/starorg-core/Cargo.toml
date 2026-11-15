@@ -19,6 +19,17 @@ sha2.workspace = true
 getrandom.workspace = true
 memchr.workspace = true
 
+# Windows only: process image paths (is the game running?) and the list of fixed drives
+# (install discovery), through safe wrappers over Toolhelp/QueryFullProcessImageName and
+# GetDriveType; the workspace forbids our own unsafe code. Not linked on Linux.
+[target.'cfg(windows)'.dependencies]
+sysinfo = { version = "0.40", default-features = false, features = ["system", "disk"] }
+
+[features]
+# Test-only overrides (see fsutil::elevation_blocks_apply). Never in a release binary: only
+# the dev-dependencies of starorg-cli and the app turn it on, and CI checks the normal tree.
+test-hooks = []
+
 [lints]
 workspace = true
 

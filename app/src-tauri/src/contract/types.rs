@@ -716,6 +716,47 @@ pub enum StringSort {
     KeyDesc,
     Category,
     Source,
+    /// Group order of the active `group_by` (hierarchy order, manufacturer name, size),
+    /// then key.
+    Group,
+}
+
+/// What the Strings group tree shows (addendum 8.4).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GroupBy {
+    /// No tree (`StringsPage::groups` is empty).
+    #[default]
+    None,
+    /// The two-level type hierarchy.
+    Type,
+    Manufacturer,
+    Size,
+}
+
+/// `exact`: groups come from every record that uses a key. `approximate`: the loc-reference
+/// pass has not run for this build yet (a launch hook read it, or a published dump is in
+/// use); only GameData links and key prefixes were used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GroupState {
+    Exact,
+    Approximate,
+}
+
+/// One node of the group tree for the active `group_by`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GroupNode {
+    /// Type: a group id (`components/coolers`). Manufacturer: the code, or `none`. Size:
+    /// `"1"`..`"12"`, or `none`.
+    pub id: String,
+    /// Type mode only: the parent group id.
+    pub parent: Option<String>,
+    pub label: String,
+    /// Rows matching every filter except the selection of this dimension (facet rule).
+    pub count: u32,
+    pub enhanced: u32,
+    pub edited: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -729,6 +770,17 @@ pub struct StringsQuery {
     pub sort: StringSort,
     pub offset: u32,
     pub limit: u32,
+    /// Group ids; a parent selects its children. Empty = all.
+    #[serde(default)]
+    pub groups: Vec<String>,
+    /// Manufacturer codes; `none` = rows without one. Empty = all.
+    #[serde(default)]
+    pub manufacturers: Vec<String>,
+    /// Sizes 1-12; 0 = rows without one. Empty = all.
+    #[serde(default)]
+    pub sizes: Vec<u32>,
+    #[serde(default)]
+    pub group_by: GroupBy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -738,6 +790,12 @@ pub struct StringRow {
     pub result: String,
     pub source: StringSource,
     pub category: String,
+    /// Primary group (a leaf id of the type hierarchy, `components/coolers`).
+    pub group: String,
+    pub group_label: String,
+    /// Manufacturer code (`AEGS`), for keys of an item with a named manufacturer.
+    pub manufacturer: Option<String>,
+    pub size: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -756,6 +814,9 @@ pub struct StringsPage {
     pub rows: Vec<StringRow>,
     pub sources: Vec<FacetCount>,
     pub categories: Vec<FacetCount>,
+    /// The tree of `group_by` (empty for `none`), in display order.
+    pub groups: Vec<GroupNode>,
+    pub group_state: GroupState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -783,6 +844,8 @@ pub struct StringDetail {
     pub row: StringRow,
     pub provenance: Vec<Provenance>,
     pub override_value: Option<String>,
+    /// Labels of other groups whose records also use the key (Q-G3).
+    pub also_used_by: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1120,6 +1183,219 @@ pub struct ImportReport {
 }
 
 // ---------------------------------------------------------------------------------------
+// Fleet import and ship names (addendum §6)
+// ---------------------------------------------------------------------------------------
+
+/// `ship-names.toml` `style`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NameStyle {
+    None,
+    Numeric,
+    GroupLetter,
+    Symbol,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RestMode {
+    Stock,
+    Numbered,
+}
+
+/// `profile.toml` `[ship_names] use`: the shared list, this channel's own, or off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ShipNamesScope {
+    Shared,
+    Channel,
+    Off,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FleetFormat {
+    XplorJson,
+    XplorCsv,
+    Text,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShipGroup {
+    pub id: String,
+    pub name: String,
+}
+
+/// One `[[ship]]`: file order is the order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShipEntry {
+    pub hull: String,
+    pub group: Option<String>,
+    /// Rename of the long name.
+    pub name: Option<String>,
+    /// Rename of the short name; defaults to `name`.
+    pub short: Option<String>,
+}
+
+/// Same fields as the core's `fleet::store::ShipNames` (minus `schema` and unknown keys).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShipNamesSettings {
+    pub enabled: bool,
+    pub style: NameStyle,
+    /// `" "`, `"-"` or `". "`.
+    pub separator: String,
+    /// One of `! # * + - .`.
+    pub symbol: String,
+    pub rest: RestMode,
+    pub prefix_short: bool,
+    pub groups: Vec<ShipGroup>,
+    pub ships: Vec<ShipEntry>,
+}
+
+/// A player-flyable hull of the channel's build.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetHull {
+    /// Hull id = the long name key (`vehicle_NameAEGS_Gladius`).
+    pub hull: String,
+    /// Stock long name.
+    pub name: String,
+    /// Stock short name, when the build has the `_short` key.
+    pub short: Option<String>,
+    /// Game maker code (`aegs`).
+    pub maker: Option<String>,
+    pub ground: bool,
+    /// Other records (AI, PU, unmanned variants) that show the same name.
+    pub npc_shared: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OwnedHull {
+    pub hull: String,
+    pub count: u32,
+    /// Custom names from the export: rename suggestions.
+    pub names: Vec<String>,
+}
+
+/// An import row that matched no hull, or several (`candidates`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingShip {
+    pub name: String,
+    pub count: u32,
+    pub maker: Option<String>,
+    pub names: Vec<String>,
+    pub candidates: Vec<String>,
+}
+
+/// User overrides on a hull's name keys: they win with their whole value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HullOverride {
+    pub hull: String,
+    pub long: Option<String>,
+    pub short: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetViewRequest {
+    pub target: ChannelRef,
+    /// Read the game data when it is not cached for this build (slow; a job).
+    pub read_game_data: bool,
+}
+
+/// Everything the Ships screen needs for one channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetView {
+    pub channel: String,
+    /// The build's game data has been read: `catalog` is the real list.
+    pub catalog_ready: bool,
+    /// Player-flyable hulls, sorted by stock name.
+    pub catalog: Vec<FleetHull>,
+    pub owned: Vec<OwnedHull>,
+    pub pending: Vec<PendingShip>,
+    /// Row names marked "Not in the game".
+    pub not_in_game: Vec<String>,
+    pub imported_at: Option<String>,
+    pub format: Option<FleetFormat>,
+    pub scope: ShipNamesScope,
+    /// The settings in use for this channel (for `off`: the shared ones, not written).
+    pub settings: ShipNamesSettings,
+    /// The shared `ship-names.toml` (what "All channels" switches back to).
+    pub shared_settings: ShipNamesSettings,
+    pub overrides: Vec<HullOverride>,
+    pub warnings: Vec<String>,
+    /// The settings table could not be used: nothing is written until it is fixed or saved.
+    pub invalid: bool,
+    /// Display only.
+    pub fleet_file: String,
+    pub settings_file: String,
+}
+
+/// Where the import reads from. The real backend opens the file picker for `file` and keeps
+/// the file in memory, so the confirm step can use `last` without asking again.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum FleetSource {
+    File,
+    Text { text: String },
+    Last,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetImportRequest {
+    pub target: ChannelRef,
+    pub source: FleetSource,
+    pub dry_run: bool,
+    /// Add to the fleet instead of replacing it.
+    pub merge: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportedHull {
+    pub hull: String,
+    pub name: String,
+    pub count: u32,
+    pub names: Vec<String>,
+    /// Not in the fleet before.
+    pub new: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetImportReport {
+    /// File name (no folder), `null` for pasted text.
+    pub file: Option<String>,
+    pub format: FleetFormat,
+    pub dry_run: bool,
+    pub merge: bool,
+    pub total: u32,
+    /// Rows that are not ships.
+    pub skipped: u32,
+    pub hulls: Vec<ImportedHull>,
+    pub unmatched: Vec<PendingShip>,
+    pub ambiguous: Vec<PendingShip>,
+    pub not_in_game: u32,
+    pub empty_catalog: bool,
+    /// Hulls appended to the shared order list (0 for a dry run).
+    pub added_to_order: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetMatchRequest {
+    pub target: ChannelRef,
+    /// The pending row's name.
+    pub name: String,
+    /// A hull id, or `null` for "Not in the game".
+    pub hull: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SaveShipNamesRequest {
+    pub target: ChannelRef,
+    pub scope: ShipNamesScope,
+    /// Written to the shared file (`shared`) or the channel's profile (`channel`); ignored
+    /// for `off`.
+    pub settings: ShipNamesSettings,
+}
+
+// ---------------------------------------------------------------------------------------
 // StarOrg Tools account (addendum §5, Q22 = push the union of ticked characters)
 // ---------------------------------------------------------------------------------------
 
@@ -1286,6 +1562,8 @@ pub enum UpdateInstall {
     InApp,
     /// deb, rpm, portable or a build without a key: the app only links to the release.
     DownloadOnly,
+    /// The Microsoft Store build: the Store updates it. No release check, no install.
+    Store,
 }
 
 /// Why a check did not give an answer. Not alarming: the app keeps working either way.

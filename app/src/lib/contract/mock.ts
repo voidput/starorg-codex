@@ -12,7 +12,11 @@
  * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
  * `&accent=<accent>`, `&palette=black`. Updates: `&update=available|failed|skipped`
  * (mock-update.ts).
+ * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
+ * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
+ * not read yet).
  */
+import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
 import samples from './samples.gen.json';
@@ -31,6 +35,10 @@ const SAMPLES = samples as unknown as {
   doctor: T.DoctorReport;
   starorg_status: T.StarOrgStatus;
   import_smart_citizen: T.ImportReport;
+  query_strings: T.StringsPage;
+  fleet_view: T.FleetView;
+  fleet_import: T.FleetImportReport;
+  save_ship_names: T.FleetView;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -46,7 +54,56 @@ interface Chan {
   active: T.ActiveCharacter;
   owned: Map<string, T.OwnedBlueprint[]>;
   forgotten: Set<string>;
+  /** LIVE has run the loc-reference pass; other channels start approximate. */
+  exactGroups?: boolean;
 }
+
+/** Synthetic manufacturers, as in the Rust mock (`MOCK_MANUFACTURERS`). */
+const MOCK_MANUFACTURERS: [string, string][] = [
+  ['SYNA', 'Alpha Synthetics'],
+  ['SYNB', 'Beta Works'],
+  ['SYNC', 'Gamma Test Yards'],
+  ['SYND', 'Delta Sample Co'],
+];
+
+/**
+ * Group, manufacturer and size of synthetic row `i`: the table of `mock_group` in the Rust
+ * mock. A Rust test checks these pins:
+ * // pin: components 16 -> components/shields SYNC 1
+ * // pin: items 40 -> armor/helmets SYNB -
+ * // pin: ui 24 -> dialogue/voice - -
+ * // pin: ship-weapons 0 -> ship-weapons/countermeasures SYNA 1
+ */
+export function mockGroup(cat: string, i: number): [string, string | null, number | null] {
+  const k = Math.floor(i / 8);
+  const mfr = MOCK_MANUFACTURERS[k % MOCK_MANUFACTURERS.length]![0];
+  const pick = (v: string[]) => v[k % v.length]!;
+  switch (cat) {
+    case 'ships':
+      return [pick(['ships/ships', 'ships/ships', 'ships/ground', 'ships/paints']), mfr, null];
+    case 'components':
+      return [pick(['components/coolers', 'components/power-plants', 'components/shields', 'components/quantum-drives', 'components/radars', 'components/thrusters']), mfr, (i % 4) + 1];
+    case 'ship-weapons':
+      return [k % 5 === 0 ? 'ship-weapons/countermeasures' : 'ship-weapons/guns', mfr, (i % 6) + 1];
+    case 'missiles':
+      return ['missiles', mfr, (i % 3) + 1];
+    case 'fps-weapons':
+      return [pick(['fps-weapons/weapons', 'fps-weapons/weapons', 'fps-weapons/attachments', 'fps-weapons/gadgets']), mfr, null];
+    case 'missions':
+      return [pick(['missions/contracts', 'missions/text', 'missions/givers']), null, null];
+    case 'items':
+      return [pick(['armor/helmets', 'armor/torso', 'clothing/torso', 'consumables/food', 'items/misc']), k % 5 < 3 ? mfr : null, null];
+    default:
+      return [pick(['interface/hud', 'interface/menus', 'interface/mobiglas', 'dialogue/voice', 'other']), null, null];
+  }
+}
+
+/** The type hierarchy (ids, parents, labels) as the Rust mock wrote it into the samples. */
+const HIERARCHY = () => SAMPLES.query_strings.groups.map((g) => ({ id: g.id, parent: g.parent, label: g.label }));
+const groupLabel = (() => {
+  let m: Map<string, string> | null = null;
+  return (id: string) => (m ??= new Map(HIERARCHY().map((g) => [g.id, g.label]))).get(id) ?? 'Other';
+})();
 
 const fail = (code: T.ErrorCode, message: string, detail: string | null = null): never => {
   throw new ContractError({ code, message, detail });
@@ -170,7 +227,8 @@ function syntheticStrings(): T.StringRow[] {
       else if (cat === 'components' || cat === 'ship-weapons' || cat === 'missiles') result = `[S${(i % 4) + 1}-A] ${original}`;
       else result = `${original}\\n\\n--- STATS ---\\nDamage: 12.5  |  RPM: 600`;
     }
-    rows[i] = { key, original, result, source, category: cat };
+    const [group, manufacturer, size] = mockGroup(cat, i);
+    rows[i] = { key, original, result, source, category: cat, group, group_label: groupLabel(group), manufacturer, size };
   }
   return rows;
 }
@@ -368,7 +426,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       row.result = ov;
       row.source = 'edited';
     }
-    return { row, provenance, override_value: ov };
+    const also_used_by = row.group.startsWith('components/') && row.size === 1 ? ['HUD'] : [];
+    return { row, provenance, override_value: ov, also_used_by };
   };
   const offers = (c: Chan): T.RestoreOffers => {
     const s = c.summary;
@@ -418,6 +477,142 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     return starorg.guild!;
   };
   const firstRun = () => !installs.some((i) => i.channels.some((c) => c.set_up));
+
+  // Fleet and ship names (addendum §6): one fleet and one shared list for every channel.
+  let fleetMode = params.get('fleet');
+  const catalog = clone(SAMPLES.fleet_view.catalog);
+  const emptyNames = (): T.ShipNamesSettings => ({ enabled: false, style: 'numeric', separator: ' ', symbol: '*', rest: 'stock', prefix_short: false, groups: [], ships: [] });
+  const fleet = {
+    owned: [] as T.OwnedHull[],
+    pending: [] as T.PendingShip[],
+    matches: new Map<string, string | null>(),
+    imported_at: null as string | null,
+    format: null as T.FleetFormat | null,
+  };
+  let shared = emptyNames();
+  const scopes = new Map<string, { scope: T.ShipNamesScope; own: T.ShipNamesSettings | null }>();
+  let lastFile = false;
+  const fv = SAMPLES.fleet_view;
+  if (fleetMode && fleetMode !== 'nodata') {
+    fleet.owned = clone(fv.owned);
+    fleet.imported_at = fv.imported_at;
+    fleet.format = fv.format;
+    shared = fleetMode === 'grouped' ? clone(SAMPLES.save_ship_names.settings) : { ...emptyNames(), ships: fv.owned.map((o) => ({ hull: o.hull, group: null, name: null, short: null })) };
+    if (fleetMode === 'review') fleet.pending = clone(SAMPLES.fleet_import.unmatched.concat(SAMPLES.fleet_import.ambiguous));
+    else fleet.pending = clone(fv.pending);
+  }
+  const norm = (x: string) => x.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  /** A small version of the core matcher: exact name, name without its first word (maker), short name. */
+  const matchName = (name: string): string[] => {
+    const n = norm(name);
+    const saved = fleet.matches.get(n);
+    if (saved !== undefined) return saved === null ? ['-'] : [saved];
+    const forms = (h: T.FleetHull) => [norm(h.name), norm(h.name).split(' ').slice(1).join(' '), norm(h.short ?? '')];
+    let hits = catalog.filter((h) => forms(h).includes(n)).map((h) => h.hull);
+    if (!hits.length) {
+      const noMk = (x: string) => x.replace(/\bmk (i+|v|iv|\d+)\b/g, '').replace(/\s+/g, ' ').trim();
+      hits = catalog.filter((h) => forms(h).map(noMk).includes(noMk(n))).map((h) => h.hull);
+    }
+    return hits;
+  };
+  const parseText = (text: string) => {
+    const rows: { name: string; count: number; custom: string | null; maker: string | null }[] = [];
+    const t = text.replace(/^\ufeff/, '').trim();
+    if (t.startsWith('{')) fail('invalid', 'not a fleet export');
+    if (t.startsWith('[')) {
+      let arr: unknown;
+      try {
+        arr = JSON.parse(t);
+      } catch {
+        fail('invalid', 'not a fleet export');
+      }
+      for (const r of arr as Record<string, string>[]) {
+        if (r.entity_type && r.entity_type !== 'ship') continue;
+        const name = r.name || r.ship_name;
+        if (!name) continue;
+        const custom = r.ship_name && norm(r.ship_name) !== norm(name) ? r.ship_name : null;
+        rows.push({ name, count: 1, custom, maker: r.manufacturer_code ?? null });
+      }
+      return { rows, format: 'xplor-json' as T.FleetFormat, total: (arr as unknown[]).length };
+    }
+    // Same rule as the core: a CSV-shaped first line is a CSV (refused here without the
+    // HangarXPLOR columns); CSV-shaped or over-long lines are never read as ship names.
+    const first = t.split(/\r?\n/)[0] ?? '';
+    if (first.split(',').length >= 3 || first.includes('\t')) {
+      const cols = first.split(',').map((c) => c.trim().replace(/^"|"$/g, '').toLowerCase());
+      if (!(cols.includes('manufacturer') && cols.includes('ship'))) fail('invalid', 'not a fleet export: no Manufacturer and Ship columns');
+    }
+    for (const line of t.split(/\r?\n/)) {
+      const l = line.trim();
+      if (!l || l.startsWith('#')) continue;
+      if (Array.from(l).length > 100 || /[,;\t"|]/.test(l)) continue;
+      const m = /^(\d+)\s*[x×]\s+(.+)$/i.exec(l) ?? null;
+      const m2 = /^(.+?)\s+[x×](\d+)$/i.exec(l) ?? null;
+      if (m) rows.push({ name: m[2]!, count: Number(m[1]), custom: null, maker: null });
+      else if (m2) rows.push({ name: m2[1]!, count: Number(m2[2]), custom: null, maker: null });
+      else rows.push({ name: l, count: 1, custom: null, maker: null });
+    }
+    if (!rows.length) fail('invalid', 'the list names no ship');
+    return { rows, format: 'text' as T.FleetFormat, total: rows.length };
+  };
+  const MOCK_FILE = JSON.stringify([
+    { ship_code: 'KSTL_Kite', ship_name: 'Needle', manufacturer_code: 'KSTL', name: 'Kite', entity_type: 'ship', pledge_id: '90000001' },
+    { ship_code: 'KSTL_Kite', ship_name: 'Kite', manufacturer_code: 'KSTL', name: 'Kite', entity_type: 'ship' },
+    { ship_name: 'Talon', manufacturer_code: 'KSTL', name: 'Talon', entity_type: 'ship' },
+    { ship_code: 'ORBW_Lantern', ship_name: 'Rusty', manufacturer_code: 'ORBW', name: 'Lantern', entity_type: 'ship' },
+    { ship_code: 'RDGE_Hauler', ship_name: 'Hauler', manufacturer_code: 'RDGE', name: 'Hauler', entity_type: 'ship' },
+    { ship_code: 'RDGE_Hauler', ship_name: 'Hauler', manufacturer_code: 'RDGE', name: 'Hauler', entity_type: 'ship' },
+    { ship_code: 'VLMR_Pike', ship_name: 'Pike', manufacturer_code: 'VLMR', name: 'Pike', entity_type: 'ship' },
+    { ship_code: 'TRNE_Starlance', ship_name: 'Starlance', manufacturer_code: 'TRNE', name: 'Starlance', entity_type: 'ship' },
+    { name: 'Synthetic paint pack', entity_type: 'skin' },
+  ]);
+  const appendOrder = (hulls: string[]) => {
+    let n = 0;
+    for (const h of hulls) {
+      if (shared.ships.some((e) => fold(e.hull) === fold(h))) continue;
+      shared.ships.push({ hull: h, group: null, name: null, short: null });
+      n++;
+    }
+    return n;
+  };
+  const scopeOf = (r: T.ChannelRef) => scopes.get(id(r)) ?? { scope: 'shared' as T.ShipNamesScope, own: null };
+  const fleetView = (r: T.ChannelRef): T.FleetView => {
+    const c = chan(r);
+    const sc = scopeOf(r);
+    const settings = sc.scope === 'channel' && sc.own ? sc.own : shared;
+    const overrides = catalog
+      .map((h) => ({ hull: h.hull, long: c.overrides.get(h.hull) ?? null, short: c.overrides.get(`${h.hull}_short`) ?? null }))
+      .filter((o) => o.long !== null || o.short !== null);
+    const ready = fleetMode !== 'nodata';
+    return {
+      ...clone(fv),
+      channel: r.channel,
+      catalog_ready: ready,
+      catalog: ready ? clone(catalog) : [],
+      owned: clone(fleet.owned),
+      pending: clone(fleet.pending),
+      not_in_game: [...fleet.matches].filter(([, v]) => v === null).map(([k]) => k),
+      imported_at: fleet.imported_at,
+      format: fleet.format,
+      scope: sc.scope,
+      settings: clone(settings),
+      shared_settings: clone(shared),
+      overrides,
+      warnings: [],
+      invalid: false,
+      settings_file: sc.scope === 'channel' ? `~/.local/share/starorg-strings/channels/${r.install}/${r.channel}/profile.toml` : fv.settings_file,
+    };
+  };
+  const checkNames = (st: T.ShipNamesSettings) => {
+    if (!(SEPARATORS as readonly string[]).includes(st.separator)) fail('invalid', 'separator: one of " ", "-", ". "');
+    if (!(SYMBOLS as readonly string[]).includes(st.symbol)) fail('invalid', 'symbol: one of ! # * + - .');
+    for (const e of st.ships) for (const v of [e.name, e.short]) if (v !== null && v.trim() && nameProblem(v)) fail('invalid', `${JSON.stringify(v)}: ${nameProblem(v)}`);
+    return { ...clone(st), ships: st.ships.map((e) => ({ ...e, name: e.name?.trim() || null, short: e.short?.trim() || null })) };
+  };
+  const markStale = () => {
+    for (const c of chans.values()) if (c.summary.status.state === 'applied') c.summary.status = { state: 'stale', reasons: ['ship names'] };
+    sync();
+  };
 
   const h: Handlers = {
     overview: () => {
@@ -628,32 +823,86 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     copy_profile: ({ req }) => h.save_profile({ req: { target: req.to, profile: chan(req.from).profile } }),
     query_strings: ({ req }) => {
+      // Same rules as the Rust side (`contract/strings_query.rs`).
       const c = chan(req.target);
       const needle = req.search.toLowerCase();
+      const groups = req.groups ?? [];
+      const mfrs = req.manufacturers ?? [];
+      const sizes = req.sizes ?? [];
+      const by: T.GroupBy = req.group_by ?? 'none';
       const srcCounts = new Map<string, number>();
       const catCounts = new Map<string, number>();
+      const tree = new Map<string, { count: number; enhanced: number; edited: number }>();
+      const sizesSeen = new Set<number>();
       let hits: T.StringRow[] = [];
+      const inGroups = (g: string) => !groups.length || groups.some((s) => g === s || g.startsWith(`${s}/`));
       for (const base of table()) {
+        if (base.size !== null) sizesSeen.add(base.size);
         const ov = c.overrides.get(base.key);
         const r = ov === undefined ? base : { ...base, result: ov, source: 'edited' as const };
         if (req.changed_only && r.source === 'unmodified') continue;
         if (needle && !r.key.toLowerCase().includes(needle) && !r.original.toLowerCase().includes(needle) && !r.result.toLowerCase().includes(needle)) continue;
         const srcOk = !req.sources.length || req.sources.includes(r.source);
         const catOk = !req.categories.length || req.categories.includes(r.category);
-        if (catOk) srcCounts.set(r.source, (srcCounts.get(r.source) ?? 0) + 1);
-        if (srcOk) catCounts.set(r.category, (catCounts.get(r.category) ?? 0) + 1);
-        if (srcOk && catOk) hits.push(r);
+        const typeOk = inGroups(r.group);
+        const mfrOk = !mfrs.length || mfrs.some((m) => m === r.manufacturer || (m === 'none' && r.manufacturer === null));
+        const sizeOk = !sizes.length || sizes.includes(r.size ?? 0);
+        const groupsOk = typeOk && mfrOk && sizeOk;
+        if (catOk && groupsOk) srcCounts.set(r.source, (srcCounts.get(r.source) ?? 0) + 1);
+        if (srcOk && groupsOk) catCounts.set(r.category, (catCounts.get(r.category) ?? 0) + 1);
+        const ownOk = by === 'type' ? mfrOk && sizeOk : by === 'manufacturer' ? typeOk && sizeOk : by === 'size' ? typeOk && mfrOk : false;
+        if (srcOk && catOk && ownOk) {
+          const id = by === 'manufacturer' ? (r.manufacturer ?? 'none') : by === 'size' ? (r.size === null ? 'none' : String(r.size)) : r.group;
+          const t = tree.get(id) ?? { count: 0, enhanced: 0, edited: 0 };
+          t.count++;
+          if (r.source === 'enhanced') t.enhanced++;
+          if (r.source === 'edited') t.edited++;
+          tree.set(id, t);
+        }
+        if (srcOk && catOk && groupsOk) hits.push(r);
       }
       const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+      const hier = HIERARCHY();
+      const pos = new Map(hier.map((g, i) => [g.id, i]));
+      const mfrPos = new Map(MOCK_MANUFACTURERS.map(([code], i) => [code, i]));
+      const rank = (r: T.StringRow) =>
+        by === 'manufacturer' ? (r.manufacturer === null ? Infinity : (mfrPos.get(r.manufacturer) ?? Infinity)) : by === 'size' ? (r.size ?? Infinity) : (pos.get(r.group) ?? Infinity);
       if (req.sort === 'key') hits.sort((a, b) => cmp(a.key, b.key));
       else if (req.sort === 'key-desc') hits.sort((a, b) => cmp(b.key, a.key));
       else if (req.sort === 'category') hits.sort((a, b) => cmp(a.category, b.category) || cmp(a.key, b.key));
+      else if (req.sort === 'group') hits.sort((a, b) => rank(a) - rank(b) || cmp(a.key, b.key));
       else hits.sort((a, b) => cmp(a.source, b.source) || cmp(a.key, b.key));
       const total = hits.length;
       const limit = Math.min(Math.max(req.limit, 1), 1000);
       hits = hits.slice(req.offset, req.offset + limit);
       const fc = (m: Map<string, number>) => [...m].sort((a, b) => cmp(a[0], b[0])).map(([id, count]) => ({ id, count }));
-      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits), sources: fc(srcCounts), categories: fc(catCounts) };
+      const zero = { count: 0, enhanced: 0, edited: 0 };
+      let nodes: T.GroupNode[] = [];
+      if (by === 'type') {
+        nodes = hier.map((g) => {
+          const kids = hier.filter((x) => x.parent === g.id);
+          const t = kids.length
+            ? kids.reduce((a, k) => {
+                const v = tree.get(k.id) ?? zero;
+                return { count: a.count + v.count, enhanced: a.enhanced + v.enhanced, edited: a.edited + v.edited };
+              }, zero)
+            : (tree.get(g.id) ?? zero);
+          return { ...g, ...t };
+        });
+      } else if (by === 'manufacturer') {
+        nodes = [...MOCK_MANUFACTURERS.map(([id, label]) => ({ id, parent: null, label, ...(tree.get(id) ?? zero) })), { id: 'none', parent: null, label: 'No manufacturer', ...(tree.get('none') ?? zero) }];
+      } else if (by === 'size') {
+        nodes = [...[...sizesSeen].sort((a, b) => a - b).map((s) => ({ id: String(s), parent: null, label: `Size ${s}`, ...(tree.get(String(s)) ?? zero) })), { id: 'none', parent: null, label: 'No size', ...(tree.get('none') ?? zero) }];
+      }
+      const group_state: T.GroupState = (c.exactGroups ?? c.summary.channel === 'LIVE') ? 'exact' : 'approximate';
+      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits), sources: fc(srcCounts), categories: fc(catCounts), groups: nodes, group_state };
+    },
+    read_string_groups: async ({ req }): Promise<T.GroupState> => {
+      const c = chan(req);
+      await sleep(groupsRead === 'slow' ? 20_000 : 900);
+      if (groupsRead === 'busy') fail('busy', 'another extraction is running');
+      c.exactGroups = true;
+      return 'exact';
     },
     string_detail: ({ req }) => detail(req.target, req.key),
     set_override: ({ req }) => {
@@ -761,6 +1010,100 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         c.owned.set(req.character, set);
       }
       return { ...clone(SAMPLES.import_smart_citizen), dry_run: req.dry_run, imported, known };
+    },
+    fleet_view: ({ req }) => {
+      if (req.read_game_data && fleetMode === 'nodata') fleetMode = null;
+      return fleetView(req.target);
+    },
+    fleet_import: async ({ req }) => {
+      chan(req.target);
+      if (req.source.kind === 'file') lastFile = true;
+      if (req.source.kind === 'last' && !lastFile) fail('not-found', 'Choose the file again: it is no longer in memory.');
+      await sleep(Math.min(delay, 400));
+      const text = req.source.kind === 'text' ? req.source.text : MOCK_FILE;
+      const { rows, format, total } = parseText(text);
+      const hulls = new Map<string, T.ImportedHull>();
+      const pending = new Map<string, T.PendingShip>();
+      let notInGame = 0;
+      for (const r of rows) {
+        const hits = matchName(r.name);
+        if (hits[0] === '-') {
+          notInGame++;
+          continue;
+        }
+        if (hits.length === 1) {
+          const hc = catalog.find((x) => x.hull === hits[0])!;
+          const e = hulls.get(hc.hull) ?? { hull: hc.hull, name: hc.name, count: 0, names: [], new: !fleet.owned.some((o) => o.hull === hc.hull) };
+          e.count += r.count;
+          if (r.custom && !e.names.includes(r.custom)) e.names.push(r.custom);
+          hulls.set(hc.hull, e);
+        } else {
+          const e = pending.get(norm(r.name)) ?? { name: r.name, count: 0, maker: r.maker, names: [], candidates: hits.length > 1 ? hits : [] };
+          e.count += r.count;
+          pending.set(norm(r.name), e);
+        }
+      }
+      const report: T.FleetImportReport = {
+        file: req.source.kind === 'text' ? null : 'synthetic-fleet.json',
+        format,
+        dry_run: req.dry_run,
+        merge: req.merge,
+        total: format === 'xplor-json' ? total : rows.length,
+        skipped: format === 'xplor-json' ? total - rows.length : 0,
+        hulls: [...hulls.values()],
+        unmatched: [...pending.values()].filter((p) => !p.candidates.length),
+        ambiguous: [...pending.values()].filter((p) => p.candidates.length),
+        not_in_game: notInGame,
+        empty_catalog: fleetMode === 'nodata',
+        added_to_order: 0,
+      };
+      if (!req.dry_run && !report.empty_catalog) {
+        const next = req.merge ? clone(fleet.owned) : [];
+        for (const h of hulls.values()) {
+          const o = next.find((x) => x.hull === h.hull);
+          if (o) o.count = Math.max(o.count, h.count);
+          else next.push({ hull: h.hull, count: h.count, names: [...h.names] });
+        }
+        fleet.owned = next;
+        fleet.pending = req.merge ? [...fleet.pending.filter((p) => !pending.has(norm(p.name))), ...pending.values()] : [...pending.values()];
+        fleet.imported_at = NOW;
+        fleet.format = format;
+        report.added_to_order = appendOrder([...hulls.values()].filter((h) => h.new).map((h) => h.hull));
+        if (shared.enabled && report.added_to_order) markStale();
+        lastFile = false;
+      }
+      addLog('info', 'import', req.target.channel, `Fleet import${req.dry_run ? ' (dry run)' : ''}: ${report.hulls.length} hulls, ${report.unmatched.length} unmatched, ${report.ambiguous.length} ambiguous`);
+      return report;
+    },
+    fleet_match: ({ req }) => {
+      if (req.hull !== null && !catalog.some((h) => fold(h.hull) === fold(req.hull!))) fail('invalid', `${req.hull} is not a ship of this build`);
+      fleet.matches.set(norm(req.name), req.hull);
+      const p = fleet.pending.find((x) => norm(x.name) === norm(req.name));
+      fleet.pending = fleet.pending.filter((x) => x !== p);
+      if (p && req.hull) {
+        const o = fleet.owned.find((x) => fold(x.hull) === fold(req.hull!));
+        if (o) o.count += p.count;
+        else {
+          fleet.owned.push({ hull: req.hull, count: p.count, names: [...p.names] });
+          appendOrder([req.hull]);
+        }
+      }
+      return fleetView(req.target);
+    },
+    save_ship_names: ({ req }) => {
+      const st = checkNames(req.settings);
+      const before = fleetView(req.target).settings.enabled;
+      if (req.scope === 'shared') shared = st;
+      scopes.set(id(req.target), { scope: req.scope, own: req.scope === 'channel' ? st : null });
+      if (before || st.enabled) markStale();
+      return fleetView(req.target);
+    },
+    fleet_clear: ({ req }) => {
+      fleet.owned = [];
+      fleet.pending = [];
+      fleet.imported_at = null;
+      fleet.format = null;
+      return fleetView(req);
     },
     forget_character: ({ req }) => {
       const c = chan(req.target);
@@ -902,6 +1245,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     if (params.get('log') === 'empty') log.length = 0;
     sync();
   }
+
+  // Strings groups: `?groups=approximate` starts every channel approximate; `&groupsread=busy`
+  // makes the read fail as while another extraction runs; `&groupsread=slow` holds it 20 s.
+  const groupsMode = params.get('groups');
+  const groupsRead = params.get('groupsread');
+  if (groupsMode === 'approximate') for (const c of chans.values()) c.exactGroups = false;
 
   // Render states (any start state).
   const each = (key: string, f: (c: Chan) => void) => {
