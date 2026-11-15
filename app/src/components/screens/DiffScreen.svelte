@@ -6,7 +6,7 @@
    * first; filter by state and by changed field; identity column override) and the field diff
    * of the picked record (old ► new, numbers with delta and percent). F6 cycles the panes.
    * Records are titled with the item's display name and fields read as names, text and numbers
-   * with units on both sides, grouped by item (7.12); "Show IDs" switches back to raw ids, and
+   * with units on both sides, grouped by item (7.14); "Show IDs" switches back to raw ids, and
    * the record filter matches names and ids.
    */
   import { untrack } from 'svelte';

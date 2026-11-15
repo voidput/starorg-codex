@@ -212,7 +212,7 @@ pub struct DevRowDetail {
     pub loc: Vec<LocText>,
     pub links: Vec<ExplorerLink>,
     /// What GUIDs, record names, `@key`s and manufacturer codes in the row read as, by raw
-    /// value (addendum 7.12).
+    /// value (addendum 7.14).
     #[serde(default)]
     pub labels: std::collections::BTreeMap<String, Readable>,
 }
@@ -273,7 +273,7 @@ pub struct DevDiffRecordRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DevFieldDiff {
     pub id: String,
-    /// The record's display name (addendum 7.12).
+    /// The record's display name (addendum 7.14).
     #[serde(default)]
     pub label: Option<String>,
     pub state: RecordState,
@@ -430,7 +430,7 @@ pub fn field_counts(records: &[DiffRecord]) -> Vec<ValueCount> {
 }
 
 /// Shared by both backends: filter, page and trim one table's diff records. `title` gives a
-/// record's display name (addendum 7.12); the text query matches it and the id.
+/// record's display name (addendum 7.14); the text query matches it and the id.
 pub fn page_records(
     d: &starorg_core::dev::diff::TableDiff,
     req: &DevDiffRecordsRequest,

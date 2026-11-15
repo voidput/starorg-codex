@@ -177,7 +177,7 @@ pub const MAKERS: [(&str, &str); 3] = [
     ("SYNC", "Gamma Test Yards"),
 ];
 
-/// The records the mock's labels know (7.12): every synthetic record, ships and components
+/// The records the mock's labels know (7.14): every synthetic record, ships and components
 /// with their `Name` key, tags with their label.
 pub fn known() -> Vec<KnownRecord> {
     let c = core();

@@ -53,7 +53,7 @@ pub struct DiffRecord {
     /// Row positions on each side.
     pub a: Option<u32>,
     pub b: Option<u32>,
-    /// The record's display name (addendum 7.12), filled per page.
+    /// The record's display name (addendum 7.14), filled per page.
     #[serde(default)]
     pub label: Option<String>,
 }
@@ -65,7 +65,7 @@ pub struct FieldChange {
     pub new: Option<Value>,
     pub delta: Option<f64>,
     pub percent: Option<f64>,
-    /// The path with its `[column=value]` segments read (addendum 7.12).
+    /// The path with its `[column=value]` segments read (addendum 7.14).
     #[serde(default)]
     pub path_label: Option<String>,
     /// What the change is shown under (see [`readable::group_of`]).

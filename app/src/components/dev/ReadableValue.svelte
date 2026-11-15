@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * A raw value with what it reads as (addendum 7.12): the readable label first, the raw id
+   * A raw value with what it reads as (addendum 7.14): the readable label first, the raw id
    * after it (muted, mono, full text in the tooltip), an "enhanced" mark when our text differs
    * from stock, and an optional copy button for the raw id. Without a label, or with "Show
    * IDs" on, the raw value alone (ids nothing reads are marked). Text only, never HTML.

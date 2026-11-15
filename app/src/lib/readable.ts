@@ -1,5 +1,5 @@
 /**
- * Readable ids in Developer mode (addendum 7.12), pure: what a raw value shows as given the
+ * Readable ids in Developer mode (addendum 7.14), pure: what a raw value shows as given the
  * backend's label and the "Show IDs" switch, the switch's per-viewer storage, and the text of
  * a field-diff value (label, number with unit). The backend resolves; this only decides what
  * is primary and what is secondary, so a missing label always falls back to the raw value.

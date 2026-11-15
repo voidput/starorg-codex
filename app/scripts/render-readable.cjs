@@ -1,4 +1,4 @@
-// Headless renders of readable ids in Developer mode (addendum 7.12): Explorer record, Datasets
+// Headless renders of readable ids in Developer mode (addendum 7.14): Explorer record, Datasets
 // table and row, Diff records and field changes, readable and with "Show IDs" on; mock backend
 // (`?dev=1`), dark and light, 1280x800. Writes PNGs to .tmp/renders/readable/. Never opens a
 // window. Run against `vite preview`: BASE_URL=http://127.0.0.1:4317/ node scripts/render-readable.cjs

@@ -6,7 +6,7 @@
    * follows a reference or toggles, Ctrl+C copies the value under the cursor, Shift+Ctrl+C its
    * JSON pointer, Ctrl+F (or `/`) searches inside the value and Enter/F3 steps through
    * matches. References, GUIDs and `@key`s show what they read as next to the raw value
-   * (7.12; hidden with "Show IDs"); a GUID that names a record follows like a reference.
+   * (7.14; hidden with "Show IDs"); a GUID that names a record follows like a reference.
    * Values are text only: nothing is rendered as HTML.
    */
   import { tick, untrack } from 'svelte';
@@ -36,7 +36,7 @@
     json: string;
     label: string;
     loc?: LocText[];
-    /** Raw value -> what it reads as (7.12). */
+    /** Raw value -> what it reads as (7.14). */
     labels?: Record<string, Readable>;
     onfollow?: ((r: RefInfo) => void) | null;
     /** Load the node at a pointer that the backend cut. */
@@ -268,7 +268,7 @@
       {#each shown as { l, i } (l.pointer)}
         {@const container = l.kind === 'object' || l.kind === 'array' || l.kind === 'cut'}
         {@const lab = l.kind === 'value' ? labelOf(l.value) : null}
-        {@const text = l.kind === 'value' && typeof l.value === 'string' && (!lab || lab.kind === 'loc') ? (lab?.text ?? locMap.get(l.value)) : undefined}
+        {@const text = !dev.showIds && l.kind === 'value' && typeof l.value === 'string' && (!lab || lab.kind === 'loc') ? (lab?.text ?? locMap.get(l.value)) : undefined}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
           id={lineId(i)}

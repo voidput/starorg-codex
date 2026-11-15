@@ -136,7 +136,7 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
             identity: None,
         })
         .unwrap();
-    // Readable labels (7.12): a search that only matches what a code reads as, a record
+    // Readable labels (7.14): a search that only matches what a code reads as, a record
     // query by display name, a field diff with a unit.
     let mut readable_rows = rows("build:LIVE", "gamedata.json", "components");
     readable_rows.search = "alpha synth".into();

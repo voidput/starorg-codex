@@ -1,4 +1,4 @@
-//! Readable labels for raw ids (addendum 7.12): record GUIDs and names, `@loc` keys, tag
+//! Readable labels for raw ids (addendum 7.14): record GUIDs and names, `@loc` keys, tag
 //! GUIDs and manufacturer codes become the text a player reads, with the raw id kept beside
 //! it. Pure: a [`Lookup`] supplies what is known (the explorer worker from the DataCore index,
 //! the app from a build's GameData and stock `global.ini`, the mocks from synthetic records);
@@ -515,9 +515,13 @@ pub fn unit_of(path: &str) -> Option<&'static str> {
     Some(unit)
 }
 
-/// The display key a record value names for itself: the first `Localization.Name`, else the
-/// first `displayName`/`DisplayName`/`Name`/`name` holding an `@key` (placeholders skipped);
-/// for a tag, its `tagName`. Breadth first, a few levels deep.
+/// The display key a record value names for itself, from its own name fields only, never
+/// from nested parts (an interaction's "Enter", a port's "Rifle Slot 1", a filter's
+/// "Released"): the body's `Localization.Name`, else its top-level
+/// `displayName`/`DisplayName`/`locDisplayName`/`Name`/`name`; for an entity, its
+/// components' `AttachDef.Localization.Name` first (the item's own, so a variant reads as
+/// itself), then the vehicle's `vehicleName`, then the shop entry's `displayName`. An
+/// `@key` only, placeholders skipped; for a tag, its `tagName`. None: the short name serves.
 pub fn display_of(v: &Value) -> Option<(LabelKind, String)> {
     let body = v.get("_RecordValue_").unwrap_or(v);
     if let Some(t) = body.get("tagName").and_then(Value::as_str)
@@ -525,41 +529,33 @@ pub fn display_of(v: &Value) -> Option<(LabelKind, String)> {
     {
         return Some((LabelKind::Tag, t.to_string()));
     }
-    let key_ok = |s: &str| s.len() > 1 && s.starts_with('@') && !s.starts_with("@LOC_");
-    let mut level: Vec<&Value> = vec![body];
-    for _ in 0..6 {
-        let mut next = Vec::new();
-        for n in &level {
-            if let Some(s) = n.pointer("/Localization/Name").and_then(Value::as_str)
-                && key_ok(s)
-            {
-                return Some((LabelKind::Record, s.to_string()));
-            }
-        }
-        for n in &level {
-            if let Value::Object(m) = n {
-                for k in ["displayName", "DisplayName", "Name", "name"] {
-                    if let Some(s) = m.get(k).and_then(Value::as_str)
-                        && key_ok(s)
-                    {
-                        return Some((LabelKind::Record, s.to_string()));
-                    }
-                }
-            }
-        }
-        for n in level {
-            match n {
-                Value::Object(m) if !super::record::is_ref(n) => {
-                    next.extend(m.values().filter(|x| x.is_object() || x.is_array()))
-                }
-                Value::Array(a) => next.extend(a.iter().filter(|x| x.is_object() || x.is_array())),
-                _ => {}
-            }
-        }
-        if next.is_empty() {
-            break;
-        }
-        level = next;
+    let key = |n: &Value, ptr: &str| {
+        n.pointer(ptr)
+            .and_then(Value::as_str)
+            .filter(|s| s.len() > 1 && s.starts_with('@') && !s.starts_with("@LOC_"))
+            .map(|s| (LabelKind::Record, s.to_string()))
+    };
+    let own = [
+        "/Localization/Name",
+        "/localization/name",
+        "/displayName",
+        "/DisplayName",
+        "/locDisplayName",
+        "/Name",
+        "/name",
+    ];
+    if let Some(k) = own.iter().find_map(|p| key(body, p)) {
+        return Some(k);
     }
-    None
+    let parts = body.get("Components").and_then(Value::as_array)?;
+    let of_type = |t: &'static str| {
+        parts
+            .iter()
+            .filter(move |c| c.get("_Type_").and_then(Value::as_str) == Some(t))
+    };
+    parts
+        .iter()
+        .find_map(|c| key(c, "/AttachDef/Localization/Name"))
+        .or_else(|| of_type("VehicleComponentParams").find_map(|c| key(c, "/vehicleName")))
+        .or_else(|| of_type("SCItemPurchasableParams").find_map(|c| key(c, "/displayName")))
 }

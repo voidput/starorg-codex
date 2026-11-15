@@ -46,7 +46,7 @@ const EXPORT_GAP: Duration = Duration::from_secs(300);
 pub const MAX_FOLDERS: usize = 5;
 /// Parsed folder datasets kept (7.5).
 const KEEP_DATASETS: usize = 2;
-/// Label lookups kept, one per channel build (7.12).
+/// Label lookups kept, one per channel build (7.14).
 const KEEP_LOOKUPS: usize = 3;
 /// The dataset name of a build's GameData.
 pub const GAMEDATA: &str = "gamedata.json";
@@ -321,7 +321,7 @@ struct DiffState {
     tables: Vec<TableDiff>,
     a: Vec<(String, Arc<Dataset>)>,
     b: Vec<(String, Arc<Dataset>)>,
-    /// Label lookups of each side's build (7.12).
+    /// Label lookups of each side's build (7.14).
     la: Option<Arc<MapLookup>>,
     lb: Option<Arc<MapLookup>>,
 }
@@ -726,7 +726,7 @@ impl RealBackend {
         Err(dump_or_missing(source))
     }
 
-    /// The label lookup of a channel's build (7.12): its GameData records, stock text and our
+    /// The label lookup of a channel's build (7.14): its GameData records, stock text and our
     /// enhanced text, built once per build and Strings table. `None` while the build's data
     /// was not read.
     fn lookup_for(&self, r: &ChannelRef, channel: &str) -> Option<Arc<MapLookup>> {

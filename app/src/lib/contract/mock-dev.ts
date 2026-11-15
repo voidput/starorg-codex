@@ -16,7 +16,7 @@ export interface DevMockData {
   values: Json[];
   huge: { guid: string; ports: number };
   builds: Record<string, Json>;
-  /** The records the labels know (7.12), manufacturer names by code, enhanced text by key. */
+  /** The records the labels know (7.14), manufacturer names by code, enhanced text by key. */
   known: KnownRecord[];
   makers: Record<string, string>;
   enhanced: Record<string, string>;
@@ -749,7 +749,7 @@ export function rowLoc(row: Json, textOf: (k: string) => string | null): D.LocTe
 }
 
 // ------------------------------------------------------------------------------------------
-// Readable labels (starorg_core::dev::readable, addendum 7.12)
+// Readable labels (starorg_core::dev::readable, addendum 7.14)
 // ------------------------------------------------------------------------------------------
 
 export interface KnownRecord {

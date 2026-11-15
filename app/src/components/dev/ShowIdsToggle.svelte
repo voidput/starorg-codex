@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** "Show IDs" (addendum 7.12): raw ids instead of readable names on the Dev screens; kept per viewer. */
+  /** "Show IDs" (addendum 7.14): raw ids instead of readable names on the Dev screens; kept per viewer. */
   import Binary from '@lucide/svelte/icons/binary';
   import { Button } from '@/components/ui/button';
   import { dev } from '@/lib/stores/dev.svelte';

@@ -67,7 +67,7 @@ export interface RecordHeader {
   bytes: number;
 }
 
-/** What a raw value reads as (addendum 7.12). */
+/** What a raw value reads as (addendum 7.14). */
 export type LabelKind = 'record' | 'loc' | 'tag' | 'manufacturer';
 
 export interface Readable {

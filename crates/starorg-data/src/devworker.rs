@@ -40,7 +40,7 @@ pub const LRU_RECORDS: usize = 32;
 pub const LRU_BYTES: usize = 16 * 1024 * 1024;
 /// Records written per step of a type export before pending requests are answered.
 const EXPORT_STEP: usize = 64;
-/// Display names remembered per record (addendum 7.12); the cache starts over when full.
+/// Display names remembered per record (addendum 7.14); the cache starts over when full.
 pub const NAME_CACHE: usize = 100_000;
 /// Records read for their display name in one request; the rest show their short name.
 pub const NAME_LOADS: usize = 256;
@@ -184,7 +184,7 @@ pub enum Request {
     Resolve {
         values: Vec<String>,
     },
-    /// For each value: what it reads as (record GUID, tag GUID, `@key`), or null (7.12).
+    /// For each value: what it reads as (record GUID, tag GUID, `@key`), or null (7.14).
     Labels {
         values: Vec<String>,
     },
@@ -437,7 +437,7 @@ pub struct Session<'d, 'a> {
     names: NameCache,
 }
 
-/// Display keys (or tag names) by record, read lazily (7.12).
+/// Display keys (or tag names) by record, read lazily (7.14).
 #[derive(Default)]
 pub struct NameCache {
     map: HashMap<u32, Option<(LabelKind, String)>>,

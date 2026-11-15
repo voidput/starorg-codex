@@ -1,4 +1,4 @@
-// Readable ids in Developer mode (addendum 7.12): the "Show IDs" switch, the label-first
+// Readable ids in Developer mode (addendum 7.14): the "Show IDs" switch, the label-first
 // display with the raw id beside it, and the raw fallback. Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

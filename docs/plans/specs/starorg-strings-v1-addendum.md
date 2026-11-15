@@ -1081,8 +1081,14 @@ it. Raw data and every export stay unchanged.
     `manufacturer_Name<CODE>`.
 - **Lookups** (trait `Lookup`):
   - **dev-worker**: every record of the index by GUID. A record's display key is read lazily
-    from the record itself (`display_of`: the first `Localization.Name`, else
-    `displayName`/`Name` holding an `@key`; `tagName` for tags). At most 256 new reads per
+    from the record itself (`display_of`, own name fields only: the body's
+    `Localization.Name` or top-level `displayName`/`DisplayName`/`locDisplayName`/`Name`/
+    `name`; for an entity its components' `AttachDef.Localization.Name`, then
+    `VehicleComponentParams.vehicleName`, then `SCItemPurchasableParams.displayName`; an
+    `@key`, placeholders skipped; `tagName` for tags). Nested parts never name the record (an
+    interaction's "Enter", a port, a filter): without an own name the short name serves.
+    LIVE check, 120 random entities: 58 named as global.ini, 0 wrong, 62 short names.
+    At most 256 new reads per
     request, cached per record up to 100,000 entries (the cache starts over when full).
     `record` replies carry `labels`; the new op `labels {values}` answers single values.
   - **app**: per channel build, a `MapLookup` from its GameData (items, ships, ammo,
@@ -1104,7 +1110,8 @@ it. Raw data and every export stay unchanged.
   - The label is primary. The raw id is secondary (muted, mono, in the tooltip, with a copy
     button where it fits). An `enh` mark shows when our text differs from stock.
   - A **Show IDs** switch (Explorer header, Datasets bar, Diff bar) brings raw ids back on all
-    three screens. It is kept per viewer (`localStorage` `starorg.dev.showIds`).
+    three screens, the Explorer tree's inline stock text included. It is kept per viewer
+    (`localStorage` `starorg.dev.showIds`).
   - Unresolved GUIDs and `@key`s show raw, marked "unresolved", never blank.
   - Diff records are titled "Bracer (COOL_AEGS_S01_Bracer_SCItem)" and filter by name or id.
     Field changes are grouped by item or top-level field and read as names, text and numbers

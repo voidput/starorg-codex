@@ -529,7 +529,7 @@ pub struct Row {
     /// Position in the table.
     pub id: u32,
     pub cells: Vec<Option<String>>,
-    /// What each cell reads as (addendum 7.12), same order; `None` = show the raw cell.
+    /// What each cell reads as (addendum 7.14), same order; `None` = show the raw cell.
     #[serde(default)]
     pub labels: Vec<Option<Readable>>,
     /// The row's display name, when it has one.

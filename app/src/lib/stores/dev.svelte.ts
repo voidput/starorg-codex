@@ -31,7 +31,7 @@ class DevState {
   history = new History();
   /** Bumped when the history changes (the class itself is not reactive). */
   histRev = $state(0);
-  /** "Show IDs" (7.12): raw ids instead of readable names, on all three screens; per viewer. */
+  /** "Show IDs" (7.14): raw ids instead of readable names, on all three screens; per viewer. */
   showIds = $state(loadShowIds(storage()));
 
   setShowIds(on: boolean): void {

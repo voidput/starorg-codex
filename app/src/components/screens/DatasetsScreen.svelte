@@ -6,7 +6,7 @@
    * "has a value"), sort and a column picker remembered per dataset and table; a detail sheet
    * with the row's JSON tree, its loc text and "Open in Explorer" links. Cells that hold ids
    * (GUIDs, record names, `@key`s, manufacturer codes) show what they read as first, the raw id
-   * after it ("Show IDs" switches back, 7.12); search matches both. Everything is parsed by the
+   * after it ("Show IDs" switches back, 7.14); search matches both. Everything is parsed by the
    * backend as data; values are shown as text.
    */
   import { tick, untrack } from 'svelte';

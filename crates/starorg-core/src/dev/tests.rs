@@ -641,7 +641,7 @@ fn oversized_and_malformed_files_are_refused() {
 }
 
 // ---------------------------------------------------------------------------------------
-// Readable labels (addendum 7.12)
+// Readable labels (addendum 7.14)
 // ---------------------------------------------------------------------------------------
 
 mod readable_labels {
@@ -810,6 +810,68 @@ mod readable_labels {
         assert_eq!(display_of(&json!({ "_RecordValue_": { "Size": 1 } })), None);
     }
 
+    /// Only a record's own name fields name it (LIVE: a seat-access entity read "Enter" from
+    /// its interaction, an armor variant "ORC-mkV Core" from its shop entry, a game mode
+    /// "Released" from a filter).
+    #[test]
+    fn display_of_reads_only_own_name_fields() {
+        let rec = |body: Value| json!({ "_RecordValue_": body });
+        let interact = json!({ "_Type_": "SEntityInteractableParams", "Interactable": {
+            "SharedInteractions": [{ "DisplayName": "@ui_interactor_enter" }] } });
+        let ports = json!({ "_Type_": "SItemPortContainerComponentParams",
+            "Ports": [{ "DisplayName": "@itemPort_rifle_1" }] });
+        let shop = |k: &str| json!({ "_Type_": "SCItemPurchasableParams", "displayName": k });
+        let attach = |k: &str| {
+            json!({ "_Type_": "SAttachableComponentParams",
+            "AttachDef": { "Localization": { "Name": k, "ShortName": "@x_short" } } })
+        };
+        // Nothing of its own: no name, whatever its parts say.
+        let seat = rec(json!({ "_Type_": "EntityClassDefinition",
+            "StaticEntityClassData": [{ "displayName": "@LOC_UNINITIALIZED" }],
+            "Components": [ports.clone(), interact.clone()] }));
+        assert_eq!(display_of(&seat), None);
+        let mode = rec(
+            json!({ "_Type_": "GameMode", "filters": [{ "displayName": "@ea_filter_Released" }] }),
+        );
+        assert_eq!(display_of(&mode), None);
+        let nested = rec(json!({ "params": { "entry": { "name": "@gas_name" } } }));
+        assert_eq!(display_of(&nested), None);
+        // The item's own Localization.Name beats the shop entry's shared one.
+        let armor = rec(json!({ "_Type_": "EntityClassDefinition", "Components": [
+            interact.clone(), shop("@item_Name_armor_core"), attach("@item_Name_armor_core_16")] }));
+        assert_eq!(
+            display_of(&armor),
+            Some((LabelKind::Record, "@item_Name_armor_core_16".into()))
+        );
+        // A vehicle without an attach name reads its vehicleName, then a shop name.
+        let ship = rec(json!({ "Components": [interact.clone(),
+            json!({ "_Type_": "VehicleComponentParams", "vehicleName": "@vehicle_NameSYN" }),
+            shop("@vehicle_NameSYN_shop")] }));
+        assert_eq!(
+            display_of(&ship),
+            Some((LabelKind::Record, "@vehicle_NameSYN".into()))
+        );
+        let sold = rec(json!({ "Components": [ports, shop("@item_NameSold")] }));
+        assert_eq!(
+            display_of(&sold),
+            Some((LabelKind::Record, "@item_NameSold".into()))
+        );
+        // Top-level own names, placeholders skipped.
+        let gm = rec(
+            json!({ "_Type_": "GameMode", "locDisplayName": "@ea_ui_mode_FreeFlight",
+            "filters": [{ "displayName": "@ea_filter_Released" }] }),
+        );
+        assert_eq!(
+            display_of(&gm),
+            Some((LabelKind::Record, "@ea_ui_mode_FreeFlight".into()))
+        );
+        let placeholder = rec(json!({ "displayName": "@LOC_PLACEHOLDER", "name": "@own_name" }));
+        assert_eq!(
+            display_of(&placeholder),
+            Some((LabelKind::Record, "@own_name".into()))
+        );
+    }
+
     #[test]
     fn rows_titles_paths_units_and_label_search() {
         let l = lookup().with_bare_keys(true);
@@ -901,7 +963,7 @@ mod readable_labels {
     }
 }
 
-/// Real data, read only (addendum 7.12): two builds' GameData (`gamedata.json`) and stock
+/// Real data, read only (addendum 7.14): two builds' GameData (`gamedata.json`) and stock
 /// `global.ini` in `STARORG_READABLE_A` and `STARORG_READABLE_B` (`DIR/gamedata.json`,
 /// `DIR/base.ini`). Diffs them as the app does and prints titled records, readable field
 /// changes and dataset cells, with timings and lookup sizes. `--ignored --nocapture`.
