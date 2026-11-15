@@ -5,7 +5,9 @@
    * table as a virtualised grid (pages of 200) with search, column filters (value chips, min/max,
    * "has a value"), sort and a column picker remembered per dataset and table; a detail sheet
    * with the row's JSON tree, its loc text and "Open in Explorer" links. Everything is parsed
-   * by the backend as data; values are shown as text.
+   * by the backend as data; values are shown as text. Between the sources and the grid, a
+   * group tree (addendum 7.13) groups the table by a preset (type › subType › size,
+   * manufacturer, path folders, ...; remembered per table): picking a node filters the grid.
    */
   import { tick, untrack } from 'svelte';
   import Search from '@lucide/svelte/icons/search';
@@ -16,6 +18,11 @@
   import X from '@lucide/svelte/icons/x';
   import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
   import Sheet_ from '@lucide/svelte/icons/sheet';
+  import ListTree from '@lucide/svelte/icons/list-tree';
+  import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
+  import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
+  import DataTree from '@/components/dev/DataTree.svelte';
+  import { NONE, groupByKey, levelsOf, pickGroupBy, readPref, writePref } from '@/lib/datatree';
   import { Button } from '@/components/ui/button';
   import { Input } from '@/components/ui/input';
   import { Checkbox } from '@/components/ui/checkbox';
@@ -26,7 +33,7 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import Sheet from '@/components/common/Sheet.svelte';
   import JsonTree from '@/components/dev/JsonTree.svelte';
-  import { devApi, type Column, type DatasetInfo, type DevRowDetail, type DevSource, type Row, type RowFilter, type RowSort, type TableInfo } from '@/lib/contract/dev';
+  import { devApi, type Column, type DatasetInfo, type DevRowDetail, type DevSource, type GroupPage, type Row, type RowFilter, type RowSort, type TableInfo } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { bytes } from '@/lib/devnav';
   import { app } from '@/lib/stores/app.svelte';
@@ -104,6 +111,9 @@
       try {
         table = await devApi.table({ target: $state.snapshot(target), ...pick, table: tableName });
         shownCols = readCols(k, table);
+        groupId = pickGroupBy(readPref(groupByKey(pick.dataset, tableName)), table.group_presets);
+        node = null;
+        open = [];
         filters = [];
         sort = null;
         search = '';
@@ -174,6 +184,60 @@
     return `${f.column}: ${parts.join('; ')}`;
   }
 
+  // --- Group tree (addendum 7.13) ----------------------------------------------------------
+  const presets = $derived(table?.group_presets ?? []);
+  const showTree = $derived(!!table && presets.length > 0);
+  let groupId = $state<string>(NONE);
+  const levels = $derived(levelsOf(groupId, presets));
+  let node = $state<string | null>(null);
+  let nodeLabel = $state('');
+  let open = $state<string[]>([]);
+  let groups = $state<GroupPage | null>(null);
+  let groupsLoading = $state(false);
+  let railed = $state(readPref('starorg.dev.tree.railed') === '1');
+  $effect(() => writePref('starorg.dev.tree.railed', railed ? '1' : '0'));
+  const groupOptions = $derived([...presets.map((p) => ({ id: p.id, label: p.label })), { id: NONE, label: 'No grouping' }]);
+  function setGroupBy(v: string) {
+    groupId = v;
+    node = null;
+    open = [];
+    if (pick && tableName) writePref(groupByKey(pick.dataset, tableName), v);
+  }
+  function selectNode(id: string | null) {
+    node = id;
+    nodeLabel = id === null ? '' : (groups?.nodes.find((n) => n.id === id)?.label ?? '');
+  }
+  let groupSeq = 0;
+  const gkey = $derived(JSON.stringify([tkeyTable, !!table, groupId, debounced, filters, shownCols, open]));
+  $effect(() => {
+    void gkey;
+    untrack(async () => {
+      const seq = ++groupSeq;
+      if (!table || !pick || !tableName || !target || !levels.length) {
+        groups = null;
+        return;
+      }
+      groupsLoading = true;
+      try {
+        const g = await devApi.groups({
+          target: $state.snapshot(target),
+          ...pick,
+          table: tableName,
+          by: $state.snapshot(levels),
+          open: [...open],
+          columns: [...shownCols],
+          search: debounced,
+          filters: $state.snapshot(filters),
+        });
+        if (seq === groupSeq) groups = g;
+      } catch (e) {
+        if (seq === groupSeq) toast('error', 'Could not group the table', toContractError(e).message);
+      } finally {
+        if (seq === groupSeq) groupsLoading = false;
+      }
+    });
+  });
+
   let total = $state<number | null>(null);
   let all = $state(0);
   let pageCols = $state<string[]>([]);
@@ -181,7 +245,7 @@
   let rowsError = $state<ContractError | null>(null);
   let gen = 0;
   const loading = new Set<number>();
-  const qkey = $derived(JSON.stringify([tkeyTable, !!table, debounced, filters, sort, shownCols]));
+  const qkey = $derived(JSON.stringify([tkeyTable, !!table, debounced, filters, sort, shownCols, groupId, node]));
   async function loadPage(p: number, g: number) {
     if (loading.has(p) || pages[p] || !pick || !tableName || !target || !table) return;
     loading.add(p);
@@ -196,7 +260,7 @@
         sort: sort ? { ...sort } : null,
         offset: p * PAGE,
         limit: PAGE,
-        group: null,
+        group: node !== null && levels.length ? { by: $state.snapshot(levels), node } : null,
       });
       if (g !== gen) return;
       pages[p] = r.rows;
@@ -325,12 +389,13 @@
     }
   }
 
-  // F6 / Shift+F6: sources -> filter bar -> grid.
+  // F6 / Shift+F6: sources -> group tree -> filter bar -> grid.
   let rootEl = $state<HTMLElement | null>(null);
   function onF6(e: KeyboardEvent) {
     if (e.key !== 'F6' || !rootEl) return;
     const stops = [
       rootEl.querySelector<HTMLElement>('[data-pane=sources] button'),
+      rootEl.querySelector<HTMLElement>('[data-pane=tree] [role=treeitem][tabindex="0"], [data-pane=tree] button'),
       rootEl.querySelector<HTMLElement>('[data-pane=bar] input[type=search]'),
       rootEl.querySelector<HTMLElement>('[role=grid] [role=row][tabindex="0"]'),
     ].filter((x): x is HTMLElement => !!x);
@@ -348,7 +413,7 @@
 {:else}
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div bind:this={rootEl} class="flex h-full min-h-[420px] gap-3" onkeydown={onF6}>
-    <aside data-pane="sources" class="bg-card flex w-[260px] shrink-0 flex-col overflow-hidden rounded-lg border" aria-label="Sources">
+    <aside data-pane="sources" class="bg-card flex w-56 shrink-0 xl:w-[260px] flex-col overflow-hidden rounded-lg border" aria-label="Sources">
       <div class="flex h-9 items-center gap-1 border-b pr-1 pl-3">
         <h2 class="eyebrow text-muted-foreground flex-1">Sources</h2>
         <Button variant="ghost" size="xs" onclick={() => void addFolder()}><FolderPlus aria-hidden="true" /> Add folder…</Button>
@@ -394,6 +459,37 @@
         {/if}
       </div>
     </aside>
+
+    {#if pick && showTree}
+      {#if railed}
+        <div data-pane="tree" class="bg-card flex w-9 shrink-0 flex-col items-center rounded-lg border py-1">
+          <Button variant="ghost" size="icon-sm" aria-label="Show groups" title="Show groups" onclick={() => (railed = false)}>
+            <PanelLeftOpen aria-hidden="true" />
+          </Button>
+          <ListTree class="text-muted-foreground mt-2 size-4" aria-hidden="true" />
+          {#if node !== null}<span class="bg-primary mt-1 size-1.5 rounded-full" title="A group is picked" aria-hidden="true"></span>{/if}
+        </div>
+      {:else}
+        <aside data-pane="tree" class="bg-card flex w-48 shrink-0 flex-col overflow-hidden rounded-lg border xl:w-60" aria-label="Groups">
+          <div class="flex h-9 items-center gap-1 border-b pr-1 pl-3">
+            <h2 class="eyebrow text-muted-foreground flex-1">Groups</h2>
+            <Button variant="ghost" size="icon-xs" aria-label="Hide groups" title="Hide groups" onclick={() => (railed = true)}>
+              <PanelLeftClose aria-hidden="true" />
+            </Button>
+          </div>
+          <div class="border-b p-1.5">
+            <SelectField ariaLabel="Group by" options={groupOptions} value={groupId} onchange={setGroupBy} class="w-full" />
+          </div>
+          {#if groupId === NONE}
+            <p class="text-muted-foreground p-3 text-[12px]">Pick a grouping to split the table into groups.</p>
+          {:else if !groups}
+            <div class="grid gap-1 p-2">{#each { length: 6 } as _, i (i)}<Skeleton class="h-6 w-full" />{/each}</div>
+          {:else}
+            <DataTree nodes={groups.nodes} total={groups.total} selected={node} onselect={selectNode} bind:open label="Groups of {tableName}" allLabel="All rows" loading={groupsLoading} class="flex-1 px-1" />
+          {/if}
+        </aside>
+      {/if}
+    {/if}
 
     <div class="flex min-w-0 flex-1 flex-col gap-2.5">
       {#if dsError}
@@ -475,8 +571,14 @@
           </div>
           <span class="text-muted-foreground ml-auto text-[12px]" aria-live="polite">{total === null ? 'Loading…' : `${int(total)} / ${int(all)} rows`}</span>
         </div>
-        {#if filters.length || sort}
+        {#if filters.length || sort || node !== null}
           <div role="group" aria-label="Active filters" class="flex flex-wrap items-center gap-1.5">
+            {#if node !== null}
+              <span class="border-primary bg-primary/10 inline-flex h-7 items-center gap-1 rounded-full border pr-1 pl-2.5 text-[12px]">
+                <ListTree class="size-3.5" aria-hidden="true" /><span class="max-w-60 truncate">{nodeLabel || 'Group'}</span>
+                <button type="button" aria-label="Show all groups" class="text-muted-foreground hover:text-foreground focus-visible:ring-ring/60 grid size-5 place-items-center rounded-full outline-none focus-visible:ring-2" onclick={() => selectNode(null)}><X class="size-3" aria-hidden="true" /></button>
+              </span>
+            {/if}
             {#each filters as f (f.column)}
               <span class="border-primary bg-primary/10 inline-flex h-7 items-center gap-1 rounded-full border pr-1 pl-2.5 text-[12px]">
                 <span class="mono">{chipLabel(f)}</span>
@@ -484,7 +586,7 @@
               </span>
             {/each}
             {#if sort}<span class="text-muted-foreground text-[12px]">Sorted by <span class="mono">{sort.column}</span> {sort.desc ? '↓' : '↑'}</span>{/if}
-            <Button variant="ghost" size="xs" onclick={() => ((filters = []), (sort = null))}>Clear</Button>
+            <Button variant="ghost" size="xs" onclick={() => ((filters = []), (sort = null), selectNode(null))}>Clear</Button>
           </div>
         {/if}
 

@@ -4,10 +4,18 @@
    * or a folder against this build), then a summary per table (added / removed / changed /
    * same, largest first; tables on one side marked), the records of the picked table (changed
    * first; filter by state and by changed field; identity column override) and the field diff
-   * of the picked record (old ► new, numbers with delta and percent). F6 cycles the panes.
+   * of the picked record (old ► new, numbers with delta and percent). A group tree on the
+   * left (addendum 7.13) groups the changed records by dataset, table and the table's default
+   * grouping, with added / removed / changed counts; picking a node filters the tables and
+   * records. F6 cycles the panes.
    */
   import { untrack } from 'svelte';
   import GitCompare from '@lucide/svelte/icons/git-compare';
+  import ListTree from '@lucide/svelte/icons/list-tree';
+  import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
+  import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
+  import DataTree from '@/components/dev/DataTree.svelte';
+  import { keys, pickDiffBy, readPref, writePref } from '@/lib/datatree';
   import ArrowRight from '@lucide/svelte/icons/arrow-right';
   import { Button } from '@/components/ui/button';
   import { Skeleton } from '@/components/ui/skeleton';
@@ -16,7 +24,7 @@
   import ErrorState from '@/components/common/ErrorState.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import JobProgress from '@/components/common/JobProgress.svelte';
-  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffTable, type RecordState } from '@/lib/contract/dev';
+  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffTable, type GroupPage, type RecordState } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { app } from '@/lib/stores/app.svelte';
   import { int } from '@/lib/format';
@@ -56,6 +64,9 @@
     picked = null;
     records = null;
     field = null;
+    dnode = null;
+    dopen = [];
+    recGroup = null;
     try {
       summary = await devApi.diff({ target: $state.snapshot(target), a, b });
       error = null;
@@ -94,7 +105,7 @@
         identity,
         offset,
         limit: PAGE,
-        group: null,
+        group: recGroup ? { ...recGroup } : null,
       });
       if (seq !== recSeq) return;
       records = more && records ? { ...page, records: [...records.records, ...page.records] } : page;
@@ -105,8 +116,11 @@
       if (more) loadingMore = false;
     }
   }
-  async function pickTable(t: DiffTable) {
+  async function pickTable(t: DiffTable, group: DiffGroupPick | null = null, fromTree = false) {
+    recGroup = group;
+    if (!fromTree) dnode = JSON.stringify([t.dataset, t.table]);
     picked = t;
+    tableActive = Math.max(0, shownTables.findIndex((x) => x.dataset === t.dataset && x.table === t.table));
     stateFilter = 'all';
     fieldFilter = '';
     identity = null;
@@ -119,6 +133,70 @@
     void identity;
     untrack(() => void loadRecords());
   });
+
+  // --- Group tree (addendum 7.13) -------------------------------------------------------
+  const DIFF_BY = 'starorg.dev.diff.groupby';
+  let diffBy = $state<DiffGroupBy>(pickDiffBy(readPref(DIFF_BY)));
+  let dnode = $state<string | null>(null);
+  let dopen = $state<string[]>([]);
+  let dgroups = $state<GroupPage | null>(null);
+  let recGroup = $state<DiffGroupPick | null>(null);
+  let railed = $state(readPref('starorg.dev.difftree.railed') === '1');
+  $effect(() => writePref('starorg.dev.difftree.railed', railed ? '1' : '0'));
+  const diffByOptions: { id: DiffGroupBy; label: string }[] = [
+    { id: 'auto', label: 'Table › type…' },
+    { id: 'folders', label: 'Table › path folders' },
+    { id: 'tables', label: 'Tables only' },
+  ];
+  function setDiffBy(v: DiffGroupBy) {
+    diffBy = v;
+    writePref(DIFF_BY, v);
+    dopen = [];
+    if (recGroup) void selectDiffNode(null);
+  }
+  let dseq = 0;
+  $effect(() => {
+    const k = JSON.stringify([summary?.ms, summary?.a, summary?.b, summary?.tables.length, diffBy, dopen]);
+    untrack(async () => {
+      void k;
+      const seq = ++dseq;
+      if (!target || !summary) {
+        dgroups = null;
+        return;
+      }
+      try {
+        const g = await devApi.diffGroups({ target: $state.snapshot(target), by: diffBy, open: [...dopen] });
+        if (seq === dseq) dgroups = g;
+      } catch {
+        if (seq === dseq) dgroups = null;
+      }
+    });
+  });
+  /** The dataset the tree narrows the table list to. */
+  const treeDataset = $derived.by(() => {
+    const k = dnode === null ? null : keys(dnode);
+    return k && k.length === 1 ? k[0] : null;
+  });
+  const shownTables = $derived((summary?.tables ?? []).filter((t) => treeDataset === null || t.dataset === treeDataset));
+  async function selectDiffNode(id: string | null) {
+    dnode = id;
+    const k = id === null ? null : keys(id);
+    if (!k || k.length < 2) {
+      if (recGroup) {
+        recGroup = null;
+        await loadRecords();
+      }
+      return;
+    }
+    const t = summary?.tables.find((x) => x.dataset === k[0] && x.table === k[1]);
+    if (!t) return;
+    const group = k.length > 2 ? { by: diffBy, node: id! } : null;
+    if (picked?.dataset === t.dataset && picked.table === t.table) {
+      recGroup = group;
+      field = null;
+      await loadRecords();
+    } else await pickTable(t, group, true);
+  }
 
   // --- Field diff --------------------------------------------------------------------------
   let field = $state<DevFieldDiff | null>(null);
@@ -157,7 +235,9 @@
     if (!stops.length) return;
     e.preventDefault();
     const at = stops.findIndex((x) => x.contains(document.activeElement));
-    stops[at < 0 ? 0 : (at + (e.shiftKey ? stops.length - 1 : 1)) % stops.length]!.focus();
+    const to = stops[at < 0 ? 0 : (at + (e.shiftKey ? stops.length - 1 : 1)) % stops.length]!;
+    // The group tree's stop is its focused item.
+    (to.querySelector<HTMLElement>('[role=treeitem][tabindex="0"]') ?? to).focus({ preventScroll: true });
   }
 </script>
 
@@ -185,132 +265,164 @@
     {:else if !summary}
       <FullEmpty icon={GitCompare} title="Pick A and B">Two builds (LIVE against PTU), two folders, or a folder against this build. Envelope fields like _extracted never count as a change.</FullEmpty>
     {:else}
-      <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-      <div
-        role="listbox"
-        aria-label="Tables"
-        tabindex="0"
-        data-stop
-        aria-activedescendant="dt-row-{tableActive}"
-        class="bg-card focus-visible:ring-ring/60 max-h-[38%] min-h-24 shrink-0 overflow-auto rounded-lg border outline-none focus-visible:ring-2"
-        onkeydown={(e) => listKey(e, summary!.tables.length, tableActive, (i) => (tableActive = i), (i) => void pickTable(summary!.tables[i]!))}
-      >
-        <div class="text-muted-foreground bg-card sticky top-0 grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_repeat(4,72px)_minmax(0,0.8fr)] gap-3 border-b px-3 py-1.5 text-[11.5px] font-medium" aria-hidden="true">
-          <span>Dataset</span><span>Table</span><span class="text-right">Added</span><span class="text-right">Removed</span><span class="text-right">Changed</span><span class="text-right">Same</span><span>Matched by</span>
-        </div>
-        {#each summary.tables as t, i (t.dataset + '/' + t.table)}
-          <!-- svelte-ignore a11y_click_events_have_key_events -->
-          <div
-            id="dt-row-{i}"
-            data-i={i}
-            role="option"
-            aria-selected={picked?.dataset === t.dataset && picked?.table === t.table}
-            tabindex="-1"
-            class={cn('hover:bg-accent/60 grid cursor-pointer grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_repeat(4,72px)_minmax(0,0.8fr)] items-center gap-3 border-b border-border/60 px-3 py-1 text-[12px]', i === tableActive && 'bg-accent/70', picked?.table === t.table && picked?.dataset === t.dataset && 'text-primary')}
-            onclick={() => {
-              tableActive = i;
-              void pickTable(t);
-            }}
-          >
-            <span class="mono truncate">{t.dataset}</span>
-            <span class="mono truncate">{t.table}{t.presence !== 'both' ? (t.presence === 'only-a' ? ' (only in A)' : ' (only in B)') : ''}</span>
-            <span class="mono text-right">{int(t.added)}</span>
-            <span class="mono text-right">{int(t.removed)}</span>
-            <span class="mono text-right">{int(t.changed)}</span>
-            <span class="text-muted-foreground mono text-right">{int(t.same)}</span>
-            <span class="text-muted-foreground mono truncate">{t.identity ?? 'position'}</span>
+      <div class="flex min-h-0 flex-1 gap-3">
+        {#if railed}
+          <div data-stop tabindex="-1" class="bg-card flex w-9 shrink-0 flex-col items-center rounded-lg border py-1">
+            <Button variant="ghost" size="icon-sm" aria-label="Show groups" title="Show groups" onclick={() => (railed = false)}>
+              <PanelLeftOpen aria-hidden="true" />
+            </Button>
+            <ListTree class="text-muted-foreground mt-2 size-4" aria-hidden="true" />
+            {#if dnode !== null}<span class="bg-primary mt-1 size-1.5 rounded-full" title="A group is picked" aria-hidden="true"></span>{/if}
           </div>
-        {/each}
-      </div>
-
-      {#if picked}
-        <div class="flex min-h-0 flex-1 gap-3">
-          <section class="bg-card flex w-[min(420px,45%)] shrink-0 flex-col overflow-hidden rounded-lg border" aria-label="Records">
-            <div class="flex flex-wrap items-center gap-2 border-b px-2 py-1.5">
-              <Segmented size="sm" ariaLabel="Records" options={[{ id: 'all', label: 'All' }, { id: 'changed', label: 'Changed' }, { id: 'added', label: 'Added' }, { id: 'removed', label: 'Removed' }] as { id: 'all' | RecordState; label: string }[]} bind:value={stateFilter} />
-              {#if records?.fields.length}
-                <SelectField ariaLabel="Changed field" size="sm" options={[{ id: '', label: 'Any field' }, ...records.fields.map((f) => ({ id: f.value, label: `${f.value} (${int(f.count)})` }))]} value={fieldFilter} onchange={(v) => (fieldFilter = v)} class="min-w-32" />
-              {/if}
-              {#if records?.identity_options.length}
-                <SelectField ariaLabel="Match records by" size="sm" options={[{ id: '', label: `Match: ${records.summary.identity ?? 'position'}` }, ...records.identity_options.map((c) => ({ id: c, label: `Match by ${c}` }))]} value={identity ?? ''} onchange={(v) => (identity = v || null)} class="min-w-36" />
-              {/if}
+        {:else}
+          <aside class="bg-card flex w-44 shrink-0 flex-col overflow-hidden rounded-lg border xl:w-60" aria-label="Groups" data-stop tabindex="-1">
+            <div class="flex h-9 items-center gap-1 border-b pr-1 pl-3">
+              <h2 class="eyebrow text-muted-foreground flex-1">Changes</h2>
+              <Button variant="ghost" size="icon-xs" aria-label="Hide groups" title="Hide groups" onclick={() => (railed = true)}>
+                <PanelLeftClose aria-hidden="true" />
+              </Button>
             </div>
-            {#if recError}
-              <div class="p-2"><ErrorState title="Could not list records" error={recError} /></div>
-            {:else if !records}
+            <div class="border-b p-1.5">
+              <SelectField ariaLabel="Group changes by" options={diffByOptions} value={diffBy} onchange={setDiffBy} class="w-full" />
+            </div>
+            {#if !dgroups}
               <div class="grid gap-1 p-2">{#each { length: 6 } as _, i (i)}<Skeleton class="h-6 w-full" />{/each}</div>
-            {:else if !records.records.length}
-              <p class="text-muted-foreground p-3 text-[12.5px]">No record differs here.</p>
+            {:else if !dgroups.nodes.length}
+              <p class="text-muted-foreground p-3 text-[12px]">Nothing differs.</p>
             {:else}
-              <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-              <ul
-                role="listbox"
-                aria-label="Changed records"
-                tabindex="0"
-                data-stop
-                aria-activedescendant="dr-{recActive}"
-                class="focus-visible:ring-ring/60 min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
-                onkeydown={(e) => listKey(e, records!.records.length, recActive, (i) => (recActive = i), (i) => void pickRecord(records!.records[i]!.id))}
+              <DataTree nodes={dgroups.nodes} total={dgroups.total} selected={dnode} onselect={(id) => void selectDiffNode(id)} bind:open={dopen} label="Changed records by group" allLabel="All changes" unit="records" class="flex-1 px-1" />
+            {/if}
+          </aside>
+        {/if}
+        <div class="flex min-w-0 flex-1 flex-col gap-3">
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+          <div
+            role="listbox"
+            aria-label="Tables"
+            tabindex="0"
+            data-stop
+            aria-activedescendant="dt-row-{tableActive}"
+            class="bg-card focus-visible:ring-ring/60 max-h-[38%] min-h-24 shrink-0 overflow-auto rounded-lg border outline-none focus-visible:ring-2"
+            onkeydown={(e) => listKey(e, shownTables.length, tableActive, (i) => (tableActive = i), (i) => void pickTable(shownTables[i]!))}
+          >
+            <div class="text-muted-foreground bg-card sticky top-0 grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_repeat(4,72px)_minmax(0,0.8fr)] gap-3 border-b px-3 py-1.5 text-[11.5px] font-medium" aria-hidden="true">
+              <span>Dataset</span><span>Table</span><span class="text-right">Added</span><span class="text-right">Removed</span><span class="text-right">Changed</span><span class="text-right">Same</span><span>Matched by</span>
+            </div>
+            {#each shownTables as t, i (t.dataset + '/' + t.table)}
+              <!-- svelte-ignore a11y_click_events_have_key_events -->
+              <div
+                id="dt-row-{i}"
+                data-i={i}
+                role="option"
+                aria-selected={picked?.dataset === t.dataset && picked?.table === t.table}
+                tabindex="-1"
+                class={cn('hover:bg-accent/60 grid cursor-pointer grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_repeat(4,72px)_minmax(0,0.8fr)] items-center gap-3 border-b border-border/60 px-3 py-1 text-[12px]', i === tableActive && 'bg-accent/70', picked?.table === t.table && picked?.dataset === t.dataset && 'text-primary')}
+                onclick={() => {
+                  tableActive = i;
+                  void pickTable(t);
+                }}
               >
-                {#each records.records as r, i (r.id + r.state)}
-                  <!-- svelte-ignore a11y_click_events_have_key_events -->
-                  <li
-                    id="dr-{i}"
-                    data-i={i}
-                    role="option"
-                    aria-selected={field?.id === r.id}
-                    tabindex="-1"
-                    class={cn('hover:bg-accent/60 grid cursor-pointer gap-0.5 border-b border-border/60 px-3 py-1.5', i === recActive && 'bg-accent/70')}
-                    onclick={() => {
-                      recActive = i;
-                      void pickRecord(r.id);
-                    }}
+                <span class="mono truncate">{t.dataset}</span>
+                <span class="mono truncate">{t.table}{t.presence !== 'both' ? (t.presence === 'only-a' ? ' (only in A)' : ' (only in B)') : ''}</span>
+                <span class="mono text-right">{int(t.added)}</span>
+                <span class="mono text-right">{int(t.removed)}</span>
+                <span class="mono text-right">{int(t.changed)}</span>
+                <span class="text-muted-foreground mono text-right">{int(t.same)}</span>
+                <span class="text-muted-foreground mono truncate">{t.identity ?? 'position'}</span>
+              </div>
+            {/each}
+          </div>
+
+          {#if picked}
+            <div class="flex min-h-0 flex-1 gap-3">
+              <section class="bg-card flex w-[min(420px,45%)] shrink-0 flex-col overflow-hidden rounded-lg border" aria-label="Records">
+                <div class="flex flex-wrap items-center gap-2 border-b px-2 py-1.5">
+                  <Segmented size="sm" ariaLabel="Records" options={[{ id: 'all', label: 'All' }, { id: 'changed', label: 'Changed' }, { id: 'added', label: 'Added' }, { id: 'removed', label: 'Removed' }] as { id: 'all' | RecordState; label: string }[]} bind:value={stateFilter} />
+                  {#if records?.fields.length}
+                    <SelectField ariaLabel="Changed field" size="sm" options={[{ id: '', label: 'Any field' }, ...records.fields.map((f) => ({ id: f.value, label: `${f.value} (${int(f.count)})` }))]} value={fieldFilter} onchange={(v) => (fieldFilter = v)} class="min-w-32" />
+                  {/if}
+                  {#if records?.identity_options.length}
+                    <SelectField ariaLabel="Match records by" size="sm" options={[{ id: '', label: `Match: ${records.summary.identity ?? 'position'}` }, ...records.identity_options.map((c) => ({ id: c, label: `Match by ${c}` }))]} value={identity ?? ''} onchange={(v) => (identity = v || null)} class="min-w-36" />
+                  {/if}
+                </div>
+                {#if recError}
+                  <div class="p-2"><ErrorState title="Could not list records" error={recError} /></div>
+                {:else if !records}
+                  <div class="grid gap-1 p-2">{#each { length: 6 } as _, i (i)}<Skeleton class="h-6 w-full" />{/each}</div>
+                {:else if !records.records.length}
+                  <p class="text-muted-foreground p-3 text-[12.5px]">No record differs here.</p>
+                {:else}
+                  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                  <ul
+                    role="listbox"
+                    aria-label="Changed records"
+                    tabindex="0"
+                    data-stop
+                    aria-activedescendant="dr-{recActive}"
+                    class="focus-visible:ring-ring/60 min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                    onkeydown={(e) => listKey(e, records!.records.length, recActive, (i) => (recActive = i), (i) => void pickRecord(records!.records[i]!.id))}
                   >
-                    <span class="flex items-center gap-2">
-                      <span class={cn('rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
-                      <span class="mono min-w-0 truncate text-[12px]">{r.id}</span>
-                    </span>
-                    {#if r.fields.length}<span class="text-muted-foreground mono truncate text-[11px]">{r.fields.join(', ')}</span>{/if}
-                  </li>
-                {/each}
-              </ul>
-              <div class="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-1 text-[11.5px]">
-                <span>{int(records.records.length)} of {int(records.total)}</span>
-                {#if records.records.length < records.total}
-                  <Button size="sm" variant="ghost" class="h-6 px-2 text-[11.5px]" disabled={loadingMore} onclick={() => void loadRecords(true)}>{loadingMore ? 'Loading…' : `Load ${int(Math.min(PAGE, records.total - records.records.length))} more`}</Button>
-                {/if}
-              </div>
-            {/if}
-          </section>
-          <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">
-            {#if field}
-              <div class="flex items-center gap-2 border-b px-3 py-2">
-                <h2 class="mono min-w-0 flex-1 truncate text-[13px] font-semibold">{field.id}</h2>
-                <span class="text-muted-foreground text-[12px]">{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
-              </div>
-              <div class="min-h-0 flex-1 overflow-auto" data-stop tabindex="-1">
-                <table class="w-full text-[12px]">
-                  <thead class="text-muted-foreground bg-card sticky top-0 text-left text-[11.5px]">
-                    <tr><th class="px-3 py-1.5 font-medium">Field</th><th class="px-3 py-1.5 font-medium">{label(summary.a)}</th><th class="px-3 py-1.5 font-medium">{label(summary.b)}</th><th class="px-3 py-1.5 font-medium">Δ</th></tr>
-                  </thead>
-                  <tbody>
-                    {#each field.changes as c (c.path)}
-                      <tr class="border-t border-border/60 align-top">
-                        <td class="mono px-3 py-1 break-all">{c.path}</td>
-                        <td class="mono text-destructive px-3 py-1 break-all">{show(c.old)}</td>
-                        <td class="mono text-success px-3 py-1 break-all">{show(c.new)}</td>
-                        <td class="mono text-muted-foreground px-3 py-1 whitespace-nowrap">{delta(c.delta)}{pct(c.percent)}</td>
-                      </tr>
+                    {#each records.records as r, i (r.id + r.state)}
+                      <!-- svelte-ignore a11y_click_events_have_key_events -->
+                      <li
+                        id="dr-{i}"
+                        data-i={i}
+                        role="option"
+                        aria-selected={field?.id === r.id}
+                        tabindex="-1"
+                        class={cn('hover:bg-accent/60 grid cursor-pointer gap-0.5 border-b border-border/60 px-3 py-1.5', i === recActive && 'bg-accent/70')}
+                        onclick={() => {
+                          recActive = i;
+                          void pickRecord(r.id);
+                        }}
+                      >
+                        <span class="flex items-center gap-2">
+                          <span class={cn('rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
+                          <span class="mono min-w-0 truncate text-[12px]">{r.id}</span>
+                        </span>
+                        {#if r.fields.length}<span class="text-muted-foreground mono truncate text-[11px]">{r.fields.join(', ')}</span>{/if}
+                      </li>
                     {/each}
-                  </tbody>
-                </table>
-              </div>
-            {:else}
-              <p class="text-muted-foreground p-4 text-[12.5px]">Pick a record to see what changed.</p>
-            {/if}
-          </section>
+                  </ul>
+                  <div class="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-1 text-[11.5px]">
+                    <span>{int(records.records.length)} of {int(records.total)}</span>
+                    {#if records.records.length < records.total}
+                      <Button size="sm" variant="ghost" class="h-6 px-2 text-[11.5px]" disabled={loadingMore} onclick={() => void loadRecords(true)}>{loadingMore ? 'Loading…' : `Load ${int(Math.min(PAGE, records.total - records.records.length))} more`}</Button>
+                    {/if}
+                  </div>
+                {/if}
+              </section>
+              <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">
+                {#if field}
+                  <div class="flex items-center gap-2 border-b px-3 py-2">
+                    <h2 class="mono min-w-0 flex-1 truncate text-[13px] font-semibold">{field.id}</h2>
+                    <span class="text-muted-foreground text-[12px]">{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
+                  </div>
+                  <div class="min-h-0 flex-1 overflow-auto" data-stop tabindex="-1">
+                    <table class="w-full text-[12px]">
+                      <thead class="text-muted-foreground bg-card sticky top-0 text-left text-[11.5px]">
+                        <tr><th class="px-3 py-1.5 font-medium">Field</th><th class="px-3 py-1.5 font-medium">{label(summary.a)}</th><th class="px-3 py-1.5 font-medium">{label(summary.b)}</th><th class="px-3 py-1.5 font-medium">Δ</th></tr>
+                      </thead>
+                      <tbody>
+                        {#each field.changes as c (c.path)}
+                          <tr class="border-t border-border/60 align-top">
+                            <td class="mono px-3 py-1 break-all">{c.path}</td>
+                            <td class="mono text-destructive px-3 py-1 break-all">{show(c.old)}</td>
+                            <td class="mono text-success px-3 py-1 break-all">{show(c.new)}</td>
+                            <td class="mono text-muted-foreground px-3 py-1 whitespace-nowrap">{delta(c.delta)}{pct(c.percent)}</td>
+                          </tr>
+                        {/each}
+                      </tbody>
+                    </table>
+                  </div>
+                {:else}
+                  <p class="text-muted-foreground p-4 text-[12.5px]">Pick a record to see what changed.</p>
+                {/if}
+              </section>
+            </div>
+          {/if}
         </div>
-      {/if}
+      </div>
     {/if}
   </div>
 {/if}
