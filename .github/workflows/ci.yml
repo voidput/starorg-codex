@@ -104,3 +104,14 @@ jobs:
           npm run --if-present lint
           npm run --if-present check
           npm run --if-present test
+
+  # Push runs only (not PRs): Discord ping when any job above fails. No-ops without DISCORD_CI_WEBHOOK.
+  notify-failure:
+    if: failure() && github.event_name != 'pull_request'
+    needs: [rust, deny, cli-deps, ui]
+    permissions: {}
+    uses: ./.github/workflows/notify-failure.yml
+    with:
+      workflow: CI
+    secrets:
+      webhook: ${{ secrets.DISCORD_CI_WEBHOOK }}
