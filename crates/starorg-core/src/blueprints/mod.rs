@@ -269,6 +269,9 @@ pub struct Selection {
     #[serde(skip)]
     pub ids: BTreeSet<String>,
     pub count: usize,
+    /// Names an import matched to several blueprints: listed, never marked (addendum §4).
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub ambiguous: usize,
     /// Empty when the set is empty, so channels without blueprint data never look stale.
     pub hash: String,
 }
@@ -330,16 +333,22 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
     };
     let mut names = BTreeSet::new();
     let mut ids = BTreeSet::new();
+    let mut ambiguous = BTreeSet::new();
     for g in &geids {
         for (k, e) in load_set(channel_data, g)?.entries {
-            // An ambiguous match lists every candidate; only a unique id marks by id.
-            if !e.ambiguous {
-                ids.extend(e.ids.iter().map(|i| i.to_ascii_lowercase()));
+            // An ambiguous match lists every candidate; marking by its name or by any of its
+            // ids would be a guess, so it marks nothing until it is resolved.
+            if e.ambiguous {
+                ambiguous.insert(k);
+                continue;
             }
+            ids.extend(e.ids.iter().map(|i| i.to_ascii_lowercase()));
             names.insert(k);
         }
     }
-    let hash = if names.is_empty() {
+    // Another character's set may own the name unambiguously.
+    ambiguous.retain(|k| !names.contains(k));
+    let hash = if names.is_empty() && ambiguous.is_empty() {
         String::new()
     } else {
         let mut joined: Vec<&str> = names.iter().map(String::as_str).collect();
@@ -347,12 +356,17 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
             joined.push("\0ids");
             joined.extend(ids.iter().map(String::as_str));
         }
+        if !ambiguous.is_empty() {
+            joined.push("\0ambiguous");
+            joined.extend(ambiguous.iter().map(String::as_str));
+        }
         fsutil::sha256_hex(joined.join("\n").as_bytes())
     };
     Ok(Selection {
         mode: mode.into(),
         characters: geids,
         count: names.len(),
+        ambiguous: ambiguous.len(),
         names,
         ids,
         hash,
@@ -362,11 +376,15 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
 /// The selected owned set feeds the mission generator's `[Owned]` markers (spec 6.5): a
 /// blueprint is owned when its id or record name was matched on import, or when its
 /// display name normalises to an owned name (log entries carry names only).
+fn is_zero(n: &usize) -> bool {
+    *n == 0
+}
+
 impl crate::enhance::owned::OwnedBlueprints for Selection {
     fn owns(&self, bp: &crate::enhance::owned::BlueprintRef<'_>) -> bool {
         (!bp.id.is_empty() && self.ids.contains(&bp.id.to_ascii_lowercase()))
             || (!bp.record.is_empty() && self.ids.contains(&bp.record.to_ascii_lowercase()))
-            || (!bp.name.is_empty() && self.names.contains(&normalize(bp.name)))
+            || (bp.name_unique && !bp.name.is_empty() && self.names.contains(&normalize(bp.name)))
     }
 }
 

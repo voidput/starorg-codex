@@ -15,6 +15,10 @@ pub struct BlueprintRef<'a> {
     pub record: &'a str,
     /// English display name of the produced item.
     pub name: &'a str,
+    /// No other blueprint of this build produces an item with the same name. A name-only
+    /// match (log scan, import) marks a blueprint only when this holds: two candidates are
+    /// reported, never guessed (addendum §4).
+    pub name_unique: bool,
 }
 
 /// The active character's owned blueprints.
@@ -109,7 +113,7 @@ impl OwnedBlueprints for OwnedList {
     fn owns(&self, bp: &BlueprintRef<'_>) -> bool {
         (!bp.id.is_empty() && self.ids.contains(&bp.id.to_ascii_lowercase()))
             || self.ids.contains(&bp.record.to_ascii_lowercase())
-            || self.names.contains(&normalize_name(bp.name))
+            || (bp.name_unique && self.names.contains(&normalize_name(bp.name)))
     }
 }
 
@@ -133,6 +137,7 @@ mod tests {
             id: "ABC",
             record: "BP_CRAFT_Fake_Rifle",
             name: "Fake Rifle 'Ember'",
+            name_unique: true,
         };
         assert!(OwnedList::from_names(["[P-S3] fake rifle \u{2019}Ember\u{2019}"]).owns(&bp));
         assert!(!NoneOwned.owns(&bp));
@@ -144,5 +149,14 @@ mod tests {
         let j = OwnedList::from_json(r#"["Nope"]"#).unwrap();
         assert!(!j.owns(&bp));
         assert!(OwnedList::from_json("3").is_err());
+        // A name two blueprints share is not marked from the name alone.
+        let shared = BlueprintRef {
+            name_unique: false,
+            ..bp
+        };
+        assert!(!OwnedList::from_names(["Fake Rifle 'Ember'"]).owns(&shared));
+        let by_id =
+            OwnedList::from_json(r#"{"entries":{"x":{"name":"Other","ids":["abc"]}}}"#).unwrap();
+        assert!(by_id.owns(&shared), "an id match still marks it");
     }
 }

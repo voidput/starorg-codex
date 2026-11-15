@@ -78,6 +78,8 @@ pub struct Lookup<'a> {
     /// Produced item short name (lower case) -> name tag text.
     pub item_tags: HashMap<String, String>,
     pub owned: &'a dyn OwnedBlueprints,
+    /// Normalised produced-item names that more than one blueprint shares.
+    pub shared_names: std::collections::HashSet<String>,
 }
 
 impl<'a> Lookup<'a> {
@@ -91,6 +93,20 @@ impl<'a> Lookup<'a> {
             .blueprints
             .iter()
             .map(|b| (b.short_name().to_ascii_lowercase(), b))
+            .collect();
+        let mut by_name: HashMap<String, BTreeSet<&str>> = HashMap::new();
+        for b in &gd.blueprints {
+            if let Some(n) = stock_name(stock, b.produces_name_key.as_deref()) {
+                by_name
+                    .entry(super::owned::normalize_name(n))
+                    .or_default()
+                    .insert(b.id.as_str());
+            }
+        }
+        let shared_names = by_name
+            .into_iter()
+            .filter(|(_, ids)| ids.len() > 1)
+            .map(|(n, _)| n)
             .collect();
         let pools = gd
             .blueprint_pools
@@ -145,6 +161,7 @@ impl<'a> Lookup<'a> {
             standings,
             item_tags,
             owned,
+            shared_names,
         }
     }
 
@@ -170,6 +187,9 @@ impl<'a> Lookup<'a> {
                     id: &b.id,
                     record: b.short_name(),
                     name,
+                    name_unique: !self
+                        .shared_names
+                        .contains(&super::owned::normalize_name(name)),
                 });
             if seen.insert((name.to_lowercase(), tag.clone())) {
                 out.push(Bullet {

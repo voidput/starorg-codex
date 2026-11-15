@@ -87,11 +87,13 @@ fn import_with_gamedata_then_owned_markers_from_the_store() {
         id: "BP-BP_CRAFT_ZETA_RIFLE_01",
         record: "",
         name: "Renamed rifle",
+        name_unique: true,
     }));
     assert!(!sel.owns(&BlueprintRef {
         id: "bp-other",
         record: "BP_CRAFT_other",
         name: "Filler pistol",
+        name_unique: true,
     }));
 
     let g = generate(&gd, &stock, &Profile::default(), &sel);
@@ -117,4 +119,53 @@ fn log_only_entries_mark_by_name() {
     let desc = added(&g, &stock, "zeta_haul_desc");
     assert!(desc.contains("- Filler pistol [Owned]"), "{desc}");
     assert!(!desc.contains("Filler rifle [Owned]"), "{desc}");
+}
+
+#[test]
+fn a_name_two_blueprints_share_marks_neither() {
+    let (mut gd, stock) = fixture();
+    // A second rifle blueprint producing an item with the same English name.
+    let mut twin = gd
+        .blueprints
+        .iter()
+        .find(|b| b.id == "bp-bp_craft_zeta_rifle_01")
+        .unwrap()
+        .clone();
+    twin.id = "bp-bp_craft_zeta_rifle_02".into();
+    twin.record_name = "CraftingBlueprintRecord.BP_CRAFT_zeta_rifle_02".into();
+    gd.blueprints.push(twin);
+    gd.blueprint_pools[0]
+        .blueprints
+        .push(starorg_core::model::BlueprintPoolEntry {
+            blueprint: "BP_CRAFT_zeta_rifle_02".into(),
+            weight: None,
+        });
+    let export = import::parse_export(
+        br#"{"version":1,"exportedAt":"2026-01-01T00:00:00Z","blueprints":[
+            {"name":"[P-S3] Filler rifle","completed":true},
+            {"name":"Filler pistol","completed":true}]}"#,
+    )
+    .unwrap();
+    let mut set = OwnedSet::new(Some(GEID));
+    let rep = import::merge(&export, &GameDataCatalog::new(&gd, &stock), &mut set);
+    assert_eq!(rep.ambiguous.len(), 1, "{rep:?}");
+    assert_eq!(rep.ambiguous[0].candidates.len(), 2);
+    let dir = channel_with(&set);
+    let sel = blueprints::select(dir.path(), None).unwrap();
+    assert_eq!((sel.count, sel.ambiguous), (1, 1));
+    let g = generate(&gd, &stock, &Profile::default(), &sel);
+    let desc = added(&g, &stock, "zeta_haul_desc");
+    assert!(!desc.contains("Filler rifle [Owned]"), "{desc}");
+    assert!(desc.contains("- Filler pistol [Owned]"), "{desc}");
+
+    // A log-scan entry (name only, no ids) for the shared name is not a guess either.
+    let raw = serde_json::json!({
+        "schema": 1, "geid": GEID,
+        "entries": { "filler rifle": { "name": "Filler rifle", "sources": [{"kind": "log"}] } }
+    });
+    let set: OwnedSet = serde_json::from_value(raw).unwrap();
+    let dir = channel_with(&set);
+    let sel = blueprints::select(dir.path(), None).unwrap();
+    let g = generate(&gd, &stock, &Profile::default(), &sel);
+    assert!(!added(&g, &stock, "zeta_haul_desc").contains("[Owned]"));
 }
