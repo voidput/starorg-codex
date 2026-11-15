@@ -1,5 +1,5 @@
 {
-  "schema": 2,
+  "schema": 3,
   "build": null,
   "datacore": null,
   "components": [
@@ -534,6 +534,14 @@
       "descriptionKey": "@TEST_shared_desc",
       "descriptionFrom": "generator",
       "minStanding": "ReputationStanding_TEST_Rank2"
+    },
+    {
+      "generator": "TEST_HaulGenerator",
+      "handler": "TEST_Haul_Handler",
+      "debugName": "TEST_Contract_Haul",
+      "id": "c-haul",
+      "titleKey": "@TEST_haul_title",
+      "titleFrom": "contract"
     }
   ],
   "blueprints": [
@@ -569,6 +577,66 @@
       "id": "00000000-0000-0000-0000-000000000060",
       "displayNameKey": "@RepStanding_TEST_Rank2",
       "minReputation": 2500.0
+    }
+  ],
+  "questItems": [
+    {
+      "recordName": "EntityClassDefinition.TEST_Datapad_A",
+      "path": "entities/scitem/carryables/1h/test_datapad_a",
+      "loc": {
+        "name": "@item_NameTEST_Datapad_A",
+        "shortName": "@LOC_EMPTY",
+        "desc": "@item_DescTEST_CommonPad"
+      },
+      "itemType": "Misc",
+      "subType": "Gadget",
+      "descSharedWith": [
+        "TEST_Datapad_B"
+      ],
+      "uses": [
+        {
+          "kind": "spawned",
+          "source": "MissionBrokerEntry",
+          "mission": "TEST_Mission",
+          "titleKey": "@TEST_mission_title",
+          "systems": [
+            "Stanton"
+          ]
+        }
+      ]
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_QuestChip",
+      "path": "entities/scitem/carryables/1h/test_questchip",
+      "loc": {
+        "name": "@item_NameTEST_QuestChip",
+        "shortName": "@LOC_EMPTY",
+        "desc": "@item_DescTEST_QuestChip"
+      },
+      "itemType": "RemovableChip",
+      "descSharedWith": [
+        "TEST_QuestChip_debug"
+      ],
+      "uses": [
+        {
+          "kind": "spawned",
+          "source": "MissionBrokerEntry",
+          "mission": "TEST_Mission",
+          "titleKey": "@TEST_mission_title",
+          "systems": [
+            "Stanton"
+          ]
+        },
+        {
+          "kind": "hauled",
+          "source": "TEST_HaulGenerator",
+          "mission": "TEST_Contract_Haul",
+          "titleKey": "@TEST_haul_title",
+          "systems": [
+            "Pyro"
+          ]
+        }
+      ]
     }
   ]
 }

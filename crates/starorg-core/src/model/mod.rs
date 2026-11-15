@@ -15,6 +15,7 @@
 pub mod items;
 pub mod missions;
 pub mod namesake;
+pub mod quest;
 pub mod ships;
 
 pub use items::{
@@ -25,6 +26,7 @@ pub use missions::{
     Blueprint, BlueprintPool, BlueprintPoolEntry, BlueprintReward, BlueprintTier, Contract,
     ItemReward, KeySource, ReputationReward, ReputationStanding,
 };
+pub use quest::{QuestItem, QuestRef, QuestUse};
 pub use ships::{Armor, Flight, Hull, Loadout, LoadoutItem, Ship, ShipLoc, Totals};
 
 use crate::build::BuildInfo;
@@ -34,7 +36,8 @@ use serde::{Deserialize, Serialize};
 ///
 /// - 1: M0, build identity and DataCore counts only.
 /// - 2: M2, items, ships, ammo, contracts, blueprints, reputation.
-pub const GAMEDATA_SCHEMA: u32 = 2;
+/// - 3: quest items and the missions that reference them (addendum §12).
+pub const GAMEDATA_SCHEMA: u32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -66,6 +69,9 @@ pub struct GameData {
     pub blueprint_pools: Vec<BlueprintPool>,
     #[serde(default)]
     pub reputation_standings: Vec<ReputationStanding>,
+    /// Items missions spawn or contracts ask for (addendum §12). Local extraction only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub quest_items: Vec<QuestItem>,
 }
 
 impl Default for GameData {
@@ -83,6 +89,7 @@ impl Default for GameData {
             blueprints: Vec::new(),
             blueprint_pools: Vec::new(),
             reputation_standings: Vec::new(),
+            quest_items: Vec::new(),
         }
     }
 }
@@ -109,6 +116,8 @@ pub struct Counts {
     pub blueprints: usize,
     pub blueprint_pools: usize,
     pub reputation_standings: usize,
+    #[serde(default)]
+    pub quest_items: usize,
 }
 
 impl GameData {
@@ -125,6 +134,7 @@ impl GameData {
             blueprints: self.blueprints.len(),
             blueprint_pools: self.blueprint_pools.len(),
             reputation_standings: self.reputation_standings.len(),
+            quest_items: self.quest_items.len(),
         }
     }
 
@@ -146,6 +156,13 @@ impl GameData {
         self.blueprint_pools.sort_by(|a, b| a.name.cmp(&b.name));
         self.reputation_standings
             .sort_by(|a, b| a.record_name.cmp(&b.record_name));
+        self.quest_items
+            .sort_by(|a, b| a.record_name.cmp(&b.record_name));
+        for q in &mut self.quest_items {
+            q.uses.sort_by(|a, b| {
+                (&a.source, &a.mission, a.kind).cmp(&(&b.source, &b.mission, b.kind))
+            });
+        }
     }
 
     pub fn component(&self, short: &str) -> Option<&Component> {

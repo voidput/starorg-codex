@@ -159,7 +159,11 @@ fn ship_loadout_flight_and_armor() {
 #[test]
 fn contracts_blueprints_reputation() {
     let (gd, _) = fixture_gamedata();
-    assert_eq!(gd.contracts.len(), 2);
+    assert_eq!(
+        gd.contracts.len(),
+        3,
+        "two here, one of the hauling generator"
+    );
     let easy = gd
         .contracts
         .iter()
@@ -420,4 +424,56 @@ fn real_live_weapons_group_by_type_subtype_size() {
         );
     }
     eprintln!("{} weapons, {} nodes", t.rows.len(), page.nodes.len());
+}
+
+#[test]
+fn quest_items_from_spawns_and_hauling_orders() {
+    use starorg_core::model::QuestRef;
+    let (gd, _) = fixture_gamedata();
+    let names: Vec<&str> = gd.quest_items.iter().map(|q| q.short_name()).collect();
+    assert_eq!(names, ["TEST_Datapad_A", "TEST_QuestChip"]);
+    let chip = &gd.quest_items[1];
+    assert_eq!(chip.item_type.as_deref(), Some("RemovableChip"));
+    assert_eq!(chip.sub_type, None, "UNDEFINED is left out");
+    assert_eq!(chip.loc.desc.as_deref(), Some("@item_DescTEST_QuestChip"));
+    assert_eq!(chip.desc_shared_with, ["TEST_QuestChip_debug"]);
+    let uses: Vec<_> = chip
+        .uses
+        .iter()
+        .map(|u| {
+            (
+                u.kind,
+                u.source.as_str(),
+                u.mission.as_str(),
+                u.title_key.as_deref(),
+                u.systems.clone(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        uses,
+        [
+            (
+                QuestRef::Spawned,
+                "MissionBrokerEntry",
+                "TEST_Mission",
+                Some("@TEST_mission_title"),
+                vec!["Stanton".to_string()]
+            ),
+            (
+                QuestRef::Hauled,
+                "TEST_HaulGenerator",
+                "TEST_Contract_Haul",
+                Some("@TEST_haul_title"),
+                vec!["Pyro".to_string()]
+            ),
+        ]
+    );
+    assert_eq!(gd.quest_items[0].desc_shared_with, ["TEST_Datapad_B"]);
+    // Contracts of the hauling generator are contracts like any other.
+    assert!(
+        gd.contracts
+            .iter()
+            .any(|c| c.debug_name == "TEST_Contract_Haul")
+    );
 }

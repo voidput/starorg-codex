@@ -2,9 +2,10 @@
 
 use super::json::{array, at, num, ref_path, referenced_name, text, type_of};
 use serde_json::Value;
+use starorg_core::model::quest::system_of;
 use starorg_core::model::{
     Blueprint, BlueprintPool, BlueprintPoolEntry, BlueprintReward, BlueprintTier, Contract,
-    ItemReward, KeySource, ReputationReward, ReputationStanding,
+    ItemReward, KeySource, QuestRef, QuestUse, ReputationReward, ReputationStanding,
 };
 
 /// Lookups the mission parsers need, by normalised record path.
@@ -61,10 +62,52 @@ fn mission_results(v: &Value) -> (bool, bool) {
     (at_i(0), at_i(1))
 }
 
+/// An item a mission references: the entity record path and the use.
+pub type QuestLink = (String, QuestUse);
+
+/// Entity paths of every `entityClass` below a `haulingOrderContent` array of `v`.
+fn hauled_items(v: &Value) -> Vec<String> {
+    let mut out = Vec::new();
+    walk(v, &mut |node| {
+        for order in array(node.get("haulingOrderContent")) {
+            walk(order, &mut |o| {
+                if let Some(p) = ref_path(o.get("entityClass"))
+                    && !out.contains(&p)
+                {
+                    out.push(p);
+                }
+            });
+        }
+    });
+    out
+}
+
+/// Systems of the `ContractPrerequisite_Locality` entries among `prereqs`, sorted.
+fn locality_systems<'v>(prereqs: impl Iterator<Item = &'v Value>) -> Vec<String> {
+    let mut out: Vec<String> = prereqs
+        .filter(|p| type_of(p) == Some("ContractPrerequisite_Locality"))
+        .filter_map(|p| ref_path(p.get("localityAvailable")))
+        .filter_map(|path| system_of(&path).map(str::to_string))
+        .collect();
+    out.sort();
+    out.dedup();
+    out
+}
+
 /// All contracts of one `ContractGenerator` record.
 pub fn parse_contracts(generator: &str, v: &Value, lk: &dyn MissionLookup) -> Vec<Contract> {
+    parse_contracts_with_items(generator, v, lk).0
+}
+
+/// [`parse_contracts`], plus the items each contract's hauling orders ask for (addendum §12).
+pub fn parse_contracts_with_items(
+    generator: &str,
+    v: &Value,
+    lk: &dyn MissionLookup,
+) -> (Vec<Contract>, Vec<QuestLink>) {
     let gen_short = starorg_core::model::short_name(generator).to_string();
     let mut out = Vec::new();
+    let mut links = Vec::new();
     for g in array(v.get("generators")) {
         let handler = text(g.get("debugName")).unwrap_or_default().to_string();
         let gen_params = g.get("contractParams");
@@ -100,6 +143,7 @@ pub fn parse_contracts(generator: &str, v: &Value, lk: &dyn MissionLookup) -> Ve
             let prereqs = gen_prereqs
                 .iter()
                 .chain(array(c.get("additionalPrerequisites")));
+            let systems = locality_systems(prereqs.clone());
             let mut chain = false;
             let mut min_standing = None;
             for p in prereqs {
@@ -178,10 +222,63 @@ pub fn parse_contracts(generator: &str, v: &Value, lk: &dyn MissionLookup) -> Ve
                     _ => {}
                 });
             }
+            for path in hauled_items(c) {
+                links.push((
+                    path,
+                    QuestUse {
+                        kind: QuestRef::Hauled,
+                        source: gen_short.clone(),
+                        mission: contract.debug_name.clone(),
+                        title_key: contract.title_key.clone(),
+                        systems: systems.clone(),
+                        unreleased: contract.not_for_release || contract.work_in_progress,
+                    },
+                ));
+            }
             out.push(contract);
         }
     }
-    out
+    (out, links)
+}
+
+/// Items a `MissionBrokerEntry` spawns into inventories (`autoSpawnSettings.inventoryItems`),
+/// with the mission as their use (addendum §12).
+pub fn parse_mission_entry(name: &str, v: &Value) -> Vec<QuestLink> {
+    let mut paths: Vec<String> = Vec::new();
+    for prop in array(v.get("properties")) {
+        walk(prop, &mut |node| {
+            if let Some(auto) = node.get("autoSpawnSettings") {
+                for item in array(auto.get("inventoryItems")) {
+                    if let Some(p) = ref_path(item.get("entityClass"))
+                        && !paths.contains(&p)
+                    {
+                        paths.push(p);
+                    }
+                }
+            }
+        });
+    }
+    if paths.is_empty() {
+        return Vec::new();
+    }
+    let mut systems: Vec<String> = ["locationMissionAvailable", "localityAvailable"]
+        .iter()
+        .filter_map(|f| ref_path(v.get(*f)))
+        .filter_map(|p| system_of(&p).map(str::to_string))
+        .collect();
+    systems.sort();
+    systems.dedup();
+    let used = QuestUse {
+        kind: QuestRef::Spawned,
+        source: "MissionBrokerEntry".into(),
+        mission: starorg_core::model::short_name(name).to_string(),
+        title_key: text(v.get("title"))
+            .filter(|k| starorg_core::model::loc_key(k).is_some())
+            .map(str::to_string),
+        systems,
+        unreleased: v.get("notForRelease") == Some(&Value::Bool(true)),
+    };
+    paths.into_iter().map(|p| (p, used.clone())).collect()
 }
 
 /// A crafting blueprint; `None` for records without tiers (dismantle).

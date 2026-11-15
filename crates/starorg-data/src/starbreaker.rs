@@ -128,7 +128,7 @@ pub struct DataCoreSummary {
 }
 
 /// Record paths the `GameData` passes read (substring match on the normalised path).
-const SELECTED_PATHS: [&str; 9] = [
+const SELECTED_PATHS: [&str; 10] = [
     "entities/scitem/ships/",
     "entities/scitem/weapons/",
     "entities/spaceships/",
@@ -138,6 +138,8 @@ const SELECTED_PATHS: [&str; 9] = [
     "crafting/",
     "contracts/",
     "reputation/",
+    // Mission broker entries: the items they spawn (quest items, addendum §12).
+    "missionbroker/",
 ];
 
 /// A parsed DataCore exposed as a [`RecordStore`]: main records only, each exported on

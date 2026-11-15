@@ -11,7 +11,9 @@
 //!    controllers), FPS weapons under `entities/scitem/weapons/`,
 //! 3. vehicles under `entities/spaceships/` and `entities/groundvehicles/`, with the
 //!    loadout resolved against pass 2,
-//! 4. reputation standings, blueprint pools, blueprints, contract generators.
+//! 4. reputation standings, blueprint pools, blueprints, contract generators,
+//! 5. quest items: entities `MissionBrokerEntry` spawn descriptions and contract hauling
+//!    orders reference (addendum §12).
 //!
 //! [`drift`] then turns empty categories and missing struct types into schema-drift
 //! warnings (spec 3.3 step 6).
@@ -26,7 +28,7 @@ pub mod store;
 use rayon::prelude::*;
 use serde_json::Value;
 use starorg_core::ini::StockIni;
-use starorg_core::model::{Ammo, GameData, WeaponClass};
+use starorg_core::model::{Ammo, GameData, QuestItem, WeaponClass};
 use starorg_core::source::Warning;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -189,6 +191,111 @@ impl missions::MissionLookup for Lookup<'_, '_> {
         }
         strings
     }
+}
+
+/// Folder part of a normalised record path (`a/b/c` -> `a/b`).
+fn folder_of(path: &str) -> &str {
+    path.rsplit_once('/').map(|(f, _)| f).unwrap_or("")
+}
+
+/// Description key of an entity, folded for comparison.
+fn desc_key_of(entity: &Value) -> Option<String> {
+    json::text_at(json::attach_def(entity), "Localization.Description")
+        .and_then(starorg_core::model::loc_key)
+        .map(starorg_core::ini::fold_key)
+}
+
+/// Pass 5: one [`QuestItem`] per referenced entity, with its loc keys, type and the other
+/// entities of its folder that share its description key.
+fn quest_items(
+    store: &dyn RecordStore,
+    index: &Index<'_>,
+    links: Vec<missions::QuestLink>,
+    errors: &Mutex<Vec<Warning>>,
+) -> Vec<QuestItem> {
+    let mut by_path: std::collections::BTreeMap<String, Vec<starorg_core::model::QuestUse>> =
+        Default::default();
+    for (path, used) in links {
+        let uses = by_path.entry(path).or_default();
+        if !uses.contains(&used) {
+            uses.push(used);
+        }
+    }
+    let metas: Vec<(&RecordMeta, Vec<starorg_core::model::QuestUse>)> = by_path
+        .into_iter()
+        .filter_map(|(p, uses)| Some((index.by_path(&p)?, uses)))
+        .filter(|(m, _)| m.struct_type == "EntityClassDefinition")
+        .collect();
+    let mut items: Vec<QuestItem> = metas
+        .into_par_iter()
+        .filter_map(|(m, uses)| {
+            let l = match store.load(m) {
+                Ok(l) => l,
+                Err(e) => {
+                    if let Ok(mut w) = errors.lock() {
+                        w.push(Warning::new(
+                            "record-unreadable",
+                            format!("{}: {e}", m.name),
+                        ));
+                    }
+                    return None;
+                }
+            };
+            let def = json::attach_def(&l.value);
+            Some(QuestItem {
+                record_name: m.name.clone(),
+                path: m.path.clone(),
+                loc: starorg_core::model::LocKeys {
+                    name: json::text_at(def, "Localization.Name").map(str::to_string),
+                    short_name: json::text_at(def, "Localization.ShortName").map(str::to_string),
+                    desc: json::text_at(def, "Localization.Description").map(str::to_string),
+                },
+                item_type: json::text(def.get("Type")).map(str::to_string),
+                sub_type: json::text(def.get("SubType"))
+                    .filter(|s| *s != "UNDEFINED")
+                    .map(str::to_string),
+                desc_shared_with: Vec::new(),
+                uses,
+            })
+        })
+        .collect();
+
+    // Shared description keys, among the entities of each quest item's folder.
+    let folders: std::collections::BTreeSet<String> = items
+        .iter()
+        .map(|q| folder_of(&q.path).to_string())
+        .collect();
+    let neighbours: Vec<&RecordMeta> = index
+        .of_type("EntityClassDefinition")
+        .filter(|m| folders.contains(folder_of(&m.path)))
+        .collect();
+    let descs: Vec<(String, String, String)> = load_all(store, neighbours, errors, |m, _, v| {
+        Some((
+            folder_of(&m.path).to_string(),
+            desc_key_of(v)?,
+            m.short_name().to_string(),
+        ))
+    });
+    for q in &mut items {
+        let Some(key) = q
+            .loc
+            .desc
+            .as_deref()
+            .and_then(starorg_core::model::loc_key)
+            .map(starorg_core::ini::fold_key)
+        else {
+            continue;
+        };
+        let folder = folder_of(&q.path);
+        let own = q.short_name().to_string();
+        q.desc_shared_with = descs
+            .iter()
+            .filter(|(f, k, n)| f == folder && *k == key && !n.eq_ignore_ascii_case(&own))
+            .map(|(_, _, n)| n.clone())
+            .collect();
+        q.desc_shared_with.sort();
+    }
+    items
 }
 
 /// Run every pass over `store`. `present_types` lists DataCore struct names for the
@@ -391,15 +498,29 @@ pub fn extract(
             &errors,
             |m, id, v| missions::parse_blueprint(&m.name, id, &m.path, v, &lk),
         );
-        gd.contracts = load_all(
+        let mut links = Vec::new();
+        for (contracts, l) in load_all(
             store,
             index.of_type("ContractGenerator").collect(),
             &errors,
-            |m, _, v| Some(missions::parse_contracts(&m.name, v, &lk)),
-        )
-        .into_iter()
-        .flatten()
-        .collect();
+            |m, _, v| Some(missions::parse_contracts_with_items(&m.name, v, &lk)),
+        ) {
+            gd.contracts.extend(contracts);
+            links.extend(l);
+        }
+
+        // Pass 5: quest items.
+        links.extend(
+            load_all(
+                store,
+                index.of_type("MissionBrokerEntry").collect(),
+                &errors,
+                |m, _, v| Some(missions::parse_mission_entry(&m.name, v)),
+            )
+            .into_iter()
+            .flatten(),
+        );
+        gd.quest_items = quest_items(store, &index, links, &errors);
     }
     gd.sort();
     let mut warnings = errors.into_inner().unwrap_or_default();
