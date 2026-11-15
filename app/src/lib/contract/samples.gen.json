@@ -12580,16 +12580,16 @@
     "characters": [
       {
         "added": [],
-        "after": 6,
-        "before": 6,
+        "after": 8,
+        "before": 8,
         "id": "1000000000001",
         "name": "Pilot_A",
         "removed": []
       },
       {
         "added": [],
-        "after": 2,
-        "before": 2,
+        "after": 4,
+        "before": 4,
         "id": "1000000000002",
         "name": "Alt_B",
         "removed": []

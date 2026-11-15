@@ -2245,6 +2245,8 @@ fn blueprint_finder_merges_channels_with_their_own_owners() {
         target: live(),
         character: "1000000000003".into(),
         dry_run: false,
+        reuse_last: false,
+        replace: false,
     })
     .unwrap();
     let after = b.blueprint_finder(req(&["LIVE"])).unwrap();
