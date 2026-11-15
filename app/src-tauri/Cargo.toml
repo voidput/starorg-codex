@@ -1,0 +1,41 @@
+[package]
+name = "starorg-strings-app"
+description = "StarOrg Strings desktop app (Tauri shell over starorg-core)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+default-run = "starorg-strings-app"
+
+[lib]
+name = "starorg_strings_app"
+path = "src/lib.rs"
+
+[[bin]]
+name = "starorg-strings-app"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+starorg-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tauri = { version = "2", features = [] }
+
+[dev-dependencies]
+tauri = { version = "2", features = ["test"] }
+tempfile.workspace = true
+
+# Not `[lints] workspace = true`: the workspace forbids unsafe code, and this crate needs one
+# `unsafe` block, `std::env::set_var` for the WebKitGTK workaround before any thread starts
+# (spec 10.4). Same lints otherwise, with unsafe denied and allowed on that one function.
+[lints.rust]
+unsafe_code = "deny"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
