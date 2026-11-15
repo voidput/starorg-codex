@@ -411,6 +411,21 @@ impl Domain for Blueprints {
         true
     }
 
+    /// Item records are only looked up for the product's display name (`AttachDef`); keep
+    /// just that (6.5 GB whole on LIVE). Contract records are walked whole.
+    fn prune(&self, record: &mut GameRecord) {
+        if record.ty == "EntityClassDefinition"
+            && record.record_path.contains("/entities/scitem/")
+            && !record.record_path.contains("/contracts/")
+        {
+            crate::entity::prune_entity(
+                &mut record.value,
+                &[],
+                &[("SAttachableComponentParams", Some(&["AttachDef"]))],
+            );
+        }
+    }
+
     fn parse(&self, ctx: &ParseContext<'_>) -> Result<Map<String, Value>, DomainError> {
         let records = ctx.records.all();
         let (pools, pool_index) = parse_pools(records);
@@ -532,7 +547,6 @@ impl Domain for Blueprints {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::NoFiles;
     use crate::localization::parse_global_ini;
     use crate::records::{RecordSet, normalize_record};
     use serde_json::json;
@@ -641,7 +655,7 @@ mod tests {
 
     fn parse(records: Vec<GameRecord>, loc: &Localization) -> Map<String, Value> {
         let set = RecordSet::new(records);
-        DOMAIN.parse(&ParseContext::new(&set, loc, &NoFiles)).unwrap()
+        crate::fixtures::parse_checked(&DOMAIN, &set, loc)
     }
 
     #[test]

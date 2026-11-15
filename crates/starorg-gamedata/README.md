@@ -41,15 +41,18 @@ Not ported:
 ## Known limits
 
 - **Peak memory.** Every record a domain is handed is held as a `serde_json::Value` tree
-  at once. The three domains handed all 24,914 `entities/scitem` records (1.5 GB as
-  pretty JSON) now prune each record as it is loaded (`Domain::prune`) to the fields they
-  read, with the compare still byte-identical. Peak RSS of one domain per process, LIVE
-  4.10.200.58746 (`/usr/bin/time`, DataCore alone about 0.9 GB):
+  at once; item-tags and item-sources are handed all 24,914 `entities/scitem` records
+  (1.5 GB as pretty JSON), so held whole they dominate. The four domains handed item
+  records prune each one as it is loaded (`Domain::prune`) to the fields they read, with
+  the compare still byte-identical. Peak RSS of
+  one domain per process, LIVE 4.10.200.58746 (`/usr/bin/time`, DataCore alone about
+  0.9 GB):
 
   | Domain | Whole records | Pruned |
   |---|---|---|
   | `item-sources` | 9.0 GB | 1.5 GB |
   | `item-tags` | 8.7 GB | 1.2 GB |
+  | `blueprints` | 6.5 GB | 1.4 GB |
   | `armor` | 3.0 GB | 0.9 GB |
   | `ships` | 4.1 GB | not pruned (loadouts and ports read deep) |
 
@@ -130,8 +133,8 @@ scripts/compare-query.sh [--sample 60]   # node runs ~/git/sc-gamedata/dist/quer
 It writes a query file (fixed cases, contract-award and Wikelo items, places, every Nth
 item), answers it with `node scripts/query-golden.mjs` and with `gamedata-port query`, and
 compares the JSON (key order ignored, numbers to 1e-12). On LIVE 4.10.200.58746's golden
-`data/` (with UEX prices and terminals of 2026-11-14): 487 of 487 answers identical at
-`--sample 60`. Differences from the TypeScript by design: `renderObtain`'s "no shop data"
+`data/` (with UEX prices and terminals of 2026-11-14): 514 of 514 answers identical at
+`--sample 60` (36 s for the Rust side: pool sizes are counted once per report). Differences from the TypeScript by design: `renderObtain`'s "no shop data"
 line names no `sc-gamedata fetch` command, and the fzf line format is not ported.
 
 ## Porting guide

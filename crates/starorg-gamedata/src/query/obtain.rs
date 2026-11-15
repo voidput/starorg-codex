@@ -511,12 +511,20 @@ pub struct RollPath {
     pub per_roll: f64,
 }
 
+/// Pool sizes already counted, by (table, slot, entry, filter, extra layers, the choices
+/// the item satisfies in each layer). Areas that roll the same table the same way share a
+/// pool, so one report counts each once.
+pub type PoolMemo = std::cell::RefCell<HashMap<PoolKey, usize>>;
+pub type PoolKey = (String, usize, usize, usize, usize, Vec<Vec<usize>>);
+
 #[derive(Default, Clone, Copy)]
 pub struct RollContext<'a> {
     pub filter: Option<&'a PoolFilter>,
     pub extra_layers: &'a [Layer],
     /// Every item, for pool sizes.
     pub pool: Option<&'a [ItemTags]>,
+    /// Optional cache of pool sizes (the answer is the same with or without it).
+    pub memo: Option<&'a PoolMemo>,
 }
 
 /// Every way one roll of a table can produce the item.
@@ -540,7 +548,7 @@ pub fn table_rolls(
         return Vec::new();
     }
     let mut paths = Vec::new();
-    for slot in &table.slots {
+    for (slot_ix, slot) in table.slots.iter().enumerate() {
         let Some(archetype) = &slot.archetype else {
             continue;
         };
@@ -559,7 +567,7 @@ pub fn table_rolls(
         if primary_total <= 0.0 {
             continue;
         }
-        for entry in &archetype.primary {
+        for (entry_ix, entry) in archetype.primary.iter().enumerate() {
             if entry.weight <= 0.0 || !selects_sel(entry, &item.tags) {
                 continue;
             }
@@ -574,7 +582,34 @@ pub fn table_rolls(
                             .collect()
                     })
                     .collect();
-                pool.iter()
+                let key: Option<PoolKey> = ctx.memo.map(|_| {
+                    let picks = layers
+                        .iter()
+                        .map(|l| {
+                            l.choices
+                                .iter()
+                                .enumerate()
+                                .filter(|(_, c)| selects_sel(c, &item.tags))
+                                .map(|(i, _)| i)
+                                .collect()
+                        })
+                        .collect();
+                    (
+                        table.name.to_lowercase(),
+                        slot_ix,
+                        entry_ix,
+                        ctx.filter.map_or(0, |f| f as *const PoolFilter as usize),
+                        ctx.extra_layers.as_ptr() as usize ^ ctx.extra_layers.len(),
+                        picks,
+                    )
+                });
+                if let (Some(m), Some(k)) = (ctx.memo, &key)
+                    && let Some(n) = m.borrow().get(k)
+                {
+                    return *n;
+                }
+                let n = pool
+                    .iter()
                     .filter(|c| {
                         loot_eligibility(&c.tags).can_loot == Some(true)
                             && selects_sel(entry, &c.tags)
@@ -585,7 +620,11 @@ pub fn table_rolls(
                                     || choices.iter().any(|ch| selects_sel(ch, &c.tags))
                             })
                     })
-                    .count()
+                    .count();
+                if let (Some(m), Some(k)) = (ctx.memo, key) {
+                    m.borrow_mut().insert(k, n);
+                }
+                n
             });
             paths.push(RollPath {
                 table: table.name.clone(),
@@ -659,6 +698,15 @@ pub fn spawn_hits(
     index: Option<&LootIndex>,
     item: &ItemTags,
 ) -> Vec<SpawnHit> {
+    spawn_hits_memo(datasets, index, item, None)
+}
+
+fn spawn_hits_memo(
+    datasets: &Datasets,
+    index: Option<&LootIndex>,
+    item: &ItemTags,
+    memo: Option<&PoolMemo>,
+) -> Vec<SpawnHit> {
     let mut hits = Vec::new();
     let cls = item.class_name.to_lowercase();
     let lootable = loot_eligibility(&item.tags).can_loot == Some(true);
@@ -719,6 +767,7 @@ pub fn spawn_hits(
                         filter,
                         extra_layers: slot_layers(index, loot),
                         pool: Some(&datasets.items),
+                        memo,
                     },
                 );
                 if paths.is_empty() {
@@ -796,6 +845,16 @@ pub fn other_tables(
     item: &ItemTags,
     used: &HashSet<String>,
 ) -> Vec<RollPath> {
+    other_tables_memo(datasets, index, item, used, None)
+}
+
+fn other_tables_memo(
+    datasets: &Datasets,
+    index: &LootIndex,
+    item: &ItemTags,
+    used: &HashSet<String>,
+    memo: Option<&PoolMemo>,
+) -> Vec<RollPath> {
     let mut out = Vec::new();
     for table in &index.tables {
         if used.contains(&table.name.to_lowercase()) {
@@ -807,6 +866,7 @@ pub fn other_tables(
             item,
             RollContext {
                 pool: Some(&datasets.items),
+                memo,
                 ..Default::default()
             },
         );
@@ -990,7 +1050,8 @@ pub fn obtain(
         },
     };
     let cls = item.class_name.to_lowercase();
-    let spawns = spawn_hits(datasets, loot_index, item);
+    let memo = PoolMemo::default();
+    let spawns = spawn_hits_memo(datasets, loot_index, item, Some(&memo));
     let used: HashSet<String> = datasets
         .areas
         .iter()
@@ -1089,7 +1150,9 @@ pub fn obtain(
         item: item.clone(),
         eligibility: loot_eligibility(&item.tags),
         areas: rank_areas(&spawns),
-        other_tables: loot_index.map_or_else(Vec::new, |i| other_tables(datasets, i, item, &used)),
+        other_tables: loot_index.map_or_else(Vec::new, |i| {
+            other_tables_memo(datasets, i, item, &used, Some(&memo))
+        }),
         spawns,
         blueprints: datasets
             .blueprints
@@ -1653,6 +1716,7 @@ mod tests {
             filter,
             extra_layers: layers,
             pool: Some(&pool),
+            memo: None,
         };
         assert!(close(
             table_rolls(&index, "V3_Weapons", &verdict(), ctx)[0].share,
