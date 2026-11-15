@@ -350,6 +350,11 @@ fn export_model(
         Ok(c) => c,
         Err(code) => return code,
     };
+    // A LOD the mesh lacks is the cached one below it (the LODs an earlier export recorded).
+    let mut o = o;
+    if let Some(c) = &c {
+        o.lod = model::effective_lod(o.lod, &model::cached_lods(c, &t.channel, &t.build, what));
+    }
     let key = o.cache_key(what);
     // A cached GLB: no archive read at all (an STL is made from it here).
     if let Some(hit) = c
@@ -426,6 +431,7 @@ fn export_model(
             let key = ModelOptions { lod: d.lod, ..o }.cache_key(what);
             if let Some(c) = &c {
                 let _ = c.put_copy(&t.channel, &t.build, Kind::Models, &key, "glb", &out_abs);
+                let _ = model::cache_lods(c, &t.channel, &t.build, what, &d.lods);
             }
             let stl = d.stl_path.as_ref().map(PathBuf::from);
             report_model(

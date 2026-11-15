@@ -351,6 +351,40 @@ fn model_cache_keys_are_per_record_preset_and_lod() {
 }
 
 #[test]
+fn mesh_lods_are_kept_in_the_cache_so_a_missing_lod_finds_the_one_below() {
+    use starorg_core::assetcache::{AssetCache, Kind};
+    let t = tempfile::tempdir().unwrap();
+    let c = AssetCache::new(t.path().join("assets"), 1 << 30);
+    let b = "00000000000000000000000b";
+    let g = "8f1c2d3e-0000-4000-8000-000000000001";
+    assert!(model::cached_lods(&c, "LIVE", b, g).is_empty());
+    model::cache_lods(&c, "LIVE", b, g, &[]).unwrap();
+    assert!(
+        model::cached_lods(&c, "LIVE", b, g).is_empty(),
+        "nothing for unknown"
+    );
+    model::cache_lods(&c, "LIVE", b, g, &[0, 1, 2, 3]).unwrap();
+    let known = model::cached_lods(&c, "LIVE", b, g);
+    assert_eq!(known, vec![0, 1, 2, 3]);
+    // LOD 4 asked: the key is LOD 3's, which an earlier export cached.
+    let o = ModelOptions {
+        preset: ModelPreset::PrintShell,
+        lod: model::effective_lod(4, &known),
+        stl: false,
+    };
+    assert_eq!(o.cache_key(g), format!("{g}-print-lod3"));
+    // Our file: counted, cleared with the rest; garbage reads as unknown.
+    assert_eq!(c.usage().files, 1);
+    std::fs::write(
+        c.path("LIVE", b, Kind::Models, &format!("{g}-lods"), "lods"),
+        "x,7",
+    )
+    .unwrap();
+    assert!(model::cached_lods(&c, "LIVE", b, g).is_empty());
+    assert_eq!(c.clear().unwrap().files, 1);
+}
+
+#[test]
 fn lods_come_from_the_mesh_files_and_clamp_the_asked_one() {
     let files = [
         "Data\\Objects\\Spaceships\\Ships\\AEGS\\Gladius\\AEGS_Gladius.cgam",

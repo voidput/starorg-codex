@@ -374,14 +374,15 @@ pub fn is_capital(name: &str) -> bool {
 }
 
 /// A model export's peak: Print shell about 1.4 GB at LOD 0 (Idris 1.75 GB) and 1.2 GB at
-/// LOD 1-4 (LIVE 4.10: Gladius and Javelin 0.98-1.06 GB, Idris 1.18 GB at LOD 3), Full about
+/// LOD 1-4 (LIVE 4.10: Gladius and Javelin 0.98-1.06 GB), capital ships 1.8 / 1.6 GB (Carrack
+/// and 890 Jump 1.41-1.43 GB at LOD 1, 1.65-1.71 GB at LOD 0), Full about
 /// 6.4-6.9 GB (Javelin, LOD 1 / 0), capital ships about 11 GB (Idris 10.9 GB at LOD 1).
 pub fn model_estimate(full: bool, lod: u32, name: &str) -> u64 {
     match (full, is_capital(name)) {
         (false, false) if lod == 0 => gb10(14),
         (false, false) => gb10(12),
         (false, true) if lod == 0 => gb10(18),
-        (false, true) => gb10(14),
+        (false, true) => gb10(16),
         (true, true) => gb10(110),
         (true, false) if lod == 0 => gb10(70),
         (true, false) => gb10(65),
@@ -943,7 +944,7 @@ mod tests {
         assert_eq!(model_estimate(false, 0, "rsi_polaris"), gb10(18));
         // Less detail, less memory (the model viewer's slider shows each step).
         assert_eq!(model_estimate(false, 3, "AEGS_Gladius"), gb10(12));
-        assert_eq!(model_estimate(false, 4, "AEGS_Idris_M"), gb10(14));
+        assert_eq!(model_estimate(false, 4, "AEGS_Idris_M"), gb10(16));
         let list = estimates();
         assert!(list.windows(2).all(|w| w[0].bytes <= w[1].bytes));
         assert!(list.iter().any(|e| e.id == "mcp-ships"));

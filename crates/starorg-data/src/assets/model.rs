@@ -126,6 +126,61 @@ pub fn lods_in(geom: &str, exists: impl Fn(&str) -> bool) -> Vec<u32> {
     out
 }
 
+/// The asset cache entry that keeps a record's mesh LODs (`0,1,2,3`) next to its GLBs, so a
+/// LOD the mesh lacks finds the cached one below it after a restart too.
+fn lods_key(what: &str) -> String {
+    format!("{}-lods", starorg_core::assetcache::safe_name(what))
+}
+
+/// The mesh LODs an earlier export of `what` recorded in the cache (empty when unknown).
+pub fn cached_lods(
+    c: &starorg_core::assetcache::AssetCache,
+    channel: &str,
+    build: &str,
+    what: &str,
+) -> Vec<u32> {
+    use starorg_core::assetcache::Kind;
+    let Some(p) = c.peek(channel, build, Kind::Models, &lods_key(what), "lods") else {
+        return Vec::new();
+    };
+    let text = std::fs::read_to_string(p).unwrap_or_default();
+    let mut v: Vec<u32> = text
+        .trim()
+        .split(',')
+        .filter_map(|x| x.trim().parse().ok())
+        .filter(|l| *l <= MAX_LOD)
+        .collect();
+    v.sort_unstable();
+    v.dedup();
+    if v.first() == Some(&0) { v } else { Vec::new() }
+}
+
+/// Record the mesh LODs of `what` in the cache (nothing for an empty list).
+pub fn cache_lods(
+    c: &starorg_core::assetcache::AssetCache,
+    channel: &str,
+    build: &str,
+    what: &str,
+    lods: &[u32],
+) -> std::io::Result<()> {
+    use starorg_core::assetcache::{AssetCache, Kind};
+    if lods.is_empty() {
+        return Ok(());
+    }
+    c.prepare(channel, build, Kind::Models)?;
+    let key = lods_key(what);
+    let text = lods
+        .iter()
+        .map(u32::to_string)
+        .collect::<Vec<_>>()
+        .join(",");
+    let (part, mut f) = AssetCache::new_part(&c.path(channel, build, Kind::Models, &key, "lods"))?;
+    std::io::Write::write_all(&mut f, text.as_bytes())?;
+    drop(f);
+    c.commit(channel, build, Kind::Models, &key, "lods", &part)
+        .map(|_| ())
+}
+
 /// The LOD an export asked for `requested` uses: the most detailed one the mesh has at or
 /// below the asked detail (`lods` [0, 1, 2, 3] and 4 asked -> 3). `requested` when `lods` is
 /// empty (unknown).
