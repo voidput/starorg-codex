@@ -27,6 +27,11 @@ no crash upload and no account of its own.**
 - Developer mode (Settings -> Advanced, off by default) only reads: `Data.p4k` (read only, as
   for extraction) and the JSON folders you pick. Record and type exports go only to a file you
   choose in a save dialog. It makes no network request; the folder list is kept in `app.json`.
+  Its Files browser, Sounds and Export model read `Data.p4k` the same way, only when you open
+  them; extracted files, sounds and models go only to a folder or file you pick, never into the
+  game folder. Decoded sounds, exported models and texture previews are kept in an asset cache
+  (`<cache>/assets`, or a folder you choose in Settings -> Advanced; 2 GB at most) that
+  "Clear" empties. These are Cloud Imperium's assets: for your own use, not to redistribute.
 
 ## Network
 

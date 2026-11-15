@@ -867,6 +867,8 @@ app backend (async command) ─► worker request ─► reply ─► webview (p
   rows are paged.
 - The game may be running: `Data.p4k` is opened read only and shared; no lock is taken on
   game files.
+- Files, sounds and models use a second child process, `asset-worker`, started only when they
+  are asked for (7.16).
 
 ### 7.3 Memory and time budget
 
@@ -1240,6 +1242,130 @@ reads better as `type > subType > size`.
   checks that a picked node filters the grid and records to its count), and the ignored
   real-LIVE test `real_live_weapons_group_by_type_subtype_size` (733 weapons, 50 nodes, every
   count equal to a plain count and to the rows the node filters).
+
+### 7.16 Assets: files, sounds and models (branch `dev-assets`, 2026-11-15, local only)
+
+"Grab the models for things and sounds and stuff": Developer mode can now browse `Data.p4k`,
+play and export a record's sounds and export an entity as a 3D model. Everything reuses
+StarBreaker (MIT, Copyright (c) 2026 Diogo Trindade) at the pinned rev `041e5592`: the crates
+`starbreaker-3d` (entity -> GLB), `-dds`, `-cryxml`, `-wem`, `-wwise` (incl. `datacore_audio`,
+`game_audio`) are workspace dependencies at the same rev as `-p4k`/`-datacore`; the sounds logic
+is a port of StarBreaker's app `audio_commands.rs` (source classification, bank path index,
+event resolution, WEM -> Ogg); the presets are `sc-ship-models/scripts/export_ships.sh`'s.
+
+**Process model.** A new child process, `starorg-strings-app asset-worker --p4k <P>`
+(`starorg-data::assetworker`), same JSON-lines protocol and replies as `dev-worker`; every
+request runs on its own thread under `catch_unwind`; `extract`, `export-sounds` and
+`export-model` stream progress and are cancellable (`cancel_job`, job kind `dev`), one at a
+time. Read only on the game folder; every output path goes through `devworker::check_out` (never
+inside the game folder or its Wine prefix).
+
+- **Lazy, on demand.** Nothing starts when the Dev screens open. The shared worker starts on the
+  first Files listing, preview or Sounds request; it opens only the archive index. The DataCore
+  is read on the first sounds/model request, the Wwise/ATL index (GameAudio documents + every
+  `.bnk`/`.wem` name) on the first sounds request; both stay while the worker lives (64 parsed
+  banks at most). The app stops it after 5 idle minutes (the worker also exits by itself after
+  10), when Developer mode is turned off and on app exit.
+- **Model exports run in a fresh worker** that is stopped right after the export, so the memory
+  (GBs for big ships with textures) goes back to the OS at once.
+- **`locks/extract.lock`** is held while a worker opens the archive index, for a whole model
+  export, and for the first sounds request (DataCore + audio index); the app waits up to 30 s for
+  it (an explorer start), then answers `busy`.
+
+**Asset cache** (`starorg_core::assetcache`). Decoded sounds (`audio/<media id>.ogg`, or `.wem`
+when not Vorbis), exported models (`models/<record>-<full|print>-lod<n>.glb`) and texture
+previews (`previews/<path hash>.png`) under `<cache dir>/<CHANNEL>/<build key>/`. The build key
+is the extraction cache key (p4k size, mtime, change number, StarBreaker rev), so a game patch
+misses; the first write for a new build removes the channel's older builds. LRU by modification
+time (a hit touches the file), 2 GiB cap (`[dev] asset_cache_max_mb`), files over a quarter of
+the cap are not kept, stale `.part` files go after an hour. A hit is answered without starting a
+worker (preview, play, sounds export without `.wem`, model export). Clear, eviction and move
+touch only our layout (marker `.starorg-asset-cache`), so a user-picked folder can hold other
+files.
+
+- **Folder setting**: `[dev] asset_cache_dir` in `config.toml` (default `<app cache>/assets`;
+  the CLI's `--cache-dir` overrides; `--no-cache` skips it). Settings > Advanced > Asset cache
+  shows path, size of cap, Browse… (native dialog; must be absolute, a folder, writable — a probe
+  file is written and removed — and not inside any registered or discovered game folder or its
+  Wine prefix; another drive is fine and shown as a note), Reset to default, Clear (confirm).
+  Switching never moves or deletes the old folder: while it still holds cache files the row
+  offers "Move existing cache" (rename, or copy + remove across drives) or "Leave it".
+- **Webview**: only an 8-entry LRU of object URLs of played sounds (`app/src/lib/audiolru.ts`).
+
+**Contract** (`contract/assets.rs`, `assets.ts`, the `AssetBackend` half of `Backend`):
+`asset_status`, `asset_close`, `asset_list`, `asset_search`, `asset_preview` (image as a
+`data:` URL, text inline at most 1 MiB), `asset_extract`, `asset_sounds`, `asset_sound` (Ogg as
+base64), `asset_export_sounds`, `asset_export_model`, `asset_cache_status|pick|reset|clear|move`.
+All but the cache calls answer `dev-disabled` while Developer mode is off. Mocks in Rust
+(`mock_assets.rs`) and TS (`mock-assets.ts`, data `mock-assets.gen.json`); `assetmock.test.ts`
+replays every asset sample against the TS mock.
+
+**UI.** Dev > Files: folder listing (folders first, 500 per page, "Show more"), path search
+(every word), preview (texture PNG at most 1024 px a side, CryXML/XML text, WEM play button),
+Extract (selected file or current folder; "Convert": textures to PNG with their mip files merged,
+CryXmlB to XML). Explorer record header: Sounds (opens a list of triggers with their sounds, play,
+Export .ogg… / + .wem) and Export model… (Print shell or Full, LOD 0-4, optional STL). Next to
+every export: "For personal use: these are Cloud Imperium's assets; don't redistribute."
+
+**Presets** (`assets::model`): *Full (textures)* = materials and textures (mip 2), interiors,
+lights, attachments, LOD 1 by default. *Print shell (geometry only)* = `--materials none
+--no-interior --no-lights`, LOD 0 by default. STL: pure Rust from the GLB (all triangle
+primitives of the default scene, node transforms baked, Y-up -> Z-up), what
+`glb_to_stl_trimesh.py` did; no Blender needed.
+
+**CLI.** `starorg-strings dev extract <p4k path|folder|glob>... --out DIR [--convert]`,
+`dev export-model <guid|name> --out FILE [--preset full|print] [--lod N] [--stl]
+[--cache-dir DIR]`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
+[--cache-dir DIR]`; in process, `extract.lock` while the archive is read, never into the install
+or a Wine prefix.
+
+**Measured on LIVE 4.10.200.58746** (release, 32 threads, warm page cache, `Data.p4k` read only,
+outputs under `.tmp/`):
+
+| Run | Wall | Peak RSS | Output |
+|---|---|---|---|
+| Open the archive index only (any extract) | 0.6 s | 0.89 GB | |
+| `dev extract "**/javelin*_diff.dds*" --convert` | 2.4 s | 0.89 GB | 2 PNG 2048x2048, 14 mip files merged |
+| AEGS_Javelin, Print shell, LOD 0, + STL | 2.3 s | 1.37 GB | GLB 56.4 MB (`export_ships.sh` made 56.39 MB at the previous patch), STL 3.66 M triangles |
+| AEGS_Idris_M, Print shell, LOD 0 | 1.4 s | 1.75 GB | GLB 96.4 MB |
+| AEGS_Javelin, Full, LOD 1 | 24.0 s | 6.37 GB | GLB 348 MB |
+| AEGS_Javelin, Full, LOD 0 | 24.0 s | 6.91 GB | GLB 513 MB |
+| AEGS_Idris_M, Full, LOD 1 | 32.9 s | 10.87 GB | GLB 502 MB (`RAYON_NUM_THREADS=4`: 48.5 s, 9.56 GB) |
+| AEGS_Gladius sounds: list (DataCore + audio index) | 0.9 s | 0.89 GB | 73 triggers (53 from the loadout), 2,328 sounds |
+| AEGS_Gladius sounds: export all | 13.9 s | 0.89 GB | 2,305 Ogg + 23 WEM (ww2ogg cannot rebuild those; kept as WEM), 197 MB |
+| Same again from the asset cache | 0.9 s | 0.89 GB | no decoding |
+
+The archive index (about 0.9 GB) is the floor of every asset run; the Full preset's textures
+dominate above it, and fewer threads barely help. That is why model exports run in their own
+process, why the Full preset warns in the export dialog, and why the cache keeps only models
+under a quarter of its cap (a Print shell GLB, not a Full one).
+The app's worker (`asset-worker`, release) on the same archive: ready in 0.49 s (1,399,137
+entries) at 449 MB RSS, 899 MB peak while the index is built; listing the root 0.11 s, a folder
+and a search (71 hits) under 10 ms, a 2048x2048 texture previewed at 1024 px in 30 ms, a 215 KB
+CryXML as text in under 10 ms, all at +4 MB. The first sounds request (AEGS_Gladius) reads the
+DataCore and the audio index in 0.83 s (868 MB held); one sound decodes in 10 ms. A Javelin print
+shell exported in that same worker took 0.38 s but left 1.26 GB held (peak 1.42 GB): the reason
+model exports get a fresh worker that is stopped afterwards.
+
+**Tests.** Core: cache hit/miss, hit touches, build invalidation, LRU eviction and the
+quarter-cap rule, stale parts, clear/move only ours, setting round trip and resolve order,
+validation (game folder, Wine prefix, file, relative, read-only). Data: a synthetic stored-ZIP
+p4k (`assets::synthetic`: DataCore, split DDS, XML, PCM WEM) for listing, search, previews,
+extraction (raw, converted, cancelled, refused), unsafe paths, globs, records, lazy audio index,
+model errors and preset mapping, GLB -> STL; the worker protocol over a pipe (lazy status,
+streaming, panics, errors, idle exit). CLI: extract/glob/refusal, cached model without an archive
+read, `--no-cache`, sounds list. App: contract samples for every asset command, unions,
+`dev-disabled`, IPC; `tests/real_assets.rs` runs the real `asset-worker` on the synthetic archive:
+nothing starts before a request, cache hits start no worker, extract/export dialogs and the
+game-folder refusal, fresh worker per model, cache folder validate/switch/move/clear. Renders:
+`app/scripts/render-assets.cjs` (`.tmp/renders/assets/`).
+
+**Not done / follow-ups:**
+- A texture size choice for the Full preset (mip 2 is fixed; mip 3-4 would cut the memory).
+- Decomposed / Blender exports (`--kind decomposed`), animations, interiors as separate files.
+- Sounds of a type or a bank without a record; music and dialogue browsers.
+- A 3D preview in the app (exports only).
+- Progress labels inside a model export (the protocol carries done/total only).
 
 ## 8. Strings grouping
 
