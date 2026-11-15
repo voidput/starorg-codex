@@ -1,0 +1,25 @@
+# Built-in patch (spec 4.5). Keys and record names only; no game prose.
+# Confirmed against DataCore on LIVE 4.10.200.58746, HOTFIX and PTU (2026-11-14): the repeat
+# variant of P2M4 carries a Description override pointing at the P2M1 repeat key.
+schema = 1
+id = "hockrow-p2m4-desc"
+title = "Hockrow facility delve P2M4 (repeat) shows the P2M1 description"
+description = "Contract Hockrow_FacilityDelve_P2M4-Stanton4_Repeat points its Description at the P2M1 repeat key. The data entry makes our generator write P2M4's mission info into P2M4's own key; the loc entry appends that info to the P2M1 text, which the game still shows for P2M4."
+builds = { game_min = "4.10.0" }
+
+[[data]]
+id = "p2m4-own-desc"
+record = "HockrowAgency_FacilityDelve"
+contract = "Hockrow_FacilityDelve_P2M4-Stanton4_Repeat"
+field = "description_key"
+expect = "Hockrow_FacilityDelve_P2M1_Repeat_desc"
+set = "Hockrow_FacilityDelve_P2M4_Repeat_desc"
+
+[[loc]]
+id = "p2m1-also-p2m4"
+key = "Hockrow_FacilityDelve_P2M1_Repeat_desc"
+op = "append_from"
+from = "Hockrow_FacilityDelve_P2M4_Repeat_desc"
+from_part = "generated"
+separator = "\\n\\n<EM3>ALSO APPLIES TO: P2M4</EM3>"
+requires = "p2m4-own-desc"

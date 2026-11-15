@@ -1,0 +1,24 @@
+# Built-in patch (spec 4.5). Keys and record names only; no game prose.
+# Confirmed against DataCore on LIVE 4.10.200.58746, HOTFIX and PTU (2026-11-14): the Hard
+# variants of the Hockrow black box recovery use their title key as Description.
+schema = 1
+id = "hockrow-recoveritem-desc"
+title = "Hockrow black box recovery (hard) uses its title as the description"
+description = "The Hard contracts of HockrowAgency_RecoverItem (Stanton and Nyx) point Description at blackbox_recover_title_H_001. The data entries point it at the matching desc key, so no mission body is written into a title."
+builds = { game_min = "4.10.0" }
+
+[[data]]
+id = "stanton-hard-desc"
+record = "HockrowAgency_RecoverItem"
+contract = "Hockrow_BlackBoxRecovery_Stanton_Hard"
+field = "description_key"
+expect = "blackbox_recover_title_H_001"
+set = "blackbox_recover_desc_H_001"
+
+[[data]]
+id = "nyx-hard-desc"
+record = "HockrowAgency_RecoverItem"
+contract = "Hockrow_BlackBoxRecovery_Nyx_Hard"
+field = "description_key"
+expect = "blackbox_recover_title_H_001"
+set = "blackbox_recover_desc_H_001"

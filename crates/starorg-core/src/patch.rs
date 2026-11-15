@@ -23,10 +23,17 @@ use std::path::{Path, PathBuf};
 /// Patch files larger than this are rejected (spec 11).
 pub const PATCH_LIMIT: u64 = 256 * 1024;
 
-/// Built-in patches, embedded at build time: `(file name, TOML text)`. The v1 patches
-/// (`hockrow-p2m4-desc`, `hockrow-recoveritem-desc`) need record names confirmed by the M2
-/// data mapping and are added then.
-pub const BUILTIN: &[(&str, &str)] = &[];
+/// Built-in patches, embedded at build time: `(file name, TOML text)` from `patches/`.
+pub const BUILTIN: &[(&str, &str)] = &[
+    (
+        "hockrow-p2m4-desc.patch.toml",
+        include_str!("../patches/hockrow-p2m4-desc.patch.toml"),
+    ),
+    (
+        "hockrow-recoveritem-desc.patch.toml",
+        include_str!("../patches/hockrow-recoveritem-desc.patch.toml"),
+    ),
+];
 
 /// Fields a data entry may change (spec 4.5). Items and ships: `name_key`, `short_name_key`,
 /// `desc_key`; contracts: `title_key`, `description_key`.
@@ -326,6 +333,9 @@ pub enum EntryState {
     Conflict,
     /// Switched off in the profile.
     Disabled,
+    /// The data source carries no records of that kind (a published dump has no contracts;
+    /// a test source has no `GameData`). Not a warning: nothing could be checked.
+    NoData,
 }
 
 impl EntryState {
@@ -413,10 +423,175 @@ fn in_range(b: &Builds, build: Option<&BuildInfo>) -> (bool, Option<String>) {
     (true, note)
 }
 
-/// Look up a data entry's field in `GameData`. M1's `GameData` holds no records yet (M2a), so
-/// every data entry is `missing` until the data mapping lands.
-fn data_field(_gd: &GameData, _entry: &DataEntry) -> Option<String> {
-    None
+fn same(a: &str, b: &str) -> bool {
+    a.eq_ignore_ascii_case(b)
+}
+
+/// A loc key as a data entry spells it: no leading `@`, `""` for "no key".
+fn key_text(k: Option<&String>) -> String {
+    k.map(|k| k.strip_prefix('@').unwrap_or(k).to_string())
+        .unwrap_or_default()
+}
+
+/// Where a data entry points: the one record (and field) it selects.
+enum Slot {
+    Contract(usize),
+    Item(ItemSlot),
+    Ship(usize),
+}
+
+#[derive(Clone, Copy)]
+enum ItemSlot {
+    Component(usize),
+    Weapon(usize),
+    Missile(usize),
+}
+
+/// The single record a data entry selects; `None` when there is none or more than one.
+fn select(gd: &GameData, e: &DataEntry) -> Option<Slot> {
+    let one = |v: Vec<Slot>| {
+        if v.len() == 1 {
+            v.into_iter().next()
+        } else {
+            None
+        }
+    };
+    if let Some(c) = &e.contract {
+        // A contract sits inside a generator: `record` is the generator, `guid` the contract.
+        let hits = gd
+            .contracts
+            .iter()
+            .enumerate()
+            .filter(|(_, k)| same(&k.debug_name, c))
+            .filter(|(_, k)| match (&e.record, &e.guid) {
+                (Some(r), _) => same(&k.generator, r),
+                (None, Some(g)) => same(&k.id, g),
+                _ => false,
+            })
+            .map(|(i, _)| Slot::Contract(i))
+            .collect();
+        return one(hits);
+    }
+    let matches = |record_name: &str, id: &str| match (&e.record, &e.guid) {
+        (Some(r), _) => same(crate::model::short_name(record_name), r),
+        (None, Some(g)) => same(id, g),
+        _ => false,
+    };
+    let mut hits = Vec::new();
+    for (i, c) in gd.components.iter().enumerate() {
+        if matches(&c.item.record_name, &c.item.id) {
+            hits.push(Slot::Item(ItemSlot::Component(i)));
+        }
+    }
+    for (i, w) in gd.weapons.iter().enumerate() {
+        if matches(&w.item.record_name, &w.item.id) {
+            hits.push(Slot::Item(ItemSlot::Weapon(i)));
+        }
+    }
+    for (i, m) in gd.missiles.iter().enumerate() {
+        if matches(&m.item.record_name, &m.item.id) {
+            hits.push(Slot::Item(ItemSlot::Missile(i)));
+        }
+    }
+    for (i, s) in gd.ships.iter().enumerate() {
+        if matches(&s.record_name, &s.id) {
+            hits.push(Slot::Ship(i));
+        }
+    }
+    one(hits)
+}
+
+fn item_loc(gd: &GameData, s: ItemSlot) -> &crate::model::LocKeys {
+    match s {
+        ItemSlot::Component(i) => &gd.components[i].item.loc,
+        ItemSlot::Weapon(i) => &gd.weapons[i].item.loc,
+        ItemSlot::Missile(i) => &gd.missiles[i].item.loc,
+    }
+}
+
+fn item_loc_mut(gd: &mut GameData, s: ItemSlot) -> &mut crate::model::LocKeys {
+    match s {
+        ItemSlot::Component(i) => &mut gd.components[i].item.loc,
+        ItemSlot::Weapon(i) => &mut gd.weapons[i].item.loc,
+        ItemSlot::Missile(i) => &mut gd.missiles[i].item.loc,
+    }
+}
+
+/// Look up a data entry's field in `GameData` (`""` = the record has no key there).
+/// `None` when the record or the field does not exist.
+fn data_field(gd: &GameData, e: &DataEntry) -> Option<String> {
+    let slot = select(gd, e)?;
+    let v = match (slot, e.field.as_str()) {
+        (Slot::Contract(i), "title_key") => gd.contracts[i].title_key.as_ref(),
+        (Slot::Contract(i), "description_key") => gd.contracts[i].description_key.as_ref(),
+        (Slot::Item(s), "name_key") => item_loc(gd, s).name.as_ref(),
+        (Slot::Item(s), "short_name_key") => item_loc(gd, s).short_name.as_ref(),
+        (Slot::Item(s), "desc_key") => item_loc(gd, s).desc.as_ref(),
+        (Slot::Ship(i), "name_key") => gd.ships[i].loc.name.as_ref(),
+        (Slot::Ship(i), "desc_key") => gd.ships[i].loc.desc.as_ref(),
+        _ => return None,
+    };
+    Some(key_text(v))
+}
+
+fn set_field(gd: &mut GameData, e: &DataEntry) {
+    let Some(slot) = select(gd, e) else { return };
+    let v = (!e.set.is_empty()).then(|| format!("@{}", e.set.trim_start_matches('@')));
+    let target = match (slot, e.field.as_str()) {
+        (Slot::Contract(i), "title_key") => &mut gd.contracts[i].title_key,
+        (Slot::Contract(i), "description_key") => &mut gd.contracts[i].description_key,
+        (Slot::Item(s), "name_key") => &mut item_loc_mut(gd, s).name,
+        (Slot::Item(s), "short_name_key") => &mut item_loc_mut(gd, s).short_name,
+        (Slot::Item(s), "desc_key") => &mut item_loc_mut(gd, s).desc,
+        (Slot::Ship(i), "name_key") => &mut gd.ships[i].loc.name,
+        (Slot::Ship(i), "desc_key") => &mut gd.ships[i].loc.desc,
+        _ => return,
+    };
+    *target = v;
+}
+
+fn data_state(gd: &GameData, d: &DataEntry) -> (EntryState, String) {
+    let empty = if d.contract.is_some() {
+        gd.contracts.is_empty()
+    } else {
+        gd.components.is_empty()
+            && gd.weapons.is_empty()
+            && gd.missiles.is_empty()
+            && gd.ships.is_empty()
+    };
+    if empty {
+        return (
+            EntryState::NoData,
+            "the game data source has no such records".to_string(),
+        );
+    }
+    match data_field(gd, d) {
+        None => (
+            EntryState::Missing,
+            "record or field not found in GameData (or not unique)".to_string(),
+        ),
+        Some(cur) if fold_key(&cur) == fold_key(&d.set) => (EntryState::NotNeeded, String::new()),
+        Some(cur) if fold_key(&cur) == fold_key(&d.expect) => (EntryState::Applies, String::new()),
+        Some(cur) => (EntryState::TargetChanged, format!("field is {cur}")),
+    }
+}
+
+/// `GameData` with every applicable data entry applied, for the generators (spec 4.5: an
+/// overlay; the cache and the loaded data are never changed). `None` when nothing applies.
+/// [`run`] still evaluates the entries against the original data for the outcomes.
+pub fn data_overlay(set: &PatchSet, gd: &GameData, build: Option<&BuildInfo>) -> Option<GameData> {
+    let mut out: Option<GameData> = None;
+    for p in set.patches.iter().filter(|p| p.enabled) {
+        if !in_range(&p.file.builds, build).0 {
+            continue;
+        }
+        for d in &p.file.data {
+            if data_state(gd, d).0 == EntryState::Applies {
+                set_field(out.get_or_insert_with(|| gd.clone()), d);
+            }
+        }
+    }
+    out
 }
 
 /// Run every enabled patch. Data entries are evaluated against `GameData` (as an overlay; the
@@ -487,19 +662,7 @@ pub fn run(
 
         let mut data_states: BTreeMap<&str, EntryState> = BTreeMap::new();
         for d in &p.file.data {
-            let (state, detail) = match data_field(game_data, d) {
-                None => (
-                    EntryState::Missing,
-                    "record or field not found in GameData".to_string(),
-                ),
-                Some(cur) if fold_key(&cur) == fold_key(&d.set) => {
-                    (EntryState::NotNeeded, String::new())
-                }
-                Some(cur) if fold_key(&cur) == fold_key(&d.expect) => {
-                    (EntryState::Applies, String::new())
-                }
-                Some(cur) => (EntryState::TargetChanged, format!("field is {cur}")),
-            };
+            let (state, detail) = data_state(game_data, d);
             data_states.insert(d.id.as_str(), state);
             outcomes.push(out(format!("data:{}", d.id), state, detail));
         }
@@ -531,6 +694,11 @@ fn eval_loc(
     data_states: &BTreeMap<&str, EntryState>,
     writers: &HashMap<String, usize>,
 ) -> (EntryState, String, Planned) {
+    if let Some(r) = &l.requires
+        && data_states.get(r.as_str()) == Some(&EntryState::NoData)
+    {
+        return (EntryState::NoData, format!("{r} has no data"), None);
+    }
     if writers.get(&fold_key(&l.key)).copied().unwrap_or(0) > 1 {
         return (
             EntryState::Conflict,
@@ -840,10 +1008,75 @@ mod tests {
             "{HDR}id = \"a\"\n[[data]]\nid = \"own\"\nrecord = \"r\"\nfield = \"description_key\"\nexpect = \"p2m1_desc\"\nset = \"p2m4_desc\"\n[[loc]]\nkey = \"p2m1_desc\"\nop = \"append_from\"\nfrom = \"p2m4_desc\"\nrequires = \"own\"\n"
         )]);
         let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
-        // No records in M1's GameData: the data entry is missing, and so is the loc entry.
+        // A source without records (a dump, a test stock file): nothing to judge, no warning.
+        assert_eq!(outcomes[0].state, EntryState::NoData);
+        assert_eq!(outcomes[1].state, EntryState::NoData);
+        assert!(!outcomes[0].state.warns());
+        assert!(edits.is_empty());
+        // Records exist but not this one: missing, and so is the loc entry.
+        let mut gd = GameData::default();
+        gd.ships.push(crate::model::Ship::default());
+        let (_, outcomes, _) = run(&set, &gd, &s, None);
         assert_eq!(outcomes[0].state, EntryState::Missing);
         assert_eq!(outcomes[1].state, EntryState::Missing);
+    }
+
+    #[test]
+    fn builtin_patches_parse() {
+        for (name, text) in BUILTIN {
+            let p = parse_patch(name, text).unwrap_or_else(|e| panic!("{name}: {e}"));
+            assert!(!p.data.is_empty(), "{name}");
+        }
+    }
+
+    fn contract(generator: &str, debug: &str, desc: &str) -> crate::model::Contract {
+        crate::model::Contract {
+            generator: generator.into(),
+            debug_name: debug.into(),
+            description_key: Some(format!("@{desc}")),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn data_entry_on_a_contract_applies_then_is_not_needed() {
+        let s = snap();
+        let set = set_of(&[&format!(
+            "{HDR}id = \"a\"\n[[data]]\nid = \"own\"\nrecord = \"Gen\"\ncontract = \"P2M4\"\nfield = \"description_key\"\nexpect = \"p2m1_desc\"\nset = \"p2m4_desc\"\n[[loc]]\nkey = \"p2m1_desc\"\nop = \"append_from\"\nfrom = \"p2m4_desc\"\nseparator = \"\\\\n--\"\nrequires = \"own\"\n"
+        )]);
+        let mut gd = GameData::default();
+        gd.contracts.push(contract("Gen", "P2M1", "p2m1_desc"));
+        gd.contracts.push(contract("Gen", "P2M4", "p2m1_desc"));
+        // Same debug name under another generator: not selected.
+        gd.contracts.push(contract("Other", "P2M4", "x"));
+        let (edits, outcomes, _) = run(&set, &gd, &s, None);
+        assert_eq!(outcomes[0].state, EntryState::Applies, "{outcomes:?}");
+        assert_eq!(outcomes[1].state, EntryState::Applies, "{outcomes:?}");
+        assert_eq!(edits.len(), 1);
+        assert_eq!(edits[0].value, "Filler one\\n--\\n\\nGEN BODY");
+        let over = data_overlay(&set, &gd, None).unwrap();
+        assert_eq!(
+            over.contracts[1].description_key.as_deref(),
+            Some("@p2m4_desc")
+        );
+        assert_eq!(
+            over.contracts[0].description_key.as_deref(),
+            Some("@p2m1_desc")
+        );
+        assert_eq!(
+            gd.contracts[1].description_key.as_deref(),
+            Some("@p2m1_desc")
+        );
+        // CIG fixed it: both entries retire, no overlay.
+        let (edits, outcomes, _) = run(&set, &over, &s, None);
+        assert_eq!(outcomes[0].state, EntryState::NotNeeded);
+        assert_eq!(outcomes[1].state, EntryState::NotNeeded);
         assert!(edits.is_empty());
+        assert!(data_overlay(&set, &over, None).is_none());
+        // Two matching records: not unique, missing.
+        gd.contracts.push(contract("Gen", "P2M4", "p2m1_desc"));
+        let (_, outcomes, _) = run(&set, &gd, &s, None);
+        assert_eq!(outcomes[0].state, EntryState::Missing);
     }
 
     #[test]
