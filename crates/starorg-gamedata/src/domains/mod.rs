@@ -18,7 +18,7 @@ use crate::domain::Domain;
 
 // pub mod tags; // src/tags.ts (item-sources, item-tags, loot)
 
-// pub mod socpak; // src/socpak.ts (starmap: object containers in the archive, read via ParseContext::files)
+pub mod socpak; // src/socpak.ts (starmap: object containers in the archive, read via ParseContext::files)
 
 macro_rules! registry {
     ($($slot:ident),* $(,)?) => {
@@ -40,7 +40,7 @@ registry! {
 
     cargo, // cargo.ts
 
-    // commodities, // commodities.ts
+    commodities, // commodities.ts
 
     components, // components.ts -> game-ship-components
 
@@ -60,25 +60,25 @@ registry! {
 
     manufacturers, // manufacturers.ts
 
-    // mining, // mining.ts
+    mining, // mining.ts
 
-    // mining_spawns, // mining-spawns.ts
+    mining_spawns, // mining-spawns.ts
 
     // missions, // missions.ts
 
     quantum, // quantum.ts
 
-    // refining, // refining.ts
+    refining, // refining.ts
 
     // reputation, // reputation.ts
 
-    // salvage, // salvage.ts
+    salvage, // salvage.ts
 
     ships, // ships.ts
 
-    // shops, // shops.ts
+    shops, // shops.ts
 
-    // starmap, // starmap.ts
+    starmap, // starmap.ts
 
     weapons, // weapons.ts
 
