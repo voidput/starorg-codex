@@ -1918,6 +1918,91 @@ Renders: since main's "dark is the default theme" the mock's saved appearance wi
 that were never extracted (Apply or a dry run does); no favourite toggle or ownership edits
 from the finder; tooltips in `Segmented` still steal focus on arrow keys elsewhere.
 
+### 7.20 Model viewer: the Explorer's Model tab (branch `model-viewer`, 2026-11-15, local only)
+
+Owner request: "do we have a way of viewing a low res version of the models too?", "maybe a
+slider for details on model". Code: `components/assets/ModelViewer.svelte` (loaded on demand),
+`lib/modelscene.ts` (three.js), `lib/modelview.ts` (slider, words, chunked read), the
+`asset_model_*` commands in `contract/assets.rs` and `contract/real/assets.rs`,
+`starorg_data::assets::model` (LODs) and `stl::glb_triangle_count`.
+
+- **Where.** Developer mode, Explorer, an entity record (`hasModel`): a **Data | Model** tab
+  pair above the record. Model shows the record's **Print shell** (geometry only, as 7.16) in 3D.
+  The type, path and GUID rows hide on the Model tab (the view needs the height at 1024x700).
+- **On demand.** Opening the tab reads only `asset_model_info` (per LOD: the memory estimate,
+  the guard's verdict, whether it is cached; no worker). A cached step shows at once; any other
+  waits for **Load LOD n**, which exports that LOD in a fresh `asset-worker` (stopped
+  afterwards, as model exports) straight into the asset cache (`<record>-print-lod<n>.glb`, the
+  same entries Export model uses, so "Export .glb" afterwards is a cache copy). Nothing is
+  written outside the cache; never into the game folder.
+- **Detail slider.** Left LOD 4 (least detail) to right LOD 0; starts at LOD 3, or the least
+  detailed LOD the mesh has below that. Under it, per step: `~1.2 GB` (the export's memory) or
+  the cached size; the current step's line says what Load does (export, ask, refused, cached).
+  Moving onto a cached step shows it after 150 ms; dragging never starts exports.
+- **LODs that do not exist.** StarBreaker loads LOD 0 for a mesh without the asked LOD file, so
+  "LOD 4" of a ship with LODs 0-3 used to give its hull at full detail. Exports now read the
+  entity's own mesh's LODs (`model::root_lods`: `<mesh>_lod<n>.<ext>m` in the archive) and use
+  the most detailed one at or below the asked one (`effective_lod`); `ModelDone.lod`/`lods`
+  report it, the cache keeps it under that LOD, the backend remembers the LODs per record for
+  the session (the slider then says "the mesh has no LOD 4: shows LOD 3"). Applies to Export
+  model and the CLI too. Child parts (loadout items) still fall back per mesh inside
+  StarBreaker: a Gladius at LOD 4 has more triangles (104k) than at LOD 3 (86k).
+- **Memory.** The guard of 7.18 per step (over the limit refused even with force; over the free
+  memory asks "Load anyway"); `model_estimate` is now per LOD for the Print shell: 1.4 GB at
+  LOD 0 and 1.2 GB at LOD 1-4 (capital ships 1.8 / 1.4 GB). A GLB larger than a quarter of the
+  cache cap (512 MB by default) is refused for the viewer (Export model still writes it).
+- **Transfer.** `asset_model_chunk` returns raw IPC binary (`tauri::ipc::Response`, an
+  `ArrayBuffer` in the webview), 8 MiB per call, read from the cache file by record and LOD (the
+  webview never sends a path); the webview fills one buffer and parses it with
+  `GLTFLoader.parse` in memory: no base64, no URL, no blob, no asset protocol, so the CSP is
+  unchanged (`connect-src ipc: http://ipc.localhost` already covers IPC).
+- **Viewer.** three.js 0.187 (MIT, in THIRD_PARTY_NOTICES), its own chunk (656 kB, 166 kB
+  gzip) fetched when the tab first opens; the main bundle grows 3 kB. Orbit, zoom, pan
+  (OrbitControls), Wireframe, Reset view, Export .glb; auto-fit from the bounding sphere, kept
+  clear of the readouts. Readouts: size (bounding box of the vertices the triangles use, with
+  node transforms: StarBreaker's meshes share vertex buffers, so per-geometry boxes are far too
+  large), triangles, meshes, file size, export time and peak memory. One shared grey material,
+  per theme; draws only on change (no render loop while the game runs). States: reading,
+  exporting (job progress with Stop), reading the cache (progress, Stop), building, errors with
+  Try again, WebGL missing (`--safe-gpu` / `WEBKIT_DISABLE_COMPOSITING_MODE` named, Export .glb
+  suggested), GPU context lost. The personal-use note stays on the view.
+- **Contract.** `asset_model_info` (`AssetModelInfoRequest` -> `AssetModelInfo`,
+  `AssetModelLod`, `MemoryFit`), `asset_model_view` (streamed job, cancellable;
+  `AssetModelViewRequest` -> `AssetModelView`), `asset_model_chunk` (`AssetModelChunkRequest`
+  -> bytes). Both mocks serve a synthetic GLB per LOD (a 22 m ship: 2,596 triangles at LOD 0,
+  164 at LOD 3; items 0-1), from `mock-assets.gen.json`.
+
+**Measured (LIVE 4.10, Print shell, release build, read only).** Export in its own worker,
+whole view call including the worker start 0.8-1.0 s; chunks 0.4-3 ms.
+
+| Ship | LOD | GLB | Triangles | Export | Peak RSS |
+| --- | --- | --- | --- | --- | --- |
+| AEGS_Gladius | 4 | 4.6 MB | 104,146 | 371 ms | 1.04 GB |
+| AEGS_Gladius | 3 | 5.0 MB | 85,907 | 339 ms | 1.02 GB |
+| AEGS_Gladius | 0 | 37.8 MB | 1,069,627 | 408 ms | 1.18 GB |
+| AEGS_Javelin | 4 | 1.7 MB | 57,889 | 350 ms | 0.99 GB |
+| AEGS_Javelin | 3 | 3.7 MB | 132,056 | 342 ms | 1.00 GB |
+| AEGS_Javelin | 0 | 53.8 MB | 3,662,991 | 507 ms | 1.29 GB |
+
+Also: LOD 1/2 0.98-1.06 GB; AEGS_Idris_M 1.18 GB at LOD 3 (14.7 MB, 0.5 M triangles), 1.67 GB
+at LOD 0 (92 MB, 5.8 M triangles). Both ships have LODs 0-4. Bounding boxes: Gladius 17.4 x
+5.8 x 21.0 m, Javelin 218 x 89 x 493 m (debris prongs and engines included).
+
+**Tests.** Data: LODs from mesh file names and the clamp, cache keys per record/preset/LOD,
+GLB triangle counts (bytes and file). Core: `peek`, memory estimates per LOD. App: samples, mock
+steps/guard/cache/chunks, raw binary over IPC, `dev-disabled`, the real backend on the
+synthetic install (cache per LOD without a worker, chunks, guard before any worker, non-entity
+refused in its own worker), and an ignored real-install test
+(`SC_GAME_DIR=... cargo test -p starorg-codex-app --test real_model_view -- --ignored`). TS:
+TS mock = Rust samples, slider mapping, step states and words, chunked read with Stop and a
+short read, guard, readouts, three.js only behind the lazy import. Renders
+`app/scripts/render-model.cjs` (SwiftShader WebGL; 1024x700, 1280x800, dark and light; lazy
+chunk check).
+
+**Not done.** Textures (Full preset) are not viewable; the LODs of loadout parts are not
+clamped (StarBreaker); no section/clipping planes or measurement tool; the known LODs are not
+kept across app restarts.
+
 ## 8. Strings grouping
 
 Request: "add grouping for different types of items/things in strings". The Strings screen
