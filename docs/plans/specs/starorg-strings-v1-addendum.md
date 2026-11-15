@@ -197,6 +197,27 @@ tracked **per character**, never merged.
   bullets for the imported character).
 - **One name key.** `enhance::owned::normalize_name` is `blueprints::normalize`.
 
+## 2-4. Verification fixes (2026-11-14)
+
+- **Ambiguous names mark nothing.** An imported name with several candidates is kept with
+  every candidate id and reported, but adds neither its name nor its ids to the owned set
+  (`Selection.ambiguous` counts them; apply warns `owned-ambiguous`, info only). A name-only
+  match (log scan, import) marks a blueprint only when no other blueprint of the build
+  produces an item with the same English name (`BlueprintRef.name_unique`); a match by
+  blueprint id still marks. LIVE: `[IND-S2-B] BroadSpec` (2 candidates) gives no `[Owned]`.
+- **One-off pick is kept.** `apply --character X` records the pick and the channel's
+  `active_character` at that time in `applied.json`; while that setting is unchanged, status
+  and the hooks use the pick, so the next pre-launch does not flip it back. `blueprints use`
+  ends it.
+- **Hook block edge cases.** The block's lines always end in LF (a CRLF block failed
+  `bash -n`; a CRLF script keeps its own lines). A script without a final newline gets one
+  `\n` before the block and none after `END`, and `uninstall` drops exactly that byte, so the
+  round trip is byte for byte. A final `exit` that ends a `\`-continued command gets the block
+  before the whole command; a script that ends inside a continued line is refused.
+- **Shared `user.cfg`.** Apply re-reads and re-plans `user.cfg` under the cfg lock (it waits
+  up to 10 s for it instead of skipping with exit 3), so two channels applying at once both
+  end up on the ledger and nobody writes stale text.
+
 ## 5. StarOrg Tools account link (OAuth, like RSI+) — import and sync blueprints
 
 Native "Connect StarOrg Tools" in the app (and `starorg-strings starorg login|logout|status`,

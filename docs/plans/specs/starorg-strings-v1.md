@@ -28,7 +28,8 @@ Status: draft, revision 2 (see the review log at the end). Frontmatter is genera
 
 Related notes: [addendum with later user requests](starorg-strings-v1-addendum.md) (published
 data dumps as a data source, launcher hooks, owned-blueprint tracking). Its direction is
-settled in sections 3.4, 8 and 11; the features themselves are v1.1 unless Q17 says otherwise.
+settled in sections 3.4, 8 and 11. Q17 (decided 2026-11-14) put the features in v1: the hook
+commands and the owned-blueprint log scan in M1, the `PublishedDump` source in M2.
 Decisions:
 [Tauri + Svelte UI](../../decisions/tauri-svelte-ui.md),
 [StarBreaker as a library](../../decisions/starbreaker-as-library.md),
@@ -69,7 +70,8 @@ One native app, Rust only on the backend, that does the following on Windows and
 - Any telemetry, ever.
 - Editing game files other than `global.ini` and one line of `user.cfg`. We never write
   `Data.p4k` and never write `languages.ini`.
-- An installer for launcher hooks (`hook install`) and owned-blueprint tracking. v1.1.
+- ~~An installer for launcher hooks (`hook install`) and owned-blueprint tracking.~~ Moved
+  into v1 by Q17 (M1, addendum §2-§4).
 
 ---
 
@@ -320,7 +322,7 @@ struct Loaded { base_ini: Vec<u8>, game_data: GameData, origin: Origin, warnings
 
 - `LocalExtraction` (v1): the worker in section 3.3. Always available, needs no network, and
   is complete on its own. With network consent off (the default) it is the only source.
-- `PublishedDump` (addendum, v1.1 unless Q17 says otherwise): downloads datasets from
+- `PublishedDump` (addendum; v1 per Q17, M2): downloads datasets from
   `voidput/sc-gamedata-dumps` for the exact build. The user asked for this to be tried first
   **when the user has turned that network feature on**; local extraction is the fallback.
   Dumps never contain the English text, so `base_ini` always comes from the local `Data.p4k`.
@@ -576,6 +578,26 @@ been retired for two consecutive game minor versions are removed from the repo.
 | `hockrow-p2m4-desc` | Hockrow facility-delve contract P2M4 points its Description at the P2M1 key | Data patch points P2M4 at its own description key. Loc patch appends P2M4's **generated** mission info to the P2M1 text, because the game still shows P2M1's text for P2M4 |
 | `hockrow-recoveritem-desc` | `hockrowagency_recoveritem` hard variant uses its title key as Description | Data patch points Description at the matching `desc` key, so no mission body is written into a title |
 
+**Record names (M2a, confirmed 2026-11-14 on LIVE 4.10.200.58746, HOTFIX and PTU 5.0.201).**
+Files in `crates/starorg-core/patches/`, embedded with `include_str!`.
+
+- `hockrow-p2m4-desc`: generator `HockrowAgency_FacilityDelve`, contract
+  `Hockrow_FacilityDelve_P2M4-Stanton4_Repeat` (the repeat variant; the first-run P2M4 takes
+  its keys from the template and is fine), `description_key`
+  `Hockrow_FacilityDelve_P2M1_Repeat_desc` -> `Hockrow_FacilityDelve_P2M4_Repeat_desc`. The
+  loc entry appends to `Hockrow_FacilityDelve_P2M1_Repeat_desc` with the separator
+  `\n\n<EM3>ALSO APPLIES TO: P2M4</EM3>`. The two bodies differ on LIVE (other blueprint
+  pools), so the appended part is not a duplicate.
+- `hockrow-recoveritem-desc`: generator `HockrowAgency_RecoverItem`, contracts
+  `Hockrow_BlackBoxRecovery_Stanton_Hard` and `Hockrow_BlackBoxRecovery_Nyx_Hard`,
+  `description_key` `blackbox_recover_title_H_001` -> `blackbox_recover_desc_H_001`.
+- Both report `applies` on all three channels; a unit fixture with the pointer fixed reports
+  `not-needed`. Data entries are an overlay on a copy of `GameData` for the generators;
+  outcomes are judged on the loaded data. A source without records of that kind (a published
+  dump has no contracts, a test stock file has no `GameData`) gives `no-data`, which does not
+  warn. `build` runs generators only (no patches), so on LIVE `apply` differs from `build` in
+  the patched keys.
+
 **Not a patch: Bengal S6 gatling.** `Bengal_BallisticGatling_S6` reuses the APAR S4 name and
 description keys. The namesake rule (section 5.1) already gives those keys to the APAR S4
 record, so the APAR text shows APAR stats with no patch involved. Clearing the Bengal gun's
@@ -687,7 +709,9 @@ table, not from the examples.
   no lines is not added at all.
 - Sentinels filtered: `jumpRange` above 1e30; container dimension of 900 or more; overheat
   temperature equal to the 450 K placeholder when the item has no heat stats; angular
-  velocity read from `speedProfile` (60/200/60 placeholder).
+  velocity read from `speedProfile` (60/200/60 placeholder); `-1` (DataCore's "not set") on
+  any magnitude such as a lock range, speed, range, count or HP: a magnitude is printed only
+  when it is above zero (`Lock range: -1 m–-1 m` on LIVE's Venom S1 rocket was the case).
 
 **Stat block placement**
 
@@ -1194,7 +1218,8 @@ short and are never interrupted part-way.
 - For a changed line, only the bytes after the first `=` and before the line ending are
   replaced.
 - The UTF-8 BOM at the start of the stock file is kept. Without it the game shows every
-  string as `@key`.
+  string as `@key`. The whole-file rule checks the output for the BOM whatever the stock
+  input looked like: a stock without one means the input is wrong, and nothing is written.
 - Line endings are kept per line as found in stock (CRLF).
 - No key is added, removed or reordered.
 
@@ -1272,7 +1297,9 @@ machine `LIVE/USER.cfg` and `HOTFIX/USER.cfg` are both **symlinks** to
   the path in the message.
 - The report and the review dialog say when a target is a link and which channels share it.
 - A second advisory lock, keyed by the real path (`locks/cfg-<hash>.lock`), covers a file
-  shared by several channels.
+  shared by several channels. Apply waits for it (up to 10 s) and then **reads and plans the
+  file again under the lock**: another channel's run may have changed it since the first
+  read, and text computed from that read must never be written.
 
 **Deciding what to do.** Match `^\s*g_language\s*=` case-insensitively; the value may be
 quoted and may be followed by a `;` or `#` comment.
@@ -1325,7 +1352,9 @@ There are three different actions. All run under the same locks and guards as ap
 GUI, in `starorg-strings remove` and in the Windows uninstaller.
 
 - Delete the loose `global.ini`. The game then reads the stock table from `Data.p4k`, which
-  always matches the installed build.
+  always matches the installed build. When `global.ini` is a link, the file it points to is
+  deleted and the link is kept (a link is never replaced, 7.4); the report says so
+  (`link-kept`), and the next apply writes through the dangling link again.
 - Undo our `user.cfg` line by the ledger rule (section 7.4). No other line is touched.
 - Delete `applied.json`. Backups, profile and overrides stay.
 - If the loose file is not ours (hash not in `outputs.json`), it is backed up first and the
@@ -1464,9 +1493,11 @@ fi
   would show as raw `@key`) or is laid over it. M1 tests this in game. The post-exit run
   fixes it for the next session. A watcher that applies when the launcher finishes patching
   is a later feature (Q5).
-- **Scope.** v1 contains the `apply --all` contract above and the two hand-edited hook
-  scripts on our machine. The addendum's `hook install|uninstall|status` commands and the
-  owned-blueprint log scan are v1.1.
+- **Scope.** v1 contains the `apply --all` contract above and, since Q17, the addendum's
+  `hook prelaunch|postexit|install|uninstall|status` commands and the owned-blueprint log
+  scan (M1; addendum §2-§3). `hook install` writes a marked block that calls `hook
+  prelaunch` / `hook postexit`; the hand-made snippet above stays valid for scripts that are
+  edited by hand.
 
 ---
 
@@ -1723,7 +1754,7 @@ Traces of other tools it reports, all present on our machine today:
 - **Off by default.** After a fresh install, StarOrg Strings' own code makes no network
   request. Each network feature has its own switch and its own wording of what is contacted:
   1. **Check for updates** (v1): one request to the release endpoint.
-  2. **Use published game data** (addendum, v1.1): downloads datasets for the installed build
+  2. **Use published game data** (addendum; v1 per Q17): downloads datasets for the installed build
      from `voidput/sc-gamedata-dumps`, verified by checksum, parsed as data only.
 - The CLI has no HTTP client in v1 (CI checks the dependency tree). When feature 2 arrives it
   obeys the same switch; with the switch off the CLI always extracts locally.
@@ -1932,15 +1963,20 @@ matched only after case folding.
 
 Some things only the game can answer. Each has a milestone.
 
-| Check | Milestone |
-|---|---|
-| Does a loose `english/global.ini` replace the p4k table or lie over it? (Remove 100 keys from a test file and look.) | M1 |
-| Is `g_language = english` needed when the line is missing? | M1 |
-| Does an empty `Data/languages.ini` change anything? | M1 |
-| EM4 tags in contract **titles**: mobiGlas list, HUD mission tracker, notifications | M2 |
-| Tags on short-name keys on the HUD and in the loadout manager | M2 |
-| A literal `%` in descriptions; a 16 KB mission description | M2 |
-| Two `open-tail` keys with our text appended | M2 |
+| Check | Milestone | Status (2026-11-14) |
+|---|---|---|
+| Does a loose `english/global.ini` replace the p4k table or lie over it? (Remove 100 keys from a test file and look.) | M1 | Open: needs the owner in game |
+| Is `g_language = english` needed when the line is missing? | M1 | Open: needs the owner in game |
+| Does an empty `Data/languages.ini` change anything? | M1 | Open: needs the owner in game |
+| EM4 tags in contract **titles**: mobiGlas list, HUD mission tracker, notifications | M2 | Open: needs the owner in game |
+| Tags on short-name keys on the HUD and in the loadout manager | M2 | Open: needs the owner in game |
+| A literal `%` in descriptions; a 16 KB mission description | M2 | Open: needs the owner in game |
+| Two `open-tail` keys with our text appended | M2 | Open: needs the owner in game |
+
+The agents that build this never run the game or write into the real install, so every row
+stays open until the owner plays a session with an applied file and writes the answer here.
+Until then the title-tag and short-name-tag defaults stay as the presets have them (tags on,
+EM4 in titles) and are marked provisional.
 
 ### Parity checks against Smart Citizen
 
@@ -2037,7 +2073,9 @@ Acceptance:
 - Ships show Pitch/Yaw/Roll; the Gladius shows its guns; the Carrack shows a loadout.
 - The Bengal S6 and APAR S4 gatlings resolve correctly under the namesake rule with all
   patches off. Each built-in patch reports `applies` on the current build and `not-needed`
-  against a fixture where the bug is fixed.
+  against a fixture where the bug is fixed. **Met 2026-11-14:** both built-in patches
+  `applies` on LIVE 4.10.200.58746 (fake install over the real `Data.p4k`, 3,295 keys
+  changed: 3,294 generated + 1 loc patch); `not-needed` in the patch unit fixture.
 - No output line contains `?`, a 450 K placeholder, or a zero velocity/ammo for tractor
   beams.
 - Full LIVE and HOTFIX output: no whole-file validation error; dropped edits are zero or each
