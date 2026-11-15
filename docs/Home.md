@@ -16,7 +16,7 @@ updated: 2026-11-15
 - [[privacy|Privacy policy]] ([plain](privacy.md))
 - [[mcp|Local MCP server (experimental)]] ([plain](mcp.md))
 - [[plans/specs/starorg-strings-v1|v1 spec]] ([plain](plans/specs/starorg-strings-v1.md))
-- [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps, LUG hooks, dev mode, strings grouping, gamedata port, local MCP server]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
+- [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps, LUG hooks, StarOrg Tools sync, dev mode, strings grouping, gamedata port, local MCP server]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
 
 ## Decisions
 - [[decisions/tauri-svelte-ui|Tauri + Svelte UI]] ([plain](decisions/tauri-svelte-ui.md))
