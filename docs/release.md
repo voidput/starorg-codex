@@ -25,7 +25,7 @@ Root `Cargo.toml` is a virtual workspace, so release-please's `rust` strategy ha
 Config uses `release-type: simple` with extra-files that bump, together:
 
 - `Cargo.toml` `$.workspace.package.version`
-- `Cargo.lock` entries for every workspace member: `starorg-core`, `starorg-data`, `starorg-cli`,
+- `Cargo.lock` entries for every workspace member: `starorg-core`, `starorg-data`, `starorg-gamedata`, `starorg-cli`,
   `starorg-strings-app`. Filter on `@.name.value`, not `@.name`: release-please's TOML parser wraps
   each value in a tagged object, so `@.name=="x"` silently matches nothing ("No entries modified").
 - `app/package.json` `$.version`, `app/package-lock.json` `$.version` and `$.packages[''].version`

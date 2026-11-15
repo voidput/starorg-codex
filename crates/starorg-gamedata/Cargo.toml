@@ -1,0 +1,32 @@
+[package]
+name = "starorg-gamedata"
+description = "Rust port of sc-gamedata: game data domains extracted from Data.p4k as JSON (dev; not shipped in the CLI yet)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# Ported from sc-gamedata (Apache-2.0, same author); see README.md "Provenance".
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "gamedata-port"
+path = "src/bin/gamedata-port.rs"
+
+[dependencies]
+# The StarBreaker adapter (Archive, FullDataCore) lives in starorg-data, which stays the only
+# crate that names StarBreaker types.
+starorg-data.workspace = true
+serde.workspace = true
+# preserve_order: object fields keep DataCore order, as in sc-gamedata (JS objects).
+serde_json = { workspace = true, features = ["preserve_order"] }
+thiserror.workspace = true
+rayon.workspace = true
+clap.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[lints]
+workspace = true

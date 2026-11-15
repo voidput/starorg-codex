@@ -74,6 +74,10 @@ impl Archive {
             detail: e.to_string(),
         })
     }
+    /// Every entry name in the archive, in index order (backslash separated).
+    pub fn entry_names(&self) -> impl Iterator<Item = &str> {
+        self.inner.entries().iter().map(|e| e.name.as_str())
+    }
 }
 
 /// Summary of a parsed DataCore database. Record and struct counts.
@@ -176,6 +180,78 @@ impl RecordStore for DataCoreStore<'_> {
             .map(serde_json::Value::take)
             .ok_or("export has no _RecordValue_")?;
         Ok(Loaded { id, value })
+    }
+}
+
+/// One main DataCore record as `sc-gamedata` sees it after `starbreaker dcb extract`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RawRecordMeta {
+    /// `_RecordName_`, `SCItemManufacturer.AEGS`.
+    pub name: String,
+    /// The DataCore file name as stored, `libs/foundry/records/scitemmanufacturer/aegs.xml`.
+    pub file_name: String,
+    /// DataCore struct type (equals `_RecordValue_._Type_`).
+    pub struct_type: String,
+    /// `_RecordId_`, lower-case hyphenated GUID.
+    pub id: String,
+}
+
+/// Every main record of a DataCore, exported on demand with the same JSON exporter the
+/// StarBreaker CLI's `dcb extract --format json` uses (pretty and compact differ only in
+/// whitespace). Used by `starorg-gamedata`; [`DataCoreStore`] is the narrower view for
+/// `GameData`.
+pub struct FullDataCore<'a> {
+    db: starbreaker_datacore::Database<'a>,
+    metas: Vec<RawRecordMeta>,
+    positions: Vec<usize>,
+}
+
+impl<'a> FullDataCore<'a> {
+    /// Parse DataCore bytes. May panic on malformed data; run under `catch_unwind`.
+    pub fn parse(bytes: &'a [u8]) -> Result<Self, String> {
+        let db = starbreaker_datacore::Database::from_bytes(bytes).map_err(|e| e.to_string())?;
+        let mut metas = Vec::new();
+        let mut positions = Vec::new();
+        for (i, r) in db.records().iter().enumerate() {
+            if !db.is_main_record(r) {
+                continue;
+            }
+            metas.push(RawRecordMeta {
+                name: db.resolve_string2(r.name_offset).to_string(),
+                file_name: db.resolve_string(r.file_name_offset).to_string(),
+                struct_type: db.struct_name(r.struct_id()).to_string(),
+                id: r.id.to_string(),
+            });
+            positions.push(i);
+        }
+        Ok(Self {
+            db,
+            metas,
+            positions,
+        })
+    }
+
+    /// Main records, in DataCore order.
+    pub fn records(&self) -> &[RawRecordMeta] {
+        &self.metas
+    }
+
+    /// The export envelope (`_RecordName_`, `_RecordId_`, `_RecordValue_`, ...) of
+    /// `records()[index]`, as compact JSON bytes.
+    pub fn export_json(&self, index: usize) -> Result<Vec<u8>, String> {
+        let pos = *self
+            .positions
+            .get(index)
+            .ok_or_else(|| format!("record {index}: out of range"))?;
+        starbreaker_datacore::export::to_json_compact(&self.db, &self.db.records()[pos])
+            .map_err(|e| e.to_string())
+    }
+
+    pub fn summary(&self) -> DataCoreSummary {
+        DataCoreSummary {
+            records: self.db.records().len(),
+            struct_defs: self.db.struct_defs().len(),
+        }
     }
 }
 

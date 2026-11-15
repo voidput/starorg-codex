@@ -257,3 +257,25 @@ of their characters (default: all known ones); push sends the union of their own
 Pull still writes into one chosen character (never spread across alts). Each pushed entry keeps
 its per-character origin locally so un-ticking a character never removes anything server-side.
 (c) stays a possible StarOrg follow-up.
+
+## 9. Rust port of sc-gamedata (branch `gamedata-port`, Refs #12)
+
+The published dumps come from sc-gamedata (TypeScript, StarBreaker CLI). Its extraction is
+being ported into the workspace as `crates/starorg-gamedata`, so the app can produce the
+same datasets itself instead of only downloading them.
+
+- **Scaffold:** record layer (record sets, references, components, localization with the
+  publish-dump redaction off by default, CryXmlB), a `Domain` trait with a registry of one
+  pre-listed slot per sc-gamedata domain (parallel ports touch separate lines), and a
+  JSON writer reproducing `JSON.stringify(_, null, 2)` (numbers, key order, header).
+  Records come from StarBreaker's own exporter via a new additive `FullDataCore` in the
+  `starorg-data` adapter; `GameData` is untouched.
+- **Ported:** `game-manufacturers` (template) and `game-strings-english`, byte-identical to
+  the golden dumps of LIVE 4.10.200.58746 apart from `_extracted`.
+- **Gate per domain:** `scripts/compare-gamedata.sh --domain <name>` (dev harness
+  `gamedata-port`, not in the shipped CLI) prints `identical` against
+  `~/git/sc-gamedata/data`. Porting rules: `crates/starorg-gamedata/README.md`.
+- **Out of scope:** `uex-item-prices.json` and `uex-terminals.json` (third-party UEX API
+  data, not game files) and sc-gamedata's query/CLI tools.
+- **Next:** port the remaining domains (order in the crate README), then move
+  `starorg-data`'s `GameData` onto this crate and drop the duplicated accessors.
