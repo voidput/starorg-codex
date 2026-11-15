@@ -33,6 +33,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
         "hockrow-recoveritem-desc.patch.toml",
         include_str!("../patches/hockrow-recoveritem-desc.patch.toml"),
     ),
+    (
+        "quest-items.patch.toml",
+        include_str!("../patches/quest-items.patch.toml"),
+    ),
 ];
 
 /// Fields a data entry may change (spec 4.5). Items and ships: `name_key`, `short_name_key`,
@@ -113,6 +117,10 @@ pub struct LocEntry {
     pub requires: Option<String>,
     #[serde(default)]
     pub expect_sha256: Option<String>,
+    /// The key belongs to content a build may not have (a hint on a mission's item): when
+    /// it is not in stock the entry is `not-needed`, not `missing`, and does not warn.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub optional: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -708,6 +716,13 @@ fn eval_loc(
     }
     let line = match stock.find(&l.key) {
         Ok(line) => line,
+        Err(crate::ini::IniError::UnknownKey(_)) if l.optional => {
+            return (
+                EntryState::NotNeeded,
+                format!("{} is not in this build", l.key),
+                None,
+            );
+        }
         Err(e) => return (EntryState::Missing, e.to_string(), None),
     };
     let stock_value = stock.value_at(line).unwrap_or_default();
@@ -1025,8 +1040,90 @@ mod tests {
     fn builtin_patches_parse() {
         for (name, text) in BUILTIN {
             let p = parse_patch(name, text).unwrap_or_else(|e| panic!("{name}: {e}"));
-            assert!(!p.data.is_empty(), "{name}");
+            assert!(!p.data.is_empty() || !p.loc.is_empty(), "{name}");
+            // A loc-only patch guards every entry by the stock text it was written for.
+            if p.data.is_empty() {
+                for l in &p.loc {
+                    assert!(l.expect_sha256.is_some(), "{name}: {:?}", l.id);
+                }
+            }
         }
+    }
+
+    /// The quest-items pack against a stock file holding the LIVE texts it was written for,
+    /// then against one where CIG changed a text.
+    #[test]
+    fn quest_items_pack_applies_and_skips_changed_text() {
+        let (name, text) = BUILTIN
+            .iter()
+            .find(|(n, _)| *n == "quest-items.patch.toml")
+            .unwrap();
+        let file = parse_patch(name, text).unwrap();
+        assert!(
+            file.loc
+                .iter()
+                .all(|l| !l.key.to_ascii_uppercase().starts_with("LOC_"))
+        );
+        let set = PatchSet {
+            patches: vec![LoadedPatch {
+                sha256: fsutil::sha256_hex(text.as_bytes()),
+                file,
+                origin: PatchOrigin::Builtin,
+                enabled: true,
+            }],
+            errors: Vec::new(),
+        };
+        let live = "Kaboos_AccessItem_desc=This access card allows for bypassing airlock emergency protocols to gain entry to QV stations.\r\nKaboos_DecryptioKeycard1=Decryption Key\r\nKaboos_DecryptioKeycard1_desc=This single-use decryption key is required to access encrypted data files.\r\nKaboos_DecryptionKeycard2_desc=This passcode disk stores a unique multi-phase security identifier used to access locked areas.\r\n";
+        let snap_of = |text: &str| Snap {
+            stock: StockIni::parse(format!("\u{feff}{text}").into_bytes()),
+            generated: BTreeMap::new(),
+        };
+        let s = snap_of(live);
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        assert!(
+            outcomes.iter().all(|o| o.state == EntryState::Applies),
+            "{outcomes:?}"
+        );
+        assert_eq!(edits.len(), 4);
+        let by_key = |k: &str| {
+            let line = s.stock.find(k).unwrap();
+            edits.iter().find(|e| e.line == line).unwrap().value.clone()
+        };
+        assert_eq!(by_key("Kaboos_DecryptioKeycard1"), "Decryption Key (QV)");
+        let key = by_key("Kaboos_DecryptioKeycard1_desc");
+        assert!(key.starts_with("This single-use decryption key"), "{key}");
+        assert!(key.contains("you only need to use one"), "{key}");
+        let disk = by_key("Kaboos_DecryptionKeycard2_desc");
+        assert!(disk.contains("In Vanduul-Tech Smugglers (Nyx):"), "{disk}");
+        assert!(
+            disk.contains("in any order") && !disk.contains("in order"),
+            "{disk}"
+        );
+        assert!(!disk.contains("(QV)"));
+
+        // CIG rewrites one description: that entry is skipped, the others still apply.
+        let changed = live.replace("required to access", "needed for");
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &snap_of(&changed), None);
+        let state = |id: &str| {
+            outcomes
+                .iter()
+                .find(|o| o.entry == format!("loc:{id}"))
+                .unwrap()
+                .state
+        };
+        assert_eq!(state("decryption-key-desc"), EntryState::TargetChanged);
+        assert_eq!(state("decryption-key-name"), EntryState::Applies);
+        assert_eq!(edits.len(), 3);
+
+        // A build without the mission: nothing to hint, and no warning.
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &snap_of("other=x\r\n"), None);
+        assert!(edits.is_empty());
+        assert!(
+            outcomes
+                .iter()
+                .all(|o| o.state == EntryState::NotNeeded && !o.state.warns()),
+            "{outcomes:?}"
+        );
     }
 
     fn contract(generator: &str, debug: &str, desc: &str) -> crate::model::Contract {

@@ -1,0 +1,43 @@
+# Built-in patch (spec 4.5, addendum §12). Keys only; the values are our own hint text.
+# Mission facts from playing the mission (2026-11-15); DataCore has no record that links these
+# items to their contract (the objectives live in Kaboos_MissionModule.xml, not shipped).
+# Each guard is the sha256 of the stock value on LIVE 4.10.200.58746 (Data.p4k, 2026-11-15):
+# when CIG changes the text the entry stops applying (target-changed). `optional`: a build
+# without the mission skips the entry quietly.
+schema = 1
+id = "quest-items"
+title = "Quest item hints: Vanduul-Tech Smugglers (Nyx)"
+description = "Says what the QV Airlock Access Card, the Decryption Key and the Passcode Disk are for in the Nyx mission chain Vanduul-Tech Smugglers, and marks the Decryption Key (QV) so it is not mistaken for another one. The Passcode Disk key is shared with a generic disk, so its hint names the mission it applies to."
+builds = { game_min = "4.10.0" }
+
+[[loc]]
+id = "access-card-desc"
+key = "Kaboos_AccessItem_desc"
+op = "append"
+value = "\\n\\n<EM3>Vanduul-Tech Smugglers (Nyx):</EM3> found on a lieutenant's body at the derelicts near the Auxiliary Station; it opens the station's airlock."
+optional = true
+expect_sha256 = "bbfefe7076275d749beae2c903b5092347cff849ad121596bda73adb8af374ed"
+
+[[loc]]
+id = "decryption-key-desc"
+key = "Kaboos_DecryptioKeycard1_desc"
+op = "append"
+value = "\\n\\n<EM3>Vanduul-Tech Smugglers (Nyx):</EM3> each of the 5 lieutenants carries one, but you only need to use one. Collect all the data first, then use a single key at the Security office terminal."
+optional = true
+expect_sha256 = "7efb03b41c03fa64c7960cfced47f081f6fb13fbd129c3716392390b7dab4771"
+
+[[loc]]
+id = "decryption-key-name"
+key = "Kaboos_DecryptioKeycard1"
+op = "append"
+value = " (QV)"
+optional = true
+expect_sha256 = "df4c3d7483e39a2acb6e6398a2048d1cc9efcdb7e680e67cd0a2125afa244e5b"
+
+[[loc]]
+id = "passcode-disk-desc"
+key = "Kaboos_DecryptionKeycard2_desc"
+op = "append"
+value = "\\n\\n<EM3>In Vanduul-Tech Smugglers (Nyx):</EM3> encode it at the 3 server racks (Security, the Polaris and the Auxiliary Station, in any order) to open the warehouse loot room."
+optional = true
+expect_sha256 = "167d29a33e07629dafdc0123b339447f3b76e2b7c027ac5d4e6757b461ea847e"
