@@ -30,7 +30,8 @@ no crash upload and no account of its own.**
   Its Files browser, Sounds and Export model read `Data.p4k` the same way, only when you open
   them; extracted files, sounds and models go only to a folder or file you pick, never into the
   game folder. Decoded sounds, exported models and texture previews are kept in an asset cache
-  (`<cache>/assets`, or a folder you choose in Settings -> Advanced; 2 GB at most) that
+  (`<cache>/assets`, or a `StarOrg Codex asset cache` subfolder of a folder you choose in
+  Settings -> Advanced; 2 GB at most; only its own files are ever removed) that
   "Clear" empties. These are Cloud Imperium's assets: for your own use, not to redistribute.
 
 ## Network

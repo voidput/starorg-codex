@@ -1261,7 +1261,9 @@ time. Read only on the game folder; every output path goes through `devworker::c
 inside the game folder or its Wine prefix).
 
 - **Lazy, on demand.** Nothing starts when the Dev screens open. The shared worker starts on the
-  first Files listing, preview or Sounds request; it opens only the archive index. The DataCore
+  first Files listing, preview or Sounds request (opening Dev > Files lists the archive root, so
+  it counts as asking: about 0.5 s and 0.45 GB, returned after 5 idle minutes or with the power
+  button on the screen; the Explorer and the other Dev screens never start it); it opens only the archive index. The DataCore
   is read on the first sounds/model request, the Wwise/ATL index (GameAudio documents + every
   `.bnk`/`.wem` name) on the first sounds request; both stay while the worker lives (64 parsed
   banks at most). The app stops it after 5 idle minutes (the worker also exits by itself after
@@ -1274,14 +1276,28 @@ inside the game folder or its Wine prefix).
 
 **Asset cache** (`starorg_core::assetcache`). Decoded sounds (`audio/<media id>.ogg`, or `.wem`
 when not Vorbis), exported models (`models/<record>-<full|print>-lod<n>.glb`) and texture
-previews (`previews/<path hash>.png`) under `<cache dir>/<CHANNEL>/<build key>/`. The build key
+previews (`previews/<path hash>.png`) under `<root>/<CHANNEL>/<build key>/`. The root is
+`<app cache>/assets` by default; for a folder the user picks it is always a subfolder of its
+own, `<chosen>/StarOrg Codex asset cache/`, so nothing of the user's is ever inside the layout. The build key
 is the extraction cache key (p4k size, mtime, change number, StarBreaker rev), so a game patch
 misses; the first write for a new build removes the channel's older builds. LRU by modification
 time (a hit touches the file), 2 GiB cap (`[dev] asset_cache_max_mb`), files over a quarter of
 the cap are not kept, stale `.part` files go after an hour. A hit is answered without starting a
-worker (preview, play, sounds export without `.wem`, model export). Clear, eviction and move
-touch only our layout (marker `.starorg-asset-cache`), so a user-picked folder can hold other
-files.
+worker (preview, play, sounds export without `.wem`, model export); a sound ww2ogg cannot
+rebuild is cached as its WEM, and an export caches only the files written by that run.
+
+- **Safety.** Eviction, pruning, clear and move act only under a root that holds our marker
+  (`.starorg-asset-cache`, a regular file) and only on files of the layout: channel folders named
+  like `LIVE`/`TECH-PREVIEW`, build folders that are hex cache keys, the three kind folders, and
+  our file names and extensions. No symlink is followed, for folders or files (`symlink_metadata`
+  throughout), every kind folder must canonicalize inside the canonical root, and writes refuse a
+  layout folder that is a link. Temporary files (`.part`) are removed and created anew
+  (`create_new`), so a write never follows a link either.
+- **Checked at every use**, not only when picked: the CLI (`--cache-dir` or the setting) and the
+  app refuse a root that is relative, a link, or inside any registered or discovered game folder
+  or its Wine prefix (a hand-edited `config.toml`), with a clear error; the Settings row shows the
+  problem (and creates or writes nothing just to show its status) until the folder is changed or
+  reset.
 
 - **Folder setting**: `[dev] asset_cache_dir` in `config.toml` (default `<app cache>/assets`;
   the CLI's `--cache-dir` overrides; `--no-cache` skips it). Settings > Advanced > Asset cache
@@ -1290,6 +1306,9 @@ files.
   Wine prefix; another drive is fine and shown as a note), Reset to default, Clear (confirm).
   Switching never moves or deletes the old folder: while it still holds cache files the row
   offers "Move existing cache" (rename, or copy + remove across drives) or "Leave it".
+- **Exports** (extract, sounds, models) go only to a folder or file from a native dialog, and
+  the app refuses any inside a registered or discovered game folder (the whole install, so a
+  sibling channel too) or its Wine prefix; the worker checks again (channel folder and prefix).
 - **Webview**: only an 8-entry LRU of object URLs of played sounds (`app/src/lib/audiolru.ts`).
 
 **Contract** (`contract/assets.rs`, `assets.ts`, the `AssetBackend` half of `Backend`):
@@ -1338,7 +1357,11 @@ outputs under `.tmp/`):
 The archive index (about 0.9 GB) is the floor of every asset run; the Full preset's textures
 dominate above it, and fewer threads barely help. That is why model exports run in their own
 process, why the Full preset warns in the export dialog, and why the cache keeps only models
-under a quarter of its cap (a Print shell GLB, not a Full one).
+under a quarter of its cap (512 MB by default: Print shell GLBs of every ship and Full GLBs of
+small ships fit; a Full Javelin at 348-513 MB fits only just, a Full Idris at 502 MB does not).
+Before a model export the app compares `MemAvailable` (Linux; not read on Windows) with a rough
+need (Full 8 GB, Print shell 2 GB) and, when short, asks first ("Export anyway"); the CLI prints
+the same note for `--preset full`.
 The app's worker (`asset-worker`, release) on the same archive: ready in 0.49 s (1,399,137
 entries) at 449 MB RSS, 899 MB peak while the index is built; listing the root 0.11 s, a folder
 and a search (71 hits) under 10 ms, a 2048x2048 texture previewed at 1024 px in 30 ms, a 215 KB
@@ -1348,7 +1371,9 @@ shell exported in that same worker took 0.38 s but left 1.26 GB held (peak 1.42 
 model exports get a fresh worker that is stopped afterwards.
 
 **Tests.** Core: cache hit/miss, hit touches, build invalidation, LRU eviction and the
-quarter-cap rule, stale parts, clear/move only ours, setting round trip and resolve order,
+quarter-cap rule, stale parts, clear/move only ours, the verifier's repro (user files with
+look-alike paths, symlinked kind and build folders and a symlinked file pointing outside: nothing
+counted, evicted, pruned, cleared or moved; a marker-less folder never ours), use-time checks, setting round trip and resolve order,
 validation (game folder, Wine prefix, file, relative, read-only). Data: a synthetic stored-ZIP
 p4k (`assets::synthetic`: DataCore, split DDS, XML, PCM WEM) for listing, search, previews,
 extraction (raw, converted, cancelled, refused), unsafe paths, globs, records, lazy audio index,
@@ -1357,7 +1382,7 @@ streaming, panics, errors, idle exit). CLI: extract/glob/refusal, cached model w
 read, `--no-cache`, sounds list. App: contract samples for every asset command, unions,
 `dev-disabled`, IPC; `tests/real_assets.rs` runs the real `asset-worker` on the synthetic archive:
 nothing starts before a request, cache hits start no worker, extract/export dialogs and the
-game-folder refusal, fresh worker per model, cache folder validate/switch/move/clear. Renders:
+game-folder refusal (channel, sibling channel, install root; no Wine prefix), fresh worker per model, cache folder validate/switch/move/clear, a config pointing into the install refused at use (status shows it, nothing created). Renders:
 `app/scripts/render-assets.cjs` (`.tmp/renders/assets/`).
 
 **Not done / follow-ups:**

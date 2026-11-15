@@ -20,7 +20,8 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
       const cur = d ? document.getElementById(d) : null;
       return { role: a?.getAttribute('role'), label: a?.getAttribute('aria-label'), cur: cur?.getAttribute('aria-label') ?? cur?.textContent?.trim() ?? null, pane: a?.closest('[data-pane]')?.getAttribute('data-pane') ?? null };
     });
-  const heading = () => page.locator('[data-pane=detail] h2').textContent();
+  // The h2's title is the raw record name; its text may lead with a readable name (7.14).
+  const heading = () => page.locator('[data-pane=detail] h2').getAttribute('title');
 
   // Developer mode off: Alt+9 is Settings and the Dev group is not rendered.
   await page.goto(`${BASE}&screen=home`);
@@ -51,7 +52,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   check('ArrowRight again goes to the first record', (await active()).cur === 'SYN_Ship_000');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => document.querySelector('[data-pane=detail] h2')?.textContent === 'SYN_Ship_001');
+  await page.waitForFunction(() => document.querySelector('[data-pane=detail] h2')?.title === 'SYN_Ship_001');
   check('Enter opens the record', (await heading()) === 'SYN_Ship_001');
   await page.keyboard.press('ArrowLeft');
   check('ArrowLeft goes to the parent type', /^SynShip/.test((await active()).cur ?? ''));
@@ -84,21 +85,21 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   check('JSON End lands on the last line', /^Components/.test((await active()).cur ?? ''), JSON.stringify(await active()));
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('ArrowRight');
-  check('JSON Right opens, then goes to the first child', /reference to SYN_/.test((await active()).cur ?? ''), JSON.stringify(await active()));
+  check('JSON Right opens, then goes to the first child', /reference to .*SYN_/.test((await active()).cur ?? ''), JSON.stringify(await active()));
   const before = await heading();
   await page.keyboard.press('Enter');
-  await page.waitForFunction((b) => document.querySelector('[data-pane=detail] h2')?.textContent !== b, before);
+  await page.waitForFunction((b) => document.querySelector('[data-pane=detail] h2')?.title !== b, before);
   const followed = await heading();
   check('Enter on a reference follows it', /^SYN_(cooler|shield|powerplant|quantumdrive)_/.test(followed), followed);
   await page.keyboard.press('Alt+ArrowLeft');
-  await page.waitForFunction((b) => document.querySelector('[data-pane=detail] h2')?.textContent === b, before);
+  await page.waitForFunction((b) => document.querySelector('[data-pane=detail] h2')?.title === b, before);
   check('Alt+Left goes back', (await heading()) === before);
   await page.keyboard.press('Alt+ArrowRight');
-  await page.waitForFunction((f) => document.querySelector('[data-pane=detail] h2')?.textContent === f, followed);
+  await page.waitForFunction((f) => document.querySelector('[data-pane=detail] h2')?.title === f, followed);
   check('Alt+Right goes forward', (await heading()) === followed);
   // `*` on _Type_ of a ship opens its sibling containers (Speed, Components).
   await page.keyboard.press('Alt+ArrowLeft');
-  await page.waitForFunction((b) => document.querySelector('[data-pane=detail] h2')?.textContent === b, before);
+  await page.waitForFunction((b) => document.querySelector('[data-pane=detail] h2')?.title === b, before);
   await json.focus();
   await page.keyboard.press('Home');
   for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowDown');
@@ -116,12 +117,16 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   check('Escape returns to the list', (await active()).role === 'listbox');
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => document.querySelector('[data-pane=detail] h2')?.textContent === 'SYN_Ship_001');
+  await page.waitForFunction(() => document.querySelector('[data-pane=detail] h2')?.title === 'SYN_Ship_001');
   check('list Enter opens the hit', (await heading()) === 'SYN_Ship_001');
 
   // Ctrl+K "Find record…" carries the typed text.
   await page.keyboard.press('Control+k');
-  await page.keyboard.type('cooler 01');
+  // Type once the palette's input has focus (typing earlier loses keys now and then).
+  const cmd = page.getByRole('combobox', { name: 'Command' });
+  await cmd.waitFor();
+  await page.waitForFunction(() => document.activeElement?.getAttribute('aria-label') === 'Command');
+  await cmd.fill('cooler 01');
   await page.getByRole('option', { name: /Find record “cooler 01”/ }).click();
   await page.getByText(/^2 of 2$/).waitFor();
   check('Ctrl+K Find record searches the explorer', (await page.getByRole('searchbox', { name: /Find records/ }).inputValue()) === 'cooler 01');
@@ -133,7 +138,8 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await page.getByText(/Open .* in Explorer/).first().waitFor({ state: 'attached' }).catch(() => {});
-  const sheet = page.getByRole('dialog', { name: /shipWeapons · row 2/ });
+  // The title leads with the row's readable name (7.14): `shipWeapons · <name> (row 2)`.
+  const sheet = page.getByRole('dialog', { name: /shipWeapons · .*row 2/ });
   check('datasets: Enter opens row 2', (await sheet.count()) === 1);
   await page.keyboard.press('Escape');
 
@@ -148,7 +154,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await page.getByRole('columnheader', { name: 'Δ' }).waitFor();
-  check('diff: Enter shows the field diff of record 2', (await page.locator('[aria-label="Field changes"] h2').textContent()) === 'SYN_shield_009');
+  check('diff: Enter shows the field diff of record 2', ((await page.locator('[aria-label="Field changes"] h2').textContent()) ?? '').includes('SYN_shield_009'));
 
   await browser.close();
   console.log(results.join('\n'));
