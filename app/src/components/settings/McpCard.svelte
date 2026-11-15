@@ -17,6 +17,8 @@
   import MemoryWarningDialog from '@/components/settings/MemoryWarningDialog.svelte';
   import { reminderText } from '@/lib/memory';
   import { ensureMemory, memory } from '@/lib/stores/memory.svelte';
+  import MemoryLimitRow from '@/components/settings/MemoryLimitRow.svelte';
+  import { app } from '@/lib/stores/app.svelte';
 
   /** Turning the server on asks first: its extraction workers can use several GB (7.18). */
   let warning = $state(false);
@@ -82,6 +84,10 @@
       <p class="text-muted-foreground -mt-1 pl-11 text-[12px]" data-memory-reminder>Reading a dataset the first time: {reminderText(memory.status)}</p>
       {#if st.error && !st.running}
         <p class="text-destructive text-[12px]">Not started: {st.error}</p>
+      {/if}
+      {#if st.running && !app.settings?.advanced.developer_mode}
+        <!-- The limit also holds MCP extractions; Advanced only shows it with Developer mode on. -->
+        <MemoryLimitRow />
       {/if}
       {#if st.running && st.url && st.token}
         <div class="grid gap-2 rounded-md border px-3 py-2.5" aria-label="MCP server connection">

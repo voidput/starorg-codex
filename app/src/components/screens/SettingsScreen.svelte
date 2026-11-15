@@ -189,7 +189,7 @@
         <SwitchRow
           id="dev-mode"
           label="Developer mode"
-          hint="Adds tools to browse the game's data records and compare datasets. Read only. Its workers can use several GB of RAM (about 0.55-1 GB open, model exports up to 11 GB), each held to the memory limit below."
+          hint="Adds tools to browse the game's data records and compare datasets. Read only. Its workers can use several GB of RAM (about 0.55-1 GB open, model exports up to 11 GB), each held to a memory limit you can set here once it is on."
           checked={s.advanced.developer_mode || devWarning}
           onchange={(v) => (v ? (devWarning = true) : patch((x) => (x.advanced.developer_mode = false)))}
         />
@@ -197,8 +197,8 @@
         {#if s.advanced.developer_mode}
           <p class="text-muted-foreground mt-1 text-[12px]">Explorer (Alt+9), Datasets, Diff and Files are in the sidebar under Dev; Settings moves to Alt+0. Ctrl+K has "Find record…".</p>
           <AssetCacheRow />
+          <MemoryLimitRow />
         {/if}
-        <MemoryLimitRow />
       </Card.Content>
     </Card.Root>
     <McpCard />
@@ -213,12 +213,12 @@ starorg-strings apply --channel LIVE
 starorg-strings apply --all --if-stale --timeout 20
 starorg-strings remove --channel LIVE
 starorg-strings blueprints import owned-blueprints.json --character Pilot_A --dry-run
-starorg-strings dev types --channel LIVE
+{#if s.advanced.developer_mode}starorg-strings dev types --channel LIVE
 starorg-strings dev record &lt;guid|path|name&gt; --channel LIVE
 starorg-strings dev extract "Data/Libs/Config/*.xml" --out DIR --convert
 starorg-strings dev export-model AEGS_Javelin --preset print --out javelin.glb
 starorg-strings dev export-sounds AEGS_Gladius --out DIR
-starorg-strings sync status    # StarOrg environment and what to sync
+{/if}starorg-strings sync status    # StarOrg environment and what to sync
 starorg-strings sync set --import-game-log off
 starorg-strings doctor
 starorg-strings mcp            # experimental: MCP server on stdio</pre>
