@@ -4,6 +4,7 @@
 //!   (wikelo.ts) and `entityClassName` (blueprints.ts) functions;
 //! - [`add_count`] / [`by_count_desc`]: the `Record<string, number>` tallies those domains
 //!   publish as `Object.fromEntries(Object.entries(t).sort((a, b) => b[1] - a[1]))`;
+//! - [`ref_short`]: `refShortName` exactly (an empty `_RecordName_` gives `None`);
 //! - [`item_display_name`]: the part of `itemIdentity` (domains/item-common.ts) that
 //!   blueprints uses. It lives here rather than in the `item_common` slot so this batch
 //!   does not race the items batch for that file; once `item_common` lands, blueprints can
@@ -12,7 +13,7 @@
 use crate::entity::component;
 use crate::localization::{Localization, is_placeholder_name, localize};
 use crate::output::js_key_order;
-use crate::records::{GameRecord, at, str_};
+use crate::records::{GameRecord, at, ref_name, str_};
 use serde_json::{Map, Number, Value};
 
 /// The last path segment of a `file://...json` reference with `.json` (any case) removed:
@@ -27,6 +28,14 @@ pub fn file_ref_stem(value: Option<&Value>) -> Option<&str> {
         Some(ext) if file.len() >= 5 && ext.eq_ignore_ascii_case(".json") => &file[..cut],
         _ => file,
     })
+}
+
+/// `refShortName`: the referenced record's name without its type prefix. Unlike
+/// [`crate::records::ref_short_name`], an empty `_RecordName_` gives `None` (the TS `!name`
+/// check); `"Tag."` still gives `Some("")`.
+pub fn ref_short(value: Option<&Value>) -> Option<&str> {
+    let name = ref_name(value).filter(|n| !n.is_empty())?;
+    Some(name.split_once('.').map_or(name, |(_, rest)| rest))
 }
 
 /// `tally[key] = (tally[key] ?? 0) + by`.
@@ -83,6 +92,17 @@ mod tests {
         assert_eq!(file_ref_stem(Some(&json!("a/"))), None);
         assert_eq!(file_ref_stem(Some(&json!(""))), None);
         assert_eq!(file_ref_stem(Some(&json!(3))), None);
+    }
+
+    #[test]
+    fn ref_shorts() {
+        assert_eq!(
+            ref_short(Some(&json!({"_RecordName_": "ResourceType.Raw_Gold"}))),
+            Some("Raw_Gold")
+        );
+        assert_eq!(ref_short(Some(&json!({"_RecordName_": "Tag."}))), Some(""));
+        assert_eq!(ref_short(Some(&json!({"_RecordName_": ""}))), None);
+        assert_eq!(ref_short(Some(&json!("x"))), None);
     }
 
     #[test]

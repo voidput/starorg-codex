@@ -36,7 +36,7 @@ registry! {
 
     // armor, // armor.ts
 
-    // blueprints, // blueprints.ts
+    blueprints, // blueprints.ts
 
     // cargo, // cargo.ts
 

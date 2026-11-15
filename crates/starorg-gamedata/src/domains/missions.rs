@@ -10,9 +10,9 @@
 
 use crate::collate::locale_compare;
 use crate::domain::{Domain, DomainError, ParseContext, field};
-use crate::helpers_gameplay::{add_count, by_count_desc, file_ref_stem};
+use crate::helpers_gameplay::{add_count, by_count_desc, file_ref_stem, ref_short};
 use crate::localization::{Localization, is_placeholder_name, localize};
-use crate::records::{GameRecord, at, num, ref_short_name, str_};
+use crate::records::{GameRecord, at, num, str_};
 use serde::Serialize;
 use serde_json::{Map, Value};
 
@@ -74,7 +74,7 @@ fn tag_names(value: Option<&Value>) -> Option<Vec<String>> {
     let tags = value?.get("tags")?.as_array()?;
     let names: Vec<String> = tags
         .iter()
-        .filter_map(|t| ref_short_name(Some(t)))
+        .filter_map(|t| ref_short(Some(t)))
         .filter(|n| !is_guid(n))
         .map(str::to_string)
         .collect();
