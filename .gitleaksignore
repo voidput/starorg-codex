@@ -1,4 +1,6 @@
 # gitleaks fingerprints (commit:file:rule:line) of reviewed false positives.
-# Fake minisign public key in a unit test: gitleaks base64-decodes it and the decoded
-# "minisign public key: 1234567890ABCDEF" trips generic-api-key. Public keys are not secrets.
+# 1. A fake updater (minisign) PUBLIC key in a unit test. gitleaks base64-decodes it and the
+#    decoded header line trips generic-api-key. Public keys are not secrets.
+# 2. The first version of this file quoted that decoded line in a comment.
 63e7359bb57110b9087148c6bdc3bbe1b1b21c7e:app/src-tauri/src/update/host.rs:generic-api-key:158
+c1453dd9ea3aa14380c5c7ec87aef21c1b285a3a:.gitleaksignore:generic-api-key:3
