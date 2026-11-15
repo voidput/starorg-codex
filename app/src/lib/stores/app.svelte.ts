@@ -156,11 +156,21 @@ class AppState {
   /** Header / palette Apply: asks first when the open screen has unsaved edits. */
   requestApply(): void {
     if (this.blocked || !this.channel?.set_up) return;
-    const f = foreignOf(this.channel);
-    // Another tool's file is in place: ask before it is backed up and replaced.
-    const go = f ? () => (this.replaceAsk = f) : () => void this.apply();
-    this.guarded('apply', `apply to ${this.channel.channel}`, go);
+    this.guarded('apply', `apply to ${this.channel.channel}`, () => void this.applyOrAsk());
   }
+
+  /**
+   * Every user-started apply goes through here (header, Home, palette, "Save & apply"): when
+   * another tool's file is in place it asks first (ReplaceDialog), otherwise it applies.
+   */
+  async applyOrAsk(): Promise<void> {
+    const f = this.channel ? foreignOf(this.channel) : null;
+    if (f) this.replaceAsk = f;
+    else await this.apply();
+  }
+
+  /** Set by setup's "Restore the original": Backups opens that channel's restore confirm. */
+  restoreForeignFor = $state<string | null>(null);
 
   /** The channel whose other-tool file an apply would replace, while the confirm is open. */
   replaceAsk = $state.raw<ForeignChannel | null>(null);

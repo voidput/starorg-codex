@@ -12,7 +12,9 @@
  * `&foreign=LIVE` (another tool's file in place), `&builderr=LIVE`, `&channels=5`,
  * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
  * `&accent=<accent>`, `&palette=black`. Slow and failing calls: `&slow=<cmd>:<ms>,...`,
- * `&failonce=<cmd>,...` (fails the first call, then works: Retry), `&preview=nodata` (no game data
+ * `&failonce=<cmd>,...` (fails the first call, then works: Retry; plan_setup answers as the real
+ * backend does, Ok with a game-data warning and zero counts), `&busy=<n>` (n plan_setup calls
+ * find another process reading), `&preview=nodata` (no game data
  * read until plan_setup, as the real backend before setup). Launch hooks: `&hooks=windows|nolug`. Updates: `&update=available|failed|skipped`
  * (mock-update.ts).
  * Developer mode: `&dev=1` turns it on (Settings > Advanced) with the sample dataset folder
@@ -27,6 +29,7 @@ import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
 import samples from './samples.gen.json';
+import { serial } from '../loadstate';
 import type * as T from './types';
 import { createUpdateMock } from './mock-update';
 import { createDevMock, type DevMockData } from './mock-dev';
@@ -1417,6 +1420,30 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   }
   if (params.get('installs') === '0') installs.length = 0;
   const failing = new Set((params.get('fail') ?? '').split(',').filter(Boolean));
+  // `&busy=<n>`: the first n plan_setup calls find another process reading (code busy).
+  let busyLeft = Number(params.get('busy') ?? 0);
+  const readSerial = serial();
+  /** plan_setup with the URL faults, in the real backend's shapes. */
+  async function planWithFaults({ req }: Args<'plan_setup'>): Promise<T.SetupPlan> {
+    const unread = req.channels.some((c) => c.consent && !dataRead.has(`${req.install}/${c.channel}`));
+    const hold = slow.get('plan_setup');
+    if (hold && unread) await sleep(hold);
+    if (busyLeft > 0) {
+      busyLeft--;
+      fail('busy', 'reading game data: another extraction is running');
+    }
+    if (failing.has('plan_setup')) fail('internal', 'Could not read the game folder (plan_setup).', 'EACCES: permission denied, open .../StarCitizen/LIVE/Data.p4k');
+    const plan = await h.plan_setup({ req });
+    if (failOnce.delete('plan_setup')) {
+      // The real backend answers Ok with a game-data warning and zero counts per channel.
+      for (const c of plan.channels) {
+        dataRead.delete(`${req.install}/${c.channel}`);
+        plan.warnings.push({ kind: 'game-data', detail: `${c.channel}: reading game data: Data.p4k: The process cannot access the file because it is being used by another process. (os error 32)` });
+        c.counts = { ...c.counts, changed: 0, ships: 0, components: 0, ship_weapons: 0, fps_weapons: 0, missiles: 0, missions: 0 };
+      }
+    }
+    return plan;
+  }
   const failOnce = new Set((params.get('failonce') ?? '').split(',').filter(Boolean));
   // `&slow=plan_setup:20000,build_preview:3000`: hold these commands (a first Data.p4k read).
   const slow = new Map(
@@ -1437,6 +1464,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     async call<K extends Command>(cmd: K, args: Args<K>): Promise<Result<K>> {
       // Answer asynchronously like IPC does, so the UI's loading states are exercised.
       await sleep(0);
+      // Reads of game data run one at a time, as in the real backend: a second plan_setup waits
+      // for the running one, then finds the data in memory (no second slow read).
+      if (cmd === 'plan_setup') return (await readSerial(() => planWithFaults(args as Args<'plan_setup'>))) as Result<K>;
+      if (cmd === 'apply') return (await readSerial(async () => (h.apply as Handler<'apply'>)(args as Args<'apply'>))) as Result<K>;
       const hold = slow.get(cmd);
       if (hold) await sleep(hold);
       if (failOnce.delete(cmd)) fail('internal', `Could not read the game data (${cmd}).`, 'Data.p4k: The process cannot access the file because it is being used by another process. (os error 32)');

@@ -61,10 +61,13 @@ fn test_keyrefs() -> starorg_core::groups::KeyRefs {
 }
 
 /// Stock text from memory and one blueprint whose product is named by `item_NameRifle`.
-struct TestSource;
+/// `.0`: milliseconds each load takes (a slow first read of Data.p4k); `.1` counts loads.
+struct TestSource(u64, Arc<std::sync::atomic::AtomicUsize>);
 
 impl GameSource for TestSource {
     fn load(&self, _: &Channel, _: &Budget) -> Result<Loaded, SourceError> {
+        self.1.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        std::thread::sleep(std::time::Duration::from_millis(self.0));
         Ok(Loaded {
             base_ini: stock_bytes(),
             game_data: GameData {
@@ -97,11 +100,12 @@ impl GameSource for TestSource {
     }
 }
 
-struct TestSources;
+#[derive(Clone, Default)]
+struct TestSources(u64, Arc<std::sync::atomic::AtomicUsize>);
 
 impl SourceFactory for TestSources {
     fn source(&self, _: &AppDirs) -> Result<Box<dyn GameSource>, String> {
-        Ok(Box::new(TestSource))
+        Ok(Box::new(TestSource(self.0, self.1.clone())))
     }
 }
 
@@ -129,6 +133,10 @@ impl Fake {
     }
 
     fn with_starorg(starorg_base: &str) -> Self {
+        Self::with(starorg_base, TestSources::default())
+    }
+
+    fn with(starorg_base: &str, sources: TestSources) -> Self {
         let t = tempfile::tempdir().unwrap();
         let base = std::fs::canonicalize(t.path()).unwrap();
         let prefix = base.join("prefix");
@@ -173,7 +181,7 @@ impl Fake {
                 prefix: None,
             },
             env: DiscoveryEnv::from_process(),
-            source: Arc::new(TestSources),
+            source: Arc::new(sources),
             dialogs: slot,
         })
         // Never the network in tests: the update check gets a scripted GitHub.
@@ -619,6 +627,72 @@ fn preview_is_empty_until_the_dry_run_reads_the_game_data() {
     // list itself may stay empty; the UI tells "not read" from "nothing to show" by the cache).
     f.backend.build_preview(req()).unwrap();
     assert!(!f.ini("LIVE").exists(), "nothing written to the game");
+}
+
+/// Review asks again while the wizard's first read still runs (a choice changed, or Enhancements'
+/// "Read game data now" was still going): the second plan_setup waits for the first read and
+/// uses it, instead of skipping with "another extraction is running" and zero counts.
+#[test]
+fn concurrent_plan_setup_waits_for_the_running_read() {
+    if elevated() {
+        return;
+    }
+    let src = TestSources(400, Arc::default());
+    let f = Arc::new(Fake::with("http://127.0.0.1:9", src.clone()));
+    let req = {
+        let id = f.install_id();
+        move || SetupRequest {
+            install: id.clone(),
+            channels: vec![ChannelConsent {
+                channel: "LIVE".into(),
+                consent: true,
+                switch_language: false,
+            }],
+            data_source: DataSource::Local,
+            preset: Preset::Recommended,
+            fix_known_bugs: true,
+        }
+    };
+    let runs: Vec<_> = (0..3)
+        .map(|_| {
+            let (f, r) = (f.clone(), req.clone());
+            std::thread::spawn(move || f.backend.plan_setup(r()).unwrap())
+        })
+        .collect();
+    for h in runs {
+        let plan = h.join().unwrap();
+        assert!(plan.warnings.is_empty(), "{:?}", plan.warnings);
+        assert_eq!(plan.channels.len(), 1);
+    }
+    assert_eq!(
+        src.1.load(std::sync::atomic::Ordering::SeqCst),
+        1,
+        "one read, shared"
+    );
+}
+
+/// Another process (a launch hook, the CLI) holds the extraction lock: plan_setup says Busy (the
+/// wizard retries) rather than an Ok plan with zero counts.
+#[test]
+fn plan_setup_while_another_process_reads_is_busy() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let held = starorg_core::lock::try_lock(&f.dirs.extract_lock()).unwrap();
+    let r = f.backend.plan_setup(SetupRequest {
+        install: f.install_id(),
+        channels: vec![ChannelConsent {
+            channel: "LIVE".into(),
+            consent: true,
+            switch_language: false,
+        }],
+        data_source: DataSource::Local,
+        preset: Preset::Recommended,
+        fix_known_bugs: true,
+    });
+    assert_eq!(r.unwrap_err().code, ErrorCode::Busy);
+    drop(held);
 }
 
 #[test]

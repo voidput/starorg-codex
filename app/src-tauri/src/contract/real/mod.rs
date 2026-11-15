@@ -230,6 +230,10 @@ struct Mem {
 pub struct RealBackend {
     cfg: RealConfig,
     mem: Mutex<Mem>,
+    /// Held while this app reads a channel's game data (see `loaded`) or applies.
+    reads: Mutex<()>,
+    /// Held while an install is saved to config.toml (`register`).
+    registering: Mutex<()>,
     update: crate::update::Updater,
     dev: dev::DevState,
     assets: assets::AssetState,
@@ -342,6 +346,8 @@ impl RealBackend {
         Self {
             cfg,
             mem: Mutex::new(Mem::default()),
+            reads: Mutex::new(()),
+            registering: Mutex::new(()),
             update,
             dev: dev::DevState::default(),
             assets: assets::AssetState::default(),
@@ -581,6 +587,9 @@ impl RealBackend {
         if let Some(id) = &f.id {
             return Ok(id.clone());
         }
+        // Two wizard calls can register at once (Enhancements' read, Review): one at a time,
+        // and the second finds the id the first saved.
+        let _one = self.registering.lock().unwrap_or_else(|e| e.into_inner());
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
         let outputs = Outputs::load(self.dirs()).unwrap_or_default();
         let (id, _) =
@@ -734,25 +743,46 @@ impl RealBackend {
         let k = KeyInputs::local(&fp, &self.ctx().starbreaker_commit);
         let key = k.key();
         let slot = (id.clone(), ch.name.clone());
-        if let Some(d) = self.mem().data.get(&slot).filter(|d| d.key == key) {
-            return Ok(d.clone());
+        let in_mem = || self.mem().data.get(&slot).filter(|d| d.key == key).cloned();
+        let from_disk = || {
+            self.ctx()
+                .use_cache
+                .then(|| {
+                    cache::load(
+                        &self.dirs().channel_cache(&id, &ch.name),
+                        &k,
+                        self.ctx().min_stock_keys,
+                    )
+                    .ok()
+                })
+                .flatten()
+        };
+        if let Some(d) = in_mem() {
+            return Ok(d);
         }
-        let cached = self.ctx().use_cache.then(|| {
-            cache::load(
-                &self.dirs().channel_cache(&id, &ch.name),
-                &k,
-                self.ctx().min_stock_keys,
-            )
-            .ok()
-        });
-        let l = match cached.flatten() {
+        // Reads in this app run one at a time: a second caller (Review asking again while
+        // Enhancements' read runs, Apply right after Review) waits and then uses that read,
+        // instead of the core's "another extraction is running" skip.
+        let _reading = extract.then(|| self.reads.lock().unwrap_or_else(|e| e.into_inner()));
+        if let Some(d) = in_mem() {
+            return Ok(d);
+        }
+        let l = match from_disk() {
             Some(l) => l,
             None if extract => {
                 let t = Target::new(&f.install, Some(id.clone()), ch);
                 let src = self.cfg.source.source(self.dirs()).map_err(internal)?;
                 let mut w = Vec::new();
                 apply::load_channel(self.ctx(), &t, src.as_ref(), &Budget::unlimited(), &mut w)
-                    .map_err(|e| err(ErrorCode::Internal, format!("reading game data: {e}")))?
+                    .map_err(|e| {
+                        // Only another process can hold the lock now (a launch hook, the CLI).
+                        let code = if e.contains("another extraction") {
+                            ErrorCode::Busy
+                        } else {
+                            ErrorCode::Internal
+                        };
+                        err(code, format!("reading game data: {e}"))
+                    })?
             }
             None => {
                 return Err(err(
@@ -1426,6 +1456,8 @@ impl Backend for RealBackend {
             let chosen = (!keep).then_some((&eprof, disabled.as_slice()));
             let counts = match self.build_table(&f, ch, chosen, true) {
                 Ok(t) => t.counts.clone(),
+                // Another process is reading: the wizard waits and asks again.
+                Err(e) if e.code == ErrorCode::Busy => return Err(e),
                 Err(e) => {
                     warnings.push(Warning {
                         kind: "game-data".into(),
@@ -1596,7 +1628,11 @@ impl Backend for RealBackend {
             dry_run: req.dry_run,
             ..ApplyOpts::default()
         };
-        let r = apply::apply(self.ctx(), &t, &opts, src.as_ref());
+        let r = {
+            // Waits for a read the wizard or a screen started, then finds it in the cache.
+            let _reading = self.reads.lock().unwrap_or_else(|e| e.into_inner());
+            apply::apply(self.ctx(), &t, &opts, src.as_ref())
+        };
         let data = t.data_dir(self.dirs());
         let out = convert::report(&r, Some(&backup::backups_dir(&data)));
         if out.result == ApplyResult::Applied
@@ -1918,6 +1954,7 @@ impl Backend for RealBackend {
         let t = Target::new(&f.install, f.id.clone(), ch);
         let src = self.cfg.source.source(self.dirs()).map_err(internal)?;
         let mut w = Vec::new();
+        let _reading = self.reads.lock().unwrap_or_else(|e| e.into_inner());
         let l = apply::reload_channel(self.ctx(), &t, src.as_ref(), &Budget::unlimited(), &mut w)
             .map_err(|e| {
             let code = if e.contains("another extraction") {

@@ -41,20 +41,22 @@
     reports: ApplyReport[];
     error: ContractError | null;
     onretry: () => void;
-    /** Close setup and open Backups of this channel. */
-    onbackups: (channel: string) => void;
+    /** Close setup and open Backups of this channel; `restore` opens the restore confirm. */
+    onbackups: (channel: string, restore?: boolean) => void;
   } = $props();
 
   // Launch hooks only exist with the LUG Helper on Linux; elsewhere the card says what does.
+  // Asked once when the step opens, so the card never shows one text and then flips.
   let hooks = $state<HooksStatus | null>(null);
-  let hooksRead = $state(false);
+  let hooksKnown = $state(false);
   $effect(() => {
-    if (phase !== 'done' || hooksRead) return;
-    hooksRead = true;
+    let live = true;
     api
       .hooksStatus()
-      .then((h) => (hooks = h))
-      .catch(() => (hooks = null));
+      .then((h) => live && (hooks = h))
+      .catch(() => live && (hooks = null))
+      .finally(() => live && (hooksKnown = true));
+    return () => (live = false);
   });
   const lug = $derived(!!hooks?.supported && hooks.scripts.some((s) => s.path !== null));
   const foreignOfReport = (rep: ApplyReport) =>
@@ -123,7 +125,7 @@
                 {#if phase === 'done'}
                   <div class="mt-2 flex flex-wrap gap-2">
                     <Button variant="outline" size="xs" onclick={() => onbackups(rep.channel)}><Archive aria-hidden="true" /> Open backups</Button>
-                    <Button variant="outline" size="xs" onclick={() => onbackups(rep.channel)}><History aria-hidden="true" /> Restore the original</Button>
+                    <Button variant="outline" size="xs" onclick={() => onbackups(rep.channel, true)}><History aria-hidden="true" /> Restore the original…</Button>
                   </div>
                 {/if}
               </Alert.Description>
@@ -151,7 +153,7 @@
   <ErrorState title="Apply stopped" {error} {onretry} />
 {/if}
 
-{#if phase === 'done'}
+{#if phase === 'done' && hooksKnown}
   <section aria-labelledby="automate-title" class="bg-card/80 grid gap-2 rounded-lg border p-3">
     <h3 id="automate-title" class="font-semibold">Keep it current automatically</h3>
     {#if lug}

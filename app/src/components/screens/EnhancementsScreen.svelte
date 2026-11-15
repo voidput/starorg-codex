@@ -139,7 +139,7 @@
       saved = JSON.stringify(p);
       toast('success', `Saved settings for ${target.channel}`, andApply ? 'Applying now.' : 'Apply to write them into the game.');
       await app.refresh();
-      if (andApply) await app.apply();
+      if (andApply) await app.applyOrAsk();
       return true;
     } catch (e) {
       toast('error', 'Settings not saved', toContractError(e).message);

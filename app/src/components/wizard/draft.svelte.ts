@@ -3,7 +3,8 @@
  * interrupted setup resumes"); the draft is kept in localStorage per viewer until setup succeeds.
  */
 import { ACK_LABEL, ackKey, foreignOf, type ForeignChannel } from '../../lib/foreign.ts';
-import type { ChannelSummary, DataSource, InstallSummary, Preset, Settings, SetupRequest, Theme } from '@/lib/contract/types';
+export { ackKey };
+import type { SetupPlan, ChannelSummary, DataSource, InstallSummary, Preset, Settings, SetupRequest, Theme } from '@/lib/contract/types';
 
 export type StepId = 'install' | 'channels' | 'source' | 'enhancements' | 'prefs' | 'review' | 'apply';
 
@@ -33,7 +34,8 @@ export interface Draft {
   prefs: Prefs | null;
   /** Furthest step reached, for the rail and resume. */
   reached: number;
-  /** `ackKey` of the other tools' files the user agreed to back up and replace (Review). */
+  /** `ackKey` of the other tools' files the user agreed to back up and replace (Review). Never
+   *  saved with the draft: a resumed setup asks again. */
   replace_ack: string | null;
 }
 
@@ -46,7 +48,7 @@ export function emptyDraft(): Draft {
 export function loadDraft(): Draft | null {
   try {
     const s = localStorage.getItem(KEY);
-    return s ? { ...emptyDraft(), ...(JSON.parse(s) as Partial<Draft>) } : null;
+    return s ? { ...emptyDraft(), ...(JSON.parse(s) as Partial<Draft>), replace_ack: null } : null;
   } catch {
     return null;
   }
@@ -54,7 +56,7 @@ export function loadDraft(): Draft | null {
 
 export function saveDraft(d: Draft): void {
   try {
-    localStorage.setItem(KEY, JSON.stringify(d));
+    localStorage.setItem(KEY, JSON.stringify({ ...d, replace_ack: null }));
   } catch {
     /* fine */
   }
@@ -91,19 +93,56 @@ export function blocker(step: StepId, d: Draft, install: InstallSummary | null):
       const open = picked.find((c) => c.language === 'other' && d.channels[c.channel]?.switch_language !== true);
       return open ? `Answer the language question for ${open.channel}.` : null;
     }
-    case 'review': {
-      if (!install) return 'Choose an install first.';
-      const fs = foreignPicked(d, install);
-      return fs.length && d.replace_ack !== ackKey(fs) ? `Tick "${ACK_LABEL}" to let setup replace ${fs.map((f) => `${f.channel}'s`).join(' and ')} file.` : null;
-    }
+    case 'review':
+      return install ? ackBlock(d, foreignPicked(d, install)) : 'Choose an install first.';
     default:
       return null;
   }
 }
 
-/** Ticked channels that hold another tool's file: setup backs it up and replaces it. */
-export function foreignPicked(d: Draft, install: InstallSummary): ForeignChannel[] {
-  return install.channels.filter((c) => d.channels[c.channel]?.consent).flatMap((c) => foreignOf(c) ?? []);
+/**
+ * Ticked channels that hold another tool's file: setup backs it up and replaces it. With the
+ * Review plan, also a file the dry run found that the earlier scan did not (`replaces_tool`).
+ */
+export function foreignPicked(d: Draft, install: InstallSummary, plan: SetupPlan | null = null): ForeignChannel[] {
+  const out = install.channels.filter((c) => d.channels[c.channel]?.consent).flatMap((c) => foreignOf(c) ?? []);
+  for (const c of plan?.channels ?? []) {
+    if (!c.replaces_tool || !d.channels[c.channel]?.consent) continue;
+    const have = out.find((f) => f.channel === c.channel);
+    if (!have) out.push({ channel: c.channel, tool: c.replaces_tool });
+    else have.tool ??= c.replaces_tool === 'another tool' ? null : c.replaces_tool;
+  }
+  return out;
+}
+
+function ackBlock(d: Draft, fs: ForeignChannel[]): string | null {
+  return fs.length && d.replace_ack !== ackKey(fs) ? `Tick "${ACK_LABEL}" to let setup replace ${fs.map((f) => `${f.channel}'s`).join(' and ')} file.` : null;
+}
+
+/** How long Review waits before asking again while another process reads game data. */
+export const BUSY_RETRY_MS = 3000;
+
+/** A Review plan that could not read a channel's game data (`game-data` warning, "<channel>: why"). */
+export function unreadChannels(plan: SetupPlan): { channel: string; why: string }[] {
+  return plan.warnings
+    .filter((w) => w.kind === 'game-data')
+    .map((w) => {
+      const i = w.detail.indexOf(': ');
+      return i > 0 ? { channel: w.detail.slice(0, i), why: w.detail.slice(i + 2) } : { channel: '', why: w.detail };
+    });
+}
+
+/**
+ * Why "Set up and apply" cannot run from Review: the dry run is still reading (or waiting for
+ * another read), a channel's game data could not be read, or another tool's file is not
+ * acknowledged. `plan` null = not answered yet.
+ */
+export function reviewBlock(d: Draft, install: InstallSummary | null, plan: SetupPlan | null): string | null {
+  if (!install) return 'Choose an install first.';
+  if (!plan) return 'Wait until the review has read the game data.';
+  const bad = unreadChannels(plan);
+  if (bad.length) return `Could not read the game data of ${bad.map((b) => b.channel || 'a channel').join(' and ')}. Press Try again.`;
+  return ackBlock(d, foreignPicked(d, install, plan));
 }
 
 export function request(d: Draft, install: InstallSummary): SetupRequest {

@@ -44,14 +44,6 @@ const cases = [
   ],
   ['6-review-failed', '?wizard=review&fail=plan_setup', (p) => p.getByText('Could not prepare the review').waitFor()],
   [
-    '6-review-retry',
-    '?wizard=review&failonce=plan_setup',
-    async (p) => {
-      await p.getByRole('button', { name: 'Try again' }).click();
-      await p.getByText('strings changed').first().waitFor();
-    },
-  ],
-  [
     '6-review-foreign',
     '?wizard=review&foreign=LIVE',
     async (p) => {
@@ -67,6 +59,65 @@ const cases = [
       await p.locator('#replace-ack').click();
       await p.getByText('strings changed').first().waitFor();
       if (!(await p.getByRole('button', { name: /Set up and apply/ }).isEnabled())) throw new Error('Set up and apply still disabled after the acknowledgement');
+    },
+  ],
+  [
+    '6-review-readfail',
+    '?wizard=review&failonce=plan_setup',
+    async (p) => {
+      // The real shape: Ok with a game-data warning and zero counts. Error per channel, no apply.
+      await p.getByText("Could not read LIVE's game data").waitFor();
+      if (await p.getByRole('button', { name: /Set up and apply/ }).isEnabled()) throw new Error('apply enabled with unread game data');
+    },
+  ],
+  [
+    '6-review-readfail-retried',
+    '?wizard=review&failonce=plan_setup',
+    async (p) => {
+      await p.getByRole('button', { name: 'Try again' }).first().click();
+      await p.getByText('strings changed').first().waitFor();
+      if (await p.getByText('Game data not read').count()) throw new Error('error left after retry');
+    },
+  ],
+  [
+    '6-review-busy',
+    '?wizard=review&busy=1',
+    async (p) => {
+      await p.getByText('Waiting for another game-data read to finish').waitFor();
+      await p.getByText('strings changed').first().waitFor({ timeout: 8000 });
+    },
+  ],
+  [
+    '6-review-joins-running-read',
+    '?wizard=enhancements&preview=nodata&slow=plan_setup:2500',
+    async (p) => {
+      // Read from Enhancements, then go on to Review while it runs: Review waits and uses it.
+      await p.getByRole('button', { name: 'Read game data now' }).click();
+      await p.getByTestId('working').waitFor();
+      await p.getByRole('button', { name: /^Next/ }).click();
+      await p.getByRole('button', { name: /^Next/ }).click();
+      await p.getByRole('heading', { name: 'Review' }).waitFor();
+      await p.getByText('strings changed').first().waitFor({ timeout: 10000 });
+      if (await p.getByText('Game data not read').count()) throw new Error('review shows unread data');
+    },
+  ],
+  [
+    '6-review-two-foreign',
+    '?wizard=review&foreign=LIVE,HOTFIX',
+    async (p) => {
+      await p.getByText('strings changed').first().waitFor();
+      const box = await p.locator('#replace-ack').boundingBox();
+      const vp = p.viewportSize();
+      if (!box || box.y < 0 || box.y + box.height > vp.height) throw new Error('the tick is off screen');
+    },
+  ],
+  [
+    '7-restore-original',
+    '?wizard=apply&foreign=LIVE',
+    async (p) => {
+      await p.getByRole('button', { name: 'Open StarOrg Codex' }).waitFor({ timeout: 15000 });
+      await p.getByRole('button', { name: /Restore the original/ }).first().click();
+      await p.getByRole('heading', { name: 'Restore the file from before StarOrg Codex?' }).waitFor();
     },
   ],
   ['2-channels-foreign', '?wizard=channels&foreign=LIVE', (p) => p.getByText("Smart Citizen has changed LIVE's game text").first().waitFor()],

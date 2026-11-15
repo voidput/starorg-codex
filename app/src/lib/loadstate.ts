@@ -61,3 +61,22 @@ export function previewView<T>(l: Load<T[], unknown>): PreviewView {
   if (l.state === 'ok') return l.value.length ? 'items' : 'nodata';
   return 'loading';
 }
+
+/**
+ * Run async jobs one at a time, in call order (the mock backend's model of the real backend's
+ * game-data read lock: a second read waits for the first instead of failing or skipping).
+ */
+export function serial(): <X>(f: () => Promise<X>) => Promise<X> {
+  let tail: Promise<void> = Promise.resolve();
+  return async <X>(f: () => Promise<X>): Promise<X> => {
+    const prev = tail;
+    let release!: () => void;
+    tail = new Promise<void>((r) => (release = r));
+    await prev;
+    try {
+      return await f();
+    } finally {
+      release();
+    }
+  };
+}

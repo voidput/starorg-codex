@@ -3,7 +3,7 @@
 // answers out of order. Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SLOW_AFTER_S, elapsed, fmtElapsed, latest, previewView, type Load } from '../src/lib/loadstate.ts';
+import { SLOW_AFTER_S, elapsed, fmtElapsed, latest, previewView, serial, type Load } from '../src/lib/loadstate.ts';
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** A backend call that answers `value` after `ms`, or fails with `error`. */
@@ -73,4 +73,23 @@ test('elapsed time and the slow hint', () => {
   assert.equal(fmtElapsed(12), '12 s');
   assert.equal(fmtElapsed(65), '1 min 05 s');
   assert.ok(SLOW_AFTER_S >= 10 && SLOW_AFTER_S <= 30);
+});
+
+test('reads run one at a time: a second waits for the first, a failure frees the next', async () => {
+  const run = serial();
+  const log: string[] = [];
+  const job = (name: string, ms: number, boom = false) => run(async () => {
+    log.push(`start ${name}`);
+    await wait(ms);
+    log.push(`end ${name}`);
+    if (boom) throw new Error(name);
+    return name;
+  });
+  const a = job('first read', 30, true);
+  const b = job('review', 1);
+  const c = job('apply', 1);
+  await assert.rejects(a, /first read/);
+  assert.equal(await b, 'review');
+  assert.equal(await c, 'apply');
+  assert.deepEqual(log, ['start first read', 'end first read', 'start review', 'end review', 'start apply', 'end apply']);
 });

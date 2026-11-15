@@ -56,6 +56,14 @@
     dialog = v ? d : null;
   };
 
+  // From setup's "Restore the original": open the confirm for the pinned pre-existing file.
+  $effect(() => {
+    if (!list || !ch || app.restoreForeignFor !== ch.channel || list.channel !== ch.channel) return;
+    app.restoreForeignFor = null;
+    if (list.offers.restore_foreign) open('foreign');
+    else toast('info', `No file from another tool is kept for ${ch.channel}`);
+  });
+
   const running = $derived(ch?.game_running ? `Game running: close it to change the file on ${ch.channel}.` : null);
   const undoBackup = $derived(list?.offers.undo_last_apply ? (list.backups.find((b) => b.id === list!.offers.undo_last_apply) ?? null) : null);
 

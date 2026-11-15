@@ -23,9 +23,11 @@
   import StepPrefs from './StepPrefs.svelte';
   import StepReview from './StepReview.svelte';
   import StepApply from './StepApply.svelte';
-  import { STEPS, blocker, clearDraft, defaultPrefs, emptyDraft, ensureChoices, loadDraft, prefsFrom, request, saveDraft, withPrefs, type Draft, type StepId } from './draft.svelte';
+  import { STEPS, ackKey, blocker, foreignPicked, reviewBlock, clearDraft, defaultPrefs, emptyDraft, ensureChoices, loadDraft, prefsFrom, request, saveDraft, withPrefs, type Draft, type StepId } from './draft.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
-  import type { ApplyReport, InstallSummary, JobProgress, Settings } from '@/lib/contract/types';
+  import type { ApplyReport, InstallSummary, JobProgress, SetupPlan, Settings } from '@/lib/contract/types';
+  import { Checkbox } from '@/components/ui/checkbox';
+  import { ACK_LABEL } from '@/lib/foreign';
   import { app } from '@/lib/stores/app.svelte';
   import { updates } from '@/lib/stores/update.svelte';
   import { applyAppearance, isLinux } from '@/lib/theme';
@@ -57,7 +59,14 @@
 
   const install = $derived(installs.find((i) => i.id === draft.install) ?? null);
   const cur = $derived(STEPS[step]!);
-  const block = $derived(blocker(cur.id, draft, install));
+  /** Review's answered dry run (StepReview binds it); null while it reads or failed. */
+  let reviewPlan = $state<SetupPlan | null>(null);
+  const block = $derived(cur.id === 'review' ? reviewBlock(draft, install, reviewPlan) : blocker(cur.id, draft, install));
+  /** Other tools' files Review would replace: the tick sits next to "Set up and apply". */
+  const replacing = $derived(cur.id === 'review' && install ? foreignPicked(draft, install, reviewPlan) : []);
+  const replaceKey = $derived(ackKey(replacing));
+  /** The footer shows why the button is off, except for the tick that is right beside it. */
+  const footerBlock = $derived(block && !(replacing.length && block.startsWith(`Tick "${ACK_LABEL}"`)) ? block : null);
   const firstTarget = $derived.by(() => {
     if (!install) return null;
     const c = install.channels.find((x) => draft.channels[x.channel]?.consent) ?? install.channels[0];
@@ -194,9 +203,10 @@
   }
 
   /** From the Apply result: close setup and show that channel's Backups (restore the other tool's file). */
-  function openBackups(channel: string) {
+  function openBackups(channel: string, restore = false) {
     finish();
     app.selectChannel(channel);
+    if (restore) app.restoreForeignFor = channel;
     app.go('backups');
   }
 
@@ -318,7 +328,7 @@
         {:else if cur.id === 'prefs' && draft.prefs}
           <StepPrefs prefs={draft.prefs} />
         {:else if cur.id === 'review' && install}
-          <StepReview {draft} {install} onedit={(s) => go(STEPS.findIndex((x) => x.id === s))} />
+          <StepReview {draft} {install} bind:plan={reviewPlan} onedit={(s) => go(STEPS.findIndex((x) => x.id === s))} />
         {:else if cur.id === 'apply'}
           <StepApply channels={applyChannels} {phase} {jobs} {reports} error={runError} onretry={run} onbackups={openBackups} />
         {/if}
@@ -326,7 +336,7 @@
     </div>
 
     <footer class="flex flex-wrap items-center gap-3 border-t px-6 py-3">
-      {#if (showBlock || cur.id === 'review') && block}
+      {#if (showBlock || cur.id === 'review') && footerBlock}
         <p id="wizard-block" class="text-warning flex items-center gap-1.5" role="alert"><TriangleAlert class="size-4" aria-hidden="true" /> {block}</p>
       {/if}
       <span class="flex-1"></span>
@@ -334,6 +344,12 @@
         <Button variant="outline" onclick={() => go(step - 1)} disabled={step === 0}><ArrowLeft aria-hidden="true" /> Back</Button>
       {/if}
       {#if cur.id === 'review'}
+        {#if replacing.length}
+          <span class="flex items-center gap-2" data-testid="replace-ack-row">
+            <Checkbox id="replace-ack" checked={draft.replace_ack === replaceKey} onCheckedChange={(v) => (draft.replace_ack = v === true ? replaceKey : null)} />
+            <label for="replace-ack" class="cursor-pointer font-medium">{ACK_LABEL}</label>
+          </span>
+        {/if}
         <ApplyButton label="Set up and apply" onclick={run} disabled={!install || !!block} />
       {:else if cur.id === 'apply'}
         {#if phase === 'failed'}

@@ -144,7 +144,7 @@
       absorb(await api.saveShipNames({ target, scope: d.scope, settings: d.settings }), false);
       toast('success', `Saved ship names for ${d.scope === 'shared' ? 'all channels' : target.channel}`, andApply ? 'Applying now.' : d.settings.enabled ? 'Apply to write them into the game.' : 'Ship names are off: nothing is written to the game.');
       await app.refresh();
-      if (andApply) await app.apply();
+      if (andApply) await app.applyOrAsk();
       return true;
     } catch (e) {
       toast('error', 'Ship names not saved', toContractError(e).message);
