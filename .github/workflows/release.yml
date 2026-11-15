@@ -64,6 +64,11 @@ jobs:
         if: runner.os == 'Windows'
         id: winsign
         uses: ./.github/actions/windows-signing
+        env:
+          # Only for the profile preflight inside the action (composite actions cannot read secrets).
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         with:
           has-secrets: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
@@ -189,6 +194,11 @@ jobs:
         if: steps.app.outputs.present == 'true' && runner.os == 'Windows'
         id: winsign
         uses: ./.github/actions/windows-signing
+        env:
+          # Only for the profile preflight inside the action (composite actions cannot read secrets).
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         with:
           has-secrets: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}

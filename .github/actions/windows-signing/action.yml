@@ -1,8 +1,8 @@
 # Azure Artifact Signing (formerly Trusted Signing) for the Windows direct downloads
 # (docs/windows.md, "Code signing"). Decides whether signing is configured and, if so, installs
 # artifact-signing-cli and optionally writes a Tauri config overlay with bundle.windows.signCommand.
-# Never fails a release because signing is missing: with any input empty, `enabled` is false and
-# the caller builds unsigned exactly as before.
+# Never fails a release because signing is missing or not ready: with any input empty, or when the
+# preflight cannot reach the certificate profile, `enabled` is false and the caller builds unsigned.
 #
 # Secrets cannot be read inside a composite action, so the caller passes only whether the three
 # AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID secrets exist, and sets them as env on
@@ -53,6 +53,26 @@ runs:
           if ! [[ "$ACCOUNT" =~ ^[A-Za-z0-9-]{3,64}$ && "$PROFILE" =~ ^[A-Za-z0-9-]{3,64}$ ]]; then
             echo "::error::AZURE_SIGNING_ACCOUNT and AZURE_SIGNING_PROFILE: letters, digits and dashes only"
             exit 1
+          fi
+          # Preflight: can the CI app reach the certificate profile? A missing profile (identity
+          # validation pending) or a missing Signer role gives 403/404; build unsigned with a
+          # warning instead of failing the release. AZURE_* come from the calling step's env.
+          tok=$(curl -s -X POST "https://login.microsoftonline.com/${AZURE_TENANT_ID}/oauth2/v2.0/token" \
+            --data-urlencode "client_id=${AZURE_CLIENT_ID}" --data-urlencode "client_secret=${AZURE_CLIENT_SECRET}" \
+            --data-urlencode "grant_type=client_credentials" --data-urlencode "scope=https://codesigning.azure.net/.default" \
+            | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>{try{process.stdout.write(JSON.parse(d).access_token||"")}catch{}})')
+          if [ -z "$tok" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Windows binaries are NOT signed: Azure rejected the AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID login (expired or wrong client secret?)."
+            exit 0
+          fi
+          echo "::add-mask::$tok"
+          code=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: Bearer $tok" \
+            "${ENDPOINT%/}/codesigningaccounts/${ACCOUNT}/certificateprofiles/${PROFILE}/sign/eku?api-version=2023-06-15-preview")
+          if [ "$code" != "200" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::Windows binaries are NOT signed: certificate profile '${PROFILE}' on '${ACCOUNT}' answered HTTP ${code} (profile not created yet, or starorg-strings-ci lacks the Artifact Signing Certificate Profile Signer role). docs/windows.md"
+            exit 0
           fi
           echo "enabled=true" >> "$GITHUB_OUTPUT"
         else
