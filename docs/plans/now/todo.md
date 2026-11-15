@@ -1,7 +1,7 @@
 ---
 title: Now
 tags: [docs, plans, now]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Now
@@ -40,3 +40,13 @@ Fleet import and ship ordering — addendum §6 (branch `fleet-order`, local onl
 - [x] App contract, real backend, mocks, Ships screen, renders and keyboard check ([#15](https://github.com/voidput/starorg-strings/issues/15))
 - [ ] In-game checks (spec §13, Fleet rows): list sort (Q23), long vs short name (Q25), where the prefix shows, symbols ([#15](https://github.com/voidput/starorg-strings/issues/15))
 - [ ] Owner: try an RSI+ export (`fleet import --dry-run`) and report store names that need aliases ([#15](https://github.com/voidput/starorg-strings/issues/15))
+
+Developer mode — addendum §7 (branch `devmode-build`, local only, not pushed)
+
+- [x] Core explorer index, record replies, dataset shapes, rows and diff; `dev-worker` protocol and streamed exports ([#15](https://github.com/voidput/starorg-strings/issues/15)) — [[specs/starorg-strings-v1-addendum]]
+- [x] App contract (21 `dev_*` commands, `dev-disabled`), real worker client, mocks, Explorer / Datasets / Diff screens, renders and keyboard check ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] CLI `dev record|export-type|types` ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] Strings: the generator filter is back beside the group tree ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] Published dumps as a dataset source (follow-up; needs the "Use published game data" switch built) ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] Backlinks ("Referenced by", Q-D2) and the `starorg-gamedata` domain outputs as a source once that crate is on main ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] Owner: open Explorer on LIVE in the real app and try a type export ([#15](https://github.com/voidput/starorg-strings/issues/15))

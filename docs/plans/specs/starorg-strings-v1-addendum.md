@@ -1024,6 +1024,41 @@ a developer surface). No GTK, no HTTP: the published-dump source stays behind th
 | Q-D6 | Alt+9 for Explorer only, or digits for all three? | **Alt+9 Explorer only**; the rest through Ctrl+K |
 | Q-D7 | Keep UEX files (`uex-*.json`) in the viewer although they are not game data? | **Yes**, they are just JSON in the chosen folder; never downloaded by us |
 
+### 7.13 Implementation notes (branch `devmode-build`, 2026-11-15, local only)
+
+Sections 7.1-7.12 are implemented with the answered defaults (Q-D1 no DCB cache, Q-D2 backlinks a
+follow-up, Q-D3 the existing switch, Q-D4 one JSON array and `--ndjson` in the CLI, Q-D5 main
+records only by default, Q-D6 Alt+9 for Explorer only, Q-D7 UEX files are just JSON).
+
+- **Core** `starorg-core::dev`: `explorer` (index, type/path trees, ranked search, GUID / path /
+  name lookup), `record` (replies cut by pointer and depth under 1 MiB, `@key` text), `dataset`
+  (shape inference, typed columns, rows), `diff`. Core's `serde_json` now keeps file order
+  (`preserve_order`, as the rest of the build already did).
+- **Worker** `starorg-data::devworker`: `starorg-strings-app dev-worker --p4k <P>` (or `--dcb
+  <F> [--ini <F>]`), JSON lines; ops `status`, `types`, `tree`, `search`, `record`,
+  `export-record`, `export-type` (streamed via `<out>.tmp`, progress lines, other requests
+  answered between steps), `cancel`, `resolve` (dataset links). A panic in a request is an
+  `internal` error reply; EOF ends the worker; exports never go into the game folder or prefix.
+- **Measured on LIVE 4.10.200.58746** (release, read only, `tests/dev_real.rs`): load 0.64 s,
+  parse + index 92 ms, 118,499 records (63,440 main), 604 types; RSS 458 MB after start, peak
+  911 MB; path root + type root + a search 12 ms; one record 0.5 ms; all 63,440 main records
+  exported (2,141 MB) in 2.9 s with no failure.
+- **Contract** as 7.7, plus `dev_close`, `dev_types` and `dev_dataset`. Deviations: the calls with
+  progress (`dev_open`, `dev_export_type`, `dev_diff`, `dev_download_dump`) return their result
+  when the job ends and stream `job-progress` meanwhile (as `apply`), instead of returning a job
+  id; dataset folders live in `app.json` (`dev.folders`, app-only like the other app settings)
+  instead of `config.toml`; a build is one dataset (`gamedata.json`) whose tables are the
+  GameData lists, not one dataset per list. New error code `dev-disabled`, job kind `dev`.
+- **Mocks**: the Rust mock serves the synthetic 300-record DataCore and datasets through the
+  core functions; `mock-dev.gen.json` carries the data to the TS mock, which ports the same
+  functions; `tests/devmock.test.ts` replays every dev sample against it.
+- **UI**: Settings > Advanced; Dev group; with Developer mode on, Settings moves to Alt+0 so
+  Alt+9 can open Explorer. Tests are `node:test` (the repo has no vitest).
+- **Not done (follow-ups):** the published-dump source (the "Use published game data" switch is
+  not built in this app version, so the row reads Off and `dev_download_dump` answers
+  `network-off`, or `not-implemented` with the switch on); backlinks (Q-D2); the
+  `starorg-gamedata` domain outputs as a source (that crate is not on main yet).
+
 ## 8. Strings grouping
 
 Request: "add grouping for different types of items/things in strings". The Strings screen
@@ -1226,8 +1261,7 @@ rules apply (`group_state: approximate`) until `sc-gamedata` publishes loc keys 
 
 ### 8.10 Implementation notes (branch `devmode`, 2026-11-14, local only)
 
-Section 8 is implemented; section 7 (Developer mode) is not (the user's request was the
-grouping only; section 7 stays spec text).
+Section 8 is implemented; section 7 (Developer mode) followed on branch `devmode-build` (7.13).
 
 - **Core** `starorg-core::groups`: `rules.rs` holds the hierarchy (19 top-level groups, 84
   nodes) and the item-type, struct-type, canvas-path and key-prefix tables; `assign` gives one
@@ -1251,7 +1285,9 @@ grouping only; section 7 stays spec text).
 - **UI deviations from 8.5:** group-by is a select in the filter bar (not a segmented
   control above the tree), so "None" can hide the pane entirely; the sort select labels the
   generator sort "Generator"; an approximate build reads its groups automatically once per
-  channel and session (Retry on failure, e.g. `busy`).
+  channel and session (Retry on failure, e.g. `busy`). The Category select (renamed
+  "Generator") came back on `devmode-build` as its own filter beside the tree: which generator
+  touched a row is a different question from what the key names.
 - **Not done:** sticky group headers (Q-G2, as recommended); CLI output of groups; dump
   sources still give approximate groups until `sc-gamedata` publishes loc keys (8.7).
 

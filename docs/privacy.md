@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 tags: [docs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Privacy policy
@@ -24,6 +24,9 @@ no crash upload and no account of its own.**
   deletes everything it made.
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
   folder with placeholders.
+- Developer mode (Settings -> Advanced, off by default) only reads: `Data.p4k` (read only, as
+  for extraction) and the JSON folders you pick. Record and type exports go only to a file you
+  choose in a save dialog. It makes no network request; the folder list is kept in `app.json`.
 
 ## Network
 
