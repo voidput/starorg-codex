@@ -5,7 +5,7 @@
 //! before the Tauri app exists, so the dialog implementation is put into a [`DialogSlot`] in
 //! the app's `setup` hook. Without one (tests, or before setup) every dialog is "cancelled".
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 
 /// A file type filter: label and extensions without the dot.
@@ -20,6 +20,12 @@ pub struct FileFilter {
 pub trait Dialogs: Send + Sync {
     fn pick_folder(&self, title: &str) -> Option<PathBuf>;
     fn pick_file(&self, title: &str, filter: FileFilter) -> Option<PathBuf>;
+    /// [`Dialogs::pick_file`] opening in `dir`, or the user's Downloads folder when `None`
+    /// (never another tool's folder). Test fakes keep the default.
+    fn pick_file_in(&self, title: &str, filter: FileFilter, dir: Option<&Path>) -> Option<PathBuf> {
+        let _ = dir;
+        self.pick_file(title, filter)
+    }
     fn save_file(&self, title: &str, file_name: &str, filter: FileFilter) -> Option<PathBuf>;
 }
 
@@ -60,6 +66,25 @@ impl<R: tauri::Runtime> Dialogs for TauriDialogs<R> {
             .add_filter(filter.name, filter.extensions)
             .blocking_pick_file()
             .and_then(|p| p.into_path().ok())
+    }
+
+    fn pick_file_in(&self, title: &str, filter: FileFilter, dir: Option<&Path>) -> Option<PathBuf> {
+        use tauri::Manager;
+        use tauri_plugin_dialog::DialogExt;
+        let start = dir
+            .map(Path::to_path_buf)
+            .or_else(|| self.0.path().download_dir().ok())
+            .filter(|d| d.is_dir());
+        let mut d = self
+            .0
+            .dialog()
+            .file()
+            .set_title(title)
+            .add_filter(filter.name, filter.extensions);
+        if let Some(s) = start {
+            d = d.set_directory(s);
+        }
+        d.blocking_pick_file().and_then(|p| p.into_path().ok())
     }
 
     fn save_file(&self, title: &str, file_name: &str, filter: FileFilter) -> Option<PathBuf> {

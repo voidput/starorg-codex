@@ -112,8 +112,9 @@ tracked **per character**, never merged.
 `starorg-strings blueprints import <file> --character <name|geid> [--channel LIVE] [--dry-run]`
 (and an Import button in the app's blueprint screen).
 
-- Input: Smart Citizen's export, e.g. the owner's
-  `drive_c/users/<user>/SmartCitizen/owned-blueprints.json`:
+- Input: an owned-blueprints export (JSON) in Smart Citizen's format, wherever the user saved
+  it (the picker opens in Downloads, or the folder of the last import; we never look in
+  another tool's folder):
   `{"version": 1, "exportedAt": "<ISO>", "missions": [], "blueprints": [{"name", "completed", "favorite"}]}`.
   Accept `version` 1 only; refuse anything else with a clear message.
 - Names are display names **with Smart Citizen's Tag Builder prefixes** (180 of the owner's

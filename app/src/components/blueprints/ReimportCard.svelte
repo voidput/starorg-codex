@@ -113,7 +113,7 @@
         {#if mode === 'rescan'}
           Reads Game.log and every log backup of {target.channel} from the start and rebuilds the blueprints found there. Entries from Smart Citizen or StarOrg Tools stay unless you tick Replace.
         {:else}
-          {view.last_import ? `Reads ${view.last_import} again (the picker opens if it moved)` : 'Pick the export'} and adds it to one character. Blueprints from the game logs or StarOrg Tools are never removed.
+          {view.last_import ? `Reads ${view.last_import} again (the picker opens if it moved)` : 'Pick the owned-blueprints export file you saved'} and adds it to one character. Blueprints from the game logs or StarOrg Tools are never removed.
         {/if}
       </Dialog.Description>
     </Dialog.Header>

@@ -14,10 +14,8 @@
   import type { ChannelRef, CharacterView, ImportReport } from '@/lib/contract/types';
   import { fmtDateTime, int } from '@/lib/format';
   import { toast } from '@/lib/stores/toast.svelte';
-  import { onWindows, smartCitizenDir } from '@/lib/platform';
   import { characterLabel } from '@/lib/characters';
 
-  const exportDir = smartCitizenDir(onWindows);
 
   let {
     open = $bindable(false),
@@ -86,7 +84,7 @@
           <span class="text-muted-foreground text-[12px]" id="imp-char">Add to character</span>
           <SelectField ariaLabel="Add to character" options={characters.map((c) => ({ id: c.id, label: `${characterLabel(c, characters)} (${c.owned} owned)` }))} value={character} onchange={(v) => (character = v)} class="max-w-72" />
         </div>
-        <p class="text-muted-foreground text-[12px]">Next you pick the file, then again to confirm. Smart Citizen saves it as owned-blueprints.json in <span class="mono">{exportDir}</span>.</p>
+        <p class="text-muted-foreground text-[12px]">Next, pick the owned-blueprints export file you saved (JSON), then pick it again to confirm.</p>
       </div>
     {:else}
       {@const r = report}

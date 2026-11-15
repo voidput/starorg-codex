@@ -341,7 +341,7 @@ fn busy_or(e: LockError, what: &str) -> AppError {
 }
 
 const JSON_FILTER: FileFilter = FileFilter {
-    name: "Smart Citizen export",
+    name: "Owned-blueprints export (JSON)",
     extensions: &["json"],
 };
 const FLEET_FILTER: FileFilter = FileFilter {
@@ -1236,6 +1236,18 @@ impl RealBackend {
         Ok(bp_import::last_import(&data)
             .smart_citizen
             .filter(|p| p.is_file()))
+    }
+
+    /// The folder of the export the last real import on this channel read, when it still
+    /// exists (from our own `import.json`); `None` lets the picker open in Downloads.
+    fn last_export_dir(&self, req: &ImportRequest) -> Option<PathBuf> {
+        let f = self.resolve(&req.target).ok()?;
+        let ch = f.channel(&req.target.channel).ok()?;
+        bp_import::last_import(&self.data_dir(&f, ch))
+            .smart_citizen?
+            .parent()
+            .filter(|d| d.is_dir())
+            .map(Path::to_path_buf)
     }
 
     fn characters_view(&self, f: &Found, ch: &Channel) -> CmdResult<CharactersView> {
@@ -2622,8 +2634,14 @@ impl Backend for RealBackend {
                     .dialogs
                     .get()
                     .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
-                d.pick_file("Smart Citizen export (owned-blueprints.json)", JSON_FILTER)
-                    .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?
+                // Downloads, or the folder of the last export we imported here.
+                let start = self.last_export_dir(&req);
+                d.pick_file_in(
+                    "Owned-blueprints export (JSON)",
+                    JSON_FILTER,
+                    start.as_deref(),
+                )
+                .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?
             }
         };
         let bytes = fsutil::read_limited(&file, bp_import::EXPORT_LIMIT)

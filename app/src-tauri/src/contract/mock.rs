@@ -2310,8 +2310,7 @@ impl Backend for MockBackend {
                 }
             }
             Ok(ImportReport {
-                file: "~/Games/star-citizen/drive_c/users/pilot/SmartCitizen/owned-blueprints.json"
-                    .into(),
+                file: "owned-blueprints.json".into(),
                 exported_at: Some("2026-11-01T10:00:00Z".into()),
                 dry_run: req.dry_run,
                 total: 9,

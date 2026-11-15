@@ -116,6 +116,8 @@ struct Fake {
     dirs: AppDirs,
     backend: RealBackend,
     pick: Arc<Mutex<Option<PathBuf>>>,
+    /// The folder the last file picker was asked to open in (`None` = Downloads).
+    pick_dir: Arc<Mutex<Option<Option<PathBuf>>>>,
 }
 
 fn manifest(branch: &str, change: u64, version: &str) -> String {
@@ -173,7 +175,8 @@ impl Fake {
         ctx.p4k_settle = std::time::Duration::from_millis(5);
         let slot = DialogSlot::default();
         let pick = Arc::new(Mutex::new(None));
-        slot.set(SharedPick(pick.clone()));
+        let pick_dir = Arc::new(Mutex::new(None));
+        slot.set(SharedPick(pick.clone(), pick_dir.clone()));
         let backend = RealBackend::new(RealConfig {
             ctx,
             discovery: DiscoveryRequest {
@@ -200,6 +203,7 @@ impl Fake {
             dirs,
             backend,
             pick,
+            pick_dir,
         }
     }
 
@@ -260,7 +264,10 @@ impl Fake {
 }
 
 /// `Dialogs` over a shared cell, so a test can change the answer.
-struct SharedPick(Arc<Mutex<Option<PathBuf>>>);
+struct SharedPick(
+    Arc<Mutex<Option<PathBuf>>>,
+    Arc<Mutex<Option<Option<PathBuf>>>>,
+);
 
 impl Dialogs for SharedPick {
     fn pick_folder(&self, _: &str) -> Option<PathBuf> {
@@ -268,6 +275,15 @@ impl Dialogs for SharedPick {
     }
     fn pick_file(&self, _: &str, _: FileFilter) -> Option<PathBuf> {
         self.0.lock().unwrap().clone()
+    }
+    fn pick_file_in(
+        &self,
+        t: &str,
+        f: FileFilter,
+        dir: Option<&std::path::Path>,
+    ) -> Option<PathBuf> {
+        *self.1.lock().unwrap() = Some(dir.map(std::path::Path::to_path_buf));
+        self.pick_file(t, f)
     }
     fn save_file(&self, _: &str, _: &str, _: FileFilter) -> Option<PathBuf> {
         None
@@ -927,6 +943,11 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         ErrorCode::Cancelled,
         "nothing imported yet: the picker, cancelled"
     );
+    assert_eq!(
+        *f.pick_dir.lock().unwrap(),
+        Some(None),
+        "no import yet: the picker opens in Downloads, never another tool's folder"
+    );
     *f.pick.lock().unwrap() = Some(export.clone());
     let r = f
         .backend
@@ -980,6 +1001,8 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         .import_smart_citizen(req(true, true, false))
         .unwrap();
     assert_eq!(r.file, "moved.json");
+    // The picker opened in the folder of the last import (ours, from import.json).
+    assert_eq!(*f.pick_dir.lock().unwrap(), Some(Some(f.base.clone())));
     assert_eq!(
         f.backend.list_characters(f.live()).unwrap().characters[0].owned,
         0

@@ -22,8 +22,3 @@ export function notFoundHint(windows: boolean): string {
     ? 'Browse to the StarCitizen folder, the one that contains LIVE (by default C:\\Program Files\\Roberts Space Industries\\StarCitizen).'
     : 'Browse to the StarCitizen folder, or run a deeper scan of /mnt, removable media and your home folder.';
 }
-
-/** Where Smart Citizen saves its blueprint export (owned-blueprints.json). */
-export function smartCitizenDir(windows: boolean): string {
-  return windows ? '%USERPROFILE%\\SmartCitizen\\' : 'your Wine prefix, drive_c/users/<you>/SmartCitizen/';
-}

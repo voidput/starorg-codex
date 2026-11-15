@@ -29,7 +29,7 @@ cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock run
 - **Real backend (default):** `contract/real/` over `starorg-core` and `starorg-data`, the same
   core calls as the CLI (one apply, one status, the same locks and data folder). Extraction runs
   in a child process: the app binary itself, started as `starorg-strings-app extract-worker`
-  (`lib.rs::worker_main`). Native dialogs (install folder, Smart Citizen export, patch import and
+  (`lib.rs::worker_main`). Native dialogs (install folder, owned-blueprints export, patch import and
   export, diagnostics save) are opened from Rust through `tauri-plugin-dialog`; the webview has
   no dialog permission and never sends a path. The core has no cancellation points inside an
   apply, so jobs report `cancellable: false`. StarOrg login/pull/push return `network-off`
