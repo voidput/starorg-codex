@@ -21,6 +21,7 @@ use starorg_core::assetcache::{self, AssetCache, Kind};
 use starorg_core::config::Config;
 use starorg_core::discovery::Channel;
 use starorg_core::lock;
+use starorg_core::memlimit;
 use starorg_data::assets::files::FileSearch;
 use starorg_data::assets::model::{self, ModelDone, ModelOptions};
 use starorg_data::assetworker::{AssetRequest, AssetStatus as WorkerStatus, SoundDone, SoundsDone};
@@ -162,7 +163,7 @@ impl RealBackend {
         let cmd = lock_or(&self.assets.spawner)
             .command(ch)
             .map_err(internal)?;
-        Worker::spawn(cmd, key.clone()).map_err(|e| err(ErrorCode::Internal, e))
+        Worker::spawn(self.capped(cmd), key.clone()).map_err(|e| err(ErrorCode::Internal, e))
     }
 
     /// The shared worker for this channel's build, started when needed (lock held while it
@@ -733,20 +734,24 @@ impl AssetBackend for RealBackend {
         } else {
             &req.name
         };
-        let need = model::memory_need(o.preset);
-        if !req.force
-            && let Some(free) = model::mem_available()
-            && free < need
-        {
-            return Err(err(
-                ErrorCode::NeedsDecision,
-                format!(
-                    "Only {:.1} GB of memory is free; this export may need about {:.0} GB. {}",
-                    free as f64 / 1_073_741_824.0,
-                    need as f64 / 1_073_741_824.0,
-                    model::FULL_MEMORY_NOTE
-                ),
-            ));
+        // The memory limit (addendum 7.17): over it is refused; under it but over the free
+        // memory asks first ("Export anyway"), and the fresh worker runs under the cap.
+        let need = model::memory_need(&o, name);
+        match memlimit::check(need, self.memory_limit(), memlimit::meminfo().available) {
+            memlimit::Fit::Ok => {}
+            memlimit::Fit::OverLimit { need, limit } => {
+                return Err(err(
+                    ErrorCode::Invalid,
+                    memlimit::over_limit_message("Exporting this model", need, limit),
+                ));
+            }
+            memlimit::Fit::LowFree { need, free } if !req.force => {
+                return Err(err(
+                    ErrorCode::NeedsDecision,
+                    memlimit::low_free_message("This export", need, free),
+                ));
+            }
+            memlimit::Fit::LowFree { .. } => {}
         }
         let Some(out) = self.cfg.dialogs.get().and_then(|d| {
             d.save_file(

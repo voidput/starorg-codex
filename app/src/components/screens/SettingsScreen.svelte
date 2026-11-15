@@ -22,6 +22,8 @@
   import UpdatesSection from '@/components/settings/UpdatesSection.svelte';
   import McpCard from '@/components/settings/McpCard.svelte';
   import AssetCacheRow from '@/components/settings/AssetCacheRow.svelte';
+  import MemoryLimitRow from '@/components/settings/MemoryLimitRow.svelte';
+  import MemoryWarningDialog from '@/components/settings/MemoryWarningDialog.svelte';
   import { statusView } from '@/lib/format';
 
   const sections = [
@@ -48,6 +50,11 @@
     return app.saveSettings(s);
   }
   import Check from '@lucide/svelte/icons/check';
+  /** Turning Developer mode on asks first: its workers can use several GB (addendum 7.17). */
+  let devWarning = $state(false);
+  async function devModeOn() {
+    if (!(await patch((x) => (x.advanced.developer_mode = true)))) throw new Error('Developer mode was not turned on; see the message above.');
+  }
   let rescanning = $state(false);
   /** Re-scan looks for installs again (discover_installs), then reloads the overview. */
   async function rescan() {
@@ -182,14 +189,16 @@
         <SwitchRow
           id="dev-mode"
           label="Developer mode"
-          hint="Adds tools to browse the game's data records and compare datasets. Read only. Uses about 500 MB of memory while open."
-          checked={s.advanced.developer_mode}
-          onchange={(v) => patch((x) => (x.advanced.developer_mode = v))}
+          hint="Adds tools to browse the game's data records and compare datasets. Read only. Its workers can use several GB of RAM (about 0.5-1 GB open, model exports up to 11 GB), each held to the memory limit below."
+          checked={s.advanced.developer_mode || devWarning}
+          onchange={(v) => (v ? (devWarning = true) : patch((x) => (x.advanced.developer_mode = false)))}
         />
+        <MemoryWarningDialog bind:open={devWarning} what="dev" onconfirm={devModeOn} />
         {#if s.advanced.developer_mode}
           <p class="text-muted-foreground mt-1 text-[12px]">Explorer (Alt+9), Datasets, Diff and Files are in the sidebar under Dev; Settings moves to Alt+0. Ctrl+K has "Find record…".</p>
           <AssetCacheRow />
         {/if}
+        <MemoryLimitRow />
       </Card.Content>
     </Card.Root>
     <McpCard />

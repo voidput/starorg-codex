@@ -4878,6 +4878,67 @@
     "token": null,
     "url": null
   },
+  "memory_status": {
+    "available_bytes": 19746783232,
+    "default_gb": 5.0,
+    "enforcement": "rlimit",
+    "estimates": [
+      {
+        "bytes": 966367641,
+        "fits": true,
+        "id": "files",
+        "label": "Files and sounds (archive index)"
+      },
+      {
+        "bytes": 1073741824,
+        "fits": true,
+        "id": "explorer",
+        "label": "Explorer (DataCore records)"
+      },
+      {
+        "bytes": 1503238553,
+        "fits": true,
+        "id": "model-print",
+        "label": "Model export, Print shell (capital ships 1.8 GB)"
+      },
+      {
+        "bytes": 1610612736,
+        "fits": true,
+        "id": "mcp-dataset",
+        "label": "MCP: most datasets (item-tags 1.2 GB, armor 0.9 GB)"
+      },
+      {
+        "bytes": 2362232012,
+        "fits": true,
+        "id": "mcp-ship-components",
+        "label": "MCP: ship components"
+      },
+      {
+        "bytes": 4402341478,
+        "fits": true,
+        "id": "mcp-ships",
+        "label": "MCP: ships"
+      },
+      {
+        "bytes": 7516192768,
+        "fits": false,
+        "id": "model-full",
+        "label": "Model export, Full (textures), most ships"
+      },
+      {
+        "bytes": 11811160064,
+        "fits": false,
+        "id": "model-full-capital",
+        "label": "Model export, Full, capital ships (Idris)"
+      }
+    ],
+    "is_default": true,
+    "limit_gb": 5.0,
+    "max_gb": 30.0,
+    "min_gb": 1.0,
+    "step_gb": 0.5,
+    "total_bytes": 34359738368
+  },
   "open_link": null,
   "overview": {
     "active_install": "inst-7f3a",
@@ -6754,6 +6815,67 @@
     "stdio": "starorg-strings mcp",
     "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "url": "http://127.0.0.1:41237/mcp"
+  },
+  "set_memory_limit": {
+    "available_bytes": 19746783232,
+    "default_gb": 5.0,
+    "enforcement": "rlimit",
+    "estimates": [
+      {
+        "bytes": 966367641,
+        "fits": true,
+        "id": "files",
+        "label": "Files and sounds (archive index)"
+      },
+      {
+        "bytes": 1073741824,
+        "fits": true,
+        "id": "explorer",
+        "label": "Explorer (DataCore records)"
+      },
+      {
+        "bytes": 1503238553,
+        "fits": true,
+        "id": "model-print",
+        "label": "Model export, Print shell (capital ships 1.8 GB)"
+      },
+      {
+        "bytes": 1610612736,
+        "fits": true,
+        "id": "mcp-dataset",
+        "label": "MCP: most datasets (item-tags 1.2 GB, armor 0.9 GB)"
+      },
+      {
+        "bytes": 2362232012,
+        "fits": true,
+        "id": "mcp-ship-components",
+        "label": "MCP: ship components"
+      },
+      {
+        "bytes": 4402341478,
+        "fits": true,
+        "id": "mcp-ships",
+        "label": "MCP: ships"
+      },
+      {
+        "bytes": 7516192768,
+        "fits": false,
+        "id": "model-full",
+        "label": "Model export, Full (textures), most ships"
+      },
+      {
+        "bytes": 11811160064,
+        "fits": false,
+        "id": "model-full-capital",
+        "label": "Model export, Full, capital ships (Idris)"
+      }
+    ],
+    "is_default": false,
+    "limit_gb": 6.0,
+    "max_gb": 30.0,
+    "min_gb": 1.0,
+    "step_gb": 0.5,
+    "total_bytes": 34359738368
   },
   "set_override": {
     "accepted": true,

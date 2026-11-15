@@ -14,6 +14,13 @@
   import { api, toContractError } from '@/lib/contract/client';
   import type { McpStatus } from '@/lib/contract/types';
   import { toast } from '@/lib/stores/toast.svelte';
+  import MemoryWarningDialog from '@/components/settings/MemoryWarningDialog.svelte';
+  import { reminderText } from '@/lib/memory';
+  import { ensureMemory, memory } from '@/lib/stores/memory.svelte';
+
+  /** Turning the server on asks first: its extraction workers can use several GB (7.17). */
+  let warning = $state(false);
+  $effect(() => ensureMemory());
 
   let st = $state<McpStatus | null>(null);
   let busy = $state(false);
@@ -67,10 +74,12 @@
         id="mcp-server"
         label="Local MCP server"
         hint="Lets an AI assistant on this computer (Claude Code, Claude Desktop) ask read-only questions about your game data: items, where to get them, missions, strings, changes between channels. Listens on 127.0.0.1 only, needs a token made fresh at each start, and stops when you switch it off or close the app. Your owned blueprints and character names go only to that local client; nothing is sent anywhere."
-        checked={st.running}
+        checked={st.running || warning}
         disabled={busy}
-        onchange={toggle}
+        onchange={(on) => (on ? (warning = true) : void toggle(false))}
       />
+      <MemoryWarningDialog bind:open={warning} what="mcp" onconfirm={() => toggle(true)} />
+      <p class="text-muted-foreground -mt-1 pl-11 text-[12px]" data-memory-reminder>Reading a dataset the first time: {reminderText(memory.status)}</p>
       {#if st.error && !st.running}
         <p class="text-destructive text-[12px]">Not started: {st.error}</p>
       {/if}

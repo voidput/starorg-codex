@@ -24,10 +24,15 @@
   import { app } from '@/lib/stores/app.svelte';
   import { player } from '@/lib/stores/assets.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
+  import { gbText, limitText } from '@/lib/memory';
+  import { loadMemory, memory } from '@/lib/stores/memory.svelte';
 
   let { target, guid, name, type }: { target: ChannelRef; guid: string; name: string; type: string } = $props();
 
   let openSounds = $state(false);
+  $effect(() => {
+    if (modelOpen) void loadMemory();
+  });
   let sounds = $state<RecordSounds | null>(null);
   let soundsFor = $state('');
   let loading = $state(false);
@@ -194,6 +199,13 @@
       </label>
       <SwitchRow id="model-stl" label="Also write an STL" hint="Geometry with the node transforms baked in, Z-up, next to the GLB." checked={stl} onchange={(v) => (stl = v)} disabled={preset === 'full'} />
       {#if preset === 'full'}<p class="text-amber-700 dark:text-amber-300">Full exports of large ships need a lot of memory (Javelin about 6.5 GB, Idris about 11 GB).</p>{/if}
+      {#if memory.status}
+        {@const lim = memory.status.limit_gb * 1024 ** 3}
+        {@const need = memory.status.estimates.find((e) => e.id === (preset === 'full' ? 'model-full' : 'model-print'))}
+        <p class={need && need.bytes > lim ? 'text-destructive' : 'text-muted-foreground'} data-memory-reminder>
+          Memory limit {limitText(memory.status.limit_gb)}{need ? (need.bytes > lim ? `: this preset needs about ${gbText(need.bytes)}, so it will be refused. Raise the limit under Settings > Advanced.` : `: this preset needs about ${gbText(need.bytes)}${preset === 'full' ? ' (capital ships about 11 GB)' : ''}.`) : '.'}
+        </p>
+      {/if}
       <p class="text-muted-foreground text-[11.5px]">{PERSONAL_USE}</p>
     </div>
     <Dialog.Footer>

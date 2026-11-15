@@ -1058,3 +1058,33 @@ export interface McpStatus {
 export interface McpToggle {
   enabled: boolean;
 }
+
+/** How the memory cap is held on this machine (addendum 7.17). */
+export type MemoryEnforcement = 'cgroup' | 'rlimit' | 'watchdog';
+
+export interface MemoryEstimate {
+  id: string;
+  label: string;
+  bytes: number;
+  fits: boolean;
+}
+
+/** Settings > Advanced > Memory limit of the Developer mode and MCP workers. */
+export interface MemoryStatus {
+  total_bytes: number | null;
+  available_bytes: number | null;
+  limit_gb: number;
+  is_default: boolean;
+  min_gb: number;
+  max_gb: number;
+  step_gb: number;
+  default_gb: number;
+  enforcement: MemoryEnforcement;
+  /** Smallest first. */
+  estimates: MemoryEstimate[];
+}
+
+export interface MemoryLimitRequest {
+  /** null = back to the default. */
+  gb: number | null;
+}

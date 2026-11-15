@@ -18,6 +18,7 @@ mod convert;
 mod dev;
 mod diag;
 pub mod dialogs;
+mod memory;
 mod starorg;
 mod table;
 
@@ -2811,7 +2812,10 @@ impl Backend for RealBackend {
                 Ok(starorg_mcp::config_for(
                     installs.first().map(|f| &f.install),
                     self.dirs(),
-                    Arc::new(starorg_mcp::worker::ProcessExtractor::new(exe)),
+                    Arc::new(
+                        starorg_mcp::worker::ProcessExtractor::new(exe)
+                            .with_limit(self.mcp_limit()),
+                    ),
                 ))
             })
         } else {
@@ -2819,6 +2823,14 @@ impl Backend for RealBackend {
         };
         self.mcp_to_log();
         Ok(st)
+    }
+
+    fn memory_status(&self) -> CmdResult<MemoryStatus> {
+        Ok(self.memory_view())
+    }
+
+    fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus> {
+        self.save_memory_limit(req)
     }
 }
 

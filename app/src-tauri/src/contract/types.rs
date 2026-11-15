@@ -1826,3 +1826,103 @@ pub struct McpStatus {
 pub struct McpToggle {
     pub enabled: bool,
 }
+
+// ---------------------------------------------------------------------------------------
+// Memory limit of the Developer mode and MCP workers (addendum 7.17)
+// ---------------------------------------------------------------------------------------
+
+/// How the cap is held on this machine.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MemoryEnforcement {
+    /// Linux with `STARORG_MEMORY_CGROUP=1`: cgroup v2 `memory.max` (a `systemd-run --user
+    /// --scope` per worker), above the 90% watchdog.
+    Cgroup,
+    /// Linux (default): `RLIMIT_DATA` in each worker, above the 90% watchdog.
+    Rlimit,
+    /// Windows: each worker stops itself at 90% of the limit (no hard cap).
+    Watchdog,
+}
+
+/// One measured peak and whether it fits under the limit.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MemoryEstimate {
+    pub id: String,
+    pub label: String,
+    pub bytes: u64,
+    pub fits: bool,
+}
+
+/// Settings > Advanced > Memory limit, and the numbers of the warning shown before
+/// Developer mode or the MCP server is turned on.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryStatus {
+    /// This machine's RAM (`None` when it cannot be read).
+    pub total_bytes: Option<u64>,
+    /// Free now (Linux `MemAvailable`, Windows available physical memory).
+    pub available_bytes: Option<u64>,
+    /// The limit in GB: the setting, else `default_gb`.
+    pub limit_gb: f64,
+    /// No setting saved: the default for this machine applies.
+    pub is_default: bool,
+    pub min_gb: f64,
+    pub max_gb: f64,
+    pub step_gb: f64,
+    pub default_gb: f64,
+    pub enforcement: MemoryEnforcement,
+    /// Smallest first.
+    pub estimates: Vec<MemoryEstimate>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct MemoryLimitRequest {
+    /// GB, rounded to the step and kept inside the slider; `None` = back to the default.
+    pub gb: Option<f64>,
+}
+
+impl MemoryEnforcement {
+    /// What the workers on this machine get.
+    pub fn here() -> Self {
+        if cfg!(windows) {
+            MemoryEnforcement::Watchdog
+        } else if starorg_core::memlimit::systemd_run().is_some() {
+            MemoryEnforcement::Cgroup
+        } else {
+            MemoryEnforcement::Rlimit
+        }
+    }
+}
+
+impl MemoryStatus {
+    /// The view for a saved limit (`configured`, GB) on a machine with `info`.
+    pub fn build(
+        configured: Option<f64>,
+        info: starorg_core::memlimit::MemInfo,
+        enforcement: MemoryEnforcement,
+    ) -> Self {
+        use starorg_core::memlimit as m;
+        let b = m::bounds(info.total);
+        let limit_gb = configured.unwrap_or(b.default_gb);
+        let limit = m::gb_bytes(limit_gb);
+        MemoryStatus {
+            total_bytes: info.total,
+            available_bytes: info.available,
+            limit_gb,
+            is_default: configured.is_none(),
+            min_gb: b.min_gb,
+            max_gb: b.max_gb,
+            step_gb: b.step_gb,
+            default_gb: b.default_gb,
+            enforcement,
+            estimates: m::estimates()
+                .into_iter()
+                .map(|e| MemoryEstimate {
+                    id: e.id.into(),
+                    label: e.label.into(),
+                    bytes: e.bytes,
+                    fits: e.bytes <= limit,
+                })
+                .collect(),
+        }
+    }
+}

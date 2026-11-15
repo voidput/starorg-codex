@@ -94,6 +94,28 @@ pub struct Worker {
     pub(super) last_used: Mutex<Instant>,
     /// Why it stopped, when it did by itself.
     pub(super) died: Mutex<Option<String>>,
+    /// The memory limit it runs under (addendum 7.17), bytes.
+    limit: Option<u64>,
+}
+
+/// Why a worker that ended by itself stopped: the memory limit's message when it was that
+/// (`starorg_core::memlimit::exit_was_memory`), else `fallback`. Waits up to 2 s for it to
+/// exit.
+fn death_reason(child: &mut Child, limit: Option<u64>, fallback: &str) -> String {
+    let until = Instant::now() + Duration::from_secs(2);
+    let status = loop {
+        match child.try_wait() {
+            Ok(Some(s)) => break Some(s),
+            Ok(None) if Instant::now() < until => std::thread::sleep(Duration::from_millis(20)),
+            _ => break None,
+        }
+    };
+    match status {
+        Some(s) if starorg_core::memlimit::exit_was_memory(&s, limit) => {
+            starorg_core::memlimit::stopped_message(limit.unwrap_or_default())
+        }
+        _ => fallback.to_string(),
+    }
 }
 
 pub(super) fn lock_or<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -112,7 +134,9 @@ fn worker_error(e: &starorg_data::devworker::ReplyError) -> AppError {
 }
 
 impl Worker {
+    /// Starts `cmd` (already capped by `RealBackend::capped`, whose limit it reads back).
     pub(super) fn spawn(mut cmd: Command, key: WorkerKey) -> Result<Arc<Worker>, String> {
+        let limit = starorg_core::memlimit::command_limit(&cmd);
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -159,8 +183,14 @@ impl Worker {
                 }
             }
             if let Some(w) = w.upgrade() {
-                w.alive.store(false, Ordering::SeqCst);
-                lock_or(&w.died).get_or_insert_with(|| "the explorer stopped".into());
+                // Still marked alive: nobody stopped it, it ended by itself.
+                let by_itself = w.alive.swap(false, Ordering::SeqCst);
+                let why = if by_itself {
+                    death_reason(&mut lock_or(&w.child), w.limit, "the explorer stopped")
+                } else {
+                    "the explorer stopped".into()
+                };
+                lock_or(&w.died).get_or_insert(why);
                 // Every waiting call gets a closed channel.
                 lock_or(&w.pending).clear();
             }
@@ -174,6 +204,13 @@ impl Worker {
             }
         };
         let ev: Value = serde_json::from_str(&first).unwrap_or(Value::Null);
+        if first.is_empty() {
+            // Stdout closed before the ready line: it died while starting.
+            let why = death_reason(&mut child, limit, "the explorer stopped while starting");
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(why);
+        }
         if ev["event"] != "ready" {
             let _ = child.kill();
             let _ = child.wait();
@@ -197,6 +234,7 @@ impl Worker {
             started: now(),
             last_used: Mutex::new(Instant::now()),
             died: Mutex::new(None),
+            limit,
         });
         *lock_or(&slot) = Some(Arc::downgrade(&w));
         Ok(w)
@@ -210,12 +248,19 @@ impl Worker {
         *lock_or(&self.last_used) = Instant::now();
     }
 
+    /// "the explorer stopped; open it again", or why it stopped when that was the memory
+    /// limit.
+    fn stopped(&self, fallback: &str) -> AppError {
+        let died = lock_or(&self.died).clone();
+        match died {
+            Some(d) if d.starts_with("Stopped: needed more than") => err(ErrorCode::Internal, d),
+            _ => err(ErrorCode::Internal, fallback),
+        }
+    }
+
     fn send(&self, req: &impl Serialize) -> CmdResult<(u64, mpsc::Receiver<Reply>)> {
         if !self.alive() {
-            return Err(err(
-                ErrorCode::Internal,
-                "the explorer stopped; open it again",
-            ));
+            return Err(self.stopped("the explorer stopped; open it again"));
         }
         self.touch();
         let id = self.next.fetch_add(1, Ordering::SeqCst);
@@ -254,7 +299,7 @@ impl Worker {
                 err(ErrorCode::Internal, "the explorer did not answer")
             }
             mpsc::RecvTimeoutError::Disconnected => {
-                err(ErrorCode::Internal, "the explorer stopped; open it again")
+                self.stopped("the explorer stopped; open it again")
             }
         })?;
         serde_json::from_value(Self::finish(reply)?).map_err(internal)
@@ -270,12 +315,9 @@ impl Worker {
         let (id, rx) = self.send(req)?;
         on_start(id);
         loop {
-            let reply = rx.recv_timeout(EXPORT_GAP).map_err(|_| {
-                err(
-                    ErrorCode::Internal,
-                    "the explorer stopped during the export",
-                )
-            })?;
+            let reply = rx
+                .recv_timeout(EXPORT_GAP)
+                .map_err(|_| self.stopped("the explorer stopped during the export"))?;
             self.touch();
             match reply.progress {
                 Some(p) => on_progress(p),
@@ -489,7 +531,7 @@ impl RealBackend {
                 .map_err(|e| super::busy_or(e, "Reading game data"))?;
             self.job_step(&mut job, 2, "Indexing records", progress);
             let cmd = lock_or(&self.dev.spawner).command(&ch).map_err(internal)?;
-            Worker::spawn(cmd, key.clone()).map_err(|e| err(ErrorCode::Internal, e))
+            Worker::spawn(self.capped(cmd), key.clone()).map_err(|e| err(ErrorCode::Internal, e))
         })();
         match started {
             Ok(w) => {

@@ -83,6 +83,8 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   open_link: [{ link: T.ExternalLink }, null];
   mcp_status: [Record<string, never>, T.McpStatus];
   set_mcp_enabled: [{ req: T.McpToggle }, T.McpStatus];
+  memory_status: [Record<string, never>, T.MemoryStatus];
+  set_memory_limit: [{ req: T.MemoryLimitRequest }, T.MemoryStatus];
 }
 
 export type Command = keyof CommandMap;
@@ -199,6 +201,8 @@ export const COMMANDS = [
   'asset_cache_move',
   'mcp_status',
   'set_mcp_enabled',
+  'memory_status',
+  'set_memory_limit',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -370,5 +374,9 @@ export const api = {
   /** Experimental local MCP server: off at every start, 127.0.0.1 only. */
   mcpStatus: () => call('mcp_status', none),
   setMcpEnabled: (enabled: boolean) => call('set_mcp_enabled', { req: { enabled } }),
+  /** Memory limit of the Developer mode and MCP workers (Settings > Advanced). */
+  memoryStatus: () => call('memory_status', none),
+  /** null resets to the default. */
+  setMemoryLimit: (gb: number | null) => call('set_memory_limit', { req: { gb } }),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
 };

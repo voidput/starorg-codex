@@ -5,6 +5,9 @@
   import { api } from '@/lib/contract/client';
   import type { McpStatus } from '@/lib/contract/types';
   import { fmtDateTime } from '@/lib/format';
+  import { reminderText } from '@/lib/memory';
+  import { ensureMemory, memory } from '@/lib/stores/memory.svelte';
+  $effect(() => ensureMemory());
 
   let { tick = 0 }: { tick?: number } = $props();
   let st = $state<McpStatus | null>(null);
@@ -30,6 +33,7 @@
       <ToneBadge tone={st.running ? 'success' : 'muted'} label={st.running ? 'Running' : 'Off'} />
       {#if st.url}<span class="mono text-muted-foreground text-[12px]">{st.url}</span>{/if}
       <span class="text-muted-foreground ml-auto text-[12px]">{st.requests.length} request{st.requests.length === 1 ? '' : 's'}{st.started ? ` since ${fmtDateTime(st.started)}` : ''}</span>
+      {#if st.running}<p class="text-muted-foreground w-full text-[11.5px]" data-memory-reminder>Each dataset's first read: {reminderText(memory.status)}</p>{/if}
     </Card.Header>
     {#if shown.length}
       <Card.Content>

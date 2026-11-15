@@ -108,7 +108,15 @@ pub struct MockBackend {
     /// Developer mode assets (mock_assets.rs).
     assets: Mutex<super::mock_assets::AssetMock>,
     mcp: crate::mcp::McpHost,
+    /// The saved memory limit, GB (`None` = the default).
+    memory_gb: Mutex<Option<f64>>,
 }
+
+/// The mock's machine: 32 GB of RAM, 18.4 GB free (fixed, for the samples).
+pub const MOCK_RAM: starorg_core::memlimit::MemInfo = starorg_core::memlimit::MemInfo {
+    total: Some(32 * starorg_core::memlimit::GIB),
+    available: Some(18 * starorg_core::memlimit::GIB + 400 * 1024 * 1024),
+};
 
 impl Default for MockBackend {
     fn default() -> Self {
@@ -382,6 +390,7 @@ impl MockBackend {
             dev: Mutex::new(Default::default()),
             assets: Mutex::new(Default::default()),
             mcp: crate::mcp::McpHost::default(),
+            memory_gb: Mutex::new(None),
         };
         me.log(
             LogLevel::Info,
@@ -2729,6 +2738,27 @@ impl Backend for MockBackend {
         };
         self.mcp_to_log();
         Ok(st)
+    }
+
+    fn memory_status(&self) -> CmdResult<MemoryStatus> {
+        let gb = *self.memory_gb.lock().unwrap_or_else(|p| p.into_inner());
+        Ok(MemoryStatus::build(gb, MOCK_RAM, MemoryEnforcement::Rlimit))
+    }
+
+    fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus> {
+        let b = starorg_core::memlimit::bounds(MOCK_RAM.total);
+        let gb = req.gb.map(|g| b.clamp(g));
+        *self.memory_gb.lock().unwrap_or_else(|p| p.into_inner()) = gb;
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Dev),
+            None,
+            &match gb {
+                Some(g) => format!("Memory limit for Developer mode and MCP workers: {g} GB"),
+                None => format!("Memory limit back to the default ({} GB)", b.default_gb),
+            },
+        );
+        self.memory_status()
     }
 }
 

@@ -30,6 +30,9 @@
   import { toast } from '@/lib/stores/toast.svelte';
   import { int } from '@/lib/format';
   import { cn } from '@/lib/utils';
+  import { reminderText } from '@/lib/memory';
+  import { ensureMemory, memory } from '@/lib/stores/memory.svelte';
+  $effect(() => ensureMemory());
 
   const PAGE = 500;
   const target = $derived(app.target);
@@ -182,7 +185,7 @@
       <Button variant="ghost" size="icon-sm" title="Close the asset browser (frees its memory)" aria-label="Close the asset browser" onclick={() => void close()}><Power aria-hidden="true" /></Button>
     {/if}
   </div>
-  <p class="text-muted-foreground -mt-1 text-[11.5px]">Read only: Data.p4k is never changed, and nothing is written into the game folder. {PERSONAL_USE}</p>
+  <p class="text-muted-foreground -mt-1 text-[11.5px]">Read only: Data.p4k is never changed, and nothing is written into the game folder. {reminderText(memory.status)} {PERSONAL_USE}</p>
   {#if extracting}<JobProgress job={app.job} />{/if}
 
   <div class="flex min-h-0 flex-1 gap-3">

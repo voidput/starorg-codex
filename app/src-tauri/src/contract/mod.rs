@@ -165,6 +165,11 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn mcp_status(&self) -> CmdResult<McpStatus>;
     /// Start (`enabled: true`) or stop the server; returns its state.
     fn set_mcp_enabled(&self, req: McpToggle) -> CmdResult<McpStatus>;
+
+    // Memory limit of the Developer mode and MCP workers (addendum 7.17).
+    fn memory_status(&self) -> CmdResult<MemoryStatus>;
+    /// Save the limit (`config.toml` `[dev] memory_limit_gb`); `gb: None` resets it.
+    fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus>;
 }
 
 /// Managed state: the selected backend.
@@ -273,6 +278,8 @@ commands! {
     open_link(link: ExternalLink) -> ();
     mcp_status() -> McpStatus;
     set_mcp_enabled(req: McpToggle) -> McpStatus;
+    memory_status() -> MemoryStatus;
+    set_memory_limit(req: MemoryLimitRequest) -> MemoryStatus;
 }
 
 /// Apply streams [`JOB_EVENT`] events while it runs.
@@ -405,6 +412,8 @@ macro_rules! contract_handler {
             $crate::contract::assets::asset_cache_move,
             $crate::contract::mcp_status,
             $crate::contract::set_mcp_enabled,
+            $crate::contract::memory_status,
+            $crate::contract::set_memory_limit,
         ]
     };
 }
@@ -520,6 +529,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "asset_cache_move",
     "mcp_status",
     "set_mcp_enabled",
+    "memory_status",
+    "set_memory_limit",
 ];
 
 #[cfg(test)]

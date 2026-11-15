@@ -130,6 +130,8 @@ interface Samples {
   asset_status_open: T.AssetStatus;
   mcp_status: T.McpStatus;
   set_mcp_enabled: T.McpStatus;
+  memory_status: T.MemoryStatus;
+  set_memory_limit: T.MemoryStatus;
   open_link: null;
 }
 

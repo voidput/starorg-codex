@@ -18,7 +18,9 @@
  * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
  * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
  * not read yet). MCP: `&mcp=on` (the local MCP server running, with sample requests).
+ * Memory limit: `&memory=1.5` (that limit in GB instead of the default).
  */
+import { clampGb, memoryView } from '../memory';
 import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
@@ -49,6 +51,8 @@ const SAMPLES = samples as unknown as {
   save_ship_names: T.FleetView;
   mcp_status: T.McpStatus;
   set_mcp_enabled: T.McpStatus;
+  memory_status: T.MemoryStatus;
+  set_memory_limit: T.MemoryStatus;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -411,6 +415,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   const syncOff = (what: string) => fail('invalid', `${what} is off under Settings -> StarOrg Tools -> What to sync.`);
   let hooks: T.HooksStatus = clone(SAMPLES.hooks_status);
   let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
+  // The mock's machine: 32 GB, 18.4 GB free (the samples). `?memory=1.5` starts at that limit.
+  let memory: T.MemoryStatus = memoryView(SAMPLES.memory_status, Number(params.get('memory')) || null);
   const log: T.LogEntry[] = [];
   let nextLog = 1;
   let nextJob = 1;
@@ -1294,6 +1300,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         addLog('info', 'mcp', null, 'Local MCP server stopped');
       }
       return clone(mcp);
+    },
+    memory_status: () => clone(memory),
+    set_memory_limit: ({ req }) => {
+      memory = memoryView(SAMPLES.memory_status, req.gb === null ? null : clampGb(req.gb, memory));
+      addLog('info', 'dev', null, req.gb === null ? `Memory limit back to the default (${memory.default_gb} GB)` : `Memory limit for Developer mode and MCP workers: ${memory.limit_gb} GB`);
+      return clone(memory);
     },
     // No system browser in the mock: the activity log records the click.
     open_link: ({ link }) => {
