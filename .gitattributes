@@ -1,0 +1,2 @@
+# Test fixtures are byte-exact (CRLF/BOM matter); never convert line endings.
+crates/*/tests/fixtures/** -text
