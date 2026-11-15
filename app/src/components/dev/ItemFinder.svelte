@@ -43,6 +43,7 @@
     query = $bindable(''),
     onopen,
     onopentrigger,
+    onremember,
   }: {
     target: ChannelRef;
     ready: boolean;
@@ -55,6 +56,8 @@
     query?: string;
     onopen: (guid: string) => void;
     onopentrigger: (name: string) => void;
+    /** A result was opened: the search that found it is worth remembering. */
+    onremember?: (query: string) => void;
   } = $props();
 
   const PAGE = 500;
@@ -214,7 +217,6 @@
       items = offset ? [...items, ...p.items] : p.items;
       listError = null;
       if (!offset) listActive = 0;
-      if (view.query.length >= 2 && !offset) recent = F.pushRecent(store, view.query);
     } catch (e) {
       if (g === gen) listError = toContractError(e);
     } finally {
@@ -311,6 +313,7 @@
     listTop = listScroller.scrollTop;
   }
   function activateRow(r: Row) {
+    if (r.kind === 'item' || r.kind === 'trigger') onremember?.(view.query);
     if (r.kind === 'item') onopen(r.it.guid);
     else if (r.kind === 'trigger') onopentrigger(r.t.name);
     else if (r.kind === 'head') view = { ...view, collapsed: r.collapsed ? view.collapsed.filter((k) => k !== r.key) : [...view.collapsed, r.key] };
@@ -347,7 +350,6 @@
   // --- Filters, chips, presets -------------------------------------------------------------
   let side = $state<'sections' | 'filters'>('sections');
   let drawer = $state(false);
-  let recent = $state<string[]>(F.loadRecent(store));
   let presets = $state<F.Preset[]>(F.loadPresets(store));
   let presetName = $state('');
   let showPresets = $state(false);
@@ -584,7 +586,6 @@
         {/if}
       {/if}
     </div>
-    <datalist id="finder-recent">{#each recent as r (r)}<option value={r}></option>{/each}</datalist>
     <div class="flex min-h-8 flex-wrap items-center gap-x-2 gap-y-1 border-b px-3 py-1 text-[12px]">
       <span class="min-w-0 flex-1 truncate font-medium">{assets && view.sounds ? (view.query ? `Sound events “${view.query}”` : 'Sound events') : page?.title || (view.query ? `Search “${view.query}”` : 'Every record')}</span>
       {#if listLoading}<LoaderCircle class="text-muted-foreground size-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />{/if}
@@ -604,6 +605,12 @@
         </label>
       {/if}
     </div>
+    {#if page && page.matching !== 'exact' && !(assets && view.sounds)}
+      <p class="border-b bg-amber-500/10 px-3 py-1 text-[11.5px]" role="status">Nothing matches “{view.query}” as typed; showing {page.matching === 'typo' ? 'close spellings' : 'abbreviation matches'}.</p>
+    {/if}
+    {#if assets && view.sounds && triggerTotal > triggers.length}
+      <p class="text-muted-foreground border-b px-3 py-1 text-[11.5px]" role="status">Showing the first {int(triggers.length)} of {int(triggerTotal)} sound events; add words to narrow them.</p>
+    {/if}
     {#if cols.length && !(assets && view.sounds)}
       <div class="text-muted-foreground grid h-6 items-center border-b px-3 text-[10.5px] tracking-wide uppercase" style="grid-template-columns: minmax(0,1fr) repeat({cols.length}, 76px)" aria-hidden="true">
         <span></span>
@@ -657,8 +664,8 @@
                   <SectionIcon id={it.section} class="self-center" />
                   <div class="grid min-w-0 gap-0.5">
                     <div class="flex min-w-0 items-baseline gap-1.5">
-                      <span class={cn('truncate text-[12.5px] font-medium', it.variant && 'text-muted-foreground')} title={it.name}>{#if dev.showIds}{@render hl(it.name)}{:else}{@render hl(it.label)}{/if}</span>
-                      {#if it.detail && !dev.showIds}<span class="text-muted-foreground mono truncate text-[11px]">{@render hl(it.detail)}</span>{/if}
+                      <span class={cn('min-w-0 shrink truncate text-[12.5px] font-medium', it.variant && 'text-muted-foreground')} title={it.label}>{#if dev.showIds}{@render hl(it.name)}{:else}{@render hl(it.label)}{/if}</span>
+                      {#if it.detail && !dev.showIds && listW >= 520}<span class="text-muted-foreground mono min-w-0 shrink-[4] truncate text-[11px]" title={it.name}>{@render hl(it.detail)}</span>{/if}
                     </div>
                     <div class="text-muted-foreground flex min-w-0 items-center gap-1.5 text-[11px]">
                       <span class="truncate">{it.kind_label ?? it.kind ?? it.type}{it.sub_type ? ` · ${it.sub_label ?? it.sub_type}` : ''}{it.size !== null ? ` · S${it.size}` : ''}{it.maker_label ? ` · ${it.maker_label}` : it.manufacturer ? ` · ${it.manufacturer}` : ''}{it.grade ? ` · Grade ${it.grade}` : ''}{it.class ? ` · ${it.class}` : ''}{inlineStats(it) ? ` · ${inlineStats(it)}` : ''}</span>

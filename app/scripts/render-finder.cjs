@@ -47,6 +47,17 @@ const shots = [
     await p.getByText('type:cooler', { exact: true }).waitFor();
     await items(p).getByText('Frost Cooler').waitFor();
   }],
+  ['items-typo', 'explorer', async (p) => {
+    await ready(p);
+    await search(p).fill('kestral');
+    await p.getByText(/showing close spellings/).waitFor();
+    await items(p).getByText('Alpha Kestrel', { exact: true }).first().waitFor();
+    // Recent searches: not kept while typing, kept on Enter.
+    const n0 = await p.locator('#finder-recent option').count();
+    await search(p).press('Enter');
+    await p.waitForFunction((n) => document.querySelectorAll('#finder-recent option').length === n + 1, n0);
+    checks.push(`recent searches: ${n0} while typing, ${n0 + 1} after Enter`);
+  }],
   ['items-grouped', 'explorer', async (p) => {
     await ready(p);
     await p.getByRole('combobox', { name: /Group/ }).selectOption('section');

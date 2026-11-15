@@ -62,6 +62,11 @@
   let finderQuery = $state('');
   let trigger = $state<string | null>(null);
   let help = $state(false);
+  // Recent searches (7.17): kept when a search is confirmed with Enter or a result is opened.
+  let recent = $state<string[]>(F.loadRecent(store));
+  const remember = (q: string) => {
+    if (q.trim().length >= 2) recent = F.pushRecent(store, q);
+  };
   function setMode(m: F.Mode) {
     F.saveMode(store, m);
     const media = view.node.startsWith('m:');
@@ -493,6 +498,7 @@
     }
   }
   function onSearchKey(e: KeyboardEvent) {
+    if (e.key === 'Enter' && finding) remember(finderQuery);
     if (e.key === 'Escape' || e.key === 'ArrowDown') {
       e.preventDefault();
       rootEl?.querySelector<HTMLElement>('[data-pane=list] [role=listbox]')?.focus();
@@ -602,10 +608,10 @@
       <Segmented size="sm" ariaLabel="Explorer mode" value={view.mode} onchange={setMode} options={[{ id: 'items', label: 'Items', hint: 'Find items and ships by section, with filters and stats' }, { id: 'assets', label: 'Assets', hint: 'Entities with models or sounds; search sound events' }, { id: 'raw', label: 'Raw', hint: 'DataCore by type or path, as stored' }] as { id: F.Mode; label: string; hint: string }[]} />
       <Button variant="ghost" size="icon-sm" aria-label="Back (Alt+Left)" title="Back (Alt+Left)" disabled={!canBack} onclick={() => void back()}><ArrowLeft aria-hidden="true" /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="Forward (Alt+Right)" title="Forward (Alt+Right)" disabled={!canForward} onclick={() => void forward()}><ArrowRight aria-hidden="true" /></Button>
-      <div class="relative max-w-md min-w-48 flex-1" role="search" aria-label="Find records">
+      <div class={cn('relative min-w-48 flex-1', finding ? 'max-w-xl basis-72' : 'max-w-md')} role="search" aria-label="Find records">
         <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
         {#if finding}
-          <Input bind:ref={searchEl} type="search" list="finder-recent" aria-label={view.mode === 'assets' && view.sounds ? 'Find sound events by name' : 'Find items: words and prefixes like type:, maker:, size:'} placeholder={view.mode === 'assets' && view.sounds ? 'Sound event: gladius, quantum, explosion…' : 'Name, or type:cooler maker:aegis size:1…'} class="h-8 pl-8" bind:value={finderQuery} onkeydown={onSearchKey} disabled={!ready} />
+          <Input bind:ref={searchEl} type="search" list="finder-recent" title={finderQuery} aria-label={view.mode === 'assets' && view.sounds ? 'Find sound events by name' : 'Find items: words and prefixes like type:, maker:, size:'} placeholder={view.mode === 'assets' && view.sounds ? 'Sound event: gladius, quantum, explosion…' : 'Name, or type:cooler maker:aegis size:1…'} class="h-8 pl-8" bind:value={finderQuery} onkeydown={onSearchKey} disabled={!ready} />
         {:else}
           <Input bind:ref={searchEl} type="search" aria-label="Find records by name, path or GUID" placeholder="Name, path or GUID" class="h-8 pl-8" bind:value={search} onkeydown={onSearchKey} disabled={!ready} />
         {/if}
@@ -628,9 +634,10 @@
       {/if}
     </div>
 
+    <datalist id="finder-recent">{#each recent as r (r)}<option value={r}></option>{/each}</datalist>
     {#if help && finding}
       <div id="finder-help" class="bg-card grid gap-1 rounded-lg border px-3 py-2 text-[12px]">
-        <p>Words match the readable name, the record name, type, manufacturer and tag; close misses still match (<span class="mono">glds</span> finds Gladius). Recent searches appear as you type. Prefixes narrow the search:</p>
+        <p>Every word must appear in the readable name, the record name, the type, manufacturer, class or tag. Only when nothing matches as typed, close spellings are tried (<span class="mono">galdius</span> finds Gladius; words of 5+ letters), then abbreviations (<span class="mono">glds</span>); the list says so. Searches you confirm with Enter or open a result from are offered again. Prefixes narrow the search:</p>
         <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
           {#each F.PREFIXES as [k, v] (k)}<dt class="mono text-primary">{k}</dt><dd class="text-muted-foreground">{v}</dd>{/each}
         </dl>
@@ -654,7 +661,7 @@
     <div class="relative flex min-h-0 flex-1 gap-0">
       {#if finding && target}
         <div class="flex min-h-0 min-w-0 flex-[2] basis-0">
-          <ItemFinder {target} {ready} {narrow} {compared} bind:view bind:query={finderQuery} selected={rec?.header.guid ?? null} selectedTrigger={trigger} onopen={(g) => void openRecord(g)} onopentrigger={(n) => (trigger = n)} />
+          <ItemFinder {target} {ready} {narrow} {compared} bind:view bind:query={finderQuery} onremember={remember} selected={rec?.header.guid ?? null} selectedTrigger={trigger} onopen={(g) => void openRecord(g)} onopentrigger={(n) => (trigger = n)} />
         </div>
         <div class="w-2 shrink-0"></div>
       {:else}

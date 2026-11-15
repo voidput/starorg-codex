@@ -1412,15 +1412,15 @@ Main records per section on LIVE, all / player-usable (see the heuristic below):
 
 | Section | Sub-levels | Main | Player-usable |
 |---|---|---|---|
-| Models (view) | section > ... | 25,913 | 22,357 |
-| Sounds (view) | section > ... | 12,419 | 9,707 |
-| Ships & vehicles | type > sub-type > manufacturer | 2,440 | 1,614 |
-| Ship weapons | type > size > manufacturer | 1,085 | 1,050 |
-| Ship components | type > size > manufacturer | 3,709 | 3,584 |
+| Models (view) | section > ... | 25,913 | 21,923 |
+| Sounds (view) | section > ... | 12,419 | 9,673 |
+| Ships & vehicles | type > sub-type > manufacturer | 2,440 | 1,576 |
+| Ship weapons | type > size > manufacturer | 1,322 | 1,275 |
+| Ship components | type > size > manufacturer | 3,709 | 3,580 |
 | Missiles & torpedoes | type > size > manufacturer | 266 | 260 |
-| FPS weapons | type > sub-type > manufacturer | 1,064 | 1,049 |
+| FPS weapons | type > sub-type > manufacturer | 624 | 609 |
 | Armor & clothing | type > manufacturer | 4,585 | 4,560 |
-| Attachments | sub-type > size | 501 | 482 |
+| Attachments | sub-type > size | 261 | 254 |
 | Consumables & medical | type > sub-type | 329 | 316 |
 | Mining & salvage | type > size | 1,388 | 1,371 |
 | Commodities & resources | type > folder | 1,974 | 1,931 |
@@ -1429,11 +1429,19 @@ Main records per section on LIVE, all / player-usable (see the heuristic below):
 | Factions & reputation | struct type > folder | 2,217 | 2,214 |
 | Blueprints & crafting | struct type > folder | 1,966 | 1,966 |
 | Loadouts & loot | struct type > folder | 972 | 972 |
-| Shops | type > folder | 767 | 695 |
-| Characters & NPCs | type > folder | 4,880 | 3,123 |
-| Props & other items | type > sub-type | 10,342 | 9,441 |
+| Shops | type > folder | 767 | 338 |
+| Characters & NPCs | type > folder | 4,069 | 2,390 |
+| Props & other items | type > sub-type | 11,156 | 10,024 |
 | Audio, UI & dialogue | struct type > folder | 11,143 | 11,142 |
-| Other | struct type > folder | 5,084 | 5,084 |
+| Other | struct type > folder | 5,524 | 5,524 |
+
+Review fixes (same day): human-made props without a type (`entities/scitem/human/`: food,
+furniture, storage, lights, screens; 811) moved from Characters to Props; weapon animation and
+recoil records (`WeaponProcedural*`, 440) from FPS weapons to Other; the ship weapon parts that
+share the FPS attachment type (`WeaponAttachment` sub-types `FiringMechanism`, `PowerArray`,
+`Ventilation`; 240) from Attachments to Ship weapons; `GPI_Destructible*` (destructible props
+on the gun type) to Props. The shop displays' "Display" copies count as variants now, so most
+of Shops is not player-usable.
 
 All records (sub-records included) sum to 118,499 (Audio, UI & dialogue 46,190 with the
 dialogue sub-records; Other 24,743 with the 18,961 tags). A level where no record has a value
@@ -1445,10 +1453,12 @@ missile racks with missiles, mining/salvage heads and modules with Mining & salv
 name token (split at `_ - . space`, case-insensitive) of `ai npc template test debug dummy
 unmanned placeholder temp tmp shipboarded boarded derelict wreck tutorial ea pir`, or a
 folder named `npc_archetypes featuretests templates template test tests ai npc debug
-placeholder`. Not for other records: `Template` and `Derelict` are words of mission and
-location names, `Legacy` armor is player armor. LIVE: 741 of 1,122 vehicle entities, 1,646 of
-2,302 player body parts, 11 of 518 FPS weapons, 3 of 207 ship guns; a heuristic, so the badge
-says "AI/test" and nothing is hidden unless the filter is on.
+placeholder`. Tokens also `hijacked teach display indestructible nointerior gamemaster`;
+name prefixes `SalvageableDebris Orbital_Sentry probe_comms EAObjectiveDestructable`. `PIR` is
+not a token: `AEGS_Gladius_PIR` ("Aegis Gladius Pirate") is a player ship (a regression test
+and the real-data test check it). Not for other records: `Template` and `Derelict` are words
+of mission and location names, `Legacy` armor is player armor. A heuristic, so the badge says
+"AI/test" and nothing is hidden unless the filter is on.
 
 **Worker index** (`dev-worker`, at start, before `ready`):
 - A facet sink walks every main entity once (no JSON built, rayon): `AttachDef` type,
@@ -1468,19 +1478,53 @@ says "AI/test" and nothing is hidden unless the filter is on.
   kind, sub-type, maker, folder, grade, class, tag) plus display names and a name order.
 - A bare `--dcb` input (tests) trusts the fields (`verified: false` in the status).
 
-**Search** (`list`, every word, case-insensitive): the readable name, short name, struct and
-item type, sub-type, manufacturer code and name, class and tag. Rank: readable name exact >
-whole word > prefix > word prefix > anywhere, then the same on the short name, then words
-spread over fields, then a fuzzy in-order subsequence (`glds` finds Gladius); ties put player
-items before variants, named records before raw ones, shorter names first ("Aegis Gladius"
-before its paints). Prefixes are hard filters, shown as chips: `type:` `maker:` `size:2`
-`size:1-3` `section:` `grade:` `class:` `tag:` `has:model` `has:sounds`. Words are
-highlighted in the rows; recent searches (10) are offered by the box (local storage).
+**Search** (`list`, every word, case-insensitive). Three passes, each only when the one
+before found nothing (so looser hits never mix with real ones or into the counts; the list
+says which pass answered, `ListPage.matching`):
+
+1. *As typed*: every word in the readable name, short name, type, sub-type, manufacturer
+   code or name, class or tag. Tiers for records with a display name: the name is the query;
+   every word is a whole word of it; a word start; anywhere in it; then the name with the
+   item type read out ("Atlas" + "Quantum drives" for `quantum drive`); then the same tiers on
+   the short name (records without a display name start here); then words spread over both
+   names; then the other fields.
+2. *Close spellings*: a word of 5-8 letters may be one edit from a word of a name or of the
+   item type, 9+ letters two (insert, delete, change, or swap two neighbours): `galdius` finds
+   Gladius, `qauntum drive` the quantum drives. Shorter words never.
+3. *Abbreviation*: the words run together in order inside a name, from a word start, at most
+   three times their length (`glds`); readable names before short names, tighter spans first.
+
+Ties: player items before variants, named records before raw ones, the sections in table order
+(ships before props), fewer name words left over (the base "Drake Cutlass Black" before
+"Cutlass Black PYAM Exec"), then name order. Prefixes are hard filters, shown as chips:
+`type:` `maker:` `size:2` `size:1-3` (`size:5-1` reads as 1-5) `section:` `grade:` `class:`
+`tag:` `has:model` `has:sounds`. Words are highlighted in the rows. Recent searches (10) are
+kept when a search is confirmed with Enter or a result is opened from it, not while typing.
+
+Search on LIVE (main records; rows, which pass, first hits):
+
+| Query | Before review | After |
+|---|---|---|
+| `bracer` | 1,609 (subsequence noise) | 3: Bracer, its loot and blueprint records |
+| `mole` | 8,613 | 121: Argo MOLE, MOLE Alliance, liveries |
+| `ATLS` | 12,396 | 132: Argo ATLS, ATLS GEO, ATLS IKTI |
+| `arrow` | 1,399 | 92: Anvil Arrow, its liveries |
+| `panther` | 1,032 | 4: CF-337 Panther Repeater, ... |
+| `medpen` | 668 | 30: MedPen (Hemozal) first |
+| `glds` | 1,993 | 281 (abbreviation): Fury Goldsmith Livery, Aegis Gladius, ... |
+| `galdius` | 46 (Human records first) | 202 (close spellings): Aegis Gladius first |
+| `cutlass black` | 84: Cutlass Black Plushie first | 80: Drake Cutlass Black first |
+| `quantum drive` | 100: audio records 2nd-5th | 100: Mauler Quantum Drive, then the drives (Agni, Aither, Allegro, Atlas) |
+| `qauntum drive` | 0 | 98 (close spellings): the quantum drives |
+
+As-typed searches take 35-55 ms in the worker; close spellings and abbreviations (two or three
+passes) 70-110 ms.
 
 **Filters** (facet sidebar and quick toggles, OR within a facet, AND across): section, type,
 sub-type, size, manufacturer, grade, class, tag, player-usable, has model, has sounds, and
 "Added / Changed vs <channel>". Counts follow the facet rule (each facet counts what passes
-every other filter and the search), at most 60 values per facet. Filters are remembered per
+every other filter and the search), at most 60 values per facet plus any picked value outside
+them (with its count, 0 when nothing has it now). Filters are remembered per
 section, presets (search + filters + sort + grouping + section, 20 at most) are saved by name;
 both in local storage, every access guarded. The record history carries the finder view, so
 Back/Forward brings back the list, filters and grouping a record was opened from.
@@ -1506,7 +1550,9 @@ changes 8 ms (Ships & vehicles 1,088, Ship weapons 329, Ship components 337, ...
 filters and list, the record pane's Sounds and Export model. "Sound events" searches ATL
 triggers (name, Wwise event, bank; every word) in the asset worker, which starts on the first
 such search and reads the audio index only (not on Explorer open); a hit shows its event, bank
-and sounds with play buttons and "Export .ogg…" (the §7.16 cache and dialogs).
+and sounds with play buttons and "Export .ogg…" (the §7.16 cache and dialogs). At most 500
+hits are listed with the total ("add words to narrow them"); an unknown trigger is
+`not-found`.
 
 **Files**: a geometry file offers "Open owning record" (one owner opens it, several are
 listed).
@@ -1524,8 +1570,8 @@ worker (`dev-worker --p4k`) against the same binary built from main:
 
 | | main | this branch |
 |---|---|---|
-| Ready (load, parse, index; here also the name sets and the section index) | 0.69-0.74 s | 1.23-1.27 s |
-| Steady RSS after `ready` | 512 MB | 554-557 MB |
+| Ready (load, parse, index; here also the name sets and the section index) | 0.69-0.76 s | 1.23-1.31 s |
+| Steady RSS after `ready` | 512 MB | 554 MB |
 | Peak RSS (archive index) | 921 MB | 922-923 MB |
 
 - Inside that: archive name sets 77-104 ms (about 5 MB held), entity scan 0.32-0.35 s on the
