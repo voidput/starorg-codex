@@ -55,7 +55,8 @@
     if (!character || !report) return;
     busy = true;
     try {
-      const r = await api.importSmartCitizen({ target, character, dry_run: false });
+      // The file the check just read: no second picker.
+      const r = await api.importSmartCitizen({ target, character, dry_run: false, reuse_last: true });
       toast('success', `Imported ${r.imported.length} blueprints for ${name(character)}`, `${r.known.length} were already known. Re-apply to update [Owned] tags.`);
       open = false;
       ondone(character);

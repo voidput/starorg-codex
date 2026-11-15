@@ -18,6 +18,7 @@
   import ErrorState from '@/components/common/ErrorState.svelte';
   import ImportDialog from '@/components/blueprints/ImportDialog.svelte';
   import BlueprintFinder from '@/components/blueprints/BlueprintFinder.svelte';
+  import ReimportCard from '@/components/blueprints/ReimportCard.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { CharacterMode, CharactersView, StarOrgStatus, SyncReport } from '@/lib/contract/types';
   import { fmtDateTime } from '@/lib/format';
@@ -145,6 +146,8 @@
         </p>
       </Card.Content>
     </Card.Root>
+
+    <ReimportCard target={app.target} view={v} shown={picked ?? v.active.resolved} ondone={() => tick++} />
 
 
     <Card.Root>
