@@ -96,6 +96,59 @@ pub fn glb_triangles(glb: &[u8]) -> AssetResult<Vec<[[f32; 3]; 3]>> {
     Ok(tris)
 }
 
+/// Triangles of a GLB without reading its geometry: the index (or vertex) counts of every
+/// node's triangle primitives, from the JSON chunk only. `None` when it is not a GLB.
+pub fn glb_triangle_count(glb: &[u8]) -> Option<u64> {
+    let g = gltf::Glb::from_slice(glb).ok()?;
+    json_triangle_count(&g.json)
+}
+
+/// [`glb_triangle_count`] of a GLB file, reading its header and JSON chunk only.
+pub fn glb_file_triangle_count(path: &Path) -> Option<u64> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(path).ok()?;
+    let mut head = [0u8; 20];
+    f.read_exact(&mut head).ok()?;
+    let word = |i: usize| u32::from_le_bytes(head[i..i + 4].try_into().unwrap_or_default());
+    if &head[0..4] != b"glTF" || word(4) != 2 || &head[16..20] != b"JSON" {
+        return None;
+    }
+    let len = word(12) as u64;
+    if len > word(8) as u64 {
+        return None;
+    }
+    let mut json = Vec::new();
+    f.take(len).read_to_end(&mut json).ok()?;
+    json_triangle_count(&json)
+}
+
+fn json_triangle_count(json: &[u8]) -> Option<u64> {
+    let doc =
+        gltf::Document::from_json_without_validation(gltf::json::Root::from_slice(json).ok()?);
+    let roots: Vec<gltf::Node> = match doc.default_scene().or_else(|| doc.scenes().next()) {
+        Some(s) => s.nodes().collect(),
+        None => doc.nodes().collect(),
+    };
+    let mut stack = roots;
+    let mut n = 0u64;
+    while let Some(node) = stack.pop() {
+        if let Some(mesh) = node.mesh() {
+            for p in mesh.primitives() {
+                if p.mode() != gltf::mesh::Mode::Triangles {
+                    continue;
+                }
+                let count = match p.indices() {
+                    Some(i) => i.count(),
+                    None => p.get(&gltf::Semantic::Positions).map_or(0, |a| a.count()),
+                };
+                n += count as u64 / 3;
+            }
+        }
+        stack.extend(node.children());
+    }
+    Some(n)
+}
+
 /// Write a binary STL; returns (triangles, bytes).
 pub fn write_stl(tris: &[[[f32; 3]; 3]], out: &Path) -> AssetResult<(u64, u64)> {
     let io = |e: std::io::Error| AssetError::internal(format!("{}: {e}", out.display()));

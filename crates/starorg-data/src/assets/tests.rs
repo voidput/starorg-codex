@@ -308,6 +308,88 @@ fn glb_to_stl_bakes_transforms() {
     assert_eq!(b.len(), 134);
     assert_eq!(u32::from_le_bytes(b[80..84].try_into().unwrap()), 1);
     assert!(stl::glb_triangles(b"nope").is_err());
+    assert_eq!(stl::glb_triangle_count(&one_triangle_glb()), Some(1));
+    assert_eq!(stl::glb_triangle_count(b"nope"), None);
+    std::fs::write(t.path().join("one.glb"), one_triangle_glb()).unwrap();
+    assert_eq!(
+        stl::glb_file_triangle_count(&t.path().join("one.glb")),
+        Some(1)
+    );
+    assert_eq!(
+        stl::glb_file_triangle_count(&out),
+        None,
+        "an STL is not a GLB"
+    );
+}
+
+#[test]
+fn model_cache_keys_are_per_record_preset_and_lod() {
+    let o = |preset, lod| ModelOptions {
+        preset,
+        lod,
+        stl: false,
+    };
+    let g = "8f1c2d3e-0000-4000-8000-000000000001";
+    let keys: Vec<String> = (0..=model::MAX_LOD)
+        .map(|l| o(ModelPreset::PrintShell, l).cache_key(g))
+        .collect();
+    assert_eq!(keys[3], format!("{g}-print-lod3"));
+    let unique: std::collections::HashSet<&String> = keys.iter().collect();
+    assert_eq!(unique.len(), keys.len(), "one file per LOD");
+    assert_ne!(
+        o(ModelPreset::Full, 3).cache_key(g),
+        o(ModelPreset::PrintShell, 3).cache_key(g)
+    );
+    // The STL switch is not part of the key (the STL is made from the cached GLB).
+    let mut s = o(ModelPreset::PrintShell, 3);
+    s.stl = true;
+    assert_eq!(s.cache_key(g), keys[3]);
+    // A name with unsafe characters is hashed, still per LOD.
+    let a = o(ModelPreset::PrintShell, 0).cache_key("AEGS Javelin/x");
+    let b = o(ModelPreset::PrintShell, 4).cache_key("AEGS Javelin/x");
+    assert!(a.ends_with("-print-lod0") && b.ends_with("-print-lod4") && a[..32] == b[..32]);
+}
+
+#[test]
+fn lods_come_from_the_mesh_files_and_clamp_the_asked_one() {
+    let files = [
+        "Data\\Objects\\Spaceships\\Ships\\AEGS\\Gladius\\AEGS_Gladius.cgam",
+        "Data\\Objects\\Spaceships\\Ships\\AEGS\\Gladius\\AEGS_Gladius_lod1.cgam",
+        "Data\\Objects\\Spaceships\\Ships\\AEGS\\Gladius\\AEGS_Gladius_lod2.cgam",
+        "Data\\Objects\\Spaceships\\Ships\\AEGS\\Gladius\\AEGS_Gladius_lod3.cgam",
+    ];
+    let exists = |p: &str| files.iter().any(|f| f.eq_ignore_ascii_case(p));
+    let lods = model::lods_in(
+        "Objects/Spaceships/Ships/AEGS/Gladius/AEGS_Gladius.cga",
+        exists,
+    );
+    assert_eq!(lods, vec![0, 1, 2, 3]);
+    assert_eq!(
+        model::lods_in(
+            "Data/Objects/Spaceships/Ships/AEGS/Gladius/aegs_gladius.cga",
+            exists
+        ),
+        vec![0, 1, 2, 3],
+        "a Data/ prefix and any case"
+    );
+    assert_eq!(
+        model::effective_lod(4, &lods),
+        3,
+        "LOD 4 is not there: LOD 3"
+    );
+    assert_eq!(model::effective_lod(2, &lods), 2);
+    assert_eq!(
+        model::effective_lod(9, &[]),
+        model::MAX_LOD,
+        "unknown: as asked"
+    );
+    assert_eq!(model::effective_lod(3, &[0, 1]), 1);
+    assert_eq!(model::view_lod(&lods), 3);
+    assert_eq!(model::view_lod(&[0]), 0);
+    assert_eq!(model::view_lod(&[]), model::VIEW_LOD);
+    assert!(model::lods_in("Objects/Characters/x.cdf", exists).is_empty());
+    assert!(model::lods_in("", exists).is_empty());
+    assert_eq!(model::lods_in("Objects/x.cgf", |_| false), vec![0]);
 }
 
 #[test]

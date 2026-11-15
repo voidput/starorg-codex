@@ -350,7 +350,7 @@ fn export_model(
         Ok(c) => c,
         Err(code) => return code,
     };
-    let key = format!("{}-{}", assetcache::safe_name(what), o.key());
+    let key = o.cache_key(what);
     // A cached GLB: no archive read at all (an STL is made from it here).
     if let Some(hit) = c
         .as_ref()
@@ -377,7 +377,6 @@ fn export_model(
                     stl.as_ref().map(|s| (&s.0, s.1.0)),
                     true,
                     None,
-                    0,
                 );
                 ExitCode::from(exit::OK)
             }
@@ -423,6 +422,8 @@ fn export_model(
     drop(lock);
     match r {
         Ok(d) => {
+            // Cached under the LOD it has (LOD 4 asked of a mesh with 0-3 is LOD 3).
+            let key = ModelOptions { lod: d.lod, ..o }.cache_key(what);
             if let Some(c) = &c {
                 let _ = c.put_copy(&t.channel, &t.build, Kind::Models, &key, "glb", &out_abs);
             }
@@ -431,10 +432,9 @@ fn export_model(
                 g,
                 &out_abs,
                 d.bytes,
-                stl.as_ref().zip(d.triangles),
+                stl.as_ref().zip(d.stl_path.as_ref().and(d.triangles)),
                 false,
-                d.peak_rss,
-                d.ms,
+                Some(&d),
             );
             ExitCode::from(exit::OK)
         }
@@ -448,19 +448,36 @@ fn report_model(
     bytes: u64,
     stl: Option<(&PathBuf, u64)>,
     cached: bool,
-    peak_rss: Option<u64>,
-    ms: u64,
+    done: Option<&model::ModelDone>,
 ) {
     if g.json {
         println!(
             "{}",
             json!({ "schema": JSON_SCHEMA, "out": out, "bytes": bytes, "cached": cached,
-                    "stl": stl.map(|s| s.0), "triangles": stl.map(|s| s.1),
-                    "peak_rss": peak_rss, "ms": ms })
+                    "stl": stl.map(|s| s.0),
+                    "triangles": done.and_then(|d| d.triangles).or(stl.map(|s| s.1)),
+                    "lod": done.map(|d| d.lod), "lods": done.map(|d| &d.lods),
+                    "peak_rss": done.and_then(|d| d.peak_rss), "ms": done.map_or(0, |d| d.ms) })
         );
     } else if !g.quiet {
+        let detail = done
+            .map(|d| {
+                let lods = match d.lods.as_slice() {
+                    [] => String::new(),
+                    l => format!(
+                        " (the mesh has LOD 0-{})",
+                        l.iter().max().copied().unwrap_or(0)
+                    ),
+                };
+                let tris = d
+                    .triangles
+                    .map(|t| format!(", {t} triangles"))
+                    .unwrap_or_default();
+                format!(", LOD {}{lods}{tris}", d.lod)
+            })
+            .unwrap_or_default();
         eprintln!(
-            "starorg-codex: model ({} bytes{}) written to {}",
+            "starorg-codex: model ({} bytes{}{detail}) written to {}",
             bytes,
             if cached { ", from the cache" } else { "" },
             out.display()

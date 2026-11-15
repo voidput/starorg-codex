@@ -66,6 +66,81 @@ impl ModelOptions {
     pub fn key(&self) -> String {
         format!("{}-lod{}", self.preset.key(), self.lod)
     }
+
+    /// The asset cache key of this export of `what` (a record GUID or name):
+    /// `<record>-print-lod3`, one file per record, preset and LOD (the STL is never cached).
+    pub fn cache_key(&self, what: &str) -> String {
+        format!(
+            "{}-{}",
+            starorg_core::assetcache::safe_name(what),
+            self.key()
+        )
+    }
+}
+
+/// The DataCore path of an entity's own geometry (`SGeometryResourceParams`), as StarBreaker's
+/// exporter reads it.
+const GEOMETRY_PATH: &str = "Components[SGeometryResourceParams].Geometry.Geometry.Geometry.path";
+
+/// `Objects/Ships/x.cga` (DataCore) -> `Data\Objects\Ships\x.cga` (archive).
+fn archive_path(path: &str) -> String {
+    let clean = ["Data/", "data/", "Data\\", "data\\"]
+        .iter()
+        .find_map(|p| path.strip_prefix(p))
+        .unwrap_or(path);
+    format!("Data\\{}", clean.replace('/', "\\"))
+}
+
+/// The LODs the entity's own mesh has in the archive: 0 and every `<mesh>_lod<n>` (with its
+/// `.cgam`/`.cgfm`/`.skinm` geometry) up to [`MAX_LOD`]. Empty when unknown (no geometry
+/// component, a character definition): the requested LOD is then used as asked.
+///
+/// StarBreaker loads LOD 0 for a mesh without the asked LOD file, so asking a ship that has
+/// LODs 0-3 for LOD 4 would give its hull at full detail; [`effective_lod`] avoids that.
+pub fn root_lods(
+    db: &starbreaker_datacore::Database<'_>,
+    p4k: &starbreaker_p4k::MappedP4k,
+    r: &starbreaker_datacore::types::Record,
+) -> Vec<u32> {
+    let Ok(q) = db.compile_path::<String>(r.struct_id(), GEOMETRY_PATH) else {
+        return Vec::new();
+    };
+    let Some(geom) = db.query_single::<String>(&q, r).ok().flatten() else {
+        return Vec::new();
+    };
+    lods_in(&geom, |p| p4k.entry_case_insensitive(p).is_some())
+}
+
+/// [`root_lods`] for a DataCore geometry path, with `exists` telling archive entries.
+pub fn lods_in(geom: &str, exists: impl Fn(&str) -> bool) -> Vec<u32> {
+    if geom.is_empty() || geom.to_ascii_lowercase().ends_with(".cdf") {
+        return Vec::new();
+    }
+    let p = archive_path(geom);
+    let Some(dot) = p.rfind('.').filter(|d| !p[*d..].contains('\\')) else {
+        return Vec::new();
+    };
+    let (base, ext) = p.split_at(dot);
+    let mut out = vec![0];
+    out.extend((1..=MAX_LOD).filter(|n| exists(&format!("{base}_lod{n}{ext}m"))));
+    out
+}
+
+/// The LOD an export asked for `requested` uses: the most detailed one the mesh has at or
+/// below the asked detail (`lods` [0, 1, 2, 3] and 4 asked -> 3). `requested` when `lods` is
+/// empty (unknown).
+pub fn effective_lod(requested: u32, lods: &[u32]) -> u32 {
+    let r = requested.min(MAX_LOD);
+    lods.iter().copied().filter(|l| *l <= r).max().unwrap_or(r)
+}
+
+/// The LOD the model viewer starts with: 3, or the least detailed one the mesh has when that
+/// is below 3 (`lods` unknown: 3).
+pub const VIEW_LOD: u32 = 3;
+
+/// [`VIEW_LOD`] for a mesh with these LODs.
+pub fn view_lod(lods: &[u32]) -> u32 {
+    effective_lod(VIEW_LOD, lods)
 }
 
 /// StarBreaker's options for a preset (bundled GLB, all cores).
@@ -100,10 +175,17 @@ pub struct ModelDone {
     pub name: String,
     pub stl_path: Option<String>,
     pub stl_bytes: Option<u64>,
+    /// Triangles in the GLB (every node's triangle primitives).
     pub triangles: Option<u64>,
     pub ms: u64,
     /// Peak resident memory of the exporting process (Linux), bytes.
     pub peak_rss: Option<u64>,
+    /// The LOD exported ([`effective_lod`] of the one asked).
+    #[serde(default)]
+    pub lod: u32,
+    /// The LODs the entity's own mesh has ([`root_lods`]); empty when unknown.
+    #[serde(default)]
+    pub lods: Vec<u32>,
 }
 
 /// Export `what` to `out` (via `out.part`). `progress(fraction, stage)` is called from the
@@ -132,7 +214,9 @@ pub fn export_model(
             db.resolve_string2(r.name_offset)
         )));
     }
-    let opts = export_options(o);
+    let lods = root_lods(db, a.p4k(), r);
+    let lod = effective_lod(o.lod, &lods);
+    let opts = export_options(&ModelOptions { lod, ..*o });
     let bytes = crate::extract::guarded("model export", || {
         let idx = EntityIndex::new(db);
         let tree = resolve_loadout_indexed(&idx, r);
@@ -170,9 +254,11 @@ pub fn export_model(
         name: record_short_name(db, r),
         stl_path: None,
         stl_bytes: None,
-        triangles: None,
+        triangles: super::stl::glb_triangle_count(&bytes),
         ms: 0,
         peak_rss: None,
+        lod,
+        lods,
     };
     if let Some(s) = stl_out {
         progress(0.97, "Writing STL");

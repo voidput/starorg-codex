@@ -269,6 +269,24 @@ impl AssetCache {
         Some(p)
     }
 
+    /// A cached file without touching it (reads use [`AssetCache::get`] first): the same
+    /// checks, a regular non-empty file of our layout under a root that is ours.
+    pub fn peek(
+        &self,
+        channel: &str,
+        build: &str,
+        kind: Kind,
+        key: &str,
+        ext: &str,
+    ) -> Option<PathBuf> {
+        if !self.owned() || !real_dir(&self.kind_dir(channel, build, kind)) {
+            return None;
+        }
+        let p = self.path(channel, build, kind, key, ext);
+        let m = std::fs::symlink_metadata(&p).ok()?;
+        (m.is_file() && !m.file_type().is_symlink() && m.len() > 0).then_some(p)
+    }
+
     /// Get or make the folders for a write; writes the root marker. Refuses when any folder
     /// of the layout is a symlink (or not a folder).
     pub fn prepare(&self, channel: &str, build: &str, kind: Kind) -> io::Result<PathBuf> {

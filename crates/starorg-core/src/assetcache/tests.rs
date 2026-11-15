@@ -377,3 +377,34 @@ fn every_sound_format_is_one_of_ours() {
     }
     assert_eq!(c.usage().files, 2, "counted (and evicted) like the rest");
 }
+
+#[test]
+fn peek_finds_a_file_without_touching_it() {
+    let t = tempfile::tempdir().unwrap();
+    let c = AssetCache::new(t.path().join("assets"), 1 << 20);
+    assert!(
+        c.peek("LIVE", B1, Kind::Models, "x-print-lod3", "glb")
+            .is_none()
+    );
+    c.prepare("LIVE", B1, Kind::Models).unwrap();
+    let p = c.path("LIVE", B1, Kind::Models, "x-print-lod3", "glb");
+    std::fs::write(&p, b"glTF").unwrap();
+    age(&p, 5000);
+    let before = std::fs::metadata(&p).unwrap().modified().unwrap();
+    assert_eq!(
+        c.peek("LIVE", B1, Kind::Models, "x-print-lod3", "glb"),
+        Some(p.clone())
+    );
+    assert_eq!(std::fs::metadata(&p).unwrap().modified().unwrap(), before);
+    // Another LOD is another file.
+    assert!(
+        c.peek("LIVE", B1, Kind::Models, "x-print-lod4", "glb")
+            .is_none()
+    );
+    std::fs::write(&p, b"").unwrap();
+    assert!(
+        c.peek("LIVE", B1, Kind::Models, "x-print-lod3", "glb")
+            .is_none(),
+        "empty"
+    );
+}
