@@ -49,7 +49,8 @@ test('rule labels cover the rule names of the contract sample', () => {
 });
 
 test('stale reasons and hook log lines read as plain words', () => {
-  assert.equal(staleWords(['profile', 'overrides', 'app version']), 'your settings, your edits, app update');
+  assert.equal(staleWords(['profile', 'overrides', 'enhancer update']), 'your settings, your edits, improved enhancements');
+  assert.equal(staleWords(['build', 'game data', 'ship names']), 'game update, ship names');
   const l = logText('prelaunch: LIVE is up to date');
   assert.equal(l.text, 'Before launch: LIVE is up to date');
   assert.equal(l.raw, 'prelaunch: LIVE is up to date');

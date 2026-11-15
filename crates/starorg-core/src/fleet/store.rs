@@ -592,36 +592,27 @@ impl Effective {
     }
 
     /// `applied.json` `ship_names_hash`: SHA-256 of the canonical JSON of the active
-    /// settings, empty when there are none.
+    /// settings' difference from `ShipNames::default()` ([`crate::canon::settings_hash`]),
+    /// empty when there are none. A field a later build adds with its default leaves it
+    /// unchanged; fields added to `ShipEntry`/`Group` need `skip_serializing_if` at their
+    /// default for the same (array elements are compared whole).
     pub fn hash(&self) -> String {
+        self.active()
+            .map(crate::canon::settings_hash)
+            .unwrap_or_default()
+    }
+
+    /// The hash 0.1.0 recorded: canonical JSON of all active settings. Status accepts it so
+    /// a manifest from 0.1.0 does not go stale on upgrade (it stops matching once the
+    /// settings' shape changes; the next apply records [`Self::hash`]).
+    pub fn legacy_hash(&self) -> String {
         match self.active() {
             None => String::new(),
             Some(s) => {
                 let v = serde_json::to_value(s).unwrap_or_default();
-                fsutil::sha256_hex(canonical(&v).as_bytes())
+                fsutil::sha256_hex(crate::canon::canonical(&v).as_bytes())
             }
         }
-    }
-}
-
-/// JSON text with object keys sorted (whatever serde_json's `preserve_order` says).
-fn canonical(v: &serde_json::Value) -> String {
-    match v {
-        serde_json::Value::Object(m) => {
-            let b: BTreeMap<&String, String> = m.iter().map(|(k, v)| (k, canonical(v))).collect();
-            let parts: Vec<String> = b
-                .into_iter()
-                .map(|(k, v)| format!("{}:{v}", serde_json::Value::String(k.clone())))
-                .collect();
-            format!("{{{}}}", parts.join(","))
-        }
-        serde_json::Value::Array(a) => {
-            format!(
-                "[{}]",
-                a.iter().map(canonical).collect::<Vec<_>>().join(",")
-            )
-        }
-        other => other.to_string(),
     }
 }
 
@@ -810,6 +801,11 @@ hull = "vehicle_NameDRAK_Cutlass_Black"
         save_shared(&dirs, &shared).unwrap();
         let h1 = effective(&dirs, &p).hash();
         assert_eq!(h1.len(), 64);
+        // 0.1.0's hash (all settings) differs from the diff-from-default one; both are kept
+        // so status accepts either.
+        let legacy = effective(&dirs, &p).legacy_hash();
+        assert_eq!(legacy.len(), 64);
+        assert_ne!(legacy, h1);
         shared.ships.insert(0, entry("vehicle_NameB", None));
         save_shared(&dirs, &shared).unwrap();
         let h2 = effective(&dirs, &p).hash();

@@ -192,7 +192,12 @@ pub struct Applied {
     /// records lack it and read as empty, so nobody goes stale on upgrade.
     #[serde(default)]
     pub ship_names_hash: String,
+    /// The app that wrote the record; information only (status does not compare it).
     pub app_version: String,
+    /// [`crate::OUTPUT_VERSION`] of the generator that wrote the output. Records from 0.1.0
+    /// lack it and read as 1, the version 0.1.0 generated, so nobody goes stale on upgrade.
+    #[serde(default = "output_version_0_1")]
+    pub output_version: u32,
     pub output_sha256: String,
     pub time: String,
     pub backup: Option<String>,
@@ -206,6 +211,10 @@ pub struct Applied {
     pub owned_choice: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub owned_setting: Option<String>,
+}
+
+fn output_version_0_1() -> u32 {
+    1
 }
 
 /// `intent.json`: the journal of an apply in progress.
@@ -227,6 +236,8 @@ pub struct Inputs {
     pub fingerprint: Option<Fingerprint>,
     pub profile: Profile,
     pub profile_hash: String,
+    /// The `profile_hash` 0.1.0 recorded for this profile (status accepts either).
+    pub profile_legacy_hash: String,
     pub patches: PatchSet,
     pub overrides_bytes: Vec<u8>,
     pub overrides: Vec<state::Override>,
@@ -241,6 +252,8 @@ pub struct Inputs {
     /// Ship-name settings after the channel scope is resolved (addendum §6.4).
     pub ship_names: crate::fleet::store::Effective,
     pub ship_names_hash: String,
+    /// The `ship_names_hash` 0.1.0 recorded (status accepts either).
+    pub ship_names_legacy_hash: String,
 }
 
 /// Read the current inputs of a channel. `profile_file` replaces `profile.toml`; `character`
@@ -276,12 +289,14 @@ pub fn current_inputs(
     let ship_names = crate::fleet::store::effective(&ctx.dirs, &profile);
     Ok(Inputs {
         ship_names_hash: ship_names.hash(),
+        ship_names_legacy_hash: ship_names.legacy_hash(),
         ship_names,
         owned,
         owned_choice: one_off,
         owned_setting: setting,
         fingerprint: t.channel.fingerprint().ok(),
         profile_hash: profile.hash(),
+        profile_legacy_hash: profile.legacy_hash(),
         profile,
         patches,
         overrides_hash: fsutil::sha256_hex(&overrides_bytes),
@@ -398,14 +413,18 @@ pub struct Status {
     pub applied: Option<Applied>,
 }
 
-fn stale_reasons(a: &Applied, inp: &Inputs, ctx: &Ctx) -> Vec<String> {
+/// Why a channel whose game file is ours needs re-applying (empty = up to date). Reasons:
+/// `build`, `game data`, `profile`, `patches`, `overrides`, `owned blueprints`,
+/// `ship names`, `enhancer update`. The app version is not one: a release that leaves the
+/// output alone must not ask for a re-apply ([`crate::OUTPUT_VERSION`] covers the rest).
+fn stale_reasons(a: &Applied, inp: &Inputs) -> Vec<String> {
     let mut r = Vec::new();
     match &inp.fingerprint {
         Some(fp) if FpRecord::from(fp) == a.fingerprint => {}
         Some(fp) if fp.change != a.fingerprint.change => r.push("build".into()),
         _ => r.push("game data".into()),
     }
-    if inp.profile_hash != a.profile_hash {
+    if inp.profile_hash != a.profile_hash && inp.profile_legacy_hash != a.profile_hash {
         r.push("profile".into());
     }
     if inp.patches.hash() != a.patch_set_hash {
@@ -417,11 +436,11 @@ fn stale_reasons(a: &Applied, inp: &Inputs, ctx: &Ctx) -> Vec<String> {
     if inp.owned.hash != a.owned_hash {
         r.push("owned blueprints".into());
     }
-    if inp.ship_names_hash != a.ship_names_hash {
+    if inp.ship_names_hash != a.ship_names_hash && inp.ship_names_legacy_hash != a.ship_names_hash {
         r.push("ship names".into());
     }
-    if ctx.app_version != a.app_version {
-        r.push("app version".into());
+    if a.output_version != crate::OUTPUT_VERSION {
+        r.push("enhancer update".into());
     }
     r
 }
@@ -453,7 +472,7 @@ pub fn status(ctx: &Ctx, t: &Target<'_>, inputs: &Inputs) -> Result<Status, Stri
     let outputs = Outputs::load(&ctx.dirs).map_err(|e| e.to_string())?;
     let state = match &applied {
         Some(a) if a.output_sha256 == sha => {
-            let reasons = stale_reasons(a, inputs, ctx);
+            let reasons = stale_reasons(a, inputs);
             if reasons.is_empty() {
                 State::Applied
             } else {
@@ -1266,6 +1285,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         patch_set_hash: inputs.patches.hash(),
         overrides_hash: inputs.overrides_hash.clone(),
         app_version: ctx.app_version.clone(),
+        output_version: crate::OUTPUT_VERSION,
         output_sha256: out_sha.clone(),
         time: fsutil::rfc3339(now),
         backup: r.backup.clone(),

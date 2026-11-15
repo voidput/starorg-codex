@@ -21,15 +21,17 @@ export function ruleText(rule: string | null | undefined): { check: string; labe
   return (rule && RULE_TEXT[rule as OverrideRule]) || { check: 'Game text rule', label: 'Breaks a game text rule', message: 'The game could not show this text safely.' };
 }
 
-/** Stale reasons (M1 `apply::Status`) in plain words. */
+/** Stale reasons (core `apply::stale_reasons`) in plain words. An app update alone is no
+ *  reason; `enhancer update` means the new version writes different text. */
 const STALE: Record<string, string> = {
   build: 'game update',
+  'game data': 'game update',
   profile: 'your settings',
   overrides: 'your edits',
-  app: 'app update',
-  'app version': 'app update',
-  'app-version': 'app update',
+  'enhancer update': 'improved enhancements',
   patches: 'patches',
+  'ship names': 'ship names',
+  'owned blueprints': 'owned blueprints',
   owned: 'owned blueprints',
   blueprints: 'owned blueprints',
   cache: 'game data',

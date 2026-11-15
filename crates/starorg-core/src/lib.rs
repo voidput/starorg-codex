@@ -9,6 +9,7 @@ pub mod backup;
 pub mod blueprints;
 pub mod build;
 pub mod cache;
+pub mod canon;
 pub mod config;
 pub mod dev;
 pub mod discovery;
@@ -29,3 +30,14 @@ pub mod starorg;
 pub mod state;
 pub mod usercfg;
 pub mod validate;
+
+/// Version of the generated text. `applied.json` records it; status reports
+/// `Stale (enhancer update)` when the recorded one differs, so users re-apply after an
+/// update that changes what is written.
+///
+/// **Bump only when the generated text changes for the same inputs** (same game data,
+/// settings, patches, overrides, owned blueprints, ship names): a new or changed enhancement,
+/// a changed default of a setting, a fix in the text or the merge. Do not bump for app
+/// releases that leave the output as it was; the app version is recorded for information
+/// only. Manifests written before this field existed (0.1.0) read as version 1.
+pub const OUTPUT_VERSION: u32 = 1;

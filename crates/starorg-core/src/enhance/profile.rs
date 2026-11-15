@@ -294,14 +294,12 @@ impl Profile {
         !self.lines_off.contains(&format!("{category}.{line}"))
     }
 
-    /// Stable hash for reports and the applied manifest.
+    /// Hash for reports and the applied manifest, stable across builds: only the settings
+    /// that differ from the Recommended defaults count ([`crate::canon::settings_hash`]), so
+    /// a field a later build adds with its default leaves it unchanged. A changed default
+    /// changes the output for the same profile: bump [`crate::OUTPUT_VERSION`] for that.
     pub fn hash(&self) -> String {
-        use sha2::{Digest, Sha256};
-        let s = serde_json::to_string(self).unwrap_or_default();
-        Sha256::digest(s.as_bytes())
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
+        crate::canon::settings_hash(self)
     }
 }
 
@@ -335,6 +333,42 @@ mod tests {
         assert!(e.branding && e.tags.short_names);
         assert!(Profile::preset("nope").is_err());
         assert_ne!(r.hash(), m.hash());
+    }
+
+    #[test]
+    fn hash_counts_only_settings_off_the_defaults() {
+        let d = Profile::default();
+        // Recommended = no differences = the hash of `{}`.
+        assert_eq!(d.hash(), crate::fsutil::sha256_hex(b"{}"));
+        // A later build adding a field with its default: same JSON plus that key, on both
+        // sides of the diff, leaves the hash as it was.
+        let mut cur = serde_json::to_value(Profile::minimal()).unwrap();
+        let mut def = serde_json::to_value(&d).unwrap();
+        let before = crate::canon::diff_hash(&cur, &def);
+        assert_eq!(before, Profile::minimal().hash());
+        for v in [&mut cur, &mut def] {
+            v["mission"]["new_toggle"] = serde_json::json!(true);
+            v["new_section"] = serde_json::json!({"on": false});
+        }
+        assert_eq!(crate::canon::diff_hash(&cur, &def), before);
+        // Any user change shows.
+        let mut p = Profile::default();
+        p.mission.max_list = 10;
+        assert_ne!(p.hash(), d.hash());
+        let mut q = Profile::default();
+        q.tags
+            .components
+            .styles
+            .insert("size".into(), "long".into());
+        assert_ne!(q.hash(), d.hash());
+        assert_ne!(q.hash(), p.hash());
+        // `[enhance]` setting a value equal to the default is no change.
+        assert_eq!(
+            Profile::from_toml("[enhance]\nships = true\n")
+                .unwrap()
+                .hash(),
+            d.hash()
+        );
     }
 
     #[test]

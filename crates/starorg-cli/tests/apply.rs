@@ -45,6 +45,81 @@ fn setup_apply_keeps_casing_symlink_and_bytes() {
     assert_eq!(v["channels"][0]["result"], "up-to-date");
 }
 
+/// Rewrite `applied.json` of a channel with `f`.
+fn edit_applied(f: &Fake, ch: &str, edit: impl FnOnce(&mut serde_json::Map<String, Value>)) {
+    let p = f.data_dir(ch).join("applied.json");
+    let mut v: Value = serde_json::from_slice(&std::fs::read(&p).unwrap()).unwrap();
+    edit(v.as_object_mut().unwrap());
+    std::fs::write(&p, serde_json::to_vec_pretty(&v).unwrap()).unwrap();
+}
+
+fn status_json(f: &Fake, ch: &str) -> Value {
+    let (_, v) = f.json(&["status", "--channel", ch]);
+    v["channels"][0].clone()
+}
+
+#[test]
+fn app_update_alone_is_not_stale_but_an_output_version_bump_is() {
+    let f = Fake::new();
+    f.setup("LIVE");
+    let (code, v) = f.json(&["apply", "--channel", "LIVE"]);
+    assert_eq!(code, 0, "{v}");
+    let a: Value =
+        serde_json::from_slice(&std::fs::read(f.data_dir("LIVE").join("applied.json")).unwrap())
+            .unwrap();
+    assert_eq!(a["output_version"], starorg_core::OUTPUT_VERSION);
+
+    // Written by another app version, same generator: still applied.
+    edit_applied(&f, "LIVE", |a| {
+        a.insert("app_version".into(), "0.0.1".into());
+    });
+    let st = status_json(&f, "LIVE");
+    assert_eq!(st["state"], "applied", "{st}");
+
+    // Written by an older generator: stale, for that reason alone.
+    edit_applied(&f, "LIVE", |a| {
+        a.insert(
+            "output_version".into(),
+            (starorg_core::OUTPUT_VERSION - 1).into(),
+        );
+    });
+    let st = status_json(&f, "LIVE");
+    assert_eq!(st["state"], "stale", "{st}");
+    assert_eq!(st["reasons"], serde_json::json!(["enhancer update"]));
+    let (code, v) = f.json(&["apply", "--channel", "LIVE", "--if-stale"]);
+    assert_eq!((code, &v["channels"][0]["result"]), (0, &"applied".into()));
+    assert_eq!(f.status_of("LIVE"), "applied");
+}
+
+#[test]
+fn manifest_from_0_1_0_reads_as_applied() {
+    let f = Fake::new();
+    f.setup("LIVE");
+    let (code, v) = f.json(&["apply", "--channel", "LIVE"]);
+    assert_eq!(code, 0, "{v}");
+    // What 0.1.0 wrote: no output_version, the profile hash of the TOML text.
+    let data = f.data_dir("LIVE");
+    let profile =
+        starorg_core::state::Profile::load_file(&starorg_core::state::Profile::path(&data))
+            .unwrap();
+    assert_ne!(profile.hash(), profile.legacy_hash());
+    edit_applied(&f, "LIVE", |a| {
+        a.remove("output_version");
+        a.insert("app_version".into(), "0.1.0".into());
+        a.insert("profile_hash".into(), profile.legacy_hash().into());
+    });
+    let st = status_json(&f, "LIVE");
+    assert_eq!(st["state"], "applied", "{st}");
+    // A real settings change still shows against the old record.
+    std::fs::write(
+        starorg_core::state::Profile::path(&data),
+        "schema = 1\npreset = \"recommended\"\n[patches]\ndisabled = []\n[enhance]\nmissions = false\n",
+    )
+    .unwrap();
+    let st = status_json(&f, "LIVE");
+    assert_eq!(st["reasons"], serde_json::json!(["profile"]), "{st}");
+}
+
 #[test]
 fn overrides_change_values_and_keep_flag_suffixes_and_crlf() {
     let f = Fake::new();

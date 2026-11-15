@@ -122,8 +122,21 @@ impl Profile {
             .unwrap_or_default()
     }
 
-    /// Hash for the applied manifest: of the canonical TOML text.
+    /// `applied.json` `profile_hash`: the generator settings ([`Self::enhance`]) hashed by
+    /// [`crate::enhance::profile::Profile::hash`], so only settings off the defaults count
+    /// and a build adding a setting does not change it. Patch switches and ship names have
+    /// their own hashes; other keys do not change the output. An invalid profile hashes as
+    /// `invalid:` plus [`Self::legacy_hash`], so editing it still shows.
     pub fn hash(&self) -> String {
+        match self.enhance() {
+            Ok(p) => p.hash(),
+            Err(_) => format!("invalid:{}", self.legacy_hash()),
+        }
+    }
+
+    /// The hash 0.1.0 recorded: of the whole table's TOML text. Status accepts it too, so a
+    /// manifest from 0.1.0 does not go stale on upgrade; the next apply records [`Self::hash`].
+    pub fn legacy_hash(&self) -> String {
         let s = toml::to_string(&self.table).unwrap_or_default();
         fsutil::sha256_hex(s.as_bytes())
     }
@@ -218,6 +231,30 @@ mod tests {
             Profile::preset("minimal").unwrap().hash(),
             Profile::preset("everything").unwrap().hash()
         );
+    }
+
+    #[test]
+    fn profile_hash_follows_generator_settings_only() {
+        let parse = |s: &str| Profile {
+            table: toml::from_str(s).unwrap(),
+        };
+        let base = parse("schema = 1\npreset = \"recommended\"\n[patches]\ndisabled = []\n");
+        // Keys that do not feed the generators (or have their own hash) leave it alone.
+        let other = parse(
+            "schema = 1\npreset = \"recommended\"\nfuture = 3\n[patches]\ndisabled = [\"x\"]\n[ship_names]\nuse = \"off\"\n",
+        );
+        assert_eq!(base.hash(), other.hash());
+        assert_ne!(base.legacy_hash(), other.legacy_hash());
+        // Spelling out a default is no change; a real setting is.
+        let same = parse("preset = \"recommended\"\n[enhance]\nmissions = true\n");
+        assert_eq!(base.hash(), same.hash());
+        let changed = parse("preset = \"recommended\"\n[enhance]\nmissions = false\n");
+        assert_ne!(base.hash(), changed.hash());
+        // Invalid: still changes with the text.
+        let bad1 = parse("[enhance]\nno_such = 1\n");
+        let bad2 = parse("[enhance]\nno_such = 2\n");
+        assert!(bad1.hash().starts_with("invalid:"));
+        assert_ne!(bad1.hash(), bad2.hash());
     }
 
     #[test]

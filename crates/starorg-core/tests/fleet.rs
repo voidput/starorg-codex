@@ -217,4 +217,6 @@ fn applied_manifests_without_the_field_read_as_empty() {
         "user_cfg_changed":false}"#;
     let a: starorg_core::apply::Applied = serde_json::from_str(old).unwrap();
     assert_eq!(a.ship_names_hash, "");
+    // Nor `output_version` (0.1.0): reads as the version 0.1.0 generated.
+    assert_eq!(a.output_version, 1);
 }
