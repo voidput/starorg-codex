@@ -76,6 +76,8 @@ pub struct TagStyle {
     /// `damage`, `size`. Missiles: `tracking`, `size`.
     pub elements: Vec<String>,
     /// Style per element: `short`, `medium` or `long`; elements not listed are `medium`.
+    /// Read profiles hold no `medium` entries (an explicit one, needed to undo a preset's
+    /// `short`, is dropped on read), so equal settings compare equal.
     pub styles: BTreeMap<String, String>,
     /// `-` (default), `` (none), ` `, `_`, `.`, `/`, `|`.
     pub separator: String,
@@ -307,7 +309,20 @@ impl Profile {
             .try_into()
             .map_err(|e: toml::de::Error| ProfileError::Toml(e.to_string()))?;
         p.validate()?;
+        let mut p = p;
+        p.normalize();
         Ok((p, unknown))
+    }
+
+    /// Drop `medium` tag styles: an element not listed is `medium` already.
+    fn normalize(&mut self) {
+        for t in [
+            &mut self.tags.components,
+            &mut self.tags.ship_weapons,
+            &mut self.tags.missiles,
+        ] {
+            t.styles.retain(|_, s| s != "medium");
+        }
     }
 
     fn validate(&self) -> Result<(), ProfileError> {
@@ -382,9 +397,10 @@ impl Profile {
 impl Profile {
     /// The `[enhance]` table that turns `base` (the preset) into `self`: only the fields
     /// that differ, so a default a later build changes reaches every setting left alone.
-    /// Data maps (`styles`) and lists are written whole when they differ. Reading it back
-    /// over `base` ([`Self::from_toml`]) gives `self`, except that a `styles` entry only
-    /// `base` has cannot be removed (callers check the round trip).
+    /// Lists are written whole when they differ; a `styles` map holds each element whose
+    /// style differs, with an explicit `medium` where `base` has another style and `self`
+    /// none (reading cannot remove a key the preset has). Reading it back over `base`
+    /// ([`Self::from_toml`]) gives `self` (callers still check the round trip).
     pub fn sparse_over(&self, base: &Profile) -> Result<toml::Table, ProfileError> {
         let cur = toml::Value::try_from(self).map_err(|e| ProfileError::Toml(e.to_string()))?;
         let def = toml::Value::try_from(base).map_err(|e| ProfileError::Toml(e.to_string()))?;
@@ -395,9 +411,26 @@ impl Profile {
     }
 }
 
+/// A `styles` entry as read: an element not listed is `medium`.
+fn style_at(t: &toml::Table, element: &str) -> toml::Value {
+    t.get(element)
+        .cloned()
+        .unwrap_or_else(|| toml::Value::String("medium".into()))
+}
+
 /// `cur` minus what equals `def`; `None` when nothing differs.
 fn diff(cur: &toml::Value, def: &toml::Value, path: &str) -> Option<toml::Value> {
     match (cur, def) {
+        (toml::Value::Table(c), toml::Value::Table(d)) if path.ends_with(".styles") => {
+            let mut out = toml::Table::new();
+            for k in c.keys().chain(d.keys()) {
+                let v = style_at(c, k);
+                if v != style_at(d, k) {
+                    out.insert(k.clone(), v);
+                }
+            }
+            (!out.is_empty()).then_some(toml::Value::Table(out))
+        }
         (toml::Value::Table(c), toml::Value::Table(d)) if !path.ends_with(".styles") => {
             let mut out = toml::Table::new();
             for (k, v) in c {
@@ -615,9 +648,9 @@ mod tests {
         );
         let m = over["mission"].as_table().unwrap();
         assert_eq!(m.keys().collect::<Vec<_>>(), ["owned_em", "title_owned"]);
-        // A styles map that differs is written whole.
+        // A styles map holds only the elements whose style differs.
         let styles = over["tags"]["ship_weapons"]["styles"].as_table().unwrap();
-        assert_eq!(styles.len(), 2);
+        assert_eq!(styles.keys().collect::<Vec<_>>(), ["size"]);
         assert_eq!(Profile::from_toml(&text).unwrap(), p);
         // Against another preset: only what differs from that preset.
         let min = Profile::minimal();
@@ -625,6 +658,44 @@ mod tests {
         q.missions = true;
         let over = q.sparse_over(&min).unwrap();
         assert_eq!(over.keys().collect::<Vec<_>>(), ["missions"]);
+    }
+
+    /// Every style of every element of every tag kind, over every preset, reads back as
+    /// set: including `medium` where the preset has another style (ship-weapon `damage`).
+    #[test]
+    fn every_tag_style_round_trips_over_every_preset() {
+        type Get = fn(&mut Tags) -> &mut TagStyle;
+        let groups: [(&str, Get); 3] = [
+            ("components", |t| &mut t.components),
+            ("ship_weapons", |t| &mut t.ship_weapons),
+            ("missiles", |t| &mut t.missiles),
+        ];
+        for preset in PRESETS {
+            let base = Profile::preset(preset).unwrap();
+            for (name, get) in groups {
+                let elements = get(&mut base.tags.clone()).elements.clone();
+                for el in &elements {
+                    for style in ["short", "medium", "long"] {
+                        let mut p = base.clone();
+                        let t = get(&mut p.tags);
+                        t.styles.insert(el.clone(), style.into());
+                        p.normalize();
+                        let over = p.sparse_over(&base).unwrap();
+                        let text = format!(
+                            "preset = {preset:?}\n{}",
+                            toml::to_string(&toml::Table::from_iter([(
+                                "enhance".to_string(),
+                                toml::Value::Table(over),
+                            )]))
+                            .unwrap()
+                        );
+                        let back = Profile::from_toml(&text).unwrap();
+                        assert_eq!(back, p, "{preset} {name}.{el} = {style}\n{text}");
+                        assert_eq!(get(&mut back.tags.clone()).style_of(el), style);
+                    }
+                }
+            }
+        }
     }
 
     #[test]

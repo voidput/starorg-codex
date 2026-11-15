@@ -579,7 +579,7 @@ mod tests {
         let mut again = file.clone();
         assert!(again.migrate().is_none());
         assert_eq!(profile_of(&again).unwrap().mission.owned_em, 0);
-        // Saved over a schema-1 file: becomes schema 2 and sparse.
+        // Saved over a schema-1 file: becomes current and sparse.
         let mut old = state::Profile {
             table: toml::from_str(
                 "schema = 1\npreset = \"recommended\"\n[enhance]\nships = true\n[enhance.mission]\nowned_em = 0\n",
@@ -589,6 +589,46 @@ mod tests {
         store_profile(&mut old, &q).unwrap();
         assert_eq!(old.schema(), state::PROFILE_SCHEMA);
         assert_eq!(old.table["enhance"], file.table["enhance"]);
+    }
+
+    /// Every style of every element of every tag kind saves and reads back, over every
+    /// preset, whether the profile still names it or not. Ship-weapon `damage` = Medium
+    /// used to fail: the preset's `short` could not be removed by the merge.
+    #[test]
+    fn every_tag_style_saves_over_every_preset() {
+        type Get = fn(&mut TagSettings) -> &mut TagKindSettings;
+        let groups: [(&str, Get); 3] = [
+            ("components", |t| &mut t.components),
+            ("ship_weapons", |t| &mut t.ship_weapons),
+            ("missiles", |t| &mut t.missiles),
+        ];
+        for (pre, name) in PRESETS {
+            let start = profile_to(&ep::Profile::preset(name).unwrap(), Vec::new()).unwrap();
+            for (group, get) in groups {
+                let elements = get(&mut start.tags.clone()).elements.clone();
+                for el in &elements {
+                    for style in [TagStyle::Short, TagStyle::Medium, TagStyle::Long] {
+                        for named in [Some(pre), None] {
+                            let mut q = start.clone();
+                            q.preset = named;
+                            get(&mut q.tags).styles.insert(el.clone(), style);
+                            let mut file = state::Profile::preset(name).unwrap();
+                            store_profile(&mut file, &q).unwrap_or_else(|e| {
+                                panic!("{name} {group}.{el} = {style:?} ({named:?}): {e:?}")
+                            });
+                            let mut back = profile_of(&file).unwrap();
+                            let got = get(&mut back.tags).styles.get(el).copied();
+                            assert_eq!(
+                                got.unwrap_or(TagStyle::Medium),
+                                style,
+                                "{name} {group}.{el} ({named:?})"
+                            );
+                            assert_eq!(profile_from(&back), profile_from(&q));
+                        }
+                    }
+                }
+            }
+        }
     }
 
     #[test]
