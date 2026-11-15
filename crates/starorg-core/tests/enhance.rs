@@ -804,3 +804,43 @@ fn same_named_blueprints_are_marked_only_when_all_agree() {
             .contains("Owned")
     );
 }
+
+#[test]
+fn quest_hints_on_and_off() {
+    let (g, stock) = run(&Profile::default());
+    assert_eq!(
+        added(&g, &stock, "item_DescZETA_Chip"),
+        "\\n\\n<EM4>Used in:</EM4> Filler Heist · Stanton",
+        "runtime titles and unreleased uses are left out; EM tags of the title are dropped"
+    );
+    assert_eq!(
+        added(&g, &stock, "item_DescZETA_Part_1_a"),
+        "\\n\\n<EM4>Used in:</EM4>\\n- Filler Haul · Stanton\\n- Filler Patrol · Pyro, Stanton",
+        "a variant sharing the key is fine"
+    );
+    for key in [
+        "item_DescZETA_Ore",
+        "item_DescZETA_Trinket",
+        "item_DescZETA_Datapad",
+    ] {
+        assert_eq!(added(&g, &stock, key), "", "{key}");
+    }
+    assert_eq!(g.count(Category::QuestHints), 2);
+    assert!(
+        g.edits
+            .values()
+            .all(|e| !e.key.to_ascii_uppercase().starts_with("LOC_")),
+        "never a LOC_* key"
+    );
+
+    let p = Profile {
+        quest_hints: false,
+        ..Profile::default()
+    };
+    let (off, _) = run(&p);
+    assert_eq!(off.count(Category::QuestHints), 0);
+    assert_eq!(off.edits.len(), g.edits.len() - 2);
+    assert!(!Profile::minimal().quest_hints);
+    let bytes = render(&stock, &g).unwrap();
+    assert_eq!(check_file(&stock, &bytes), Ok(()));
+}

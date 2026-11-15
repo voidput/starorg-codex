@@ -199,6 +199,12 @@ zeta_twin_desc=Filler twin prose.\n\n<EM3>BLUEPRINTS</EM3>\n- Filler pistol\n- F
 [mission-titles] zeta_missing_title <- Zeta_Missing
 zeta_missing_title=Filler Missing <EM4>[5 Rep]</EM4>
 
+[quest-hints] item_DescZETA_Chip <- ZETA_Chip
+item_DescZETA_Chip=Filler ZETA_Chip prose.\n\n<EM4>Used in:</EM4> Filler Heist · Stanton
+
+[quest-hints] item_DescZETA_Part_1_a <- ZETA_Part_1_a
+item_DescZETA_Part_1_a=Filler ZETA_Part_1_a prose.\n\n<EM4>Used in:</EM4>\n- Filler Haul · Stanton\n- Filler Patrol · Pyro, Stanton
+
 {
   "schema": 1,
   "categories": {
@@ -276,6 +282,13 @@ zeta_missing_title=Filler Missing <EM4>[5 Rep]</EM4>
       "written": 7,
       "left": {},
       "open_tail": 1,
+      "case_folded": 0
+    },
+    "quest-hints": {
+      "candidates": 2,
+      "written": 2,
+      "left": {},
+      "open_tail": 0,
       "case_folded": 0
     }
   },

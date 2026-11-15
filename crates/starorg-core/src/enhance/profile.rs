@@ -18,6 +18,9 @@ pub struct Profile {
     pub fps_weapons: bool,
     pub missiles: bool,
     pub missions: bool,
+    /// "Used in: <contract> · <system>" after the description of items a mission spawns or
+    /// a contract asks for, from real record references only (addendum §12).
+    pub quest_hints: bool,
     /// Stat lines switched off, as `<category>.<line>` (e.g. `ships.boost`, `components.signatures`).
     pub lines_off: BTreeSet<String>,
     /// "Stats above prose" (spec 5.1).
@@ -213,6 +216,7 @@ impl Default for Profile {
             fps_weapons: true,
             missiles: true,
             missions: true,
+            quest_hints: true,
             lines_off: BTreeSet::new(),
             stats_above: false,
             header: "--- STATS ---".into(),
@@ -257,6 +261,7 @@ impl Profile {
             fps_weapons: false,
             missiles: false,
             missions: false,
+            quest_hints: false,
             ..Self::default()
         }
     }

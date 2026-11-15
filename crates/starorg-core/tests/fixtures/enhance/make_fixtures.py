@@ -284,12 +284,44 @@ k("zeta_twin_desc", "Filler twin prose.")
 k("zeta_wip_title", "Filler WIP")
 k("zeta_wip_desc", "Filler WIP prose.")
 k("zeta_missing_title", "Filler Missing")
+# Quest items (addendum 12): real references only; general goods, trades, shared keys skipped.
+quest = []
+def qitem(short, typ, uses, sub=None, shared=None, desc=True):
+    loc = {"name": f"@item_Name{short}"}
+    if desc:
+        loc["desc"] = f"@item_Desc{short}"
+    q = {"recordName": E + short, "loc": loc, "itemType": typ, "uses": uses}
+    if sub:
+        q["subType"] = sub
+    if shared:
+        q["descSharedWith"] = shared
+    quest.append(q)
+    k(f"item_Name{short}", f"Filler {short}")
+    if desc:
+        k(f"item_Desc{short}", f"Filler {short} prose.")
+def use(kind, source, mission, title, systems=(), unreleased=False):
+    u = {"kind": kind, "source": source, "mission": mission, "titleKey": "@" + title, "systems": list(systems)}
+    if unreleased:
+        u["unreleased"] = True
+    return u
+qitem("ZETA_Chip", "RemovableChip", [use("spawned", "MissionBrokerEntry", "Zeta_Heist_1", "zeta_heist_title", ["Stanton"]),
+                                     use("spawned", "MissionBrokerEntry", "Zeta_Heist_Var", "zeta_heist_var", ["Pyro"]),
+                                     use("spawned", "MissionBrokerEntry", "Zeta_Heist_Dev", "zeta_patrol_title", unreleased=True)])
+qitem("ZETA_Part_1_a", "Cargo", [use("hauled", "Gen_Zeta", "Zeta_Haul_E", "zeta_haul_title", ["Stanton"]),
+                                 use("hauled", "Gen_Zeta", "Zeta_Patrol", "zeta_patrol_title", ["Pyro", "Stanton"])],
+      shared=["ZETA_Part_2_a"])
+qitem("ZETA_Ore", "Misc", [use("hauled", "Gen_Zeta", "Zeta_Haul_E", "zeta_haul_title")], sub="Harvestable")
+qitem("ZETA_Trinket", "Misc", [use("hauled", "TheCollector", "Zeta_Trade", "zeta_patrol_title")])
+qitem("ZETA_Datapad", "Misc", [use("spawned", "MissionBrokerEntry", "Zeta_Heist_1", "zeta_heist_title")], shared=["ZETA_Notepad_Other"])
+k("zeta_heist_title", "Filler <EM4>Heist</EM4>")
+k("zeta_heist_var", "~mission(Contractor|HeistTitle)")
 k("Frontend_PU_Version", "Filler version")
 k("ui_unrelated,P", "Unrelated filler")
 k("mG_ContractsMgr_Select,P", "Filler select prompt.")
 
-gd = {"schema": 2, "build": None, "components": comps, "weapons": weapons, "missiles": missiles, "ships": ships,
-      "contracts": contracts, "blueprints": blueprints, "blueprintPools": pools, "reputationStandings": standings}
+gd = {"schema": 3, "build": None, "components": comps, "weapons": weapons, "missiles": missiles, "ships": ships,
+      "contracts": contracts, "blueprints": blueprints, "blueprintPools": pools, "reputationStandings": standings,
+      "questItems": quest}
 json.dump(gd, open(os.path.join(out, "gamedata.json"), "w"), indent=1, sort_keys=True)
 body = "; synthetic stock strings for enhance golden tests (made-up filler, no CIG text)\r\n"
 body += "".join(f"{a}={b}\r\n" for a, b in ini)

@@ -770,6 +770,131 @@
    "type": "Missile"
   }
  ],
+ "questItems": [
+  {
+   "itemType": "RemovableChip",
+   "loc": {
+    "desc": "@item_DescZETA_Chip",
+    "name": "@item_NameZETA_Chip"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Chip",
+   "uses": [
+    {
+     "kind": "spawned",
+     "mission": "Zeta_Heist_1",
+     "source": "MissionBrokerEntry",
+     "systems": [
+      "Stanton"
+     ],
+     "titleKey": "@zeta_heist_title"
+    },
+    {
+     "kind": "spawned",
+     "mission": "Zeta_Heist_Var",
+     "source": "MissionBrokerEntry",
+     "systems": [
+      "Pyro"
+     ],
+     "titleKey": "@zeta_heist_var"
+    },
+    {
+     "kind": "spawned",
+     "mission": "Zeta_Heist_Dev",
+     "source": "MissionBrokerEntry",
+     "systems": [],
+     "titleKey": "@zeta_patrol_title",
+     "unreleased": true
+    }
+   ]
+  },
+  {
+   "descSharedWith": [
+    "ZETA_Part_2_a"
+   ],
+   "itemType": "Cargo",
+   "loc": {
+    "desc": "@item_DescZETA_Part_1_a",
+    "name": "@item_NameZETA_Part_1_a"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Part_1_a",
+   "uses": [
+    {
+     "kind": "hauled",
+     "mission": "Zeta_Haul_E",
+     "source": "Gen_Zeta",
+     "systems": [
+      "Stanton"
+     ],
+     "titleKey": "@zeta_haul_title"
+    },
+    {
+     "kind": "hauled",
+     "mission": "Zeta_Patrol",
+     "source": "Gen_Zeta",
+     "systems": [
+      "Pyro",
+      "Stanton"
+     ],
+     "titleKey": "@zeta_patrol_title"
+    }
+   ]
+  },
+  {
+   "itemType": "Misc",
+   "loc": {
+    "desc": "@item_DescZETA_Ore",
+    "name": "@item_NameZETA_Ore"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Ore",
+   "subType": "Harvestable",
+   "uses": [
+    {
+     "kind": "hauled",
+     "mission": "Zeta_Haul_E",
+     "source": "Gen_Zeta",
+     "systems": [],
+     "titleKey": "@zeta_haul_title"
+    }
+   ]
+  },
+  {
+   "itemType": "Misc",
+   "loc": {
+    "desc": "@item_DescZETA_Trinket",
+    "name": "@item_NameZETA_Trinket"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Trinket",
+   "uses": [
+    {
+     "kind": "hauled",
+     "mission": "Zeta_Trade",
+     "source": "TheCollector",
+     "systems": [],
+     "titleKey": "@zeta_patrol_title"
+    }
+   ]
+  },
+  {
+   "descSharedWith": [
+    "ZETA_Notepad_Other"
+   ],
+   "itemType": "Misc",
+   "loc": {
+    "desc": "@item_DescZETA_Datapad",
+    "name": "@item_NameZETA_Datapad"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Datapad",
+   "uses": [
+    {
+     "kind": "spawned",
+     "mission": "Zeta_Heist_1",
+     "source": "MissionBrokerEntry",
+     "systems": [],
+     "titleKey": "@zeta_heist_title"
+    }
+   ]
+  }
+ ],
  "reputationStandings": [
   {
    "displayNameKey": "@rep_standing_jr",
@@ -784,7 +909,7 @@
    "recordName": "SReputationStandingParams.Standing_Sr"
   }
  ],
- "schema": 2,
+ "schema": 3,
  "ships": [
   {
    "armor": {

@@ -14,6 +14,7 @@ pub mod items;
 pub mod missions;
 pub mod owned;
 pub mod profile;
+pub mod quest;
 pub mod ships;
 pub mod tags;
 
@@ -45,10 +46,12 @@ pub enum Category {
     ShipNames,
     /// The colour test line (`Profile::colour_test`). Opt-in, no preset.
     ColourTest,
+    /// "Used in" lines on quest items (`Profile::quest_hints`, addendum §12).
+    QuestHints,
 }
 
 impl Category {
-    pub const ALL: [Category; 13] = [
+    pub const ALL: [Category; 14] = [
         Self::Ships,
         Self::Components,
         Self::ShipWeapons,
@@ -62,6 +65,7 @@ impl Category {
         Self::Branding,
         Self::ShipNames,
         Self::ColourTest,
+        Self::QuestHints,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -79,6 +83,7 @@ impl Category {
             Self::Branding => "branding",
             Self::ShipNames => "ship-names",
             Self::ColourTest => "colour-test",
+            Self::QuestHints => "quest-hints",
         }
     }
 }
@@ -754,6 +759,10 @@ pub fn generate_with(
 
     if p.missions {
         missions::generate(&mut en, gd, owned);
+    }
+
+    if p.quest_hints {
+        quest::generate(&mut en, gd);
     }
 
     if p.branding {
