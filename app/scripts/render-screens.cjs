@@ -125,7 +125,8 @@ const shots = [
   const browser = await chromium.launch({ headless: true });
   const errors = [];
   const overflow = [];
-  for (const [w, h] of [[1280, 800], [1200, 780], [1024, 700]]) {
+  const sizes = process.env.SIZES ? process.env.SIZES.split(",").map((s) => s.split("x").map(Number)) : [[1280, 800], [1200, 780], [1024, 700]];
+  for (const [w, h] of sizes) {
     for (const theme of ['dark', 'light']) {
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: theme, reducedMotion: 'reduce' });
       for (const [name, screen, prep, extra, collapsed] of shots) {

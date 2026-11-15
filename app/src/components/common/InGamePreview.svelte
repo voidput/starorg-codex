@@ -25,7 +25,7 @@
   const lines = $derived(parse(text));
 </script>
 
-<div class={cn('bg-background/60 rounded-md border p-3 font-mono text-[12px] leading-relaxed', className)}>
+<div class={cn('bg-background/60 min-w-0 rounded-md border p-3 font-mono text-[12px] leading-relaxed [overflow-wrap:anywhere]', className)}>
   {#each lines as line, i (i)}
     <div class="min-h-[1.4em] whitespace-pre-wrap">
       {#each line as p, j (j)}

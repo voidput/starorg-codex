@@ -256,7 +256,7 @@
       <Button size="sm" disabled={saving || !!app.blocked || !app.channel?.set_up || !!headerError} title={app.blocked ?? undefined} onclick={() => save(true)}><Check aria-hidden="true" /> Save &amp; apply</Button>
     </div>
 
-    <div class="grid grid-cols-[164px_minmax(0,1fr)] gap-4 @min-[880px]:grid-cols-[164px_minmax(0,1fr)_minmax(260px,330px)]">
+    <div class="grid grid-cols-[164px_minmax(0,1fr)] gap-4 @min-[880px]:grid-cols-[164px_minmax(0,1fr)_minmax(260px,330px)] @min-[1280px]:grid-cols-[164px_minmax(0,1fr)_minmax(340px,480px)] @min-[1700px]:grid-cols-[164px_minmax(0,1fr)_minmax(420px,620px)]">
       <div role="tablist" aria-orientation="vertical" aria-label="Categories" class="flex flex-col gap-0.5 self-start">
         {#each tabs as t, i (t.id)}
           <button
@@ -284,7 +284,7 @@
       </div>
 
       <div id="cat-panel" role="tabpanel" aria-labelledby="cat-tab-{selected}" class="grid min-w-0 gap-4 self-start">
-        <div class="sticky top-0 z-10 @min-[880px]:hidden"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} strip /></div>
+        <div class="sticky top-0 z-10 min-w-0 @min-[880px]:hidden"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} strip /></div>
 
         {#if selected === 'general'}
           <Card.Root>
@@ -410,7 +410,7 @@
         {/if}
       </div>
 
-      <div class="sticky top-0 hidden self-start @min-[880px]:block"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} /></div>
+      <div class="sticky top-0 hidden max-h-[calc(100dvh-9rem)] min-w-0 self-start overflow-y-auto @min-[880px]:block"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} /></div>
     </div>
   </div>
 {/if}

@@ -17,10 +17,10 @@
 </script>
 
 {#snippet sample(it: PreviewItem)}
-  <article class="grid gap-1.5" aria-label={it.label}>
+  <article class="grid min-w-0 gap-1.5" aria-label={it.label}>
     <div class="flex items-baseline justify-between gap-2">
-      <h3 class="font-semibold">{it.label}</h3>
-      <span class="mono text-muted-foreground truncate text-[11px]">{it.key}</span>
+      <h3 class="shrink-0 font-semibold">{it.label}</h3>
+      <span class="mono text-muted-foreground min-w-0 truncate text-[11px]" title={it.key}>{it.key}</span>
     </div>
     {#if it.original === it.result}
       <InGamePreview text={it.result} />
@@ -34,7 +34,7 @@
   </article>
 {/snippet}
 
-<section aria-labelledby="{uid}-title" aria-busy={loading} class={cn('bg-card rounded-lg border', strip && 'shadow-md')}>
+<section aria-labelledby="{uid}-title" aria-busy={loading} class={cn('bg-card min-w-0 rounded-lg border', strip && 'shadow-md')}>
   <div class="flex items-center justify-between gap-2 border-b px-4 py-2.5">
     <h2 id="{uid}-title" class="eyebrow text-muted-foreground">In-game preview</h2>
     <span class="text-muted-foreground flex items-center gap-2 text-[12px]">
