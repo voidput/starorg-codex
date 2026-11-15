@@ -423,6 +423,9 @@ pub struct Selection {
     /// so that one's set is used instead ([`auto_character`]). The newest character's geid.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fallback_from: Option<String>,
+    /// Sets of other characters that could not be read while picking for `auto`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub warnings: Vec<String>,
     /// Normalised names.
     #[serde(skip)]
     pub names: BTreeSet<String>,
@@ -485,42 +488,83 @@ pub fn load_unattributed(channel_data: &Path) -> Result<OwnedSet, String> {
 /// another character's is not; then the most recently seen character that owns something.
 /// A reset can give a new geid on a new account, which nothing proves is the same character
 /// (see [`repair`]): falling back keeps the `[Owned]` markers instead of marking nothing.
-/// Returns (character used, newest character when it was passed over).
-pub fn auto_character(
-    channel_data: &Path,
-    chars: &Characters,
-) -> Result<(Option<String>, Option<String>), String> {
+/// Returns the [`AutoPick`].
+///
+/// A set that does not read (a truncated file, an id that cannot name a file) counts as owning
+/// nothing and is reported in `warnings`: it must not stop a status or an apply.
+pub fn auto_character(channel_data: &Path, chars: &Characters) -> Result<AutoPick, String> {
+    let mut pick = AutoPick::default();
     let Some(newest) = chars.newest() else {
-        return Ok((None, None));
+        return Ok(pick);
     };
-    let owns =
-        |g: &str| -> Result<bool, String> { Ok(!load_set(channel_data, g)?.entries.is_empty()) };
-    if owns(newest)? {
-        return Ok((Some(newest.to_string()), None));
-    }
+    let newest_count = match load_set(channel_data, newest) {
+        Ok(s) => s.entries.len(),
+        Err(e) => {
+            pick.warnings.push(format!(
+                "owned blueprints of {} not read, counted as none: {e}",
+                chars.characters[newest].name
+            ));
+            0
+        }
+    };
     let mut others: Vec<(&String, &Character)> = chars
         .characters
         .iter()
         .filter(|(g, _)| g.as_str() != newest)
         .collect();
     others.sort_by(|a, b| b.1.last_seen.cmp(&a.1.last_seen).then_with(|| a.0.cmp(b.0)));
-    for (g, _) in others {
-        if owns(g)? {
-            return Ok((Some(g.clone()), Some(newest.to_string())));
+    let mut counts: Vec<(String, usize)> = Vec::new();
+    for (g, c) in others {
+        match load_set(channel_data, g) {
+            Ok(s) => counts.push((g.clone(), s.entries.len())),
+            Err(e) => pick.warnings.push(format!(
+                "owned blueprints of {} not read, counted as none: {e}",
+                c.name
+            )),
         }
     }
-    Ok((Some(newest.to_string()), None))
+    let used = if newest_count > 0 {
+        (newest.to_string(), newest_count)
+    } else if let Some((g, n)) = counts.iter().find(|(_, n)| *n > 0) {
+        pick.fallback_from = Some(newest.to_string());
+        (g.clone(), *n)
+    } else {
+        (newest.to_string(), 0)
+    };
+    // Another character owns far more than the one used: "Any of my characters" may be meant.
+    pick.larger = counts
+        .iter()
+        .filter(|(g, n)| *g != used.0 && *n >= 5 && *n >= used.1.saturating_mul(2) + 5)
+        .max_by_key(|(_, n)| *n)
+        .map(|(g, _)| g.clone());
+    pick.used = Some(used.0);
+    Ok(pick)
+}
+
+/// What `auto` picked ([`auto_character`]).
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct AutoPick {
+    /// The character whose set is used.
+    pub used: Option<String>,
+    /// The newest character, when it owns nothing and was passed over.
+    pub fallback_from: Option<String>,
+    /// A character (not merged with the used one) that owns far more than it.
+    pub larger: Option<String>,
+    /// Other characters' sets that could not be read.
+    pub warnings: Vec<String>,
 }
 
 pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selection, String> {
     let chars = load_characters(channel_data)?;
     let choice = Choice::parse(choice_value, &chars).map_err(|e| e.to_string())?;
     let mut fallback_from = None;
+    let mut warnings = Vec::new();
     let (mode, geids): (&str, Vec<String>) = match &choice {
         Choice::Auto => {
-            let (used, from) = auto_character(channel_data, &chars)?;
-            fallback_from = from;
-            ("auto", used.into_iter().collect())
+            let p = auto_character(channel_data, &chars)?;
+            fallback_from = p.fallback_from;
+            warnings = p.warnings;
+            ("auto", p.used.into_iter().collect())
         }
         Choice::Any => ("any", chars.characters.keys().cloned().collect()),
         Choice::Character(g) => ("character", vec![g.clone()]),
@@ -529,7 +573,22 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
     let mut ids = BTreeSet::new();
     let mut ambiguous = BTreeSet::new();
     for g in &geids {
-        for (k, e) in load_set(channel_data, g)?.entries {
+        // A set that does not read marks nothing; the apply says so instead of failing.
+        let set = match load_set(channel_data, g) {
+            Ok(s) => s,
+            Err(e) => {
+                let name = chars
+                    .characters
+                    .get(g)
+                    .map_or(g.as_str(), |c| c.name.as_str());
+                let w = format!("owned blueprints of {name} not read, counted as none: {e}");
+                if !warnings.contains(&w) {
+                    warnings.push(w);
+                }
+                continue;
+            }
+        };
+        for (k, e) in set.entries {
             // An ambiguous match lists every candidate; marking by its name or by any of its
             // ids would be a guess, so it marks nothing until it is resolved.
             if e.ambiguous {
@@ -560,6 +619,7 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
         mode: mode.into(),
         characters: geids,
         fallback_from,
+        warnings,
         count: names.len(),
         ambiguous: ambiguous.len(),
         names,

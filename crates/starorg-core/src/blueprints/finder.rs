@@ -511,35 +511,48 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
     let catalog_rows = rows.len();
     let mut chars: BTreeMap<String, FinderCharacter> = BTreeMap::new();
     let mut channels = Vec::new();
+    // Merged geids (a reset: same account and name, new geid) of every channel. The same geid
+    // is the same character on every channel, so a merge seen on one channel joins the
+    // character up on the others too (All channels).
+    let mut aliases = super::Characters::default();
+    for inp in inputs {
+        for (from, to) in &inp.characters.aliases {
+            aliases
+                .aliases
+                .entry(from.clone())
+                .or_insert_with(|| to.clone());
+        }
+    }
     for inp in inputs {
         let mut owned = 0u32;
         let mut skipped = inp.unreadable;
         for (g, c) in &inp.characters.characters {
+            let g = aliases.canonical(g);
             let e = chars.entry(g.clone()).or_insert_with(|| FinderCharacter {
                 id: g.clone(),
                 name: c.name.clone(),
                 last_seen: c.last_seen.clone(),
                 channels: Vec::new(),
             });
-            // TODO(aliases): once `Characters.aliases` lands (branch blueprints-windows-fix),
-            // canonicalise `g` through them here so renamed/merged characters join up.
             if c.last_seen > e.last_seen {
                 e.name = c.name.clone();
                 e.last_seen = c.last_seen.clone();
             }
-            e.channels.push(inp.channel.clone());
+            if !e.channels.contains(&inp.channel) {
+                e.channels.push(inp.channel.clone());
+            }
         }
         let names = names_in.get(inp.channel.as_str());
-        let mut sets: Vec<(&str, &OwnedSet)> = Vec::new();
+        let mut sets: Vec<(String, &OwnedSet)> = Vec::new();
         for set in &inp.sets {
             match &set.geid {
-                Some(g) => sets.push((g.as_str(), set)),
+                Some(g) => sets.push((aliases.canonical(g), set)),
                 // A set without its character id cannot be placed: counted, shown.
                 None => skipped += 1,
             }
         }
         if let Some(u) = inp.unattributed.as_ref().filter(|u| !u.entries.is_empty()) {
-            sets.push((UNATTRIBUTED, u));
+            sets.push((UNATTRIBUTED.to_string(), u));
             let e = chars
                 .entry(UNATTRIBUTED.to_string())
                 .or_insert_with(|| FinderCharacter {

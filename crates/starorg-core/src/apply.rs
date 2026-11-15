@@ -994,6 +994,9 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         Err(e) => return fail(r, e),
     };
     r.owned = Some(inputs.owned.clone());
+    for w in &inputs.owned.warnings {
+        r.warnings.push(Warning::new("owned-unread", w.clone()));
+    }
     if inputs.owned.ambiguous > 0 {
         r.warnings.push(Warning::new(
             "owned-ambiguous",

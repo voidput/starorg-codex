@@ -645,3 +645,52 @@ fn real_catalog() {
         f.channels[0].skipped,
     );
 }
+
+/// A merge seen on one channel (old geid -> kept geid) joins the character up on every
+/// channel in All channels: one character, its owners under the kept geid.
+#[test]
+fn merged_geids_join_up_across_channels() {
+    let who = |g: &str, name: &str| crate::blueprints::Character {
+        account_id: Some("77".into()),
+        name: name.into(),
+        last_seen: Some(format!(
+            "2026-0{}-01T00:00:00Z",
+            if g == "2002" { 3 } else { 1 }
+        )),
+    };
+    let mut live = Characters::default();
+    live.characters
+        .insert("2002".into(), who("2002", "Test_Pilot"));
+    live.aliases.insert("1001".into(), "2002".into());
+    let mut ptu = Characters::default();
+    ptu.characters
+        .insert("1001".into(), who("1001", "Test_Pilot"));
+    let mut old = OwnedSet::new(Some("1001"));
+    old.add(
+        "Synthetic Thing",
+        Source {
+            kind: SOURCE_LOG.into(),
+            time: None,
+            file: None,
+        },
+    );
+    let f = build(&[
+        ChannelInput {
+            channel: "LIVE".into(),
+            characters: live,
+            ..Default::default()
+        },
+        ChannelInput {
+            channel: "PTU".into(),
+            characters: ptu,
+            sets: vec![old],
+            ..Default::default()
+        },
+    ]);
+    let ids: Vec<&str> = f.characters.iter().map(|c| c.id.as_str()).collect();
+    assert_eq!(ids, ["2002"]);
+    assert_eq!(f.characters[0].channels, ["LIVE", "PTU"]);
+    let row = f.rows.iter().find(|r| r.name == "Synthetic Thing").unwrap();
+    assert_eq!(row.owners[0].character, "2002");
+    assert_eq!(row.owners[0].channel, "PTU");
+}

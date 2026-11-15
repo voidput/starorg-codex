@@ -885,4 +885,110 @@ mod tests {
         );
         std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o644)).unwrap();
     }
+
+    /// Another character's set that does not read (truncated file, or an id kept by the repair
+    /// that cannot name a file) counts as none with a warning; picking and select still work.
+    #[test]
+    fn unreadable_other_sets_do_not_fail_auto() {
+        let d = tempfile::tempdir().unwrap();
+        let mut c = Characters::default();
+        c.seen(
+            "1001",
+            Some("77"),
+            "Old_Pilot",
+            Some("2026-01-01T00:00:00Z"),
+        );
+        c.seen(
+            "2002",
+            Some("88"),
+            "Broken_Pilot",
+            Some("2026-02-01T00:00:00Z"),
+        );
+        c.seen(
+            "3003",
+            Some("99"),
+            "New_Pilot",
+            Some("2026-03-01T00:00:00Z"),
+        );
+        c.characters.insert(
+            "ab-c".into(),
+            Character {
+                account_id: None,
+                name: "Odd_Pilot".into(),
+                last_seen: Some("2026-02-15T00:00:00Z".into()),
+            },
+        );
+        crate::blueprints::save_characters(d.path(), &c).unwrap();
+        let mut a = OwnedSet::new(Some("1001"));
+        a.add("Fake Rifle", src(SOURCE_LOG, "1"));
+        crate::blueprints::save_set(d.path(), &a).unwrap();
+        let dir = crate::blueprints::dir(d.path());
+        std::fs::write(dir.join("2002.json"), b"{\"schema\": 1, \"entries\": {").unwrap();
+
+        let p = crate::blueprints::auto_character(d.path(), &load_characters(d.path()).unwrap())
+            .unwrap();
+        assert_eq!(p.used.as_deref(), Some("1001"));
+        assert_eq!(p.fallback_from.as_deref(), Some("3003"));
+        assert_eq!(p.warnings.len(), 2, "{:?}", p.warnings);
+        assert!(
+            p.warnings
+                .iter()
+                .any(|w| w.contains("Broken_Pilot") && w.contains("EOF"))
+        );
+        assert!(
+            p.warnings
+                .iter()
+                .any(|w| w.contains("Odd_Pilot") && w.contains("bad character id"))
+        );
+
+        let s = crate::blueprints::select(d.path(), None).unwrap();
+        assert_eq!((s.count, s.warnings.len()), (1, 2));
+        // `any` reads every set: the broken ones count as none, the rest is used.
+        let any = crate::blueprints::select(d.path(), Some("any")).unwrap();
+        assert_eq!(any.count, 1);
+        assert_eq!(any.warnings.len(), 2);
+        // The newest's own set broken: still no error.
+        std::fs::write(dir.join("3003.json"), b"nope").unwrap();
+        let s = crate::blueprints::select(d.path(), None).unwrap();
+        assert_eq!(s.characters, vec!["1001".to_string()]);
+    }
+
+    /// A character that owns far more than the one auto uses is pointed out.
+    #[test]
+    fn a_much_larger_other_set_is_reported() {
+        let d = tempfile::tempdir().unwrap();
+        let mut c = Characters::default();
+        c.seen(
+            "1001",
+            Some("77"),
+            "Big_Pilot",
+            Some("2026-01-01T00:00:00Z"),
+        );
+        c.seen(
+            "2002",
+            Some("88"),
+            "New_Pilot",
+            Some("2026-02-01T00:00:00Z"),
+        );
+        crate::blueprints::save_characters(d.path(), &c).unwrap();
+        let mut big = OwnedSet::new(Some("1001"));
+        for i in 0..20 {
+            big.add(&format!("Thing {i}"), src(SOURCE_LOG, "1"));
+        }
+        crate::blueprints::save_set(d.path(), &big).unwrap();
+        let mut small = OwnedSet::new(Some("2002"));
+        small.add("One Thing", src(SOURCE_LOG, "1"));
+        crate::blueprints::save_set(d.path(), &small).unwrap();
+        let chars = load_characters(d.path()).unwrap();
+        let p = crate::blueprints::auto_character(d.path(), &chars).unwrap();
+        assert_eq!(p.used.as_deref(), Some("2002"));
+        assert_eq!((p.fallback_from, p.larger.as_deref()), (None, Some("1001")));
+        // Comparable sizes: nothing to point out.
+        for i in 0..18 {
+            small.add(&format!("Other {i}"), src(SOURCE_LOG, "1"));
+        }
+        crate::blueprints::save_set(d.path(), &small).unwrap();
+        let p = crate::blueprints::auto_character(d.path(), &chars).unwrap();
+        assert_eq!(p.larger, None);
+    }
 }

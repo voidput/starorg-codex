@@ -112,6 +112,33 @@ pub(crate) fn scan_channel(
     Ok((store, rep))
 }
 
+/// A character's name, with "(newest)" or "(last seen <time>)" when another character has
+/// the same name.
+fn label_of(chars: &Characters, geid: &str) -> String {
+    let Some(c) = chars.characters.get(geid) else {
+        return geid.to_string();
+    };
+    let key = blueprints::normalize(&c.name);
+    let same: Vec<&blueprints::Character> = chars
+        .characters
+        .values()
+        .filter(|x| blueprints::normalize(&x.name) == key)
+        .collect();
+    if same.len() < 2 {
+        return c.name.clone();
+    }
+    let newest = same.iter().map(|x| &x.last_seen).max().cloned().flatten();
+    if c.last_seen == newest {
+        format!("{} (newest)", c.name)
+    } else {
+        format!(
+            "{} (last seen {})",
+            c.name,
+            c.last_seen.as_deref().unwrap_or("never")
+        )
+    }
+}
+
 fn name_of(chars: &Characters, geid: Option<&str>) -> String {
     match geid {
         Some(g) => chars
@@ -421,17 +448,25 @@ fn characters(g: &GlobalOpts, channel: &str) -> ExitCode {
             println!("{}: no characters yet (run `blueprints scan`)", ch.name);
         }
         if let Some(from) = active.as_ref().and_then(|a| a.fallback_from.as_deref()) {
+            let used = active.as_ref().and_then(|a| a.characters.first());
             println!(
-                "note: the newest character ({}) owns no blueprints; auto uses {} (pick with `blueprints use`)",
-                name_of(&chars, Some(from)),
-                name_of(
-                    &chars,
-                    active
-                        .as_ref()
-                        .and_then(|a| a.characters.first())
-                        .map(String::as_str)
-                )
+                "note: the newest character, {}, owns no blueprints; auto uses {} (pick with `blueprints use`)",
+                label_of(&chars, from),
+                used.map_or_else(|| "-".to_string(), |g| label_of(&chars, g))
             );
+        }
+        if setting.is_none()
+            && let Ok(p) = blueprints::auto_character(&data, &chars)
+            && let (Some(big), Some(used)) = (p.larger.as_deref(), p.used.as_deref())
+        {
+            println!(
+                "note: {} owns far more blueprints than {}; `blueprints use any` marks both",
+                label_of(&chars, big),
+                label_of(&chars, used)
+            );
+        }
+        for w in active.iter().flat_map(|a| a.warnings.iter()) {
+            eprintln!("warning: {w}");
         }
         println!(
             "setting: {}; unattributed blueprints: {unattributed}",
