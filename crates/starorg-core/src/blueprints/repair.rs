@@ -189,6 +189,28 @@ fn merge_character(store: &mut Store, from: &str, into: &str) {
     }
 }
 
+/// The channel's "whose blueprints" setting names a merged geid: point it at the kept one.
+/// Returns true when the setting changed.
+pub fn follow_aliases_in_setting(
+    channel_data: &Path,
+    chars: &super::Characters,
+) -> Result<bool, String> {
+    if chars.aliases.is_empty() {
+        return Ok(false);
+    }
+    let mut st = crate::state::ChannelState::load(channel_data).map_err(|e| e.to_string())?;
+    let Some(g) = st.active_character.clone() else {
+        return Ok(false);
+    };
+    let c = chars.canonical(&g);
+    if c == g {
+        return Ok(false);
+    }
+    st.active_character = Some(c);
+    st.save(channel_data).map_err(|e| e.to_string())?;
+    Ok(true)
+}
+
 /// What [`ensure`] changed.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
 pub struct Repaired {
@@ -198,6 +220,8 @@ pub struct Repaired {
     pub rekeyed: usize,
     /// Owned entries checked.
     pub entries: usize,
+    /// Records whose id is not a number (a hand-edited file): kept, not touched.
+    pub kept_odd: usize,
     pub merged: Vec<Merge>,
     pub same_name: Vec<Vec<String>>,
     pub backup: Option<PathBuf>,
@@ -221,6 +245,12 @@ impl Repaired {
         }
         if self.cleaned > 0 {
             parts.push(format!("cleaned {} character records", self.cleaned));
+        }
+        if self.kept_odd > 0 {
+            parts.push(format!(
+                "{} character records with an unusual id kept as they are",
+                self.kept_odd
+            ));
         }
         parts.push(format!(
             "{} of {} blueprints re-matched",
@@ -259,13 +289,20 @@ pub fn ensure(channel_data: &Path, store: &mut Store) -> Result<Option<Repaired>
     rep.backup = Some(b.clone());
     store.backup = Some(b);
 
-    // Ids and names: a record whose id is not a clean number is folded into the clean one.
+    // Ids and names: a record whose id is a number with stray characters is folded into the
+    // clean one (with its set, if it had a file). A record whose id is no number at all is
+    // kept as it is and counted: dropping it would orphan its set.
     let old = std::mem::take(&mut store.characters.characters);
     for (g, c) in old {
         let Some(id) = clean_id(&g) else {
-            rep.cleaned += 1;
+            rep.kept_odd += 1;
+            store.characters.characters.insert(g, c);
             continue;
         };
+        if id != g && super::set_path(channel_data, &g).is_ok_and(|p| p.is_file()) {
+            let set = store.take_set(channel_data, &g)?;
+            store.set_mut(channel_data, &id)?.absorb(set);
+        }
         let name = clean_name(&c.name);
         let account_id = c.account_id.as_deref().and_then(clean_id);
         if id != g || name != c.name || account_id != c.account_id {
@@ -296,6 +333,10 @@ pub fn ensure(channel_data: &Path, store: &mut Store) -> Result<Option<Repaired>
     // Every set re-keyed by the current matching.
     let geids: Vec<String> = store.characters.characters.keys().cloned().collect();
     for g in &geids {
+        // An id that cannot name a file has no set to re-key.
+        if super::set_path(channel_data, g).is_err() {
+            continue;
+        }
         let set = store.set_mut(channel_data, g)?;
         rep.entries += set.entries.len();
         rep.rekeyed += set.rekey();
@@ -333,6 +374,9 @@ pub fn snapshot(channel_data: &Path, store: &mut Store) -> Result<Snapshot, Stri
     let mut out = Snapshot::new();
     let geids: Vec<String> = store.characters.characters.keys().cloned().collect();
     for g in geids {
+        if super::set_path(channel_data, &g).is_err() {
+            continue;
+        }
         let s = store.set_mut(channel_data, &g)?;
         out.insert(Some(g), names(s));
     }
@@ -408,6 +452,23 @@ pub struct RebuildReport {
 }
 
 impl RebuildReport {
+    /// Why `replace` must not be written: a log could not be read (or the scan ran out of
+    /// time), so starting every set empty would drop what that log holds.
+    pub fn replace_refusal(&self) -> Option<String> {
+        if !self.replace {
+            return None;
+        }
+        if !self.scan.unread.is_empty() {
+            return Some(format!(
+                "Replace is refused: {} could not be read, and its blueprints would be lost. Fix that, or re-scan without Replace.",
+                self.scan.unread.join(", ")
+            ));
+        }
+        self.scan
+            .out_of_time
+            .then(|| "Replace is refused: the scan stopped before every log was read.".into())
+    }
+
     pub fn changes(&self) -> bool {
         self.characters
             .iter()
@@ -431,13 +492,57 @@ pub fn rebuild_from_logs(
     let before = snapshot(channel_data, store)?;
     store.backup = Some(backup_dir(channel_data, "rescan"));
     let geids: Vec<String> = store.characters.characters.keys().cloned().collect();
+    // The sets as they were, to put back what a log that cannot be read now had given.
+    let mut old: Vec<(Option<String>, OwnedSet)> = Vec::new();
     for g in &geids {
-        strip(store.set_mut(channel_data, g)?, SOURCE_LOG, replace);
+        if super::set_path(channel_data, g).is_err() {
+            continue;
+        }
+        let set = store.set_mut(channel_data, g)?;
+        old.push((Some(g.clone()), set.clone()));
+        strip(set, SOURCE_LOG, replace);
     }
-    strip(store.unattributed_mut(channel_data)?, SOURCE_LOG, replace);
+    let un = store.unattributed_mut(channel_data)?;
+    old.push((None, un.clone()));
+    strip(un, SOURCE_LOG, replace);
     store.scan.files.clear();
     store.mark_scan();
     let scan = logscan::scan(channel_dir, channel_data, store, deadline);
+    if !replace && (!scan.unread.is_empty() || scan.out_of_time) {
+        let read: BTreeSet<String> = store.scan.files.keys().cloned().collect();
+        for (g, set) in old {
+            for (k, e) in set.entries {
+                let kept: Vec<_> = e
+                    .sources
+                    .iter()
+                    .filter(|x| {
+                        x.kind == SOURCE_LOG && x.file.as_ref().is_none_or(|f| !read.contains(f))
+                    })
+                    .cloned()
+                    .collect();
+                if kept.is_empty() {
+                    continue;
+                }
+                let target = match &g {
+                    Some(g) => {
+                        let c = store.characters.canonical(g);
+                        store.set_mut(channel_data, &c)?
+                    }
+                    None => store.unattributed_mut(channel_data)?,
+                };
+                let mine = target
+                    .entries
+                    .entry(k)
+                    .or_insert_with(|| super::OwnedEntry {
+                        sources: Vec::new(),
+                        ..e.clone()
+                    });
+                for x in kept {
+                    mine.add_source(x);
+                }
+            }
+        }
+    }
     let after = snapshot(channel_data, store)?;
     Ok(RebuildReport {
         characters: diff(store, &before, &after),
@@ -631,5 +736,153 @@ mod tests {
         assert_eq!(s.entries["b"].sources.len(), 1);
         assert_eq!(strip(&mut s, SOURCE_LOG, true), vec!["B"]);
         assert!(s.entries.is_empty());
+    }
+
+    /// A reset that also changed the account: nothing proves it is the same character, so
+    /// nothing merges, but `auto` must not pick the empty newest one.
+    #[test]
+    fn auto_falls_back_from_an_empty_newest_character() {
+        let d = tempfile::tempdir().unwrap();
+        let mut c = Characters::default();
+        c.seen(
+            "1001",
+            Some("77"),
+            "Test_Pilot",
+            Some("2026-01-01T00:00:00Z"),
+        );
+        c.seen(
+            "2002",
+            Some("88"),
+            "Test_Pilot",
+            Some("2026-02-01T00:00:00Z"),
+        );
+        c.seen(
+            "3003",
+            Some("99"),
+            "Other_Pilot",
+            Some("2026-03-01T00:00:00Z"),
+        );
+        crate::blueprints::save_characters(d.path(), &c).unwrap();
+        let mut a = OwnedSet::new(Some("1001"));
+        a.add("Fake Rifle", src(SOURCE_SMART_CITIZEN, "2026-01-05"));
+        crate::blueprints::save_set(d.path(), &a).unwrap();
+        let s = crate::blueprints::select(d.path(), None).unwrap();
+        assert_eq!(s.characters, vec!["1001".to_string()]);
+        assert_eq!(s.fallback_from.as_deref(), Some("3003"));
+        assert_eq!(s.count, 1);
+        // The most recent owner wins over an older one.
+        let mut b = OwnedSet::new(Some("2002"));
+        b.add("Other Thing", src(SOURCE_LOG, "2026-02-02"));
+        crate::blueprints::save_set(d.path(), &b).unwrap();
+        let s = crate::blueprints::select(d.path(), None).unwrap();
+        assert_eq!(s.characters, vec!["2002".to_string()]);
+        // The newest owns something: no fallback; a manual pick never falls back.
+        let mut n = OwnedSet::new(Some("3003"));
+        n.add("New Thing", src(SOURCE_LOG, "2026-03-02"));
+        crate::blueprints::save_set(d.path(), &n).unwrap();
+        let s = crate::blueprints::select(d.path(), None).unwrap();
+        assert_eq!(
+            (s.characters, s.fallback_from),
+            (vec!["3003".to_string()], None)
+        );
+        std::fs::remove_file(crate::blueprints::dir(d.path()).join("3003.json")).unwrap();
+        let s = crate::blueprints::select(d.path(), Some("3003")).unwrap();
+        assert_eq!((s.count, s.fallback_from), (0, None));
+    }
+
+    /// The channel setting naming the old geid follows the merge.
+    #[test]
+    fn setting_follows_a_merge() {
+        let d = tempfile::tempdir().unwrap();
+        old_store(d.path(), true);
+        let mut st = crate::state::ChannelState::load(d.path()).unwrap();
+        st.active_character = Some("1001".into());
+        st.save(d.path()).unwrap();
+        let mut s = Store::load(d.path()).unwrap();
+        ensure(d.path(), &mut s).unwrap();
+        s.save(d.path()).unwrap();
+        let st = crate::state::ChannelState::load(d.path()).unwrap();
+        assert_eq!(st.active_character.as_deref(), Some("2002"));
+        let sel = crate::blueprints::select(d.path(), st.active_character.as_deref()).unwrap();
+        assert_eq!(sel.count, 4);
+    }
+
+    /// A record whose id is not a number is kept (with its set), not dropped; a character
+    /// with no blueprints gets no empty set file.
+    #[test]
+    fn odd_ids_are_kept_and_empty_sets_not_written() {
+        let d = tempfile::tempdir().unwrap();
+        let mut c = Characters::default();
+        for (g, n) in [("abc1", "Odd"), ("1001", "Empty_Pilot")] {
+            c.characters.insert(
+                g.into(),
+                Character {
+                    account_id: None,
+                    name: n.into(),
+                    last_seen: None,
+                },
+            );
+        }
+        crate::blueprints::save_characters(d.path(), &c).unwrap();
+        let mut odd = OwnedSet::new(Some("abc1"));
+        odd.add("Kept Thing", src(SOURCE_LOG, "1"));
+        crate::blueprints::save_set(d.path(), &odd).unwrap();
+        let mut s = Store::load(d.path()).unwrap();
+        let r = ensure(d.path(), &mut s).unwrap().unwrap();
+        s.save(d.path()).unwrap();
+        assert_eq!(r.kept_odd, 1);
+        assert!(r.summary().contains("unusual id"), "{}", r.summary());
+        let chars = load_characters(d.path()).unwrap();
+        assert!(chars.characters.contains_key("abc1"));
+        assert_eq!(load_set(d.path(), "abc1").unwrap().entries.len(), 1);
+        let dir = crate::blueprints::dir(d.path());
+        assert!(!dir.join("1001.json").exists(), "no empty set file");
+        assert!(!dir.join(crate::blueprints::UNATTRIBUTED_JSON).exists());
+    }
+
+    /// A log that cannot be read: Replace is refused; a plain re-scan keeps what it gave.
+    #[cfg(unix)]
+    #[test]
+    fn rescan_keeps_what_an_unreadable_log_gave() {
+        use std::os::unix::fs::PermissionsExt;
+        let d = tempfile::tempdir().unwrap();
+        let ch = d.path().join("LIVE");
+        std::fs::create_dir_all(ch.join("logbackups")).unwrap();
+        let data = d.path().join("data");
+        let login = "<2026-01-02T03:04:05.000Z> [Notice] <AccountLoginCharacterStatus_Character> Character: createdAt 1 - updatedAt 2 - geid 1001 - accountId 77 - name Test_Pilot - state STATE_CURRENT [Login]\n";
+        let bp = |n: &str| {
+            format!(
+                "<2026-01-02T03:05:00.000Z> [Notice] Added notification \"Received Blueprint: {n}: \" [1] to queue.\n"
+            )
+        };
+        let old = ch.join("logbackups/old.log");
+        std::fs::write(&old, format!("{login}{}", bp("Old Arms"))).unwrap();
+        std::fs::write(ch.join("Game.log"), format!("{login}{}", bp("New Legs"))).unwrap();
+        let mut s = Store::load(&data).unwrap();
+        logscan::scan(&ch, &data, &mut s, None);
+        s.save(&data).unwrap();
+        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o000)).unwrap();
+        if std::fs::read(&old).is_ok() {
+            return; // root reads anything
+        }
+        let mut s = Store::load(&data).unwrap();
+        let r = rebuild_from_logs(&ch, &data, &mut s, true, None).unwrap();
+        assert_eq!(r.scan.unread, vec!["logbackups/old.log".to_string()]);
+        assert!(r.replace_refusal().unwrap().contains("could not be read"));
+        let mut s = Store::load(&data).unwrap();
+        let r = rebuild_from_logs(&ch, &data, &mut s, false, None).unwrap();
+        assert!(r.replace_refusal().is_none());
+        assert!(!r.scan.warnings.is_empty());
+        assert!(r.characters.iter().all(|c| c.removed.is_empty()), "{r:?}");
+        s.save(&data).unwrap();
+        assert_eq!(
+            load_set(&data, "1001")
+                .unwrap()
+                .entries
+                .keys()
+                .collect::<Vec<_>>(),
+            vec!["new legs", "old arms"]
+        );
+        std::fs::set_permissions(&old, std::fs::Permissions::from_mode(0o644)).unwrap();
     }
 }

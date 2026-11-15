@@ -32,7 +32,8 @@ impl OwnedView {
 }
 
 /// `who`: a character name (or geid), `active` (the channel's setting, default the newest
-/// session's character) or `any`.
+/// session's character, or the most recent one that owns something when that one owns
+/// nothing) or `any`.
 pub fn select(ch: &ChannelSource, who: &str) -> ToolResult<OwnedView> {
     let Some(dir) = &ch.data_dir else {
         return Err(ToolError(format!(
@@ -104,10 +105,13 @@ mod tests {
         assert_eq!(a.characters, ["Pilot_A"]);
         assert!(a.owns(&bp("FS-9 LMG")));
         assert!(!a.owns(&bp("Arrowhead Sniper Rifle")));
-        // `active` with no setting = the newest session's character (Pilot_B, owns nothing).
+        // `active` with no setting = the newest session's character (Pilot_B), but it owns
+        // nothing while Pilot_A does: auto falls back to Pilot_A.
         let active = select(&ch, "active").unwrap();
-        assert_eq!(active.characters, ["Pilot_B"]);
-        assert!(!active.owns(&bp("FS-9 LMG")));
+        assert_eq!(active.characters, ["Pilot_A"]);
+        assert!(active.owns(&bp("FS-9 LMG")));
+        let b = select(&ch, "Pilot_B").unwrap();
+        assert!(!b.owns(&bp("FS-9 LMG")), "a named pick never falls back");
         assert!(select(&ch, "any").unwrap().owns(&bp("FS-9 LMG")));
         assert!(select(&ch, "Nobody").is_err());
         let unset = ChannelSource {

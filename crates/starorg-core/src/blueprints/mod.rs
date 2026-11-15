@@ -419,6 +419,10 @@ pub struct Selection {
     pub mode: String,
     /// geid(s) whose sets were used.
     pub characters: Vec<String>,
+    /// `auto` only: the newest character had no owned blueprints while another one had some,
+    /// so that one's set is used instead ([`auto_character`]). The newest character's geid.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fallback_from: Option<String>,
     /// Normalised names.
     #[serde(skip)]
     pub names: BTreeSet<String>,
@@ -477,14 +481,47 @@ pub fn load_unattributed(channel_data: &Path) -> Result<OwnedSet, String> {
 }
 
 /// The owned names an apply uses, for `choice` (`None` = the channel setting).
+/// Whose set `auto` uses: the character of the newest session, unless its set is empty and
+/// another character's is not; then the most recently seen character that owns something.
+/// A reset can give a new geid on a new account, which nothing proves is the same character
+/// (see [`repair`]): falling back keeps the `[Owned]` markers instead of marking nothing.
+/// Returns (character used, newest character when it was passed over).
+pub fn auto_character(
+    channel_data: &Path,
+    chars: &Characters,
+) -> Result<(Option<String>, Option<String>), String> {
+    let Some(newest) = chars.newest() else {
+        return Ok((None, None));
+    };
+    let owns =
+        |g: &str| -> Result<bool, String> { Ok(!load_set(channel_data, g)?.entries.is_empty()) };
+    if owns(newest)? {
+        return Ok((Some(newest.to_string()), None));
+    }
+    let mut others: Vec<(&String, &Character)> = chars
+        .characters
+        .iter()
+        .filter(|(g, _)| g.as_str() != newest)
+        .collect();
+    others.sort_by(|a, b| b.1.last_seen.cmp(&a.1.last_seen).then_with(|| a.0.cmp(b.0)));
+    for (g, _) in others {
+        if owns(g)? {
+            return Ok((Some(g.clone()), Some(newest.to_string())));
+        }
+    }
+    Ok((Some(newest.to_string()), None))
+}
+
 pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selection, String> {
     let chars = load_characters(channel_data)?;
     let choice = Choice::parse(choice_value, &chars).map_err(|e| e.to_string())?;
+    let mut fallback_from = None;
     let (mode, geids): (&str, Vec<String>) = match &choice {
-        Choice::Auto => (
-            "auto",
-            chars.newest().map(str::to_string).into_iter().collect(),
-        ),
+        Choice::Auto => {
+            let (used, from) = auto_character(channel_data, &chars)?;
+            fallback_from = from;
+            ("auto", used.into_iter().collect())
+        }
         Choice::Any => ("any", chars.characters.keys().cloned().collect()),
         Choice::Character(g) => ("character", vec![g.clone()]),
     };
@@ -522,6 +559,7 @@ pub fn select(channel_data: &Path, choice_value: Option<&str>) -> Result<Selecti
     Ok(Selection {
         mode: mode.into(),
         characters: geids,
+        fallback_from,
         count: names.len(),
         ambiguous: ambiguous.len(),
         names,

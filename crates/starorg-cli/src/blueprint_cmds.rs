@@ -249,6 +249,13 @@ fn rescan_cmd(g: &GlobalOpts, channel: &str, dry_run: bool, replace: bool) -> Ex
         Ok(r) => r,
         Err(e) => return fail(g, exit::ERROR, "io", &e),
     };
+    let refused = rep.replace_refusal();
+    if !dry_run && let Some(why) = &refused {
+        for w in &rep.scan.warnings {
+            eprintln!("  warning: {w}");
+        }
+        return fail(g, exit::ERROR, "unread-log", why);
+    }
     let mut wrote = false;
     if !dry_run && id.is_some() {
         if let Err(e) = store.save(&data) {
@@ -260,7 +267,7 @@ fn rescan_cmd(g: &GlobalOpts, channel: &str, dry_run: bool, replace: bool) -> Ex
         println!(
             "{}",
             json!({ "schema": JSON_SCHEMA, "command": "blueprints rescan", "channel": ch.name,
-                    "dry_run": dry_run, "written": wrote, "report": rep })
+                    "dry_run": dry_run, "written": wrote, "replace_refused": refused, "report": rep })
         );
     } else if !g.quiet {
         println!(
@@ -301,6 +308,9 @@ fn rescan_cmd(g: &GlobalOpts, channel: &str, dry_run: bool, replace: bool) -> Ex
         }
         for w in &rep.scan.warnings {
             eprintln!("  warning: {w}");
+        }
+        if let Some(why) = &refused {
+            eprintln!("  {why}");
         }
     }
     ExitCode::from(exit::OK)
@@ -403,11 +413,25 @@ fn characters(g: &GlobalOpts, channel: &str) -> ExitCode {
         println!(
             "{}",
             json!({ "schema": JSON_SCHEMA, "channel": ch.name, "setting": setting.as_deref().unwrap_or("auto"),
-                    "characters": rows, "unattributed": unattributed })
+                    "characters": rows, "unattributed": unattributed,
+                    "fallback_from": active.as_ref().and_then(|a| a.fallback_from.clone()) })
         );
     } else if !g.quiet {
         if chars.characters.is_empty() {
             println!("{}: no characters yet (run `blueprints scan`)", ch.name);
+        }
+        if let Some(from) = active.as_ref().and_then(|a| a.fallback_from.as_deref()) {
+            println!(
+                "note: the newest character ({}) owns no blueprints; auto uses {} (pick with `blueprints use`)",
+                name_of(&chars, Some(from)),
+                name_of(
+                    &chars,
+                    active
+                        .as_ref()
+                        .and_then(|a| a.characters.first())
+                        .map(String::as_str)
+                )
+            );
         }
         println!(
             "setting: {}; unattributed blueprints: {unattributed}",

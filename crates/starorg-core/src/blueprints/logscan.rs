@@ -259,19 +259,32 @@ impl Store {
         if dirty && let Some(b) = &self.backup {
             super::repair::backup(channel_data, b)?;
         }
+        // An empty set that has no file yet is not written (a character with no blueprints
+        // needs none).
+        let needed = |s: &OwnedSet, p: Result<PathBuf, String>| -> Result<bool, String> {
+            Ok(!s.entries.is_empty() || p?.exists())
+        };
         for g in &self.dirty_sets {
-            if let Some(s) = self.sets.get(g) {
+            if let Some(s) = self.sets.get(g)
+                && needed(s, super::set_path(channel_data, g))?
+            {
                 super::save_set(channel_data, s)?;
             }
         }
         if self.dirty_unattributed
             && let Some(u) = &self.unattributed
+            && needed(
+                u,
+                Ok(super::dir(channel_data).join(super::UNATTRIBUTED_JSON)),
+            )?
         {
             super::save_set(channel_data, u)?;
         }
         if self.dirty_characters {
             super::save_characters(channel_data, &self.characters)?;
         }
+        // Also when nothing else changed: a setting saved before a merge still names the old id.
+        super::repair::follow_aliases_in_setting(channel_data, &self.characters)?;
         if self.dirty_scan {
             fsutil::write_json(&super::dir(channel_data).join(SCAN_JSON), &self.scan)
                 .map_err(|e| e.to_string())?;
@@ -301,6 +314,10 @@ pub struct ScanReport {
     /// Character of the newest login line read in this scan.
     pub last_character: Option<String>,
     pub warnings: Vec<String>,
+    /// Log files that could not be read (an error, or more new bytes than [`MAX_READ`]):
+    /// whatever they hold is missing from this scan.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unread: Vec<String>,
     /// Stopped early because the deadline passed; the rest is read next time.
     pub out_of_time: bool,
     /// "Import blueprints from Game.log" is off (`[sync] import_game_log`): no log was
@@ -437,6 +454,7 @@ pub fn scan(
             Ok(None) => {}
             Err(e) => {
                 rep.warnings.push(format!("{rel}: {e}"));
+                rep.unread.push(rel.clone());
                 if let Some(s) = old.get(&rel) {
                     new_files.insert(rel, s.clone());
                 }
@@ -519,6 +537,7 @@ fn scan_file(
         rep.warnings.push(format!(
             "{rel}: {want} new bytes, more than the {MAX_READ} byte limit; skipped"
         ));
+        rep.unread.push(rel.to_string());
         return Ok(resume.cloned());
     }
     let mut buf = Vec::with_capacity(want as usize);
