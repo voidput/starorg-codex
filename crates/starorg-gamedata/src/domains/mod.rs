@@ -38,7 +38,7 @@ registry! {
 
     // blueprints, // blueprints.ts
 
-    // cargo, // cargo.ts
+    cargo, // cargo.ts
 
     // commodities, // commodities.ts
 

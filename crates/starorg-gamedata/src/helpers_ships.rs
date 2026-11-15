@@ -37,6 +37,18 @@ pub fn numbers_of(map: &serde_json::Map<String, Value>) -> impl Iterator<Item = 
     map.values().filter_map(Value::as_f64)
 }
 
+/// `entityName` from `wikelo.ts` (used by `cargo.ts`): the file stem of a `file://` entity
+/// path, `.json` removed case-insensitively; `None` for a non-string or empty path.
+pub fn entity_name(value: Option<&Value>) -> Option<&str> {
+    let path = crate::records::str_(value)?;
+    let file = path.rsplit('/').next().filter(|f| !f.is_empty())?;
+    let cut = file.len().saturating_sub(5);
+    Some(match file.get(cut..) {
+        Some(ext) if file.len() >= 5 && ext.eq_ignore_ascii_case(".json") => &file[..cut],
+        _ => file,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -54,5 +66,15 @@ mod tests {
             "1.005*100 = 100.49999999999999"
         );
         assert!(truthy(Some(1.0)) && !truthy(Some(0.0)) && !truthy(None));
+    }
+
+    #[test]
+    fn entity_names() {
+        use serde_json::json;
+        let v = json!("file://./../../entities/scitem/x/Some_Item.JSON");
+        assert_eq!(entity_name(Some(&v)), Some("Some_Item"));
+        assert_eq!(entity_name(Some(&json!("a/"))), None);
+        assert_eq!(entity_name(Some(&json!(""))), None);
+        assert_eq!(entity_name(Some(&json!("x.json"))), Some("x"));
     }
 }
