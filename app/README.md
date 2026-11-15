@@ -10,7 +10,7 @@ npm run tauri dev                        # hot-reload window (vite on 127.0.0.1:
 npm run tauri build -- --no-bundle       # release binary: <target>/release/starorg-strings-app
 npm run check                            # svelte-check
 npm test                                 # node --test: apply outcomes, message catalogue
-cargo test -p starorg-strings-app        # gpu workaround, contract and IPC command tests (mock runtime)
+cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock runtime), real backend on a fake install
 ```
 
 - `--safe-gpu` forces `WEBKIT_DISABLE_DMABUF_RENDERER=1` and `WEBKIT_DISABLE_COMPOSITING_MODE=1`.
@@ -21,15 +21,28 @@ cargo test -p starorg-strings-app        # gpu workaround, contract and IPC comm
 - Icons in `src-tauri/icons` are generated from `public/logo.png` (StarOrg Tools logo, 256 px
   source) with `npx tauri icon public/logo.png -o src-tauri/icons`.
 
-## Command contract and mock backend (issue #15)
+## Command contract and backends (issue #15)
 
 - **One contract:** `src-tauri/src/contract/` — `types.rs` (every request/response), `mod.rs`
-  (`Backend` trait, one `#[tauri::command]` per method, `COMMAND_NAMES`), `mock.rs`
-  (`MockBackend`: synthetic, stateful, no disk or network). The app runs the mock behind the
-  default `mock-backend` feature until the M1/M2 backends implement `Backend`.
+  (`Backend` trait, one `#[tauri::command]` per method, `COMMAND_NAMES`), `schema.rs` (preset
+  profiles and stat line / tag element labels, shared by both backends).
+- **Real backend (default):** `contract/real/` over `starorg-core` and `starorg-data`, the same
+  core calls as the CLI (one apply, one status, the same locks and data folder). Extraction runs
+  in a child process: the app binary itself, started as `starorg-strings-app extract-worker`
+  (`lib.rs::worker_main`). Native dialogs (install folder, Smart Citizen export, patch import and
+  export, diagnostics save) are opened from Rust through `tauri-plugin-dialog`; the webview has
+  no dialog permission and never sends a path. The core has no cancellation points inside an
+  apply, so jobs report `cancellable: false`. StarOrg login/pull/push return `network-off`
+  (switch off) or `not-implemented` (server API pending, SC-ORG-BOT#1659); nothing is faked.
+  `cargo test -p starorg-strings-app --test real_backend` runs it against a synthetic install
+  in a temp folder; `-- --ignored print_real` prints this machine's overview (read only).
+- **Mock backend:** `contract/mock.rs` (`MockBackend`: synthetic, stateful, no disk or network),
+  compiled for tests and behind the non-default feature `mock-backend` for the window
+  (`cargo run -p starorg-strings-app --features mock-backend`).
 - **TS mirror:** `src/lib/contract/` — `types.ts`, `client.ts` (`api.*`, `ContractError`,
   transport chosen at runtime: Tauri inside the window, the in-browser mock otherwise or with
-  `?backend=mock`), `mock.ts` (seeded from `samples.gen.json`).
+  `?backend=mock`), `mock.ts` (seeded from `samples.gen.json`; a lazy chunk the Tauri window
+  never loads unless `?backend=mock`).
 - **Drift checks:** `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app` rewrites
   `samples.gen.json` from the Rust mock; `npm run check` type-checks it against `types.ts` in both
   directions (`samples.check.ts`). Rust tests also compare every string union and the command
