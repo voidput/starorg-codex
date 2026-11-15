@@ -565,6 +565,62 @@ fn apply_while_the_channel_lock_is_held_is_skipped_with_a_reason() {
     assert_eq!(events.last().unwrap().phase, JobPhase::Done);
 }
 
+/// The wizard's Enhancements step on a first run (Windows report: an empty preview column). The
+/// install is not saved and its game data not read, so the preview is an empty list -- not an
+/// error -- and the UI must say why. The Review dry run (plan_setup) reads the data; after it the
+/// same request has items, still under the `found-...` id the wizard holds.
+#[test]
+fn preview_is_empty_until_the_dry_run_reads_the_game_data() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let found = f.install_id();
+    assert!(found.starts_with("found-"), "{found}");
+    let req = || PreviewRequest {
+        target: ChannelRef {
+            install: found.clone(),
+            channel: "LIVE".into(),
+        },
+        profile: None,
+        preset: Some(Preset::Recommended),
+    };
+    let cache = |f: &Fake| f.backend.overview().unwrap().installs[0].channels[0].cache;
+    assert_eq!(f.backend.build_preview(req()).unwrap(), Vec::new());
+    assert_eq!(
+        cache(&f),
+        CacheState::Missing,
+        "empty because nothing was read"
+    );
+    assert!(
+        !f.dirs.config.join("config.toml").exists(),
+        "a preview saves nothing"
+    );
+
+    f.backend
+        .plan_setup(SetupRequest {
+            install: found.clone(),
+            channels: vec![ChannelConsent {
+                channel: "LIVE".into(),
+                consent: true,
+                switch_language: false,
+            }],
+            data_source: DataSource::Local,
+            preset: Preset::Recommended,
+            fix_known_bugs: true,
+        })
+        .unwrap();
+    assert_eq!(
+        cache(&f),
+        CacheState::Fresh,
+        "the dry run read and kept the game data"
+    );
+    // The same request now builds from the read data (the fake build has no stat rows, so the
+    // list itself may stay empty; the UI tells "not read" from "nothing to show" by the cache).
+    f.backend.build_preview(req()).unwrap();
+    assert!(!f.ini("LIVE").exists(), "nothing written to the game");
+}
+
 #[test]
 fn apply_before_setup_needs_setup_and_writes_nothing() {
     let f = Fake::new();
