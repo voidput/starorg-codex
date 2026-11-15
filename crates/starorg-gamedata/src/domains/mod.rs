@@ -46,7 +46,7 @@ registry! {
 
     // consumables, // consumables.ts
 
-    // containers, // containers.ts
+    containers, // containers.ts
 
     // fps_weapons, // fps-weapons.ts
 
@@ -66,7 +66,7 @@ registry! {
 
     // missions, // missions.ts
 
-    // quantum, // quantum.ts
+    quantum, // quantum.ts
 
     // refining, // refining.ts
 
