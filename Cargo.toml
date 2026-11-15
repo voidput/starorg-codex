@@ -15,6 +15,17 @@ publish = false
 [workspace.dependencies]
 starorg-core = { path = "crates/starorg-core" }
 starorg-data = { path = "crates/starorg-data" }
+# StarBreaker: our mirror of diogotr7/StarBreaker (no changes of ours), pinned to the commit
+# tested in spec 3.3. Bump only together with STARBREAKER_COMMIT in starorg-data.
+starbreaker-p4k = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+starbreaker-datacore = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+starbreaker-common = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+crc32fast = "1"
+clap = { version = "4", features = ["derive"] }
+tempfile = "3"
 toml = "0.9"
 
 [workspace.lints.rust]
