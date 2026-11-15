@@ -4,6 +4,8 @@
 //! Kept in one batch file so parallel ports never edit the same lines; a later cleanup
 //! can fold these into the shared helper slots once every batch has landed.
 
+pub mod item_common;
+
 use serde_json::{Map, Value};
 
 /// `Math.round`: nearest integer, ties toward +infinity (`Math.round(-2.5) == -2`).
@@ -144,6 +146,34 @@ pub fn compact_value(value: &Value, tags: &TagIndex) -> Option<Value> {
         }
         _ => Some(value.clone()),
     }
+}
+
+/// Read a dotted path below an object (`at` on a struct the TypeScript holds as a record).
+pub fn at_map<'a>(map: &'a Map<String, Value>, dotted: &str) -> Option<&'a Value> {
+    let (first, rest) = match dotted.split_once('.') {
+        Some((f, r)) => (f, Some(r)),
+        None => (dotted, None),
+    };
+    let v = map.get(first)?;
+    match rest {
+        Some(r) => crate::records::at(v, r),
+        None => Some(v),
+    }
+}
+
+/// An object from `(key, value)` pairs, `None` values dropped (JS `undefined`); `None` when
+/// nothing is left (the TypeScript's `compact`).
+pub fn compact_obj(fields: Vec<(&str, Option<Value>)>) -> Option<Map<String, Value>> {
+    let out: Map<String, Value> = fields
+        .into_iter()
+        .filter_map(|(k, v)| v.map(|v| (k.to_string(), v)))
+        .collect();
+    (!out.is_empty()).then_some(out)
+}
+
+/// `Some(number)` as a JSON value.
+pub fn num_v(x: Option<f64>) -> Option<Value> {
+    x.map(number)
 }
 
 #[cfg(test)]
