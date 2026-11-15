@@ -242,14 +242,7 @@ pub fn pipeline_running(logs: &[PathBuf], channel: &str) -> bool {
 
 /// Walk up from `path` to the Wine prefix that contains it, if any.
 pub fn enclosing_prefix(path: &Path) -> Option<PathBuf> {
-    let mut cur = Some(path);
-    while let Some(p) = cur {
-        if crate::discovery::is_wine_prefix(p) {
-            return Some(p.to_path_buf());
-        }
-        cur = p.parent();
-    }
-    None
+    crate::discovery::enclosing_wine_prefix(path)
 }
 
 #[cfg(test)]

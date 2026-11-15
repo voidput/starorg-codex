@@ -1,0 +1,197 @@
+[
+  {"_RecordName_": "AmmoParams.TEST_Repeater_S3_Ammo", "_RecordId_": "00000000-0000-0000-0000-000000000001",
+   "_RecordPath_": "libs/foundry/records/ammoparams/vehicle/test_repeater_s3_ammo.xml",
+   "_RecordValue_": {"_Type_": "AmmoParams", "size": 3, "speed": 1250.0, "lifetime": 3.2,
+     "projectileParams": {"_Type_": "BulletProjectileParams",
+       "damage": [{"_Type_": "DamageInfo", "DamagePhysical": 0, "DamageEnergy": 0},
+                  {"_Type_": "DamageInfo", "DamagePhysical": 0, "DamageEnergy": 40.5, "DamageDistortion": 4.5}],
+       "damageDropParams": {"_Type_": "DamageDropParams",
+         "damageDropMinDistance": {"_Type_": "DamageInfo", "DamageEnergy": 50},
+         "damageDropPerMeter": {"_Type_": "DamageInfo", "DamageEnergy": 0.2},
+         "damageDropMinDamage": {"_Type_": "DamageInfo", "DamageEnergy": 20}}}}},
+  {"_RecordName_": "AmmoParams.TEST_Rifle_Ammo", "_RecordId_": "00000000-0000-0000-0000-000000000002",
+   "_RecordPath_": "libs/foundry/records/ammoparams/fps/test_rifle_ammo.xml",
+   "_RecordValue_": {"_Type_": "AmmoParams", "speed": 600.0, "lifetime": 2.0,
+     "projectileParams": {"_Type_": "BulletProjectileParams", "damage": {"_Type_": "DamageInfo", "DamagePhysical": 30}}}},
+  {"_RecordName_": "InventoryContainer.TEST_Grid_Container", "_RecordId_": "00000000-0000-0000-0000-000000000003",
+   "_RecordPath_": "libs/foundry/records/inventorycontainers/ships/test_grid_container.xml",
+   "_RecordValue_": {"_Type_": "InventoryContainer", "interiorDimensions": {"_Type_": "Vec3", "x": 2.5, "y": 2.5, "z": 5.0}}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Repeater_S3", "_RecordId_": "00000000-0000-0000-0000-000000000010",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/weapons/test/test_repeater_s3.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "WeaponGun", "SubType": "Gun", "Size": 3, "Grade": 1,
+       "Manufacturer": "file://./../../../libs/foundry/records/scitemmanufacturer/scitemmanufacturer.test.json",
+       "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Repeater_S3", "ShortName": "@item_NameTEST_Repeater_S3_short", "Description": "@item_DescTEST_Repeater_S3"}}},
+     {"_Type_": "SCItemWeaponComponentParams", "fireActions": [
+       {"_Type_": "SWeaponActionFireRapidParams", "name": "Rapid", "fireRate": 600, "heatPerShot": 10, "launchParams": {"_Type_": "SProjectileLauncher", "pelletCount": 1}},
+       {"_Type_": "SWeaponActionFireBurstParams", "name": "Burst", "fireRate": 900, "shotCount": 3, "cooldownTime": 0.25}],
+      "weaponRegenConsumerParams": {"_Type_": "SWeaponRegenConsumerParams", "maxAmmoLoad": 90, "maxRegenPerSec": 30, "regenerationCooldown": 1.4, "regenerationCostPerBullet": 1},
+      "connectionParams": {"_Type_": "SWeaponConnectionParams", "simplifiedHeatParams": {"_Type_": "SSimplifiedHeat", "overheatTemperature": 1000}}},
+     {"_Type_": "SAmmoContainerComponentParams", "ammoParamsRecord": "file://./../../../libs/foundry/records/ammoparams/vehicle/test_repeater_s3_ammo.json", "maxAmmoCount": 0},
+     {"_Type_": "ItemResourceComponentParams", "states": [{"_Type_": "ItemResourceState", "name": "Online",
+       "deltas": [{"_Type_": "ItemResourceDeltaConsumption", "consumption": {"_Type_": "ItemResourceDeltaConsumptionData", "resource": "Power", "resourceAmountPerSecond": {"_Type_": "SStandardResourceUnit", "standardResourceUnits": 2}}}],
+       "signatureParams": {"_Type_": "SignatureParams", "EMSignature": {"nominalSignature": 41}, "IRSignature": {"nominalSignature": 0}}}]},
+     {"_Type_": "SHealthComponentParams", "Health": 550}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Repeater_S3_Black", "_RecordId_": "00000000-0000-0000-0000-000000000011",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/weapons/test/test_repeater_s3_black.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "WeaponGun", "Size": 6,
+       "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Repeater_S3", "Description": "@item_DescTEST_Repeater_S3"}}},
+     {"_Type_": "SCItemWeaponComponentParams", "fireActions": [{"_Type_": "SWeaponActionFireSingleParams", "fireRate": 60}]},
+     {"_Type_": "SAmmoContainerComponentParams", "ammoParamsRecord": "file://./../../../libs/foundry/records/ammoparams/vehicle/test_repeater_s3_ammo.json", "maxAmmoCount": 100}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Missile_S2", "_RecordId_": "00000000-0000-0000-0000-000000000012",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/weapons/missiles/test_missile_s2.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "Missile", "Size": 2,
+       "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Missile_S2"}}},
+     {"_Type_": "SCItemMissileParams", "maxLifetime": 30, "targetingParams": {"_Type_": "STargeting", "trackingSignalType": "Infrared", "lockTime": 1.5, "lockRangeMin": 1800, "lockRangeMax": 10000},
+      "GCSParams": {"_Type_": "SGCS", "linearSpeed": 1250}, "explosionParams": {"_Type_": "SExplosion", "maxRadius": 3, "damage": {"_Type_": "DamageInfo", "DamagePhysical": 1700}}},
+     {"_Type_": "SHealthComponentParams", "Health": 25}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Rack_S3", "_RecordId_": "00000000-0000-0000-0000-000000000013",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/missileracks/test_rack_s3.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "MissileLauncher", "Size": 3, "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Rack_S3"}}},
+     {"_Type_": "SCItemMissileRackParams"},
+     {"_Type_": "SItemPortContainerComponentParams", "Ports": [
+       {"_Type_": "SItemPortDef", "MaxSize": 2, "Types": [{"_Type_": "SItemPortDefTypes", "Type": "Missile"}]},
+       {"_Type_": "SItemPortDef", "MaxSize": 2, "Types": [{"_Type_": "SItemPortDefTypes", "Type": "Missile"}]}]}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Shield_S1", "_RecordId_": "00000000-0000-0000-0000-000000000014",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/shieldgenerator/test_shield_s1.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "Shield", "Size": 1, "Grade": 2, "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Shield_S1"}}},
+     {"_Type_": "SCItemShieldGeneratorParams", "MaxShieldHealth": 7480, "MaxShieldRegen": 1346, "DownedRegenDelay": 8.5, "DamagedRegenDelay": 4.2,
+      "ShieldResistance": [{"_Type_": "SShieldResistance", "Min": 0, "Max": 0.25}, {"_Type_": "SShieldResistance", "Min": 0, "Max": 0.1}]},
+     {"_Type_": "SDistortionParams", "Maximum": 2450}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Power_S1", "_RecordId_": "00000000-0000-0000-0000-000000000015",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/powerplant/test_power_s1.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "PowerPlant", "Size": 1, "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Power_S1"}}},
+     {"_Type_": "ItemResourceComponentParams", "states": [{"_Type_": "ItemResourceState", "name": "Online",
+       "deltas": [{"_Type_": "ItemResourceDeltaGeneration", "generation": {"_Type_": "x", "resource": "Power", "resourceAmountPerSecond": {"_Type_": "SStandardResourceUnit", "units": 20}}}]}]}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Armor", "_RecordId_": "00000000-0000-0000-0000-000000000016",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/armor/test_armor.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "Armor", "Size": 1, "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Armor"}}},
+     {"_Type_": "SCItemVehicleArmorParams", "damageMultiplier": {"_Type_": "DamageInfo", "DamagePhysical": 0.75, "DamageEnergy": 0.6, "DamageDistortion": 1, "DamageThermal": 1}},
+     {"_Type_": "SHealthComponentParams", "Health": 3300}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Grid", "_RecordId_": "00000000-0000-0000-0000-000000000017",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/cargogrid/test_grid.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "CargoGrid"}},
+     {"_Type_": "SCItemInventoryContainerComponentParams", "containerParams": "file://./../../../libs/foundry/records/inventorycontainers/ships/test_grid_container.json"}]}},
+
+  {"_RecordName_": "EntityClassDefinition.Controller_Flight_TEST_Ship", "_RecordId_": "00000000-0000-0000-0000-000000000018",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/ships/controller/controller_flight_test_ship.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "FlightController"}},
+     {"_Type_": "IFCSParams", "scmSpeed": 212, "maxSpeed": 1200, "boostSpeedForward": 450, "boostSpeedBackward": 240,
+      "maxAngularVelocity": {"_Type_": "Vec3", "x": 38, "y": 110, "z": 32},
+      "speedProfile": {"_Type_": "x", "angularVelocity": {"_Type_": "Vec3", "x": 60, "y": 200, "z": 60}}}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Ship", "_RecordId_": "00000000-0000-0000-0000-000000000020",
+   "_RecordPath_": "libs/foundry/records/entities/spaceships/test_ship.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Size": 2}},
+     {"_Type_": "VehicleComponentParams", "vehicleName": "@vehicle_NameTEST_Ship", "vehicleDescription": "@vehicle_DescTEST_Ship",
+      "vehicleCareer": "@vehicle_focus_combat", "vehicleRole": "@vehicle_class_lightfighter", "crewSize": 1,
+      "manufacturer": "file://./../../../libs/foundry/records/scitemmanufacturer/test.json", "movementClass": "Spaceship",
+      "maxBoundingBoxSize": {"_Type_": "Vec3", "x": 16.5, "y": 21, "z": 5.5}},
+     {"_Type_": "SEntityComponentDefaultLoadoutParams", "loadout": {"_Type_": "SItemPortLoadoutManualParams", "entries": [
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_weapon_left", "entityClassName": "TEST_Repeater_S3", "loadout": {"_Type_": "x", "entries": [
+         {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "stale_ai_gun", "entityClassName": "TEST_Repeater_S3"}]}},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_weapon_right", "entityClassName": "TEST_Repeater_S3"},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_missile_rack", "entityClassName": "TEST_Rack_S3", "loadout": {"_Type_": "x", "entries": [
+         {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "missile_01", "entityClassName": "TEST_Missile_S2"},
+         {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "missile_02", "entityClassName": "TEST_Missile_S2"}]}},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_shield", "entityClassName": "TEST_Shield_S1"},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_power", "entityClassName": "TEST_Power_S1"},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_armor", "entityClassName": "TEST_Armor"},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_cargo", "entityClassReference": "file://./../../../libs/foundry/records/entities/scitem/ships/cargogrid/test_grid.json"},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "hardpoint_controller", "entityClassName": "Controller_Flight_TEST_Ship"},
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "unknown_port", "entityClassName": "Not_A_Record"}]}}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Rifle", "_RecordId_": "00000000-0000-0000-0000-000000000030",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/weapons/fps_weapons/test_rifle.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "WeaponPersonal", "Size": 2, "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Rifle"}}},
+     {"_Type_": "SCItemWeaponComponentParams", "fireActions": [
+       {"_Type_": "SWeaponActionFireSingleParams", "fireRate": 300},
+       {"_Type_": "SWeaponActionFireRapidParams", "fireRate": 900}]},
+     {"_Type_": "SEntityComponentDefaultLoadoutParams", "loadout": {"_Type_": "x", "entries": [
+       {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "magazine_attach", "entityClassName": "TEST_Rifle_Mag"}]}},
+     {"_Type_": "SEntityPhysicsControllerParams", "PhysType": {"_Type_": "SEntityRigidPhysicsControllerParams", "Mass": 1.3}}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Rifle_Mag", "_RecordId_": "00000000-0000-0000-0000-000000000031",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/weapons/magazines/test_rifle_mag.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAmmoContainerComponentParams", "ammoParamsRecord": "file://./../../../libs/foundry/records/ammoparams/fps/test_rifle_ammo.json", "maxAmmoCount": 30}]}},
+
+  {"_RecordName_": "EntityClassDefinition.TEST_Armor_Arms", "_RecordId_": "00000000-0000-0000-0000-000000000040",
+   "_RecordPath_": "libs/foundry/records/entities/scitem/characters/human/armor/test_armor_arms.xml",
+   "_RecordValue_": {"_Type_": "EntityClassDefinition", "Components": [
+     {"_Type_": "SAttachableComponentParams", "AttachDef": {"_Type_": "SItemDefinition", "Type": "Char_Armor_Arms", "Localization": {"_Type_": "SCItemLocalization", "Name": "@item_NameTEST_Armor_Arms"}}}]}},
+
+  {"_RecordName_": "CraftingBlueprintRecord.BP_CRAFT_TEST_Armor_Arms", "_RecordId_": "00000000-0000-0000-0000-000000000050",
+   "_RecordPath_": "libs/foundry/records/crafting/blueprints/test/bp_craft_test_armor_arms.xml",
+   "_RecordValue_": {"_Type_": "CraftingBlueprintRecord", "blueprint": {"_Type_": "CraftingBlueprint",
+     "blueprintName": "@LOC_PLACEHOLDER",
+     "category": {"_RecordPath_": "x", "_RecordName_": "BlueprintCategoryRecord.FPSArmours", "_RecordId_": "x"},
+     "processSpecificData": {"_Type_": "CraftingProcess_Creation", "entityClass": "file://./../../../libs/foundry/records/entities/scitem/characters/human/armor/test_armor_arms.json"},
+     "tiers": [{"_Type_": "CraftingTier", "recipe": {"_Type_": "CraftingRecipe", "costs": {"_Type_": "CraftingRecipeCosts", "craftTime": {"_Type_": "TimeValue", "minutes": 1, "seconds": 30}}}}]}}},
+  {"_RecordName_": "CraftingBlueprintRecord.BP_DISMANTLE_TEST", "_RecordId_": "00000000-0000-0000-0000-000000000051",
+   "_RecordPath_": "libs/foundry/records/crafting/blueprints/dismantle/bp_dismantle_test.xml",
+   "_RecordValue_": {"_Type_": "CraftingBlueprintRecord", "blueprint": {"_Type_": "CraftingBlueprint", "tiers": []}}},
+  {"_RecordName_": "BlueprintPoolRecord.BP_MISSIONREWARD_TEST", "_RecordId_": "00000000-0000-0000-0000-000000000052",
+   "_RecordPath_": "libs/foundry/records/crafting/blueprintrewards/bp_missionreward_test.xml",
+   "_RecordValue_": {"_Type_": "BlueprintPoolRecord", "blueprintRewards": [
+     {"_Type_": "BlueprintReward", "weight": 1.0, "blueprintRecord": "file://./../../../libs/foundry/records/crafting/blueprints/test/bp_craft_test_armor_arms.json"}]}},
+
+  {"_RecordName_": "SReputationStandingParams.ReputationStanding_TEST_Rank2", "_RecordId_": "00000000-0000-0000-0000-000000000060",
+   "_RecordPath_": "libs/foundry/records/reputation/standings/test/reputationstanding_test_rank2.xml",
+   "_RecordValue_": {"_Type_": "SReputationStandingParams", "displayName": "@RepStanding_TEST_Rank2", "minReputation": 2500, "gated": false}},
+  {"_RecordName_": "SReputationRewardAmount.ReputationRewardAmount_Positive_150", "_RecordId_": "00000000-0000-0000-0000-000000000061",
+   "_RecordPath_": "libs/foundry/records/reputation/rewards/reputationrewardamount_positive_150.xml",
+   "_RecordValue_": {"_Type_": "SReputationRewardAmount", "reputationAmount": 150}},
+  {"_RecordName_": "SReputationRewardAmount.ReputationRewardAmount_Negative_1000", "_RecordId_": "00000000-0000-0000-0000-000000000062",
+   "_RecordPath_": "libs/foundry/records/reputation/rewards/reputationrewardamount_negative_1000.xml",
+   "_RecordValue_": {"_Type_": "SReputationRewardAmount", "reputationAmount": -1000}},
+
+  {"_RecordName_": "ContractTemplate.TEST_Phase2", "_RecordId_": "00000000-0000-0000-0000-000000000070",
+   "_RecordPath_": "libs/foundry/records/contracts/contracttemplates/test_phase2.xml",
+   "_RecordValue_": {"_Type_": "ContractTemplate", "contractDisplayInfo": {"_Type_": "ContractDisplayInfo",
+     "displayString": ["@TEST_P2_title", "@LOC_UNINITIALIZED", "@TEST_P2_desc", "@LOC_UNINITIALIZED", "@LOC_UNINITIALIZED"]}}},
+  {"_RecordName_": "ContractGenerator.TEST_Generator", "_RecordId_": "00000000-0000-0000-0000-000000000071",
+   "_RecordPath_": "libs/foundry/records/contracts/contractgenerator/test_generator.xml",
+   "_RecordValue_": {"_Type_": "ContractGenerator", "generators": [
+     {"_Type_": "ContractGeneratorHandler_List", "debugName": "TEST_Handler",
+      "defaultAvailability": {"_Type_": "ContractAvailability", "onceOnly": false, "prerequisites": [
+        {"_Type_": "ContractPrerequisite_Reputation", "minStanding": "file://./../../../libs/foundry/records/reputation/standings/test/reputationstanding_test_rank2.json"}]},
+      "contractParams": {"_Type_": "ContractParamOverrides", "stringParamOverrides": [{"_Type_": "ContractStringParam", "param": "Description", "value": "@TEST_shared_desc"}]},
+      "contracts": [
+       {"_Type_": "Contract", "id": "c1", "debugName": "TEST_Contract_Easy",
+        "paramOverrides": {"_Type_": "ContractParamOverrides",
+          "stringParamOverrides": [{"_Type_": "ContractStringParam", "param": "Title", "value": "@TEST_title"}],
+          "boolParamOverrides": [{"_Type_": "ContractBoolParam", "param": "OnceOnly", "value": true}]},
+        "additionalPrerequisites": [{"_Type_": "ContractPrerequisite_CompletedContractTags"}],
+        "contractResults": {"_Type_": "ContractResults", "contractResults": [
+          {"_Type_": "ContractResult_LegacyReputation", "missionResults": [true, false, false, false, false],
+           "contractResultReputationAmounts": {"_Type_": "SReputationAmountParams", "factionReputation": "file://./../../../libs/foundry/records/factions/factionreputation_test.json",
+             "reward": "file://./../../../libs/foundry/records/reputation/rewards/reputationrewardamount_positive_150.json"}},
+          {"_Type_": "ContractResult_LegacyReputation", "missionResults": [false, true, false, false, false],
+           "contractResultReputationAmounts": {"_Type_": "SReputationAmountParams", "reward": "file://./../../../libs/foundry/records/reputation/rewards/reputationrewardamount_negative_1000.json"}},
+          {"_Type_": "BlueprintRewards", "missionResults": [true, false, false, false, false], "chance": 1.0,
+           "blueprintPool": "file://./../../../libs/foundry/records/crafting/blueprintrewards/bp_missionreward_test.json"},
+          {"_Type_": "ContractResult_Item", "entityClass": "file://./../../../libs/foundry/records/entities/scitem/characters/human/armor/test_armor_arms.json", "amount": 3}],
+          "difficulty": {"_Type_": "ContractDifficulty", "difficultyProfile": "file://./../../../libs/foundry/records/contracts/contractdifficultyprofiles/general.json"}}},
+       {"_Type_": "Contract", "id": "c2", "debugName": "TEST_Contract_Phase2",
+        "template": "file://./../../../libs/foundry/records/contracts/contracttemplates/test_phase2.json",
+        "paramOverrides": {"_Type_": "ContractParamOverrides", "stringParamOverrides": []}}]}]}}
+]

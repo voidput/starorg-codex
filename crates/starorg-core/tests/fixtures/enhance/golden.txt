@@ -1,0 +1,286 @@
+[component-tags] item_NameSHLD_ZETA_S01_Wall <- SHLD_ZETA_S01_Wall
+item_NameSHLD_ZETA_S01_Wall=[MIL-S1-B] Filler Wall
+
+[components] item_DescSHLD_ZETA_S01_Wall <- SHLD_ZETA_S01_Wall
+item_DescSHLD_ZETA_S01_Wall=Item Type: Filler\nSize: 1\nClass: Military\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nShield HP: 7,480  |  Regen: 1,346 HP/s\nDelay: 8.5s when down  |  4.2s when damaged\nResist: Phys 0–25%  |  Energy 0–10%  |  Dist 0–90%\nPower draw: 2 PU/s\nSignatures: EM 500  |  IR 0\nComponent HP: 300  |  Max distortion: 2,450
+
+[component-tags] item_NameSHLD_ZETA_S02_Dome <- SHLD_ZETA_S02_Dome
+item_NameSHLD_ZETA_S02_Dome=[STH-S2-C] Filler Dome
+
+[components] item_DescSHLD_ZETA_S02_Dome <- SHLD_ZETA_S02_Dome
+item_DescSHLD_ZETA_S02_Dome=Item Type: Filler\nSize: 2\nClass: Stealth\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nShield HP: 12,000\nDelay: 10s when down\nPower draw: 0.4 PU/s
+
+[component-tags] item_NameQDRV_ZETA_S01_Hop <- QDRV_ZETA_S01_Hop
+item_NameQDRV_ZETA_S01_Hop=[CIV-S1-A] Filler Hop
+
+[components] item_DescQDRV_ZETA_S01_Hop <- QDRV_ZETA_S01_Hop
+item_DescQDRV_ZETA_S01_Hop=Item Type: Filler\nSize: 1\nClass: Civilian\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nSpeed: 301 Mm/s  |  Spool: 8s  |  Cooldown: 16.5s\nFuel: 0.0054 per Gm\nAccel: stage 1 6,936,600  |  stage 2 10,494,000\nCalibration: 1,000/s  |  Needs 5,000–10,000\nPower draw: 2 PU/s\nSignatures: EM 15,000  |  IR 0\nComponent HP: 170  |  Max distortion: 2,600
+
+[component-tags] item_NameRADR_ZETA_S01_Ear <- RADR_ZETA_S01_Ear
+item_NameRADR_ZETA_S01_Ear=[CMP-S1-D] Filler Ear
+
+[components] item_DescRADR_ZETA_S01_Ear <- RADR_ZETA_S01_Ear
+item_DescRADR_ZETA_S01_Ear=Item Type: Filler\nSize: 1\nClass: Competition\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nPing cooldown: 2.5s\nPower draw: 4 PU/s\nSignatures: EM 1,440  |  IR 0\nComponent HP: 630
+
+[component-tags] item_NamePOWR_ZETA_S01_Glow <- POWR_ZETA_S01_Glow
+item_NamePOWR_ZETA_S01_Glow=[IND-S1-B] Filler Glow
+
+[components] item_DescPOWR_ZETA_S01_Glow <- POWR_ZETA_S01_Glow
+item_DescPOWR_ZETA_S01_Glow=Item Type: Filler\nSize: 1\nClass: Industrial\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nOutput: 20 PU/s\nSignatures: EM 6,550  |  IR 0\nComponent HP: 140
+
+[component-tags] item_NameCOOL_ZETA_S01_Chill <- COOL_ZETA_S01_Chill
+item_NameCOOL_ZETA_S01_Chill=[S1-A] Filler Chill
+
+[components] item_DescCOOL_ZETA_S01_Chill <- COOL_ZETA_S01_Chill
+item_DescCOOL_ZETA_S01_Chill=Item Type: Filler\nSize: 1\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nCooling: 46 CR/s\nPower draw: 2 PU/s\nSignatures: EM 818  |  IR 5,890\nComponent HP: 69  |  Max distortion: 1,050
+
+[component-tags] item_NameMRCK_ZETA_S03_Quad <- MRCK_ZETA_S03_Quad
+item_NameMRCK_ZETA_S03_Quad=[S3] Filler Quad
+
+[components] item_DescMRCK_ZETA_S03_Quad <- MRCK_ZETA_S03_Quad
+item_DescMRCK_ZETA_S03_Quad=Item Type: Filler\nSize: 3\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nSlots: 4× S3
+
+[components] item_DescLFSP_ZETA_S01_Air <- LFSP_ZETA_S01_Air
+item_DescLFSP_ZETA_S01_Air=Item Type: Filler\nSize: 1\n\nLorem filler prose for a made-up part.\n\n--- STATS ---\nPower draw: 1 PU/s\nComponent HP: 100
+
+[component-tags] item_NameCOOL_ZETA_S02_Frost <- COOL_ZETA_S02_Frost_Blue
+item_NameCOOL_ZETA_S02_Frost=[S2-B] Filler Frost
+
+[components] item_DescCOOL_ZETA_S02_Frost <- COOL_ZETA_S02_Frost_Blue
+item_DescCOOL_ZETA_S02_Frost=Shared frost prose.\n\n--- STATS ---\nCooling: 60 CR/s\nComponent HP: 200
+
+[component-tags] item_NamePOWR_ZETA_Twin <- POWR_ZETA_S02_TwinA
+item_NamePOWR_ZETA_Twin=[S2-A] Filler Twin
+
+[ship-weapon-tags] item_NameZETA_BallisticGatling_S5 <- ZETA_BallisticGatling_S5
+item_NameZETA_BallisticGatling_S5=[P-S5] Filler BallisticGatling
+
+[ship-weapons] item_DescZETA_BallisticGatling_S5 <- ZETA_BallisticGatling_S5
+item_DescZETA_BallisticGatling_S5=Filler gun prose.\n\n--- STATS ---\nDamage: 102.5 Phys  |  DPS: 1,537.5\nFire rate: 900 RPM  |  Mode: Auto\nVelocity: 1,251 m/s  |  Range: 4 km\nAmmo: 5,004\nPower draw: 0.1 PU/s\nSignatures: EM 36  |  IR 0\nComponent HP: 1,650
+
+[ship-weapon-tags] item_NameZETA_LaserCannon_S2 <- ZETA_LaserCannon_S2
+item_NameZETA_LaserCannon_S2=[E-S2] Filler LaserCannon
+
+[ship-weapons] item_DescZETA_LaserCannon_S2 <- ZETA_LaserCannon_S2
+item_DescZETA_LaserCannon_S2=Filler gun prose.\n\n--- STATS ---\nDamage: 225.4 Energy  |  DPS: 375.7\nFire rate: 100 RPM  |  Mode: Semi\nVelocity: 1,184 m/s  |  Range: 3 km\nCapacitor: 90 per shot  |  Regen: 1,125/s after 1.4s\nPower draw: 2 PU/s\nSignatures: EM 41  |  IR 0\nComponent HP: 550
+
+[ship-weapon-tags] item_NameZETA_Scatter_S3 <- ZETA_Scatter_S3
+item_NameZETA_Scatter_S3=[E-S3] Filler Scatter
+
+[ship-weapons] item_DescZETA_Scatter_S3 <- ZETA_Scatter_S3
+item_DescZETA_Scatter_S3=Filler gun prose.\n\n--- STATS ---\nDamage: 49.5 ×8 Energy  |  DPS: 264\nFire rate: 40 RPM  |  Mode: Semi\nVelocity: 900 m/s  |  Range: 900 m\nAmmo: 60\nPower draw: 1 PU/s\nSignatures: EM 450  |  IR 0\nComponent HP: 1,550
+
+[ship-weapon-tags] item_NameZETA_Mixed_S1 <- ZETA_Mixed_S1
+item_NameZETA_Mixed_S1=[P-S1] Filler Mixed
+
+[ship-weapons] item_DescZETA_Mixed_S1 <- ZETA_Mixed_S1
+item_DescZETA_Mixed_S1=Filler gun prose.\n\n--- STATS ---\nDamage: 120 Phys + 30 Energy  |  DPS: 1,500\nFire rate: 600 RPM  |  Mode: Auto\nVelocity: 1,000 m/s  |  Range: 1.5 km\nAmmo: 500\nComponent HP: 400
+
+[ship-weapons] item_DescZETA_TractorBeam_S1 <- ZETA_TractorBeam_S1
+item_DescZETA_TractorBeam_S1=Filler gun prose.\n\n--- STATS ---\nPower draw: 3 PU/s\nSignatures: EM 200  |  IR 0\nComponent HP: 500
+
+[ship-weapons] item_DescZETA_MiningLaser_S1 <- ZETA_MiningLaser_S1
+item_DescZETA_MiningLaser_S1=Filler gun prose.\n\n--- STATS ---\nModifiers: Instability +35%  |  Resistance +25%  |  Optimal window +40%\nPower draw: 1 PU/s\nComponent HP: 8,000
+
+[ship-weapon-tags] item_NameZETA_RocketPod_S1 <- ZETA_RocketPod_S1
+item_NameZETA_RocketPod_S1=[S1] Filler RocketPod
+
+[ship-weapons] item_DescZETA_RocketPod_S1 <- ZETA_RocketPod_S1
+item_DescZETA_RocketPod_S1=Filler gun prose.\n\n--- STATS ---\nDamage: 50 Phys  |  DPS: 250\nFire rate: 300 RPM  |  Mode: Auto\nVelocity: 300 m/s  |  Range: 1.5 km\nAmmo: 12
+
+[ship-weapon-tags] item_NameAPAR_BallisticGatling_S4 <- APAR_BallisticGatling_S4
+item_NameAPAR_BallisticGatling_S4=[P-S4] Filler BallisticGatling
+
+[ship-weapons] item_DescAPAR_BallisticGatling_S4 <- APAR_BallisticGatling_S4
+item_DescAPAR_BallisticGatling_S4=Filler gun prose.\n\n--- STATS ---\nDamage: 63.3 Phys  |  DPS: 1,266\nFire rate: 1,200 RPM  |  Mode: Auto\nVelocity: 1,296 m/s  |  Range: 2.9 km\nAmmo: 3,660
+
+[fps-weapons] item_Desczeta_pistol_01 <- zeta_pistol_01
+item_Desczeta_pistol_01=Filler gun prose.\n\n--- STATS ---\nDamage: 60 Phys  |  DPS: 180\nFire rate: 180 RPM  |  Mode: Semi\nVelocity: 550 m/s  |  Range: 1.1 km\nFull damage to 55 m  |  then -0.20 per m  |  Min: 35\nMagazine: 6  |  Weight: 1.3 kg
+
+[fps-weapons] item_Desczeta_rifle_01 <- zeta_rifle_01
+item_Desczeta_rifle_01=Filler gun prose.\n\n--- STATS ---\nDamage: 20 Phys  |  DPS: 300\nFire rate: 900 RPM  |  Mode: Auto / Semi / Burst 3\nVelocity: 900 m/s  |  Range: 1.4 km\nMagazine: 30  |  Weight: 4.3 kg
+
+[fps-weapons] item_Desczeta_smg_energy_01 <- zeta_smg_energy_01
+item_Desczeta_smg_energy_01=Filler gun prose.\n\n--- STATS ---\nDPS: 275 Energy\nMode: Beam\nRange: 25 m\nMagazine: 45  |  Weight: 1.6 kg
+
+[fps-weapons] item_Desczeta_shotgun_01 <- zeta_shotgun_01
+item_Desczeta_shotgun_01=Filler gun prose.\n\n--- STATS ---\nDamage: 10 ×8 Phys  |  DPS: 80\nFire rate: 60 RPM  |  Mode: Semi\nVelocity: 300 m/s  |  Range: 150 m\nMagazine: 8  |  Weight: 4 kg
+
+[fps-weapons] item_Desczeta_lmg_01 <- zeta_lmg_01
+item_Desczeta_lmg_01=Filler gun prose.\n\n--- STATS ---\nDamage: 14.5 Phys  |  DPS: 157.1\nFire rate: 650 RPM  |  Mode: Auto\nVelocity: 600 m/s  |  Range: 1.2 km\nFull damage to 50 m  |  then -0.01 per m  |  Min: 10\nMagazine: 75  |  Weight: 6.8 kg
+
+[missile-tags] item_NameMISL_S02_IR_ZETA_Spark <- MISL_S02_IR_ZETA_Spark
+item_NameMISL_S02_IR_ZETA_Spark=[IR-S2] Filler Spark
+
+[missiles] item_DescMISL_S02_IR_ZETA_Spark <- MISL_S02_IR_ZETA_Spark
+item_DescMISL_S02_IR_ZETA_Spark=Filler missile prose.\n\n--- STATS ---\nDamage: 1,700 Phys  |  Blast radius: 3 m\nTracking: Infrared  |  Lock: 1.5s\nLock range: 1.8–10 km\nSpeed: 1,250 m/s  |  Lifetime: 30s\nComponent HP: 25
+
+[missile-tags] item_NameMISL_S03_EM_ZETA_Bolt <- MISL_S03_EM_ZETA_Bolt
+item_NameMISL_S03_EM_ZETA_Bolt=[EM-S3] Filler Bolt
+
+[missiles] item_DescMISL_S03_EM_ZETA_Bolt <- MISL_S03_EM_ZETA_Bolt
+item_DescMISL_S03_EM_ZETA_Bolt=Filler missile prose.\n\n--- STATS ---\nDamage: 27,000 (12,500 Phys + 14,500 Energy)  |  Blast radius: 10 m\nTracking: Electromagnetic  |  Lock: 2s\nLock range: 50 m–15 km\nSpeed: 900 m/s  |  Lifetime: 40s
+
+[missile-tags] item_NameMISL_S01_CS_ZETA_Dart <- MISL_S01_CS_ZETA_Dart
+item_NameMISL_S01_CS_ZETA_Dart=[CS-S1] Filler Dart
+
+[missiles] item_DescMISL_S01_CS_ZETA_Dart <- MISL_S01_CS_ZETA_Dart
+item_DescMISL_S01_CS_ZETA_Dart=Filler missile prose.\n\n--- STATS ---\nDamage: 400 Phys\nTracking: Cross-section  |  Lock: 0.4s\nLock range: 6 km\nSpeed: 1,400 m/s
+
+[missile-tags] item_NameBOMB_S03_ZETA_Drop <- BOMB_S03_ZETA_Drop
+item_NameBOMB_S03_ZETA_Drop=[B-S3] Filler Drop
+
+[missiles] item_DescBOMB_S03_ZETA_Drop <- BOMB_S03_ZETA_Drop
+item_DescBOMB_S03_ZETA_Drop=Filler missile prose.\n\n--- STATS ---\nDamage: 27,000 Phys  |  Blast radius: 40 m\nLifetime: 60s\nComponent HP: 100
+
+[missile-tags] item_NameMISL_S04_IR_ZETA_Lance <- MISL_S04_IR_ZETA_Lance
+item_NameMISL_S04_IR_ZETA_Lance=[IR-S4] Filler Lance
+
+[missiles] item_DescMISL_S04_IR_ZETA_Lance <- MISL_S04_IR_ZETA_Lance
+item_DescMISL_S04_IR_ZETA_Lance=Filler missile prose.\n\n--- STATS ---\nDamage: 6,000 Dist\nTracking: Infrared  |  Lock: 3s\nLock range: 2–25 km\nSpeed: 686 m/s  |  Lifetime: 45s
+
+[ships] vehicle_DescZETA_Gladiator <- ZETA_Gladiator
+vehicle_DescZETA_Gladiator=Manufacturer: Filler\nFocus: Filler\n\nShip filler prose.\n\n--- STATS ---\nRole: Light Fighter  |  Career: Combat  |  Crew: 1\nSize: 21 × 16.5 × 5.5 m\nSCM: 226 m/s  |  Max: 1,193 m/s\nBoost: 520 m/s fwd  |  268 m/s back\nPitch: 71°/s  |  Yaw: 63°/s  |  Roll: 195°/s\nGuns: 2× S3, 1× S2  |  Missiles: 4× S3\nShields: 2× S1  |  Power: 1× S1  |  Coolers: 2× S1  |  QD: 1× S1\nArmor HP: 3,300\nDamage taken: Phys 0.75x  |  Energy 0.60x  |  Dist 1.00x  |  Therm 1.00x\nCargo: 12 SCU  |  H2 fuel: 28 SCU  |  QT fuel: 1.2 SCU
+
+[ships] vehicle_DescZETA_Prowl <- ZETA_Prowl
+vehicle_DescZETA_Prowl=Manufacturer: Filler\nFocus: Filler\n\nShip filler prose.\n\n--- STATS ---\nRole: Light Fighter  |  Career: Combat  |  Crew: 2\nSize: 34 × 32 × 15 m\nSCM: 212 m/s  |  Max: 1,200 m/s\nBoost: 450 m/s fwd  |  240 m/s back\nPitch: 38°/s  |  Yaw: 32°/s  |  Roll: 110°/s\nGuns: 2× S5\nArmor HP: 12,150\nDamage taken: Phys 0.75x  |  Energy 0.60x  |  Dist 1.00x  |  Therm 1.00x\nH2 fuel: 7.8 SCU
+
+[ships] vehicle_DescZETA_Hauler <- ZETA_Hauler
+vehicle_DescZETA_Hauler=Manufacturer: Filler\nFocus: Filler\n\nShip filler prose.\n\n--- STATS ---\nRole: Freight  |  Career: Transport  |  Crew: 4\nSize: 126 × 74 × 30 m\nSCM: 140 m/s  |  Max: 1,050 m/s\nBoost: 315 m/s fwd  |  160 m/s back\nPitch: 16°/s  |  Yaw: 16°/s  |  Roll: 30°/s\nGuns: 8× S4\nShields: 2× S3\nCargo: 456 SCU  |  H2 fuel: 40.6 SCU  |  QT fuel: 20.9 SCU
+
+[ships] vehicle_DescZETA_Buggy <- ZETA_Buggy
+vehicle_DescZETA_Buggy=Manufacturer: Filler\nFocus: Filler\n\nShip filler prose.\n\n--- STATS ---\nCareer: Combat  |  Crew: 1\nSize: 5.2 × 1.6 × 1.9 m\nSCM: 25 m/s\nShields: 1× S0
+
+[ships] vehicle_DescZETA_Scout <- ZETA_Scout
+vehicle_DescZETA_Scout=Manufacturer: Filler\nFocus: Filler\n\nShip filler prose.\n\n--- STATS ---\nRole: Light Fighter  |  Career: Combat  |  Crew: 1\nSize: 12 × 10 × 3 m\nSCM: 250 m/s  |  Max: 1,300 m/s\nBoost: 600 m/s fwd  |  300 m/s back\nPitch: 80°/s  |  Yaw: 70°/s  |  Roll: 200°/s\nArmor HP: 1,000\nDamage taken: Phys 0.75x  |  Energy 0.60x  |  Dist 1.00x  |  Therm 1.00x
+
+[mission-titles] zeta_haul_title <- Zeta_Haul_E
+zeta_haul_title=Filler Haul <EM4>[BP]</EM4> <EM4>[150 Rep]</EM4>
+
+[mission-descriptions] zeta_haul_desc <- Zeta_Haul_E
+zeta_haul_desc=Filler haul prose at ~mission(Location|Address).\n\n<EM3>BLUEPRINTS</EM3>\n- Filler pistol\n- Filler rifle [Owned]\n- [MIL-S1-B] Filler Wall\n\n<EM3>ITEM REWARDS</EM3>\n- Filler Scrip ×3\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Guaranteed\n<EM4>Reputation:</EM4> 150\n<EM4>Failure:</EM4> -1,000\n<EM4>Requires:</EM4> Filler Junior\n<EM4>Type:</EM4> Chain, Once only
+
+[mission-titles] zeta_bounty_title <- Zeta_Bounty_Easy (+2 more)
+zeta_bounty_title=Filler Bounty <EM4>[BP?]</EM4> <EM4>[100–300 Rep]</EM4>
+
+[mission-descriptions] zeta_bounty_desc <- Zeta_Bounty_Easy (+2 more)
+zeta_bounty_desc=Filler bounty prose for <EM4>~mission(Contractor)</EM4>.\n\n<EM3>BLUEPRINTS</EM3>\n<EM4>[Easy]</EM4>\n- Filler pistol\n- Filler rifle [Owned]\n- [MIL-S1-B] Filler Wall\n<EM4>[Hard]</EM4>\n- Filler lmg\n- [E-S3] Filler Scatter\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Some variants only\n<EM4>Reputation:</EM4> 100–300\n<EM4>Requires:</EM4> Filler Senior
+
+[mission-titles] zeta_patrol_title <- Zeta_Patrol
+zeta_patrol_title=Filler Patrol <EM4>[8,000 Rep]</EM4>
+
+[mission-descriptions] zeta_patrol_desc <- Zeta_Patrol
+zeta_patrol_desc=Filler patrol prose.\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Reputation:</EM4> 8,000
+
+[mission-descriptions] zeta_format_desc <- Zeta_Format
+zeta_format_desc=Filler format prose.\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Reputation:</EM4> 50
+
+[mission-titles] zeta_odd_title <- Zeta_Odd
+zeta_odd_title=Filler Odd <EM4>[10 Rep]</EM4>
+
+[mission-titles] zeta_open_title <- Zeta_Open
+zeta_open_title=Filler Open <EM4>[75 Rep]</EM4>
+
+[mission-descriptions] zeta_open_desc <- Zeta_Open
+zeta_open_desc=Filler prose with an <EM4>open tail\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Reputation:</EM4> 75
+
+[mission-titles] zeta_stray_title <- Zeta_Stray
+zeta_stray_title=Filler Stray <EM4>[75 Rep]</EM4>
+
+[mission-descriptions] zeta_stray_desc <- Zeta_Stray
+zeta_stray_desc=Filler prose with a stray </EM4> close\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Reputation:</EM4> 75
+
+[mission-titles] zeta_missing_title <- Zeta_Missing
+zeta_missing_title=Filler Missing <EM4>[5 Rep]</EM4>
+
+{
+  "schema": 1,
+  "categories": {
+    "ships": {
+      "candidates": 5,
+      "written": 5,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "components": {
+      "candidates": 10,
+      "written": 9,
+      "left": {
+        "contenders-differ": 1
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "ship-weapons": {
+      "candidates": 8,
+      "written": 8,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "fps-weapons": {
+      "candidates": 5,
+      "written": 5,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "missiles": {
+      "candidates": 5,
+      "written": 5,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "component-tags": {
+      "candidates": 9,
+      "written": 9,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "ship-weapon-tags": {
+      "candidates": 6,
+      "written": 6,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "missile-tags": {
+      "candidates": 6,
+      "written": 5,
+      "left": {
+        "placeholder": 1
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "mission-titles": {
+      "candidates": 8,
+      "written": 7,
+      "left": {
+        "format-key": 1
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "mission-descriptions": {
+      "candidates": 6,
+      "written": 6,
+      "left": {},
+      "open_tail": 1,
+      "case_folded": 0
+    }
+  },
+  "contested": [
+    {
+      "category": "components",
+      "key": "item_DescPOWR_ZETA_Twin",
+      "records": [
+        "POWR_ZETA_S02_TwinA",
+        "POWR_ZETA_S02_TwinB"
+      ]
+    }
+  ]
+}

@@ -164,6 +164,7 @@ fn real_build_equals_stock() {
     let mut args = vec![
         "build",
         "--json",
+        "--no-enhancements",
         "--channel",
         "LIVE",
         "--out",
@@ -190,4 +191,141 @@ fn real_build_equals_stock() {
     )
     .unwrap();
     assert!(bytes == x.base_ini, "build output differs from stock");
+}
+
+/// A Wine prefix with an install inside: `<t>/pfx/{system.reg, drive_c/.../StarCitizen/LIVE}`.
+fn fake_prefix(t: &Path) -> (std::path::PathBuf, std::path::PathBuf) {
+    let pfx = t.join("pfx");
+    let root = pfx.join("drive_c/Program Files/Roberts Space Industries/StarCitizen");
+    std::fs::create_dir_all(&root).unwrap();
+    std::fs::write(pfx.join("system.reg"), b"").unwrap();
+    fake_install(&root);
+    (pfx, root)
+}
+
+/// Commands that write output refuse the whole Wine prefix, not just the install root.
+#[test]
+fn output_inside_wine_prefix_is_refused() {
+    let t = tempfile::tempdir().unwrap();
+    let (pfx, root) = fake_prefix(t.path());
+    let game_dir = root.to_str().unwrap();
+    for out in [
+        pfx.join("drive_c/users/someone/out.json"),
+        pfx.join("out.ini"),
+        root.join("LIVE/x.ini"),
+    ] {
+        let out = out.to_str().unwrap();
+        for cmd in ["build", "gamedata"] {
+            let o = run(&[
+                cmd,
+                "--game-dir",
+                game_dir,
+                "--channel",
+                "LIVE",
+                "--out",
+                out,
+            ]);
+            assert_eq!(o.status.code(), Some(2), "{cmd} {out}: {o:?}");
+            assert!(
+                String::from_utf8_lossy(&o.stderr).contains("Wine prefix"),
+                "{o:?}"
+            );
+        }
+        let p4k = root.join("LIVE/Data.p4k");
+        let o = run(&[
+            "extract-worker",
+            "--p4k",
+            p4k.to_str().unwrap(),
+            "--out",
+            out,
+        ]);
+        assert_eq!(o.status.code(), Some(2), "extract-worker {out}: {o:?}");
+    }
+    assert!(!pfx.join("out.ini").exists());
+    assert!(!pfx.join("drive_c/users").exists());
+}
+
+/// Extra report files of `build` get the same guard as `--out`.
+#[test]
+fn build_report_files_inside_wine_prefix_are_refused() {
+    let t = tempfile::tempdir().unwrap();
+    let (pfx, root) = fake_prefix(t.path());
+    let ok_out = t.path().join("x.ini");
+    for flag in ["--coverage-out", "--edits-out"] {
+        let bad = pfx.join("drive_c/report.json");
+        let o = run(&[
+            "build",
+            "--game-dir",
+            root.to_str().unwrap(),
+            "--channel",
+            "LIVE",
+            "--out",
+            ok_out.to_str().unwrap(),
+            flag,
+            bad.to_str().unwrap(),
+        ]);
+        assert_eq!(o.status.code(), Some(2), "{flag}: {o:?}");
+        assert!(!bad.exists());
+    }
+    assert!(!ok_out.exists());
+}
+
+/// Profile and owned-set problems are usage errors, found before anything is read.
+#[test]
+fn build_profile_errors_are_exit_2() {
+    let t = tempfile::tempdir().unwrap();
+    fake_install(t.path());
+    let out = t.path().join("x.ini");
+    let bad_profile = t.path().join("profile.toml");
+    std::fs::write(&bad_profile, "[enhance]\nno_such_switch = true\n").unwrap();
+    let bad_owned = t.path().join("owned.json");
+    std::fs::write(&bad_owned, "42").unwrap();
+    let base = [
+        "build",
+        "--game-dir",
+        t.path().to_str().unwrap(),
+        "--channel",
+        "LIVE",
+        "--out",
+        out.to_str().unwrap(),
+    ];
+    for extra in [
+        vec!["--preset", "loud"],
+        vec!["--profile", bad_profile.to_str().unwrap()],
+        vec!["--owned-blueprints", bad_owned.to_str().unwrap()],
+        vec!["--preset", "minimal", "--no-enhancements"],
+    ] {
+        let mut args = base.to_vec();
+        args.extend(extra.iter().copied());
+        let o = run(&args);
+        assert_eq!(o.status.code(), Some(2), "{extra:?}: {o:?}");
+    }
+    assert!(!out.exists());
+}
+
+#[test]
+fn gamedata_without_network_feature_refuses_published_data() {
+    if cfg!(feature = "published-dumps") {
+        return;
+    }
+    let t = tempfile::tempdir().unwrap();
+    fake_install(t.path());
+    let out = t
+        .path()
+        .join("..")
+        .join(format!("gd-{}.json", std::process::id()));
+    let o = run(&[
+        "gamedata",
+        "--game-dir",
+        t.path().to_str().unwrap(),
+        "--channel",
+        "LIVE",
+        "--out",
+        out.to_str().unwrap(),
+        "--use-published-data",
+        "--cache-dir",
+        t.path().join("cache").to_str().unwrap(),
+    ]);
+    assert_eq!(o.status.code(), Some(2), "{o:?}");
+    assert!(!out.exists());
 }

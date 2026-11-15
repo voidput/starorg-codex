@@ -5,7 +5,12 @@ use serde_json::json;
 use starorg_core::discovery::{
     Channel, Discovery, DiscoveryEnv, DiscoveryRequest, Install, discover,
 };
-use starorg_core::ini::{Edits, StockIni};
+use starorg_core::enhance::{
+    self, Category,
+    owned::{NoneOwned, OwnedBlueprints, OwnedList},
+    profile::Profile,
+};
+use starorg_core::ini::StockIni;
 use starorg_core::source::local::LocalExtraction;
 use starorg_core::source::{Budget, GameSource, SourceError};
 use std::io::Write;
@@ -114,7 +119,7 @@ pub fn channels(g: &GlobalOpts) -> ExitCode {
 
 /// Canonical form of a path that may not exist yet: canonicalise the deepest existing
 /// ancestor and append the rest.
-fn canonical_lenient(p: &Path) -> PathBuf {
+pub(crate) fn canonical_lenient(p: &Path) -> PathBuf {
     let abs = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
     let mut existing = abs.as_path();
     let mut rest = Vec::new();
@@ -137,28 +142,45 @@ fn canonical_lenient(p: &Path) -> PathBuf {
 }
 
 /// Why an output path must not be written, if it must not: inside the install root, inside
-/// the install's Wine prefix, or inside any Wine prefix (a folder with `drive_c/` and
-/// `system.reg` above it).
+/// the install's Wine prefix (found or derived from a `drive_c` component), or inside any
+/// Wine prefix above the output path itself.
 pub(crate) fn forbidden_output(out_abs: &Path, install: &Install) -> Option<String> {
-    if out_abs.starts_with(&install.root) {
-        return Some("inside the game install".into());
+    if let Some(hit) = install
+        .protected_roots()
+        .into_iter()
+        .find(|r| out_abs.starts_with(r))
+    {
+        return Some(if out_abs.starts_with(&install.root) {
+            "inside the game install".into()
+        } else {
+            format!("inside the Wine prefix {}", hit.display())
+        });
     }
-    let prefix = install
-        .prefix
-        .clone()
-        .or_else(|| starorg_core::running::enclosing_prefix(&install.root));
-    if let Some(p) = prefix {
-        let p = std::fs::canonicalize(&p).unwrap_or(p);
-        if out_abs.starts_with(&p) {
-            return Some(format!("inside the Wine prefix {}", p.display()));
-        }
-    }
-    starorg_core::running::enclosing_prefix(out_abs)
+    starorg_core::discovery::enclosing_wine_prefix(out_abs)
         .map(|p| format!("inside the Wine prefix {}", p.display()))
 }
 
+/// Exit with a usage error when `out_abs` lies inside the install or any Wine prefix
+/// (commands that write output never write there).
+pub(crate) fn refuse_protected(
+    g: &GlobalOpts,
+    out_abs: &Path,
+    install: &Install,
+) -> Option<ExitCode> {
+    let why = forbidden_output(out_abs, install)?;
+    Some(fail(
+        g,
+        exit::USAGE,
+        "usage",
+        &format!(
+            "--out {} is {why}; output is never written into the game install or a Wine prefix",
+            out_abs.display()
+        ),
+    ))
+}
+
 /// Write `bytes` to `path` atomically: temp file in the same directory, fsync, rename.
-fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty());
     if let Some(d) = dir {
         std::fs::create_dir_all(d)?;
@@ -183,12 +205,64 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     result
 }
 
-fn worker_exe() -> std::io::Result<PathBuf> {
+pub(crate) fn worker_exe() -> std::io::Result<PathBuf> {
     std::env::current_exe()
 }
 
-pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) -> ExitCode {
+pub struct BuildArgs<'a> {
+    pub channel: &'a str,
+    pub out: &'a Path,
+    pub timeout: Option<u64>,
+    pub preset: Option<String>,
+    pub profile: Option<PathBuf>,
+    pub no_enhancements: bool,
+    pub owned_blueprints: Option<PathBuf>,
+    pub coverage_out: Option<PathBuf>,
+    pub edits_out: Option<PathBuf>,
+}
+
+fn load_profile(a: &BuildArgs) -> Result<(Profile, String), String> {
+    if a.no_enhancements {
+        return Ok((Profile::off(), "none".into()));
+    }
+    if let Some(path) = &a.profile {
+        let text = std::fs::read_to_string(path)
+            .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+        let p = Profile::from_toml(&text).map_err(|e| e.to_string())?;
+        return Ok((p, path.display().to_string()));
+    }
+    let name = a.preset.as_deref().unwrap_or("recommended");
+    Profile::preset(name)
+        .map(|p| (p, name.to_string()))
+        .map_err(|e| e.to_string())
+}
+
+fn load_owned(a: &BuildArgs) -> Result<Option<OwnedList>, String> {
+    let Some(path) = &a.owned_blueprints else {
+        return Ok(None);
+    };
+    let meta =
+        std::fs::metadata(path).map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    if meta.len() > 16 << 20 {
+        return Err(format!("{} is larger than 16 MiB", path.display()));
+    }
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    OwnedList::from_json(&text)
+        .map(Some)
+        .map_err(|e| format!("{}: {e}", path.display()))
+}
+
+pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     let started = Instant::now();
+    let (profile, profile_name) = match load_profile(a) {
+        Ok(p) => p,
+        Err(e) => return fail(g, exit::USAGE, "usage", &e),
+    };
+    let owned = match load_owned(a) {
+        Ok(o) => o,
+        Err(e) => return fail(g, exit::USAGE, "usage", &e),
+    };
     let d = run_discovery(g);
     let Some(install) = d.default_install() else {
         return fail(
@@ -198,6 +272,7 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
             "no Star Citizen install found (try --game-dir or --prefix)",
         );
     };
+    let channel = a.channel;
     let Some(ch) = install.channel(channel) else {
         let names: Vec<_> = install.channels.iter().map(|c| c.name.as_str()).collect();
         return fail(
@@ -212,18 +287,16 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
         );
     };
 
-    // `build` writes only the given file, never into the game or its Wine prefix.
+    // `build` writes only the given files, never into the game or its Wine prefix.
+    let out = a.out;
     let out_abs = canonical_lenient(out);
-    if let Some(why) = forbidden_output(&out_abs, install) {
-        return fail(
-            g,
-            exit::USAGE,
-            "usage",
-            &format!(
-                "--out {} is {why}; build never writes there",
-                out_abs.display()
-            ),
-        );
+    if let Some(code) = refuse_protected(g, &out_abs, install) {
+        return code;
+    }
+    for extra in [&a.coverage_out, &a.edits_out].into_iter().flatten() {
+        if let Some(code) = refuse_protected(g, &canonical_lenient(extra), install) {
+            return code;
+        }
     }
 
     let worker = match worker_exe() {
@@ -237,14 +310,18 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
             );
         }
     };
-    let budget = match timeout {
+    let budget = match a.timeout {
         Some(s) => Budget::with_timeout(Duration::from_secs(s)),
         None => Budget::unlimited(),
     };
     if !g.quiet && !g.json {
         eprintln!("Extracting {} from {} ...", ch.name, ch.p4k.display());
     }
-    let loaded = match LocalExtraction::new(worker).load(ch, &budget) {
+    let mut local = LocalExtraction::new(worker);
+    if a.no_enhancements {
+        local = local.ini_only();
+    }
+    let loaded = match local.load(ch, &budget) {
         Ok(l) => l,
         Err(SourceError::Timeout(t)) => {
             return fail(
@@ -260,11 +337,26 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
         Err(e) => return fail(g, exit::ERROR, "extraction", &e.to_string()),
     };
 
-    // No enhancements yet (M0): the output is the stock file, rendered by the writer.
     let stock = StockIni::parse(loaded.base_ini);
-    let edits = Edits::new();
-    let bytes = stock.render(&edits);
-    if bytes != stock.as_bytes() {
+    let gen_started = Instant::now();
+    let owned_dyn: &dyn OwnedBlueprints = match &owned {
+        Some(o) => o,
+        None => &NoneOwned,
+    };
+    let generated = enhance::generate(&loaded.game_data, &stock, &profile, owned_dyn);
+    let bytes = match enhance::render(&stock, &generated) {
+        Ok(b) => b,
+        Err(e) => {
+            return fail(
+                g,
+                exit::ERROR,
+                "writer",
+                &format!("whole-file validation failed, nothing written: {e}"),
+            );
+        }
+    };
+    let gen_ms = gen_started.elapsed().as_millis() as u64;
+    if generated.edits.is_empty() && bytes != stock.as_bytes() {
         return fail(
             g,
             exit::ERROR,
@@ -280,14 +372,45 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
             &format!("cannot write {}: {e}", out.display()),
         );
     }
+    let coverage = &generated.coverage;
+    let edits: Vec<&enhance::GenEdit> = generated.edits.values().collect();
+    for (path, text) in [
+        (&a.coverage_out, serde_json::to_vec_pretty(coverage)),
+        (&a.edits_out, serde_json::to_vec_pretty(&edits)),
+    ] {
+        let Some(c) = path else { continue };
+        if let Err(e) = write_atomic(c, &text.unwrap_or_default()) {
+            return fail(
+                g,
+                exit::ERROR,
+                "io",
+                &format!("cannot write {}: {e}", c.display()),
+            );
+        }
+    }
 
-    let code = if loaded.warnings.is_empty() {
+    let mut warnings = loaded.warnings.clone();
+    warnings.extend(generated.warnings.iter().cloned());
+    let dropped = warnings.iter().filter(|w| w.kind == "dropped-edit").count();
+    let code = if warnings.is_empty() {
         exit::OK
     } else {
         exit::WARNINGS
     };
+    let counts: serde_json::Map<String, serde_json::Value> = Category::ALL
+        .iter()
+        .map(|c| (c.name().replace('-', "_"), json!(generated.count(*c))))
+        .collect();
+    let thresholds = coverage.threshold_failures();
     let b = ch.build.as_ref();
     if g.json {
+        let mut counts = counts;
+        counts.insert("changed".into(), json!(generated.edits.len()));
+        counts.insert("dropped".into(), json!(dropped));
+        counts.insert(
+            "owned_blueprints".into(),
+            json!(owned.as_ref().map(|o| o.len()).unwrap_or(0)),
+        );
         println!(
             "{}",
             json!({
@@ -300,29 +423,57 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
                     "change": b.and_then(|b| b.change),
                     "version": b.map(|b| b.version.as_str()),
                 },
+                "profile": { "name": profile_name, "hash": profile.hash() },
                 "out": out_abs,
                 "bytes": bytes.len(),
                 "keys": stock.key_count(),
-                "counts": { "changed": edits.len() },
+                "counts": counts,
+                "coverage": coverage,
+                "coverage_threshold_failures": thresholds,
                 "origin": loaded.origin,
-                "warnings": loaded.warnings,
+                "warnings": warnings,
                 "duration_ms": started.elapsed().as_millis() as u64,
+                "generate_ms": gen_ms,
             })
         );
     } else if !g.quiet {
-        for w in &loaded.warnings {
+        for w in &warnings {
             eprintln!("warning: {}: {}", w.kind, w.detail);
         }
         println!(
-            "Wrote {} ({} bytes, {} keys, {} changed) for {} {} in {:.1} s",
+            "Wrote {} ({} bytes, {} keys, {} changed) for {} {} in {:.1} s (profile {profile_name})",
             out_abs.display(),
             bytes.len(),
             stock.key_count(),
-            edits.len(),
+            generated.edits.len(),
             ch.name,
             b.map(|b| b.version.as_str()).unwrap_or("unknown build"),
             started.elapsed().as_secs_f64()
         );
+        if !generated.edits.is_empty() {
+            println!(
+                "  {:<22} {:>9} {:>8} {:>8}  LEFT AS STOCK",
+                "CATEGORY", "CANDIDATE", "WRITTEN", "SHARE"
+            );
+            for (c, v) in &coverage.categories {
+                let left: Vec<String> = v
+                    .left
+                    .iter()
+                    .map(|(r, n)| format!("{} {n}", r.name()))
+                    .collect();
+                println!(
+                    "  {:<22} {:>9} {:>8} {:>7.1}%  {}",
+                    c.name(),
+                    v.candidates,
+                    v.written,
+                    v.written_share() * 100.0,
+                    left.join(", ")
+                );
+            }
+            for t in &thresholds {
+                println!("  below M2 threshold: {t}");
+            }
+        }
     }
     ExitCode::from(code)
 }

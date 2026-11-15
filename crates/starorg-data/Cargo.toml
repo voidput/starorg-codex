@@ -15,8 +15,11 @@ starbreaker-datacore.workspace = true
 thiserror.workspace = true
 starorg-core.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+# preserve_order: object fields keep DataCore order, which "the first DamageInfo" (spec
+# 5.4) depends on, as it does for the dumps' producer.
+serde_json = { workspace = true, features = ["preserve_order"] }
 crc32c.workspace = true
+rayon.workspace = true
 
 [lints]
 workspace = true

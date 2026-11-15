@@ -1,0 +1,1604 @@
+{
+ "blueprintPools": [
+  {
+   "blueprints": [
+    {
+     "blueprint": "BP_CRAFT_zeta_rifle_01"
+    },
+    {
+     "blueprint": "BP_CRAFT_zeta_pistol_01"
+    },
+    {
+     "blueprint": "BP_CRAFT_SHLD_ZETA_S01_Wall"
+    }
+   ],
+   "name": "BP_POOL_A"
+  },
+  {
+   "blueprints": [
+    {
+     "blueprint": "BP_CRAFT_ZETA_Scatter_S3"
+    },
+    {
+     "blueprint": "BP_CRAFT_zeta_lmg_01"
+    }
+   ],
+   "name": "BP_POOL_B"
+  },
+  {
+   "blueprints": [],
+   "name": "BP_POOL_EMPTY"
+  }
+ ],
+ "blueprints": [
+  {
+   "id": "bp-bp_craft_zeta_pistol_01",
+   "produces": "zeta_pistol_01",
+   "producesNameKey": "@item_Namezeta_pistol_01",
+   "recordName": "CraftingBlueprintRecord.BP_CRAFT_zeta_pistol_01",
+   "tiers": [
+    {
+     "craftTimeSeconds": 60
+    }
+   ]
+  },
+  {
+   "id": "bp-bp_craft_zeta_rifle_01",
+   "produces": "zeta_rifle_01",
+   "producesNameKey": "@item_Namezeta_rifle_01",
+   "recordName": "CraftingBlueprintRecord.BP_CRAFT_zeta_rifle_01",
+   "tiers": [
+    {
+     "craftTimeSeconds": 60
+    }
+   ]
+  },
+  {
+   "id": "bp-bp_craft_shld_zeta_s01_wall",
+   "produces": "SHLD_ZETA_S01_Wall",
+   "producesNameKey": "@item_NameSHLD_ZETA_S01_Wall",
+   "recordName": "CraftingBlueprintRecord.BP_CRAFT_SHLD_ZETA_S01_Wall",
+   "tiers": [
+    {
+     "craftTimeSeconds": 60
+    }
+   ]
+  },
+  {
+   "id": "bp-bp_craft_zeta_scatter_s3",
+   "produces": "ZETA_Scatter_S3",
+   "producesNameKey": "@item_NameZETA_Scatter_S3",
+   "recordName": "CraftingBlueprintRecord.BP_CRAFT_ZETA_Scatter_S3",
+   "tiers": [
+    {
+     "craftTimeSeconds": 60
+    }
+   ]
+  },
+  {
+   "id": "bp-bp_craft_zeta_lmg_01",
+   "produces": "zeta_lmg_01",
+   "producesNameKey": "@item_Namezeta_lmg_01",
+   "recordName": "CraftingBlueprintRecord.BP_CRAFT_zeta_lmg_01",
+   "tiers": [
+    {
+     "craftTimeSeconds": 60
+    }
+   ]
+  }
+ ],
+ "build": null,
+ "components": [
+  {
+   "category": "shields",
+   "detail": {
+    "resistance": {
+     "distortion": {
+      "max": 0.9,
+      "min": 0
+     },
+     "energy": {
+      "max": 0.1,
+      "min": 0
+     },
+     "physical": {
+      "max": 0.25,
+      "min": 0
+     },
+     "thermal": {
+      "max": 0,
+      "min": 0
+     }
+    }
+   },
+   "distortionMax": 2450,
+   "em": 500,
+   "grade": 2,
+   "health": 300,
+   "id": "id-shld_zeta_s01_wall",
+   "ir": 0,
+   "loc": {
+    "desc": "@item_DescSHLD_ZETA_S01_Wall",
+    "name": "@item_NameSHLD_ZETA_S01_Wall"
+   },
+   "manufacturer": "ZETA",
+   "power": 2,
+   "recordName": "EntityClassDefinition.SHLD_ZETA_S01_Wall",
+   "size": 1,
+   "stats": {
+    "DamagedRegenDelay": 4.2,
+    "DownedRegenDelay": 8.5,
+    "MaxShieldHealth": 7480,
+    "MaxShieldRegen": 1346
+   },
+   "type": "Shield"
+  },
+  {
+   "category": "shields",
+   "em": 0,
+   "grade": 3,
+   "health": 0,
+   "id": "id-shld_zeta_s02_dome",
+   "ir": 0,
+   "loc": {
+    "desc": "@item_DescSHLD_ZETA_S02_Dome",
+    "name": "@item_NameSHLD_ZETA_S02_Dome"
+   },
+   "manufacturer": "ZETA",
+   "power": 0.4,
+   "recordName": "EntityClassDefinition.SHLD_ZETA_S02_Dome",
+   "size": 2,
+   "stats": {
+    "DamagedRegenDelay": 0,
+    "DownedRegenDelay": 10,
+    "MaxShieldHealth": 12000.4,
+    "MaxShieldRegen": 0
+   },
+   "type": "Shield"
+  },
+  {
+   "category": "quantumDrives",
+   "distortionMax": 2600,
+   "em": 15000,
+   "grade": 1,
+   "health": 170,
+   "id": "id-qdrv_zeta_s01_hop",
+   "ir": 0,
+   "loc": {
+    "desc": "@item_DescQDRV_ZETA_S01_Hop",
+    "name": "@item_NameQDRV_ZETA_S01_Hop"
+   },
+   "manufacturer": "ZETA",
+   "power": 2,
+   "recordName": "EntityClassDefinition.QDRV_ZETA_S01_Hop",
+   "size": 1,
+   "stats": {
+    "calibrationRate": 1000,
+    "cooldownTime": 16.5,
+    "driveSpeed": 301000000,
+    "maxCalibrationRequirement": 10000,
+    "minCalibrationRequirement": 5000,
+    "quantumFuelRequirement": 0.0054,
+    "spoolUpTime": 8,
+    "stageOneAccelRate": 6936600,
+    "stageTwoAccelRate": 10494000
+   },
+   "type": "QuantumDrive"
+  },
+  {
+   "category": "radars",
+   "detail": {
+    "signatureDetection": [
+     {
+      "sensitivity": 1.1
+     }
+    ]
+   },
+   "em": 1440,
+   "grade": 4,
+   "health": 630,
+   "id": "id-radr_zeta_s01_ear",
+   "loc": {
+    "desc": "@item_DescRADR_ZETA_S01_Ear",
+    "name": "@item_NameRADR_ZETA_S01_Ear"
+   },
+   "manufacturer": "ZETA",
+   "power": 4,
+   "recordName": "EntityClassDefinition.RADR_ZETA_S01_Ear",
+   "size": 1,
+   "stats": {
+    "cooldownTime": 2.5
+   },
+   "type": "Radar"
+  },
+  {
+   "category": "powerPlants",
+   "em": 6550,
+   "grade": 2,
+   "health": 140,
+   "id": "id-powr_zeta_s01_glow",
+   "ir": 0,
+   "loc": {
+    "desc": "@item_DescPOWR_ZETA_S01_Glow",
+    "name": "@item_NamePOWR_ZETA_S01_Glow"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.POWR_ZETA_S01_Glow",
+   "size": 1,
+   "stats": {
+    "powerOutput": 20
+   },
+   "type": "PowerPlant"
+  },
+  {
+   "category": "coolers",
+   "distortionMax": 1050,
+   "em": 818,
+   "grade": 1,
+   "health": 69,
+   "id": "id-cool_zeta_s01_chill",
+   "ir": 5890,
+   "loc": {
+    "desc": "@item_DescCOOL_ZETA_S01_Chill",
+    "name": "@item_NameCOOL_ZETA_S01_Chill"
+   },
+   "manufacturer": "ZETA",
+   "power": 2,
+   "recordName": "EntityClassDefinition.COOL_ZETA_S01_Chill",
+   "size": 1,
+   "stats": {
+    "coolantOutput": 46
+   },
+   "type": "Cooler"
+  },
+  {
+   "category": "missileRacks",
+   "grade": 1,
+   "health": 200,
+   "id": "id-mrck_zeta_s03_quad",
+   "loc": {
+    "desc": "@item_DescMRCK_ZETA_S03_Quad",
+    "name": "@item_NameMRCK_ZETA_S03_Quad"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.MRCK_ZETA_S03_Quad",
+   "size": 3,
+   "stats": {
+    "missileCount": 4,
+    "missileSize": 3
+   },
+   "type": "MissileLauncher"
+  },
+  {
+   "category": "lifeSupport",
+   "grade": 1,
+   "health": 100,
+   "id": "id-lfsp_zeta_s01_air",
+   "loc": {
+    "desc": "@item_DescLFSP_ZETA_S01_Air",
+    "name": "@item_NameLFSP_ZETA_S01_Air"
+   },
+   "manufacturer": "ZETA",
+   "power": 1,
+   "recordName": "EntityClassDefinition.LFSP_ZETA_S01_Air",
+   "size": 1,
+   "stats": {},
+   "type": "LifeSupportGenerator"
+  },
+  {
+   "category": "thrusters",
+   "grade": 1,
+   "health": 50,
+   "id": "id-thrs_zeta_main",
+   "loc": {
+    "desc": "@item_DescTHRS_ZETA_Main",
+    "name": "@item_NameTHRS_ZETA_Main"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.THRS_ZETA_Main",
+   "size": 1,
+   "stats": {},
+   "type": "MainThruster"
+  },
+  {
+   "category": "coolers",
+   "grade": 2,
+   "health": 200,
+   "id": "id-cool_zeta_s02_frost_red",
+   "loc": {
+    "desc": "@item_DescCOOL_ZETA_S02_Frost",
+    "name": "@item_NameCOOL_ZETA_S02_Frost"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.COOL_ZETA_S02_Frost_Red",
+   "size": 2,
+   "stats": {
+    "coolantOutput": 60
+   },
+   "type": "Cooler"
+  },
+  {
+   "category": "coolers",
+   "grade": 2,
+   "health": 200,
+   "id": "id-cool_zeta_s02_frost_blue",
+   "loc": {
+    "desc": "@item_DescCOOL_ZETA_S02_Frost",
+    "name": "@item_NameCOOL_ZETA_S02_Frost"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.COOL_ZETA_S02_Frost_Blue",
+   "size": 2,
+   "stats": {
+    "coolantOutput": 60
+   },
+   "type": "Cooler"
+  },
+  {
+   "category": "powerPlants",
+   "grade": 1,
+   "id": "id-powr_zeta_s02_twina",
+   "loc": {
+    "desc": "@item_DescPOWR_ZETA_Twin",
+    "name": "@item_NamePOWR_ZETA_Twin"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.POWR_ZETA_S02_TwinA",
+   "size": 2,
+   "stats": {
+    "powerOutput": 30
+   },
+   "type": "PowerPlant"
+  },
+  {
+   "category": "powerPlants",
+   "grade": 1,
+   "id": "id-powr_zeta_s02_twinb",
+   "loc": {
+    "desc": "@item_DescPOWR_ZETA_Twin",
+    "name": "@item_NamePOWR_ZETA_Twin"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.POWR_ZETA_S02_TwinB",
+   "size": 2,
+   "stats": {
+    "powerOutput": 40
+   },
+   "type": "PowerPlant"
+  },
+  {
+   "category": "shields",
+   "grade": 1,
+   "id": "id-shld_template",
+   "isTemplate": true,
+   "loc": {
+    "desc": "@item_DescSHLD_Template",
+    "name": "@item_NameSHLD_Template"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.SHLD_Template",
+   "size": 1,
+   "stats": {
+    "MaxShieldHealth": 1
+   },
+   "type": "Shield"
+  }
+ ],
+ "contracts": [
+  {
+   "blueprintRewards": [
+    {
+     "chance": 1,
+     "pool": "BP_POOL_A"
+    }
+   ],
+   "chain": true,
+   "debugName": "Zeta_Haul_E",
+   "descriptionKey": "@zeta_haul_desc",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_haul_e",
+   "itemRewards": [
+    {
+     "amount": 3,
+     "item": "ZETA_Scrip",
+     "nameKey": "@item_NameZETA_Scrip"
+    }
+   ],
+   "minStanding": "Standing_Jr",
+   "onceOnly": true,
+   "reputation": [
+    {
+     "amount": 150,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    },
+    {
+     "amount": -1000,
+     "faction": "f",
+     "onFailure": true,
+     "onSuccess": false
+    }
+   ],
+   "titleKey": "@zeta_haul_title"
+  },
+  {
+   "blueprintRewards": [
+    {
+     "chance": 0.25,
+     "pool": "BP_POOL_A"
+    }
+   ],
+   "debugName": "Zeta_Bounty_Easy",
+   "descriptionKey": "@zeta_bounty_desc",
+   "difficulty": "easy",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_bounty_easy",
+   "reputation": [
+    {
+     "amount": 100,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_bounty_title"
+  },
+  {
+   "blueprintRewards": [
+    {
+     "chance": 0.5,
+     "pool": "BP_POOL_B"
+    }
+   ],
+   "debugName": "Zeta_Bounty_Hard",
+   "descriptionKey": "@zeta_bounty_desc",
+   "difficulty": "hard",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_bounty_hard",
+   "minStanding": "Standing_Sr",
+   "reputation": [
+    {
+     "amount": 300,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_bounty_title"
+  },
+  {
+   "debugName": "Zeta_Bounty_Free",
+   "descriptionKey": "@zeta_bounty_desc",
+   "difficulty": "hard",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_bounty_free",
+   "reputation": [
+    {
+     "amount": 200,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_bounty_title"
+  },
+  {
+   "debugName": "Zeta_Patrol",
+   "descriptionKey": "@zeta_patrol_desc",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_patrol",
+   "reputation": [
+    {
+     "amount": 8000,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_patrol_title"
+  },
+  {
+   "debugName": "Zeta_Format",
+   "descriptionKey": "@zeta_format_desc",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_format",
+   "reputation": [
+    {
+     "amount": 50,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_format_title"
+  },
+  {
+   "debugName": "Zeta_Odd",
+   "descriptionKey": "@zeta_patrol_title",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_odd",
+   "reputation": [
+    {
+     "amount": 10,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_odd_title"
+  },
+  {
+   "debugName": "Zeta_Open",
+   "descriptionKey": "@zeta_open_desc",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_open",
+   "reputation": [
+    {
+     "amount": 75,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_open_title"
+  },
+  {
+   "debugName": "Zeta_Stray",
+   "descriptionKey": "@zeta_stray_desc",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_stray",
+   "reputation": [
+    {
+     "amount": 75,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_stray_title"
+  },
+  {
+   "debugName": "Zeta_WIP",
+   "descriptionKey": "@zeta_wip_desc",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_wip",
+   "reputation": [
+    {
+     "amount": 1,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_wip_title",
+   "workInProgress": true
+  },
+  {
+   "debugName": "Zeta_Missing",
+   "descriptionKey": "@LOC_EMPTY",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_missing",
+   "reputation": [
+    {
+     "amount": 5,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_missing_title"
+  }
+ ],
+ "missiles": [
+  {
+   "damage": {
+    "physical": 1700
+   },
+   "explosionRadius": 3,
+   "grade": 1,
+   "health": 25,
+   "id": "id-misl_s02_ir_zeta_spark",
+   "loc": {
+    "desc": "@item_DescMISL_S02_IR_ZETA_Spark",
+    "name": "@item_NameMISL_S02_IR_ZETA_Spark"
+   },
+   "lockRangeMax": 10000,
+   "lockRangeMin": 1800,
+   "lockTime": 1.5,
+   "manufacturer": "ZETA",
+   "maxLifetime": 30,
+   "recordName": "EntityClassDefinition.MISL_S02_IR_ZETA_Spark",
+   "size": 2,
+   "speed": 1250,
+   "trackingSignal": "Infrared",
+   "type": "Missile"
+  },
+  {
+   "damage": {
+    "energy": 14500,
+    "physical": 12500
+   },
+   "explosionRadius": 10,
+   "grade": 1,
+   "id": "id-misl_s03_em_zeta_bolt",
+   "loc": {
+    "desc": "@item_DescMISL_S03_EM_ZETA_Bolt",
+    "name": "@item_NameMISL_S03_EM_ZETA_Bolt"
+   },
+   "lockRangeMax": 15000,
+   "lockRangeMin": 50,
+   "lockTime": 2,
+   "manufacturer": "ZETA",
+   "maxLifetime": 40,
+   "recordName": "EntityClassDefinition.MISL_S03_EM_ZETA_Bolt",
+   "size": 3,
+   "speed": 900,
+   "trackingSignal": "Electromagnetic",
+   "type": "Missile"
+  },
+  {
+   "damage": {
+    "physical": 400
+   },
+   "grade": 1,
+   "id": "id-misl_s01_cs_zeta_dart",
+   "loc": {
+    "desc": "@item_DescMISL_S01_CS_ZETA_Dart",
+    "name": "@item_NameMISL_S01_CS_ZETA_Dart"
+   },
+   "lockRangeMax": 6000,
+   "lockTime": 0.4,
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.MISL_S01_CS_ZETA_Dart",
+   "size": 1,
+   "speed": 1400,
+   "trackingSignal": "CrossSection",
+   "type": "Missile"
+  },
+  {
+   "damage": {
+    "physical": 27000
+   },
+   "explosionRadius": 40,
+   "grade": 1,
+   "health": 100,
+   "id": "id-bomb_s03_zeta_drop",
+   "isBomb": true,
+   "loc": {
+    "desc": "@item_DescBOMB_S03_ZETA_Drop",
+    "name": "@item_NameBOMB_S03_ZETA_Drop"
+   },
+   "manufacturer": "ZETA",
+   "maxLifetime": 60,
+   "recordName": "EntityClassDefinition.BOMB_S03_ZETA_Drop",
+   "size": 3,
+   "speed": 0,
+   "type": "Missile"
+  },
+  {
+   "damage": {
+    "distortion": 6000
+   },
+   "grade": 1,
+   "id": "id-misl_s04_ir_zeta_lance",
+   "loc": {
+    "desc": "@item_DescMISL_S04_IR_ZETA_Lance",
+    "name": "@item_NameMISL_S04_IR_ZETA_Lance"
+   },
+   "lockRangeMax": 25000,
+   "lockRangeMin": 2000,
+   "lockTime": 3,
+   "manufacturer": "ZETA",
+   "maxLifetime": 45,
+   "recordName": "EntityClassDefinition.MISL_S04_IR_ZETA_Lance",
+   "size": 4,
+   "speed": 686,
+   "trackingSignal": "Infrared",
+   "type": "Missile"
+  },
+  {
+   "damage": {
+    "physical": 1
+   },
+   "grade": 1,
+   "id": "id-misl_s01_ir_zeta_ghost",
+   "loc": {
+    "name": "@item_NameMISSING_Ghost"
+   },
+   "manufacturer": "ZETA",
+   "recordName": "EntityClassDefinition.MISL_S01_IR_ZETA_Ghost",
+   "size": 1,
+   "trackingSignal": "Infrared",
+   "type": "Missile"
+  }
+ ],
+ "reputationStandings": [
+  {
+   "displayNameKey": "@rep_standing_jr",
+   "minReputation": 1000,
+   "name": "Standing_Jr",
+   "recordName": "SReputationStandingParams.Standing_Jr"
+  },
+  {
+   "displayNameKey": "@rep_standing_sr",
+   "minReputation": 9000,
+   "name": "Standing_Sr",
+   "recordName": "SReputationStandingParams.Standing_Sr"
+  }
+ ],
+ "schema": 2,
+ "ships": [
+  {
+   "armor": {
+    "damageMultiplier": {
+     "distortion": 1,
+     "energy": 0.6,
+     "physical": 0.75,
+     "stun": 1,
+     "thermal": 1
+    },
+    "health": 3300,
+    "item": "ARMR_X"
+   },
+   "boundingBox": {
+    "x": 16.5,
+    "y": 21,
+    "z": 5.5
+   },
+   "crewSize": 1,
+   "flight": {
+    "boostSpeedBackward": 268,
+    "boostSpeedForward": 520,
+    "controller": "Controller_Flight_X",
+    "maxSpeed": 1193,
+    "pitch": 71,
+    "roll": 195,
+    "scmSpeed": 226,
+    "yaw": 63
+   },
+   "id": "id-zeta_gladiator",
+   "loadout": {
+    "coolers": [
+     {
+      "count": 2,
+      "item": "COOL_ZETA_S01_Chill",
+      "size": 1
+     }
+    ],
+    "missiles": [
+     {
+      "count": 4,
+      "item": "MISL_S03_EM_ZETA_Bolt",
+      "size": 3
+     }
+    ],
+    "powerPlants": [
+     {
+      "count": 1,
+      "item": "POWR_ZETA_S01_Glow",
+      "size": 1
+     }
+    ],
+    "quantumDrives": [
+     {
+      "count": 1,
+      "item": "QDRV_ZETA_S01_Hop",
+      "size": 1
+     }
+    ],
+    "shields": [
+     {
+      "count": 2,
+      "item": "SHLD_ZETA_S01_Wall",
+      "size": 1
+     }
+    ],
+    "weapons": [
+     {
+      "count": 2,
+      "item": "ZETA_Mixed_S1",
+      "size": 3,
+      "type": "WeaponGun"
+     },
+     {
+      "count": 1,
+      "item": "ZETA_LaserCannon_S2",
+      "size": 2,
+      "type": "WeaponGun"
+     }
+    ]
+   },
+   "loc": {
+    "career": "@vehicle_focus_combat",
+    "desc": "@vehicle_DescZETA_Gladiator",
+    "name": "@vehicle_NameZETA_Gladiator",
+    "role": "@vehicle_class_fighter"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Gladiator",
+   "totals": {
+    "cargoScu": 12,
+    "fuel": 28,
+    "quantumFuel": 1.2
+   }
+  },
+  {
+   "armor": {
+    "damageMultiplier": {
+     "distortion": 1,
+     "energy": 0.6,
+     "physical": 0.75,
+     "stun": 1,
+     "thermal": 1
+    },
+    "health": 12150,
+    "item": "ARMR_X"
+   },
+   "boundingBox": {
+    "x": 32,
+    "y": 34,
+    "z": 15
+   },
+   "crewSize": 2,
+   "flight": {
+    "boostSpeedBackward": 240,
+    "boostSpeedForward": 450,
+    "controller": "Controller_Flight_X",
+    "maxSpeed": 1200,
+    "pitch": 38,
+    "roll": 110,
+    "scmSpeed": 212,
+    "yaw": 32
+   },
+   "id": "id-zeta_prowl",
+   "loadout": {
+    "weapons": [
+     {
+      "count": 2,
+      "item": "ZETA_BallisticGatling_S5",
+      "size": 5,
+      "type": "WeaponGun"
+     },
+     {
+      "count": 1,
+      "item": "ZETA_TractorBeam_S1",
+      "size": 1,
+      "type": "TractorBeam"
+     }
+    ]
+   },
+   "loc": {
+    "career": "@vehicle_focus_combat",
+    "desc": "@vehicle_DescZETA_Prowl",
+    "name": "@vehicle_NameZETA_Prowl",
+    "role": "@vehicle_class_fighter"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Prowl",
+   "totals": {
+    "fuel": 7.8
+   }
+  },
+  {
+   "armor": null,
+   "boundingBox": {
+    "x": 74,
+    "y": 126,
+    "z": 30
+   },
+   "crewSize": 4,
+   "flight": {
+    "boostSpeedBackward": 160,
+    "boostSpeedForward": 315,
+    "controller": "Controller_Flight_X",
+    "maxSpeed": 1050,
+    "pitch": 16,
+    "roll": 30,
+    "scmSpeed": 140,
+    "yaw": 16
+   },
+   "id": "id-zeta_hauler",
+   "loadout": {
+    "shields": [
+     {
+      "count": 2,
+      "item": "SHLD_ZETA_S02_Dome",
+      "size": 3
+     }
+    ],
+    "weapons": [
+     {
+      "count": 8,
+      "item": "ZETA_BallisticGatling_S5",
+      "size": 4,
+      "type": "WeaponGun"
+     }
+    ]
+   },
+   "loc": {
+    "career": "@vehicle_focus_transport",
+    "desc": "@vehicle_DescZETA_Hauler",
+    "name": "@vehicle_NameZETA_Hauler",
+    "role": "@vehicle_class_freight"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Hauler",
+   "totals": {
+    "cargoScu": 456,
+    "fuel": 40.6,
+    "quantumFuel": 20.9
+   }
+  },
+  {
+   "armor": null,
+   "boundingBox": {
+    "x": 1.6,
+    "y": 5.2,
+    "z": 1.9
+   },
+   "crewSize": 1,
+   "flight": {
+    "controller": "C",
+    "scmSpeed": 25
+   },
+   "id": "id-zeta_buggy",
+   "loadout": {
+    "shields": [
+     {
+      "count": 1,
+      "item": "SHLD_X",
+      "size": 0
+     }
+    ]
+   },
+   "loc": {
+    "career": "@vehicle_focus_combat",
+    "desc": "@vehicle_DescZETA_Buggy",
+    "name": "@vehicle_NameZETA_Buggy",
+    "role": "@LOC_EMPTY"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Buggy",
+   "totals": null
+  },
+  {
+   "armor": null,
+   "boundingBox": null,
+   "crewSize": null,
+   "flight": null,
+   "id": "id-zeta_bare",
+   "loadout": null,
+   "loc": {
+    "career": null,
+    "desc": "@vehicle_DescZETA_Bare",
+    "name": "@vehicle_NameZETA_Bare",
+    "role": null
+   },
+   "recordName": "EntityClassDefinition.ZETA_Bare",
+   "totals": null
+  },
+  {
+   "armor": {
+    "damageMultiplier": {
+     "distortion": 1,
+     "energy": 0.6,
+     "physical": 0.75,
+     "stun": 1,
+     "thermal": 1
+    },
+    "health": 1000,
+    "item": "ARMR_X"
+   },
+   "boundingBox": {
+    "x": 10,
+    "y": 12,
+    "z": 3
+   },
+   "crewSize": 1,
+   "flight": {
+    "boostSpeedBackward": 300,
+    "boostSpeedForward": 600,
+    "controller": "Controller_Flight_X",
+    "maxSpeed": 1300,
+    "pitch": 80,
+    "roll": 200,
+    "scmSpeed": 250,
+    "yaw": 70
+   },
+   "id": "id-zeta_scout",
+   "loadout": null,
+   "loc": {
+    "career": "@vehicle_focus_combat",
+    "desc": "@vehicle_DescZETA_Scout",
+    "name": "@vehicle_NameZETA_Scout",
+    "role": "@vehicle_class_fighter"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Scout",
+   "totals": null
+  },
+  {
+   "armor": {
+    "damageMultiplier": {
+     "distortion": 1,
+     "energy": 0.6,
+     "physical": 0.75,
+     "stun": 1,
+     "thermal": 1
+    },
+    "health": 1000,
+    "item": "ARMR_X"
+   },
+   "boundingBox": {
+    "x": 10,
+    "y": 12,
+    "z": 3
+   },
+   "crewSize": 1,
+   "flight": {
+    "boostSpeedBackward": 300,
+    "boostSpeedForward": 600,
+    "controller": "Controller_Flight_X",
+    "maxSpeed": 1300,
+    "pitch": 80,
+    "roll": 200,
+    "scmSpeed": 240,
+    "yaw": 70
+   },
+   "id": "id-zeta_scout_pu_ai_crim",
+   "loadout": null,
+   "loc": {
+    "career": "@vehicle_focus_combat",
+    "desc": "@vehicle_DescZETA_Scout",
+    "name": "@vehicle_NameZETA_Scout",
+    "role": "@vehicle_class_fighter"
+   },
+   "recordName": "EntityClassDefinition.ZETA_Scout_PU_AI_CRIM",
+   "totals": null
+  }
+ ],
+ "weapons": [
+  {
+   "alpha": 102.5,
+   "ammo": {
+    "capacity": 5004,
+    "damage": {
+     "physical": 102.5
+    },
+    "lifetime": 3.2,
+    "range": 4003,
+    "recordName": "AmmoParams.z5",
+    "speed": 1251
+   },
+   "class": "ship",
+   "damageType": "physical",
+   "dps": 1537.5,
+   "em": 36,
+   "fireRate": 900,
+   "grade": 1,
+   "health": 1650,
+   "id": "id-zeta_ballisticgatling_s5",
+   "ir": 0,
+   "loc": {
+    "desc": "@item_DescZETA_BallisticGatling_S5",
+    "name": "@item_NameZETA_BallisticGatling_S5"
+   },
+   "manufacturer": "ZETA",
+   "modes": [
+    {
+     "alpha": 102.5,
+     "dps": 1537.5,
+     "fireRate": 900,
+     "kind": "rapid",
+     "name": "Rapid",
+     "pellets": 1
+    }
+   ],
+   "power": 0.1,
+   "recordName": "EntityClassDefinition.ZETA_BallisticGatling_S5",
+   "size": 5,
+   "subType": "Gun",
+   "type": "WeaponGun"
+  },
+  {
+   "ammo": {
+    "damage": {
+     "energy": 225.4
+    },
+    "lifetime": 2.5338,
+    "range": 3000,
+    "recordName": "AmmoParams.zc",
+    "speed": 1184
+   },
+   "capacitor": {
+    "costPerShot": 90,
+    "regenCooldown": 1.4,
+    "regenPerSecond": 3,
+    "requestedRegenPerSecond": 1125,
+    "shots": 25
+   },
+   "class": "ship",
+   "damageType": "energy",
+   "dps": 375.67,
+   "em": 41,
+   "grade": 1,
+   "health": 550,
+   "id": "id-zeta_lasercannon_s2",
+   "ir": 0,
+   "loc": {
+    "desc": "@item_DescZETA_LaserCannon_S2",
+    "name": "@item_NameZETA_LaserCannon_S2"
+   },
+   "manufacturer": "ZETA",
+   "modes": [
+    {
+     "alpha": 225.4,
+     "dps": 375.67,
+     "fireRate": 100,
+     "kind": "sequence",
+     "name": "Single"
+    }
+   ],
+   "power": 2,
+   "recordName": "EntityClassDefinition.ZETA_LaserCannon_S2",
+   "size": 2,
+   "subType": "Gun",
+   "type": "WeaponGun"
+  },
+  {
+   "ammo": {
+    "capacity": 60,
+    "damage": {
+     "energy": 49.5
+    },
+    "lifetime": 1,
+    "range": 900,
+    "recordName": "AmmoParams.zs",
+    "speed": 900
+   },
+   "class": "ship",
+   "damageType": "energy",
+   "dps": 264,
+   "em": 450,
+   "grade": 1,
+   "health": 1550,
+   "id": "id-zeta_scatter_s3",
+   "loc": {
+    "desc": "@item_DescZETA_Scatter_S3",
+    "name": "@item_NameZETA_Scatter_S3"
+   },
+   "manufacturer": "ZETA",
+   "modes": [
+    {
+     "alpha": 396,
+     "damageMultiplier": 1,
+     "dps": 264,
+     "fireRate": 40,
+     "kind": "single",
+     "name": "Single",
+     "pellets": 8
+    }
+   ],
+   "power": 1,
+   "recordName": "EntityClassDefinition.ZETA_Scatter_S3",
+   "size": 3,
+   "subType": "Gun",
+   "type": "WeaponGun"
+  },
+  {
+   "ammo": {
+    "capacity": 500,
+    "damage": {
+     "energy": 30,
+     "physical": 120
+    },
+    "lifetime": 1.5,
+    "range": 1500,
+    "recordName": "AmmoParams.zm",
+    "speed": 1000
+   },
+   "class": "ship",
+   "damageType": "physical",
+   "dps": 1500,
+   "grade": 1,
+   "health": 400,
+   "id": "id-zeta_mixed_s1",
+   "loc": {
+    "desc": "@item_DescZETA_Mixed_S1",
+    "name": "@item_NameZETA_Mixed_S1"
+   },
+   "manufacturer": "ZETA",
+   "modes": [
+    {
+     "alpha": 150,
+     "dps": 1500,
+     "fireRate": 600,
+     "kind": "rapid",
+     "name": "Rapid"
+    }
+   ],
+   "recordName": "EntityClassDefinition.ZETA_Mixed_S1",
+   "size": 1,
+   "subType": "Gun",
+   "type": "WeaponGun"
+  },
+  {
+   "class": "ship",
+   "em": 200,
+   "grade": 1,
+   "health": 500,
+   "id": "id-zeta_tractorbeam_s1",
+   "loc": {
+    "desc": "@item_DescZETA_TractorBeam_S1",
+    "name": "@item_NameZETA_TractorBeam_S1"
+   },
+   "manufacturer": "ZETA",
+   "modes": [],
+   "power": 3,
+   "recordName": "EntityClassDefinition.ZETA_TractorBeam_S1",
+   "size": 1,
+   "type": "TractorBeam"
+  },
+  {
+   "class": "ship",
+   "grade": 1,
+   "health": 8000,
+   "id": "id-zeta_mininglaser_s1",
+   "loc": {
+    "desc": "@item_DescZETA_MiningLaser_S1",
+    "name": "@item_NameZETA_MiningLaser_S1"
+   },
+   "manufacturer": "ZETA",
+   "miningModifiers": {
+    "laserInstability": 35,
+    "optimalChargeWindowSizeModifier": 40,
+    "resistanceModifier": 25
+   },
+   "modes": [
+    {
+     "beamDamage": {
+      "energy": 3900
+     },
+     "dps": 3900,
+     "kind": "beam",
+     "name": "Beam",
+     "zeroDamageRange": 45
+    }
+   ],
+   "power": 1,
+   "recordName": "EntityClassDefinition.ZETA_MiningLaser_S1",
+   "size": 1,
+   "subType": "Gun",
+   "type": "WeaponMining"
+  },
+  {
+   "ammo": {
+    "capacity": 12,
+    "damage": {
+     "physical": 50
+    },
+    "lifetime": 5,
+    "range": 1500,
+    "recordName": "AmmoParams.zr",
+    "speed": 300
+   },
+   "class": "ship",
+   "damageType": "physical",
+   "dps": 250,
+   "grade": 1,
+   "id": "id-zeta_rocketpod_s1",
+   "loc": {
+    "desc": "@item_DescZETA_RocketPod_S1",
+    "name": "@item_NameZETA_RocketPod_S1"
+   },
+   "manufacturer": "ZETA",
+   "modes": [
+    {
+     "alpha": 50,
+     "dps": 250,
+     "fireRate": 300,
+     "kind": "rapid",
+     "name": "Rapid"
+    }
+   ],
+   "recordName": "EntityClassDefinition.ZETA_RocketPod_S1",
+   "size": 1,
+   "subType": "Rocket",
+   "type": "WeaponGun"
+  },
+  {
+   "ammo": {
+    "capacity": 3660,
+    "damage": {
+     "physical": 63.3
+    },
+    "lifetime": 2.2,
+    "range": 2851,
+    "recordName": "AmmoParams.a4",
+    "speed": 1296
+   },
+   "class": "ship",
+   "damageType": "physical",
+   "dps": 1266,
+   "grade": 1,
+   "id": "id-apar_ballisticgatling_s4",
+   "loc": {
+    "desc": "@item_DescAPAR_BallisticGatling_S4",
+    "name": "@item_NameAPAR_BallisticGatling_S4"
+   },
+   "manufacturer": "ZETA",
+   "modes": [
+    {
+     "alpha": 63.3,
+     "dps": 1266,
+     "fireRate": 1200,
+     "kind": "rapid",
+     "name": "Rapid"
+    }
+   ],
+   "recordName": "EntityClassDefinition.APAR_BallisticGatling_S4",
+   "size": 4,
+   "subType": "Gun",
+   "type": "WeaponGun"
+  },
+  {
+   "ammo": {
+    "capacity": 9000,
+    "damage": {
+     "physical": 200
+    },
+    "lifetime": 3,
+    "range": 3900,
+    "recordName": "AmmoParams.b6",
+    "speed": 1300
+   },
+   "class": "ship",
+   "damageType": "physical",
+   "dps": 3333.33,
+   "grade": 1,
+   "id": "id-bengal_ballisticgatling_s6",
+   "loc": {
+    "desc": "@item_DescAPAR_BallisticGatling_S4",
+    "name": "@item_NameAPAR_BallisticGatling_S4"
+   },
+   "manufacturer": "ZETA",
+   "modes": [
+    {
+     "alpha": 200,
+     "dps": 3333.33,
+     "fireRate": 1000,
+     "kind": "rapid",
+     "name": "Rapid"
+    }
+   ],
+   "recordName": "EntityClassDefinition.Bengal_BallisticGatling_S6",
+   "size": 6,
+   "subType": "Gun",
+   "type": "WeaponGun"
+  },
+  {
+   "ammo": {
+    "capacity": 6,
+    "damage": {
+     "physical": 60
+    },
+    "falloff": {
+     "physical": {
+      "floor": 35,
+      "minDistance": 55,
+      "perMeter": 0.2
+     }
+    },
+    "lifetime": 2,
+    "magazine": "zeta_pistol_01_mag",
+    "range": 1100,
+    "recordName": "AmmoParams.zp",
+    "speed": 550
+   },
+   "class": "fps",
+   "damageType": "physical",
+   "dps": 180,
+   "grade": 1,
+   "id": "id-zeta_pistol_01",
+   "loc": {
+    "desc": "@item_Desczeta_pistol_01",
+    "name": "@item_Namezeta_pistol_01"
+   },
+   "manufacturer": "ZETA",
+   "mass": 1.3,
+   "modes": [
+    {
+     "alpha": 60,
+     "dps": 180,
+     "fireRate": 180,
+     "kind": "single",
+     "name": "Single"
+    }
+   ],
+   "recordName": "EntityClassDefinition.zeta_pistol_01",
+   "size": 1,
+   "subType": "Small",
+   "type": "WeaponPersonal"
+  },
+  {
+   "ammo": {
+    "capacity": 30,
+    "damage": {
+     "physical": 20
+    },
+    "lifetime": 1.5,
+    "range": 1350,
+    "recordName": "AmmoParams.zr2",
+    "speed": 900
+   },
+   "class": "fps",
+   "damageType": "physical",
+   "dps": 300,
+   "grade": 1,
+   "id": "id-zeta_rifle_01",
+   "loc": {
+    "desc": "@item_Desczeta_rifle_01",
+    "name": "@item_Namezeta_rifle_01"
+   },
+   "manufacturer": "ZETA",
+   "mass": 4.25,
+   "modes": [
+    {
+     "alpha": 20,
+     "dps": 100,
+     "fireRate": 300,
+     "kind": "single",
+     "name": "Single"
+    },
+    {
+     "alpha": 20,
+     "dps": 300,
+     "fireRate": 900,
+     "kind": "rapid",
+     "name": "Rapid"
+    },
+    {
+     "alpha": 20,
+     "dps": 133.33,
+     "fireRate": 900,
+     "kind": "burst",
+     "name": "Burst",
+     "shotCount": 3,
+     "sustainedFireRate": 400
+    }
+   ],
+   "recordName": "EntityClassDefinition.zeta_rifle_01",
+   "size": 3,
+   "subType": "Medium",
+   "type": "WeaponPersonal"
+  },
+  {
+   "ammo": {
+    "capacity": 45,
+    "recordName": "AmmoParams.ze"
+   },
+   "class": "fps",
+   "grade": 1,
+   "id": "id-zeta_smg_energy_01",
+   "loc": {
+    "desc": "@item_Desczeta_smg_energy_01",
+    "name": "@item_Namezeta_smg_energy_01"
+   },
+   "manufacturer": "ZETA",
+   "mass": 1.6,
+   "modes": [
+    {
+     "beamDamage": {
+      "energy": 275
+     },
+     "dps": 275,
+     "kind": "beam",
+     "name": "Beam",
+     "zeroDamageRange": 25
+    }
+   ],
+   "recordName": "EntityClassDefinition.zeta_smg_energy_01",
+   "size": 2,
+   "subType": "Small",
+   "type": "WeaponPersonal"
+  },
+  {
+   "ammo": {
+    "capacity": 8,
+    "damage": {
+     "physical": 10
+    },
+    "falloff": {
+     "physical": {
+      "floor": 1,
+      "minDistance": 5,
+      "perMeter": 0
+     }
+    },
+    "lifetime": 0.5,
+    "range": 150,
+    "recordName": "AmmoParams.zg",
+    "speed": 300
+   },
+   "class": "fps",
+   "damageType": "physical",
+   "dps": 80,
+   "grade": 1,
+   "id": "id-zeta_shotgun_01",
+   "loc": {
+    "desc": "@item_Desczeta_shotgun_01",
+    "name": "@item_Namezeta_shotgun_01"
+   },
+   "manufacturer": "ZETA",
+   "mass": 4,
+   "modes": [
+    {
+     "alpha": 80,
+     "dps": 80,
+     "fireRate": 60,
+     "kind": "single",
+     "name": "Single",
+     "pellets": 8
+    }
+   ],
+   "recordName": "EntityClassDefinition.zeta_shotgun_01",
+   "size": 3,
+   "subType": "Medium",
+   "type": "WeaponPersonal"
+  },
+  {
+   "ammo": {
+    "capacity": 75,
+    "damage": {
+     "physical": 14.5
+    },
+    "falloff": {
+     "physical": {
+      "floor": 10,
+      "minDistance": 50,
+      "perMeter": 0.0137
+     }
+    },
+    "lifetime": 2,
+    "range": 1200,
+    "recordName": "AmmoParams.zl",
+    "speed": 600
+   },
+   "class": "fps",
+   "damageType": "physical",
+   "dps": 157.08,
+   "grade": 1,
+   "id": "id-zeta_lmg_01",
+   "loc": {
+    "desc": "@item_Desczeta_lmg_01",
+    "name": "@item_Namezeta_lmg_01"
+   },
+   "manufacturer": "ZETA",
+   "mass": 6.75,
+   "modes": [
+    {
+     "alpha": 14.5,
+     "dps": 157.08,
+     "fireRate": 650,
+     "kind": "rapid",
+     "name": "Rapid"
+    }
+   ],
+   "recordName": "EntityClassDefinition.zeta_lmg_01",
+   "size": 4,
+   "subType": "Medium",
+   "type": "WeaponPersonal"
+  },
+  {
+   "class": "fps",
+   "grade": 1,
+   "id": "id-zeta_medgun_01",
+   "loc": {
+    "desc": "@item_Desczeta_medgun_01",
+    "name": "@item_Namezeta_medgun_01"
+   },
+   "manufacturer": "ZETA",
+   "modes": [],
+   "recordName": "EntityClassDefinition.zeta_medgun_01",
+   "size": 1,
+   "subType": "Gadget",
+   "type": "WeaponPersonal"
+  }
+ ]
+}

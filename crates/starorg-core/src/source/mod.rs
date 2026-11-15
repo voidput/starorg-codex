@@ -1,10 +1,12 @@
 //! Where `GameData` and the stock `global.ini` come from (spec 3.4).
 //!
-//! Two sources are planned: [`Origin::LocalExtraction`] (v1, the worker process in spec 3.3)
-//! and [`Origin::PublishedDump`] (addendum, behind network consent). Dumps never contain the
+//! Two sources: [`local::LocalExtraction`] (the worker process in spec 3.3) and
+//! [`dump::PublishedDump`] (addendum §1, behind network consent, default off;
+//! [`dump::DumpFirst`] picks between them). Dumps never contain the
 //! English text, so `base_ini` always comes from the local `Data.p4k`; a dump source loads
 //! only `GameData` itself and asks a local source for the text.
 
+pub mod dump;
 pub mod local;
 
 use crate::discovery::Channel;
@@ -49,7 +51,7 @@ impl Budget {
 pub enum Origin {
     /// Extracted from the channel's `Data.p4k` by the worker process.
     LocalExtraction { starbreaker_commit: String },
-    /// Downloaded dataset for the exact build (addendum, v1.1).
+    /// Downloaded datasets for the exact build (addendum §1): `repo@tag (commit)`.
     PublishedDump { dataset: String },
 }
 

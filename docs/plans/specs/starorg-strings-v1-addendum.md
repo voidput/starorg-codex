@@ -37,6 +37,30 @@ review are marked **Corrected**.
   paths fill (the dumps' JSON schema is a good candidate for that model, or a superset).
 - Verify integrity of downloaded datasets (pin by tag/commit, checksum), never execute content.
 
+### Findings from M2 (2026-11-14, issue #12)
+
+- **Implemented** as `source::dump::PublishedDump` + `DumpFirst` (consent off by default);
+  HTTPS only in `starorg-net`, linked into the CLI only with the `published-dumps` feature.
+  Integrity: tag resolved to a commit once, every dataset checked against that commit's git
+  blob SHA-1 and its `_build` stamp, cached per `<tag>/<commit>` with SHA-256 re-checked on load.
+- **Dump releases carry no change number** (release body has Channel and Branch only, no
+  `data/_build.json`). The match is then tag = `Version` + same `Branch`, with a
+  `dump-weak-match` warning. `sc-gamedata` should publish `data/_build.json` with
+  `branch` and `change` (`RequestedP4ChangeNum`); the reader already uses it when present.
+- **Dumps carry no loc keys** (resolved names only) and **no contract-generator contracts**
+  (`game-missions.json` is legacy `MissionBrokerEntry`). Keys are recovered by the namesake
+  convention against the local `global.ini` (1,281 of 5,423 records on 4.10.200.58746);
+  contracts stay local-only, so `DumpFirst` falls back to local extraction when they are
+  needed. `sc-gamedata` should add `locKeys` (name/short/desc) and the generator contracts.
+- **Stale records:** the 4.10.200.58746 dump still lists 54 vehicles renamed since 4.10.197
+  (`AEGS_Hammerhead` -> `AEGS_Hammerhead_GS`, `RSI_Constellation_Andromeda` -> `_GS`, ...):
+  `sc-gamedata` parses leftover files in its extract directory. Every record both sources
+  have agrees field for field (weapons, ships incl. flight/loadout totals, components,
+  missiles, ammo).
+- **No speed gain yet:** the stock text still needs the local `Data.p4k` (ini-only worker,
+  ~1.5 s, ~0.9 GB peak for the p4k index), and full local extraction is 1.1-1.6 s wall /
+  0.87-0.91 GB peak on LIVE, HOTFIX and PTU (32 threads; ~8 s CPU).
+
 ## 2. LUG launcher hooks (and Windows equivalent)
 
 Provide CLI subcommands + installer for the LUG Helper `sc-launch.sh` pre-launch / post-exit

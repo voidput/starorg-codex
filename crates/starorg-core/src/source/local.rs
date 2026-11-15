@@ -47,6 +47,9 @@ pub struct LocalExtraction {
     /// Where the worker writes its output; a fresh temp dir inside is used per load. `None`
     /// uses the system temp dir. (The M1 cache replaces this.)
     pub work_root: Option<PathBuf>,
+    /// Read only the stock `global.ini` (skip DataCore); `game_data` comes back empty. Used
+    /// as the text source of a published dump.
+    pub ini_only: bool,
     /// Extra worker arguments, for tests (e.g. the hidden `--test-panic`).
     #[doc(hidden)]
     pub extra_args: Vec<String>,
@@ -57,8 +60,15 @@ impl LocalExtraction {
         Self {
             worker: worker.into(),
             work_root: None,
+            ini_only: false,
             extra_args: Vec::new(),
         }
+    }
+
+    /// The same worker, reading only the stock `global.ini`.
+    pub fn ini_only(mut self) -> Self {
+        self.ini_only = true;
+        self
     }
 
     /// Run the worker for `p4k` into `out`. On success `out` holds the worker's files.
@@ -70,6 +80,7 @@ impl LocalExtraction {
             .arg(p4k)
             .arg("--out")
             .arg(out)
+            .args(self.ini_only.then_some("--ini-only"))
             .args(&self.extra_args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())

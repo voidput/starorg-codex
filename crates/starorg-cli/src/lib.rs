@@ -6,11 +6,12 @@
 mod apply_cmds;
 mod blueprint_cmds;
 mod commands;
+mod gamedata_cmd;
 mod hook_cmds;
 
 use clap::{Args, Parser, Subcommand};
 use std::ffi::OsString;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 /// Exit codes (spec 8).
@@ -81,6 +82,42 @@ pub enum Command {
         /// Give up after this many seconds (exit 3).
         #[arg(long, value_name = "SECONDS")]
         timeout: Option<u64>,
+        /// Enhancement preset: recommended (default), minimal or everything.
+        #[arg(long, value_name = "NAME", conflicts_with_all = ["profile", "no_enhancements"])]
+        preset: Option<String>,
+        /// A profile.toml (`preset = ...` plus an optional `[enhance]` table).
+        #[arg(long, value_name = "FILE", conflicts_with = "no_enhancements")]
+        profile: Option<PathBuf>,
+        /// Write the stock text unchanged (byte-identical to the file in Data.p4k).
+        #[arg(long)]
+        no_enhancements: bool,
+        /// Owned blueprints of the active character, for `[Owned]` markers: an owned-set
+        /// JSON (`{"entries": {...}}`) or a JSON list of names.
+        #[arg(long, value_name = "FILE")]
+        owned_blueprints: Option<PathBuf>,
+        /// Also write the coverage report (spec 13) to this file.
+        #[arg(long, value_name = "FILE")]
+        coverage_out: Option<PathBuf>,
+        /// Also write every generated edit (key, category, record, added text) as JSON.
+        #[arg(long, value_name = "FILE")]
+        edits_out: Option<PathBuf>,
+    },
+    /// Write a channel's GameData (items, ships, contracts, ...) as JSON to a file.
+    Gamedata {
+        #[arg(long, value_name = "NAME")]
+        channel: String,
+        #[arg(long, value_name = "FILE")]
+        out: PathBuf,
+        /// Give up after this many seconds (exit 3).
+        #[arg(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
+        /// Network (opt-in): use the published dump of this exact build when there is one,
+        /// verified by checksum; extract locally otherwise.
+        #[arg(long)]
+        use_published_data: bool,
+        /// Where downloaded dumps are cached (default: the app cache directory).
+        #[arg(long, value_name = "DIR")]
+        cache_dir: Option<PathBuf>,
     },
     /// Set up a channel: consent to write into it, and pick a starting profile.
     Setup {
@@ -172,6 +209,9 @@ pub enum Command {
         p4k: PathBuf,
         #[arg(long)]
         out: PathBuf,
+        /// Read only the stock global.ini (skip DataCore).
+        #[arg(long)]
+        ini_only: bool,
         /// Test hook: panic inside the guarded extraction.
         #[arg(long, hide = true)]
         test_panic: bool,
@@ -298,7 +338,42 @@ where
             channel,
             out,
             timeout,
-        } => commands::build(&cli.global, &channel, &out, timeout),
+            preset,
+            profile,
+            no_enhancements,
+            owned_blueprints,
+            coverage_out,
+            edits_out,
+        } => commands::build(
+            &cli.global,
+            &commands::BuildArgs {
+                channel: &channel,
+                out: &out,
+                timeout,
+                preset,
+                profile,
+                no_enhancements,
+                owned_blueprints,
+                coverage_out,
+                edits_out,
+            },
+        ),
+        Command::Gamedata {
+            channel,
+            out,
+            timeout,
+            use_published_data,
+            cache_dir,
+        } => gamedata_cmd::run(
+            &cli.global,
+            &gamedata_cmd::Args {
+                channel: &channel,
+                out: &out,
+                timeout,
+                use_published_data,
+                cache_dir,
+            },
+        ),
         Command::Setup {
             channel,
             preset,
@@ -344,10 +419,30 @@ where
         Command::ExtractWorker {
             p4k,
             out,
+            ini_only,
             test_panic,
             test_hang,
         } => {
-            use starorg_data::worker::{TestHook, run};
+            use starorg_data::worker::{TestHook, run_with};
+            // The worker writes only below --out; never inside the game or its prefix.
+            let out_abs = commands::canonical_lenient(&out);
+            let p4k_abs = commands::canonical_lenient(&p4k);
+            // The channel folder (it holds build_manifest.id) and the whole Wine prefix.
+            let mut protected: Vec<PathBuf> = p4k_abs
+                .parent()
+                .filter(|d| d.join("build_manifest.id").is_file())
+                .map(Path::to_path_buf)
+                .into_iter()
+                .collect();
+            protected.extend(starorg_core::discovery::enclosing_wine_prefix(&p4k_abs));
+            if let Some(r) = protected.iter().find(|r| out_abs.starts_with(r)) {
+                eprintln!(
+                    "starorg-strings: --out {} is inside {}; refusing",
+                    out_abs.display(),
+                    r.display()
+                );
+                return ExitCode::from(exit::USAGE);
+            }
             let hook = if test_panic {
                 TestHook::Panic
             } else if test_hang {
@@ -355,7 +450,7 @@ where
             } else {
                 TestHook::None
             };
-            ExitCode::from(run(&p4k, &out, hook) as u8)
+            ExitCode::from(run_with(&p4k, &out, hook, ini_only) as u8)
         }
     }
 }

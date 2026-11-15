@@ -665,7 +665,7 @@ table, not from the examples.
 | Angular rates | `int` | `°/s` | left out |
 | Fire rate | `int` | ` RPM` | left out |
 | Counts (crew, guns, slots, ammo, magazine, pellets) | `int` | | left out |
-| Power draw / output, cooling | `int` | ` PU/s`, ` CR/s` | left out |
+| Power draw / output, cooling | `int`; a draw below 1 PU/s keeps one decimal (`0.1`), so a real draw never prints as `0` (M2) | ` PU/s`, ` CR/s` | left out |
 | EM / IR signature | `int` | | **shown** when the other one is not zero; the line goes when both are |
 | Reputation | `int` | | left out |
 | Blast radius, falloff start distance | `int` | ` m` | left out |
@@ -718,6 +718,13 @@ of section 5.2, applied to items mounted only on such hulls), and records whose 
 to a placeholder (`@…` unresolved, contains "placeholder", `<= … =>` forms including the
 spaced `< = TEST NAME = >`).
 
+M2 applies the AI/NPC filter by record-name token, as a preference rather than a hard
+filter: a record named after the key still owns it, and the other records are dropped only
+when at least one record without such a token remains. Ship tokens: `AI`, `PU`, `Unmanned`,
+`Derelict`, `Template`, `Display`, `ShipBoarded`, `EA`, `Swarm`, `Temp`, `Tutorial`,
+`NoInterior`, `Wreck`, `Hijacked`. Item tokens: `template`, `test`, `hologram`,
+`FakeHologram`, `balance`, `prop`, `AI`, `NPC`, `display`, `dummy`, `elim`.
+
 Step 5 is the safe choice, but it can quietly leave many keys untouched. Each build therefore
 writes a **coverage report** (section 13): per category, how many keys were candidates, how
 many were written, and how many were left as stock for each reason. M2 has a ceiling for
@@ -759,7 +766,7 @@ Size: 21 × 16.5 × 5.5 m
 SCM: 226 m/s  |  Max: 1,193 m/s
 Boost: 520 m/s fwd  |  268 m/s back
 Pitch: 71°/s  |  Yaw: 63°/s  |  Roll: 195°/s
-Guns: 2× S3, 1× S2  |  Turrets: 2  |  Missiles: 4× S3
+Guns: 2× S3, 1× S2  |  Missiles: 4× S3
 Shields: 2× S1  |  Power: 1× S1  |  Coolers: 2× S1  |  QD: 1× S1
 Armor HP: 3,300
 Damage taken: Phys 0.75x  |  Energy 0.60x  |  Dist 1.00x  |  Therm 1.00x
@@ -771,11 +778,11 @@ Line rules:
 | Line | Source and rule |
 |---|---|
 | Role / Career / Crew | `vehicleRole`, `vehicleCareer` resolved through stock strings; `crewSize` |
-| Size | `maxBoundingBoxSize`; axis order confirmed in M2a |
+| Size | `maxBoundingBoxSize` as length × beam × height = **y × x × z** (M2a: the Gladius is x 17.5, y 21, z 5.5 for a 20 m long, 17 m wide hull) |
 | SCM / Max | `IFCSParams.scmSpeed`, `maxSpeed` |
 | Boost | `boostSpeedForward`, `boostSpeedBackward` |
 | Pitch / Yaw / Roll | `IFCSParams.maxAngularVelocity`: **x = pitch, y = roll, z = yaw**. Never `speedProfile.angularVelocity` |
-| Guns | Loadout items of gun type, grouped by size, largest first. A gun under a gun is skipped (stale AI duplicate). Guns on turrets are counted as guns; `Turrets` counts turret mounts |
+| Guns | Loadout items of gun type, grouped by size, largest first. A gun under a gun is skipped (stale AI duplicate). Guns on turrets are counted as guns. Only `AttachDef.Type = WeaponGun` counts (tractor beams, mining and salvage heads do not). **No `Turrets` element (M2):** gimbals and turrets share `AttachDef.Type = Turret` and their subtypes overlap (`GunTurret` covers both), so turret mounts cannot be counted reliably |
 | Missiles | Missile ports on racks in the default loadout, grouped by size |
 | Shields / Power / Coolers / QD | Count and size of each type in the default loadout |
 | Armor HP | Health of the armor item in the loadout |
@@ -854,8 +861,9 @@ Ping cooldown: 2.5s
 Detects: IR 1.10  |  EM 1.10  |  CS 1.00
 ```
 
-Reads `pingProperties.cooldownTime` and `signatureDetection[].sensitivity`. The detection
-line is confirmed in M2a; if the array cannot be labelled reliably it is dropped.
+Reads `pingProperties.cooldownTime` and `signatureDetection[].sensitivity`. **The detection
+line is dropped in v1 (M2):** `signatureDetection[]` has eight positional entries and no field
+names the signature type, so they cannot be labelled reliably.
 
 Missile rack and bomb rack: `Slots: 4× S3` (count and maximum size of ports whose type is
 Missile). No separate Size or Grade line; those are in the tag.
@@ -878,7 +886,9 @@ Missile). No separate Size or Grade line; those are in the tag.
   with `SCItemMissileParams` are missiles (section 5.6). Countermeasure launchers
   (`AttachDef.Type = WeaponDefensive`) are excluded.
 - **Reads:** fire actions; ammo through `SAmmoContainerComponentParams.ammoParamsRecord`;
-  capacitor (`weaponRegenConsumerParams`); heat (`simplifiedHeatParams`); common block.
+  capacitor (`weaponRegenConsumerParams`: cost per shot, `requestedRegenPerSec` for Regen,
+  which is in the cost unit; `maxRegenPerSec` counts shots and is not shown); heat
+  (`simplifiedHeatParams`); common block.
 
 ```
 --- STATS ---
@@ -1001,9 +1011,11 @@ format key (section 7.3). Detection of our own output does not depend on this st
 - **Contracts:** contract generator records (`contracts/contractgenerator/`,
   `contractscenarios/`): `generators[] → contracts[]`, each with `debugName`,
   `paramOverrides.stringParamOverrides[]` and `contractResults`.
-- **Title and description keys:** the `Title` and `Description` string param overrides. M2a
-  confirms where the description lives when the override is absent (likely the referenced
-  contract template). The adapter records which path supplied each key.
+- **Title and description keys:** the `Title` and `Description` string param overrides of the
+  contract, else of its generator handler (`contractParams`), else the contract template's
+  `contractDisplayInfo.displayString` (`[0]` title, `[2]` description; confirmed in M2a on
+  LIVE 4.10: 2,506 contract, 24-27 generator, 21-24 template, 2 none). The adapter records
+  which path supplied each key (`KeySource`).
 - **Blueprint rewards:** `BlueprintRewards { blueprintPool, chance }` nodes inside
   `contractResults`.
 - **Pools:** `BlueprintPoolRecord.blueprintRewards[] { blueprintRecord, weight }`.
@@ -1077,9 +1089,13 @@ Sections are joined with `\n\n`, in this order. A section with no content is lef
   contract group, de-duplicated, sorted by bare name (case-insensitive, tags ignored). When
   the group has more than one distinct pool, each pool gets a sub-header
   `<EM4>[<variant label>]</EM4>`, where the label is the contract's difficulty or tier taken
-  from data, falling back to `Variant n`. Lists longer than 25 entries are cut with
+  from data, falling back to `Variant n`. (M2: pools are compared by their bullet lists, so two
+  pool records with the same items count as one. The label is the difficulty profile name,
+  title-cased, when every pool's contracts share one and the labels differ between pools;
+  otherwise `Variant n`.) Lists longer than 25 entries are cut with
   `- and N more`. Bullets carry the item's name tag when the option is on (default on).
-- **ITEM REWARDS.** Union over the whole contract group, with amounts when above 1.
+- **ITEM REWARDS.** Union over the whole contract group, with amounts when above 1 (a range
+  `×A–B` when the variants award different amounts).
 - **Blueprint reward.** `Guaranteed` when all chances are 1.0; `N%` when all are equal and
   below 1.0; `N–M%` when they differ; `Some variants only` when part of the group has no
   pool. The percent sign always ends the line (section 5.1).
@@ -1089,7 +1105,8 @@ Sections are joined with `\n\n`, in this order. A section with no content is lef
   `<EM4>Failure:</EM4> -1,000`.
 - **Requires.** The lowest required standing's display name, when present.
 - **Type.** `Chain` (the contract has linked or prerequisite contracts), `Once only`
-  (`onceOnly`). Left out when neither applies.
+  (`onceOnly`), each when every contract of the group has it. Left out when neither applies.
+- Contracts flagged `notForRelease` or `workInProgress` are not used.
 - Section header text and the emphasis tag (EM3 or EM4) are profile settings.
 
 Hauling routes, spawn counts, difficulty breakdown, ace-pilot detection and engagement type
@@ -1097,10 +1114,14 @@ are out of v1 (open question Q6).
 
 ### 6.5 Owned blueprints
 
-Not in v1 core. The addendum asks for a post-exit hook that reads `Game.log` for
-"Received Blueprint" notifications and marks bullets `[Owned]`. The blueprints section keeps
-bullets as structured data until render time so a marker can be added without changing the
-generator.
+The addendum asks for a post-exit hook that reads `Game.log` for "Received Blueprint"
+notifications and marks bullets `[Owned]`. The blueprints section keeps bullets as structured
+data until render time. The generator asks one trait, `enhance::owned::OwnedBlueprints`
+(`owns(id, record, display name)`), so M1's per-character store plugs in without the
+generator knowing where the set came from (M2). A marked bullet reads
+`- <tag> <Item Name> [Owned]`. `build --owned-blueprints FILE` reads an owned-set JSON (M1's
+`{"entries": {...}}` shape) or a JSON list of names; names are matched after stripping
+leading `[...]` tag groups and folding quotes, whitespace and case.
 
 ---
 
@@ -1878,6 +1899,16 @@ written, and keys left as stock by reason (`contenders-differ`, `placeholder`, `
 `format-key`, `dropped-by-validation`, `open-tail` written); plus the count of references that
 matched only after case folding.
 
+- M2 definitions: a **candidate** is a key some record has text for (a record whose block
+  would be empty, such as a thruster with one common line, is no candidate). Two more
+  reasons exist: `collision` (two stock keys fold to the key, section 4.3) and
+  `owned-by-other` (an earlier generator already writes the key). Categories:
+  `ships`, `components`, `ship-weapons`, `fps-weapons`, `missiles`, `component-tags`,
+  `ship-weapon-tags`, `missile-tags`, `mission-titles`, `mission-descriptions`, `branding`.
+- Baselines live in `fixtures/coverage-<change>.json` (counts only, no keys). The
+  ignored test `starorg-data/tests/enhance_real.rs` builds every installed channel and
+  checks them; until the recorded `GameData` fixture exists the check needs a game install.
+
 - The recorded report is the baseline. A CI test fails when a category's written count falls
   more than 2% below the baseline without the baseline being updated in the same change.
 - This is how a schema change that silently empties a category, or a namesake rule that
@@ -1998,7 +2029,10 @@ Acceptance:
 - Coverage on LIVE: at least 90% of candidate keys written in each category, and
   "contenders-differ" at most 5% of candidates per category. Missing either means the
   namesake rule or a filter needs work before M2 closes. The numbers are recorded as the
-  baseline.
+  baseline. **Met on LIVE 4.10.200.58746 (change 13165946), Recommended preset:** lowest
+  written share 95.5% (ship weapons, 169 of 177), highest contenders-differ 4.5% (ship weapons:
+  tractor beams of three sizes sharing one description, mining lasers sharing keys with
+  others); 3,294 keys changed, 0 dropped; baseline `fixtures/coverage-13165946.json`.
 - Zero schema drift on LIVE; every drift item on HOTFIX handled or allow-listed.
 - Ships show Pitch/Yaw/Roll; the Gladius shows its guns; the Carrack shows a loadout.
 - The Bengal S6 and APAR S4 gatlings resolve correctly under the namesake rule with all

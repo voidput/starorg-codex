@@ -1,0 +1,574 @@
+{
+  "schema": 2,
+  "build": null,
+  "datacore": null,
+  "components": [
+    {
+      "recordName": "EntityClassDefinition.TEST_Armor",
+      "id": "00000000-0000-0000-0000-000000000016",
+      "path": "entities/scitem/ships/armor/test_armor",
+      "loc": {
+        "name": "@item_NameTEST_Armor"
+      },
+      "type": "Armor",
+      "size": 1,
+      "category": "armor",
+      "health": 3300.0,
+      "stats": {},
+      "detail": {
+        "damageMultiplier": {
+          "distortion": 1.0,
+          "energy": 0.6,
+          "physical": 0.75,
+          "thermal": 1.0
+        }
+      }
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Grid",
+      "id": "00000000-0000-0000-0000-000000000017",
+      "path": "entities/scitem/ships/cargogrid/test_grid",
+      "isTemplate": true,
+      "type": "CargoGrid",
+      "category": "cargoGrids",
+      "stats": {
+        "scu": 16.0
+      },
+      "detail": {
+        "container": "test_grid_container"
+      }
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Missile_S2",
+      "id": "00000000-0000-0000-0000-000000000012",
+      "path": "entities/scitem/ships/weapons/missiles/test_missile_s2",
+      "loc": {
+        "name": "@item_NameTEST_Missile_S2"
+      },
+      "type": "Missile",
+      "size": 2,
+      "category": "missiles",
+      "health": 25.0,
+      "stats": {
+        "linearSpeed": 1250.0,
+        "lockRangeMax": 10000.0,
+        "lockTime": 1.5,
+        "maxLifetime": 30.0,
+        "maxRadius": 3.0
+      }
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Power_S1",
+      "id": "00000000-0000-0000-0000-000000000015",
+      "path": "entities/scitem/ships/powerplant/test_power_s1",
+      "loc": {
+        "name": "@item_NameTEST_Power_S1"
+      },
+      "type": "PowerPlant",
+      "size": 1,
+      "category": "powerPlants",
+      "stats": {
+        "powerOutput": 20.0
+      }
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Rack_S3",
+      "id": "00000000-0000-0000-0000-000000000013",
+      "path": "entities/scitem/ships/missileracks/test_rack_s3",
+      "loc": {
+        "name": "@item_NameTEST_Rack_S3"
+      },
+      "type": "MissileLauncher",
+      "size": 3,
+      "category": "missileRacks",
+      "stats": {
+        "missileCount": 2.0,
+        "missileSize": 2.0
+      }
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Repeater_S3",
+      "id": "00000000-0000-0000-0000-000000000010",
+      "path": "entities/scitem/ships/weapons/test/test_repeater_s3",
+      "loc": {
+        "name": "@item_NameTEST_Repeater_S3",
+        "shortName": "@item_NameTEST_Repeater_S3_short",
+        "desc": "@item_DescTEST_Repeater_S3"
+      },
+      "type": "WeaponGun",
+      "subType": "Gun",
+      "size": 3,
+      "grade": 1,
+      "manufacturer": "TEST",
+      "category": "weapons",
+      "power": 2.0,
+      "em": 41.0,
+      "ir": 0.0,
+      "health": 550.0,
+      "stats": {
+        "maxAmmoCount": 0.0,
+        "overheatTemperature": 1000.0
+      }
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Repeater_S3_Black",
+      "id": "00000000-0000-0000-0000-000000000011",
+      "path": "entities/scitem/ships/weapons/test/test_repeater_s3_black",
+      "loc": {
+        "name": "@item_NameTEST_Repeater_S3",
+        "desc": "@item_DescTEST_Repeater_S3"
+      },
+      "type": "WeaponGun",
+      "size": 6,
+      "category": "weapons",
+      "stats": {
+        "maxAmmoCount": 100.0
+      }
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Shield_S1",
+      "id": "00000000-0000-0000-0000-000000000014",
+      "path": "entities/scitem/ships/shieldgenerator/test_shield_s1",
+      "loc": {
+        "name": "@item_NameTEST_Shield_S1"
+      },
+      "type": "Shield",
+      "size": 1,
+      "grade": 2,
+      "category": "shields",
+      "distortionMax": 2450.0,
+      "stats": {
+        "DamagedRegenDelay": 4.2,
+        "DownedRegenDelay": 8.5,
+        "MaxShieldHealth": 7480.0,
+        "MaxShieldRegen": 1346.0
+      },
+      "detail": {
+        "resistance": {
+          "energy": {
+            "min": 0.0,
+            "max": 0.1
+          },
+          "physical": {
+            "min": 0.0,
+            "max": 0.25
+          }
+        }
+      }
+    }
+  ],
+  "weapons": [
+    {
+      "recordName": "EntityClassDefinition.TEST_Repeater_S3",
+      "id": "00000000-0000-0000-0000-000000000010",
+      "path": "entities/scitem/ships/weapons/test/test_repeater_s3",
+      "loc": {
+        "name": "@item_NameTEST_Repeater_S3",
+        "shortName": "@item_NameTEST_Repeater_S3_short",
+        "desc": "@item_DescTEST_Repeater_S3"
+      },
+      "type": "WeaponGun",
+      "subType": "Gun",
+      "size": 3,
+      "grade": 1,
+      "manufacturer": "TEST",
+      "class": "ship",
+      "damageType": "energy",
+      "dps": 450.0,
+      "alpha": 45.0,
+      "fireRate": 600.0,
+      "range": 4000.0,
+      "speed": 1250.0,
+      "power": 2.0,
+      "em": 41.0,
+      "ir": 0.0,
+      "ammoCapacity": 90.0,
+      "health": 550.0,
+      "heatPerShot": 10.0,
+      "overheatTemperature": 1000.0,
+      "capacitor": {
+        "shots": 90.0,
+        "regenPerSecond": 30.0,
+        "regenCooldown": 1.4,
+        "costPerShot": 1.0
+      },
+      "ammo": {
+        "recordName": "AmmoParams.TEST_Repeater_S3_Ammo",
+        "speed": 1250.0,
+        "lifetime": 3.2,
+        "range": 4000.0,
+        "damage": {
+          "energy": 40.5,
+          "distortion": 4.5
+        },
+        "damagePerShot": 45.0,
+        "falloff": {
+          "energy": {
+            "minDistance": 50.0,
+            "perMeter": 0.2,
+            "floor": 20.0
+          }
+        }
+      },
+      "modes": [
+        {
+          "name": "Rapid",
+          "kind": "rapid",
+          "fireRate": 600.0,
+          "pellets": 1.0,
+          "heatPerShot": 10.0,
+          "alpha": 45.0,
+          "dps": 450.0
+        },
+        {
+          "name": "Burst",
+          "kind": "burst",
+          "fireRate": 900.0,
+          "sustainedFireRate": 400.0,
+          "shotCount": 3.0,
+          "alpha": 45.0,
+          "dps": 300.0
+        }
+      ]
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Repeater_S3_Black",
+      "id": "00000000-0000-0000-0000-000000000011",
+      "path": "entities/scitem/ships/weapons/test/test_repeater_s3_black",
+      "loc": {
+        "name": "@item_NameTEST_Repeater_S3",
+        "desc": "@item_DescTEST_Repeater_S3"
+      },
+      "type": "WeaponGun",
+      "size": 6,
+      "class": "ship",
+      "damageType": "energy",
+      "dps": 45.0,
+      "alpha": 45.0,
+      "fireRate": 60.0,
+      "range": 4000.0,
+      "speed": 1250.0,
+      "ammoCapacity": 100.0,
+      "ammo": {
+        "recordName": "AmmoParams.TEST_Repeater_S3_Ammo",
+        "speed": 1250.0,
+        "lifetime": 3.2,
+        "range": 4000.0,
+        "damage": {
+          "energy": 40.5,
+          "distortion": 4.5
+        },
+        "damagePerShot": 45.0,
+        "falloff": {
+          "energy": {
+            "minDistance": 50.0,
+            "perMeter": 0.2,
+            "floor": 20.0
+          }
+        },
+        "capacity": 100.0
+      },
+      "modes": [
+        {
+          "name": "Single",
+          "kind": "single",
+          "fireRate": 60.0,
+          "alpha": 45.0,
+          "dps": 45.0
+        }
+      ]
+    },
+    {
+      "recordName": "EntityClassDefinition.TEST_Rifle",
+      "id": "00000000-0000-0000-0000-000000000030",
+      "path": "entities/scitem/weapons/fps_weapons/test_rifle",
+      "loc": {
+        "name": "@item_NameTEST_Rifle"
+      },
+      "type": "WeaponPersonal",
+      "size": 2,
+      "class": "fps",
+      "damageType": "physical",
+      "dps": 450.0,
+      "alpha": 30.0,
+      "fireRate": 900.0,
+      "range": 1200.0,
+      "speed": 600.0,
+      "ammoCapacity": 30.0,
+      "mass": 1.3,
+      "ammo": {
+        "recordName": "AmmoParams.TEST_Rifle_Ammo",
+        "magazine": "TEST_Rifle_Mag",
+        "speed": 600.0,
+        "lifetime": 2.0,
+        "range": 1200.0,
+        "damage": {
+          "physical": 30.0
+        },
+        "damagePerShot": 30.0,
+        "capacity": 30.0
+      },
+      "modes": [
+        {
+          "name": "Single",
+          "kind": "single",
+          "fireRate": 300.0,
+          "alpha": 30.0,
+          "dps": 150.0
+        },
+        {
+          "name": "Rapid",
+          "kind": "rapid",
+          "fireRate": 900.0,
+          "alpha": 30.0,
+          "dps": 450.0
+        }
+      ]
+    }
+  ],
+  "missiles": [
+    {
+      "recordName": "EntityClassDefinition.TEST_Missile_S2",
+      "id": "00000000-0000-0000-0000-000000000012",
+      "path": "entities/scitem/ships/weapons/missiles/test_missile_s2",
+      "loc": {
+        "name": "@item_NameTEST_Missile_S2"
+      },
+      "type": "Missile",
+      "size": 2,
+      "damage": {
+        "physical": 1700.0
+      },
+      "damageTotal": 1700.0,
+      "damageType": "physical",
+      "trackingSignal": "Infrared",
+      "lockTime": 1.5,
+      "lockRangeMin": 1800.0,
+      "lockRangeMax": 10000.0,
+      "speed": 1250.0,
+      "maxLifetime": 30.0,
+      "explosionRadius": 3.0,
+      "health": 25.0
+    }
+  ],
+  "ammo": [
+    {
+      "name": "TEST_Repeater_S3_Ammo",
+      "recordName": "AmmoParams.TEST_Repeater_S3_Ammo",
+      "id": "00000000-0000-0000-0000-000000000001",
+      "path": "ammoparams/vehicle/test_repeater_s3_ammo",
+      "size": 3.0,
+      "speed": 1250.0,
+      "lifetime": 3.2,
+      "range": 4000.0,
+      "damage": {
+        "energy": 40.5,
+        "distortion": 4.5
+      },
+      "damageTotal": 45.0,
+      "falloff": {
+        "energy": {
+          "minDistance": 50.0,
+          "perMeter": 0.2,
+          "floor": 20.0
+        }
+      }
+    },
+    {
+      "name": "TEST_Rifle_Ammo",
+      "recordName": "AmmoParams.TEST_Rifle_Ammo",
+      "id": "00000000-0000-0000-0000-000000000002",
+      "path": "ammoparams/fps/test_rifle_ammo",
+      "speed": 600.0,
+      "lifetime": 2.0,
+      "range": 1200.0,
+      "damage": {
+        "physical": 30.0
+      },
+      "damageTotal": 30.0
+    }
+  ],
+  "ships": [
+    {
+      "recordName": "EntityClassDefinition.TEST_Ship",
+      "id": "00000000-0000-0000-0000-000000000020",
+      "path": "entities/spaceships/test_ship",
+      "loc": {
+        "name": "@vehicle_NameTEST_Ship",
+        "desc": "@vehicle_DescTEST_Ship",
+        "career": "@vehicle_focus_combat",
+        "role": "@vehicle_class_lightfighter"
+      },
+      "manufacturer": "test",
+      "movementClass": "Spaceship",
+      "crewSize": 1.0,
+      "size": 2.0,
+      "boundingBox": {
+        "x": 16.5,
+        "y": 21.0,
+        "z": 5.5
+      },
+      "loadout": {
+        "weapons": [
+          {
+            "item": "TEST_Repeater_S3",
+            "size": 3.0,
+            "count": 2.0,
+            "type": "WeaponGun",
+            "dps": 450.0
+          }
+        ],
+        "missiles": [
+          {
+            "item": "TEST_Missile_S2",
+            "size": 2.0,
+            "count": 2.0,
+            "rack": "TEST_Rack_S3",
+            "damage": 1700.0
+          }
+        ],
+        "shields": [
+          {
+            "item": "TEST_Shield_S1",
+            "size": 1.0
+          }
+        ],
+        "powerPlants": [
+          {
+            "item": "TEST_Power_S1",
+            "size": 1.0
+          }
+        ],
+        "armor": {
+          "item": "TEST_Armor",
+          "size": 1.0
+        },
+        "cargoGrids": [
+          {
+            "item": "TEST_Grid"
+          }
+        ],
+        "missileRacks": 1.0
+      },
+      "totals": {
+        "weaponDps": 900.0,
+        "weapons": 2.0,
+        "missiles": 2.0,
+        "missileDamage": 3400.0,
+        "shieldHealth": 7480.0,
+        "shieldRegen": 1346.0,
+        "armorHealth": 3300.0,
+        "powerOutput": 20.0,
+        "cargoScu": 16.0
+      },
+      "flight": {
+        "controller": "Controller_Flight_TEST_Ship",
+        "scmSpeed": 212.0,
+        "maxSpeed": 1200.0,
+        "boostSpeedForward": 450.0,
+        "boostSpeedBackward": 240.0,
+        "pitch": 38.0,
+        "yaw": 32.0,
+        "roll": 110.0
+      },
+      "armor": {
+        "item": "TEST_Armor",
+        "health": 3300.0,
+        "damageMultiplier": {
+          "distortion": 1.0,
+          "energy": 0.6,
+          "physical": 0.75,
+          "thermal": 1.0
+        }
+      }
+    }
+  ],
+  "contracts": [
+    {
+      "generator": "TEST_Generator",
+      "handler": "TEST_Handler",
+      "debugName": "TEST_Contract_Easy",
+      "id": "c1",
+      "titleKey": "@TEST_title",
+      "titleFrom": "contract",
+      "descriptionKey": "@TEST_shared_desc",
+      "descriptionFrom": "generator",
+      "onceOnly": true,
+      "chain": true,
+      "difficulty": "general",
+      "blueprintRewards": [
+        {
+          "pool": "BP_MISSIONREWARD_TEST",
+          "chance": 1.0
+        }
+      ],
+      "itemRewards": [
+        {
+          "item": "TEST_Armor_Arms",
+          "nameKey": "@item_NameTEST_Armor_Arms",
+          "amount": 3.0
+        }
+      ],
+      "reputation": [
+        {
+          "faction": "factionreputation_test",
+          "amount": 150.0,
+          "onSuccess": true,
+          "onFailure": false
+        },
+        {
+          "amount": -1000.0,
+          "onSuccess": false,
+          "onFailure": true
+        }
+      ],
+      "minStanding": "ReputationStanding_TEST_Rank2"
+    },
+    {
+      "generator": "TEST_Generator",
+      "handler": "TEST_Handler",
+      "debugName": "TEST_Contract_Phase2",
+      "id": "c2",
+      "titleKey": "@TEST_P2_title",
+      "titleFrom": "template",
+      "descriptionKey": "@TEST_shared_desc",
+      "descriptionFrom": "generator",
+      "minStanding": "ReputationStanding_TEST_Rank2"
+    }
+  ],
+  "blueprints": [
+    {
+      "recordName": "CraftingBlueprintRecord.BP_CRAFT_TEST_Armor_Arms",
+      "id": "00000000-0000-0000-0000-000000000050",
+      "path": "crafting/blueprints/test/bp_craft_test_armor_arms",
+      "category": "FPSArmours",
+      "produces": "TEST_Armor_Arms",
+      "producesNameKey": "@item_NameTEST_Armor_Arms",
+      "tiers": [
+        {
+          "craftTimeSeconds": 90.0
+        }
+      ]
+    }
+  ],
+  "blueprintPools": [
+    {
+      "name": "BP_MISSIONREWARD_TEST",
+      "blueprints": [
+        {
+          "blueprint": "BP_CRAFT_TEST_Armor_Arms",
+          "weight": 1.0
+        }
+      ]
+    }
+  ],
+  "reputationStandings": [
+    {
+      "name": "ReputationStanding_TEST_Rank2",
+      "recordName": "SReputationStandingParams.ReputationStanding_TEST_Rank2",
+      "id": "00000000-0000-0000-0000-000000000060",
+      "displayNameKey": "@RepStanding_TEST_Rank2",
+      "minReputation": 2500.0
+    }
+  ]
+}

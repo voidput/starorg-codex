@@ -197,6 +197,11 @@ impl StockIni {
         }
     }
 
+    /// Stock value of a key (folding rule of spec 4.3); `None` when absent or ambiguous.
+    pub fn value(&self, key: &str) -> Option<&str> {
+        self.value_at(self.find(key).ok()?)
+    }
+
     /// Render the file with the given new values. With no edits the output equals the input
     /// byte for byte. No key is added, removed or reordered.
     pub fn render(&self, edits: &Edits) -> Vec<u8> {

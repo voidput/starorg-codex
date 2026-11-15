@@ -23,6 +23,12 @@ starorg-data.workspace = true
 clap.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+starorg-net = { workspace = true, optional = true }
+
+[features]
+# Opt-in network feature (addendum §1): `gamedata --use-published-data`. Off by default so
+# the default CLI links no HTTP client (CI checks the default dependency tree).
+published-dumps = ["dep:starorg-net"]
 
 [dev-dependencies]
 tempfile.workspace = true
