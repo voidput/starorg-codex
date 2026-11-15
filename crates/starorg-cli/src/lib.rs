@@ -3,7 +3,9 @@
 //!
 //! The CLI never opens a window, needs no display, and links no GTK, WebView or HTTP client.
 
-use clap::{Parser, Subcommand};
+mod commands;
+
+use clap::{Args, Parser, Subcommand};
 use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -26,12 +28,43 @@ pub mod exit {
     about = "Enhanced Star Citizen strings"
 )]
 pub struct Cli {
+    #[command(flatten)]
+    pub global: GlobalOpts,
     #[command(subcommand)]
     pub command: Command,
 }
 
+/// Global options (spec 8).
+#[derive(Debug, Clone, Default, Args)]
+pub struct GlobalOpts {
+    /// Install root (the folder that contains LIVE). Skips discovery.
+    #[arg(long, global = true, value_name = "PATH")]
+    pub game_dir: Option<PathBuf>,
+    /// Linux: Wine prefix to look in. Defaults to $WINEPREFIX when set.
+    #[arg(long, global = true, value_name = "PATH")]
+    pub prefix: Option<PathBuf>,
+    /// One JSON object on stdout; logs go to stderr.
+    #[arg(long, global = true)]
+    pub json: bool,
+    /// Errors only.
+    #[arg(long, global = true)]
+    pub quiet: bool,
+}
+
 #[derive(Debug, Subcommand)]
 pub enum Command {
+    /// List installs and channels with branch, game version and change number.
+    Channels,
+    /// Write the output for a channel to a file; touch nothing else.
+    Build {
+        #[arg(long, value_name = "NAME")]
+        channel: String,
+        #[arg(long, value_name = "FILE")]
+        out: PathBuf,
+        /// Give up after this many seconds (exit 3).
+        #[arg(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
+    },
     /// Internal: extract one Data.p4k in a separate process (spec 3.3).
     #[command(hide = true)]
     ExtractWorker {
@@ -66,6 +99,12 @@ where
         }
     };
     match cli.command {
+        Command::Channels => commands::channels(&cli.global),
+        Command::Build {
+            channel,
+            out,
+            timeout,
+        } => commands::build(&cli.global, &channel, &out, timeout),
         Command::ExtractWorker {
             p4k,
             out,
