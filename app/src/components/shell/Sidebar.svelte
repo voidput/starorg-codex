@@ -15,6 +15,7 @@
   import Binary from '@lucide/svelte/icons/binary';
   import Sheet from '@lucide/svelte/icons/sheet';
   import GitCompare from '@lucide/svelte/icons/git-compare';
+  import FolderTree from '@lucide/svelte/icons/folder-tree';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import { Button } from '@/components/ui/button';
@@ -23,7 +24,7 @@
 
   let { current = $bindable<ScreenId>('home'), version = '', dev = false }: { current: ScreenId; version?: string; dev?: boolean } = $props();
 
-  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare } as const;
+  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare, files: FolderTree } as const;
   const NAV = $derived(navGroups(dev));
   const NAV_ITEMS = $derived(navItems(dev));
   const MIN = 168;

@@ -30,6 +30,7 @@
   import ExplorerScreen from '@/components/screens/ExplorerScreen.svelte';
   import DatasetsScreen from '@/components/screens/DatasetsScreen.svelte';
   import DiffScreen from '@/components/screens/DiffScreen.svelte';
+  import FilesScreen from '@/components/screens/FilesScreen.svelte';
   import { app } from '@/lib/stores/app.svelte';
   import UpdateBanner from '@/components/shell/UpdateBanner.svelte';
   import { updates } from '@/lib/stores/update.svelte';
@@ -130,6 +131,8 @@
             <DatasetsScreen />
           {:else if screen === 'diff'}
             <DiffScreen />
+          {:else if screen === 'files'}
+            <FilesScreen />
           {:else}
             <SettingsScreen />
           {/if}

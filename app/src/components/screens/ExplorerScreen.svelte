@@ -30,6 +30,7 @@
   import JobProgress from '@/components/common/JobProgress.svelte';
   import JsonTree from '@/components/dev/JsonTree.svelte';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
+  import AssetPanel from '@/components/assets/AssetPanel.svelte';
   import { devApi, EXPORT_WARN_RECORDS, type RecordView, type SearchHit, type TreeNode, type TreeRoot } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { guidOf, treeKey, treeRows, typeahead, bytes, type Loaded } from '@/lib/devnav';
@@ -665,7 +666,7 @@
         {:else if rec}
           {@const h = rec.header}
           {@const own = dev.showIds ? null : (rec.labels[h.guid] ?? null)}
-          <div class="grid gap-1.5 border-b px-3 py-2.5">
+          <div class="grid grid-cols-[minmax(0,1fr)] gap-1.5 border-b px-3 py-2.5">
             <div class="flex flex-wrap items-center gap-2">
               {#if own && own.text !== h.name}
                 <h2 class="flex min-w-0 flex-1 basis-56 items-baseline gap-2 truncate" title={h.name}>
@@ -690,6 +691,7 @@
               <Button variant="ghost" size="icon-xs" aria-label="Copy GUID" title="Copy GUID" onclick={() => void copy(h.guid, 'the GUID')}><Copy aria-hidden="true" /></Button>
             </dl>
             {#if rec.truncated}<p class="text-[11.5px] text-amber-700 dark:text-amber-300">Large record: deeper parts load when you open them.</p>{/if}
+            {#if target}<AssetPanel {target} guid={h.guid} name={h.name} type={h.type} />{/if}
           </div>
           <JsonTree id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="flex-1" />
         {:else}

@@ -276,3 +276,6 @@ export function bytesText(n: number): string {
   }
   return `${v < 10 ? v.toFixed(1) : Math.round(v)} ${u[i]}`;
 }
+
+/** Record types with a model to export: entities (and the mock's synthetic ships and items). */
+export const hasModel = (type: string): boolean => type === 'EntityClassDefinition' || type === 'SynShip' || type === 'SynComponent';

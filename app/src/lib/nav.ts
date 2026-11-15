@@ -1,11 +1,11 @@
 /**
  * Sidebar layout (spec 9.3, addendum §6.6, §7.8): Home · Customize (Enhancements, Strings, Patches,
- * Blueprints, Ships) · Game (Backups, Activity) · Dev (Explorer, Datasets, Diff; only with
+ * Blueprints, Ships) · Game (Backups, Activity) · Dev (Explorer, Datasets, Diff, Files; only with
  * Settings > Advanced > Developer mode on) · Settings. With Developer mode on, Alt+9 opens the
  * Explorer and Settings moves to Alt+0 (Q-D6: Datasets and Diff through Ctrl+K).
  */
 export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'backups' | 'activity' | 'settings' | DevScreenId;
-export type DevScreenId = 'explorer' | 'datasets' | 'diff';
+export type DevScreenId = 'explorer' | 'datasets' | 'diff' | 'files';
 
 export interface NavItem {
   id: ScreenId;
@@ -50,10 +50,11 @@ export const DEV_GROUP: NavGroup = {
     { id: 'explorer', label: 'Explorer', description: "The game's DataCore records: types, folders, search, references", key: '9' },
     { id: 'datasets', label: 'Datasets', description: 'Our game data and folders of JSON files as tables', key: '' },
     { id: 'diff', label: 'Diff', description: 'Compare two builds or two dataset folders', key: '' },
+    { id: 'files', label: 'Files', description: "The game's Data.p4k: browse, preview textures and text, extract", key: '' },
   ],
 };
 
-export const DEV_SCREENS: readonly DevScreenId[] = ['explorer', 'datasets', 'diff'];
+export const DEV_SCREENS: readonly DevScreenId[] = ['explorer', 'datasets', 'diff', 'files'];
 export const isDevScreen = (s: ScreenId): s is DevScreenId => (DEV_SCREENS as readonly string[]).includes(s);
 
 /** The sidebar groups: the Dev group after Game when Developer mode is on. */
