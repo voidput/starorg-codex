@@ -224,6 +224,24 @@ fn samples() -> Value {
     ] {
         v[k] = x;
     }
+    // From a fresh mock: the TS mock seeds its owned sets from this sample.
+    let fresh = MockBackend::default();
+    v["blueprint_finder"] = json!(
+        fresh
+            .blueprint_finder(BlueprintFinderRequest {
+                install: live().install,
+                channels: vec![]
+            })
+            .unwrap()
+    );
+    v["blueprint_finder_live"] = json!(
+        fresh
+            .blueprint_finder(BlueprintFinderRequest {
+                install: live().install,
+                channels: vec!["LIVE".into()]
+            })
+            .unwrap()
+    );
     v["starorg_sync"] = json!(b.starorg_sync("LIVE".into()).unwrap());
     v["set_starorg_guild"] = json!(
         b.set_starorg_guild(StarOrgGuildRequest {
@@ -745,6 +763,18 @@ fn ts_unions_list_every_variant() {
             ]),
         ),
         ("Palette", names(&[Palette::Void, Palette::Black])),
+        (
+            "BlueprintKind",
+            names(&[
+                BlueprintKind::ShipComponent,
+                BlueprintKind::ShipWeapon,
+                BlueprintKind::FpsWeapon,
+                BlueprintKind::Armor,
+                BlueprintKind::FpsAmmo,
+                BlueprintKind::MissionItem,
+                BlueprintKind::Other,
+            ]),
+        ),
         (
             "CharacterMode",
             names(&[
@@ -1430,15 +1460,15 @@ fn starorg_push_is_the_union_of_ticked_characters() {
     b.save_settings(s).unwrap();
     let st = b.starorg_login("LIVE".into()).unwrap();
     assert!(st.connected);
-    // Pilot_A owns 4, Alt_B owns 2 with one in common: union = 5.
-    assert_eq!(st.push_count, 5);
+    // Pilot_A owns 6, Alt_B owns 3 with one in common: union = 8.
+    assert_eq!(st.push_count, 8);
     let st = b
         .set_sync_characters(SyncCharactersRequest {
             channel: "LIVE".into(),
             ticked: vec!["1000000000002".into()],
         })
         .unwrap();
-    assert_eq!(st.push_count, 2);
+    assert_eq!(st.push_count, 3);
     let st = b
         .set_sync_characters(SyncCharactersRequest {
             channel: "LIVE".into(),
@@ -1508,22 +1538,22 @@ fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
             character: "1000000000002".into(),
         })
         .unwrap();
-    assert_eq!(alt.len(), 4);
+    assert_eq!(alt.len(), 5);
     let main = b
         .owned_blueprints(CharacterRequest {
             target: live(),
             character: "1000000000001".into(),
         })
         .unwrap();
-    assert_eq!(main.len(), 4, "pull never spreads across alts");
-    // Push sends the union of ticked characters: Pilot_A 4 + Alt_B now 4, 1 shared = 7.
-    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 7);
+    assert_eq!(main.len(), 6, "pull never spreads across alts");
+    // Push sends the union of ticked characters: Pilot_A 6 + Alt_B now 5, 1 shared = 10.
+    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 10);
     b.set_sync_characters(SyncCharactersRequest {
         channel: "LIVE".into(),
         ticked: vec!["1000000000001".into()],
     })
     .unwrap();
-    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 4);
+    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 6);
 }
 
 #[test]
@@ -1987,4 +2017,73 @@ fn mock_update_flow_finds_skips_and_refuses_to_install() {
     assert_eq!(b.install_update().unwrap_err().code, ErrorCode::Internal);
     let skipped = b.skip_update(release.version.clone()).unwrap();
     assert_eq!(skipped.skipped_version.as_deref(), Some("0.2.1-beta.1"));
+}
+
+#[test]
+fn blueprint_finder_merges_channels_with_their_own_owners() {
+    let b = MockBackend::default();
+    let req = |channels: &[&str]| BlueprintFinderRequest {
+        install: live().install,
+        channels: channels.iter().map(|c| c.to_string()).collect(),
+    };
+    let all = b.blueprint_finder(req(&[])).unwrap();
+    let chans: Vec<(&str, Option<u32>)> = all
+        .channels
+        .iter()
+        .map(|c| (c.channel.as_str(), c.catalog))
+        .collect();
+    assert_eq!(
+        chans,
+        vec![("LIVE", Some(37)), ("HOTFIX", None), ("PTU", Some(37))]
+    );
+    assert_eq!(all.characters.len(), 3);
+    let row = |f: &BlueprintFinder, n: &str| f.rows.iter().find(|r| r.name == n).cloned().unwrap();
+    let rifle = row(&all, "Synthetic Rifle Mk1");
+    let mut owners: Vec<(String, String)> = rifle
+        .owners
+        .iter()
+        .map(|o| (o.channel.clone(), o.character.clone()))
+        .collect();
+    owners.sort();
+    assert_eq!(owners.len(), 4, "LIVE x2, HOTFIX, PTU: {owners:?}");
+    assert_eq!(rifle.channels, vec!["LIVE", "PTU"]);
+    assert_eq!(row(&all, "PTU Prototype Shield").channels, vec!["PTU"]);
+    assert_eq!(row(&all, "Sample Crate").channels, vec!["LIVE"]);
+    // One channel: only its owners.
+    let live_only = b.blueprint_finder(req(&["live"])).unwrap();
+    assert_eq!(live_only.channels.len(), 1);
+    assert!(
+        live_only
+            .rows
+            .iter()
+            .flat_map(|r| &r.owners)
+            .all(|o| o.channel == "LIVE")
+    );
+    assert!(
+        live_only
+            .rows
+            .iter()
+            .all(|r| r.name != "PTU Prototype Shield")
+    );
+    // An import lands in the finder for that channel and character only.
+    b.import_smart_citizen(ImportRequest {
+        target: live(),
+        character: "1000000000003".into(),
+        dry_run: false,
+    })
+    .unwrap();
+    let after = b.blueprint_finder(req(&["LIVE"])).unwrap();
+    let legs = row(&after, "Sample Armor Legs");
+    assert_eq!(legs.owners.len(), 1);
+    assert_eq!(
+        (
+            legs.owners[0].character.as_str(),
+            legs.owners[0].sources[0].as_str()
+        ),
+        ("1000000000003", "import:smart-citizen")
+    );
+    assert_eq!(
+        b.blueprint_finder(req(&["NOPE"])).unwrap_err().code,
+        ErrorCode::NotFound
+    );
 }

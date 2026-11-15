@@ -1200,6 +1200,93 @@ pub struct CharacterRequest {
 }
 
 // ---------------------------------------------------------------------------------------
+// Blueprint finder (addendum §7.19): the build's catalogue with every channel's owners
+// ---------------------------------------------------------------------------------------
+
+/// What a blueprint makes (record path and category).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BlueprintKind {
+    ShipComponent,
+    ShipWeapon,
+    FpsWeapon,
+    Armor,
+    FpsAmmo,
+    MissionItem,
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintFinderRequest {
+    pub install: String,
+    /// Channels to merge; empty = every channel of the install.
+    pub channels: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintFinderChannel {
+    pub channel: String,
+    /// Blueprints in this channel's build; `None` = game data not read yet (apply reads it).
+    pub catalog: Option<u32>,
+    pub characters: u32,
+    /// Owned entries over every character of the channel.
+    pub owned: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintFinderCharacter {
+    /// geid. Personal data: shown, never uploaded.
+    pub id: String,
+    pub name: String,
+    pub last_seen: Option<String>,
+    /// Channels whose logs know the character (same geid = same character, own sets).
+    pub channels: Vec<String>,
+}
+
+/// One character's ownership of a blueprint on one channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintOwner {
+    pub channel: String,
+    pub character: String,
+    /// `log`, `import:smart-citizen`, `starorg:<guild>`.
+    pub sources: Vec<String>,
+    pub acquired: Option<String>,
+    pub favorite: bool,
+    /// Matched several blueprints on import: listed, never marked.
+    pub ambiguous: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintRow {
+    /// Blueprint id (lower case), or `name:<normalised name>` for an owned name that matched
+    /// no single blueprint of the read builds.
+    pub key: String,
+    pub name: String,
+    /// Record short name (`BP_CRAFT_…`); `None` for a name-only row.
+    pub record: Option<String>,
+    pub kind: BlueprintKind,
+    pub type_label: Option<String>,
+    /// Armor weight: Light, Medium, Heavy.
+    pub class: Option<String>,
+    pub manufacturer: Option<String>,
+    pub manufacturer_name: Option<String>,
+    pub size: Option<u32>,
+    /// A..D (ship components).
+    pub grade: Option<String>,
+    /// Channels whose build has the blueprint.
+    pub channels: Vec<String>,
+    pub owners: Vec<BlueprintOwner>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintFinder {
+    pub channels: Vec<BlueprintFinderChannel>,
+    pub characters: Vec<BlueprintFinderCharacter>,
+    /// Sorted by name; the app sorts, filters and counts facets.
+    pub rows: Vec<BlueprintRow>,
+}
+
+// ---------------------------------------------------------------------------------------
 // Smart Citizen import (addendum §4)
 // ---------------------------------------------------------------------------------------
 

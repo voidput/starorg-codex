@@ -32,6 +32,7 @@ import samples from './samples.gen.json';
 import { serial } from '../loadstate';
 import type * as T from './types';
 import { createUpdateMock } from './mock-update';
+import { mockFinder, seedOwned } from './mock-finder';
 import { createDevMock, type DevMockData } from './mock-dev';
 import devData from './mock-dev.gen.json';
 import { createAssetMock, type AssetMockData } from './mock-assets';
@@ -45,6 +46,7 @@ const SAMPLES = samples as unknown as {
   get_settings: T.Settings;
   list_characters: T.CharactersView;
   owned_blueprints: T.OwnedBlueprint[];
+  blueprint_finder: T.BlueprintFinder;
   hooks_status: T.HooksStatus;
   doctor: T.DoctorReport;
   starorg_status: T.StarOrgStatus;
@@ -397,11 +399,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   const id = (r: T.ChannelRef) => `${r.install}/${r.channel}`;
   for (const inst of installs) {
     for (const c of inst.channels) {
-      const owned = new Map<string, T.OwnedBlueprint[]>();
+      // Per channel, as the Rust mock seeds them (mock_finder.rs): PTU progress is not LIVE's.
+      const owned = seedOwned(SAMPLES.blueprint_finder, c.channel);
       const chars = SAMPLES.list_characters.characters;
-      owned.set(chars[0]!.id, clone(SAMPLES.owned_blueprints));
-      owned.set(chars[1]!.id, clone(SAMPLES.owned_blueprints.filter((b, i) => i === 0)).concat([{ ...clone(SAMPLES.owned_blueprints[0]!), name: 'Sample Undersuit' }]));
-      owned.set(chars[2]!.id, []);
       chans.set(`${inst.id}/${c.channel}`, {
         summary: c,
         backups: [],
@@ -1071,6 +1071,16 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       return charactersView(c);
     },
     owned_blueprints: ({ req }) => clone(chan(req.target).owned.get(req.character) ?? []),
+    blueprint_finder: ({ req }) => {
+      const inst = installs.find((i) => i.id === req.install);
+      if (!inst) fail('not-found', `No install ${req.install}`);
+      const all = inst!.channels.map((c) => c.channel);
+      const names = req.channels.length
+        ? req.channels.map((n) => all.find((a) => a.toLowerCase() === n.toLowerCase()) ?? fail('not-found', `no channel ${n} in this install`))
+        : all;
+      const picked = names.map((n) => ({ channel: n, ...chan({ install: req.install, channel: n }) }));
+      return mockFinder(SAMPLES.blueprint_finder, picked, SAMPLES.list_characters.characters);
+    },
     import_smart_citizen: ({ req }) => {
       const c = chan(req.target);
       const set = c.owned.get(req.character) ?? [];

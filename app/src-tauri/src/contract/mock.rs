@@ -217,19 +217,6 @@ fn builtin_patches() -> Vec<PatchView> {
     ]
 }
 
-fn owned(names: &[&str], source: &str) -> Vec<OwnedBlueprint> {
-    names
-        .iter()
-        .map(|n| OwnedBlueprint {
-            name: (*n).into(),
-            ambiguous: false,
-            favorite: false,
-            sources: vec![source.into()],
-            acquired: Some("2026-11-10T20:11:00Z".into()),
-        })
-        .collect()
-}
-
 /// Synthetic characters: geid, display name, last seen.
 const CHARACTERS: &[(&str, &str, &str)] = &[
     ("1000000000001", "Pilot_A", "2026-11-14T19:02:00Z"),
@@ -238,24 +225,10 @@ const CHARACTERS: &[(&str, &str, &str)] = &[
 ];
 
 fn mock_channel(summary: ChannelSummary) -> MockChannel {
-    let mut owned_sets = HashMap::new();
-    owned_sets.insert(
-        CHARACTERS[0].0.to_string(),
-        owned(
-            &[
-                "Synthetic Rifle Mk1",
-                "Synthetic Armor Core",
-                "Test Pistol Variant",
-                "Sample Helmet Grey",
-            ],
-            "log",
-        ),
+    let owned_sets = super::mock_finder::seed(
+        &summary.channel,
+        &[CHARACTERS[0].0, CHARACTERS[1].0, CHARACTERS[2].0],
     );
-    owned_sets.insert(
-        CHARACTERS[1].0.to_string(),
-        owned(&["Synthetic Rifle Mk1", "Sample Undersuit"], "log"),
-    );
-    owned_sets.insert(CHARACTERS[2].0.to_string(), Vec::new());
     let exact_groups = summary.channel == "LIVE";
     MockChannel {
         summary,
@@ -2130,6 +2103,59 @@ impl Backend for MockBackend {
         self.with_channel(&req.target, |c, _| {
             Ok(c.owned.get(&req.character).cloned().unwrap_or_default())
         })
+    }
+
+    fn blueprint_finder(&self, req: BlueprintFinderRequest) -> CmdResult<BlueprintFinder> {
+        use starorg_core::blueprints::{self as bp, finder};
+        let s = self.lock();
+        let names = s
+            .installs
+            .iter()
+            .find(|(i, _)| i.id == req.install)
+            .map(|(_, n)| n.clone())
+            .ok_or_else(|| {
+                AppError::new(ErrorCode::NotFound, format!("No install {}", req.install))
+            })?;
+        let mut inputs = Vec::new();
+        for name in super::finder::pick(&names, &req.channels)? {
+            let Some(c) = s.channels.get(&(req.install.clone(), name.clone())) else {
+                continue;
+            };
+            let mut characters = bp::Characters::default();
+            let mut sets = Vec::new();
+            for (id, who, seen) in CHARACTERS {
+                if c.forgotten.contains(*id) {
+                    continue;
+                }
+                characters.seen(id, None, who, Some(seen));
+                let mut set = bp::OwnedSet::new(Some(id));
+                for b in c.owned.get(*id).into_iter().flatten() {
+                    let mut e = bp::OwnedEntry {
+                        name: b.name.clone(),
+                        ids: Vec::new(),
+                        ambiguous: b.ambiguous,
+                        favorite: b.favorite,
+                        sources: Vec::new(),
+                    };
+                    for k in &b.sources {
+                        e.add_source(bp::Source {
+                            kind: k.clone(),
+                            time: b.acquired.clone(),
+                            file: None,
+                        });
+                    }
+                    set.entries.insert(bp::normalize(&b.name), e);
+                }
+                sets.push(set);
+            }
+            inputs.push(finder::ChannelInput {
+                channel: name.clone(),
+                catalog: super::mock_finder::catalog(name),
+                characters,
+                sets,
+            });
+        }
+        Ok(super::finder::contract(finder::build(&inputs)))
     }
 
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport> {

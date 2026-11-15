@@ -52,6 +52,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   list_characters: [{ req: T.ChannelRef }, T.CharactersView];
   set_active_character: [{ req: T.SetActiveCharacter }, T.CharactersView];
   owned_blueprints: [{ req: T.CharacterRequest }, T.OwnedBlueprint[]];
+  blueprint_finder: [{ req: T.BlueprintFinderRequest }, T.BlueprintFinder];
   import_smart_citizen: [{ req: T.ImportRequest }, T.ImportReport];
   forget_character: [{ req: T.CharacterRequest }, T.CharactersView];
   fleet_view: [{ req: T.FleetViewRequest }, T.FleetView];
@@ -132,6 +133,7 @@ export const COMMANDS = [
   'list_characters',
   'set_active_character',
   'owned_blueprints',
+  'blueprint_finder',
   'import_smart_citizen',
   'forget_character',
   'fleet_view',
@@ -341,6 +343,7 @@ export const api = {
   listCharacters: (req: T.ChannelRef) => call('list_characters', { req }),
   setActiveCharacter: (req: T.SetActiveCharacter) => call('set_active_character', { req }),
   ownedBlueprints: (req: T.CharacterRequest) => call('owned_blueprints', { req }),
+  blueprintFinder: (req: T.BlueprintFinderRequest) => call('blueprint_finder', { req }),
   importSmartCitizen: (req: T.ImportRequest) => call('import_smart_citizen', { req }),
   forgetCharacter: (req: T.CharacterRequest) => call('forget_character', { req }),
   fleetView: (req: T.FleetViewRequest) => call('fleet_view', { req }),

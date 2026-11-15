@@ -671,6 +671,63 @@ export interface CharacterRequest {
   character: string;
 }
 
+// Blueprint finder (addendum §7.19) --------------------------------------------------------
+
+export type BlueprintKind = 'ship-component' | 'ship-weapon' | 'fps-weapon' | 'armor' | 'fps-ammo' | 'mission-item' | 'other';
+
+export interface BlueprintFinderRequest {
+  install: string;
+  /** Empty = every channel of the install. */
+  channels: string[];
+}
+
+export interface BlueprintFinderChannel {
+  channel: string;
+  /** Blueprints in this build; null = game data not read yet. */
+  catalog: number | null;
+  characters: number;
+  owned: number;
+}
+
+export interface BlueprintFinderCharacter {
+  /** geid: personal data, shown, never uploaded. */
+  id: string;
+  name: string;
+  last_seen: string | null;
+  channels: string[];
+}
+
+export interface BlueprintOwner {
+  channel: string;
+  character: string;
+  sources: string[];
+  acquired: string | null;
+  favorite: boolean;
+  ambiguous: boolean;
+}
+
+export interface BlueprintRow {
+  /** Blueprint id (lower case) or `name:<normalised>` for a name no single blueprint has. */
+  key: string;
+  name: string;
+  record: string | null;
+  kind: BlueprintKind;
+  type_label: string | null;
+  class: string | null;
+  manufacturer: string | null;
+  manufacturer_name: string | null;
+  size: number | null;
+  grade: string | null;
+  channels: string[];
+  owners: BlueprintOwner[];
+}
+
+export interface BlueprintFinder {
+  channels: BlueprintFinderChannel[];
+  characters: BlueprintFinderCharacter[];
+  rows: BlueprintRow[];
+}
+
 export interface ImportRequest {
   target: ChannelRef;
   character: string;

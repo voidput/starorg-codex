@@ -38,7 +38,7 @@ use starorg_core::backup;
 use starorg_core::blueprints::{
     self, Choice,
     catalog::{BlueprintCatalog, GameDataCatalog},
-    import as bp_import,
+    finder as bp_finder, import as bp_import,
     logscan::{self, Store},
 };
 use starorg_core::cache::{self, KeyInputs};
@@ -213,6 +213,9 @@ impl LoadedData {
     }
 }
 
+/// One build's finder catalogue.
+type BpCatalog = Arc<Vec<bp_finder::CatalogItem>>;
+
 #[derive(Default)]
 struct Mem {
     manual: Vec<PathBuf>,
@@ -222,6 +225,8 @@ struct Mem {
     job: Option<JobProgress>,
     data: HashMap<(String, String), Arc<LoadedData>>,
     tables: HashMap<(String, String), (String, Arc<Table>)>,
+    /// Blueprint finder catalogue per channel, by build key (a few hundred KB; addendum §7.19).
+    bp_catalogs: HashMap<(String, String), (String, BpCatalog)>,
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
     /// without a second picker.
     last_fleet: Option<(String, Vec<u8>)>,
@@ -1057,6 +1062,62 @@ impl RealBackend {
                 ),
             );
         }
+    }
+
+    /// The finder catalogue of a channel's build from cached game data only (never extracts).
+    /// A build already in memory is reused; otherwise the cache entry is read, the catalogue
+    /// kept and the game data dropped again, so "All channels" does not hold every build.
+    fn bp_catalog(&self, f: &Found, ch: &Channel) -> Option<BpCatalog> {
+        let id = f.id.clone()?;
+        let fp = ch.fingerprint().ok()?;
+        let k = KeyInputs::local(&fp, &self.ctx().starbreaker_commit);
+        let key = k.key();
+        let slot = (id.clone(), ch.name.clone());
+        if let Some((kk, c)) = self.mem().bp_catalogs.get(&slot)
+            && *kk == key
+        {
+            return Some(c.clone());
+        }
+        let resident = self.mem().data.get(&slot).filter(|d| d.key == key).cloned();
+        let d = match resident {
+            Some(d) => d,
+            None if self.ctx().use_cache => {
+                let l = cache::load(
+                    &self.dirs().channel_cache(&id, &ch.name),
+                    &k,
+                    self.ctx().min_stock_keys,
+                )
+                .ok()?;
+                Arc::new(LoadedData::new(key.clone(), l))
+            }
+            None => return None,
+        };
+        let c = Arc::new(bp_finder::catalog(&d.game_data, &d.stock, Some(&d.groups)));
+        self.mem().bp_catalogs.insert(slot, (key, c.clone()));
+        Some(c)
+    }
+
+    /// One channel's part of the finder: its catalogue and every character's owned set, read
+    /// from the channel data folder as stored (ownership is per channel and per character).
+    fn finder_input(&self, f: &Found, ch: &Channel) -> bp_finder::ChannelInput {
+        let mut inp = bp_finder::ChannelInput {
+            channel: ch.name.clone(),
+            ..Default::default()
+        };
+        if f.id.is_none() {
+            return inp;
+        }
+        self.scan(f, ch);
+        let data = self.data_dir(f, ch);
+        inp.characters = blueprints::load_characters(&data).unwrap_or_default();
+        inp.sets = inp
+            .characters
+            .characters
+            .keys()
+            .filter_map(|g| blueprints::load_set(&data, g).ok())
+            .collect();
+        inp.catalog = self.bp_catalog(f, ch).map(|c| c.as_ref().clone());
+        inp
     }
 
     fn characters_view(&self, f: &Found, ch: &Channel) -> CmdResult<CharactersView> {
@@ -2390,6 +2451,16 @@ impl Backend for RealBackend {
             .collect();
         out.sort_by_key(|b| b.name.to_lowercase());
         Ok(out)
+    }
+
+    fn blueprint_finder(&self, req: BlueprintFinderRequest) -> CmdResult<BlueprintFinder> {
+        let f = self.find(&req.install)?;
+        let names: Vec<String> = f.install.channels.iter().map(|c| c.name.clone()).collect();
+        let inputs = crate::contract::finder::pick(&names, &req.channels)?
+            .into_iter()
+            .map(|n| f.channel(n).map(|ch| self.finder_input(&f, ch)))
+            .collect::<CmdResult<Vec<_>>>()?;
+        Ok(crate::contract::finder::contract(bp_finder::build(&inputs)))
     }
 
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport> {

@@ -37,6 +37,8 @@ interface Samples {
   set_override_rejected: T.OverrideResult;
   list_patches: T.PatchView[];
   activity: T.LogEntry[];
+  blueprint_finder: T.BlueprintFinder;
+  blueprint_finder_live: T.BlueprintFinder;
   get_settings: T.Settings;
   list_characters: T.CharactersView;
   owned_blueprints: T.OwnedBlueprint[];

@@ -77,7 +77,7 @@
       "characters": [
         "1000000000001"
       ],
-      "count": 4,
+      "count": 6,
       "mode": "auto"
     },
     "patches": [
@@ -667,6 +667,1584 @@
     "pinned": false,
     "reason": "manual",
     "size": null
+  },
+  "blueprint_finder": {
+    "channels": [
+      {
+        "catalog": 37,
+        "channel": "LIVE",
+        "characters": 3,
+        "owned": 9
+      },
+      {
+        "catalog": null,
+        "channel": "HOTFIX",
+        "characters": 3,
+        "owned": 1
+      },
+      {
+        "catalog": 37,
+        "channel": "PTU",
+        "characters": 3,
+        "owned": 4
+      }
+    ],
+    "characters": [
+      {
+        "channels": [
+          "LIVE",
+          "HOTFIX",
+          "PTU"
+        ],
+        "id": "1000000000002",
+        "last_seen": "2026-11-11T22:40:00Z",
+        "name": "Alt_B"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "HOTFIX",
+          "PTU"
+        ],
+        "id": "1000000000003",
+        "last_seen": "2026-10-30T17:15:00Z",
+        "name": "Alt_C"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "HOTFIX",
+          "PTU"
+        ],
+        "id": "1000000000001",
+        "last_seen": "2026-11-14T19:02:00Z",
+        "name": "Pilot_A"
+      }
+    ],
+    "rows": [
+      {
+        "channels": [
+          "PTU"
+        ],
+        "class": null,
+        "grade": "A",
+        "key": "00000000-0000-4000-8000-0000000000ba",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "PTU Prototype Shield",
+        "owners": [
+          {
+            "acquired": "2026-11-13T20:30:00Z",
+            "ambiguous": false,
+            "channel": "PTU",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_PTU_Prototype_Shield",
+        "size": 3,
+        "type_label": "Shield"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Medium",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000ca",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Armor Arms",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Armor_Arms",
+        "size": null,
+        "type_label": "Arms"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Medium",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cb",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Armor Legs",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Armor_Legs",
+        "size": null,
+        "type_label": "Legs"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d2",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Backpack",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Backpack",
+        "size": null,
+        "type_label": "Backpack"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d4",
+        "kind": "fps-ammo",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Sample Battery",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Battery",
+        "size": null,
+        "type_label": "Laser ammo"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d5",
+        "kind": "mission-item",
+        "manufacturer": null,
+        "manufacturer_name": null,
+        "name": "Sample Crate",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Crate",
+        "size": null,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bd",
+        "kind": "ship-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Gatling S4",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Gatling_S4",
+        "size": 4,
+        "type_label": "Ballistic gatling"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Light",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cc",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Helmet Grey",
+        "owners": [
+          {
+            "acquired": "2026-11-07T19:40:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          },
+          {
+            "acquired": "2026-11-09T21:05:00Z",
+            "ambiguous": false,
+            "channel": "PTU",
+            "character": "1000000000003",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Sample_Helmet_Grey",
+        "size": null,
+        "type_label": "Helmet"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cd",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Helmet Red",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Helmet_Red",
+        "size": null,
+        "type_label": "Helmet"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bf",
+        "kind": "ship-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Mass Driver S5",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Mass_Driver_S5",
+        "size": 5,
+        "type_label": "Ballistic mass driver"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c6",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Medical Gun",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Medical_Gun",
+        "size": 1,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "C",
+        "key": "00000000-0000-4000-8000-0000000000b9",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Mining Laser S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Mining_Laser_S1",
+        "size": 1,
+        "type_label": "Mining laser"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "D",
+        "key": "00000000-0000-4000-8000-0000000000b3",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Power Plant S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Power_Plant_S1",
+        "size": 1,
+        "type_label": "Power plant"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "A",
+        "key": "00000000-0000-4000-8000-0000000000b4",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Sample Power Plant S2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Power_Plant_S2",
+        "size": 2,
+        "type_label": "Power plant"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "C",
+        "key": "00000000-0000-4000-8000-0000000000b5",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Sample Shield S1",
+        "owners": [
+          {
+            "acquired": "2026-10-30T10:00:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000002",
+            "favorite": false,
+            "sources": [
+              "import:smart-citizen"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Sample_Shield_S1",
+        "size": 1,
+        "type_label": "Shield"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "B",
+        "key": "00000000-0000-4000-8000-0000000000b6",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Shield S2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Shield_S2",
+        "size": 2,
+        "type_label": "Shield"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c4",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Shotgun",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Shotgun",
+        "size": 3,
+        "type_label": "Shotgun"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c3",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample SMG",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_SMG",
+        "size": 2,
+        "type_label": "SMG"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d1",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Undersuit",
+        "owners": [
+          {
+            "acquired": "2026-11-09T18:00:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000002",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Sample_Undersuit",
+        "size": null,
+        "type_label": "Undersuit"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Medium",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c9",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Synthetic Armor Core",
+        "owners": [
+          {
+            "acquired": "2026-11-08T17:20:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Armor_Core",
+        "size": null,
+        "type_label": "Torso"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bb",
+        "kind": "ship-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Cannon S3",
+        "owners": [
+          {
+            "acquired": "2026-11-02T08:15:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "starorg:Test Org"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Cannon_S3",
+        "size": 3,
+        "type_label": "Laser cannon"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "A",
+        "key": "00000000-0000-4000-8000-0000000000b0",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Synthetic Cooler S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Synthetic_Cooler_S1",
+        "size": 1,
+        "type_label": "Cooler"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "B",
+        "key": "00000000-0000-4000-8000-0000000000b1",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Synthetic Cooler S2",
+        "owners": [
+          {
+            "acquired": "2026-10-28T12:00:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "import:smart-citizen"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Cooler_S2",
+        "size": 2,
+        "type_label": "Cooler"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "C",
+        "key": "00000000-0000-4000-8000-0000000000b2",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Synthetic Cooler S3",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Synthetic_Cooler_S3",
+        "size": 3,
+        "type_label": "Cooler"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bc",
+        "kind": "ship-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Repeater S2",
+        "owners": [
+          {
+            "acquired": "2026-11-11T19:45:00Z",
+            "ambiguous": false,
+            "channel": "PTU",
+            "character": "1000000000003",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Repeater_S2",
+        "size": 2,
+        "type_label": "Laser repeater"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c0",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Rifle Mk1",
+        "owners": [
+          {
+            "acquired": "2026-11-10T20:11:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          },
+          {
+            "acquired": "2026-11-11T22:30:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000002",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          },
+          {
+            "acquired": "2026-11-13T09:00:00Z",
+            "ambiguous": false,
+            "channel": "HOTFIX",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          },
+          {
+            "acquired": "2026-11-12T18:00:00Z",
+            "ambiguous": false,
+            "channel": "PTU",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Rifle_Mk1",
+        "size": 3,
+        "type_label": "Rifle"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c1",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Rifle Mk2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Synthetic_Rifle_Mk2",
+        "size": 3,
+        "type_label": "Rifle"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cf",
+        "kind": "armor",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Heavy Arms",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Heavy_Arms",
+        "size": null,
+        "type_label": "Arms"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000ce",
+        "kind": "armor",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Heavy Core",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Heavy_Core",
+        "size": null,
+        "type_label": "Torso"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c8",
+        "kind": "fps-weapon",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Test Knife",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Knife",
+        "size": 1,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": "Light",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d0",
+        "kind": "armor",
+        "manufacturer": null,
+        "manufacturer_name": null,
+        "name": "Test Light Legs",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Light_Legs",
+        "size": null,
+        "type_label": "Legs"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c7",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Multitool",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Multitool",
+        "size": 1,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c2",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Pistol Variant",
+        "owners": [
+          {
+            "acquired": "2026-11-06T22:02:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Test_Pistol_Variant",
+        "size": 1,
+        "type_label": "Pistol"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "A",
+        "key": "00000000-0000-4000-8000-0000000000b7",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Quantum Drive S2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Quantum_Drive_S2",
+        "size": 2,
+        "type_label": "Quantum drive"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": "B",
+        "key": "00000000-0000-4000-8000-0000000000b8",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Test Radar S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Radar_S1",
+        "size": 1,
+        "type_label": "Radar"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d3",
+        "kind": "fps-ammo",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Rifle Magazine",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Rifle_Magazine",
+        "size": null,
+        "type_label": "Ballistic ammo"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000be",
+        "kind": "ship-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Scattergun S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Scattergun_S1",
+        "size": 1,
+        "type_label": "Laser scattergun"
+      },
+      {
+        "channels": [
+          "LIVE",
+          "PTU"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c5",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Sniper",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Sniper",
+        "size": 4,
+        "type_label": "Sniper rifle"
+      }
+    ]
+  },
+  "blueprint_finder_live": {
+    "channels": [
+      {
+        "catalog": 37,
+        "channel": "LIVE",
+        "characters": 3,
+        "owned": 9
+      }
+    ],
+    "characters": [
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "id": "1000000000002",
+        "last_seen": "2026-11-11T22:40:00Z",
+        "name": "Alt_B"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "id": "1000000000003",
+        "last_seen": "2026-10-30T17:15:00Z",
+        "name": "Alt_C"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "id": "1000000000001",
+        "last_seen": "2026-11-14T19:02:00Z",
+        "name": "Pilot_A"
+      }
+    ],
+    "rows": [
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Medium",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000ca",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Armor Arms",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Armor_Arms",
+        "size": null,
+        "type_label": "Arms"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Medium",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cb",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Armor Legs",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Armor_Legs",
+        "size": null,
+        "type_label": "Legs"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d2",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Backpack",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Backpack",
+        "size": null,
+        "type_label": "Backpack"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d4",
+        "kind": "fps-ammo",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Sample Battery",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Battery",
+        "size": null,
+        "type_label": "Laser ammo"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d5",
+        "kind": "mission-item",
+        "manufacturer": null,
+        "manufacturer_name": null,
+        "name": "Sample Crate",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Crate",
+        "size": null,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bd",
+        "kind": "ship-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Gatling S4",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Gatling_S4",
+        "size": 4,
+        "type_label": "Ballistic gatling"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Light",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cc",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Helmet Grey",
+        "owners": [
+          {
+            "acquired": "2026-11-07T19:40:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Sample_Helmet_Grey",
+        "size": null,
+        "type_label": "Helmet"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cd",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Helmet Red",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Helmet_Red",
+        "size": null,
+        "type_label": "Helmet"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bf",
+        "kind": "ship-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Mass Driver S5",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Mass_Driver_S5",
+        "size": 5,
+        "type_label": "Ballistic mass driver"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c6",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Medical Gun",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Medical_Gun",
+        "size": 1,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "C",
+        "key": "00000000-0000-4000-8000-0000000000b9",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Mining Laser S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Mining_Laser_S1",
+        "size": 1,
+        "type_label": "Mining laser"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "D",
+        "key": "00000000-0000-4000-8000-0000000000b3",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Power Plant S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Power_Plant_S1",
+        "size": 1,
+        "type_label": "Power plant"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "A",
+        "key": "00000000-0000-4000-8000-0000000000b4",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Sample Power Plant S2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Power_Plant_S2",
+        "size": 2,
+        "type_label": "Power plant"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "C",
+        "key": "00000000-0000-4000-8000-0000000000b5",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Sample Shield S1",
+        "owners": [
+          {
+            "acquired": "2026-10-30T10:00:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000002",
+            "favorite": false,
+            "sources": [
+              "import:smart-citizen"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Sample_Shield_S1",
+        "size": 1,
+        "type_label": "Shield"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "B",
+        "key": "00000000-0000-4000-8000-0000000000b6",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Shield S2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Shield_S2",
+        "size": 2,
+        "type_label": "Shield"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c4",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample Shotgun",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_Shotgun",
+        "size": 3,
+        "type_label": "Shotgun"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c3",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Sample SMG",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Sample_SMG",
+        "size": 2,
+        "type_label": "SMG"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d1",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Sample Undersuit",
+        "owners": [
+          {
+            "acquired": "2026-11-09T18:00:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000002",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Sample_Undersuit",
+        "size": null,
+        "type_label": "Undersuit"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Medium",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c9",
+        "kind": "armor",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Synthetic Armor Core",
+        "owners": [
+          {
+            "acquired": "2026-11-08T17:20:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Armor_Core",
+        "size": null,
+        "type_label": "Torso"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bb",
+        "kind": "ship-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Cannon S3",
+        "owners": [
+          {
+            "acquired": "2026-11-02T08:15:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "starorg:Test Org"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Cannon_S3",
+        "size": 3,
+        "type_label": "Laser cannon"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "A",
+        "key": "00000000-0000-4000-8000-0000000000b0",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Synthetic Cooler S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Synthetic_Cooler_S1",
+        "size": 1,
+        "type_label": "Cooler"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "B",
+        "key": "00000000-0000-4000-8000-0000000000b1",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Synthetic Cooler S2",
+        "owners": [
+          {
+            "acquired": "2026-10-28T12:00:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "import:smart-citizen"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Cooler_S2",
+        "size": 2,
+        "type_label": "Cooler"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "C",
+        "key": "00000000-0000-4000-8000-0000000000b2",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Synthetic Cooler S3",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Synthetic_Cooler_S3",
+        "size": 3,
+        "type_label": "Cooler"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000bc",
+        "kind": "ship-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Repeater S2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Synthetic_Repeater_S2",
+        "size": 2,
+        "type_label": "Laser repeater"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c0",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Rifle Mk1",
+        "owners": [
+          {
+            "acquired": "2026-11-10T20:11:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          },
+          {
+            "acquired": "2026-11-11T22:30:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000002",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Synthetic_Rifle_Mk1",
+        "size": 3,
+        "type_label": "Rifle"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c1",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Synthetic Rifle Mk2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Synthetic_Rifle_Mk2",
+        "size": 3,
+        "type_label": "Rifle"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000cf",
+        "kind": "armor",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Heavy Arms",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Heavy_Arms",
+        "size": null,
+        "type_label": "Arms"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Heavy",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000ce",
+        "kind": "armor",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Heavy Core",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Heavy_Core",
+        "size": null,
+        "type_label": "Torso"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c8",
+        "kind": "fps-weapon",
+        "manufacturer": "TSTO",
+        "manufacturer_name": "Test Outfitters",
+        "name": "Test Knife",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Knife",
+        "size": 1,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": "Light",
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d0",
+        "kind": "armor",
+        "manufacturer": null,
+        "manufacturer_name": null,
+        "name": "Test Light Legs",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Light_Legs",
+        "size": null,
+        "type_label": "Legs"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c7",
+        "kind": "fps-weapon",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Multitool",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Multitool",
+        "size": 1,
+        "type_label": null
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c2",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Pistol Variant",
+        "owners": [
+          {
+            "acquired": "2026-11-06T22:02:00Z",
+            "ambiguous": false,
+            "channel": "LIVE",
+            "character": "1000000000001",
+            "favorite": false,
+            "sources": [
+              "log"
+            ]
+          }
+        ],
+        "record": "BP_CRAFT_SYN_Test_Pistol_Variant",
+        "size": 1,
+        "type_label": "Pistol"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "A",
+        "key": "00000000-0000-4000-8000-0000000000b7",
+        "kind": "ship-component",
+        "manufacturer": "MOCK",
+        "manufacturer_name": "Mock Dynamics",
+        "name": "Test Quantum Drive S2",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Quantum_Drive_S2",
+        "size": 2,
+        "type_label": "Quantum drive"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": "B",
+        "key": "00000000-0000-4000-8000-0000000000b8",
+        "kind": "ship-component",
+        "manufacturer": "SYNA",
+        "manufacturer_name": "Synthetic Aerospace",
+        "name": "Test Radar S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Radar_S1",
+        "size": 1,
+        "type_label": "Radar"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000d3",
+        "kind": "fps-ammo",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Rifle Magazine",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Rifle_Magazine",
+        "size": null,
+        "type_label": "Ballistic ammo"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000be",
+        "kind": "ship-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Scattergun S1",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Scattergun_S1",
+        "size": 1,
+        "type_label": "Laser scattergun"
+      },
+      {
+        "channels": [
+          "LIVE"
+        ],
+        "class": null,
+        "grade": null,
+        "key": "00000000-0000-4000-8000-0000000000c5",
+        "kind": "fps-weapon",
+        "manufacturer": "SYNB",
+        "manufacturer_name": "Sample Arms Co",
+        "name": "Test Sniper",
+        "owners": [],
+        "record": "BP_CRAFT_SYN_Test_Sniper",
+        "size": 4,
+        "type_label": "Sniper rifle"
+      }
+    ]
   },
   "build_preview": [
     {
@@ -6883,7 +8461,7 @@
   "export_diagnostics": {
     "file_name": "starorg-strings-diagnostics-20261114-213005.txt",
     "redacted": 5,
-    "text": "StarOrg Codex diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 7 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 0 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import (dry run): 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
+    "text": "StarOrg Codex diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 10 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 0 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import (dry run): 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
   },
   "export_user_patch": {
     "file_name": "user-sample-label-fix.patch.toml",
@@ -8089,13 +9667,13 @@
         "id": "1000000000001",
         "last_seen": "2026-11-14T19:02:00Z",
         "name": "Pilot_A",
-        "owned": 4
+        "owned": 6
       },
       {
         "id": "1000000000002",
         "last_seen": "2026-11-11T22:40:00Z",
         "name": "Alt_B",
-        "owned": 2
+        "owned": 3
       },
       {
         "id": "1000000000003",
@@ -8516,7 +10094,7 @@
       ]
     },
     {
-      "acquired": "2026-11-10T20:11:00Z",
+      "acquired": "2026-11-08T17:20:00Z",
       "ambiguous": false,
       "favorite": false,
       "name": "Synthetic Armor Core",
@@ -8525,7 +10103,7 @@
       ]
     },
     {
-      "acquired": "2026-11-10T20:11:00Z",
+      "acquired": "2026-11-06T22:02:00Z",
       "ambiguous": false,
       "favorite": false,
       "name": "Test Pistol Variant",
@@ -8534,12 +10112,30 @@
       ]
     },
     {
-      "acquired": "2026-11-10T20:11:00Z",
+      "acquired": "2026-11-07T19:40:00Z",
       "ambiguous": false,
       "favorite": false,
       "name": "Sample Helmet Grey",
       "sources": [
         "log"
+      ]
+    },
+    {
+      "acquired": "2026-10-28T12:00:00Z",
+      "ambiguous": false,
+      "favorite": false,
+      "name": "Synthetic Cooler S2",
+      "sources": [
+        "import:smart-citizen"
+      ]
+    },
+    {
+      "acquired": "2026-11-02T08:15:00Z",
+      "ambiguous": false,
+      "favorite": false,
+      "name": "Synthetic Cannon S3",
+      "sources": [
+        "starorg:Test Org"
       ]
     }
   ],
@@ -10270,18 +11866,18 @@
     ],
     "host": "starorg.tools",
     "last_sync": "2026-11-14T21:30:05Z",
-    "push_count": 7,
+    "push_count": 10,
     "sync_characters": [
       {
         "id": "1000000000001",
         "name": "Pilot_A",
-        "owned": 6,
+        "owned": 8,
         "ticked": true
       },
       {
         "id": "1000000000002",
         "name": "Alt_B",
-        "owned": 2,
+        "owned": 3,
         "ticked": true
       },
       {
@@ -10327,7 +11923,7 @@
     "character": null,
     "direction": "push",
     "guild": "Synthetic Org",
-    "sent": 7,
+    "sent": 10,
     "time": "2026-11-14T21:30:05Z",
     "unmatched": []
   },
@@ -10353,18 +11949,18 @@
     ],
     "host": "starorg.tools",
     "last_sync": null,
-    "push_count": 5,
+    "push_count": 8,
     "sync_characters": [
       {
         "id": "1000000000001",
         "name": "Pilot_A",
-        "owned": 4,
+        "owned": 6,
         "ticked": true
       },
       {
         "id": "1000000000002",
         "name": "Alt_B",
-        "owned": 2,
+        "owned": 3,
         "ticked": true
       },
       {
@@ -10458,7 +12054,7 @@
         "character": null,
         "direction": "push",
         "guild": "Synthetic Org",
-        "sent": 7,
+        "sent": 10,
         "time": "2026-11-14T21:30:05Z",
         "unmatched": []
       }

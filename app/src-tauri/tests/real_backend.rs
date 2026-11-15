@@ -758,6 +758,49 @@ fn smart_citizen_import_dry_run_reports_and_writes_nothing() {
     assert_eq!(chars.characters[0].owned, 1);
     assert_eq!(chars.active.mode, CharacterMode::Auto);
     assert_eq!(chars.active.resolved.as_deref(), Some("300003"));
+
+    // The finder: the build's catalogue (cached by the import) with the owner, and every
+    // other channel without a catalogue until its build is read. Ownership stays per channel.
+    let all = f
+        .backend
+        .blueprint_finder(BlueprintFinderRequest {
+            install: f.live().install,
+            channels: vec![],
+        })
+        .unwrap();
+    let live = all.channels.iter().find(|c| c.channel == "LIVE").unwrap();
+    assert_eq!((live.catalog, live.characters, live.owned), (Some(1), 1, 1));
+    assert!(
+        all.channels
+            .iter()
+            .filter(|c| c.channel != "LIVE")
+            .all(|c| c.catalog.is_none() && c.owned == 0)
+    );
+    let rifle = all
+        .rows
+        .iter()
+        .find(|r| r.name == "Fake Rifle Kestrel")
+        .unwrap();
+    assert_eq!(rifle.record.as_deref(), Some("bp_fake_rifle"));
+    assert_eq!(rifle.channels, ["LIVE"]);
+    assert_eq!(rifle.owners.len(), 1);
+    assert_eq!(
+        (
+            rifle.owners[0].channel.as_str(),
+            rifle.owners[0].character.as_str()
+        ),
+        ("LIVE", "300003")
+    );
+    assert!(rifle.owners[0].favorite);
+    // The catalogue is kept per build; a second call answers from memory, same rows.
+    let again = f
+        .backend
+        .blueprint_finder(BlueprintFinderRequest {
+            install: f.live().install,
+            channels: vec!["LIVE".into()],
+        })
+        .unwrap();
+    assert_eq!(again.rows, all.rows);
 }
 
 fn bp_line(t: &str, name: &str) -> String {

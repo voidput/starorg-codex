@@ -13,6 +13,7 @@
 
 pub mod assets;
 pub mod dev;
+pub mod finder;
 pub mod fleet;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock;
@@ -20,6 +21,8 @@ pub mod mock;
 pub mod mock_assets;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_dev;
+#[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_finder;
 pub mod real;
 pub mod schema;
 pub mod strings_query;
@@ -100,6 +103,9 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn list_characters(&self, req: ChannelRef) -> CmdResult<CharactersView>;
     fn set_active_character(&self, req: SetActiveCharacter) -> CmdResult<CharactersView>;
     fn owned_blueprints(&self, req: CharacterRequest) -> CmdResult<Vec<OwnedBlueprint>>;
+    /// Every blueprint of the channels' builds with each channel's owners (addendum §7.19).
+    /// Reads cached game data only; a channel whose build was not read has no catalogue.
+    fn blueprint_finder(&self, req: BlueprintFinderRequest) -> CmdResult<BlueprintFinder>;
     /// Real backend: file picker for Smart Citizen's `owned-blueprints.json`, then import.
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport>;
     /// Deletes one character's owned set (`<geid>.json`) and its entry in the character list.
@@ -247,6 +253,7 @@ commands! {
     list_characters(req: ChannelRef) -> CharactersView;
     set_active_character(req: SetActiveCharacter) -> CharactersView;
     owned_blueprints(req: CharacterRequest) -> Vec<OwnedBlueprint>;
+    blueprint_finder(req: BlueprintFinderRequest) -> BlueprintFinder;
     import_smart_citizen(req: ImportRequest) -> ImportReport;
     forget_character(req: CharacterRequest) -> CharactersView;
     fleet_view(req: FleetViewRequest) -> FleetView;
@@ -343,6 +350,7 @@ macro_rules! contract_handler {
             $crate::contract::list_characters,
             $crate::contract::set_active_character,
             $crate::contract::owned_blueprints,
+            $crate::contract::blueprint_finder,
             $crate::contract::import_smart_citizen,
             $crate::contract::forget_character,
             $crate::contract::fleet_view,
@@ -465,6 +473,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "list_characters",
     "set_active_character",
     "owned_blueprints",
+    "blueprint_finder",
     "import_smart_citizen",
     "forget_character",
     "fleet_view",
