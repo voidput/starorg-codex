@@ -5,7 +5,7 @@ import { mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { LOGOS, identityProblem, msixVersion, pngSize, renderManifest, stage } from '../scripts/msix.ts';
+import { FIRST_STORE_VERSION, LOGOS, identityProblem, msixVersion, pngSize, renderManifest, stage, storeVersionProblem } from '../scripts/msix.ts';
 
 const ICONS = new URL('../src-tauri/icons/', import.meta.url);
 const GOLDEN = new URL('./fixtures/AppxManifest.golden.xml', import.meta.url);
@@ -13,7 +13,7 @@ const GOLDEN = new URL('./fixtures/AppxManifest.golden.xml', import.meta.url);
 const ID = { name: '12345Example.StarOrgStrings', publisher: 'CN=00000000-1111-2222-3333-444444444444', publisherDisplayName: 'Example & Co' };
 
 test('manifest matches the golden file byte for byte', () => {
-  const got = renderManifest({ ...ID, version: '0.3.1.0', executable: 'starorg-strings-app.exe' });
+  const got = renderManifest({ ...ID, version: '1.3.1.0', executable: 'starorg-strings-app.exe' });
   if (process.env.UPDATE_GOLDEN === '1') writeFileSync(GOLDEN, got);
   assert.equal(got, readFileSync(GOLDEN, 'utf8'));
   assert.match(got, /TargetDeviceFamily Name="Windows\.Desktop"/);
@@ -33,7 +33,8 @@ test('every logo the manifest names exists in app/src-tauri/icons at its size', 
 });
 
 test('package versions: four parts, last one 0, pre-release dropped', () => {
-  assert.equal(msixVersion('0.3.1'), '0.3.1.0');
+  assert.equal(msixVersion('1.3.1'), '1.3.1.0');
+  assert.equal(msixVersion('10.0.0'), '10.0.0.0');
   assert.equal(msixVersion('v1.2.3-beta.1+abc'), '1.2.3.0');
   assert.throws(() => msixVersion('1.2'));
   assert.throws(() => msixVersion('1.70000.0'));
@@ -55,8 +56,20 @@ test('stage lays out the package root for makeappx', () => {
   const exe = join(dir, 'starorg-strings-app.exe');
   writeFileSync(exe, 'MZ fake');
   const out = join(dir, 'pkg');
-  stage({ ...ID, version: '0.3.1.0', executable: 'starorg-strings-app.exe', exePath: exe, iconsDir: fileURLToPath(ICONS), out });
+  stage({ ...ID, version: '1.3.1.0', executable: 'starorg-strings-app.exe', exePath: exe, iconsDir: fileURLToPath(ICONS), out });
   assert.deepEqual(readdirSync(out).sort(), ['AppxManifest.xml', 'Assets', 'starorg-strings-app.exe']);
   assert.deepEqual(readdirSync(join(out, 'Assets')).sort(), LOGOS.map((l) => l.file).sort());
   assert.equal(readFileSync(join(out, 'AppxManifest.xml'), 'utf8'), readFileSync(GOLDEN, 'utf8'));
+});
+
+// Partner Center: "each part 0-65535 except for the first section, which cannot be 0".
+test('0.x versions never become a Store package', () => {
+  assert.equal(FIRST_STORE_VERSION, '1.0.0');
+  assert.equal(storeVersionProblem(FIRST_STORE_VERSION), null);
+  assert.match(storeVersionProblem('0.3.1')!, /cannot|rejects/);
+  assert.match(storeVersionProblem('v0.0.1')!, /start at 1\.0\.0/);
+  assert.match(storeVersionProblem('nope')!, /not a semver/);
+  assert.throws(() => msixVersion('0.3.1'), /Microsoft Store/);
+  assert.throws(() => renderManifest({ ...ID, version: '0.3.1.0', executable: 'a.exe' }), /x >= 1/);
+  assert.throws(() => renderManifest({ ...ID, version: '01.3.1.0', executable: 'a.exe' }));
 });

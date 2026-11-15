@@ -46,14 +46,33 @@ export const DESCRIPTION = 'Star Citizen text enhancements: component tags, ship
 export const MIN_VERSION = '10.0.17763.0';
 export const MAX_VERSION_TESTED = '10.0.26100.0';
 
-/** `0.3.1` -> `0.3.1.0`. Pre-release and build parts are dropped (the Store has none), and the
- *  fourth part is always 0: the Store reserves it. */
-export function msixVersion(semver: string): string {
+/** First app version the Store accepts. Partner Center rejects a package whose first version
+ *  part is 0 ("App package requirements for MSIX app": each part 0-65535 except the first,
+ *  which cannot be 0), so 0.x releases get no Store package (release.yml's store job skips them
+ *  with a notice) and the first Store release is app version 1.0.0 (docs/windows.md). The
+ *  package version is the app version, no offset, so Settings -> Apps and the About box agree. */
+export const FIRST_STORE_VERSION = '1.0.0';
+
+/** Why `semver` cannot become a Store package version, or null. */
+export function storeVersionProblem(semver: string): string | null {
   const m = /^v?(\d+)\.(\d+)\.(\d+)(?:[-+].*)?$/.exec(semver.trim());
-  if (!m) throw new Error(`not a semver version: ${semver}`);
+  if (!m) return `not a semver version: ${semver}`;
   const parts = m.slice(1, 4).map(Number);
-  if (parts.some((n) => n > 65535)) throw new Error(`version parts must be at most 65535: ${semver}`);
-  return `${parts.join('.')}.0`;
+  if (parts.some((n) => n > 65535)) return `version parts must be at most 65535: ${semver}`;
+  if (parts[0] === 0) {
+    return `version ${semver}: the Microsoft Store rejects package versions starting with 0; Store packages start at ${FIRST_STORE_VERSION}`;
+  }
+  return null;
+}
+
+/** `1.3.1` -> `1.3.1.0`. Pre-release and build parts are dropped (the Store has none), and the
+ *  fourth part is always 0: the Store reserves it. Throws for a 0.x version
+ *  ({@link storeVersionProblem}). */
+export function msixVersion(semver: string): string {
+  const problem = storeVersionProblem(semver);
+  if (problem) throw new Error(problem);
+  const m = /^v?(\d+)\.(\d+)\.(\d+)/.exec(semver.trim())!;
+  return `${m.slice(1, 4).map(Number).join('.')}.0`;
 }
 
 /** Why an identity is unusable, or null. Mirrors the AppxManifest schema rules. */
@@ -76,7 +95,7 @@ const xml = (s: string): string =>
 export function renderManifest(m: ManifestInput): string {
   const problem = identityProblem(m);
   if (problem) throw new Error(problem);
-  if (!/^\d+\.\d+\.\d+\.0$/.test(m.version)) throw new Error(`package version must be x.y.z.0: ${m.version}`);
+  if (!/^[1-9]\d*\.\d+\.\d+\.0$/.test(m.version)) throw new Error(`package version must be x.y.z.0 with x >= 1: ${m.version}`);
   if (!/^[^\\/:*?"<>|]+\.exe$/i.test(m.executable)) throw new Error(`not an exe file name: ${m.executable}`);
   const lines = [
     '<?xml version="1.0" encoding="utf-8"?>',

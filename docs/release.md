@@ -1,7 +1,7 @@
 ---
 title: Release process and v0.0.1 dry run
 tags: [release, ci]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Release process
@@ -67,8 +67,12 @@ Each missing group gives a notice in the run and leaves that part out; a release
 lack of signing or Store setup.
 
 Windows release checks (after the run): the store job log names the `.msix` it uploaded (or the
-notice); with signing on, `Get-AuthenticodeSignature` on the setup exe and the MSI says `Valid`;
-`SHA256SUMS` lists the `.msix` too.
+notice); with signing on, the cli and app jobs already failed unless `Get-AuthenticodeSignature`
+says `Valid` for every signed file; `SHA256SUMS` lists the `.msix` too.
+
+Store versions: Partner Center rejects package versions starting with 0, so a 0.x release has no
+`.msix` (the store job ends with a notice). The first Store release is 1.0.0, cut with a
+`Release-As: 1.0.0` commit body; see [windows](windows.md#store-versions).
 
 ## Throwaway v0.0.1 dry run
 

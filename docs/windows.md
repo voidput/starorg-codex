@@ -1,7 +1,7 @@
 ---
 title: Windows
 tags: [docs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Windows
@@ -63,7 +63,9 @@ The same as on Linux (spec 7), with these Windows parts:
   is the safe mistake. `RSI Launcher.exe` only gives a warning; an install in progress (read
   from the launcher log) skips the apply.
 - **File locks:** a virus scanner or the search indexer often opens a file we just wrote. Renames
-  and deletes retry for about five seconds before giving up.
+  and deletes retry for about five seconds on "being used by another process" before giving up.
+  "Access is denied" gets only about half a second of retries, because a read-only folder
+  returns it too and the `icacls` hint below should not wait.
 - **Permissions:** before writing, a probe file checks that the folder is writable. If not, the
   message gives the `icacls` command for that folder. RSI's installer normally makes the library
   writable for your user.
@@ -127,7 +129,11 @@ Owner setup (once):
 5. Add to the repo (Settings -> Secrets and variables -> Actions):
    - secrets `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID`;
    - variables `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE`.
-6. Next release: the app job log says nothing about "not code-signed", and
+6. Next release: the app job log says nothing about "not code-signed". The jobs check the
+   signatures themselves (`Get-AuthenticodeSignature` must say `Valid` for the CLI exe, the app
+   exe, the NSIS installer and the MSI, or the job fails), and the signing step finds the
+   newest `signtool.exe` of the runner's Windows SDK and the Azure CLI itself, so a runner image
+   update does not break it. A spot check on a downloaded file is still worth it once:
    `Get-AuthenticodeSignature '.\StarOrg Strings_<v>_x64-setup.exe'` shows `Valid`.
 
 SmartScreen reputation still builds up per certificate over the first downloads; a signed
@@ -144,6 +150,26 @@ release.yml's `store` job builds it with `tauri build --no-bundle --features sto
 purpose**: it is for Store submission only (Partner Center signs what it publishes) and will not
 install by double-click. Without the three `MSIX_*` variables the job skips with a notice.
 
+### Store versions
+
+Partner Center rejects a package whose version starts with 0 (Microsoft Learn, "App package
+requirements for MSIX app": each of the four parts is 0-65535, "except for the first section,
+which cannot be 0"). Decision (2026-11-15): the package version is the app version plus `.0`,
+with no offset, so the Store, Settings -> Apps and the About box show the same number; therefore
+**0.x releases get no Store package** and the first Store release is app version **1.0.0**.
+For a 0.x release the store job ends with the notice "No Store package for 0.x.y" and the rest
+of the release is unaffected; `app/scripts/msix.ts` refuses a 0.x version too
+(`FIRST_STORE_VERSION`, tested in `app/tests/msix.test.ts`).
+
+To start Store releases, cut 1.0.0 with release-please: an empty commit on `main` with the body
+`Release-As: 1.0.0` (`git commit --allow-empty -m "chore: release 1.0.0" -m "Release-As: 1.0.0"`),
+then merge the release PR. Later versions only ever go up, which the Store also requires.
+
+The package declares no WebView2 dependency (the Store has no package for it). Windows 11 and
+current Windows 10 have the WebView2 runtime built in; on an old Windows 10 without it the
+Store app opens a blank window (see Troubleshooting). Mention this under the listing's system
+requirements.
+
 Owner setup:
 
 1. Create a Partner Center developer account (individual or company) at
@@ -154,8 +180,8 @@ Owner setup:
    repo **variables** `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME`.
    (Done 2026-11-14 for "StarOrg Strings", Store ID in `MS_STORE_ID`, package family name in
    `MS_STORE_PFN`; steps 1-3 are only needed again for a new account.)
-4. Next release: download the `.msix` from the release, start a submission, upload it under
-   Packages.
+4. First release with version **1.0.0** or later (see [Store versions](#store-versions)):
+   download the `.msix` from the release, start a submission, upload it under Packages.
 5. Fill in the listing from [store-listing](store-listing.md), the privacy policy URL
    <https://github.com/voidput/starorg-strings/blob/main/docs/privacy.md> ([privacy](privacy.md)),
    the age rating questionnaire (below), pricing (free) and availability.

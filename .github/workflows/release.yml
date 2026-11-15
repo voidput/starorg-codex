@@ -245,6 +245,11 @@ jobs:
           if [ ! -f app/package.json ] || [ ! -f app/src-tauri/Cargo.toml ]; then
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "::notice::app/ not present, no Store package."
+          elif [[ "$VERSION" =~ ^v?0\. ]]; then
+            # Partner Center rejects package versions whose first part is 0 (app/scripts/msix.ts
+            # FIRST_STORE_VERSION); Store packages start with app version 1.0.0.
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No Store package for $VERSION: the Microsoft Store rejects versions starting with 0. The first Store release is 1.0.0 (docs/windows.md, Store versions)."
           elif [ -n "$MSIX_IDENTITY_NAME" ] && [ -n "$MSIX_PUBLISHER" ] && [ -n "$MSIX_PUBLISHER_DISPLAY_NAME" ]; then
             echo "configured=true" >> "$GITHUB_OUTPUT"
           else
