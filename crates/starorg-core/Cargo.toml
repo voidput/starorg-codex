@@ -13,9 +13,11 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tempfile.workspace = true
+toml.workspace = true
+sha2.workspace = true
+getrandom.workspace = true
+memchr.workspace = true
 
 [lints]
 workspace = true
 
-[dev-dependencies]
-toml.workspace = true
