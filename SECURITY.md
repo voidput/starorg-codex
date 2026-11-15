@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Report privately through GitHub: **Security -> Report a vulnerability** on
-<https://github.com/voidput/starorg-strings/security/advisories/new>. Please do not open a public issue for
+<https://github.com/voidput/starorg-codex/security/advisories/new>. Please do not open a public issue for
 security problems.
 
 Include the affected version, steps to reproduce, and the impact. You will get an acknowledgement as soon as

@@ -11,15 +11,28 @@ get it, from the same code:
 
 | | Direct download (GitHub release) | Microsoft Store |
 |---|---|---|
-| Files | `StarOrg Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-strings-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
+| Files | `StarOrg Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-codex-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
 | Signed | Yes once Azure Artifact Signing is set up ([Code signing](#code-signing)); until then unsigned | Signed by Microsoft when published |
 | Updates | In the app (Settings -> Network -> Check for updates, off by default), signed with the updater key ([updates](updates.md)) | Only through the Store. The app never checks GitHub and never installs an update ("Updates come from the Microsoft Store.") |
-| App data | `%APPDATA%\StarOrg Tools\Strings\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Strings\cache\` | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
+| App data | `%APPDATA%\StarOrg Tools\Codex\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\` | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
 | CLI | In the zip | Not included |
 | Uninstall | Settings -> Apps. **Run Remove in the app first**: the uninstaller option that puts the game back to stock (spec 2) is not built yet | Settings -> Apps. **Run Remove in the app first**: a Store package cannot run code when it is uninstalled |
 
 Both need the Microsoft Edge WebView2 runtime, which Windows 10 (updated) and 11 already have.
 The NSIS installer downloads it if missing.
+
+### Upgrading from 0.2 (the rename)
+
+Until 0.3.0 the data folders were `%APPDATA%\StarOrg Tools\Strings\` and
+`%LOCALAPPDATA%\StarOrg Tools\Strings\`, the webview storage `%LOCALAPPDATA%\tools.starorg.strings\`,
+the app exe `starorg-strings-app.exe` and the CLI `starorg-strings.exe`. The first start of
+0.3.0 (app or CLI) renames each folder to its `Codex` / `tools.starorg.codex` name and says so
+once in Activity; when a new folder already exists the old one is left alone and named in
+Activity. Quit the old app before the first start: a folder that is in use is not moved (the
+old one then stays in use and Activity says why). The installer upgrades in place (same
+product name and MSI upgrade code, `c6237751-9461-5af9-a0e2-d71aacef213e`, now pinned in
+`tauri.conf.json`). The CLI zip also carries `starorg-strings.exe`, a copy under the old name
+for one release that prints a deprecation line.
 
 ## Install (direct download)
 
@@ -28,14 +41,14 @@ The NSIS installer downloads it if missing.
 3. **While the builds are unsigned**, SmartScreen shows "Windows protected your PC". Choose
    **More info -> Run anyway**. Check the file first if you like: `SHA256SUMS` on the release
    lists every file, and each file has a build provenance attestation
-   (`gh attestation verify <file> -R voidput/starorg-strings`).
+   (`gh attestation verify <file> -R voidput/starorg-codex`).
 4. With **Smart App Control** on (some fresh Windows 11 installs), unsigned programs cannot run
    at all and there is no "Run anyway". Use the Store version, or wait for signed builds. Turning
    Smart App Control off cannot be undone without resetting Windows, so we do not recommend it.
 5. Do **not** run StarOrg Codex as administrator. It refuses to change game files when
    elevated (a mistake there could leave files only an administrator can fix).
 
-The portable zip (CLI `starorg-strings.exe`) needs no install; unzip it anywhere.
+The portable zip (CLI `starorg-codex.exe`) needs no install; unzip it anywhere.
 
 ## First run
 
@@ -87,7 +100,7 @@ The same as on Linux (spec 7, [linux](linux.md)), with these Windows parts:
   direct-download copy (or the CLI) keep **separate** settings and backups, and uninstalling the
   Store version deletes its backups. Game files are not redirected: they are written in place.
 - Because uninstalling cannot run our code, the game keeps the enhanced `global.ini` after the
-  Store app is removed. Use **Remove** (or `starorg-strings remove --all` from the zip) first.
+  Store app is removed. Use **Remove** (or `starorg-codex remove --all` from the zip) first.
 - Writes to the game folder go to the real folder (it is not part of the package), so the
   launcher's "Verify files" or a game patch behave as with the direct download.
 
@@ -104,7 +117,7 @@ The same as on Linux (spec 7, [linux](linux.md)), with these Windows parts:
 | SmartScreen blocks the installer | More info -> Run anyway (unsigned builds), or use the Store version |
 | The window stays blank | Install or repair the WebView2 runtime from Microsoft, then restart the app |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
-| Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints\backups\`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-strings blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
+| Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints\backups\`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-codex blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
 
 Diagnostics (Activity -> Diagnostics) exports a report with user names and home paths replaced.
 Attach it to a bug report.
@@ -147,7 +160,7 @@ check, no updater plugin, Settings says "Updates come from the Microsoft Store."
 release.yml's `store` job builds it with `tauri build --no-bundle --features store`, writes
 `AppxManifest.xml` (Windows.Desktop, full trust, logos from `app/src-tauri/icons`) with
 `app/scripts/msix.ts`, packs it with the Windows SDK's `makeappx` and uploads
-`starorg-strings_<v>_x64_store-submission-unsigned.msix` to the release. It is **unsigned on
+`starorg-codex_<v>_x64_store-submission-unsigned.msix` to the release. It is **unsigned on
 purpose**: it is for Store submission only (Partner Center signs what it publishes) and will not
 install by double-click. Without the three `MSIX_*` variables the job skips with a notice.
 
@@ -184,7 +197,7 @@ Owner setup:
 4. First release with version **1.0.0** or later (see [Store versions](#store-versions)):
    download the `.msix` from the release, start a submission, upload it under Packages.
 5. Fill in the listing from [store-listing](store-listing.md), the privacy policy URL
-   <https://github.com/voidput/starorg-strings/blob/main/docs/privacy.md> ([privacy](privacy.md)),
+   <https://github.com/voidput/starorg-codex/blob/main/docs/privacy.md> ([privacy](privacy.md)),
    the age rating questionnaire (below), pricing (free) and availability.
 6. The `runFullTrust` capability needs a short justification in the submission: "Desktop app
    (Tauri/WebView2) that edits the localization file of a game the user has installed, in a

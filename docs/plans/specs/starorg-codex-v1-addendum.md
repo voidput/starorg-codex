@@ -7,7 +7,7 @@ updated: 2026-11-15
 
 # StarOrg Codex v1 — addendum (user requests 2026-11-14)
 
-Direction settled in [the v1 spec](starorg-strings-v1.md) revision 2 (sections 3.4, 8, 11);
+Direction settled in [the v1 spec](starorg-codex-v1.md) revision 2 (sections 3.4, 8, 11);
 the features below are **v1** (Q17 decided 2026-11-14): hooks in M1, published dumps in M2. Corrections from the
 review are marked **Corrected**.
 
@@ -67,18 +67,18 @@ Provide CLI subcommands + installer for the LUG Helper `sc-launch.sh` pre-launch
 hooks (see `~/git/sc-setup/prefix/sc-prelaunch.sh`, `sc-postexit.sh`, `sc-smartcitizen.sh` for
 the current hand-made versions):
 
-- **Corrected (scope):** v1 covers the hook need with `starorg-strings apply --all --if-stale
+- **Corrected (scope):** v1 covers the hook need with `starorg-codex apply --all --if-stale
   --timeout N` called from both hand-edited scripts. The subcommands below are v1.1.
-- `starorg-strings hook prelaunch` — read `build_manifest.id` per channel; if the build changed
+- `starorg-codex hook prelaunch` — read `build_manifest.id` per channel; if the build changed
   since the last apply (or `Data.p4k` is newer than our applied `global.ini`), refresh data
   (dumps or local extraction per §1) and re-apply with the saved profile. Fast no-op otherwise.
   Must never block the game launch for long: time budget + non-fatal on error.
-- `starorg-strings hook postexit` — when the launcher/game closes: scan `Game.log` and
+- `starorg-codex hook postexit` — when the launcher/game closes: scan `Game.log` and
   `logbackups/*.log` for `Received Blueprint: <name>` notifications
   (e.g. `<SHUDEvent_OnNotification> Added notification "Received Blueprint: Tailwind Flight Suit Raider Camo: "`),
   update the owned-blueprint list, and re-apply so `[Owned]` tags are current next launch.
   Idempotent (remember scanned log files / offsets).
-- `starorg-strings hook install|uninstall|status` — add/remove a clearly marked block in the
+- `starorg-codex hook install|uninstall|status` — add/remove a clearly marked block in the
   LUG prelaunch/postexit scripts (respect existing user content, back up before editing).
 - Windows: no LUG; decide between a launcher-side option (scheduled task / watcher on
   `RSI Launcher.exe` exit) or a manual "Check now" — open question.
@@ -109,7 +109,7 @@ tracked **per character**, never merged.
 
 ## 4. Import Smart Citizen's blueprint tracker export
 
-`starorg-strings blueprints import <file> --character <name|geid> [--channel LIVE] [--dry-run]`
+`starorg-codex blueprints import <file> --character <name|geid> [--channel LIVE] [--dry-run]`
 (and an Import button in the app's blueprint screen).
 
 - Input: an owned-blueprints export (JSON) in Smart Citizen's format, wherever the user saved
@@ -157,14 +157,14 @@ tracked **per character**, never merged.
   errors); the apply's own code is `exit_code` in `--json`. Pre-launch = `apply --all
   --if-stale` within the budget; post-exit = incremental log scan of every channel, then the
   same apply with what is left of the budget.
-- **Hook block.** Lines between `# >>> starorg-strings hook >>>` and `# <<< starorg-strings
+- **Hook block.** Lines between `# >>> starorg-codex hook >>>` and `# <<< starorg-codex
   hook <<<`, inserted before a final top-level `exit` (else at the end); no blank lines are
   added, so `uninstall` gives the script back byte for byte. Default scripts:
   `<prefix>/sc-prelaunch.sh` and `sc-postexit.sh`; links are followed and the real file is
   edited in place (mode kept), after a backup in `data/hooks/backups/`. Only existing files
   are edited; a script inside the game install or the prefix's `drive_c` is refused. An
   outdated block is rewritten in place; unbalanced markers are refused. `status` also flags a
-  hand-made `starorg-strings` call outside the block (it would run twice) and the Smart Citizen
+  hand-made `starorg-codex` call outside the block (it would run twice) and the Smart Citizen
   / StarStrings hooks. Windows: not supported (exit 4), still open.
 - **Log facts (owner's logs, 2026-11).** The notification text is the *localised* item name,
   so it carries the active localisation tool's tags (`Received Blueprint: [H] Palatino Arms
@@ -235,7 +235,7 @@ tracked **per character**, never merged.
 
 ## 5. StarOrg Tools account link (OAuth, like RSI+) — import and sync blueprints
 
-Native "Connect StarOrg Tools" in the app (CLI: `starorg-strings sync status|set` only; see
+Native "Connect StarOrg Tools" in the app (CLI: `starorg-codex sync status|set` only; see
 5.1). Opt-in, off by default
 (network policy §11).
 
@@ -280,7 +280,7 @@ in prod until the owner enables it). The client follows its real routes; nothing
 
 - **Environment** (owner, 2026-11-15: "the option to set dev/prod"): Settings -> StarOrg Tools ->
   Production (`https://starorg.tools`) / Dev (`https://dev.starorg.tools`). Stored in
-  `config.toml` `[sync] environment`; the CLI sets it with `starorg-strings sync set
+  `config.toml` `[sync] environment`; the CLI sets it with `starorg-codex sync set
   --environment production|dev`; a bare `sync set` saves `$STARORG_ENV` (it never rides along
   on other changes). Tokens and account cards are per environment; switching (after a confirm)
   forgets the old one, revoking it when the network switch is on and the host answers, before
@@ -344,7 +344,7 @@ the user turns it on.
 
 **Premise, not a fact.** In-game ship lists (ASOP fleet manager, vehicle selection) are
 *believed* to sort by the displayed name, so a sort prefix on the name orders them. That is an
-open in-game check ([spec §13](starorg-strings-v1.md#in-game-checks-manual-recorded-in-the-spec-when-done)).
+open in-game check ([spec §13](starorg-codex-v1.md#in-game-checks-manual-recorded-in-the-spec-when-done)).
 Until it is answered the feature carries an "Experimental" badge, and the prefix defaults are
 provisional. Renaming works regardless of the answer.
 
@@ -695,11 +695,11 @@ pasted text; `dry_run`, `merge`), `fleet_match` (pending name → hull or none),
 ### 6.7 CLI
 
 ```
-starorg-strings fleet import <file|-> [--dry-run] [--merge] [--format auto|xplor-json|xplor-csv|text]
+starorg-codex fleet import <file|-> [--dry-run] [--merge] [--format auto|xplor-json|xplor-csv|text]
                                       [--channel LIVE] [--json]
-starorg-strings fleet list [--channel LIVE] [--json]
-starorg-strings fleet match <row name> <hull id | none>
-starorg-strings fleet clear
+starorg-codex fleet list [--channel LIVE] [--json]
+starorg-codex fleet match <row name> <hull id | none>
+starorg-codex fleet clear
 ```
 
 - `import` needs a hull catalogue: it uses the channel's extraction cache, or extracts from
@@ -861,7 +861,7 @@ is the estimate).
 ### 7.2 Data flow and process model
 
 ```
-Dev screen opens ─► app starts `starorg-strings-app dev-worker --p4k <P>`   (child process)
+Dev screen opens ─► app starts `starorg-codex-app dev-worker --p4k <P>`   (child process)
                       open p4k ► count check ► read Game2.dcb (+CRC) ► drop p4k ► parse ► index
                       then answers requests: JSON lines on stdin/stdout
 app backend (async command) ─► worker request ─► reply ─► webview (paged)
@@ -1053,9 +1053,9 @@ The mock backend serves a synthetic 300-record DataCore (three types, cross refe
 ### 7.9 CLI (cheap parity)
 
 ```
-starorg-strings dev record <path|guid|name> [--channel <NAME>] [--compact]   # JSON to stdout
-starorg-strings dev export-type <type> --out <file> [--channel <NAME>] [--ndjson]
-starorg-strings dev types [--channel <NAME>]                                  # type, records, main
+starorg-codex dev record <path|guid|name> [--channel <NAME>] [--compact]   # JSON to stdout
+starorg-codex dev export-type <type> --out <file> [--channel <NAME>] [--ndjson]
+starorg-codex dev types [--channel <NAME>]                                  # type, records, main
 ```
 
 Runs in the calling process under `catch_unwind` (about 1 s, about 0.9 GB peak, no cache
@@ -1113,7 +1113,7 @@ records only by default, Q-D6 Alt+9 for Explorer only, Q-D7 UEX files are just J
   name lookup), `record` (replies cut by pointer and depth under 1 MiB, `@key` text), `dataset`
   (shape inference, typed columns, rows), `diff`. Core's `serde_json` now keeps file order
   (`preserve_order`, as the rest of the build already did).
-- **Worker** `starorg-data::devworker`: `starorg-strings-app dev-worker --p4k <P>` (or `--dcb
+- **Worker** `starorg-data::devworker`: `starorg-codex-app dev-worker --p4k <P>` (or `--dcb
   <F> [--ini <F>]`), JSON lines; ops `status`, `types`, `tree`, `search`, `record`,
   `export-record`, `export-type` (streamed via `<out>.tmp`, progress lines, other requests
   answered between steps), `cancel`, `resolve` (dataset links). A panic in a request is an
@@ -1268,7 +1268,7 @@ StarBreaker (MIT, Copyright (c) 2026 Diogo Trindade) at the pinned rev `041e5592
 is a port of StarBreaker's app `audio_commands.rs` (source classification, bank path index,
 event resolution, the Vorbis WEM -> Ogg; the other codecs are ours, see *Sound formats*); the presets are `sc-ship-models/scripts/export_ships.sh`'s.
 
-**Process model.** A new child process, `starorg-strings-app asset-worker --p4k <P>`
+**Process model.** A new child process, `starorg-codex-app asset-worker --p4k <P>`
 (`starorg-data::assetworker`), same JSON-lines protocol and replies as `dev-worker`; every
 request runs on its own thread under `catch_unwind`; `extract`, `export-sounds` and
 `export-model` stream progress and are cancellable (`cancel_job`, job kind `dev`), one at a
@@ -1349,7 +1349,7 @@ lights, attachments, LOD 1 by default. *Print shell (geometry only)* = `--materi
 primitives of the default scene, node transforms baked, Y-up -> Z-up), what
 `glb_to_stl_trimesh.py` did; no Blender needed.
 
-**CLI.** `starorg-strings dev extract <p4k path|folder|glob>... --out DIR [--convert]`,
+**CLI.** `starorg-codex dev extract <p4k path|folder|glob>... --out DIR [--convert]`,
 `dev export-model <guid|name> --out FILE [--preset full|print] [--lod N] [--stl]
 [--cache-dir DIR]`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
 [--cache-dir DIR]` (`--list` names each sound's codec and the file it becomes; the summary counts
@@ -2281,7 +2281,7 @@ Protocol. User-facing docs, measurements and client setup: [docs/mcp.md](../../m
   from the owned-blueprint store), `mission`, `compare`, `string` (stock and the text applied
   to the channel), `diff` (two channels, or a cached older build), `status`. `channel`
   parameter (default: the app's default channel, else LIVE); results compact and paginated.
-- **Transports:** `starorg-strings mcp [--channel]` over stdio in the CLI (the CLI links the
+- **Transports:** `starorg-codex mcp [--channel]` over stdio in the CLI (the CLI links the
   crate without its `http` feature; ci.yml's cli-deps check still passes). In the app,
   Settings -> Experimental -> "Local MCP server": streamable HTTP on `127.0.0.1` (free port),
   bearer token random per start, off at every start (the switch is not saved), stopped when

@@ -1,7 +1,7 @@
 ---
 title: "UI: Tauri 2 with Svelte 5, Tailwind 4 and shadcn-svelte"
 tags: [docs, decisions]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # UI: Tauri 2 with Svelte 5, Tailwind 4 and shadcn-svelte
@@ -24,7 +24,8 @@ it had to run under Wine.
 - All logic lives in Rust crates (`starorg-core`, `starorg-data`). The Tauri layer is thin
   typed commands plus progress events.
 - The CLI is the same Rust code without Tauri, shipped as its **own small binary on both
-  systems** (`starorg-strings`; the GUI is `starorg-strings-app`). The first draft used one
+  systems** (`starorg-codex`; the GUI is `starorg-codex-app`; `starorg-strings` and
+  `starorg-strings-app` before 0.3.0). The first draft used one
   binary on Linux that skipped GTK when given a subcommand. That binary would still link
   WebKitGTK: slower to start from a launch hook, unable to start where WebKit is missing,
   and no use to AppImage users, who have nothing on `PATH`.
@@ -63,4 +64,4 @@ it had to run under Wine.
 - The webview is treated as untrusted: strict CSP, minimal capabilities, no raw paths from
   the frontend.
 
-Spec: [StarOrg Codex v1](../plans/specs/starorg-strings-v1.md), sections 3 and 9.
+Spec: [StarOrg Codex v1](../plans/specs/starorg-codex-v1.md), sections 3 and 9.

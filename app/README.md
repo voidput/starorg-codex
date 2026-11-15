@@ -1,4 +1,4 @@
-# StarOrg Codex app (`starorg-strings-app`)
+# StarOrg Codex app (`starorg-codex-app`)
 
 Tauri 2 shell (`src-tauri/`, a workspace member) with a Svelte 5 + Tailwind 4 +
 shadcn-svelte frontend (`src/`). Design tokens: spec section 9.2, in `src/app.css`.
@@ -7,10 +7,10 @@ shadcn-svelte frontend (`src/`). Design tokens: spec section 9.2, in `src/app.cs
 cd app
 npm ci
 npm run tauri dev                        # hot-reload window (vite on 127.0.0.1:1420)
-npm run tauri build -- --no-bundle       # release binary: <target>/release/starorg-strings-app
+npm run tauri build -- --no-bundle       # release binary: <target>/release/starorg-codex-app
 npm run check                            # svelte-check
 npm test                                 # node --test: apply outcomes, message catalogue
-cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock runtime), real backend on a fake install
+cargo test -p starorg-codex-app        # gpu, contract and IPC tests (mock runtime), real backend on a fake install
 ```
 
 - `--safe-gpu` forces `WEBKIT_DISABLE_DMABUF_RENDERER=1` and `WEBKIT_DISABLE_COMPOSITING_MODE=1`.
@@ -28,7 +28,7 @@ cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock run
   profiles and stat line / tag element labels, shared by both backends).
 - **Real backend (default):** `contract/real/` over `starorg-core` and `starorg-data`, the same
   core calls as the CLI (one apply, one status, the same locks and data folder). Extraction runs
-  in a child process: the app binary itself, started as `starorg-strings-app extract-worker`
+  in a child process: the app binary itself, started as `starorg-codex-app extract-worker`
   (`lib.rs::worker_main`). Native dialogs (install folder, owned-blueprints export, patch import and
   export, diagnostics save) are opened from Rust through `tauri-plugin-dialog`; the webview has
   no dialog permission and never sends a path. The core has no cancellation points inside an
@@ -40,16 +40,16 @@ cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock run
   disabled in Settings and always stored off: "Use published game data". Also not read yet: `safe_gpu`, and
   `discover_installs(deep)` (same scan either way). Running setup again keeps a set-up
   channel's profile and setup time; only new channels get the chosen preset.
-  `cargo test -p starorg-strings-app --test real_backend` runs it against a synthetic install
+  `cargo test -p starorg-codex-app --test real_backend` runs it against a synthetic install
   in a temp folder; `-- --ignored print_real` prints this machine's overview (read only).
 - **Mock backend:** `contract/mock.rs` (`MockBackend`: synthetic, stateful, no disk or network),
   compiled for tests and behind the non-default feature `mock-backend` for the window
-  (`cargo run -p starorg-strings-app --features mock-backend`).
+  (`cargo run -p starorg-codex-app --features mock-backend`).
 - **TS mirror:** `src/lib/contract/` — `types.ts`, `client.ts` (`api.*`, `ContractError`,
   transport chosen at runtime: Tauri inside the window, the in-browser mock otherwise or with
   `?backend=mock`), `mock.ts` (seeded from `samples.gen.json`; a lazy chunk the Tauri window
   never loads unless `?backend=mock`).
-- **Drift checks:** `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app` rewrites
+- **Drift checks:** `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app` rewrites
   `samples.gen.json` from the Rust mock; `npm run check` type-checks it against `types.ts` in both
   directions (`samples.check.ts`). Rust tests also compare every string union and the command
   list with the TS files.

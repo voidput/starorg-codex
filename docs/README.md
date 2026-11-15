@@ -8,9 +8,9 @@ updated: 2026-11-15
 
 - [Release process](release.md)
 - [Updates: check, install, signing](updates.md)
-- [v1 spec](plans/specs/starorg-strings-v1.md)
-- [v1 addendum: dumps, LUG hooks, StarOrg Tools sync, dev mode (incl. asset export, explorer item finder), strings grouping, gamedata port, local MCP server](plans/specs/starorg-strings-v1-addendum.md)
-- Decisions: [Tauri + Svelte UI](decisions/tauri-svelte-ui.md) · [StarBreaker as a library](decisions/starbreaker-as-library.md) · [Own patch format](decisions/own-patch-format.md)
+- [v1 spec](plans/specs/starorg-codex-v1.md)
+- [v1 addendum: dumps, LUG hooks, StarOrg Tools sync, dev mode (incl. asset export, explorer item finder), strings grouping, gamedata port, local MCP server](plans/specs/starorg-codex-v1-addendum.md)
+- Decisions: [Tauri + Svelte UI](decisions/tauri-svelte-ui.md) · [StarBreaker as a library](decisions/starbreaker-as-library.md) · [Own patch format](decisions/own-patch-format.md) · [Rename to starorg-codex (0.3.0)](decisions/rename-to-starorg-codex.md)
 - [Now](plans/now/todo.md) · [Next](plans/next/backlog.md) · [Later](plans/later/ideas.md)
 - [CI and security checks](ci.md)
 - [Linux: install, PATH, Wine prefix, troubleshooting](linux.md)

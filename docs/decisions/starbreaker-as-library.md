@@ -1,7 +1,7 @@
 ---
 title: Read game data with the StarBreaker crates, as a library
 tags: [docs, decisions]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Read game data with the StarBreaker crates, as a library
@@ -82,4 +82,4 @@ off-by-one was our own comparison error.
 - The mirror becomes a real fork only if we want a low-memory "read these named entries"
   API. That would be a second decision.
 
-Spec: [StarOrg Codex v1](../plans/specs/starorg-strings-v1.md), sections 3.3, 3.4 and 11.
+Spec: [StarOrg Codex v1](../plans/specs/starorg-codex-v1.md), sections 3.3, 3.4 and 11.

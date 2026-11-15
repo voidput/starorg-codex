@@ -36,7 +36,7 @@ Config uses `release-type: simple` with extra-files that bump, together:
 
 - `Cargo.toml` `$.workspace.package.version`
 - `Cargo.lock` entries for every workspace member: `starorg-core`, `starorg-data`, `starorg-gamedata`, `starorg-cli`,
-  `starorg-strings-app`. Filter on `@.name.value`, not `@.name`: release-please's TOML parser wraps
+  `starorg-codex-app`. Filter on `@.name.value`, not `@.name`: release-please's TOML parser wraps
   each value in a tagged object, so `@.name=="x"` silently matches nothing ("No entries modified").
 - `app/package.json` `$.version`, `app/package-lock.json` `$.version` and `$.packages[''].version`
 
@@ -96,18 +96,20 @@ Store versions: Partner Center rejects package versions starting with 0, so a 0.
 
 Do this on a scratch repo or a branch with Actions enabled, never against the real release history.
 
-1. Create a throwaway private repo (e.g. `voidput/starorg-strings-dryrun`), push this tree to its `main`.
+1. Create a throwaway private repo (e.g. `voidput/starorg-codex-dryrun`), push this tree to its `main`.
    Enable Settings > Actions > "Allow GitHub Actions to create and approve pull requests".
 2. Push one `feat:` commit to `main`. The Release workflow opens a "release 0.1.0" PR. To land exactly
    `0.0.1`, add `Release-As: 0.0.1` in a commit body (`git commit --allow-empty -m "chore: release 0.0.1" -m "Release-As: 0.0.1"`).
 3. In the release PR diff verify: `Cargo.toml` `[workspace.package] version`, all three crates in
    `Cargo.lock`, `.release-please-manifest.json`, `CHANGELOG.md` move to `0.0.1` together.
-4. Merge it. Verify tag `v0.0.1`, release created, `cli` jobs attached `starorg-strings-v0.0.1-*.tar.gz|zip`,
+4. Merge it. Verify tag `v0.0.1`, release created, `cli` jobs attached `starorg-codex-v0.0.1-*.tar.gz|zip`
+   (each with `starorg-codex` and, for 0.3.x only, the `starorg-strings` alias: a link in the
+   tarball, a copy in the zip),
    and `SHA256SUMS` is present and matches `sha256sum -c SHA256SUMS` after downloading.
 5. Once #8 exists: confirm the Tauri bundle filenames carry `0.0.1` (proves `version.workspace = true` resolves).
 6. Delete the throwaway repo (or the release and tag) afterwards.
 
-Locally, without GitHub: `npx release-please release-pr --dry-run --repo-url=voidput/starorg-strings --token=$(gh auth token)`
+Locally, without GitHub: `npx release-please release-pr --dry-run --repo-url=voidput/starorg-codex --token=$(gh auth token)`
 prints the planned diff.
 
 ## Prereleases

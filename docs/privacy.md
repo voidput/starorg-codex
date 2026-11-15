@@ -18,8 +18,8 @@ no crash upload and no account of its own.**
   Launcher's log files. On Linux it also reads the LUG Helper configuration.
 - It writes the game's text file (`Data\Localization\english\global.ini`), one line in
   `USER.cfg`, and its own settings, backups and cache in your user folders
-  (`%APPDATA%\StarOrg Tools\Strings\` and `%LOCALAPPDATA%\StarOrg Tools\Strings\` on Windows,
-  `~/.config`, `~/.local/share` and `~/.cache` under `starorg-strings` on Linux).
+  (`%APPDATA%\StarOrg Tools\Codex\` and `%LOCALAPPDATA%\StarOrg Tools\Codex\` on Windows,
+  `~/.config`, `~/.local/share` and `~/.cache` under `starorg-codex` on Linux).
 - None of this leaves your computer. Removing the app's folders and using **Remove** in the app
   deletes everything it made.
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
@@ -58,7 +58,7 @@ privacy statement covers what GitHub logs.
 Settings -> StarOrg Tools -> Environment picks the one host the app talks to: `starorg.tools` or
 `dev.starorg.tools`. Switching signs you out of the other: its token is removed here, and revoked
 there when "Connect StarOrg Tools" is on and the host answers. Changing the environment with
-`starorg-strings sync set` signs the old one out the same way the next time the app opens StarOrg
+`starorg-codex sync set` signs the old one out the same way the next time the app opens StarOrg
 Tools.
 
 - **Sign-in.** Your browser opens StarOrg Tools' sign-in page, which signs you in with Discord
@@ -72,7 +72,7 @@ Tools.
   stays valid on the server until it expires; the app log says which happened. To end it there,
   sign out again with the switch on, or use "Sign out everywhere" on StarOrg Tools.
 - **What to sync** (Settings -> StarOrg Tools), one switch each, also read by the command-line
-  tool (`starorg-strings sync status`):
+  tool (`starorg-codex sync status`):
 
 | Switch (default) | What is sent, to the chosen host |
 |---|---|
@@ -94,7 +94,7 @@ fixed addresses.
 
 ## Local MCP server (experimental, off by default)
 
-Settings -> Experimental -> Local MCP server, and the command `starorg-strings mcp`, let an AI
+Settings -> Experimental -> Local MCP server, and the command `starorg-codex mcp`, let an AI
 assistant on your computer ask read-only questions about your game data ([details](mcp.md)).
 
 - It makes no network request. The app's server listens on `127.0.0.1` only (other computers
@@ -120,8 +120,8 @@ The app does not collect personal information from anyone, including children.
 ## Changes and contact
 
 Changes to this policy are made in this file; its history is public at
-<https://github.com/voidput/starorg-strings/commits/main/docs/privacy.md>. Questions: open an issue
-at <https://github.com/voidput/starorg-strings/issues>.
+<https://github.com/voidput/starorg-codex/commits/main/docs/privacy.md>. Questions: open an issue
+at <https://github.com/voidput/starorg-codex/issues>.
 
 StarOrg Codex is a fan-made tool. It is not affiliated with or endorsed by Cloud Imperium Games
 or Roberts Space Industries.

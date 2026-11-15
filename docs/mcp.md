@@ -16,7 +16,7 @@ Two ways to run it, same tools:
 
 | | Command line | App |
 |---|---|---|
-| Start | `starorg-strings mcp [--channel PTU]` | Settings -> Experimental -> **Local MCP server** |
+| Start | `starorg-codex mcp [--channel PTU]` | Settings -> Experimental -> **Local MCP server** |
 | Transport | stdio (the client starts the process) | streamable HTTP on `127.0.0.1`, a free port |
 | Auth | none needed (only the client that started it can talk to it) | bearer token, new at every start |
 | Stops | when the client closes stdin | when switched off, and when the app exits |
@@ -27,28 +27,28 @@ Two ways to run it, same tools:
 **Claude Code, command line server:**
 
 ```sh
-claude mcp add starorg-strings -- starorg-strings mcp
+claude mcp add starorg-codex -- starorg-codex mcp
 ```
 
 **Claude Code, the app's server** (Settings shows this line with the real URL and token; *Copy
 for Claude Code*):
 
 ```sh
-claude mcp add --transport http starorg-strings http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"
+claude mcp add --transport http starorg-codex http://127.0.0.1:<port>/mcp --header "Authorization: Bearer <token>"
 ```
 
 **Claude Desktop** starts stdio servers from `claude_desktop_config.json`. Either the command line
 server:
 
 ```json
-{ "mcpServers": { "starorg-strings": { "command": "starorg-strings", "args": ["mcp"] } } }
+{ "mcpServers": { "starorg-codex": { "command": "starorg-codex", "args": ["mcp"] } } }
 ```
 
 or the app's server through the `mcp-remote` bridge (*Copy for Claude Desktop*; Desktop's `npx`
 downloads the bridge from npm, which is the client's network use, not ours):
 
 ```json
-{ "mcpServers": { "starorg-strings": {
+{ "mcpServers": { "starorg-codex": {
     "command": "npx",
     "args": ["-y", "mcp-remote", "http://127.0.0.1:<port>/mcp", "--header", "Authorization:${STARORG_MCP_AUTH}"],
     "env": { "STARORG_MCP_AUTH": "Bearer <token>" } } } }
@@ -115,13 +115,13 @@ tools say so and the other sources still answer.
 
 A tool loads only the datasets it needs, on first use. The first question about a build
 extracts each needed dataset from `Data.p4k` (read only) in a **separate short-lived worker
-process** (`starorg-strings mcp-extract-worker` / `starorg-strings-app mcp-extract-worker`, one
+process** (`starorg-codex mcp-extract-worker` / `starorg-codex-app mcp-extract-worker`, one
 dataset per process), which writes `<cache>/mcp/<CHANNEL>/<build>-<fingerprint>/<dataset>.json`
 and records its cost in `measurements.json` beside it. Later questions read the JSON. The
 fingerprint covers the archive's size and time and the app version, so a game patch or an app
 update never serves old answers; three builds per channel are kept.
 
-`<cache>` is `~/.cache/starorg-strings` on Linux and `%LOCALAPPDATA%\StarOrg Tools\Strings\cache`
+`<cache>` is `~/.cache/starorg-codex` on Linux and `%LOCALAPPDATA%\StarOrg Tools\Codex\cache`
 on Windows. Nothing is written in the game folder (the worker refuses an output folder inside the
 channel folder or the Wine prefix).
 
@@ -153,7 +153,7 @@ byte-identical (`scripts/compare-gamedata.sh`).
 ### Memory limit
 
 Each extraction worker is held to the memory limit (Settings > Advanced > Memory limit in the
-app; `starorg-strings mcp --memory-limit <GB>` or `STARORG_MEMORY_LIMIT_GB` on the command line;
+app; `starorg-codex mcp --memory-limit <GB>` or `STARORG_MEMORY_LIMIT_GB` on the command line;
 default the app's setting, else 5 GB or half the RAM; `0` = none). A worker is stopped at 90% of
 the limit, so a dataset is refused before a worker starts, as a tool error, when its measured
 peak (table above) is over that point or over the memory free at that moment: "Extracting

@@ -16,8 +16,8 @@ updated: 2026-11-15
 - [[store-listing|Microsoft Store listing draft]] ([plain](store-listing.md))
 - [[privacy|Privacy policy]] ([plain](privacy.md))
 - [[mcp|Local MCP server (experimental)]] ([plain](mcp.md))
-- [[plans/specs/starorg-strings-v1|v1 spec]] ([plain](plans/specs/starorg-strings-v1.md))
-- [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps, LUG hooks, StarOrg Tools sync, dev mode (incl. asset export, explorer item finder), strings grouping, gamedata port, local MCP server]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
+- [[plans/specs/starorg-codex-v1|v1 spec]] ([plain](plans/specs/starorg-codex-v1.md))
+- [[plans/specs/starorg-codex-v1-addendum|v1 addendum: dumps, LUG hooks, StarOrg Tools sync, dev mode (incl. asset export, explorer item finder), strings grouping, gamedata port, local MCP server]] ([plain](plans/specs/starorg-codex-v1-addendum.md))
 
 ## Repo (outside the vault, plain links only)
 - [README](../README.md) · [Contributing](../CONTRIBUTING.md) · [Code of Conduct](../CODE_OF_CONDUCT.md) · [Security policy](../SECURITY.md)
@@ -27,6 +27,7 @@ updated: 2026-11-15
 - [[decisions/tauri-svelte-ui|Tauri + Svelte UI]] ([plain](decisions/tauri-svelte-ui.md))
 - [[decisions/starbreaker-as-library|StarBreaker as a library]] ([plain](decisions/starbreaker-as-library.md))
 - [[decisions/own-patch-format|Own patch format]] ([plain](decisions/own-patch-format.md))
+- [[decisions/rename-to-starorg-codex|Rename to starorg-codex (0.3.0)]] ([plain](decisions/rename-to-starorg-codex.md))
 
 ## Board
 - [[plans/now/todo|Now]] ([plain](plans/now/todo.md)) · [[plans/next/backlog|Next]] ([plain](plans/next/backlog.md)) · [[plans/later/ideas|Later]] ([plain](plans/later/ideas.md))

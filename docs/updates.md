@@ -22,7 +22,7 @@ and 12 (release, updater); this note is the as-built reference and the owner's c
   release page, **Skip this version** (that exact version only; a newer one shows again; Undo is
   in Settings), and X (hide until the next start).
 - **Include pre-releases** (off): also offer `-beta`/`-rc` versions. **Release repository**
-  (`voidput/starorg-strings`): any `owner/name` on github.com, for a public mirror.
+  (`voidput/starorg-codex`): any `owner/name` on github.com, for a public mirror.
 - Problems are reported in Settings in calm words, never as an error dialog:
 
 | Answer | Shown as |
@@ -36,11 +36,11 @@ and 12 (release, updater); this note is the as-built reference and the owner's c
 
 - One `GET https://api.github.com/repos/<repo>/releases?per_page=30` per check
   (`crates/starorg-net/src/releases.rs`), over the OS TLS stack.
-- Headers: `User-Agent: StarOrg-Strings/<version>`, `Accept`, `X-GitHub-Api-Version`. No token,
+- Headers: `User-Agent: StarOrg-Codex/<version>`, `Accept`, `X-GitHub-Api-Version`. No token,
   cookie, account or install id. GitHub sees the IP address, as with any web request.
 - Installing (below) fetches `latest.json` and the installer from github.com release assets,
   only after the user presses Install and restart.
-- The CLI has no HTTP client and never checks. `starorg-strings version [--json]` prints the
+- The CLI has no HTTP client and never checks. `starorg-codex version [--json]` prints the
   version and build details only.
 
 ## How a release is chosen
@@ -81,8 +81,8 @@ install is refused if it names another version.
 
 Never commit the private key. Nothing in this repo generates one.
 
-1. `cd app && npx tauri signer generate -w ~/.tauri/starorg-strings.key` and choose a password.
-   It prints the public key and writes `~/.tauri/starorg-strings.key` (private) and `.key.pub`.
+1. `cd app && npx tauri signer generate -w ~/.tauri/starorg-codex.key` and choose a password.
+   It prints the public key and writes `~/.tauri/starorg-codex.key` (private) and `.key.pub`.
 2. Store the private key file content and the password in 1Password (losing them ends updates
    for every existing install).
 3. GitHub repo -> Settings -> Secrets and variables -> Actions: add
@@ -100,7 +100,7 @@ Never commit the private key. Nothing in this repo generates one.
 
 ## Private repo caveat (spec Q1)
 
-`voidput/starorg-strings` is private. Without credentials GitHub answers 404 for its releases
+`voidput/starorg-codex` is private. Without credentials GitHub answers 404 for its releases
 and its assets, so for everyone else the check reads "Can't see releases ..." and in-app install
 cannot download. Nothing breaks, but updates do not work until Q1 is decided:
 
@@ -112,7 +112,7 @@ cannot download. Nothing breaks, but updates do not work until Q1 is decided:
 
 ## Testing
 
-- `cargo test -p starorg-strings-app update::` (fake HTTP layer and clock): semver and
+- `cargo test -p starorg-codex-app update::` (fake HTTP layer and clock): semver and
   pre-release rules, 24 h throttle, skip, repo prefs, error mapping, notes sanitising, URL
   allowlist, file state. `--test real_backend update_check` runs the real backend against a
   scripted GitHub. No test touches the network; `cargo test -p starorg-net -- --ignored` has one
@@ -120,5 +120,5 @@ cannot download. Nothing breaks, but updates do not work until Q1 is decided:
 - Contract samples include `update_status`, `check_for_updates` and `check_for_updates_failed`
   (Rust mock, fixed version 0.1.0 and clock). `npm test` checks the banner rules over them.
 - Renders: browser mock with `?update=available|failed|skipped|store` (`&notes=1` opens What's new).
-- Store flavour: `cargo test -p starorg-strings-app --features store --lib update` (CI runs it):
+- Store flavour: `cargo test -p starorg-codex-app --features store --lib update` (CI runs it):
   `store_builds_never_request_or_install` checks no request and no updater call.

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping. Bugs and ideas go to [issues](https://github.com/voidput/starorg-strings/issues)
+Thanks for helping. Bugs and ideas go to [issues](https://github.com/voidput/starorg-codex/issues)
 (templates provided); security problems go to [SECURITY.md](SECURITY.md), never a public issue.
 Everyone taking part follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 
@@ -37,7 +37,7 @@ On Linux the Tauri crate needs the WebKitGTK development packages (see the `Taur
 libraries` step in `.github/workflows/ci.yml`).
 
 - Changed the command contract (`app/src-tauri/src/contract/`)? Regenerate the samples with
-  `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app` and commit them.
+  `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app` and commit them.
 - Changed `Cargo.lock` or `app/package-lock.json`? Regenerate the license notices with
   `scripts/gen-notices.sh` (needs `cargo install cargo-about --locked --features cli` and
   `npm ci` in `app/`) and commit `THIRD_PARTY_NOTICES.md`. New dependencies must use a license

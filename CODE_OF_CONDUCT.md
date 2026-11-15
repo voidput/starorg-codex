@@ -36,7 +36,7 @@ This Code of Conduct applies within all community spaces, and also applies when 
 
 ## Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement privately through a GitHub private report (**Security -> Report a vulnerability** on <https://github.com/voidput/starorg-strings/security/advisories/new>, which reaches only the maintainers) or, if it is not sensitive, a [GitHub issue](https://github.com/voidput/starorg-strings/issues). All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the community leaders responsible for enforcement privately through a GitHub private report (**Security -> Report a vulnerability** on <https://github.com/voidput/starorg-codex/security/advisories/new>, which reaches only the maintainers) or, if it is not sensitive, a [GitHub issue](https://github.com/voidput/starorg-codex/issues). All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the reporter of any incident.
 

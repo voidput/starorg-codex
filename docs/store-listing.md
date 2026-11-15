@@ -82,9 +82,9 @@ Do not include the Star Citizen logo or game art.
 ## Other fields
 
 - Category: Utilities and tools (secondary: none)
-- Privacy policy URL: <https://github.com/voidput/starorg-strings/blob/main/docs/privacy.md>
-- Website: <https://github.com/voidput/starorg-strings>
-- Support contact: <https://github.com/voidput/starorg-strings/issues>
+- Privacy policy URL: <https://github.com/voidput/starorg-codex/blob/main/docs/privacy.md>
+- Website: <https://github.com/voidput/starorg-codex>
+- Support contact: <https://github.com/voidput/starorg-codex/issues>
 - Price: free; no in-app purchases
 - Copyright: (c) voidput, MIT licence
 - Age rating: see [windows](windows.md#microsoft-store) (IARC questionnaire answers)
