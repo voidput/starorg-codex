@@ -14,6 +14,7 @@ updated: 2026-11-15
 - [Privacy policy](privacy.md)
 - [Updates: check, install, signing](updates.md)
 - [Local MCP server (experimental)](mcp.md)
+- [Uninstall: back to stock, remove, delete data](uninstall.md)
 
 ## Maintainers
 

@@ -33,10 +33,11 @@ All files are on the [release page](https://github.com/voidput/starorg-codex/rel
 | Contains | The app (`starorg-codex-app`) with WebKitGTK bundled | `/usr/bin/starorg-codex-app`, menu entry, icons; uses the system `libwebkit2gtk-4.1-0` | Same as the .deb | `starorg-codex` (static) and `LICENSE` | What you build |
 | CLI included | No: add the CLI tarball | No: add the CLI tarball | No: add the CLI tarball | Yes | `cargo build -p starorg-cli` |
 | Updates | In the app (Settings -> Network -> Check for updates, off by default): download, signature check, replace, restart ([updates](updates.md)) | The app tells you; install the new .deb with apt | The app tells you; install the new .rpm with dnf/zypper | Download the new tarball (or rerun the installer script) | `git pull` and rebuild |
-| Uninstall | Delete the file (and the menu entry, if you made one) | `sudo apt remove star-org-codex` | `sudo dnf remove star-org-codex` | Delete `~/.local/bin/starorg-codex` | Delete the build |
+| Uninstall | Delete the file (and the menu entry, if you made one) | `sudo apt remove star-org-codex` | `sudo dnf remove star-org-codex` | Delete `~/.local/bin/starorg-codex` and the `starorg-strings` link | Delete the build |
 
 **Run Remove first.** Uninstalling any flavour leaves the game as it is. To put the game back
 to stock, use **Remove** in the app or `starorg-codex remove --all` *before* you uninstall.
+All steps, hooks and data folders: [uninstall](uninstall.md).
 
 ### App data (all flavours, shared by the app and the CLI)
 

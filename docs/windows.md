@@ -18,6 +18,8 @@ get it, from the same code:
 | CLI | In the zip | Not included |
 | Uninstall | Settings -> Apps. **Run Remove in the app first**: the uninstaller option that puts the game back to stock (spec 2) is not built yet | Settings -> Apps. **Run Remove in the app first**: a Store package cannot run code when it is uninstalled |
 
+All uninstall steps and data folders: [uninstall](uninstall.md).
+
 Both need the Microsoft Edge WebView2 runtime, which Windows 10 (updated) and 11 already have.
 The NSIS installer downloads it if missing.
 

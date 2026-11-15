@@ -139,7 +139,7 @@ Before the first write into a channel, and whenever the game file was replaced b
 the file there is backed up. **Backups** lists them per channel: **Restore** puts one back (a
 backup made for another game build asks first), and **Remove changes** (Home) or
 `starorg-codex remove --all` puts the game back to stock. Uninstalling the app does not do
-that for you: run Remove first.
+that for you: run Remove first ([uninstall](uninstall.md)).
 
 ## Settings worth knowing
 

@@ -102,6 +102,7 @@ Details: [Linux](docs/linux.md#upgrading-from-02-the-rename-to-starorg-codex) ·
   patches, backups, CLI quick reference, troubleshooting
 - [Linux](docs/linux.md) · [Windows](docs/windows.md) · [Updates](docs/updates.md) ·
   [Privacy](docs/privacy.md) · [Local MCP server](docs/mcp.md)
+- [Uninstall](docs/uninstall.md): back to stock first, then remove the app and, if you want, its data
 - Everything else (specs, decisions, release process): [docs/](docs/README.md)
 
 ## Support
