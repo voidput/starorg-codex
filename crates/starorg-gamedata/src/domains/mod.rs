@@ -68,7 +68,7 @@ registry! {
 
     // quantum, // quantum.ts
 
-    // refining, // refining.ts
+    refining, // refining.ts
 
     // reputation, // reputation.ts
 
