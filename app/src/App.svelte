@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * App frame (spec 9.3): sidebar, header with channel switcher / status / Apply, footer bar,
-   * toasts, command palette (Ctrl/Cmd+K), Alt+1..8 screen shortcuts, skip link. The setup wizard
+   * toasts, command palette (Ctrl/Cmd+K), Alt+1..9 screen shortcuts, skip link. The setup wizard
    * takes the full window on first run.
    */
   import { onMount, tick } from 'svelte';
@@ -17,6 +17,7 @@
   import StringsScreen from '@/components/screens/StringsScreen.svelte';
   import PatchesScreen from '@/components/screens/PatchesScreen.svelte';
   import BlueprintsScreen from '@/components/screens/BlueprintsScreen.svelte';
+  import ShipsScreen from '@/components/screens/ShipsScreen.svelte';
   import BackupsScreen from '@/components/screens/BackupsScreen.svelte';
   import ActivityScreen from '@/components/screens/ActivityScreen.svelte';
   import SetupWizard from '@/components/wizard/SetupWizard.svelte';
@@ -32,7 +33,7 @@
   let main = $state<HTMLElement | null>(null);
   const page = $derived(findNav(app.screen));
   /** Screens that work on one channel's files show "Set up <channel>" instead of an error. */
-  const needsSetup = $derived(!!app.channel && !app.channel.set_up && ['enhancements', 'strings', 'patches', 'blueprints', 'backups'].includes(app.screen));
+  const needsSetup = $derived(!!app.channel && !app.channel.set_up && ['enhancements', 'strings', 'patches', 'blueprints', 'ships', 'backups'].includes(app.screen));
 
   function go(s: ScreenId) {
     app.go(s);
@@ -60,7 +61,7 @@
       palette = !palette;
       return;
     }
-    if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-8]$/.test(e.key) && !shortcutsOff(e)) {
+    if (e.altKey && !e.ctrlKey && !e.metaKey && /^[1-9]$/.test(e.key) && !shortcutsOff(e)) {
       const n = NAV_ITEMS.find((i) => i.key === e.key);
       if (n) {
         e.preventDefault();
@@ -101,6 +102,8 @@
             <PatchesScreen />
           {:else if app.screen === 'blueprints'}
             <BlueprintsScreen />
+          {:else if app.screen === 'ships'}
+            <ShipsScreen />
           {:else if app.screen === 'backups'}
             <BackupsScreen />
           {:else if app.screen === 'activity'}

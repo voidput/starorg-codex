@@ -50,6 +50,8 @@ const shots = [
     await p.getByText('Will be added to').waitFor();
   }],
   ['blueprints-starorg-connected', 'blueprints', async (p) => p.getByText(/Signed in as/).waitFor(), '&starorg=1'],
+  ['ships', 'ships', async (p) => p.getByRole('listbox', { name: 'My ships, in order' }).waitFor(), '&fleet=grouped'],
+  ['ships-empty', 'ships', async (p) => p.getByText('Make your own ship list').waitFor()],
   ['backups', 'backups', async (p) => p.getByText('Timeline · LIVE').waitFor()],
   ['backups-foreign-restore', 'backups', async (p) => {
     await p.getByRole('button', { name: 'Restore it' }).click();

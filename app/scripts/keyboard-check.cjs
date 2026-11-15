@@ -142,7 +142,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
 
   // Backups: Undo dialog focus trap + Escape.
   await page.getByRole('dialog').waitFor({ state: 'detached' });
-  await page.keyboard.press('Alt+6');
+  await page.keyboard.press('Alt+7');
   await page.getByText('Timeline · LIVE').waitFor();
   await page.getByRole('button', { name: 'Undo last apply' }).click();
   await page.getByRole('heading', { name: /Undo the last apply/ }).waitFor();
