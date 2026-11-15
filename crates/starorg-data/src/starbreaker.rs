@@ -4,6 +4,8 @@
 //! (and the pin in the workspace `Cargo.toml`) only. Nothing outside `starorg-data` sees a
 //! StarBreaker type.
 
+use crate::gamedata::json::record_path;
+use crate::gamedata::store::{Loaded, RecordMeta, RecordStore};
 use std::path::Path;
 
 /// The StarBreaker commit we build against. Part of the cache key (spec 4.2). Must equal the
@@ -74,23 +76,107 @@ impl Archive {
     }
 }
 
-/// Summary of a parsed DataCore database. M2 replaces this with the real queries that fill
-/// `GameData`; M0 only proves the database parses.
+/// Summary of a parsed DataCore database. Record and struct counts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct DataCoreSummary {
     pub records: usize,
     pub struct_defs: usize,
 }
 
-/// Parse DataCore bytes. May panic on malformed data (StarBreaker accessors do); callers run
-/// this under `catch_unwind` inside the worker process.
-pub fn parse_datacore(bytes: &[u8]) -> Result<DataCoreSummary, String> {
-    let db =
-        starbreaker_datacore::database::Database::from_bytes(bytes).map_err(|e| e.to_string())?;
-    Ok(DataCoreSummary {
-        records: db.records().len(),
-        struct_defs: db.struct_defs().len(),
-    })
+/// Record paths the `GameData` passes read (substring match on the normalised path).
+const SELECTED_PATHS: [&str; 9] = [
+    "entities/scitem/ships/",
+    "entities/scitem/weapons/",
+    "entities/spaceships/",
+    "entities/groundvehicles/",
+    "inventorycontainers/",
+    "ammoparams/",
+    "crafting/",
+    "contracts/",
+    "reputation/",
+];
+
+/// A parsed DataCore exposed as a [`RecordStore`]: main records only, each exported on
+/// demand with StarBreaker's compact JSON exporter.
+pub struct DataCoreStore<'a> {
+    db: starbreaker_datacore::Database<'a>,
+    metas: Vec<RecordMeta>,
+    /// `metas[i].slot` indexes this: position in `db.records()`.
+    positions: Vec<usize>,
+}
+
+impl<'a> DataCoreStore<'a> {
+    /// Parse DataCore bytes. May panic on malformed data; run under `catch_unwind`.
+    ///
+    /// Every main `EntityClassDefinition` is listed (loadouts and blueprints reference
+    /// entities anywhere by name or path); other records only below [`SELECTED_PATHS`].
+    pub fn parse(bytes: &'a [u8]) -> Result<Self, String> {
+        let db = starbreaker_datacore::Database::from_bytes(bytes).map_err(|e| e.to_string())?;
+        let mut metas = Vec::new();
+        let mut positions = Vec::new();
+        for (i, r) in db.records().iter().enumerate() {
+            if !db.is_main_record(r) {
+                continue;
+            }
+            let struct_type = db.struct_name(r.struct_id());
+            let Some(path) = record_path(db.resolve_string(r.file_name_offset)) else {
+                continue;
+            };
+            if struct_type != "EntityClassDefinition"
+                && !SELECTED_PATHS.iter().any(|p| path.contains(p))
+            {
+                continue;
+            }
+            metas.push(RecordMeta {
+                name: db.resolve_string2(r.name_offset).to_string(),
+                struct_type: struct_type.to_string(),
+                path,
+                slot: positions.len(),
+            });
+            positions.push(i);
+        }
+        Ok(Self {
+            db,
+            metas,
+            positions,
+        })
+    }
+
+    pub fn summary(&self) -> DataCoreSummary {
+        DataCoreSummary {
+            records: self.db.records().len(),
+            struct_defs: self.db.struct_defs().len(),
+        }
+    }
+
+    /// Whether the DataCore defines a struct type of this name.
+    pub fn has_struct(&self, name: &str) -> bool {
+        self.db.struct_index_by_name(name).is_some()
+    }
+}
+
+impl RecordStore for DataCoreStore<'_> {
+    fn records(&self) -> &[RecordMeta] {
+        &self.metas
+    }
+
+    fn load(&self, meta: &RecordMeta) -> Result<Loaded, String> {
+        let pos = *self
+            .positions
+            .get(meta.slot)
+            .ok_or_else(|| format!("{}: bad slot", meta.name))?;
+        let record = &self.db.records()[pos];
+        let bytes = starbreaker_datacore::export::to_json_compact(&self.db, record)
+            .map_err(|e| e.to_string())?;
+        let mut env: serde_json::Value =
+            serde_json::from_slice(&bytes).map_err(|e| format!("export is not JSON: {e}"))?;
+        let id = env["_RecordId_"].as_str().unwrap_or_default().to_string();
+        let value = env
+            .get_mut("_RecordValue_")
+            .map(serde_json::Value::take)
+            .ok_or("export has no _RecordValue_")?;
+        Ok(Loaded { id, value })
+    }
 }
 
 #[cfg(test)]

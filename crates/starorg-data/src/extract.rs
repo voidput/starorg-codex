@@ -1,7 +1,10 @@
 //! Extraction steps inside the worker process (spec 3.3).
 
 use crate::eocd::{self, CountCheck, EocdError};
-use crate::starbreaker::{Archive, ArchiveError, DataCoreSummary, EntryInfo, parse_datacore};
+use crate::gamedata::{self, Loc};
+use crate::starbreaker::{Archive, ArchiveError, DataCoreStore, DataCoreSummary, EntryInfo};
+use starorg_core::ini::StockIni;
+use starorg_core::model::{DataCoreStats, GameData};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::Path;
 
@@ -53,6 +56,8 @@ pub struct Extraction {
     /// Stock `global.ini`, byte for byte.
     pub base_ini: Vec<u8>,
     pub datacore: DataCoreSummary,
+    /// The filled model (build identity is set by the parent from `build_manifest.id`).
+    pub game_data: GameData,
     /// Entries StarBreaker parsed.
     pub parsed_entries: u64,
     pub count_check: CountCheck,
@@ -163,13 +168,29 @@ pub fn extract(p4k: &Path) -> Result<Extraction, ExtractError> {
     // Step 4: free the archive index (about 400 MB) before parsing DataCore.
     drop(archive);
 
-    let datacore = guarded("DataCore parse", || {
-        parse_datacore(&dcb).map_err(ExtractError::DataCore)
+    // Step 5: parse the DataCore and fill GameData. StarBreaker accessors may panic on
+    // malformed data; rayon re-raises a worker-thread panic here, inside the guard.
+    let (datacore, game_data) = guarded("DataCore queries", || {
+        let store = DataCoreStore::parse(&dcb).map_err(ExtractError::DataCore)?;
+        let stock = StockIni::parse(base_ini.clone());
+        let has = |t: &str| store.has_struct(t);
+        let x = gamedata::extract(&store, &Loc::new(&stock), Some(&has));
+        for w in x.warnings {
+            warnings.push((w.kind, w.detail));
+        }
+        let summary = store.summary();
+        let mut gd = x.game_data;
+        gd.datacore = Some(DataCoreStats {
+            records: summary.records as u64,
+            struct_defs: summary.struct_defs as u64,
+        });
+        Ok((summary, gd))
     })?;
 
     Ok(Extraction {
         base_ini,
         datacore,
+        game_data,
         parsed_entries,
         count_check,
         dcb_entry: dcb_info.name,

@@ -14,7 +14,6 @@
 use crate::extract::{self, ExtractError, guarded};
 use crate::starbreaker::STARBREAKER_COMMIT;
 use serde::{Deserialize, Serialize};
-use starorg_core::model::{DataCoreStats, GameData};
 use starorg_core::source::Warning;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -64,13 +63,7 @@ fn write_output(out: &Path, x: &extract::Extraction) -> std::io::Result<()> {
         std::fs::remove_dir_all(&tmp)?;
     }
     std::fs::create_dir_all(&tmp)?;
-    let game_data = GameData {
-        datacore: Some(DataCoreStats {
-            records: x.datacore.records as u64,
-            struct_defs: x.datacore.struct_defs as u64,
-        }),
-        ..GameData::default()
-    };
+    let game_data = &x.game_data;
     let meta = WorkerMeta {
         starbreaker_commit: STARBREAKER_COMMIT.to_string(),
         parsed_entries: x.parsed_entries,
@@ -84,7 +77,7 @@ fn write_output(out: &Path, x: &extract::Extraction) -> std::io::Result<()> {
     };
     let result = (|| {
         write_synced(&tmp.join(BASE_INI), &x.base_ini)?;
-        write_synced(&tmp.join(GAMEDATA_JSON), &serde_json::to_vec(&game_data)?)?;
+        write_synced(&tmp.join(GAMEDATA_JSON), &serde_json::to_vec(game_data)?)?;
         write_synced(&tmp.join(META_JSON), &serde_json::to_vec_pretty(&meta)?)?;
         if out.exists() {
             std::fs::remove_dir_all(out)?;
