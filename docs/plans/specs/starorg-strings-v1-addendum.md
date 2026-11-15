@@ -746,7 +746,7 @@ rules apply (`group_state: approximate`) until `sc-gamedata` publishes loc keys 
 Section 8 is implemented; section 7 (Developer mode) is not (the user's request was the
 grouping only; section 7 stays spec text).
 
-- **Core** `starorg-core::groups`: `rules.rs` holds the hierarchy (19 top-level groups, 85
+- **Core** `starorg-core::groups`: `rules.rs` holds the hierarchy (19 top-level groups, 84
   nodes) and the item-type, struct-type, canvas-path and key-prefix tables; `assign` gives one
   leaf per stock key, a manufacturer (only codes with a stock `manufacturer_Name<code>` key:
   manufacturer records also hold paint and decal logos) and a size (1-12). Row cost 4 bytes
