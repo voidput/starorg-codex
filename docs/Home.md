@@ -10,6 +10,7 @@ updated: 2026-11-15
 - [[release|Release process]] ([plain](release.md))
 - [[updates|Updates: check, install, signing]] ([plain](updates.md))
 - [[ci|CI and security checks]] ([plain](ci.md))
+- [[linux|Linux: install, PATH, Wine prefix, troubleshooting]] ([plain](linux.md))
 - [[windows|Windows: install, Store, signing, troubleshooting]] ([plain](windows.md))
 - [[windows-test-checklist|Windows real-install test checklist]] ([plain](windows-test-checklist.md))
 - [[store-listing|Microsoft Store listing draft]] ([plain](store-listing.md))

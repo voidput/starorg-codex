@@ -55,7 +55,7 @@ Paths compare without case, as Windows does. Long paths (over 260 characters) wo
 
 ## How apply works on Windows
 
-The same as on Linux (spec 7), with these Windows parts:
+The same as on Linux (spec 7, [linux](linux.md)), with these Windows parts:
 
 - **Game running:** the game's process image path (`...\LIVE\Bin64\StarCitizen.exe`) is read
   from the OS, so a running LIVE never blocks an apply to PTU. If Windows will not tell us the

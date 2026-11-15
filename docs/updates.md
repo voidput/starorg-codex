@@ -68,7 +68,7 @@ and 12 (release, updater); this note is the as-built reference and the owner's c
 | Install | Updates |
 |---|---|
 | AppImage, Windows NSIS (and MSI) | In the app: download, verify the minisign signature against our key, install, restart (`tauri-plugin-updater`) |
-| deb, rpm | Download only: "update it with your package manager or from the release page" |
+| deb, rpm | Download only: "update it with your package manager or from the release page" ([linux](linux.md)) |
 | Windows portable zip, built from source, CLI | Download only |
 | Any build whose `updater-public-key.txt` is still the placeholder | Download only |
 | Microsoft Store build (feature `store`) | Store only: no check, no banner, no install; Settings says "Updates come from the Microsoft Store." ([windows](windows.md)) |
