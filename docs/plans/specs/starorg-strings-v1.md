@@ -1001,9 +1001,11 @@ format key (section 7.3). Detection of our own output does not depend on this st
 - **Contracts:** contract generator records (`contracts/contractgenerator/`,
   `contractscenarios/`): `generators[] → contracts[]`, each with `debugName`,
   `paramOverrides.stringParamOverrides[]` and `contractResults`.
-- **Title and description keys:** the `Title` and `Description` string param overrides. M2a
-  confirms where the description lives when the override is absent (likely the referenced
-  contract template). The adapter records which path supplied each key.
+- **Title and description keys:** the `Title` and `Description` string param overrides of the
+  contract, else of its generator handler (`contractParams`), else the contract template's
+  `contractDisplayInfo.displayString` (`[0]` title, `[2]` description; confirmed in M2a on
+  LIVE 4.10: 2,506 contract, 24-27 generator, 21-24 template, 2 none). The adapter records
+  which path supplied each key (`KeySource`).
 - **Blueprint rewards:** `BlueprintRewards { blueprintPool, chance }` nodes inside
   `contractResults`.
 - **Pools:** `BlueprintPoolRecord.blueprintRewards[] { blueprintRecord, weight }`.
