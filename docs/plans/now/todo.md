@@ -29,3 +29,11 @@ M1 + M2 (merged into main; verification fixes 2026-11-14, local only, not pushed
 - [ ] Push main and get the Ubuntu + Windows CI apply tests green ([#10](https://github.com/voidput/starorg-strings/issues/10))
 - [ ] Owner: replace the Smart Citizen block in the real `sc-prelaunch.sh` with `hook install` (agents never edit the real prefix) ([#11](https://github.com/voidput/starorg-strings/issues/11))
 - [ ] Project board: move #10, #11, #13, #14, #17 to match (needs a push first)
+
+Fleet import and ship ordering — addendum §6 (branch `fleet-order`, local only, not pushed)
+
+- [x] Core: hull catalogue, importer (HangarXPLOR JSON/CSV, text), matcher, `ship-names` generator, stale hash ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] CLI `fleet import|list|match|clear`, `build --ship-names` ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] App contract, real backend, mocks, Ships screen, renders and keyboard check ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] In-game checks (spec §13, Fleet rows): list sort (Q23), long vs short name (Q25), where the prefix shows, symbols ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] Owner: try an RSI+ export (`fleet import --dry-run`) and report store names that need aliases ([#15](https://github.com/voidput/starorg-strings/issues/15))

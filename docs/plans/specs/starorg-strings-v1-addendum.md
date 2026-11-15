@@ -669,3 +669,39 @@ starorg-strings fleet clear
 | Q27 | Take the short-name key from DataCore (`AttachDef.Localization.ShortName`, needs a `GameData` schema bump) or from the `_short` convention? | Convention now; add `ShipLoc.short_name` with the next schema bump |
 | Q28 | Fleet from the StarOrg Tools account link (§5) as a further import source | After the account link ships; same report and storage |
 | Q29 | A "drop the maker" option (`01 Gladius` instead of `01 Aegis Gladius`) | Not in this version: the stock short names are abbreviated, so it needs its own name source. A rename covers single ships |
+
+### 6.11 Implementation notes (branch `fleet-order`, 2026-11-14)
+
+Built as specified above; local only, not pushed. Differences and findings:
+
+- **Core.** `starorg_core::fleet` (`catalog`, `import`, `store`, `names`). `enhance::generate`
+  is unchanged; `generate_with(.., Some(&ShipNames))` adds the category, and `apply`, the app's
+  Strings table / previews and `build --ship-names FILE` call it with the channel's active
+  settings. In `merge`, a rename travels as a whole value (`GenEdit.whole` = prefix + rename),
+  so loc patches' `from_part = "generated"` see the full generated text.
+- **Contract.** `fleet_view` takes `{ target, read_game_data }` (the "Read game data" action of
+  the empty state runs the extraction as a job). `FleetView` also carries `shared_settings`:
+  going back from "Only {CHANNEL}" to "All channels" loads them into the draft (the UI asks
+  first). `fleet_import` sources are `file` (native picker), `text` (pasted) and `last` (the
+  file picked for the dry run, kept in memory, so Import does not ask again).
+- **Alias table** (`crates/starorg-core/data/fleet-aliases.toml`, 14 entries): Ursa Rover /
+  Fortuna, Cutlass Black BIS 2949, 600i Explorer, Dragonfly Black, F7C-M Heartseeker Mk I,
+  C8R Pisces, Carrack w/C8X and Expedition w/C8X, the MOLE Carbon / Talus paint editions,
+  Mustang Alpha Vindicator. Every target exists and is flyable in LIVE (ignored test).
+- **Matching, HangarXPLOR's public table (305 rows, synthetic JSON export)** with aliases:
+  LIVE 265 matched (232 exact, 14 alias, 5 Mk, 11 word order, 3 code), 6 ambiguous (the six
+  Hornets without Mk), 34 unmatched; PTU 258; HOTFIX 265. The unmatched ones were checked:
+  concept ships and keys no ship record names (Hull D/E, Kraken, Orion, Odyssey, Ranger, G12,
+  ATLS, Nautilus, Retaliator Bomber, Zeus Mk II MR, …).
+- **Finding: letter prefixes interleave.** With `group-letter`, `A2 …` sorts before
+  `Aegis …` but `B1 …` after `Argo …` (case-insensitive, letter by letter), so groups after
+  the first do not float above the rest. The preview shows it and the screen says so next to
+  the style; numbers and symbols float. Same rule in Rust and TypeScript (shared vectors).
+- **UI.** Ships screen (Alt+6; Backups/Activity/Settings Alt+7/8/9), the import and review
+  dialogs; the row menu of §6.6 is a set of row buttons (rename, reset, top, bottom, remove)
+  plus the keyboard model, and "Move to group…" is Alt+Shift+Up/Down or a drag. Headless
+  renders: `app/scripts/render-fleet.cjs`; keyboard check: `app/scripts/keyboard-fleet.cjs`.
+- **CLI.** `fleet import|list|match|clear` as in §6.7; `fleet clear` keeps hand matches and the
+  order list. Test hook `--test-gamedata FILE` (with `--test-stock-ini`, feature `test-hooks`).
+- **Still open:** the in-game checks of spec §13 (Q23, Q25, where else the name shows, symbol
+  rendering), Q24 (FleetYards native format), a real export only in the ignored local test.
