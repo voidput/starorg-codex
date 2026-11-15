@@ -12,6 +12,7 @@ pub mod cache;
 pub mod config;
 pub mod discovery;
 pub mod enhance;
+pub mod fleet;
 pub mod fsutil;
 pub mod hooks;
 pub mod ini;

@@ -41,10 +41,12 @@ pub enum Category {
     MissionTitles,
     MissionDescriptions,
     Branding,
+    /// Sort prefixes and renames on ship name keys (addendum §6.5). Opt-in, no preset.
+    ShipNames,
 }
 
 impl Category {
-    pub const ALL: [Category; 11] = [
+    pub const ALL: [Category; 12] = [
         Self::Ships,
         Self::Components,
         Self::ShipWeapons,
@@ -56,6 +58,7 @@ impl Category {
         Self::MissionTitles,
         Self::MissionDescriptions,
         Self::Branding,
+        Self::ShipNames,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -71,6 +74,7 @@ impl Category {
             Self::MissionTitles => "mission-titles",
             Self::MissionDescriptions => "mission-descriptions",
             Self::Branding => "branding",
+            Self::ShipNames => "ship-names",
         }
     }
 }
@@ -90,6 +94,9 @@ pub struct GenEdit {
     pub suffix: String,
     /// The stock part loses its trailing `\n` escapes and spaces (spec 5.1, 6.2).
     pub trim_stock: bool,
+    /// Whole-value part in place of the stock part (a ship rename, addendum §6.5).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replace: Option<String>,
 }
 
 /// Drop trailing `\n` escapes, spaces and tabs.
@@ -108,8 +115,10 @@ pub fn trim_tail(s: &str) -> &str {
 }
 
 impl GenEdit {
-    pub fn stock_part<'a>(&self, stock_value: &'a str) -> &'a str {
-        if self.trim_stock {
+    pub fn stock_part<'a>(&'a self, stock_value: &'a str) -> &'a str {
+        if let Some(r) = &self.replace {
+            r
+        } else if self.trim_stock {
             trim_tail(stock_value)
         } else {
             stock_value
@@ -125,9 +134,14 @@ impl GenEdit {
         )
     }
 
-    /// The text we added (for loc patches' `from_part = "generated"`).
+    /// The text we added (for loc patches' `from_part = "generated"`); a rename counts.
     pub fn generated_part(&self) -> String {
-        format!("{}{}", self.prefix, self.suffix)
+        format!(
+            "{}{}{}",
+            self.prefix,
+            self.replace.as_deref().unwrap_or_default(),
+            self.suffix
+        )
     }
 }
 
@@ -141,6 +155,11 @@ pub enum Payload {
     Tag { prefix: String, suffix: String },
     /// Text appended after the trimmed stock value.
     Append(String),
+    /// A sort prefix and an optional whole-value rename (ship names).
+    Name {
+        prefix: String,
+        replace: Option<String>,
+    },
 }
 
 /// Why a candidate key was left as stock.
@@ -376,6 +395,7 @@ impl<'a> Engine<'a> {
             }
             Payload::Tag { prefix, suffix } => (prefix.clone(), suffix.clone(), false),
             Payload::Append(s) => (String::new(), s.clone(), true),
+            Payload::Name { prefix, .. } => (prefix.clone(), String::new(), false),
         }
     }
 
@@ -414,8 +434,20 @@ impl<'a> Engine<'a> {
             return false;
         }
         let (prefix, suffix, trim_stock) = self.parts(payload, sv);
-        let stock_part = if trim_stock { trim_tail(sv) } else { sv };
-        if let Err(rule) = check::check_generated(sv, stock_part, &prefix, &suffix) {
+        let replace = match payload {
+            Payload::Name { replace, .. } => replace.clone(),
+            _ => None,
+        };
+        let stock_part = match &replace {
+            Some(r) => r.as_str(),
+            None if trim_stock => trim_tail(sv),
+            None => sv,
+        };
+        let checked = match &replace {
+            Some(_) => check::check_replaced(sv, &format!("{prefix}{stock_part}{suffix}")),
+            None => check::check_generated(sv, stock_part, &prefix, &suffix),
+        };
+        if let Err(rule) = checked {
             self.left(cat, Reason::DroppedByValidation);
             self.out.warnings.push(Warning::new(
                 "dropped-edit",
@@ -450,6 +482,7 @@ impl<'a> Engine<'a> {
                 prefix,
                 suffix,
                 trim_stock,
+                replace,
             },
         );
         true
@@ -541,12 +574,25 @@ pub fn stock_name<'s>(stock: &'s StockIni, reference: Option<&str>) -> Option<&'
 }
 
 /// Run every enabled generator in the fixed order (spec 4.3): stat blocks (description
-/// keys), name tags (name keys), missions, branding.
+/// keys), name tags (name keys), missions, branding. No ship names (see [`generate_with`]).
 pub fn generate(
     gd: &GameData,
     stock: &StockIni,
     profile: &Profile,
     owned: &dyn OwnedBlueprints,
+) -> Generated {
+    generate_with(gd, stock, profile, owned, None)
+}
+
+/// [`generate`], then the `ship-names` category when `ship_names` is given (the channel's
+/// active settings, addendum §6.5). It runs last: any other generator that ever writes a
+/// ship name key owns it first.
+pub fn generate_with(
+    gd: &GameData,
+    stock: &StockIni,
+    profile: &Profile,
+    owned: &dyn OwnedBlueprints,
+    ship_names: Option<&crate::fleet::store::ShipNames>,
 ) -> Generated {
     let mut en = Engine::new(stock, profile);
     let p = profile;
@@ -710,6 +756,23 @@ pub fn generate(
             None,
             &Payload::Append(text),
         );
+    }
+
+    if let Some(s) = ship_names {
+        let cat = crate::fleet::Catalog::build(gd, stock);
+        let plan = crate::fleet::names::plan(s, &cat);
+        en.cov(Category::ShipNames);
+        for e in plan.edits {
+            en.offer(
+                Category::ShipNames,
+                &e.key,
+                Some(e.hull),
+                &Payload::Name {
+                    prefix: e.prefix,
+                    replace: e.replace,
+                },
+            );
+        }
     }
     en.out
 }
