@@ -89,6 +89,7 @@
   }
 
   // --- Records of the picked table --------------------------------------------------------
+  const tableRev = (t: DiffTable) => JSON.stringify([t.dataset, t.table, t.identity, t.added, t.removed, t.changed, t.same]);
   let picked = $state<DiffTable | null>(null);
   let records = $state<DevDiffRecords | null>(null);
   let stateFilter = $state<'all' | RecordState>('all');
@@ -127,6 +128,11 @@
       if (seq !== recSeq) return;
       records = more && records ? { ...page, records: [...records.records, ...page.records] } : page;
       recError = null;
+      // A 'Match by' change re-diffs this table on the backend: keep its Tables row current.
+      if (summary && !more) {
+        const i = summary.tables.findIndex((t) => t.dataset === page.summary.dataset && t.table === page.summary.table);
+        if (i >= 0 && tableRev(summary.tables[i]!) !== tableRev(page.summary)) summary.tables[i] = page.summary;
+      }
     } catch (e) {
       if (seq === recSeq) recError = toContractError(e);
     } finally {
@@ -175,8 +181,10 @@
     if (recGroup) void selectDiffNode(null);
   }
   let dseq = 0;
+  /** The picked table's diff as the records reply last saw it; a 'Match by' change moves it. */
+  const recRev = $derived(records ? tableRev(records.summary) : '');
   $effect(() => {
-    const k = JSON.stringify([summary?.ms, summary?.a, summary?.b, summary?.tables.length, diffBy, dopen]);
+    const k = JSON.stringify([summary?.ms, summary?.a, summary?.b, summary?.tables.length, diffBy, dopen, recRev]);
     untrack(async () => {
       void k;
       const seq = ++dseq;
@@ -364,119 +372,123 @@
           </div>
 
           {#if picked}
-            <div class="flex min-h-0 flex-1 gap-3">
-              <section class="bg-card flex w-[min(420px,45%)] shrink-0 flex-col overflow-hidden rounded-lg border" aria-label="Records">
-                <div class="flex flex-wrap items-center gap-2 border-b px-2 py-1.5">
-                  <Segmented size="sm" ariaLabel="Records" options={[{ id: 'all', label: 'All' }, { id: 'changed', label: 'Changed' }, { id: 'added', label: 'Added' }, { id: 'removed', label: 'Removed' }] as { id: 'all' | RecordState; label: string }[]} bind:value={stateFilter} />
-                  {#if records?.fields.length}
-                    <SelectField ariaLabel="Changed field" size="sm" options={[{ id: '', label: 'Any field' }, ...records.fields.map((f) => ({ id: f.value, label: `${f.value} (${int(f.count)})` }))]} value={fieldFilter} onchange={(v) => (fieldFilter = v)} class="min-w-32" />
-                  {/if}
-                  <div class="relative min-w-36 flex-1">
-                    <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
-                    <Input type="search" aria-label="Filter records by name or id" placeholder="Name or id" class="h-7 pl-7 text-[12px]" bind:value={recQuery} />
-                  </div>
-                  {#if records?.identity_options.length}
-                    <SelectField ariaLabel="Match records by" size="sm" options={[{ id: '', label: `Match: ${records.summary.identity ?? 'position'}` }, ...records.identity_options.map((c) => ({ id: c, label: `Match by ${c}` }))]} value={identity ?? ''} onchange={(v) => (identity = v || null)} class="min-w-36" />
-                  {/if}
-                </div>
-                {#if recError}
-                  <div class="p-2"><ErrorState title="Could not list records" error={recError} /></div>
-                {:else if !records}
-                  <div class="grid gap-1 p-2">{#each { length: 6 } as _, i (i)}<Skeleton class="h-6 w-full" />{/each}</div>
-                {:else if !records.records.length}
-                  <p class="text-muted-foreground p-3 text-[12.5px]">No record differs here.</p>
-                {:else}
-                  <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                  <ul
-                    role="listbox"
-                    aria-label="Changed records"
-                    tabindex="0"
-                    data-stop
-                    aria-activedescendant="dr-{recActive}"
-                    class="focus-visible:ring-ring/60 min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
-                    onkeydown={(e) => listKey(e, records!.records.length, recActive, (i) => (recActive = i), (i) => void pickRecord(records!.records[i]!.id))}
-                  >
-                    {#each records.records as r, i (r.id + r.state)}
-                      {@const t = titled(r.id, r.label, dev.showIds)}
-                      <!-- svelte-ignore a11y_click_events_have_key_events -->
-                      <li
-                        id="dr-{i}"
-                        data-i={i}
-                        role="option"
-                        aria-selected={field?.id === r.id}
-                        tabindex="-1"
-                        class={cn('hover:bg-accent/60 grid cursor-pointer gap-0.5 border-b border-border/60 px-3 py-1.5', i === recActive && 'bg-accent/70')}
-                        onclick={() => {
-                          recActive = i;
-                          void pickRecord(r.id);
-                        }}
-                      >
-                        <span class="flex min-w-0 items-baseline gap-2" title={r.label ? `${r.label}\n${r.id}` : r.id}>
-                          <span class={cn('shrink-0 rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
-                          <span class={cn('min-w-0 truncate text-[12px]', !t.secondary && 'mono', t.secondary && 'font-medium')}>{t.primary}</span>
-                          {#if t.secondary}<span class="text-muted-foreground mono min-w-0 shrink-[2] truncate text-[10.5px]">{t.secondary}</span>{/if}
-                        </span>
-                        {#if r.fields.length}<span class="text-muted-foreground mono truncate text-[11px]">{r.fields.join(', ')}</span>{/if}
-                      </li>
-                    {/each}
-                  </ul>
-                  <div class="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-1 text-[11.5px]">
-                    <span>{int(records.records.length)} of {int(records.total)}</span>
-                    {#if records.records.length < records.total}
-                      <Button size="sm" variant="ghost" class="h-6 px-2 text-[11.5px]" disabled={loadingMore} onclick={() => void loadRecords(true)}>{loadingMore ? 'Loading…' : `Load ${int(Math.min(PAGE, records.total - records.records.length))} more`}</Button>
+            <!-- Narrow (1024 wide with the tree open): records above the field changes, so the
+                 field table keeps its full width instead of clipping the delta column. -->
+            <div class="@container/pair flex min-h-0 flex-1">
+              <div class="flex min-h-0 flex-1 flex-col gap-3 @2xl/pair:flex-row">
+                <section class="bg-card flex max-h-[45%] min-h-28 w-full shrink-0 flex-col overflow-hidden rounded-lg border @2xl/pair:max-h-none @2xl/pair:w-[min(420px,45%)]" aria-label="Records">
+                  <div class="flex flex-wrap items-center gap-2 border-b px-2 py-1.5">
+                    <Segmented size="sm" ariaLabel="Records" options={[{ id: 'all', label: 'All' }, { id: 'changed', label: 'Changed' }, { id: 'added', label: 'Added' }, { id: 'removed', label: 'Removed' }] as { id: 'all' | RecordState; label: string }[]} bind:value={stateFilter} />
+                    {#if records?.fields.length}
+                      <SelectField ariaLabel="Changed field" size="sm" options={[{ id: '', label: 'Any field' }, ...records.fields.map((f) => ({ id: f.value, label: `${f.value} (${int(f.count)})` }))]} value={fieldFilter} onchange={(v) => (fieldFilter = v)} class="min-w-32" />
+                    {/if}
+                    <div class="relative min-w-36 flex-1">
+                      <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
+                      <Input type="search" aria-label="Filter records by name or id" placeholder="Name or id" class="h-7 pl-7 text-[12px]" bind:value={recQuery} />
+                    </div>
+                    {#if records?.identity_options.length}
+                      <SelectField ariaLabel="Match records by" size="sm" options={[{ id: '', label: `Match: ${records.summary.identity ?? 'position'}` }, ...records.identity_options.map((c) => ({ id: c, label: `Match by ${c}` }))]} value={identity ?? ''} onchange={(v) => (identity = v || null)} class="min-w-36" />
                     {/if}
                   </div>
-                {/if}
-              </section>
-              <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">
-                {#if field}
-                  {@const t = titled(field.id, field.label, dev.showIds)}
-                  <div class="flex items-center gap-2 border-b px-3 py-2">
-                    <h2 class="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={field.label ? `${field.label}\n${field.id}` : field.id}>
-                      <span class={cn('truncate text-[13px] font-semibold', !t.secondary && 'mono')}>{t.primary}</span>
-                      {#if t.secondary}<span class="text-muted-foreground mono truncate text-[11.5px]">({t.secondary})</span>{/if}
-                    </h2>
-                    <Button variant="ghost" size="icon-xs" aria-label="Copy id {field.id}" title="Copy the id" onclick={() => void copyId(field!.id)}><Copy aria-hidden="true" /></Button>
-                    <span class="text-muted-foreground text-[12px]">{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
-                  </div>
-                  <div class="min-h-0 flex-1 overflow-auto" data-stop tabindex="-1">
-                    <table class="w-full text-[12px]">
-                      <thead class="text-muted-foreground bg-card sticky top-0 text-left text-[11.5px]">
-                        <tr><th class="px-3 py-1.5 font-medium">Field</th><th class="px-3 py-1.5 font-medium">{label(summary.a)}</th><th class="px-3 py-1.5 font-medium">{label(summary.b)}</th><th class="px-3 py-1.5 font-medium">Δ</th></tr>
-                      </thead>
-                      {#each groupChanges(field.changes) as g, gi (gi)}
-                        <tbody>
-                          {#if g.group && !dev.showIds}
-                            <tr class="bg-muted/40 border-t border-border/60"><th colspan="4" scope="rowgroup" class="px-3 py-1 text-left text-[11.5px] font-semibold">{g.group}</th></tr>
-                          {/if}
-                          {#each g.items as c (c.path)}
-                            {@const o = valueText(c.old, c.old_label, c.unit, dev.showIds)}
-                            {@const n = valueText(c.new, c.new_label, c.unit, dev.showIds)}
-                            {@const path = !dev.showIds && c.path_label ? c.path_label : c.path}
-                            <tr class="border-t border-border/60 align-top">
-                              <td class="px-3 py-1 break-all" title={c.path}>
-                                <span class={cn(path === c.path && 'mono')}>{path}</span>
-                                {#if path !== c.path}<span class="text-muted-foreground mono block text-[10.5px]">{c.path}</span>{/if}
-                              </td>
-                              <td class="text-destructive px-3 py-1 break-all" title={o.title}>
-                                <span class={cn(o.raw && 'mono')}>{o.primary}</span>{#if o.enhanced}<span class="text-primary ml-1 text-[10px] font-semibold uppercase">enh</span>{/if}
-                                {#if o.secondary}<span class="text-muted-foreground mono block text-[10.5px]">{o.secondary}</span>{/if}
-                              </td>
-                              <td class="text-success px-3 py-1 break-all" title={n.title}>
-                                <span class={cn(n.raw && 'mono')}>{n.primary}</span>{#if n.enhanced}<span class="text-primary ml-1 text-[10px] font-semibold uppercase">enh</span>{/if}
-                                {#if n.secondary}<span class="text-muted-foreground mono block text-[10.5px]">{n.secondary}</span>{/if}
-                              </td>
-                              <td class="mono text-muted-foreground px-3 py-1 whitespace-nowrap">{deltaUnit(c.delta, c.unit)}{pct(c.percent)}</td>
-                            </tr>
-                          {/each}
-                        </tbody>
+                  {#if recError}
+                    <div class="p-2"><ErrorState title="Could not list records" error={recError} /></div>
+                  {:else if !records}
+                    <div class="grid gap-1 p-2">{#each { length: 6 } as _, i (i)}<Skeleton class="h-6 w-full" />{/each}</div>
+                  {:else if !records.records.length}
+                    <p class="text-muted-foreground p-3 text-[12.5px]">No record differs here.</p>
+                  {:else}
+                    <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
+                    <ul
+                      role="listbox"
+                      aria-label="Changed records"
+                      tabindex="0"
+                      data-stop
+                      aria-activedescendant="dr-{recActive}"
+                      class="focus-visible:ring-ring/60 min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                      onkeydown={(e) => listKey(e, records!.records.length, recActive, (i) => (recActive = i), (i) => void pickRecord(records!.records[i]!.id))}
+                    >
+                      {#each records.records as r, i (r.id + r.state)}
+                        {@const t = titled(r.id, r.label, dev.showIds)}
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <li
+                          id="dr-{i}"
+                          data-i={i}
+                          role="option"
+                          aria-selected={field?.id === r.id}
+                          tabindex="-1"
+                          class={cn('hover:bg-accent/60 grid cursor-pointer gap-0.5 border-b border-border/60 px-3 py-1.5', i === recActive && 'bg-accent/70')}
+                          onclick={() => {
+                            recActive = i;
+                            void pickRecord(r.id);
+                          }}
+                        >
+                          <span class="flex min-w-0 items-baseline gap-2" title={r.label ? `${r.label}\n${r.id}` : r.id}>
+                            <span class={cn('shrink-0 rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
+                            <span class={cn('min-w-0 truncate text-[12px]', !t.secondary && 'mono', t.secondary && 'font-medium')}>{t.primary}</span>
+                            {#if t.secondary}<span class="text-muted-foreground mono min-w-0 shrink-[2] truncate text-[10.5px]">{t.secondary}</span>{/if}
+                          </span>
+                          {#if r.fields.length}<span class="text-muted-foreground mono truncate text-[11px]">{r.fields.join(', ')}</span>{/if}
+                        </li>
                       {/each}
-                    </table>
-                  </div>
-                {:else}
-                  <p class="text-muted-foreground p-4 text-[12.5px]">Pick a record to see what changed.</p>
-                {/if}
-              </section>
+                    </ul>
+                    <div class="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-1 text-[11.5px]">
+                      <span>{int(records.records.length)} of {int(records.total)}</span>
+                      {#if records.records.length < records.total}
+                        <Button size="sm" variant="ghost" class="h-6 px-2 text-[11.5px]" disabled={loadingMore} onclick={() => void loadRecords(true)}>{loadingMore ? 'Loading…' : `Load ${int(Math.min(PAGE, records.total - records.records.length))} more`}</Button>
+                      {/if}
+                    </div>
+                  {/if}
+                </section>
+                <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">
+                  {#if field}
+                    {@const t = titled(field.id, field.label, dev.showIds)}
+                    <div class="flex items-center gap-2 border-b px-3 py-2">
+                      <h2 class="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={field.label ? `${field.label}\n${field.id}` : field.id}>
+                        <span class={cn('truncate text-[13px] font-semibold', !t.secondary && 'mono')}>{t.primary}</span>
+                        {#if t.secondary}<span class="text-muted-foreground mono truncate text-[11.5px]">({t.secondary})</span>{/if}
+                      </h2>
+                      <Button variant="ghost" size="icon-xs" aria-label="Copy id {field.id}" title="Copy the id" onclick={() => void copyId(field!.id)}><Copy aria-hidden="true" /></Button>
+                      <span class="text-muted-foreground text-[12px]">{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
+                    </div>
+                    <div class="min-h-0 flex-1 overflow-auto" data-stop tabindex="-1">
+                      <table class="w-full text-[12px]">
+                        <thead class="text-muted-foreground bg-card sticky top-0 text-left text-[11.5px]">
+                          <tr><th class="px-3 py-1.5 font-medium">Field</th><th class="px-3 py-1.5 font-medium">{label(summary.a)}</th><th class="px-3 py-1.5 font-medium">{label(summary.b)}</th><th class="px-3 py-1.5 font-medium">Δ</th></tr>
+                        </thead>
+                        {#each groupChanges(field.changes) as g, gi (gi)}
+                          <tbody>
+                            {#if g.group && !dev.showIds}
+                              <tr class="bg-muted/40 border-t border-border/60"><th colspan="4" scope="rowgroup" class="px-3 py-1 text-left text-[11.5px] font-semibold">{g.group}</th></tr>
+                            {/if}
+                            {#each g.items as c (c.path)}
+                              {@const o = valueText(c.old, c.old_label, c.unit, dev.showIds)}
+                              {@const n = valueText(c.new, c.new_label, c.unit, dev.showIds)}
+                              {@const path = !dev.showIds && c.path_label ? c.path_label : c.path}
+                              <tr class="border-t border-border/60 align-top">
+                                <td class="px-3 py-1 break-all" title={c.path}>
+                                  <span class={cn(path === c.path && 'mono')}>{path}</span>
+                                  {#if path !== c.path}<span class="text-muted-foreground mono block text-[10.5px]">{c.path}</span>{/if}
+                                </td>
+                                <td class="text-destructive px-3 py-1 break-all" title={o.title}>
+                                  <span class={cn(o.raw && 'mono')}>{o.primary}</span>{#if o.enhanced}<span class="text-primary ml-1 text-[10px] font-semibold uppercase">enh</span>{/if}
+                                  {#if o.secondary}<span class="text-muted-foreground mono block text-[10.5px]">{o.secondary}</span>{/if}
+                                </td>
+                                <td class="text-success px-3 py-1 break-all" title={n.title}>
+                                  <span class={cn(n.raw && 'mono')}>{n.primary}</span>{#if n.enhanced}<span class="text-primary ml-1 text-[10px] font-semibold uppercase">enh</span>{/if}
+                                  {#if n.secondary}<span class="text-muted-foreground mono block text-[10.5px]">{n.secondary}</span>{/if}
+                                </td>
+                                <td class="mono text-muted-foreground px-3 py-1 whitespace-nowrap">{deltaUnit(c.delta, c.unit)}{pct(c.percent)}</td>
+                              </tr>
+                            {/each}
+                          </tbody>
+                        {/each}
+                      </table>
+                    </div>
+                  {:else}
+                    <p class="text-muted-foreground p-4 text-[12.5px]">Pick a record to see what changed.</p>
+                  {/if}
+                </section>
+              </div>
             </div>
           {/if}
         </div>

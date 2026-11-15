@@ -75,8 +75,12 @@ const shots = [
     // The group-by is remembered per table: put the default back for the next shot.
     await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('starorg.dev.groupby.')).forEach((k) => localStorage.removeItem(k)));
   }],
-  ['datasets-tree-railed', 'datasets', async (p) => {
+  ['datasets-tree-railed', 'datasets', async (p, tag) => {
     await weapons(p);
+    // F6 from the sources lands on the tree's item, not the pane's header button.
+    await p.locator('[data-pane=sources] button').first().focus();
+    await p.keyboard.press('F6');
+    expect(tag, 'F6 lands on a tree item', (await p.evaluate(() => document.activeElement?.getAttribute('role'))) === 'treeitem');
     await p.getByRole('button', { name: 'Hide groups' }).click();
     await p.getByRole('button', { name: 'Show groups' }).waitFor();
   }, true],
@@ -88,11 +92,30 @@ const shots = [
     await tree.getByRole('treeitem', { name: /^weapons, 4 records, 1 added, 1 removed, 2 changed/ }).click();
     await p.getByText(/^4 of 4$/).waitFor();
     await tree.getByRole('treeitem', { name: /^weapons,/ }).press('ArrowRight');
-    await tree.getByRole('treeitem', { name: /^WeaponMining, 1 records/ }).click();
+    await tree.getByRole('treeitem', { name: /^WeaponMining, 1 record,/ }).click();
     await p.getByText(/^1 of 1$/).waitFor();
     expect(tag, 'weapons table picked', (await p.getByRole('option', { name: /weapons/ }).first().getAttribute('aria-selected')) === 'true');
     await p.getByRole('listbox', { name: 'Changed records' }).getByRole('option').first().click();
     await p.getByRole('columnheader', { name: 'Δ' }).waitFor();
+    // The field table fits its pane (no clipped delta column), tree open or not.
+    const fit = await p.evaluate(() => {
+      const t = document.querySelector('section[aria-label="Field changes"] table');
+      return t ? t.parentElement.scrollWidth - t.parentElement.clientWidth : -1;
+    });
+    expect(tag, `field table fits (+${fit}px)`, fit === 0);
+  }],
+  ['diff-tree-match', 'diff', async (p, tag) => {
+    await p.getByRole('combobox', { name: 'Source B' }).click();
+    await p.getByRole('option', { name: 'PTU build' }).click();
+    await p.getByRole('button', { name: 'Compare' }).click();
+    const tree = p.getByRole('tree', { name: 'Changed records by group' });
+    await tree.getByRole('treeitem', { name: /^weapons, 4 records/ }).click();
+    // 'Match by' re-diffs the table: the tree and the Tables row follow at once.
+    await p.getByRole('combobox', { name: 'Match records by' }).click();
+    await p.getByRole('option', { name: 'Match by type' }).click();
+    await p.getByText(/^5 of 5$/).waitFor();
+    await tree.getByRole('treeitem', { name: /^weapons, 5 records, 5 changed/ }).waitFor();
+    expect(tag, 'All changes follows', (await tree.getByRole('treeitem', { name: /^All changes, 13 records/ }).count()) === 1);
   }],
 ];
 

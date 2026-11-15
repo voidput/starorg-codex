@@ -49,6 +49,8 @@ test('collapsing closes open descendants', () => {
 test('accessible names carry the counts', () => {
   const [, x] = dataItems([{ ...nodes[0]!, diff: { added: 1, removed: 0, changed: 2 } }], new Set(), 9);
   assert.equal(dataItemName(x!, 'records'), 'WeaponGun, 8 records, 1 added, 2 changed');
+  assert.equal(dataItemName({ ...x!, count: 1 }, 'records'), 'WeaponGun, 1 record, 1 added, 2 changed');
+  assert.equal(dataItemName({ ...x!, count: 1, diff: null }), 'WeaponGun, 1 row');
 });
 
 test('the remembered group-by falls back to the default when the table no longer offers it', () => {

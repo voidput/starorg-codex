@@ -351,6 +351,36 @@ fn plain_number(s: &str) -> Option<f64> {
         .flatten()
 }
 
+/// Sibling order in the tree, a total order (the TS mock uses the same rule): plain numbers
+/// first, by value; then text by label (case-insensitive, then exact); a missing key last.
+/// Equal numbers and equal labels fall back to the raw key, so `1` and `1.0` stay apart.
+pub(crate) fn sibling_order(
+    ka: Option<&str>,
+    la: &str,
+    kb: Option<&str>,
+    lb: &str,
+) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let (p, q) = match (ka, kb) {
+        (None, None) => return la.cmp(lb),
+        (None, Some(_)) => return Ordering::Greater,
+        (Some(_), None) => return Ordering::Less,
+        (Some(p), Some(q)) => (p, q),
+    };
+    let text = || {
+        la.to_lowercase()
+            .cmp(&lb.to_lowercase())
+            .then_with(|| la.cmp(lb))
+            .then_with(|| p.cmp(q))
+    };
+    match (plain_number(p), plain_number(q)) {
+        (Some(m), Some(n)) => m.total_cmp(&n).then_with(text),
+        (Some(_), None) => Ordering::Less,
+        (None, Some(_)) => Ordering::Greater,
+        (None, None) => text(),
+    }
+}
+
 // ---------------------------------------------------------------------------------------
 // The tree
 // ---------------------------------------------------------------------------------------
@@ -431,7 +461,7 @@ impl Tree {
     }
 
     /// Join folder chains: a folder whose only child is a folder and that holds no row of its
-    /// own becomes `a/b`. Then sort children by label (numbers by value, missing last).
+    /// own becomes `a/b`. Then sort children with [`sibling_order`].
     fn finish(&mut self) {
         for i in 0..self.nodes.len() {
             loop {
@@ -474,22 +504,7 @@ impl Tree {
                 let (a, b) = (&self.nodes[x], &self.nodes[y]);
                 let ka = a.keys.last().cloned().flatten();
                 let kb = b.keys.last().cloned().flatten();
-                match (&ka, &kb) {
-                    (None, None) => std::cmp::Ordering::Equal,
-                    (None, Some(_)) => std::cmp::Ordering::Greater,
-                    (Some(_), None) => std::cmp::Ordering::Less,
-                    (Some(p), Some(q)) => {
-                        let num = match (plain_number(p), plain_number(q)) {
-                            (Some(m), Some(n)) => {
-                                m.partial_cmp(&n).unwrap_or(std::cmp::Ordering::Equal)
-                            }
-                            _ => std::cmp::Ordering::Equal,
-                        };
-                        num.then_with(|| a.label.to_lowercase().cmp(&b.label.to_lowercase()))
-                            .then_with(|| a.label.cmp(&b.label))
-                            .then_with(|| p.cmp(q))
-                    }
-                }
+                sibling_order(ka.as_deref(), &a.label, kb.as_deref(), &b.label)
             });
             self.nodes[i].kids = kids;
         }

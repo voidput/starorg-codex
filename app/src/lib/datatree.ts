@@ -97,7 +97,9 @@ export function keys(id: string): (string | null)[] | null {
 
 /** Accessible name: label and counts. */
 export function dataItemName(x: DataTreeItem, unit = 'rows'): string {
-  const parts = [x.label, `${x.count.toLocaleString('en-US')} ${unit}`];
+  // "1 row", "1 record": the unit is a plural noun ending in s.
+  const one = x.count === 1 && unit.endsWith('s') ? unit.slice(0, -1) : unit;
+  const parts = [x.label, `${x.count.toLocaleString('en-US')} ${one}`];
   if (x.diff) {
     if (x.diff.added) parts.push(`${x.diff.added.toLocaleString('en-US')} added`);
     if (x.diff.removed) parts.push(`${x.diff.removed.toLocaleString('en-US')} removed`);

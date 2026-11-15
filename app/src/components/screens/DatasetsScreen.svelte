@@ -401,7 +401,8 @@
     if (e.key !== 'F6' || !rootEl) return;
     const stops = [
       rootEl.querySelector<HTMLElement>('[data-pane=sources] button'),
-      rootEl.querySelector<HTMLElement>('[data-pane=tree] [role=treeitem][tabindex="0"], [data-pane=tree] button'),
+      // The tree's stop is its focused item; the pane's first button only when it is railed.
+      rootEl.querySelector<HTMLElement>('[data-pane=tree] [role=treeitem][tabindex="0"]') ?? rootEl.querySelector<HTMLElement>('[data-pane=tree] button'),
       rootEl.querySelector<HTMLElement>('[data-pane=bar] input[type=search]'),
       rootEl.querySelector<HTMLElement>('[role=grid] [role=row][tabindex="0"]'),
     ].filter((x): x is HTMLElement => !!x);

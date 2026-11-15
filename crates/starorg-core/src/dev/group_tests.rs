@@ -254,6 +254,48 @@ fn many_children_are_capped() {
 }
 
 #[test]
+fn mixed_number_and_text_keys_sort_in_a_total_order() {
+    // Regression: numbers by value but text by label was a cycle (9 < 10 < "1a" < 9) and
+    // `sort_by` panicked on more than 20 siblings. Numbers now come first, then text.
+    let mut keys: Vec<String> = (1..=24).map(|n| n.to_string()).collect();
+    // Text sorts by label, case-insensitively.
+    keys.extend(["10z", "12a", "19h", "1a", "1e3", "abc", "B"].map(String::from));
+    let want: Vec<String> = keys.clone();
+    for seed in 0..64u64 {
+        let mut rows: Vec<Value> = keys.iter().map(|k| json!({ "k": k, "x": 1 })).collect();
+        rows.push(json!({ "x": 2 }));
+        // A cheap deterministic shuffle.
+        let mut st = seed + 1;
+        for i in (1..rows.len()).rev() {
+            st = (st * 1_103_515_245 + 12_345) % (1 << 31);
+            rows.swap(i, (st % (i as u64 + 1)) as usize);
+        }
+        let t = infer("m.json", 0, json!({ "t": rows })).tables.remove(0);
+        let p = group_rows(
+            &t,
+            &GroupQuery {
+                by: vec![GroupLevel::col("k")],
+                ..Default::default()
+            },
+            None,
+        );
+        let got: Vec<&str> = p.nodes.iter().map(|n| n.label.as_str()).collect();
+        let (named, last) = got.split_at(got.len() - 1);
+        assert_eq!(
+            named,
+            want.iter().map(String::as_str).collect::<Vec<_>>(),
+            "seed {seed}"
+        );
+        assert_eq!(
+            p.nodes.last().map(|n| n.count),
+            Some(1),
+            "missing key sorts last"
+        );
+        assert_eq!(last.len(), 1);
+    }
+}
+
+#[test]
 fn diff_tree_groups_changed_records_by_table_then_levels() {
     let a = weapons();
     let mut rows = a.rows.clone();

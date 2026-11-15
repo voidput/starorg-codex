@@ -718,8 +718,11 @@ function treeFinish(n: GNode) {
     if (ka === null && kb === null) return 0;
     if (ka === null) return 1;
     if (kb === null) return -1;
+    // A total order, as sibling_order in core: numbers first by value, then text by label.
     const na = plainNumber(ka);
     const nb = plainNumber(kb);
+    if (na !== null && nb === null) return -1;
+    if (na === null && nb !== null) return 1;
     if (na !== null && nb !== null && na !== nb) return na < nb ? -1 : 1;
     return cmp(a.label.toLowerCase(), b.label.toLowerCase()) || cmp(a.label, b.label) || cmp(ka, kb);
   });

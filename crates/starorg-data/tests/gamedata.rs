@@ -327,7 +327,7 @@ fn real_ptu_extracts() {
     assert!(x.game_data.counts().ships > 0);
 }
 
-/// Addendum 7.13: the real LIVE weapons table grouped by type > subType > size in the
+/// Addendum 7.15: the real LIVE weapons table grouped by type > subType > size in the
 /// Datasets tree. Counts are checked against a plain count of the rows, children sum to their
 /// parent, and picking a node filters the rows to its count. Read only.
 #[test]

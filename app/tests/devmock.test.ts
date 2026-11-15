@@ -159,3 +159,22 @@ test('group trees: picking a node filters rows to its count; folder chains are j
     assert.equal(r.total, n.count, n.label);
   }
 });
+
+test('group tree sorts mixed number and text keys in a total order (numbers first)', async () => {
+  const { infer, groupRows } = await import('../src/lib/contract/mock-dev.ts');
+  const keys = [...Array.from({ length: 24 }, (_, i) => String(i + 1)), '10z', '12a', '19h', '1a', '1e3', 'abc', 'B'];
+  for (let seed = 1; seed <= 32; seed++) {
+    const rows: { k?: string; x: number }[] = keys.map((k) => ({ k, x: 1 }));
+    rows.push({ x: 2 });
+    let st = seed;
+    for (let i = rows.length - 1; i > 0; i--) {
+      st = (st * 1103515245 + 12345) % 2147483648;
+      const j = st % (i + 1);
+      [rows[i], rows[j]] = [rows[j]!, rows[i]!];
+    }
+    const t = infer('m.json', 0, { t: rows }).tables[0]!;
+    const p = groupRows(t, { by: [{ column: 'k', folders: false }], open: [], columns: [], search: '', filters: [] });
+    assert.deepEqual(p.nodes.slice(0, -1).map((n) => n.label), keys, `seed ${seed}`);
+    assert.equal(p.nodes.at(-1)!.count, 1);
+  }
+});
