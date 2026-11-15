@@ -5,6 +5,7 @@
 //! can fold these into the shared helper slots once every batch has landed.
 
 pub mod item_common;
+pub mod weapons;
 
 use serde_json::{Map, Value};
 

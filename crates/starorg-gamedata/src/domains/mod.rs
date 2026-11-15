@@ -74,7 +74,7 @@ registry! {
 
     // salvage, // salvage.ts
 
-    // ships, // ships.ts
+    ships, // ships.ts
 
     // shops, // shops.ts
 
