@@ -1361,6 +1361,14 @@ Protocol. User-facing docs, measurements and client setup: [docs/mcp.md](../../m
   `scripts/compare-gamedata.sh` unchanged (24 of 28 identical, the same four stale-golden
   datasets) and the pruned outputs byte-identical to the unpruned ones. ships (loadouts and
   ports read deep) and ship-components are not pruned.
+- **Name resolution (review fixes):** a name matched only by fuzzy ranking (a typo, or no
+  such item) answers about the closest name with an `inexact` object (`asked`, `used`,
+  `others`, `note`) in `item`, `compare`, `where_to_buy`, `where_found` and `how_to_obtain`;
+  sc-gamedata's CLI warns on stderr, which an MCP client never sees. An exact name or one
+  holding every word asked is a match. `game-item-tags` holds only 7 of 241 LIVE ship guns, so
+  names it lacks are looked up in `game-ship-components` (named, non-template records), which
+  `search` also indexes: the M5A Cannon resolves to `BEHR_LaserCannon_S3`, its stats from
+  game-weapons, its UEX prices by item id.
 - **Contract (additive):** `mcp_status`, `set_mcp_enabled`; `McpStatus`, `McpRequest`,
   `McpToggle`; `JobKind::Mcp`. Rust, TS, both mocks, samples, drift tests.
 
@@ -1389,4 +1397,9 @@ backend, Activity entries; the worker's refusal to write into the game.
 - Windows: the worker's peak RSS is not measured (`None`; the call needs `unsafe`).
 - `ships` and `ship-components` extraction are not pruned (3.9 / 2.2 GB peak, once per build).
 - `item` details cover the common item types; other types answer with item-tags only.
+- Ship weapons and components found via ship-components have no tags: no loot eligibility,
+  and `where_to_buy {place}` inventories still name items from item-tags (UEX names otherwise).
+- The server's in-memory dataset cache never evicts (grows with channels touched; ~460 MB
+  with LIVE, PTU and HOTFIX). `HttpServer::stop` joins the accept thread only; a connection
+  thread mid-request ends on its own (30 s socket timeouts).
 - `mission` titles of broker missions are the game's unresolved `~mission(...)` tokens.

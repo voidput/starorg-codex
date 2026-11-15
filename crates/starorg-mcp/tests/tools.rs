@@ -46,7 +46,22 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
     );
     d.insert(
         "game-weapons",
-        json!({"shipWeapons": [], "fpsWeapons": [], "missiles": []}),
+        json!({"shipWeapons": [
+            {"name": "M5A Cannon", "recordName": "EntityClassDefinition.BEHR_LaserCannon_S3", "id": "id-m5a", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "BEHR", "dps": 683.63, "range": 2404},
+            {"name": "Deadbolt III Cannon", "recordName": "EntityClassDefinition.KRIG_BallisticCannon_S3", "id": "id-deadbolt", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "KRIG", "dps": 512.5, "range": 2200}
+        ], "fpsWeapons": [], "missiles": []}),
+    );
+    // Ship guns and components; item-tags above holds none of them (as on LIVE, where it
+    // lists only the few with loot tags).
+    d.insert(
+        "game-ship-components",
+        json!({"_build": "4.10", "weapons": [
+            {"name": "M5A Cannon", "recordName": "EntityClassDefinition.BEHR_LaserCannon_S3", "id": "id-m5a", "category": "weapons", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "BEHR", "power": 1.3},
+            {"name": "Deadbolt III Cannon", "recordName": "EntityClassDefinition.KRIG_BallisticCannon_S3", "id": "id-deadbolt", "category": "weapons", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "KRIG", "power": 1.1},
+            {"name": "WEAP_Template", "isTemplate": true, "recordName": "EntityClassDefinition.WEAP_Template", "id": "id-tpl", "type": "WeaponGun"}
+        ], "shields": [
+            {"name": "5SA 'Rhada'", "recordName": "EntityClassDefinition.SHLD_BEHR_S01_5SA_SCItem", "id": "id-rhada", "type": "Shield", "size": 1, "manufacturer": "BEHR"}
+        ], "summary": {"weapons": 3, "shields": 1}}),
     );
     d.insert(
         "game-loot",
@@ -168,7 +183,8 @@ impl World {
             uex.join("uex-item-prices.json"),
             json!({"_fetched": "2026-11-14T00:00:00Z", "prices": [
                 {"item_name": "FS-9 LMG", "item_uuid": "id-fs9", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_buy": 7029, "date_modified": 1794268800},
-                {"item_name": "FS-9 LMG", "item_uuid": "id-fs9", "id_terminal": 2, "terminal_name": "Dumper's GrimHEX", "price_buy": 6900, "date_modified": 1788220800}
+                {"item_name": "FS-9 LMG", "item_uuid": "id-fs9", "id_terminal": 2, "terminal_name": "Dumper's GrimHEX", "price_buy": 6900, "date_modified": 1788220800},
+                {"item_name": "M5A Cannon", "item_uuid": "id-m5a", "id_terminal": 2, "terminal_name": "Dumper's GrimHEX", "price_buy": 78262, "date_modified": 1794268800}
             ]})
             .to_string(),
         )
@@ -394,6 +410,115 @@ fn search_and_item() {
     ok(&s, "search", json!({"query": "verdict"}));
     ok(&s, "item", json!({"key": "behr_lmg_ballistic_01"}));
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+}
+
+#[test]
+fn a_name_not_found_is_marked_inexact() {
+    let w = World::new();
+    let s = w.server();
+    // Exact names and class names carry no marker.
+    for (tool, args) in [
+        ("item", json!({"key": "Verdict LMG"})),
+        ("item", json!({"key": "behr_lmg_ballistic_01"})),
+        // Every word asked is in the name: a match, not a guess.
+        ("item", json!({"key": "gladius"})),
+        ("where_to_buy", json!({"item": "FS-9 LMG"})),
+        ("where_found", json!({"item": "FS-9 LMG"})),
+        ("how_to_obtain", json!({"item": "FS-9 LMG"})),
+    ] {
+        let v = ok(&s, tool, args.clone());
+        assert!(v.get("inexact").is_none(), "{tool} {args}: {v}");
+    }
+    // A typo: the closest item answers, and says it is not what was asked.
+    let it = ok(&s, "item", json!({"key": "verdcit"}));
+    assert_eq!(it["item"]["key"], "ksar_lmg_energy_01");
+    assert_eq!(it["inexact"]["asked"], "verdcit");
+    assert_eq!(it["inexact"]["used"]["key"], "ksar_lmg_energy_01");
+    assert!(it["inexact"]["others"].is_array());
+    assert!(
+        it["inexact"]["note"]
+            .as_str()
+            .unwrap()
+            .contains("closest match")
+    );
+    for tool in ["where_to_buy", "where_found", "how_to_obtain"] {
+        let v = ok(&s, tool, json!({"item": "Verdcit LMG"}));
+        assert_eq!(v["inexact"]["asked"], "Verdcit LMG", "{tool}: {v}");
+        assert_eq!(v["inexact"]["used"]["name"], "Verdict LMG", "{tool}");
+        if tool != "how_to_obtain" {
+            assert_eq!(v["results"][0]["item"]["key"], "ksar_lmg_energy_01");
+        }
+    }
+    let c = ok(
+        &s,
+        "compare",
+        json!({"keys": ["behr_lmg_ballistic_01", "verdcit"]}),
+    );
+    assert_eq!(c["inexact"][0]["asked"], "verdcit");
+    assert_eq!(c["inexact"].as_array().unwrap().len(), 1);
+    // Nothing close at all is still an error that points at search.
+    let (err, v) = call(&s, "where_to_buy", json!({"item": "zzzzqqqq"}));
+    assert!(err);
+    assert!(v.as_str().unwrap().contains("search"));
+}
+
+#[test]
+fn ship_weapons_and_components_item_tags_lacks() {
+    let w = World::new();
+    let s = w.server();
+    // search finds them (from game-ship-components), not templates.
+    let v = ok(&s, "search", json!({"query": "m5a cannon"}));
+    assert_eq!(v["rows"][0]["key"], "BEHR_LaserCannon_S3");
+    assert_eq!(
+        ok(&s, "search", json!({"query": "rhada"}))["rows"][0]["key"],
+        "SHLD_BEHR_S01_5SA_SCItem"
+    );
+    assert_eq!(
+        ok(&s, "search", json!({"query": "WEAP_Template", "all": true}))["rows"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|r| r["key"] == "WEAP_Template")
+            .count(),
+        0
+    );
+    // item by name and by class name; stats from game-weapons.
+    for key in ["M5A Cannon", "BEHR_LaserCannon_S3", "behr_lasercannon_s3"] {
+        let it = ok(&s, "item", json!({"key": key}));
+        assert_eq!(it["item"]["key"], "BEHR_LaserCannon_S3", "{key}");
+        assert_eq!(it["item"]["type"], "WeaponGun");
+        assert!(it.get("inexact").is_none(), "{key}: {it}");
+        assert_eq!(it["stats"]["dataset"], "game-weapons");
+        assert_eq!(it["stats"]["record"]["dps"], 683.63);
+    }
+    let sh = ok(&s, "item", json!({"key": "5SA 'Rhada'"}));
+    assert_eq!(sh["stats"]["dataset"], "game-ship-components");
+    // where_to_buy: the cannon's own UEX row (matched by uuid), not some other item.
+    let buy = ok(&s, "where_to_buy", json!({"item": "M5A Cannon"}));
+    assert_eq!(buy["matches"], 1);
+    assert!(buy.get("inexact").is_none());
+    assert_eq!(buy["results"][0]["item"]["key"], "BEHR_LaserCannon_S3");
+    assert_eq!(buy["results"][0]["shops"]["rows"][0]["priceBuy"], 78262);
+    assert_eq!(
+        buy["results"][0]["shops"]["rows"][0]["terminal"],
+        "Dumper's GrimHEX"
+    );
+    let how = ok(&s, "how_to_obtain", json!({"item": "M5A Cannon"}));
+    assert_eq!(how["results"][0]["rows"][0]["method"], "buy");
+    // Words match too, and compare works across the two cannons.
+    assert_eq!(
+        ok(&s, "where_to_buy", json!({"item": "deadbolt iii"}))["results"][0]["item"]["key"],
+        "KRIG_BallisticCannon_S3"
+    );
+    let c = ok(
+        &s,
+        "compare",
+        json!({"keys": ["M5A Cannon", "Deadbolt III Cannon"]}),
+    );
+    let rows = c["rows"]["rows"].as_array().unwrap();
+    let dps = rows.iter().find(|r| r["field"] == "dps").unwrap();
+    assert_eq!(dps["values"], json!([683.63, 512.5]));
+    assert!(c.get("inexact").is_none());
 }
 
 #[test]
@@ -777,6 +902,49 @@ mod http {
             TcpStream::connect(addr).is_err(),
             "still listening after stop"
         );
+    }
+
+    #[test]
+    fn a_panicking_connection_frees_its_slot() {
+        // The first 12 requests panic inside the connection thread (more than the 8 slots);
+        // the server must still answer afterwards instead of a permanent 503.
+        let w = World::new();
+        let n = Arc::new(AtomicUsize::new(0));
+        let n2 = n.clone();
+        let srv = HttpServer::start(
+            w.server(),
+            0,
+            new_token().unwrap(),
+            Some(Arc::new(move |_| {
+                if n2.fetch_add(1, Ordering::SeqCst) < 12 {
+                    panic!("test: request hook fails");
+                }
+            })),
+        )
+        .unwrap();
+        let addr = srv.addr();
+        let raw = "POST /mcp HTTP/1.1\r\nHost: 127.0.0.1\r\nContent-Length: 2\r\n\r\n{}";
+        // A panicked request gets no answer (empty read); 503 = no free slot; 401 = answered.
+        let status = || {
+            let mut s = TcpStream::connect(addr).unwrap();
+            s.write_all(raw.as_bytes()).unwrap();
+            let mut out = String::new();
+            let _ = s.read_to_string(&mut out);
+            out.split_whitespace()
+                .nth(1)
+                .and_then(|c| c.parse::<u16>().ok())
+        };
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+        loop {
+            match status() {
+                Some(401) => break,
+                None | Some(503) => {}
+                Some(other) => panic!("unexpected {other}"),
+            }
+            assert!(std::time::Instant::now() < deadline, "slots never freed");
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        assert!(n.load(Ordering::SeqCst) > 12);
     }
 
     #[test]

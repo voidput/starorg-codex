@@ -65,7 +65,7 @@ previous page as `cursor`. Answers are compact JSON.
 
 | Tool | Asks | Reads |
 |---|---|---|
-| `search` | items and ships by name, class, maker, type (fuzzy, typos allowed) | `game-search-index` (from item-tags + ships) |
+| `search` | items, ship weapons and components, and ships by name, class, maker, type (fuzzy, typos allowed) | `game-search-index` (from item-tags + ships), ship-components |
 | `item` | one item or ship: identity, tags, loot eligibility, stats | item-tags; the stats dataset of its type (fps-weapons, weapons, armor, ship-components, consumables) or ships |
 | `where_to_buy` | shops for an item (cheapest first), or what a place sells | item-tags + UEX files, if you supplied them |
 | `where_found` | loot spawns: best areas, container, odds per box, fixed racks, other tables | item-tags, loot, item-sources |
@@ -77,7 +77,25 @@ previous page as `cursor`. Answers are compact JSON.
 | `status` | channels, cached builds and datasets, what extracting each cost, server memory | nothing |
 
 `owned_by` is a character name, `active` (the channel's character setting; default the newest
-session's character) or `any`. The answer names the characters, never their ids.
+session's character) or `any`. The answer names the characters, never their ids; `any` lists
+every character name in the owned-blueprint store.
+
+### Names, typos and ship weapons
+
+An item argument is a class name or a name. An exact name, or a name holding every word asked,
+is a match. Anything else (a typo, or an item that does not exist) is answered about the
+**closest** name, and the answer then carries an `inexact` object: `asked`, `used` (key and
+name), up to four `others`, and a note. A client should tell the user it guessed rather than
+answer as if it had found the item; with nothing close, the tool returns an error pointing at
+`search`.
+
+`game-item-tags` lists only the ship weapons and components that carry loot tags (7 of 241
+ship guns on LIVE 4.10, no M5A or Deadbolt). The tools also look names up in
+`game-ship-components` (named, non-template records item-tags lacks), so `search`, `item`,
+`compare`, `where_to_buy` and `how_to_obtain` answer for ship guns, shields, coolers and the
+other components; their UEX prices match by the game's item id. These rows have no tags, so
+`where_found` and loot eligibility say they are not loot. sc-gamedata's own `find`/`obtain` do
+not do this lookup, so for these items the MCP answers go beyond the parity check below.
 
 The answers come from the ported sc-gamedata query layer (`starorg_gamedata::query`), which
 gives the same answers as sc-gamedata's own `find`/`obtain`/`where`/`shop` on the same data
@@ -124,8 +142,11 @@ Measured on LIVE 4.10.200.58746 (Linux, `VmHWM`):
 | Worker: `game-armor` (pruned, was 3.0 GB) | 0.9 GB | 1.2 s |
 | Worker: any other dataset (DataCore alone is most of it) | 0.85 to 1.3 GB | 0.6 to 4.7 s |
 
-`search` needs `game-ships` once per build, so the first search of a build takes one 4 GB
-worker for about two seconds. The pruning (`Domain::prune`) keeps the extracted datasets
+`search` needs `game-ships` and `game-ship-components` once per build, so the first search of
+a build takes a 4 GB and a 2.2 GB worker (one after the other) for a few seconds; a name
+item-tags lacks loads `game-ship-components` too. The server keeps every dataset it has loaded
+in memory until it exits, so its memory grows with the channels and datasets asked about (a
+few hundred MB for LIVE, PTU and HOTFIX). The pruning (`Domain::prune`) keeps the extracted datasets
 byte-identical (`scripts/compare-gamedata.sh`).
 
 ## Security and privacy

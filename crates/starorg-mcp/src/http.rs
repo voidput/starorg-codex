@@ -121,6 +121,22 @@ impl Drop for HttpServer {
     }
 }
 
+/// One counted open connection; dropping it frees the count, also on unwind.
+struct Slot(Arc<Shared>);
+
+impl Slot {
+    fn take(shared: Arc<Shared>) -> Self {
+        shared.open.fetch_add(1, Ordering::SeqCst);
+        Self(shared)
+    }
+}
+
+impl Drop for Slot {
+    fn drop(&mut self) {
+        self.0.open.fetch_sub(1, Ordering::SeqCst);
+    }
+}
+
 fn accept_loop(listener: TcpListener, shared: Arc<Shared>, stop: Arc<AtomicBool>) {
     while !stop.load(Ordering::SeqCst) {
         match listener.accept() {
@@ -133,20 +149,17 @@ fn accept_loop(listener: TcpListener, shared: Arc<Shared>, stop: Arc<AtomicBool>
                     let _ = respond(&stream, 503, &[], b"busy");
                     continue;
                 }
-                shared.open.fetch_add(1, Ordering::SeqCst);
-                let s = shared.clone();
-                let spawned = std::thread::Builder::new()
+                let slot = Slot::take(shared.clone());
+                // The slot is freed when the closure is dropped: after `connection` returns,
+                // when it panics, or when the thread cannot be spawned.
+                let _ = std::thread::Builder::new()
                     .name("mcp-http-conn".into())
                     .spawn(move || {
                         let _ = stream.set_nonblocking(false);
                         let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
                         let _ = stream.set_write_timeout(Some(Duration::from_secs(30)));
-                        connection(&stream, &s);
-                        s.open.fetch_sub(1, Ordering::SeqCst);
+                        connection(&stream, &slot.0);
                     });
-                if spawned.is_err() {
-                    shared.open.fetch_sub(1, Ordering::SeqCst);
-                }
             }
             Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
                 std::thread::sleep(Duration::from_millis(25));

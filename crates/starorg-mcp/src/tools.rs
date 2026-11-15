@@ -6,10 +6,16 @@
 //!
 //! | Tool | Datasets it loads |
 //! |---|---|
-//! | `search` | `game-search-index` (from item-tags + ships) |
+//! | `search` | `game-search-index` (from item-tags + ships) + ship-components |
 //! | `item` | item-tags; ships, or the one detail dataset of the item's type |
 //! | `where_to_buy` | item-tags + the user's UEX files, if any |
 //! | `where_found` | item-tags, loot, item-sources |
+//!
+//! `game-item-tags` lists only the ship weapons and components that carry loot tags (7 of
+//! 241 ship guns on LIVE 4.10), so a name it does not hold is looked up in
+//! `game-ship-components` too (see [`Ctx::extra_items`]). A name matched only by fuzzy
+//! ranking (a typo, or no such item) is answered with an `inexact` object: what was asked,
+//! what was used, and the next closest names.
 //! | `how_to_obtain` | item-tags, loot, item-sources, blueprints, wikelo-trades, UEX; the owned-blueprint store |
 //! | `mission` | missions, blueprints, item-sources |
 //! | `compare` | as `item`, per compared key |
@@ -33,6 +39,7 @@ use starorg_gamedata::query::shops::{
 use starorg_gamedata::query::types::{ContractAward, ItemTags, LootArea};
 use starorg_gamedata::query::where_::where_summary;
 use starorg_gamedata::{search_index, strings};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -76,7 +83,7 @@ fn merge(a: Value, b: Value) -> Value {
 /// Every tool, with schemas listing these channels.
 pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
     let ro = json!({"readOnlyHint": true, "destructiveHint": false, "idempotentHint": true, "openWorldHint": false});
-    let item_arg = json!({"type": "string", "description": "Item display name or class name (e.g. \"FS-9 LMG\", \"behr_lmg_ballistic_01\"); typos are matched to the closest name."});
+    let item_arg = json!({"type": "string", "description": "Item display name or class name (e.g. \"FS-9 LMG\", \"behr_lmg_ballistic_01\"); a name not found is matched to the closest one, and the answer then carries `inexact` (asked, used, others): say so rather than answering as if it were the item asked."});
     let d = |name, title, description, input_schema| ToolDef {
         name,
         title,
@@ -88,7 +95,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
         d(
             "search",
             "Search items and ships",
-            "Fuzzy search over every item and ship of the build by name, class name, maker or type. Returns keys for the other tools.",
+            "Fuzzy search over every item, ship weapon, ship component and ship of the build by name, class name, maker or type. Returns keys for the other tools.",
             schema(
                 channels,
                 merge(
@@ -108,7 +115,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
             "One item or ship: identity, tags, loot eligibility, and its stats from the matching dataset (weapons, armor, ship components, consumables, ships).",
             schema(
                 channels,
-                json!({"key": {"type": "string", "description": "Class name, ship key or name (from search)."}}),
+                json!({"key": {"type": "string", "description": "Class name, ship key or name (from search). A name not found is matched to the closest one and the answer carries `inexact`."}}),
                 &["key"],
             ),
         ),
@@ -147,7 +154,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
                 json!({
                     "item": item_arg.clone(),
                     "at": {"type": "string", "description": "Only shops at this place."},
-                    "owned_by": {"type": "string", "description": "Character name, \"active\" (the channel's character setting) or \"any\": mark blueprints that character owns (local owned-blueprint store)."}
+                    "owned_by": {"type": "string", "description": "Character name, \"active\" (the channel's character setting) or \"any\": mark blueprints that character owns (local owned-blueprint store). The answer names the characters: \"any\" lists every character name in the store."}
                 }),
                 &["item"],
             ),
@@ -192,7 +199,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
                 channels,
                 merge(
                     json!({
-                        "key": {"type": "string", "description": "Exact localization key, e.g. item_NameBEHR_LMG_FS9."},
+                        "key": {"type": "string", "description": "Exact localization key, e.g. item_Namebehr_lmg_ballistic_01."},
                         "search": {"type": "string", "description": "Text to find in keys and stock text (case-insensitive)."}
                     }),
                     paging(),
@@ -349,16 +356,54 @@ impl<'a> Ctx<'a> {
         })
     }
 
+    /// Ship weapons and components `game-item-tags` does not list, as tagless item rows from
+    /// `game-ship-components` (named, non-template records whose id and class name item-tags
+    /// lacks). Loaded only when a lookup misses item-tags, and for `search`.
+    fn extra_items(&self) -> ToolResult<Arc<Items>> {
+        self.store.typed(&self.dir, "items-extra", || {
+            let base = self.items()?;
+            let doc = self.json("game-ship-components")?;
+            let list = extra_from_components(&base.list, &doc);
+            let entries = fuzzy::item_entries(&list, false);
+            Ok(Items { list, entries })
+        })
+    }
+
+    /// The search index's entries plus [`Self::extra_items`]'.
     fn search_entries(&self, all: bool) -> ToolResult<Arc<Vec<Entry>>> {
         let build = || {
-            fuzzy::from_index(&*self.json(search_index::NAME)?, all)
-                .map_err(|e| ToolError(e.to_string()))
+            let mut v = fuzzy::from_index(&*self.json(search_index::NAME)?, all)
+                .map_err(|e| ToolError(e.to_string()))?;
+            let extra = self.extra_items()?;
+            let seen: HashSet<String> = v
+                .iter()
+                .filter(|e| e.kind == EntryKind::Item)
+                .map(|e| e.key.to_ascii_lowercase())
+                .collect();
+            let more = if all {
+                fuzzy::item_entries(&extra.list, true)
+            } else {
+                extra.entries.clone()
+            };
+            v.extend(
+                more.into_iter()
+                    .filter(|e| !seen.contains(&e.key.to_ascii_lowercase())),
+            );
+            Ok(v)
         };
         if all {
             self.store.typed(&self.dir, "search-all", build)
         } else {
             self.store.typed(&self.dir, "search", build)
         }
+    }
+
+    /// Fuzzy entries of item-tags and the extra items together.
+    fn item_entries_all(&self) -> ToolResult<Arc<Vec<Entry>>> {
+        self.store.typed(&self.dir, "item-entries-all", || {
+            let (a, b) = (self.items()?, self.extra_items()?);
+            Ok(a.entries.iter().chain(&b.entries).cloned().collect())
+        })
     }
 
     fn uex(
@@ -434,21 +479,142 @@ pub struct Corpus {
     shops_loaded: bool,
 }
 
+/// Item rows for the `game-ship-components` records `base` (item-tags) does not hold.
+fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
+    let mut ids: HashSet<String> = base.iter().map(|i| i.id.clone()).collect();
+    let mut classes: HashSet<String> = base
+        .iter()
+        .map(|i| i.class_name.to_ascii_lowercase())
+        .collect();
+    let mut out = Vec::new();
+    let Some(colls) = doc.as_object() else {
+        return out;
+    };
+    for (k, list) in colls {
+        if k.starts_with('_') || k == "summary" {
+            continue;
+        }
+        for r in list.as_array().into_iter().flatten() {
+            let s = |f: &str| r.get(f).and_then(Value::as_str).filter(|x| !x.is_empty());
+            if r.get("isTemplate").and_then(Value::as_bool) == Some(true) {
+                continue;
+            }
+            let (Some(name), Some(record)) = (s("name"), s("recordName")) else {
+                continue;
+            };
+            let class = record.rsplit('.').next().unwrap_or(record);
+            let id = s("id").unwrap_or("");
+            if (!id.is_empty() && ids.contains(id)) || classes.contains(&class.to_ascii_lowercase())
+            {
+                continue;
+            }
+            ids.insert(id.to_string());
+            classes.insert(class.to_ascii_lowercase());
+            out.push(ItemTags {
+                name: name.to_string(),
+                class_name: class.to_string(),
+                id: id.to_string(),
+                ty: s("type").map(str::to_string),
+                sub_type: s("subType").map(str::to_string),
+                manufacturer: s("manufacturer").map(str::to_string),
+                is_template: None,
+                tags: Vec::new(),
+                ammo_items: None,
+            });
+        }
+    }
+    out
+}
+
 const NO_UEX: &str = "no shop data: StarOrg Strings downloads nothing; put uex-item-prices.json and uex-terminals.json (sc-gamedata `fetch` output) in the UEX folder named by the status tool to answer shop questions";
 
-/// `where`/`obtain`'s item resolution: names and words, else the closest fuzzy match (all
-/// records with that name).
-fn resolve<'a>(items: &'a Items, q: &str) -> ToolResult<Vec<&'a ItemTags>> {
-    let found = find_items(&items.list, q);
-    if !found.is_empty() {
-        return Ok(found);
+/// The items a name resolved to, and the `inexact` marker when only fuzzy ranking found them.
+struct Resolved {
+    items: Vec<ItemTags>,
+    inexact: Option<Value>,
+}
+
+fn is_exact(i: &ItemTags, q: &str) -> bool {
+    let q = q.trim().to_lowercase();
+    i.name.to_lowercase() == q || i.class_name.to_lowercase() == q
+}
+
+/// `{asked, used, others, note}`: the answer is about `used`, not what was asked.
+fn inexact(asked: &str, key: &str, name: &str, others: Vec<Value>) -> Value {
+    json!({
+        "asked": asked,
+        "used": {"key": key, "name": name},
+        "others": others,
+        "note": format!("no item or ship named {asked:?}; this answer is about the closest match, {name} ({key}). If that is not the one meant, use one of `others` or the search tool."),
+    })
+}
+
+/// Up to four other names ranked after `best`, one row per name.
+fn others(ranked: &[&Entry], best_name: &str) -> Vec<Value> {
+    let mut seen = vec![best_name.to_string()];
+    let mut out = Vec::new();
+    for e in ranked {
+        if out.len() == 4 {
+            break;
+        }
+        if seen.iter().any(|n| n == &e.name) {
+            continue;
+        }
+        seen.push(e.name.clone());
+        let kind = if e.kind == EntryKind::Ship {
+            "ship"
+        } else {
+            "item"
+        };
+        out.push(json!({"key": e.key, "name": e.name, "kind": kind}));
     }
-    let best = fuzzy::rank_entries(&items.entries, q)
+    out
+}
+
+/// `where`/`obtain`'s item resolution: exact names in item-tags, then in the extra ship
+/// items, then word matches in both, else the closest fuzzy match (every record with that
+/// name), marked `inexact`.
+fn resolve(ctx: &Ctx<'_>, q: &str) -> ToolResult<Resolved> {
+    let items = ctx.items()?;
+    let found = find_items(&items.list, q);
+    let exact = |v: &[&ItemTags]| v.first().is_some_and(|i| is_exact(i, q));
+    let owned = |v: Vec<&ItemTags>| v.into_iter().cloned().collect::<Vec<_>>();
+    if exact(&found) {
+        return Ok(Resolved {
+            items: owned(found),
+            inexact: None,
+        });
+    }
+    let extra = ctx.extra_items()?;
+    let more = find_items(&extra.list, q);
+    if exact(&more) {
+        return Ok(Resolved {
+            items: owned(more),
+            inexact: None,
+        });
+    }
+    if !found.is_empty() || !more.is_empty() {
+        let mut v = owned(found);
+        v.extend(owned(more));
+        return Ok(Resolved {
+            items: v,
+            inexact: None,
+        });
+    }
+    let entries = ctx.item_entries_all()?;
+    let ranked: Vec<&Entry> = fuzzy::rank_entries(&entries, q)
         .into_iter()
-        .find(|e| e.kind == EntryKind::Item)
-        .and_then(|e| items.list.iter().find(|i| i.class_name == e.key));
+        .filter(|e| e.kind == EntryKind::Item)
+        .collect();
+    let all = || items.list.iter().chain(&extra.list);
+    let best = ranked
+        .first()
+        .and_then(|e| all().find(|i| i.class_name == e.key));
     match best {
-        Some(b) => Ok(items.list.iter().filter(|i| i.name == b.name).collect()),
+        Some(b) => Ok(Resolved {
+            items: all().filter(|i| i.name == b.name).cloned().collect(),
+            inexact: Some(inexact(q, &b.class_name, &b.name, others(&ranked, &b.name))),
+        }),
         None => tool_err(format!("no item matches {q:?}; try the search tool")),
     }
 }
@@ -559,15 +725,16 @@ fn ships(ctx: &Ctx<'_>) -> ToolResult<Arc<Value>> {
     ctx.json("game-ships")
 }
 
-/// A key or name: an item class name, a ship key, else the best search hit.
-fn find_thing(ctx: &Ctx<'_>, key: &str) -> ToolResult<Thing> {
+/// A key or name: an item class name, a ship key, an exact name, else the best search hit
+/// (with the `inexact` marker).
+fn find_thing(ctx: &Ctx<'_>, key: &str) -> ToolResult<(Thing, Option<Value>)> {
     let items = ctx.items()?;
     if let Some(i) = items
         .list
         .iter()
         .find(|i| i.class_name.eq_ignore_ascii_case(key))
     {
-        return Ok(Thing::Item(i.clone()));
+        return Ok((Thing::Item(i.clone()), None));
     }
     let ship_by_key = |k: &str| -> ToolResult<Option<Value>> {
         let s = ships(ctx)?;
@@ -582,29 +749,54 @@ fn find_thing(ctx: &Ctx<'_>, key: &str) -> ToolResult<Thing> {
         }))
     };
     let entries = ctx.search_entries(true)?;
-    let best = fuzzy::rank_entries(&entries, key)
-        .into_iter()
-        .next()
-        .cloned();
     let exact_ship = entries
         .iter()
         .any(|e| e.kind == EntryKind::Ship && e.key.eq_ignore_ascii_case(key));
     if exact_ship && let Some(s) = ship_by_key(key)? {
-        return Ok(Thing::Ship(s));
+        return Ok((Thing::Ship(s), None));
     }
-    match best {
+    let extra = ctx.extra_items()?;
+    if let Some(i) = extra
+        .list
+        .iter()
+        .find(|i| i.class_name.eq_ignore_ascii_case(key))
+    {
+        return Ok((Thing::Item(i.clone()), None));
+    }
+    let ranked = fuzzy::rank_entries(&entries, key);
+    let named = |e: &&Entry| e.name.trim().eq_ignore_ascii_case(key.trim());
+    // Every word asked is in the hit's name or key ("gladius" -> Aegis Gladius): a match,
+    // as `find_items`' word matches are; a typo or another item is not.
+    let w = words(key);
+    let has_words = |e: &&Entry| all_words(&format!("{} {}", e.name, e.key), &w);
+    // The best hit when its name is the one asked (or holds every word asked), else any
+    // entry of that exact name, else the best hit marked inexact.
+    let (pick, marker) = match ranked.first() {
+        Some(e) if named(e) => (Some(*e), None),
+        Some(e) if has_words(e) && !entries.iter().any(|x| named(&x)) => (Some(*e), None),
+        first => match entries.iter().find(|e| named(e)) {
+            Some(e) => (Some(e), None),
+            None => (
+                first.copied(),
+                first.map(|e| inexact(key, &e.key, &e.name, others(&ranked, &e.name))),
+            ),
+        },
+    };
+    let thing = match pick {
         Some(e) if e.kind == EntryKind::Ship => ship_by_key(&e.key)?
             .map(Thing::Ship)
-            .ok_or_else(|| ToolError(format!("ship {} not in game-ships", e.key))),
+            .ok_or_else(|| ToolError(format!("ship {} not in game-ships", e.key)))?,
         Some(e) => items
             .list
             .iter()
+            .chain(&extra.list)
             .find(|i| i.class_name == e.key)
             .cloned()
             .map(Thing::Item)
-            .ok_or_else(|| ToolError(format!("item {} not in game-item-tags", e.key))),
-        None => tool_err(format!("nothing matches {key:?}")),
-    }
+            .ok_or_else(|| ToolError(format!("item {} not in game-item-tags", e.key)))?,
+        None => return tool_err(format!("nothing matches {key:?}; try the search tool")),
+    };
+    Ok((thing, marker))
 }
 
 /// `(identity, stats)` of a thing, the stats from its detail dataset.
@@ -660,9 +852,12 @@ fn describe(ctx: &Ctx<'_>, t: &Thing) -> ToolResult<(Value, Option<Value>)> {
 }
 
 fn item(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
-    let t = find_thing(ctx, a.need("key")?)?;
+    let (t, marker) = find_thing(ctx, a.need("key")?)?;
     let (ident, stats) = describe(ctx, &t)?;
     let mut out = with_header(ctx, json!({"item": ident}));
+    if let Some(m) = marker {
+        out["inexact"] = m;
+    }
     if let Some(s) = stats {
         out["stats"] = compact(&s, 0);
     }
@@ -718,10 +913,9 @@ fn where_to_buy(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
         return Ok(v);
     };
     let corpus = ctx.corpus(false, false)?;
-    let items = ctx.items()?;
-    let found = resolve(&items, q)?;
+    let found = resolve(ctx, q)?;
     let mut out = Vec::new();
-    for i in found.iter().take(3) {
+    for i in found.items.iter().take(3) {
         let r = obtain(
             &corpus.d,
             i,
@@ -760,8 +954,11 @@ fn where_to_buy(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
     }
     let mut v = with_header(
         ctx,
-        json!({"matches": found.len(), "results": out, "source": "UEX (player-reported), not game files"}),
+        json!({"matches": found.items.len(), "results": out, "source": "UEX (player-reported), not game files"}),
     );
+    if let Some(m) = found.inexact {
+        v["inexact"] = m;
+    }
     if !corpus.shops_loaded {
         v["notes"] = json!([NO_UEX]);
     }
@@ -773,10 +970,10 @@ fn first_report(
     corpus: &Corpus,
     q: &str,
     at: Option<&str>,
-) -> ToolResult<(usize, Vec<ObtainReport>)> {
-    let items = ctx.items()?;
-    let found = resolve(&items, q)?;
+) -> ToolResult<(usize, Vec<ObtainReport>, Option<Value>)> {
+    let found = resolve(ctx, q)?;
     let reports = found
+        .items
         .iter()
         .take(3)
         .map(|i| {
@@ -791,12 +988,12 @@ fn first_report(
             )
         })
         .collect();
-    Ok((found.len(), reports))
+    Ok((found.items.len(), reports, found.inexact))
 }
 
 fn where_found(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
     let corpus = ctx.corpus(true, false)?;
-    let (n, reports) = first_report(ctx, &corpus, a.need("item")?, None)?;
+    let (n, reports, marker) = first_report(ctx, &corpus, a.need("item")?, None)?;
     let mut out = Vec::new();
     for r in &reports {
         let areas: Vec<Value> = r
@@ -831,15 +1028,19 @@ fn where_found(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
             "otherTableCount": r.other_tables.len(),
         }));
     }
-    Ok(with_header(
+    let mut v = with_header(
         ctx,
         json!({"matches": n, "results": out, "note": "odds are rough: an even pick inside a loot pool is assumed, not stated by the game data"}),
-    ))
+    );
+    if let Some(m) = marker {
+        v["inexact"] = m;
+    }
+    Ok(v)
 }
 
 fn how_to_obtain(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
     let corpus = ctx.corpus(true, true)?;
-    let (n, reports) = first_report(ctx, &corpus, a.need("item")?, a.str("at"))?;
+    let (n, reports, marker) = first_report(ctx, &corpus, a.need("item")?, a.str("at"))?;
     let owner = match a.str("owned_by") {
         Some(who) => Some(owned::select(ctx.ch, who)?),
         None => None,
@@ -865,6 +1066,9 @@ fn how_to_obtain(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
         out.push(v);
     }
     let mut v = with_header(ctx, json!({"matches": n, "results": out}));
+    if let Some(m) = marker {
+        v["inexact"] = m;
+    }
     if let Some(o) = &owner {
         v["ownedBy"] = json!({"characters": o.characters, "owned": o.count});
     }
@@ -1017,9 +1221,11 @@ fn compare(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
         return tool_err("keys: give 2 to 4 class names, ship keys or names");
     }
     let mut idents = Vec::new();
+    let mut markers = Vec::new();
     let mut nums: Vec<Vec<(String, f64)>> = Vec::new();
     for k in &keys {
-        let t = find_thing(ctx, k)?;
+        let (t, marker) = find_thing(ctx, k)?;
+        markers.extend(marker);
         let (ident, stats) = describe(ctx, &t)?;
         let mut n = Vec::new();
         if let Some(s) = &stats {
@@ -1061,6 +1267,9 @@ fn compare(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
         json!({"items": idents.iter().map(|i| json!({"key": i["key"], "name": i["name"], "kind": i["kind"]})).collect::<Vec<_>>()}),
     );
     v["rows"] = page(&rows, a)?;
+    if !markers.is_empty() {
+        v["inexact"] = json!(markers);
+    }
     if rows.is_empty() {
         v["notes"] = json!([
             "no numeric stats in common (different kinds of item, or no stats dataset for their type)"
