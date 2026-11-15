@@ -186,6 +186,7 @@ function presetProfile(p: T.Preset): T.Profile {
     fps_weapons: cats,
     missiles: cats,
     missions: cats,
+    quest_hints: cats,
     lines_off: [],
     stats_above: false,
     header: '--- STATS ---',
@@ -402,6 +403,10 @@ export function preview(p: T.Profile): T.PreviewItem[] {
     { key: 'mission_TitleSYN_Recovery', label: 'Mission title', category: 'missions', original: title, result: tt },
     { key: 'mission_DescSYN_Recovery', label: 'Contract description', category: 'missions', original: prose, result: body.length ? `${prose}\\n\\n${body.join('\\n\\n')}` : prose },
   ];
+  if (p.quest_hints) {
+    const chip = 'A synthetic access chip.';
+    out.push({ key: 'item_DescSYN_Chip', label: 'Quest item', category: 'quest-hints', original: chip, result: `${chip}\\n\\n${em(m.label_em, 'Used in:')} Synthetic Recovery · Stanton` });
+  }
   if (p.colour_test) {
     const prompt = 'Please select a contract.';
     out.push({ key: 'mG_ContractsMgr_Select', label: 'Colour test', category: 'ui', original: prompt, result: prompt + COLOUR_TEST_LINE });

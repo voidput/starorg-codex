@@ -659,6 +659,9 @@ pub struct Profile {
     pub fps_weapons: bool,
     pub missiles: bool,
     pub missions: bool,
+    /// `Used in: <contract> · <system>` on items a mission spawns or a contract asks for
+    /// (real record references only, addendum §12).
+    pub quest_hints: bool,
     /// Stat lines switched off, as `<category>.<line>` (keys from [`ProfileSchema`]).
     pub lines_off: Vec<String>,
     pub stats_above: bool,

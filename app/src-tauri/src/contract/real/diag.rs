@@ -18,6 +18,9 @@ use starorg_core::usercfg;
 // Strings
 // ---------------------------------------------------------------------------------------
 
+/// The key the `quest-items` patch preview shows (the Decryption Key's description).
+const QUEST_PATCH_SAMPLE: &str = "Kaboos_DecryptioKeycard1_desc";
+
 /// One changed row per category, as the in-game preview shows them.
 pub fn preview(t: &Table) -> Vec<PreviewItem> {
     const WANT: &[(&str, &str)] = &[
@@ -56,6 +59,19 @@ pub fn preview(t: &Table) -> Vec<PreviewItem> {
         && !out.iter().any(|x| x.key == r.key)
     {
         out.push(item(r, "Contract description", "missions"));
+    }
+    // Quest items: an automatic `Used in:` hint and the hand-written mission hint of the
+    // `quest-items` patch (the Decryption Key; addendum §12).
+    if let Some(r) = t.rows.iter().filter(changed).find(|r| {
+        r.category == "items" && r.source == StringSource::Enhanced && r.result.contains("Used in:")
+    }) {
+        out.push(item(r, "Quest item", "quest-hints"));
+    }
+    if let Some(r) = t.rows.iter().filter(changed).find(|r| {
+        r.source == StringSource::Patched
+            && starorg_core::ini::strip_flag_suffix(&r.key).eq_ignore_ascii_case(QUEST_PATCH_SAMPLE)
+    }) {
+        out.push(item(r, "Quest item (mission hint)", "quest-hints"));
     }
     let test = starorg_core::enhance::profile::COLOUR_TEST_KEY;
     if let Some(r) = t

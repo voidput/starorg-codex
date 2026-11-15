@@ -3300,6 +3300,19 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
             format!("{prose}\\n\\n{}", body.join("\\n\\n"))
         },
     });
+    if p.quest_hints {
+        let chip = "A synthetic access chip.";
+        out.push(PreviewItem {
+            key: "item_DescSYN_Chip".into(),
+            label: "Quest item".into(),
+            category: "quest-hints".into(),
+            original: chip.into(),
+            result: format!(
+                "{chip}\\n\\n{} Synthetic Recovery · Stanton",
+                starorg_core::enhance::profile::em(p.mission.label_em, "Used in:")
+            ),
+        });
+    }
     if p.colour_test {
         let prompt = "Please select a contract.";
         out.push(PreviewItem {

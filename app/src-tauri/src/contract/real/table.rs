@@ -92,6 +92,7 @@ pub fn category_of(generator: &str) -> &'static str {
         "mission-titles" | "mission-descriptions" => "missions",
         "branding" | "colour-test" => "ui",
         "ship-names" => "ships",
+        "quest-hints" => "items",
         _ => "other",
     }
 }

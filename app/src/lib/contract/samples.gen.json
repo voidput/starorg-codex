@@ -2653,6 +2653,13 @@
       "label": "Contract description",
       "original": "Recover the synthetic cargo.",
       "result": "Recover the synthetic cargo.\\n\\n<EM3>BLUEPRINTS</EM3>\\n- Sample Rifle [Owned]\\n- Sample Pistol\\n\\n<EM3>ITEM REWARDS</EM3>\\n- Sample Scrip ×3\\n\\n<EM3>MISSION DETAILS</EM3>\\n<EM4>Reputation:</EM4> 150"
+    },
+    {
+      "category": "quest-hints",
+      "key": "item_DescSYN_Chip",
+      "label": "Quest item",
+      "original": "A synthetic access chip.",
+      "result": "A synthetic access chip.\\n\\n<EM4>Used in:</EM4> Synthetic Recovery · Stanton"
     }
   ],
   "channel_status": {
@@ -9857,6 +9864,7 @@
     "missions": true,
     "patches_disabled": [],
     "preset": "recommended",
+    "quest_hints": true,
     "ship_weapons": true,
     "ships": true,
     "stats_above": false,

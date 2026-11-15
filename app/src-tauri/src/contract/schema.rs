@@ -27,6 +27,7 @@ pub fn preset_profile(p: Preset) -> Profile {
         fps_weapons: cats,
         missiles: cats,
         missions: cats,
+        quest_hints: cats,
         lines_off: Vec::new(),
         stats_above: false,
         header: "--- STATS ---".into(),

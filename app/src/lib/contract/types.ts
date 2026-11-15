@@ -364,6 +364,8 @@ export interface Profile {
   fps_weapons: boolean;
   missiles: boolean;
   missions: boolean;
+  /** "Used in: <contract> · <system>" on items a mission spawns or a contract asks for. */
+  quest_hints: boolean;
   /** `<category>.<line>` keys from ProfileSchema. */
   lines_off: string[];
   stats_above: boolean;

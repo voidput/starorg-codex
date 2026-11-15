@@ -34,7 +34,7 @@
   import { cn } from '@/lib/utils';
   import { LINKS, openLink } from '@/lib/links';
 
-  type Tab = 'general' | CategoryId | 'blueprints' | 'name-tags';
+  type Tab = 'general' | CategoryId | 'blueprints' | 'name-tags' | 'quest-items';
 
   let schema = $state<ProfileSchema | null>(null);
   let saved = $state<string>('');
@@ -204,8 +204,16 @@
       p.lines_off = on ? p.lines_off.filter((k) => k !== key) : [...new Set([...p.lines_off, key])].sort();
     });
 
-  // "Fix known text bugs" = no built-in patch in patches_disabled (spec 4.5; Patches lists each).
-  const builtin = $derived(patches.filter((p) => p.origin === 'built-in').map((p) => p.id));
+  // "Fix known text bugs" = no built-in fix in patches_disabled (spec 4.5; Patches lists each).
+  // The hand-written quest hints are a built-in patch too, with their own switch (addendum §12).
+  const QUEST_PATCH = 'quest-items';
+  const builtin = $derived(patches.filter((p) => p.origin === 'built-in' && p.id !== QUEST_PATCH).map((p) => p.id));
+  const questPack = $derived(patches.some((p) => p.id === QUEST_PATCH));
+  const questPackOn = $derived(!!draft && questPack && !draft.patches_disabled.includes(QUEST_PATCH));
+  const setQuestPack = (on: boolean) =>
+    edit((p) => {
+      p.patches_disabled = on ? p.patches_disabled.filter((id) => id !== QUEST_PATCH) : [...new Set([...p.patches_disabled, QUEST_PATCH])];
+    });
   const fixesOff = $derived(draft ? builtin.filter((id) => draft!.patches_disabled.includes(id)).length : 0);
   const setFixes = (on: boolean) =>
     edit((p) => {
@@ -223,10 +231,11 @@
         return c.id === 'missions' ? [tab, { id: 'blueprints' as Tab, label: 'Blueprints', on: d.missions && (d.mission.blueprints || d.mission.title_blueprint) }] : [tab];
       }),
       { id: 'name-tags' as Tab, label: 'Name tags', on: d.tags.components.enabled || d.tags.ship_weapons.enabled || d.tags.missiles.enabled },
+      { id: 'quest-items' as Tab, label: 'Quest items', on: d.quest_hints || questPackOn },
     ];
   });
   const cat = $derived(schema?.categories.find((c) => c.id === selected) ?? null);
-  const previewFocus = $derived(selected === 'name-tags' || selected === 'general' ? 'components' : selected);
+  const previewFocus = $derived(selected === 'quest-items' ? 'quest-hints' : selected === 'name-tags' || selected === 'general' ? 'components' : selected);
   const jumpTab = (t: Tab) => {
     selected = t;
     document.getElementById(`cat-tab-${t}`)?.focus();
@@ -397,6 +406,31 @@
                 <SwitchRow id="tag-short" label="Also tag short names" hint="Short names show in tight spots such as the power triangle list. One switch for every kind." checked={d.tags.short_names} onchange={(v) => edit((p) => (p.tags.short_names = v))} />
                 <SwitchRow id="tag-tools" label="Size tag on tools" hint="Tractor beams, salvage heads, mining lasers and EMPs get a size-only tag, such as [S2]." checked={d.tags.tool_size_tag} onchange={(v) => edit((p) => (p.tags.tool_size_tag = v))} />
               </div>
+            </Card.Content>
+          </Card.Root>
+        {:else if selected === 'quest-items'}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Quest items</Card.Title>
+              <Card.Description>Says what mission items are for, in their description.</Card.Description>
+            </Card.Header>
+            <Card.Content class="grid gap-1">
+              <SwitchRow
+                id="quest-hints"
+                label="Add “Used in” to items missions use"
+                hint="Names the contract and its star system, as “Used in: contract · Stanton”. Only for items the game data ties to a mission; ores, food, armour and Wikelo trades are left alone."
+                checked={d.quest_hints}
+                onchange={(v) => edit((p) => (p.quest_hints = v))}
+              />
+              {#if questPack}
+                <SwitchRow
+                  id="quest-pack"
+                  label="Add mission hints the game data does not have"
+                  hint="Hand-written, starting with Vanduul-Tech Smugglers in Nyx (the access card, decryption key and passcode disk). Each hint is skipped when CIG changes that item's text; see Patches."
+                  checked={questPackOn}
+                  onchange={setQuestPack}
+                />
+              {/if}
             </Card.Content>
           </Card.Root>
         {:else if cat}
