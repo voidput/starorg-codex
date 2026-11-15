@@ -4,8 +4,10 @@
    * the published dump behind Settings > Network) and their datasets on the left; the picked
    * table as a virtualised grid (pages of 200) with search, column filters (value chips, min/max,
    * "has a value"), sort and a column picker remembered per dataset and table; a detail sheet
-   * with the row's JSON tree, its loc text and "Open in Explorer" links. Everything is parsed
-   * by the backend as data; values are shown as text.
+   * with the row's JSON tree, its loc text and "Open in Explorer" links. Cells that hold ids
+   * (GUIDs, record names, `@key`s, manufacturer codes) show what they read as first, the raw id
+   * after it ("Show IDs" switches back, 7.12); search matches both. Everything is parsed by the
+   * backend as data; values are shown as text.
    */
   import { tick, untrack } from 'svelte';
   import Search from '@lucide/svelte/icons/search';
@@ -26,6 +28,8 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import Sheet from '@/components/common/Sheet.svelte';
   import JsonTree from '@/components/dev/JsonTree.svelte';
+  import ReadableValue from '@/components/dev/ReadableValue.svelte';
+  import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
   import { devApi, type Column, type DatasetInfo, type DevRowDetail, type DevSource, type Row, type RowFilter, type RowSort, type TableInfo } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { bytes } from '@/lib/devnav';
@@ -272,7 +276,7 @@
       const r = pages[Math.floor(active / PAGE)]?.[active % PAGE];
       if (r) {
         e.preventDefault();
-        void openRow(r.id);
+        void openRow(r.id, r.title);
       }
     }
   }
@@ -284,10 +288,12 @@
   // --- Detail ------------------------------------------------------------------------------
   let sheet = $state(false);
   let detail = $state<DevRowDetail | null>(null);
-  async function openRow(row: number) {
+  let detailTitle = $state<string | null>(null);
+  async function openRow(row: number, title: string | null = null) {
     if (!pick || !tableName || !target) return;
     try {
       detail = await devApi.row({ target: $state.snapshot(target), ...pick, table: tableName, row });
+      detailTitle = title;
       sheet = true;
     } catch (e) {
       toast('error', 'Could not open the row', toContractError(e).message);
@@ -416,7 +422,7 @@
           <SelectField ariaLabel="Table" options={tableOptions} value={tableName} onchange={(v) => (tableName = v)} class="min-w-48" />
           <div class="relative max-w-sm min-w-48 flex-1">
             <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
-            <Input type="search" aria-label="Search the shown columns" placeholder="Search the shown columns" class="h-8 pl-8" bind:value={search} />
+            <Input type="search" aria-label="Search the shown columns" placeholder="Search names or ids" class="h-8 pl-8" bind:value={search} />
           </div>
           <div class="relative" bind:this={colEl}>
             <Button variant="outline" size="sm" aria-expanded={colPop} aria-controls="col-pop" onclick={() => (colPop = !colPop)}><Columns aria-hidden="true" /> Columns ({shownCols.length})</Button>
@@ -472,6 +478,7 @@
               </div>
             {/if}
           </div>
+          <ShowIdsToggle />
           <span class="text-muted-foreground ml-auto text-[12px]" aria-live="polite">{total === null ? 'Loading…' : `${int(total)} / ${int(all)} rows`}</span>
         </div>
         {#if filters.length || sort}
@@ -525,13 +532,18 @@
                           style="top: {v.i * ROW}px; height: {ROW}px; {gridCols}"
                           onclick={() => {
                             active = v.i;
-                            if (r) void openRow(r.id);
+                            if (r) void openRow(r.id, r.title);
                           }}
                           onfocus={() => (active = v.i)}
                         >
                           {#if r}
                             {#each r.cells as c, k (k)}
-                              <span role="gridcell" class={cn('truncate text-[12px]', c === null && 'text-muted-foreground', colMeta(pageCols[k] ?? '')?.kind === 'number' && 'mono')} title={c ?? ''}>{c ?? '—'}</span>
+                              {@const lab = r.labels?.[k] ?? null}
+                              {#if c !== null && lab}
+                                <span role="gridcell" class="flex min-w-0 text-[12px]"><ReadableValue raw={c} label={lab} /></span>
+                              {:else}
+                                <span role="gridcell" class={cn('truncate text-[12px]', c === null && 'text-muted-foreground', colMeta(pageCols[k] ?? '')?.kind === 'number' && 'mono')} title={c ?? ''}>{c ?? '—'}</span>
+                              {/if}
                             {/each}
                           {:else}
                             <span role="gridcell" class="col-span-full"><Skeleton class="h-4 w-2/3" /></span>
@@ -551,7 +563,7 @@
   </div>
 {/if}
 
-<Sheet bind:open={sheet} title={detail ? `${tableName} · row ${detail.row + 1}` : 'Row'} width="w-[min(720px,calc(100vw-48px))]">
+<Sheet bind:open={sheet} title={detail ? `${tableName} · ${detailTitle && !dev.showIds ? `${detailTitle} (row ${detail.row + 1})` : `row ${detail.row + 1}`}` : 'Row'} width="w-[min(720px,calc(100vw-48px))]">
   {#if detail}
     <div class="flex h-[calc(100vh-140px)] min-h-0 flex-col gap-3">
       {#if detail.links.length}
@@ -559,7 +571,8 @@
           <h3 class="eyebrow text-muted-foreground">In the explorer</h3>
           <ul class="flex flex-wrap gap-1.5">
             {#each detail.links as l (l.pointer)}
-              <li><Button variant="outline" size="xs" title={l.pointer} onclick={() => openInExplorer(l.what)}><ArrowUpRight aria-hidden="true" /> Open {l.value} in Explorer</Button></li>
+              {@const lab = dev.showIds ? null : (detail.labels[l.value] ?? null)}
+              <li><Button variant="outline" size="xs" title={`${l.pointer}\n${l.value}`} onclick={() => openInExplorer(l.what)}><ArrowUpRight aria-hidden="true" /> Open {lab ? lab.text : l.value} in Explorer{#if lab}<span class="text-muted-foreground mono text-[10.5px]">{l.value}</span>{/if}</Button></li>
             {/each}
           </ul>
         </div>
@@ -574,7 +587,7 @@
           </ul>
         </div>
       {/if}
-      <JsonTree id="row" json={detail.json} label="row" class="min-h-0 flex-1 rounded-md border" />
+      <JsonTree id="row" json={detail.json} label="row" labels={detail.labels} onfollow={(r) => openInExplorer(r.guid)} onloc={openLoc} class="min-h-0 flex-1 rounded-md border" />
     </div>
   {/if}
 </Sheet>

@@ -5,6 +5,9 @@
    * same, largest first; tables on one side marked), the records of the picked table (changed
    * first; filter by state and by changed field; identity column override) and the field diff
    * of the picked record (old ► new, numbers with delta and percent). F6 cycles the panes.
+   * Records are titled with the item's display name and fields read as names, text and numbers
+   * with units on both sides, grouped by item (7.12); "Show IDs" switches back to raw ids, and
+   * the record filter matches names and ids.
    */
   import { untrack } from 'svelte';
   import GitCompare from '@lucide/svelte/icons/git-compare';
@@ -16,6 +19,13 @@
   import ErrorState from '@/components/common/ErrorState.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import JobProgress from '@/components/common/JobProgress.svelte';
+  import Copy from '@lucide/svelte/icons/copy';
+  import Search from '@lucide/svelte/icons/search';
+  import { Input } from '@/components/ui/input';
+  import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
+  import { groupChanges, titled, valueText } from '@/lib/readable';
+  import { dev } from '@/lib/stores/dev.svelte';
+  import { toast } from '@/lib/stores/toast.svelte';
   import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffTable, type RecordState } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { app } from '@/lib/stores/app.svelte';
@@ -74,6 +84,13 @@
   let stateFilter = $state<'all' | RecordState>('all');
   let fieldFilter = $state<string>('');
   let identity = $state<string | null>(null);
+  let recQuery = $state('');
+  let recQueryDebounced = $state('');
+  $effect(() => {
+    const q = recQuery;
+    const t = setTimeout(() => (recQueryDebounced = q.trim()), 200);
+    return () => clearTimeout(t);
+  });
   let recError = $state<ContractError | null>(null);
   let loadingMore = $state(false);
   // Each new query bumps this, so a page that lands after a filter change is dropped.
@@ -92,7 +109,7 @@
         state: stateFilter === 'all' ? null : stateFilter,
         field: fieldFilter || null,
         identity,
-        query: null,
+        query: recQueryDebounced || null,
         offset,
         limit: PAGE,
       });
@@ -110,6 +127,8 @@
     stateFilter = 'all';
     fieldFilter = '';
     identity = null;
+    recQuery = '';
+    recQueryDebounced = '';
     field = null;
     await loadRecords();
   }
@@ -117,6 +136,7 @@
     void stateFilter;
     void fieldFilter;
     void identity;
+    void recQueryDebounced;
     untrack(() => void loadRecords());
   });
 
@@ -134,6 +154,15 @@
   const pct = (p: number | null) => (p === null ? '' : ` (${p > 0 ? '+' : ''}${p.toFixed(1)} %)`);
   const delta = (d: number | null) => (d === null ? '' : `${d > 0 ? '+' : ''}${Number.isInteger(d) ? d : d.toFixed(3)}`);
   const label = (id: string) => sources.find((s) => s.id === id)?.label ?? id;
+  const deltaUnit = (d: number | null, unit: string | null) => (d === null ? '' : `${delta(d)}${unit && !dev.showIds ? ` ${unit}` : ''}`);
+  async function copyId(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast('success', 'Copied the id');
+    } catch {
+      toast('error', 'The clipboard is not available here');
+    }
+  }
 
   // Lists: arrows move, Enter picks.
   let tableActive = $state(0);
@@ -175,6 +204,7 @@
       <Button size="sm" disabled={!a || !b || a === b || running} onclick={() => void compare()}><GitCompare aria-hidden="true" /> {running ? 'Comparing…' : 'Compare'}</Button>
       {#if app.job?.kind === 'dev'}<JobProgress job={app.job} compact />{/if}
       <span class="flex-1"></span>
+      <ShowIdsToggle />
       {#if summary}<span class="text-muted-foreground text-[12px]">{label(summary.a)} → {label(summary.b)} · {int(summary.tables.length)} tables · {summary.ms} ms</span>{/if}
     </div>
     {#if sources.length < 2}
@@ -231,6 +261,10 @@
               {#if records?.fields.length}
                 <SelectField ariaLabel="Changed field" size="sm" options={[{ id: '', label: 'Any field' }, ...records.fields.map((f) => ({ id: f.value, label: `${f.value} (${int(f.count)})` }))]} value={fieldFilter} onchange={(v) => (fieldFilter = v)} class="min-w-32" />
               {/if}
+              <div class="relative min-w-36 flex-1">
+                <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
+                <Input type="search" aria-label="Filter records by name or id" placeholder="Name or id" class="h-7 pl-7 text-[12px]" bind:value={recQuery} />
+              </div>
               {#if records?.identity_options.length}
                 <SelectField ariaLabel="Match records by" size="sm" options={[{ id: '', label: `Match: ${records.summary.identity ?? 'position'}` }, ...records.identity_options.map((c) => ({ id: c, label: `Match by ${c}` }))]} value={identity ?? ''} onchange={(v) => (identity = v || null)} class="min-w-36" />
               {/if}
@@ -253,6 +287,7 @@
                 onkeydown={(e) => listKey(e, records!.records.length, recActive, (i) => (recActive = i), (i) => void pickRecord(records!.records[i]!.id))}
               >
                 {#each records.records as r, i (r.id + r.state)}
+                  {@const t = titled(r.id, r.label, dev.showIds)}
                   <!-- svelte-ignore a11y_click_events_have_key_events -->
                   <li
                     id="dr-{i}"
@@ -266,9 +301,10 @@
                       void pickRecord(r.id);
                     }}
                   >
-                    <span class="flex items-center gap-2">
-                      <span class={cn('rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
-                      <span class="mono min-w-0 truncate text-[12px]">{r.id}</span>
+                    <span class="flex min-w-0 items-baseline gap-2" title={r.label ? `${r.label}\n${r.id}` : r.id}>
+                      <span class={cn('shrink-0 rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
+                      <span class={cn('min-w-0 truncate text-[12px]', !t.secondary && 'mono', t.secondary && 'font-medium')}>{t.primary}</span>
+                      {#if t.secondary}<span class="text-muted-foreground mono min-w-0 shrink-[2] truncate text-[10.5px]">{t.secondary}</span>{/if}
                     </span>
                     {#if r.fields.length}<span class="text-muted-foreground mono truncate text-[11px]">{r.fields.join(', ')}</span>{/if}
                   </li>
@@ -284,8 +320,13 @@
           </section>
           <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">
             {#if field}
+              {@const t = titled(field.id, field.label, dev.showIds)}
               <div class="flex items-center gap-2 border-b px-3 py-2">
-                <h2 class="mono min-w-0 flex-1 truncate text-[13px] font-semibold">{field.id}</h2>
+                <h2 class="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={field.label ? `${field.label}\n${field.id}` : field.id}>
+                  <span class={cn('truncate text-[13px] font-semibold', !t.secondary && 'mono')}>{t.primary}</span>
+                  {#if t.secondary}<span class="text-muted-foreground mono truncate text-[11.5px]">({t.secondary})</span>{/if}
+                </h2>
+                <Button variant="ghost" size="icon-xs" aria-label="Copy id {field.id}" title="Copy the id" onclick={() => void copyId(field!.id)}><Copy aria-hidden="true" /></Button>
                 <span class="text-muted-foreground text-[12px]">{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
               </div>
               <div class="min-h-0 flex-1 overflow-auto" data-stop tabindex="-1">
@@ -293,16 +334,33 @@
                   <thead class="text-muted-foreground bg-card sticky top-0 text-left text-[11.5px]">
                     <tr><th class="px-3 py-1.5 font-medium">Field</th><th class="px-3 py-1.5 font-medium">{label(summary.a)}</th><th class="px-3 py-1.5 font-medium">{label(summary.b)}</th><th class="px-3 py-1.5 font-medium">Δ</th></tr>
                   </thead>
-                  <tbody>
-                    {#each field.changes as c (c.path)}
-                      <tr class="border-t border-border/60 align-top">
-                        <td class="mono px-3 py-1 break-all">{c.path}</td>
-                        <td class="mono text-destructive px-3 py-1 break-all">{show(c.old)}</td>
-                        <td class="mono text-success px-3 py-1 break-all">{show(c.new)}</td>
-                        <td class="mono text-muted-foreground px-3 py-1 whitespace-nowrap">{delta(c.delta)}{pct(c.percent)}</td>
-                      </tr>
-                    {/each}
-                  </tbody>
+                  {#each groupChanges(field.changes) as g, gi (gi)}
+                    <tbody>
+                      {#if g.group && !dev.showIds}
+                        <tr class="bg-muted/40 border-t border-border/60"><th colspan="4" scope="rowgroup" class="px-3 py-1 text-left text-[11.5px] font-semibold">{g.group}</th></tr>
+                      {/if}
+                      {#each g.items as c (c.path)}
+                        {@const o = valueText(c.old, c.old_label, c.unit, dev.showIds)}
+                        {@const n = valueText(c.new, c.new_label, c.unit, dev.showIds)}
+                        {@const path = !dev.showIds && c.path_label ? c.path_label : c.path}
+                        <tr class="border-t border-border/60 align-top">
+                          <td class="px-3 py-1 break-all" title={c.path}>
+                            <span class={cn(path === c.path && 'mono')}>{path}</span>
+                            {#if path !== c.path}<span class="text-muted-foreground mono block text-[10.5px]">{c.path}</span>{/if}
+                          </td>
+                          <td class="text-destructive px-3 py-1 break-all" title={o.title}>
+                            <span class={cn(o.raw && 'mono')}>{o.primary}</span>{#if o.enhanced}<span class="text-primary ml-1 text-[10px] font-semibold uppercase">enh</span>{/if}
+                            {#if o.secondary}<span class="text-muted-foreground mono block text-[10.5px]">{o.secondary}</span>{/if}
+                          </td>
+                          <td class="text-success px-3 py-1 break-all" title={n.title}>
+                            <span class={cn(n.raw && 'mono')}>{n.primary}</span>{#if n.enhanced}<span class="text-primary ml-1 text-[10px] font-semibold uppercase">enh</span>{/if}
+                            {#if n.secondary}<span class="text-muted-foreground mono block text-[10.5px]">{n.secondary}</span>{/if}
+                          </td>
+                          <td class="mono text-muted-foreground px-3 py-1 whitespace-nowrap">{deltaUnit(c.delta, c.unit)}{pct(c.percent)}</td>
+                        </tr>
+                      {/each}
+                    </tbody>
+                  {/each}
                 </table>
               </div>
             {:else}

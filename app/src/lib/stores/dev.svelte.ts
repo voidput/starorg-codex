@@ -1,12 +1,21 @@
 /**
  * Developer mode state shared by the Dev screens and the command palette (addendum 7.8): the
- * explorer worker's status, the visited-records history, and hand-offs from Ctrl+K ("Find
+ * explorer worker's status, the visited-records history, the "Show IDs" switch, and hand-offs from Ctrl+K ("Find
  * record…", "Open record by GUID") and from the dataset viewer ("Open in Explorer").
  */
 import { devApi, type DevStatus } from '@/lib/contract/dev';
 import { toContractError, type ContractError } from '@/lib/contract/client';
 import type { ChannelRef } from '@/lib/contract/types';
 import { History } from '@/lib/devnav';
+import { loadShowIds, saveShowIds } from '@/lib/readable';
+
+const storage = (): Storage | null => {
+  try {
+    return typeof localStorage === 'undefined' ? null : localStorage;
+  } catch {
+    return null;
+  }
+};
 
 class DevState {
   status = $state<DevStatus | null>(null);
@@ -22,6 +31,13 @@ class DevState {
   history = new History();
   /** Bumped when the history changes (the class itself is not reactive). */
   histRev = $state(0);
+  /** "Show IDs" (7.12): raw ids instead of readable names, on all three screens; per viewer. */
+  showIds = $state(loadShowIds(storage()));
+
+  setShowIds(on: boolean): void {
+    this.showIds = on;
+    saveShowIds(storage(), on);
+  }
 
   findRecord(q: string, go: () => void): void {
     this.pendingSearch = q;

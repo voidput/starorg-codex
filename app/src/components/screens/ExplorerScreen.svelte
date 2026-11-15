@@ -29,6 +29,7 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import JobProgress from '@/components/common/JobProgress.svelte';
   import JsonTree from '@/components/dev/JsonTree.svelte';
+  import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
   import { devApi, EXPORT_WARN_RECORDS, type RecordView, type SearchHit, type TreeNode, type TreeRoot } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { guidOf, treeKey, treeRows, typeahead, bytes, type Loaded } from '@/lib/devnav';
@@ -303,6 +304,8 @@
   async function loadAt(pointer: string): Promise<Json> {
     if (!target || !rec) return null;
     const r = await devApi.record({ target: $state.snapshot(target), what: rec.header.guid, pointer, depth: 3 });
+    // Labels of the part just loaded join the record's.
+    if (rec) rec = { ...rec, labels: { ...rec.labels, ...r.labels } };
     return JSON.parse(r.json) as Json;
   }
   function follow(r: RefInfo) {
@@ -661,11 +664,20 @@
           <div class="p-3"><ErrorState title="Could not open the record" error={recError} /></div>
         {:else if rec}
           {@const h = rec.header}
+          {@const own = dev.showIds ? null : (rec.labels[h.guid] ?? null)}
           <div class="grid gap-1.5 border-b px-3 py-2.5">
             <div class="flex flex-wrap items-center gap-2">
-              <h2 class="mono min-w-0 flex-1 truncate text-[13.5px] font-semibold" title={h.name}>{h.name}</h2>
+              {#if own && own.text !== h.name}
+                <h2 class="flex min-w-0 flex-1 basis-56 items-baseline gap-2 truncate" title={h.name}>
+                  <span class="truncate text-[14px] font-semibold">{own.text}</span>
+                  <span class="text-muted-foreground mono truncate text-[12px]">{h.name}</span>
+                </h2>
+              {:else}
+                <h2 class="mono min-w-0 flex-1 basis-56 truncate text-[13.5px] font-semibold" title={h.name}>{h.name}</h2>
+              {/if}
               {#if recLoading}<LoaderCircle class="text-muted-foreground size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />{/if}
               <div class="flex flex-wrap gap-1.5">
+                <ShowIdsToggle size="xs" />
                 <Button variant="outline" size="xs" onclick={() => void exportRecord()}><Download aria-hidden="true" /> Export record…</Button>
                 <Button variant="outline" size="xs" disabled={exporting} title="Export all {h.type} records" onclick={() => void askExportType()}><Download aria-hidden="true" /> Export type…</Button>
               </div>
@@ -679,7 +691,7 @@
             </dl>
             {#if rec.truncated}<p class="text-[11.5px] text-amber-700 dark:text-amber-300">Large record: deeper parts load when you open them.</p>{/if}
           </div>
-          <JsonTree id="rec" json={rec.json} label={h.name} loc={rec.loc} onfollow={follow} onload={loadAt} onloc={openLoc} class="flex-1" />
+          <JsonTree id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="flex-1" />
         {:else}
           <p class="text-muted-foreground p-4 text-[12.5px]">Open a record from the list or the tree. References in a record are links; Alt+Left goes back.</p>
         {/if}
