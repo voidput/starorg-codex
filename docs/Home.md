@@ -7,6 +7,7 @@ updated: 2026-11-14
 # StarOrg Strings
 
 ## Plans
+- [[release|Release process]] ([plain](release.md))
 - [[plans/specs/starorg-strings-v1|v1 spec]] ([plain](plans/specs/starorg-strings-v1.md))
 - [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps + LUG hooks]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
 

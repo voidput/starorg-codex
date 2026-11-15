@@ -1,0 +1,20 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "include-component-in-tag": false,
+      "changelog-path": "CHANGELOG.md",
+      "draft": false,
+      "prerelease": false,
+      "extra-files": [
+        { "type": "toml", "path": "Cargo.toml", "jsonpath": "$.workspace.package.version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name==\"starorg-core\")].version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name==\"starorg-data\")].version" },
+        { "type": "toml", "path": "Cargo.lock", "jsonpath": "$.package[?(@.name==\"starorg-cli\")].version" }
+      ]
+    }
+  }
+}
