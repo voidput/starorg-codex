@@ -1149,10 +1149,16 @@ it. Raw data and every export stay unchanged.
     `VehicleComponentParams.vehicleName`, then `SCItemPurchasableParams.displayName`; an
     `@key`, placeholders skipped; `tagName` for tags). Nested parts never name the record (an
     interaction's "Enter", a port, a filter): without an own name the short name serves.
-    LIVE check, 120 random entities: 58 named as global.ini, 0 wrong, 62 short names.
+    LIVE check, 120 random entities: 58 named as global.ini, 0 wrong, 62 short names; the
+    verifier's 2,101-record cross-type sample: 0 borrowed names (36 before).
+    Records are also found by full or short name (`find_name_or_short`, binary search over
+    two sorted index vectors, about 1 MB), so `factionreputation_lawful_ftlcourier` reads
+    "FTL Courier"; a nameless record that would only repeat its own name stays raw.
     At most 256 new reads per
     request, cached per record up to 100,000 entries (the cache starts over when full).
     `record` replies carry `labels`; the new op `labels {values}` answers single values.
+    While the explorer runs, the app asks it about dataset-row and diff values (GUIDs and
+    record-name shapes) that the build's GameData does not name.
   - **app**: per channel build, a `MapLookup` from its GameData (items, ships, ammo,
     blueprints, standings, contracts), its stock text and the cached Strings table for
     enhanced text. It is built in about 4 ms and the last 3 are kept. Folder sources use the
@@ -1176,8 +1182,12 @@ it. Raw data and every export stay unchanged.
     (`localStorage` `starorg.dev.showIds`).
   - Unresolved GUIDs and `@key`s show raw, marked "unresolved", never blank.
   - Diff records are titled "Bracer (COOL_AEGS_S01_Bracer_SCItem)" and filter by name or id.
-    Field changes are grouped by item or top-level field and read as names, text and numbers
-    with units.
+    Titles several records of a result share get the short id appended ("Aegis Javelin
+    (AEGS_Javelin_AI_Escort)"). Field changes are grouped by item or top-level field and read
+    as names, text and numbers with units. Positional list segments are named from the
+    element (`loadout › weapons › M9A Cannon › dps`; LIVE vs PTU: 2,018 of 2,064 positional
+    paths named). A key swapped for one with the same text shows both keys, the shared text
+    as the secondary line.
   - The record JSON tree shows labels inline. Refs and record GUIDs follow, by click or by
     Enter.
 - **Measured on real data (read only)**:
@@ -1197,7 +1207,8 @@ it. Raw data and every export stay unchanged.
 - **Not done**:
   - A "readable" export variant. It was optional: exports stay raw.
   - Value chips in the dataset filter list raw values.
-  - The worker answers dataset GUIDs only while it runs (as for links).
+  - The worker answers dataset values only while it runs (as for links). Both diff sides use
+    the target channel's explorer for names GameData lacks.
 
 ## 8. Strings grouping
 

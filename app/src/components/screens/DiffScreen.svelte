@@ -23,7 +23,7 @@
   import Search from '@lucide/svelte/icons/search';
   import { Input } from '@/components/ui/input';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
-  import { groupChanges, titled, valueText } from '@/lib/readable';
+  import { changeTexts, groupChanges, titled } from '@/lib/readable';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffTable, type RecordState } from '@/lib/contract/dev';
@@ -340,8 +340,7 @@
                         <tr class="bg-muted/40 border-t border-border/60"><th colspan="4" scope="rowgroup" class="px-3 py-1 text-left text-[11.5px] font-semibold">{g.group}</th></tr>
                       {/if}
                       {#each g.items as c (c.path)}
-                        {@const o = valueText(c.old, c.old_label, c.unit, dev.showIds)}
-                        {@const n = valueText(c.new, c.new_label, c.unit, dev.showIds)}
+                        {@const [o, n] = changeTexts(c, dev.showIds)}
                         {@const path = !dev.showIds && c.path_label ? c.path_label : c.path}
                         <tr class="border-t border-border/60 align-top">
                           <td class="px-3 py-1 break-all" title={c.path}>

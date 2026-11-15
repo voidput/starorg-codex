@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SHOW_IDS_KEY, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
+import { SHOW_IDS_KEY, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
+import { type Lookup, pathLabelIn } from '../src/lib/contract/mock-dev.ts';
 import type { DevFieldDiff, Readable, RecordView, RowsPage } from '../src/lib/contract/dev.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
@@ -113,4 +114,24 @@ test('the contract samples carry readable fields the screens use', () => {
   assert.ok(ship.label);
   assert.equal(ship.changes[0]!.unit, 'm/s');
   assert.equal(samples.dev_diff_records_query.records[0].label.toLowerCase().includes('sample cooler 4'), true);
+});
+
+test('a key swapped for one with the same text shows the keys, the text secondary', () => {
+  const calico: Readable = { kind: 'loc', text: 'Calico Core Desert', detail: null, enhanced: null };
+  const c = { old: '@item_Name_calico_a', new: '@item_Name_calico_b', old_label: calico, new_label: calico, unit: null };
+  const [o, n] = changeTexts(c, false);
+  assert.equal(o.primary, '@item_Name_calico_a');
+  assert.equal(n.primary, '@item_Name_calico_b');
+  assert.equal(n.secondary, 'same text: Calico Core Desert');
+  // Different text: the labels lead as usual.
+  const [o2, n2] = changeTexts({ ...c, new_label: { ...calico, text: 'Calico Core Arctic' } }, false);
+  assert.equal(o2.primary, 'Calico Core Desert');
+  assert.equal(n2.primary, 'Calico Core Arctic');
+});
+
+test('positional paths name the element they point at (TS mock mirror)', () => {
+  const none: Lookup = { byGuid: () => null, byName: () => null, stock: () => null, enhanced: () => null, bare: false };
+  const row = { loadout: { weapons: [{ name: 'Left Gun', dps: 1 }, { name: 'Right Gun', dps: 2 }] } };
+  assert.equal(pathLabelIn(none, '/loadout/weapons/1/dps', row), 'loadout › weapons › Right Gun › dps');
+  assert.equal(pathLabelIn(none, '/a/0/b', { a: [{ b: 1 }] }), null);
 });

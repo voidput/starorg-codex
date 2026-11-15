@@ -474,7 +474,7 @@
       }
     ],
     "id": "SYN_Ship_003",
-    "label": "Synthetic hull 24. A test ship description.\\nSecond line.",
+    "label": "Synthetic hull 3",
     "state": "changed"
   },
   "dev_diff_records": {
@@ -699,7 +699,7 @@
   },
   "dev_record": {
     "header": {
-      "bytes": 790,
+      "bytes": 830,
       "guid": "51000000-0000-4000-8000-000000000001",
       "main": true,
       "name": "SYN_Ship_001",
@@ -707,13 +707,13 @@
       "tag": null,
       "type": "SynShip"
     },
-    "json": "{\"_RecordName_\":\"SYN_Ship_001\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000001\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00008\",\"Crew\":2,\"Mass\":10250,\"Speed\":{\"Scm\":151,\"Max\":907,\"Boost\":{\"Forward\":1.5,\"Back\":0.75}},\"Components\":[{\"_ref\":\"52000000-0000-4000-8000-000000000005\",\"name\":\"SYN_shield_005\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/shield/syn_comp_005.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000006\",\"name\":\"SYN_powerplant_006\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/powerplant/syn_comp_006.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000007\",\"name\":\"SYN_quantumdrive_007\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/quantumdrive/syn_comp_007.xml\"}]}}",
+    "json": "{\"_RecordName_\":\"SYN_Ship_001\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000001\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"DisplayName\":\"Synthetic hull 1\",\"Description\":\"@vehicle_DescSYN_Ship_00008\",\"Crew\":2,\"Mass\":10250,\"Speed\":{\"Scm\":151,\"Max\":907,\"Boost\":{\"Forward\":1.5,\"Back\":0.75}},\"Components\":[{\"_ref\":\"52000000-0000-4000-8000-000000000005\",\"name\":\"SYN_shield_005\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/shield/syn_comp_005.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000006\",\"name\":\"SYN_powerplant_006\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/powerplant/syn_comp_006.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000007\",\"name\":\"SYN_quantumdrive_007\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/quantumdrive/syn_comp_007.xml\"}]}}",
     "labels": {
       "51000000-0000-4000-8000-000000000001": {
         "detail": "SYN_Ship_001",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 1"
       },
       "52000000-0000-4000-8000-000000000005": {
         "detail": "SYN_shield_005",
@@ -743,7 +743,7 @@
         "detail": "SYN_Ship_001",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 1"
       }
     },
     "loc": [
@@ -757,7 +757,7 @@
   },
   "dev_record_cut": {
     "header": {
-      "bytes": 1585195,
+      "bytes": 1585236,
       "guid": "51000000-0000-4000-8000-000000000027",
       "main": true,
       "name": "SYN_Ship_039",
@@ -765,13 +765,13 @@
       "tag": null,
       "type": "SynShip"
     },
-    "json": "{\"_RecordName_\":\"SYN_Ship_039\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000027\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00312\",\"Crew\":4,\"Mass\":19750,\"Speed\":{\"_cut\":{\"kind\":\"object\",\"len\":3}},\"Components\":{\"_cut\":{\"kind\":\"array\",\"len\":3}},\"Loadout\":{\"_cut\":{\"kind\":\"array\",\"len\":3400}}}}",
+    "json": "{\"_RecordName_\":\"SYN_Ship_039\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000027\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"DisplayName\":\"Synthetic hull 39\",\"Description\":\"@vehicle_DescSYN_Ship_00312\",\"Crew\":4,\"Mass\":19750,\"Speed\":{\"_cut\":{\"kind\":\"object\",\"len\":3}},\"Components\":{\"_cut\":{\"kind\":\"array\",\"len\":3}},\"Loadout\":{\"_cut\":{\"kind\":\"array\",\"len\":3400}}}}",
     "labels": {
       "51000000-0000-4000-8000-000000000027": {
         "detail": "SYN_Ship_039",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 39"
       },
       "@vehicle_DescSYN_Ship_00312": {
         "detail": null,
@@ -783,7 +783,7 @@
         "detail": "SYN_Ship_039",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 39"
       }
     },
     "loc": [
@@ -811,7 +811,7 @@
         "detail": "SYN_Ship_004",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 32. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 4"
       }
     },
     "loc": [],
@@ -825,7 +825,7 @@
         "detail": "SYN_Ship_001",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 1"
       }
     },
     "links": [

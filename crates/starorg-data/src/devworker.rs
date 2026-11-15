@@ -462,11 +462,10 @@ struct WorkerLookup<'s, 'd, 'a> {
     loads: Cell<usize>,
 }
 
-impl Lookup for WorkerLookup<'_, '_, '_> {
-    fn by_guid(&self, guid: &str) -> Option<KnownRecord> {
-        let ix = self.db.index();
-        let i = ix.by_guid(guid)?;
-        let e = ix.entry(i)?;
+impl WorkerLookup<'_, '_, '_> {
+    /// Index entry `i` as a known record, its display key read once (cached).
+    fn known(&self, i: usize) -> Option<KnownRecord> {
+        let e = self.db.index().entry(i)?;
         let mut names = self.names.borrow_mut();
         let display = match names.map.get(&(i as u32)) {
             Some(d) => d.clone(),
@@ -496,6 +495,17 @@ impl Lookup for WorkerLookup<'_, '_, '_> {
             },
             display: display.map(|d| d.1),
         })
+    }
+}
+
+impl Lookup for WorkerLookup<'_, '_, '_> {
+    fn by_guid(&self, guid: &str) -> Option<KnownRecord> {
+        self.known(self.db.index().by_guid(guid)?)
+    }
+    /// Full or short record name: dataset values like `factionreputation_lawful_ftl` that
+    /// the build's GameData does not list.
+    fn by_name(&self, name: &str) -> Option<KnownRecord> {
+        self.known(self.db.index().find_name_or_short(name)?)
     }
     fn stock(&self, key: &str) -> Option<String> {
         self.stock?.value(key).map(str::to_string)
