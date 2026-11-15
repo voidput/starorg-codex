@@ -45,12 +45,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.`;
 
+// Dev packages whose code still ships: tailwindcss's preflight and theme CSS are compiled into
+// the app's CSS (the bundle keeps its "tailwindcss vX | MIT License" banner). It used to be
+// listed only as an optional peer of tailwind-variants 3, which marked it non-dev.
+const BUNDLED_DEV = new Set(['node_modules/tailwindcss']);
+
 const LICENSE_FILE = /^(licen[cs]e|copying|notice)(\.|-|$)/i;
 const groups = new Map(); // license text -> { license, users[] }
 let missing = 0;
 
 for (const [key, meta] of Object.entries(lock.packages)) {
-  if (!key || meta.dev) continue;
+  if (!key || (meta.dev && !BUNDLED_DEV.has(key))) continue;
   const dir = join(app, key);
   const pkg = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8'));
   const name = pkg.name ?? key.replace(/^.*node_modules\//, '');

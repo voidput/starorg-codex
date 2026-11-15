@@ -10411,12 +10411,12 @@ SOFTWARE.
 ### MIT
 
 Used by:
-- tailwind-variants 3.3.1
+- tailwind-variants 4.0.2
 
 ```text
 MIT License
 
-Copyright (c) 2020 Tailwid Variants
+Copyright (c) 2020 Tailwind Variants
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
