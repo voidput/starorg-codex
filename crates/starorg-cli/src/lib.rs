@@ -4,6 +4,7 @@
 //! The CLI never opens a window, needs no display, and links no GTK, WebView or HTTP client.
 
 mod apply_cmds;
+mod asset_cmds;
 mod blueprint_cmds;
 mod commands;
 mod dev_cmds;
@@ -281,7 +282,8 @@ pub enum Command {
         #[command(subcommand)]
         cmd: SyncCmd,
     },
-    /// Developer tools: DataCore records as JSON, type exports, type counts. Read only.
+    /// Developer tools: DataCore records as JSON, type exports, type counts, game files,
+    /// models and sounds. Read only on the game; writes only where --out says.
     Dev {
         #[command(subcommand)]
         cmd: DevCmd,
@@ -500,6 +502,83 @@ pub enum DevCmd {
         #[command(flatten)]
         test_dcb: TestDcbArg,
     },
+    /// Copy files out of Data.p4k: a file, a folder (with everything below it) or a glob
+    /// (`*` within a folder, `**` across folders, `?` one character; `/` or `\`).
+    Extract {
+        #[arg(value_name = "P4K-PATH|GLOB", required = true)]
+        paths: Vec<String>,
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+        /// Textures (.dds with their mip files) as PNG, CryXmlB as XML.
+        #[arg(long)]
+        convert: bool,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        #[command(flatten)]
+        test_p4k: TestP4kArg,
+    },
+    /// An entity (ship, vehicle, weapon, item) as one GLB, through StarBreaker's exporter.
+    ExportModel {
+        /// A GUID, a record name (`EntityClassDefinition.AEGS_Javelin`) or its short name.
+        #[arg(value_name = "GUID|NAME")]
+        what: String,
+        #[arg(long, value_name = "FILE")]
+        out: PathBuf,
+        /// `full`: materials and textures, interiors, lights. `print`: geometry only, no
+        /// interior, no lights (for 3D prints).
+        #[arg(long, value_name = "PRESET", default_value = "full", value_parser = ["full", "print"])]
+        preset: String,
+        /// Level of detail, 0 = most (default: 1 for full, 0 for print).
+        #[arg(long, value_name = "N")]
+        lod: Option<u32>,
+        /// Also write an STL next to the GLB (geometry, transforms baked, Z-up).
+        #[arg(long)]
+        stl: bool,
+        /// Asset cache folder (default: the setting, else the app cache's `assets`).
+        #[arg(long, value_name = "DIR")]
+        cache_dir: Option<PathBuf>,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        #[command(flatten)]
+        test_p4k: TestP4kArg,
+    },
+    /// A record's sounds (its audio triggers and its default loadout's) as Ogg Vorbis.
+    ExportSounds {
+        #[arg(value_name = "GUID|NAME")]
+        what: String,
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+        /// Also write the original .wem next to each .ogg.
+        #[arg(long)]
+        wem: bool,
+        /// List the triggers and sounds; write nothing.
+        #[arg(long)]
+        list: bool,
+        /// Asset cache folder (default: the setting, else the app cache's `assets`).
+        #[arg(long, value_name = "DIR")]
+        cache_dir: Option<PathBuf>,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        #[command(flatten)]
+        test_p4k: TestP4kArg,
+    },
+}
+
+/// `--test-p4k`: a synthetic archive instead of the install's (test builds only).
+#[derive(Debug, Clone, Default, Args)]
+pub struct TestP4kArg {
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, hide = true, value_name = "FILE")]
+    pub test_p4k: Option<PathBuf>,
+}
+
+impl TestP4kArg {
+    pub fn get(&self) -> Option<PathBuf> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_p4k.clone();
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
 }
 
 #[derive(Debug, Subcommand)]

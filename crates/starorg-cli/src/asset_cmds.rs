@@ -1,0 +1,561 @@
+//! `dev extract`, `dev export-model`, `dev export-sounds` (addendum 7.16): game files, models
+//! and sounds from the command line. Run in this process (the memory goes back when it exits),
+//! take `locks/extract.lock` while Data.p4k is read, never write into the install or a Wine
+//! prefix. Models and decoded sounds go through the asset cache (`--cache-dir`, else the
+//! `[dev] asset_cache_dir` setting, else `<app cache>/assets`), so a second run of the same
+//! export does not read the archive; `--no-cache` skips it.
+
+use crate::commands::{JSON_SCHEMA, canonical_lenient, fail, refuse_protected, run_discovery};
+use crate::{DevCmd, GlobalOpts, exit};
+use serde_json::json;
+use starorg_core::assetcache::{self, AssetCache, Kind};
+use starorg_data::assets::audio::{self, SoundRef};
+use starorg_data::assets::files;
+use starorg_data::assets::model::{self, ModelOptions, ModelPreset};
+use starorg_data::assets::{AssetArchive, AssetError};
+use starorg_data::assetworker;
+use std::path::{Path, PathBuf};
+use std::process::ExitCode;
+use std::time::{Duration, Instant};
+
+/// The channel to read: its archive, the install root (outputs never go there), the cache
+/// key of its build, and the lock while the archive is open.
+struct Target {
+    p4k: PathBuf,
+    root: Option<PathBuf>,
+    channel: String,
+    build: String,
+}
+
+fn target(g: &GlobalOpts, channel: &str, test_p4k: Option<PathBuf>) -> Result<Target, ExitCode> {
+    if let Some(p) = test_p4k {
+        return Ok(Target {
+            root: p.parent().map(Path::to_path_buf),
+            p4k: p,
+            channel: channel.to_string(),
+            build: "test".into(),
+        });
+    }
+    let d = run_discovery(g);
+    let Some(install) = d.default_install() else {
+        return Err(fail(
+            g,
+            exit::NOT_FOUND,
+            "not-found",
+            "no Star Citizen install found (try --game-dir or --prefix)",
+        ));
+    };
+    let Some(ch) = install.channel(channel) else {
+        return Err(fail(
+            g,
+            exit::NOT_FOUND,
+            "not-found",
+            &format!("channel {channel} not found in {}", install.root.display()),
+        ));
+    };
+    let fp = ch.fingerprint().map_err(|e| {
+        fail(
+            g,
+            exit::ERROR,
+            "error",
+            &format!("{}: {e}", ch.p4k.display()),
+        )
+    })?;
+    let build =
+        starorg_core::cache::KeyInputs::local(&fp, starorg_data::starbreaker::STARBREAKER_COMMIT)
+            .key();
+    Ok(Target {
+        p4k: ch.p4k.clone(),
+        root: Some(install.root.clone()),
+        channel: ch.name.clone(),
+        build,
+    })
+}
+
+/// Refuse outputs inside the install or a Wine prefix (as `dev export-type`).
+fn check_out(g: &GlobalOpts, t: &Target, out: &Path, testing: bool) -> Result<PathBuf, ExitCode> {
+    let out_abs = canonical_lenient(out);
+    if !testing {
+        let d = run_discovery(g);
+        if let Some(install) = d.default_install()
+            && Some(&install.root) == t.root.as_ref()
+            && let Some(code) = refuse_protected(g, &out_abs, install)
+        {
+            return Err(code);
+        }
+        if starorg_core::discovery::enclosing_wine_prefix(&out_abs).is_some() {
+            return Err(fail(
+                g,
+                exit::USAGE,
+                "usage",
+                &format!("--out {} is inside a Wine prefix", out_abs.display()),
+            ));
+        }
+    }
+    if let Some(r) = &t.root
+        && out_abs.starts_with(canonical_lenient(r))
+    {
+        return Err(fail(
+            g,
+            exit::USAGE,
+            "usage",
+            &format!(
+                "--out {} is inside the game folder; output is never written there",
+                out_abs.display()
+            ),
+        ));
+    }
+    Ok(out_abs)
+}
+
+/// Take the extract lock and open the archive index.
+fn open(
+    g: &GlobalOpts,
+    t: &Target,
+    testing: bool,
+) -> Result<(AssetArchive, Option<starorg_core::lock::Lock>), ExitCode> {
+    let lock = if testing {
+        None
+    } else {
+        let Some(dirs) = starorg_core::appdirs::AppDirs::from_env() else {
+            return Err(fail(g, exit::ERROR, "error", "cannot find the app folders"));
+        };
+        match starorg_core::lock::try_lock(&dirs.extract_lock()) {
+            Ok(l) => Some(l),
+            Err(starorg_core::lock::LockError::Held(_)) => {
+                return Err(fail(
+                    g,
+                    exit::SKIPPED,
+                    "busy",
+                    "another StarOrg Codex run is reading game data; try again",
+                ));
+            }
+            Err(e) => return Err(fail(g, exit::ERROR, "error", &e.to_string())),
+        }
+    };
+    let a = AssetArchive::open(&t.p4k).map_err(|e| asset_fail(g, &e))?;
+    Ok((a, lock))
+}
+
+fn asset_fail(g: &GlobalOpts, e: &AssetError) -> ExitCode {
+    let (code, kind) = match e.code.as_str() {
+        "not-found" => (exit::NOT_FOUND, "not-found"),
+        "invalid" => (exit::USAGE, "usage"),
+        "busy" => (exit::SKIPPED, "busy"),
+        _ => (exit::ERROR, "error"),
+    };
+    fail(g, code, kind, &e.message)
+}
+
+fn cache(g: &GlobalOpts, dir: Option<&Path>) -> Option<AssetCache> {
+    if g.no_cache {
+        return None;
+    }
+    let dirs = starorg_core::appdirs::AppDirs::from_env()?;
+    let cfg = starorg_core::config::Config::load(&dirs).unwrap_or_default();
+    Some(assetcache::resolve(&dirs, &cfg, dir))
+}
+
+/// Progress on stderr, at most every 2 s (none with --quiet or --json).
+struct Ticker {
+    on: bool,
+    last: std::sync::Mutex<Instant>,
+}
+
+impl Ticker {
+    fn new(g: &GlobalOpts) -> Self {
+        Self {
+            on: !g.quiet && !g.json,
+            last: std::sync::Mutex::new(Instant::now()),
+        }
+    }
+    fn tell(&self, what: &str, f: f32) {
+        if !self.on {
+            return;
+        }
+        let mut l = self.last.lock().unwrap_or_else(|p| p.into_inner());
+        if l.elapsed() >= Duration::from_secs(2) {
+            *l = Instant::now();
+            eprintln!("starorg-strings: {what} {:.0} %", f * 100.0);
+        }
+    }
+}
+
+pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
+    match cmd {
+        DevCmd::Extract {
+            paths,
+            out,
+            convert,
+            channel,
+            test_p4k,
+        } => extract(g, &paths, &out, convert, &channel, test_p4k.get()),
+        DevCmd::ExportModel {
+            what,
+            out,
+            preset,
+            lod,
+            stl,
+            cache_dir,
+            channel,
+            test_p4k,
+        } => {
+            let preset = if preset == "print" {
+                ModelPreset::PrintShell
+            } else {
+                ModelPreset::Full
+            };
+            let o = ModelOptions {
+                preset,
+                lod: lod.unwrap_or(preset.default_lod()).min(model::MAX_LOD),
+                stl,
+            };
+            export_model(
+                g,
+                &what,
+                &out,
+                o,
+                cache_dir.as_deref(),
+                &channel,
+                test_p4k.get(),
+            )
+        }
+        DevCmd::ExportSounds {
+            what,
+            out,
+            wem,
+            list,
+            cache_dir,
+            channel,
+            test_p4k,
+        } => export_sounds(
+            g,
+            &what,
+            &out,
+            wem,
+            list,
+            cache_dir.as_deref(),
+            &channel,
+            test_p4k.get(),
+        ),
+        _ => ExitCode::from(exit::USAGE),
+    }
+}
+
+fn extract(
+    g: &GlobalOpts,
+    paths: &[String],
+    out: &Path,
+    convert: bool,
+    channel: &str,
+    test_p4k: Option<PathBuf>,
+) -> ExitCode {
+    let testing = test_p4k.is_some();
+    let t = match target(g, channel, test_p4k) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let out_abs = match check_out(g, &t, out, testing) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let (a, _lock) = match open(g, &t, testing) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
+    let mut plan = Vec::new();
+    for p in paths {
+        let r = if files::is_glob(p) {
+            files::plan_glob(&a, p)
+        } else {
+            files::plan_extract(&a, std::slice::from_ref(p))
+        };
+        match r {
+            Ok(mut x) => plan.append(&mut x),
+            Err(e) => return asset_fail(g, &e),
+        }
+    }
+    plan.sort_by_key(|i| i.entry);
+    plan.dedup_by_key(|i| i.entry);
+    let tick = Ticker::new(g);
+    let r = files::extract_all(&a, &plan, &out_abs, convert, &mut |k, n| {
+        tick.tell("extract", k as f32 / n.max(1) as f32);
+        true
+    });
+    match r {
+        Ok(d) => {
+            if g.json {
+                println!(
+                    "{}",
+                    json!({ "schema": JSON_SCHEMA, "out": d.out_dir, "files": d.files, "bytes": d.bytes,
+                            "converted": d.converted, "merged": d.merged, "failures": d.failures, "failed": d.failed })
+                );
+            } else if !g.quiet {
+                eprintln!(
+                    "starorg-strings: {} files ({} bytes, {} converted) written to {}",
+                    d.files, d.bytes, d.converted, d.out_dir
+                );
+                for f in &d.failed {
+                    eprintln!("  failed: {f}");
+                }
+            }
+            if d.failures > 0 && d.files == 0 {
+                ExitCode::from(exit::ERROR)
+            } else {
+                ExitCode::from(exit::OK)
+            }
+        }
+        Err(e) => asset_fail(g, &e),
+    }
+}
+
+fn copy_out(src: &Path, out: &Path) -> std::io::Result<u64> {
+    if let Some(d) = out.parent() {
+        std::fs::create_dir_all(d)?;
+    }
+    std::fs::copy(src, out)
+}
+
+fn export_model(
+    g: &GlobalOpts,
+    what: &str,
+    out: &Path,
+    o: ModelOptions,
+    cache_dir: Option<&Path>,
+    channel: &str,
+    test_p4k: Option<PathBuf>,
+) -> ExitCode {
+    let testing = test_p4k.is_some();
+    let t = match target(g, channel, test_p4k) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let out_abs = match check_out(g, &t, out, testing) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let c = cache(g, cache_dir);
+    let key = format!("{}-{}", assetcache::safe_name(what), o.key());
+    // A cached GLB: no archive read at all (an STL is made from it here).
+    if let Some(hit) = c
+        .as_ref()
+        .and_then(|c| c.get(&t.channel, &t.build, Kind::Models, &key, "glb"))
+    {
+        let r = copy_out(&hit, &out_abs).and_then(|n| {
+            let stl = if o.stl {
+                let glb = std::fs::read(&hit)?;
+                let s = out_abs.with_extension("stl");
+                starorg_data::assets::stl::glb_file_to_stl(&glb, &s)
+                    .map(|x| Some((s, x)))
+                    .map_err(|e| std::io::Error::other(e.message))?
+            } else {
+                None
+            };
+            Ok((n, stl))
+        });
+        return match r {
+            Ok((n, stl)) => {
+                report_model(
+                    g,
+                    &out_abs,
+                    n,
+                    stl.as_ref().map(|s| (&s.0, s.1.0)),
+                    true,
+                    None,
+                    0,
+                );
+                ExitCode::from(exit::OK)
+            }
+            Err(e) => fail(g, exit::ERROR, "error", &e.to_string()),
+        };
+    }
+    let (a, lock) = match open(g, &t, testing) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
+    let tick = Ticker::new(g);
+    let r = model::export_model(&a, what, &o, &out_abs, &|f, _| {
+        tick.tell("export", f);
+        true
+    });
+    drop(lock);
+    match r {
+        Ok(d) => {
+            if let Some(c) = &c {
+                let _ = c.put_copy(&t.channel, &t.build, Kind::Models, &key, "glb", &out_abs);
+            }
+            let stl = d.stl_path.as_ref().map(PathBuf::from);
+            report_model(
+                g,
+                &out_abs,
+                d.bytes,
+                stl.as_ref().zip(d.triangles),
+                false,
+                d.peak_rss,
+                d.ms,
+            );
+            ExitCode::from(exit::OK)
+        }
+        Err(e) => asset_fail(g, &e),
+    }
+}
+
+fn report_model(
+    g: &GlobalOpts,
+    out: &Path,
+    bytes: u64,
+    stl: Option<(&PathBuf, u64)>,
+    cached: bool,
+    peak_rss: Option<u64>,
+    ms: u64,
+) {
+    if g.json {
+        println!(
+            "{}",
+            json!({ "schema": JSON_SCHEMA, "out": out, "bytes": bytes, "cached": cached,
+                    "stl": stl.map(|s| s.0), "triangles": stl.map(|s| s.1),
+                    "peak_rss": peak_rss, "ms": ms })
+        );
+    } else if !g.quiet {
+        eprintln!(
+            "starorg-strings: model ({} bytes{}) written to {}",
+            bytes,
+            if cached { ", from the cache" } else { "" },
+            out.display()
+        );
+        if let Some((p, n)) = stl {
+            eprintln!(
+                "starorg-strings: STL ({n} triangles) written to {}",
+                p.display()
+            );
+        }
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn export_sounds(
+    g: &GlobalOpts,
+    what: &str,
+    out: &Path,
+    wem: bool,
+    list: bool,
+    cache_dir: Option<&Path>,
+    channel: &str,
+    test_p4k: Option<PathBuf>,
+) -> ExitCode {
+    let testing = test_p4k.is_some();
+    let t = match target(g, channel, test_p4k) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let out_abs = match check_out(g, &t, out, testing) {
+        Ok(p) => p,
+        Err(c) => return c,
+    };
+    let (a, _lock) = match open(g, &t, testing) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
+    let rs = match audio::record_sounds(&a, what) {
+        Ok(r) => r,
+        Err(e) => return asset_fail(g, &e),
+    };
+    let sounds: Vec<(String, SoundRef)> = rs
+        .triggers
+        .iter()
+        .flat_map(|t| {
+            t.sounds
+                .iter()
+                .filter(|s| s.playable)
+                .map(|s| (t.name.clone(), s.sound.clone()))
+        })
+        .collect();
+    if list {
+        if g.json {
+            println!("{}", json!({ "schema": JSON_SCHEMA, "sounds": rs }));
+        } else {
+            for tr in &rs.triggers {
+                println!(
+                    "{}  ({} sounds, from {}{})",
+                    tr.name,
+                    tr.sounds.len(),
+                    tr.from,
+                    tr.bank
+                        .as_deref()
+                        .map(|b| format!(", {b}"))
+                        .unwrap_or_default()
+                );
+                for s in &tr.sounds {
+                    println!(
+                        "    {:<12} {:<12} {}",
+                        s.label,
+                        format!("{:?}", s.sound.source),
+                        if s.playable { "" } else { "unavailable" }
+                    );
+                }
+            }
+        }
+        return ExitCode::from(exit::OK);
+    }
+    // Decoded sounds come from the cache when there.
+    let c = cache(g, cache_dir);
+    let mut files_n = 0u32;
+    let mut bytes = 0u64;
+    let mut todo = Vec::new();
+    for (trigger, s) in &sounds {
+        let hit = (!wem)
+            .then(|| {
+                c.as_ref()
+                    .and_then(|c| c.get(&t.channel, &t.build, Kind::Audio, &s.key(), "ogg"))
+            })
+            .flatten();
+        match hit {
+            Some(p) => match copy_out(&p, &out_abs.join(audio::file_name(trigger, s, "ogg"))) {
+                Ok(n) => {
+                    files_n += 1;
+                    bytes += n;
+                }
+                Err(_) => todo.push((trigger.clone(), s.clone())),
+            },
+            None => todo.push((trigger.clone(), s.clone())),
+        }
+    }
+    let tick = Ticker::new(g);
+    let r = assetworker::export_sounds(&a, &todo, &out_abs, wem, &mut |k, n| {
+        tick.tell("sounds", k as f32 / n.max(1) as f32);
+        true
+    });
+    match r {
+        Ok(d) => {
+            if let Some(c) = &c {
+                for (trigger, s) in &todo {
+                    let p = out_abs.join(audio::file_name(trigger, s, "ogg"));
+                    if p.exists() {
+                        let _ = c.put_copy(&t.channel, &t.build, Kind::Audio, &s.key(), "ogg", &p);
+                    }
+                }
+            }
+            let files_n = files_n + d.files;
+            let bytes = bytes + d.bytes;
+            if g.json {
+                println!(
+                    "{}",
+                    json!({ "schema": JSON_SCHEMA, "record": rs.name, "triggers": rs.triggers.len(),
+                            "files": files_n, "bytes": bytes, "out": out_abs,
+                            "failures": d.failures, "failed": d.failed })
+                );
+            } else if !g.quiet {
+                eprintln!(
+                    "starorg-strings: {} sound files ({} bytes) of {} ({} triggers) written to {}",
+                    files_n,
+                    bytes,
+                    rs.name,
+                    rs.triggers.len(),
+                    out_abs.display()
+                );
+            }
+            ExitCode::from(exit::OK)
+        }
+        Err(e) => asset_fail(g, &e),
+    }
+}
