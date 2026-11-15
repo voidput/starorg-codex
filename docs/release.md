@@ -22,11 +22,19 @@ Spec section 12 is the design. This note covers how the files fit and the M0 dry
 ## Version handling (known weak spot)
 
 Root `Cargo.toml` is a virtual workspace, so release-please's `rust` strategy has no `[package]` to read.
-Config uses `release-type: simple` with `toml` extra-files that bump `workspace.package.version` and the
-three workspace crates in `Cargo.lock` together. When #8 lands, add to `extra-files`:
+Config uses `release-type: simple` with extra-files that bump, together:
 
-- `app/package.json` and `app/package-lock.json` (json, `$.version`, `$.packages[""].version`)
-- the app crate's lock entry if `app/src-tauri` keeps its own `Cargo.lock`
+- `Cargo.toml` `$.workspace.package.version`
+- `Cargo.lock` entries for every workspace member: `starorg-core`, `starorg-data`, `starorg-cli`,
+  `starorg-strings-app`. Filter on `@.name.value`, not `@.name`: release-please's TOML parser wraps
+  each value in a tagged object, so `@.name=="x"` silently matches nothing ("No entries modified").
+- `app/package.json` `$.version`, `app/package-lock.json` `$.version` and `$.packages[''].version`
+
+**Adding a workspace crate means adding its `Cargo.lock` entry here**, or the release PR breaks every
+`--locked` step. Check locally before pushing a config change: clone into `.tmp/`, install
+`release-please` there, run its `GenericToml`/`GenericJson` updaters over each extra-file with version
+`0.0.1`, then `cargo metadata --locked` and `npm ci --dry-run` in the clone (done 2026-11-14 with
+release-please 17.11.2: all 8 entries changed, both checks pass).
 
 `tauri.conf.json` must omit `version`; Tauri then reads the inherited `version.workspace = true`.
 If the `simple` + extra-files route fails the dry run, fall back to `rust` with a `[package]`-bearing root

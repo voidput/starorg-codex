@@ -18,22 +18,22 @@
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name==\"starorg-core\")].version"
+          "jsonpath": "$.package[?(@.name.value==\"starorg-core\")].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name==\"starorg-data\")].version"
+          "jsonpath": "$.package[?(@.name.value==\"starorg-data\")].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name==\"starorg-cli\")].version"
+          "jsonpath": "$.package[?(@.name.value==\"starorg-cli\")].version"
         },
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name==\"starorg-strings-app\")].version"
+          "jsonpath": "$.package[?(@.name.value==\"starorg-strings-app\")].version"
         },
         {
           "type": "json",
