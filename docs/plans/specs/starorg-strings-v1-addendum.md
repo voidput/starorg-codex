@@ -107,3 +107,39 @@ tracked **per character**, never merged.
   `--dry-run` prints the report and writes nothing.
 - Test data: synthetic export with fake names in the repo; the owner's real file is used
   only in an ignored local test (personal data, never committed).
+
+## 5. StarOrg Tools account link (OAuth, like RSI+) — import and sync blueprints
+
+Native "Connect StarOrg Tools" in the app (and `starorg-strings starorg login|logout|status`,
+`starorg-strings blueprints pull|push --character … [--guild …]`). Opt-in, off by default
+(network policy §11).
+
+**Auth (needs a StarOrg server change):** RSI+ uses `/api/auth/extension/login` →
+Discord → one-time `?code=` → `/api/auth/extension/exchange` with a PKCE verifier, and gets an
+`aud=rsiplus` 90-day token limited to `RSIPLUS_ROUTES`. The redirect allowlist
+(`EXTENSION_REDIRECT_URIS`) only accepts bare https extension URLs, so a desktop app cannot use
+it as is. Proposed (RFC 8252, native apps):
+- New audience `strings` (own route allowlist: `/api/auth/me`, `/api/auth/logout`, the
+  `my-blueprints` routes, `blueprint-library` read).
+- Loopback redirect `http://127.0.0.1:<ephemeral port>/callback` (any port, path fixed), PKCE
+  S256 required, `state` checked; system browser opens the login URL (no embedded webview).
+- Token stored in the OS keyring (Windows Credential Manager / Secret Service), never in
+  config files or logs; logout revokes server-side.
+- Environments: `https://starorg.tools`, `https://dev.starorg.tools` (as RSI+).
+
+**Blueprint API already in StarOrg** (`apps/industrial/api/routes/owned_blueprints.py`):
+`GET /guilds/{guild_id}/my-blueprints`, `POST …/my-blueprints {blueprint_ids, source, acquired_at}`,
+`POST …/my-blueprints/remove`, `GET …/blueprint-library`. StarOrg blueprints carry `game_uuid`
+and `game_key` (record GUID / name), so matching to our `GameData` blueprint records is exact,
+not by display name. `source` already allows `log` and `smart_citizen`; add `starorg_strings`.
+
+**Pull (import):** owned set from StarOrg → chosen character's set (union, never delete),
+entries tagged `source: starorg:<guild>`. **Push (optional):** blueprints found in logs →
+StarOrg with `source: log` and the log line time as `acquired_at`. Never push removals
+automatically.
+
+**Alts (open question Q21):** StarOrg ownership is per StarOrg user (Discord account) inside a
+guild, not per in-game character. Options: (a) link one character per StarOrg account
+(default: the main), alts stay local; (b) push the union of chosen characters; (c) StarOrg adds
+an optional character/RSI-handle dimension (RSI+ already syncs hangars per RSI handle).
+Recommendation: (a) for v1, (c) as a StarOrg follow-up.
