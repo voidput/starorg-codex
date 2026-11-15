@@ -2078,6 +2078,69 @@ Section 8 is implemented; section 7 (Developer mode) followed on branch `devmode
 - **Not done:** sticky group headers (Q-G2, as recommended); CLI output of groups; dump
   sources still give approximate groups until `sc-gamedata` publishes loc keys (8.7).
 
+### 8.11 Strings owners: readable names for keys (branch `strings-owners`, 2026-11-15)
+
+User request: "in strings I also want the key but with the human readable names". The grid's
+first column now says what a key *is*: the thing that uses it and which field, e.g.
+`item_DescCOOL_AEGS_S01_Bracer` -> **Bracer · description** (Ship component · Aegis
+Dynamics). The raw key stays under it (muted, mono) while **Show keys** is on.
+
+- **Core** `starorg-core::groups::owners` (the Explorer sections of 7.17 were not on main when
+  this started, so it is its own small index): `OwnerIndex::build(stock, game_data)` per stock
+  key, in order:
+  1. GameData records whose loc keys include the key: components, ship/FPS weapons,
+     missiles, ships and ground vehicles (name, description, career, role), contracts
+     (title, description), reputation standings. Owner name = the record's stock display
+     text (record name when that is a placeholder); manufacturer label from
+     `manufacturer_Name<code>`. Owners with the same name, kind and maker collapse (AI copies);
+     templates and `LOC_*` filler keys own nothing. Namesake record first, then kind, name.
+  2. Key shapes, no record: `item_Name*`/`vehicle_Name*` name themselves and give their
+     `Desc`/`ShortName` siblings the name (namesake stem); `manufacturer_Name|Desc<code>`;
+     `X_desc` / `X_desc_N` take the text of `X`, `X_name`, `X_title` / `X_title_N`, which in turn
+     name themselves. A name is one line, at most 120 bytes, not a placeholder.
+  3. Nothing: `pretty_key` (`item desc · COOL_AEGS_S01_Bracer`, `hud · law trespass area`).
+  Storage is CSR: `u32` offsets per row + `(u32 record, u8 field)` uses + distinct owners.
+- **Lazy, per build, no Developer mode:** `LoadedData` holds a `OnceLock<Arc<OwnerIndex>>`
+  beside the groups; the first Strings table of a build fills it from the cached GameData and
+  stock file. No worker, no extraction.
+- **Contract (additive, version stays 1):** `StringRow.owner: KeyOwner | null` (boxed in Rust;
+  every page row has one, `kind: key` = readable-key fallback filled by
+  `strings_query::with_fallback`) and `StringRow.owners` (count); `KeyOwner { name, field,
+  kind, detail }` with `OwnerField` (name, short-name, description, title, career, role) and
+  `OwnerKind` (ship, ground-vehicle, component, ship-weapon, fps-weapon, missile, mission,
+  reputation, manufacturer, named, key); `StringDetail.owners` (all, primary first);
+  `StringSort::Owner` (owned keys first, name A-Z case-insensitive, field, key). Search also
+  matches the owner's name and manufacturer. Both mocks carry synthetic owners (every 5th ship
+  weapon shared with a "Turret" copy; `ui_SYN_*` rows fall back); sample
+  `query_strings_by_owner`.
+- **UI:** column "String" = `name · field` (fallback muted), key line under it (Show keys,
+  local storage `starorg.strings.show-keys`, default on). A shared key reads
+  "N records · field" and opens a popover listing every owner with kind and maker (Esc closes,
+  focus returns); the detail sheet starts with "What this is" / "Used by N records". Copy
+  button on row hover/focus, Ctrl+C on the active row. Sort "Owner A–Z". **Group tree:** the
+  existing "Group by type" tree already is the owner category tree (Ships & vehicles, Ship
+  components, Ship weapons, Missions & contracts, Locations, Interface, Other, …): rule 1 of
+  8.2 uses the same GameData links, so a key's owner and its group agree.
+- **Measured on LIVE 4.10.200.58746** (release, read only; cache entry from the LIVE install):
+  index build 55 ms, 1.4 MiB heap (14,271 distinct owners); 25,234 of 91,358 keys owned
+  (5,858 by a GameData record, the rest by key shape), 853 shared (`vehicle_focus_combat`: 136
+  ships). Table rows add about 3 MiB (25,234 boxed owners + 12 bytes per row). Real backend:
+  first Strings query 333-596 ms (game data, groups, owners, table; RSS 26 -> 190 MiB, peak
+  209 MiB), warm key sort 30 ms, owner sort 123 ms, search 34-57 ms.
+  Real examples: `vehicle_NameAEGS_Gladius` -> Aegis Gladius · name (Ship · Aegis Dynamics);
+  `manufacturer_DescAEGS` -> Aegis Dynamics · description; `Pyro1_L2_03_desc` -> PYR1 L2-C ·
+  description; `item_Desc_fta_medium_helmet_01_04_10` -> Strata Helmet microTech Edition ·
+  description; `hud_law_TrespassAreaRevokedAuthorisation` -> hud · law trespass area revoked
+  authorisation.
+- **Tests:** core `owners_tests.rs` (record owner + field, shared keys and namesake order, key
+  shapes, fallback, filler keys; ignored `real_cache_entry` with `STARORG_OWNERS_DIR`),
+  contract `strings_rows_carry_readable_owners`, real backend assertions plus ignored
+  `measure_strings_owners_on_real_live`, `app/tests/strowner.test.ts` (prettyKey parity with
+  the core, labels). Headless renders 1024x700 and 1280x800, dark and light.
+- **Not done:** dialogue (`pu_*`, `human_*`, `dlg_*`, about 35,000 keys) and most UI keys
+  have no owner and show the readable key; search matches the primary owner only; Explorer
+  sections (7.17) could replace rule 1 once Strings may read them without the dev worker.
+
 ## 9. Rust port of sc-gamedata (branch `gamedata-port`, Refs #12)
 
 The published dumps come from sc-gamedata (TypeScript, StarBreaker CLI). Its extraction is
