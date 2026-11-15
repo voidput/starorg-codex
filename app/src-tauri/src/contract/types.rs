@@ -1120,6 +1120,219 @@ pub struct ImportReport {
 }
 
 // ---------------------------------------------------------------------------------------
+// Fleet import and ship names (addendum §6)
+// ---------------------------------------------------------------------------------------
+
+/// `ship-names.toml` `style`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NameStyle {
+    None,
+    Numeric,
+    GroupLetter,
+    Symbol,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RestMode {
+    Stock,
+    Numbered,
+}
+
+/// `profile.toml` `[ship_names] use`: the shared list, this channel's own, or off.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ShipNamesScope {
+    Shared,
+    Channel,
+    Off,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum FleetFormat {
+    XplorJson,
+    XplorCsv,
+    Text,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShipGroup {
+    pub id: String,
+    pub name: String,
+}
+
+/// One `[[ship]]`: file order is the order.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShipEntry {
+    pub hull: String,
+    pub group: Option<String>,
+    /// Rename of the long name.
+    pub name: Option<String>,
+    /// Rename of the short name; defaults to `name`.
+    pub short: Option<String>,
+}
+
+/// Same fields as the core's `fleet::store::ShipNames` (minus `schema` and unknown keys).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShipNamesSettings {
+    pub enabled: bool,
+    pub style: NameStyle,
+    /// `" "`, `"-"` or `". "`.
+    pub separator: String,
+    /// One of `! # * + - .`.
+    pub symbol: String,
+    pub rest: RestMode,
+    pub prefix_short: bool,
+    pub groups: Vec<ShipGroup>,
+    pub ships: Vec<ShipEntry>,
+}
+
+/// A player-flyable hull of the channel's build.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetHull {
+    /// Hull id = the long name key (`vehicle_NameAEGS_Gladius`).
+    pub hull: String,
+    /// Stock long name.
+    pub name: String,
+    /// Stock short name, when the build has the `_short` key.
+    pub short: Option<String>,
+    /// Game maker code (`aegs`).
+    pub maker: Option<String>,
+    pub ground: bool,
+    /// Other records (AI, PU, unmanned variants) that show the same name.
+    pub npc_shared: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OwnedHull {
+    pub hull: String,
+    pub count: u32,
+    /// Custom names from the export: rename suggestions.
+    pub names: Vec<String>,
+}
+
+/// An import row that matched no hull, or several (`candidates`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PendingShip {
+    pub name: String,
+    pub count: u32,
+    pub maker: Option<String>,
+    pub names: Vec<String>,
+    pub candidates: Vec<String>,
+}
+
+/// User overrides on a hull's name keys: they win with their whole value.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HullOverride {
+    pub hull: String,
+    pub long: Option<String>,
+    pub short: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetViewRequest {
+    pub target: ChannelRef,
+    /// Read the game data when it is not cached for this build (slow; a job).
+    pub read_game_data: bool,
+}
+
+/// Everything the Ships screen needs for one channel.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetView {
+    pub channel: String,
+    /// The build's game data has been read: `catalog` is the real list.
+    pub catalog_ready: bool,
+    /// Player-flyable hulls, sorted by stock name.
+    pub catalog: Vec<FleetHull>,
+    pub owned: Vec<OwnedHull>,
+    pub pending: Vec<PendingShip>,
+    /// Row names marked "Not in the game".
+    pub not_in_game: Vec<String>,
+    pub imported_at: Option<String>,
+    pub format: Option<FleetFormat>,
+    pub scope: ShipNamesScope,
+    /// The settings in use for this channel (for `off`: the shared ones, not written).
+    pub settings: ShipNamesSettings,
+    /// The shared `ship-names.toml` (what "All channels" switches back to).
+    pub shared_settings: ShipNamesSettings,
+    pub overrides: Vec<HullOverride>,
+    pub warnings: Vec<String>,
+    /// The settings table could not be used: nothing is written until it is fixed or saved.
+    pub invalid: bool,
+    /// Display only.
+    pub fleet_file: String,
+    pub settings_file: String,
+}
+
+/// Where the import reads from. The real backend opens the file picker for `file` and keeps
+/// the file in memory, so the confirm step can use `last` without asking again.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum FleetSource {
+    File,
+    Text { text: String },
+    Last,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetImportRequest {
+    pub target: ChannelRef,
+    pub source: FleetSource,
+    pub dry_run: bool,
+    /// Add to the fleet instead of replacing it.
+    pub merge: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ImportedHull {
+    pub hull: String,
+    pub name: String,
+    pub count: u32,
+    pub names: Vec<String>,
+    /// Not in the fleet before.
+    pub new: bool,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetImportReport {
+    /// File name (no folder), `null` for pasted text.
+    pub file: Option<String>,
+    pub format: FleetFormat,
+    pub dry_run: bool,
+    pub merge: bool,
+    pub total: u32,
+    /// Rows that are not ships.
+    pub skipped: u32,
+    pub hulls: Vec<ImportedHull>,
+    pub unmatched: Vec<PendingShip>,
+    pub ambiguous: Vec<PendingShip>,
+    pub not_in_game: u32,
+    pub empty_catalog: bool,
+    /// Hulls appended to the shared order list (0 for a dry run).
+    pub added_to_order: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FleetMatchRequest {
+    pub target: ChannelRef,
+    /// The pending row's name.
+    pub name: String,
+    /// A hull id, or `null` for "Not in the game".
+    pub hull: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SaveShipNamesRequest {
+    pub target: ChannelRef,
+    pub scope: ShipNamesScope,
+    /// Written to the shared file (`shared`) or the channel's profile (`channel`); ignored
+    /// for `off`.
+    pub settings: ShipNamesSettings,
+}
+
+// ---------------------------------------------------------------------------------------
 // StarOrg Tools account (addendum §5, Q22 = push the union of ticked characters)
 // ---------------------------------------------------------------------------------------
 

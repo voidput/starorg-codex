@@ -35,6 +35,9 @@ use starorg_core::blueprints::{
 use starorg_core::cache::{self, KeyInputs};
 use starorg_core::config::{self, Config, Outputs};
 use starorg_core::discovery::{self, Channel, DiscoveryEnv, DiscoveryRequest, Install};
+use starorg_core::fleet::Catalog;
+use starorg_core::fleet::import as fleet_import;
+use starorg_core::fleet::store::{self as fleet_store, FleetFile};
 use starorg_core::fsutil;
 use starorg_core::hooks;
 use starorg_core::ini::StockIni;
@@ -170,6 +173,9 @@ struct Mem {
     job: Option<JobProgress>,
     data: HashMap<(String, String), Arc<LoadedData>>,
     tables: HashMap<(String, String), (String, Arc<Table>)>,
+    /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
+    /// without a second picker.
+    last_fleet: Option<(String, Vec<u8>)>,
 }
 
 pub struct RealBackend {
@@ -260,6 +266,10 @@ fn busy_or(e: LockError, what: &str) -> AppError {
 const JSON_FILTER: FileFilter = FileFilter {
     name: "Smart Citizen export",
     extensions: &["json"],
+};
+const FLEET_FILTER: FileFilter = FileFilter {
+    name: "Fleet export or list",
+    extensions: &["json", "csv", "txt"],
 };
 const PATCH_FILTER: FileFilter = FileFilter {
     name: "Patch file",
@@ -706,6 +716,7 @@ impl RealBackend {
             patches.hash().as_bytes(),
             inp.overrides_hash.as_bytes(),
             inp.owned.hash.as_bytes(),
+            inp.ship_names_hash.as_bytes(),
         ]);
         let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
         if profile.is_none()
@@ -722,6 +733,7 @@ impl RealBackend {
             patches: &patches,
             overrides: &inp.overrides,
             owned: &inp.owned,
+            ship_names: inp.ship_names.active(),
         }));
         if profile.is_none() {
             self.mem().tables.insert(slot, (key, tbl.clone()));
@@ -1196,6 +1208,70 @@ impl RealBackend {
         );
         e.detail = Some("Blocked on SC-ORG-BOT#1659. Nothing was sent or changed.".into());
         e
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Fleet and ship names (addendum §6)
+    // -----------------------------------------------------------------------------------
+
+    /// The build's hull catalogue; `None` while its game data has not been read (and
+    /// `extract` is off).
+    fn hull_catalog(&self, f: &Found, ch: &Channel, extract: bool) -> CmdResult<Option<Catalog>> {
+        if f.id.is_none() && !extract {
+            return Ok(None);
+        }
+        match self.loaded(f, ch, extract) {
+            Ok(d) => Ok(Some(Catalog::build(&d.game_data, &d.stock))),
+            Err(e) if !extract && e.code == ErrorCode::NotFound => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    fn fleet_lock(&self) -> CmdResult<lock::Lock> {
+        lock::try_lock(&self.dirs().locks().join("fleet.lock"))
+            .map_err(|e| busy_or(e, "another fleet import is running"))
+    }
+
+    /// Hulls new to the fleet go to the end of the shared order list.
+    fn append_to_order(&self, added: &[String]) -> CmdResult<usize> {
+        if added.is_empty() {
+            return Ok(0);
+        }
+        let mut s = fleet_store::load_shared(self.dirs()).map_err(io)?;
+        let n = s.append(added);
+        if n > 0 {
+            fleet_store::save_shared(self.dirs(), &s).map_err(io)?;
+        }
+        Ok(n)
+    }
+
+    fn fleet_view_of(
+        &self,
+        f: &Found,
+        ch: &Channel,
+        cat: Option<&Catalog>,
+    ) -> CmdResult<FleetView> {
+        let fleet = FleetFile::load(self.dirs()).map_err(io)?;
+        let data = self.data_dir(f, ch);
+        let profile = self.profile_file(f, ch)?;
+        let eff = fleet_store::effective(self.dirs(), &profile);
+        let shared = fleet_store::load_shared(self.dirs()).unwrap_or_default();
+        let (_, overrides, _) = state::load_overrides(&data).map_err(io)?;
+        let settings_file = if eff.scope == fleet_store::Scope::Channel {
+            state::Profile::path(&data)
+        } else {
+            fleet_store::ship_names_path(self.dirs())
+        };
+        Ok(super::fleet::view(super::fleet::ViewParts {
+            channel: &ch.name,
+            catalog: cat,
+            fleet: &fleet,
+            effective: &eff,
+            shared: &shared,
+            overrides: &overrides,
+            fleet_file: path_text(&fleet_store::fleet_path(self.dirs())),
+            settings_file: path_text(&settings_file),
+        }))
     }
 
     fn resolve(&self, r: &ChannelRef) -> CmdResult<Found> {
@@ -2305,6 +2381,178 @@ impl Backend for RealBackend {
         );
         drop(_l);
         self.characters_view(&f, ch)
+    }
+
+    fn fleet_view(&self, req: FleetViewRequest) -> CmdResult<FleetView> {
+        let mut f = self.resolve(&req.target)?;
+        if req.read_game_data {
+            self.register(&mut f)?;
+        }
+        let ch = f.channel(&req.target.channel)?;
+        let cat = if req.read_game_data {
+            let job = self.job_start(
+                JobKind::Extract,
+                Some(&ch.name),
+                1,
+                "Reading ship names from game data",
+            );
+            match self.hull_catalog(&f, ch, true) {
+                Ok(c) => {
+                    self.job_end(job, JobPhase::Done, "Done", None);
+                    c
+                }
+                Err(e) => {
+                    self.job_end(job, JobPhase::Failed, &e.message, None);
+                    return Err(e);
+                }
+            }
+        } else {
+            self.hull_catalog(&f, ch, false)?
+        };
+        self.fleet_view_of(&f, ch, cat.as_ref())
+    }
+
+    fn fleet_import(&self, req: FleetImportRequest) -> CmdResult<FleetImportReport> {
+        let (file, bytes) = match &req.source {
+            FleetSource::Text { text } => (None, text.as_bytes().to_vec()),
+            FleetSource::Last => {
+                let (n, b) = self.mem().last_fleet.clone().ok_or_else(|| {
+                    err(
+                        ErrorCode::NotFound,
+                        "Choose the file again: it is no longer in memory.",
+                    )
+                })?;
+                (Some(n), b)
+            }
+            FleetSource::File => {
+                let d = self
+                    .cfg
+                    .dialogs
+                    .get()
+                    .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+                let path = d
+                    .pick_file(
+                        "Fleet export (RSI+, FleetYards, FleetView) or a list of ships",
+                        FLEET_FILTER,
+                    )
+                    .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+                let b = fsutil::read_limited(&path, fleet_import::IMPORT_LIMIT)
+                    .map_err(|e| err(ErrorCode::Invalid, e.to_string()))?
+                    .ok_or_else(|| {
+                        err(ErrorCode::NotFound, format!("{} not found", path.display()))
+                    })?;
+                let name = path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
+                self.mem().last_fleet = Some((name.clone(), b.clone()));
+                (Some(name), b)
+            }
+        };
+        let parsed = super::fleet::parse(&bytes)?;
+        let mut f = self.resolve(&req.target)?;
+        if !req.dry_run {
+            self.register(&mut f)?;
+        }
+        let ch = f.channel(&req.target.channel)?;
+        let cat = self
+            .hull_catalog(&f, ch, f.id.is_some())?
+            .unwrap_or_default();
+        let _lock = if req.dry_run {
+            None
+        } else {
+            Some(self.fleet_lock()?)
+        };
+        let fleet = FleetFile::load(self.dirs()).map_err(io)?;
+        let mut out = fleet_import::run(&parsed, &cat, &fleet, req.merge);
+        let mut appended = 0;
+        if !req.dry_run && !out.report.empty_catalog {
+            out.fleet.imported_at = Some(now());
+            out.fleet.save(self.dirs()).map_err(io)?;
+            appended = self.append_to_order(&out.added)?;
+            self.forget_tables(&f, ch);
+            if !req.dry_run {
+                self.mem().last_fleet = None;
+            }
+        }
+        let r = &out.report;
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Import),
+            Some(&ch.name),
+            &format!(
+                "Fleet import{}: {} hulls, {} unmatched, {} ambiguous",
+                if req.dry_run { " (dry run)" } else { "" },
+                r.hulls.len(),
+                r.unmatched.len(),
+                r.ambiguous.len()
+            ),
+        );
+        Ok(super::fleet::report(&out, file, req.dry_run, appended))
+    }
+
+    fn fleet_match(&self, req: FleetMatchRequest) -> CmdResult<FleetView> {
+        let mut f = self.resolve(&req.target)?;
+        self.register(&mut f)?;
+        let ch = f.channel(&req.target.channel)?;
+        let cat = self.hull_catalog(&f, ch, false)?.ok_or_else(|| {
+            err(
+                ErrorCode::NotFound,
+                format!("Read the game data of {} first.", ch.name),
+            )
+        })?;
+        let target = super::fleet::match_target(&cat, req.hull.as_deref())?;
+        {
+            let _lock = self.fleet_lock()?;
+            let mut fleet = FleetFile::load(self.dirs()).map_err(io)?;
+            let added = fleet_import::hand_match(&mut fleet, &req.name, target);
+            fleet.save(self.dirs()).map_err(io)?;
+            self.append_to_order(added.as_slice())?;
+        }
+        self.forget_tables(&f, ch);
+        self.fleet_view_of(&f, ch, Some(&cat))
+    }
+
+    fn save_ship_names(&self, req: SaveShipNamesRequest) -> CmdResult<FleetView> {
+        let mut f = self.resolve(&req.target)?;
+        self.register(&mut f)?;
+        let ch = f.channel(&req.target.channel)?;
+        let new = super::fleet::to_core(&req.settings)?;
+        let data = self.data_dir(&f, ch);
+        let mut profile = self.profile_file(&f, ch)?;
+        let before = profile.clone();
+        let scope = super::fleet::core_scope(req.scope);
+        {
+            let _lock = self.fleet_lock()?;
+            if scope == fleet_store::Scope::Shared {
+                let mut shared = fleet_store::load_shared(self.dirs()).unwrap_or_default();
+                shared.merge_from(&new);
+                fleet_store::save_shared(self.dirs(), &shared).map_err(io)?;
+            }
+            fleet_store::set_channel(&mut profile, scope, Some(&new));
+            if profile != before {
+                profile.save(&data).map_err(io)?;
+            }
+        }
+        self.forget_tables(&f, ch);
+        let cat = self.hull_catalog(&f, ch, false)?;
+        self.fleet_view_of(&f, ch, cat.as_ref())
+    }
+
+    fn fleet_clear(&self, req: ChannelRef) -> CmdResult<FleetView> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        {
+            let _lock = self.fleet_lock()?;
+            let mut fleet = FleetFile::load(self.dirs()).map_err(io)?;
+            fleet.hulls.clear();
+            fleet.pending.clear();
+            fleet.imported_at = None;
+            fleet.format = None;
+            fleet.save(self.dirs()).map_err(io)?;
+        }
+        let cat = self.hull_catalog(&f, ch, false)?;
+        self.fleet_view_of(&f, ch, cat.as_ref())
     }
 
     fn starorg_status(&self, channel: String) -> CmdResult<StarOrgStatus> {

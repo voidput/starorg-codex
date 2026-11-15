@@ -11,7 +11,11 @@
  * `&foreign=LIVE` (another tool's file in place), `&builderr=LIVE`, `&channels=5`,
  * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
  * `&accent=<accent>`, `&palette=black`.
+ * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
+ * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
+ * not read yet).
  */
+import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
 import samples from './samples.gen.json';
@@ -29,6 +33,9 @@ const SAMPLES = samples as unknown as {
   doctor: T.DoctorReport;
   starorg_status: T.StarOrgStatus;
   import_smart_citizen: T.ImportReport;
+  fleet_view: T.FleetView;
+  fleet_import: T.FleetImportReport;
+  save_ship_names: T.FleetView;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -417,6 +424,134 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   };
   const firstRun = () => !installs.some((i) => i.channels.some((c) => c.set_up));
 
+  // Fleet and ship names (addendum §6): one fleet and one shared list for every channel.
+  let fleetMode = params.get('fleet');
+  const catalog = clone(SAMPLES.fleet_view.catalog);
+  const emptyNames = (): T.ShipNamesSettings => ({ enabled: false, style: 'numeric', separator: ' ', symbol: '*', rest: 'stock', prefix_short: false, groups: [], ships: [] });
+  const fleet = {
+    owned: [] as T.OwnedHull[],
+    pending: [] as T.PendingShip[],
+    matches: new Map<string, string | null>(),
+    imported_at: null as string | null,
+    format: null as T.FleetFormat | null,
+  };
+  let shared = emptyNames();
+  const scopes = new Map<string, { scope: T.ShipNamesScope; own: T.ShipNamesSettings | null }>();
+  let lastFile = false;
+  const fv = SAMPLES.fleet_view;
+  if (fleetMode && fleetMode !== 'nodata') {
+    fleet.owned = clone(fv.owned);
+    fleet.imported_at = fv.imported_at;
+    fleet.format = fv.format;
+    shared = fleetMode === 'grouped' ? clone(SAMPLES.save_ship_names.settings) : { ...emptyNames(), ships: fv.owned.map((o) => ({ hull: o.hull, group: null, name: null, short: null })) };
+    if (fleetMode === 'review') fleet.pending = clone(SAMPLES.fleet_import.unmatched.concat(SAMPLES.fleet_import.ambiguous));
+    else fleet.pending = clone(fv.pending);
+  }
+  const norm = (x: string) => x.toLowerCase().replace(/[\u2018\u2019]/g, "'").replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  /** A small version of the core matcher: exact name, name without its first word (maker), short name. */
+  const matchName = (name: string): string[] => {
+    const n = norm(name);
+    const saved = fleet.matches.get(n);
+    if (saved !== undefined) return saved === null ? ['-'] : [saved];
+    const forms = (h: T.FleetHull) => [norm(h.name), norm(h.name).split(' ').slice(1).join(' '), norm(h.short ?? '')];
+    let hits = catalog.filter((h) => forms(h).includes(n)).map((h) => h.hull);
+    if (!hits.length) {
+      const noMk = (x: string) => x.replace(/\bmk (i+|v|iv|\d+)\b/g, '').replace(/\s+/g, ' ').trim();
+      hits = catalog.filter((h) => forms(h).map(noMk).includes(noMk(n))).map((h) => h.hull);
+    }
+    return hits;
+  };
+  const parseText = (text: string) => {
+    const rows: { name: string; count: number; custom: string | null; maker: string | null }[] = [];
+    const t = text.replace(/^\ufeff/, '').trim();
+    if (t.startsWith('{')) fail('invalid', 'not a fleet export');
+    if (t.startsWith('[')) {
+      let arr: unknown;
+      try {
+        arr = JSON.parse(t);
+      } catch {
+        fail('invalid', 'not a fleet export');
+      }
+      for (const r of arr as Record<string, string>[]) {
+        if (r.entity_type && r.entity_type !== 'ship') continue;
+        const name = r.name || r.ship_name;
+        if (!name) continue;
+        const custom = r.ship_name && norm(r.ship_name) !== norm(name) ? r.ship_name : null;
+        rows.push({ name, count: 1, custom, maker: r.manufacturer_code ?? null });
+      }
+      return { rows, format: 'xplor-json' as T.FleetFormat, total: (arr as unknown[]).length };
+    }
+    for (const line of t.split(/\r?\n/)) {
+      const l = line.trim();
+      if (!l || l.startsWith('#')) continue;
+      const m = /^(\d+)\s*[x×]\s+(.+)$/i.exec(l) ?? null;
+      const m2 = /^(.+?)\s+[x×](\d+)$/i.exec(l) ?? null;
+      if (m) rows.push({ name: m[2]!, count: Number(m[1]), custom: null, maker: null });
+      else if (m2) rows.push({ name: m2[1]!, count: Number(m2[2]), custom: null, maker: null });
+      else rows.push({ name: l, count: 1, custom: null, maker: null });
+    }
+    if (!rows.length) fail('invalid', 'the list names no ship');
+    return { rows, format: 'text' as T.FleetFormat, total: rows.length };
+  };
+  const MOCK_FILE = JSON.stringify([
+    { ship_code: 'KSTL_Kite', ship_name: 'Needle', manufacturer_code: 'KSTL', name: 'Kite', entity_type: 'ship', pledge_id: '90000001' },
+    { ship_code: 'KSTL_Kite', ship_name: 'Kite', manufacturer_code: 'KSTL', name: 'Kite', entity_type: 'ship' },
+    { ship_code: 'KSTL_Talon', ship_name: 'Talon', manufacturer_code: 'KSTL', name: 'Talon', entity_type: 'ship' },
+    { ship_code: 'ORBW_Lantern', ship_name: 'Rusty', manufacturer_code: 'ORBW', name: 'Lantern', entity_type: 'ship' },
+    { ship_code: 'RDGE_Hauler', ship_name: 'Hauler', manufacturer_code: 'RDGE', name: 'Hauler', entity_type: 'ship' },
+    { ship_code: 'RDGE_Hauler', ship_name: 'Hauler', manufacturer_code: 'RDGE', name: 'Hauler', entity_type: 'ship' },
+    { ship_code: 'VLMR_Pike', ship_name: 'Pike', manufacturer_code: 'VLMR', name: 'Pike', entity_type: 'ship' },
+    { ship_code: 'TRNE_Starlance', ship_name: 'Starlance', manufacturer_code: 'TRNE', name: 'Starlance', entity_type: 'ship' },
+    { name: 'Synthetic paint pack', entity_type: 'skin' },
+  ]);
+  const appendOrder = (hulls: string[]) => {
+    let n = 0;
+    for (const h of hulls) {
+      if (shared.ships.some((e) => fold(e.hull) === fold(h))) continue;
+      shared.ships.push({ hull: h, group: null, name: null, short: null });
+      n++;
+    }
+    return n;
+  };
+  const scopeOf = (r: T.ChannelRef) => scopes.get(id(r)) ?? { scope: 'shared' as T.ShipNamesScope, own: null };
+  const fleetView = (r: T.ChannelRef): T.FleetView => {
+    const c = chan(r);
+    const sc = scopeOf(r);
+    const settings = sc.scope === 'channel' && sc.own ? sc.own : shared;
+    const overrides = catalog
+      .map((h) => ({ hull: h.hull, long: c.overrides.get(h.hull) ?? null, short: c.overrides.get(`${h.hull}_short`) ?? null }))
+      .filter((o) => o.long !== null || o.short !== null);
+    const ready = fleetMode !== 'nodata';
+    return {
+      ...clone(fv),
+      channel: r.channel,
+      catalog_ready: ready,
+      catalog: ready ? clone(catalog) : [],
+      owned: clone(fleet.owned),
+      pending: clone(fleet.pending),
+      not_in_game: [...fleet.matches].filter(([, v]) => v === null).map(([k]) => k),
+      imported_at: fleet.imported_at,
+      format: fleet.format,
+      scope: sc.scope,
+      settings: clone(settings),
+      shared_settings: clone(shared),
+      overrides,
+      warnings: [],
+      invalid: false,
+      settings_file: sc.scope === 'channel' ? `~/.local/share/starorg-strings/channels/${r.install}/${r.channel}/profile.toml` : fv.settings_file,
+    };
+  };
+  const checkNames = (st: T.ShipNamesSettings) => {
+    if (!(SEPARATORS as readonly string[]).includes(st.separator)) fail('invalid', 'separator: one of " ", "-", ". "');
+    if (!(SYMBOLS as readonly string[]).includes(st.symbol)) fail('invalid', 'symbol: one of ! # * + - .');
+    for (const e of st.ships) for (const v of [e.name, e.short]) if (v !== null && v.trim() && nameProblem(v)) fail('invalid', `${JSON.stringify(v)}: ${nameProblem(v)}`);
+    return { ...clone(st), ships: st.ships.map((e) => ({ ...e, name: e.name?.trim() || null, short: e.short?.trim() || null })) };
+  };
+  const markStale = () => {
+    for (const c of chans.values()) if (c.summary.status.state === 'applied') c.summary.status = { state: 'stale', reasons: ['ship names'] };
+    sync();
+  };
+
   const h: Handlers = {
     overview: () => {
       sync();
@@ -759,6 +894,100 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         c.owned.set(req.character, set);
       }
       return { ...clone(SAMPLES.import_smart_citizen), dry_run: req.dry_run, imported, known };
+    },
+    fleet_view: ({ req }) => {
+      if (req.read_game_data && fleetMode === 'nodata') fleetMode = null;
+      return fleetView(req.target);
+    },
+    fleet_import: async ({ req }) => {
+      chan(req.target);
+      if (req.source.kind === 'file') lastFile = true;
+      if (req.source.kind === 'last' && !lastFile) fail('not-found', 'Choose the file again: it is no longer in memory.');
+      await sleep(Math.min(delay, 400));
+      const text = req.source.kind === 'text' ? req.source.text : MOCK_FILE;
+      const { rows, format, total } = parseText(text);
+      const hulls = new Map<string, T.ImportedHull>();
+      const pending = new Map<string, T.PendingShip>();
+      let notInGame = 0;
+      for (const r of rows) {
+        const hits = matchName(r.name);
+        if (hits[0] === '-') {
+          notInGame++;
+          continue;
+        }
+        if (hits.length === 1) {
+          const hc = catalog.find((x) => x.hull === hits[0])!;
+          const e = hulls.get(hc.hull) ?? { hull: hc.hull, name: hc.name, count: 0, names: [], new: !fleet.owned.some((o) => o.hull === hc.hull) };
+          e.count += r.count;
+          if (r.custom && !e.names.includes(r.custom)) e.names.push(r.custom);
+          hulls.set(hc.hull, e);
+        } else {
+          const e = pending.get(norm(r.name)) ?? { name: r.name, count: 0, maker: r.maker, names: [], candidates: hits.length > 1 ? hits : [] };
+          e.count += r.count;
+          pending.set(norm(r.name), e);
+        }
+      }
+      const report: T.FleetImportReport = {
+        file: req.source.kind === 'text' ? null : 'synthetic-fleet.json',
+        format,
+        dry_run: req.dry_run,
+        merge: req.merge,
+        total: format === 'xplor-json' ? total : rows.length,
+        skipped: format === 'xplor-json' ? total - rows.length : 0,
+        hulls: [...hulls.values()],
+        unmatched: [...pending.values()].filter((p) => !p.candidates.length),
+        ambiguous: [...pending.values()].filter((p) => p.candidates.length),
+        not_in_game: notInGame,
+        empty_catalog: fleetMode === 'nodata',
+        added_to_order: 0,
+      };
+      if (!req.dry_run && !report.empty_catalog) {
+        const next = req.merge ? clone(fleet.owned) : [];
+        for (const h of hulls.values()) {
+          const o = next.find((x) => x.hull === h.hull);
+          if (o) o.count = Math.max(o.count, h.count);
+          else next.push({ hull: h.hull, count: h.count, names: [...h.names] });
+        }
+        fleet.owned = next;
+        fleet.pending = req.merge ? [...fleet.pending.filter((p) => !pending.has(norm(p.name))), ...pending.values()] : [...pending.values()];
+        fleet.imported_at = NOW;
+        fleet.format = format;
+        report.added_to_order = appendOrder([...hulls.values()].filter((h) => h.new).map((h) => h.hull));
+        if (shared.enabled && report.added_to_order) markStale();
+        lastFile = false;
+      }
+      addLog('info', 'import', req.target.channel, `Fleet import${req.dry_run ? ' (dry run)' : ''}: ${report.hulls.length} hulls, ${report.unmatched.length} unmatched, ${report.ambiguous.length} ambiguous`);
+      return report;
+    },
+    fleet_match: ({ req }) => {
+      if (req.hull !== null && !catalog.some((h) => fold(h.hull) === fold(req.hull!))) fail('invalid', `${req.hull} is not a ship of this build`);
+      fleet.matches.set(norm(req.name), req.hull);
+      const p = fleet.pending.find((x) => norm(x.name) === norm(req.name));
+      fleet.pending = fleet.pending.filter((x) => x !== p);
+      if (p && req.hull) {
+        const o = fleet.owned.find((x) => fold(x.hull) === fold(req.hull!));
+        if (o) o.count += p.count;
+        else {
+          fleet.owned.push({ hull: req.hull, count: p.count, names: [...p.names] });
+          appendOrder([req.hull]);
+        }
+      }
+      return fleetView(req.target);
+    },
+    save_ship_names: ({ req }) => {
+      const st = checkNames(req.settings);
+      const before = fleetView(req.target).settings.enabled;
+      if (req.scope === 'shared') shared = st;
+      scopes.set(id(req.target), { scope: req.scope, own: req.scope === 'channel' ? st : null });
+      if (before || st.enabled) markStale();
+      return fleetView(req.target);
+    },
+    fleet_clear: ({ req }) => {
+      fleet.owned = [];
+      fleet.pending = [];
+      fleet.imported_at = null;
+      fleet.format = null;
+      return fleetView(req);
     },
     forget_character: ({ req }) => {
       const c = chan(req.target);

@@ -646,6 +646,147 @@ export interface ImportReport {
   empty_catalog: boolean;
 }
 
+// Fleet import and ship names (addendum §6) ---------------------------------------------
+
+export type NameStyle = 'none' | 'numeric' | 'group-letter' | 'symbol';
+export type RestMode = 'stock' | 'numbered';
+/** profile.toml `[ship_names] use`: the shared list, this channel's own, or off. */
+export type ShipNamesScope = 'shared' | 'channel' | 'off';
+export type FleetFormat = 'xplor-json' | 'xplor-csv' | 'text';
+
+export interface ShipGroup {
+  id: string;
+  name: string;
+}
+
+/** One `[[ship]]`: list order is the order. */
+export interface ShipEntry {
+  hull: string;
+  group: string | null;
+  /** Rename of the long name. */
+  name: string | null;
+  /** Rename of the short name; defaults to `name`. */
+  short: string | null;
+}
+
+export interface ShipNamesSettings {
+  enabled: boolean;
+  style: NameStyle;
+  /** ' ', '-' or '. '. */
+  separator: string;
+  /** One of ! # * + - . */
+  symbol: string;
+  rest: RestMode;
+  prefix_short: boolean;
+  groups: ShipGroup[];
+  ships: ShipEntry[];
+}
+
+export interface FleetHull {
+  /** Hull id = the long name key. */
+  hull: string;
+  name: string;
+  short: string | null;
+  maker: string | null;
+  ground: boolean;
+  /** Other records (AI, PU variants) that show the same name. */
+  npc_shared: number;
+}
+
+export interface OwnedHull {
+  hull: string;
+  count: number;
+  /** Custom names from the export: rename suggestions. */
+  names: string[];
+}
+
+export interface PendingShip {
+  name: string;
+  count: number;
+  maker: string | null;
+  names: string[];
+  /** Set for ambiguous rows. */
+  candidates: string[];
+}
+
+export interface HullOverride {
+  hull: string;
+  long: string | null;
+  short: string | null;
+}
+
+export interface FleetViewRequest {
+  target: ChannelRef;
+  /** Read the game data when it is not cached for this build (slow). */
+  read_game_data: boolean;
+}
+
+export interface FleetView {
+  channel: string;
+  catalog_ready: boolean;
+  catalog: FleetHull[];
+  owned: OwnedHull[];
+  pending: PendingShip[];
+  not_in_game: string[];
+  imported_at: string | null;
+  format: FleetFormat | null;
+  scope: ShipNamesScope;
+  settings: ShipNamesSettings;
+  /** The shared ship-names.toml (what "All channels" switches back to). */
+  shared_settings: ShipNamesSettings;
+  overrides: HullOverride[];
+  warnings: string[];
+  invalid: boolean;
+  fleet_file: string;
+  settings_file: string;
+}
+
+export type FleetSourceKind = 'file' | 'text' | 'last';
+export type FleetSource = { kind: 'file' } | { kind: 'text'; text: string } | { kind: 'last' };
+
+export interface FleetImportRequest {
+  target: ChannelRef;
+  source: FleetSource;
+  dry_run: boolean;
+  merge: boolean;
+}
+
+export interface ImportedHull {
+  hull: string;
+  name: string;
+  count: number;
+  names: string[];
+  new: boolean;
+}
+
+export interface FleetImportReport {
+  file: string | null;
+  format: FleetFormat;
+  dry_run: boolean;
+  merge: boolean;
+  total: number;
+  skipped: number;
+  hulls: ImportedHull[];
+  unmatched: PendingShip[];
+  ambiguous: PendingShip[];
+  not_in_game: number;
+  empty_catalog: boolean;
+  added_to_order: number;
+}
+
+export interface FleetMatchRequest {
+  target: ChannelRef;
+  name: string;
+  /** null = "Not in the game". */
+  hull: string | null;
+}
+
+export interface SaveShipNamesRequest {
+  target: ChannelRef;
+  scope: ShipNamesScope;
+  settings: ShipNamesSettings;
+}
+
 // StarOrg Tools -------------------------------------------------------------------------
 
 export type StarOrgEnv = 'production' | 'dev';

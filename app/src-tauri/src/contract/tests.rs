@@ -149,6 +149,8 @@ fn samples() -> Value {
     let mut settings = b.get_settings().unwrap();
     settings.network.starorg = true;
     let settings = b.save_settings(settings).unwrap();
+    let (fleet_dry, fleet_import, fleet_match, fleet_saved, fleet_clear, fleet_view) =
+        fleet_samples(&b);
     let err = b
         .apply(
             ApplyRequest {
@@ -161,7 +163,7 @@ fn samples() -> Value {
             &noop,
         )
         .unwrap_err();
-    json!({
+    let mut v = json!({
         "contract": CONTRACT_VERSION,
         "job_event": JOB_EVENT,
         "error": err,
@@ -201,7 +203,82 @@ fn samples() -> Value {
         "save_diagnostics": b.save_diagnostics().unwrap(),
         "hooks_status": b.hooks_status().unwrap(),
         "doctor": b.doctor().unwrap(),
+    });
+    // Separate inserts: one json! with every sample hits the macro recursion limit.
+    for (k, x) in [
+        ("fleet_view", json!(fleet_view)),
+        ("fleet_import", json!(fleet_dry)),
+        ("fleet_import_applied", json!(fleet_import)),
+        ("fleet_match", json!(fleet_match)),
+        ("save_ship_names", json!(fleet_saved)),
+        ("fleet_clear", json!(fleet_clear)),
+    ] {
+        v[k] = x;
+    }
+    v
+}
+
+/// Import the mock fleet file (dry run, then for real), settle one row, turn ship names on
+/// with a group and a rename, then clear the fleet.
+fn fleet_samples(
+    b: &MockBackend,
+) -> (
+    FleetImportReport,
+    FleetImportReport,
+    FleetView,
+    FleetView,
+    FleetView,
+    FleetView,
+) {
+    let import = |dry_run| {
+        b.fleet_import(FleetImportRequest {
+            target: live(),
+            source: FleetSource::File,
+            dry_run,
+            merge: false,
+        })
+        .unwrap()
+    };
+    let dry = import(true);
+    let real = import(false);
+    let matched = b
+        .fleet_match(FleetMatchRequest {
+            target: live(),
+            name: "Starlance".into(),
+            hull: None,
+        })
+        .unwrap();
+    let mut s = matched.settings.clone();
+    s.enabled = true;
+    s.groups.push(ShipGroup {
+        id: "combat".into(),
+        name: "Combat".into(),
+    });
+    s.ships[0].group = Some("combat".into());
+    s.ships[1].name = Some("Rusty".into());
+    let saved = b
+        .save_ship_names(SaveShipNamesRequest {
+            target: live(),
+            scope: ShipNamesScope::Shared,
+            settings: s,
+        })
+        .unwrap();
+    let view = b
+        .fleet_view(FleetViewRequest {
+            target: live(),
+            read_game_data: false,
+        })
+        .unwrap();
+    let cleared = b.fleet_clear(hotfix()).unwrap();
+    // Leave the fleet in place for the samples after this one.
+    b.fleet_import(FleetImportRequest {
+        target: live(),
+        source: FleetSource::File,
+        dry_run: false,
+        merge: true,
     })
+    .unwrap();
+    (dry, real, matched, saved, cleared, view)
 }
 
 /// `samples.gen.json` is what the TS types are checked against (`samples.check.ts`).
@@ -502,6 +579,32 @@ fn ts_unions_list_every_variant() {
             names(&[HookKind::Prelaunch, HookKind::Postexit]),
         ),
         (
+            "NameStyle",
+            names(&[
+                NameStyle::None,
+                NameStyle::Numeric,
+                NameStyle::GroupLetter,
+                NameStyle::Symbol,
+            ]),
+        ),
+        ("RestMode", names(&[RestMode::Stock, RestMode::Numbered])),
+        (
+            "ShipNamesScope",
+            names(&[
+                ShipNamesScope::Shared,
+                ShipNamesScope::Channel,
+                ShipNamesScope::Off,
+            ]),
+        ),
+        (
+            "FleetFormat",
+            names(&[
+                FleetFormat::XplorJson,
+                FleetFormat::XplorCsv,
+                FleetFormat::Text,
+            ]),
+        ),
+        (
             "CheckLevel",
             names(&[
                 CheckLevel::Ok,
@@ -535,6 +638,187 @@ fn ts_unions_list_every_variant() {
         serde_json::to_value(HookState::Missing).unwrap(),
     ]);
     assert_eq!(ts_union(&ts, "HookStateName"), hook_states);
+    let kinds: Vec<String> = [
+        FleetSource::File,
+        FleetSource::Text {
+            text: String::new(),
+        },
+        FleetSource::Last,
+    ]
+    .iter()
+    .map(|v| {
+        serde_json::to_value(v).unwrap()["kind"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    })
+    .collect();
+    assert_eq!(ts_union(&ts, "FleetSourceKind"), kinds);
+}
+
+#[test]
+fn ship_names_contract_matches_the_core() {
+    use starorg_core::fleet::store;
+    let Some(src) = core_src("fleet/store.rs") else {
+        eprintln!("core fleet sources not in this checkout: drift check skipped");
+        return;
+    };
+    let b = MockBackend::default();
+    let v = b
+        .fleet_view(FleetViewRequest {
+            target: live(),
+            read_game_data: false,
+        })
+        .unwrap();
+    let mut want: Vec<String> = rust_fields(&src, "ShipNames")
+        .into_iter()
+        .filter(|f| f != "schema" && f != "extra")
+        .collect();
+    want.sort();
+    assert_eq!(json_keys(&serde_json::to_value(&v.settings).unwrap()), want);
+    let mut entry: Vec<String> = rust_fields(&src, "ShipEntry")
+        .into_iter()
+        .filter(|f| f != "extra")
+        .collect();
+    entry.sort();
+    let e = ShipEntry {
+        hull: "h".into(),
+        group: None,
+        name: None,
+        short: None,
+    };
+    assert_eq!(json_keys(&serde_json::to_value(&e).unwrap()), entry);
+    // Enum values are the core's serde names.
+    let core_styles = [
+        store::Style::None,
+        store::Style::Numeric,
+        store::Style::GroupLetter,
+        store::Style::Symbol,
+    ];
+    let ours = [
+        NameStyle::None,
+        NameStyle::Numeric,
+        NameStyle::GroupLetter,
+        NameStyle::Symbol,
+    ];
+    assert_eq!(names(&core_styles), names(&ours));
+    assert_eq!(
+        names(&[
+            store::Scope::Shared,
+            store::Scope::Channel,
+            store::Scope::Off
+        ]),
+        names(&[
+            ShipNamesScope::Shared,
+            ShipNamesScope::Channel,
+            ShipNamesScope::Off
+        ])
+    );
+    assert_eq!(
+        names(&[store::Rest::Stock, store::Rest::Numbered]),
+        names(&[RestMode::Stock, RestMode::Numbered])
+    );
+    // Hull fields are a subset of the core's catalogue fields.
+    let cat = rust_fields(&core_src("fleet/catalog.rs").unwrap(), "Hull");
+    let h = serde_json::to_value(&v.catalog[0]).unwrap();
+    for k in json_keys(&h) {
+        assert!(cat.contains(&k), "FleetHull.{k} not in fleet::Hull");
+    }
+}
+
+#[test]
+fn fleet_import_dry_run_writes_nothing_and_new_hulls_join_the_order() {
+    let b = MockBackend::default();
+    let view = || {
+        b.fleet_view(FleetViewRequest {
+            target: live(),
+            read_game_data: false,
+        })
+        .unwrap()
+    };
+    let req = |source, dry_run, merge| FleetImportRequest {
+        target: live(),
+        source,
+        dry_run,
+        merge,
+    };
+    let r = b.fleet_import(req(FleetSource::File, true, false)).unwrap();
+    assert!(r.dry_run && r.hulls.len() == 4, "{r:?}");
+    assert_eq!(r.ambiguous[0].name, "Talon", "Mk I and Mk II both fit");
+    assert_eq!(r.unmatched[0].name, "Starlance");
+    let kite = r
+        .hulls
+        .iter()
+        .find(|h| h.hull == "vehicle_NameKSTL_Kite")
+        .unwrap();
+    assert_eq!(
+        (kite.count, kite.names.clone()),
+        (2, vec!["Needle".to_string()])
+    );
+    let v = view();
+    assert!(v.owned.is_empty() && v.settings.ships.is_empty());
+
+    let r = b
+        .fleet_import(req(FleetSource::File, false, false))
+        .unwrap();
+    assert_eq!(r.added_to_order, 4);
+    let v = view();
+    assert_eq!(v.owned.len(), 4);
+    assert_eq!(v.settings.ships.len(), 4);
+    assert!(!v.settings.enabled, "import never turns ship names on");
+    // Pasted text, merged: counts are the larger, the order list only grows.
+    let r = b
+        .fleet_import(req(
+            FleetSource::Text {
+                text: "3x Kestrel Kite\nVolmar Moth\n".into(),
+            },
+            false,
+            true,
+        ))
+        .unwrap();
+    assert_eq!(r.format, FleetFormat::Text);
+    assert_eq!(r.added_to_order, 1);
+    let v = view();
+    assert_eq!(
+        v.owned
+            .iter()
+            .find(|h| h.hull == "vehicle_NameKSTL_Kite")
+            .unwrap()
+            .count,
+        3
+    );
+    assert_eq!(v.settings.ships.len(), 5);
+    // Hand match of the ambiguous row.
+    let v = b
+        .fleet_match(FleetMatchRequest {
+            target: live(),
+            name: "Talon".into(),
+            hull: Some("vehicle_NameKSTL_Talon_Mk2".into()),
+        })
+        .unwrap();
+    assert!(v.pending.iter().all(|p| p.name != "Talon"));
+    assert_eq!(v.settings.ships.len(), 6);
+    // Bad renames are refused before anything is saved.
+    let mut s = v.settings.clone();
+    s.ships[0].name = Some("<EM4>x".into());
+    let e = b
+        .save_ship_names(SaveShipNamesRequest {
+            target: live(),
+            scope: ShipNamesScope::Shared,
+            settings: s,
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    // Off for HOTFIX leaves LIVE's list alone.
+    let off = b
+        .save_ship_names(SaveShipNamesRequest {
+            target: hotfix(),
+            scope: ShipNamesScope::Off,
+            settings: v.settings.clone(),
+        })
+        .unwrap();
+    assert_eq!(off.scope, ShipNamesScope::Off);
+    assert_eq!(view().scope, ShipNamesScope::Shared);
 }
 
 #[test]

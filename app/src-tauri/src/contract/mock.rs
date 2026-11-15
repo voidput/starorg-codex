@@ -69,6 +69,8 @@ struct MockChannel {
     owned: HashMap<String, Vec<OwnedBlueprint>>,
     /// Characters whose entries were deleted (`forget_character`).
     forgotten: BTreeSet<String>,
+    /// The `[ship_names]` part of the channel's profile (scope, own list).
+    names_profile: starorg_core::state::Profile,
 }
 
 #[derive(Debug, Clone)]
@@ -86,6 +88,9 @@ struct MockState {
     cancel: BTreeSet<String>,
     /// User patch files exported or deleted, so "import" can bring one back.
     patch_files: Vec<(PatchView, String)>,
+    /// `fleet.json` and the shared `ship-names.toml`, in memory.
+    fleet: starorg_core::fleet::store::FleetFile,
+    ship_names: starorg_core::fleet::store::ShipNames,
 }
 
 /// Synthetic, stateful backend. `delay` slows long jobs so progress can be seen in the UI;
@@ -247,6 +252,7 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
         },
         owned: owned_sets,
         forgotten: BTreeSet::new(),
+        names_profile: Default::default(),
     }
 }
 
@@ -347,6 +353,8 @@ impl MockBackend {
             picked: false,
             cancel: BTreeSet::new(),
             patch_files: Vec::new(),
+            fleet: Default::default(),
+            ship_names: Default::default(),
         };
         let me = Self {
             state: Mutex::new(state),
@@ -742,6 +750,227 @@ fn starorg_view(s: &mut MockState, channel: &str) {
         .collect();
     s.starorg.push_count = union.len() as u32;
     s.starorg.enabled = s.settings.network.starorg;
+}
+
+/// Synthetic hulls for the Ships screen: invented makers and names, no CIG text.
+pub(crate) const MOCK_HULLS: &[(&str, &str, Option<&str>, &str, bool)] = &[
+    (
+        "vehicle_NameKSTL_Kite",
+        "Kestrel Kite",
+        Some("Kite"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameKSTL_Talon",
+        "Kestrel Talon Mk I",
+        Some("Talon Mk I"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameKSTL_Talon_Mk2",
+        "Kestrel Talon Mk II",
+        Some("Talon Mk II"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameKSTL_Harrier",
+        "Kestrel Harrier",
+        Some("Harrier"),
+        "kstl",
+        false,
+    ),
+    (
+        "vehicle_NameORBW_Lantern",
+        "Orbit Works Lantern",
+        Some("Lantern"),
+        "orbw",
+        false,
+    ),
+    (
+        "vehicle_NameORBW_Lantern_Pro",
+        "Orbit Works Lantern Pro",
+        Some("Lantern Pro"),
+        "orbw",
+        false,
+    ),
+    (
+        "vehicle_NameORBW_Beacon",
+        "Orbit Works Beacon",
+        Some("Beacon"),
+        "orbw",
+        false,
+    ),
+    (
+        "vehicle_NameRDGE_Hauler",
+        "Ridge Freight Hauler",
+        Some("Hauler"),
+        "rdge",
+        false,
+    ),
+    (
+        "vehicle_NameRDGE_Hauler_XL",
+        "Ridge Freight Hauler XL",
+        Some("Hauler XL"),
+        "rdge",
+        false,
+    ),
+    (
+        "vehicle_NameRDGE_Barge",
+        "Ridge Freight Barge",
+        None,
+        "rdge",
+        false,
+    ),
+    (
+        "vehicle_NameVLMR_Moth",
+        "Volmar Moth",
+        Some("Moth"),
+        "vlmr",
+        false,
+    ),
+    (
+        "vehicle_NameVLMR_Hornbill",
+        "Volmar Hornbill",
+        Some("Hornbill"),
+        "vlmr",
+        false,
+    ),
+    (
+        "vehicle_NameVLMR_Pike",
+        "Volmar Pike",
+        Some("Pike"),
+        "vlmr",
+        false,
+    ),
+    (
+        "vehicle_NameSOLN_Drifter",
+        "Solen Drifter",
+        Some("Drifter"),
+        "soln",
+        false,
+    ),
+    (
+        "vehicle_NameSOLN_Prospect",
+        "Solen Prospect",
+        Some("Prospect"),
+        "soln",
+        false,
+    ),
+    (
+        "vehicle_NameSOLN_Rover",
+        "Solen Rover",
+        Some("Rover"),
+        "soln",
+        true,
+    ),
+    (
+        "vehicle_NameTRNE_Wren",
+        "Tarne Wren",
+        Some("Wren"),
+        "trne",
+        false,
+    ),
+    (
+        "vehicle_NameTRNE_Heron",
+        "Tarne Heron",
+        Some("Heron"),
+        "trne",
+        false,
+    ),
+    (
+        "vehicle_NameAXIS_Bastion",
+        "Axis Bastion",
+        Some("Bastion"),
+        "axis",
+        false,
+    ),
+    (
+        "vehicle_NameAXIS_Vigil",
+        "Axis Vigil",
+        Some("Vigil"),
+        "axis",
+        false,
+    ),
+];
+
+/// The "file" the mock import reads: HangarXPLOR JSON with made-up pledges and names.
+pub(crate) const MOCK_FLEET_FILE: &str = r#"[
+ {"ship_code":"KSTL_Kite","ship_name":"Needle","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Kite","lti":true,"warbond":false,"entity_type":"ship","pledge_id":"90000001","pledge_name":"Synthetic pledge","pledge_date":"January 01, 2950","pledge_cost":"$10.00 USD"},
+ {"ship_code":"KSTL_Kite","ship_name":"Kite","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Kite","entity_type":"ship"},
+ {"ship_code":"KSTL_Talon","ship_name":"Talon","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Talon","entity_type":"ship"},
+ {"ship_code":"ORBW_Lantern","ship_name":"Rusty","manufacturer_code":"ORBW","manufacturer_name":"Orbit Works","name":"Lantern","entity_type":"ship"},
+ {"ship_code":"RDGE_Hauler","ship_name":"Hauler","manufacturer_code":"RDGE","manufacturer_name":"Ridge Freight","name":"Hauler","entity_type":"ship"},
+ {"ship_code":"RDGE_Hauler","ship_name":"Hauler","manufacturer_code":"RDGE","manufacturer_name":"Ridge Freight","name":"Hauler","entity_type":"ship"},
+ {"ship_code":"VLMR_Pike","ship_name":"Pike","manufacturer_code":"VLMR","manufacturer_name":"Volmar","name":"Pike","entity_type":"ship"},
+ {"ship_code":"TRNE_Starlance","ship_name":"Starlance","manufacturer_code":"TRNE","manufacturer_name":"Tarne","name":"Starlance","entity_type":"ship"},
+ {"name":"Synthetic paint pack","entity_type":"skin"}
+]"#;
+
+fn mock_catalog() -> starorg_core::fleet::Catalog {
+    use starorg_core::fleet::Hull;
+    starorg_core::fleet::Catalog::new(
+        MOCK_HULLS
+            .iter()
+            .map(|&(id, name, short, maker, ground)| Hull {
+                hull: id.into(),
+                name: name.into(),
+                short: short.map(str::to_string),
+                short_key: short.map(|_| format!("{id}_short")),
+                maker: Some(maker.into()),
+                flyable: true,
+                ground,
+                npc_shared: if ground { 0 } else { 2 },
+                namesake: true,
+            })
+            .collect(),
+    )
+}
+
+fn mock_fleet_view(c: &MockChannel, s: &MockState) -> FleetView {
+    use starorg_core::fleet::store::{Effective, Scope, channel_settings, scope_of};
+    let scope = scope_of(&c.names_profile);
+    let raw = match scope {
+        Scope::Channel => channel_settings(&c.names_profile).unwrap_or_default(),
+        _ => s.ship_names.clone(),
+    };
+    let (settings, warnings, invalid) = raw.validated();
+    let eff = Effective {
+        scope,
+        settings,
+        warnings,
+        invalid,
+    };
+    let cat = mock_catalog();
+    let overrides: Vec<starorg_core::state::Override> = c
+        .overrides
+        .iter()
+        .enumerate()
+        .map(|(i, (k, v))| starorg_core::state::Override {
+            line: i + 1,
+            key: k.clone(),
+            value: v.clone(),
+        })
+        .collect();
+    super::fleet::view(super::fleet::ViewParts {
+        channel: &c.summary.channel,
+        catalog: Some(&cat),
+        fleet: &s.fleet,
+        effective: &eff,
+        shared: &s.ship_names,
+        overrides: &overrides,
+        fleet_file: "~/.local/share/starorg-strings/fleet.json".into(),
+        settings_file: if scope == Scope::Channel {
+            format!(
+                "~/.local/share/starorg-strings/channels/{INSTALL_ID}/{}/profile.toml",
+                c.summary.channel
+            )
+        } else {
+            "~/.local/share/starorg-strings/ship-names.toml".into()
+        },
+    })
 }
 
 impl Backend for MockBackend {
@@ -1788,6 +2017,84 @@ impl Backend for MockBackend {
                 };
             }
             Ok(characters_view(c))
+        })
+    }
+
+    fn fleet_view(&self, req: FleetViewRequest) -> CmdResult<FleetView> {
+        self.with_channel(&req.target, |c, s| Ok(mock_fleet_view(c, s)))
+    }
+
+    fn fleet_import(&self, req: FleetImportRequest) -> CmdResult<FleetImportReport> {
+        use starorg_core::fleet::import;
+        let (file, text) = match &req.source {
+            FleetSource::Text { text } => (None, text.clone()),
+            FleetSource::File | FleetSource::Last => (
+                Some("synthetic-fleet.json".to_string()),
+                MOCK_FLEET_FILE.to_string(),
+            ),
+        };
+        let parsed = super::fleet::parse(text.as_bytes())?;
+        let out = self.with_channel(&req.target, |_, s| {
+            let cat = mock_catalog();
+            let mut out = import::run(&parsed, &cat, &s.fleet, req.merge);
+            let mut appended = 0;
+            if !req.dry_run {
+                out.fleet.imported_at = Some(NOW.into());
+                s.fleet = out.fleet.clone();
+                appended = s.ship_names.append(&out.added);
+            }
+            Ok(super::fleet::report(
+                &out,
+                file.clone(),
+                req.dry_run,
+                appended,
+            ))
+        })?;
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Import),
+            Some(&req.target.channel),
+            &format!(
+                "Fleet import{}: {} hulls, {} unmatched, {} ambiguous",
+                if req.dry_run { " (dry run)" } else { "" },
+                out.hulls.len(),
+                out.unmatched.len(),
+                out.ambiguous.len()
+            ),
+        );
+        Ok(out)
+    }
+
+    fn fleet_match(&self, req: FleetMatchRequest) -> CmdResult<FleetView> {
+        self.with_channel(&req.target, |c, s| {
+            let cat = mock_catalog();
+            let target = super::fleet::match_target(&cat, req.hull.as_deref())?;
+            let added = starorg_core::fleet::import::hand_match(&mut s.fleet, &req.name, target);
+            s.ship_names.append(added.as_slice());
+            Ok(mock_fleet_view(c, s))
+        })
+    }
+
+    fn save_ship_names(&self, req: SaveShipNamesRequest) -> CmdResult<FleetView> {
+        use starorg_core::fleet::store::{Scope, set_channel};
+        let new = super::fleet::to_core(&req.settings)?;
+        self.with_channel(&req.target, |c, s| {
+            let scope = super::fleet::core_scope(req.scope);
+            if scope == Scope::Shared {
+                s.ship_names.merge_from(&new);
+            }
+            set_channel(&mut c.names_profile, scope, Some(&new));
+            Ok(mock_fleet_view(c, s))
+        })
+    }
+
+    fn fleet_clear(&self, req: ChannelRef) -> CmdResult<FleetView> {
+        self.with_channel(&req, |c, s| {
+            s.fleet.hulls.clear();
+            s.fleet.pending.clear();
+            s.fleet.imported_at = None;
+            s.fleet.format = None;
+            Ok(mock_fleet_view(c, s))
         })
     }
 

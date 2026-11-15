@@ -51,6 +51,11 @@ export interface CommandMap {
   owned_blueprints: [{ req: T.CharacterRequest }, T.OwnedBlueprint[]];
   import_smart_citizen: [{ req: T.ImportRequest }, T.ImportReport];
   forget_character: [{ req: T.CharacterRequest }, T.CharactersView];
+  fleet_view: [{ req: T.FleetViewRequest }, T.FleetView];
+  fleet_import: [{ req: T.FleetImportRequest }, T.FleetImportReport];
+  fleet_match: [{ req: T.FleetMatchRequest }, T.FleetView];
+  save_ship_names: [{ req: T.SaveShipNamesRequest }, T.FleetView];
+  fleet_clear: [{ req: T.ChannelRef }, T.FleetView];
   starorg_status: [{ channel: string }, T.StarOrgStatus];
   starorg_login: [{ channel: string }, T.StarOrgStatus];
   starorg_logout: [{ channel: string }, T.StarOrgStatus];
@@ -111,6 +116,11 @@ export const COMMANDS = [
   'owned_blueprints',
   'import_smart_citizen',
   'forget_character',
+  'fleet_view',
+  'fleet_import',
+  'fleet_match',
+  'save_ship_names',
+  'fleet_clear',
   'starorg_status',
   'starorg_login',
   'starorg_logout',
@@ -257,6 +267,11 @@ export const api = {
   ownedBlueprints: (req: T.CharacterRequest) => call('owned_blueprints', { req }),
   importSmartCitizen: (req: T.ImportRequest) => call('import_smart_citizen', { req }),
   forgetCharacter: (req: T.CharacterRequest) => call('forget_character', { req }),
+  fleetView: (req: T.FleetViewRequest) => call('fleet_view', { req }),
+  fleetImport: (req: T.FleetImportRequest) => call('fleet_import', { req }),
+  fleetMatch: (req: T.FleetMatchRequest) => call('fleet_match', { req }),
+  saveShipNames: (req: T.SaveShipNamesRequest) => call('save_ship_names', { req }),
+  fleetClear: (req: T.ChannelRef) => call('fleet_clear', { req }),
   starorgStatus: (channel: string) => call('starorg_status', { channel }),
   starorgLogin: (channel: string) => call('starorg_login', { channel }),
   starorgLogout: (channel: string) => call('starorg_logout', { channel }),

@@ -11,6 +11,7 @@
 //! Command names are snake_case and take one argument named `req` (or none), so the TS client
 //! is a straight `invoke(name, { req })`.
 
+pub mod fleet;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock;
 pub mod real;
@@ -90,6 +91,16 @@ pub trait Backend: Send + Sync + 'static {
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport>;
     /// Deletes one character's owned set (`<geid>.json`) and its entry in the character list.
     fn forget_character(&self, req: CharacterRequest) -> CmdResult<CharactersView>;
+
+    /// Catalogue, fleet and ship-name settings of one channel (addendum §6).
+    fn fleet_view(&self, req: FleetViewRequest) -> CmdResult<FleetView>;
+    /// Dry run first; a real import replaces the fleet (or merges) and appends new hulls to
+    /// the shared order list.
+    fn fleet_import(&self, req: FleetImportRequest) -> CmdResult<FleetImportReport>;
+    fn fleet_match(&self, req: FleetMatchRequest) -> CmdResult<FleetView>;
+    fn save_ship_names(&self, req: SaveShipNamesRequest) -> CmdResult<FleetView>;
+    /// Forget the imported fleet; hand matches and the order list stay.
+    fn fleet_clear(&self, req: ChannelRef) -> CmdResult<FleetView>;
 
     fn starorg_status(&self, channel: String) -> CmdResult<StarOrgStatus>;
     fn starorg_login(&self, channel: String) -> CmdResult<StarOrgStatus>;
@@ -188,6 +199,11 @@ commands! {
     owned_blueprints(req: CharacterRequest) -> Vec<OwnedBlueprint>;
     import_smart_citizen(req: ImportRequest) -> ImportReport;
     forget_character(req: CharacterRequest) -> CharactersView;
+    fleet_view(req: FleetViewRequest) -> FleetView;
+    fleet_import(req: FleetImportRequest) -> FleetImportReport;
+    fleet_match(req: FleetMatchRequest) -> FleetView;
+    save_ship_names(req: SaveShipNamesRequest) -> FleetView;
+    fleet_clear(req: ChannelRef) -> FleetView;
     starorg_status(channel: String) -> StarOrgStatus;
     starorg_login(channel: String) -> StarOrgStatus;
     starorg_logout(channel: String) -> StarOrgStatus;
@@ -264,6 +280,11 @@ macro_rules! contract_handler {
             $crate::contract::owned_blueprints,
             $crate::contract::import_smart_citizen,
             $crate::contract::forget_character,
+            $crate::contract::fleet_view,
+            $crate::contract::fleet_import,
+            $crate::contract::fleet_match,
+            $crate::contract::save_ship_names,
+            $crate::contract::fleet_clear,
             $crate::contract::starorg_status,
             $crate::contract::starorg_login,
             $crate::contract::starorg_logout,
@@ -323,6 +344,11 @@ pub const COMMAND_NAMES: &[&str] = &[
     "owned_blueprints",
     "import_smart_citizen",
     "forget_character",
+    "fleet_view",
+    "fleet_import",
+    "fleet_match",
+    "save_ship_names",
+    "fleet_clear",
     "starorg_status",
     "starorg_login",
     "starorg_logout",

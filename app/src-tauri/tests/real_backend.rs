@@ -9,7 +9,7 @@
 use starorg_core::appdirs::AppDirs;
 use starorg_core::apply::Ctx;
 use starorg_core::discovery::{Channel, DiscoveryEnv, DiscoveryRequest};
-use starorg_core::model::{Blueprint, GameData};
+use starorg_core::model::{Blueprint, GameData, Ship, ShipLoc};
 use starorg_core::source::{Budget, GameSource, Loaded, Origin, SourceError};
 use starorg_strings_app::contract::Backend;
 use starorg_strings_app::contract::real::{
@@ -29,6 +29,10 @@ fn stock_bytes() -> Vec<u8> {
     v.extend_from_slice(b"item_DescA,P=Filler desc ~mission(Location) <EM4>open tail\r\n");
     v.extend_from_slice(b"item_NameRifle=Fake Rifle Kestrel\r\n");
     v.extend_from_slice(b"fmt_key=Deals %i filler\r\n");
+    v.extend_from_slice(
+        b"vehicle_NameSYN_Alpha=Synthetic Alpha\r\nvehicle_NameSYN_Alpha_short=Alpha\r\n",
+    );
+    v.extend_from_slice(b"vehicle_NameSYN_Bravo,P=Synthetic Bravo\r\n");
     for i in 0..60 {
         v.extend_from_slice(format!("filler_key_{i:03}=Filler value {i}\r\n").as_bytes());
     }
@@ -49,6 +53,18 @@ impl GameSource for TestSource {
                     produces_name_key: Some("item_NameRifle".into()),
                     ..Blueprint::default()
                 }],
+                ships: ["SYN_Alpha", "SYN_Alpha_PU_AI", "SYN_Bravo"]
+                    .iter()
+                    .map(|r| Ship {
+                        record_name: format!("EntityClassDefinition.{r}"),
+                        loc: ShipLoc {
+                            name: Some(format!("@vehicle_Name{}", &r[..9])),
+                            ..ShipLoc::default()
+                        },
+                        manufacturer: Some("syn".into()),
+                        ..Ship::default()
+                    })
+                    .collect(),
                 ..GameData::default()
             },
             origin: Origin::LocalExtraction {
@@ -679,4 +695,180 @@ fn unknown_patch_id_is_refused_and_not_saved() {
             .patches_disabled
             .is_empty()
     );
+}
+
+fn profile_has_table(f: &Fake) -> bool {
+    std::fs::read_to_string(
+        f.dirs
+            .channel_dir(&f.install_id(), "LIVE")
+            .join("profile.toml"),
+    )
+    .unwrap()
+    .contains("[ship_names]")
+}
+
+const FLEET_EXPORT: &str = r#"[
+ {"ship_code":"SYN_Alpha","ship_name":"Needle","manufacturer_code":"SYN","name":"Synthetic Alpha","entity_type":"ship","pledge_id":"90000001","pledge_cost":"$1.00 USD"},
+ {"ship_code":"SYN_Bravo","ship_name":"Bravo","manufacturer_code":"SYN","name":"Bravo","entity_type":"ship"},
+ {"ship_code":"SYN_Zulu","ship_name":"Zulu","manufacturer_code":"SYN","name":"Zulu","entity_type":"ship"}
+]"#;
+
+#[test]
+fn fleet_import_order_and_ship_names_through_apply() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    f.setup_live();
+    let view = |read| {
+        f.backend
+            .fleet_view(FleetViewRequest {
+                target: f.live(),
+                read_game_data: read,
+            })
+            .unwrap()
+    };
+    let v = view(true);
+    assert!(v.catalog_ready);
+    let ids: Vec<&str> = v.catalog.iter().map(|h| h.hull.as_str()).collect();
+    assert_eq!(ids, ["vehicle_NameSYN_Alpha", "vehicle_NameSYN_Bravo"]);
+    assert_eq!(v.catalog[0].npc_shared, 1);
+    assert_eq!(v.scope, ShipNamesScope::Shared);
+    assert!(!v.settings.enabled);
+
+    // Dry run from the picker writes nothing; the confirm step reuses the picked file.
+    let export = f.base.join("fleet.json");
+    std::fs::write(&export, FLEET_EXPORT).unwrap();
+    *f.pick.lock().unwrap() = Some(export);
+    let req = |source, dry_run| FleetImportRequest {
+        target: f.live(),
+        source,
+        dry_run,
+        merge: false,
+    };
+    let r = f
+        .backend
+        .fleet_import(req(FleetSource::File, true))
+        .unwrap();
+    assert_eq!(r.file.as_deref(), Some("fleet.json"));
+    assert_eq!(r.format, FleetFormat::XplorJson);
+    assert_eq!(r.hulls.len(), 2);
+    assert_eq!(r.hulls[0].names, ["Needle"]);
+    assert_eq!(r.unmatched[0].name, "Zulu");
+    assert_eq!(r.added_to_order, 0);
+    let fleet_json = f.dirs.data.join("fleet.json");
+    let names_toml = f.dirs.data.join("ship-names.toml");
+    assert!(!fleet_json.exists() && !names_toml.exists());
+    *f.pick.lock().unwrap() = None;
+    let r = f
+        .backend
+        .fleet_import(req(FleetSource::Last, false))
+        .unwrap();
+    assert_eq!(r.added_to_order, 2);
+    let stored = std::fs::read_to_string(&fleet_json).unwrap();
+    assert!(
+        !stored.contains("90000001") && !stored.contains("USD"),
+        "{stored}"
+    );
+    let v = view(false);
+    assert_eq!(v.owned.len(), 2);
+    assert_eq!(v.pending[0].name, "Zulu");
+    assert_eq!(v.settings.ships.len(), 2);
+
+    // Turn it on with a rename; apply writes prefix + name; reordering makes it stale.
+    let mut s = v.settings.clone();
+    s.enabled = true;
+    s.ships[1].name = Some("Needle".into());
+    let save = |s: &ShipNamesSettings, scope| {
+        f.backend
+            .save_ship_names(SaveShipNamesRequest {
+                target: f.live(),
+                scope,
+                settings: s.clone(),
+            })
+            .unwrap()
+    };
+    let v = save(&s, ShipNamesScope::Shared);
+    assert!(v.settings.enabled);
+    let (r, _) = f.apply(false);
+    assert_eq!(r.result, ApplyResult::Applied, "{r:?}");
+    let ini = std::fs::read_to_string(f.ini("LIVE")).unwrap();
+    assert!(
+        ini.contains("vehicle_NameSYN_Alpha=01 Synthetic Alpha\r\n"),
+        "{ini}"
+    );
+    assert!(
+        ini.contains("vehicle_NameSYN_Bravo,P=02 Needle\r\n"),
+        "{ini}"
+    );
+    s.ships.reverse();
+    save(&s, ShipNamesScope::Shared);
+    match f.backend.channel_status(f.live()).unwrap().status {
+        ApplyState::Stale { reasons } => assert_eq!(reasons, ["ship names"]),
+        other => panic!("{other:?}"),
+    }
+
+    // Channel scope: the list lives in the channel's profile; the shared file is kept.
+    let mut own = s.clone();
+    own.style = NameStyle::Symbol;
+    let v = save(&own, ShipNamesScope::Channel);
+    assert_eq!(v.scope, ShipNamesScope::Channel);
+    assert!(
+        v.settings_file.ends_with("profile.toml"),
+        "{}",
+        v.settings_file
+    );
+    let profile = std::fs::read_to_string(
+        f.dirs
+            .channel_dir(&f.install_id(), "LIVE")
+            .join("profile.toml"),
+    )
+    .unwrap();
+    assert!(
+        profile.contains("use = \"channel\"") && profile.contains("style = \"symbol\""),
+        "{profile}"
+    );
+    assert!(
+        std::fs::read_to_string(&names_toml)
+            .unwrap()
+            .contains("enabled = true")
+    );
+    assert_eq!(v.shared_settings.style, NameStyle::Numeric);
+    let v = save(&v.shared_settings, ShipNamesScope::Shared);
+    assert_eq!(
+        v.settings.style,
+        NameStyle::Numeric,
+        "back to the shared list"
+    );
+    assert!(!profile_has_table(&f), "the channel's own list is dropped");
+
+    // Hand match and an override that wins.
+    let v = f
+        .backend
+        .fleet_match(FleetMatchRequest {
+            target: f.live(),
+            name: "Zulu".into(),
+            hull: None,
+        })
+        .unwrap();
+    assert!(v.pending.is_empty());
+    assert_eq!(v.not_in_game, ["zulu"]);
+    f.backend
+        .set_override(OverrideRequest {
+            target: f.live(),
+            key: "vehicle_NameSYN_Alpha".into(),
+            value: "My Alpha".into(),
+        })
+        .unwrap();
+    let v = view(false);
+    assert_eq!(v.overrides.len(), 1);
+    assert_eq!(v.overrides[0].long.as_deref(), Some("My Alpha"));
+    let bad = f.backend.fleet_match(FleetMatchRequest {
+        target: f.live(),
+        name: "Zulu".into(),
+        hull: Some("vehicle_NameNope".into()),
+    });
+    assert_eq!(bad.unwrap_err().code, ErrorCode::Invalid);
+    let v = f.backend.fleet_clear(f.live()).unwrap();
+    assert!(v.owned.is_empty() && !v.settings.ships.is_empty());
 }
