@@ -175,6 +175,8 @@ export interface AssetExportModelRequest {
   preset: ModelPreset;
   lod: number;
   stl: boolean;
+  /** Export even with less free memory than the preset may need (after `needs-decision`). */
+  force: boolean;
 }
 
 export interface AssetCachePrevious {
@@ -192,6 +194,8 @@ export interface AssetCacheStatus {
   max_bytes: number;
   other_drive: boolean;
   previous: AssetCachePrevious | null;
+  /** Why the folder cannot be used; every cache use is refused until it is changed or reset. */
+  problem: string | null;
 }
 
 /** LOD the export dialog starts with per preset; 0-4 offered. */

@@ -88,6 +88,39 @@ pub fn peak_rss_bytes() -> Option<u64> {
     Some(kb * 1024)
 }
 
+/// A fresh `<out>.part`: an old one (or a link in its place) is removed first and the file is
+/// created new, so a write never follows a link.
+pub fn new_part(out: &Path) -> AssetResult<(PathBuf, std::fs::File)> {
+    let mut s = out.as_os_str().to_owned();
+    s.push(".part");
+    let part = PathBuf::from(s);
+    if let Some(d) = out.parent() {
+        std::fs::create_dir_all(d).map_err(|e| AssetError::internal(e.to_string()))?;
+    }
+    let _ = std::fs::remove_file(&part);
+    let f = std::fs::File::options()
+        .write(true)
+        .create_new(true)
+        .open(&part)
+        .map_err(|e| AssetError::internal(format!("{}: {e}", part.display())))?;
+    Ok((part, f))
+}
+
+/// Write `bytes` to `out` through [`new_part`], then rename into place (a link at `out` is
+/// replaced, not followed).
+pub fn write_atomic(out: &Path, bytes: &[u8]) -> AssetResult<()> {
+    use std::io::Write;
+    let (part, mut f) = new_part(out)?;
+    let r = f.write_all(bytes).and_then(|()| f.flush()).and_then(|()| {
+        drop(f);
+        std::fs::rename(&part, out)
+    });
+    if r.is_err() {
+        let _ = std::fs::remove_file(&part);
+    }
+    r.map_err(|e| AssetError::internal(format!("{}: {e}", out.display())))
+}
+
 /// `Data/Objects/x.dds` or `Data\Objects\x.dds\` -> `Data\Objects\x.dds`.
 pub fn norm_path(p: &str) -> String {
     p.trim().replace('/', "\\").trim_matches('\\').to_string()

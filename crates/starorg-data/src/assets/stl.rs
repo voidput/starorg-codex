@@ -99,11 +99,9 @@ pub fn glb_triangles(glb: &[u8]) -> AssetResult<Vec<[[f32; 3]; 3]>> {
 /// Write a binary STL; returns (triangles, bytes).
 pub fn write_stl(tris: &[[[f32; 3]; 3]], out: &Path) -> AssetResult<(u64, u64)> {
     let io = |e: std::io::Error| AssetError::internal(format!("{}: {e}", out.display()));
-    let mut s = out.as_os_str().to_owned();
-    s.push(".part");
-    let part = std::path::PathBuf::from(s);
+    let (part, file) = super::new_part(out)?;
     let r = (|| {
-        let mut w = std::io::BufWriter::new(std::fs::File::create(&part).map_err(io)?);
+        let mut w = std::io::BufWriter::new(file);
         let mut header = [0u8; 80];
         let text = b"StarOrg Codex STL (StarBreaker GLB, Z-up)";
         header[..text.len()].copy_from_slice(text);

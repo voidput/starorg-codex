@@ -2,8 +2,9 @@
 //! texture previews, so a second play or export of the same thing does not start the asset
 //! worker again.
 //!
-//! Layout, under the cache folder (default `<app cache>/assets`, or `dev.asset_cache_dir` in
-//! `config.toml`, or the CLI's `--cache-dir`):
+//! Layout, under the cache root (default `<app cache>/assets`; for a folder the user chose in
+//! `dev.asset_cache_dir` or the CLI's `--cache-dir`, its own `StarOrg Codex asset cache`
+//! subfolder):
 //!
 //! ```text
 //! .starorg-asset-cache            marker: this folder is ours
@@ -16,8 +17,10 @@
 //!   build removes that channel's other build folders.
 //! - **Bounded.** After each write the oldest files (by modification time; a hit touches its
 //!   file) are removed until the total is under the cap (2 GiB by default).
-//! - **Only our files.** Eviction, clear and move touch nothing but the layout above, so a
-//!   cache folder the user picked can hold other files safely.
+//! - **Only our files.** Eviction, clear and move touch only files of the layout above under a
+//!   root that holds the marker: channel names (`LIVE`), build keys (hex), our kind folders and
+//!   file names. No symlink is followed, for folders or files, and nothing outside the
+//!   canonical root is touched.
 
 use crate::config::Config;
 use std::io;
@@ -87,44 +90,56 @@ pub fn safe_name(s: &str) -> String {
     }
 }
 
-/// Every file of our layout under `root`: (path, size, modified).
-fn walk(root: &Path) -> Vec<(PathBuf, u64, SystemTime)> {
-    let mut out = Vec::new();
-    let dirs = |p: &Path| -> Vec<PathBuf> {
-        std::fs::read_dir(p)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-            .map(|e| e.path())
-            .collect()
-    };
-    for ch in dirs(root) {
-        for build in dirs(&ch) {
-            for kind in Kind::ALL {
-                let d = build.join(kind.dir());
-                for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
-                    let Ok(m) = e.metadata() else { continue };
-                    if m.is_file() {
-                        let t = m.modified().unwrap_or(SystemTime::UNIX_EPOCH);
-                        out.push((e.path(), m.len(), t));
-                    }
-                }
-            }
-        }
-    }
-    out
+/// A real directory (not a symlink to one).
+fn real_dir(p: &Path) -> bool {
+    std::fs::symlink_metadata(p).is_ok_and(|m| m.is_dir() && !m.file_type().is_symlink())
+}
+
+/// A channel folder name we make: `safe_name` of an upper-case channel (`LIVE`, `PTU`,
+/// `TECH-PREVIEW`).
+fn channel_name_ok(n: &str) -> bool {
+    !n.is_empty()
+        && n.len() <= 40
+        && n.chars()
+            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || matches!(c, '_' | '-'))
+}
+
+/// A build folder name we make: the cache key, lowercase hex (8 to 64 characters).
+pub fn build_name_ok(n: &str) -> bool {
+    (8..=64).contains(&n.len())
+        && n.chars()
+            .all(|c| c.is_ascii_digit() || ('a'..='f').contains(&c))
+}
+
+/// A file name we make: `[A-Za-z0-9._-]` ending in one of our extensions (or `.part`).
+fn file_name_ok(n: &str) -> bool {
+    const EXTS: [&str; 6] = [".ogg", ".wem", ".glb", ".png", ".jpg", ".part"];
+    !n.starts_with('.')
+        && n.len() <= 200
+        && n.chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+        && EXTS.iter().any(|e| n.ends_with(e))
+}
+
+fn names(dir: &Path) -> Vec<(String, PathBuf)> {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| Some((e.file_name().into_string().ok()?, e.path())))
+        .collect()
 }
 
 fn is_part(p: &Path) -> bool {
-    p.extension().is_some_and(|e| e == PART)
+    let n = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
+    n.ends_with(".part") || n.contains(".part.")
 }
 
 /// Remove `dir` and its parents up to (not including) `stop` while they are empty.
 fn remove_empty_up(dir: &Path, stop: &Path) {
     let mut d = dir.to_path_buf();
     while d.starts_with(stop) && d != stop {
-        if std::fs::remove_dir(&d).is_err() {
+        if !real_dir(&d) || std::fs::remove_dir(&d).is_err() {
             break;
         }
         if !d.pop() {
@@ -133,7 +148,10 @@ fn remove_empty_up(dir: &Path, stop: &Path) {
     }
 }
 
+const MARKER_TEXT: &[u8] = b"StarOrg Codex asset cache (Developer mode). Safe to delete.\n";
+
 impl AssetCache {
+    /// The cache in `root`, a folder of its own (see [`resolve`]).
     pub fn new(root: impl Into<PathBuf>, max_bytes: u64) -> Self {
         Self {
             root: root.into(),
@@ -171,6 +189,61 @@ impl AssetCache {
         PathBuf::from(s)
     }
 
+    /// The root is ours: a real folder holding a regular marker file.
+    fn owned(&self) -> bool {
+        real_dir(&self.root)
+            && std::fs::symlink_metadata(self.root.join(MARKER)).is_ok_and(|m| m.is_file())
+    }
+
+    /// The canonical root, when it is ours.
+    fn canon_root(&self) -> Option<PathBuf> {
+        if !self.owned() {
+            return None;
+        }
+        crate::fsutil::canonicalize(&self.root).ok()
+    }
+
+    /// Every file of our layout: known channel and build names, our kind folders, our file
+    /// names; no symlink is followed (files or folders), and nothing outside the canonical
+    /// root. Empty when the root is not ours (no marker).
+    fn walk(&self) -> Vec<(PathBuf, u64, SystemTime)> {
+        let Some(canon) = self.canon_root() else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        for (cn, ch) in names(&self.root) {
+            if !channel_name_ok(&cn) || !real_dir(&ch) {
+                continue;
+            }
+            for (bn, build) in names(&ch) {
+                if !build_name_ok(&bn) || !real_dir(&build) {
+                    continue;
+                }
+                for kind in Kind::ALL {
+                    let d = build.join(kind.dir());
+                    if !real_dir(&d) {
+                        continue;
+                    }
+                    let inside =
+                        crate::fsutil::canonicalize(&d).is_ok_and(|c| c.starts_with(&canon));
+                    if !inside {
+                        continue;
+                    }
+                    for (fname, f) in names(&d) {
+                        let Ok(m) = std::fs::symlink_metadata(&f) else {
+                            continue;
+                        };
+                        if m.is_file() && !m.file_type().is_symlink() && file_name_ok(&fname) {
+                            let t = m.modified().unwrap_or(SystemTime::UNIX_EPOCH);
+                            out.push((f, m.len(), t));
+                        }
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// A hit: the file, its modification time set to now (it is the newest for eviction).
     pub fn get(
         &self,
@@ -180,9 +253,12 @@ impl AssetCache {
         key: &str,
         ext: &str,
     ) -> Option<PathBuf> {
+        if !self.owned() || !real_dir(&self.kind_dir(channel, build, kind)) {
+            return None;
+        }
         let p = self.path(channel, build, kind, key, ext);
-        let m = std::fs::metadata(&p).ok()?;
-        if !m.is_file() || m.len() == 0 {
+        let m = std::fs::symlink_metadata(&p).ok()?;
+        if !m.is_file() || m.file_type().is_symlink() || m.len() == 0 {
             return None;
         }
         if let Ok(f) = std::fs::File::options().write(true).open(&p) {
@@ -191,18 +267,49 @@ impl AssetCache {
         Some(p)
     }
 
-    /// Get or make the folders for a write; writes the root marker.
+    /// Get or make the folders for a write; writes the root marker. Refuses when any folder
+    /// of the layout is a symlink (or not a folder).
     pub fn prepare(&self, channel: &str, build: &str, kind: Kind) -> io::Result<PathBuf> {
         let d = self.kind_dir(channel, build, kind);
         std::fs::create_dir_all(&d)?;
+        let ch = self.root.join(safe_name(&channel.to_ascii_uppercase()));
+        let b = ch.join(safe_name(build));
+        for x in [&self.root, &ch, &b, &d] {
+            if !real_dir(x) {
+                return Err(io::Error::other(format!(
+                    "{} is not a plain folder; the asset cache does not follow links",
+                    x.display()
+                )));
+            }
+        }
         let marker = self.root.join(MARKER);
-        if !marker.exists() {
-            std::fs::write(
-                &marker,
-                b"StarOrg Codex asset cache (Developer mode). Safe to delete.\n",
-            )?;
+        match std::fs::symlink_metadata(&marker) {
+            Ok(m) if m.is_file() => {}
+            Ok(_) => {
+                return Err(io::Error::other(format!(
+                    "{} is not a plain file",
+                    marker.display()
+                )));
+            }
+            Err(_) => std::fs::File::options()
+                .write(true)
+                .create_new(true)
+                .open(&marker)
+                .and_then(|mut f| io::Write::write_all(&mut f, MARKER_TEXT))?,
         }
         Ok(d)
+    }
+
+    /// A fresh `.part` for `final_path`: any old one (or a link in its place) is removed
+    /// first, then the file is created new, so a write never follows a link.
+    pub fn new_part(final_path: &Path) -> io::Result<(PathBuf, std::fs::File)> {
+        let part = Self::part_path(final_path);
+        let _ = std::fs::remove_file(&part);
+        let f = std::fs::File::options()
+            .write(true)
+            .create_new(true)
+            .open(&part)?;
+        Ok((part, f))
     }
 
     /// Move a finished file (usually a `.part`) into place, drop the channel's other builds
@@ -224,8 +331,15 @@ impl AssetCache {
         }
         self.prepare(channel, build, kind)?;
         let dst = self.path(channel, build, kind, key, ext);
+        if std::fs::symlink_metadata(&dst).is_ok_and(|m| !m.is_file()) {
+            std::fs::remove_file(&dst)?;
+        }
         if crate::fsutil::rename_retry(src, &dst).is_err() {
-            std::fs::copy(src, &dst)?;
+            let mut from = std::fs::File::open(src)?;
+            let (part, mut to) = Self::new_part(&dst)?;
+            io::copy(&mut from, &mut to)?;
+            drop(to);
+            crate::fsutil::rename_retry(&part, &dst)?;
             let _ = std::fs::remove_file(src);
         }
         if let Ok(f) = std::fs::File::options().write(true).open(&dst) {
@@ -251,8 +365,13 @@ impl AssetCache {
             return Ok(None);
         }
         self.prepare(channel, build, kind)?;
-        let part = Self::part_path(&self.path(channel, build, kind, key, ext));
-        std::fs::copy(src, &part)?;
+        let (part, mut to) = Self::new_part(&self.path(channel, build, kind, key, ext))?;
+        let r = std::fs::File::open(src).and_then(|mut from| io::copy(&mut from, &mut to));
+        drop(to);
+        if let Err(e) = r {
+            let _ = std::fs::remove_file(&part);
+            return Err(e);
+        }
         self.commit(channel, build, kind, key, ext, &part)
     }
 
@@ -263,42 +382,26 @@ impl AssetCache {
         self.evict().map(|_| ())
     }
 
-    /// Remove the channel's folders for every build but `keep` (a game patch invalidates).
+    /// Remove our files of the channel's builds other than `keep` (a game patch
+    /// invalidates), then their folders when empty.
     pub fn prune_builds(&self, channel: &str, keep: &str) -> u64 {
         let ch = self.root.join(safe_name(&channel.to_ascii_uppercase()));
-        let keep = safe_name(keep);
-        let mut removed = 0;
-        for e in std::fs::read_dir(&ch).into_iter().flatten().flatten() {
-            if e.file_name().to_string_lossy() == keep {
-                continue;
-            }
-            if e.file_type().is_ok_and(|t| t.is_dir()) {
-                removed += self.remove_build_dir(&e.path());
-            }
-        }
-        removed
-    }
-
-    /// Our files in one build folder, then the folders if empty.
-    fn remove_build_dir(&self, build: &Path) -> u64 {
+        let ch_dir = ch.clone();
+        let keep = ch.join(safe_name(keep));
         let mut n = 0;
-        for kind in Kind::ALL {
-            let d = build.join(kind.dir());
-            for e in std::fs::read_dir(&d).into_iter().flatten().flatten() {
-                if e.file_type().is_ok_and(|t| t.is_file())
-                    && std::fs::remove_file(e.path()).is_ok()
-                {
-                    n += 1;
+        for (p, _, _) in self.walk() {
+            if p.starts_with(&ch_dir) && !p.starts_with(&keep) && std::fs::remove_file(&p).is_ok() {
+                n += 1;
+                if let Some(d) = p.parent() {
+                    remove_empty_up(d, &self.root);
                 }
             }
-            let _ = std::fs::remove_dir(&d);
         }
-        let _ = std::fs::remove_dir(build);
         n
     }
 
     pub fn usage(&self) -> Usage {
-        walk(&self.root)
+        self.walk()
             .into_iter()
             .fold(Usage::default(), |u, (_, len, _)| Usage {
                 bytes: u.bytes + len,
@@ -310,7 +413,7 @@ impl AssetCache {
     /// first. Returns the bytes removed.
     pub fn evict(&self) -> io::Result<u64> {
         let now = SystemTime::now();
-        let mut files = walk(&self.root);
+        let mut files = self.walk();
         let mut removed = 0;
         files.retain(|(p, len, t)| {
             let stale = is_part(p) && now.duration_since(*t).unwrap_or_default() > STALE_PART;
@@ -334,10 +437,12 @@ impl AssetCache {
         Ok(removed)
     }
 
-    /// Remove every cached file (our layout only) and the marker. Returns the usage removed.
+    /// Remove every cached file (our layout only), the empty folders and the marker; the
+    /// root itself stays. Returns the usage removed.
     pub fn clear(&self) -> io::Result<Usage> {
         let mut u = Usage::default();
-        for (p, len, _) in walk(&self.root) {
+        let owned = self.owned();
+        for (p, len, _) in self.walk() {
             if std::fs::remove_file(&p).is_ok() {
                 u.bytes += len;
                 u.files += 1;
@@ -346,28 +451,44 @@ impl AssetCache {
                 }
             }
         }
-        let _ = std::fs::remove_file(self.root.join(MARKER));
+        if owned {
+            let _ = std::fs::remove_file(self.root.join(MARKER));
+        }
         Ok(u)
     }
 
-    /// Move our files to `to` (rename, or copy then remove across drives); the old folder keeps
-    /// anything that is not ours. Returns what was moved.
-    pub fn move_to(&self, to: &Path) -> io::Result<Usage> {
-        let dest = AssetCache::new(to, self.max_bytes);
+    /// Move our files to the cache `to` (rename, or copy then remove across drives); the old
+    /// root keeps anything that is not ours. Returns what was moved.
+    pub fn move_to(&self, to: &AssetCache) -> io::Result<Usage> {
         let mut u = Usage::default();
-        for (p, len, _) in walk(&self.root) {
+        for (p, len, _) in self.walk() {
             if is_part(&p) {
                 continue;
             }
             let Ok(rel) = p.strip_prefix(&self.root) else {
                 continue;
             };
-            let target = to.join(rel);
-            if let Some(d) = target.parent() {
-                std::fs::create_dir_all(d)?;
+            let parts: Vec<String> = rel
+                .components()
+                .map(|c| c.as_os_str().to_string_lossy().into_owned())
+                .collect();
+            let [ch, build, kind, _file] = parts.as_slice() else {
+                continue;
+            };
+            let Some(k) = Kind::ALL.into_iter().find(|k| k.dir() == kind) else {
+                continue;
+            };
+            to.prepare(ch, build, k)?;
+            let target = to.root.join(rel);
+            if std::fs::symlink_metadata(&target).is_ok() {
+                std::fs::remove_file(&target)?;
             }
             if std::fs::rename(&p, &target).is_err() {
-                std::fs::copy(&p, &target)?;
+                let mut from = std::fs::File::open(&p)?;
+                let (part, mut out) = Self::new_part(&target)?;
+                io::copy(&mut from, &mut out)?;
+                drop(out);
+                std::fs::rename(&part, &target)?;
                 std::fs::remove_file(&p)?;
             }
             u.bytes += len;
@@ -376,15 +497,10 @@ impl AssetCache {
                 remove_empty_up(d, &self.root);
             }
         }
-        if u.files > 0 {
-            std::fs::create_dir_all(to)?;
-            std::fs::write(
-                to.join(MARKER),
-                b"StarOrg Codex asset cache (Developer mode). Safe to delete.\n",
-            )?;
+        if self.walk().is_empty() && self.owned() {
+            let _ = std::fs::remove_file(self.root.join(MARKER));
         }
-        let _ = std::fs::remove_file(self.root.join(MARKER));
-        dest.evict()?;
+        to.evict()?;
         Ok(u)
     }
 }
@@ -444,17 +560,72 @@ pub fn configured_max(cfg: &Config) -> u64 {
         .unwrap_or(DEFAULT_MAX_BYTES)
 }
 
-/// The cache: `override_dir` (CLI `--cache-dir`), else the setting, else the default.
+/// The folder the cache uses inside a folder the user chose: always a folder of its own, so
+/// nothing of the user's is ever in the cache's layout.
+pub const SUBDIR: &str = "StarOrg Codex asset cache";
+
+/// The cache root for a chosen folder (`None` = the default, `<app cache>/assets`).
+pub fn root_for(dirs: &crate::appdirs::AppDirs, chosen: Option<&Path>) -> PathBuf {
+    match chosen {
+        Some(d) => d.join(SUBDIR),
+        None => default_dir(dirs),
+    }
+}
+
+/// The cache: `override_dir` (CLI `--cache-dir`), else the setting, else the default. A chosen
+/// folder gets its own [`SUBDIR`]. Not checked: see [`resolve_checked`].
 pub fn resolve(
     dirs: &crate::appdirs::AppDirs,
     cfg: &Config,
     override_dir: Option<&Path>,
 ) -> AssetCache {
-    let root = override_dir
+    let chosen = override_dir
         .map(Path::to_path_buf)
-        .or_else(|| configured_dir(cfg))
-        .unwrap_or_else(|| default_dir(dirs));
-    AssetCache::new(root, configured_max(cfg))
+        .or_else(|| configured_dir(cfg));
+    AssetCache::new(root_for(dirs, chosen.as_deref()), configured_max(cfg))
+}
+
+/// [`resolve`], refused when the folder is not absolute or lies inside a game folder or its
+/// Wine prefix (`protected`, from [`protected_roots`]). Creates and writes nothing.
+pub fn resolve_checked(
+    dirs: &crate::appdirs::AppDirs,
+    cfg: &Config,
+    override_dir: Option<&Path>,
+    protected: &[PathBuf],
+) -> Result<AssetCache, String> {
+    let c = resolve(dirs, cfg, override_dir);
+    check_root(c.root(), protected)?;
+    Ok(c)
+}
+
+/// The use-time check of a cache root: absolute, not a symlink, not in a game folder.
+pub fn check_root(root: &Path, protected: &[PathBuf]) -> Result<(), String> {
+    if !root.is_absolute() {
+        return Err(format!(
+            "the asset cache folder {} is not an absolute path",
+            root.display()
+        ));
+    }
+    if let Some(p) = inside_protected(root, protected) {
+        return Err(format!(
+            "the asset cache folder {} is inside {}; it never goes into the game folder. Pick another folder (Settings > Advanced) or reset it",
+            root.display(),
+            p.display()
+        ));
+    }
+    if std::fs::symlink_metadata(root).is_ok_and(|m| m.file_type().is_symlink()) {
+        return Err(format!(
+            "the asset cache folder {} is a link; the cache does not follow links",
+            root.display()
+        ));
+    }
+    Ok(())
+}
+
+/// Whether `a` is on another drive than `b` (each by its nearest existing folder). Creates
+/// nothing.
+pub fn other_drive(a: &Path, b: &Path) -> bool {
+    matches!((device(a), device(b)), (Some(x), Some(y)) if x != y)
 }
 
 /// The folders exports and the cache never go into: each game folder and its Wine prefix
@@ -530,10 +701,7 @@ pub fn validate_dir(dir: &Path, protected: &[PathBuf], default: &Path) -> Result
     std::fs::write(&probe, b"probe")
         .map_err(|e| format!("{} is not writable: {e}", dir.display()))?;
     let _ = std::fs::remove_file(&probe);
-    let other_drive = match (device(dir), device(default)) {
-        (Some(a), Some(b)) => a != b,
-        _ => false,
-    };
+    let other_drive = other_drive(dir, default);
     Ok(DirCheck {
         path: dir.to_path_buf(),
         other_drive,

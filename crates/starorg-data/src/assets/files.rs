@@ -241,22 +241,6 @@ pub fn load_dds(a: &AssetArchive, path: &str) -> AssetResult<starbreaker_dds::Dd
     .map_err(|x| AssetError::invalid(format!("{path}: {x}")))
 }
 
-fn write_via_part(out: &Path, write: impl FnOnce(&Path) -> AssetResult<()>) -> AssetResult<()> {
-    let mut s = out.as_os_str().to_owned();
-    s.push(".part");
-    let part = PathBuf::from(s);
-    if let Some(d) = out.parent() {
-        std::fs::create_dir_all(d).map_err(|e| AssetError::internal(e.to_string()))?;
-    }
-    let r = write(&part).and_then(|()| {
-        std::fs::rename(&part, out).map_err(|e| AssetError::internal(e.to_string()))
-    });
-    if r.is_err() {
-        let _ = std::fs::remove_file(&part);
-    }
-    r
-}
-
 /// Save a texture as PNG at the largest mip no wider or taller than `side` (0 = full size).
 pub fn dds_to_png(
     dds: &starbreaker_dds::DdsFile,
@@ -271,25 +255,18 @@ pub fn dds_to_png(
         })
         .unwrap_or(mips - 1);
     let (w, h) = dds.dimensions(mip);
-    // The image crate picks the format by extension: `<name>.part.png`, then renamed.
-    let name = out
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default();
-    let part = out.with_file_name(format!("{name}.part.png"));
-    if let Some(d) = out.parent() {
-        std::fs::create_dir_all(d).map_err(|e| AssetError::internal(e.to_string()))?;
-    }
-    let r = crate::extract::guarded("texture decode", || {
-        dds.save_png(&part, mip)
+    let rgba = crate::extract::guarded("texture decode", || {
+        dds.decode_rgba(mip)
             .map_err(|x| crate::extract::ExtractError::Output(x.to_string()))
     })
-    .map_err(|x| AssetError::invalid(x.to_string()))
-    .and_then(|()| std::fs::rename(&part, out).map_err(|e| AssetError::internal(e.to_string())));
-    if r.is_err() {
-        let _ = std::fs::remove_file(&part);
-    }
-    r?;
+    .map_err(|x| AssetError::invalid(x.to_string()))?;
+    let img = image::RgbaImage::from_raw(w, h, rgba)
+        .ok_or_else(|| AssetError::invalid("texture size does not match its data"))?;
+    let mut png = std::io::Cursor::new(Vec::new());
+    img.write_to(&mut png, image::ImageFormat::Png)
+        .map_err(|e| AssetError::internal(e.to_string()))?;
+    drop(img);
+    super::write_atomic(out, png.get_ref())?;
     Ok((w, h))
 }
 
@@ -364,9 +341,7 @@ pub fn preview(a: &AssetArchive, path: &str, image_out: &Path) -> AssetResult<Pr
     let bytes = a.read(e, MAX_PREVIEW_READ)?;
     if matches!(x.as_str(), "png" | "jpg" | "jpeg") {
         a.check_out(image_out)?;
-        write_via_part(image_out, |part| {
-            std::fs::write(part, &bytes).map_err(|e| AssetError::internal(e.to_string()))
-        })?;
+        super::write_atomic(image_out, &bytes)?;
         p.kind = PreviewKind::Image;
         p.mime = Some(
             if x == "png" {
@@ -516,9 +491,7 @@ pub fn extract_item(
         Some(xml) => (xml.into_bytes(), true),
         None => (bytes, false),
     };
-    write_via_part(&target, |part| {
-        std::fs::write(part, &data).map_err(|e| AssetError::internal(e.to_string()))
-    })?;
+    super::write_atomic(&target, &data)?;
     Ok(Written {
         bytes: data.len() as u64,
         converted,

@@ -21,6 +21,8 @@ starbreaker-cryxml.workspace = true
 starbreaker-common.workspace = true
 # GLB -> STL for the print-shell preset (already in the tree through starbreaker-3d).
 gltf = { version = "1", default-features = false, features = ["utils"] }
+# PNG encoding of decoded textures in memory (already in the tree through starbreaker-dds).
+image = { version = "0.25", default-features = false, features = ["png"] }
 thiserror.workspace = true
 starorg-core.workspace = true
 serde.workspace = true

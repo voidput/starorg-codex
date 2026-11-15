@@ -101,6 +101,7 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
     max_bytes: data.cacheMax,
     other_drive: custom,
     previous: previous ? { path: previous[0], bytes: previous[1], files: previous[2] } : null,
+    problem: null,
   });
   const sw = (to: boolean) => {
     if (custom !== to) {

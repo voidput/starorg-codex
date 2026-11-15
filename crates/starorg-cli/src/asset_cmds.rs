@@ -33,7 +33,7 @@ fn target(g: &GlobalOpts, channel: &str, test_p4k: Option<PathBuf>) -> Result<Ta
             root: p.parent().map(Path::to_path_buf),
             p4k: p,
             channel: channel.to_string(),
-            build: "test".into(),
+            build: TEST_BUILD.into(),
         });
     }
     let d = run_discovery(g);
@@ -147,13 +147,23 @@ fn asset_fail(g: &GlobalOpts, e: &AssetError) -> ExitCode {
     fail(g, code, kind, &e.message)
 }
 
-fn cache(g: &GlobalOpts, dir: Option<&Path>) -> Option<AssetCache> {
+/// The build key of a `--test-p4k` archive.
+pub const TEST_BUILD: &str = "000000000000000000000000";
+
+/// The asset cache (none with `--no-cache`), refused when its folder (`--cache-dir` or the
+/// setting) lies inside the install or a Wine prefix. Creates nothing.
+fn cache(g: &GlobalOpts, t: &Target, dir: Option<&Path>) -> Result<Option<AssetCache>, ExitCode> {
     if g.no_cache {
-        return None;
+        return Ok(None);
     }
-    let dirs = starorg_core::appdirs::AppDirs::from_env()?;
+    let Some(dirs) = starorg_core::appdirs::AppDirs::from_env() else {
+        return Ok(None);
+    };
     let cfg = starorg_core::config::Config::load(&dirs).unwrap_or_default();
-    Some(assetcache::resolve(&dirs, &cfg, dir))
+    let protected = assetcache::protected_roots(&t.root.iter().cloned().collect::<Vec<_>>());
+    assetcache::resolve_checked(&dirs, &cfg, dir, &protected)
+        .map(Some)
+        .map_err(|e| fail(g, exit::USAGE, "usage", &e))
 }
 
 /// Progress on stderr, at most every 2 s (none with --quiet or --json).
@@ -334,7 +344,10 @@ fn export_model(
         Ok(p) => p,
         Err(c) => return c,
     };
-    let c = cache(g, cache_dir);
+    let c = match cache(g, &t, cache_dir) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
     let key = format!("{}-{}", assetcache::safe_name(what), o.key());
     // A cached GLB: no archive read at all (an STL is made from it here).
     if let Some(hit) = c
@@ -368,6 +381,9 @@ fn export_model(
             }
             Err(e) => fail(g, exit::ERROR, "error", &e.to_string()),
         };
+    }
+    if o.preset == ModelPreset::Full && !g.quiet && !g.json {
+        eprintln!("starorg-strings: {}", model::FULL_MEMORY_NOTE);
     }
     let (a, lock) = match open(g, &t, testing) {
         Ok(x) => x,
@@ -498,25 +514,31 @@ fn export_sounds(
         return ExitCode::from(exit::OK);
     }
     // Decoded sounds come from the cache when there.
-    let c = cache(g, cache_dir);
+    let c = match cache(g, &t, cache_dir) {
+        Ok(c) => c,
+        Err(code) => return code,
+    };
     let mut files_n = 0u32;
     let mut bytes = 0u64;
     let mut todo = Vec::new();
     for (trigger, s) in &sounds {
+        // A cached Ogg (or a WEM kept as WEM); with --wem every sound is read again.
         let hit = (!wem)
             .then(|| {
                 c.as_ref()
-                    .and_then(|c| c.get(&t.channel, &t.build, Kind::Audio, &s.key(), "ogg"))
+                    .and_then(|c| assetworker::cached_sound(c, &t.channel, &t.build, s))
             })
             .flatten();
         match hit {
-            Some(p) => match copy_out(&p, &out_abs.join(audio::file_name(trigger, s, "ogg"))) {
-                Ok(n) => {
-                    files_n += 1;
-                    bytes += n;
+            Some((p, ext)) => {
+                match copy_out(&p, &out_abs.join(audio::file_name(trigger, s, ext))) {
+                    Ok(n) => {
+                        files_n += 1;
+                        bytes += n;
+                    }
+                    Err(_) => todo.push((trigger.clone(), s.clone())),
                 }
-                Err(_) => todo.push((trigger.clone(), s.clone())),
-            },
+            }
             None => todo.push((trigger.clone(), s.clone())),
         }
     }
@@ -528,12 +550,7 @@ fn export_sounds(
     match r {
         Ok(d) => {
             if let Some(c) = &c {
-                for (trigger, s) in &todo {
-                    let p = out_abs.join(audio::file_name(trigger, s, "ogg"));
-                    if p.exists() {
-                        let _ = c.put_copy(&t.channel, &t.build, Kind::Audio, &s.key(), "ogg", &p);
-                    }
-                }
+                assetworker::cache_written(c, &t.channel, &t.build, &d);
             }
             let files_n = files_n + d.files;
             let bytes = bytes + d.bytes;

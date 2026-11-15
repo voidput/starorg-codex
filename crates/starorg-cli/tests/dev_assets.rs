@@ -138,13 +138,20 @@ fn models_and_sounds_report_clean_errors_and_use_the_cache() {
     assert!(!out.exists());
     // A cached model is copied without reading the archive (even a missing one).
     let key = format!("{}-print-lod0", starorg_core::assetcache::safe_name(&item));
-    let c = starorg_core::assetcache::AssetCache::new(&cache, 1 << 30);
-    c.prepare("LIVE", "test", starorg_core::assetcache::Kind::Models)
-        .unwrap();
+    let c = starorg_core::assetcache::AssetCache::new(
+        cache.join(starorg_core::assetcache::SUBDIR),
+        1 << 30,
+    );
+    c.prepare(
+        "LIVE",
+        "000000000000000000000000",
+        starorg_core::assetcache::Kind::Models,
+    )
+    .unwrap();
     std::fs::write(
         c.path(
             "LIVE",
-            "test",
+            "000000000000000000000000",
             starorg_core::assetcache::Kind::Models,
             &key,
             "glb",
@@ -223,4 +230,68 @@ fn models_and_sounds_report_clean_errors_and_use_the_cache() {
         ],
     );
     assert_eq!(o.status.code(), Some(4));
+}
+
+#[test]
+fn a_cache_folder_in_the_game_folder_or_prefix_is_refused_at_use() {
+    let t = tempfile::tempdir().unwrap();
+    let pfx = t.path().join("pfx");
+    let p = pfx
+        .join("drive_c")
+        .join("Games")
+        .join("LIVE")
+        .join("Data.p4k");
+    synthetic::write(&p).unwrap();
+    let a = p.display().to_string();
+    let item = dcb::guid_text(1, 2);
+    let out = t.path().join("m.glb");
+    // --cache-dir inside the channel folder.
+    let inside = p.parent().unwrap().join("cache");
+    let o = run(
+        t.path(),
+        &[
+            "dev",
+            "export-model",
+            &item,
+            "--out",
+            out.to_str().unwrap(),
+            "--cache-dir",
+            inside.to_str().unwrap(),
+            "--test-p4k",
+            &a,
+        ],
+    );
+    assert_eq!(o.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("never goes into the game folder"));
+    assert!(!inside.exists());
+    // The setting pointing into the Wine prefix.
+    let cfg = t.path().join("config").join("starorg-strings");
+    std::fs::create_dir_all(&cfg).unwrap();
+    std::fs::write(
+        cfg.join("config.toml"),
+        format!(
+            "[dev]\nasset_cache_dir = {:?}\n",
+            pfx.join("x").display().to_string()
+        ),
+    )
+    .unwrap();
+    let o = run(
+        t.path(),
+        &[
+            "dev",
+            "export-sounds",
+            &item,
+            "--out",
+            t.path().join("s").to_str().unwrap(),
+            "--test-p4k",
+            &a,
+        ],
+    );
+    assert_eq!(
+        o.status.code(),
+        Some(2),
+        "{}",
+        String::from_utf8_lossy(&o.stderr)
+    );
+    assert!(!pfx.join("x").exists());
 }

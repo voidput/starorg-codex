@@ -4762,6 +4762,7 @@ version = "0.1.0"
 dependencies = [
  "crc32c",
  "gltf",
+ "image",
  "rayon",
  "serde",
  "serde_json",

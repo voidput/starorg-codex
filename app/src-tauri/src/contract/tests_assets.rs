@@ -185,6 +185,7 @@ pub(super) fn asset_samples() -> Vec<(&'static str, Value)> {
         preset,
         lod,
         stl,
+        force: false,
     };
     put(
         "asset_export_model",
@@ -337,6 +338,7 @@ fn every_asset_command_but_the_cache_refuses_while_developer_mode_is_off() {
                     preset: ModelPreset::Full,
                     lod: 1,
                     stl: false,
+                    force: false,
                 },
                 &noop,
             )
@@ -380,6 +382,7 @@ fn the_mock_caches_previews_sounds_and_models_and_switches_folders() {
                 preset: ModelPreset::Full,
                 lod: 1,
                 stl: false,
+                force: false,
             },
             &noop,
         )

@@ -155,6 +155,8 @@ pub struct AssetExportModelRequest {
     pub lod: u32,
     /// Also an STL next to the GLB.
     pub stl: bool,
+    /// Export even with less free memory than the preset may need (after `needs-decision`).
+    pub force: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -177,6 +179,9 @@ pub struct AssetCacheStatus {
     /// The folder used before the last change, while it still holds cache files: the UI
     /// offers "Move existing cache" (`asset_cache_move`) or leaves it.
     pub previous: Option<AssetCachePrevious>,
+    /// Why the folder cannot be used (inside a game folder, a link); every cache use is then
+    /// refused until it is changed or reset.
+    pub problem: Option<String>,
 }
 
 /// The Developer mode assets half of the backend.

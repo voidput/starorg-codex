@@ -38,6 +38,27 @@ impl ModelPreset {
     }
 }
 
+/// A rough peak-memory need of one export, from LIVE 4.10 (addendum 7.16): a Print shell of
+/// an Idris about 1.75 GB, a Full Javelin about 6.4-6.9 GB, a Full Idris about 10.9 GB.
+pub fn memory_need(p: ModelPreset) -> u64 {
+    const GB: u64 = 1024 * 1024 * 1024;
+    match p {
+        ModelPreset::Full => 8 * GB,
+        ModelPreset::PrintShell => 2 * GB,
+    }
+}
+
+/// The warning the CLI prints and the app shows before a Full export.
+pub const FULL_MEMORY_NOTE: &str = "Full exports need a lot of memory: about 6.5 GB for an Aegis Javelin and 11 GB for an Idris (Print shell: under 2 GB).";
+
+/// Memory available now (Linux `MemAvailable`), bytes; `None` elsewhere.
+pub fn mem_available() -> Option<u64> {
+    let s = std::fs::read_to_string("/proc/meminfo").ok()?;
+    let line = s.lines().find(|l| l.starts_with("MemAvailable:"))?;
+    let kb: u64 = line.split_whitespace().nth(1)?.parse().ok()?;
+    Some(kb * 1024)
+}
+
 /// Highest LOD offered (ships carry 0-3 or 0-4).
 pub const MAX_LOD: u32 = 4;
 
@@ -152,17 +173,7 @@ pub fn export_model(
         }
     })?
     .ok_or_else(|| AssetError::internal("the export returned no GLB"))?;
-    let mut s = out.as_os_str().to_owned();
-    s.push(".part");
-    let part = std::path::PathBuf::from(s);
-    if let Some(d) = out.parent() {
-        std::fs::create_dir_all(d).map_err(|e| AssetError::internal(e.to_string()))?;
-    }
-    let w = std::fs::write(&part, &bytes).and_then(|()| std::fs::rename(&part, out));
-    if let Err(e) = w {
-        let _ = std::fs::remove_file(&part);
-        return Err(AssetError::internal(format!("{}: {e}", out.display())));
-    }
+    super::write_atomic(out, &bytes)?;
     let mut done = ModelDone {
         path: out.display().to_string(),
         bytes: bytes.len() as u64,

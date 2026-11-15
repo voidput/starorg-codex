@@ -134,8 +134,11 @@ impl RealBackend {
         Config::load(self.dirs()).unwrap_or_default()
     }
 
-    pub(super) fn asset_cache(&self) -> AssetCache {
-        assetcache::resolve(self.dirs(), &self.config_now(), None)
+    /// The asset cache, refused (`invalid`) when its folder lies in a game folder or its Wine
+    /// prefix (a hand-edited `config.toml`), checked at every use.
+    pub(super) fn asset_cache(&self) -> CmdResult<AssetCache> {
+        assetcache::resolve_checked(self.dirs(), &self.config_now(), None, &self.protected())
+            .map_err(|e| err(ErrorCode::Invalid, e))
     }
 
     /// Game folders that the cache never goes into: every registered or discovered install.
@@ -307,10 +310,16 @@ impl RealBackend {
         r
     }
 
+    /// The cache row; reads only (creates and writes nothing).
     fn cache_status(&self) -> AssetCacheStatus {
-        let c = self.asset_cache();
+        let c = assetcache::resolve(self.dirs(), &self.config_now(), None);
+        let problem = assetcache::check_root(c.root(), &self.protected()).err();
         let default = assetcache::default_dir(self.dirs());
-        let u = c.usage();
+        let u = if problem.is_none() {
+            c.usage()
+        } else {
+            assetcache::Usage::default()
+        };
         let previous = lock_or(&self.assets.previous)
             .clone()
             .filter(|p| p != c.root())
@@ -321,8 +330,6 @@ impl RealBackend {
                 bytes: u.bytes,
                 files: u.files,
             });
-        let other_drive = c.root() != default
-            && assetcache::validate_dir(c.root(), &[], &default).is_ok_and(|d| d.other_drive);
         AssetCacheStatus {
             path: c.root().display().to_string(),
             default_path: default.display().to_string(),
@@ -330,19 +337,24 @@ impl RealBackend {
             bytes: u.bytes,
             files: u.files,
             max_bytes: c.max_bytes(),
-            other_drive,
+            other_drive: c.root() != default && assetcache::other_drive(c.root(), &default),
             previous,
+            problem,
         }
     }
 
     /// Switch the cache folder (`None` = default). The old folder keeps its files; it is
     /// remembered for "Move existing cache".
     fn set_cache_dir(&self, dir: Option<&Path>) -> CmdResult<AssetCacheStatus> {
-        let before = self.asset_cache().root().to_path_buf();
+        let before = assetcache::resolve(self.dirs(), &self.config_now(), None)
+            .root()
+            .to_path_buf();
         let mut cfg = self.config_now();
         assetcache::set_configured_dir(&mut cfg, dir);
         cfg.save(self.dirs()).map_err(io)?;
-        let after = self.asset_cache().root().to_path_buf();
+        let after = assetcache::resolve(self.dirs(), &cfg, None)
+            .root()
+            .to_path_buf();
         if before != after {
             *lock_or(&self.assets.previous) = Some(before.clone());
             self.log(
@@ -434,7 +446,7 @@ impl AssetBackend for RealBackend {
 
     fn asset_preview(&self, req: AssetPathRequest) -> CmdResult<AssetPreview> {
         let (_, key) = self.asset_target(&req.target)?;
-        let c = self.asset_cache();
+        let c = self.asset_cache()?;
         let ext = starorg_data::assets::files::ext(&req.path);
         let (img_ext, mime) = match ext.as_str() {
             "jpg" | "jpeg" => ("jpg", "image/jpeg"),
@@ -503,6 +515,16 @@ impl AssetBackend for RealBackend {
         }) else {
             return Ok(export_result(None, 0, 0, false));
         };
+        if let Some(p) = assetcache::inside_protected(&dir, &self.protected()) {
+            return Err(err(
+                ErrorCode::Invalid,
+                format!(
+                    "{} is inside {}; exports never go there",
+                    dir.display(),
+                    p.display()
+                ),
+            ));
+        }
         let v = self.asset_stream(
             &w,
             &ch.name,
@@ -556,7 +578,7 @@ impl AssetBackend for RealBackend {
 
     fn asset_sound(&self, req: AssetSoundRequest) -> CmdResult<AssetAudio> {
         let (_, key) = self.asset_target(&req.target)?;
-        let c = self.asset_cache();
+        let c = self.asset_cache()?;
         let skey = req.sound.key();
         let audio = |path: &Path, cached: bool, duration: Option<f64>| -> CmdResult<AssetAudio> {
             let b = std::fs::read(path).map_err(io)?;
@@ -641,16 +663,18 @@ impl AssetBackend for RealBackend {
                 ),
             ));
         }
-        let c = self.asset_cache();
+        let c = self.asset_cache()?;
         let mut files = 0u32;
         let mut bytes = 0u64;
         let mut todo = Vec::new();
         for p in &picks {
             let hit = (!req.wem)
-                .then(|| c.get(&key.channel, &key.build, Kind::Audio, &p.sound.key(), "ogg"))
+                .then(|| {
+                    starorg_data::assetworker::cached_sound(&c, &key.channel, &key.build, &p.sound)
+                })
                 .flatten();
-            let name = starorg_data::assets::audio::file_name(&p.trigger, &p.sound, "ogg");
-            match hit.map(|h| {
+            match hit.map(|(h, ext)| {
+                let name = starorg_data::assets::audio::file_name(&p.trigger, &p.sound, ext);
                 std::fs::create_dir_all(&dir).and_then(|()| std::fs::copy(&h, dir.join(&name)))
             }) {
                 Some(Ok(n)) => {
@@ -679,13 +703,8 @@ impl AssetBackend for RealBackend {
             let d: SoundsDone = serde_json::from_value(v).map_err(internal)?;
             files += d.files;
             bytes += d.bytes;
-            failed = d.failed;
-            for (t, s) in &todo {
-                let p = dir.join(starorg_data::assets::audio::file_name(t, s, "ogg"));
-                if p.exists() {
-                    let _ = c.put_copy(&key.channel, &key.build, Kind::Audio, &s.key(), "ogg", &p);
-                }
-            }
+            failed = d.failed.clone();
+            starorg_data::assetworker::cache_written(&c, &key.channel, &key.build, &d);
         }
         self.log(
             LogLevel::Info,
@@ -714,6 +733,21 @@ impl AssetBackend for RealBackend {
         } else {
             &req.name
         };
+        let need = model::memory_need(o.preset);
+        if !req.force
+            && let Some(free) = model::mem_available()
+            && free < need
+        {
+            return Err(err(
+                ErrorCode::NeedsDecision,
+                format!(
+                    "Only {:.1} GB of memory is free; this export may need about {:.0} GB. {}",
+                    free as f64 / 1_073_741_824.0,
+                    need as f64 / 1_073_741_824.0,
+                    model::FULL_MEMORY_NOTE
+                ),
+            ));
+        }
         let Some(out) = self.cfg.dialogs.get().and_then(|d| {
             d.save_file(
                 "Export model (for your own use; not inside the game folder)",
@@ -734,7 +768,7 @@ impl AssetBackend for RealBackend {
                 ),
             ));
         }
-        let c = self.asset_cache();
+        let c = self.asset_cache()?;
         let mkey = format!("{}-{}", assetcache::safe_name(&req.what), o.key());
         if let Some(hit) = c.get(&key.channel, &key.build, Kind::Models, &mkey, "glb") {
             let n = std::fs::copy(&hit, &out).map_err(io)?;
@@ -805,11 +839,17 @@ impl AssetBackend for RealBackend {
             return Ok(self.cache_status());
         };
         let default = assetcache::default_dir(self.dirs());
-        let ok = assetcache::validate_dir(&dir, &self.protected(), &default)
-            .map_err(|e| err(ErrorCode::Invalid, e))?;
-        if ok.path == default {
+        if dir == default || dir == self.dirs().cache {
             return self.set_cache_dir(None);
         }
+        let protected = self.protected();
+        let ok = assetcache::validate_dir(&dir, &protected, &default)
+            .map_err(|e| err(ErrorCode::Invalid, e))?;
+        assetcache::check_root(
+            &assetcache::root_for(self.dirs(), Some(&ok.path)),
+            &protected,
+        )
+        .map_err(|e| err(ErrorCode::Invalid, e))?;
         self.set_cache_dir(Some(&ok.path))
     }
 
@@ -818,7 +858,7 @@ impl AssetBackend for RealBackend {
     }
 
     fn asset_cache_clear(&self) -> CmdResult<AssetCacheStatus> {
-        let u = self.asset_cache().clear().map_err(io)?;
+        let u = self.asset_cache()?.clear().map_err(io)?;
         self.log(
             LogLevel::Info,
             Some(JobKind::Dev),
@@ -835,12 +875,12 @@ impl AssetBackend for RealBackend {
                 "no previous cache folder to move from",
             ));
         };
-        let cur = self.asset_cache();
+        let cur = self.asset_cache()?;
         if prev == cur.root() {
             return Ok(self.cache_status());
         }
         let u = AssetCache::new(&prev, cur.max_bytes())
-            .move_to(cur.root())
+            .move_to(&cur)
             .map_err(io)?;
         *lock_or(&self.assets.previous) = None;
         self.log(

@@ -284,11 +284,28 @@ fn extract_and_exports_respect_dialogs_and_the_game_folder() {
     assert_eq!(seen.last().unwrap().phase, JobPhase::Done);
     assert!(seen.iter().all(|p| p.kind == JobKind::Dev && p.cancellable));
     drop(seen);
-    // Into the game folder: refused.
-    f.answers.lock().unwrap().folder = Some(f.game.join("LIVE").join("x"));
-    let e = f.backend.asset_extract(req, &noop).unwrap_err();
-    assert_eq!(e.code, ErrorCode::Invalid);
-    assert!(!f.game.join("LIVE").join("x").exists());
+    // Into the game folder (no Wine prefix here): the channel, a sibling channel and the
+    // install root are all refused.
+    for bad in [
+        f.game.join("LIVE").join("x"),
+        f.game.join("PTU").join("x"),
+        f.game.join("x"),
+        f.game.clone(),
+    ] {
+        f.answers.lock().unwrap().folder = Some(bad.clone());
+        let e = f.backend.asset_extract(req.clone(), &noop).unwrap_err();
+        assert_eq!(e.code, ErrorCode::Invalid, "{}", bad.display());
+        assert!(
+            e.message.contains("exports never go there"),
+            "{}",
+            e.message
+        );
+    }
+    assert!(
+        !f.game.join("LIVE").join("x").exists()
+            && !f.game.join("PTU").exists()
+            && !f.game.join("x").exists()
+    );
     // No playable sounds on a synthetic record.
     f.answers.lock().unwrap().folder = Some(out.clone());
     let e = f
@@ -338,6 +355,7 @@ fn extract_and_exports_respect_dialogs_and_the_game_folder() {
             preset: ModelPreset::PrintShell,
             lod: 0,
             stl: false,
+            force: false,
         }
     };
     let e = f
@@ -416,7 +434,7 @@ fn the_cache_folder_is_validated_switched_moved_and_cleared() {
     let mine = f.base.join("my-cache");
     f.answers.lock().unwrap().folder = Some(mine.clone());
     let s = f.backend.asset_cache_pick().unwrap();
-    assert_eq!(PathBuf::from(&s.path), mine);
+    assert_eq!(PathBuf::from(&s.path), mine.join(assetcache::SUBDIR));
     assert!(!s.is_default);
     assert_eq!(s.files, 0);
     let prev = s.previous.unwrap();
@@ -454,4 +472,53 @@ fn the_cache_folder_is_validated_switched_moved_and_cleared() {
     let s = f.backend.asset_cache_reset().unwrap();
     assert!(s.is_default);
     assert!(mine.is_dir());
+}
+
+#[test]
+fn a_cache_folder_set_into_the_game_folder_is_refused_at_use() {
+    let f = fake();
+    f.dev_mode(true);
+    let live = f.live();
+    // A hand-edited config.toml pointing into the install.
+    let cfg_path = f.base.join("app/config/config.toml");
+    std::fs::create_dir_all(cfg_path.parent().unwrap()).unwrap();
+    let mut text = std::fs::read_to_string(&cfg_path).unwrap_or_default();
+    text.push_str(&format!(
+        "\n[dev]\nasset_cache_dir = {:?}\n",
+        f.game.join("LIVE").display().to_string()
+    ));
+    std::fs::write(&cfg_path, text).unwrap();
+    let s = f.backend.asset_cache_status().unwrap();
+    assert!(
+        s.problem
+            .as_deref()
+            .unwrap_or("")
+            .contains("never goes into the game folder"),
+        "{s:?}"
+    );
+    assert!(
+        !f.game.join("LIVE").join(assetcache::SUBDIR).exists(),
+        "status creates nothing"
+    );
+    let e = f
+        .backend
+        .asset_preview(AssetPathRequest {
+            target: live.clone(),
+            path: synthetic::TEXTURE.into(),
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(f.backend.asset_cache_clear().is_err());
+    assert!(!f.game.join("LIVE").join(assetcache::SUBDIR).exists());
+    // Reset fixes it.
+    let s = f.backend.asset_cache_reset().unwrap();
+    assert!(s.problem.is_none() && s.is_default);
+    assert!(
+        f.backend
+            .asset_preview(AssetPathRequest {
+                target: live,
+                path: synthetic::TEXTURE.into(),
+            })
+            .is_ok()
+    );
 }

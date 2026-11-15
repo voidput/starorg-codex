@@ -206,11 +206,11 @@ starorg-strings remove --channel LIVE
 starorg-strings blueprints import owned-blueprints.json --character Pilot_A --dry-run
 starorg-strings dev types --channel LIVE
 starorg-strings dev record &lt;guid|path|name&gt; --channel LIVE
-starorg-strings sync status    # StarOrg environment and what to sync
-starorg-strings sync set --import-game-log off
 starorg-strings dev extract "Data/Libs/Config/*.xml" --out DIR --convert
 starorg-strings dev export-model AEGS_Javelin --preset print --out javelin.glb
 starorg-strings dev export-sounds AEGS_Gladius --out DIR
+starorg-strings sync status    # StarOrg environment and what to sync
+starorg-strings sync set --import-game-log off
 starorg-strings doctor
 starorg-strings mcp            # experimental: MCP server on stdio</pre>
         <p class="text-muted-foreground text-[12px]">Exit codes: 0 done, 5 applied with warnings, other values an error named in the output. Before uninstalling, run <span class="mono">starorg-strings remove --all</span> to put stock text back.</p>

@@ -87,16 +87,20 @@
     lod = DEFAULT_LOD[p];
     if (p === 'full') stl = false;
   }
-  async function exportModel() {
+  /** Set when the backend says free memory is short: the dialog asks before going on. */
+  let memWarn = $state<string | null>(null);
+  async function exportModel(force = false) {
     modelOpen = false;
+    memWarn = null;
     exporting = true;
     try {
-      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl });
+      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl, force });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
       else toast('success', `Exported ${name}${r.cached ? ' from the cache' : ''}`, `${bytesText(r.bytes)} · ${r.path}`);
     } catch (e) {
       const err = toContractError(e);
-      if (err.code === 'cancelled') toast('info', 'Model export stopped', 'Nothing was written.');
+      if (err.code === 'needs-decision') memWarn = err.message;
+      else if (err.code === 'cancelled') toast('info', 'Model export stopped', 'Nothing was written.');
       else toast('error', 'Model export failed', err.message);
     } finally {
       exporting = false;
@@ -195,6 +199,20 @@
     <Dialog.Footer>
       <Button variant="ghost" onclick={() => (modelOpen = false)}>Cancel</Button>
       <Button onclick={() => void exportModel()}><Download aria-hidden="true" /> Choose file…</Button>
+    </Dialog.Footer>
+  </Dialog.Content>
+</Dialog.Root>
+
+<Dialog.Root open={memWarn !== null} onOpenChange={(o) => !o && (memWarn = null)}>
+  <Dialog.Content class="max-w-md">
+    <Dialog.Header>
+      <Dialog.Title>Not much memory free</Dialog.Title>
+      <Dialog.Description>{memWarn}</Dialog.Description>
+    </Dialog.Header>
+    <p class="text-muted-foreground text-[12.5px]">The export runs in its own process; if memory runs out, that process stops and the app keeps running. Closing other programs (or the game) first helps.</p>
+    <Dialog.Footer>
+      <Button variant="ghost" onclick={() => (memWarn = null)}>Cancel</Button>
+      <Button onclick={() => void exportModel(true)}>Export anyway</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

@@ -132,6 +132,55 @@ pub struct SoundsDone {
     pub bytes: u64,
     pub failed: Vec<String>,
     pub failures: u32,
+    /// The sounds written by this run (one per sound: its Ogg, or its WEM when it is kept as
+    /// WEM), for the asset cache. A file left in the folder by an earlier run is never here.
+    #[serde(default)]
+    pub written: Vec<WrittenSound>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WrittenSound {
+    /// [`SoundRef::key`].
+    pub key: String,
+    /// `ogg` or `wem`.
+    pub ext: String,
+    pub path: String,
+}
+
+/// A cached sound: its Ogg, else its kept WEM.
+pub fn cached_sound(
+    c: &starorg_core::assetcache::AssetCache,
+    channel: &str,
+    build: &str,
+    s: &SoundRef,
+) -> Option<(PathBuf, &'static str)> {
+    use starorg_core::assetcache::Kind;
+    let k = s.key();
+    c.get(channel, build, Kind::Audio, &k, "ogg")
+        .map(|p| (p, "ogg"))
+        .or_else(|| {
+            c.get(channel, build, Kind::Audio, &k, "wem")
+                .map(|p| (p, "wem"))
+        })
+}
+
+/// Put the sounds this run wrote into the asset cache.
+pub fn cache_written(
+    c: &starorg_core::assetcache::AssetCache,
+    channel: &str,
+    build: &str,
+    d: &SoundsDone,
+) {
+    for w in &d.written {
+        let _ = c.put_copy(
+            channel,
+            build,
+            starorg_core::assetcache::Kind::Audio,
+            &w.key,
+            &w.ext,
+            Path::new(&w.path),
+        );
+    }
 }
 
 /// Write one sound: Ogg when it is Vorbis (and not `raw`), else the WEM.
@@ -168,17 +217,7 @@ pub fn write_sound(
 }
 
 fn write_file(out: &Path, bytes: &[u8]) -> AssetResult<()> {
-    let mut s = out.as_os_str().to_owned();
-    s.push(".part");
-    let part = PathBuf::from(s);
-    if let Some(d) = out.parent() {
-        std::fs::create_dir_all(d).map_err(|e| AssetError::internal(e.to_string()))?;
-    }
-    let r = std::fs::write(&part, bytes).and_then(|()| std::fs::rename(&part, out));
-    if r.is_err() {
-        let _ = std::fs::remove_file(&part);
-    }
-    r.map_err(|e| AssetError::internal(format!("{}: {e}", out.display())))
+    crate::assets::write_atomic(out, bytes)
 }
 
 /// Export several sounds into `out_dir`; `step` as [`files::extract_all`].
@@ -196,6 +235,7 @@ pub fn export_sounds(
         bytes: 0,
         failed: Vec::new(),
         failures: 0,
+        written: Vec::new(),
     };
     let fail = |d: &mut SoundsDone, what: String| {
         d.failures += 1;
@@ -210,6 +250,11 @@ pub fn export_sounds(
             Ok(x) => {
                 d.files += 1;
                 d.bytes += x.bytes;
+                d.written.push(WrittenSound {
+                    key: s.key(),
+                    ext: x.ext.clone(),
+                    path: x.path.clone(),
+                });
                 if wem && x.ext == "ogg" {
                     match write_sound(a, s, &ogg, &raw, true) {
                         Ok(y) => {

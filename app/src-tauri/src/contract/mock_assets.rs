@@ -350,6 +350,7 @@ impl MockBackend {
                 .previous
                 .clone()
                 .map(|(path, bytes, files)| AssetCachePrevious { path, bytes, files }),
+            problem: None,
         }
     }
 

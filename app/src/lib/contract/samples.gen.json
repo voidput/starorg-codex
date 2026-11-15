@@ -125,7 +125,8 @@
     "max_bytes": 2147483648,
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
-    "previous": null
+    "previous": null,
+    "problem": null
   },
   "asset_cache_move": {
     "bytes": 404546702,
@@ -135,7 +136,8 @@
     "max_bytes": 2147483648,
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
-    "previous": null
+    "previous": null,
+    "problem": null
   },
   "asset_cache_pick": {
     "bytes": 0,
@@ -149,7 +151,8 @@
       "bytes": 404546707,
       "files": 7,
       "path": "/synthetic/cache/assets"
-    }
+    },
+    "problem": null
   },
   "asset_cache_reset": {
     "bytes": 0,
@@ -159,7 +162,8 @@
     "max_bytes": 2147483648,
     "other_drive": false,
     "path": "/synthetic/cache/assets",
-    "previous": null
+    "previous": null,
+    "problem": null
   },
   "asset_cache_status": {
     "bytes": 0,
@@ -169,7 +173,8 @@
     "max_bytes": 2147483648,
     "other_drive": false,
     "path": "/synthetic/cache/assets",
-    "previous": null
+    "previous": null,
+    "problem": null
   },
   "asset_close": {
     "audio": false,

@@ -48,6 +48,7 @@
   {#if s}
     <PathText path={s.path} class="text-[12px]" />
     <div class="bg-muted h-1.5 overflow-hidden rounded" role="meter" aria-label="Asset cache use" aria-valuemin={0} aria-valuemax={100} aria-valuenow={pct}><div class="bg-primary h-full" style="width: {pct}%"></div></div>
+    {#if s.problem}<p class="text-destructive text-[12px]" role="alert">{s.problem}</p>{/if}
     {#if s.other_drive}<p class="text-muted-foreground text-[11.5px]">On another drive than the app's own folders. That is fine.</p>{/if}
     <div class="flex flex-wrap gap-1.5">
       <Button variant="outline" size="xs" disabled={busy} onclick={() => void run('Changing the cache folder', assetApi.cachePick)}><FolderOpen aria-hidden="true" /> Browse…</Button>
