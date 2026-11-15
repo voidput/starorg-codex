@@ -32,9 +32,9 @@ macro_rules! registry {
 }
 
 registry! {
-    // ammo, // ammo.ts
+    ammo, // ammo.ts
 
-    // armor, // armor.ts
+    armor, // armor.ts
 
     // blueprints, // blueprints.ts
 
@@ -44,15 +44,15 @@ registry! {
 
     // components, // components.ts -> game-ship-components
 
-    // consumables, // consumables.ts
+    consumables, // consumables.ts
 
     // containers, // containers.ts
 
-    // fps_weapons, // fps-weapons.ts
+    fps_weapons, // fps-weapons.ts
 
-    // item_sources, // item-sources.ts
+    item_sources, // item-sources.ts
 
-    // item_tags, // item-tags.ts
+    item_tags, // item-tags.ts
 
     // law, // law.ts
 
@@ -80,7 +80,7 @@ registry! {
 
     // starmap, // starmap.ts
 
-    // weapons, // weapons.ts
+    weapons, // weapons.ts
 
     // wikelo, // wikelo.ts -> game-wikelo-trades
 }
