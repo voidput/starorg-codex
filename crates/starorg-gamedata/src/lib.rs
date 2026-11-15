@@ -16,6 +16,7 @@
 //! - [`output`]: `JSON.stringify(_, null, 2)`-exact writing and the dataset header;
 //! - [`domain`] + [`domains`]: the `Domain` trait and the registry;
 //! - [`pipeline`]: extraction scoping and running a domain;
+//! - [`query`] (`query/*.ts`): fuzzy find, where an item comes from, shops (reads datasets);
 //! - [`compare`]: the byte compare and path diff the `gamedata-port` harness uses against golden dumps;
 //! - [`source`]: the real archive via `starorg-data`'s StarBreaker adapter;
 //! - [`fixtures`]: in-memory sources for tests.
@@ -37,6 +38,7 @@ pub mod localization;
 pub mod output;
 pub mod overlays;
 pub mod pipeline;
+pub mod query;
 pub mod records;
 pub mod search_index;
 pub mod source;

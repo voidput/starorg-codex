@@ -19,6 +19,9 @@ use starorg_gamedata::{domains, output, search_index, strings};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
+#[path = "gamedata-port/query.rs"]
+mod query;
+
 #[derive(Parser)]
 #[command(
     name = "gamedata-port",
@@ -66,6 +69,13 @@ enum Command {
     /// (Re)build game-search-index.json in <dir> from the game-item-tags.json and
     /// game-ships.json there; removes a stale index when one of them is missing.
     SearchIndex { dir: PathBuf },
+    /// Answer a query file (see scripts/query-golden.mjs) with the query port, as JSON.
+    Query {
+        #[arg(long)]
+        data: PathBuf,
+        #[arg(long)]
+        queries: PathBuf,
+    },
     /// List the registered domains.
     List,
 }
@@ -110,6 +120,16 @@ fn main() -> ExitCode {
         },
         Command::SearchIndex { dir } => match write_index(&dir) {
             Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        },
+        Command::Query { data, queries } => match query::run(&data, &queries) {
+            Ok(text) => {
+                println!("{text}");
+                ExitCode::SUCCESS
+            }
             Err(e) => {
                 eprintln!("error: {e}");
                 ExitCode::from(2)

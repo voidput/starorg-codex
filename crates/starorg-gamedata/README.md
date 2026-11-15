@@ -33,9 +33,10 @@ Not ported:
   user `overlay-sources.json`, file naming, installed-pack lookup and loading are in
   `overlays`; `fetch_source` takes the download as a function (the TypeScript takes
   `fetchImpl`), so this crate and the CLI's default build carry no HTTP client.
-- The CLI-side query and report tools (`finder.ts`/fzf ranking, `query/obtain`, `where`,
-  `shops`, `notes`, `diff`, `changes`, `engagement`, `deflection`), which read datasets
-  rather than game files. Their TypeScript tests (about 130 cases) are not ported either.
+- The CLI-side report tools (`finder.ts`'s fzf picker, `notes`, `diff`, `changes`,
+  `engagement`, `deflection`), which read datasets rather than game files. The query layer
+  they share (`query/fuzzy`, `search-index`, `obtain`, `where`, `shops`) **is** ported, as
+  `query` (see "Query layer" below).
 
 ## Known limits
 
@@ -66,6 +67,7 @@ Not ported:
 | `compare` | (new) | byte compare against golden dumps, with a path diff on a difference |
 | `source` | `starbreaker.ts` | the archive through `starorg-data`'s StarBreaker adapter (read only) |
 | `strings` | `writeStrings` | `game-strings-english.json` |
+| `query` | `query/fuzzy.ts`, `obtain.ts`, `where.ts`, `shops.ts` | fuzzy find, loot odds, where to get an item, UEX shop rows and inventories (reads datasets, no I/O) |
 
 Records come from StarBreaker's own JSON exporter (`FullDataCore` in
 `starorg-data::starbreaker`, the exporter behind `starbreaker dcb extract --format json`),
@@ -104,6 +106,24 @@ elements matched by the first of `id`, `recordName`, `guid`, `key`, `code`, `cla
 `ref`, `name` that identifies every element on both sides (else by position), key order
 checked; when the values are equal and only the text differs (number formatting, escapes,
 duplicate keys) it names the first differing line.
+
+## Query layer
+
+`query` ports sc-gamedata's `src/query/` (the code its CLI's `find`, `obtain`, `where` and
+`shop` and SCMCP share): typed rows of the datasets in, answers out, no I/O. Its unit tests
+port `fuzzy.test.ts`, `obtain.test.ts`, `where.test.ts` and `shops.test.ts`. Answers are
+checked against sc-gamedata's own compiled code on the same data:
+
+```sh
+scripts/compare-query.sh [--sample 60]   # node runs ~/git/sc-gamedata/dist/query, read only
+```
+
+It writes a query file (fixed cases, contract-award and Wikelo items, places, every Nth
+item), answers it with `node scripts/query-golden.mjs` and with `gamedata-port query`, and
+compares the JSON (key order ignored, numbers to 1e-12). On LIVE 4.10.200.58746's golden
+`data/` (with UEX prices and terminals of 2026-11-14): 487 of 487 answers identical at
+`--sample 60`. Differences from the TypeScript by design: `renderObtain`'s "no shop data"
+line names no `sc-gamedata fetch` command, and the fzf line format is not ported.
 
 ## Porting guide
 
