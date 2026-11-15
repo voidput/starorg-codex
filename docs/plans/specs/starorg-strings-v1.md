@@ -1977,6 +1977,10 @@ Some things only the game can answer. Each has a milestone.
 | Tags on short-name keys on the HUD and in the loadout manager | M2 | Open: needs the owner in game |
 | A literal `%` in descriptions; a 16 KB mission description | M2 | Open: needs the owner in game |
 | Two `open-tail` keys with our text appended | M2 | Open: needs the owner in game |
+| Ship lists (ASOP fleet manager, vehicle selection, vehicle loadout manager): sorted by the displayed name? Case-sensitive? Does `2` come before `10`? ([addendum §6](starorg-strings-v1-addendum.md#6-fleet-import-and-ship-ordering)) | Fleet | Open: needs the owner in game |
+| Which name key each ship list shows: the long `vehicle_Name*` or its `_short` sibling | Fleet | Open: needs the owner in game |
+| Where else a ship-name prefix shows: HUD target label, contracts, hangar and insurance screens, NPC ships of the same model | Fleet | Open: needs the owner in game |
+| The prefix symbols `! # * + - .` render in the ship lists and sort above digits and letters | Fleet | Open: needs the owner in game |
 
 The agents that build this never run the game or write into the real install, so every row
 stays open until the owner plays a session with an applied file and writes the answer here.
@@ -2211,6 +2215,7 @@ values printed; duplicated bomb-rack lines; ASCII-order bullet sorting; writing 
 | Q20 | Our own licence, and whether the source ever goes public | **Decided 2026-11-14: MIT** (matches StarBreaker). Going public stays tied to Q1 | Done |
 | Q22 | StarOrg blueprint sync for alts: one linked character per StarOrg account, union, or a per-character dimension in StarOrg? | **Decided 2026-11-14: (b)** push the union of the characters the user picks (per StarOrg account); pull goes into one chosen character | Done |
 | Q21 | Is `g_language = english` needed when the line is absent, and does a loose file replace or overlay the p4k table? | Answer by the M1 in-game checks | M1 |
+| Q23–Q29 | Fleet import and ship ordering: list sort rule, FleetYards format, long or short name key, replace or merge, short-name key source, StarOrg fleet source, drop-the-maker option | See [addendum §6.10](starorg-strings-v1-addendum.md#610-open-questions) | Fleet |
 
 ---
 
