@@ -25,28 +25,91 @@ pub fn builder<R: tauri::Runtime>(
         ])
 }
 
-/// The backend the app runs with. Mock until M1/M2 land (feature `mock-backend`).
-fn backend() -> BackendState {
+/// The backend the app runs with: the real one over starorg-core, or the in-memory mock with
+/// the non-default `mock-backend` feature. The second value receives the native dialogs once
+/// the app exists.
+fn backend() -> (BackendState, contract::real::DialogSlot) {
+    let slot = contract::real::DialogSlot::default();
     #[cfg(feature = "mock-backend")]
     {
         // Slow enough to see progress in the window, fast enough not to annoy.
-        BackendState::new(contract::mock::MockBackend::new(
-            std::time::Duration::from_millis(250),
-        ))
+        let b = contract::mock::MockBackend::new(std::time::Duration::from_millis(250));
+        (BackendState::new(b), slot)
     }
     #[cfg(not(feature = "mock-backend"))]
     {
-        compile_error!("no real contract::Backend yet: build with the mock-backend feature");
+        let mut cfg = contract::real::RealConfig::from_env()
+            .unwrap_or_else(|e| panic!("StarOrg Strings cannot start: {e}"));
+        cfg.dialogs = slot.clone();
+        (
+            BackendState::new(contract::real::RealBackend::new(cfg)),
+            slot,
+        )
     }
 }
 
 /// Start the GUI. [`gpu::apply`] must already have run (see `main.rs`).
 pub fn run() {
-    builder(
-        tauri::Builder::default(),
-        DiscoveryConfig::default(),
-        backend(),
-    )
-    .run(tauri::generate_context!())
-    .expect("error while running StarOrg Strings");
+    let (state, dialogs) = backend();
+    builder(tauri::Builder::default(), DiscoveryConfig::default(), state)
+        .plugin(tauri_plugin_dialog::init())
+        .setup(move |app| {
+            dialogs.set(contract::real::TauriDialogs(app.handle().clone()));
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running StarOrg Strings");
+}
+
+/// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only]`: the extraction
+/// worker the real backend starts (spec 3.3), the same protocol as the CLI's hidden
+/// subcommand. Returns the exit code, or `None` when the arguments are not a worker call.
+pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
+    use std::path::{Path, PathBuf};
+    if args.get(1).map(|a| a.as_os_str()) != Some("extract-worker".as_ref()) {
+        return None;
+    }
+    let mut p4k: Option<PathBuf> = None;
+    let mut out: Option<PathBuf> = None;
+    let mut ini_only = false;
+    let mut it = args[2..].iter();
+    while let Some(a) = it.next() {
+        match a.to_str() {
+            Some("--p4k") => p4k = it.next().map(PathBuf::from),
+            Some("--out") => out = it.next().map(PathBuf::from),
+            Some("--ini-only") => ini_only = true,
+            _ => {
+                eprintln!("extract-worker: unknown argument {}", a.to_string_lossy());
+                return Some(2);
+            }
+        }
+    }
+    let (Some(p4k), Some(out)) = (p4k, out) else {
+        eprintln!("extract-worker: needs --p4k and --out");
+        return Some(2);
+    };
+    // The worker writes only below --out; never inside the game or its prefix.
+    let out_abs = starorg_core::fsutil::canonical_lenient(&out);
+    let p4k_abs = starorg_core::fsutil::canonical_lenient(&p4k);
+    let mut protected: Vec<PathBuf> = p4k_abs
+        .parent()
+        .filter(|d| d.join("build_manifest.id").is_file())
+        .map(Path::to_path_buf)
+        .into_iter()
+        .collect();
+    protected.extend(starorg_core::discovery::enclosing_wine_prefix(&p4k_abs));
+    if let Some(r) = protected.iter().find(|r| out_abs.starts_with(r)) {
+        eprintln!(
+            "extract-worker: --out {} is inside {}; refusing",
+            out_abs.display(),
+            r.display()
+        );
+        return Some(2);
+    }
+    Some(starorg_data::worker::run_with(
+        &p4k,
+        &out,
+        starorg_data::worker::TestHook::None,
+        ini_only,
+    ))
 }

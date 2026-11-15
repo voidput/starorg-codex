@@ -1,0 +1,2264 @@
+//! The real backend: [`Backend`] over `starorg-core` and `starorg-data` (issue #15).
+//!
+//! - Same core calls as the CLI (`crates/starorg-cli/src/*_cmds.rs`), so the app and the CLI
+//!   share one apply, one status, one set of locks and one data folder (spec 4.2).
+//! - Guards and refusals come back as reports (`skipped` + reason, `needs-setup`,
+//!   `needs-decision`, ...), exactly as M1 returns them; `Err` only when a call cannot run.
+//! - Every method is blocking and runs on Tauri's blocking pool (`contract::run`).
+//! - Extraction runs in a separate worker process: this same binary started as
+//!   `starorg-strings-app extract-worker ...` (see `main.rs`, spec 3.3).
+//! - The core has no cancellation points inside an apply, so every job reports
+//!   `cancellable: false` and `cancel_job` refuses.
+//! - StarOrg Tools sync is blocked on the server API (SC-ORG-BOT#1659): login, pull and push
+//!   return `network-off` or `not-implemented`, never a fake success.
+
+mod convert;
+mod diag;
+pub mod dialogs;
+mod table;
+
+pub use dialogs::{DialogSlot, Dialogs, FileFilter, TauriDialogs};
+
+use super::types::*;
+use super::{Backend, Progress, schema};
+use convert::{err, internal, kebab, path_text};
+use serde::{Deserialize, Serialize};
+use starorg_core::appdirs::AppDirs;
+use starorg_core::apply::{self, ApplyOpts, Ctx, Target};
+use starorg_core::backup;
+use starorg_core::blueprints::{
+    self, Choice,
+    catalog::{BlueprintCatalog, GameDataCatalog},
+    import as bp_import,
+    logscan::{self, Store},
+};
+use starorg_core::cache::{self, KeyInputs};
+use starorg_core::config::{self, Config, Outputs};
+use starorg_core::discovery::{self, Channel, DiscoveryEnv, DiscoveryRequest, Install};
+use starorg_core::fsutil;
+use starorg_core::hooks;
+use starorg_core::ini::StockIni;
+use starorg_core::lock::{self, LockError};
+use starorg_core::model::GameData;
+use starorg_core::patch;
+use starorg_core::source::{Budget, GameSource, local::LocalExtraction};
+use starorg_core::state::{self, ChannelState};
+use starorg_core::usercfg;
+use starorg_core::validate;
+use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex, MutexGuard};
+use table::Table;
+
+/// Makes the game source for loads (extraction worker by default; a file in tests).
+pub trait SourceFactory: Send + Sync {
+    fn source(&self, dirs: &AppDirs) -> Result<Box<dyn GameSource>, String>;
+}
+
+/// The extraction worker: this binary, `extract-worker` subcommand.
+pub struct WorkerSource;
+
+impl SourceFactory for WorkerSource {
+    fn source(&self, dirs: &AppDirs) -> Result<Box<dyn GameSource>, String> {
+        let exe = std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
+        let mut s = LocalExtraction::new(exe);
+        s.work_root = Some(dirs.cache.join("work"));
+        Ok(Box::new(s))
+    }
+}
+
+/// Everything the real backend needs from outside.
+pub struct RealConfig {
+    /// App folders and core settings (the CLI builds the same `Ctx`).
+    pub ctx: Ctx,
+    /// Where discovery looks; tests pin it to a fake install with `game_dir`.
+    pub discovery: DiscoveryRequest,
+    pub env: DiscoveryEnv,
+    pub source: Arc<dyn SourceFactory>,
+    pub dialogs: DialogSlot,
+}
+
+impl RealConfig {
+    /// The app's own setup: XDG / %APPDATA% folders, process discovery, the worker.
+    pub fn from_env() -> Result<Self, String> {
+        let dirs =
+            AppDirs::from_env().ok_or("cannot find the home directory for the app folders")?;
+        Ok(Self {
+            ctx: Ctx::new(
+                dirs,
+                env!("CARGO_PKG_VERSION"),
+                starorg_data::starbreaker::STARBREAKER_COMMIT,
+            ),
+            discovery: DiscoveryRequest::default(),
+            env: DiscoveryEnv::from_process(),
+            source: Arc::new(WorkerSource),
+            dialogs: DialogSlot::default(),
+        })
+    }
+}
+
+/// App-only settings beside `config.toml` (the core never reads them).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct AppFile {
+    #[serde(default)]
+    appearance: Option<Appearance>,
+    #[serde(default)]
+    network: Option<NetworkSettings>,
+    #[serde(default)]
+    safe_gpu: bool,
+    /// Per channel: characters ticked for a StarOrg push.
+    #[serde(default)]
+    sync: BTreeMap<String, Vec<String>>,
+}
+
+const APP_JSON: &str = "app.json";
+/// Our record of the last apply's numbers (M1's `applied.json` keeps no counts).
+const LAST_APPLY_JSON: &str = "app-last-apply.json";
+const LOG_KEEP: usize = 500;
+
+/// One install as the UI knows it.
+#[derive(Debug, Clone)]
+struct Found {
+    install: Install,
+    /// Config id, when registered.
+    id: Option<String>,
+    found_by: FoundBy,
+    label: String,
+}
+
+impl Found {
+    /// Before registration the UI uses a stable discovery-time id from the root.
+    fn discovery_id(&self) -> String {
+        discovery_id(&self.install.root)
+    }
+
+    fn ui_id(&self) -> String {
+        self.id.clone().unwrap_or_else(|| self.discovery_id())
+    }
+
+    fn channel(&self, name: &str) -> CmdResult<&Channel> {
+        self.install.channel(name).ok_or_else(|| {
+            err(
+                ErrorCode::NotFound,
+                format!(
+                    "channel {name} not found in {}",
+                    self.install.root.display()
+                ),
+            )
+        })
+    }
+}
+
+fn discovery_id(root: &Path) -> String {
+    let h = fsutil::sha256_hex(fsutil::canonical_lenient(root).to_string_lossy().as_bytes());
+    format!("found-{}", &h[..10])
+}
+
+/// Loaded game data of one build, kept for the Strings screen and previews.
+struct LoadedData {
+    key: String,
+    stock: Arc<StockIni>,
+    game_data: Arc<GameData>,
+}
+
+#[derive(Default)]
+struct Mem {
+    manual: Vec<PathBuf>,
+    log: VecDeque<LogEntry>,
+    next_log: u64,
+    next_job: u64,
+    job: Option<JobProgress>,
+    data: HashMap<(String, String), Arc<LoadedData>>,
+    tables: HashMap<(String, String), (String, Arc<Table>)>,
+}
+
+pub struct RealBackend {
+    cfg: RealConfig,
+    mem: Mutex<Mem>,
+}
+
+fn now() -> String {
+    fsutil::rfc3339(fsutil::unix_now())
+}
+
+fn io(e: impl std::fmt::Display) -> AppError {
+    err(ErrorCode::Internal, e.to_string())
+}
+
+fn busy_or(e: LockError, what: &str) -> AppError {
+    match e {
+        LockError::Held(_) => err(ErrorCode::Busy, format!("{what} is busy; try again")),
+        other => io(other),
+    }
+}
+
+const JSON_FILTER: FileFilter = FileFilter {
+    name: "Smart Citizen export",
+    extensions: &["json"],
+};
+const PATCH_FILTER: FileFilter = FileFilter {
+    name: "Patch file",
+    extensions: &["toml"],
+};
+const TEXT_FILTER: FileFilter = FileFilter {
+    name: "Text file",
+    extensions: &["txt"],
+};
+
+impl RealBackend {
+    pub fn new(cfg: RealConfig) -> Self {
+        Self {
+            cfg,
+            mem: Mutex::new(Mem::default()),
+        }
+    }
+
+    fn mem(&self) -> MutexGuard<'_, Mem> {
+        self.mem.lock().unwrap_or_else(|p| p.into_inner())
+    }
+
+    fn ctx(&self) -> &Ctx {
+        &self.cfg.ctx
+    }
+
+    fn dirs(&self) -> &AppDirs {
+        &self.cfg.ctx.dirs
+    }
+
+    fn log(&self, level: LogLevel, job: Option<JobKind>, channel: Option<&str>, msg: &str) {
+        let mut m = self.mem();
+        m.next_log += 1;
+        let e = LogEntry {
+            id: m.next_log,
+            time: now(),
+            level,
+            job,
+            channel: channel.map(str::to_string),
+            message: msg.to_string(),
+        };
+        m.log.push_back(e);
+        while m.log.len() > LOG_KEEP {
+            m.log.pop_front();
+        }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Jobs
+    // -----------------------------------------------------------------------------------
+
+    fn job_start(
+        &self,
+        kind: JobKind,
+        channel: Option<&str>,
+        steps: u32,
+        label: &str,
+    ) -> JobProgress {
+        let mut m = self.mem();
+        m.next_job += 1;
+        let p = JobProgress {
+            job: format!("job-{}", m.next_job),
+            kind,
+            channel: channel.map(str::to_string),
+            phase: JobPhase::Running,
+            step: 1,
+            steps,
+            label: label.to_string(),
+            cancellable: false,
+        };
+        m.job = Some(p.clone());
+        p
+    }
+
+    fn job_step(
+        &self,
+        p: &mut JobProgress,
+        step: u32,
+        label: &str,
+        progress: Option<Progress<'_>>,
+    ) {
+        p.step = step;
+        p.label = label.to_string();
+        self.mem().job = Some(p.clone());
+        if let Some(cb) = progress {
+            cb(p.clone());
+        }
+    }
+
+    fn job_end(
+        &self,
+        mut p: JobProgress,
+        phase: JobPhase,
+        label: &str,
+        progress: Option<Progress<'_>>,
+    ) {
+        p.phase = phase;
+        p.step = p.steps;
+        p.label = label.to_string();
+        {
+            let mut m = self.mem();
+            if m.job.as_ref().is_some_and(|j| j.job == p.job) {
+                m.job = None;
+            }
+        }
+        if let Some(cb) = progress {
+            cb(p);
+        }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Installs
+    // -----------------------------------------------------------------------------------
+
+    fn config(&self) -> Config {
+        Config::load(self.dirs()).unwrap_or_default()
+    }
+
+    fn found_by(f: &discovery::FoundBy) -> FoundBy {
+        use discovery::FoundBy as D;
+        match f {
+            D::GameDir => FoundBy::GameDir,
+            D::PrefixOption | D::WinePrefixEnv => FoundBy::Prefix,
+            D::LugConfig => FoundBy::LugConfig,
+            D::DefaultPrefix => FoundBy::DefaultPrefix,
+            D::LauncherLog => FoundBy::LauncherLog,
+            D::DefaultPath => FoundBy::CommonPath,
+        }
+    }
+
+    /// Discover a folder the user named (picked, or saved in config.toml): as an install
+    /// root first, then as a Wine prefix.
+    fn discover_folder(&self, dir: &Path) -> Option<Install> {
+        let as_root = DiscoveryRequest {
+            game_dir: Some(dir.to_path_buf()),
+            prefix: None,
+        };
+        if let Some(i) = discovery::discover(&as_root, &self.cfg.env)
+            .installs
+            .into_iter()
+            .next()
+        {
+            return Some(i);
+        }
+        let as_prefix = DiscoveryRequest {
+            game_dir: None,
+            prefix: Some(dir.to_path_buf()),
+        };
+        discovery::discover(&as_prefix, &self.cfg.env)
+            .installs
+            .into_iter()
+            .next()
+    }
+
+    /// Every install: discovery, then saved installs discovery missed, then folders the
+    /// user picked this session. One entry per root.
+    fn installs(&self) -> Vec<Found> {
+        let cfg = self.config();
+        let outputs = Outputs::load(self.dirs()).unwrap_or_default();
+        let mut out: Vec<Found> = Vec::new();
+        let mut push = |install: Install, found_by: FoundBy, label: String| {
+            let key = fsutil::canonical_lenient(&install.root);
+            if out
+                .iter()
+                .any(|f| fsutil::canonical_lenient(&f.install.root) == key)
+            {
+                return;
+            }
+            let id = config::lookup_install(&cfg, &outputs, &install).map(|(id, _)| id);
+            out.push(Found {
+                install,
+                id,
+                found_by,
+                label,
+            });
+        };
+        for i in discovery::discover(&self.cfg.discovery, &self.cfg.env).installs {
+            let fb = Self::found_by(&i.found_by);
+            let label = i.found_by.describe().to_string();
+            push(i, fb, label);
+        }
+        // With a pinned game_dir (tests, `--game-dir`) nothing else is looked at.
+        if self.cfg.discovery.game_dir.is_none() {
+            for e in &cfg.installs {
+                if e.path.is_dir()
+                    && let Some(i) = self.discover_folder(&e.path)
+                {
+                    push(i, FoundBy::Config, "Saved install".into());
+                }
+            }
+        }
+        let manual = self.mem().manual.clone();
+        for dir in manual {
+            if let Some(i) = self.discover_folder(&dir) {
+                push(i, FoundBy::Manual, "Chosen folder".into());
+            }
+        }
+        out
+    }
+
+    fn find(&self, install: &str) -> CmdResult<Found> {
+        self.installs()
+            .into_iter()
+            .find(|f| f.id.as_deref() == Some(install) || f.discovery_id() == install)
+            .ok_or_else(|| {
+                err(
+                    ErrorCode::NotFound,
+                    format!("install {install} not found (moved or unplugged?)"),
+                )
+            })
+    }
+
+    /// Give the install an id in config.toml (commands that write; CLI `register`).
+    fn register(&self, f: &mut Found) -> CmdResult<String> {
+        if let Some(id) = &f.id {
+            return Ok(id.clone());
+        }
+        let mut cfg = Config::load(self.dirs()).map_err(io)?;
+        let outputs = Outputs::load(self.dirs()).unwrap_or_default();
+        let (id, _) =
+            config::register_install(self.dirs(), &mut cfg, &outputs, &f.install).map_err(io)?;
+        f.id = Some(id.clone());
+        Ok(id)
+    }
+
+    fn data_dir(&self, f: &Found, ch: &Channel) -> PathBuf {
+        Target::new(&f.install, f.id.clone(), ch).data_dir(self.dirs())
+    }
+
+    fn is_set_up(&self, f: &Found, ch: &Channel) -> bool {
+        f.id.is_some()
+            && ChannelState::load(&self.data_dir(f, ch))
+                .map(|s| s.consent)
+                .unwrap_or(false)
+    }
+
+    fn language(ch: &Channel) -> (Language, Option<String>) {
+        let line = usercfg::locate(&ch.dir)
+            .ok()
+            .and_then(|t| usercfg::read(&t).ok())
+            .map(|x| match x {
+                None => usercfg::LanguageLine::NoFile,
+                Some(t) => usercfg::inspect(&t),
+            });
+        match line {
+            Some(usercfg::LanguageLine::English { .. }) => (Language::English, None),
+            Some(usercfg::LanguageLine::Other { value, .. }) => (Language::Other, Some(value)),
+            _ => (Language::Unknown, None),
+        }
+    }
+
+    fn cache_state(&self, f: &Found, ch: &Channel) -> CacheState {
+        let Some(id) = &f.id else {
+            return CacheState::Missing;
+        };
+        let dir = self.dirs().channel_cache(id, &ch.name);
+        let fresh = ch.fingerprint().ok().is_some_and(|fp| {
+            cache::has_entry(&dir, &KeyInputs::local(&fp, &self.ctx().starbreaker_commit))
+        });
+        if fresh {
+            return CacheState::Fresh;
+        }
+        let any = std::fs::read_dir(&dir).is_ok_and(|mut rd| rd.next().is_some());
+        if any {
+            CacheState::Stale
+        } else {
+            CacheState::Missing
+        }
+    }
+
+    fn summary(&self, f: &Found, ch: &Channel) -> ChannelSummary {
+        let t = Target::new(&f.install, f.id.clone(), ch);
+        let st = apply::current_inputs(self.ctx(), &t, None, None)
+            .and_then(|inp| apply::status(self.ctx(), &t, &inp));
+        let (status, interrupted, applied) = match st {
+            Ok(s) => (convert::state(&s.state), s.interrupted_apply, s.applied),
+            Err(e) => {
+                self.log(
+                    LogLevel::Warn,
+                    None,
+                    Some(&ch.name),
+                    &format!("status: {e}"),
+                );
+                (ApplyState::NotApplied, false, None)
+            }
+        };
+        let (language, language_value) = Self::language(ch);
+        let foreign_tool = match &status {
+            ApplyState::ChangedByAnotherTool { tool } => tool.clone(),
+            _ => None,
+        };
+        let data = t.data_dir(self.dirs());
+        let last_apply = fsutil::read_json::<LastApply>(&data.join(LAST_APPLY_JSON))
+            .ok()
+            .flatten()
+            .filter(|l| applied.as_ref().is_some_and(|a| a.time == l.time))
+            .or_else(|| {
+                applied.as_ref().map(|a| LastApply {
+                    time: a.time.clone(),
+                    result: ApplyResult::Applied,
+                    changed: 0,
+                    warnings: a.warnings.len() as u32,
+                    dropped: 0,
+                    duration_ms: 0,
+                })
+            });
+        ChannelSummary {
+            channel: ch.name.clone(),
+            build: convert::build(ch.build.as_ref()),
+            build_error: ch.build_error.clone(),
+            set_up: self.is_set_up(f, ch),
+            foreign_file: matches!(status, ApplyState::ChangedByAnotherTool { .. }),
+            status,
+            language,
+            language_value,
+            foreign_tool,
+            game_running: starorg_core::running::game_running(
+                t.prefix.as_deref(),
+                &ch.name,
+                &ch.dir,
+            )
+            .is_some(),
+            interrupted_apply: interrupted,
+            p4k_time: std::fs::metadata(&ch.p4k)
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| fsutil::rfc3339(d.as_secs())),
+            cache: self.cache_state(f, ch),
+            applied_build: applied.as_ref().map(convert::applied_build),
+            last_apply,
+        }
+    }
+
+    fn install_summary(&self, f: &Found) -> InstallSummary {
+        InstallSummary {
+            id: f.ui_id(),
+            root: path_text(&f.install.root),
+            prefix: f.install.prefix.as_deref().map(path_text),
+            found_by: f.found_by,
+            found_by_label: f.label.clone(),
+            saved: f.id.is_some(),
+            channels: f
+                .install
+                .channels
+                .iter()
+                .map(|c| self.summary(f, c))
+                .collect(),
+        }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Game data and the Strings table
+    // -----------------------------------------------------------------------------------
+
+    /// Stock text and GameData of the channel's build. `extract`: run the worker when the
+    /// cache has no entry (slow); otherwise only a cached entry is used.
+    fn loaded(&self, f: &Found, ch: &Channel, extract: bool) -> CmdResult<Arc<LoadedData>> {
+        let id = f.id.clone().ok_or_else(|| {
+            err(
+                ErrorCode::NeedsDecision,
+                format!("{} is not set up yet", ch.name),
+            )
+        })?;
+        let fp = ch
+            .fingerprint()
+            .map_err(|e| err(ErrorCode::NotFound, format!("{}: {e}", ch.p4k.display())))?;
+        let k = KeyInputs::local(&fp, &self.ctx().starbreaker_commit);
+        let key = k.key();
+        let slot = (id.clone(), ch.name.clone());
+        if let Some(d) = self.mem().data.get(&slot).filter(|d| d.key == key) {
+            return Ok(d.clone());
+        }
+        let cached = self.ctx().use_cache.then(|| {
+            cache::load(
+                &self.dirs().channel_cache(&id, &ch.name),
+                &k,
+                self.ctx().min_stock_keys,
+            )
+            .ok()
+        });
+        let l = match cached.flatten() {
+            Some(l) => l,
+            None if extract => {
+                let t = Target::new(&f.install, Some(id.clone()), ch);
+                let src = self.cfg.source.source(self.dirs()).map_err(internal)?;
+                let mut w = Vec::new();
+                apply::load_channel(self.ctx(), &t, src.as_ref(), &Budget::unlimited(), &mut w)
+                    .map_err(|e| err(ErrorCode::Internal, format!("reading game data: {e}")))?
+            }
+            None => {
+                return Err(err(
+                    ErrorCode::NotFound,
+                    format!(
+                        "The game data of {} has not been read for this build yet. Apply (or a dry run) reads it.",
+                        ch.name
+                    ),
+                ));
+            }
+        };
+        let d = Arc::new(LoadedData {
+            key,
+            stock: Arc::new(StockIni::parse(l.base_ini)),
+            game_data: Arc::new(l.game_data),
+        });
+        // One build per channel in memory.
+        self.mem().data.insert(slot, d.clone());
+        Ok(d)
+    }
+
+    /// Build the table with the channel's inputs, or with `profile`/`disabled` instead of
+    /// the saved profile.
+    fn build_table(
+        &self,
+        f: &Found,
+        ch: &Channel,
+        profile: Option<(&starorg_core::enhance::profile::Profile, &[String])>,
+        extract: bool,
+    ) -> CmdResult<Arc<Table>> {
+        let d = self.loaded(f, ch, extract)?;
+        let t = Target::new(&f.install, f.id.clone(), ch);
+        let inp = apply::current_inputs(self.ctx(), &t, None, None).map_err(internal)?;
+        let (eprof, patches) = match profile {
+            Some((p, dis)) => (p.clone(), patch::load_patches(self.dirs(), dis)),
+            None => (
+                inp.profile
+                    .enhance()
+                    .map_err(|e| err(ErrorCode::Invalid, format!("profile.toml: {e}")))?,
+                inp.patches.clone(),
+            ),
+        };
+        let key = fsutil::sha256_parts(&[
+            d.key.as_bytes(),
+            eprof.hash().as_bytes(),
+            patches.hash().as_bytes(),
+            inp.overrides_hash.as_bytes(),
+            inp.owned.hash.as_bytes(),
+        ]);
+        let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
+        if profile.is_none()
+            && let Some((k, t)) = self.mem().tables.get(&slot)
+            && *k == key
+        {
+            return Ok(t.clone());
+        }
+        let tbl = Arc::new(table::build(&table::Inputs {
+            stock: &d.stock,
+            game_data: &d.game_data,
+            build: ch.build.as_ref(),
+            profile: &eprof,
+            patches: &patches,
+            overrides: &inp.overrides,
+            owned: &inp.owned,
+        }));
+        if profile.is_none() {
+            self.mem().tables.insert(slot, (key, tbl.clone()));
+        }
+        Ok(tbl)
+    }
+
+    fn profile_file(&self, f: &Found, ch: &Channel) -> CmdResult<state::Profile> {
+        state::Profile::load_file(&state::Profile::path(&self.data_dir(f, ch))).map_err(io)
+    }
+
+    fn overrides_text(data: &Path) -> CmdResult<String> {
+        match fsutil::read_limited(&data.join(state::OVERRIDES_INI), state::OVERRIDES_LIMIT) {
+            Ok(Some(b)) => String::from_utf8(b)
+                .map_err(|_| err(ErrorCode::Invalid, "overrides.ini is not valid UTF-8")),
+            Ok(None) => Ok(String::new()),
+            Err(e) => Err(io(e)),
+        }
+    }
+
+    fn override_of(data: &Path, key: &str) -> Option<String> {
+        let text = Self::overrides_text(data).ok()?;
+        state::parse_overrides(&text)
+            .0
+            .into_iter()
+            .rev()
+            .find(|o| o.key.eq_ignore_ascii_case(key))
+            .map(|o| o.value)
+    }
+
+    /// Replace (or with `None` remove) the line for `key`, keeping comments and order.
+    fn write_override(data: &Path, key: &str, value: Option<&str>) -> CmdResult<()> {
+        let text = Self::overrides_text(data)?;
+        let mut out = String::new();
+        let mut done = false;
+        for line in text.split_inclusive('\n') {
+            let bare = line.trim_end_matches(['\n', '\r']);
+            let is_key = bare
+                .split_once('=')
+                .is_some_and(|(k, _)| !bare.starts_with(';') && k.eq_ignore_ascii_case(key));
+            if is_key {
+                if let (Some(v), false) = (value, done) {
+                    out.push_str(&format!("{key}={v}\n"));
+                    done = true;
+                }
+                continue;
+            }
+            out.push_str(line);
+        }
+        if let (Some(v), false) = (value, done) {
+            if !out.is_empty() && !out.ends_with('\n') {
+                out.push('\n');
+            }
+            out.push_str(&format!("{key}={v}\n"));
+        }
+        std::fs::create_dir_all(data).map_err(io)?;
+        state::save_overrides(data, &out).map_err(io)
+    }
+
+    fn forget_tables(&self, f: &Found, ch: &Channel) {
+        let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
+        self.mem().tables.remove(&slot);
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Backups
+    // -----------------------------------------------------------------------------------
+
+    fn offers(&self, s: &ChannelSummary, list: &[backup::Backup]) -> RestoreOffers {
+        let views: Vec<BackupView> = list.iter().map(convert::backup_view).collect();
+        let undo = views
+            .iter()
+            .rev()
+            .find(|b| {
+                b.reason == BackupReason::BeforeApply
+                    && b.origin == FileOrigin::Ours
+                    && b.build.change == s.build.change
+            })
+            .map(|b| b.id.clone());
+        let foreign = views
+            .iter()
+            .find(|b| b.pinned && b.origin == FileOrigin::Foreign)
+            .map(|b| ForeignRestore {
+                backup: b.id.clone(),
+                tool: b.foreign_tool.clone(),
+                made_for: b.build.clone(),
+                current: s.build.clone(),
+                build_mismatch: b.build.change != s.build.change,
+            });
+        RestoreOffers {
+            remove: !matches!(s.status, ApplyState::NotApplied),
+            remove_foreign: matches!(s.status, ApplyState::ChangedByAnotherTool { .. }),
+            undo_last_apply: undo,
+            restore_foreign: foreign,
+        }
+    }
+
+    fn backup_list(&self, f: &Found, ch: &Channel) -> BackupList {
+        let data = self.data_dir(f, ch);
+        let list = if f.id.is_some() {
+            backup::list(&data)
+        } else {
+            Vec::new()
+        };
+        let s = self.summary(f, ch);
+        BackupList {
+            channel: ch.name.clone(),
+            folder: path_text(&backup::backups_dir(&data)),
+            offers: self.offers(&s, &list),
+            backups: list.iter().rev().map(convert::backup_view).collect(),
+            keep_newest: backup::KEEP_NEWEST as u32,
+            keep_builds: backup::KEEP_BUILDS as u32,
+        }
+    }
+
+    fn channel_lock(&self, id: &str, ch: &Channel) -> CmdResult<lock::Lock> {
+        lock::try_lock(&self.dirs().channel_lock(id, &ch.name))
+            .map_err(|e| busy_or(e, &format!("{} (another StarOrg Strings run)", ch.name)))
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Settings
+    // -----------------------------------------------------------------------------------
+
+    fn app_file(&self) -> AppFile {
+        fsutil::read_json(&self.dirs().config.join(APP_JSON))
+            .ok()
+            .flatten()
+            .unwrap_or_default()
+    }
+
+    fn save_app_file(&self, a: &AppFile) -> CmdResult<()> {
+        fsutil::write_json(&self.dirs().config.join(APP_JSON), a).map_err(io)
+    }
+
+    fn settings(&self) -> Settings {
+        let a = self.app_file();
+        Settings {
+            appearance: a.appearance.unwrap_or(Appearance {
+                theme: Theme::System,
+                accent: Accent::Cyan,
+                palette: Palette::Void,
+                reduce_effects: false,
+            }),
+            network: a.network.unwrap_or(NetworkSettings {
+                check_updates: false,
+                published_dumps: false,
+                starorg: false,
+            }),
+            default_channel: self.config().default_channel,
+            safe_gpu: a.safe_gpu,
+        }
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Blueprints
+    // -----------------------------------------------------------------------------------
+
+    fn blueprint_lock(&self, id: &str, ch: &Channel) -> CmdResult<lock::Lock> {
+        let p = self.dirs().locks().join(format!(
+            "{id}-{}-blueprints.lock",
+            ch.name.to_ascii_uppercase()
+        ));
+        lock::try_lock(&p).map_err(|e| busy_or(e, &format!("{} blueprint store", ch.name)))
+    }
+
+    /// Read new log lines into the store (registered installs only; skipped while another
+    /// scan holds the lock).
+    fn scan(&self, f: &Found, ch: &Channel) {
+        let Some(id) = &f.id else { return };
+        let Ok(_l) = self.blueprint_lock(id, ch) else {
+            return;
+        };
+        let data = self.data_dir(f, ch);
+        let Ok(mut store) = Store::load(&data) else {
+            return;
+        };
+        let r = logscan::scan(&ch.dir, &data, &mut store, None);
+        if let Err(e) = store.save(&data) {
+            self.log(
+                LogLevel::Warn,
+                Some(JobKind::Import),
+                Some(&ch.name),
+                &format!("blueprint scan not saved: {e}"),
+            );
+        } else if !r.new_blueprints.is_empty() {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Import),
+                Some(&ch.name),
+                &format!(
+                    "Read {} new blueprints from the logs",
+                    r.new_blueprints.len()
+                ),
+            );
+        }
+    }
+
+    fn characters_view(&self, f: &Found, ch: &Channel) -> CmdResult<CharactersView> {
+        let data = self.data_dir(f, ch);
+        if f.id.is_none() {
+            return Ok(CharactersView {
+                channel: ch.name.clone(),
+                characters: Vec::new(),
+                active: ActiveCharacter {
+                    mode: CharacterMode::Auto,
+                    character: None,
+                    resolved: None,
+                },
+                unattributed: 0,
+                last_scan: None,
+            });
+        }
+        let chars = blueprints::load_characters(&data).map_err(io)?;
+        let setting = ChannelState::load(&data)
+            .ok()
+            .and_then(|s| s.active_character);
+        let (mode, character) = match setting.as_deref() {
+            None => (CharacterMode::Auto, None),
+            Some("any") => (CharacterMode::Union, None),
+            Some(g) => (CharacterMode::Manual, Some(g.to_string())),
+        };
+        Ok(CharactersView {
+            channel: ch.name.clone(),
+            characters: chars
+                .characters
+                .iter()
+                .map(|(g, c)| CharacterView {
+                    id: g.clone(),
+                    name: c.name.clone(),
+                    last_seen: c.last_seen.clone(),
+                    owned: blueprints::load_set(&data, g)
+                        .map(|s| s.entries.len() as u32)
+                        .unwrap_or(0),
+                })
+                .collect(),
+            active: ActiveCharacter {
+                mode,
+                character,
+                resolved: chars.newest().map(str::to_string),
+            },
+            unattributed: blueprints::load_unattributed(&data)
+                .map(|s| s.entries.len() as u32)
+                .unwrap_or(0),
+            last_scan: std::fs::metadata(blueprints::dir(&data).join(blueprints::SCAN_JSON))
+                .and_then(|m| m.modified())
+                .ok()
+                .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                .map(|d| fsutil::rfc3339(d.as_secs())),
+        })
+    }
+
+    // -----------------------------------------------------------------------------------
+    // Hooks
+    // -----------------------------------------------------------------------------------
+
+    /// Wine prefix and the folders hook edits must never touch (CLI `places`).
+    fn hook_places(&self) -> (Option<PathBuf>, Vec<PathBuf>) {
+        let inst = self.installs().into_iter().next().map(|f| f.install);
+        let prefix = inst.as_ref().and_then(|i| {
+            i.prefix
+                .clone()
+                .or_else(|| starorg_core::running::enclosing_prefix(&i.root))
+        });
+        let mut forbidden = Vec::new();
+        if let Some(i) = &inst {
+            forbidden.push(i.root.clone());
+        }
+        if let Some(p) = &prefix {
+            forbidden.push(p.join("drive_c"));
+        }
+        (prefix, forbidden)
+    }
+
+    fn block_opts() -> hooks::BlockOpts {
+        hooks::BlockOpts {
+            bin: None,
+            game_dir: None,
+            timeout: None,
+            notify: false,
+        }
+    }
+
+    fn cli_on_path() -> bool {
+        let exe = if cfg!(windows) {
+            "starorg-strings.exe"
+        } else {
+            "starorg-strings"
+        };
+        std::env::var_os("PATH")
+            .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(exe).is_file()))
+    }
+
+    fn hooks_view(&self) -> HooksStatus {
+        let supported = cfg!(target_os = "linux");
+        if !supported {
+            return HooksStatus {
+                supported,
+                cli_on_path: Self::cli_on_path(),
+                scripts: Vec::new(),
+            };
+        }
+        let (prefix, forbidden) = self.hook_places();
+        let scripts = hooks::Kind::ALL
+            .iter()
+            .map(|&kind| {
+                let k = match kind {
+                    hooks::Kind::Prelaunch => HookKind::Prelaunch,
+                    hooks::Kind::Postexit => HookKind::Postexit,
+                };
+                let Some(path) = prefix.as_ref().map(|p| p.join(kind.script_name())) else {
+                    return HookScript {
+                        kind: k,
+                        path: None,
+                        is_link: false,
+                        status: HookState::Missing,
+                    };
+                };
+                match hooks::locate(kind, &path, &forbidden) {
+                    Err((true, _)) => HookScript {
+                        kind: k,
+                        path: Some(path_text(&path)),
+                        is_link: false,
+                        status: HookState::Missing,
+                    },
+                    Err((false, why)) => HookScript {
+                        kind: k,
+                        path: Some(path_text(&path)),
+                        is_link: false,
+                        status: HookState::Broken { why },
+                    },
+                    Ok(s) => {
+                        let text = hooks::read(&s).unwrap_or_default();
+                        let status =
+                            match hooks::inspect(&text, &hooks::block(kind, &Self::block_opts())) {
+                                hooks::BlockState::Absent => HookState::Absent,
+                                hooks::BlockState::Current => HookState::Current,
+                                hooks::BlockState::Outdated => HookState::Outdated,
+                                hooks::BlockState::Broken { why } => HookState::Broken { why },
+                            };
+                        HookScript {
+                            kind: k,
+                            path: Some(path_text(&s.path)),
+                            is_link: s.is_link,
+                            status,
+                        }
+                    }
+                }
+            })
+            .collect();
+        HooksStatus {
+            supported,
+            cli_on_path: Self::cli_on_path(),
+            scripts,
+        }
+    }
+
+    fn hooks_edit(&self, install_: bool) -> CmdResult<HooksStatus> {
+        if !cfg!(target_os = "linux") {
+            return Err(err(
+                ErrorCode::Invalid,
+                "LUG Helper hooks are Linux only; on Windows use Check now.",
+            ));
+        }
+        let (prefix, forbidden) = self.hook_places();
+        let prefix = prefix.ok_or_else(|| {
+            err(
+                ErrorCode::NotFound,
+                "No Wine prefix found for the install; hooks live in the prefix.",
+            )
+        })?;
+        let backup_dir = self.dirs().data.join("hooks").join("backups");
+        let mut problems = Vec::new();
+        for kind in hooks::Kind::ALL {
+            let path = prefix.join(kind.script_name());
+            let script = match hooks::locate(kind, &path, &forbidden) {
+                Ok(s) => s,
+                Err((_, why)) => {
+                    problems.push(format!("{}: {why}", kind.script_name()));
+                    continue;
+                }
+            };
+            let text = hooks::read(&script).map_err(io)?;
+            let want = hooks::block(kind, &Self::block_opts());
+            let state = hooks::inspect(&text, &want);
+            let new = match (install_, state) {
+                (true, hooks::BlockState::Current) | (false, hooks::BlockState::Absent) => None,
+                (true, _) => Some(hooks::install(&text, &want)),
+                (false, _) => {
+                    Some(hooks::uninstall(&text).map(|o| o.unwrap_or_else(|| text.clone())))
+                }
+            };
+            match new {
+                None => {}
+                Some(Err(e)) => problems.push(format!("{}: {e}", kind.script_name())),
+                Some(Ok(new)) => match hooks::write(&script, &text, &new, &backup_dir) {
+                    Ok(b) => self.log(
+                        LogLevel::Info,
+                        Some(JobKind::Hook),
+                        None,
+                        &format!(
+                            "{} {} (backup {})",
+                            if install_ {
+                                "Added the StarOrg block to"
+                            } else {
+                                "Removed the StarOrg block from"
+                            },
+                            kind.script_name(),
+                            b.display()
+                        ),
+                    ),
+                    Err(e) => problems.push(format!("{}: {e}", kind.script_name())),
+                },
+            }
+        }
+        if !problems.is_empty() {
+            let mut e = err(ErrorCode::Invalid, "Some hook scripts were not changed.");
+            e.detail = Some(problems.join("\n"));
+            return Err(e);
+        }
+        Ok(self.hooks_view())
+    }
+
+    fn starorg_view(&self, channel: &str) -> CmdResult<StarOrgStatus> {
+        let s = self.settings();
+        let a = self.app_file();
+        let ticked = a.sync.get(channel).cloned();
+        let mut chars = Vec::new();
+        if let Some(f) = self.installs().into_iter().find(|f| f.id.is_some())
+            && let Some(ch) = f.install.channel(channel)
+        {
+            let data = self.data_dir(&f, ch);
+            for (g, c) in blueprints::load_characters(&data)
+                .unwrap_or_default()
+                .characters
+            {
+                chars.push(SyncCharacter {
+                    ticked: ticked.as_ref().is_none_or(|t| t.contains(&g)),
+                    owned: blueprints::load_set(&data, &g)
+                        .map(|s| s.entries.len() as u32)
+                        .unwrap_or(0),
+                    id: g,
+                    name: c.name,
+                });
+            }
+        }
+        Ok(StarOrgStatus {
+            enabled: s.network.starorg,
+            connected: false,
+            environment: StarOrgEnv::Production,
+            user: None,
+            guild: None,
+            expires: None,
+            last_sync: None,
+            sync_characters: chars,
+            push_count: 0,
+        })
+    }
+
+    fn starorg_blocked(&self) -> AppError {
+        if !self.settings().network.starorg {
+            return err(
+                ErrorCode::NetworkOff,
+                "Turn on \"Connect StarOrg Tools\" under Settings -> Network first.",
+            );
+        }
+        let mut e = err(
+            ErrorCode::NotImplemented,
+            "StarOrg Tools sync is not available yet: it waits for the StarOrg server API.",
+        );
+        e.detail = Some("Blocked on SC-ORG-BOT#1659. Nothing was sent or changed.".into());
+        e
+    }
+
+    fn resolve(&self, r: &ChannelRef) -> CmdResult<Found> {
+        let f = self.find(&r.install)?;
+        f.channel(&r.channel)?;
+        Ok(f)
+    }
+}
+
+impl Backend for RealBackend {
+    fn overview(&self) -> CmdResult<Overview> {
+        let found = self.installs();
+        let installs: Vec<InstallSummary> = found.iter().map(|f| self.install_summary(f)).collect();
+        let first_run = !installs.iter().any(|i| i.channels.iter().any(|c| c.set_up));
+        let active = installs
+            .iter()
+            .find(|i| i.saved && i.channels.iter().any(|c| c.set_up))
+            .or_else(|| installs.iter().find(|i| i.saved))
+            .map(|i| i.id.clone());
+        Ok(Overview {
+            contract: CONTRACT_VERSION,
+            app_version: self.ctx().app_version.clone(),
+            first_run,
+            default_channel: self.config().default_channel,
+            active_install: active,
+            installs,
+            job: self.mem().job.clone(),
+        })
+    }
+
+    fn discover_installs(&self, _deep: bool) -> CmdResult<Vec<InstallSummary>> {
+        Ok(self
+            .installs()
+            .iter()
+            .map(|f| self.install_summary(f))
+            .collect())
+    }
+
+    fn pick_install_folder(&self) -> CmdResult<Option<InstallSummary>> {
+        let Some(d) = self.cfg.dialogs.get() else {
+            return Ok(None);
+        };
+        let Some(dir) = d.pick_folder("Choose the Star Citizen install folder") else {
+            return Ok(None);
+        };
+        if self.discover_folder(&dir).is_none() {
+            return Err(err(
+                ErrorCode::NotFound,
+                format!(
+                    "No Star Citizen channels (LIVE, PTU, ...) in {}. Pick the StarCitizen folder that holds them, or the Wine prefix.",
+                    dir.display()
+                ),
+            ));
+        }
+        self.mem().manual.push(dir.clone());
+        let found = self.installs();
+        let f = self
+            .discover_folder(&dir)
+            .and_then(|i| {
+                let key = fsutil::canonical_lenient(&i.root);
+                found
+                    .into_iter()
+                    .find(|f| fsutil::canonical_lenient(&f.install.root) == key)
+            })
+            .ok_or_else(|| internal("picked install vanished"))?;
+        Ok(Some(self.install_summary(&f)))
+    }
+
+    fn plan_setup(&self, req: SetupRequest) -> CmdResult<SetupPlan> {
+        let mut f = self.find(&req.install)?;
+        let mut channels = Vec::new();
+        let mut warnings = Vec::new();
+        let wanted: Vec<&ChannelConsent> = req.channels.iter().filter(|c| c.consent).collect();
+        if !wanted.is_empty() {
+            // The dry-run build reads game data into our cache, keyed by the install id.
+            self.register(&mut f)?;
+        }
+        let all = patch::load_patches(self.dirs(), &[]);
+        let disabled = if req.fix_known_bugs {
+            Vec::new()
+        } else {
+            convert::builtin_patch_ids(&all)
+        };
+        let eprof =
+            starorg_core::enhance::profile::Profile::preset(convert::preset_name(req.preset))
+                .map_err(internal)?;
+        for c in wanted {
+            let ch = f.channel(&c.channel)?;
+            let (lang, value) = Self::language(ch);
+            if lang == Language::Other && !c.switch_language {
+                warnings.push(Warning {
+                    kind: "language".into(),
+                    detail: format!(
+                        "{}: the game language is {}; it will be skipped",
+                        ch.name,
+                        value.as_deref().unwrap_or("not English")
+                    ),
+                });
+                continue;
+            }
+            let ini = apply::locate_ini(&ch.dir).map_err(internal)?;
+            let cfg = usercfg::locate(&ch.dir).ok();
+            let s = self.summary(&f, ch);
+            let counts = match self.build_table(&f, ch, Some((&eprof, &disabled)), true) {
+                Ok(t) => t.counts.clone(),
+                Err(e) => {
+                    warnings.push(Warning {
+                        kind: "game-data".into(),
+                        detail: format!("{}: {}", ch.name, e.message),
+                    });
+                    convert::zero_counts()
+                }
+            };
+            channels.push(PlannedChannel {
+                channel: ch.name.clone(),
+                target: path_text(&ini.path),
+                target_is_link: ini.is_link,
+                link_target: ini.is_link.then(|| path_text(&ini.real)),
+                backup_dir: path_text(&backup::backups_dir(&self.data_dir(&f, ch))),
+                user_cfg_line: (lang != Language::English).then(|| usercfg::OUR_LINE.to_string()),
+                user_cfg_path: cfg.as_ref().map(|c| path_text(&c.path)),
+                replaces_tool: match &s.status {
+                    ApplyState::ChangedByAnotherTool { tool } => {
+                        Some(tool.clone().unwrap_or_else(|| "another tool".into()))
+                    }
+                    _ => None,
+                },
+                counts,
+            });
+        }
+        if req.data_source == DataSource::PublishedDumps {
+            warnings.push(Warning {
+                kind: "network".into(),
+                detail: "Published game data is not in this build of the app yet; game data is read from Data.p4k on this machine.".into(),
+            });
+        }
+        Ok(SetupPlan {
+            install: req.install,
+            channels,
+            warnings,
+        })
+    }
+
+    fn setup(&self, req: SetupRequest) -> CmdResult<SetupResult> {
+        let mut f = self.find(&req.install)?;
+        for c in req.channels.iter().filter(|c| c.consent) {
+            let ch = f.channel(&c.channel)?;
+            let (lang, value) = Self::language(ch);
+            if lang == Language::Other && !c.switch_language {
+                let mut e = err(
+                    ErrorCode::NeedsDecision,
+                    format!(
+                        "{}: the game language is not English. Choose whether to switch it.",
+                        ch.name
+                    ),
+                );
+                e.detail = value;
+                return Err(e);
+            }
+        }
+        let id = self.register(&mut f)?;
+        let all = patch::load_patches(self.dirs(), &[]);
+        let mut set_up = Vec::new();
+        let mut skipped = Vec::new();
+        for c in &req.channels {
+            let ch = f.channel(&c.channel)?;
+            if !c.consent {
+                skipped.push(ch.name.clone());
+                continue;
+            }
+            let data = self.dirs().channel_dir(&id, &ch.name);
+            let mut st = ChannelState::load(&data).map_err(io)?;
+            st.consent = true;
+            st.setup_time = Some(now());
+            st.switch_language = c.switch_language;
+            let mut prof = state::Profile::preset(convert::preset_name(req.preset))
+                .ok_or_else(|| internal("unknown preset"))?;
+            if !req.fix_known_bugs {
+                let mut p = convert::profile_of(&prof)?;
+                p.patches_disabled = convert::builtin_patch_ids(&all);
+                convert::store_profile(&mut prof, &p)?;
+            }
+            st.save(&data).map_err(io)?;
+            prof.save(&data).map_err(io)?;
+            set_up.push(ch.name.clone());
+        }
+        let mut cfg = Config::load(self.dirs()).unwrap_or_default();
+        if cfg.default_channel.is_none()
+            && let Some(first) = set_up.first()
+        {
+            cfg.default_channel = Some(first.clone());
+            cfg.save(self.dirs()).map_err(io)?;
+        }
+        if req.data_source == DataSource::PublishedDumps {
+            let mut a = self.app_file();
+            let mut n = self.settings().network;
+            n.published_dumps = true;
+            a.network = Some(n);
+            self.save_app_file(&a)?;
+        }
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!(
+                "Set up {} (skipped: {})",
+                if set_up.is_empty() {
+                    "nothing".into()
+                } else {
+                    set_up.join(", ")
+                },
+                if skipped.is_empty() {
+                    "none".into()
+                } else {
+                    skipped.join(", ")
+                }
+            ),
+        );
+        Ok(SetupResult {
+            install: id,
+            set_up,
+            skipped,
+        })
+    }
+
+    fn channel_status(&self, req: ChannelRef) -> CmdResult<ChannelSummary> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        // "On the next run of any command for that channel" (spec 7.1, journal).
+        let t = Target::new(&f.install, f.id.clone(), ch);
+        if let Some(Ok(Some(m))) = apply::recover_if_idle(self.ctx(), &t) {
+            self.log(LogLevel::Warn, Some(JobKind::Apply), Some(&ch.name), &m);
+        }
+        Ok(self.summary(&f, ch))
+    }
+
+    fn apply(&self, req: ApplyRequest, progress: Progress<'_>) -> CmdResult<ApplyReport> {
+        let mut f = self.resolve(&req.target)?;
+        let name = req.target.channel.clone();
+        let mut job = self.job_start(JobKind::Apply, Some(&name), 3, "Checking the channel");
+        progress(job.clone());
+        let id = match self.register(&mut f) {
+            Ok(id) => id,
+            Err(e) => {
+                self.job_end(job, JobPhase::Failed, &e.message, Some(progress));
+                return Err(e);
+            }
+        };
+        let ch = f.channel(&name)?;
+        let src = match self.cfg.source.source(self.dirs()) {
+            Ok(s) => s,
+            Err(e) => {
+                self.job_end(job, JobPhase::Failed, &e, Some(progress));
+                return Err(internal(e));
+            }
+        };
+        self.job_step(
+            &mut job,
+            2,
+            if req.dry_run {
+                "Reading game data and building (dry run)"
+            } else {
+                "Reading game data, building and writing"
+            },
+            Some(progress),
+        );
+        let t = Target::new(&f.install, Some(id.clone()), ch);
+        let opts = ApplyOpts {
+            dry_run: req.dry_run,
+            ..ApplyOpts::default()
+        };
+        let r = apply::apply(self.ctx(), &t, &opts, src.as_ref());
+        let data = t.data_dir(self.dirs());
+        let out = convert::report(&r, Some(&backup::backups_dir(&data)));
+        if out.result == ApplyResult::Applied
+            && let Ok(Some(a)) =
+                fsutil::read_json::<apply::Applied>(&data.join(state::APPLIED_JSON))
+        {
+            let last = LastApply {
+                time: a.time,
+                result: out.result,
+                changed: out.counts.changed,
+                warnings: out.warnings.len() as u32,
+                dropped: out.counts.dropped,
+                duration_ms: out.duration_ms,
+            };
+            let _ = fsutil::write_json(&data.join(LAST_APPLY_JSON), &last);
+        }
+        self.forget_tables(&f, ch);
+        let level = match out.result {
+            ApplyResult::Failed => LogLevel::Error,
+            ApplyResult::Skipped | ApplyResult::NeedsDecision | ApplyResult::NeedsSetup => {
+                LogLevel::Warn
+            }
+            _ if !out.warnings.is_empty() => LogLevel::Warn,
+            _ => LogLevel::Info,
+        };
+        let mut msg = format!("{}: {}", name, kebab(&out.result));
+        if let Some(why) = &out.reason {
+            msg.push_str(&format!(" ({why})"));
+        }
+        self.log(level, Some(JobKind::Apply), Some(&name), &msg);
+        let phase = if out.result == ApplyResult::Failed {
+            JobPhase::Failed
+        } else {
+            JobPhase::Done
+        };
+        self.job_end(job, phase, &msg, Some(progress));
+        Ok(out)
+    }
+
+    fn remove_changes(&self, req: RemoveRequest) -> CmdResult<ApplyReport> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let job = self.job_start(JobKind::Remove, Some(&ch.name), 1, "Removing changes");
+        let t = Target::new(&f.install, f.id.clone(), ch);
+        let r = apply::remove(self.ctx(), &t, req.allow_foreign);
+        let out = convert::report(&r, Some(&backup::backups_dir(&t.data_dir(self.dirs()))));
+        self.forget_tables(&f, ch);
+        self.log(
+            if out.result == ApplyResult::Failed {
+                LogLevel::Error
+            } else {
+                LogLevel::Info
+            },
+            Some(JobKind::Remove),
+            Some(&ch.name),
+            &format!("{}: {}", ch.name, kebab(&out.result)),
+        );
+        self.job_end(job, JobPhase::Done, "Done", None);
+        Ok(out)
+    }
+
+    fn undo_last_apply(&self, req: ChannelRef) -> CmdResult<ApplyReport> {
+        let list = self.list_backups(req.clone())?;
+        match list.offers.undo_last_apply {
+            Some(b) => self.restore_backup(RestoreRequest {
+                target: req,
+                backup: b,
+                allow_build_mismatch: false,
+            }),
+            None => {
+                let f = self.resolve(&req)?;
+                let ch = f.channel(&req.channel)?;
+                Ok(convert::plain_report(
+                    &ch.name,
+                    convert::build(ch.build.as_ref()),
+                    ApplyResult::NothingToDo,
+                    "no earlier apply of this build to go back to",
+                ))
+            }
+        }
+    }
+
+    fn restore_backup(&self, req: RestoreRequest) -> CmdResult<ApplyReport> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let job = self.job_start(JobKind::Restore, Some(&ch.name), 1, "Restoring a backup");
+        let t = Target::new(&f.install, f.id.clone(), ch);
+        let r = apply::restore(self.ctx(), &t, &req.backup, req.allow_build_mismatch);
+        let out = convert::report(&r, Some(&backup::backups_dir(&t.data_dir(self.dirs()))));
+        self.forget_tables(&f, ch);
+        self.log(
+            if out.result == ApplyResult::Failed {
+                LogLevel::Error
+            } else {
+                LogLevel::Info
+            },
+            Some(JobKind::Restore),
+            Some(&ch.name),
+            &format!("{}: {} {}", ch.name, kebab(&out.result), req.backup),
+        );
+        self.job_end(job, JobPhase::Done, "Done", None);
+        Ok(out)
+    }
+
+    fn list_backups(&self, req: ChannelRef) -> CmdResult<BackupList> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        Ok(self.backup_list(&f, ch))
+    }
+
+    fn backup_now(&self, req: ChannelRef) -> CmdResult<BackupView> {
+        let mut f = self.resolve(&req)?;
+        let id = self.register(&mut f)?;
+        let ch = f.channel(&req.channel)?;
+        let _l = self.channel_lock(&id, ch)?;
+        let data = self.data_dir(&f, ch);
+        let ini = apply::locate_ini(&ch.dir).map_err(internal)?;
+        let bytes = if ini.exists {
+            Some(std::fs::read(&ini.real).map_err(io)?)
+        } else {
+            None
+        };
+        let outputs = Outputs::load(self.dirs()).map_err(io)?;
+        let (origin, tool) = match &bytes {
+            Some(b) if !outputs.contains(&fsutil::sha256_hex(b)) => {
+                (backup::FileOrigin::Foreign, apply::foreign_tool(b, &ch.dir))
+            }
+            Some(_) => (backup::FileOrigin::Ours, None),
+            None => (backup::FileOrigin::None, None),
+        };
+        let cur = backup::Current {
+            real_path: &ini.real,
+            bytes: bytes.as_deref(),
+            origin,
+            foreign_tool: tool,
+        };
+        let made = backup::create(
+            &data,
+            backup::Reason::Manual,
+            &self.ctx().app_version,
+            ch.build.as_ref(),
+            &cur,
+        )
+        .map_err(io)?;
+        let b = match made {
+            Some(b) => b,
+            // Same bytes as the newest backup: that one is the backup.
+            None => backup::list(&data)
+                .pop()
+                .ok_or_else(|| internal("no backup made"))?,
+        };
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&ch.name),
+            &format!("Backed up {} ({})", ch.name, b.id),
+        );
+        Ok(convert::backup_view(&b))
+    }
+
+    fn delete_backup(&self, req: BackupRef) -> CmdResult<BackupList> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let id =
+            f.id.clone()
+                .ok_or_else(|| err(ErrorCode::NotFound, "no backups for this install"))?;
+        let _l = self.channel_lock(&id, ch)?;
+        let data = self.data_dir(&f, ch);
+        let b = backup::find(&data, &req.backup).ok_or_else(|| {
+            err(
+                ErrorCode::NotFound,
+                format!("backup {} not found", req.backup),
+            )
+        })?;
+        if b.pinned() {
+            return Err(err(
+                ErrorCode::Invalid,
+                "The file from before StarOrg Strings is kept; it cannot be deleted.",
+            ));
+        }
+        std::fs::remove_dir_all(&b.dir).map_err(io)?;
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&ch.name),
+            &format!("Deleted backup {}", req.backup),
+        );
+        Ok(self.backup_list(&f, ch))
+    }
+
+    fn cancel_job(&self, job: String) -> CmdResult<()> {
+        let running = self.mem().job.as_ref().is_some_and(|j| j.job == job);
+        if !running {
+            return Err(err(ErrorCode::NotFound, format!("no running job {job}")));
+        }
+        Err(err(
+            ErrorCode::Invalid,
+            "This job cannot be cancelled; it stops by itself before writing if anything is wrong.",
+        ))
+    }
+
+    fn build_preview(&self, req: PreviewRequest) -> CmdResult<Vec<PreviewItem>> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let profile = match (&req.profile, req.preset) {
+            (Some(p), _) => Some(p.clone()),
+            (None, Some(pre)) => Some(convert::preset(pre)),
+            (None, None) => None,
+        };
+        let eprof = profile.as_ref().map(convert::profile_from);
+        let disabled = profile
+            .as_ref()
+            .map(|p| p.patches_disabled.clone())
+            .unwrap_or_default();
+        let tbl = match self.build_table(
+            &f,
+            ch,
+            eprof.as_ref().map(|p| (p, disabled.as_slice())),
+            false,
+        ) {
+            Ok(t) => t,
+            // No game data read yet: nothing to show (the wizard reads it at review).
+            Err(e) if e.code == ErrorCode::NotFound || e.code == ErrorCode::NeedsDecision => {
+                return Ok(Vec::new());
+            }
+            Err(e) => return Err(e),
+        };
+        Ok(diag::preview(&tbl))
+    }
+
+    fn profile_schema(&self) -> CmdResult<ProfileSchema> {
+        Ok(schema::profile_schema())
+    }
+
+    fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        convert::profile_of(&self.profile_file(&f, ch)?)
+    }
+
+    fn preset_profile(&self, preset: Preset) -> CmdResult<Profile> {
+        Ok(convert::preset(preset))
+    }
+
+    fn save_profile(&self, req: SaveProfileRequest) -> CmdResult<Profile> {
+        let mut f = self.resolve(&req.target)?;
+        self.register(&mut f)?;
+        let ch = f.channel(&req.target.channel)?;
+        let mut file = self.profile_file(&f, ch)?;
+        convert::store_profile(&mut file, &req.profile)?;
+        file.save(&self.data_dir(&f, ch)).map_err(io)?;
+        self.forget_tables(&f, ch);
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&ch.name),
+            &format!("Saved the {} profile", ch.name),
+        );
+        convert::profile_of(&file)
+    }
+
+    fn copy_profile(&self, req: CopyProfileRequest) -> CmdResult<Profile> {
+        let from = self.get_profile(req.from.clone())?;
+        self.save_profile(SaveProfileRequest {
+            target: req.to,
+            profile: from,
+        })
+    }
+
+    fn query_strings(&self, req: StringsQuery) -> CmdResult<StringsPage> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let tbl = self.build_table(&f, ch, None, false)?;
+        Ok(diag::query(&tbl, &req))
+    }
+
+    fn string_detail(&self, req: KeyRequest) -> CmdResult<StringDetail> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let tbl = self.build_table(&f, ch, None, false)?;
+        let (i, _) = tbl
+            .row(&req.key)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("no key {}", req.key)))?;
+        Ok(tbl.detail(i, Self::override_of(&self.data_dir(&f, ch), &req.key)))
+    }
+
+    fn set_override(&self, req: OverrideRequest) -> CmdResult<OverrideResult> {
+        let mut f = self.resolve(&req.target)?;
+        self.register(&mut f)?;
+        let ch = f.channel(&req.target.channel)?;
+        let d = self.loaded(&f, ch, false)?;
+        let Some(stock) = d.stock.value(&req.key) else {
+            return Ok(OverrideResult {
+                accepted: false,
+                rule: None,
+                message: Some(format!(
+                    "{} is not a key of this build (or it is spelled twice in the stock file).",
+                    req.key
+                )),
+                detail: None,
+            });
+        };
+        if req.value.contains(['\r', '\n']) {
+            return Ok(OverrideResult {
+                accepted: false,
+                rule: Some(OverrideRule::ControlCharacter),
+                message: Some("Use \\n for a new line.".into()),
+                detail: None,
+            });
+        }
+        if req.value != stock
+            && let Err(rule) = validate::check_value(stock, &req.value, validate::Op::Override, &[])
+        {
+            let r = OverrideRule::ALL
+                .iter()
+                .copied()
+                .find(|x| kebab(x) == rule.name());
+            return Ok(OverrideResult {
+                accepted: false,
+                rule: r,
+                message: Some(format!("Refused: {}", rule.name())),
+                detail: None,
+            });
+        }
+        let key = d
+            .stock
+            .find(&req.key)
+            .ok()
+            .and_then(|l| d.stock.key_at(l))
+            .unwrap_or(&req.key)
+            .to_string();
+        let data = self.data_dir(&f, ch);
+        Self::write_override(&data, &key, Some(&req.value))?;
+        self.forget_tables(&f, ch);
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&ch.name),
+            &format!("Override set for {key}"),
+        );
+        let detail = self.string_detail(KeyRequest {
+            target: req.target,
+            key,
+        })?;
+        Ok(OverrideResult {
+            accepted: true,
+            rule: None,
+            message: None,
+            detail: Some(detail),
+        })
+    }
+
+    fn reset_override(&self, req: KeyRequest) -> CmdResult<StringDetail> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let data = self.data_dir(&f, ch);
+        let existing = state::parse_overrides(&Self::overrides_text(&data)?)
+            .0
+            .into_iter()
+            .filter(|o| o.key.eq_ignore_ascii_case(&req.key))
+            .map(|o| o.key)
+            .collect::<Vec<_>>();
+        for k in existing {
+            Self::write_override(&data, &k, None)?;
+        }
+        self.forget_tables(&f, ch);
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&ch.name),
+            &format!("Override reset for {}", req.key),
+        );
+        self.string_detail(req)
+    }
+
+    fn list_overrides(&self, req: ChannelRef) -> CmdResult<Vec<OverrideEntry>> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        let data = self.data_dir(&f, ch);
+        let stock = self.loaded(&f, ch, false).ok();
+        Ok(state::parse_overrides(&Self::overrides_text(&data)?)
+            .0
+            .into_iter()
+            .map(|o| OverrideEntry {
+                original: stock
+                    .as_ref()
+                    .and_then(|d| d.stock.value(&o.key).map(str::to_string))
+                    .unwrap_or_default(),
+                key: o.key,
+                value: o.value,
+            })
+            .collect())
+    }
+
+    fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        let disabled = self.profile_file(&f, ch)?.disabled_patches();
+        let set = patch::load_patches(self.dirs(), &disabled);
+        let tbl = self.build_table(&f, ch, None, false).ok();
+        Ok(set
+            .patches
+            .iter()
+            .map(|p| diag::patch_view(p, tbl.as_deref()))
+            .collect())
+    }
+
+    fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView> {
+        let mut f = self.resolve(&req.target)?;
+        self.register(&mut f)?;
+        let ch = f.channel(&req.target.channel)?;
+        let mut p = self.get_profile(req.target.clone())?;
+        p.patches_disabled.retain(|x| *x != req.id);
+        if !req.enabled {
+            p.patches_disabled.push(req.id.clone());
+        }
+        self.save_profile(SaveProfileRequest {
+            target: req.target.clone(),
+            profile: p,
+        })?;
+        self.list_patches(req.target)?
+            .into_iter()
+            .find(|v| v.id == req.id)
+            .ok_or_else(|| {
+                err(
+                    ErrorCode::NotFound,
+                    format!("no patch {} for {}", req.id, ch.name),
+                )
+            })
+    }
+
+    fn patch_detail(&self, req: PatchRef) -> CmdResult<PatchDetail> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let disabled = self.profile_file(&f, ch)?.disabled_patches();
+        let set = patch::load_patches(self.dirs(), &disabled);
+        let p = set
+            .patches
+            .iter()
+            .find(|p| p.file.id == req.id)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("no patch {}", req.id)))?;
+        let tbl = self.build_table(&f, ch, None, false).ok();
+        Ok(diag::patch_detail(p, tbl.as_deref()))
+    }
+
+    fn add_user_patch(&self, req: NewPatch) -> CmdResult<PatchView> {
+        if req.title.trim().is_empty() || req.key.trim().is_empty() {
+            return Err(err(ErrorCode::Invalid, "A patch needs a title and a key."));
+        }
+        if req.op == LocOp::Replace && req.find.as_deref().unwrap_or("").is_empty() {
+            return Err(err(ErrorCode::Invalid, "Replace needs the text to find."));
+        }
+        let slug: String = req
+            .title
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect::<String>()
+            .split('-')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("-");
+        let id = format!("user-{slug}");
+        let path = patch::user_patch_path(self.dirs(), &id);
+        let set = patch::load_patches(self.dirs(), &[]);
+        if path.exists() || set.patches.iter().any(|p| p.file.id == id) {
+            return Err(err(
+                ErrorCode::Invalid,
+                format!("A patch with the id {id} exists. Pick another title."),
+            ));
+        }
+        let text = diag::patch_toml(&id, &req);
+        let name = format!("{id}.patch.toml");
+        patch::parse_patch(&name, &text)
+            .map_err(|e| err(ErrorCode::Invalid, format!("patch refused: {e}")))?;
+        std::fs::create_dir_all(self.dirs().user_patches()).map_err(io)?;
+        fsutil::write_atomic(&path, text.as_bytes()).map_err(io)?;
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&req.target.channel),
+            &format!("Added patch {}", req.title.trim()),
+        );
+        self.list_patches(req.target)?
+            .into_iter()
+            .find(|v| v.id == id)
+            .ok_or_else(|| internal("the new patch was not loaded"))
+    }
+
+    fn import_user_patch(&self, req: ChannelRef) -> CmdResult<PatchView> {
+        let d = self
+            .cfg
+            .dialogs
+            .get()
+            .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+        let file = d
+            .pick_file("Import a patch file (.patch.toml)", PATCH_FILTER)
+            .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+        let bytes = fsutil::read_limited(&file, patch::PATCH_LIMIT)
+            .map_err(io)?
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("{} not found", file.display())))?;
+        let text = String::from_utf8(bytes)
+            .map_err(|_| err(ErrorCode::Invalid, "the patch file is not UTF-8"))?;
+        let p = patch::parse_patch("import.patch.toml", &text)
+            .map_err(|e| err(ErrorCode::Invalid, format!("patch refused: {e}")))?;
+        if patch::load_patches(self.dirs(), &[])
+            .patches
+            .iter()
+            .any(|x| x.file.id == p.id)
+        {
+            return Err(err(
+                ErrorCode::Invalid,
+                format!("A patch with the id {} exists already.", p.id),
+            ));
+        }
+        std::fs::create_dir_all(self.dirs().user_patches()).map_err(io)?;
+        fsutil::write_atomic(&patch::user_patch_path(self.dirs(), &p.id), text.as_bytes())
+            .map_err(io)?;
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&req.channel),
+            &format!("Imported patch {}", p.id),
+        );
+        self.list_patches(req)?
+            .into_iter()
+            .find(|v| v.id == p.id)
+            .ok_or_else(|| internal("the imported patch was not loaded"))
+    }
+
+    fn export_user_patch(&self, req: PatchRef) -> CmdResult<PatchExport> {
+        let set = patch::load_patches(self.dirs(), &[]);
+        let p = set
+            .patches
+            .iter()
+            .find(|p| p.file.id == req.id)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("no patch {}", req.id)))?;
+        let patch::PatchOrigin::User { path } = &p.origin else {
+            return Err(err(
+                ErrorCode::Invalid,
+                "Built-in patches ship with the app; only your own patches can be exported.",
+            ));
+        };
+        let text = std::fs::read_to_string(path).map_err(io)?;
+        let file_name = format!("{}.patch.toml", p.file.id);
+        if let Some(d) = self.cfg.dialogs.get()
+            && let Some(to) = d.save_file("Export patch", &file_name, PATCH_FILTER)
+        {
+            fsutil::write_atomic(&to, text.as_bytes()).map_err(io)?;
+            self.log(
+                LogLevel::Info,
+                None,
+                Some(&req.target.channel),
+                &format!("Exported patch {} to {}", p.file.id, to.display()),
+            );
+        }
+        Ok(PatchExport { file_name, text })
+    }
+
+    fn delete_user_patch(&self, req: PatchRef) -> CmdResult<Vec<PatchView>> {
+        let set = patch::load_patches(self.dirs(), &[]);
+        let p = set
+            .patches
+            .iter()
+            .find(|p| p.file.id == req.id)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("no patch {}", req.id)))?;
+        let patch::PatchOrigin::User { path } = &p.origin else {
+            return Err(err(
+                ErrorCode::Invalid,
+                "Built-in patches can be switched off, not deleted.",
+            ));
+        };
+        std::fs::remove_file(path).map_err(io)?;
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&req.target.channel),
+            &format!("Deleted patch {}", req.id),
+        );
+        self.list_patches(req.target)
+    }
+
+    fn activity(&self, limit: u32) -> CmdResult<Vec<LogEntry>> {
+        let m = self.mem();
+        Ok(m.log.iter().rev().take(limit as usize).cloned().collect())
+    }
+
+    fn get_settings(&self) -> CmdResult<Settings> {
+        Ok(self.settings())
+    }
+
+    fn save_settings(&self, req: Settings) -> CmdResult<Settings> {
+        let mut a = self.app_file();
+        a.appearance = Some(req.appearance.clone());
+        a.network = Some(req.network.clone());
+        a.safe_gpu = req.safe_gpu;
+        self.save_app_file(&a)?;
+        let mut cfg = Config::load(self.dirs()).map_err(io)?;
+        if cfg.default_channel != req.default_channel {
+            cfg.default_channel = req.default_channel.clone();
+            cfg.save(self.dirs()).map_err(io)?;
+        }
+        Ok(self.settings())
+    }
+
+    fn list_characters(&self, req: ChannelRef) -> CmdResult<CharactersView> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        self.scan(&f, ch);
+        self.characters_view(&f, ch)
+    }
+
+    fn set_active_character(&self, req: SetActiveCharacter) -> CmdResult<CharactersView> {
+        let mut f = self.resolve(&req.target)?;
+        self.register(&mut f)?;
+        let ch = f.channel(&req.target.channel)?;
+        let data = self.data_dir(&f, ch);
+        let chars = blueprints::load_characters(&data).unwrap_or_default();
+        let who = match req.mode {
+            CharacterMode::Auto => "auto".to_string(),
+            CharacterMode::Union => "any".to_string(),
+            CharacterMode::Manual => req
+                .character
+                .clone()
+                .ok_or_else(|| err(ErrorCode::Invalid, "pick a character"))?,
+        };
+        let value = match Choice::parse(Some(&who), &chars) {
+            Ok(Choice::Auto) => None,
+            Ok(Choice::Any) => Some("any".to_string()),
+            Ok(Choice::Character(g)) => Some(g),
+            Err(e) => return Err(err(ErrorCode::Invalid, e.to_string())),
+        };
+        let mut st = ChannelState::load(&data).map_err(io)?;
+        st.active_character = value;
+        st.save(&data).map_err(io)?;
+        apply::forget_one_off_character(&data).map_err(io)?;
+        self.forget_tables(&f, ch);
+        self.characters_view(&f, ch)
+    }
+
+    fn owned_blueprints(&self, req: CharacterRequest) -> CmdResult<Vec<OwnedBlueprint>> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        if f.id.is_none() {
+            return Ok(Vec::new());
+        }
+        let data = self.data_dir(&f, ch);
+        let set =
+            blueprints::load_set(&data, &req.character).map_err(|e| err(ErrorCode::Invalid, e))?;
+        let mut out: Vec<OwnedBlueprint> = set
+            .entries
+            .into_values()
+            .map(|e| OwnedBlueprint {
+                acquired: e.sources.iter().filter_map(|s| s.time.clone()).min(),
+                sources: e.sources.iter().map(|s| s.kind.clone()).collect(),
+                name: e.name,
+                ambiguous: e.ambiguous,
+                favorite: e.favorite,
+            })
+            .collect();
+        out.sort_by_key(|b| b.name.to_lowercase());
+        Ok(out)
+    }
+
+    fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport> {
+        let d = self
+            .cfg
+            .dialogs
+            .get()
+            .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+        let file = d
+            .pick_file("Smart Citizen export (owned-blueprints.json)", JSON_FILTER)
+            .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+        let bytes = fsutil::read_limited(&file, bp_import::EXPORT_LIMIT)
+            .map_err(io)?
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("{} not found", file.display())))?;
+        let export = bp_import::parse_export(&bytes).map_err(|e| err(ErrorCode::Invalid, e))?;
+        let mut f = self.resolve(&req.target)?;
+        if !req.dry_run {
+            self.register(&mut f)?;
+        }
+        let ch = f.channel(&req.target.channel)?;
+        let job = self.job_start(
+            JobKind::Import,
+            Some(&ch.name),
+            1,
+            "Reading blueprint names from game data",
+        );
+        let res = (|| {
+            let loaded = self.loaded(&f, ch, true)?;
+            let catalog = GameDataCatalog::new(&loaded.game_data, &loaded.stock);
+            let data = self.data_dir(&f, ch);
+            // Hold the lock from the scan to the write; a dry run writes nothing.
+            let _lock = match (&f.id, req.dry_run) {
+                (Some(id), false) => Some(self.blueprint_lock(id, ch)?),
+                _ => None,
+            };
+            let mut store = if f.id.is_some() {
+                Store::load(&data).map_err(io)?
+            } else {
+                Store::default()
+            };
+            logscan::scan(&ch.dir, &data, &mut store, None);
+            let geid = store
+                .characters
+                .resolve(&req.character)
+                .map_err(|e| match e {
+                    blueprints::ResolveError::Ambiguous(..) => {
+                        err(ErrorCode::NeedsDecision, e.to_string())
+                    }
+                    _ => err(ErrorCode::NotFound, e.to_string()),
+                })?;
+            let set = store.set_mut(&data, &geid).map_err(io)?;
+            let rep = bp_import::merge(&export, &catalog as &dyn BlueprintCatalog, set);
+            if !req.dry_run && !rep.empty_catalog {
+                store.save(&data).map_err(io)?;
+            }
+            Ok::<_, AppError>(rep)
+        })();
+        let rep = match res {
+            Ok(r) => r,
+            Err(e) => {
+                self.job_end(job, JobPhase::Failed, &e.message, None);
+                return Err(e);
+            }
+        };
+        self.forget_tables(&f, ch);
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Import),
+            Some(&ch.name),
+            &format!(
+                "Smart Citizen import{}: {} new, {} known, {} unmatched, {} ambiguous",
+                if req.dry_run { " (dry run)" } else { "" },
+                rep.imported.len(),
+                rep.known.len(),
+                rep.unmatched.len(),
+                rep.ambiguous.len()
+            ),
+        );
+        self.job_end(job, JobPhase::Done, "Done", None);
+        Ok(ImportReport {
+            file: file
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default(),
+            exported_at: rep.exported_at,
+            dry_run: req.dry_run,
+            total: rep.total as u32,
+            not_completed: rep.not_completed as u32,
+            duplicates: rep.duplicates as u32,
+            imported: rep.imported,
+            known: rep.known,
+            unmatched: rep.unmatched,
+            ambiguous: rep
+                .ambiguous
+                .into_iter()
+                .map(|a| AmbiguousName {
+                    name: a.name,
+                    candidates: a.candidates,
+                })
+                .collect(),
+            empty_catalog: rep.empty_catalog,
+        })
+    }
+
+    fn forget_character(&self, req: CharacterRequest) -> CmdResult<CharactersView> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let id =
+            f.id.clone()
+                .ok_or_else(|| err(ErrorCode::NotFound, "no characters for this install"))?;
+        let _l = self.blueprint_lock(&id, ch)?;
+        let data = self.data_dir(&f, ch);
+        let mut chars = blueprints::load_characters(&data).map_err(io)?;
+        if chars.characters.remove(&req.character).is_none() {
+            return Err(err(ErrorCode::NotFound, "no such character"));
+        }
+        // Validates the id (alphanumeric) before it becomes a file name.
+        blueprints::load_set(&data, &req.character).map_err(|e| err(ErrorCode::Invalid, e))?;
+        let set = blueprints::dir(&data).join(format!("{}.json", req.character));
+        match std::fs::remove_file(&set) {
+            Ok(()) => {}
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(io(e)),
+        }
+        blueprints::save_characters(&data, &chars).map_err(io)?;
+        let mut st = ChannelState::load(&data).map_err(io)?;
+        if st.active_character.as_deref() == Some(req.character.as_str()) {
+            st.active_character = None;
+            st.save(&data).map_err(io)?;
+        }
+        self.forget_tables(&f, ch);
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&ch.name),
+            "Forgot a character and its owned blueprints",
+        );
+        drop(_l);
+        self.characters_view(&f, ch)
+    }
+
+    fn starorg_status(&self, channel: String) -> CmdResult<StarOrgStatus> {
+        self.starorg_view(&channel)
+    }
+
+    fn starorg_login(&self, _channel: String) -> CmdResult<StarOrgStatus> {
+        Err(self.starorg_blocked())
+    }
+
+    fn starorg_logout(&self, channel: String) -> CmdResult<StarOrgStatus> {
+        // Never signed in: nothing to drop.
+        self.starorg_view(&channel)
+    }
+
+    fn set_sync_characters(&self, req: SyncCharactersRequest) -> CmdResult<StarOrgStatus> {
+        let mut a = self.app_file();
+        a.sync.insert(req.channel.clone(), req.ticked);
+        self.save_app_file(&a)?;
+        self.starorg_view(&req.channel)
+    }
+
+    fn starorg_pull(&self, _req: StarOrgPullRequest) -> CmdResult<SyncReport> {
+        Err(self.starorg_blocked())
+    }
+
+    fn starorg_push(&self, _channel: String) -> CmdResult<SyncReport> {
+        Err(self.starorg_blocked())
+    }
+
+    fn hooks_status(&self) -> CmdResult<HooksStatus> {
+        Ok(self.hooks_view())
+    }
+
+    fn hooks_install(&self) -> CmdResult<HooksStatus> {
+        self.hooks_edit(true)
+    }
+
+    fn hooks_uninstall(&self) -> CmdResult<HooksStatus> {
+        self.hooks_edit(false)
+    }
+
+    fn doctor(&self) -> CmdResult<DoctorReport> {
+        Ok(diag::doctor(self))
+    }
+
+    fn export_diagnostics(&self) -> CmdResult<Diagnostics> {
+        Ok(diag::diagnostics(self))
+    }
+
+    fn save_diagnostics(&self) -> CmdResult<Option<String>> {
+        let d = diag::diagnostics(self);
+        let Some(dialogs) = self.cfg.dialogs.get() else {
+            return Ok(None);
+        };
+        let Some(to) = dialogs.save_file("Save diagnostics", &d.file_name, TEXT_FILTER) else {
+            return Ok(None);
+        };
+        fsutil::write_atomic(&to, d.text.as_bytes()).map_err(io)?;
+        let shown = diag::redact(self, &path_text(&to)).0;
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!("Saved diagnostics to {shown}"),
+        );
+        Ok(Some(path_text(&to)))
+    }
+}
