@@ -354,7 +354,9 @@ pub const KEY_PREFIXES: &[(&str, &str)] = &[
     ("dxsm", "dialogue/voice"),
     ("pu", "dialogue/voice"),
     ("ph", "dialogue/voice"),
-    ("innerthought", "dialogue/voice"),
+    // Inner Thought is the interaction prompt menu ("Force Open", "To Cargo Room").
+    ("innerthought", "interface/input"),
+    ("inner", "interface/input"),
     ("comm", "dialogue/comms"),
     ("commarray", "dialogue/comms"),
     ("mission", "missions/text"),
@@ -380,7 +382,8 @@ pub const KEY_PREFIXES: &[(&str, &str)] = &[
     ("reputation", "reputation"),
     ("manufacturer", "manufacturers"),
     ("area", "locations/areas"),
-    ("port", "locations/areas"),
+    // `port_Name*` are ship hardpoint names ("Power Plant 13"), like `itemPort_*`.
+    ("port", "components/other"),
     ("crus", "locations/areas"),
     ("crusader", "locations/areas"),
     ("hurston", "locations/areas"),
@@ -417,8 +420,44 @@ pub const KEY_PREFIXES: &[(&str, &str)] = &[
     ("fw", "missions/text"),
 ];
 
+/// Key first tokens of shared hardpoint names: any record that uses one says nothing about
+/// the key's manufacturer or size.
+pub const NO_FACET_PREFIXES: &[&str] = &["port", "itemport"];
+
+/// Top-level groups of screen and voice text: a key-prefix rule into one of these beats an
+/// entity that merely displays the key (`hud_Label_On` on a usable, `ui_Close` on a crate).
+/// Mission, location and crafting prefixes do not: `Hockrow_..._Sample04_Name` is the name of
+/// a mission crate, and `crafting_machineName_*` of a fabricator.
+pub const TEXT_TOPS: &[&str] = &["interface", "game-modes", "dialogue"];
+
+/// Where the size facet means something: ships, ship parts, missiles, FPS weapons (S1
+/// pistols to S5 launchers) and their attachments.
+/// Everywhere else (`AttachDef.Size` defaults to 1 on paints, clothing, props) it is noise.
+pub const SIZE_GROUPS: &[&str] = &[
+    "ships/ships",
+    "ships/ground",
+    "components",
+    "ship-weapons",
+    "missiles",
+    "fps-weapons/weapons",
+    "fps-weapons/attachments",
+];
+
 /// First tokens with a trailing number (`stanton2b`, `pyro5`) match these stems.
 pub const NUMBERED_STEMS: &[&str] = &["stanton", "pyro", "nyx", "tut", "fw"];
+
+/// True when `leaf` (or its top-level group) is listed in [`SIZE_GROUPS`].
+pub fn has_size(leaf: &str) -> bool {
+    SIZE_GROUPS
+        .iter()
+        .any(|g| leaf == *g || leaf.strip_prefix(g).is_some_and(|r| r.starts_with('/')))
+}
+
+/// True when `leaf` sits under one of [`TEXT_TOPS`].
+pub fn is_text(leaf: &str) -> bool {
+    let top = leaf.split('/').next().unwrap_or_default();
+    TEXT_TOPS.contains(&top)
+}
 
 pub fn find_item_type(item_type: &str) -> Option<&'static str> {
     ITEM_TYPES

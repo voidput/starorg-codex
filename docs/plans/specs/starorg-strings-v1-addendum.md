@@ -2,7 +2,7 @@
 title: StarOrg Strings v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # StarOrg Strings v1 — addendum (user requests 2026-11-14)
@@ -628,8 +628,19 @@ extract worker (existing)                     core                         app
      by name.
   3. Key-prefix and name-pattern rules for unreferenced keys (table below).
   4. **Other**.
+  - An entity that only *displays* a key loses to the key's prefix rule: an entity without
+    `AttachDef` always, an entity with one when the prefix names Interface, Game modes or
+    Dialogue (`hud_Label_On` on a usable, `ui_Close` on a crate, `Frontend_Context_*`).
+    Mission, location and crafting prefixes do not override (`Hockrow_*_Sample04_Name` is a
+    crate). `port_Name*` are hardpoint names and go to Ship components > Other with
+    `itemPort_*` (LIVE 4.10: 358 keys were in Locations > Areas).
 - **Secondary facets** on the same key: `manufacturer` (code + display name) and `size`
-  (1-12), present only for entity-linked keys.
+  (1-12), present only for entity-linked keys. From `keyrefs` a facet counts only when every
+  entity using the key agrees (a generic `panel_open` used by many makers has none), and
+  `port_*` / `itemPort_*` keys have none. **Size** is kept only for Ships, Ground vehicles,
+  Ship components, Ship weapons, Missiles, FPS weapons and FPS attachments; elsewhere
+  `AttachDef.Size` is the default 1 (LIVE 4.10: 12,129 of 15,934 sized keys were "Size 1",
+  mostly paints and clothing; after the rule 4,670 sized keys, 1,648 of size 1).
 
 ### 8.3 Hierarchy (two levels; ids are stable strings)
 

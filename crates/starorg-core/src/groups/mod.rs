@@ -206,14 +206,40 @@ pub fn has_children(id: &str) -> bool {
     HIERARCHY.iter().any(|g| g.parent == Some(id))
 }
 
+/// Where a candidate comes from; decides whether a key-prefix rule overrides it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Origin {
+    /// Rule 1: the model names the key.
+    Data,
+    /// Rule 2, an entity with an `AttachDef`.
+    Item,
+    /// Rule 2, an entity without one (NPCs, props, areas).
+    Untyped,
+    /// Rule 2, any other record.
+    Record,
+}
+
 /// A candidate group for a key, with what decides between candidates.
 #[derive(Debug, Clone)]
 struct Candidate {
     leaf: &'static str,
     rank: Rank,
     refs: u32,
+    origin: Origin,
     manufacturer: Option<String>,
     size: Option<i64>,
+}
+
+impl Candidate {
+    /// An entity that only displays the key loses to its key-prefix rule: always without an
+    /// `AttachDef`, and with one when the prefix names a text group (`ui_`, `hud_`, `chat_`).
+    fn loses_to(&self, prefix: Option<&str>) -> bool {
+        match (self.origin, prefix) {
+            (Origin::Untyped, Some(_)) => true,
+            (Origin::Item, Some(p)) => rules::is_text(p),
+            _ => false,
+        }
+    }
 }
 
 fn better(a: &Candidate, b: &Candidate) -> bool {
@@ -251,18 +277,18 @@ fn source_candidate(
     refs: u32,
     unknown: &mut BTreeMap<String, u32>,
 ) -> Option<Candidate> {
-    let (leaf, rank) = if s.struct_type == "EntityClassDefinition" {
+    let (leaf, rank, origin) = if s.struct_type == "EntityClassDefinition" {
         match s.item_type.as_deref() {
             Some(t) => match entity_leaf(t, s.sub_type.as_deref(), &s.folder) {
-                Some(l) => (l, Rank::Item),
+                Some(l) => (l, Rank::Item, Origin::Item),
                 None => {
                     *unknown.entry(t.to_string()).or_default() += 1;
-                    (UNKNOWN_ITEM, Rank::Item)
+                    (UNKNOWN_ITEM, Rank::Item, Origin::Item)
                 }
             },
             // Entities without AttachDef (NPCs, props, areas): weaker than any named type.
-            None if s.folder.contains("spaceships") => ("ships/ships", Rank::Item),
-            None => (UNKNOWN_ITEM, Rank::Dialogue),
+            None if s.folder.contains("spaceships") => ("ships/ships", Rank::Item, Origin::Untyped),
+            None => (UNKNOWN_ITEM, Rank::Dialogue, Origin::Untyped),
         }
     } else {
         let (mut leaf, rank) = rules::find_struct(&s.struct_type)?;
@@ -273,12 +299,13 @@ fn source_candidate(
                 .map(|(_, g)| *g)
                 .unwrap_or(leaf);
         }
-        (leaf, rank)
+        (leaf, rank, Origin::Record)
     };
     Some(Candidate {
         leaf,
         rank,
         refs,
+        origin,
         manufacturer: s.manufacturer.clone(),
         size: s.size,
     })
@@ -333,13 +360,17 @@ fn game_data_links(gd: &GameData) -> (HashMap<String, Candidate>, HashMap<String
                 leaf,
                 rank: Rank::Item,
                 refs: 1,
+                origin: Origin::Data,
                 manufacturer: it.manufacturer.clone(),
                 size: it.size,
             };
             if !it.is_template {
-                names
-                    .entry(namesake::squash_name(it.short_name()))
-                    .or_insert(leaf);
+                let name = namesake::squash_name(it.short_name());
+                // `RSI_Bengal_Turret_SCItem` is named by `item_NameRSI_Bengal_Turret`.
+                if let Some(base) = name.strip_suffix("scitem").filter(|b| !b.is_empty()) {
+                    names.entry(base.to_string()).or_insert(leaf);
+                }
+                names.entry(name).or_insert(leaf);
             }
             for k in [&it.loc.name, &it.loc.short_name, &it.loc.desc] {
                 put(k.as_deref(), &c);
@@ -369,6 +400,7 @@ fn game_data_links(gd: &GameData) -> (HashMap<String, Candidate>, HashMap<String
             leaf,
             rank: Rank::Item,
             refs: 1,
+            origin: Origin::Data,
             manufacturer: s.manufacturer.as_deref().map(str::to_ascii_uppercase),
             size: s.size.map(|v| v.round() as i64),
         };
@@ -387,6 +419,7 @@ fn game_data_links(gd: &GameData) -> (HashMap<String, Candidate>, HashMap<String
         leaf: "missions/contracts",
         rank: Rank::Mission,
         refs: 1,
+        origin: Origin::Data,
         manufacturer: None,
         size: None,
     };
@@ -398,6 +431,7 @@ fn game_data_links(gd: &GameData) -> (HashMap<String, Candidate>, HashMap<String
         leaf: "reputation",
         rank: Rank::Reputation,
         refs: 1,
+        origin: Origin::Data,
         manufacturer: None,
         size: None,
     };
@@ -430,12 +464,15 @@ pub fn assign(stock: &StockIni, gd: &GameData, keyrefs: Option<&KeyRefs>) -> Gro
                 }
             }
         }
-        // Rule 1 wins outright; rule 2 by rank.
+        // Rule 1 wins outright; rule 2 by rank, without the entities that only display a
+        // key whose prefix says what it is.
+        let prefix = rules::find_prefix(&folded);
         let best = if let Some(c) = links.get(&folded) {
             Some(c.clone())
         } else {
             cands
                 .iter()
+                .filter(|c| !c.loses_to(prefix))
                 .fold(None::<&Candidate>, |acc, c| match acc {
                     Some(a) if !better(c, a) => Some(a),
                     _ => Some(c),
@@ -443,9 +480,13 @@ pub fn assign(stock: &StockIni, gd: &GameData, keyrefs: Option<&KeyRefs>) -> Gro
                 .cloned()
         };
         let (leaf, mfr, size) = match best {
-            Some(c) => (c.leaf, c.manufacturer, c.size),
+            Some(c) => {
+                let (mfr, size) = facets(&c, &cands, &folded);
+                (c.leaf, mfr, size)
+            }
             None => (fallback_leaf(&folded, &names), None, None),
         };
+        let size = size.filter(|_| rules::has_size(leaf));
         let gi = index_of(leaf).unwrap_or_else(other_index);
         let mut others: Vec<u8> = cands
             .iter()
@@ -511,6 +552,39 @@ pub fn assign(stock: &StockIni, gd: &GameData, keyrefs: Option<&KeyRefs>) -> Gro
         also,
         unknown_item_types: unknown,
     }
+}
+
+/// Manufacturer and size of the winning candidate. Rule 1 names its item, so its facets
+/// stand. A record reference only counts when every entity that uses the key agrees: a
+/// generic key (`panel_open`) on records of many makers has no maker, and shared hardpoint
+/// names (`port_*`, `itemPort_*`) have none at all.
+fn facets(best: &Candidate, cands: &[Candidate], folded: &str) -> (Option<String>, Option<i64>) {
+    if best.origin == Origin::Data {
+        return (best.manufacturer.clone(), best.size);
+    }
+    let token = folded.split('_').next().unwrap_or_default();
+    if rules::NO_FACET_PREFIXES.contains(&token) {
+        return (None, None);
+    }
+    let entities: Vec<&Candidate> = cands
+        .iter()
+        .filter(|c| matches!(c.origin, Origin::Item | Origin::Untyped))
+        .collect();
+    let mfr = agreed(best, &entities, |c| {
+        c.manufacturer.as_deref().map(str::to_ascii_uppercase)
+    });
+    let size = agreed(best, &entities, |c| c.size);
+    (mfr, size)
+}
+
+/// `f(best)` when every candidate in `all` gives the same value.
+fn agreed<T: PartialEq>(
+    best: &Candidate,
+    all: &[&Candidate],
+    f: impl Fn(&Candidate) -> Option<T>,
+) -> Option<T> {
+    let v = f(best)?;
+    all.iter().all(|c| f(c).as_ref() == Some(&v)).then_some(v)
 }
 
 /// Rules 3 and 4.

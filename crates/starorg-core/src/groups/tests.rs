@@ -360,6 +360,169 @@ fn ids_are_stable() {
     );
 }
 
+/// Regressions from the LIVE 4.10 review: hardpoint names, interface text shown by entities,
+/// facets of shared keys and the size facet outside ship parts.
+#[test]
+fn prefixes_beat_entities_that_only_display_a_key() {
+    let keys = [
+        "port_NamePowerplant13",
+        "port_NameTurretGunSlot",
+        "itemPort_sight_attachment",
+        "hud_Label_On",
+        "ui_Close",
+        "chat_context_menu_member_kick",
+        "Frontend_Context_Hangar",
+        "innerthought_door_override_open",
+        "Inner_Thought_SpoolQD",
+        "ui_canvas_and_door",
+        "panel_open",
+        "lone_panel",
+        "item_NameAEGS_Helmet",
+        "item_NameRSI_Turret",
+        "zzz_untyped",
+        "Hockrow_Delve_Sample04_Name",
+    ];
+    let s = stock(&keys);
+    let mut b = KeyRefsBuilder::new();
+    let usable = |mfr: &str, size: i64| RefSource {
+        manufacturer: Some(mfr.into()),
+        size: Some(size),
+        ..entity("Usable", "entities/scitem/ships")
+    };
+    b.add(
+        RefSource {
+            manufacturer: Some("ARGO".into()),
+            size: Some(4),
+            ..entity("Turret", "entities/scitem/ships")
+        },
+        ["@port_NameTurretGunSlot"],
+    );
+    b.add(
+        usable("AEGS", 2),
+        [
+            "@hud_Label_On",
+            "@chat_context_menu_member_kick",
+            "@Inner_Thought_SpoolQD",
+            "@panel_open",
+            "@lone_panel",
+        ],
+    );
+    b.add(usable("STOR", 2), ["@panel_open"]);
+    b.add(
+        entity("Cargo", "entities/scitem/cargo"),
+        ["@ui_Close", "@Hockrow_Delve_Sample04_Name"],
+    );
+    b.add(
+        entity("Door", "entities/scitem/doors"),
+        ["@ui_canvas_and_door"],
+    );
+    b.add(
+        plain("BuildingBlocks_Canvas", "ui/hud"),
+        ["@ui_canvas_and_door"],
+    );
+    // Entities without an AttachDef.
+    let untyped = RefSource {
+        struct_type: "EntityClassDefinition".into(),
+        folder: "entities/props".into(),
+        ..Default::default()
+    };
+    b.add(
+        untyped.clone(),
+        [
+            "@Frontend_Context_Hangar",
+            "@itemPort_sight_attachment",
+            "@innerthought_door_override_open",
+            "@zzz_untyped",
+        ],
+    );
+    b.add(
+        RefSource {
+            manufacturer: Some("AEGS".into()),
+            size: Some(1),
+            ..entity("Char_Armor_Helmet", "entities/scitem/characters")
+        },
+        ["@item_NameAEGS_Helmet"],
+    );
+    let mut gd = game_data();
+    gd.components.push(Component {
+        item: ItemIdentity {
+            record_name: "EntityClassDefinition.RSI_Turret_SCItem".into(),
+            item_type: Some("Turret".into()),
+            ..Default::default()
+        },
+        category: "turrets".into(),
+        ..Default::default()
+    });
+    let idx = assign(&s, &gd, Some(&b.finish()));
+    let row = |k: &str| s.entries().position(|(_, key, _)| key == k).unwrap();
+    let group = |k: &str| idx.group(row(k)).id;
+    // Hardpoint names: with the other item ports, not Locations > Areas.
+    assert_eq!(group("port_NamePowerplant13"), "components/other");
+    assert_eq!(group("itemPort_sight_attachment"), "components/other");
+    // A turret using a hardpoint name keeps the group, but not its maker or size.
+    let r = row("port_NameTurretGunSlot");
+    assert_eq!(idx.group(r).id, "components/turrets");
+    assert_eq!((idx.manufacturer(r), idx.size(r)), (None, None));
+    // Interface text displayed by items goes to its interface group, without facets.
+    for (k, g) in [
+        ("hud_Label_On", "interface/hud"),
+        ("ui_Close", "interface/menus"),
+        ("chat_context_menu_member_kick", "interface/chat"),
+        ("Frontend_Context_Hangar", "interface/menus"),
+        ("innerthought_door_override_open", "interface/input"),
+        ("Inner_Thought_SpoolQD", "interface/input"),
+    ] {
+        assert_eq!(group(k), g, "{k}");
+        assert_eq!(idx.manufacturer(row(k)), None, "{k}");
+        assert_eq!(idx.size(row(k)), None, "{k}");
+    }
+    // Another record that names a group beats the prefix fallback.
+    assert_eq!(group("ui_canvas_and_door"), "interface/hud");
+    // An item key without a prefix rule stays with the item; a maker only when all agree.
+    assert_eq!(group("panel_open"), "items/usables");
+    assert_eq!(idx.manufacturer(row("panel_open")), None);
+    // Usables are no size group, although both makers agree on size 2.
+    assert_eq!(idx.size(row("panel_open")), None);
+    assert_eq!(idx.manufacturer(row("lone_panel")).unwrap().code, "AEGS");
+    // A location prefix does not beat the crate named after it.
+    assert_eq!(group("Hockrow_Delve_Sample04_Name"), "cargo/cargo");
+    // Untyped entity, no prefix: still Misc.
+    assert_eq!(group("zzz_untyped"), UNKNOWN_ITEM);
+    // Size 1 on a helmet is the AttachDef default, not a facet; the maker stays.
+    let r = row("item_NameAEGS_Helmet");
+    assert_eq!(idx.group(r).id, "armor/helmets");
+    assert_eq!(idx.size(r), None);
+    assert_eq!(idx.manufacturer(r).unwrap().code, "AEGS");
+    // Namesake fallback ignores the `_SCItem` suffix of the record.
+    assert_eq!(group("item_NameRSI_Turret"), "components/turrets");
+}
+
+#[test]
+fn size_only_where_it_means_something() {
+    for leaf in [
+        "ships/ships",
+        "ships/ground",
+        "components/coolers",
+        "ship-weapons/guns",
+        "missiles",
+        "fps-weapons/weapons",
+        "fps-weapons/attachments",
+    ] {
+        assert!(rules::has_size(leaf), "{leaf}");
+    }
+    for leaf in [
+        "ships/paints",
+        "armor/helmets",
+        "clothing/torso",
+        "items/misc",
+        "cargo/cargo",
+        "fps-weapons/gadgets",
+        "missiles-other",
+    ] {
+        assert!(!rules::has_size(leaf), "{leaf}");
+    }
+}
+
 /// Real data, read only: a worker output folder (`extract-worker --keyrefs --out DIR`) in
 /// `STARORG_GROUPS_DIR`. Prints the distribution; run with `--ignored --nocapture`.
 #[test]
@@ -397,6 +560,21 @@ fn real_extraction_distribution() {
         }
     }
     eprintln!("unknown item types: {:?}", idx.unknown_item_types);
+    // `STARORG_GROUPS_DUMP=FILE`: one tab-separated row per key, for reading the result.
+    if let Ok(out) = std::env::var("STARORG_GROUPS_DUMP") {
+        let mut tsv = String::new();
+        for (row, (_, key, value)) in stock.entries().enumerate() {
+            let m = idx.manufacturer(row).map(|m| m.code.as_str()).unwrap_or("");
+            let size = idx.size(row).map(|s| s.to_string()).unwrap_or_default();
+            let value: String = value.chars().take(80).collect();
+            tsv.push_str(&format!(
+                "{key}\t{}\t{m}\t{size}\t{}\n",
+                idx.group(row).id,
+                value.replace(['\t', '\n'], " ")
+            ));
+        }
+        std::fs::write(out, tsv).unwrap();
+    }
     let other = counts.get(OTHER).map(|c| c.0).unwrap_or(0);
     assert!(referenced >= 55_000, "{referenced} referenced keys");
     assert!(other * 10 < total, "Other holds {other} of {total}");
