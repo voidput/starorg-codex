@@ -625,6 +625,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(unix)] // Wine prefixes only exist on Linux; on Windows "d:" in a path is a drive prefix
     fn windows_path_mapping() {
         let t = tempfile::tempdir().unwrap();
         let p = t.path();
