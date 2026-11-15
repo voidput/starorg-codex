@@ -52,7 +52,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
     g.dispatchEvent(new Event('scroll'));
   });
   await page.waitForTimeout(200);
-  await page.getByRole('searchbox', { name: 'Search keys and text' }).focus();
+  await page.getByRole('searchbox', { name: 'Search keys, owners and text' }).focus();
   let inGrid = false;
   for (let i = 0; i < 12 && !inGrid; i++) {
     await page.keyboard.press('Tab');
@@ -61,7 +61,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   check('Tab reaches a row after the active one scrolled away', inGrid, JSON.stringify(await active()));
 
   // Override: add, reject, reset.
-  await page.getByRole('searchbox', { name: 'Search keys and text' }).fill('Laser_S3_00002');
+  await page.getByRole('searchbox', { name: 'Search keys, owners and text' }).fill('Laser_S3_00002');
   await page.getByText(/^1 of /).waitFor();
   await page.locator('[data-row="0"]').click();
   await page.locator('#sd-value').fill('My laser');
@@ -85,13 +85,13 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.locator('#sd-value').waitFor({ state: 'detached' });
 
   // Strings group tree (addendum 8.5): one tab stop, tree keys, selection chips, F6 cycle.
-  await page.getByRole('searchbox', { name: 'Search keys and text' }).fill('');
+  await page.getByRole('searchbox', { name: 'Search keys, owners and text' }).fill('');
   await page.getByText('91,000 of 91,000 keys').waitFor();
   const tree = page.getByRole('tree', { name: 'Groups' });
   await tree.getByRole('treeitem', { name: /^Ship components,/ }).waitFor();
   const focusedItem = () => page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
   check('Tree has one tab stop', (await tree.locator('[role=treeitem][tabindex="0"]').count()) === 1);
-  await page.getByRole('searchbox', { name: 'Search keys and text' }).focus();
+  await page.getByRole('searchbox', { name: 'Search keys, owners and text' }).focus();
   await page.keyboard.press('F6');
   check('F6 from the filter bar goes to the grid', !!(await active()).row, JSON.stringify(await active()));
   await page.keyboard.press('F6');
@@ -144,7 +144,9 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   // Category tabs with arrow keys.
   await page.getByRole('tab', { name: /Name tags/ }).focus();
   await page.keyboard.press('ArrowUp');
-  check('ArrowUp in categories selects Missions', (await page.getByRole('tab', { selected: true }).textContent())?.includes('Missions'));
+  check('ArrowUp in categories selects Blueprints', (await page.getByRole('tab', { selected: true }).textContent())?.includes('Blueprints'));
+  await page.keyboard.press('ArrowUp');
+  check('ArrowUp again selects Missions', (await page.getByRole('tab', { selected: true }).textContent())?.includes('Missions'));
 
   // Unsaved draft: leaving asks (Save / Discard / Stay); a refresh keeps the draft.
   await page.getByRole('main').focus();

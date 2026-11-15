@@ -22,6 +22,7 @@
  * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
  * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
  * not read yet). MCP: `&mcp=on` (the local MCP server running, with sample requests).
+ * Blueprints: `&bphint=larger` (auto mode, another character owns far more: the warning).
  * Memory limit: `&memory=1.5` (that limit in GB instead of the default).
  */
 import { clampGb, memoryView } from '../memory';
@@ -478,7 +479,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         profile: presetProfile('recommended'),
         overrides: new Map(),
         patches: clone(SAMPLES.list_patches.filter((x) => x.origin === 'built-in')),
-        active: { mode: 'auto', character: null, resolved: chars[0]!.id, fallback_from: null, larger: null },
+        // `&bphint=larger`: another character owns far more (the Blueprints screen's warning).
+        active: { mode: 'auto', character: null, resolved: chars[0]!.id, fallback_from: null, larger: params.get('bphint') === 'larger' ? (chars[1]?.id ?? null) : null },
         owned,
         forgotten: new Set(),
       });

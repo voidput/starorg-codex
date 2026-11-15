@@ -58,6 +58,12 @@ const shots = [
     for (const t of ['Blueprints', 'StarOrg Tools']) await p.locator('#main [data-slot=card-toggle]', { hasText: new RegExp(`^\\s*${t}\\s*$`) }).click();
     await p.getByText('Markers in game').waitFor();
   }, ''],
+  // The owner warning sits outside the cards: still in view with them collapsed.
+  ['bp-hint-collapsed', 'blueprints', async (p) => {
+    await ready(p);
+    for (const t of ['Blueprints', 'Character for \\[Owned\\] tags']) await p.locator('#main [data-slot=card-toggle]', { hasText: new RegExp(`^\\s*${t}`) }).click();
+    await p.getByText('Check whose blueprints are marked').waitFor({ state: 'visible' });
+  }, '&bphint=larger'],
   ['enh-blueprints', 'blueprints', async (p) => {
     await ready(p);
     await p.getByRole('button', { name: 'Edit blueprint markers' }).click();

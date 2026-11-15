@@ -88,7 +88,7 @@ const shots = [
     await p.getByRole('button', { name: 'Remove filter Armor' }).waitFor();
   }],
   ['strings-detail-rejected', 'strings', async (p) => {
-    await p.getByRole('searchbox', { name: 'Search keys and text' }).fill('Cooler_S2_00001');
+    await p.getByRole('searchbox', { name: 'Search keys, owners and text' }).fill('Cooler_S2_00001');
     await p.getByText(/^1 of /).waitFor();
     await p.locator('[data-row="0"]').click();
     const ta = p.locator('#sd-value');
@@ -104,7 +104,8 @@ const shots = [
   }],
   ['blueprints', 'blueprints', async (p) => p.getByText('Synthetic Armor Core').waitFor()],
   ['blueprints-import-report', 'blueprints', async (p) => {
-    await p.getByRole('button', { name: 'Import from Smart Citizen' }).click();
+    // The finder card's button; "Fix owned blueprints" has one too.
+    await p.getByRole('button', { name: 'Import from Smart Citizen' }).first().click();
     await p.getByRole('button', { name: 'Choose file and check' }).click();
     await p.getByText('Will be added to').waitFor();
   }],
@@ -126,9 +127,9 @@ const shots = [
   ['home-running', 'home', async (p) => p.getByText(/The game is running on LIVE/).waitFor(), '&running=LIVE'],
   ['home-interrupted', 'home', async (p) => p.getByText('The last apply did not finish').waitFor(), '&interrupted=LIVE'],
   ['home-builderr', 'home', async (p) => p.getByText('Could not read the game build').waitFor(), '&builderr=LIVE'],
-  ['home-foreign', 'home', async (p) => p.getByText(/changed the text on LIVE/).waitFor(), '&foreign=LIVE'],
+  ['home-foreign', 'home', async (p) => p.getByTestId('foreign-home').waitFor(), '&foreign=LIVE'],
   ['home-foreign-remove', 'home', async (p) => {
-    await p.getByText(/changed the text on LIVE/).waitFor();
+    await p.getByTestId('foreign-home').waitFor();
     await p.getByRole('button', { name: 'Remove changes' }).click();
     await p.getByText(/will be removed/).waitFor();
   }, '&foreign=LIVE'],
