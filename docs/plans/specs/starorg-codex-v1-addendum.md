@@ -1935,22 +1935,38 @@ slider for details on model". Code: `components/assets/ModelViewer.svelte` (load
   afterwards, as model exports) straight into the asset cache (`<record>-print-lod<n>.glb`, the
   same entries Export model uses, so "Export .glb" afterwards is a cache copy). Nothing is
   written outside the cache; never into the game folder.
-- **Detail slider.** Left LOD 4 (least detail) to right LOD 0; starts at LOD 3, or the least
-  detailed LOD the mesh has below that. Under it, per step: `~1.2 GB` (the export's memory) or
-  the cached size; the current step's line says what Load does (export, ask, refused, cached).
-  Moving onto a cached step shows it after 150 ms; dragging never starts exports.
-- **LODs that do not exist.** StarBreaker loads LOD 0 for a mesh without the asked LOD file, so
-  "LOD 4" of a ship with LODs 0-3 used to give its hull at full detail. Exports now read the
-  entity's own mesh's LODs (`model::root_lods`: `<mesh>_lod<n>.<ext>m` in the archive) and use
-  the most detailed one at or below the asked one (`effective_lod`); `ModelDone.lod`/`lods`
-  report it, the cache keeps it under that LOD, the backend remembers the LODs per record for
-  the session (the slider then says "the mesh has no LOD 4: shows LOD 3"). Applies to Export
-  model and the CLI too. Child parts (loadout items) still fall back per mesh inside
-  StarBreaker: a Gladius at LOD 4 has more triangles (104k) than at LOD 3 (86k).
+- **Detail slider.** Least detail left: **Low (LOD 3) · Medium · High · Full (LOD 0)**, starting
+  at LOD 3 or the least detailed LOD the mesh has below it. LOD 4 (**Lowest**) is not reliably
+  lighter: StarBreaker loads LOD 0 for any part without a `_lod4` file, so on LIVE 4.10 LOD 4 has
+  more triangles than LOD 3 (Gladius 104k vs 86k, Carrack 402k vs 232k, 890 Jump 571k vs 215k).
+  It joins the slider only when the mesh has it and both GLBs are known (cached) with LOD 4 the
+  lighter (Javelin: 58k vs 132k). Steps the mesh lacks (they would repeat the LOD below) are
+  left out once its LODs are known. Under each step: its export memory (`~1.2 GB`) or cached
+  size, and its triangles once exported (`AssetModelLod.triangles`, read from the cached GLB's
+  JSON). The current step's line says what Load does (export, ask, refused, cached). Moving onto
+  a cached step shows it after 150 ms (the timer is cleared on record change and close);
+  dragging never starts exports. LOD 3 -> 0 checked monotonic on LIVE (table below).
+- **LODs that do not exist.** StarBreaker also loads LOD 0 for a root mesh without the asked
+  LOD, so exports read the entity's own mesh's LODs (`model::root_lods`: `<mesh>_lod<n>.<ext>m`
+  in the archive) and use the most detailed one at or below the asked one (`effective_lod`);
+  `ModelDone.lod`/`lods` report it and the cache keeps the GLB under that LOD. The LODs are
+  recorded in the cache (`<record>-lods.lods`, beside the GLBs; `model::cached_lods`), so after a
+  restart too, LOD 4 of a mesh with 0-3 finds the cached LOD 3 without a worker (app and CLI).
+  A record never exported has unknown LODs: the first export reads them. A per-part clamp for
+  loadout parts would have to live in StarBreaker's companion lookup (not changed here).
 - **Memory.** The guard of 7.18 per step (over the limit refused even with force; over the free
   memory asks "Load anyway"); `model_estimate` is now per LOD for the Print shell: 1.4 GB at
-  LOD 0 and 1.2 GB at LOD 1-4 (capital ships 1.8 / 1.4 GB). A GLB larger than a quarter of the
-  cache cap (512 MB by default) is refused for the viewer (Export model still writes it).
+  LOD 0 and 1.2 GB at LOD 1-4; capital ships 1.8 / 1.6 GB (Carrack and 890 Jump measured
+  1.41-1.43 GB at LOD 1, 1.65-1.71 GB at LOD 0). A GLB larger than a quarter of the cache cap
+  (512 MB by default) is refused for the viewer (Export model still writes it).
+- **Stop.** The view cancels only its own job: the job id from its first progress event (never
+  the app's current job in general). A Stop before the worker has the request is kept and sent
+  as soon as the request id is known (`ExportJob.cancel` in `real/assets.rs`), so it never fails
+  with "could not stop". Changing record or leaving the tab stops a running export. The TS mock
+  honours `cancel_job` between its steps (`?delay=` makes it slow enough to press Stop).
+- **WebGL first.** A throwaway canvas is probed (`webgl2`, else `webgl`; its context released)
+  when the tab opens; without WebGL the message shows up front and Load stays off, so nothing
+  is exported that cannot be drawn.
 - **Transfer.** `asset_model_chunk` returns raw IPC binary (`tauri::ipc::Response`, an
   `ArrayBuffer` in the webview), 8 MiB per call, read from the cache file by record and LOD (the
   webview never sends a path); the webview fills one buffer and parses it with
@@ -1985,7 +2001,11 @@ whole view call including the worker start 0.8-1.0 s; chunks 0.4-3 ms.
 | AEGS_Javelin | 0 | 53.8 MB | 3,662,991 | 507 ms | 1.29 GB |
 
 Also: LOD 1/2 0.98-1.06 GB; AEGS_Idris_M 1.18 GB at LOD 3 (14.7 MB, 0.5 M triangles), 1.67 GB
-at LOD 0 (92 MB, 5.8 M triangles). Both ships have LODs 0-4. Bounding boxes: Gladius 17.4 x
+at LOD 0 (92 MB, 5.8 M triangles). Triangles per LOD 3/2/1/0/4 (the slider's order, then LOD
+4): Gladius 86k/198k/476k/1.07M/104k; ANVL_Carrack 232k/559k/1.45M/3.41M/402k (0.8-1.0 s,
+1.26-1.65 GB); ORIG_890Jump 215k/500k/1.43M/3.63M/571k (0.6-0.8 s, 1.23-1.71 GB). A Stop sent
+with the job's first event ended a Javelin LOD 1 export as cancelled.
+All four ships have LODs 0-4. Bounding boxes: Gladius 17.4 x
 5.8 x 21.0 m, Javelin 218 x 89 x 493 m (debris prongs and engines included).
 
 **Tests.** Data: LODs from mesh file names and the clamp, cache keys per record/preset/LOD,
@@ -1994,14 +2014,16 @@ steps/guard/cache/chunks, raw binary over IPC, `dev-disabled`, the real backend 
 synthetic install (cache per LOD without a worker, chunks, guard before any worker, non-entity
 refused in its own worker), and an ignored real-install test
 (`SC_GAME_DIR=... cargo test -p starorg-codex-app --test real_model_view -- --ignored`). TS:
-TS mock = Rust samples, slider mapping, step states and words, chunked read with Stop and a
-short read, guard, readouts, three.js only behind the lazy import. Renders
+TS mock = Rust samples, slider steps (LOD 4 only when known lighter, missing LODs left out),
+step states and words, chunked read with Stop and a short read, guard, mock Stop of its own
+job only, WebGL probe, readouts, three.js only behind the lazy import. Data: the LODs kept in
+the cache (LOD 4 asked finds LOD 3). The real-install test also checks LOD 3 -> 0 triangles
+rise and an early Stop. Renders
 `app/scripts/render-model.cjs` (SwiftShader WebGL; 1024x700, 1280x800, dark and light; lazy
-chunk check).
+chunk check; a Stop on the slow mock).
 
 **Not done.** Textures (Full preset) are not viewable; the LODs of loadout parts are not
-clamped (StarBreaker); no section/clipping planes or measurement tool; the known LODs are not
-kept across app restarts.
+clamped (StarBreaker), hence LOD 4's rule above; no section/clipping planes or measurement tool.
 
 ## 8. Strings grouping
 
