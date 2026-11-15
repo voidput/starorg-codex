@@ -19,6 +19,11 @@ const shots = [
     await p.getByRole('button', { name: 'Open HOTFIX' }).click();
     await p.getByText('The game was updated').waitFor();
   }],
+  ['privacy', 'home', async (p) => {
+    await p.getByRole('heading', { name: 'LIVE' }).waitFor();
+    await p.getByRole('button', { name: 'Privacy' }).click();
+    await p.getByText('Local MCP server').waitFor();
+  }],
   ['enhancements', 'enhancements', async (p) => p.getByText('Header line').waitFor()],
   ['enhancements-tags', 'enhancements', async (p) => {
     await p.getByRole('tab', { name: /Name tags/ }).click();
