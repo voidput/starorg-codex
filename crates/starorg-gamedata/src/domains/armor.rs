@@ -234,6 +234,25 @@ impl Domain for Armor {
         true
     }
 
+    /// Worn items keep the five components [`parse_worn_item`] reads (3.0 GB whole on LIVE).
+    fn prune(&self, record: &mut GameRecord) {
+        if record.ty == "EntityClassDefinition"
+            && record.record_path.contains("/entities/scitem/characters/")
+        {
+            crate::entity::prune_entity(
+                &mut record.value,
+                &[],
+                &[
+                    ("SAttachableComponentParams", Some(&["AttachDef"])),
+                    ("SCItemClothingParams", None),
+                    ("SCItemSuitArmorParams", None),
+                    ("SCItemInventoryContainerComponentParams", None),
+                    ("SEntityPhysicsControllerParams", Some(&["PhysType"])),
+                ],
+            );
+        }
+    }
+
     fn parse(&self, ctx: &ParseContext<'_>) -> Result<Map<String, Value>, DomainError> {
         // Armour and clothing share slot names (both have Legs), so the type prefix decides
         // which list an item belongs to, not the slot.
@@ -286,7 +305,6 @@ impl Domain for Armor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::NoFiles;
     use crate::localization::parse_global_ini;
     use crate::records::normalize_record;
     use serde_json::json;
@@ -399,9 +417,7 @@ mod tests {
             json!([]),
         );
         let set = RecordSet::new(vec![macro_, bag, core, arms, pants, template]);
-        let body = DOMAIN
-            .parse(&ParseContext::new(&set, &loc, &NoFiles))
-            .unwrap();
+        let body = crate::fixtures::parse_checked(&DOMAIN, &set, &loc);
         assert_eq!(
             body["armor"][1],
             json!({

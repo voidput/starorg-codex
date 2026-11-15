@@ -40,13 +40,22 @@ Not ported:
 
 ## Known limits
 
-- **Peak memory about 10 GB** for a full extract (item-tags 8.7 GB, ships 4.1 GB, armor
-  3.0 GB; DataCore alone 0.9 GB). Every record a domain is handed is held as a
-  `serde_json::Value` tree at once, and item-tags is handed all 24,914 `entities/scitem`
-  records (1.5 GB as pretty JSON). Not allocator fragmentation: `MALLOC_ARENA_MAX=2` and
-  4 rayon threads give the same peak. Fine for this dev binary; it **must be cut before**
-  `GameData`, the CLI or the app move onto this crate (the game may be running alongside),
-  e.g. by loading records lazily or keeping only the fields domains read.
+- **Peak memory.** Every record a domain is handed is held as a `serde_json::Value` tree
+  at once. The three domains handed all 24,914 `entities/scitem` records (1.5 GB as
+  pretty JSON) now prune each record as it is loaded (`Domain::prune`) to the fields they
+  read, with the compare still byte-identical. Peak RSS of one domain per process, LIVE
+  4.10.200.58746 (`/usr/bin/time`, DataCore alone about 0.9 GB):
+
+  | Domain | Whole records | Pruned |
+  |---|---|---|
+  | `item-sources` | 9.0 GB | 1.5 GB |
+  | `item-tags` | 8.7 GB | 1.2 GB |
+  | `armor` | 3.0 GB | 0.9 GB |
+  | `ships` | 4.1 GB | not pruned (loadouts and ports read deep) |
+
+  A full `extract` (all 28 datasets in one process) peaks at 7.3 GB, down from about
+  10 GB; the allocator keeps what the biggest domain took. The local MCP server runs each
+  domain in its own short-lived worker process for this reason (`docs/mcp.md`).
 - The golden dumps are a moving target: sc-gamedata is being worked on, and the identity
   above holds for its `data/` as of 2026-11-15.
 

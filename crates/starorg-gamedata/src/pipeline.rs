@@ -98,8 +98,27 @@ pub fn scope(source: &dyn RecordSource, filters: &[&str]) -> Vec<usize> {
 /// Load the scoped records (in parallel). Records that fail to export or are not
 /// envelopes are skipped with a warning, as `loadRecords` skips unreadable files.
 pub fn load(source: &dyn RecordSource, indices: &[usize]) -> (RecordSet, Vec<String>) {
-    let loaded: Vec<Result<Option<GameRecord>, String>> =
-        indices.par_iter().map(|&i| source.load(i)).collect();
+    load_pruned(source, indices, &|_| {})
+}
+
+/// [`load`], passing each record through `prune` as soon as it is read, so only the pruned
+/// records are ever held together ([`Domain::prune`]).
+pub fn load_pruned(
+    source: &dyn RecordSource,
+    indices: &[usize],
+    prune: &(dyn Fn(&mut GameRecord) + Sync),
+) -> (RecordSet, Vec<String>) {
+    let loaded: Vec<Result<Option<GameRecord>, String>> = indices
+        .par_iter()
+        .map(|&i| {
+            source.load(i).map(|r| {
+                r.map(|mut r| {
+                    prune(&mut r);
+                    r
+                })
+            })
+        })
+        .collect();
     let mut records = Vec::with_capacity(loaded.len());
     let mut warnings = Vec::new();
     for (r, &i) in loaded.into_iter().zip(indices) {
@@ -140,7 +159,7 @@ impl Dataset {
 /// Run one domain.
 pub fn run(domain: &dyn Domain, game: &Game<'_>, extracted: &str) -> Result<Dataset, DomainError> {
     let indices = scope(game.records, domain.filters());
-    let (set, mut warnings) = load(game.records, &indices);
+    let (set, mut warnings) = load_pruned(game.records, &indices, &|r| domain.prune(r));
     if set.is_empty() {
         warnings.push(format!(
             "{}: none of the loaded records match its filters ({}).",

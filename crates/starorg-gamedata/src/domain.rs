@@ -113,6 +113,11 @@ pub trait Domain: Sync {
     fn needs_localization(&self) -> bool {
         false
     }
+    /// Drop the parts of a scoped record that [`Domain::parse`] never reads, as each record
+    /// is loaded (memory: a domain handed 25,000 item records would otherwise hold them all
+    /// as full JSON trees). Must not change the output: `scripts/compare-gamedata.sh` stays
+    /// byte-identical. Default: keep everything.
+    fn prune(&self, _record: &mut crate::records::GameRecord) {}
     /// The dataset body: every key after the `_source`/`_extracted`/`_build` header.
     fn parse(&self, ctx: &ParseContext<'_>) -> Result<Map<String, Value>, DomainError>;
 }

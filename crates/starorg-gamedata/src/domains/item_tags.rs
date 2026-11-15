@@ -234,6 +234,28 @@ impl Domain for ItemTagsDomain {
         true
     }
 
+    /// Items keep their tag refs, `AttachDef` and the weapon's ammo container refs (peak
+    /// memory of a LIVE extract: 8.7 GB whole, see the crate README).
+    fn prune(&self, record: &mut GameRecord) {
+        if record.ty == "EntityClassDefinition" {
+            crate::entity::prune_entity(
+                &mut record.value,
+                &["tags"],
+                &[
+                    ("SAttachableComponentParams", Some(&["AttachDef"])),
+                    (
+                        "SCItemWeaponComponentParams",
+                        Some(&[
+                            "ammoContainerRecord",
+                            "ShouldIgnorePrimaryAmmoContainer",
+                            "secondaryAmmoContainers",
+                        ]),
+                    ),
+                ],
+            );
+        }
+    }
+
     fn parse(&self, ctx: &ParseContext<'_>) -> Result<Map<String, Value>, DomainError> {
         let tags = build_tag_index(ctx.records.iter().find(|r| r.ty == "TagDatabase"));
         let entities: Vec<&GameRecord> = ctx.records.of_type("EntityClassDefinition").collect();
@@ -402,9 +424,7 @@ mod tests {
         let mut all = vec![db];
         all.extend(records());
         let set = RecordSet::new(all);
-        let body = DOMAIN
-            .parse(&ParseContext::new(&set, &Localization::new(), &NoFiles))
-            .unwrap();
+        let body = crate::fixtures::parse_checked(&DOMAIN, &set, &Localization::new());
         let find = |class: &str| {
             body["items"]
                 .as_array()

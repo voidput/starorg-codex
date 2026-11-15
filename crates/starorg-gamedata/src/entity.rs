@@ -5,6 +5,32 @@
 use crate::records::GameRecord;
 use serde_json::{Map, Value};
 
+/// Cut an entity record value down to `_Type_`, the `top` keys, and the `Components` of the
+/// listed types (in their order), each with `_Type_` and the listed fields, or whole when
+/// the field list is `None`. For [`crate::domain::Domain::prune`].
+pub fn prune_entity(value: &mut Value, top: &[&str], keep: &[(&str, Option<&[&str]>)]) {
+    let Some(obj) = value.as_object_mut() else {
+        return;
+    };
+    obj.retain(|k, _| k == "_Type_" || k == "Components" || top.contains(&k.as_str()));
+    if let Some(Value::Array(list)) = obj.get_mut("Components") {
+        list.retain_mut(|c| {
+            let Some(c) = c.as_object_mut() else {
+                return false;
+            };
+            let ty = c.get("_Type_").and_then(Value::as_str).unwrap_or_default();
+            match keep.iter().find(|(t, _)| *t == ty) {
+                None => false,
+                Some((_, None)) => true,
+                Some((_, Some(fields))) => {
+                    c.retain(|k, _| k == "_Type_" || fields.contains(&k.as_str()));
+                    true
+                }
+            }
+        });
+    }
+}
+
 /// The entity's components that are objects.
 pub fn components(record: &GameRecord) -> impl Iterator<Item = &Map<String, Value>> {
     record
@@ -68,6 +94,23 @@ mod tests {
     use super::*;
     use crate::records::normalize_record;
     use serde_json::json;
+
+    #[test]
+    fn prune_keeps_listed_components_and_fields_in_order() {
+        let mut v = json!({"_Type_": "EntityClassDefinition", "tags": [1], "StaticEntityClassData": [2],
+            "Components": [
+                {"_Type_": "A", "keep": 1, "drop": 2},
+                {"_Type_": "B", "x": 1},
+                {"_Type_": "C", "y": 1},
+                {"_Type_": "A", "keep": 3},
+                "not an object"]});
+        prune_entity(&mut v, &["tags"], &[("A", Some(&["keep"])), ("C", None)]);
+        assert_eq!(
+            v,
+            json!({"_Type_": "EntityClassDefinition", "tags": [1], "Components": [
+                {"_Type_": "A", "keep": 1}, {"_Type_": "C", "y": 1}, {"_Type_": "A", "keep": 3}]})
+        );
+    }
 
     fn entity(components: Value) -> GameRecord {
         normalize_record(

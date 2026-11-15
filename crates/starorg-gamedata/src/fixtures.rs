@@ -98,3 +98,31 @@ impl FileSource for MemFiles {
             .ok_or_else(|| format!("{name}: not in archive"))
     }
 }
+
+/// The domain's output on `records`, checked to be the same with every record passed
+/// through [`crate::domain::Domain::prune`] first (a prune must not change the output).
+pub fn parse_checked(
+    domain: &dyn crate::domain::Domain,
+    records: &crate::records::RecordSet,
+    localization: &crate::localization::Localization,
+) -> serde_json::Map<String, Value> {
+    use crate::domain::{NoFiles, ParseContext};
+    let whole = domain
+        .parse(&ParseContext::new(records, localization, &NoFiles))
+        .expect("parse");
+    let pruned = crate::records::RecordSet::new(
+        records
+            .iter()
+            .map(|r| {
+                let mut r = r.clone();
+                domain.prune(&mut r);
+                r
+            })
+            .collect(),
+    );
+    let after = domain
+        .parse(&ParseContext::new(&pruned, localization, &NoFiles))
+        .expect("parse pruned");
+    assert_eq!(whole, after, "{}: prune changed the output", domain.name());
+    whole
+}

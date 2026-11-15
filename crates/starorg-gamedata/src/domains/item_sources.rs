@@ -133,6 +133,27 @@ fn tag_paths(list: Option<&Value>, tags: &TagIndex) -> Vec<String> {
 
 /// `loadoutItems`: item class names an entity's default loadout holds, at any depth, in
 /// first-found order.
+/// Every `SItemPortLoadoutEntryParams` below `value`, cut to the two fields
+/// [`loadout_items`] reads (nested entries are listed on their own).
+fn loadout_entries(value: &Value, out: &mut Vec<Value>) {
+    match value {
+        Value::Array(list) => list.iter().for_each(|v| loadout_entries(v, out)),
+        Value::Object(obj) => {
+            if obj.get("_Type_").and_then(Value::as_str) == Some("SItemPortLoadoutEntryParams") {
+                let mut e = Map::new();
+                for k in ["_Type_", "entityClassReference", "entityClassName"] {
+                    if let Some(v) = obj.get(k) {
+                        e.insert(k.into(), v.clone());
+                    }
+                }
+                out.push(Value::Object(e));
+            }
+            obj.values().for_each(|v| loadout_entries(v, out));
+        }
+        _ => {}
+    }
+}
+
 pub fn loadout_items(value: &Value) -> Vec<String> {
     fn walk(value: &Value, found: &mut Vec<String>, seen: &mut HashSet<String>) {
         let mut add = |s: String, found: &mut Vec<String>| {
@@ -434,6 +455,28 @@ impl Domain for ItemSources {
         true
     }
 
+    /// Item records are only read for their display name (`AttachDef`) and the loadout
+    /// entries [`loadout_items`] collects; keep just those (9.0 GB whole on LIVE). The
+    /// entries move to one `_loadout_` list, which the walk finds the same set in (it is
+    /// deduplicated and sorted).
+    fn prune(&self, record: &mut GameRecord) {
+        if record.ty != "EntityClassDefinition"
+            || !record.record_path.to_ascii_lowercase().contains("entities/scitem/")
+        {
+            return;
+        }
+        let mut entries = Vec::new();
+        loadout_entries(&record.value, &mut entries);
+        crate::entity::prune_entity(
+            &mut record.value,
+            &[],
+            &[("SAttachableComponentParams", Some(&["AttachDef"]))],
+        );
+        if let Some(obj) = record.value.as_object_mut() {
+            obj.insert("_loadout_".into(), Value::Array(entries));
+        }
+    }
+
     fn parse(&self, ctx: &ParseContext<'_>) -> Result<Map<String, Value>, DomainError> {
         let context = Context {
             records: ctx.records,
@@ -485,7 +528,6 @@ impl Domain for ItemSources {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::domain::NoFiles;
     use crate::localization::parse_global_ini;
     use crate::records::normalize_record;
     use serde_json::json;
@@ -605,9 +647,7 @@ mod tests {
     fn builds_areas_from_tagged_configs_following_references() {
         let set = RecordSet::new(records());
         let loc = parse_global_ini("item_crate=Standard Container");
-        let body = DOMAIN
-            .parse(&ParseContext::new(&set, &loc, &NoFiles))
-            .unwrap();
+        let body = crate::fixtures::parse_checked(&DOMAIN, &set, &loc);
         let military = &body["areas"][0];
         assert_eq!(military["name"], "v3slotpreset_loot_military");
         assert_eq!(
