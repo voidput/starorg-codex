@@ -1,7 +1,7 @@
 [workspace]
 resolver = "3"
 # app/src-tauri inherits [workspace.package], so the GUI carries the single workspace version.
-members = ["crates/starorg-core", "crates/starorg-data", "crates/starorg-cli", "app/src-tauri"]
+members = ["crates/starorg-core", "crates/starorg-data", "crates/starorg-net", "crates/starorg-cli", "app/src-tauri"]
 
 [workspace.package]
 version = "0.0.0"
@@ -15,6 +15,7 @@ publish = false
 [workspace.dependencies]
 starorg-core = { path = "crates/starorg-core" }
 starorg-data = { path = "crates/starorg-data" }
+starorg-net = { path = "crates/starorg-net" }
 # StarBreaker: our mirror of diogotr7/StarBreaker (no changes of ours), pinned to the commit
 # tested in spec 3.3. Bump only together with STARBREAKER_COMMIT in starorg-data.
 starbreaker-p4k = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
@@ -28,6 +29,8 @@ clap = { version = "4", features = ["derive"] }
 tempfile = "3"
 toml = "0.9"
 rayon = "1"
+sha1 = "0.10"
+sha2 = "0.10"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

@@ -1,0 +1,25 @@
+[package]
+name = "starorg-net"
+description = "HTTPS transport for published game data (opt-in network feature)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+starorg-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+# The OS TLS stack and trust store (SChannel on Windows, OpenSSL on Linux); no bundled
+# certificate list.
+ureq = { version = "3", default-features = false, features = ["native-tls-no-default"] }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+starorg-data.workspace = true
+tempfile.workspace = true

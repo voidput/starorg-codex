@@ -229,6 +229,46 @@ pub fn is_wine_prefix(dir: &Path) -> bool {
         && matches!(find_existing_ci(dir, &["system.reg"]), Ok(Some(p)) if p.is_file())
 }
 
+/// The Wine prefix `path` lies in: the nearest ancestor (or `path` itself) that is a
+/// prefix, or else the parent of a `drive_c` component (case-insensitive).
+pub fn enclosing_wine_prefix(path: &Path) -> Option<PathBuf> {
+    for a in path.ancestors() {
+        if is_wine_prefix(a) {
+            return Some(a.to_path_buf());
+        }
+    }
+    path.ancestors()
+        .find(|a| {
+            a.file_name()
+                .is_some_and(|n| n.to_string_lossy().eq_ignore_ascii_case("drive_c"))
+        })
+        .and_then(Path::parent)
+        .map(Path::to_path_buf)
+}
+
+impl Install {
+    /// Directories nothing but an apply may write into: the install root and, on Linux,
+    /// the whole Wine prefix it sits in (found or derived from the path).
+    pub fn protected_roots(&self) -> Vec<PathBuf> {
+        let mut out = vec![self.root.clone()];
+        if let Some(p) = self
+            .prefix
+            .clone()
+            .or_else(|| enclosing_wine_prefix(&self.root))
+        {
+            out.push(p);
+        }
+        for p in out.clone() {
+            if let Ok(c) = std::fs::canonicalize(&p)
+                && !out.contains(&c)
+            {
+                out.push(c);
+            }
+        }
+        out
+    }
+}
+
 /// Map a Windows path from inside a prefix to the host path: `C:` is `<prefix>/drive_c`,
 /// `Z:` is `/`, other letters go through `<prefix>/dosdevices/<x>:`. Components are matched
 /// case-insensitively.
@@ -463,6 +503,32 @@ fn finish(cands: Vec<Candidate>) -> Discovery {
         });
     }
     Discovery { installs }
+}
+
+#[cfg(test)]
+mod guard_tests {
+    use super::*;
+
+    #[test]
+    fn prefix_from_drive_c_and_from_markers() {
+        let t = tempfile::tempdir().unwrap();
+        let pfx = t.path().join("pfx");
+        let root = pfx.join("drive_c/Program Files/Roberts Space Industries/StarCitizen");
+        std::fs::create_dir_all(&root).unwrap();
+        // No system.reg: derived from the drive_c component.
+        assert_eq!(enclosing_wine_prefix(&root), Some(pfx.clone()));
+        std::fs::write(pfx.join("system.reg"), b"").unwrap();
+        assert_eq!(enclosing_wine_prefix(&root.join("LIVE")), Some(pfx.clone()));
+        assert_eq!(enclosing_wine_prefix(t.path()), None);
+        let i = Install {
+            root: root.clone(),
+            prefix: None,
+            found_by: FoundBy::GameDir,
+            channels: vec![],
+        };
+        let roots = i.protected_roots();
+        assert!(roots.contains(&root) && roots.contains(&pfx), "{roots:?}");
+    }
 }
 
 #[cfg(test)]

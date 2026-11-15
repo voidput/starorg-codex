@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 /// JSON output schema version (fields are only ever added within a major version).
 const JSON_SCHEMA: u32 = 1;
 
-fn run_discovery(g: &GlobalOpts) -> Discovery {
+pub(crate) fn run_discovery(g: &GlobalOpts) -> Discovery {
     let req = DiscoveryRequest {
         game_dir: g.game_dir.clone(),
         prefix: g.prefix.clone(),
@@ -24,7 +24,7 @@ fn run_discovery(g: &GlobalOpts) -> Discovery {
     discover(&req, &DiscoveryEnv::from_process())
 }
 
-fn fail(g: &GlobalOpts, code: u8, kind: &str, message: &str) -> ExitCode {
+pub(crate) fn fail(g: &GlobalOpts, code: u8, kind: &str, message: &str) -> ExitCode {
     if g.json {
         println!(
             "{}",
@@ -114,7 +114,7 @@ pub fn channels(g: &GlobalOpts) -> ExitCode {
 
 /// Canonical form of a path that may not exist yet: canonicalise the deepest existing
 /// ancestor and append the rest.
-fn canonical_lenient(p: &Path) -> PathBuf {
+pub(crate) fn canonical_lenient(p: &Path) -> PathBuf {
     let abs = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
     let mut existing = abs.as_path();
     let mut rest = Vec::new();
@@ -136,8 +136,31 @@ fn canonical_lenient(p: &Path) -> PathBuf {
     }
 }
 
+/// Exit with a usage error when `out_abs` lies inside the install or the whole Wine prefix
+/// it sits in (commands that write output never write there).
+pub(crate) fn refuse_protected(
+    g: &GlobalOpts,
+    out_abs: &Path,
+    install: &Install,
+) -> Option<ExitCode> {
+    let hit = install
+        .protected_roots()
+        .into_iter()
+        .find(|r| out_abs.starts_with(r))?;
+    Some(fail(
+        g,
+        exit::USAGE,
+        "usage",
+        &format!(
+            "--out {} is inside {}; output is never written into the game install or its Wine prefix",
+            out_abs.display(),
+            hit.display()
+        ),
+    ))
+}
+
 /// Write `bytes` to `path` atomically: temp file in the same directory, fsync, rename.
-fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+pub(crate) fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty());
     if let Some(d) = dir {
         std::fs::create_dir_all(d)?;
@@ -162,7 +185,7 @@ fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     result
 }
 
-fn worker_exe() -> std::io::Result<PathBuf> {
+pub(crate) fn worker_exe() -> std::io::Result<PathBuf> {
     std::env::current_exe()
 }
 
@@ -191,18 +214,10 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
         );
     };
 
-    // `build` writes only the given file, never into the game.
+    // `build` writes only the given file, never into the game or its Wine prefix.
     let out_abs = canonical_lenient(out);
-    if out_abs.starts_with(&install.root) {
-        return fail(
-            g,
-            exit::USAGE,
-            "usage",
-            &format!(
-                "--out {} is inside the game install; build never writes there",
-                out_abs.display()
-            ),
-        );
+    if let Some(code) = refuse_protected(g, &out_abs, install) {
+        return code;
     }
 
     let worker = match worker_exe() {

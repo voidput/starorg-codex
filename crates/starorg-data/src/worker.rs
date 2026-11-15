@@ -92,6 +92,11 @@ fn write_output(out: &Path, x: &extract::Extraction) -> std::io::Result<()> {
 
 /// Run the worker. Returns the process exit code (0 or 1) after printing the report.
 pub fn run(p4k: &Path, out: &Path, hook: TestHook) -> i32 {
+    run_with(p4k, out, hook, false)
+}
+
+/// [`run`], optionally reading only the stock `global.ini` (`--ini-only`).
+pub fn run_with(p4k: &Path, out: &Path, hook: TestHook, ini_only: bool) -> i32 {
     let result = guarded("extraction", || {
         match hook {
             TestHook::None => {}
@@ -100,7 +105,7 @@ pub fn run(p4k: &Path, out: &Path, hook: TestHook) -> i32 {
                 std::thread::sleep(std::time::Duration::from_secs(3600));
             },
         }
-        let x = extract::extract(p4k)?;
+        let x = extract::extract_with(p4k, ini_only)?;
         write_output(out, &x)
             .map_err(|e| ExtractError::Output(format!("{}: {e}", out.display())))?;
         Ok(())

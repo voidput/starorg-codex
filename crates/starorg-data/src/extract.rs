@@ -135,6 +135,12 @@ pub fn open_checked(p4k: &Path) -> Result<(Archive, CountCheck), ExtractError> {
 
 /// Steps 1 to 5 of spec 3.3.
 pub fn extract(p4k: &Path) -> Result<Extraction, ExtractError> {
+    extract_with(p4k, false)
+}
+
+/// Steps 1 to 5, or with `ini_only` steps 1 to 3 for the stock `global.ini` alone (the text
+/// source of a published dump): `game_data` is then empty and `dcb_entry` is empty.
+pub fn extract_with(p4k: &Path, ini_only: bool) -> Result<Extraction, ExtractError> {
     let mut warnings = Vec::new();
     let (archive, count_check) = guarded("archive open", || open_checked(p4k))?;
     if count_check == CountCheck::Unchecked {
@@ -149,6 +155,20 @@ pub fn extract(p4k: &Path) -> Result<Extraction, ExtractError> {
         .entry(INI_ENTRY)
         .ok_or(ExtractError::Missing(INI_ENTRY))?;
     let base_ini = read_checked(&archive, &ini_info, MAX_INI_BYTES)?;
+    if ini_only {
+        return Ok(Extraction {
+            base_ini,
+            datacore: DataCoreSummary {
+                records: 0,
+                struct_defs: 0,
+            },
+            game_data: GameData::default(),
+            parsed_entries,
+            count_check,
+            dcb_entry: String::new(),
+            warnings,
+        });
+    }
 
     let dcb_info = match archive.entry(DCB_ENTRY) {
         Some(i) => i,
