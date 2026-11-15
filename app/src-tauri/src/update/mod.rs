@@ -11,6 +11,8 @@
 //!   built here from the checked repo and tag, never taken from the response.
 //! - Installing (AppImage, NSIS, MSI with a real key) goes through `tauri-plugin-updater`,
 //!   which verifies the minisign signature before anything runs ([`host`]).
+//! - The Microsoft Store flavour (feature `store`, [`UpdateInstall::Store`]) makes no request
+//!   and installs nothing: the Store updates it.
 //!
 //! Everything that decides (selection, throttle, skip, error mapping) is plain code over a
 //! [`ReleaseFetch`] and a [`Clock`], so tests run without a network.
@@ -215,9 +217,18 @@ impl Updater {
 
     /// `force = false`: the start-up check; nothing is requested when the switch is off or
     /// the last check is less than 24 h old. `force = true` ("Check now") needs the switch.
+    ///
+    /// The Store flavour never requests anything: "Check now" is refused with the Store note
+    /// and the start-up check returns the saved view unchanged.
     pub fn check(&self, enabled: bool, force: bool) -> CmdResult<UpdateStatus> {
         let _g = self.lock();
         let mut s = self.store.load();
+        if self.install.0 == UpdateInstall::Store {
+            if force {
+                return Err(store_managed(&self.install.1));
+            }
+            return Ok(self.view(enabled, &s));
+        }
         if !enabled {
             if force {
                 return Err(network_off());
@@ -316,6 +327,9 @@ impl Updater {
     /// Download, verify and install the available version, then restart (AppImage, NSIS,
     /// MSI). Other installs get `invalid` with the reason; they use the release page.
     pub fn install(&self, enabled: bool) -> CmdResult<UpdateStatus> {
+        if self.install.0 == UpdateInstall::Store {
+            return Err(store_managed(&self.install.1));
+        }
         if !enabled {
             return Err(network_off());
         }
@@ -339,6 +353,10 @@ fn network_off() -> AppError {
         ErrorCode::NetworkOff,
         "Turn on \"Check for updates\" under Settings -> Network first.",
     )
+}
+
+fn store_managed(note: &str) -> AppError {
+    AppError::new(ErrorCode::Invalid, note.to_string())
 }
 
 fn no_window() -> AppError {

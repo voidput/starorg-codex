@@ -1499,6 +1499,8 @@ pub enum UpdateInstall {
     InApp,
     /// deb, rpm, portable or a build without a key: the app only links to the release.
     DownloadOnly,
+    /// The Microsoft Store build: the Store updates it. No release check, no install.
+    Store,
 }
 
 /// Why a check did not give an answer. Not alarming: the app keeps working either way.

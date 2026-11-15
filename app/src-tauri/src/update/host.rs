@@ -50,8 +50,18 @@ impl HostSlot {
     }
 }
 
-/// What this copy can do, from the bundle type Tauri stamps into the binary at bundling.
+/// What a Store build says in Settings, in place of the update controls.
+pub const STORE_NOTE: &str = "Updates come from the Microsoft Store.";
+
+/// Is this the Microsoft Store flavour (the `store` feature)?
+pub const STORE_BUILD: bool = cfg!(feature = "store");
+
+/// What this copy can do, from the bundle type Tauri stamps into the binary at bundling. The
+/// Store flavour is always [`UpdateInstall::Store`]: the Store, not the app, updates it.
 pub fn install_support() -> (UpdateInstall, String) {
+    if STORE_BUILD {
+        return (UpdateInstall::Store, STORE_NOTE.into());
+    }
     support_for(
         tauri::utils::platform::bundle_type(),
         pubkey_is_real(UPDATER_PUBKEY),
@@ -148,6 +158,18 @@ mod tests {
         }
         for b in [Some(B::Deb), Some(B::Rpm), None] {
             assert!(support_for(b.clone(), true).is_err(), "{b:?}");
+        }
+    }
+
+    /// Runs in CI with `--features store` (ci.yml, "Store flavour").
+    #[test]
+    fn store_flavour_is_store_managed() {
+        let (kind, note) = install_support();
+        if cfg!(feature = "store") {
+            assert_eq!(kind, UpdateInstall::Store);
+            assert_eq!(note, STORE_NOTE);
+        } else {
+            assert_ne!(kind, UpdateInstall::Store);
         }
     }
 

@@ -7,10 +7,16 @@ import type { ReleaseView, UpdateStatus } from './contract/types';
 /** The release the banner offers, or null: switch on, a newer version, not skipped, not
  *  dismissed this session. */
 export function bannerRelease(s: UpdateStatus | null, dismissed: string | null = null): ReleaseView | null {
-  if (!s?.enabled || s.check.state !== 'available') return null;
+  if (!s?.enabled || storeManaged(s) || s.check.state !== 'available') return null;
   const r = s.check.release;
   if (r.version === s.skipped_version || r.version === dismissed) return null;
   return r;
+}
+
+/** The Microsoft Store build: no update switch, check, banner or install in the app; Settings
+ *  says the Store updates it (the text comes from Rust as `install_note`). */
+export function storeManaged(s: Pick<UpdateStatus, 'install'> | null): boolean {
+  return s?.install === 'store';
 }
 
 export function bannerTitle(r: ReleaseView): string {

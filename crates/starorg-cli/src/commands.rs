@@ -121,25 +121,7 @@ pub fn channels(g: &GlobalOpts) -> ExitCode {
 /// Canonical form of a path that may not exist yet: canonicalise the deepest existing
 /// ancestor and append the rest.
 pub(crate) fn canonical_lenient(p: &Path) -> PathBuf {
-    let abs = std::path::absolute(p).unwrap_or_else(|_| p.to_path_buf());
-    let mut existing = abs.as_path();
-    let mut rest = Vec::new();
-    loop {
-        if let Ok(c) = std::fs::canonicalize(existing) {
-            let mut out = c;
-            for r in rest.iter().rev() {
-                out.push(r);
-            }
-            return out;
-        }
-        match (existing.parent(), existing.file_name()) {
-            (Some(parent), Some(name)) => {
-                rest.push(name.to_os_string());
-                existing = parent;
-            }
-            _ => return abs,
-        }
-    }
+    starorg_core::fsutil::canonical_lenient(p)
 }
 
 /// Why an output path must not be written, if it must not: inside the install root, inside
@@ -521,7 +503,7 @@ mod tests {
     #[test]
     fn canonical_lenient_handles_missing_tail() {
         let t = tempfile::tempdir().unwrap();
-        let real = std::fs::canonicalize(t.path()).unwrap();
+        let real = starorg_core::fsutil::canonicalize(t.path()).unwrap();
         assert_eq!(
             canonical_lenient(&t.path().join("a/b/c.ini")),
             real.join("a/b/c.ini")

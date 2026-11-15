@@ -128,6 +128,10 @@ const shots = [
     await p.getByText('0.2.0 is available (this is 0.1.0).').waitFor();
     await p.evaluate(toNetwork);
   }, '&update=available'],
+  ['settings-updates-store', 'settings', async (p) => {
+    await p.getByText('Updates come from the Microsoft Store.').waitFor();
+    await p.evaluate(toNetwork);
+  }, '&update=store'],
   ['settings-updates-failed', 'settings', async (p) => {
     await p.getByText(/^Can't see releases for someone\/private-fork/).waitFor();
     await p.evaluate(toNetwork);

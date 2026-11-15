@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { notFoundHint, onWindows, searchedWhere } from '@/lib/platform';
   import FolderOpen from '@lucide/svelte/icons/folder-open';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import ScanSearch from '@lucide/svelte/icons/scan-search';
@@ -28,7 +29,7 @@
 </script>
 
 <p class="text-muted-foreground">
-  StarOrg Strings looked in the LUG Helper config, your Wine prefixes, Lutris and the RSI Launcher logs. Pick the install to use; the folder is the one that contains <span class="mono">LIVE</span>.
+  {searchedWhere(onWindows)} Pick the install to use; the folder is the one that contains <span class="mono">LIVE</span>.
 </p>
 
 <div aria-live="polite" class="sr-only">{scanning ? 'Scanning for Star Citizen installs' : `${installs.length} installs found`}</div>
@@ -41,7 +42,7 @@
   <div class="bg-muted/20 flex flex-col items-center gap-2 rounded-lg border border-dashed px-6 py-8 text-center">
     <FolderSearch class="text-primary size-8" aria-hidden="true" />
     <div class="font-semibold">No Star Citizen install found</div>
-    <p class="text-muted-foreground max-w-md">Browse to the StarCitizen folder, or run a deeper scan of /mnt, removable media and your home folder.</p>
+    <p class="text-muted-foreground max-w-md">{notFoundHint(onWindows)}</p>
   </div>
 {:else}
   <fieldset class="grid gap-2">

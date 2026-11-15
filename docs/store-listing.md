@@ -1,0 +1,87 @@
+---
+title: Microsoft Store listing (draft)
+tags: [docs]
+updated: 2026-11-14
+---
+
+# Microsoft Store listing (draft)
+
+Draft text for Partner Center -> the app -> Store listings -> English. Check each field's
+current length limit in Partner Center when pasting. Setup steps: [windows](windows.md#microsoft-store).
+
+## Product name
+
+StarOrg Strings
+
+## Short description
+
+Clearer Star Citizen item, ship and mission text: component tags, stat lines and mission info,
+applied to your own install and removable in one click.
+
+## Description
+
+StarOrg Strings improves the in-game text of Star Citizen on your PC.
+
+It builds a new text file for the game from the files of your own install: component names get
+short tags such as size, class and grade, ship and weapon descriptions get a stats block, and
+mission text gets the facts you would otherwise look up. You choose what is added, preview every
+change before it is written, and can go back to the game's own text at any time.
+
+How it works
+- Finds your game through the RSI Launcher logs or the folder you pick.
+- Reads the game data from your install; nothing is downloaded unless you turn it on.
+- Backs up any text file already there (for example from another tool) before writing.
+- Writes only the game's localization text file and one line in USER.cfg, and checks the result.
+- Never changes files while the game is running, and Remove puts everything back.
+
+Privacy: no account, no telemetry, no analytics. With the default settings the app makes no
+network request at all.
+
+StarOrg Strings is a fan-made tool. It is not affiliated with or endorsed by Cloud Imperium Games
+or Roberts Space Industries. Star Citizen is a trademark of Cloud Imperium Rights LLC.
+
+Requires a Star Citizen installation.
+
+## Product features
+
+- Component tags: size, class and grade in item names
+- Stats blocks for ships, ship weapons, personal weapons and missiles
+- Mission info in contract descriptions
+- Preview every changed line before applying
+- Automatic backup of the existing text file; one-click restore
+- Works with LIVE, PTU, EPTU, HOTFIX and other channels
+- Skips changes while the game or a launcher update is running
+- No account, no telemetry; offline by default
+
+## Search terms
+
+Star Citizen, localization, global.ini, item names, component tags, ship stats, mission info
+
+## Screenshots
+
+From the headless renders (`app/scripts/render-screens.cjs`, mock backend, never a window;
+output under `.tmp/renders/m3-screens/`). Use the 1280x800 dark set; Partner Center wants
+PNG at 1366x768 or larger, so render the chosen shots at that size too:
+`SIZES=1366x768 node app/scripts/render-screens.cjs '<name regex>'` against the mock dev server.
+In order:
+
+1. `home` - channels, build and status at a glance
+2. `enhancements-tags` - choosing component tag elements
+3. `enhancements-ships` - ship stats block options
+4. `strings-filtered` - previewing changed strings
+5. `strings-detail-rejected` - a line kept as stock, with the reason
+6. `backups-foreign-restore` - another tool's file backed up and restorable
+7. `home-running` - the "game is running" guard
+8. `settings-updates-store` - Store build: "Updates come from the Microsoft Store."
+
+Do not include the Star Citizen logo or game art.
+
+## Other fields
+
+- Category: Utilities and tools (secondary: none)
+- Privacy policy URL: <https://github.com/voidput/starorg-strings/blob/main/docs/privacy.md>
+- Website: <https://github.com/voidput/starorg-strings>
+- Support contact: <https://github.com/voidput/starorg-strings/issues>
+- Price: free; no in-app purchases
+- Copyright: (c) voidput, MIT licence
+- Age rating: see [windows](windows.md#microsoft-store) (IARC questionnaire answers)
