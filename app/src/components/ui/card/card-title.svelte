@@ -5,11 +5,11 @@
 	let {
 		ref = $bindable(null),
 		class: className,
-		level = 3,
+		level = 2,
 		children,
 		...restProps
 	}: WithElementRef<HTMLAttributes<HTMLElement>> & {
-		/** Heading level — the hub header already renders the page's <h2>, so a card title defaults to <h3>; 0 = plain div. */
+		/** Heading level: the app header renders the page <h1>, so a card title defaults to <h2>; 0 = plain div. */
 		level?: 0 | 2 | 3 | 4;
 	} = $props();
 </script>

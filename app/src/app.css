@@ -66,10 +66,11 @@
   --accent-foreground: #0f172a;
   --destructive: #be123c;
   --destructive-foreground: #ffffff;
-  --success: #15803d;
-  --warning: #b45309;
+  /* Status hues darkened from #15803d / #b45309 / #a16207: those were 4.4:1 on the page background (contrast test). */
+  --success: #15763a;
+  --warning: #a84d08;
   --info: #7c3aed;
-  --accent-2: #a16207;
+  --accent-2: #925a06;
   --border: rgb(15 23 42 / 0.12);
   --input: rgb(15 23 42 / 0.16);
   --sidebar: #f7f9fc;
@@ -219,7 +220,34 @@
 @utility chamfer-md {
   clip-path: polygon(12px 0, 100% 0, 100% calc(100% - 12px), calc(100% - 12px) 100%, 0 100%, 0 12px);
 }
+/* clip-path cuts the 1px border at the chamfered corners; this draws the cut edge back in.
+   Needs a positioned element; colour from --chamfer-edge (default: the border token). */
+@utility chamfer-edge {
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    --e: var(--chamfer-edge, var(--border));
+    background:
+      linear-gradient(135deg, transparent calc(50% - 1px), var(--e) calc(50% - 0.5px), var(--e) calc(50% + 0.5px), transparent calc(50% + 1px)) top left / 12px 12px no-repeat,
+      linear-gradient(135deg, transparent calc(50% - 1px), var(--e) calc(50% - 0.5px), var(--e) calc(50% + 0.5px), transparent calc(50% + 1px)) bottom right / 12px 12px no-repeat;
+  }
+}
 @utility glass {
   background-color: var(--glass);
   backdrop-filter: blur(var(--glass-blur));
+}
+
+/* Tactical grid: only behind the wizard and full-page empty states (spec 9.1). */
+@utility tactical-grid {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+/* Chamfered step node of the wizard (spec 9.1). */
+@utility chamfer-xs {
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
 }

@@ -3,6 +3,7 @@ import { mount } from 'svelte';
 import App from './App.svelte';
 import { applyTheme } from './lib/theme';
 
+// Resolve data-theme etc. before the first paint (spec 9.2).
 applyTheme();
 
 const target = document.getElementById('app');

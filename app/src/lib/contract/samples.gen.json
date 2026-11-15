@@ -1,0 +1,1589 @@
+{
+  "activity": [
+    {
+      "channel": "LIVE",
+      "id": 5,
+      "job": null,
+      "level": "info",
+      "message": "Added patch Sample label fix",
+      "time": "2026-11-14T21:30:05Z"
+    },
+    {
+      "channel": "LIVE",
+      "id": 4,
+      "job": "apply",
+      "level": "warn",
+      "message": "Applied: 11254 strings changed, 1 warning(s)",
+      "time": "2026-11-14T21:30:05Z"
+    },
+    {
+      "channel": "LIVE",
+      "id": 3,
+      "job": "apply",
+      "level": "warn",
+      "message": "Applied: 11254 strings changed, 1 warning(s)",
+      "time": "2026-11-14T21:30:05Z"
+    },
+    {
+      "channel": null,
+      "id": 2,
+      "job": null,
+      "level": "info",
+      "message": "Set up LIVE, HOTFIX (skipped: PTU)",
+      "time": "2026-11-14T21:30:05Z"
+    },
+    {
+      "channel": null,
+      "id": 1,
+      "job": null,
+      "level": "info",
+      "message": "Found 2 installs: LUG Helper config, Lutris game entry",
+      "time": "2026-11-14T21:30:05Z"
+    }
+  ],
+  "add_user_patch": {
+    "description": "Synthetic user patch.",
+    "enabled": true,
+    "id": "user-sample-label-fix",
+    "keys": 1,
+    "origin": "user",
+    "state": "applies",
+    "title": "Sample label fix"
+  },
+  "apply": {
+    "backup": "20261114-213001-pre-existing",
+    "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+    "build": {
+      "branch": "sc-alpha-4.10.0",
+      "change": 13165946,
+      "game_version": "4.10.0",
+      "version": "4.10.200.58746"
+    },
+    "channel": "LIVE",
+    "counts": {
+      "changed": 11254,
+      "components": 1840,
+      "dropped": 0,
+      "fps_weapons": 318,
+      "missiles": 96,
+      "missions": 2140,
+      "overrides": 0,
+      "ship_weapons": 402,
+      "ships": 231
+    },
+    "duration_ms": 1830,
+    "owned": {
+      "ambiguous": 0,
+      "characters": [
+        "1000000000001"
+      ],
+      "count": 4,
+      "mode": "auto"
+    },
+    "patches": [
+      {
+        "id": "syn-typo-cargo",
+        "state": "applies"
+      },
+      {
+        "id": "syn-missing-rep",
+        "state": "applies"
+      },
+      {
+        "id": "syn-old-name",
+        "state": "retired"
+      },
+      {
+        "id": "syn-moved-key",
+        "state": "target-changed"
+      }
+    ],
+    "reason": null,
+    "recovered": null,
+    "result": "applied",
+    "target": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/Data/Localization/english/global.ini",
+    "target_is_link": false,
+    "user_cfg": {
+      "changed": false,
+      "line": null,
+      "link_target": "/home/pilot/Games/star-citizen/shared/USER.cfg",
+      "path": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg",
+      "shared_with": []
+    },
+    "warnings": [
+      {
+        "detail": "syn-moved-key: the target text changed in this build",
+        "kind": "patch-target-changed"
+      }
+    ]
+  },
+  "backup_now": {
+    "build": {
+      "branch": "sc-alpha-4.10.0-hotfix",
+      "change": 13172004,
+      "game_version": "4.10.0",
+      "version": "1.0.191.55227"
+    },
+    "created": "2026-11-14T21:30:05Z",
+    "existed": false,
+    "foreign_tool": null,
+    "id": "20261114-213001-manual",
+    "origin": "none",
+    "pinned": false,
+    "reason": "manual",
+    "size": null
+  },
+  "build_preview": [
+    {
+      "category": "ships",
+      "key": "vehicle_DescSYN_Fighter",
+      "label": "Ship description",
+      "original": "A synthetic light fighter used for testing.",
+      "result": "A synthetic light fighter used for testing.\\n\\n--- STATS ---\\nRole: Light Fighter  |  Career: Combat  |  Crew: 1\\nSize: 21 × 16.5 × 5.5 m\\nSCM: 226 m/s  |  Max: 1,193 m/s\\nBoost: 520 m/s fwd  |  268 m/s back\\nCargo: 0 SCU"
+    },
+    {
+      "category": "components",
+      "key": "item_NameSYN_Cooler_S2",
+      "label": "Component name",
+      "original": "Sample Cooler",
+      "result": "[Industrial-S2-A] Sample Cooler"
+    },
+    {
+      "category": "missions",
+      "key": "mission_TitleSYN_Recovery",
+      "label": "Mission title",
+      "original": "Synthetic Recovery Contract",
+      "result": "Synthetic Recovery Contract <EM4>[BP]</EM4> <EM4>[150 Rep]</EM4>"
+    }
+  ],
+  "channel_status": {
+    "applied_build": {
+      "branch": "sc-alpha-4.10.0",
+      "change": 13165946,
+      "game_version": "4.10.0",
+      "version": "4.10.200.58746"
+    },
+    "build": {
+      "branch": "sc-alpha-4.10.0",
+      "change": 13165946,
+      "game_version": "4.10.0",
+      "version": "4.10.200.58746"
+    },
+    "build_error": null,
+    "cache": "fresh",
+    "channel": "LIVE",
+    "foreign_file": false,
+    "foreign_tool": "Smart Citizen",
+    "game_running": false,
+    "interrupted_apply": false,
+    "language": "english",
+    "language_value": "english",
+    "last_apply": {
+      "changed": 11254,
+      "dropped": 0,
+      "duration_ms": 1830,
+      "result": "applied",
+      "time": "2026-11-14T21:30:05Z",
+      "warnings": 1
+    },
+    "p4k_time": "2026-11-12T18:04:31Z",
+    "set_up": true,
+    "status": {
+      "reasons": [
+        "overrides"
+      ],
+      "state": "stale"
+    }
+  },
+  "contract": 1,
+  "discover_installs": [
+    {
+      "channels": [
+        {
+          "applied_build": null,
+          "build": {
+            "branch": "sc-alpha-4.10.0",
+            "change": 13165946,
+            "game_version": "4.10.0",
+            "version": "4.10.200.58746"
+          },
+          "build_error": null,
+          "cache": "missing",
+          "channel": "LIVE",
+          "foreign_file": true,
+          "foreign_tool": "Smart Citizen",
+          "game_running": false,
+          "interrupted_apply": false,
+          "language": "english",
+          "language_value": "english",
+          "last_apply": null,
+          "p4k_time": "2026-11-12T18:04:31Z",
+          "set_up": false,
+          "status": {
+            "state": "changed-by-another-tool",
+            "tool": "Smart Citizen"
+          }
+        },
+        {
+          "applied_build": null,
+          "build": {
+            "branch": "sc-alpha-4.10.0-hotfix",
+            "change": 13172004,
+            "game_version": "4.10.0",
+            "version": "1.0.191.55227"
+          },
+          "build_error": null,
+          "cache": "missing",
+          "channel": "HOTFIX",
+          "foreign_file": false,
+          "foreign_tool": null,
+          "game_running": false,
+          "interrupted_apply": false,
+          "language": "english",
+          "language_value": "english",
+          "last_apply": null,
+          "p4k_time": "2026-11-12T18:04:31Z",
+          "set_up": false,
+          "status": {
+            "state": "not-applied"
+          }
+        },
+        {
+          "applied_build": null,
+          "build": {
+            "branch": "sc-alpha-4.11.0-ptu",
+            "change": 13190517,
+            "game_version": "4.11.0",
+            "version": "4.11.0.60112"
+          },
+          "build_error": null,
+          "cache": "missing",
+          "channel": "PTU",
+          "foreign_file": false,
+          "foreign_tool": null,
+          "game_running": false,
+          "interrupted_apply": false,
+          "language": "other",
+          "language_value": "german_(germany)",
+          "last_apply": null,
+          "p4k_time": "2026-11-12T18:04:31Z",
+          "set_up": false,
+          "status": {
+            "state": "not-applied"
+          }
+        }
+      ],
+      "found_by": "lug-config",
+      "found_by_label": "LUG Helper config",
+      "id": "inst-7f3a",
+      "prefix": "/home/pilot/Games/star-citizen",
+      "root": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+      "saved": false
+    },
+    {
+      "channels": [
+        {
+          "applied_build": null,
+          "build": {
+            "branch": "sc-alpha-4.9.1",
+            "change": 13002118,
+            "game_version": "4.9.1",
+            "version": "4.9.141.51240"
+          },
+          "build_error": null,
+          "cache": "missing",
+          "channel": "LIVE",
+          "foreign_file": false,
+          "foreign_tool": null,
+          "game_running": false,
+          "interrupted_apply": false,
+          "language": "english",
+          "language_value": "english",
+          "last_apply": null,
+          "p4k_time": "2026-11-12T18:04:31Z",
+          "set_up": false,
+          "status": {
+            "state": "not-applied"
+          }
+        }
+      ],
+      "found_by": "lutris",
+      "found_by_label": "Lutris game entry",
+      "id": "inst-c21e",
+      "prefix": "/mnt/library/sc-test",
+      "root": "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+      "saved": false
+    }
+  ],
+  "doctor": {
+    "sections": [
+      {
+        "checks": [
+          {
+            "detail": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+            "label": "Install found by LUG Helper config",
+            "level": "ok"
+          },
+          {
+            "detail": "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+            "label": "Second install found by Lutris game entry",
+            "level": "info"
+          }
+        ],
+        "title": "Installs"
+      },
+      {
+        "checks": [
+          {
+            "detail": null,
+            "label": "LIVE/Data/Localization/english is writable",
+            "level": "ok"
+          },
+          {
+            "detail": "-> /home/pilot/Games/star-citizen/shared/USER.cfg",
+            "label": "LIVE/USER.cfg is a symlink",
+            "level": "info"
+          }
+        ],
+        "title": "Paths"
+      },
+      {
+        "checks": [
+          {
+            "detail": "Frontend_PU_Version",
+            "label": "Smart Citizen stamp in LIVE global.ini",
+            "level": "warn"
+          },
+          {
+            "detail": "Use the launcher's Verify files to restore it.",
+            "label": "Empty Data/languages.ini (0 bytes)",
+            "level": "warn"
+          }
+        ],
+        "title": "Other tools"
+      },
+      {
+        "checks": [
+          {
+            "detail": null,
+            "label": "NVIDIA on Wayland (KDE): explicit sync disabled for the window",
+            "level": "info"
+          }
+        ],
+        "title": "Graphics"
+      }
+    ]
+  },
+  "error": {
+    "code": "needs-decision",
+    "detail": "starorg-strings setup --channel PTU --preset recommended --yes",
+    "message": "PTU is not set up. Run setup for this channel first."
+  },
+  "export_diagnostics": {
+    "file_name": "starorg-strings-diagnostics-20261114-213005.txt",
+    "redacted": 5,
+    "text": "StarOrg Strings diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 7 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
+  },
+  "export_user_patch": {
+    "file_name": "user-sample-label-fix.patch.toml",
+    "text": "schema = 1\nid = \"user-sample-label-fix\"\ntitle = \"Sample label fix\"\ndescription = \"Synthetic user patch.\"\n\n[[loc]]\nkey = \"ui_SYN_Label_00007\"\nop = \"replace\"\nfind = \"Label\"\nvalue = \"Sign\"\n"
+  },
+  "get_profile": {
+    "branding": false,
+    "components": true,
+    "fps_weapons": true,
+    "header": "--- STATS ---",
+    "lines_off": [],
+    "missiles": true,
+    "mission": {
+      "blueprints": true,
+      "bullet_tags": true,
+      "details": true,
+      "header_em": 3,
+      "item_rewards": true,
+      "label_em": 4,
+      "max_list": 25,
+      "owned_marker": true,
+      "title_blueprint": true,
+      "title_em": true,
+      "title_reputation": true
+    },
+    "missions": true,
+    "patches_disabled": [],
+    "preset": "recommended",
+    "ship_weapons": true,
+    "ships": true,
+    "stats_above": false,
+    "tags": {
+      "components": {
+        "elements": [
+          "class",
+          "size",
+          "grade"
+        ],
+        "enabled": true,
+        "enclosing": "square",
+        "placement": "prefix",
+        "separator": "dash",
+        "styles": {}
+      },
+      "missiles": {
+        "elements": [
+          "tracking",
+          "size"
+        ],
+        "enabled": true,
+        "enclosing": "square",
+        "placement": "prefix",
+        "separator": "dash",
+        "styles": {}
+      },
+      "ship_weapons": {
+        "elements": [
+          "damage",
+          "size"
+        ],
+        "enabled": true,
+        "enclosing": "square",
+        "placement": "prefix",
+        "separator": "dash",
+        "styles": {
+          "damage": "short"
+        }
+      },
+      "short_names": false,
+      "tool_size_tag": false
+    }
+  },
+  "get_settings": {
+    "appearance": {
+      "accent": "cyan",
+      "palette": "void",
+      "reduce_effects": true,
+      "theme": "system"
+    },
+    "default_channel": "LIVE",
+    "network": {
+      "check_updates": false,
+      "published_dumps": false,
+      "starorg": true
+    },
+    "safe_gpu": false
+  },
+  "hooks_status": {
+    "cli_on_path": true,
+    "scripts": [
+      {
+        "is_link": false,
+        "kind": "prelaunch",
+        "path": "/home/pilot/Games/star-citizen/sc-prelaunch.sh",
+        "status": {
+          "state": "absent"
+        }
+      },
+      {
+        "is_link": false,
+        "kind": "postexit",
+        "path": null,
+        "status": {
+          "state": "missing"
+        }
+      }
+    ],
+    "supported": true
+  },
+  "import_smart_citizen": {
+    "ambiguous": [
+      {
+        "candidates": [
+          "Sample Undersuit (Grey)",
+          "Sample Undersuit (Red)"
+        ],
+        "name": "Sample Undersuit"
+      }
+    ],
+    "dry_run": true,
+    "duplicates": 0,
+    "empty_catalog": false,
+    "exported_at": "2026-11-01T10:00:00Z",
+    "file": "~/Games/star-citizen/drive_c/users/pilot/SmartCitizen/owned-blueprints.json",
+    "imported": [
+      "Sample Armor Legs",
+      "Sample Armor Arms",
+      "Test Knife"
+    ],
+    "known": [
+      "Synthetic Rifle Mk1"
+    ],
+    "not_completed": 2,
+    "total": 9,
+    "unmatched": [
+      "[H] Retired Sample Helmet"
+    ]
+  },
+  "job_event": "job-progress",
+  "job_progress": {
+    "cancellable": true,
+    "channel": "LIVE",
+    "job": "job-2",
+    "kind": "apply",
+    "label": "Checking the game is not running",
+    "phase": "running",
+    "step": 1,
+    "steps": 5
+  },
+  "list_backups": {
+    "backups": [
+      {
+        "build": {
+          "branch": "sc-alpha-4.10.0",
+          "change": 13165946,
+          "game_version": "4.10.0",
+          "version": "4.10.200.58746"
+        },
+        "created": "2026-11-14T21:30:05Z",
+        "existed": true,
+        "foreign_tool": null,
+        "id": "20261114-213002-before-apply",
+        "origin": "ours",
+        "pinned": false,
+        "reason": "before-apply",
+        "size": 11204331
+      },
+      {
+        "build": {
+          "branch": "sc-alpha-4.9.1",
+          "change": 13002118,
+          "game_version": "4.9.1",
+          "version": "4.9.141.51240"
+        },
+        "created": "2026-11-14T21:30:05Z",
+        "existed": true,
+        "foreign_tool": "Smart Citizen",
+        "id": "20261114-213001-pre-existing",
+        "origin": "foreign",
+        "pinned": true,
+        "reason": "pre-existing",
+        "size": 11204331
+      }
+    ],
+    "channel": "LIVE",
+    "folder": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+    "keep_builds": 3,
+    "keep_newest": 10,
+    "offers": {
+      "remove": true,
+      "remove_foreign": false,
+      "restore_foreign": {
+        "backup": "20261114-213001-pre-existing",
+        "build_mismatch": true,
+        "current": {
+          "branch": "sc-alpha-4.10.0",
+          "change": 13165946,
+          "game_version": "4.10.0",
+          "version": "4.10.200.58746"
+        },
+        "made_for": {
+          "branch": "sc-alpha-4.9.1",
+          "change": 13002118,
+          "game_version": "4.9.1",
+          "version": "4.9.141.51240"
+        },
+        "tool": "Smart Citizen"
+      },
+      "undo_last_apply": "20261114-213002-before-apply"
+    }
+  },
+  "list_characters": {
+    "active": {
+      "character": null,
+      "mode": "auto",
+      "resolved": "1000000000001"
+    },
+    "channel": "LIVE",
+    "characters": [
+      {
+        "id": "1000000000001",
+        "last_seen": "2026-11-14T19:02:00Z",
+        "name": "Pilot_A",
+        "owned": 4
+      },
+      {
+        "id": "1000000000002",
+        "last_seen": "2026-11-11T22:40:00Z",
+        "name": "Alt_B",
+        "owned": 2
+      },
+      {
+        "id": "1000000000003",
+        "last_seen": "2026-10-30T17:15:00Z",
+        "name": "Alt_C",
+        "owned": 0
+      }
+    ],
+    "last_scan": "2026-11-14T19:40:00Z",
+    "unattributed": 1
+  },
+  "list_overrides": [
+    {
+      "key": "item_NameSYN_Cooler_S2_00001",
+      "original": "Sample Cooler 1",
+      "value": "My cooler"
+    }
+  ],
+  "list_patches": [
+    {
+      "description": "Fixes a misspelt unit in synthetic cargo descriptions.",
+      "enabled": true,
+      "id": "syn-typo-cargo",
+      "keys": 3,
+      "origin": "built-in",
+      "state": "applies",
+      "title": "Cargo grid typo"
+    },
+    {
+      "description": "Adds the reputation reward a synthetic contract leaves out.",
+      "enabled": true,
+      "id": "syn-missing-rep",
+      "keys": 12,
+      "origin": "built-in",
+      "state": "applies",
+      "title": "Missing reputation line"
+    },
+    {
+      "description": "The game text was fixed upstream.",
+      "enabled": true,
+      "id": "syn-old-name",
+      "keys": 1,
+      "origin": "built-in",
+      "state": "retired",
+      "title": "Renamed component"
+    },
+    {
+      "description": "The target text changed in this build; the patch no longer matches.",
+      "enabled": true,
+      "id": "syn-moved-key",
+      "keys": 2,
+      "origin": "built-in",
+      "state": "target-changed",
+      "title": "Moved description key"
+    },
+    {
+      "description": "Synthetic user patch.",
+      "enabled": true,
+      "id": "user-sample-label-fix",
+      "keys": 1,
+      "origin": "user",
+      "state": "applies",
+      "title": "Sample label fix"
+    }
+  ],
+  "overview": {
+    "active_install": "inst-7f3a",
+    "app_version": "0.0.0",
+    "contract": 1,
+    "default_channel": "LIVE",
+    "first_run": false,
+    "installs": [
+      {
+        "channels": [
+          {
+            "applied_build": {
+              "branch": "sc-alpha-4.10.0",
+              "change": 13165946,
+              "game_version": "4.10.0",
+              "version": "4.10.200.58746"
+            },
+            "build": {
+              "branch": "sc-alpha-4.10.0",
+              "change": 13165946,
+              "game_version": "4.10.0",
+              "version": "4.10.200.58746"
+            },
+            "build_error": null,
+            "cache": "fresh",
+            "channel": "LIVE",
+            "foreign_file": false,
+            "foreign_tool": "Smart Citizen",
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "english",
+            "language_value": "english",
+            "last_apply": {
+              "changed": 11254,
+              "dropped": 0,
+              "duration_ms": 1830,
+              "result": "applied",
+              "time": "2026-11-14T21:30:05Z",
+              "warnings": 1
+            },
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": true,
+            "status": {
+              "reasons": [
+                "overrides"
+              ],
+              "state": "stale"
+            }
+          },
+          {
+            "applied_build": null,
+            "build": {
+              "branch": "sc-alpha-4.10.0-hotfix",
+              "change": 13172004,
+              "game_version": "4.10.0",
+              "version": "1.0.191.55227"
+            },
+            "build_error": null,
+            "cache": "missing",
+            "channel": "HOTFIX",
+            "foreign_file": false,
+            "foreign_tool": null,
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "english",
+            "language_value": "english",
+            "last_apply": null,
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": true,
+            "status": {
+              "state": "not-applied"
+            }
+          },
+          {
+            "applied_build": null,
+            "build": {
+              "branch": "sc-alpha-4.11.0-ptu",
+              "change": 13190517,
+              "game_version": "4.11.0",
+              "version": "4.11.0.60112"
+            },
+            "build_error": null,
+            "cache": "missing",
+            "channel": "PTU",
+            "foreign_file": false,
+            "foreign_tool": null,
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "other",
+            "language_value": "german_(germany)",
+            "last_apply": null,
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": false,
+            "status": {
+              "state": "not-applied"
+            }
+          }
+        ],
+        "found_by": "lug-config",
+        "found_by_label": "LUG Helper config",
+        "id": "inst-7f3a",
+        "prefix": "/home/pilot/Games/star-citizen",
+        "root": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+        "saved": true
+      },
+      {
+        "channels": [
+          {
+            "applied_build": null,
+            "build": {
+              "branch": "sc-alpha-4.9.1",
+              "change": 13002118,
+              "game_version": "4.9.1",
+              "version": "4.9.141.51240"
+            },
+            "build_error": null,
+            "cache": "missing",
+            "channel": "LIVE",
+            "foreign_file": false,
+            "foreign_tool": null,
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "english",
+            "language_value": "english",
+            "last_apply": null,
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": false,
+            "status": {
+              "state": "not-applied"
+            }
+          }
+        ],
+        "found_by": "lutris",
+        "found_by_label": "Lutris game entry",
+        "id": "inst-c21e",
+        "prefix": "/mnt/library/sc-test",
+        "root": "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+        "saved": false
+      }
+    ],
+    "job": null
+  },
+  "overview_first_run": {
+    "active_install": null,
+    "app_version": "0.0.0",
+    "contract": 1,
+    "default_channel": null,
+    "first_run": true,
+    "installs": [
+      {
+        "channels": [
+          {
+            "applied_build": null,
+            "build": {
+              "branch": "sc-alpha-4.10.0",
+              "change": 13165946,
+              "game_version": "4.10.0",
+              "version": "4.10.200.58746"
+            },
+            "build_error": null,
+            "cache": "missing",
+            "channel": "LIVE",
+            "foreign_file": true,
+            "foreign_tool": "Smart Citizen",
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "english",
+            "language_value": "english",
+            "last_apply": null,
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": false,
+            "status": {
+              "state": "changed-by-another-tool",
+              "tool": "Smart Citizen"
+            }
+          },
+          {
+            "applied_build": null,
+            "build": {
+              "branch": "sc-alpha-4.10.0-hotfix",
+              "change": 13172004,
+              "game_version": "4.10.0",
+              "version": "1.0.191.55227"
+            },
+            "build_error": null,
+            "cache": "missing",
+            "channel": "HOTFIX",
+            "foreign_file": false,
+            "foreign_tool": null,
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "english",
+            "language_value": "english",
+            "last_apply": null,
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": false,
+            "status": {
+              "state": "not-applied"
+            }
+          },
+          {
+            "applied_build": null,
+            "build": {
+              "branch": "sc-alpha-4.11.0-ptu",
+              "change": 13190517,
+              "game_version": "4.11.0",
+              "version": "4.11.0.60112"
+            },
+            "build_error": null,
+            "cache": "missing",
+            "channel": "PTU",
+            "foreign_file": false,
+            "foreign_tool": null,
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "other",
+            "language_value": "german_(germany)",
+            "last_apply": null,
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": false,
+            "status": {
+              "state": "not-applied"
+            }
+          }
+        ],
+        "found_by": "lug-config",
+        "found_by_label": "LUG Helper config",
+        "id": "inst-7f3a",
+        "prefix": "/home/pilot/Games/star-citizen",
+        "root": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+        "saved": false
+      },
+      {
+        "channels": [
+          {
+            "applied_build": null,
+            "build": {
+              "branch": "sc-alpha-4.9.1",
+              "change": 13002118,
+              "game_version": "4.9.1",
+              "version": "4.9.141.51240"
+            },
+            "build_error": null,
+            "cache": "missing",
+            "channel": "LIVE",
+            "foreign_file": false,
+            "foreign_tool": null,
+            "game_running": false,
+            "interrupted_apply": false,
+            "language": "english",
+            "language_value": "english",
+            "last_apply": null,
+            "p4k_time": "2026-11-12T18:04:31Z",
+            "set_up": false,
+            "status": {
+              "state": "not-applied"
+            }
+          }
+        ],
+        "found_by": "lutris",
+        "found_by_label": "Lutris game entry",
+        "id": "inst-c21e",
+        "prefix": "/mnt/library/sc-test",
+        "root": "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+        "saved": false
+      }
+    ],
+    "job": null
+  },
+  "owned_blueprints": [
+    {
+      "acquired": "2026-11-10T20:11:00Z",
+      "ambiguous": false,
+      "favorite": false,
+      "name": "Synthetic Rifle Mk1",
+      "sources": [
+        "log"
+      ]
+    },
+    {
+      "acquired": "2026-11-10T20:11:00Z",
+      "ambiguous": false,
+      "favorite": false,
+      "name": "Synthetic Armor Core",
+      "sources": [
+        "log"
+      ]
+    },
+    {
+      "acquired": "2026-11-10T20:11:00Z",
+      "ambiguous": false,
+      "favorite": false,
+      "name": "Test Pistol Variant",
+      "sources": [
+        "log"
+      ]
+    },
+    {
+      "acquired": "2026-11-10T20:11:00Z",
+      "ambiguous": false,
+      "favorite": false,
+      "name": "Sample Helmet Grey",
+      "sources": [
+        "log"
+      ]
+    }
+  ],
+  "patch_detail": {
+    "examples": [
+      {
+        "after": "A synthetic rifle, number 4.",
+        "before": "A synthetic rifle, number 4 (new wording).",
+        "key": "item_DescSYN_Rifle_00004"
+      }
+    ],
+    "kind": "loc",
+    "patch": {
+      "description": "The target text changed in this build; the patch no longer matches.",
+      "enabled": true,
+      "id": "syn-moved-key",
+      "keys": 2,
+      "origin": "built-in",
+      "state": "target-changed",
+      "title": "Moved description key"
+    },
+    "range": "4.10.0 - 4.10.x",
+    "reason": "Target changed: the stock text is no longer what the patch expects, so it is skipped and reported."
+  },
+  "pick_install_folder": {
+    "channels": [
+      {
+        "applied_build": null,
+        "build": {
+          "branch": "sc-alpha-4.9.1",
+          "change": 13002118,
+          "game_version": "4.9.1",
+          "version": "4.9.141.51240"
+        },
+        "build_error": null,
+        "cache": "missing",
+        "channel": "LIVE",
+        "foreign_file": false,
+        "foreign_tool": null,
+        "game_running": false,
+        "interrupted_apply": false,
+        "language": "english",
+        "language_value": "english",
+        "last_apply": null,
+        "p4k_time": "2026-11-12T18:04:31Z",
+        "set_up": false,
+        "status": {
+          "state": "not-applied"
+        }
+      }
+    ],
+    "found_by": "manual",
+    "found_by_label": "Chosen folder",
+    "id": "inst-c21e",
+    "prefix": "/mnt/library/sc-test",
+    "root": "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen",
+    "saved": false
+  },
+  "plan_setup": {
+    "channels": [
+      {
+        "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+        "channel": "LIVE",
+        "counts": {
+          "changed": 11106,
+          "components": 1840,
+          "dropped": 0,
+          "fps_weapons": 318,
+          "missiles": 96,
+          "missions": 2140,
+          "overrides": 0,
+          "ship_weapons": 402,
+          "ships": 231
+        },
+        "link_target": null,
+        "replaces_tool": "Smart Citizen",
+        "target": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/Data/Localization/english/global.ini",
+        "target_is_link": false,
+        "user_cfg_line": null,
+        "user_cfg_path": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      },
+      {
+        "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/PTU/backups",
+        "channel": "PTU",
+        "counts": {
+          "changed": 11143,
+          "components": 1840,
+          "dropped": 0,
+          "fps_weapons": 318,
+          "missiles": 96,
+          "missions": 2140,
+          "overrides": 0,
+          "ship_weapons": 402,
+          "ships": 231
+        },
+        "link_target": null,
+        "replaces_tool": null,
+        "target": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/PTU/Data/Localization/english/global.ini",
+        "target_is_link": false,
+        "user_cfg_line": "g_language = english",
+        "user_cfg_path": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/PTU/USER.cfg"
+      }
+    ],
+    "install": "inst-7f3a",
+    "warnings": [
+      {
+        "detail": "Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.",
+        "kind": "network"
+      }
+    ]
+  },
+  "profile_schema": {
+    "categories": [
+      {
+        "blurb": "A stats block in ship descriptions.",
+        "id": "ships",
+        "label": "Ships",
+        "lines": [
+          {
+            "key": "ships.role",
+            "label": "Role, career and crew"
+          },
+          {
+            "key": "ships.size",
+            "label": "Size"
+          },
+          {
+            "key": "ships.speed",
+            "label": "SCM and max speed"
+          },
+          {
+            "key": "ships.boost",
+            "label": "Boost speeds"
+          },
+          {
+            "key": "ships.rotation",
+            "label": "Pitch, yaw and roll"
+          },
+          {
+            "key": "ships.weapons",
+            "label": "Weapons"
+          },
+          {
+            "key": "ships.components",
+            "label": "Components"
+          },
+          {
+            "key": "ships.armor",
+            "label": "Armor"
+          },
+          {
+            "key": "ships.damage_taken",
+            "label": "Damage taken"
+          },
+          {
+            "key": "ships.cargo",
+            "label": "Cargo"
+          }
+        ]
+      },
+      {
+        "blurb": "Stats in shields, coolers, power plants, quantum drives and radars.",
+        "id": "components",
+        "label": "Components",
+        "lines": [
+          {
+            "key": "components.health",
+            "label": "Health"
+          },
+          {
+            "key": "components.power",
+            "label": "Power use"
+          },
+          {
+            "key": "components.signatures",
+            "label": "EM and IR signatures"
+          },
+          {
+            "key": "components.shield",
+            "label": "Shield HP and regen"
+          },
+          {
+            "key": "components.delay",
+            "label": "Regen delay"
+          },
+          {
+            "key": "components.resist",
+            "label": "Resistances"
+          },
+          {
+            "key": "components.output",
+            "label": "Power output"
+          },
+          {
+            "key": "components.cooling",
+            "label": "Cooling"
+          },
+          {
+            "key": "components.speed",
+            "label": "Quantum speed"
+          },
+          {
+            "key": "components.fuel",
+            "label": "Quantum fuel use"
+          },
+          {
+            "key": "components.accel",
+            "label": "Quantum spool and acceleration"
+          },
+          {
+            "key": "components.calibration",
+            "label": "Calibration"
+          },
+          {
+            "key": "components.ping",
+            "label": "Radar range"
+          },
+          {
+            "key": "components.slots",
+            "label": "Missile rack slots"
+          }
+        ]
+      },
+      {
+        "blurb": "Damage, fire rate and range in ship weapon descriptions.",
+        "id": "ship-weapons",
+        "label": "Ship weapons",
+        "lines": [
+          {
+            "key": "ship_weapons.damage",
+            "label": "Damage and DPS"
+          },
+          {
+            "key": "ship_weapons.rate",
+            "label": "Fire rate"
+          },
+          {
+            "key": "ship_weapons.velocity",
+            "label": "Projectile speed and range"
+          },
+          {
+            "key": "ship_weapons.ammo",
+            "label": "Ammo"
+          }
+        ]
+      },
+      {
+        "blurb": "Damage, fire rate and magazine in personal weapon descriptions.",
+        "id": "fps-weapons",
+        "label": "FPS weapons",
+        "lines": [
+          {
+            "key": "fps_weapons.damage",
+            "label": "Damage"
+          },
+          {
+            "key": "fps_weapons.rate",
+            "label": "Fire rate"
+          },
+          {
+            "key": "fps_weapons.velocity",
+            "label": "Projectile speed"
+          },
+          {
+            "key": "fps_weapons.falloff",
+            "label": "Damage falloff"
+          },
+          {
+            "key": "fps_weapons.magazine",
+            "label": "Magazine"
+          },
+          {
+            "key": "fps_weapons.modifiers",
+            "label": "Attachment modifiers"
+          }
+        ]
+      },
+      {
+        "blurb": "Damage, lock and speed in missile and bomb descriptions.",
+        "id": "missiles",
+        "label": "Missiles",
+        "lines": [
+          {
+            "key": "missiles.damage",
+            "label": "Damage"
+          },
+          {
+            "key": "missiles.tracking",
+            "label": "Tracking and lock time"
+          },
+          {
+            "key": "missiles.lock_range",
+            "label": "Lock range"
+          },
+          {
+            "key": "missiles.speed",
+            "label": "Speed"
+          },
+          {
+            "key": "missiles.health",
+            "label": "Health"
+          }
+        ]
+      },
+      {
+        "blurb": "Tags in contract titles and sections in their descriptions.",
+        "id": "missions",
+        "label": "Missions",
+        "lines": []
+      }
+    ],
+    "tag_kinds": [
+      {
+        "elements": [
+          {
+            "id": "class",
+            "label": "Class"
+          },
+          {
+            "id": "size",
+            "label": "Size"
+          },
+          {
+            "id": "grade",
+            "label": "Grade"
+          }
+        ],
+        "kind": "components",
+        "label": "Ship components"
+      },
+      {
+        "elements": [
+          {
+            "id": "damage",
+            "label": "Damage type"
+          },
+          {
+            "id": "size",
+            "label": "Size"
+          }
+        ],
+        "kind": "ship-weapons",
+        "label": "Ship weapons"
+      },
+      {
+        "elements": [
+          {
+            "id": "tracking",
+            "label": "Tracking"
+          },
+          {
+            "id": "size",
+            "label": "Size"
+          }
+        ],
+        "kind": "missiles",
+        "label": "Missiles"
+      }
+    ]
+  },
+  "query_strings": {
+    "all": 91000,
+    "categories": [
+      {
+        "count": 11375,
+        "id": "components"
+      }
+    ],
+    "offset": 0,
+    "rows": [
+      {
+        "category": "components",
+        "key": "item_NameSYN_Cooler_S2_00001",
+        "original": "Sample Cooler 1",
+        "result": "My cooler",
+        "source": "edited"
+      },
+      {
+        "category": "components",
+        "key": "item_NameSYN_Cooler_S2_00009",
+        "original": "Sample Cooler 9",
+        "result": "[S2-A] Sample Cooler 9",
+        "source": "enhanced"
+      },
+      {
+        "category": "components",
+        "key": "item_NameSYN_Cooler_S2_00017",
+        "original": "Sample Cooler 17",
+        "result": "Sample Cooler 17",
+        "source": "unmodified"
+      }
+    ],
+    "sources": [
+      {
+        "count": 1,
+        "id": "edited"
+      },
+      {
+        "count": 1251,
+        "id": "enhanced"
+      },
+      {
+        "count": 118,
+        "id": "patched"
+      },
+      {
+        "count": 10005,
+        "id": "unmodified"
+      }
+    ],
+    "total": 11375
+  },
+  "remove_changes": {
+    "backup": null,
+    "backup_dir": null,
+    "build": {
+      "branch": "sc-alpha-4.10.0-hotfix",
+      "change": 13172004,
+      "game_version": "4.10.0",
+      "version": "1.0.191.55227"
+    },
+    "channel": "HOTFIX",
+    "counts": {
+      "changed": 0,
+      "components": 0,
+      "dropped": 0,
+      "fps_weapons": 0,
+      "missiles": 0,
+      "missions": 0,
+      "overrides": 0,
+      "ship_weapons": 0,
+      "ships": 0
+    },
+    "duration_ms": 0,
+    "owned": null,
+    "patches": [],
+    "reason": null,
+    "recovered": null,
+    "result": "nothing-to-do",
+    "target": null,
+    "target_is_link": false,
+    "user_cfg": {
+      "changed": false,
+      "line": null,
+      "link_target": null,
+      "path": null,
+      "shared_with": []
+    },
+    "warnings": []
+  },
+  "set_override": {
+    "accepted": true,
+    "detail": {
+      "override_value": "My cooler",
+      "provenance": [
+        {
+          "by": "Data.p4k",
+          "layer": "stock",
+          "note": null,
+          "text": "Sample Cooler 1",
+          "winner": false
+        },
+        {
+          "by": "overrides.ini",
+          "layer": "override",
+          "note": null,
+          "text": "My cooler",
+          "winner": true
+        }
+      ],
+      "row": {
+        "category": "components",
+        "key": "item_NameSYN_Cooler_S2_00001",
+        "original": "Sample Cooler 1",
+        "result": "My cooler",
+        "source": "edited"
+      }
+    },
+    "message": null,
+    "rule": null
+  },
+  "set_override_rejected": {
+    "accepted": false,
+    "detail": {
+      "override_value": "My cooler",
+      "provenance": [
+        {
+          "by": "Data.p4k",
+          "layer": "stock",
+          "note": null,
+          "text": "Sample Cooler 1",
+          "winner": false
+        },
+        {
+          "by": "overrides.ini",
+          "layer": "override",
+          "note": null,
+          "text": "My cooler",
+          "winner": true
+        }
+      ],
+      "row": {
+        "category": "components",
+        "key": "item_NameSYN_Cooler_S2_00001",
+        "original": "Sample Cooler 1",
+        "result": "My cooler",
+        "source": "edited"
+      }
+    },
+    "message": "Every <EMn> tag needs its closing </EMn>.",
+    "rule": "added-em-unbalanced"
+  },
+  "setup": {
+    "install": "inst-7f3a",
+    "set_up": [
+      "LIVE",
+      "HOTFIX"
+    ],
+    "skipped": [
+      "PTU"
+    ]
+  },
+  "starorg_pull": {
+    "added": [
+      "Sample Medical Gun",
+      "Test Multitool"
+    ],
+    "already": 1,
+    "channel": "LIVE",
+    "character": "1000000000001",
+    "direction": "pull",
+    "guild": "Synthetic Org",
+    "sent": 0,
+    "time": "2026-11-14T21:30:05Z",
+    "unmatched": [
+      "Retired Sample Visor"
+    ]
+  },
+  "starorg_push": {
+    "added": [],
+    "already": 0,
+    "channel": "LIVE",
+    "character": null,
+    "direction": "push",
+    "guild": "Synthetic Org",
+    "sent": 7,
+    "time": "2026-11-14T21:30:05Z",
+    "unmatched": []
+  },
+  "starorg_status": {
+    "connected": true,
+    "enabled": true,
+    "environment": "production",
+    "expires": "2027-02-12T21:30:05Z",
+    "guild": "Synthetic Org",
+    "last_sync": null,
+    "push_count": 5,
+    "sync_characters": [
+      {
+        "id": "1000000000001",
+        "name": "Pilot_A",
+        "owned": 4,
+        "ticked": true
+      },
+      {
+        "id": "1000000000002",
+        "name": "Alt_B",
+        "owned": 2,
+        "ticked": true
+      },
+      {
+        "id": "1000000000003",
+        "name": "Alt_C",
+        "owned": 0,
+        "ticked": true
+      }
+    ],
+    "user": "pilot_a_discord"
+  },
+  "string_detail": {
+    "override_value": null,
+    "provenance": [
+      {
+        "by": "Data.p4k",
+        "layer": "stock",
+        "note": null,
+        "text": "Synthetic hull 0. A test ship description.\\nSecond line.",
+        "winner": false
+      },
+      {
+        "by": "syn-typo-cargo",
+        "layer": "patch",
+        "note": null,
+        "text": "Synthetic hull 0. A test ship description.\\nSecond line. (fixed)",
+        "winner": true
+      }
+    ],
+    "row": {
+      "category": "ships",
+      "key": "vehicle_DescSYN_Ship_00000",
+      "original": "Synthetic hull 0. A test ship description.\\nSecond line.",
+      "result": "Synthetic hull 0. A test ship description.\\nSecond line. (fixed)",
+      "source": "patched"
+    }
+  }
+}

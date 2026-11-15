@@ -112,6 +112,10 @@ mod tests {
     use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder, mock_context, noop_assets};
     use tauri::webview::InvokeRequest;
 
+    fn mock_backend() -> crate::contract::BackendState {
+        crate::contract::BackendState::new(crate::contract::mock::MockBackend::default())
+    }
+
     fn fake_install(root: &std::path::Path) {
         for (name, manifest) in [
             (
@@ -173,9 +177,13 @@ mod tests {
     fn list_channels_over_ipc_returns_the_cli_shape() {
         let t = tempfile::tempdir().unwrap();
         fake_install(t.path());
-        let app = crate::builder(mock_builder(), fixture(t.path().to_path_buf()))
-            .build(mock_context(noop_assets()))
-            .unwrap();
+        let app = crate::builder(
+            mock_builder(),
+            fixture(t.path().to_path_buf()),
+            mock_backend(),
+        )
+        .build(mock_context(noop_assets()))
+        .unwrap();
         let v = invoke(&app, "list_channels");
 
         assert_eq!(v["schema"], 1);
@@ -203,16 +211,20 @@ mod tests {
     #[test]
     fn list_channels_with_nothing_found_is_empty_not_an_error() {
         let t = tempfile::tempdir().unwrap();
-        let app = crate::builder(mock_builder(), fixture(t.path().join("nope")))
-            .build(mock_context(noop_assets()))
-            .unwrap();
+        let app = crate::builder(
+            mock_builder(),
+            fixture(t.path().join("nope")),
+            mock_backend(),
+        )
+        .build(mock_context(noop_assets()))
+        .unwrap();
         let v = invoke(&app, "list_channels");
         assert_eq!(v["installs"].as_array().unwrap().len(), 0);
     }
 
     #[test]
     fn app_info_over_ipc_reports_the_workspace_version() {
-        let app = crate::builder(mock_builder(), DiscoveryConfig::default())
+        let app = crate::builder(mock_builder(), DiscoveryConfig::default(), mock_backend())
             .build(mock_context(noop_assets()))
             .unwrap();
         let v = invoke(&app, "app_info");
