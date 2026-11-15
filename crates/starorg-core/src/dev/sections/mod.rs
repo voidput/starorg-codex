@@ -139,6 +139,8 @@ pub struct ListItem {
     /// Readable kind (`Coolers`), when the table has one.
     pub kind_label: Option<String>,
     pub sub_type: Option<String>,
+    /// Readable sub-type (`Spaceships`), when the table has one.
+    pub sub_label: Option<String>,
     pub size: Option<i64>,
     pub manufacturer: Option<String>,
     /// `Aegis Dynamics`, when known.
@@ -1144,9 +1146,13 @@ impl SectionIndex {
                 r.class,
                 r.tag,
             ];
+            // `UNDEFINED` is no sub-type to filter by.
+            let undefined = self
+                .s(r.sub)
+                .is_some_and(|x| x.eq_ignore_ascii_case("UNDEFINED"));
             for (d, v) in vals.iter().enumerate() {
                 let none = if d == 3 { u32::from(NO_SIZE) } else { NONE };
-                if ok(d) && *v != none {
+                if ok(d) && *v != none && !(d == 2 && undefined) {
                     *counts[d].entry(*v).or_default() += 1;
                 }
             }
@@ -1354,6 +1360,10 @@ impl SectionIndex {
             sub_type: self
                 .s(r.sub)
                 .filter(|s| !s.eq_ignore_ascii_case("UNDEFINED"))
+                .map(str::to_string),
+            sub_label: self
+                .s(r.sub)
+                .and_then(rules::value_label)
                 .map(str::to_string),
             size: (r.size != NO_SIZE).then_some(i64::from(r.size)),
             manufacturer: maker.map(str::to_string),
