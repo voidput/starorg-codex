@@ -50,7 +50,7 @@ registry! {
 
     fps_weapons, // fps-weapons.ts
 
-    // item_sources, // item-sources.ts
+    item_sources, // item-sources.ts
 
     item_tags, // item-tags.ts
 
