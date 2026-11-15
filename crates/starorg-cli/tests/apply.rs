@@ -162,27 +162,38 @@ fn concurrent_applies_on_a_shared_user_cfg_keep_both_on_the_ledger() {
     std::fs::write(f.shared_cfg(), before).unwrap();
     f.setup("LIVE");
     f.setup("HOTFIX");
-    // LIVE reads USER.cfg (no language line), then waits before its user.cfg step.
+    // LIVE reads USER.cfg (no language line), then waits before its user.cfg step until the
+    // `go` file exists. Signal files, not sleeps, so a slow CI runner cannot reorder the runs.
+    let go = f.prefix.join("cfg-go");
+    let reached = f.prefix.join("cfg-go.reached");
     let slow = f
         .cmd(&[
             "apply",
             "--channel",
             "LIVE",
             "--json",
-            "--test-pause-before-cfg-ms",
-            "1500",
+            "--test-pause-before-cfg-until",
+            go.to_str().unwrap(),
         ])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
         .unwrap();
-    std::thread::sleep(std::time::Duration::from_millis(400));
+    let t0 = std::time::Instant::now();
+    while !reached.exists() {
+        assert!(
+            t0.elapsed() < std::time::Duration::from_secs(120),
+            "LIVE never reached the user.cfg step"
+        );
+        std::thread::sleep(std::time::Duration::from_millis(20));
+    }
     // Meanwhile HOTFIX appends the line and the user adds one of their own.
     let (code, v) = f.json(&["apply", "--channel", "HOTFIX"]);
     assert_eq!(code, 0, "{v}");
     assert_eq!(v["channels"][0]["user_cfg"]["changed"], true);
     let mid = std::fs::read_to_string(f.shared_cfg()).unwrap();
     std::fs::write(f.shared_cfg(), format!("{mid}sys_MaxFPS = 144\r\n")).unwrap();
+    std::fs::write(&go, b"").unwrap();
     let o = slow.wait_with_output().unwrap();
     assert_eq!(o.status.code(), Some(0), "{o:?}");
     let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
