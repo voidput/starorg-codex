@@ -62,7 +62,7 @@ registry! {
 
     mining, // mining.ts
 
-    // mining_spawns, // mining-spawns.ts
+    mining_spawns, // mining-spawns.ts
 
     // missions, // missions.ts
 
