@@ -158,13 +158,13 @@ vehicle_DescZETA_Scout=Manufacturer: Filler\nFocus: Filler\n\nShip filler prose.
 zeta_haul_title=Filler Haul <EM4>[BP]</EM4> <EM4>[150 Rep]</EM4>
 
 [mission-descriptions] zeta_haul_desc <- Zeta_Haul_E
-zeta_haul_desc=Filler haul prose at ~mission(Location|Address).\n\n<EM3>BLUEPRINTS</EM3>\n- Filler pistol\n- Filler rifle [Owned]\n- [MIL-S1-B] Filler Wall\n\n<EM3>ITEM REWARDS</EM3>\n- Filler Scrip ×3\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Guaranteed\n<EM4>Reputation:</EM4> 150\n<EM4>Failure:</EM4> -1,000\n<EM4>Requires:</EM4> Filler Junior\n<EM4>Type:</EM4> Chain, Once only
+zeta_haul_desc=Filler haul prose at ~mission(Location|Address).\n\n<EM3>BLUEPRINTS</EM3>\n- Filler pistol\n- Filler rifle <EM4>[Owned]</EM4>\n- [MIL-S1-B] Filler Wall\n\n<EM3>ITEM REWARDS</EM3>\n- Filler Scrip ×3\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Guaranteed\n<EM4>Reputation:</EM4> 150\n<EM4>Failure:</EM4> -1,000\n<EM4>Requires:</EM4> Filler Junior\n<EM4>Type:</EM4> Chain, Once only
 
 [mission-titles] zeta_bounty_title <- Zeta_Bounty_Easy (+2 more)
 zeta_bounty_title=Filler Bounty <EM4>[BP?]</EM4> <EM4>[100–300 Rep]</EM4>
 
 [mission-descriptions] zeta_bounty_desc <- Zeta_Bounty_Easy (+2 more)
-zeta_bounty_desc=Filler bounty prose for <EM4>~mission(Contractor)</EM4>.\n\n<EM3>BLUEPRINTS</EM3>\n<EM4>[Easy]</EM4>\n- Filler pistol\n- Filler rifle [Owned]\n- [MIL-S1-B] Filler Wall\n<EM4>[Hard]</EM4>\n- Filler lmg\n- [E-S3] Filler Scatter\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Some variants only\n<EM4>Reputation:</EM4> 100–300\n<EM4>Requires:</EM4> Filler Senior
+zeta_bounty_desc=Filler bounty prose for <EM4>~mission(Contractor)</EM4>.\n\n<EM3>BLUEPRINTS</EM3>\n<EM4>[Easy]</EM4>\n- Filler pistol\n- Filler rifle <EM4>[Owned]</EM4>\n- [MIL-S1-B] Filler Wall\n<EM4>[Hard]</EM4>\n- Filler lmg\n- [E-S3] Filler Scatter\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Some variants only\n<EM4>Reputation:</EM4> 100–300\n<EM4>Requires:</EM4> Filler Senior
 
 [mission-titles] zeta_patrol_title <- Zeta_Patrol
 zeta_patrol_title=Filler Patrol <EM4>[8,000 Rep]</EM4>

@@ -445,7 +445,7 @@ fn mission_descriptions() {
         [
             "\\n\\n<EM3>BLUEPRINTS</EM3>",
             "- Filler pistol",
-            "- Filler rifle [Owned]",
+            "- Filler rifle <EM4>[Owned]</EM4>",
             "- [MIL-S1-B] Filler Wall",
             "",
             "<EM3>ITEM REWARDS</EM3>",
@@ -759,7 +759,7 @@ fn same_named_blueprints_are_marked_only_when_all_agree() {
     // [BP Owned] in the title.
     let g = generate(&gd, &stock, &p, &ids(&["bp-bp_craft_zeta_twin_core"]));
     assert!(
-        body(&g).contains("\\n- Filler pistol [Owned]\\n- Filler Twin\\n\\n"),
+        body(&g).contains("\\n- Filler pistol <EM4>[Owned]</EM4>\\n- Filler Twin\\n\\n"),
         "{}",
         body(&g)
     );
@@ -775,7 +775,7 @@ fn same_named_blueprints_are_marked_only_when_all_agree() {
         &ids(&["bp-bp_craft_zeta_twin_core", "bp-bp_craft_zeta_twin_helmet"]),
     );
     assert!(
-        body(&g).contains("\\n- Filler Twin [Owned]"),
+        body(&g).contains("\\n- Filler Twin <EM4>[Owned]</EM4>"),
         "{}",
         body(&g)
     );

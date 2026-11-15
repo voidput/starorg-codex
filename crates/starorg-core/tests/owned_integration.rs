@@ -100,9 +100,9 @@ fn import_with_gamedata_then_owned_markers_from_the_store() {
 
     let g = generate(&gd, &stock, &Profile::default(), &sel);
     let desc = added(&g, &stock, "zeta_haul_desc");
-    assert!(desc.contains("- Filler rifle [Owned]"), "{desc}");
+    assert!(desc.contains("- Filler rifle <EM4>[Owned]</EM4>"), "{desc}");
     assert!(desc.contains("- Filler pistol\\n"), "{desc}");
-    assert!(desc.contains("Filler Wall [Owned]"), "{desc}");
+    assert!(desc.contains("Filler Wall <EM4>[Owned]</EM4>"), "{desc}");
 }
 
 #[test]
@@ -119,8 +119,11 @@ fn log_only_entries_mark_by_name() {
     assert!(sel.ids.is_empty());
     let g = generate(&gd, &stock, &Profile::default(), &sel);
     let desc = added(&g, &stock, "zeta_haul_desc");
-    assert!(desc.contains("- Filler pistol [Owned]"), "{desc}");
-    assert!(!desc.contains("Filler rifle [Owned]"), "{desc}");
+    assert!(
+        desc.contains("- Filler pistol <EM4>[Owned]</EM4>"),
+        "{desc}"
+    );
+    assert!(!desc.contains("Filler rifle <EM4>[Owned]</EM4>"), "{desc}");
 }
 
 #[test]
@@ -157,8 +160,11 @@ fn a_name_two_blueprints_share_marks_neither() {
     assert_eq!((sel.count, sel.ambiguous), (1, 1));
     let g = generate(&gd, &stock, &Profile::default(), &sel);
     let desc = added(&g, &stock, "zeta_haul_desc");
-    assert!(!desc.contains("Filler rifle [Owned]"), "{desc}");
-    assert!(desc.contains("- Filler pistol [Owned]"), "{desc}");
+    assert!(!desc.contains("Filler rifle <EM4>[Owned]</EM4>"), "{desc}");
+    assert!(
+        desc.contains("- Filler pistol <EM4>[Owned]</EM4>"),
+        "{desc}"
+    );
 
     // A log-scan entry (name only, no ids) for the shared name is not a guess either.
     let raw = serde_json::json!({

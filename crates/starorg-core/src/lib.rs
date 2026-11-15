@@ -44,5 +44,6 @@ pub mod validate;
 /// only. Manifests written before this field existed (0.1.0) read as version 1.
 ///
 /// History: 1 = 0.1.0; 2 = no stats in shared `LOC_*` sentinels or placeholder text;
-/// 3 = same-named blueprints: ownership per blueprint, no false `[Owned]`/`[BP Owned]`.
-pub const OUTPUT_VERSION: u32 = 3;
+/// 3 = same-named blueprints: ownership per blueprint, no false `[Owned]`/`[BP Owned]`;
+/// 4 = `[Owned]` coloured by default (EM4, the game's blue).
+pub const OUTPUT_VERSION: u32 = 4;

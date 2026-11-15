@@ -207,7 +207,7 @@ function presetProfile(p: T.Preset): T.Profile {
       title_bp_em: 4,
       title_rep_em: 4,
       title_owned: false,
-      owned_em: 0,
+      owned_em: 4,
       owned_line: false,
       missing_marker: false,
       missing_em: 0,
