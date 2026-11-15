@@ -18,7 +18,7 @@ export interface CommandMap {
   setup: [{ req: T.SetupRequest }, T.SetupResult];
   channel_status: [{ req: T.ChannelRef }, T.ChannelSummary];
   apply: [{ req: T.ApplyRequest }, T.ApplyReport];
-  remove_changes: [{ req: T.ChannelRef }, T.ApplyReport];
+  remove_changes: [{ req: T.RemoveRequest }, T.ApplyReport];
   undo_last_apply: [{ req: T.ChannelRef }, T.ApplyReport];
   restore_backup: [{ req: T.RestoreRequest }, T.ApplyReport];
   list_backups: [{ req: T.ChannelRef }, T.BackupList];
@@ -26,6 +26,7 @@ export interface CommandMap {
   delete_backup: [{ req: T.BackupRef }, T.BackupList];
   cancel_job: [{ job: string }, null];
   build_preview: [{ req: T.PreviewRequest }, T.PreviewItem[]];
+  profile_schema: [Record<string, never>, T.ProfileSchema];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
   preset_profile: [{ preset: T.Preset }, T.Profile];
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
@@ -34,9 +35,14 @@ export interface CommandMap {
   string_detail: [{ req: T.KeyRequest }, T.StringDetail];
   set_override: [{ req: T.OverrideRequest }, T.OverrideResult];
   reset_override: [{ req: T.KeyRequest }, T.StringDetail];
+  list_overrides: [{ req: T.ChannelRef }, T.OverrideEntry[]];
   list_patches: [{ req: T.ChannelRef }, T.PatchView[]];
   set_patch_enabled: [{ req: T.PatchToggle }, T.PatchView];
   patch_detail: [{ req: T.PatchRef }, T.PatchDetail];
+  add_user_patch: [{ req: T.NewPatch }, T.PatchView];
+  import_user_patch: [{ req: T.ChannelRef }, T.PatchView];
+  export_user_patch: [{ req: T.PatchRef }, T.PatchExport];
+  delete_user_patch: [{ req: T.PatchRef }, T.PatchView[]];
   activity: [{ limit: number }, T.LogEntry[]];
   get_settings: [Record<string, never>, T.Settings];
   save_settings: [{ req: T.Settings }, T.Settings];
@@ -44,6 +50,7 @@ export interface CommandMap {
   set_active_character: [{ req: T.SetActiveCharacter }, T.CharactersView];
   owned_blueprints: [{ req: T.CharacterRequest }, T.OwnedBlueprint[]];
   import_smart_citizen: [{ req: T.ImportRequest }, T.ImportReport];
+  forget_character: [{ req: T.CharacterRequest }, T.CharactersView];
   starorg_status: [{ channel: string }, T.StarOrgStatus];
   starorg_login: [{ channel: string }, T.StarOrgStatus];
   starorg_logout: [{ channel: string }, T.StarOrgStatus];
@@ -78,6 +85,7 @@ export const COMMANDS = [
   'delete_backup',
   'cancel_job',
   'build_preview',
+  'profile_schema',
   'get_profile',
   'preset_profile',
   'save_profile',
@@ -86,9 +94,14 @@ export const COMMANDS = [
   'string_detail',
   'set_override',
   'reset_override',
+  'list_overrides',
   'list_patches',
   'set_patch_enabled',
   'patch_detail',
+  'add_user_patch',
+  'import_user_patch',
+  'export_user_patch',
+  'delete_user_patch',
   'activity',
   'get_settings',
   'save_settings',
@@ -96,6 +109,7 @@ export const COMMANDS = [
   'set_active_character',
   'owned_blueprints',
   'import_smart_citizen',
+  'forget_character',
   'starorg_status',
   'starorg_login',
   'starorg_logout',
@@ -208,7 +222,7 @@ export const api = {
   setup: (req: T.SetupRequest) => call('setup', { req }),
   channelStatus: (req: T.ChannelRef) => call('channel_status', { req }),
   apply: (req: T.ApplyRequest) => call('apply', { req }),
-  removeChanges: (req: T.ChannelRef) => call('remove_changes', { req }),
+  removeChanges: (req: T.RemoveRequest) => call('remove_changes', { req }),
   undoLastApply: (req: T.ChannelRef) => call('undo_last_apply', { req }),
   restoreBackup: (req: T.RestoreRequest) => call('restore_backup', { req }),
   listBackups: (req: T.ChannelRef) => call('list_backups', { req }),
@@ -216,6 +230,7 @@ export const api = {
   deleteBackup: (req: T.BackupRef) => call('delete_backup', { req }),
   cancelJob: (job: string) => call('cancel_job', { job }),
   buildPreview: (req: T.PreviewRequest) => call('build_preview', { req }),
+  profileSchema: () => call('profile_schema', none),
   getProfile: (req: T.ChannelRef) => call('get_profile', { req }),
   presetProfile: (preset: T.Preset) => call('preset_profile', { preset }),
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),
@@ -224,9 +239,14 @@ export const api = {
   stringDetail: (req: T.KeyRequest) => call('string_detail', { req }),
   setOverride: (req: T.OverrideRequest) => call('set_override', { req }),
   resetOverride: (req: T.KeyRequest) => call('reset_override', { req }),
+  listOverrides: (req: T.ChannelRef) => call('list_overrides', { req }),
   listPatches: (req: T.ChannelRef) => call('list_patches', { req }),
   setPatchEnabled: (req: T.PatchToggle) => call('set_patch_enabled', { req }),
   patchDetail: (req: T.PatchRef) => call('patch_detail', { req }),
+  addUserPatch: (req: T.NewPatch) => call('add_user_patch', { req }),
+  importUserPatch: (req: T.ChannelRef) => call('import_user_patch', { req }),
+  exportUserPatch: (req: T.PatchRef) => call('export_user_patch', { req }),
+  deleteUserPatch: (req: T.PatchRef) => call('delete_user_patch', { req }),
   activity: (limit = 200) => call('activity', { limit }),
   getSettings: () => call('get_settings', none),
   saveSettings: (req: T.Settings) => call('save_settings', { req }),
@@ -234,6 +254,7 @@ export const api = {
   setActiveCharacter: (req: T.SetActiveCharacter) => call('set_active_character', { req }),
   ownedBlueprints: (req: T.CharacterRequest) => call('owned_blueprints', { req }),
   importSmartCitizen: (req: T.ImportRequest) => call('import_smart_citizen', { req }),
+  forgetCharacter: (req: T.CharacterRequest) => call('forget_character', { req }),
   starorgStatus: (channel: string) => call('starorg_status', { channel }),
   starorgLogin: (channel: string) => call('starorg_login', { channel }),
   starorgLogout: (channel: string) => call('starorg_logout', { channel }),

@@ -23,6 +23,10 @@ interface Samples {
   list_backups: T.BackupList;
   backup_now: T.BackupView;
   remove_changes: T.ApplyReport;
+  profile_schema: T.ProfileSchema;
+  list_overrides: T.OverrideEntry[];
+  add_user_patch: T.PatchView;
+  export_user_patch: T.PatchExport;
   build_preview: T.PreviewItem[];
   get_profile: T.Profile;
   query_strings: T.StringsPage;

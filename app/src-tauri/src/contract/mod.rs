@@ -27,21 +27,27 @@ pub trait Backend: Send + Sync + 'static {
     fn discover_installs(&self, deep: bool) -> CmdResult<Vec<InstallSummary>>;
     /// Opens the native folder picker in the real backend; the webview never sends a path.
     fn pick_install_folder(&self) -> CmdResult<Option<InstallSummary>>;
-    /// The review step: what `setup` + apply would write, without writing.
+    /// The review step: what `setup` + apply would write, without writing. Real backend:
+    /// `counts` come from an M1 dry-run apply per channel with the chosen preset.
     fn plan_setup(&self, req: SetupRequest) -> CmdResult<SetupPlan>;
     fn setup(&self, req: SetupRequest) -> CmdResult<SetupResult>;
     fn channel_status(&self, req: ChannelRef) -> CmdResult<ChannelSummary>;
 
+    /// Guards (game running, lock, Data.p4k busy) come back as `result: skipped`, not `Err`.
     fn apply(&self, req: ApplyRequest, progress: Progress<'_>) -> CmdResult<ApplyReport>;
-    fn remove_changes(&self, req: ChannelRef) -> CmdResult<ApplyReport>;
+    /// `needs-decision` while another tool's file is in place and `allow_foreign` is false.
+    fn remove_changes(&self, req: RemoveRequest) -> CmdResult<ApplyReport>;
     fn undo_last_apply(&self, req: ChannelRef) -> CmdResult<ApplyReport>;
     fn restore_backup(&self, req: RestoreRequest) -> CmdResult<ApplyReport>;
     fn list_backups(&self, req: ChannelRef) -> CmdResult<BackupList>;
     fn backup_now(&self, req: ChannelRef) -> CmdResult<BackupView>;
     fn delete_backup(&self, req: BackupRef) -> CmdResult<BackupList>;
+    /// Stops a running job at its next step; the job's call then fails with `cancelled`.
     fn cancel_job(&self, job: String) -> CmdResult<()>;
 
     fn build_preview(&self, req: PreviewRequest) -> CmdResult<Vec<PreviewItem>>;
+    /// Labels for the core's stat line and tag element ids.
+    fn profile_schema(&self) -> CmdResult<ProfileSchema>;
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile>;
     fn preset_profile(&self, preset: Preset) -> CmdResult<Profile>;
     fn save_profile(&self, req: SaveProfileRequest) -> CmdResult<Profile>;
@@ -51,10 +57,18 @@ pub trait Backend: Send + Sync + 'static {
     fn string_detail(&self, req: KeyRequest) -> CmdResult<StringDetail>;
     fn set_override(&self, req: OverrideRequest) -> CmdResult<OverrideResult>;
     fn reset_override(&self, req: KeyRequest) -> CmdResult<StringDetail>;
+    fn list_overrides(&self, req: ChannelRef) -> CmdResult<Vec<OverrideEntry>>;
 
     fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>>;
     fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView>;
     fn patch_detail(&self, req: PatchRef) -> CmdResult<PatchDetail>;
+    fn add_user_patch(&self, req: NewPatch) -> CmdResult<PatchView>;
+    /// Real backend: file picker for a `.patch.toml`; the webview never sends a path.
+    fn import_user_patch(&self, req: ChannelRef) -> CmdResult<PatchView>;
+    /// Real backend: also a save dialog.
+    fn export_user_patch(&self, req: PatchRef) -> CmdResult<PatchExport>;
+    /// User patches only; built-in ones can be switched off, not deleted.
+    fn delete_user_patch(&self, req: PatchRef) -> CmdResult<Vec<PatchView>>;
 
     fn activity(&self, limit: u32) -> CmdResult<Vec<LogEntry>>;
 
@@ -66,6 +80,8 @@ pub trait Backend: Send + Sync + 'static {
     fn owned_blueprints(&self, req: CharacterRequest) -> CmdResult<Vec<OwnedBlueprint>>;
     /// Real backend: file picker for Smart Citizen's `owned-blueprints.json`, then import.
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport>;
+    /// Deletes one character's owned set (`<geid>.json`) and its entry in the character list.
+    fn forget_character(&self, req: CharacterRequest) -> CmdResult<CharactersView>;
 
     fn starorg_status(&self, channel: String) -> CmdResult<StarOrgStatus>;
     fn starorg_login(&self, channel: String) -> CmdResult<StarOrgStatus>;
@@ -128,7 +144,7 @@ commands! {
     plan_setup(req: SetupRequest) -> SetupPlan;
     setup(req: SetupRequest) -> SetupResult;
     channel_status(req: ChannelRef) -> ChannelSummary;
-    remove_changes(req: ChannelRef) -> ApplyReport;
+    remove_changes(req: RemoveRequest) -> ApplyReport;
     undo_last_apply(req: ChannelRef) -> ApplyReport;
     restore_backup(req: RestoreRequest) -> ApplyReport;
     list_backups(req: ChannelRef) -> BackupList;
@@ -136,6 +152,7 @@ commands! {
     delete_backup(req: BackupRef) -> BackupList;
     cancel_job(job: String) -> ();
     build_preview(req: PreviewRequest) -> Vec<PreviewItem>;
+    profile_schema() -> ProfileSchema;
     get_profile(req: ChannelRef) -> Profile;
     preset_profile(preset: Preset) -> Profile;
     save_profile(req: SaveProfileRequest) -> Profile;
@@ -144,9 +161,14 @@ commands! {
     string_detail(req: KeyRequest) -> StringDetail;
     set_override(req: OverrideRequest) -> OverrideResult;
     reset_override(req: KeyRequest) -> StringDetail;
+    list_overrides(req: ChannelRef) -> Vec<OverrideEntry>;
     list_patches(req: ChannelRef) -> Vec<PatchView>;
     set_patch_enabled(req: PatchToggle) -> PatchView;
     patch_detail(req: PatchRef) -> PatchDetail;
+    add_user_patch(req: NewPatch) -> PatchView;
+    import_user_patch(req: ChannelRef) -> PatchView;
+    export_user_patch(req: PatchRef) -> PatchExport;
+    delete_user_patch(req: PatchRef) -> Vec<PatchView>;
     activity(limit: u32) -> Vec<LogEntry>;
     get_settings() -> Settings;
     save_settings(req: Settings) -> Settings;
@@ -154,6 +176,7 @@ commands! {
     set_active_character(req: SetActiveCharacter) -> CharactersView;
     owned_blueprints(req: CharacterRequest) -> Vec<OwnedBlueprint>;
     import_smart_citizen(req: ImportRequest) -> ImportReport;
+    forget_character(req: CharacterRequest) -> CharactersView;
     starorg_status(channel: String) -> StarOrgStatus;
     starorg_login(channel: String) -> StarOrgStatus;
     starorg_logout(channel: String) -> StarOrgStatus;
@@ -204,6 +227,7 @@ macro_rules! contract_handler {
             $crate::contract::delete_backup,
             $crate::contract::cancel_job,
             $crate::contract::build_preview,
+            $crate::contract::profile_schema,
             $crate::contract::get_profile,
             $crate::contract::preset_profile,
             $crate::contract::save_profile,
@@ -212,9 +236,14 @@ macro_rules! contract_handler {
             $crate::contract::string_detail,
             $crate::contract::set_override,
             $crate::contract::reset_override,
+            $crate::contract::list_overrides,
             $crate::contract::list_patches,
             $crate::contract::set_patch_enabled,
             $crate::contract::patch_detail,
+            $crate::contract::add_user_patch,
+            $crate::contract::import_user_patch,
+            $crate::contract::export_user_patch,
+            $crate::contract::delete_user_patch,
             $crate::contract::activity,
             $crate::contract::get_settings,
             $crate::contract::save_settings,
@@ -222,6 +251,7 @@ macro_rules! contract_handler {
             $crate::contract::set_active_character,
             $crate::contract::owned_blueprints,
             $crate::contract::import_smart_citizen,
+            $crate::contract::forget_character,
             $crate::contract::starorg_status,
             $crate::contract::starorg_login,
             $crate::contract::starorg_logout,
@@ -255,6 +285,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "delete_backup",
     "cancel_job",
     "build_preview",
+    "profile_schema",
     "get_profile",
     "preset_profile",
     "save_profile",
@@ -263,9 +294,14 @@ pub const COMMAND_NAMES: &[&str] = &[
     "string_detail",
     "set_override",
     "reset_override",
+    "list_overrides",
     "list_patches",
     "set_patch_enabled",
     "patch_detail",
+    "add_user_patch",
+    "import_user_patch",
+    "export_user_patch",
+    "delete_user_patch",
     "activity",
     "get_settings",
     "save_settings",
@@ -273,6 +309,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "set_active_character",
     "owned_blueprints",
     "import_smart_citizen",
+    "forget_character",
     "starorg_status",
     "starorg_login",
     "starorg_logout",

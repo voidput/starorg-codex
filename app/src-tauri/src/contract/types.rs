@@ -350,7 +350,32 @@ pub struct PatchOutcome {
     pub state: PatchState,
 }
 
+/// What an apply used for `[Owned]` markers (M1 `blueprints::Selection`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OwnedSelection {
+    pub mode: OwnedMode,
+    /// geid(s) whose sets were used.
+    pub characters: Vec<String>,
+    pub count: u32,
+    /// Names matched to several blueprints: listed, never marked.
+    pub ambiguous: u32,
+}
+
+/// M1 `Selection::mode`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OwnedMode {
+    Auto,
+    Any,
+    Character,
+}
+
 /// The `apply` JSON entry of spec 8, plus what the review step shows.
+///
+/// A returned report is not a success: M1 reports guards (game running, Data.p4k being
+/// written, lock held, timeout) as `skipped` + `reason`, and `failed`, `needs-setup`,
+/// `needs-decision`, `up-to-date` the same way. The UI switches on `result`
+/// (`app/src/lib/outcome.ts`); `Err(AppError)` is only for calls that could not run at all.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ApplyReport {
     pub channel: String,
@@ -365,6 +390,9 @@ pub struct ApplyReport {
     pub backup_dir: Option<String>,
     pub target: Option<String>,
     pub target_is_link: bool,
+    /// M1 journal recovery: an interrupted earlier apply was rolled back (shown to the user).
+    pub recovered: Option<String>,
+    pub owned: Option<OwnedSelection>,
     pub duration_ms: u64,
 }
 
@@ -372,6 +400,14 @@ pub struct ApplyReport {
 pub struct ApplyRequest {
     pub target: ChannelRef,
     pub dry_run: bool,
+}
+
+/// M1 `remove(ctx, t, yes)`: without `allow_foreign`, a loose file that belongs to another
+/// tool is not removed and the report comes back `needs-decision`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemoveRequest {
+    pub target: ChannelRef,
+    pub allow_foreign: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -433,7 +469,10 @@ pub struct BackupList {
     pub folder: String,
     pub backups: Vec<BackupView>,
     pub offers: RestoreOffers,
+    /// Retention (M1 `backup::KEEP_NEWEST`, `KEEP_BUILDS`): the newest N backups, plus the newest
+    /// one of each of the last `keep_builds` game builds, plus the pinned pre-existing file.
     pub keep_newest: u32,
+    pub keep_builds: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -473,45 +512,25 @@ pub struct PreviewRequest {
 // Enhancements profile (spec 4.7, 5, 6)
 // ---------------------------------------------------------------------------------------
 
+/// Generator categories with an on/off switch (M2 `enhance::Profile` booleans).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum CategoryId {
     Ships,
     Components,
     ShipWeapons,
-    Missiles,
     FpsWeapons,
-    NameTags,
+    Missiles,
     Missions,
-    Blueprints,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct StatLine {
-    pub id: String,
-    pub label: String,
-    pub enabled: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct CategorySettings {
-    pub id: CategoryId,
-    pub label: String,
-    pub enabled: bool,
-    pub lines: Vec<StatLine>,
-}
-
+/// Tag kinds of the Tag Builder (M2 `enhance::Tags` fields).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
-pub enum StatsPlacement {
-    BelowProse,
-    AboveProse,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FormatOptions {
-    pub placement: StatsPlacement,
-    pub header: String,
+pub enum TagKind {
+    Components,
+    ShipWeapons,
+    Missiles,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -522,6 +541,7 @@ pub enum TagStyle {
     Long,
 }
 
+/// M2 separators `-`, ``, ` `, `_`, `.`, `/`, `|`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TagSeparator {
@@ -534,6 +554,7 @@ pub enum TagSeparator {
     Pipe,
 }
 
+/// M2 enclosings `[]`, `()`, `{}`, `<>`, ``.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TagEnclosing {
@@ -551,47 +572,113 @@ pub enum TagPlacement {
     Suffix,
 }
 
+/// One tag kind (M2 `enhance::TagStyle`). `elements` lists the parts that are on, in output
+/// order; parts not listed are off. `styles` holds non-default styles (default `medium`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TagElement {
-    pub id: String,
-    pub label: String,
+pub struct TagKindSettings {
     pub enabled: bool,
-    pub style: TagStyle,
-}
-
-/// Tag builder settings for one tag kind (spec 5.1 "Name tags"). `elements` is in output order.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct TagSettings {
-    pub kind: String,
-    pub label: String,
-    pub elements: Vec<TagElement>,
+    pub elements: Vec<String>,
+    pub styles: std::collections::BTreeMap<String, TagStyle>,
     pub separator: TagSeparator,
     pub enclosing: TagEnclosing,
     pub placement: TagPlacement,
-    pub short_name_too: bool,
 }
 
+/// M2 `enhance::Tags`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MissionOptions {
-    pub tag_bp: bool,
-    pub tag_bp_maybe: bool,
-    pub tag_rep: bool,
-    /// Wrap title tags in `<EM4>` (M2 in-game check decides the default).
-    pub em4_title_tags: bool,
-    pub body_sections: Vec<StatLine>,
-    pub mark_owned: bool,
+pub struct TagSettings {
+    pub components: TagKindSettings,
+    pub ship_weapons: TagKindSettings,
+    pub missiles: TagKindSettings,
+    /// Also tag the short-name key when the record has one (one switch for every kind).
+    pub short_names: bool,
+    /// Size-only tag on tractor beams, salvage heads, mining lasers and EMPs.
+    pub tool_size_tag: bool,
 }
 
+/// M2 `enhance::Mission`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MissionSettings {
+    /// `[BP]`, or `[BP?]` when only some variants can reward one: one switch in core.
+    pub title_blueprint: bool,
+    pub title_reputation: bool,
+    /// Wrap title tags in `<EM4>`.
+    pub title_em: bool,
+    pub blueprints: bool,
+    pub item_rewards: bool,
+    pub details: bool,
+    /// Name tags on blueprint bullets.
+    pub bullet_tags: bool,
+    /// `[Owned]` on bullets of blueprints the active character owns.
+    pub owned_marker: bool,
+    /// Lists longer than this end with `- and N more`.
+    pub max_list: u32,
+    /// EM tag for section headers, 3 or 4.
+    pub header_em: u8,
+    /// EM tag for detail labels, 3 or 4.
+    pub label_em: u8,
+}
+
+/// The channel's `profile.toml` (spec 4.7): M2 `enhance::Profile` field for field, plus the
+/// preset it was started from and M1's `[patches] disabled`. The real backend converts with
+/// no defaults of its own, so every switch here changes the output.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Profile {
+    /// The preset this profile equals, or null once anything differs.
     pub preset: Option<Preset>,
-    pub categories: Vec<CategorySettings>,
-    pub format: FormatOptions,
-    pub tags: Vec<TagSettings>,
-    pub missions: MissionOptions,
+    pub ships: bool,
+    pub components: bool,
+    pub ship_weapons: bool,
+    pub fps_weapons: bool,
+    pub missiles: bool,
+    pub missions: bool,
+    /// Stat lines switched off, as `<category>.<line>` (keys from [`ProfileSchema`]).
+    pub lines_off: Vec<String>,
+    pub stats_above: bool,
+    /// Plain ASCII; no `%`, `<`, `~` or `\n` (core refuses them).
+    pub header: String,
+    pub tags: TagSettings,
+    pub mission: MissionSettings,
     pub branding: bool,
-    pub fix_known_bugs: bool,
+    /// Patch ids switched off. "Fix known text bugs" off = every built-in id listed here.
     pub patches_disabled: Vec<String>,
+}
+
+/// A stat line the user can switch off; `key` is what goes into `lines_off`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LineSchema {
+    pub key: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CategorySchema {
+    pub id: CategoryId,
+    pub label: String,
+    pub blurb: String,
+    pub lines: Vec<LineSchema>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ElementSchema {
+    pub id: String,
+    pub label: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TagKindSchema {
+    pub kind: TagKind,
+    pub label: String,
+    /// Every part this kind can show, in default order.
+    pub elements: Vec<ElementSchema>,
+}
+
+/// What the Enhancements screen can show: labels for the core's line and element ids, so the
+/// UI never invents a switch the generators do not read.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProfileSchema {
+    pub categories: Vec<CategorySchema>,
+    pub tag_kinds: Vec<TagKindSchema>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -708,20 +795,56 @@ pub struct OverrideRequest {
     pub value: String,
 }
 
+/// M1 `validate::Rule::name()`, one per rule an override can break (spec 7.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum OverrideRule {
+    ControlCharacter,
+    AddedEmUnbalanced,
+    EmSignature,
+    VariableTokens,
+    FormatSpecifiers,
+    FormatKey,
+    PercentRule,
+    TooLong,
+}
+
+impl OverrideRule {
+    pub const ALL: [OverrideRule; 8] = [
+        OverrideRule::ControlCharacter,
+        OverrideRule::AddedEmUnbalanced,
+        OverrideRule::EmSignature,
+        OverrideRule::VariableTokens,
+        OverrideRule::FormatSpecifiers,
+        OverrideRule::FormatKey,
+        OverrideRule::PercentRule,
+        OverrideRule::TooLong,
+    ];
+}
+
 /// An override that breaks a validation rule is refused with the rule (spec 4.4, 7.3).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct OverrideResult {
     pub accepted: bool,
-    pub rule: Option<String>,
+    pub rule: Option<OverrideRule>,
     pub message: Option<String>,
     pub detail: Option<StringDetail>,
+}
+
+/// One line of the channel's `overrides.ini`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct OverrideEntry {
+    pub key: String,
+    pub value: String,
+    pub original: String,
 }
 
 // ---------------------------------------------------------------------------------------
 // Patches (spec 4.5)
 // ---------------------------------------------------------------------------------------
 
-/// Same names as M1's `patch::EntryState` plus `retired` (all entries not needed).
+/// M1's `patch::EntryState` names plus `retired`, the per-patch summary M1's
+/// `PatchOutcome::state` gives when every entry is `not-needed`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum PatchState {
@@ -733,6 +856,7 @@ pub enum PatchState {
     OutOfRange,
     Conflict,
     Disabled,
+    NoData,
     Retired,
 }
 
@@ -785,6 +909,36 @@ pub struct PatchToggle {
     pub target: ChannelRef,
     pub id: String,
     pub enabled: bool,
+}
+
+/// Loc ops a user patch made in the app can use (spec 4.5; `append_from` needs a file).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum LocOp {
+    Set,
+    Append,
+    Prepend,
+    Replace,
+}
+
+/// "Add patch": a one-entry loc patch written to `data/patches/<id>.patch.toml`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NewPatch {
+    pub target: ChannelRef,
+    pub title: String,
+    pub description: String,
+    pub key: String,
+    pub op: LocOp,
+    /// Only for `replace`: the exact text to swap (must match once).
+    pub find: Option<String>,
+    pub value: String,
+}
+
+/// A user patch as its TOML file. The real backend also offers a save dialog.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatchExport {
+    pub file_name: String,
+    pub text: String,
 }
 
 // ---------------------------------------------------------------------------------------
@@ -958,6 +1112,8 @@ pub struct ImportReport {
     pub known: Vec<String>,
     pub unmatched: Vec<String>,
     pub ambiguous: Vec<AmbiguousName>,
+    /// Game data was not read for this channel, so nothing could match (M1).
+    pub empty_catalog: bool,
 }
 
 // ---------------------------------------------------------------------------------------

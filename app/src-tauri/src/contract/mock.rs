@@ -66,6 +66,8 @@ struct MockChannel {
     patches: Vec<PatchView>,
     active: ActiveCharacter,
     owned: HashMap<String, Vec<OwnedBlueprint>>,
+    /// Characters whose entries were deleted (`forget_character`).
+    forgotten: BTreeSet<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -79,6 +81,10 @@ struct MockState {
     next_log: u64,
     next_job: u64,
     picked: bool,
+    /// Jobs asked to stop (`cancel_job`).
+    cancel: BTreeSet<String>,
+    /// User patch files exported or deleted, so "import" can bring one back.
+    patch_files: Vec<(PatchView, String)>,
 }
 
 /// Synthetic, stateful backend. `delay` slows long jobs so progress can be seen in the UI;
@@ -115,175 +121,219 @@ fn channel(name: &str, build: Build, status: ApplyState) -> ChannelSummary {
     }
 }
 
-fn line(id: &str, label: &str) -> StatLine {
-    StatLine {
-        id: id.into(),
-        label: label.into(),
+/// The profile setup writes: the preset, with every built-in patch listed in
+/// `patches_disabled` when "Fix known text bugs" is off.
+fn setup_profile(req: &SetupRequest) -> Profile {
+    let mut p = preset_profile(req.preset);
+    if !req.fix_known_bugs {
+        p.patches_disabled = builtin_patches().into_iter().map(|x| x.id).collect();
+    }
+    p
+}
+
+fn tag_kind(elements: &[&str], styles: &[(&str, TagStyle)]) -> TagKindSettings {
+    TagKindSettings {
         enabled: true,
-    }
-}
-
-fn element(id: &str, label: &str, enabled: bool, style: TagStyle) -> TagElement {
-    TagElement {
-        id: id.into(),
-        label: label.into(),
-        enabled,
-        style,
-    }
-}
-
-/// The profile a preset starts from (spec 4.7).
-pub fn preset_profile(p: Preset) -> Profile {
-    /// Category, label, (stat line id, label).
-    type Cat = (
-        CategoryId,
-        &'static str,
-        &'static [(&'static str, &'static str)],
-    );
-    let cats: [Cat; 8] = [
-        (
-            CategoryId::Ships,
-            "Ships",
-            &[
-                ("role", "Role, career, crew"),
-                ("size", "Size"),
-                ("speed", "SCM and max speed"),
-                ("boost", "Boost speeds"),
-                ("rates", "Pitch, yaw, roll"),
-                ("cargo", "Cargo and fuel"),
-                ("loadout", "Default loadout"),
-            ],
-        ),
-        (
-            CategoryId::Components,
-            "Components",
-            &[
-                ("class", "Class and grade"),
-                ("hp", "Health"),
-                ("power", "Power and cooling"),
-                ("signature", "EM and IR signature"),
-                ("quantum", "Quantum speed and fuel"),
-            ],
-        ),
-        (
-            CategoryId::ShipWeapons,
-            "Ship weapons",
-            &[
-                ("damage", "Damage and DPS"),
-                ("rate", "Fire rate"),
-                ("range", "Range and speed"),
-                ("ammo", "Ammo and heat"),
-            ],
-        ),
-        (
-            CategoryId::Missiles,
-            "Missiles and bombs",
-            &[
-                ("damage", "Damage"),
-                ("lock", "Lock time and range"),
-                ("speed", "Speed"),
-            ],
-        ),
-        (
-            CategoryId::FpsWeapons,
-            "FPS weapons",
-            &[
-                ("damage", "Damage"),
-                ("rate", "Fire rate"),
-                ("magazine", "Magazine"),
-            ],
-        ),
-        (
-            CategoryId::NameTags,
-            "Name tags",
-            &[("short_name", "Also on short names")],
-        ),
-        (
-            CategoryId::Missions,
-            "Missions",
-            &[("rewards", "Rewards"), ("blueprints", "Blueprint pools")],
-        ),
-        (
-            CategoryId::Blueprints,
-            "Blueprints",
-            &[("owned", "Mark owned blueprints")],
-        ),
-    ];
-    let on = |c: CategoryId| match p {
-        Preset::Everything => true,
-        Preset::Recommended => c != CategoryId::Blueprints,
-        Preset::Minimal => c == CategoryId::NameTags,
-    };
-    let categories = cats
-        .iter()
-        .map(|(id, label, lines)| CategorySettings {
-            id: *id,
-            label: (*label).into(),
-            enabled: on(*id),
-            lines: lines.iter().map(|(i, l)| line(i, l)).collect(),
-        })
-        .collect();
-    let tag = |kind: &str, label: &str, els: Vec<TagElement>| TagSettings {
-        kind: kind.into(),
-        label: label.into(),
-        elements: els,
+        elements: elements.iter().map(|e| e.to_string()).collect(),
+        styles: styles.iter().map(|(k, v)| (k.to_string(), *v)).collect(),
         separator: TagSeparator::Dash,
         enclosing: TagEnclosing::Square,
         placement: TagPlacement::Prefix,
-        short_name_too: false,
-    };
+    }
+}
+
+/// The profile a preset starts from: the same values as M2's `Profile::preset`.
+pub fn preset_profile(p: Preset) -> Profile {
+    let cats = p != Preset::Minimal;
+    let all = p == Preset::Everything;
     Profile {
         preset: Some(p),
-        categories,
-        format: FormatOptions {
-            placement: StatsPlacement::BelowProse,
-            header: "--- STATS ---".into(),
+        ships: cats,
+        components: cats,
+        ship_weapons: cats,
+        fps_weapons: cats,
+        missiles: cats,
+        missions: cats,
+        lines_off: Vec::new(),
+        stats_above: false,
+        header: "--- STATS ---".into(),
+        tags: TagSettings {
+            components: tag_kind(&["class", "size", "grade"], &[]),
+            ship_weapons: tag_kind(&["damage", "size"], &[("damage", TagStyle::Short)]),
+            missiles: tag_kind(&["tracking", "size"], &[]),
+            short_names: all,
+            tool_size_tag: all,
         },
-        tags: vec![
-            tag(
-                "component",
-                "Ship components",
-                vec![
-                    element("class", "Class", true, TagStyle::Short),
-                    element("size", "Size", true, TagStyle::Short),
-                    element("grade", "Grade", true, TagStyle::Short),
-                ],
-            ),
-            tag(
-                "weapon",
-                "Ship weapons",
-                vec![
-                    element("type", "Type", true, TagStyle::Short),
-                    element("size", "Size", true, TagStyle::Short),
-                    element("damage", "Damage type", false, TagStyle::Short),
-                ],
-            ),
-            tag(
-                "missile",
-                "Missiles",
-                vec![
-                    element("tracking", "Tracking", true, TagStyle::Short),
-                    element("size", "Size", true, TagStyle::Short),
-                ],
-            ),
-        ],
-        missions: MissionOptions {
-            tag_bp: p != Preset::Minimal,
-            tag_bp_maybe: p != Preset::Minimal,
-            tag_rep: p != Preset::Minimal,
-            em4_title_tags: true,
-            body_sections: vec![
-                line("reward", "Reward"),
-                line("reputation", "Reputation"),
-                line("blueprints", "Blueprint pool"),
-                line("timer", "Time limit"),
-            ],
-            mark_owned: p == Preset::Everything,
+        mission: MissionSettings {
+            title_blueprint: true,
+            title_reputation: true,
+            title_em: true,
+            blueprints: true,
+            item_rewards: true,
+            details: true,
+            bullet_tags: true,
+            owned_marker: true,
+            max_list: 25,
+            header_em: 3,
+            label_em: 4,
         },
-        branding: false,
-        fix_known_bugs: true,
+        branding: all,
         patches_disabled: Vec::new(),
     }
+}
+
+/// Labels for the stat line ids M2's generators read (`enhance::ships`, `enhance::items`).
+pub fn profile_schema() -> ProfileSchema {
+    type Lines = &'static [(&'static str, &'static str)];
+    let cat =
+        |id: CategoryId, label: &str, blurb: &str, prefix: &str, lines: Lines| CategorySchema {
+            id,
+            label: label.into(),
+            blurb: blurb.into(),
+            lines: lines
+                .iter()
+                .map(|(l, t)| LineSchema {
+                    key: format!("{prefix}.{l}"),
+                    label: (*t).into(),
+                })
+                .collect(),
+        };
+    let el = |els: &[(&str, &str)]| {
+        els.iter()
+            .map(|(id, label)| ElementSchema {
+                id: (*id).into(),
+                label: (*label).into(),
+            })
+            .collect()
+    };
+    ProfileSchema {
+        categories: vec![
+            cat(
+                CategoryId::Ships,
+                "Ships",
+                "A stats block in ship descriptions.",
+                "ships",
+                &[
+                    ("role", "Role, career and crew"),
+                    ("size", "Size"),
+                    ("speed", "SCM and max speed"),
+                    ("boost", "Boost speeds"),
+                    ("rotation", "Pitch, yaw and roll"),
+                    ("weapons", "Weapons"),
+                    ("components", "Components"),
+                    ("armor", "Armor"),
+                    ("damage_taken", "Damage taken"),
+                    ("cargo", "Cargo"),
+                ],
+            ),
+            cat(
+                CategoryId::Components,
+                "Components",
+                "Stats in shields, coolers, power plants, quantum drives and radars.",
+                "components",
+                &[
+                    ("health", "Health"),
+                    ("power", "Power use"),
+                    ("signatures", "EM and IR signatures"),
+                    ("shield", "Shield HP and regen"),
+                    ("delay", "Regen delay"),
+                    ("resist", "Resistances"),
+                    ("output", "Power output"),
+                    ("cooling", "Cooling"),
+                    ("speed", "Quantum speed"),
+                    ("fuel", "Quantum fuel use"),
+                    ("accel", "Quantum spool and acceleration"),
+                    ("calibration", "Calibration"),
+                    ("ping", "Radar range"),
+                    ("slots", "Missile rack slots"),
+                ],
+            ),
+            cat(
+                CategoryId::ShipWeapons,
+                "Ship weapons",
+                "Damage, fire rate and range in ship weapon descriptions.",
+                "ship_weapons",
+                &[
+                    ("damage", "Damage and DPS"),
+                    ("rate", "Fire rate"),
+                    ("velocity", "Projectile speed and range"),
+                    ("ammo", "Ammo"),
+                ],
+            ),
+            cat(
+                CategoryId::FpsWeapons,
+                "FPS weapons",
+                "Damage, fire rate and magazine in personal weapon descriptions.",
+                "fps_weapons",
+                &[
+                    ("damage", "Damage"),
+                    ("rate", "Fire rate"),
+                    ("velocity", "Projectile speed"),
+                    ("falloff", "Damage falloff"),
+                    ("magazine", "Magazine"),
+                    ("modifiers", "Attachment modifiers"),
+                ],
+            ),
+            cat(
+                CategoryId::Missiles,
+                "Missiles",
+                "Damage, lock and speed in missile and bomb descriptions.",
+                "missiles",
+                &[
+                    ("damage", "Damage"),
+                    ("tracking", "Tracking and lock time"),
+                    ("lock_range", "Lock range"),
+                    ("speed", "Speed"),
+                    ("health", "Health"),
+                ],
+            ),
+            cat(
+                CategoryId::Missions,
+                "Missions",
+                "Tags in contract titles and sections in their descriptions.",
+                "missions",
+                &[],
+            ),
+        ],
+        tag_kinds: vec![
+            TagKindSchema {
+                kind: TagKind::Components,
+                label: "Ship components".into(),
+                elements: el(&[("class", "Class"), ("size", "Size"), ("grade", "Grade")]),
+            },
+            TagKindSchema {
+                kind: TagKind::ShipWeapons,
+                label: "Ship weapons".into(),
+                elements: el(&[("damage", "Damage type"), ("size", "Size")]),
+            },
+            TagKindSchema {
+                kind: TagKind::Missiles,
+                label: "Missiles".into(),
+                elements: el(&[("tracking", "Tracking"), ("size", "Size")]),
+            },
+        ],
+    }
+}
+
+/// Synthetic per-category counts for a profile (plan_setup, apply).
+fn counts_for(p: &Profile, overrides: u32) -> ApplyCounts {
+    let n = |on: bool, v: u32| if on { v } else { 0 };
+    let mut c = ApplyCounts {
+        ships: n(p.ships, 231),
+        components: n(p.components, 1840),
+        ship_weapons: n(p.ship_weapons, 402),
+        fps_weapons: n(p.fps_weapons, 318),
+        missiles: n(p.missiles, 96),
+        missions: n(p.missions, 2140),
+        overrides,
+        dropped: 0,
+        changed: 0,
+    };
+    c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions)
+        * 2
+        + overrides
+        + 1200;
+    c
 }
 
 fn builtin_patches() -> Vec<PatchView> {
@@ -314,9 +364,9 @@ fn builtin_patches() -> Vec<PatchView> {
         p(
             "syn-old-name",
             "Renamed component",
-            "Retired: the game text was fixed upstream.",
+            "The game text was fixed upstream.",
             1,
-            PatchState::NotNeeded,
+            PatchState::Retired,
         ),
         p(
             "syn-moved-key",
@@ -379,6 +429,7 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
             resolved: Some(CHARACTERS[0].0.into()),
         },
         owned: owned_sets,
+        forgotten: BTreeSet::new(),
     }
 }
 
@@ -476,6 +527,8 @@ impl MockBackend {
             next_log: 1,
             next_job: 1,
             picked: false,
+            cancel: BTreeSet::new(),
+            patch_files: Vec::new(),
         };
         let me = Self {
             state: Mutex::new(state),
@@ -489,6 +542,14 @@ impl MockBackend {
             "Found 2 installs: LUG Helper config, Lutris game entry",
         );
         me
+    }
+
+    /// Test and demo switch: the game is running on a channel (M1's running guard).
+    pub fn set_game_running(&self, r: &ChannelRef, running: bool) {
+        let _ = self.with_channel(r, |c, _| {
+            c.summary.game_running = running;
+            Ok(())
+        });
     }
 
     fn lock(&self) -> MutexGuard<'_, MockState> {
@@ -674,25 +735,33 @@ fn detail(mut row: StringRow, ov: Option<String>) -> StringDetail {
     }
 }
 
-/// The subset of validation (spec 7.3) an override can break, for the "rejected" state.
-fn check_override(original: &str, value: &str) -> Option<(&'static str, String)> {
-    if value.contains('\n') || value.contains('\r') {
+/// The subset of M1's validation (spec 7.3, `validate::Rule`) an override can break, for the
+/// "rejected" state. Rule names are M1's.
+fn check_override(original: &str, value: &str) -> Option<(OverrideRule, String)> {
+    if value.chars().any(|c| c.is_control()) {
         return Some((
-            "newline",
+            OverrideRule::ControlCharacter,
             "A line break must be written as the two characters \\n.".into(),
         ));
     }
     let tags = |s: &str| s.matches("<EM").count() == s.matches("</EM").count();
     if !tags(value) {
         return Some((
-            "em-tags",
+            OverrideRule::AddedEmUnbalanced,
             "Every <EMn> tag needs its closing </EMn>.".into(),
+        ));
+    }
+    let vars = |s: &str| s.matches('~').count();
+    if vars(original) != vars(value) {
+        return Some((
+            OverrideRule::VariableTokens,
+            "The value must keep the original's ~variable(...) tokens.".into(),
         ));
     }
     let spec = |s: &str| s.matches("%s").count() + s.matches("%d").count();
     if spec(original) != spec(value) {
         return Some((
-            "format-specifiers",
+            OverrideRule::FormatSpecifiers,
             "The value must keep the original's %s / %d placeholders.".into(),
         ));
     }
@@ -703,8 +772,14 @@ fn check_override(original: &str, value: &str) -> Option<(&'static str, String)>
             .any(|r| r.starts_with(char::is_alphabetic))
     {
         return Some((
-            "percent",
+            OverrideRule::PercentRule,
             "A % must be followed by the end, \\n or two spaces.".into(),
+        ));
+    }
+    if value.len() > 4000 {
+        return Some((
+            OverrideRule::TooLong,
+            "The value is longer than the game shows (4,000 characters).".into(),
         ));
     }
     None
@@ -740,6 +815,8 @@ fn report(ch: &ChannelSummary, result: ApplyResult) -> ApplyReport {
         backup_dir: None,
         target: None,
         target_is_link: false,
+        recovered: None,
+        owned: None,
         duration_ms: 0,
     }
 }
@@ -911,28 +988,10 @@ impl Backend for MockBackend {
                 });
                 continue;
             }
-            let mut p = preset_profile(req.preset);
-            p.fix_known_bugs = req.fix_known_bugs;
-            let on = |id: CategoryId| p.categories.iter().any(|x| x.id == id && x.enabled);
-            let mut counts = ApplyCounts {
-                ships: if on(CategoryId::Ships) { 231 } else { 0 },
-                components: if on(CategoryId::Components) { 1840 } else { 0 },
-                ship_weapons: if on(CategoryId::ShipWeapons) { 402 } else { 0 },
-                fps_weapons: if on(CategoryId::FpsWeapons) { 318 } else { 0 },
-                missiles: if on(CategoryId::Missiles) { 96 } else { 0 },
-                missions: if on(CategoryId::Missions) { 2140 } else { 0 },
-                overrides: 0,
-                dropped: 0,
-                changed: 0,
-            };
-            counts.changed = (counts.ships
-                + counts.components
-                + counts.ship_weapons
-                + counts.fps_weapons
-                + counts.missiles
-                + counts.missions)
-                * 2
-                + 1200;
+            let p = setup_profile(&req);
+            let mut counts = counts_for(&p, 0);
+            // Channels differ a little (another build has other items).
+            counts.changed -= 37 * c.channel.len() as u32;
             let root = if req.install == ALT_INSTALL_ID {
                 ALT_ROOT
             } else {
@@ -990,9 +1049,7 @@ impl Backend for MockBackend {
                     });
                 }
                 ch.summary.set_up = true;
-                let mut p = preset_profile(req.preset);
-                p.fix_known_bugs = req.fix_known_bugs;
-                ch.profile = p;
+                ch.profile = setup_profile(&req);
                 Ok(true)
             })?;
             if res {
@@ -1058,7 +1115,43 @@ impl Backend for MockBackend {
                 )),
             });
         }
+        let running = self.with_channel(&req.target, |c, _| Ok(c.summary.clone()))?;
+        if running.game_running {
+            let mut r = report(&running, ApplyResult::Skipped);
+            r.reason = Some(format!(
+                "Star Citizen is running on {ch_name}. Close the game, then apply."
+            ));
+            self.log(
+                LogLevel::Warn,
+                Some(JobKind::Apply),
+                Some(&ch_name),
+                "Apply skipped: the game is running",
+            );
+            return Ok(r);
+        }
         for (i, label) in steps.iter().enumerate() {
+            if self.lock().cancel.remove(&job) {
+                progress(JobProgress {
+                    job: job.clone(),
+                    kind: JobKind::Apply,
+                    channel: Some(ch_name.clone()),
+                    phase: JobPhase::Cancelled,
+                    step: i as u32,
+                    steps: n,
+                    label: "Stopped".into(),
+                    cancellable: false,
+                });
+                self.log(
+                    LogLevel::Info,
+                    Some(JobKind::Apply),
+                    Some(&ch_name),
+                    "Apply stopped before writing",
+                );
+                return Err(AppError::new(
+                    ErrorCode::Cancelled,
+                    "Stopped. Nothing was written to the game.",
+                ));
+            }
             let last = req.dry_run && i + 1 == steps.len();
             progress(JobProgress {
                 job: job.clone(),
@@ -1088,30 +1181,31 @@ impl Backend for MockBackend {
                 },
             );
             let p = &c.profile;
-            let on = |id: CategoryId| p.categories.iter().any(|x| x.id == id && x.enabled);
-            r.counts = ApplyCounts {
-                ships: if on(CategoryId::Ships) { 231 } else { 0 },
-                components: if on(CategoryId::Components) { 1840 } else { 0 },
-                ship_weapons: if on(CategoryId::ShipWeapons) { 402 } else { 0 },
-                fps_weapons: if on(CategoryId::FpsWeapons) { 318 } else { 0 },
-                missiles: if on(CategoryId::Missiles) { 96 } else { 0 },
-                missions: if on(CategoryId::Missions) { 2140 } else { 0 },
-                overrides: c.overrides.len() as u32,
-                dropped: 0,
-                changed: 0,
-            };
-            let k = &r.counts;
-            r.counts.changed =
-                (k.ships + k.components + k.ship_weapons + k.fps_weapons + k.missiles + k.missions)
-                    * 2
-                    + k.overrides
-                    + 1200;
+            r.counts = counts_for(p, c.overrides.len() as u32);
+            if p.missions && p.mission.owned_marker {
+                let who = c.active.resolved.clone().unwrap_or_default();
+                r.owned = Some(OwnedSelection {
+                    mode: OwnedMode::Auto,
+                    count: c.owned.get(&who).map_or(0, |v| v.len() as u32),
+                    characters: vec![who],
+                    ambiguous: 0,
+                });
+            }
+            if c.summary.interrupted_apply {
+                r.recovered = Some(
+                    "An earlier apply was interrupted; the file from before it was put back first."
+                        .into(),
+                );
+                if !req.dry_run {
+                    c.summary.interrupted_apply = false;
+                }
+            }
             r.patches = c
                 .patches
                 .iter()
                 .map(|x| PatchOutcome {
                     id: x.id.clone(),
-                    state: if x.enabled {
+                    state: if x.enabled && !p.patches_disabled.contains(&x.id) {
                         x.state
                     } else {
                         PatchState::Disabled
@@ -1222,10 +1316,30 @@ impl Backend for MockBackend {
         Ok(rep)
     }
 
-    fn remove_changes(&self, req: ChannelRef) -> CmdResult<ApplyReport> {
+    fn remove_changes(&self, req: RemoveRequest) -> CmdResult<ApplyReport> {
+        let RemoveRequest {
+            target: req,
+            allow_foreign,
+        } = req;
         let r = self.with_channel(&req, |c, _| {
             if matches!(c.summary.status, ApplyState::NotApplied) {
                 return Ok(report(&c.summary, ApplyResult::NothingToDo));
+            }
+            if c.summary.game_running {
+                let mut r = report(&c.summary, ApplyResult::Skipped);
+                r.reason = Some(format!(
+                    "Star Citizen is running on {}. Close the game, then remove.",
+                    c.summary.channel
+                ));
+                return Ok(r);
+            }
+            if c.summary.foreign_file && !allow_foreign {
+                let mut r = report(&c.summary, ApplyResult::NeedsDecision);
+                r.reason = Some(format!(
+                    "The file in place belongs to {}. Confirm to remove it (a backup is kept).",
+                    c.summary.foreign_tool.as_deref().unwrap_or("another tool")
+                ));
+                return Ok(r);
             }
             if c.summary.foreign_file {
                 let seq = c.backups.len() + 1;
@@ -1244,6 +1358,9 @@ impl Backend for MockBackend {
             r.target = Some(target_path(&req.install, &c.summary.channel));
             Ok(r)
         })?;
+        if r.result != ApplyResult::Removed {
+            return Ok(r);
+        }
         self.log(
             LogLevel::Info,
             Some(JobKind::Remove),
@@ -1315,6 +1432,7 @@ impl Backend for MockBackend {
                 backups: c.backups.iter().rev().cloned().collect(),
                 offers: offers(c),
                 keep_newest: 10,
+                keep_builds: 3,
             })
         })
     }
@@ -1352,7 +1470,8 @@ impl Backend for MockBackend {
         self.list_backups(req.target)
     }
 
-    fn cancel_job(&self, _job: String) -> CmdResult<()> {
+    fn cancel_job(&self, job: String) -> CmdResult<()> {
+        self.lock().cancel.insert(job);
         Ok(())
     }
 
@@ -1363,6 +1482,10 @@ impl Backend for MockBackend {
             (None, None) => self.get_profile(req.target)?,
         };
         Ok(preview(&profile))
+    }
+
+    fn profile_schema(&self) -> CmdResult<ProfileSchema> {
+        Ok(profile_schema())
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
@@ -1473,7 +1596,7 @@ impl Backend for MockBackend {
         if let Some((rule, msg)) = check_override(&d.row.original, &req.value) {
             return Ok(OverrideResult {
                 accepted: false,
-                rule: Some(rule.into()),
+                rule: Some(rule),
                 message: Some(msg),
                 detail: Some(d),
             });
@@ -1503,6 +1626,23 @@ impl Backend for MockBackend {
             Ok(())
         })?;
         self.row_with_override(&req.target, &req.key)
+    }
+
+    fn list_overrides(&self, req: ChannelRef) -> CmdResult<Vec<OverrideEntry>> {
+        let ov = self.with_channel(&req, |c, _| Ok(c.overrides.clone()))?;
+        Ok(ov
+            .into_iter()
+            .map(|(key, value)| OverrideEntry {
+                original: self
+                    .strings()
+                    .iter()
+                    .find(|r| r.key == key)
+                    .map(|r| r.original.clone())
+                    .unwrap_or_default(),
+                key,
+                value,
+            })
+            .collect())
     }
 
     fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>> {
@@ -1541,6 +1681,161 @@ impl Backend for MockBackend {
                     AppError::new(ErrorCode::NotFound, format!("No patch {}", req.id))
                 })?;
             Ok(patch_detail(p))
+        })
+    }
+
+    fn add_user_patch(&self, req: NewPatch) -> CmdResult<PatchView> {
+        if req.title.trim().is_empty() || req.key.trim().is_empty() {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "A patch needs a title and a key.",
+            ));
+        }
+        if req.op == LocOp::Replace && req.find.as_deref().unwrap_or("").is_empty() {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "Replace needs the text to find.",
+            ));
+        }
+        let stock = self
+            .strings()
+            .iter()
+            .find(|r| r.key.eq_ignore_ascii_case(req.key.trim()))
+            .cloned();
+        let state = match (&stock, req.op, req.find.as_deref()) {
+            (None, _, _) => PatchState::Missing,
+            (Some(r), LocOp::Replace, Some(f)) if r.original.matches(f).count() != 1 => {
+                PatchState::TargetChanged
+            }
+            (Some(r), LocOp::Set, _) if r.original == req.value => PatchState::NotNeeded,
+            _ => PatchState::Applies,
+        };
+        let slug: String = req
+            .title
+            .to_lowercase()
+            .chars()
+            .map(|c| if c.is_ascii_alphanumeric() { c } else { '-' })
+            .collect::<String>()
+            .split('-')
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join("-");
+        let view = PatchView {
+            id: format!("user-{slug}"),
+            title: req.title.trim().into(),
+            description: req.description.trim().into(),
+            keys: 1,
+            origin: PatchOrigin::User,
+            state,
+            enabled: true,
+        };
+        let text = patch_toml(&view, &req);
+        self.with_channel(&req.target, |c, s| {
+            if c.patches.iter().any(|p| p.id == view.id) {
+                return Err(AppError::new(
+                    ErrorCode::Invalid,
+                    format!(
+                        "A patch with the id {} exists. Pick another title.",
+                        view.id
+                    ),
+                ));
+            }
+            c.patches.push(view.clone());
+            s.patch_files.retain(|(p, _)| p.id != view.id);
+            s.patch_files.push((view.clone(), text));
+            Ok(())
+        })?;
+        self.log(
+            LogLevel::Info,
+            None,
+            Some(&req.target.channel),
+            &format!("Added patch {}", view.title),
+        );
+        Ok(view)
+    }
+
+    fn import_user_patch(&self, req: ChannelRef) -> CmdResult<PatchView> {
+        self.with_channel(&req, |c, s| {
+            let have: BTreeSet<String> = c.patches.iter().map(|p| p.id.clone()).collect();
+            let pick = s
+                .patch_files
+                .iter()
+                .rev()
+                .find(|(p, _)| !have.contains(&p.id))
+                .map(|(p, _)| p.clone())
+                .unwrap_or_else(|| PatchView {
+                    id: "user-synthetic-sample".into(),
+                    title: "Synthetic sample patch".into(),
+                    description: "Imported from a .patch.toml file.".into(),
+                    keys: 1,
+                    origin: PatchOrigin::User,
+                    state: PatchState::Applies,
+                    enabled: true,
+                });
+            if have.contains(&pick.id) {
+                return Err(AppError::new(
+                    ErrorCode::Invalid,
+                    format!("{} is already in the list.", pick.title),
+                ));
+            }
+            c.patches.push(pick.clone());
+            Ok(pick)
+        })
+    }
+
+    fn export_user_patch(&self, req: PatchRef) -> CmdResult<PatchExport> {
+        self.with_channel(&req.target, |c, s| {
+            let p = c
+                .patches
+                .iter()
+                .find(|p| p.id == req.id)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::new(ErrorCode::NotFound, format!("No patch {}", req.id))
+                })?;
+            let text = s
+                .patch_files
+                .iter()
+                .find(|(x, _)| x.id == p.id)
+                .map(|(_, t)| t.clone())
+                .unwrap_or_else(|| {
+                    format!(
+                        "schema = 1\nid = {:?}\ntitle = {:?}\ndescription = {:?}\n",
+                        p.id, p.title, p.description
+                    )
+                });
+            if !s.patch_files.iter().any(|(x, _)| x.id == p.id) {
+                s.patch_files.push((p.clone(), text.clone()));
+            }
+            Ok(PatchExport {
+                file_name: format!("{}.patch.toml", p.id),
+                text,
+            })
+        })
+    }
+
+    fn delete_user_patch(&self, req: PatchRef) -> CmdResult<Vec<PatchView>> {
+        self.with_channel(&req.target, |c, s| {
+            let p = c
+                .patches
+                .iter()
+                .find(|p| p.id == req.id)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::new(ErrorCode::NotFound, format!("No patch {}", req.id))
+                })?;
+            if p.origin == PatchOrigin::BuiltIn {
+                return Err(AppError::new(
+                    ErrorCode::Invalid,
+                    "Built-in patches can be switched off, not deleted.",
+                ));
+            }
+            c.patches.retain(|x| x.id != req.id);
+            c.profile.patches_disabled.retain(|x| x != &req.id);
+            if !s.patch_files.iter().any(|(x, _)| x.id == p.id) {
+                s.patch_files.push((p, String::new()));
+            }
+            Ok(c.patches.clone())
         })
     }
 
@@ -1638,6 +1933,7 @@ impl Backend for MockBackend {
                 imported,
                 known,
                 unmatched: vec!["[H] Retired Sample Helmet".into()],
+                empty_catalog: false,
                 ambiguous: vec![AmbiguousName {
                     name: "Sample Undersuit".into(),
                     candidates: vec![
@@ -1646,6 +1942,32 @@ impl Backend for MockBackend {
                     ],
                 }],
             })
+        })
+    }
+
+    fn forget_character(&self, req: CharacterRequest) -> CmdResult<CharactersView> {
+        self.with_channel(&req.target, |c, _| {
+            if !CHARACTERS.iter().any(|(id, _, _)| *id == req.character) {
+                return Err(AppError::new(
+                    ErrorCode::NotFound,
+                    "No such character in the logs.",
+                ));
+            }
+            c.owned.remove(&req.character);
+            c.forgotten.insert(req.character.clone());
+            if c.active.character.as_deref() == Some(req.character.as_str())
+                || c.active.resolved.as_deref() == Some(req.character.as_str())
+            {
+                c.active = ActiveCharacter {
+                    mode: CharacterMode::Auto,
+                    character: None,
+                    resolved: CHARACTERS
+                        .iter()
+                        .map(|(id, _, _)| id.to_string())
+                        .find(|id| !c.forgotten.contains(id)),
+                };
+            }
+            Ok(characters_view(c))
         })
     }
 
@@ -1977,6 +2299,25 @@ pub fn redact(text: &str) -> (String, u32) {
     (out, n)
 }
 
+/// A user patch as the TOML of spec 4.5 (one loc entry).
+fn patch_toml(p: &PatchView, req: &NewPatch) -> String {
+    let op = match req.op {
+        LocOp::Set => "set",
+        LocOp::Append => "append",
+        LocOp::Prepend => "prepend",
+        LocOp::Replace => "replace",
+    };
+    let mut t = format!(
+        "schema = 1\nid = {:?}\ntitle = {:?}\ndescription = {:?}\n\n[[loc]]\nkey = {:?}\nop = {op:?}\n",
+        p.id, p.title, p.description, req.key
+    );
+    if let Some(f) = &req.find {
+        t.push_str(&format!("find = {f:?}\n"));
+    }
+    t.push_str(&format!("value = {:?}\n", req.value));
+    t
+}
+
 fn patch_detail(p: PatchView) -> PatchDetail {
     let ex = |key: &str, before: &str, after: &str| PatchExample {
         key: key.into(),
@@ -2047,6 +2388,7 @@ fn characters_view(c: &MockChannel) -> CharactersView {
         channel: c.summary.channel.clone(),
         characters: CHARACTERS
             .iter()
+            .filter(|(id, _, _)| !c.forgotten.contains(*id))
             .map(|(id, name, seen)| CharacterView {
                 id: (*id).into(),
                 name: (*name).into(),
@@ -2062,39 +2404,36 @@ fn characters_view(c: &MockChannel) -> CharactersView {
 
 /// Render the preview samples from a profile, so switches visibly change the text.
 pub fn preview(p: &Profile) -> Vec<PreviewItem> {
-    let on = |id: CategoryId| p.categories.iter().any(|c| c.id == id && c.enabled);
-    let line_on = |cat: CategoryId, l: &str| {
-        p.categories
-            .iter()
-            .find(|c| c.id == cat)
-            .is_some_and(|c| c.enabled && c.lines.iter().any(|x| x.id == l && x.enabled))
-    };
+    let line_on = |key: &str| !p.lines_off.iter().any(|l| l == key);
     let block = |prose: &str, lines: Vec<String>| {
         if lines.is_empty() {
             return prose.to_string();
         }
-        let stats = format!("{}\\n{}", p.format.header, lines.join("\\n"));
-        match p.format.placement {
-            StatsPlacement::BelowProse => format!("{prose}\\n\\n{stats}"),
-            StatsPlacement::AboveProse => format!("{stats}\\n\\n------\\n\\n{prose}"),
+        let stats = format!("{}\\n{}", p.header, lines.join("\\n"));
+        if p.stats_above {
+            format!("{stats}\\n\\n------\\n\\n{prose}")
+        } else {
+            format!("{prose}\\n\\n{stats}")
         }
     };
     let mut out = Vec::new();
 
     let ship_prose = "A synthetic light fighter used for testing.";
     let mut ship_lines = Vec::new();
-    if on(CategoryId::Ships) {
-        if line_on(CategoryId::Ships, "role") {
-            ship_lines.push("Role: Light Fighter  |  Career: Combat  |  Crew: 1".to_string());
-        }
-        if line_on(CategoryId::Ships, "size") {
-            ship_lines.push("Size: 21 × 16.5 × 5.5 m".to_string());
-        }
-        if line_on(CategoryId::Ships, "speed") {
-            ship_lines.push("SCM: 226 m/s  |  Max: 1,193 m/s".to_string());
-        }
-        if line_on(CategoryId::Ships, "boost") {
-            ship_lines.push("Boost: 520 m/s fwd  |  268 m/s back".to_string());
+    if p.ships {
+        for (key, l) in [
+            (
+                "ships.role",
+                "Role: Light Fighter  |  Career: Combat  |  Crew: 1",
+            ),
+            ("ships.size", "Size: 21 × 16.5 × 5.5 m"),
+            ("ships.speed", "SCM: 226 m/s  |  Max: 1,193 m/s"),
+            ("ships.boost", "Boost: 520 m/s fwd  |  268 m/s back"),
+            ("ships.cargo", "Cargo: 0 SCU"),
+        ] {
+            if line_on(key) {
+                ship_lines.push(l.to_string());
+            }
         }
     }
     out.push(PreviewItem {
@@ -2106,51 +2445,52 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
     });
 
     let name = "Sample Cooler";
-    let tag = p.tags.iter().find(|t| t.kind == "component");
-    let tagged = match (on(CategoryId::NameTags), tag) {
-        (true, Some(t)) => {
-            let parts: Vec<&str> = t
-                .elements
-                .iter()
-                .filter(|e| e.enabled)
-                .map(|e| match (e.id.as_str(), e.style) {
-                    ("class", TagStyle::Short) => "IND",
-                    ("class", _) => "Industrial",
-                    ("size", TagStyle::Long) => "Size 2",
-                    ("size", _) => "S2",
-                    ("grade", TagStyle::Long) => "Grade A",
-                    ("grade", _) => "A",
-                    _ => "",
-                })
-                .filter(|s| !s.is_empty())
-                .collect();
-            let sep = match t.separator {
-                TagSeparator::Dash => "-",
-                TagSeparator::None => "",
-                TagSeparator::Space => " ",
-                TagSeparator::Underscore => "_",
-                TagSeparator::Dot => ".",
-                TagSeparator::Slash => "/",
-                TagSeparator::Pipe => "|",
-            };
-            let (l, r) = match t.enclosing {
-                TagEnclosing::Square => ("[", "]"),
-                TagEnclosing::Round => ("(", ")"),
-                TagEnclosing::Curly => ("{", "}"),
-                TagEnclosing::Angle => ("<", ">"),
-                TagEnclosing::None => ("", ""),
-            };
-            if parts.is_empty() {
-                name.to_string()
-            } else {
-                let tag = format!("{l}{}{r}", parts.join(sep));
-                match t.placement {
-                    TagPlacement::Prefix => format!("{tag} {name}"),
-                    TagPlacement::Suffix => format!("{name} {tag}"),
-                }
-            }
+    let t = &p.tags.components;
+    let word = |id: &str| -> &str {
+        let st = t.styles.get(id).copied().unwrap_or(TagStyle::Medium);
+        match (id, st) {
+            ("class", TagStyle::Short) => "IND",
+            ("class", _) => "Industrial",
+            ("size", TagStyle::Long) => "Size 2",
+            ("size", _) => "S2",
+            ("grade", TagStyle::Long) => "Grade A",
+            ("grade", _) => "A",
+            _ => "",
         }
-        _ => name.to_string(),
+    };
+    let parts: Vec<&str> = if t.enabled {
+        t.elements
+            .iter()
+            .map(|e| word(e))
+            .filter(|s| !s.is_empty())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let tagged = if parts.is_empty() {
+        name.to_string()
+    } else {
+        let sep = match t.separator {
+            TagSeparator::Dash => "-",
+            TagSeparator::None => "",
+            TagSeparator::Space => " ",
+            TagSeparator::Underscore => "_",
+            TagSeparator::Dot => ".",
+            TagSeparator::Slash => "/",
+            TagSeparator::Pipe => "|",
+        };
+        let (l, r) = match t.enclosing {
+            TagEnclosing::Square => ("[", "]"),
+            TagEnclosing::Round => ("(", ")"),
+            TagEnclosing::Curly => ("{", "}"),
+            TagEnclosing::Angle => ("<", ">"),
+            TagEnclosing::None => ("", ""),
+        };
+        let tag = format!("{l}{}{r}", parts.join(sep));
+        match t.placement {
+            TagPlacement::Prefix => format!("{tag} {name}"),
+            TagPlacement::Suffix => format!("{name} {tag}"),
+        }
     };
     out.push(PreviewItem {
         key: "item_NameSYN_Cooler_S2".into(),
@@ -2161,20 +2501,20 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
     });
 
     let title = "Synthetic Recovery Contract";
-    let mut t = title.to_string();
-    if on(CategoryId::Missions) {
+    let mut tt = title.to_string();
+    if p.missions {
         let wrap = |s: &str| {
-            if p.missions.em4_title_tags {
+            if p.mission.title_em {
                 format!(" <EM4>{s}</EM4>")
             } else {
                 format!(" {s}")
             }
         };
-        if p.missions.tag_bp {
-            t.push_str(&wrap("[BP]"));
+        if p.mission.title_blueprint {
+            tt.push_str(&wrap("[BP]"));
         }
-        if p.missions.tag_rep {
-            t.push_str(&wrap("[150 Rep]"));
+        if p.mission.title_reputation {
+            tt.push_str(&wrap("[150 Rep]"));
         }
     }
     out.push(PreviewItem {
@@ -2182,7 +2522,7 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
         label: "Mission title".into(),
         category: "missions".into(),
         original: title.into(),
-        result: t,
+        result: tt,
     });
     out
 }

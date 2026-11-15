@@ -7,6 +7,10 @@
  * URL switches: `?delay=<ms>` per job step (default 250), `?state=ready` to start with LIVE
  * applied and HOTFIX set up but behind a game update (skips the wizard), with some backups,
  * overrides and hook history; add `&starorg=1` to start signed in to StarOrg Tools.
+ * States for renders (channel names): `&running=LIVE` (game running), `&interrupted=LIVE`,
+ * `&foreign=LIVE` (another tool's file in place), `&builderr=LIVE`, `&channels=5`,
+ * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
+ * `&accent=<accent>`, `&palette=black`.
  */
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
@@ -16,7 +20,7 @@ import type * as T from './types';
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
   overview_first_run: T.Overview;
-  get_profile: T.Profile;
+  profile_schema: T.ProfileSchema;
   list_patches: T.PatchView[];
   get_settings: T.Settings;
   list_characters: T.CharactersView;
@@ -39,24 +43,77 @@ interface Chan {
   patches: T.PatchView[];
   active: T.ActiveCharacter;
   owned: Map<string, T.OwnedBlueprint[]>;
+  forgotten: Set<string>;
 }
 
 const fail = (code: T.ErrorCode, message: string, detail: string | null = null): never => {
   throw new ContractError({ code, message, detail });
 };
 
+const tagKind = (elements: string[], styles: Record<string, T.TagStyle> = {}): T.TagKindSettings => ({
+  enabled: true,
+  elements,
+  styles,
+  separator: 'dash',
+  enclosing: 'square',
+  placement: 'prefix',
+});
+
+/** Same values as `mock::preset_profile` in Rust (= M2's presets). */
 function presetProfile(p: T.Preset): T.Profile {
-  const base = clone(SAMPLES.get_profile);
-  base.preset = p;
-  for (const c of base.categories) {
-    c.enabled = p === 'everything' ? true : p === 'recommended' ? c.id !== 'blueprints' : c.id === 'name-tags';
-    for (const l of c.lines) l.enabled = true;
-  }
-  base.missions.tag_bp = base.missions.tag_bp_maybe = base.missions.tag_rep = p !== 'minimal';
-  base.missions.mark_owned = p === 'everything';
-  base.fix_known_bugs = true;
-  base.patches_disabled = [];
-  return base;
+  const cats = p !== 'minimal';
+  const all = p === 'everything';
+  return {
+    preset: p,
+    ships: cats,
+    components: cats,
+    ship_weapons: cats,
+    fps_weapons: cats,
+    missiles: cats,
+    missions: cats,
+    lines_off: [],
+    stats_above: false,
+    header: '--- STATS ---',
+    tags: {
+      components: tagKind(['class', 'size', 'grade']),
+      ship_weapons: tagKind(['damage', 'size'], { damage: 'short' }),
+      missiles: tagKind(['tracking', 'size']),
+      short_names: all,
+      tool_size_tag: all,
+    },
+    mission: {
+      title_blueprint: true,
+      title_reputation: true,
+      title_em: true,
+      blueprints: true,
+      item_rewards: true,
+      details: true,
+      bullet_tags: true,
+      owned_marker: true,
+      max_list: 25,
+      header_em: 3,
+      label_em: 4,
+    },
+    branding: all,
+    patches_disabled: [],
+  };
+}
+
+function counts(p: T.Profile, overrides: number): T.ApplyCounts {
+  const n = (on: boolean, v: number) => (on ? v : 0);
+  const c: T.ApplyCounts = {
+    ships: n(p.ships, 231),
+    components: n(p.components, 1840),
+    ship_weapons: n(p.ship_weapons, 402),
+    fps_weapons: n(p.fps_weapons, 318),
+    missiles: n(p.missiles, 96),
+    missions: n(p.missions, 2140),
+    overrides,
+    dropped: 0,
+    changed: 0,
+  };
+  c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions) * 2 + overrides + 1200;
+  return c;
 }
 
 function syntheticStrings(): T.StringRow[] {
@@ -116,12 +173,17 @@ function syntheticStrings(): T.StringRow[] {
   return rows;
 }
 
-function checkOverride(original: string, value: string): [string, string] | null {
-  if (/[\n\r]/.test(value)) return ['newline', 'A line break must be written as the two characters \\n.'];
-  if ((value.match(/<EM/g) ?? []).length !== (value.match(/<\/EM/g) ?? []).length) return ['em-tags', 'Every <EMn> tag needs its closing </EMn>.'];
+/** Same rules and M1 rule names as `mock::check_override` in Rust. */
+function checkOverride(original: string, value: string): [T.OverrideRule, string] | null {
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001f\u007f]/.test(value)) return ['control-character', 'A line break must be written as the two characters \\n.'];
+  if ((value.match(/<EM/g) ?? []).length !== (value.match(/<\/EM/g) ?? []).length) return ['added-em-unbalanced', 'Every <EMn> tag needs its closing </EMn>.'];
+  const vars = (s: string) => (s.match(/~/g) ?? []).length;
+  if (vars(original) !== vars(value)) return ['variable-tokens', "The value must keep the original's ~variable(...) tokens."];
   const spec = (s: string) => (s.match(/%[sd]/g) ?? []).length;
   if (spec(original) !== spec(value)) return ['format-specifiers', "The value must keep the original's %s / %d placeholders."];
-  if (/% [A-Za-z]/.test(value)) return ['percent', 'A % must be followed by the end, \\n or two spaces.'];
+  if (/% [A-Za-z]/.test(value)) return ['percent-rule', 'A % must be followed by the end, \\n or two spaces.'];
+  if (value.length > 4000) return ['too-long', 'The value is longer than the game shows (4,000 characters).'];
   return null;
 }
 
@@ -139,37 +201,42 @@ function emptyReport(s: T.ChannelSummary, result: T.ApplyResult): T.ApplyReport 
     backup_dir: null,
     target: null,
     target_is_link: false,
+    recovered: null,
+    owned: null,
     duration_ms: 0,
   };
 }
 
 /** Preview samples from a profile: same rules as `mock::preview` in Rust. */
 export function preview(p: T.Profile): T.PreviewItem[] {
-  const on = (id: T.CategoryId) => p.categories.some((c) => c.id === id && c.enabled);
-  const lineOn = (cat: T.CategoryId, l: string) => p.categories.some((c) => c.id === cat && c.enabled && c.lines.some((x) => x.id === l && x.enabled));
+  const lineOn = (key: string) => !p.lines_off.includes(key);
   const block = (prose: string, lines: string[]) => {
     if (!lines.length) return prose;
-    const stats = `${p.format.header}\\n${lines.join('\\n')}`;
-    return p.format.placement === 'below-prose' ? `${prose}\\n\\n${stats}` : `${stats}\\n\\n------\\n\\n${prose}`;
+    const stats = `${p.header}\\n${lines.join('\\n')}`;
+    return p.stats_above ? `${stats}\\n\\n------\\n\\n${prose}` : `${prose}\\n\\n${stats}`;
   };
   const shipProse = 'A synthetic light fighter used for testing.';
   const lines: string[] = [];
-  if (on('ships')) {
-    if (lineOn('ships', 'role')) lines.push('Role: Light Fighter  |  Career: Combat  |  Crew: 1');
-    if (lineOn('ships', 'size')) lines.push('Size: 21 × 16.5 × 5.5 m');
-    if (lineOn('ships', 'speed')) lines.push('SCM: 226 m/s  |  Max: 1,193 m/s');
-    if (lineOn('ships', 'boost')) lines.push('Boost: 520 m/s fwd  |  268 m/s back');
+  if (p.ships) {
+    const all: [string, string][] = [
+      ['ships.role', 'Role: Light Fighter  |  Career: Combat  |  Crew: 1'],
+      ['ships.size', 'Size: 21 × 16.5 × 5.5 m'],
+      ['ships.speed', 'SCM: 226 m/s  |  Max: 1,193 m/s'],
+      ['ships.boost', 'Boost: 520 m/s fwd  |  268 m/s back'],
+      ['ships.cargo', 'Cargo: 0 SCU'],
+    ];
+    for (const [k, l] of all) if (lineOn(k)) lines.push(l);
   }
   const name = 'Sample Cooler';
   let tagged = name;
-  const t = p.tags.find((x) => x.kind === 'component');
-  if (on('name-tags') && t) {
+  const t = p.tags.components;
+  if (t.enabled) {
     const word: Record<string, Record<T.TagStyle, string>> = {
       class: { short: 'IND', medium: 'Industrial', long: 'Industrial' },
       size: { short: 'S2', medium: 'S2', long: 'Size 2' },
       grade: { short: 'A', medium: 'A', long: 'Grade A' },
     };
-    const parts = t.elements.filter((e) => e.enabled).map((e) => word[e.id]?.[e.style] ?? '').filter(Boolean);
+    const parts = t.elements.map((e) => word[e]?.[t.styles[e] ?? 'medium'] ?? '').filter(Boolean);
     const sep = { dash: '-', none: '', space: ' ', underscore: '_', dot: '.', slash: '/', pipe: '|' }[t.separator];
     const [l, r] = { square: ['[', ']'], round: ['(', ')'], curly: ['{', '}'], angle: ['<', '>'], none: ['', ''] }[t.enclosing];
     if (parts.length) {
@@ -179,10 +246,10 @@ export function preview(p: T.Profile): T.PreviewItem[] {
   }
   const title = 'Synthetic Recovery Contract';
   let tt = title;
-  if (on('missions')) {
-    const wrap = (s: string) => (p.missions.em4_title_tags ? ` <EM4>${s}</EM4>` : ` ${s}`);
-    if (p.missions.tag_bp) tt += wrap('[BP]');
-    if (p.missions.tag_rep) tt += wrap('[150 Rep]');
+  if (p.missions) {
+    const wrap = (s: string) => (p.mission.title_em ? ` <EM4>${s}</EM4>` : ` ${s}`);
+    if (p.mission.title_blueprint) tt += wrap('[BP]');
+    if (p.mission.title_reputation) tt += wrap('[150 Rep]');
   }
   return [
     { key: 'vehicle_DescSYN_Fighter', label: 'Ship description', category: 'ships', original: shipProse, result: block(shipProse, lines) },
@@ -240,7 +307,7 @@ type Handlers = { [K in Command]: Handler<K> };
 
 export function createMockTransport(opts: { delay?: number; ready?: boolean } = {}): Transport {
   const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
-  const delay = opts.delay ?? (params.has('delay') ? Number(params.get('delay')) : 250);
+  const delay = opts.delay ?? (params.has('delay') ? Number(params.getAll('delay').at(-1)) : 250);
   const startReady = opts.ready ?? params.get('state') === 'ready';
 
   const installs: T.InstallSummary[] = clone(SAMPLES.overview_first_run.installs);
@@ -258,9 +325,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         backups: [],
         profile: presetProfile('recommended'),
         overrides: new Map(),
-        patches: clone(SAMPLES.list_patches),
+        patches: clone(SAMPLES.list_patches.filter((x) => x.origin === 'built-in')),
         active: { mode: 'auto', character: null, resolved: chars[0]!.id },
         owned,
+        forgotten: new Set(),
       });
     }
   }
@@ -272,6 +340,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   let nextJob = 1;
   let strings: T.StringRow[] | null = null;
   const listeners = new Set<(p: T.JobProgress) => void>();
+  const cancelled = new Set<string>();
+  const patchFiles: [T.PatchView, string][] = [];
+  const builtinIds = SAMPLES.list_patches.filter((x) => x.origin === 'built-in').map((x) => x.id);
+  const setupProfile = (req: T.SetupRequest): T.Profile => ({ ...presetProfile(req.preset), patches_disabled: req.fix_known_bugs ? [] : [...builtinIds] });
 
   const addLog = (level: T.LogLevel, job: T.JobKind | null, channel: string | null, message: string) => log.push({ id: nextLog++, time: NOW, level, job, channel, message });
   addLog('info', null, null, 'Found 2 installs: LUG Helper config, Lutris game entry');
@@ -309,9 +381,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         : null,
     };
   };
-  const mkBackup = (seq: number, reason: T.BackupReason, build: T.Build, origin: T.FileOrigin, tool: string | null): T.BackupView => ({
-    id: `20261114-2130${String(seq).padStart(2, '0')}-${reason}`,
-    created: NOW,
+  const mkBackup = (seq: number, reason: T.BackupReason, build: T.Build, origin: T.FileOrigin, tool: string | null, created = NOW): T.BackupView => ({
+    id: `${created.slice(0, 10).replace(/-/g, '')}-${created.slice(11, 19).replace(/:/g, '')}${String(seq).padStart(2, '0')}-${reason}`,
+    created,
     reason,
     pinned: reason === 'pre-existing',
     build: clone(build),
@@ -335,7 +407,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   const charactersView = (c: Chan): T.CharactersView => ({
     ...clone(SAMPLES.list_characters),
     channel: c.summary.channel,
-    characters: SAMPLES.list_characters.characters.map((x) => ({ ...x, owned: c.owned.get(x.id)?.length ?? 0 })),
+    characters: SAMPLES.list_characters.characters.filter((x) => !c.forgotten.has(x.id)).map((x) => ({ ...x, owned: c.owned.get(x.id)?.length ?? 0 })),
     active: clone(c.active),
   });
   const starorgGuild = (): string => {
@@ -373,26 +445,13 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const inst = installs.find((i) => i.id === req.install) ?? fail('not-found', `No install ${req.install}`);
       const warnings: T.Warning[] = [];
       const channels: T.PlannedChannel[] = [];
-      const p = presetProfile(req.preset);
-      const on = (cid: T.CategoryId) => p.categories.some((x) => x.id === cid && x.enabled);
+      const p = setupProfile(req);
       for (const c of req.channels.filter((x) => x.consent)) {
         const s = chan({ install: req.install, channel: c.channel }).summary;
         if (s.language === 'other' && !c.switch_language) {
           warnings.push({ kind: 'language', detail: `${c.channel}: the game language is not English; it will be skipped` });
           continue;
         }
-        const counts: T.ApplyCounts = {
-          ships: on('ships') ? 231 : 0,
-          components: on('components') ? 1840 : 0,
-          ship_weapons: on('ship-weapons') ? 402 : 0,
-          fps_weapons: on('fps-weapons') ? 318 : 0,
-          missiles: on('missiles') ? 96 : 0,
-          missions: on('missions') ? 2140 : 0,
-          overrides: 0,
-          dropped: 0,
-          changed: 0,
-        };
-        counts.changed = (counts.ships + counts.components + counts.ship_weapons + counts.fps_weapons + counts.missiles + counts.missions) * 2 + 1200;
         channels.push({
           channel: c.channel,
           target: `${inst.root}/${c.channel}/Data/Localization/english/global.ini`,
@@ -402,7 +461,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
           user_cfg_line: s.language === 'other' ? 'g_language = english' : null,
           user_cfg_path: `${inst.root}/${c.channel}/USER.cfg`,
           replaces_tool: s.foreign_tool,
-          counts,
+          counts: { ...counts(p, 0), changed: counts(p, 0).changed - 37 * c.channel.length },
         });
       }
       if (req.data_source === 'published-dumps') {
@@ -423,7 +482,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
           fail('needs-decision', `${c.channel}: the game language is not English. Choose whether to switch it.`, ch.summary.language_value);
         }
         ch.summary.set_up = true;
-        ch.profile = { ...presetProfile(req.preset), fix_known_bugs: req.fix_known_bugs };
+        ch.profile = setupProfile(req);
         set_up.push(c.channel);
       }
       for (const i of installs) i.saved = i.id === req.install;
@@ -438,30 +497,35 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const c = chan(req.target);
       const name = req.target.channel;
       if (!c.summary.set_up) fail('needs-decision', `${name} is not set up. Run setup for this channel first.`, `starorg-strings setup --channel ${name} --preset recommended --yes`);
+      if (c.summary.game_running) {
+        addLog('warn', 'apply', name, 'Apply skipped: the game is running');
+        return { ...emptyReport(c.summary, 'skipped'), reason: `Star Citizen is running on ${name}. Close the game, then apply.` };
+      }
       const job = `job-${++nextJob}`;
       const steps = ['Checking the game is not running', 'Reading game data', 'Building text', 'Validating', 'Backing up and writing'];
       for (let i = 0; i < steps.length; i++) {
+        if (cancelled.delete(job)) {
+          listeners.forEach((l) => l({ job, kind: 'apply', channel: name, phase: 'cancelled', step: i, steps: steps.length, label: 'Stopped', cancellable: false }));
+          addLog('info', 'apply', name, 'Apply stopped before writing');
+          fail('cancelled', 'Stopped. Nothing was written to the game.');
+        }
         const last = req.dry_run && i === steps.length - 1;
         const p: T.JobProgress = { job, kind: 'apply', channel: name, phase: 'running', step: i + 1, steps: steps.length, label: last ? 'Dry run: nothing written' : steps[i]!, cancellable: i < 3 };
         listeners.forEach((l) => l(p));
         if (delay > 0) await sleep(delay);
       }
       const r = emptyReport(c.summary, req.dry_run ? 'dry-run' : 'applied');
-      const on = (cid: T.CategoryId) => c.profile.categories.some((x) => x.id === cid && x.enabled);
-      r.counts = {
-        ships: on('ships') ? 231 : 0,
-        components: on('components') ? 1840 : 0,
-        ship_weapons: on('ship-weapons') ? 402 : 0,
-        fps_weapons: on('fps-weapons') ? 318 : 0,
-        missiles: on('missiles') ? 96 : 0,
-        missions: on('missions') ? 2140 : 0,
-        overrides: c.overrides.size,
-        dropped: 0,
-        changed: 0,
-      };
+      r.counts = counts(c.profile, c.overrides.size);
       const k = r.counts;
-      k.changed = (k.ships + k.components + k.ship_weapons + k.fps_weapons + k.missiles + k.missions) * 2 + k.overrides + 1200;
-      r.patches = c.patches.map((x) => ({ id: x.id, state: x.enabled ? x.state : 'disabled' }));
+      if (c.profile.missions && c.profile.mission.owned_marker) {
+        const who = c.active.resolved ?? '';
+        r.owned = { mode: 'auto', characters: [who], count: c.owned.get(who)?.length ?? 0, ambiguous: 0 };
+      }
+      if (c.summary.interrupted_apply) {
+        r.recovered = 'An earlier apply was interrupted; the file from before it was put back first.';
+        if (!req.dry_run) c.summary.interrupted_apply = false;
+      }
+      r.patches = c.patches.map((x) => ({ id: x.id, state: x.enabled && !c.profile.patches_disabled.includes(x.id) ? x.state : 'disabled' }));
       if (c.patches.some((x) => x.enabled && x.state === 'target-changed')) r.warnings.push({ kind: 'patch-target-changed', detail: 'syn-moved-key: the target text changed in this build' });
       const inst = installs.find((i) => i.id === req.target.install)!;
       r.target = `${inst.root}/${name}/Data/Localization/english/global.ini`;
@@ -495,9 +559,13 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       sync();
       return r;
     },
-    remove_changes: ({ req }) => {
+    remove_changes: ({ req: { target: req, allow_foreign } }) => {
       const c = chan(req);
       if (c.summary.status.state === 'not-applied') return emptyReport(c.summary, 'nothing-to-do');
+      if (c.summary.game_running) return { ...emptyReport(c.summary, 'skipped'), reason: `Star Citizen is running on ${req.channel}. Close the game, then remove.` };
+      if (c.summary.foreign_file && !allow_foreign) {
+        return { ...emptyReport(c.summary, 'needs-decision'), reason: `The file in place belongs to ${c.summary.foreign_tool ?? 'another tool'}. Confirm to remove it (a backup is kept).` };
+      }
       if (c.summary.foreign_file) c.backups.push(mkBackup(c.backups.length + 1, 'before-restore', c.summary.build, 'foreign', c.summary.foreign_tool));
       c.summary.status = { state: 'not-applied' };
       c.summary.foreign_file = false;
@@ -507,6 +575,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     undo_last_apply: ({ req }) => {
       const c = chan(req);
+      if (c.summary.game_running) return { ...emptyReport(c.summary, 'skipped'), reason: `Star Citizen is running on ${req.channel}. Close the game first.` };
       const undo = offers(c).undo_last_apply ?? fail('needs-decision', 'No backup of an earlier apply for this build. Re-apply instead.');
       c.backups = c.backups.filter((b) => b.id !== undo);
       c.summary.status = { state: 'stale', reasons: ['profile'] };
@@ -515,6 +584,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     restore_backup: ({ req }) => {
       const c = chan(req.target);
       const b = c.backups.find((x) => x.id === req.backup) ?? fail('not-found', `No backup ${req.backup}`);
+      if (c.summary.game_running) return { ...emptyReport(c.summary, 'skipped'), reason: `Star Citizen is running on ${req.target.channel}. Close the game first.` };
       if (b.build.change !== c.summary.build.change && !req.allow_build_mismatch) {
         fail('needs-decision', 'This file was made for another game build.', `Made for ${b.build.version ?? 'unknown'}, the game is now ${c.summary.build.version ?? 'unknown'}. New text would show as raw @keys.`);
       }
@@ -525,7 +595,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     list_backups: ({ req }) => {
       const c = chan(req);
-      return { channel: req.channel, folder: `~/.local/share/starorg-strings/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 10 };
+      return { channel: req.channel, folder: `~/.local/share/starorg-strings/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 10, keep_builds: 3 };
     },
     backup_now: ({ req }) => {
       const c = chan(req);
@@ -540,8 +610,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       c.backups = c.backups.filter((b) => b.id !== req.backup);
       return h.list_backups({ req: req.target }) as T.BackupList;
     },
-    cancel_job: () => null,
+    cancel_job: ({ job }) => {
+      cancelled.add(job);
+      return null;
+    },
     build_preview: ({ req }) => preview(req.profile ?? (req.preset ? presetProfile(req.preset) : chan(req.target).profile)),
+    profile_schema: () => clone(SAMPLES.profile_schema),
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),
     save_profile: ({ req }) => {
@@ -594,6 +668,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       chan(req.target).overrides.delete(d.row.key);
       return detail(req.target, d.row.key);
     },
+    list_overrides: ({ req }) => [...chan(req).overrides].map(([key, value]) => ({ key, value, original: table().find((r) => r.key === key)?.original ?? '' })),
     list_patches: ({ req }) => clone(chan(req).patches),
     set_patch_enabled: ({ req }) => {
       const c = chan(req.target);
@@ -601,6 +676,61 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       p.enabled = req.enabled;
       c.profile.patches_disabled = c.patches.filter((x) => !x.enabled).map((x) => x.id);
       return clone(p);
+    },
+    add_user_patch: ({ req }) => {
+      if (!req.title.trim() || !req.key.trim()) fail('invalid', 'A patch needs a title and a key.');
+      if (req.op === 'replace' && !req.find) fail('invalid', 'Replace needs the text to find.');
+      const stock = table().find((r) => r.key.toLowerCase() === req.key.trim().toLowerCase());
+      const state: T.PatchState = !stock
+        ? 'missing'
+        : req.op === 'replace' && stock.original.split(req.find ?? '').length - 1 !== 1
+          ? 'target-changed'
+          : req.op === 'set' && stock.original === req.value
+            ? 'not-needed'
+            : 'applies';
+      const slug = req.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+      const view: T.PatchView = { id: `user-${slug}`, title: req.title.trim(), description: req.description.trim(), keys: 1, origin: 'user', state, enabled: true };
+      const c = chan(req.target);
+      if (c.patches.some((x) => x.id === view.id)) fail('invalid', `A patch with the id ${view.id} exists. Pick another title.`);
+      const q = (x: string) => JSON.stringify(x);
+      let text = `schema = 1\nid = ${q(view.id)}\ntitle = ${q(view.title)}\ndescription = ${q(view.description)}\n\n[[loc]]\nkey = ${q(req.key)}\nop = ${q(req.op)}\n`;
+      if (req.find) text += `find = ${q(req.find)}\n`;
+      text += `value = ${q(req.value)}\n`;
+      c.patches.push(view);
+      const at = patchFiles.findIndex(([x]) => x.id === view.id);
+      if (at >= 0) patchFiles.splice(at, 1);
+      patchFiles.push([clone(view), text]);
+      addLog('info', null, req.target.channel, `Added patch ${view.title}`);
+      return clone(view);
+    },
+    import_user_patch: ({ req }) => {
+      const c = chan(req);
+      const have = new Set(c.patches.map((x) => x.id));
+      const found = [...patchFiles].reverse().find(([x]) => !have.has(x.id))?.[0];
+      const pick: T.PatchView = found ?? { id: 'user-synthetic-sample', title: 'Synthetic sample patch', description: 'Imported from a .patch.toml file.', keys: 1, origin: 'user', state: 'applies', enabled: true };
+      if (have.has(pick.id)) fail('invalid', `${pick.title} is already in the list.`);
+      c.patches.push(clone(pick));
+      return clone(pick);
+    },
+    export_user_patch: ({ req }) => {
+      const c = chan(req.target);
+      const p = c.patches.find((x) => x.id === req.id) ?? fail('not-found', `No patch ${req.id}`);
+      let f = patchFiles.find(([x]) => x.id === p.id);
+      if (!f) {
+        f = [clone(p), `schema = 1\nid = ${JSON.stringify(p.id)}\ntitle = ${JSON.stringify(p.title)}\ndescription = ${JSON.stringify(p.description)}\n`];
+        patchFiles.push(f);
+      }
+      return { file_name: `${p.id}.patch.toml`, text: f[1] };
+    },
+    delete_user_patch: ({ req }) => {
+      const c = chan(req.target);
+      const p = c.patches.find((x) => x.id === req.id) ?? fail('not-found', `No patch ${req.id}`);
+      if (p.origin === 'built-in') fail('invalid', 'Built-in patches can be switched off, not deleted.');
+      c.patches = c.patches.filter((x) => x.id !== req.id);
+      c.profile.patches_disabled = c.profile.patches_disabled.filter((x) => x !== req.id);
+      if (!patchFiles.some(([x]) => x.id === p.id)) patchFiles.push([clone(p), '']);
+      addLog('info', null, req.target.channel, `Deleted patch ${p.title}`);
+      return clone(c.patches);
     },
     patch_detail: ({ req }) => patchDetail(chan(req.target).patches.find((x) => x.id === req.id) ?? fail('not-found', `No patch ${req.id}`)),
     activity: ({ limit }) => clone(log.slice(-limit).reverse()),
@@ -629,6 +759,16 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         c.owned.set(req.character, set);
       }
       return { ...clone(SAMPLES.import_smart_citizen), dry_run: req.dry_run, imported, known };
+    },
+    forget_character: ({ req }) => {
+      const c = chan(req.target);
+      if (!CHARACTER_IDS.includes(req.character)) fail('not-found', 'No such character in the logs.');
+      c.owned.delete(req.character);
+      c.forgotten.add(req.character);
+      if (c.active.character === req.character || c.active.resolved === req.character) {
+        c.active = { mode: 'auto', character: null, resolved: CHARACTER_IDS.find((x) => !c.forgotten.has(x)) ?? null };
+      }
+      return charactersView(c);
     },
     starorg_status: ({ channel }) => starorgView(channel),
     starorg_login: ({ channel }) => {
@@ -713,7 +853,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     });
     // A lived-in state for renders: LIVE applied over Smart Citizen's old file, HOTFIX behind a game update.
     const live = chans.get(`${inst.id}/LIVE`)!;
-    live.backups.push(mkBackup(1, 'pre-existing', oldBuild, 'foreign', 'Smart Citizen'), mkBackup(2, 'before-apply', live.summary.build, 'ours', null));
+    live.backups.push(
+      mkBackup(1, 'pre-existing', oldBuild, 'foreign', 'Smart Citizen', '2026-11-09T08:11:58Z'),
+      mkBackup(2, 'before-apply', live.summary.build, 'ours', null, '2026-11-14T19:41:10Z'),
+    );
     live.summary.status = { state: 'applied' };
     live.summary.foreign_file = false;
     live.summary.foreign_tool = null;
@@ -723,13 +866,16 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     live.overrides.set('item_NameSYN_Cooler_S2_00001', 'My favourite cooler');
     live.overrides.set('mission_TitleSYN_Contract_00005', 'Synthetic Contract 5 <EM4>[Easy]</EM4>');
     const hot = chans.get(`${inst.id}/HOTFIX`)!;
-    hot.backups.push(mkBackup(1, 'pre-existing', hot.summary.build, 'none', null));
+    hot.backups.push(mkBackup(1, 'pre-existing', hot.summary.build, 'none', null, '2026-11-09T08:12:38Z'));
     hot.summary.applied_build = { branch: 'sc-alpha-4.10.0-hotfix', game_version: '4.10.0', change: 13_150_002, version: '1.0.188.55001' };
     hot.summary.status = { state: 'stale', reasons: ['build'] };
     hot.summary.last_apply = { time: '2026-11-09T08:12:40Z', result: 'applied', changed: 10_980, warnings: 0, dropped: 0, duration_ms: 1710 };
     hooks = { ...hooks, scripts: hooks.scripts.map((s) => ({ ...s, path: s.path ?? `/home/pilot/Games/star-citizen/sc-${s.kind}.sh`, status: { state: 'current' } })) };
+    // Ready-state history, in time order: found, set up, hooks, applies, launches.
+    for (const e of log) e.time = e.message.startsWith('Found') ? '2026-11-09T08:03:00Z' : '2026-11-09T08:04:10Z';
     const seed: [T.LogLevel, T.JobKind | null, string | null, string, string][] = [
       ['info', 'hook', null, 'Installed the launch hook block in sc-prelaunch.sh and sc-postexit.sh', '2026-11-09T08:05:00Z'],
+      ['info', 'apply', 'LIVE', 'Applied: 11,102 strings changed, 0 warning(s)', '2026-11-09T08:12:00Z'],
       ['info', 'apply', 'HOTFIX', 'Applied: 10,980 strings changed, 0 warning(s)', '2026-11-09T08:12:40Z'],
       ['info', 'hook', 'LIVE', 'prelaunch: LIVE is up to date (0.2 s, no apply)', '2026-11-13T20:01:10Z'],
       ['info', 'hook', 'LIVE', 'postexit: 2 new blueprints for Pilot_A from Game.log; re-applied', '2026-11-13T23:48:02Z'],
@@ -745,14 +891,45 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       settings.network.starorg = true;
       Object.assign(starorg, { connected: true, user: 'pilot_a_discord', guild: 'Synthetic Org', expires: '2027-02-12T21:30:05Z' });
     }
+    if (params.get('log') === 'empty') log.length = 0;
     sync();
   }
+
+  // Render states (any start state).
+  const each = (key: string, f: (c: Chan) => void) => {
+    for (const name of (params.get(key) ?? '').split(',').filter(Boolean)) {
+      const c = chans.get(`${installs[0]!.id}/${name}`);
+      if (c) f(c);
+    }
+  };
+  each('running', (c) => (c.summary.game_running = true));
+  each('nobackups', (c) => (c.backups = []));
+  if (params.get('accent')) settings.appearance.accent = params.get('accent') as T.Accent;
+  if (params.get('palette')) settings.appearance.palette = params.get('palette') as T.Palette;
+  each('interrupted', (c) => (c.summary.interrupted_apply = true));
+  each('builderr', (c) => (c.summary.build_error = 'Data.p4k: Branch record not found (file is being written?)'));
+  each('foreign', (c) => {
+    c.summary.status = { state: 'changed-by-another-tool', tool: 'Smart Citizen' };
+    c.summary.foreign_file = true;
+    c.summary.foreign_tool = 'Smart Citizen';
+  });
+  const extra = Number(params.get('channels') ?? 0) - installs[0]!.channels.length;
+  for (let i = 0; i < extra; i++) {
+    const name = ['TECH-PREVIEW', 'EPTU', 'EVOCATI', 'TEST'][i] ?? `CH${i}`;
+    const base = clone(installs[0]!.channels[2]!);
+    const summary: T.ChannelSummary = { ...base, channel: name, set_up: false, status: { state: 'not-applied' }, language: 'english', language_value: null };
+    installs[0]!.channels.push(summary);
+    chans.set(`${installs[0]!.id}/${name}`, { ...clone({ ...chans.get(`${installs[0]!.id}/PTU`)!, owned: new Map(), forgotten: new Set<string>() }), summary, owned: new Map(), forgotten: new Set() });
+  }
+  if (params.get('installs') === '0') installs.length = 0;
+  const failing = new Set((params.get('fail') ?? '').split(',').filter(Boolean));
 
   return {
     kind: 'mock',
     async call<K extends Command>(cmd: K, args: Args<K>): Promise<Result<K>> {
       // Answer asynchronously like IPC does, so the UI's loading states are exercised.
       await sleep(0);
+      if (failing.has(cmd)) fail('internal', `Could not read the game folder (${cmd}).`, 'EACCES: permission denied, open .../StarCitizen/LIVE/Data.p4k');
       const fn = h[cmd] as Handler<K>;
       return fn(args);
     },

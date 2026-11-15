@@ -188,6 +188,21 @@ export interface PatchOutcome {
   state: PatchState;
 }
 
+export type OwnedMode = 'auto' | 'any' | 'character';
+
+/** What an apply used for `[Owned]` markers (M1 `blueprints::Selection`). */
+export interface OwnedSelection {
+  mode: OwnedMode;
+  characters: string[];
+  count: number;
+  ambiguous: number;
+}
+
+/**
+ * A returned report is not a success: M1 reports guards (game running, Data.p4k being written,
+ * lock held, timeout) as `skipped` + `reason`, and failed / needs-setup / needs-decision /
+ * up-to-date the same way. The UI switches on `result` (lib/outcome.ts).
+ */
 export interface ApplyReport {
   channel: string;
   result: ApplyResult;
@@ -201,12 +216,21 @@ export interface ApplyReport {
   backup_dir: string | null;
   target: string | null;
   target_is_link: boolean;
+  /** Journal recovery: an interrupted earlier apply was rolled back first. */
+  recovered: string | null;
+  owned: OwnedSelection | null;
   duration_ms: number;
 }
 
 export interface ApplyRequest {
   target: ChannelRef;
   dry_run: boolean;
+}
+
+/** Without `allow_foreign`, another tool's loose file is kept and the report is needs-decision. */
+export interface RemoveRequest {
+  target: ChannelRef;
+  allow_foreign: boolean;
 }
 
 export type BackupReason = 'pre-existing' | 'before-apply' | 'before-restore' | 'manual';
@@ -244,7 +268,9 @@ export interface BackupList {
   folder: string;
   backups: BackupView[];
   offers: RestoreOffers;
+  /** Retention: newest N, plus the newest of each of the last `keep_builds` builds, plus the pinned file. */
   keep_newest: number;
+  keep_builds: number;
 }
 
 export interface BackupRef {
@@ -272,70 +298,95 @@ export interface PreviewRequest {
   preset: Preset | null;
 }
 
-// Enhancements profile ------------------------------------------------------------------
+// Enhancements profile (M2 enhance::Profile, field for field) ---------------------------
 
-export type CategoryId = 'ships' | 'components' | 'ship-weapons' | 'missiles' | 'fps-weapons' | 'name-tags' | 'missions' | 'blueprints';
-
-export interface StatLine {
-  id: string;
-  label: string;
-  enabled: boolean;
-}
-
-export interface CategorySettings {
-  id: CategoryId;
-  label: string;
-  enabled: boolean;
-  lines: StatLine[];
-}
-
-export type StatsPlacement = 'below-prose' | 'above-prose';
-
-export interface FormatOptions {
-  placement: StatsPlacement;
-  header: string;
-}
-
+export type CategoryId = 'ships' | 'components' | 'ship-weapons' | 'fps-weapons' | 'missiles' | 'missions';
+export type TagKind = 'components' | 'ship-weapons' | 'missiles';
 export type TagStyle = 'short' | 'medium' | 'long';
 export type TagSeparator = 'dash' | 'none' | 'space' | 'underscore' | 'dot' | 'slash' | 'pipe';
 export type TagEnclosing = 'square' | 'round' | 'curly' | 'angle' | 'none';
 export type TagPlacement = 'prefix' | 'suffix';
 
-export interface TagElement {
-  id: string;
-  label: string;
+/** One tag kind. `elements`: parts that are on, in output order. `styles`: non-default (medium) styles. */
+export interface TagKindSettings {
   enabled: boolean;
-  style: TagStyle;
-}
-
-export interface TagSettings {
-  kind: string;
-  label: string;
-  elements: TagElement[];
+  elements: string[];
+  styles: Record<string, TagStyle>;
   separator: TagSeparator;
   enclosing: TagEnclosing;
   placement: TagPlacement;
-  short_name_too: boolean;
 }
 
-export interface MissionOptions {
-  tag_bp: boolean;
-  tag_bp_maybe: boolean;
-  tag_rep: boolean;
-  em4_title_tags: boolean;
-  body_sections: StatLine[];
-  mark_owned: boolean;
+export interface TagSettings {
+  components: TagKindSettings;
+  ship_weapons: TagKindSettings;
+  missiles: TagKindSettings;
+  /** One switch for every kind. */
+  short_names: boolean;
+  tool_size_tag: boolean;
+}
+
+export interface MissionSettings {
+  /** [BP], or [BP?] when only some variants can reward one. */
+  title_blueprint: boolean;
+  title_reputation: boolean;
+  title_em: boolean;
+  blueprints: boolean;
+  item_rewards: boolean;
+  details: boolean;
+  bullet_tags: boolean;
+  owned_marker: boolean;
+  max_list: number;
+  header_em: number;
+  label_em: number;
 }
 
 export interface Profile {
   preset: Preset | null;
-  categories: CategorySettings[];
-  format: FormatOptions;
-  tags: TagSettings[];
-  missions: MissionOptions;
+  ships: boolean;
+  components: boolean;
+  ship_weapons: boolean;
+  fps_weapons: boolean;
+  missiles: boolean;
+  missions: boolean;
+  /** `<category>.<line>` keys from ProfileSchema. */
+  lines_off: string[];
+  stats_above: boolean;
+  /** Plain ASCII; no %, <, ~ or \n. */
+  header: string;
+  tags: TagSettings;
+  mission: MissionSettings;
   branding: boolean;
-  fix_known_bugs: boolean;
+  /** "Fix known text bugs" off = every built-in patch id here. */
   patches_disabled: string[];
+}
+
+export interface LineSchema {
+  key: string;
+  label: string;
+}
+
+export interface CategorySchema {
+  id: CategoryId;
+  label: string;
+  blurb: string;
+  lines: LineSchema[];
+}
+
+export interface ElementSchema {
+  id: string;
+  label: string;
+}
+
+export interface TagKindSchema {
+  kind: TagKind;
+  label: string;
+  elements: ElementSchema[];
+}
+
+export interface ProfileSchema {
+  categories: CategorySchema[];
+  tag_kinds: TagKindSchema[];
 }
 
 export interface CopyProfileRequest {
@@ -413,16 +464,25 @@ export interface OverrideRequest {
   value: string;
 }
 
+/** M1 `validate::Rule::name()`. */
+export type OverrideRule = 'control-character' | 'added-em-unbalanced' | 'em-signature' | 'variable-tokens' | 'format-specifiers' | 'format-key' | 'percent-rule' | 'too-long';
+
 export interface OverrideResult {
   accepted: boolean;
-  rule: string | null;
+  rule: OverrideRule | null;
   message: string | null;
   detail: StringDetail | null;
 }
 
+export interface OverrideEntry {
+  key: string;
+  value: string;
+  original: string;
+}
+
 // Patches -------------------------------------------------------------------------------
 
-export type PatchState = 'applies' | 'not-needed' | 'target-changed' | 'nothing-to-add' | 'missing' | 'out-of-range' | 'conflict' | 'disabled' | 'retired';
+export type PatchState = 'applies' | 'not-needed' | 'target-changed' | 'nothing-to-add' | 'missing' | 'out-of-range' | 'conflict' | 'disabled' | 'no-data' | 'retired';
 export type PatchOrigin = 'built-in' | 'user';
 
 export interface PatchView {
@@ -458,6 +518,23 @@ export interface PatchToggle {
   target: ChannelRef;
   id: string;
   enabled: boolean;
+}
+
+export type LocOp = 'set' | 'append' | 'prepend' | 'replace';
+
+export interface NewPatch {
+  target: ChannelRef;
+  title: string;
+  description: string;
+  key: string;
+  op: LocOp;
+  find: string | null;
+  value: string;
+}
+
+export interface PatchExport {
+  file_name: string;
+  text: string;
 }
 
 // Activity ------------------------------------------------------------------------------
@@ -565,6 +642,8 @@ export interface ImportReport {
   known: string[];
   unmatched: string[];
   ambiguous: AmbiguousName[];
+  /** Game data was not read for this channel, so nothing could match. */
+  empty_catalog: boolean;
 }
 
 // StarOrg Tools -------------------------------------------------------------------------

@@ -129,6 +129,23 @@ fn samples() -> Value {
             value: "Open <EM4>tag".into(),
         })
         .unwrap();
+    let user_patch = b
+        .add_user_patch(NewPatch {
+            target: live(),
+            title: "Sample label fix".into(),
+            description: "Synthetic user patch.".into(),
+            key: "ui_SYN_Label_00007".into(),
+            op: LocOp::Replace,
+            find: Some("Label".into()),
+            value: "Sign".into(),
+        })
+        .unwrap();
+    let exported = b
+        .export_user_patch(PatchRef {
+            target: live(),
+            id: user_patch.id.clone(),
+        })
+        .unwrap();
     let mut settings = b.get_settings().unwrap();
     settings.network.starorg = true;
     let settings = b.save_settings(settings).unwrap();
@@ -159,7 +176,11 @@ fn samples() -> Value {
         "job_progress": event,
         "list_backups": b.list_backups(live()).unwrap(),
         "backup_now": b.backup_now(hotfix()).unwrap(),
-        "remove_changes": b.remove_changes(hotfix()).unwrap(),
+        "remove_changes": b.remove_changes(RemoveRequest { target: hotfix(), allow_foreign: false }).unwrap(),
+        "profile_schema": b.profile_schema().unwrap(),
+        "list_overrides": b.list_overrides(live()).unwrap(),
+        "add_user_patch": user_patch,
+        "export_user_patch": exported,
         "build_preview": b.build_preview(PreviewRequest { target: live(), profile: None, preset: Some(Preset::Everything) }).unwrap(),
         "get_profile": b.get_profile(live()).unwrap(),
         "query_strings": b.query_strings(query("cooler")).unwrap(),
@@ -331,16 +352,23 @@ fn ts_unions_list_every_variant() {
                 CategoryId::Ships,
                 CategoryId::Components,
                 CategoryId::ShipWeapons,
-                CategoryId::Missiles,
                 CategoryId::FpsWeapons,
-                CategoryId::NameTags,
+                CategoryId::Missiles,
                 CategoryId::Missions,
-                CategoryId::Blueprints,
             ]),
         ),
         (
-            "StatsPlacement",
-            names(&[StatsPlacement::BelowProse, StatsPlacement::AboveProse]),
+            "TagKind",
+            names(&[TagKind::Components, TagKind::ShipWeapons, TagKind::Missiles]),
+        ),
+        (
+            "OwnedMode",
+            names(&[OwnedMode::Auto, OwnedMode::Any, OwnedMode::Character]),
+        ),
+        ("OverrideRule", names(&OverrideRule::ALL)),
+        (
+            "LocOp",
+            names(&[LocOp::Set, LocOp::Append, LocOp::Prepend, LocOp::Replace]),
         ),
         (
             "TagStyle",
@@ -410,6 +438,7 @@ fn ts_unions_list_every_variant() {
                 PatchState::OutOfRange,
                 PatchState::Conflict,
                 PatchState::Disabled,
+                PatchState::NoData,
                 PatchState::Retired,
             ]),
         ),
@@ -712,7 +741,7 @@ fn rejected_override_names_the_rule_and_reset_restores() {
             value: "50% off".into(),
         })
         .unwrap();
-    assert_eq!(pct.rule.as_deref(), Some("percent"));
+    assert_eq!(pct.rule, Some(OverrideRule::PercentRule));
     assert_eq!(r.detail.unwrap().row.source, StringSource::Edited);
     let bad = b
         .set_override(OverrideRequest {
@@ -722,7 +751,7 @@ fn rejected_override_names_the_rule_and_reset_restores() {
         })
         .unwrap();
     assert!(!bad.accepted);
-    assert_eq!(bad.rule.as_deref(), Some("newline"));
+    assert_eq!(bad.rule, Some(OverrideRule::ControlCharacter));
     let d = b
         .reset_override(KeyRequest {
             target: live(),
@@ -787,11 +816,7 @@ fn preview_follows_profile_switches() {
         })
         .unwrap();
     assert!(with[0].result.contains("--- STATS ---"));
-    p.categories
-        .iter_mut()
-        .find(|c| c.id == CategoryId::Ships)
-        .unwrap()
-        .enabled = false;
+    p.ships = false;
     let without = b
         .build_preview(PreviewRequest {
             target: live(),
@@ -883,4 +908,257 @@ fn apply_records_the_applied_build_and_last_apply() {
         .unwrap();
     assert_eq!(d.patch.state, PatchState::TargetChanged);
     assert!(!d.examples.is_empty());
+}
+
+#[test]
+fn apply_skips_while_the_game_runs_and_says_why() {
+    let b = MockBackend::default();
+    set_up(&b);
+    b.set_game_running(&live(), true);
+    let r = b
+        .apply(
+            ApplyRequest {
+                target: live(),
+                dry_run: false,
+            },
+            &noop,
+        )
+        .unwrap();
+    assert_eq!(r.result, ApplyResult::Skipped);
+    assert!(r.reason.as_deref().unwrap().contains("running"));
+    assert!(b.channel_status(live()).unwrap().last_apply.is_none());
+    let rm = b
+        .remove_changes(RemoveRequest {
+            target: live(),
+            allow_foreign: true,
+        })
+        .unwrap();
+    assert_eq!(rm.result, ApplyResult::Skipped);
+}
+
+#[test]
+fn remove_asks_before_deleting_another_tools_file() {
+    let b = MockBackend::default();
+    let r = b
+        .remove_changes(RemoveRequest {
+            target: live(),
+            allow_foreign: false,
+        })
+        .unwrap();
+    assert_eq!(r.result, ApplyResult::NeedsDecision);
+    assert!(r.reason.unwrap().contains("Smart Citizen"));
+    assert!(b.channel_status(live()).unwrap().foreign_file);
+    let r = b
+        .remove_changes(RemoveRequest {
+            target: live(),
+            allow_foreign: true,
+        })
+        .unwrap();
+    assert_eq!(r.result, ApplyResult::Removed);
+    assert!(!b.channel_status(live()).unwrap().foreign_file);
+}
+
+#[test]
+fn cancel_stops_an_apply_before_it_writes() {
+    let b = std::sync::Arc::new(MockBackend::default());
+    set_up(&b);
+    let b2 = b.clone();
+    let e = b
+        .apply(
+            ApplyRequest {
+                target: live(),
+                dry_run: false,
+            },
+            &move |p: JobProgress| {
+                if p.step == 2 && p.phase == JobPhase::Running {
+                    b2.cancel_job(p.job).unwrap();
+                }
+            },
+        )
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Cancelled);
+    assert!(b.channel_status(live()).unwrap().last_apply.is_none());
+}
+
+#[test]
+fn user_patch_add_export_delete_import_round_trip() {
+    let b = MockBackend::default();
+    let p = b
+        .add_user_patch(NewPatch {
+            target: live(),
+            title: "Fix sample label".into(),
+            description: String::new(),
+            key: "ui_SYN_Label_00007".into(),
+            op: LocOp::Set,
+            find: None,
+            value: "Sign 7".into(),
+        })
+        .unwrap();
+    assert_eq!(p.origin, PatchOrigin::User);
+    assert_eq!(p.state, PatchState::Applies);
+    let r = PatchRef {
+        target: live(),
+        id: p.id.clone(),
+    };
+    let x = b.export_user_patch(r.clone()).unwrap();
+    assert!(x.text.contains("op = \"set\"") && x.file_name.ends_with(".patch.toml"));
+    let left = b.delete_user_patch(r.clone()).unwrap();
+    assert!(!left.iter().any(|v| v.id == p.id));
+    let back = b.import_user_patch(live()).unwrap();
+    assert_eq!(back.id, p.id);
+    let builtin = PatchRef {
+        target: live(),
+        id: "syn-typo-cargo".into(),
+    };
+    assert_eq!(
+        b.delete_user_patch(builtin).unwrap_err().code,
+        ErrorCode::Invalid
+    );
+}
+
+#[test]
+fn fix_known_bugs_off_disables_every_built_in_patch() {
+    let b = MockBackend::default();
+    b.setup(SetupRequest {
+        install: "inst-7f3a".into(),
+        channels: vec![ChannelConsent {
+            channel: "HOTFIX".into(),
+            consent: true,
+            switch_language: false,
+        }],
+        data_source: DataSource::Local,
+        preset: Preset::Minimal,
+        fix_known_bugs: false,
+    })
+    .unwrap();
+    let p = b.get_profile(hotfix()).unwrap();
+    let ids: Vec<String> = b
+        .list_patches(hotfix())
+        .unwrap()
+        .into_iter()
+        .filter(|p| p.origin == PatchOrigin::BuiltIn)
+        .map(|p| p.id)
+        .collect();
+    assert_eq!(p.patches_disabled, ids);
+}
+
+#[test]
+fn schema_lines_name_only_known_categories() {
+    let s = MockBackend::default().profile_schema().unwrap();
+    for c in &s.categories {
+        let prefix = serde_json::to_value(c.id)
+            .unwrap()
+            .as_str()
+            .unwrap()
+            .replace('-', "_");
+        for l in &c.lines {
+            assert!(l.key.starts_with(&format!("{prefix}.")), "{}", l.key);
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// Drift against the real core (M1/M2). Reads the core sources; runs once they are in the
+// workspace (or point STARORG_CORE_SRC at a checkout's crates/starorg-core/src).
+// ---------------------------------------------------------------------------------------
+
+fn core_src(file: &str) -> Option<String> {
+    let dir = std::env::var_os("STARORG_CORE_SRC")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../crates/starorg-core/src")
+        });
+    std::fs::read_to_string(dir.join(file)).ok()
+}
+
+/// `pub <field>:` names inside `pub struct <name> {`.
+fn rust_fields(src: &str, name: &str) -> Vec<String> {
+    let at = src
+        .find(&format!("pub struct {name} {{"))
+        .unwrap_or_else(|| panic!("no struct {name}"));
+    let body = &src[at..at + src[at..].find("\n}").unwrap()];
+    body.lines()
+        .filter_map(|l| l.trim().strip_prefix("pub "))
+        .filter_map(|l| l.split_once(':').map(|(f, _)| f.trim().to_string()))
+        .filter(|f| !f.contains(' '))
+        .collect()
+}
+
+fn json_keys(v: &Value) -> Vec<String> {
+    let mut k: Vec<String> = v.as_object().unwrap().keys().cloned().collect();
+    k.sort();
+    k
+}
+
+#[test]
+fn contract_matches_core_names() {
+    let (Some(validate), Some(profile), Some(patch), Some(apply)) = (
+        core_src("validate.rs"),
+        core_src("enhance/profile.rs"),
+        core_src("patch.rs"),
+        core_src("apply.rs"),
+    ) else {
+        eprintln!("core M1/M2 sources not in this checkout: drift check skipped");
+        return;
+    };
+    // Override rules: M1 `Rule::name()`.
+    let core_rules: Vec<String> = validate
+        .lines()
+        .filter(|l| l.trim_start().starts_with("Rule::") && l.contains("=> \""))
+        .map(|l| l.split('"').nth(1).unwrap().to_string())
+        .collect();
+    assert_eq!(names(&OverrideRule::ALL), core_rules);
+    // Profile fields: M2 `Profile`, `Tags`, `Mission`, `TagStyle` (+ ours: preset, patches).
+    let b = MockBackend::default();
+    let p = serde_json::to_value(b.preset_profile(Preset::Recommended).unwrap()).unwrap();
+    let mut want = rust_fields(&profile, "Profile");
+    want.extend(["preset".to_string(), "patches_disabled".to_string()]);
+    want.sort();
+    assert_eq!(json_keys(&p), want, "Profile");
+    let mut tags = rust_fields(&profile, "Tags");
+    tags.sort();
+    assert_eq!(json_keys(&p["tags"]), tags, "Tags");
+    let mut mission = rust_fields(&profile, "Mission");
+    mission.sort();
+    assert_eq!(json_keys(&p["mission"]), mission, "Mission");
+    let mut style = rust_fields(&profile, "TagStyle");
+    style.sort();
+    assert_eq!(json_keys(&p["tags"]["components"]), style, "TagStyle");
+    // Patch states: every M1 EntryState is a PatchState.
+    let at = patch.find("pub enum EntryState {").unwrap();
+    let body = &patch[at..at + patch[at..].find('}').unwrap()];
+    for v in body
+        .lines()
+        .map(str::trim)
+        .filter(|l| l.ends_with(',') && !l.starts_with("//"))
+    {
+        let kebab: String = v
+            .trim_end_matches(',')
+            .chars()
+            .enumerate()
+            .flat_map(|(i, c)| {
+                if c.is_uppercase() && i > 0 {
+                    vec!['-', c.to_ascii_lowercase()]
+                } else {
+                    vec![c.to_ascii_lowercase()]
+                }
+            })
+            .collect();
+        assert!(
+            serde_json::from_value::<PatchState>(json!(kebab)).is_ok(),
+            "PatchState lacks {kebab}"
+        );
+    }
+    // Apply outcomes: M1 `Outcome` = our ApplyResult.
+    let at = apply.find("pub enum Outcome {").unwrap();
+    let body = &apply[at..at + apply[at..].find('}').unwrap()];
+    let n = body.lines().filter(|l| l.trim().ends_with(',')).count();
+    assert_eq!(n, 10, "M1 Outcome has {n} variants; ApplyResult has 10");
+    // Report fields the UI needs are in M1's Report.
+    for f in ["recovered", "owned", "reason", "warnings", "duration_ms"] {
+        assert!(
+            rust_fields(&apply, "Report").iter().any(|x| x == f),
+            "Report.{f}"
+        );
+    }
 }

@@ -1,11 +1,11 @@
 {
   "activity": [
     {
-      "channel": "HOTFIX",
+      "channel": "LIVE",
       "id": 5,
-      "job": "remove",
+      "job": null,
       "level": "info",
-      "message": "Removed StarOrg changes (back to stock)",
+      "message": "Added patch Sample label fix",
       "time": "2026-11-14T21:30:05Z"
     },
     {
@@ -41,6 +41,15 @@
       "time": "2026-11-14T21:30:05Z"
     }
   ],
+  "add_user_patch": {
+    "description": "Synthetic user patch.",
+    "enabled": true,
+    "id": "user-sample-label-fix",
+    "keys": 1,
+    "origin": "user",
+    "state": "applies",
+    "title": "Sample label fix"
+  },
   "apply": {
     "backup": "20261114-213001-pre-existing",
     "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
@@ -63,6 +72,14 @@
       "ships": 231
     },
     "duration_ms": 1830,
+    "owned": {
+      "ambiguous": 0,
+      "characters": [
+        "1000000000001"
+      ],
+      "count": 4,
+      "mode": "auto"
+    },
     "patches": [
       {
         "id": "syn-typo-cargo",
@@ -74,7 +91,7 @@
       },
       {
         "id": "syn-old-name",
-        "state": "not-needed"
+        "state": "retired"
       },
       {
         "id": "syn-moved-key",
@@ -82,6 +99,7 @@
       }
     ],
     "reason": null,
+    "recovered": null,
     "result": "applied",
     "target": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/Data/Localization/english/global.ini",
     "target_is_link": false,
@@ -121,14 +139,14 @@
       "key": "vehicle_DescSYN_Fighter",
       "label": "Ship description",
       "original": "A synthetic light fighter used for testing.",
-      "result": "A synthetic light fighter used for testing.\\n\\n--- STATS ---\\nRole: Light Fighter  |  Career: Combat  |  Crew: 1\\nSize: 21 × 16.5 × 5.5 m\\nSCM: 226 m/s  |  Max: 1,193 m/s\\nBoost: 520 m/s fwd  |  268 m/s back"
+      "result": "A synthetic light fighter used for testing.\\n\\n--- STATS ---\\nRole: Light Fighter  |  Career: Combat  |  Crew: 1\\nSize: 21 × 16.5 × 5.5 m\\nSCM: 226 m/s  |  Max: 1,193 m/s\\nBoost: 520 m/s fwd  |  268 m/s back\\nCargo: 0 SCU"
     },
     {
       "category": "components",
       "key": "item_NameSYN_Cooler_S2",
       "label": "Component name",
       "original": "Sample Cooler",
-      "result": "[IND-S2-A] Sample Cooler"
+      "result": "[Industrial-S2-A] Sample Cooler"
     },
     {
       "category": "missions",
@@ -364,314 +382,78 @@
   "export_diagnostics": {
     "file_name": "starorg-strings-diagnostics-20261114-213005.txt",
     "redacted": 5,
-    "text": "StarOrg Strings diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 7 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Removed StarOrg changes (back to stock)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
+    "text": "StarOrg Strings diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 7 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
+  },
+  "export_user_patch": {
+    "file_name": "user-sample-label-fix.patch.toml",
+    "text": "schema = 1\nid = \"user-sample-label-fix\"\ntitle = \"Sample label fix\"\ndescription = \"Synthetic user patch.\"\n\n[[loc]]\nkey = \"ui_SYN_Label_00007\"\nop = \"replace\"\nfind = \"Label\"\nvalue = \"Sign\"\n"
   },
   "get_profile": {
     "branding": false,
-    "categories": [
-      {
-        "enabled": true,
-        "id": "ships",
-        "label": "Ships",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "role",
-            "label": "Role, career, crew"
-          },
-          {
-            "enabled": true,
-            "id": "size",
-            "label": "Size"
-          },
-          {
-            "enabled": true,
-            "id": "speed",
-            "label": "SCM and max speed"
-          },
-          {
-            "enabled": true,
-            "id": "boost",
-            "label": "Boost speeds"
-          },
-          {
-            "enabled": true,
-            "id": "rates",
-            "label": "Pitch, yaw, roll"
-          },
-          {
-            "enabled": true,
-            "id": "cargo",
-            "label": "Cargo and fuel"
-          },
-          {
-            "enabled": true,
-            "id": "loadout",
-            "label": "Default loadout"
-          }
-        ]
-      },
-      {
-        "enabled": true,
-        "id": "components",
-        "label": "Components",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "class",
-            "label": "Class and grade"
-          },
-          {
-            "enabled": true,
-            "id": "hp",
-            "label": "Health"
-          },
-          {
-            "enabled": true,
-            "id": "power",
-            "label": "Power and cooling"
-          },
-          {
-            "enabled": true,
-            "id": "signature",
-            "label": "EM and IR signature"
-          },
-          {
-            "enabled": true,
-            "id": "quantum",
-            "label": "Quantum speed and fuel"
-          }
-        ]
-      },
-      {
-        "enabled": true,
-        "id": "ship-weapons",
-        "label": "Ship weapons",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "damage",
-            "label": "Damage and DPS"
-          },
-          {
-            "enabled": true,
-            "id": "rate",
-            "label": "Fire rate"
-          },
-          {
-            "enabled": true,
-            "id": "range",
-            "label": "Range and speed"
-          },
-          {
-            "enabled": true,
-            "id": "ammo",
-            "label": "Ammo and heat"
-          }
-        ]
-      },
-      {
-        "enabled": true,
-        "id": "missiles",
-        "label": "Missiles and bombs",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "damage",
-            "label": "Damage"
-          },
-          {
-            "enabled": true,
-            "id": "lock",
-            "label": "Lock time and range"
-          },
-          {
-            "enabled": true,
-            "id": "speed",
-            "label": "Speed"
-          }
-        ]
-      },
-      {
-        "enabled": true,
-        "id": "fps-weapons",
-        "label": "FPS weapons",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "damage",
-            "label": "Damage"
-          },
-          {
-            "enabled": true,
-            "id": "rate",
-            "label": "Fire rate"
-          },
-          {
-            "enabled": true,
-            "id": "magazine",
-            "label": "Magazine"
-          }
-        ]
-      },
-      {
-        "enabled": true,
-        "id": "name-tags",
-        "label": "Name tags",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "short_name",
-            "label": "Also on short names"
-          }
-        ]
-      },
-      {
-        "enabled": true,
-        "id": "missions",
-        "label": "Missions",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "rewards",
-            "label": "Rewards"
-          },
-          {
-            "enabled": true,
-            "id": "blueprints",
-            "label": "Blueprint pools"
-          }
-        ]
-      },
-      {
-        "enabled": false,
-        "id": "blueprints",
-        "label": "Blueprints",
-        "lines": [
-          {
-            "enabled": true,
-            "id": "owned",
-            "label": "Mark owned blueprints"
-          }
-        ]
-      }
-    ],
-    "fix_known_bugs": true,
-    "format": {
-      "header": "--- STATS ---",
-      "placement": "below-prose"
+    "components": true,
+    "fps_weapons": true,
+    "header": "--- STATS ---",
+    "lines_off": [],
+    "missiles": true,
+    "mission": {
+      "blueprints": true,
+      "bullet_tags": true,
+      "details": true,
+      "header_em": 3,
+      "item_rewards": true,
+      "label_em": 4,
+      "max_list": 25,
+      "owned_marker": true,
+      "title_blueprint": true,
+      "title_em": true,
+      "title_reputation": true
     },
-    "missions": {
-      "body_sections": [
-        {
-          "enabled": true,
-          "id": "reward",
-          "label": "Reward"
-        },
-        {
-          "enabled": true,
-          "id": "reputation",
-          "label": "Reputation"
-        },
-        {
-          "enabled": true,
-          "id": "blueprints",
-          "label": "Blueprint pool"
-        },
-        {
-          "enabled": true,
-          "id": "timer",
-          "label": "Time limit"
-        }
-      ],
-      "em4_title_tags": true,
-      "mark_owned": false,
-      "tag_bp": true,
-      "tag_bp_maybe": true,
-      "tag_rep": true
-    },
+    "missions": true,
     "patches_disabled": [],
     "preset": "recommended",
-    "tags": [
-      {
+    "ship_weapons": true,
+    "ships": true,
+    "stats_above": false,
+    "tags": {
+      "components": {
         "elements": [
-          {
-            "enabled": true,
-            "id": "class",
-            "label": "Class",
-            "style": "short"
-          },
-          {
-            "enabled": true,
-            "id": "size",
-            "label": "Size",
-            "style": "short"
-          },
-          {
-            "enabled": true,
-            "id": "grade",
-            "label": "Grade",
-            "style": "short"
-          }
+          "class",
+          "size",
+          "grade"
         ],
+        "enabled": true,
         "enclosing": "square",
-        "kind": "component",
-        "label": "Ship components",
         "placement": "prefix",
         "separator": "dash",
-        "short_name_too": false
+        "styles": {}
       },
-      {
+      "missiles": {
         "elements": [
-          {
-            "enabled": true,
-            "id": "type",
-            "label": "Type",
-            "style": "short"
-          },
-          {
-            "enabled": true,
-            "id": "size",
-            "label": "Size",
-            "style": "short"
-          },
-          {
-            "enabled": false,
-            "id": "damage",
-            "label": "Damage type",
-            "style": "short"
-          }
+          "tracking",
+          "size"
         ],
+        "enabled": true,
         "enclosing": "square",
-        "kind": "weapon",
-        "label": "Ship weapons",
         "placement": "prefix",
         "separator": "dash",
-        "short_name_too": false
+        "styles": {}
       },
-      {
+      "ship_weapons": {
         "elements": [
-          {
-            "enabled": true,
-            "id": "tracking",
-            "label": "Tracking",
-            "style": "short"
-          },
-          {
-            "enabled": true,
-            "id": "size",
-            "label": "Size",
-            "style": "short"
-          }
+          "damage",
+          "size"
         ],
+        "enabled": true,
         "enclosing": "square",
-        "kind": "missile",
-        "label": "Missiles",
         "placement": "prefix",
         "separator": "dash",
-        "short_name_too": false
-      }
-    ]
+        "styles": {
+          "damage": "short"
+        }
+      },
+      "short_names": false,
+      "tool_size_tag": false
+    }
   },
   "get_settings": {
     "appearance": {
@@ -722,6 +504,7 @@
     ],
     "dry_run": true,
     "duplicates": 0,
+    "empty_catalog": false,
     "exported_at": "2026-11-01T10:00:00Z",
     "file": "~/Games/star-citizen/drive_c/users/pilot/SmartCitizen/owned-blueprints.json",
     "imported": [
@@ -786,6 +569,7 @@
     ],
     "channel": "LIVE",
     "folder": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+    "keep_builds": 3,
     "keep_newest": 10,
     "offers": {
       "remove": true,
@@ -840,6 +624,13 @@
     "last_scan": "2026-11-14T19:40:00Z",
     "unattributed": 1
   },
+  "list_overrides": [
+    {
+      "key": "item_NameSYN_Cooler_S2_00001",
+      "original": "Sample Cooler 1",
+      "value": "My cooler"
+    }
+  ],
   "list_patches": [
     {
       "description": "Fixes a misspelt unit in synthetic cargo descriptions.",
@@ -860,12 +651,12 @@
       "title": "Missing reputation line"
     },
     {
-      "description": "Retired: the game text was fixed upstream.",
+      "description": "The game text was fixed upstream.",
       "enabled": true,
       "id": "syn-old-name",
       "keys": 1,
       "origin": "built-in",
-      "state": "not-needed",
+      "state": "retired",
       "title": "Renamed component"
     },
     {
@@ -876,6 +667,15 @@
       "origin": "built-in",
       "state": "target-changed",
       "title": "Moved description key"
+    },
+    {
+      "description": "Synthetic user patch.",
+      "enabled": true,
+      "id": "user-sample-label-fix",
+      "keys": 1,
+      "origin": "user",
+      "state": "applies",
+      "title": "Sample label fix"
     }
   ],
   "overview": {
@@ -1245,7 +1045,7 @@
         "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
         "channel": "LIVE",
         "counts": {
-          "changed": 11254,
+          "changed": 11106,
           "components": 1840,
           "dropped": 0,
           "fps_weapons": 318,
@@ -1266,7 +1066,7 @@
         "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/PTU/backups",
         "channel": "PTU",
         "counts": {
-          "changed": 11254,
+          "changed": 11143,
           "components": 1840,
           "dropped": 0,
           "fps_weapons": 318,
@@ -1289,6 +1089,255 @@
       {
         "detail": "Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.",
         "kind": "network"
+      }
+    ]
+  },
+  "profile_schema": {
+    "categories": [
+      {
+        "blurb": "A stats block in ship descriptions.",
+        "id": "ships",
+        "label": "Ships",
+        "lines": [
+          {
+            "key": "ships.role",
+            "label": "Role, career and crew"
+          },
+          {
+            "key": "ships.size",
+            "label": "Size"
+          },
+          {
+            "key": "ships.speed",
+            "label": "SCM and max speed"
+          },
+          {
+            "key": "ships.boost",
+            "label": "Boost speeds"
+          },
+          {
+            "key": "ships.rotation",
+            "label": "Pitch, yaw and roll"
+          },
+          {
+            "key": "ships.weapons",
+            "label": "Weapons"
+          },
+          {
+            "key": "ships.components",
+            "label": "Components"
+          },
+          {
+            "key": "ships.armor",
+            "label": "Armor"
+          },
+          {
+            "key": "ships.damage_taken",
+            "label": "Damage taken"
+          },
+          {
+            "key": "ships.cargo",
+            "label": "Cargo"
+          }
+        ]
+      },
+      {
+        "blurb": "Stats in shields, coolers, power plants, quantum drives and radars.",
+        "id": "components",
+        "label": "Components",
+        "lines": [
+          {
+            "key": "components.health",
+            "label": "Health"
+          },
+          {
+            "key": "components.power",
+            "label": "Power use"
+          },
+          {
+            "key": "components.signatures",
+            "label": "EM and IR signatures"
+          },
+          {
+            "key": "components.shield",
+            "label": "Shield HP and regen"
+          },
+          {
+            "key": "components.delay",
+            "label": "Regen delay"
+          },
+          {
+            "key": "components.resist",
+            "label": "Resistances"
+          },
+          {
+            "key": "components.output",
+            "label": "Power output"
+          },
+          {
+            "key": "components.cooling",
+            "label": "Cooling"
+          },
+          {
+            "key": "components.speed",
+            "label": "Quantum speed"
+          },
+          {
+            "key": "components.fuel",
+            "label": "Quantum fuel use"
+          },
+          {
+            "key": "components.accel",
+            "label": "Quantum spool and acceleration"
+          },
+          {
+            "key": "components.calibration",
+            "label": "Calibration"
+          },
+          {
+            "key": "components.ping",
+            "label": "Radar range"
+          },
+          {
+            "key": "components.slots",
+            "label": "Missile rack slots"
+          }
+        ]
+      },
+      {
+        "blurb": "Damage, fire rate and range in ship weapon descriptions.",
+        "id": "ship-weapons",
+        "label": "Ship weapons",
+        "lines": [
+          {
+            "key": "ship_weapons.damage",
+            "label": "Damage and DPS"
+          },
+          {
+            "key": "ship_weapons.rate",
+            "label": "Fire rate"
+          },
+          {
+            "key": "ship_weapons.velocity",
+            "label": "Projectile speed and range"
+          },
+          {
+            "key": "ship_weapons.ammo",
+            "label": "Ammo"
+          }
+        ]
+      },
+      {
+        "blurb": "Damage, fire rate and magazine in personal weapon descriptions.",
+        "id": "fps-weapons",
+        "label": "FPS weapons",
+        "lines": [
+          {
+            "key": "fps_weapons.damage",
+            "label": "Damage"
+          },
+          {
+            "key": "fps_weapons.rate",
+            "label": "Fire rate"
+          },
+          {
+            "key": "fps_weapons.velocity",
+            "label": "Projectile speed"
+          },
+          {
+            "key": "fps_weapons.falloff",
+            "label": "Damage falloff"
+          },
+          {
+            "key": "fps_weapons.magazine",
+            "label": "Magazine"
+          },
+          {
+            "key": "fps_weapons.modifiers",
+            "label": "Attachment modifiers"
+          }
+        ]
+      },
+      {
+        "blurb": "Damage, lock and speed in missile and bomb descriptions.",
+        "id": "missiles",
+        "label": "Missiles",
+        "lines": [
+          {
+            "key": "missiles.damage",
+            "label": "Damage"
+          },
+          {
+            "key": "missiles.tracking",
+            "label": "Tracking and lock time"
+          },
+          {
+            "key": "missiles.lock_range",
+            "label": "Lock range"
+          },
+          {
+            "key": "missiles.speed",
+            "label": "Speed"
+          },
+          {
+            "key": "missiles.health",
+            "label": "Health"
+          }
+        ]
+      },
+      {
+        "blurb": "Tags in contract titles and sections in their descriptions.",
+        "id": "missions",
+        "label": "Missions",
+        "lines": []
+      }
+    ],
+    "tag_kinds": [
+      {
+        "elements": [
+          {
+            "id": "class",
+            "label": "Class"
+          },
+          {
+            "id": "size",
+            "label": "Size"
+          },
+          {
+            "id": "grade",
+            "label": "Grade"
+          }
+        ],
+        "kind": "components",
+        "label": "Ship components"
+      },
+      {
+        "elements": [
+          {
+            "id": "damage",
+            "label": "Damage type"
+          },
+          {
+            "id": "size",
+            "label": "Size"
+          }
+        ],
+        "kind": "ship-weapons",
+        "label": "Ship weapons"
+      },
+      {
+        "elements": [
+          {
+            "id": "tracking",
+            "label": "Tracking"
+          },
+          {
+            "id": "size",
+            "label": "Size"
+          }
+        ],
+        "kind": "missiles",
+        "label": "Missiles"
       }
     ]
   },
@@ -1366,8 +1415,10 @@
       "ships": 0
     },
     "duration_ms": 0,
+    "owned": null,
     "patches": [],
     "reason": null,
+    "recovered": null,
     "result": "nothing-to-do",
     "target": null,
     "target_is_link": false,
@@ -1440,7 +1491,7 @@
       }
     },
     "message": "Every <EMn> tag needs its closing </EMn>.",
-    "rule": "em-tags"
+    "rule": "added-em-unbalanced"
   },
   "setup": {
     "install": "inst-7f3a",
