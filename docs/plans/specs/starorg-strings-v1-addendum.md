@@ -82,3 +82,28 @@ tracked **per character**, never merged.
   same character (PTU copies) but PTU progress is not LIVE progress: keep sets per channel.
 - Privacy: geid/accountId/handles are personal data. Never upload them, redact them in
   `doctor` diagnostics, and use synthetic names in test fixtures (no real handles in the repo).
+
+## 4. Import Smart Citizen's blueprint tracker export
+
+`starorg-strings blueprints import <file> --character <name|geid> [--channel LIVE] [--dry-run]`
+(and an Import button in the app's blueprint screen).
+
+- Input: Smart Citizen's export, e.g. the owner's
+  `drive_c/users/<user>/SmartCitizen/owned-blueprints.json`:
+  `{"version": 1, "exportedAt": "<ISO>", "missions": [], "blueprints": [{"name", "completed", "favorite"}]}`.
+  Accept `version` 1 only; refuse anything else with a clear message.
+- Names are display names **with Smart Citizen's Tag Builder prefixes** (180 of the owner's
+  269): `[CIV-S3-A] 7CA 'Nargun'`, `[H] ADP Core`, `[E-S2] …`, `[IND-S1-C] …`, `[P-S3] …`, `[L] …`.
+  Strip every leading `[...]` group (repeatable, then trim), then match the rest against the
+  English display names of blueprint output items in `GameData` (case-insensitive, normalise
+  quotes/apostrophes and whitespace). If one name matches several blueprints, keep all
+  candidates and report it as ambiguous instead of guessing.
+- `completed: true` → owned; `completed: false` → not imported (it was only tracked).
+  `favorite` → our favourite flag.
+- Target: the chosen character (`geid` resolved from the logs, see §3; a name must resolve to
+  exactly one geid) and channel (default LIVE). Merge as a union with what the log scan found;
+  never delete existing entries. Record source `import:smart-citizen` + `exportedAt` per entry.
+- Report: imported / already known / unmatched (listed by original name) / ambiguous.
+  `--dry-run` prints the report and writes nothing.
+- Test data: synthetic export with fake names in the repo; the owner's real file is used
+  only in an ignored local test (personal data, never committed).
