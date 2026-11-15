@@ -129,9 +129,9 @@
     "problem": null
   },
   "asset_cache_move": {
-    "bytes": 404546702,
+    "bytes": 404557650,
     "default_path": "/synthetic/cache/assets",
-    "files": 7,
+    "files": 9,
     "is_default": false,
     "max_bytes": 2147483648,
     "other_drive": true,
@@ -148,8 +148,8 @@
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
     "previous": {
-      "bytes": 404546707,
-      "files": 7,
+      "bytes": 404557655,
+      "files": 9,
       "path": "/synthetic/cache/assets"
     },
     "problem": null
@@ -323,6 +323,160 @@
     "offset": 2,
     "parent": "Data\\Textures\\ships",
     "total": 18
+  },
+  "asset_model_info": {
+    "available": [],
+    "default_lod": 3,
+    "free": 19746783232,
+    "limit": 5368709120,
+    "lods": [
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 0,
+        "need": 1503238553,
+        "uses": 0
+      },
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 1,
+        "need": 1288490188,
+        "uses": 1
+      },
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 2,
+        "need": 1288490188,
+        "uses": 2
+      },
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 3,
+        "need": 1288490188,
+        "uses": 3
+      },
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 4,
+        "need": 1288490188,
+        "uses": 4
+      }
+    ],
+    "max_bytes": 536870912,
+    "what": "51000000-0000-4000-8000-000000000004"
+  },
+  "asset_model_info_known": {
+    "available": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "default_lod": 3,
+    "free": 19746783232,
+    "limit": 5368709120,
+    "lods": [
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 0,
+        "need": 1503238553,
+        "uses": 0
+      },
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 1,
+        "need": 1288490188,
+        "uses": 1
+      },
+      {
+        "bytes": null,
+        "cached": false,
+        "fit": "ok",
+        "lod": 2,
+        "need": 1288490188,
+        "uses": 2
+      },
+      {
+        "bytes": 4264,
+        "cached": true,
+        "fit": "ok",
+        "lod": 3,
+        "need": 1288490188,
+        "uses": 3
+      },
+      {
+        "bytes": 4264,
+        "cached": true,
+        "fit": "ok",
+        "lod": 4,
+        "need": 1288490188,
+        "uses": 3
+      }
+    ],
+    "max_bytes": 536870912,
+    "what": "51000000-0000-4000-8000-000000000004"
+  },
+  "asset_model_view": {
+    "asked": 4,
+    "available": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "bytes": 4264,
+    "cached": false,
+    "chunk": 8388608,
+    "lod": 3,
+    "ms": 840,
+    "peak_rss": 1116000000,
+    "triangles": 164,
+    "what": "51000000-0000-4000-8000-000000000004"
+  },
+  "asset_model_view_cached": {
+    "asked": 3,
+    "available": [
+      0,
+      1,
+      2,
+      3
+    ],
+    "bytes": 4264,
+    "cached": true,
+    "chunk": 8388608,
+    "lod": 3,
+    "ms": null,
+    "peak_rss": null,
+    "triangles": 164,
+    "what": "51000000-0000-4000-8000-000000000004"
+  },
+  "asset_model_view_item": {
+    "asked": 3,
+    "available": [
+      0,
+      1
+    ],
+    "bytes": 6684,
+    "cached": false,
+    "chunk": 8388608,
+    "lod": 1,
+    "ms": 840,
+    "peak_rss": 1116000000,
+    "triangles": 480,
+    "what": "52000000-0000-4000-8000-000000000008"
   },
   "asset_preview": {
     "cached": false,

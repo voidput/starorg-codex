@@ -762,6 +762,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     delay,
     nextJob: () => `job-${nextJob++}`,
     fail: (c, m) => fail(c, m),
+    memory: () => ({ limit: Math.round(memory.limit_gb * 1024 ** 3), free: memory.available_bytes }),
   });
 
   const h: Handlers = {

@@ -8,8 +8,12 @@
 //!   model: the real backend starts the `asset-worker` on the first such call, and answers
 //!   from the asset cache without a worker when it can.
 //! - The webview never sends a path: extraction and exports go through native dialogs.
-//! - `asset_extract`, `asset_export_sounds` and `asset_export_model` stream [`JOB_EVENT`]
-//!   progress (job kind `dev`) and are cancelled with `cancel_job`.
+//! - `asset_extract`, `asset_export_sounds`, `asset_export_model` and `asset_model_view`
+//!   stream [`JOB_EVENT`] progress (job kind `dev`) and are cancelled with `cancel_job`.
+//! - The Explorer's Model tab (addendum 7.20): `asset_model_info` (estimates and the cache, no
+//!   worker), `asset_model_view` (the Print shell GLB at one LOD into the asset cache, in a
+//!   fresh worker), then `asset_model_chunk` hands its bytes over as raw IPC binary (an
+//!   `ArrayBuffer` in the webview, no JSON or base64), [`MODEL_CHUNK`] at a time.
 
 use super::types::*;
 use super::{BackendState, Progress, run};
@@ -210,6 +214,103 @@ pub struct AssetCacheStatus {
     pub problem: Option<String>,
 }
 
+/// The most `asset_model_chunk` returns at once (8 MiB).
+pub const MODEL_CHUNK: u32 = 8 * 1024 * 1024;
+
+/// What the memory guard says about one start (`starorg_core::memlimit::check`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum MemoryFit {
+    Ok,
+    /// More than the memory limit allows: refused.
+    OverLimit,
+    /// Under the limit, more than is free now: asks first (`needs-decision`).
+    LowFree,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetModelInfoRequest {
+    pub target: ChannelRef,
+    pub what: String,
+    /// The record's short name (memory estimates know capital ships by name); may be empty.
+    pub name: String,
+}
+
+/// One step of the viewer's detail slider.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetModelLod {
+    /// 0 = most detail.
+    pub lod: u32,
+    /// The LOD it shows: `lod`, or the one below it the mesh has (LOD 4 of a mesh with 0-3 is
+    /// LOD 3); known after a first export of the record.
+    pub uses: u32,
+    /// Peak memory of exporting it (bytes).
+    pub need: u64,
+    pub fit: MemoryFit,
+    /// In the asset cache: shown without starting a worker.
+    pub cached: bool,
+    /// The cached GLB's size.
+    pub bytes: Option<u64>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetModelInfo {
+    pub what: String,
+    /// LOD 0 to 4, in order.
+    pub lods: Vec<AssetModelLod>,
+    /// The LODs the mesh has; empty until an export of it this session read them.
+    pub available: Vec<u32>,
+    /// Where the slider starts: LOD 3, or the least detailed one the mesh has below that.
+    pub default_lod: u32,
+    /// The memory limit (bytes), `None` when off.
+    pub limit: Option<u64>,
+    pub free: Option<u64>,
+    /// The largest GLB the viewer keeps (a quarter of the asset cache's cap).
+    pub max_bytes: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetModelViewRequest {
+    pub target: ChannelRef,
+    pub what: String,
+    pub name: String,
+    pub lod: u32,
+    /// Export even with less free memory than it may need (after `needs-decision`).
+    pub force: bool,
+}
+
+/// A Print shell GLB in the asset cache, ready for `asset_model_chunk`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetModelView {
+    pub what: String,
+    /// The LOD it has (send this to `asset_model_chunk`).
+    pub lod: u32,
+    /// The LOD asked for.
+    pub asked: u32,
+    /// The LODs the mesh has (empty when not known).
+    pub available: Vec<u32>,
+    pub bytes: u64,
+    /// Answered from the asset cache, no worker started.
+    pub cached: bool,
+    pub triangles: Option<u64>,
+    /// Export time and peak memory (not when cached).
+    pub ms: Option<u64>,
+    pub peak_rss: Option<u64>,
+    /// Bytes per `asset_model_chunk` call.
+    pub chunk: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetModelChunkRequest {
+    pub target: ChannelRef,
+    pub what: String,
+    /// [`AssetModelView::lod`].
+    pub lod: u32,
+    pub offset: u64,
+    /// At most [`MODEL_CHUNK`].
+    pub len: u32,
+}
+
 /// The Developer mode assets half of the backend.
 pub trait AssetBackend {
     /// The asset worker's state (never starts it).
@@ -244,6 +345,18 @@ pub trait AssetBackend {
         req: AssetExportModelRequest,
         progress: Progress<'_>,
     ) -> CmdResult<AssetExportResult>;
+    /// The Model tab's slider: per LOD the memory estimate, the guard and the cache (never
+    /// starts a worker).
+    fn asset_model_info(&self, req: AssetModelInfoRequest) -> CmdResult<AssetModelInfo>;
+    /// The record's Print shell GLB at this LOD into the asset cache (a fresh worker, stopped
+    /// afterwards; none when cached). The memory guard as for exports.
+    fn asset_model_view(
+        &self,
+        req: AssetModelViewRequest,
+        progress: Progress<'_>,
+    ) -> CmdResult<AssetModelView>;
+    /// Bytes of a GLB `asset_model_view` put in the cache (raw binary over IPC).
+    fn asset_model_chunk(&self, req: AssetModelChunkRequest) -> CmdResult<Vec<u8>>;
     fn asset_cache_status(&self) -> CmdResult<AssetCacheStatus>;
     /// Native folder dialog; validated (writable, not in a game folder) and saved.
     fn asset_cache_pick(&self) -> CmdResult<AssetCacheStatus>;
@@ -298,6 +411,7 @@ asset_commands! {
     asset_sound_search(req: AssetSoundSearchRequest) -> TriggerSearch;
     asset_trigger(req: AssetTriggerRequest) -> TriggerInfo;
     asset_sound(req: AssetSoundRequest) -> AssetAudio;
+    asset_model_info(req: AssetModelInfoRequest) -> AssetModelInfo;
     asset_cache_status() -> AssetCacheStatus;
     asset_cache_pick() -> AssetCacheStatus;
     asset_cache_reset() -> AssetCacheStatus;
@@ -309,6 +423,18 @@ asset_progress_commands! {
     asset_extract(req: AssetExtractRequest) -> AssetExportResult;
     asset_export_sounds(req: AssetExportSoundsRequest) -> AssetExportResult;
     asset_export_model(req: AssetExportModelRequest) -> AssetExportResult;
+    asset_model_view(req: AssetModelViewRequest) -> AssetModelView;
+}
+
+/// Raw bytes, not JSON: the webview gets an `ArrayBuffer`.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn asset_model_chunk(
+    state: tauri::State<'_, BackendState>,
+    req: AssetModelChunkRequest,
+) -> CmdResult<tauri::ipc::Response> {
+    run(&state, move |b| b.asset_model_chunk(req))
+        .await
+        .map(tauri::ipc::Response::new)
 }
 
 /// Command names, in handler order (the TS client's `ASSET_COMMANDS` matches).
@@ -325,12 +451,25 @@ pub const ASSET_COMMAND_NAMES: &[&str] = &[
     "asset_sound",
     "asset_export_sounds",
     "asset_export_model",
+    "asset_model_info",
+    "asset_model_view",
+    "asset_model_chunk",
     "asset_cache_status",
     "asset_cache_pick",
     "asset_cache_reset",
     "asset_cache_clear",
     "asset_cache_move",
 ];
+
+/// [`MemoryFit`] of `memlimit::check`.
+pub fn memory_fit(f: starorg_core::memlimit::Fit) -> MemoryFit {
+    use starorg_core::memlimit::Fit;
+    match f {
+        Fit::Ok => MemoryFit::Ok,
+        Fit::OverLimit { .. } => MemoryFit::OverLimit,
+        Fit::LowFree { .. } => MemoryFit::LowFree,
+    }
+}
 
 /// The sounds an "Export all" writes: every playable one, once per media.
 pub fn playable_picks(s: &RecordSounds) -> Vec<AssetSoundPick> {

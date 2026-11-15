@@ -68,6 +68,8 @@ pub struct AssetState {
     export: Mutex<Option<(String, Arc<Worker>, u64)>>,
     /// The cache folder before the last change, offered for "Move existing cache".
     previous: Mutex<Option<PathBuf>>,
+    /// The mesh LODs a model export read, per (channel, build, record): this session only.
+    lods: Mutex<std::collections::HashMap<(String, String, String), Vec<u32>>>,
 }
 
 impl Default for AssetState {
@@ -79,6 +81,7 @@ impl Default for AssetState {
             start: Mutex::new(()),
             export: Mutex::new(None),
             previous: Mutex::new(None),
+            lods: Mutex::new(Default::default()),
         }
     }
 }
@@ -371,6 +374,44 @@ impl RealBackend {
             );
         }
         Ok(self.cache_status())
+    }
+
+    fn lods_key(key: &WorkerKey, what: &str) -> (String, String, String) {
+        (
+            key.channel.clone(),
+            key.build.clone(),
+            what.to_ascii_lowercase(),
+        )
+    }
+
+    /// The mesh LODs of `what`, once an export read them (empty otherwise).
+    fn known_lods(&self, key: &WorkerKey, what: &str) -> Vec<u32> {
+        lock_or(&self.assets.lods)
+            .get(&Self::lods_key(key, what))
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    fn remember_lods(&self, key: &WorkerKey, what: &str, lods: &[u32]) {
+        if !lods.is_empty() {
+            lock_or(&self.assets.lods).insert(Self::lods_key(key, what), lods.to_vec());
+        }
+    }
+
+    /// The memory guard before an export needing `need` (addendum 7.18): over the limit is
+    /// refused; under it but over the free memory asks first unless `force`.
+    fn model_guard(&self, what: &str, need: u64, force: bool) -> CmdResult<()> {
+        match memlimit::check(need, self.memory_limit(), memlimit::meminfo().available) {
+            memlimit::Fit::OverLimit { need, limit } => Err(err(
+                ErrorCode::Invalid,
+                memlimit::over_limit_message(what, need, limit),
+            )),
+            memlimit::Fit::LowFree { need, free } if !force => Err(err(
+                ErrorCode::NeedsDecision,
+                memlimit::low_free_message(what, need, free),
+            )),
+            _ => Ok(()),
+        }
     }
 
     /// Where the worker writes a sound (it sets the extension: `ogg`, `opus`, `wav`, `wem`).
@@ -798,9 +839,11 @@ impl AssetBackend for RealBackend {
         progress: Progress<'_>,
     ) -> CmdResult<AssetExportResult> {
         let (ch, key) = self.asset_target(&req.target)?;
+        // A LOD the mesh does not have is the one below it (known after a first export).
+        let asked = req.lod.min(model::MAX_LOD);
         let o = ModelOptions {
             preset: req.preset,
-            lod: req.lod.min(model::MAX_LOD),
+            lod: model::effective_lod(asked, &self.known_lods(&key, &req.what)),
             stl: req.stl,
         };
         let name = if req.name.is_empty() {
@@ -848,7 +891,7 @@ impl AssetBackend for RealBackend {
             ));
         }
         let c = self.asset_cache()?;
-        let mkey = format!("{}-{}", assetcache::safe_name(&req.what), o.key());
+        let mkey = o.cache_key(&req.what);
         if let Some(hit) = c.get(&key.channel, &key.build, Kind::Models, &mkey, "glb") {
             let n = std::fs::copy(&hit, &out).map_err(io)?;
             let mut files = 1;
@@ -886,6 +929,8 @@ impl AssetBackend for RealBackend {
         w.stop();
         drop(_x);
         let d: ModelDone = serde_json::from_value(r?).map_err(internal)?;
+        self.remember_lods(&key, &req.what, &d.lods);
+        let mkey = ModelOptions { lod: d.lod, ..o }.cache_key(&req.what);
         let _ = c.put_copy(&key.channel, &key.build, Kind::Models, &mkey, "glb", &out);
         self.log(
             LogLevel::Info,
@@ -902,6 +947,212 @@ impl AssetBackend for RealBackend {
         let files = 1 + d.stl_path.is_some() as u32;
         let bytes = d.bytes + d.stl_bytes.unwrap_or(0);
         Ok(export_result(Some(d.path), files, bytes, false))
+    }
+
+    fn asset_model_info(&self, req: AssetModelInfoRequest) -> CmdResult<AssetModelInfo> {
+        let (_, key) = self.asset_target(&req.target)?;
+        let c = self.asset_cache()?;
+        let name = if req.name.is_empty() {
+            &req.what
+        } else {
+            &req.name
+        };
+        let known = self.known_lods(&key, &req.what);
+        let limit = self.memory_limit();
+        let free = memlimit::meminfo().available;
+        let lods = (0..=model::MAX_LOD)
+            .map(|lod| {
+                let o = view_options(model::effective_lod(lod, &known));
+                let need = model::memory_need(&o, name);
+                let bytes = c
+                    .peek(
+                        &key.channel,
+                        &key.build,
+                        Kind::Models,
+                        &o.cache_key(&req.what),
+                        "glb",
+                    )
+                    .and_then(|p| std::fs::metadata(p).ok())
+                    .map(|m| m.len());
+                AssetModelLod {
+                    lod,
+                    uses: o.lod,
+                    need,
+                    fit: memory_fit(memlimit::check(need, limit, free)),
+                    cached: bytes.is_some(),
+                    bytes,
+                }
+            })
+            .collect();
+        Ok(AssetModelInfo {
+            what: req.what,
+            lods,
+            default_lod: model::view_lod(&known),
+            available: known,
+            limit,
+            free,
+            max_bytes: c.max_bytes() / 4,
+        })
+    }
+
+    fn asset_model_view(
+        &self,
+        req: AssetModelViewRequest,
+        progress: Progress<'_>,
+    ) -> CmdResult<AssetModelView> {
+        let (ch, key) = self.asset_target(&req.target)?;
+        let c = self.asset_cache()?;
+        let name = if req.name.is_empty() {
+            &req.what
+        } else {
+            &req.name
+        };
+        let asked = req.lod.min(model::MAX_LOD);
+        let known = self.known_lods(&key, &req.what);
+        let o = view_options(model::effective_lod(asked, &known));
+        let path = |o: &ModelOptions| {
+            c.path(
+                &key.channel,
+                &key.build,
+                Kind::Models,
+                &o.cache_key(&req.what),
+                "glb",
+            )
+        };
+        if let Some(hit) = c.get(
+            &key.channel,
+            &key.build,
+            Kind::Models,
+            &o.cache_key(&req.what),
+            "glb",
+        ) {
+            let bytes = std::fs::metadata(&hit).map_err(io)?.len();
+            return Ok(AssetModelView {
+                what: req.what,
+                lod: o.lod,
+                asked,
+                available: known,
+                bytes,
+                cached: true,
+                triangles: starorg_data::assets::stl::glb_file_triangle_count(&hit),
+                ms: None,
+                peak_rss: None,
+                chunk: MODEL_CHUNK,
+            });
+        }
+        self.model_guard(
+            "Viewing this model",
+            model::memory_need(&o, name),
+            req.force,
+        )?;
+        c.prepare(&key.channel, &key.build, Kind::Models)
+            .map_err(io)?;
+        // The worker writes straight into the cache (via `.part`), then moves it to the LOD
+        // it has.
+        let out = path(&o);
+        let _x = wait_lock(&self.dirs().extract_lock())?;
+        let w = self.spawn_asset(&ch, &key)?;
+        let r = self.asset_stream(
+            &w,
+            &ch.name,
+            &format!("Loading model {name} (LOD {asked})"),
+            &AssetRequest::ExportModel {
+                what: req.what.clone(),
+                options: o,
+                out: out.clone(),
+            },
+            "%",
+            progress,
+        );
+        w.stop();
+        drop(_x);
+        let d: ModelDone = serde_json::from_value(r?).map_err(internal)?;
+        self.remember_lods(&key, &req.what, &d.lods);
+        let max = c.max_bytes() / 4;
+        let have = view_options(d.lod);
+        if d.bytes > max {
+            let _ = std::fs::remove_file(&out);
+            return Err(err(
+                ErrorCode::Invalid,
+                format!(
+                    "This model is {} at LOD {}, more than the viewer keeps ({}: a quarter of the asset cache's size). Pick less detail, raise the cache size, or use Export model.",
+                    memlimit::human(d.bytes),
+                    d.lod,
+                    memlimit::human(max)
+                ),
+            ));
+        }
+        if have.lod != o.lod {
+            c.commit(
+                &key.channel,
+                &key.build,
+                Kind::Models,
+                &have.cache_key(&req.what),
+                "glb",
+                &out,
+            )
+            .map_err(io)?;
+        } else {
+            let _ = c.written(&key.channel, &key.build);
+        }
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Dev),
+            Some(&ch.name),
+            &format!(
+                "Model view {} at LOD {} ({} bytes, {} triangles, {} ms, peak memory {} MB)",
+                d.name,
+                d.lod,
+                d.bytes,
+                d.triangles.unwrap_or(0),
+                d.ms,
+                d.peak_rss.map(|b| b / 1_048_576).unwrap_or(0)
+            ),
+        );
+        Ok(AssetModelView {
+            what: req.what,
+            lod: d.lod,
+            asked,
+            available: d.lods,
+            bytes: d.bytes,
+            cached: false,
+            triangles: d.triangles,
+            ms: Some(d.ms),
+            peak_rss: d.peak_rss,
+            chunk: MODEL_CHUNK,
+        })
+    }
+
+    fn asset_model_chunk(&self, req: AssetModelChunkRequest) -> CmdResult<Vec<u8>> {
+        use std::io::{Read, Seek, SeekFrom};
+        let (_, key) = self.asset_target(&req.target)?;
+        let c = self.asset_cache()?;
+        let o = view_options(req.lod.min(model::MAX_LOD));
+        let Some(p) = c.peek(
+            &key.channel,
+            &key.build,
+            Kind::Models,
+            &o.cache_key(&req.what),
+            "glb",
+        ) else {
+            return Err(err(
+                ErrorCode::NotFound,
+                "this model is not in the asset cache (it may have been cleared): load it again",
+            ));
+        };
+        let mut f = std::fs::File::open(&p).map_err(io)?;
+        let size = f.metadata().map_err(io)?.len();
+        if req.offset > size {
+            return Err(err(
+                ErrorCode::Invalid,
+                format!("offset {} is past the end ({size} bytes)", req.offset),
+            ));
+        }
+        let len = u64::from(req.len.min(MODEL_CHUNK)).min(size - req.offset);
+        f.seek(SeekFrom::Start(req.offset)).map_err(io)?;
+        let mut buf = Vec::with_capacity(len as usize);
+        f.take(len).read_to_end(&mut buf).map_err(io)?;
+        Ok(buf)
     }
 
     fn asset_cache_status(&self) -> CmdResult<AssetCacheStatus> {
@@ -982,6 +1233,15 @@ impl RealBackend {
     /// Whether the asset worker runs for this channel (tests: nothing starts it early).
     pub fn asset_worker_running(&self, r: &ChannelRef) -> bool {
         self.asset_worker_if_ready(r).is_some()
+    }
+}
+
+/// What the Model tab shows: the Print shell (geometry only, no interior or lights).
+fn view_options(lod: u32) -> ModelOptions {
+    ModelOptions {
+        preset: ModelPreset::PrintShell,
+        lod,
+        stl: false,
     }
 }
 

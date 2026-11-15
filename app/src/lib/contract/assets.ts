@@ -226,6 +226,76 @@ export interface AssetCacheStatus {
   problem: string | null;
 }
 
+/** What the memory guard says about one start (`memlimit::check`). */
+export type MemoryFit = 'ok' | 'over-limit' | 'low-free';
+
+export interface AssetModelInfoRequest {
+  target: ChannelRef;
+  what: string;
+  /** The record's short name (estimates know capital ships by name); may be ''. */
+  name: string;
+}
+
+/** One step of the Model tab's detail slider. */
+export interface AssetModelLod {
+  /** 0 = most detail. */
+  lod: number;
+  /** The LOD it shows (one below when the mesh lacks it; known after a first export). */
+  uses: number;
+  /** Peak memory of exporting it, bytes. */
+  need: number;
+  fit: MemoryFit;
+  /** In the asset cache: shown without a worker. */
+  cached: boolean;
+  bytes: number | null;
+}
+
+export interface AssetModelInfo {
+  what: string;
+  /** LOD 0 to 4, in order. */
+  lods: AssetModelLod[];
+  /** The LODs the mesh has; [] until an export of it this session read them. */
+  available: number[];
+  default_lod: number;
+  limit: number | null;
+  free: number | null;
+  /** The largest GLB the viewer keeps (a quarter of the asset cache's cap). */
+  max_bytes: number;
+}
+
+export interface AssetModelViewRequest {
+  target: ChannelRef;
+  what: string;
+  name: string;
+  lod: number;
+  /** Export even with less free memory than it may need (after `needs-decision`). */
+  force: boolean;
+}
+
+/** A Print shell GLB in the asset cache, ready for `asset_model_chunk`. */
+export interface AssetModelView {
+  what: string;
+  /** The LOD it has (send it to `asset_model_chunk`). */
+  lod: number;
+  asked: number;
+  available: number[];
+  bytes: number;
+  cached: boolean;
+  triangles: number | null;
+  ms: number | null;
+  peak_rss: number | null;
+  /** Bytes per `asset_model_chunk` call. */
+  chunk: number;
+}
+
+export interface AssetModelChunkRequest {
+  target: ChannelRef;
+  what: string;
+  lod: number;
+  offset: number;
+  len: number;
+}
+
 /** LOD the export dialog starts with per preset; 0-4 offered. */
 export const DEFAULT_LOD: Record<ModelPreset, number> = { full: 1, 'print-shell': 0 };
 export const MAX_LOD = 4;
@@ -243,6 +313,10 @@ export interface AssetCommandMap {
   asset_sound: [{ req: AssetSoundRequest }, AssetAudio];
   asset_export_sounds: [{ req: AssetExportSoundsRequest }, AssetExportResult];
   asset_export_model: [{ req: AssetExportModelRequest }, AssetExportResult];
+  asset_model_info: [{ req: AssetModelInfoRequest }, AssetModelInfo];
+  asset_model_view: [{ req: AssetModelViewRequest }, AssetModelView];
+  /** Raw IPC binary: an ArrayBuffer, not JSON. */
+  asset_model_chunk: [{ req: AssetModelChunkRequest }, ArrayBuffer];
   asset_cache_status: [Record<string, never>, AssetCacheStatus];
   asset_cache_pick: [Record<string, never>, AssetCacheStatus];
   asset_cache_reset: [Record<string, never>, AssetCacheStatus];
@@ -264,6 +338,9 @@ export const ASSET_COMMANDS = [
   'asset_sound',
   'asset_export_sounds',
   'asset_export_model',
+  'asset_model_info',
+  'asset_model_view',
+  'asset_model_chunk',
   'asset_cache_status',
   'asset_cache_pick',
   'asset_cache_reset',
@@ -290,6 +367,11 @@ export const assetApi = {
   exportSounds: (req: AssetExportSoundsRequest) => call('asset_export_sounds', { req }),
   /** Native save dialog (Rust side). */
   exportModel: (req: AssetExportModelRequest) => call('asset_export_model', { req }),
+  /** The Model tab's slider steps (no worker). */
+  modelInfo: (req: AssetModelInfoRequest) => call('asset_model_info', { req }),
+  /** The Print shell GLB at one LOD into the cache (a fresh worker unless cached). */
+  modelView: (req: AssetModelViewRequest) => call('asset_model_view', { req }),
+  modelChunk: (req: AssetModelChunkRequest) => call('asset_model_chunk', { req }),
   cacheStatus: () => call('asset_cache_status', none),
   /** Native folder dialog (Rust side). */
   cachePick: () => call('asset_cache_pick', none),

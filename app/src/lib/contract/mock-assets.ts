@@ -16,6 +16,8 @@ export interface AssetMockData {
   cacheDefault: string;
   cacheOther: string;
   cacheMax: number;
+  /** Base64 GLBs of the mock's model per LOD 0-4 (`model_glb` in mock_assets.rs). */
+  glb: { ship: string[]; item: string[] };
 }
 
 export interface AssetMockCtx {
@@ -28,6 +30,8 @@ export interface AssetMockCtx {
   delay: number;
   nextJob(): string;
   fail(code: T.ErrorCode, message: string): never;
+  /** The memory guard's inputs: the limit and the free memory, bytes. */
+  memory(): { limit: number | null; free: number | null };
 }
 
 type H<A, R> = (args: A) => R | Promise<R>;
@@ -44,6 +48,9 @@ export interface AssetHandlers {
   asset_sound: H<{ req: A.AssetSoundRequest }, A.AssetAudio>;
   asset_export_sounds: H<{ req: A.AssetExportSoundsRequest }, A.AssetExportResult>;
   asset_export_model: H<{ req: A.AssetExportModelRequest }, A.AssetExportResult>;
+  asset_model_info: H<{ req: A.AssetModelInfoRequest }, A.AssetModelInfo>;
+  asset_model_view: H<{ req: A.AssetModelViewRequest }, A.AssetModelView>;
+  asset_model_chunk: H<{ req: A.AssetModelChunkRequest }, ArrayBuffer>;
   asset_cache_status: H<Record<string, never>, A.AssetCacheStatus>;
   asset_cache_pick: H<Record<string, never>, A.AssetCacheStatus>;
   asset_cache_reset: H<Record<string, never>, A.AssetCacheStatus>;
@@ -91,6 +98,67 @@ export const modelFileName = (name: string, o: { preset: A.ModelPreset; lod: num
   return `${base || 'model'}-${lodKey(o)}.glb`;
 };
 
+const GIB = 1024 ** 3;
+const MAX_LOD = 4;
+const MODEL_CHUNK = 8 * 1024 * 1024;
+/** `model::effective_lod`: the most detailed LOD the mesh has at or below the asked one. */
+export const effectiveLod = (asked: number, lods: number[]): number => {
+  const r = Math.min(asked, MAX_LOD);
+  const ok = lods.filter((l) => l <= r);
+  return ok.length ? Math.max(...ok) : r;
+};
+/** `memlimit::model_estimate` for a Print shell of a non-capital ship (the mock's names). */
+export const printEstimate = (lod: number): number => Math.floor(((lod === 0 ? 14 : 12) * GIB) / 10);
+const stopAt = (limit: number) => Math.floor(limit / 100) * 90;
+export function memoryFit(need: number, limit: number | null, free: number | null): A.MemoryFit {
+  if (limit !== null && need > stopAt(limit)) return 'over-limit';
+  if (free !== null && need > free) return 'low-free';
+  return 'ok';
+}
+const gb = (n: number) => `${(n / GIB).toFixed(1).replace(/\.0$/, '')} GB`;
+
+export function fromBase64(b64: string): Uint8Array {
+  const s = atob(b64);
+  const out = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+  return out;
+}
+
+/** `stl::glb_triangle_count`: triangles of every node's triangle primitives, from the JSON. */
+export function glbTriangles(glb: Uint8Array): number | null {
+  const dv = new DataView(glb.buffer, glb.byteOffset, glb.byteLength);
+  if (glb.byteLength < 20 || dv.getUint32(0, true) !== 0x46546c67 || dv.getUint32(16, true) !== 0x4e4f534a) return null;
+  const len = dv.getUint32(12, true);
+  interface Doc {
+    scene?: number;
+    scenes?: { nodes?: number[] }[];
+    nodes?: { mesh?: number; children?: number[] }[];
+    meshes?: { primitives: { mode?: number; indices?: number; attributes: Record<string, number> }[] }[];
+    accessors?: { count: number }[];
+  }
+  let doc: Doc;
+  try {
+    doc = JSON.parse(new TextDecoder().decode(glb.subarray(20, 20 + len))) as Doc;
+  } catch {
+    return null;
+  }
+  const nodes = doc.nodes ?? [];
+  const scene = doc.scenes?.[doc.scene ?? 0];
+  const stack = scene?.nodes ? [...scene.nodes] : nodes.map((_, i) => i);
+  let n = 0;
+  while (stack.length) {
+    const node = nodes[stack.pop()!];
+    if (!node) continue;
+    for (const p of doc.meshes?.[node.mesh ?? -1]?.primitives ?? []) {
+      if ((p.mode ?? 4) !== 4) continue;
+      const a = p.indices !== undefined ? p.indices : p.attributes.POSITION;
+      n += Math.floor((doc.accessors?.[a ?? -1]?.count ?? 0) / 3);
+    }
+    stack.push(...(node.children ?? []));
+  }
+  return n;
+}
+
 export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handlers: AssetHandlers } {
   const files = data.files;
   const sounds = new Map(data.sounds);
@@ -106,7 +174,19 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
   let cached: [string, number][] = [];
   let custom = false;
   let previous: [string, number, number] | null = null;
+  /** GUID -> the mesh LODs a model view read (as the real backend, this session). */
+  const known = new Map<string, number[]>();
+  const glbs = { ship: data.glb.ship.map(fromBase64), item: data.glb.item.map(fromBase64) };
   const key = (r: T.ChannelRef) => `${r.install}/${r.channel}`;
+  const mockLods = (ship: boolean) => (ship ? [0, 1, 2, 3] : [0, 1]);
+  const glbOf = (ship: boolean, lod: number) => (ship ? glbs.ship : glbs.item)[effectiveLod(lod, mockLods(ship))]!;
+  const modelKey = (what: string, lod: number) => `model:${what}-print-lod${lod}`;
+  const size = (k: string) => cached.find((c) => c[0] === k)?.[1] ?? null;
+  const modelRecord = (what: string): [string, boolean] => {
+    const r = ctx.findRecord(what) ?? ctx.fail('not-found', `no record ${JSON.stringify(what)}`);
+    if (r.type !== 'SynShip' && r.type !== 'SynComponent') ctx.fail('invalid', `${r.name} is not an entity (EntityClassDefinition); only entities have models`);
+    return [r.name, r.type === 'SynShip'];
+  };
 
   const on = (r: T.ChannelRef) => {
     if (!ctx.devOn()) ctx.fail('dev-disabled', 'Developer mode is off (Settings > Advanced).');
@@ -319,18 +399,64 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
     },
     asset_export_model: async ({ req }) => {
       on(req.target);
-      const r = ctx.findRecord(req.what) ?? ctx.fail('not-found', `no record ${JSON.stringify(req.what)}`);
-      if (r.type !== 'SynShip' && r.type !== 'SynComponent') ctx.fail('invalid', `${r.name} is not an entity (EntityClassDefinition); only entities have models`);
-      const o = { preset: req.preset, lod: Math.min(req.lod, 4) };
+      const [recName] = modelRecord(req.what);
+      const o = { preset: req.preset, lod: effectiveLod(Math.min(req.lod, 4), known.get(req.what) ?? []) };
       const k = `model:${req.what}-${lodKey(o)}`;
-      const c = has(k);
-      const bytes = req.preset === 'full' ? 348136664 : 56398596;
-      if (!c) {
-        await job(req.target.channel, `Exporting model ${r.name}`);
+      const held = size(k);
+      const bytes = held ?? (req.preset === 'full' ? 348136664 : 56398596);
+      if (held === null) {
+        await job(req.target.channel, `Exporting model ${recName}`);
         if (bytes <= data.cacheMax / 4) add(k, bytes);
       }
-      const name = req.name || r.name;
-      return { cancelled: false, path: `${data.exports}/${modelFileName(name, o)}`, files: 1 + (req.stl ? 1 : 0), bytes: bytes + (req.stl ? 183149634 : 0), cached: c, failed: [], note: null };
+      const name = req.name || recName;
+      return { cancelled: false, path: `${data.exports}/${modelFileName(name, o)}`, files: 1 + (req.stl ? 1 : 0), bytes: bytes + (req.stl ? 183149634 : 0), cached: held !== null, failed: [], note: null };
+    },
+    asset_model_info: ({ req }) => {
+      on(req.target);
+      modelRecord(req.what);
+      const k = known.get(req.what) ?? [];
+      const { limit, free } = ctx.memory();
+      const lods: A.AssetModelLod[] = [0, 1, 2, 3, 4].map((lod) => {
+        const uses = effectiveLod(lod, k);
+        const need = printEstimate(uses);
+        const bytes = size(modelKey(req.what, uses));
+        return { lod, uses, need, fit: memoryFit(need, limit, free), cached: bytes !== null, bytes };
+      });
+      return { what: req.what, lods, available: [...k], default_lod: effectiveLod(3, k), limit, free, max_bytes: data.cacheMax / 4 };
+    },
+    asset_model_view: async ({ req }) => {
+      on(req.target);
+      const [recName, ship] = modelRecord(req.what);
+      const name = req.name || recName;
+      const asked = Math.min(req.lod, MAX_LOD);
+      const k = known.get(req.what) ?? [];
+      const lod = effectiveLod(asked, k);
+      const viewOf = (lod: number, available: number[], c: boolean): A.AssetModelView => {
+        const g = glbOf(ship, lod);
+        return { what: req.what, lod, asked, available, bytes: g.byteLength, cached: c, triangles: glbTriangles(g), ms: c ? null : 840, peak_rss: c ? null : 1116000000, chunk: MODEL_CHUNK };
+      };
+      if (size(modelKey(req.what, lod)) !== null) return viewOf(lod, [...k], true);
+      const need = printEstimate(lod);
+      const { limit, free } = ctx.memory();
+      const fit = memoryFit(need, limit, free);
+      if (fit === 'over-limit') ctx.fail('invalid', `Viewing this model needs about ${gb(need)}, more than the ${gb(limit ?? 0)} memory limit allows (a worker is stopped at 90% of it). Raise the limit under Settings > Advanced > Memory limit, or pick less detail.`);
+      if (fit === 'low-free' && !req.force) ctx.fail('needs-decision', `Viewing this model may need about ${gb(need)}, and only ${gb(free ?? 0)} of memory is free now (is the game running?). Close something first, or run it anyway: the memory limit still applies.`);
+      await job(req.target.channel, `Loading model ${name} (LOD ${asked})`);
+      const lods = mockLods(ship);
+      known.set(req.what, lods);
+      const v = viewOf(effectiveLod(asked, lods), [...lods], false);
+      add(modelKey(req.what, v.lod), v.bytes);
+      return v;
+    },
+    asset_model_chunk: ({ req }) => {
+      on(req.target);
+      const [, ship] = modelRecord(req.what);
+      const lod = Math.min(req.lod, MAX_LOD);
+      if (size(modelKey(req.what, lod)) === null) ctx.fail('not-found', 'this model is not in the asset cache: load it first');
+      const g = glbOf(ship, lod);
+      if (req.offset > g.byteLength) ctx.fail('invalid', `offset ${req.offset} is past the end (${g.byteLength} bytes)`);
+      const end = Math.min(req.offset + Math.min(req.len, MODEL_CHUNK), g.byteLength);
+      return g.slice(req.offset, end).buffer;
     },
     asset_cache_status: () => view(),
     asset_cache_pick: () => sw(true),

@@ -130,6 +130,11 @@ interface Samples {
   asset_export_model_full: T.AssetExportResult;
   asset_export_sounds: T.AssetExportResult;
   asset_extract: T.AssetExportResult;
+  asset_model_info: T.AssetModelInfo;
+  asset_model_info_known: T.AssetModelInfo;
+  asset_model_view: T.AssetModelView;
+  asset_model_view_cached: T.AssetModelView;
+  asset_model_view_item: T.AssetModelView;
   asset_list: T.DirPage;
   asset_list_data: T.DirPage;
   asset_list_page: T.DirPage;

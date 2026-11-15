@@ -33,6 +33,163 @@ pub struct AssetMock {
     pub custom_dir: bool,
     /// (folder, bytes, files) of the folder before the last switch.
     pub previous: Option<(String, u64, u64)>,
+    /// Records whose mesh LODs a model view read (GUID -> LODs), as the real backend.
+    pub lods: Vec<(String, Vec<u32>)>,
+}
+
+/// The LODs of a mock model's mesh: ships 0-3 (LOD 4 shows LOD 3), items 0-1.
+pub fn mock_lods(ship: bool) -> Vec<u32> {
+    if ship { vec![0, 1, 2, 3] } else { vec![0, 1] }
+}
+
+/// A box from `a` to `b`, 24 vertices (flat normals when the viewer computes them).
+fn glb_box(pos: &mut Vec<[f32; 3]>, idx: &mut Vec<u16>, a: [f32; 3], b: [f32; 3]) {
+    let c = |x: usize, y: usize, z: usize| {
+        [
+            if x == 0 { a[0] } else { b[0] },
+            if y == 0 { a[1] } else { b[1] },
+            if z == 0 { a[2] } else { b[2] },
+        ]
+    };
+    let faces: [[(usize, usize, usize); 4]; 6] = [
+        [(0, 0, 0), (0, 1, 0), (1, 1, 0), (1, 0, 0)],
+        [(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)],
+        [(0, 0, 0), (0, 0, 1), (0, 1, 1), (0, 1, 0)],
+        [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1)],
+        [(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)],
+        [(0, 1, 0), (0, 1, 1), (1, 1, 1), (1, 1, 0)],
+    ];
+    for f in faces {
+        let base = pos.len() as u16;
+        pos.extend(f.iter().map(|&(x, y, z)| c(x, y, z)));
+        idx.extend([base, base + 1, base + 2, base, base + 2, base + 3]);
+    }
+}
+
+/// A lathe along Z (`len` metres, `radius` at its widest), `seg` around and `rings` along.
+fn glb_hull(
+    pos: &mut Vec<[f32; 3]>,
+    idx: &mut Vec<u16>,
+    len: f32,
+    radius: f32,
+    seg: u32,
+    rings: u32,
+) {
+    for r in 0..=rings {
+        let t = r as f32 / rings as f32;
+        let rad = radius * (std::f32::consts::PI * t).sin().powf(0.6).max(0.02);
+        // Flatter than round: a hull, not a tube.
+        for k in 0..seg {
+            let a = std::f32::consts::TAU * k as f32 / seg as f32;
+            pos.push([rad * a.cos(), rad * 0.55 * a.sin(), len * (t - 0.5)]);
+        }
+    }
+    for r in 0..rings {
+        for k in 0..seg {
+            let i = |r: u32, k: u32| (r * seg + k % seg) as u16;
+            idx.extend([
+                i(r, k),
+                i(r + 1, k),
+                i(r + 1, k + 1),
+                i(r, k),
+                i(r + 1, k + 1),
+                i(r, k + 1),
+            ]);
+        }
+    }
+}
+
+fn round4(v: &mut Vec<u8>, pad: u8) {
+    while !v.len().is_multiple_of(4) {
+        v.push(pad);
+    }
+}
+
+/// The mock's model: a GLB of a small ship (22 m long, 16 m wide) or an item (1.2 m), less
+/// detailed with each LOD (above the mesh's last LOD, that one), no materials, as a Print
+/// shell export. Three nodes under a root, one with a transform, as StarBreaker's GLBs.
+pub fn model_glb(ship: bool, lod: u32) -> Vec<u8> {
+    let lod = starorg_data::assets::model::effective_lod(lod, &mock_lods(ship)) as usize;
+    let seg = [32, 20, 12, 8, 6][lod];
+    let rings = [40, 24, 14, 8, 5][lod];
+    let mut meshes: Vec<(Vec<[f32; 3]>, Vec<u16>)> = Vec::new();
+    let (mut p, mut i) = (Vec::new(), Vec::new());
+    if ship {
+        glb_hull(&mut p, &mut i, 22.0, 2.4, seg, rings);
+        meshes.push((p, i));
+        let (mut p, mut i) = (Vec::new(), Vec::new());
+        glb_box(&mut p, &mut i, [-8.0, -0.2, 1.0], [-1.6, 0.2, 7.0]);
+        glb_box(&mut p, &mut i, [1.6, -0.2, 1.0], [8.0, 0.2, 7.0]);
+        meshes.push((p, i));
+        let (mut p, mut i) = (Vec::new(), Vec::new());
+        glb_box(&mut p, &mut i, [-0.15, 0.0, -1.5], [0.15, 2.4, 1.5]);
+        meshes.push((p, i));
+    } else {
+        glb_hull(&mut p, &mut i, 1.2, 0.5, seg, rings.min(12));
+        meshes.push((p, i));
+    }
+    let mut bin: Vec<u8> = Vec::new();
+    let mut views = Vec::new();
+    let mut accessors = Vec::new();
+    let mut gl_meshes = Vec::new();
+    for (n, (pos, idx)) in meshes.iter().enumerate() {
+        let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+        let start = bin.len();
+        for v in pos {
+            for c in 0..3 {
+                lo[c] = lo[c].min(v[c]);
+                hi[c] = hi[c].max(v[c]);
+                bin.extend_from_slice(&v[c].to_le_bytes());
+            }
+        }
+        views.push(json!({"buffer": 0, "byteOffset": start, "byteLength": bin.len() - start, "target": 34962}));
+        let istart = bin.len();
+        for x in idx {
+            bin.extend_from_slice(&x.to_le_bytes());
+        }
+        views.push(json!({"buffer": 0, "byteOffset": istart, "byteLength": bin.len() - istart, "target": 34963}));
+        round4(&mut bin, 0);
+        accessors.push(json!({"bufferView": 2 * n, "componentType": 5126, "count": pos.len(), "type": "VEC3", "min": lo, "max": hi}));
+        accessors.push(json!({"bufferView": 2 * n + 1, "componentType": 5123, "count": idx.len(), "type": "SCALAR"}));
+        gl_meshes.push(
+            json!({"primitives": [{"attributes": {"POSITION": 2 * n}, "indices": 2 * n + 1}]}),
+        );
+    }
+    let names = ["Hull", "Wings", "Fin"];
+    let mut nodes = vec![
+        json!({"name": if ship { "SYN_Ship" } else { "SYN_Item" }, "children": (1..=meshes.len()).collect::<Vec<_>>()}),
+    ];
+    for (n, name) in names.iter().enumerate().take(meshes.len()) {
+        let mut node = json!({"name": name, "mesh": n});
+        if n == 2 {
+            node["translation"] = json!([0.0, 1.1, 7.5]);
+        }
+        nodes.push(node);
+    }
+    let doc = json!({
+        "asset": {"version": "2.0", "generator": "StarOrg Codex mock"},
+        "scene": 0,
+        "scenes": [{"nodes": [0]}],
+        "nodes": nodes,
+        "meshes": gl_meshes,
+        "buffers": [{"byteLength": bin.len()}],
+        "bufferViews": views,
+        "accessors": accessors,
+    });
+    let mut j = serde_json::to_vec(&doc).expect("json");
+    round4(&mut j, b' ');
+    let total = 12 + 8 + j.len() + 8 + bin.len();
+    let mut g = Vec::with_capacity(total);
+    g.extend_from_slice(b"glTF");
+    g.extend_from_slice(&2u32.to_le_bytes());
+    g.extend_from_slice(&(total as u32).to_le_bytes());
+    g.extend_from_slice(&(j.len() as u32).to_le_bytes());
+    g.extend_from_slice(b"JSON");
+    g.extend_from_slice(&j);
+    g.extend_from_slice(&(bin.len() as u32).to_le_bytes());
+    g.extend_from_slice(b"BIN\0");
+    g.extend_from_slice(&bin);
+    g
 }
 
 /// Every file of the synthetic archive: (path, size).
@@ -351,6 +508,20 @@ pub fn search(query: &str, limit: u32) -> FileSearch {
     }
 }
 
+/// `len` bytes (at most [`MODEL_CHUNK`]) of `glb` from `offset`; an offset past the end is
+/// refused, one at the end is empty.
+pub fn model_chunk(glb: &[u8], offset: u64, len: u32) -> CmdResult<Vec<u8>> {
+    let size = glb.len() as u64;
+    if offset > size {
+        return Err(AppError::new(
+            ErrorCode::Invalid,
+            format!("offset {offset} is past the end ({size} bytes)"),
+        ));
+    }
+    let end = (offset + u64::from(len.min(MODEL_CHUNK))).min(size);
+    Ok(glb[offset as usize..end as usize].to_vec())
+}
+
 /// What the TS mock needs (`mock-assets.gen.json`).
 pub fn gen_file() -> Value {
     let ships: Vec<Value> = (0..SHIPS)
@@ -367,6 +538,10 @@ pub fn gen_file() -> Value {
         "cacheDefault": CACHE_DEFAULT,
         "cacheOther": CACHE_OTHER,
         "cacheMax": CACHE_MAX,
+        "glb": {
+            "ship": (0..=starorg_data::assets::model::MAX_LOD).map(|l| starorg_core::assetcache::base64(&model_glb(true, l))).collect::<Vec<_>>(),
+            "item": (0..=starorg_data::assets::model::MAX_LOD).map(|l| starorg_core::assetcache::base64(&model_glb(false, l))).collect::<Vec<_>>(),
+        },
     })
 }
 
@@ -400,6 +575,55 @@ impl MockBackend {
 
     fn cache_has(&self, key: &str) -> bool {
         self.asset_state().cached.iter().any(|c| c.0 == key)
+    }
+
+    fn cache_size(&self, key: &str) -> Option<u64> {
+        self.asset_state()
+            .cached
+            .iter()
+            .find(|c| c.0 == key)
+            .map(|c| c.1)
+    }
+
+    /// The LODs a model view of this record read (empty before one).
+    fn known_lods(&self, what: &str) -> Vec<u32> {
+        self.asset_state()
+            .lods
+            .iter()
+            .find(|(g, _)| g == what)
+            .map(|(_, l)| l.clone())
+            .unwrap_or_default()
+    }
+
+    /// (limit, free) for the memory guard: the mock's limit and machine.
+    fn mock_memory(&self) -> (Option<u64>, Option<u64>) {
+        let gb = super::Backend::memory_status(self)
+            .map(|m| m.limit_gb)
+            .unwrap_or(5.0);
+        (
+            Some(starorg_core::memlimit::gb_bytes(gb)),
+            super::mock::MOCK_RAM.available,
+        )
+    }
+
+    /// A record with a model: its name and whether it is a ship (else an item).
+    fn model_record(&self, what: &str) -> CmdResult<(String, bool)> {
+        let ix = &super::mock_dev::core().index;
+        let i = ix
+            .find(what)
+            .ok_or_else(|| AppError::new(ErrorCode::NotFound, format!("no record {what:?}")))?;
+        let e = ix.entry(i).expect("found");
+        match e.struct_type.as_str() {
+            "SynShip" => Ok((e.name.clone(), true)),
+            "SynComponent" => Ok((e.name.clone(), false)),
+            _ => Err(AppError::new(
+                ErrorCode::Invalid,
+                format!(
+                    "{} is not an entity (EntityClassDefinition); only entities have models",
+                    e.name
+                ),
+            )),
+        }
     }
 
     fn cache_view(&self) -> AssetCacheStatus {
@@ -732,35 +956,23 @@ impl AssetBackend for MockBackend {
         progress: Progress<'_>,
     ) -> CmdResult<AssetExportResult> {
         self.asset_on(&req.target)?;
-        let ix = &super::mock_dev::core().index;
-        let i = ix.find(&req.what).ok_or_else(|| {
-            AppError::new(ErrorCode::NotFound, format!("no record {:?}", req.what))
-        })?;
-        let e = ix.entry(i).expect("found");
-        if e.struct_type != "SynShip" && e.struct_type != "SynComponent" {
-            return Err(AppError::new(
-                ErrorCode::Invalid,
-                format!(
-                    "{} is not an entity (EntityClassDefinition); only entities have models",
-                    e.name
-                ),
-            ));
-        }
+        let (rec_name, _) = self.model_record(&req.what)?;
+        let lod = req.lod.min(starorg_data::assets::model::MAX_LOD);
         let o = starorg_data::assets::model::ModelOptions {
             preset: req.preset,
-            lod: req.lod.min(starorg_data::assets::model::MAX_LOD),
+            lod: starorg_data::assets::model::effective_lod(lod, &self.known_lods(&req.what)),
             stl: req.stl,
         };
-        let key = format!("model:{}-{}", req.what, o.key());
-        let cached = self.cache_has(&key);
-        let bytes = match req.preset {
+        let key = format!("model:{}", o.cache_key(&req.what));
+        let held = self.cache_size(&key);
+        let bytes = held.unwrap_or(match req.preset {
             ModelPreset::Full => 348_136_664,
             ModelPreset::PrintShell => 56_398_596,
-        };
-        if !cached {
+        });
+        if held.is_none() {
             self.job_done(
                 &req.target.channel,
-                &format!("Exporting model {}", e.name),
+                &format!("Exporting model {rec_name}"),
                 progress,
             );
             if bytes <= CACHE_MAX / 4 {
@@ -768,7 +980,7 @@ impl AssetBackend for MockBackend {
             }
         }
         let name = if req.name.is_empty() {
-            &e.name
+            &rec_name
         } else {
             &req.name
         };
@@ -780,10 +992,150 @@ impl AssetBackend for MockBackend {
             )),
             files: 1 + req.stl as u32,
             bytes: bytes + if req.stl { 183_149_634 } else { 0 },
-            cached,
+            cached: held.is_some(),
             failed: Vec::new(),
             note: None,
         })
+    }
+
+    fn asset_model_info(&self, req: AssetModelInfoRequest) -> CmdResult<AssetModelInfo> {
+        use starorg_core::memlimit;
+        use starorg_data::assets::model::{self, ModelOptions};
+        self.asset_on(&req.target)?;
+        let (rec_name, _) = self.model_record(&req.what)?;
+        let name = if req.name.is_empty() {
+            &rec_name
+        } else {
+            &req.name
+        };
+        let known = self.known_lods(&req.what);
+        let (limit, free) = self.mock_memory();
+        let lods = (0..=model::MAX_LOD)
+            .map(|lod| {
+                let uses = model::effective_lod(lod, &known);
+                let need = memlimit::model_estimate(false, uses, name);
+                let o = ModelOptions {
+                    preset: ModelPreset::PrintShell,
+                    lod: uses,
+                    stl: false,
+                };
+                let bytes = self.cache_size(&format!("model:{}", o.cache_key(&req.what)));
+                AssetModelLod {
+                    lod,
+                    uses,
+                    need,
+                    fit: memory_fit(memlimit::check(need, limit, free)),
+                    cached: bytes.is_some(),
+                    bytes,
+                }
+            })
+            .collect();
+        Ok(AssetModelInfo {
+            what: req.what,
+            lods,
+            default_lod: model::view_lod(&known),
+            available: known,
+            limit,
+            free,
+            max_bytes: CACHE_MAX / 4,
+        })
+    }
+
+    fn asset_model_view(
+        &self,
+        req: AssetModelViewRequest,
+        progress: Progress<'_>,
+    ) -> CmdResult<AssetModelView> {
+        use starorg_core::memlimit;
+        use starorg_data::assets::model::{self, ModelOptions};
+        self.asset_on(&req.target)?;
+        let (rec_name, ship) = self.model_record(&req.what)?;
+        let name = if req.name.is_empty() {
+            &rec_name
+        } else {
+            &req.name
+        };
+        let asked = req.lod.min(model::MAX_LOD);
+        let known = self.known_lods(&req.what);
+        let key = |lod| {
+            let o = ModelOptions {
+                preset: ModelPreset::PrintShell,
+                lod,
+                stl: false,
+            };
+            format!("model:{}", o.cache_key(&req.what))
+        };
+        let lod = model::effective_lod(asked, &known);
+        let view = |lod: u32, available: Vec<u32>, cached: bool| {
+            let glb = model_glb(ship, lod);
+            AssetModelView {
+                what: req.what.clone(),
+                lod,
+                asked,
+                available,
+                bytes: glb.len() as u64,
+                cached,
+                triangles: starorg_data::assets::stl::glb_triangle_count(&glb),
+                ms: (!cached).then_some(840),
+                peak_rss: (!cached).then_some(1_116_000_000),
+                chunk: MODEL_CHUNK,
+            }
+        };
+        if self.cache_size(&key(lod)).is_some() {
+            return Ok(view(lod, known, true));
+        }
+        let need = memlimit::model_estimate(false, lod, name);
+        let (limit, free) = self.mock_memory();
+        match memlimit::check(need, limit, free) {
+            memlimit::Fit::OverLimit { need, limit } => {
+                return Err(AppError::new(
+                    ErrorCode::Invalid,
+                    memlimit::over_limit_message("Viewing this model", need, limit),
+                ));
+            }
+            memlimit::Fit::LowFree { need, free } if !req.force => {
+                return Err(AppError::new(
+                    ErrorCode::NeedsDecision,
+                    memlimit::low_free_message("Viewing this model", need, free),
+                ));
+            }
+            _ => {}
+        }
+        self.job_done(
+            &req.target.channel,
+            &format!("Loading model {name} (LOD {asked})"),
+            progress,
+        );
+        let lods = mock_lods(ship);
+        let lod = model::effective_lod(asked, &lods);
+        {
+            let mut s = self.asset_state();
+            s.lods.retain(|(g, _)| g != &req.what);
+            s.lods.push((req.what.clone(), lods.clone()));
+        }
+        let v = view(lod, lods, false);
+        self.cache_add(key(lod), v.bytes);
+        Ok(v)
+    }
+
+    fn asset_model_chunk(&self, req: AssetModelChunkRequest) -> CmdResult<Vec<u8>> {
+        self.asset_on(&req.target)?;
+        let (_, ship) = self.model_record(&req.what)?;
+        let o = starorg_data::assets::model::ModelOptions {
+            preset: ModelPreset::PrintShell,
+            lod: req.lod.min(starorg_data::assets::model::MAX_LOD),
+            stl: false,
+        };
+        if self
+            .cache_size(&format!("model:{}", o.cache_key(&req.what)))
+            .is_none()
+        {
+            return Err(AppError::new(
+                ErrorCode::NotFound,
+                "this model is not in the asset cache: load it first",
+            ));
+        }
+        model_chunk(&model_glb(ship, o.lod), req.offset, req.len)
     }
 
     fn asset_cache_status(&self) -> CmdResult<AssetCacheStatus> {

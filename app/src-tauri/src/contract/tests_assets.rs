@@ -238,6 +238,42 @@ pub(super) fn asset_samples() -> Vec<(&'static str, Value)> {
                 .unwrap()
         ),
     );
+    let info = |what: String| AssetModelInfoRequest {
+        target: live(),
+        what,
+        name: String::new(),
+    };
+    let view = |what: String, lod| AssetModelViewRequest {
+        target: live(),
+        what,
+        name: String::new(),
+        lod,
+        force: false,
+    };
+    put(
+        "asset_model_info",
+        json!(b.asset_model_info(info(ship_guid(4))).unwrap()),
+    );
+    // LOD 4 of a mesh with LODs 0-3: LOD 3 is exported.
+    put(
+        "asset_model_view",
+        json!(b.asset_model_view(view(ship_guid(4), 4), &noop).unwrap()),
+    );
+    put(
+        "asset_model_view_cached",
+        json!(b.asset_model_view(view(ship_guid(4), 3), &noop).unwrap()),
+    );
+    put(
+        "asset_model_info_known",
+        json!(b.asset_model_info(info(ship_guid(4))).unwrap()),
+    );
+    put(
+        "asset_model_view_item",
+        json!(
+            b.asset_model_view(view(component_guid(8), 3), &noop)
+                .unwrap()
+        ),
+    );
     put("asset_status_open", json!(b.asset_status(live()).unwrap()));
     put("asset_cache_pick", json!(b.asset_cache_pick().unwrap()));
     put("asset_cache_move", json!(b.asset_cache_move().unwrap()));
@@ -272,6 +308,10 @@ fn asset_unions_in_assets_ts_list_every_variant() {
         (
             "ModelPreset",
             names(&[ModelPreset::Full, ModelPreset::PrintShell]),
+        ),
+        (
+            "MemoryFit",
+            names(&[MemoryFit::Ok, MemoryFit::OverLimit, MemoryFit::LowFree]),
         ),
     ];
     for (name, want) in cases {
@@ -391,6 +431,40 @@ fn every_asset_command_but_the_cache_refuses_while_developer_mode_is_off() {
             )
             .map(to)),
         ),
+        (
+            "asset_model_info",
+            j(b.asset_model_info(AssetModelInfoRequest {
+                target: live(),
+                what: ship_guid(1),
+                name: String::new(),
+            })
+            .map(to)),
+        ),
+        (
+            "asset_model_view",
+            j(b.asset_model_view(
+                AssetModelViewRequest {
+                    target: live(),
+                    what: ship_guid(1),
+                    name: String::new(),
+                    lod: 3,
+                    force: false,
+                },
+                &noop,
+            )
+            .map(to)),
+        ),
+        (
+            "asset_model_chunk",
+            j(b.asset_model_chunk(AssetModelChunkRequest {
+                target: live(),
+                what: ship_guid(1),
+                lod: 3,
+                offset: 0,
+                len: 64,
+            })
+            .map(to)),
+        ),
     ];
     for (name, r) in calls {
         assert_eq!(code(r), ErrorCode::DevDisabled, "{name}");
@@ -437,6 +511,206 @@ fn the_mock_caches_previews_sounds_and_models_and_switches_folders() {
     assert_eq!(e.code, ErrorCode::Invalid);
     let picks = playable_picks(&b.asset_sounds(rec(ship_guid(3))).unwrap());
     assert_eq!(picks.len(), 4, "the unavailable one is left out");
+}
+
+#[test]
+fn the_model_view_steps_through_lods_with_estimates_the_guard_and_the_cache() {
+    use starorg_core::memlimit::GIB;
+    let b = dev_mock();
+    let info = || {
+        b.asset_model_info(AssetModelInfoRequest {
+            target: live(),
+            what: ship_guid(2),
+            name: "SYN_Ship_002".into(),
+        })
+        .unwrap()
+    };
+    let view = |lod, force| {
+        b.asset_model_view(
+            AssetModelViewRequest {
+                target: live(),
+                what: ship_guid(2),
+                name: "SYN_Ship_002".into(),
+                lod,
+                force,
+            },
+            &noop,
+        )
+    };
+    // Before any export: five steps, LOD 3 first, nothing cached, LOD 0 needs the most.
+    let i = info();
+    assert_eq!(i.lods.len(), 5);
+    assert_eq!(i.default_lod, 3);
+    assert!(i.available.is_empty());
+    assert!(
+        i.lods
+            .iter()
+            .all(|l| !l.cached && l.uses == l.lod && l.fit == MemoryFit::Ok)
+    );
+    assert!(i.lods[0].need > i.lods[3].need, "LOD 0 needs more memory");
+    // A memory limit under the LOD 0 estimate: that step is refused, the others are fine.
+    b.set_memory_limit(MemoryLimitRequest { gb: Some(1.5) })
+        .unwrap();
+    let i = info();
+    assert_eq!(i.lods[0].fit, MemoryFit::OverLimit);
+    assert_eq!(i.lods[3].fit, MemoryFit::Ok);
+    let e = view(0, true).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid, "force does not pass the limit");
+    assert!(e.message.contains("memory limit"), "{}", e.message);
+    assert!(info().lods.iter().all(|l| !l.cached), "nothing exported");
+    // LOD 4 on a mesh with 0-3: LOD 3 is exported and cached once.
+    let v = view(4, false).unwrap();
+    assert_eq!((v.lod, v.asked, v.cached), (3, 4, false));
+    assert_eq!(v.available, vec![0, 1, 2, 3]);
+    let again = view(3, false).unwrap();
+    assert!(again.cached && again.lod == 3 && again.bytes == v.bytes);
+    let i = info();
+    assert_eq!(i.lods[4].uses, 3);
+    assert!(i.lods[3].cached && i.lods[4].cached && !i.lods[2].cached);
+    assert_eq!(i.lods[3].bytes, Some(v.bytes));
+    // The chunks put together are the GLB, with the triangles the view said.
+    let mut glb = Vec::new();
+    while (glb.len() as u64) < v.bytes {
+        let c = b
+            .asset_model_chunk(AssetModelChunkRequest {
+                target: live(),
+                what: ship_guid(2),
+                lod: v.lod,
+                offset: glb.len() as u64,
+                len: 1000,
+            })
+            .unwrap();
+        assert!(!c.is_empty() && c.len() <= 1000);
+        glb.extend(c);
+    }
+    assert_eq!(
+        starorg_data::assets::stl::glb_triangle_count(&glb),
+        v.triangles
+    );
+    assert_eq!(&glb[..4], b"glTF");
+    let past = b.asset_model_chunk(AssetModelChunkRequest {
+        target: live(),
+        what: ship_guid(2),
+        lod: v.lod,
+        offset: v.bytes + 1,
+        len: 10,
+    });
+    assert_eq!(past.unwrap_err().code, ErrorCode::Invalid);
+    // An LOD not loaded has no bytes to hand over; more detail is more triangles.
+    let not = b.asset_model_chunk(AssetModelChunkRequest {
+        target: live(),
+        what: ship_guid(2),
+        lod: 1,
+        offset: 0,
+        len: 10,
+    });
+    assert_eq!(not.unwrap_err().code, ErrorCode::NotFound);
+    let detailed = view(1, false).unwrap();
+    assert!(detailed.triangles > v.triangles && detailed.bytes > v.bytes);
+    // A big limit again; the mock's 18.4 GB free is enough.
+    b.set_memory_limit(MemoryLimitRequest { gb: None }).unwrap();
+    assert!(info().free.unwrap() > GIB);
+    // Export .glb of the viewed LOD is a cache copy.
+    let r = b
+        .asset_export_model(
+            AssetExportModelRequest {
+                target: live(),
+                what: ship_guid(2),
+                name: "SYN_Ship_002".into(),
+                preset: ModelPreset::PrintShell,
+                lod: 3,
+                stl: false,
+                force: false,
+            },
+            &noop,
+        )
+        .unwrap();
+    assert!(r.cached);
+    assert_eq!(r.bytes, v.bytes);
+    // Not an entity: refused.
+    let e = b
+        .asset_model_info(AssetModelInfoRequest {
+            target: live(),
+            what: tag_guid(1),
+            name: String::new(),
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+}
+
+#[test]
+fn model_chunks_are_raw_bytes_over_ipc() {
+    use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder, mock_context, noop_assets};
+    let b = dev_mock();
+    b.asset_model_view(
+        AssetModelViewRequest {
+            target: live(),
+            what: ship_guid(1),
+            name: String::new(),
+            lod: 3,
+            force: false,
+        },
+        &noop,
+    )
+    .unwrap();
+    let app = crate::builder(
+        mock_builder(),
+        crate::commands::DiscoveryConfig::default(),
+        super::BackendState::new(b),
+    )
+    .build(mock_context(noop_assets()))
+    .unwrap();
+    let webview = tauri::WebviewWindowBuilder::new(&app, "main", Default::default())
+        .build()
+        .unwrap();
+    let r = get_ipc_response(
+        &webview,
+        tauri::webview::InvokeRequest {
+            cmd: "asset_model_chunk".into(),
+            callback: tauri::ipc::CallbackFn(0),
+            error: tauri::ipc::CallbackFn(1),
+            url: if cfg!(windows) {
+                "http://tauri.localhost"
+            } else {
+                "tauri://localhost"
+            }
+            .parse()
+            .unwrap(),
+            body: tauri::ipc::InvokeBody::Json(json!({ "req": {
+                "target": { "install": "inst-7f3a", "channel": "LIVE" },
+                "what": ship_guid(1), "lod": 3, "offset": 0, "len": 16
+            }})),
+            headers: Default::default(),
+            invoke_key: INVOKE_KEY.to_string(),
+        },
+    )
+    .unwrap();
+    match r {
+        tauri::ipc::InvokeResponseBody::Raw(bytes) => {
+            assert_eq!(bytes.len(), 16);
+            assert_eq!(&bytes[..4], b"glTF");
+        }
+        other => panic!("not raw bytes: {other:?}"),
+    }
+}
+
+#[test]
+fn the_mock_models_are_small_valid_glbs_less_detailed_per_lod() {
+    let tris = |ship, lod| {
+        starorg_data::assets::stl::glb_triangle_count(&mock_assets::model_glb(ship, lod)).unwrap()
+    };
+    for ship in [true, false] {
+        let t: Vec<u64> = (0..=4).map(|l| tris(ship, l)).collect();
+        assert!(t.windows(2).all(|w| w[0] >= w[1]), "{t:?}");
+        assert!(mock_assets::model_glb(ship, 0).len() < 64 * 1024);
+    }
+    assert_eq!(tris(true, 4), tris(true, 3), "LOD 4 is LOD 3");
+    assert_eq!(
+        mock_assets::model_glb(true, 4),
+        mock_assets::model_glb(true, 3)
+    );
+    let s = starorg_data::assets::stl::glb_triangles(&mock_assets::model_glb(true, 0)).unwrap();
+    assert_eq!(s.len() as u64, tris(true, 0));
 }
 
 /// `mock-assets.gen.json`: the mock's synthetic archive and sounds, read by the TS mock.

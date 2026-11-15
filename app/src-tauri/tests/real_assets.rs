@@ -558,3 +558,165 @@ fn a_cache_folder_set_into_the_game_folder_is_refused_at_use() {
             .is_ok()
     );
 }
+
+/// A GLB with one triangle (what the Model tab reads back).
+fn tiny_glb() -> Vec<u8> {
+    let mut bin = Vec::new();
+    for c in [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0] {
+        bin.extend_from_slice(&c.to_le_bytes());
+    }
+    let json = serde_json::json!({
+        "asset": {"version": "2.0"},
+        "scenes": [{"nodes": [0]}],
+        "nodes": [{"mesh": 0}],
+        "meshes": [{"primitives": [{"attributes": {"POSITION": 0}}]}],
+        "buffers": [{"byteLength": bin.len()}],
+        "bufferViews": [{"buffer": 0, "byteOffset": 0, "byteLength": 36}],
+        "accessors": [{"bufferView": 0, "componentType": 5126, "count": 3, "type": "VEC3",
+                       "min": [0.0, 0.0, 0.0], "max": [1.0, 1.0, 0.0]}]
+    });
+    let mut j = serde_json::to_vec(&json).unwrap();
+    while !j.len().is_multiple_of(4) {
+        j.push(b' ');
+    }
+    let total = 12 + 8 + j.len() + 8 + bin.len();
+    let mut g = Vec::new();
+    g.extend_from_slice(b"glTF");
+    g.extend_from_slice(&2u32.to_le_bytes());
+    g.extend_from_slice(&(total as u32).to_le_bytes());
+    g.extend_from_slice(&(j.len() as u32).to_le_bytes());
+    g.extend_from_slice(b"JSON");
+    g.extend_from_slice(&j);
+    g.extend_from_slice(&(bin.len() as u32).to_le_bytes());
+    g.extend_from_slice(b"BIN\0");
+    g.extend_from_slice(&bin);
+    g
+}
+
+#[test]
+fn the_model_view_reads_the_cache_per_lod_and_respects_the_memory_guard() {
+    let f = fake();
+    f.dev_mode(true);
+    let live = f.live();
+    let what = dcb::guid_text(1, 3);
+    let info = || {
+        f.backend
+            .asset_model_info(AssetModelInfoRequest {
+                target: live.clone(),
+                what: what.clone(),
+                name: "SYN_Item_003".into(),
+            })
+            .unwrap()
+    };
+    let view = |lod| {
+        f.backend.asset_model_view(
+            AssetModelViewRequest {
+                target: live.clone(),
+                what: what.clone(),
+                name: "SYN_Item_003".into(),
+                lod,
+                force: false,
+            },
+            &noop,
+        )
+    };
+    // The slider's steps need no worker.
+    let i = info();
+    assert_eq!((i.lods.len(), i.default_lod), (5, 3));
+    assert!(i.lods.iter().all(|l| !l.cached));
+    assert_eq!(f.starts(), 0, "info starts nothing");
+    // Not an entity: refused in its own worker, nothing cached.
+    let e = view(3).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert_eq!(f.starts(), 1, "a fresh worker for the export");
+    assert!(!f.backend.asset_worker_running(&live));
+    // A cached LOD 3 (a sound first makes the build's folder) is shown without a worker.
+    f.backend
+        .asset_sound(AssetSoundRequest {
+            target: live.clone(),
+            sound: SoundRef {
+                media_id: 123456,
+                source: SourceKind::MediaFile,
+                bank: String::new(),
+                media_path: None,
+            },
+        })
+        .unwrap();
+    f.backend.asset_close(live.clone()).unwrap();
+    let starts = f.starts();
+    let c = f.cache();
+    let build = std::fs::read_dir(c.root().join("LIVE"))
+        .unwrap()
+        .next()
+        .unwrap()
+        .unwrap()
+        .file_name()
+        .to_string_lossy()
+        .into_owned();
+    c.prepare("LIVE", &build, Kind::Models).unwrap();
+    let glb = tiny_glb();
+    let key = format!("{}-print-lod3", assetcache::safe_name(&what));
+    std::fs::write(c.path("LIVE", &build, Kind::Models, &key, "glb"), &glb).unwrap();
+    let i = info();
+    assert!(
+        i.lods[3].cached && !i.lods[2].cached && !i.lods[4].cached,
+        "per LOD"
+    );
+    assert_eq!(i.lods[3].bytes, Some(glb.len() as u64));
+    let v = view(3).unwrap();
+    assert!(v.cached);
+    assert_eq!(
+        (v.lod, v.bytes, v.triangles),
+        (3, glb.len() as u64, Some(1))
+    );
+    let mut got = Vec::new();
+    while (got.len() as u64) < v.bytes {
+        let part = f
+            .backend
+            .asset_model_chunk(AssetModelChunkRequest {
+                target: live.clone(),
+                what: what.clone(),
+                lod: 3,
+                offset: got.len() as u64,
+                len: 50,
+            })
+            .unwrap();
+        assert!(!part.is_empty());
+        got.extend(part);
+    }
+    assert_eq!(got, glb);
+    let e = f
+        .backend
+        .asset_model_chunk(AssetModelChunkRequest {
+            target: live.clone(),
+            what: what.clone(),
+            lod: 2,
+            offset: 0,
+            len: 50,
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::NotFound, "LOD 2 is not loaded");
+    assert_eq!(f.starts(), starts, "cache hits start no worker");
+    // A limit under the LOD 0 estimate (1.4 GB; stopped at 90% of 1.5 GB): refused up front.
+    f.backend
+        .set_memory_limit(MemoryLimitRequest { gb: Some(1.5) })
+        .unwrap();
+    let i = info();
+    assert_eq!(i.lods[0].fit, MemoryFit::OverLimit);
+    assert_ne!(i.lods[2].fit, MemoryFit::OverLimit, "less detail fits");
+    let e = view(0).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(e.message.contains("memory limit"), "{}", e.message);
+    assert_eq!(f.starts(), starts, "refused before any worker");
+    // Developer mode off: refused.
+    f.dev_mode(false);
+    let e = f
+        .backend
+        .asset_model_info(AssetModelInfoRequest {
+            target: live.clone(),
+            what: what.clone(),
+            name: String::new(),
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::DevDisabled);
+}

@@ -32,6 +32,7 @@
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
   import AssetPanel from '@/components/assets/AssetPanel.svelte';
   import TriggerPanel from '@/components/assets/TriggerPanel.svelte';
+  import { hasModel } from '@/lib/contract/assets';
   import ItemFinder from '@/components/dev/ItemFinder.svelte';
   import CircleHelp from '@lucide/svelte/icons/circle-help';
   import GitCompare from '@lucide/svelte/icons/git-compare';
@@ -311,6 +312,11 @@
 
   // --- Record --------------------------------------------------------------------------
   let rec = $state<RecordView | null>(null);
+  /** The record pane's tab: its data, or (entities) the Model tab's 3D view (addendum 7.20). */
+  let recTab = $state<'data' | 'model'>('data');
+  /** three.js and the viewer load the first time the Model tab opens (a chunk of their own). */
+  let viewer: Promise<typeof import('@/components/assets/ModelViewer.svelte')> | null = null;
+  const loadViewer = () => (viewer ??= import('@/components/assets/ModelViewer.svelte'));
   let recError = $state<ContractError | null>(null);
   let recLoading = $state(false);
   async function show(what: string): Promise<boolean> {
@@ -773,7 +779,8 @@
                 <Button variant="outline" size="xs" disabled={exporting} title="Export all {h.type} records" onclick={() => void askExportType()}><Download aria-hidden="true" /> Export type…</Button>
               </div>
             </div>
-            <dl class="text-muted-foreground grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 text-[11.5px]">
+            <!-- The Model tab needs the height: the record's type, path and GUID stay with Data. -->
+            <dl class={cn('text-muted-foreground grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-0.5 text-[11.5px]', recTab === 'model' && target && hasModel(h.type) && 'hidden')}>
               <dt>Type</dt><dd class="mono text-foreground truncate">{h.type}{h.main ? '' : ' (sub-record)'}{h.tag ? ` · tag ${h.tag}` : ''} · {bytes(h.bytes)} JSON</dd><span></span>
               <dt>Path</dt><dd class="mono truncate" title={h.path}>{h.path}</dd>
               <Button variant="ghost" size="icon-xs" aria-label="Copy path" title="Copy path" onclick={() => void copy(h.path, 'the path')}><Copy aria-hidden="true" /></Button>
@@ -783,7 +790,50 @@
             {#if rec.truncated}<p class="text-[11.5px] text-amber-700 dark:text-amber-300">Large record: deeper parts load when you open them.</p>{/if}
             {#if target}<AssetPanel {target} guid={h.guid} name={h.name} type={h.type} />{/if}
           </div>
-          <JsonTree id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="flex-1" />
+          {#if target && hasModel(h.type)}
+            <div
+              class="flex gap-1 border-b px-3 pt-1.5"
+              role="tablist"
+              aria-label="Record view"
+              tabindex="-1"
+              onkeydown={(e) => {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                e.preventDefault();
+                recTab = recTab === 'data' ? 'model' : 'data';
+                document.getElementById(`rec-tab-${recTab}`)?.focus();
+              }}
+            >
+              {#each [{ id: 'data', label: 'Data' }, { id: 'model', label: 'Model' }] as t (t.id)}
+                <button
+                  type="button"
+                  role="tab"
+                  id="rec-tab-{t.id}"
+                  aria-selected={recTab === t.id}
+                  aria-controls="rec-panel-{t.id}"
+                  tabindex={recTab === t.id ? 0 : -1}
+                  class={cn('-mb-px rounded-t-md border border-transparent px-3 py-1 text-[12.5px]', recTab === t.id ? 'bg-card border-border border-b-card text-foreground font-medium' : 'text-muted-foreground hover:text-foreground')}
+                  onclick={() => (recTab = t.id as 'data' | 'model')}
+                >{t.label}</button>
+              {/each}
+            </div>
+          {/if}
+          {#if target && hasModel(h.type) && recTab === 'model'}
+            <div id="rec-panel-model" role="tabpanel" aria-labelledby="rec-tab-model" class="flex min-h-0 flex-1 flex-col">
+              {#await loadViewer()}
+                <p class="text-muted-foreground flex items-center gap-2 p-4 text-[12.5px]"><LoaderCircle class="size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" /> Loading the 3D viewer…</p>
+              {:then m}
+                {@const Viewer = m.default}
+                <Viewer {target} guid={h.guid} name={h.name} />
+              {:catch e}
+                <div class="p-3"><ErrorState title="Could not load the 3D viewer" error={toContractError(e)} /></div>
+              {/await}
+            </div>
+          {:else}
+            {@const tabbed = !!target && hasModel(h.type)}
+            <div id={tabbed ? 'rec-panel-data' : undefined} role={tabbed ? 'tabpanel' : undefined} aria-labelledby={tabbed ? 'rec-tab-data' : undefined} class="flex min-h-0 flex-1 flex-col">
+              <JsonTree id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="flex-1" />
+            </div>
+          {/if}
         {:else}
           <p class="text-muted-foreground p-4 text-[12.5px]">Open a record from the list or the tree. References in a record are links; Alt+Left goes back.</p>
         {/if}
