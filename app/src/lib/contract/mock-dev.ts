@@ -16,6 +16,10 @@ export interface DevMockData {
   values: Json[];
   huge: { guid: string; ports: number };
   builds: Record<string, Json>;
+  /** The records the labels know (7.12), manufacturer names by code, enhanced text by key. */
+  known: KnownRecord[];
+  makers: Record<string, string>;
+  enhanced: Record<string, string>;
   folder: { label: string; path: string; files: { file: string; value: Json }[] };
 }
 
@@ -493,21 +497,27 @@ function cmpCells(a: Json | undefined, b: Json | undefined): number {
   return cmp((scalarText(x) ?? '').toLowerCase(), (scalarText(y) ?? '').toLowerCase());
 }
 
-export function queryRows(t: Table, q: Omit<D.DevRowsRequest, 'target' | 'source' | 'dataset' | 'table'>): D.RowsPage {
+export function queryRows(t: Table, q: Omit<D.DevRowsRequest, 'target' | 'source' | 'dataset' | 'table'>, l: Lookup | null = null): D.RowsPage {
   const cols = q.columns.length ? q.columns : defaultColumns(t.columns);
   const needle = q.search.trim().toLowerCase();
+  const identity = identityColumn(t.rows);
+  const has = (s: string) => s.toLowerCase().includes(needle);
   let hits = t.rows
     .map((_, i) => i)
     .filter((i) => {
       const r = t.rows[i]!;
       if (!q.filters.every((f) => filterOk(r, f))) return false;
-      return (
-        !needle ||
-        cols.some((c) => {
-          const s = scalarText(r[c]);
-          return s !== null && s.toLowerCase().includes(needle);
-        })
-      );
+      if (!needle) return true;
+      const cell = cols.some((c) => {
+        const s = scalarText(r[c]);
+        if (s === null) return false;
+        if (has(s)) return true;
+        const x = l ? label(l, s, c) : null;
+        return x !== null && (has(x.text) || (x.enhanced !== null && has(x.enhanced)));
+      });
+      if (cell) return true;
+      const title = l ? rowTitle(l, r, identity) : null;
+      return title !== null && has(title);
     });
   if (q.sort) {
     const s = q.sort;
@@ -519,7 +529,18 @@ export function queryRows(t: Table, q: Omit<D.DevRowsRequest, 'target' | 'source
   const limit = Math.min(Math.max(q.limit, 1), MAX_PAGE);
   return {
     columns: cols,
-    rows: hits.slice(q.offset, q.offset + limit).map((i) => ({ id: i, cells: cols.map((c) => cellText(t.rows[i]![c])) })),
+    rows: hits.slice(q.offset, q.offset + limit).map((i) => {
+      const r = t.rows[i]!;
+      return {
+        id: i,
+        cells: cols.map((c) => cellText(r[c])),
+        labels: cols.map((c) => {
+          const s = scalarText(r[c]);
+          return s === null || !l ? null : label(l, s, c);
+        }),
+        title: l ? rowTitle(l, r, identity) : null,
+      };
+    }),
     offset: q.offset,
     total: hits.length,
     all: t.rows.length,
@@ -570,7 +591,8 @@ export function fieldChanges(a: Json, b: Json): D.FieldChange[] {
       delta = y - x;
       percent = x !== 0 ? ((y - x) / Math.abs(x)) * 100 : null;
     }
-    out.push({ path: k, old: x ?? null, new: y ?? null, delta, percent });
+    const numeric = typeof (x ?? y) === 'number';
+    out.push({ path: k, old: x ?? null, new: y ?? null, delta, percent, path_label: null, group: null, unit: numeric ? unitOf(k) : null, old_label: null, new_label: null });
   }
   return out;
 }
@@ -614,12 +636,12 @@ export function diffTable(dataset: string, name: string, a: Table | undefined, b
         else {
           const fields = changed(r, rb[j]!);
           if (!fields.length) same++;
-          else records.push({ id, state: 'changed', fields, a: i, b: j });
+          else records.push({ id, state: 'changed', fields, a: i, b: j, label: null });
         }
-      } else records.push({ id, state: 'removed', fields: [], a: i, b: null });
+      } else records.push({ id, state: 'removed', fields: [], a: i, b: null, label: null });
     });
     rb.forEach((r, j) => {
-      if (!seenB[j]) records.push({ id: identityOf(r, identity) ?? '', state: 'added', fields: [], a: null, b: j });
+      if (!seenB[j]) records.push({ id: identityOf(r, identity) ?? '', state: 'added', fields: [], a: null, b: j, label: null });
     });
   } else {
     for (let i = 0; i < Math.max(ra.length, rb.length); i++) {
@@ -627,9 +649,9 @@ export function diffTable(dataset: string, name: string, a: Table | undefined, b
       const x = ra[i];
       const y = rb[i];
       if (x && y && jsonEq(x, y)) same++;
-      else if (x && y) records.push({ id, state: 'changed', fields: changed(x, y), a: i, b: i });
-      else if (x) records.push({ id, state: 'removed', fields: [], a: i, b: null });
-      else if (y) records.push({ id, state: 'added', fields: [], a: null, b: i });
+      else if (x && y) records.push({ id, state: 'changed', fields: changed(x, y), a: i, b: i, label: null });
+      else if (x) records.push({ id, state: 'removed', fields: [], a: i, b: null, label: null });
+      else if (y) records.push({ id, state: 'added', fields: [], a: null, b: i, label: null });
     }
   }
   const rank = (s: D.RecordState) => (s === 'changed' ? 0 : s === 'added' ? 1 : 2);
@@ -668,18 +690,24 @@ export function fieldCounts(records: D.DiffRecord[]): D.ValueCount[] {
   return [...m.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || cmp(a.value, b.value));
 }
 
-function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_options: string[]): D.DevDiffRecords {
+function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_options: string[], title: (r: D.DiffRecord) => string | null): D.DevDiffRecords {
+  const q = (req.query ?? '').trim().toLowerCase();
   const hits = d.records
     .filter((r) => req.state === null || r.state === req.state)
     .filter((r) => {
       if (req.field === null) return true;
       const f = `/${req.field.replace(/^\/+/, '')}`;
       return r.fields.some((p) => p === f || p.startsWith(`${f}/`));
+    })
+    .filter((r) => {
+      if (!q) return true;
+      const t = title(r);
+      return r.id.toLowerCase().includes(q) || (t !== null && t.toLowerCase().includes(q));
     });
   const limit = Math.min(Math.max(req.limit, 1), MAX_PAGE);
   return {
     summary: { ...d.summary },
-    records: hits.slice(req.offset, req.offset + limit).map((r) => ({ ...r, fields: r.fields.slice(0, 20) })),
+    records: hits.slice(req.offset, req.offset + limit).map((r) => ({ ...r, fields: r.fields.slice(0, 20), label: title(r) })),
     offset: req.offset,
     total: hits.length,
     fields: fieldCounts(d.records),
@@ -720,6 +748,213 @@ export function rowLoc(row: Json, textOf: (k: string) => string | null): D.LocTe
   return out;
 }
 
+// ------------------------------------------------------------------------------------------
+// Readable labels (starorg_core::dev::readable, addendum 7.12)
+// ------------------------------------------------------------------------------------------
+
+export interface KnownRecord {
+  guid: string | null;
+  name: string;
+  kind: D.LabelKind;
+  display: string | null;
+}
+
+export interface Lookup {
+  byGuid(g: string): KnownRecord | null;
+  byName(n: string): KnownRecord | null;
+  stock(k: string): string | null;
+  enhanced(k: string): string | null;
+  bare: boolean;
+}
+
+const MAX_RAW = 256;
+const MAX_LABELS = 2_000;
+const shortName = (n: string) => {
+  const i = n.indexOf('.');
+  return i < 0 ? n : n.slice(i + 1);
+};
+
+/** MapLookup: first record of a GUID or name wins. */
+export function mapLookup(known: KnownRecord[], stock: (k: string) => string | null, enhanced: (k: string) => string | null, bare: boolean): Lookup {
+  const byGuid = new Map<string, KnownRecord>();
+  const byName = new Map<string, KnownRecord>();
+  for (const r of known) {
+    if (r.guid !== null && !byGuid.has(r.guid.toLowerCase())) byGuid.set(r.guid.toLowerCase(), r);
+    for (const n of [r.name.toLowerCase(), shortName(r.name).toLowerCase()]) if (n && !byName.has(n)) byName.set(n, r);
+  }
+  return { byGuid: (g) => byGuid.get(g) ?? null, byName: (n) => byName.get(n.toLowerCase()) ?? null, stock, enhanced, bare };
+}
+
+export const strict = (l: Lookup): Lookup => ({ ...l, bare: false });
+export const isMakerKey = (k: string) => k.toLowerCase().includes('manufacturer') || k.toLowerCase() === 'maker';
+const isCode = (s: string) => s.length >= 2 && s.length <= 6 && /^[0-9A-Za-z]+$/.test(s);
+const shown = (t: string) => t.trim() !== '' && !t.includes('PLACEHOLDER');
+const hasSpace = (s: string) => /\s/.test(s);
+
+function loc(l: Lookup, key: string): D.Readable | null {
+  if (!key || hasSpace(key)) return null;
+  const text = l.stock(key);
+  if (text === null || !shown(text)) return null;
+  const e = l.enhanced(key);
+  return { kind: 'loc', text, detail: null, enhanced: e !== null && e !== text ? e : null };
+}
+
+export function recordLabel(l: Lookup, r: KnownRecord): D.Readable {
+  const short = shortName(r.name);
+  let display: [string, string | null] | null = null;
+  const d = r.display;
+  if (d !== null) {
+    if (d.startsWith('@')) {
+      const x = loc(l, d.slice(1));
+      display = x ? [x.text, x.enhanced] : null;
+    } else if (r.kind === 'tag') display = shown(d) ? [d, null] : null;
+    else if (l.bare) {
+      const x = loc(l, d);
+      display = x ? [x.text, x.enhanced] : shown(d) ? [d, null] : null;
+    } else display = shown(d) ? [d, null] : null;
+  }
+  if (display) return { kind: r.kind, text: display[0], detail: r.kind === 'record' && short !== display[0] ? short : null, enhanced: display[1] };
+  return { kind: r.kind, text: short, detail: null, enhanced: null };
+}
+
+export function label(l: Lookup, raw: string, key: string | null): D.Readable | null {
+  const s = raw.trim();
+  if (!s || s.length > MAX_RAW) return null;
+  if (s.startsWith('@')) return loc(l, s.slice(1));
+  if (isGuid(s)) {
+    const r = l.byGuid(s.toLowerCase());
+    return r ? recordLabel(l, r) : null;
+  }
+  if (hasSpace(s)) return null;
+  if (key !== null && isMakerKey(key) && isCode(s)) {
+    const text = l.stock(`manufacturer_Name${s.toUpperCase()}`);
+    if (text !== null && shown(text)) return { kind: 'manufacturer', text, detail: null, enhanced: null };
+  }
+  if (s.length >= 4 && (s.includes('_') || s.includes('.'))) {
+    const r = l.byName(s);
+    if (r) return recordLabel(l, r);
+  }
+  if (l.bare && s.includes('_')) return loc(l, s);
+  return null;
+}
+
+export function labelsIn(l: Lookup, v: Json): Record<string, D.Readable> {
+  const out: Record<string, D.Readable> = {};
+  let n = 0;
+  const seen = new Set<string>();
+  const go = (v: Json, key: string | null) => {
+    if (n >= MAX_LABELS) return;
+    if (typeof v === 'string') {
+      if (seen.has(v)) return;
+      seen.add(v);
+      const r = label(l, v, key);
+      if (r) {
+        out[v] = r;
+        n++;
+      }
+    } else if (Array.isArray(v)) v.forEach((x) => go(x, key));
+    else if (isObj(v)) {
+      if (isRef(v)) go(v['_ref']!, null);
+      else for (const [k, x] of Object.entries(v)) go(x, k);
+    }
+  };
+  go(v, null);
+  return out;
+}
+
+const TITLE_KEYS = ['/loc/name', '/Localization/Name', '/displayName', '/nameKey', '/name'];
+
+export function rowTitle(l: Lookup, row: Json, identity: string | null): string | null {
+  for (const p of TITLE_KEYS) {
+    const s = pointer(row, p);
+    if (typeof s === 'string') {
+      const r = label(l, s, 'name');
+      if (r && r.kind === 'loc') return r.text;
+    }
+  }
+  if (!isObj(row)) return null;
+  for (const c of [...(identity !== null ? [identity] : []), 'recordName', 'className', 'id', 'record', 'item']) {
+    const s = row[c];
+    if (typeof s === 'string') {
+      const r = label(l, s, c);
+      if (r && r.detail !== null) return r.text;
+    }
+  }
+  const n = row['name'];
+  return typeof n === 'string' && identity !== 'name' && shown(n) && !n.startsWith('@') ? n : null;
+}
+
+const unescape = (seg: string) => seg.replace(/~1/g, '/').replace(/~0/g, '~');
+function keyed(seg: string): [string, string] | null {
+  if (!seg.startsWith('[') || !seg.endsWith(']')) return null;
+  const inner = seg.slice(1, -1);
+  const i = inner.indexOf('=');
+  return i < 0 ? null : [inner.slice(0, i), inner.slice(i + 1)];
+}
+function segText(l: Lookup, seg: string): [string, boolean] {
+  const k = keyed(seg);
+  if (!k) return [unescape(seg), false];
+  const v = unescape(k[1]);
+  const r = label(l, v, k[0]);
+  return r ? [r.text, true] : [v, false];
+}
+
+export function pathLabel(l: Lookup, path: string): string | null {
+  let any = false;
+  const parts = path
+    .replace(/^\/+/, '')
+    .split('/')
+    .map((s) => {
+      const [t, hit] = segText(l, s);
+      any ||= hit;
+      return t;
+    });
+  return any ? parts.join(' › ') : null;
+}
+
+export function groupOf(l: Lookup, path: string): string | null {
+  const segs = path.replace(/^\/+/, '').split('/');
+  if (segs.length < 2) return null;
+  const at = segs.findIndex((s) => keyed(s) !== null);
+  const end = at < 0 ? 1 : at + 1;
+  return segs
+    .slice(0, end)
+    .map((s) => segText(l, s)[0])
+    .join(' › ');
+}
+
+export function unitOf(path: string): string | null {
+  const last = (path.split('/').at(-1) ?? path).toLowerCase();
+  const fixed: Record<string, string> = { mass: 'kg', dps: 'dmg/s', weapondps: 'dmg/s', rpm: 'rpm', firerate: 'rpm', health: 'HP', armorhealth: 'HP', shieldhealth: 'HP', scm: 'm/s', duration: 's', cooldown: 's' };
+  if (fixed[last]) return fixed[last]!;
+  if (last.includes('speed')) return 'm/s';
+  if (last.endsWith('range') || last.endsWith('distance')) return 'm';
+  if (last.endsWith('seconds')) return 's';
+  if (last.includes('scu')) return 'SCU';
+  return null;
+}
+
+export function annotateChanges(changes: D.FieldChange[], a: Lookup, b: Lookup): void {
+  const keyOf = (p: string) => {
+    const last = p.split('/').at(-1) ?? p;
+    return /^\[([^=]*)=/.exec(last)?.[1] ?? last;
+  };
+  const read = (l: Lookup, v: unknown, key: string) => (typeof v === 'string' ? label(l, v, key) : null);
+  for (const c of changes) {
+    c.path_label = pathLabel(b, c.path) ?? pathLabel(a, c.path);
+    c.group = groupOf(b, c.path);
+    const key = keyOf(c.path);
+    c.old_label = read(a, c.old, key);
+    c.new_label = read(b, c.new, key);
+  }
+}
+
+export function recordTitle(r: D.DiffRecord, identity: string | null, a: Table | undefined, b: Table | undefined, la: Lookup, lb: Lookup): string | null {
+  const rb = r.b !== null ? b?.rows[r.b] : undefined;
+  const ra = r.a !== null ? a?.rows[r.a] : undefined;
+  return (rb ? rowTitle(lb, rb, identity) : null) ?? (ra ? rowTitle(la, ra, identity) : null);
+}
+
 function identityOptions(a: Table | undefined, b: Table | undefined): string[] {
   const cols = (t: Table | undefined) => (t ? t.columns.filter((c) => scalarKind(c.kind)).map((c) => c.name) : []);
   const ca = cols(a);
@@ -757,6 +992,15 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
   let folder = false;
   let diff: { summary: D.DevDiffSummary; tables: TableDiff[]; a: [string, Dataset][]; b: [string, Dataset][] } | null = null;
   const key = (r: T.ChannelRef) => `${r.install}/${r.channel}`;
+  const stockOf = (k: string): string | null => {
+    const lk = k.toLowerCase();
+    if (lk.startsWith('manufacturer_name')) {
+      const code = lk.slice('manufacturer_name'.length);
+      return Object.entries(data.makers).find(([c]) => c.toLowerCase() === code)?.[1] ?? null;
+    }
+    return ctx.stockText(k);
+  };
+  const lookup = mapLookup(data.known, stockOf, (k) => data.enhanced[k.toLowerCase()] ?? null, true);
   const toDataset = (file: string, v: Json) => infer(file, stringify(v).length, v);
 
   const on = (r: T.ChannelRef) => {
@@ -867,6 +1111,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
         pointer: req.pointer,
         truncated: view[1],
         loc,
+        labels: labelsIn(strict(lookup), JSON.parse(view[0]) as Json),
       };
     },
     dev_export_record: ({ req }) => {
@@ -895,7 +1140,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     dev_download_dump: ({ req }) => (on(req), dumpRefusal(ctx.dumpsOn())),
     dev_dataset: ({ req }) => structuredClone(datasetOf(req.target, req.source, req.dataset).info),
     dev_table: ({ req }) => tableInfo(tableOf(datasetOf(req.target, req.source, req.dataset), req.table)),
-    dev_rows: ({ req }) => queryRows(tableOf(datasetOf(req.target, req.source, req.dataset), req.table), req),
+    dev_rows: ({ req }) => queryRows(tableOf(datasetOf(req.target, req.source, req.dataset), req.table), req, lookup),
     dev_row: ({ req }) => {
       const t = tableOf(datasetOf(req.target, req.source, req.dataset), req.table);
       const row = t.rows[req.row] ?? ctx.fail('not-found', `no row ${req.row}`);
@@ -907,7 +1152,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
               return i === null ? null : index.entries[i]!.guid;
             })
           : [];
-      return { row: req.row, json, truncated, loc: rowLoc(row, (k) => ctx.stockText(k)), links };
+      return { row: req.row, json, truncated, loc: rowLoc(row, (k) => ctx.stockText(k)), links, labels: labelsIn(lookup, row) };
     },
     dev_diff: async ({ req }) => {
       on(req.target);
@@ -934,7 +1179,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       const pos = st.tables.findIndex((t) => t.summary.dataset === req.dataset && t.summary.table === req.table);
       if (pos < 0) ctx.fail('not-found', `no table ${req.table}`);
       if (req.identity !== null && st.tables[pos]!.summary.identity !== req.identity) st.tables[pos] = diffTable(req.dataset, req.table, ta, tb, req.identity);
-      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb));
+      const id = st.tables[pos]!.summary.identity;
+      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb), (r) => recordTitle(r, id, ta, tb, lookup, lookup));
     },
     dev_diff_record: ({ req }) => {
       on(req.target);
@@ -942,7 +1188,10 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       const td = st.tables.find((t) => t.summary.dataset === req.dataset && t.summary.table === req.table) ?? ctx.fail('not-found', `no table ${req.table}`);
       const rec = td.records.find((r) => r.id === req.id) ?? ctx.fail('not-found', `no record ${req.id}`);
       const row = (side: [string, Dataset][], i: number | null): Json => (i === null ? {} : (side.find((x) => x[0] === req.dataset)?.[1].tables.find((t) => t.name === req.table)?.rows[i] ?? {}));
-      return { id: rec.id, state: rec.state, changes: fieldChanges(row(st.a, rec.a), row(st.b, rec.b)) };
+      const changes = fieldChanges(row(st.a, rec.a), row(st.b, rec.b));
+      annotateChanges(changes, lookup, lookup);
+      const find = (side: [string, Dataset][]) => side.find((x) => x[0] === req.dataset)?.[1].tables.find((t) => t.name === req.table);
+      return { id: rec.id, label: recordTitle(rec, td.summary.identity, find(st.a), find(st.b), lookup, lookup), state: rec.state, changes };
     },
   };
   return { handlers, index, addFolder: () => (folder = true) };

@@ -23,9 +23,11 @@ use crate::starbreaker::DevDatabase;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use starorg_core::dev::explorer::{MAX_PAGE, TreeRoot};
+use starorg_core::dev::readable::{self, KnownRecord, LabelKind, Lookup, Readable};
 use starorg_core::dev::record::{self, RecordHeader, RecordView};
 use starorg_core::ini::StockIni;
-use std::collections::VecDeque;
+use std::cell::{Cell, RefCell};
+use std::collections::{HashMap, VecDeque};
 use std::io::{BufRead, BufWriter, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -38,6 +40,10 @@ pub const LRU_RECORDS: usize = 32;
 pub const LRU_BYTES: usize = 16 * 1024 * 1024;
 /// Records written per step of a type export before pending requests are answered.
 const EXPORT_STEP: usize = 64;
+/// Display names remembered per record (addendum 7.12); the cache starts over when full.
+pub const NAME_CACHE: usize = 100_000;
+/// Records read for their display name in one request; the rest show their short name.
+pub const NAME_LOADS: usize = 256;
 
 /// What the worker reads.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -176,6 +182,10 @@ pub enum Request {
     /// For each value: the GUID of the record it names (GUID or exact record name), or null.
     /// Feeds the dataset viewer's "Open in Explorer" links.
     Resolve {
+        values: Vec<String>,
+    },
+    /// For each value: what it reads as (record GUID, tag GUID, `@key`), or null (7.12).
+    Labels {
         values: Vec<String>,
     },
     /// Test hook: panics inside the request guard (only with [`Hooks::panic_op`]).
@@ -424,6 +434,72 @@ pub struct Session<'d, 'a> {
     pub game_dir: Option<PathBuf>,
     pub hooks: Hooks,
     lru: Lru,
+    names: NameCache,
+}
+
+/// Display keys (or tag names) by record, read lazily (7.12).
+#[derive(Default)]
+pub struct NameCache {
+    map: HashMap<u32, Option<(LabelKind, String)>>,
+}
+
+impl NameCache {
+    pub fn len(&self) -> usize {
+        self.map.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+}
+
+/// The worker's [`Lookup`]: every record of the index by GUID; display names read from the
+/// record itself (at most [`NAME_LOADS`] new ones per request); stock text.
+struct WorkerLookup<'s, 'd, 'a> {
+    db: &'d DevDatabase<'a>,
+    stock: Option<&'s StockIni>,
+    names: RefCell<&'s mut NameCache>,
+    loads: Cell<usize>,
+}
+
+impl Lookup for WorkerLookup<'_, '_, '_> {
+    fn by_guid(&self, guid: &str) -> Option<KnownRecord> {
+        let ix = self.db.index();
+        let i = ix.by_guid(guid)?;
+        let e = ix.entry(i)?;
+        let mut names = self.names.borrow_mut();
+        let display = match names.map.get(&(i as u32)) {
+            Some(d) => d.clone(),
+            None if self.loads.get() < NAME_LOADS => {
+                self.loads.set(self.loads.get() + 1);
+                let d = self
+                    .db
+                    .record_value(i)
+                    .ok()
+                    .and_then(|v| readable::display_of(&v));
+                if names.map.len() >= NAME_CACHE {
+                    names.map.clear();
+                }
+                names.map.insert(i as u32, d.clone());
+                d
+            }
+            None => None,
+        };
+        let tag = e.struct_type == "Tag" || matches!(display, Some((LabelKind::Tag, _)));
+        Some(KnownRecord {
+            guid: Some(e.guid.clone()),
+            name: e.name.clone(),
+            kind: if tag {
+                LabelKind::Tag
+            } else {
+                LabelKind::Record
+            },
+            display: display.map(|d| d.1),
+        })
+    }
+    fn stock(&self, key: &str) -> Option<String> {
+        self.stock?.value(key).map(str::to_string)
+    }
 }
 
 impl<'d, 'a> Session<'d, 'a> {
@@ -435,7 +511,32 @@ impl<'d, 'a> Session<'d, 'a> {
             game_dir: None,
             hooks: Hooks::default(),
             lru: Lru::default(),
+            names: NameCache::default(),
         }
+    }
+
+    /// Display names remembered so far.
+    pub fn names_cached(&self) -> usize {
+        self.names.len()
+    }
+
+    fn lookup(&mut self) -> WorkerLookup<'_, 'd, 'a> {
+        WorkerLookup {
+            db: self.db,
+            stock: self.stock.as_ref(),
+            names: RefCell::new(&mut self.names),
+            loads: Cell::new(0),
+        }
+    }
+
+    /// What each value reads as (at most [`MAX_PAGE`]).
+    pub fn labels(&mut self, values: &[String]) -> Vec<Option<Readable>> {
+        let l = self.lookup();
+        values
+            .iter()
+            .take(MAX_PAGE)
+            .map(|v| readable::label(&l, v, None))
+            .collect()
     }
 
     fn find(&self, what: &str) -> Result<usize, ReplyError> {
@@ -469,6 +570,12 @@ impl<'d, 'a> Session<'d, 'a> {
             .map_err(|e| fail("not-found", e))?;
         let node = v.pointer(pointer).unwrap_or(&v);
         let loc = record::resolve_loc(&record::loc_keys(node), self.stock.as_ref());
+        // Labels of the nodes sent (cut stubs hold none).
+        let sent: Value = serde_json::from_str(&json).unwrap_or(Value::Null);
+        let labels = {
+            let l = self.lookup();
+            readable::labels_in(&readable::Strict(&l), &sent)
+        };
         let e = self.db.index().entry(i).expect("found");
         Ok(RecordView {
             header: RecordHeader {
@@ -484,6 +591,7 @@ impl<'d, 'a> Session<'d, 'a> {
             pointer: pointer.to_string(),
             truncated,
             loc,
+            labels,
         })
     }
 
@@ -542,6 +650,10 @@ impl<'d, 'a> Session<'d, 'a> {
                     })
                     .collect();
                 to(serde_json::to_value(hits))
+            }
+            Request::Labels { values } => {
+                let v = values.clone();
+                to(serde_json::to_value(self.labels(&v)))
             }
             Request::TestPanic if self.hooks.panic_op => {
                 panic!("test panic inside the dev worker")

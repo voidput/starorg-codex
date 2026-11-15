@@ -386,6 +386,7 @@ fn folder_datasets_rows_and_diff() {
             state: Some(RecordState::Changed),
             field: None,
             identity: None,
+            query: None,
             offset: 0,
             limit: 10,
         })

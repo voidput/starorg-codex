@@ -92,6 +92,7 @@
         state: stateFilter === 'all' ? null : stateFilter,
         field: fieldFilter || null,
         identity,
+        query: null,
         offset,
         limit: PAGE,
       });

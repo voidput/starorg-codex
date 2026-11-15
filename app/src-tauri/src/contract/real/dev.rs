@@ -20,6 +20,7 @@ use starorg_core::cache::KeyInputs;
 use starorg_core::dev::dataset::{self, Dataset, RowsQuery};
 use starorg_core::dev::diff::{self, TableDiff};
 use starorg_core::dev::explorer::MAX_PAGE;
+use starorg_core::dev::readable::{self, LabelKind, Lookup, MapLookup, NoLookup};
 use starorg_core::dev::record;
 use starorg_core::discovery::Channel;
 use starorg_core::lock;
@@ -45,6 +46,8 @@ const EXPORT_GAP: Duration = Duration::from_secs(300);
 pub const MAX_FOLDERS: usize = 5;
 /// Parsed folder datasets kept (7.5).
 const KEEP_DATASETS: usize = 2;
+/// Label lookups kept, one per channel build (7.12).
+const KEEP_LOOKUPS: usize = 3;
 /// The dataset name of a build's GameData.
 pub const GAMEDATA: &str = "gamedata.json";
 
@@ -318,7 +321,13 @@ struct DiffState {
     tables: Vec<TableDiff>,
     a: Vec<(String, Arc<Dataset>)>,
     b: Vec<(String, Arc<Dataset>)>,
+    /// Label lookups of each side's build (7.12).
+    la: Option<Arc<MapLookup>>,
+    lb: Option<Arc<MapLookup>>,
 }
+
+/// (install, channel, GameData cache key, Strings table identity) of a lookup.
+type LookupKey = (String, String, String, usize);
 
 /// File identity for the parse cache: re-read when size or mtime change.
 type FileKey = (PathBuf, u64, u128);
@@ -341,6 +350,7 @@ pub struct DevState {
     diff: Mutex<Option<DiffState>>,
     /// The running type export: (job id, worker, request id).
     export: Mutex<Option<(String, Arc<Worker>, u64)>>,
+    lookups: Mutex<Vec<(LookupKey, Arc<MapLookup>)>>,
 }
 
 impl Default for DevState {
@@ -353,6 +363,7 @@ impl Default for DevState {
             data: Mutex::new(DataCache::default()),
             diff: Mutex::new(None),
             export: Mutex::new(None),
+            lookups: Mutex::new(Vec::new()),
         }
     }
 }
@@ -715,6 +726,51 @@ impl RealBackend {
         Err(dump_or_missing(source))
     }
 
+    /// The label lookup of a channel's build (7.12): its GameData records, stock text and our
+    /// enhanced text, built once per build and Strings table. `None` while the build's data
+    /// was not read.
+    fn lookup_for(&self, r: &ChannelRef, channel: &str) -> Option<Arc<MapLookup>> {
+        let f = self.resolve(r).ok()?;
+        let ch = f.channel(channel).ok()?.clone();
+        let data = self.loaded(&f, &ch, false).ok()?;
+        let table = self.build_table(&f, &ch, None, false).ok();
+        let key: LookupKey = (
+            f.ui_id(),
+            ch.name.clone(),
+            data.key.clone(),
+            table.as_ref().map_or(0, |t| Arc::as_ptr(t) as usize),
+        );
+        if let Some(l) = lock_or(&self.dev.lookups)
+            .iter()
+            .find(|x| x.0 == key)
+            .map(|x| x.1.clone())
+        {
+            return Some(l);
+        }
+        let stock = data.stock.clone();
+        let mut m = MapLookup::from_gamedata(&data.game_data)
+            .with_stock(Arc::new(move |k: &str| stock.value(k).map(str::to_string)))
+            .with_bare_keys(true);
+        if let Some(t) = table {
+            m = m.with_enhanced(Arc::new(move |k: &str| {
+                let row = t.rows.get(*t.index.get(&k.to_lowercase())?)?;
+                (row.result != row.original).then(|| row.result.clone())
+            }));
+        }
+        let m = Arc::new(m);
+        let mut c = lock_or(&self.dev.lookups);
+        c.retain(|x| !(x.0.0 == key.0 && x.0.1 == key.1));
+        c.insert(0, (key, m.clone()));
+        c.truncate(KEEP_LOOKUPS);
+        Some(m)
+    }
+
+    /// The lookup of a dataset source: a build's own, else the target channel's.
+    fn source_lookup(&self, r: &ChannelRef, source: &str) -> Option<Arc<MapLookup>> {
+        let chan = source.strip_prefix("build:").unwrap_or(&r.channel);
+        self.lookup_for(r, chan)
+    }
+
     fn table_of(&self, d: &Dataset, name: &str) -> CmdResult<dataset::Table> {
         d.table(name)
             .cloned()
@@ -890,11 +946,23 @@ impl DevBackend for RealBackend {
     }
 
     fn dev_record(&self, req: DevRecordRequest) -> CmdResult<RecordView> {
-        self.worker(&req.target, None)?.call(&Request::Record {
+        let mut v: RecordView = self.worker(&req.target, None)?.call(&Request::Record {
             what: req.what,
             pointer: req.pointer,
             depth: req.depth,
-        })
+        })?;
+        // The worker knows stock text only; our enhanced text comes from the Strings table.
+        if let Some(l) = self.lookup_for(&req.target, &req.target.channel) {
+            for (raw, r) in v.labels.iter_mut() {
+                if r.kind == LabelKind::Loc
+                    && let Some(e) = l.enhanced(raw.trim_start_matches('@'))
+                    && e != r.text
+                {
+                    r.enhanced = Some(e);
+                }
+            }
+        }
+        Ok(v)
     }
 
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult> {
@@ -1086,6 +1154,9 @@ impl DevBackend for RealBackend {
                 limit: req.limit,
             },
             MAX_PAGE,
+            self.source_lookup(&req.target, &req.source)
+                .as_deref()
+                .map(|l| l as &dyn Lookup),
         ))
     }
 
@@ -1133,12 +1204,44 @@ impl DevBackend for RealBackend {
             }
             None => vec![],
         };
+        let mut labels = match self.source_lookup(&req.target, &req.source) {
+            Some(l) => readable::labels_in(&*l, row),
+            None => readable::labels_in(&NoLookup, row),
+        };
+        // GUIDs the build's GameData does not name: ask the explorer, while it runs.
+        if let Some(w) = self.worker_if_ready(&req.target) {
+            let mut open: Vec<String> = Vec::new();
+            fn guids(v: &Value, out: &mut Vec<String>) {
+                match v {
+                    Value::String(s) if starorg_core::dev::explorer::is_guid(s) => {
+                        if !out.contains(s) {
+                            out.push(s.clone())
+                        }
+                    }
+                    Value::Array(a) => a.iter().for_each(|x| guids(x, out)),
+                    Value::Object(m) => m.values().for_each(|x| guids(x, out)),
+                    _ => {}
+                }
+            }
+            guids(row, &mut open);
+            open.retain(|g| !labels.contains_key(g));
+            open.truncate(MAX_PAGE);
+            if !open.is_empty() {
+                let got: Vec<Option<Readable>> = w
+                    .call(&Request::Labels {
+                        values: open.clone(),
+                    })
+                    .unwrap_or_default();
+                labels.extend(open.into_iter().zip(got).filter_map(|(g, r)| Some((g, r?))));
+            }
+        }
         Ok(DevRowDetail {
             row: req.row,
             json,
             truncated,
             loc,
             links,
+            labels,
         })
     }
 
@@ -1160,6 +1263,8 @@ impl DevBackend for RealBackend {
             let ra: Vec<(String, &Dataset)> = a.iter().map(|x| (x.0.clone(), &*x.1)).collect();
             let rb: Vec<(String, &Dataset)> = b.iter().map(|x| (x.0.clone(), &*x.1)).collect();
             let tables = diff::diff_sources(&ra, &rb, &|_, _| {});
+            let la = self.source_lookup(&req.target, &req.a);
+            let lb = self.source_lookup(&req.target, &req.b);
             let summary = DevDiffSummary {
                 a: req.a.clone(),
                 b: req.b.clone(),
@@ -1171,6 +1276,8 @@ impl DevBackend for RealBackend {
                 tables,
                 a,
                 b,
+                la,
+                lb,
             });
             Ok(summary)
         })();
@@ -1215,10 +1322,14 @@ impl DevBackend for RealBackend {
                 req.identity.as_deref(),
             );
         }
+        let la: &dyn Lookup = st.la.as_deref().map_or(&NoLookup, |l| l);
+        let lb: &dyn Lookup = st.lb.as_deref().map_or(&NoLookup, |l| l);
+        let id = st.tables[pos].summary.identity.clone();
         Ok(page_records(
             &st.tables[pos],
             &req,
             identity_options(ta.as_ref(), tb.as_ref()),
+            &|r| record_title(r, id.as_deref(), ta.as_ref(), tb.as_ref(), la, lb),
         ))
     }
 
@@ -1256,10 +1367,23 @@ impl DevBackend for RealBackend {
             }
         };
         let (a, b) = (or_empty(row(&st.a, rec.a)), or_empty(row(&st.b, rec.b)));
+        let la: &dyn Lookup = st.la.as_deref().map_or(&NoLookup, |l| l);
+        let lb: &dyn Lookup = st.lb.as_deref().map_or(&NoLookup, |l| l);
+        let mut changes = diff::field_changes(&a, &b);
+        diff::annotate_changes(&mut changes, la, lb);
+        let label = record_title(
+            rec,
+            td.summary.identity.as_deref(),
+            side_table(&st.a, &req.dataset, &req.table),
+            side_table(&st.b, &req.dataset, &req.table),
+            la,
+            lb,
+        );
         Ok(DevFieldDiff {
             id: rec.id.clone(),
+            label,
             state: rec.state,
-            changes: diff::field_changes(&a, &b),
+            changes,
         })
     }
 }

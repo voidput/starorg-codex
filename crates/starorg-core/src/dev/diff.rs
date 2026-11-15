@@ -3,6 +3,7 @@
 //! metadata (`_extracted`, `_fetched`, `_source`) is never a table, so it never counts.
 
 use super::dataset::{Dataset, IDENTITY, Table, identity_column, identity_of};
+use super::readable::{self, Lookup, Readable};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -52,6 +53,9 @@ pub struct DiffRecord {
     /// Row positions on each side.
     pub a: Option<u32>,
     pub b: Option<u32>,
+    /// The record's display name (addendum 7.12), filled per page.
+    #[serde(default)]
+    pub label: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -61,6 +65,20 @@ pub struct FieldChange {
     pub new: Option<Value>,
     pub delta: Option<f64>,
     pub percent: Option<f64>,
+    /// The path with its `[column=value]` segments read (addendum 7.12).
+    #[serde(default)]
+    pub path_label: Option<String>,
+    /// What the change is shown under (see [`readable::group_of`]).
+    #[serde(default)]
+    pub group: Option<String>,
+    /// Unit of a numeric field, when its name says it.
+    #[serde(default)]
+    pub unit: Option<String>,
+    /// What the old value reads as (side A's lookup) and the new one (side B's).
+    #[serde(default)]
+    pub old_label: Option<Readable>,
+    #[serde(default)]
+    pub new_label: Option<Readable>,
 }
 
 /// One table's result: the summary row and the records that are not the same, changed first
@@ -140,15 +158,49 @@ pub fn field_changes(a: &Value, b: &Value) -> Vec<FieldChange> {
                 (Some(p), Some(q)) => (Some(q - p), (p != 0.0).then(|| (q - p) / p.abs() * 100.0)),
                 _ => (None, None),
             };
+            let numeric = x.or(y).is_some_and(Value::is_number);
             Some(FieldChange {
                 path: k.clone(),
                 old: x.cloned(),
                 new: y.cloned(),
                 delta,
                 percent,
+                path_label: None,
+                group: None,
+                unit: numeric
+                    .then(|| readable::unit_of(k))
+                    .flatten()
+                    .map(str::to_string),
+                old_label: None,
+                new_label: None,
             })
         })
         .collect()
+}
+
+/// Fill the readable parts of field changes: path labels and groups (B's lookup, else A's),
+/// and what old and new values read as on their own side.
+pub fn annotate_changes(changes: &mut [FieldChange], a: &dyn Lookup, b: &dyn Lookup) {
+    let key_of = |p: &str| -> String {
+        let last = p.rsplit('/').next().unwrap_or(p);
+        match last.strip_prefix('[').and_then(|x| x.split_once('=')) {
+            Some((c, _)) => c.to_string(),
+            None => last.to_string(),
+        }
+    };
+    let read = |l: &dyn Lookup, v: &Option<Value>, key: &str| -> Option<Readable> {
+        v.as_ref()
+            .and_then(Value::as_str)
+            .and_then(|s| readable::label(l, s, Some(key)))
+    };
+    for c in changes {
+        c.path_label =
+            readable::path_label(b, &c.path).or_else(|| readable::path_label(a, &c.path));
+        c.group = readable::group_of(b, &c.path);
+        let key = key_of(&c.path);
+        c.old_label = read(a, &c.old, &key);
+        c.new_label = read(b, &c.new, &key);
+    }
 }
 
 /// Paths that differ (no values).
@@ -229,6 +281,7 @@ pub fn diff_table(
                                     fields,
                                     a: Some(i as u32),
                                     b: Some(j as u32),
+                                    label: None,
                                 });
                             }
                         }
@@ -239,6 +292,7 @@ pub fn diff_table(
                         fields: vec![],
                         a: Some(i as u32),
                         b: None,
+                        label: None,
                     }),
                 }
             }
@@ -250,6 +304,7 @@ pub fn diff_table(
                         fields: vec![],
                         a: None,
                         b: Some(j as u32),
+                        label: None,
                     });
                 }
             }
@@ -265,6 +320,7 @@ pub fn diff_table(
                         fields: changed_paths(x, y),
                         a: Some(i as u32),
                         b: Some(i as u32),
+                        label: None,
                     }),
                     (Some(_), None) => records.push(DiffRecord {
                         id,
@@ -272,6 +328,7 @@ pub fn diff_table(
                         fields: vec![],
                         a: Some(i as u32),
                         b: None,
+                        label: None,
                     }),
                     (None, Some(_)) => records.push(DiffRecord {
                         id,
@@ -279,6 +336,7 @@ pub fn diff_table(
                         fields: vec![],
                         a: None,
                         b: Some(i as u32),
+                        label: None,
                     }),
                     (None, None) => {}
                 }

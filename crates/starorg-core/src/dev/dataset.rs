@@ -2,6 +2,7 @@
 //! search, filters, sort and paging. Parsed as data only; nothing is executed or rendered as
 //! HTML.
 
+use super::readable::{self, Lookup, Readable};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
@@ -528,6 +529,12 @@ pub struct Row {
     /// Position in the table.
     pub id: u32,
     pub cells: Vec<Option<String>>,
+    /// What each cell reads as (addendum 7.12), same order; `None` = show the raw cell.
+    #[serde(default)]
+    pub labels: Vec<Option<Readable>>,
+    /// The row's display name, when it has one.
+    #[serde(default)]
+    pub title: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -585,24 +592,32 @@ fn cmp_cells(a: Option<&Value>, b: Option<&Value>) -> Ordering {
     }
 }
 
-/// Search (substring over the scalar cells of the shown columns), filters, sort, page.
-pub fn query_rows(t: &Table, q: &RowsQuery, max_page: usize) -> RowsPage {
+/// Search (substring over the scalar cells of the shown columns, and over what they read as
+/// when a lookup is given), filters, sort, page. Page rows carry their cell labels and title.
+pub fn query_rows(t: &Table, q: &RowsQuery, max_page: usize, l: Option<&dyn Lookup>) -> RowsPage {
     let columns = if q.columns.is_empty() {
         default_columns(&t.columns)
     } else {
         q.columns.clone()
     };
     let needle = q.search.trim().to_lowercase();
+    let identity = identity_column(&t.rows, None);
+    let has = |s: &str| s.to_lowercase().contains(&needle);
     let mut hits: Vec<usize> = (0..t.rows.len())
         .filter(|&i| {
             let r = &t.rows[i];
             q.filters.iter().all(|f| filter_ok(r, f))
                 && (needle.is_empty()
                     || columns.iter().any(|c| {
-                        r.get(c)
-                            .and_then(scalar_text)
-                            .is_some_and(|s| s.to_lowercase().contains(&needle))
-                    }))
+                        r.get(c).and_then(scalar_text).is_some_and(|s| {
+                            has(&s)
+                                || l.and_then(|l| readable::label(l, &s, Some(c))).is_some_and(
+                                    |x| has(&x.text) || x.enhanced.as_deref().is_some_and(has),
+                                )
+                        })
+                    })
+                    || l.and_then(|l| readable::row_title(l, r, identity.as_deref()))
+                        .is_some_and(|t| has(&t)))
         })
         .collect();
     if let Some(s) = &q.sort {
@@ -618,12 +633,20 @@ pub fn query_rows(t: &Table, q: &RowsQuery, max_page: usize) -> RowsPage {
         .into_iter()
         .skip(q.offset as usize)
         .take(limit)
-        .map(|i| Row {
-            id: i as u32,
-            cells: columns
-                .iter()
-                .map(|c| cell_text(t.rows[i].get(c)))
-                .collect(),
+        .map(|i| {
+            let r = &t.rows[i];
+            Row {
+                id: i as u32,
+                cells: columns.iter().map(|c| cell_text(r.get(c))).collect(),
+                labels: columns
+                    .iter()
+                    .map(|c| {
+                        let s = r.get(c).and_then(scalar_text)?;
+                        readable::label(l?, &s, Some(c))
+                    })
+                    .collect(),
+                title: l.and_then(|l| readable::row_title(l, r, identity.as_deref())),
+            }
         })
         .collect();
     RowsPage {

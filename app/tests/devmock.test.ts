@@ -53,7 +53,7 @@ function mock(devOn = true) {
 const live = { install: 'inst-7f3a', channel: 'LIVE' };
 const tree = (root: 'type' | 'path', node: string, limit: number) => ({ req: { target: live, root, node, offset: 0, limit, main_only: true } });
 const rows = (source: string, dataset: string, table: string) => ({ target: live, source, dataset, table, columns: [] as string[], search: '', filters: [] as never[], sort: null, offset: 0, limit: 5 });
-const recs = (dataset: string, table: string) => ({ target: live, dataset, table, state: null, field: null, identity: null, offset: 0, limit: 5 });
+const recs = (dataset: string, table: string) => ({ target: live, dataset, table, state: null, field: null, identity: null, query: null as string | null, offset: 0, limit: 5 });
 const f = (column: string, part: object) => ({ column, values: [], min: null, max: null, has: null, ...part });
 
 test('every dev sample of the Rust mock comes back equal from the TS mock', async () => {
@@ -93,6 +93,9 @@ test('every dev sample of the Rust mock comes back equal from the TS mock', asyn
   got.dev_diff_records_added = await h.dev_diff_records({ req: { ...recs('gamedata.json', 'components'), state: 'added' } });
   const first = (got.dev_diff_records as { records: { id: string }[] }).records[0]!.id;
   got.dev_diff_record = await h.dev_diff_record({ req: { target: live, dataset: 'gamedata.json', table: 'components', id: first, identity: null } });
+  got.dev_rows_readable = await h.dev_rows({ req: { ...rows('build:LIVE', 'gamedata.json', 'components'), search: 'alpha synth', limit: 3 } });
+  got.dev_diff_records_query = await h.dev_diff_records({ req: { ...recs('gamedata.json', 'components'), query: 'sample cooler 4' } });
+  got.dev_diff_record_ship = await h.dev_diff_record({ req: { target: live, dataset: 'gamedata.json', table: 'ships', id: 'SYN_Ship_003', identity: null } });
   got.dev_close = await h.dev_close({ req: live });
   for (const [k, v] of Object.entries(got)) assert.deepStrictEqual(JSON.parse(JSON.stringify(v)), samples[k], k);
 });

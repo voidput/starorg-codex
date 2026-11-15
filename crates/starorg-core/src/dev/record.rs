@@ -46,6 +46,10 @@ pub struct RecordView {
     pub truncated: bool,
     /// `@key` strings in the reply that the channel's stock `global.ini` has.
     pub loc: Vec<LocText>,
+    /// What references, GUIDs and `@key` strings in the reply read as, by raw value
+    /// (addendum 7.12).
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<String, super::readable::Readable>,
 }
 
 /// Replace containers deeper than `depth` with cut stubs.
