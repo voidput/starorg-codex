@@ -41,4 +41,4 @@ pub mod validate;
 /// a changed default of a setting, a fix in the text or the merge. Do not bump for app
 /// releases that leave the output as it was; the app version is recorded for information
 /// only. Manifests written before this field existed (0.1.0) read as version 1.
-pub const OUTPUT_VERSION: u32 = 1;
+pub const OUTPUT_VERSION: u32 = 2;

@@ -433,6 +433,13 @@ impl<'a> Engine<'a> {
             self.left(cat, Reason::Placeholder);
             return false;
         }
+        // Shared sentinel keys (`LOC_PLACEHOLDER`, `LOC_EMPTY`, ...) and placeholder text are
+        // used by many records and UI slots at once: an item whose description points at one
+        // must not write into it, or the game shows that item's stats on contracts and menus.
+        if is_sentinel_key(&stock_key) || is_placeholder_text(sv) {
+            self.left(cat, Reason::Placeholder);
+            return false;
+        }
         let (prefix, suffix, trim_stock) = self.parts(payload, sv);
         let replace = match payload {
             Payload::Name { replace, .. } => replace.clone(),
@@ -782,4 +789,52 @@ pub fn render(stock: &StockIni, g: &Generated) -> Result<Vec<u8>, check::FileErr
     let bytes = stock.render(&g.to_edits(stock));
     check::check_file(stock, &bytes)?;
     Ok(bytes)
+}
+
+/// The game's shared `LOC_*` sentinel keys (`LOC_PLACEHOLDER`, `LOC_EMPTY`, `LOC_INVALID`,
+/// `LOC_UNINITIALIZED`, `LOC_DEBUG`, ...): reused by many records, never ours to edit.
+pub(crate) fn is_sentinel_key(key: &str) -> bool {
+    let k = key.trim_start_matches('@');
+    k.len() > 4 && k[..4].eq_ignore_ascii_case("LOC_")
+}
+
+/// Stock text the game shows as a placeholder: `<= PLACEHOLDER =>`, `<= TEST NAME =>`, ...
+/// Empty text is not a placeholder here (an item may have a blank description of its own).
+pub(crate) fn is_placeholder_text(value: &str) -> bool {
+    let v = value.trim();
+    !v.is_empty() && !v.starts_with('@') && is_placeholder_name(Some(v))
+}
+
+#[cfg(test)]
+mod sentinel_tests {
+    use super::{is_placeholder_text, is_sentinel_key};
+
+    #[test]
+    fn shared_loc_sentinels_are_never_ours() {
+        for k in [
+            "LOC_PLACEHOLDER",
+            "@LOC_PLACEHOLDER",
+            "LOC_EMPTY",
+            "loc_testDesc",
+            "LOC_UNINITIALIZED",
+        ] {
+            assert!(is_sentinel_key(k), "{k}");
+        }
+        for k in [
+            "item_DescRADR_AEGS_S01_Surveyor",
+            "location_name",
+            "LOC",
+            "Loc",
+        ] {
+            assert!(!is_sentinel_key(k), "{k}");
+        }
+    }
+
+    #[test]
+    fn placeholder_text_is_skipped_but_blank_is_not() {
+        assert!(is_placeholder_text("<= PLACEHOLDER =>"));
+        assert!(is_placeholder_text("< = TEST NAME = >"));
+        assert!(!is_placeholder_text(""));
+        assert!(!is_placeholder_text("Surveyor radar, made by Aegis."));
+    }
 }
