@@ -82,7 +82,7 @@ registry! {
 
     // weapons, // weapons.ts
 
-    // wikelo, // wikelo.ts -> game-wikelo-trades
+    wikelo, // wikelo.ts -> game-wikelo-trades
 }
 
 /// A domain by output name (`game-manufacturers`) or short name (`manufacturers`).
