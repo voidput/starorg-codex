@@ -108,6 +108,50 @@ tracked **per character**, never merged.
 - Test data: synthetic export with fake names in the repo; the owner's real file is used
   only in an ignored local test (personal data, never committed).
 
+## 2-4. Implementation notes (M1, branch `m1-apply`)
+
+- **Commands.** `hook prelaunch [--timeout 60]`, `hook postexit [--timeout 120]`,
+  `hook install|uninstall [--prelaunch-script F] [--postexit-script F] [--bin PATH]`,
+  `hook status`; `blueprints scan|characters|list|use|import`; `apply --character
+  <name|geid|auto|any>`.
+- **Never fatal.** `hook prelaunch|postexit` exit 0 for every outcome (2 only for usage
+  errors); the apply's own code is `exit_code` in `--json`. Pre-launch = `apply --all
+  --if-stale` within the budget; post-exit = incremental log scan of every channel, then the
+  same apply with what is left of the budget.
+- **Hook block.** Lines between `# >>> starorg-strings hook >>>` and `# <<< starorg-strings
+  hook <<<`, inserted before a final top-level `exit` (else at the end); no blank lines are
+  added, so `uninstall` gives the script back byte for byte. Default scripts:
+  `<prefix>/sc-prelaunch.sh` and `sc-postexit.sh`; links are followed and the real file is
+  edited in place (mode kept), after a backup in `data/hooks/backups/`. Only existing files
+  are edited; a script inside the game install or the prefix's `drive_c` is refused. An
+  outdated block is rewritten in place; unbalanced markers are refused. `status` also flags a
+  hand-made `starorg-strings` call outside the block (it would run twice) and the Smart Citizen
+  / StarStrings hooks. Windows: not supported (exit 4), still open.
+- **Log facts (owner's logs, 2026-11).** The notification text is the *localised* item name,
+  so it carries the active localisation tool's tags (`Received Blueprint: [H] Palatino Arms
+  Raider Camo: `): log names are tag-stripped like imported names. Only `Added notification
+  "Received Blueprint: ..."` lines count; the queue dump lines and `UpdateNotificationItem`
+  lines repeat the same text. Login lines in `STATE_UNSPECIFIED` exist and are ignored. 200
+  LIVE logs (947 MB): first scan 0.2 s, rescan 2 ms; 23 unique blueprints, 4 characters.
+- **Incremental scan.** Per file: size, mtime, offset after the last complete line, the
+  character at that offset, and a hash of the first 4 KiB. The game renames `Game.log` into
+  `logbackups/` on the next start; the head hash finds the old record, so the rotated file is
+  not read again. A file whose head changed is read from the start.
+- **Active character.** `channel.toml` `active_character` (`blueprints use`): unset = auto,
+  `any`, or a geid. The owned-set hash is part of `applied.json`, so a changed set or choice
+  shows as `Stale (owned blueprints)`. Post-exit applies with the channel setting: with the
+  default auto that *is* the character that just played; a manual pick is kept (otherwise the
+  next pre-launch would flip it back).
+- **Import.** Ambiguous names are stored with every candidate id and `ambiguous: true`;
+  unmatched names are reported, not stored. With no blueprint names in `GameData` (until M2)
+  `import` refuses to write (exit 1) and `--dry-run` reports everything unmatched. Owner's
+  export (269 entries, all `completed`), dry run against a stand-in catalog of all
+  `item_Name*` values from LIVE's stock `global.ini` (9,926 names; not blueprint outputs, so
+  it over-matches variants): 199 new, 23 already known from the logs, 22 ambiguous, 25
+  unmatched (ship components such as mining lasers, whose names are not `item_Name*` keys).
+- **Privacy.** Names, geids and account ids stay in `blueprints/*.json` in the data folder;
+  `doctor` shows counts only.
+
 ## 5. StarOrg Tools account link (OAuth, like RSI+) — import and sync blueprints
 
 Native "Connect StarOrg Tools" in the app (and `starorg-strings starorg login|logout|status`,

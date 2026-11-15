@@ -40,7 +40,7 @@ impl GameSource for FileSource {
     }
 }
 
-fn ctx(g: &GlobalOpts) -> Result<Ctx, ExitCode> {
+pub(crate) fn ctx(g: &GlobalOpts) -> Result<Ctx, ExitCode> {
     let Some(dirs) = AppDirs::from_env() else {
         return Err(fail(
             g,
@@ -55,7 +55,7 @@ fn ctx(g: &GlobalOpts) -> Result<Ctx, ExitCode> {
     Ok(c)
 }
 
-fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, ExitCode> {
+pub(crate) fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, ExitCode> {
     if let Some(p) = &g.test_stock_ini {
         return Ok(Box::new(FileSource(p.clone())));
     }
@@ -72,7 +72,7 @@ fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, ExitCode> {
     Ok(Box::new(s))
 }
 
-fn install(g: &GlobalOpts) -> Result<Install, ExitCode> {
+pub(crate) fn install(g: &GlobalOpts) -> Result<Install, ExitCode> {
     run_discovery(g).installs.into_iter().next().ok_or_else(|| {
         fail(
             g,
@@ -83,7 +83,11 @@ fn install(g: &GlobalOpts) -> Result<Install, ExitCode> {
     })
 }
 
-fn find_channel<'a>(g: &GlobalOpts, i: &'a Install, name: &str) -> Result<&'a Channel, ExitCode> {
+pub(crate) fn find_channel<'a>(
+    g: &GlobalOpts,
+    i: &'a Install,
+    name: &str,
+) -> Result<&'a Channel, ExitCode> {
     i.channel(name).ok_or_else(|| {
         let names: Vec<_> = i.channels.iter().map(|c| c.name.as_str()).collect();
         fail(
@@ -100,7 +104,7 @@ fn find_channel<'a>(g: &GlobalOpts, i: &'a Install, name: &str) -> Result<&'a Ch
 }
 
 /// Register the install (commands that write) and return its id.
-fn register(g: &GlobalOpts, c: &Ctx, i: &Install) -> Result<String, ExitCode> {
+pub(crate) fn register(g: &GlobalOpts, c: &Ctx, i: &Install) -> Result<String, ExitCode> {
     let mut cfg =
         Config::load(&c.dirs).map_err(|e| fail(g, exit::ERROR, "config", &e.to_string()))?;
     let outputs = Outputs::load(&c.dirs).unwrap_or_default();
@@ -119,13 +123,13 @@ fn register(g: &GlobalOpts, c: &Ctx, i: &Install) -> Result<String, ExitCode> {
 }
 
 /// Id of an install without writing anything.
-fn lookup(c: &Ctx, i: &Install) -> Option<String> {
+pub(crate) fn lookup(c: &Ctx, i: &Install) -> Option<String> {
     let cfg = Config::load(&c.dirs).ok()?;
     let outputs = Outputs::load(&c.dirs).unwrap_or_default();
     config::lookup_install(&cfg, &outputs, i).map(|(id, _)| id)
 }
 
-fn notify(g: &GlobalOpts, code: u8, summary: &str, applied_something: bool) {
+pub(crate) fn notify(g: &GlobalOpts, code: u8, summary: &str, applied_something: bool) {
     if !g.notify || cfg!(windows) {
         return;
     }
@@ -152,7 +156,7 @@ fn notify(g: &GlobalOpts, code: u8, summary: &str, applied_something: bool) {
     }
 }
 
-fn print_reports(
+pub(crate) fn print_reports(
     g: &GlobalOpts,
     command: &str,
     reports: &[Report],
@@ -232,6 +236,11 @@ fn print_reports(
         if let Some(b) = &r.backup {
             println!("  backup: {b}");
         }
+        if let Some(o) = r.owned.as_ref().filter(|o| o.count > 0)
+            && matches!(r.result, Outcome::Applied | Outcome::DryRun)
+        {
+            println!("  owned blueprints: {} ({})", o.count, o.mode);
+        }
         for w in &r.warnings {
             eprintln!("  warning: {}: {}", w.kind, w.detail);
         }
@@ -244,7 +253,7 @@ fn print_reports(
     code
 }
 
-fn summary(reports: &[Report]) -> String {
+pub(crate) fn summary(reports: &[Report]) -> String {
     reports
         .iter()
         .map(|r| {
@@ -259,7 +268,7 @@ fn summary(reports: &[Report]) -> String {
         .join(", ")
 }
 
-fn is_set_up(c: &Ctx, id: &str, ch: &Channel) -> bool {
+pub(crate) fn is_set_up(c: &Ctx, id: &str, ch: &Channel) -> bool {
     ChannelState::load(&c.dirs.channel_dir(id, &ch.name))
         .map(|s| s.consent)
         .unwrap_or(false)
@@ -381,6 +390,7 @@ pub fn apply(
     dry_run: bool,
     profile: Option<PathBuf>,
     timeout: Option<u64>,
+    character: Option<String>,
 ) -> ExitCode {
     let c = match ctx(g) {
         Ok(c) => c,
@@ -422,25 +432,46 @@ pub fn apply(
             .map(|s| Budget::with_timeout(Duration::from_secs(s)))
             .unwrap_or_default(),
         profile_file: profile,
+        character,
     };
-    let mut reports = Vec::new();
-    let mut skipped = Vec::new();
-    for name in &names {
-        let ch = match find_channel(g, &i, name) {
-            Ok(ch) => ch,
+    let (reports, skipped) =
+        match apply_channels(g, &c, &i, &id, &names, sel.all, &opts, src.as_ref()) {
+            Ok(x) => x,
             Err(e) => return e,
         };
-        if sel.all && !is_set_up(&c, &id, ch) {
-            skipped.push((ch.name.clone(), "not set up".to_string()));
-            continue;
-        }
-        let t = Target::new(&i, Some(id.clone()), ch);
-        reports.push(apply::apply(&c, &t, &opts, src.as_ref()));
-    }
     let code = print_reports(g, "apply", &reports, &skipped);
     let applied = reports.iter().any(|r| r.result == Outcome::Applied);
     notify(g, code, &summary(&reports), applied);
     ExitCode::from(code)
+}
+
+/// Apply reports, and the channels `--all` skipped with the reason.
+pub(crate) type Applied = (Vec<Report>, Vec<(String, String)>);
+
+/// Apply `names`; with `all`, channels that are not set up are skipped and listed.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn apply_channels(
+    g: &GlobalOpts,
+    c: &Ctx,
+    i: &Install,
+    id: &str,
+    names: &[String],
+    all: bool,
+    opts: &ApplyOpts,
+    src: &dyn GameSource,
+) -> Result<Applied, ExitCode> {
+    let mut reports = Vec::new();
+    let mut skipped = Vec::new();
+    for name in names {
+        let ch = find_channel(g, i, name)?;
+        if all && !is_set_up(c, id, ch) {
+            skipped.push((ch.name.clone(), "not set up".to_string()));
+            continue;
+        }
+        let t = Target::new(i, Some(id.to_string()), ch);
+        reports.push(apply::apply(c, &t, opts, src));
+    }
+    Ok((reports, skipped))
 }
 
 pub fn remove(g: &GlobalOpts, sel: &ChannelSel, yes: bool) -> ExitCode {
@@ -518,7 +549,8 @@ pub fn status(g: &GlobalOpts, channel: Option<&str>) -> ExitCode {
             Some(Err(e)) => eprintln!("{}: recovery failed: {e}", ch.name),
             _ => {}
         }
-        let st = apply::current_inputs(&c, &t, None).and_then(|inp| apply::status(&c, &t, &inp));
+        let st =
+            apply::current_inputs(&c, &t, None, None).and_then(|inp| apply::status(&c, &t, &inp));
         match st {
             Ok(s) => out.push(s),
             Err(e) => return fail(g, exit::ERROR, "status", &format!("{}: {e}", ch.name)),
@@ -636,7 +668,7 @@ pub fn patches(g: &GlobalOpts, channel: Option<&str>) -> ExitCode {
                 Err(e) => return e,
             };
             let t = Target::new(&i, lookup(&c, &i), ch);
-            let inputs = match apply::current_inputs(&c, &t, None) {
+            let inputs = match apply::current_inputs(&c, &t, None, None) {
                 Ok(x) => x,
                 Err(e) => return fail(g, exit::ERROR, "patches", &e),
             };
@@ -747,6 +779,31 @@ fn link_info(p: &Path) -> Value {
     })
 }
 
+/// Redacted owned-blueprint summary for `doctor`.
+fn blueprint_summary(data: &Path) -> Value {
+    use starorg_core::blueprints;
+    let chars = blueprints::load_characters(data).unwrap_or_default();
+    let owned: usize = chars
+        .characters
+        .keys()
+        .filter_map(|g| blueprints::load_set(data, g).ok())
+        .map(|s| s.entries.len())
+        .sum();
+    let setting = ChannelState::load(data)
+        .ok()
+        .and_then(|s| s.active_character);
+    json!({
+        "characters": chars.characters.len(),
+        "owned_entries": owned,
+        "unattributed": blueprints::load_unattributed(data).map(|s| s.entries.len()).unwrap_or(0),
+        "active": match setting.as_deref() {
+            None => "auto",
+            Some("any") => "any",
+            Some(_) => "character (redacted)",
+        },
+    })
+}
+
 pub fn doctor(g: &GlobalOpts) -> ExitCode {
     let c = match ctx(g) {
         Ok(c) => c,
@@ -838,7 +895,7 @@ pub fn doctor(g: &GlobalOpts) -> ExitCode {
             let interrupted = id
                 .as_ref()
                 .is_some_and(|_| t.data_dir(&c.dirs).join(INTENT_JSON).exists());
-            let status = apply::current_inputs(&c, &t, None)
+            let status = apply::current_inputs(&c, &t, None, None)
                 .and_then(|inp| apply::status(&c, &t, &inp))
                 .ok()
                 .map(|s| serde_json::to_value(&s.state).unwrap_or(Value::Null));
@@ -852,6 +909,8 @@ pub fn doctor(g: &GlobalOpts) -> ExitCode {
                 "other_tool_traces": traces,
                 "interrupted_apply": interrupted,
                 "backups": id.as_ref().map(|_| backup::list(&t.data_dir(&c.dirs)).len()).unwrap_or(0),
+                // Counts only: names, geids and account ids are personal data (addendum §3).
+                "blueprints": id.as_ref().map(|_| blueprint_summary(&t.data_dir(&c.dirs))),
             }));
         }
         installs.push(json!({
