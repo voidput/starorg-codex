@@ -1025,6 +1025,7 @@ export type ExternalLink = 'support' | 'donate';
 
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';
+export type * from './assets';
 // Experimental: local MCP server (docs/mcp.md) --------------------------------------------
 
 /** One HTTP request the local MCP server answered. */

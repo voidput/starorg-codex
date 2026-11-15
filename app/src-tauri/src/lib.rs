@@ -112,6 +112,17 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
             }
         });
     }
+    // `asset-worker --p4k <P>`: the Developer mode files, sounds and models (addendum 7.16).
+    // Read only; outputs go only to the asset cache or paths from a native dialog.
+    if args.get(1).map(|a| a.as_os_str()) == Some("asset-worker".as_ref()) {
+        return Some(match starorg_data::assetworker::parse_args(&args[2..]) {
+            Ok(a) => starorg_data::assetworker::run(&a),
+            Err(e) => {
+                eprintln!("asset-worker: {e}");
+                2
+            }
+        });
+    }
     // The local MCP server's extraction worker: one dataset per process (docs/mcp.md).
     if let Some(code) = starorg_mcp::worker::worker_main(args) {
         return Some(code);

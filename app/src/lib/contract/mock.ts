@@ -27,6 +27,8 @@ import type * as T from './types';
 import { createUpdateMock } from './mock-update';
 import { createDevMock, type DevMockData } from './mock-dev';
 import devData from './mock-dev.gen.json';
+import { createAssetMock, type AssetMockData } from './mock-assets';
+import assetData from './mock-assets.gen.json';
 
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
@@ -644,8 +646,25 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     fail: (c, m) => fail(c, m),
   });
 
+  // Developer mode assets (mock-assets.ts): the Rust mock's synthetic archive and sounds.
+  const devEntries = (devData as unknown as DevMockData).entries;
+  const assets = createAssetMock(assetData as unknown as AssetMockData, {
+    devOn: () => settings.advanced.developer_mode,
+    hasChannel: (r) => chans.has(id(r)),
+    findRecord: (w) => {
+      const e = devEntries.find((x) => x.guid === w || x.name === w || x.path === w);
+      return e ? { guid: e.guid, name: e.name, type: e.type } : null;
+    },
+    emit: (p) => listeners.forEach((l) => l(p)),
+    sleep,
+    delay,
+    nextJob: () => `job-${nextJob++}`,
+    fail: (c, m) => fail(c, m),
+  });
+
   const h: Handlers = {
     ...dev.handlers,
+    ...assets.handlers,
     overview: () => {
       sync();
       const active = installs.find((i) => i.saved)?.id ?? null;

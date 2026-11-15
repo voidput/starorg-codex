@@ -8,10 +8,11 @@
  */
 import type * as T from './types';
 import type { DevCommandMap } from './dev';
+import type { AssetCommandMap } from './assets';
 import { CONTRACT_VERSION, JOB_EVENT } from './types';
 
 /** Command name -> [arguments object, result]. Argument names match the Rust parameters. */
-export interface CommandMap extends DevCommandMap {
+export interface CommandMap extends DevCommandMap, AssetCommandMap {
   overview: [Record<string, never>, T.Overview];
   discover_installs: [{ deep: boolean }, T.InstallSummary[]];
   pick_install_folder: [Record<string, never>, T.InstallSummary | null];
@@ -181,6 +182,21 @@ export const COMMANDS = [
   'dev_diff_records',
   'dev_diff_groups',
   'dev_diff_record',
+  'asset_status',
+  'asset_close',
+  'asset_list',
+  'asset_search',
+  'asset_preview',
+  'asset_extract',
+  'asset_sounds',
+  'asset_sound',
+  'asset_export_sounds',
+  'asset_export_model',
+  'asset_cache_status',
+  'asset_cache_pick',
+  'asset_cache_reset',
+  'asset_cache_clear',
+  'asset_cache_move',
   'mcp_status',
   'set_mcp_enabled',
 ] as const satisfies readonly Command[];

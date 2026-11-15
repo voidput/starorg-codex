@@ -117,6 +117,462 @@
       }
     ]
   },
+  "asset_cache_clear": {
+    "bytes": 0,
+    "default_path": "/synthetic/cache/assets",
+    "files": 0,
+    "is_default": false,
+    "max_bytes": 2147483648,
+    "other_drive": true,
+    "path": "/synthetic/other-drive/asset-cache",
+    "previous": null
+  },
+  "asset_cache_move": {
+    "bytes": 404546702,
+    "default_path": "/synthetic/cache/assets",
+    "files": 7,
+    "is_default": false,
+    "max_bytes": 2147483648,
+    "other_drive": true,
+    "path": "/synthetic/other-drive/asset-cache",
+    "previous": null
+  },
+  "asset_cache_pick": {
+    "bytes": 0,
+    "default_path": "/synthetic/cache/assets",
+    "files": 0,
+    "is_default": false,
+    "max_bytes": 2147483648,
+    "other_drive": true,
+    "path": "/synthetic/other-drive/asset-cache",
+    "previous": {
+      "bytes": 404546707,
+      "files": 7,
+      "path": "/synthetic/cache/assets"
+    }
+  },
+  "asset_cache_reset": {
+    "bytes": 0,
+    "default_path": "/synthetic/cache/assets",
+    "files": 0,
+    "is_default": true,
+    "max_bytes": 2147483648,
+    "other_drive": false,
+    "path": "/synthetic/cache/assets",
+    "previous": null
+  },
+  "asset_cache_status": {
+    "bytes": 0,
+    "default_path": "/synthetic/cache/assets",
+    "files": 0,
+    "is_default": true,
+    "max_bytes": 2147483648,
+    "other_drive": false,
+    "path": "/synthetic/cache/assets",
+    "previous": null
+  },
+  "asset_close": {
+    "audio": false,
+    "channel": "LIVE",
+    "datacore": false,
+    "entries": 0,
+    "error": null,
+    "memory": null,
+    "state": "stopped"
+  },
+  "asset_export_model": {
+    "bytes": 239548230,
+    "cached": false,
+    "cancelled": false,
+    "failed": [],
+    "files": 2,
+    "note": null,
+    "path": "/synthetic/exports/SYN_Ship_002-print-lod0.glb"
+  },
+  "asset_export_model_cached": {
+    "bytes": 56398596,
+    "cached": true,
+    "cancelled": false,
+    "failed": [],
+    "files": 1,
+    "note": null,
+    "path": "/synthetic/exports/SYN_Ship_002-print-lod0.glb"
+  },
+  "asset_export_model_full": {
+    "bytes": 348136664,
+    "cached": false,
+    "cancelled": false,
+    "failed": [],
+    "files": 1,
+    "note": null,
+    "path": "/synthetic/exports/SYN_Ship_002-full-lod1.glb"
+  },
+  "asset_export_sounds": {
+    "bytes": 11296,
+    "cached": false,
+    "cancelled": false,
+    "failed": [],
+    "files": 4,
+    "note": null,
+    "path": "/synthetic/exports"
+  },
+  "asset_extract": {
+    "bytes": 49255,
+    "cached": false,
+    "cancelled": false,
+    "failed": [],
+    "files": 7,
+    "note": "7 converted, 12 texture mip files merged into their PNG",
+    "path": "/synthetic/exports"
+  },
+  "asset_list": {
+    "dir": "",
+    "entries": [
+      {
+        "dir": true,
+        "name": "Data",
+        "packed": 0,
+        "path": "Data",
+        "size": 0
+      }
+    ],
+    "offset": 0,
+    "parent": null,
+    "total": 1
+  },
+  "asset_list_data": {
+    "dir": "Data",
+    "entries": [
+      {
+        "dir": true,
+        "name": "Libs",
+        "packed": 0,
+        "path": "Data\\Libs",
+        "size": 0
+      },
+      {
+        "dir": true,
+        "name": "Objects",
+        "packed": 0,
+        "path": "Data\\Objects",
+        "size": 0
+      },
+      {
+        "dir": true,
+        "name": "Scripts",
+        "packed": 0,
+        "path": "Data\\Scripts",
+        "size": 0
+      },
+      {
+        "dir": true,
+        "name": "Sounds",
+        "packed": 0,
+        "path": "Data\\Sounds",
+        "size": 0
+      },
+      {
+        "dir": true,
+        "name": "Textures",
+        "packed": 0,
+        "path": "Data\\Textures",
+        "size": 0
+      },
+      {
+        "dir": false,
+        "name": "Game2.dcb",
+        "packed": 264142585,
+        "path": "Data\\Game2.dcb",
+        "size": 352190114
+      }
+    ],
+    "offset": 0,
+    "parent": "",
+    "total": 6
+  },
+  "asset_list_page": {
+    "dir": "Data\\Textures\\ships\\syn",
+    "entries": [
+      {
+        "dir": false,
+        "name": "syn_ship_000_diff.dds.2",
+        "packed": 786432,
+        "path": "Data\\Textures\\ships\\syn\\syn_ship_000_diff.dds.2",
+        "size": 1048576
+      },
+      {
+        "dir": false,
+        "name": "syn_ship_001_diff.dds",
+        "packed": 130,
+        "path": "Data\\Textures\\ships\\syn\\syn_ship_001_diff.dds",
+        "size": 174
+      },
+      {
+        "dir": false,
+        "name": "syn_ship_001_diff.dds.1",
+        "packed": 3145728,
+        "path": "Data\\Textures\\ships\\syn\\syn_ship_001_diff.dds.1",
+        "size": 4194304
+      }
+    ],
+    "offset": 2,
+    "parent": "Data\\Textures\\ships",
+    "total": 18
+  },
+  "asset_preview": {
+    "cached": false,
+    "format": "dds",
+    "height": 1024,
+    "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAXklEQVR42hXKMQHAMAgAsEqpFKQgBSlIQQpOtvTIl3NOf5cgKZphOecKBEnRDHtfCIEgKZph44UUCJKiGTZfKIEgKZph64UWCJKiGbZfGIEgKZph54UVCJKiGXb7+wEW3J/B5ia3YAAAAABJRU5ErkJggg==",
+    "kind": "image",
+    "note": "2048 x 2048, shown at 1024 x 1024",
+    "path": "Data\\Textures\\ships\\syn\\syn_ship_001_diff.dds",
+    "size": 174,
+    "text": null,
+    "truncated": false,
+    "width": 1024
+  },
+  "asset_preview_audio": {
+    "cached": false,
+    "format": "wem",
+    "height": null,
+    "image": null,
+    "kind": "audio",
+    "note": null,
+    "path": "Data\\Sounds\\wwise\\Media\\700001.wem",
+    "size": 64000,
+    "text": null,
+    "truncated": false,
+    "width": null
+  },
+  "asset_preview_cached": {
+    "cached": true,
+    "format": "dds",
+    "height": null,
+    "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAXklEQVR42hXKMQHAMAgAsEqpFKQgBSlIQQpOtvTIl3NOf5cgKZphOecKBEnRDHtfCIEgKZph44UUCJKiGTZfKIEgKZph64UWCJKiGbZfGIEgKZph54UVCJKiGXb7+wEW3J/B5ia3YAAAAABJRU5ErkJggg==",
+    "kind": "image",
+    "note": null,
+    "path": "Data\\Textures\\ships\\syn\\syn_ship_001_diff.dds",
+    "size": 0,
+    "text": null,
+    "truncated": false,
+    "width": null
+  },
+  "asset_preview_cryxml": {
+    "cached": false,
+    "format": "cryxml",
+    "height": null,
+    "image": null,
+    "kind": "text",
+    "note": null,
+    "path": "Data\\Objects\\Spaceships\\Ships\\SYN\\syn_ship_002\\syn_ship_002.mtl",
+    "size": 22200,
+    "text": "<Config path=\"Data/Objects/Spaceships/Ships/SYN/syn_ship_002/syn_ship_002.mtl\">\n  <Value key=\"speed\" v=\"200\"/>\n  <Value key=\"mass\" v=\"1200\"/>\n</Config>\n",
+    "truncated": false,
+    "width": null
+  },
+  "asset_preview_none": {
+    "cached": false,
+    "format": "1",
+    "height": null,
+    "image": null,
+    "kind": "none",
+    "note": "A mip level of a texture; open the .dds file",
+    "path": "Data\\Textures\\ships\\syn\\syn_ship_001_diff.dds.1",
+    "size": 4194304,
+    "text": null,
+    "truncated": false,
+    "width": null
+  },
+  "asset_preview_text": {
+    "cached": false,
+    "format": "xml",
+    "height": null,
+    "image": null,
+    "kind": "text",
+    "note": null,
+    "path": "Data\\Libs\\Config\\defaultProfile.xml",
+    "size": 48211,
+    "text": "<Config path=\"Data/Libs/Config/defaultProfile.xml\">\n  <Value key=\"speed\" v=\"200\"/>\n  <Value key=\"mass\" v=\"1200\"/>\n</Config>\n",
+    "truncated": false,
+    "width": null
+  },
+  "asset_search": {
+    "hits": [
+      {
+        "dir": false,
+        "name": "syn_ship_001_diff.dds",
+        "packed": 130,
+        "path": "Data\\Textures\\ships\\syn\\syn_ship_001_diff.dds",
+        "size": 174
+      },
+      {
+        "dir": false,
+        "name": "syn_ship_001_diff.dds.1",
+        "packed": 3145728,
+        "path": "Data\\Textures\\ships\\syn\\syn_ship_001_diff.dds.1",
+        "size": 4194304
+      }
+    ],
+    "query": "syn_ship_001 dds",
+    "total": 3
+  },
+  "asset_sound": {
+    "bytes": 2824,
+    "cached": false,
+    "data": "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",
+    "duration": 0.25,
+    "key": "700010",
+    "mime": "audio/ogg",
+    "note": null
+  },
+  "asset_sound_cached": {
+    "bytes": 2824,
+    "cached": true,
+    "data": "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",
+    "duration": null,
+    "key": "700010",
+    "mime": "audio/ogg",
+    "note": null
+  },
+  "asset_sounds": {
+    "loadout": 1,
+    "name": "SYN_Ship_001",
+    "playable": 4,
+    "record": "51000000-0000-4000-8000-000000000001",
+    "sounds": 5,
+    "triggers": [
+      {
+        "bank": "SYN_Ship_01.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_001_Engine_Loop",
+        "from": "SYN_Ship_001",
+        "name": "Play_SYN_Ship_001_Engine_Loop",
+        "property": "Components[SAudioComponentParams].audioTrigger",
+        "sounds": [
+          {
+            "bank": "SYN_Ship_01.bnk",
+            "detail": "embedded in the bank",
+            "label": "700010",
+            "media_id": 700010,
+            "media_path": null,
+            "playable": true,
+            "source": "embedded"
+          },
+          {
+            "bank": "SYN_Ship_01.bnk",
+            "detail": "embedded in the bank",
+            "label": "700011",
+            "media_id": 700011,
+            "media_path": null,
+            "playable": true,
+            "source": "embedded"
+          }
+        ]
+      },
+      {
+        "bank": "SYN_Ship_01.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_001_Door_Open",
+        "from": "SYN_Ship_001",
+        "name": "Play_SYN_Ship_001_Door_Open",
+        "property": "Components[SAudioComponentParams].audioTrigger",
+        "sounds": [
+          {
+            "bank": "SYN_Ship_01.bnk",
+            "detail": "embedded in the bank",
+            "label": "700012",
+            "media_id": 700012,
+            "media_path": null,
+            "playable": true,
+            "source": "embedded"
+          },
+          {
+            "bank": "SYN_Ship_01.bnk",
+            "detail": "the bank holds no data for it and no loose media file was found",
+            "label": "700013",
+            "media_id": 700013,
+            "media_path": null,
+            "playable": false,
+            "source": "unavailable"
+          }
+        ]
+      },
+      {
+        "bank": "SYN_Thrusters.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Thruster_Main",
+        "from": "SYN_Thruster_Main",
+        "name": "Play_SYN_Thruster_Main",
+        "property": "Components[SAudioComponentParams].audioTrigger",
+        "sounds": [
+          {
+            "bank": "SYN_Thrusters.bnk",
+            "detail": "embedded in the bank",
+            "label": "690001",
+            "media_id": 690001,
+            "media_path": null,
+            "playable": true,
+            "source": "embedded"
+          }
+        ]
+      }
+    ]
+  },
+  "asset_sounds_item": {
+    "loadout": 0,
+    "name": "SYN_cooler_004",
+    "playable": 1,
+    "record": "52000000-0000-4000-8000-000000000004",
+    "sounds": 1,
+    "triggers": [
+      {
+        "bank": "SYN_Items.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Cooler_Hum",
+        "from": "SYN_cooler_004",
+        "name": "Play_SYN_Cooler_Hum",
+        "property": "Components[SAudioComponentParams].audioTrigger",
+        "sounds": [
+          {
+            "bank": "SYN_Items.bnk",
+            "detail": "embedded in the bank",
+            "label": "680004",
+            "media_id": 680004,
+            "media_path": null,
+            "playable": true,
+            "source": "embedded"
+          }
+        ]
+      }
+    ]
+  },
+  "asset_sounds_none": {
+    "loadout": 0,
+    "name": "SynTag02",
+    "playable": 0,
+    "record": "53000000-0000-4000-8000-000000000002",
+    "sounds": 0,
+    "triggers": []
+  },
+  "asset_status": {
+    "audio": false,
+    "channel": "LIVE",
+    "datacore": false,
+    "entries": 0,
+    "error": null,
+    "memory": null,
+    "state": "stopped"
+  },
+  "asset_status_open": {
+    "audio": true,
+    "channel": "LIVE",
+    "datacore": true,
+    "entries": 48,
+    "error": null,
+    "memory": 954204160,
+    "state": "ready"
+  },
   "backup_now": {
     "build": {
       "branch": "sc-alpha-4.10.0-hotfix",

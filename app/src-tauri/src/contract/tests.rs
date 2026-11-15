@@ -241,6 +241,9 @@ fn samples() -> Value {
         v[k] = x;
     }
     v["open_link"] = json!(b.open_link(ExternalLink::Support).unwrap());
+    for (k, x) in super::tests_assets::asset_samples() {
+        v[k] = x;
+    }
     let (mcp_off, mcp_on) = mcp_samples();
     v["mcp_status"] = json!(mcp_off);
     v["set_mcp_enabled"] = json!(mcp_on);
@@ -1015,7 +1018,8 @@ fn ts_client_lists_every_command() {
     for name in COMMAND_NAMES {
         assert!(
             src.contains(&format!("$crate::contract::{name},"))
-                || src.contains(&format!("$crate::contract::dev::{name},")),
+                || src.contains(&format!("$crate::contract::dev::{name},"))
+                || src.contains(&format!("$crate::contract::assets::{name},")),
             "{name} missing from contract_handler!"
         );
     }

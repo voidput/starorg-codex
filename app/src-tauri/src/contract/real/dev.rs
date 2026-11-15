@@ -74,29 +74,29 @@ impl DevSpawner for WorkerSpawner {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct WorkerKey {
-    install: String,
-    channel: String,
-    build: String,
+pub(super) struct WorkerKey {
+    pub(super) install: String,
+    pub(super) channel: String,
+    pub(super) build: String,
 }
 
 /// A running worker process and its reply routing.
 pub struct Worker {
-    key: WorkerKey,
+    pub(super) key: WorkerKey,
     stdin: Mutex<Option<ChildStdin>>,
     child: Mutex<Child>,
     pending: Mutex<HashMap<u64, mpsc::Sender<Reply>>>,
     next: AtomicU64,
     alive: AtomicBool,
-    busy: AtomicBool,
-    info: WorkerInfo,
+    pub(super) busy: AtomicBool,
+    pub(super) info: WorkerInfo,
     started: String,
-    last_used: Mutex<Instant>,
+    pub(super) last_used: Mutex<Instant>,
     /// Why it stopped, when it did by itself.
-    died: Mutex<Option<String>>,
+    pub(super) died: Mutex<Option<String>>,
 }
 
-fn lock_or<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
+pub(super) fn lock_or<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
 
@@ -112,7 +112,7 @@ fn worker_error(e: &starorg_data::devworker::ReplyError) -> AppError {
 }
 
 impl Worker {
-    fn spawn(mut cmd: Command, key: WorkerKey) -> Result<Arc<Worker>, String> {
+    pub(super) fn spawn(mut cmd: Command, key: WorkerKey) -> Result<Arc<Worker>, String> {
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
@@ -202,15 +202,15 @@ impl Worker {
         Ok(w)
     }
 
-    fn alive(&self) -> bool {
+    pub(super) fn alive(&self) -> bool {
         self.alive.load(Ordering::SeqCst)
     }
 
-    fn touch(&self) {
+    pub(super) fn touch(&self) {
         *lock_or(&self.last_used) = Instant::now();
     }
 
-    fn send(&self, req: &Request) -> CmdResult<(u64, mpsc::Receiver<Reply>)> {
+    fn send(&self, req: &impl Serialize) -> CmdResult<(u64, mpsc::Receiver<Reply>)> {
         if !self.alive() {
             return Err(err(
                 ErrorCode::Internal,
@@ -247,7 +247,7 @@ impl Worker {
     }
 
     /// One request, one reply.
-    pub fn call<T: serde::de::DeserializeOwned>(&self, req: &Request) -> CmdResult<T> {
+    pub fn call<T: serde::de::DeserializeOwned>(&self, req: &impl Serialize) -> CmdResult<T> {
         let (_, rx) = self.send(req)?;
         let reply = rx.recv_timeout(REPLY_TIMEOUT).map_err(|e| match e {
             mpsc::RecvTimeoutError::Timeout => {
@@ -261,9 +261,9 @@ impl Worker {
     }
 
     /// A request that streams progress; `on_start` gets the request id (for cancel).
-    fn call_stream(
+    pub(super) fn call_stream(
         &self,
-        req: &Request,
+        req: &impl Serialize,
         on_start: &dyn Fn(u64),
         on_progress: &dyn Fn(ExportProgress),
     ) -> CmdResult<Value> {
@@ -448,7 +448,7 @@ impl RealBackend {
         }
     }
 
-    fn dev_channel(&self, r: &ChannelRef) -> CmdResult<(Found, Channel, WorkerKey)> {
+    pub(super) fn dev_channel(&self, r: &ChannelRef) -> CmdResult<(Found, Channel, WorkerKey)> {
         self.dev_on()?;
         let f = self.resolve(r)?;
         let ch = f.channel(&r.channel)?.clone();

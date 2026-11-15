@@ -105,6 +105,8 @@ pub struct MockBackend {
     update: crate::update::Updater,
     /// Developer mode state (mock_dev.rs).
     dev: Mutex<super::mock_dev::DevMock>,
+    /// Developer mode assets (mock_assets.rs).
+    assets: Mutex<super::mock_assets::AssetMock>,
     mcp: crate::mcp::McpHost,
 }
 
@@ -378,6 +380,7 @@ impl MockBackend {
             delay,
             update: crate::update::mock::updater(),
             dev: Mutex::new(Default::default()),
+            assets: Mutex::new(Default::default()),
             mcp: crate::mcp::McpHost::default(),
         };
         me.log(
@@ -408,6 +411,10 @@ impl MockBackend {
 
     pub(crate) fn dev_state(&self) -> MutexGuard<'_, super::mock_dev::DevMock> {
         self.dev.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(crate) fn asset_state(&self) -> MutexGuard<'_, super::mock_assets::AssetMock> {
+        self.assets.lock().unwrap_or_else(|p| p.into_inner())
     }
 
     pub(crate) fn job_delay(&self) -> Duration {

@@ -13,6 +13,7 @@
 //!   starorg.tools or dev.starorg.tools (SC-ORG-BOT#1659), only while the network switch and
 //!   the matching "What to sync" switch are on.
 
+mod assets;
 mod convert;
 mod dev;
 mod diag;
@@ -20,6 +21,7 @@ pub mod dialogs;
 mod starorg;
 mod table;
 
+pub use assets::{AssetSpawner, AssetWorkerSpawner};
 pub use dev::{DevSpawner, WorkerSpawner};
 pub use dialogs::{DialogSlot, Dialogs, FileFilter, TauriDialogs};
 pub use starorg::{Browser, StarOrgDeps};
@@ -229,6 +231,7 @@ pub struct RealBackend {
     mem: Mutex<Mem>,
     update: crate::update::Updater,
     dev: dev::DevState,
+    assets: assets::AssetState,
     mcp: crate::mcp::McpHost,
     starorg: starorg::StarOrgDeps,
     starorg_mem: starorg::StarOrgMem,
@@ -340,6 +343,7 @@ impl RealBackend {
             mem: Mutex::new(Mem::default()),
             update,
             dev: dev::DevState::default(),
+            assets: assets::AssetState::default(),
             mcp: crate::mcp::McpHost::default(),
             starorg,
             starorg_mem: starorg::StarOrgMem::default(),
@@ -1796,6 +1800,9 @@ impl Backend for RealBackend {
         if let Some(r) = self.dev_cancel(&job) {
             return r;
         }
+        if let Some(r) = self.asset_cancel(&job) {
+            return r;
+        }
         let running = self.mem().job.as_ref().is_some_and(|j| j.job == job);
         if !running {
             return Err(err(ErrorCode::NotFound, format!("no running job {job}")));
@@ -2258,6 +2265,7 @@ impl Backend for RealBackend {
         if dev_off {
             // Off: the explorer's memory is returned at once.
             self.dev.stop();
+            self.assets.stop();
         }
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
         let prefs = starorg::prefs_of(&req.starorg);

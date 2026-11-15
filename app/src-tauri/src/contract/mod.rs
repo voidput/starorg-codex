@@ -11,10 +11,13 @@
 //! Command names are snake_case and take one argument named `req` (or none), so the TS client
 //! is a straight `invoke(name, { req })`.
 
+pub mod assets;
 pub mod dev;
 pub mod fleet;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock;
+#[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_assets;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_dev;
 pub mod real;
@@ -31,8 +34,9 @@ pub type Progress<'a> = &'a (dyn Fn(JobProgress) + Send + Sync);
 
 /// Everything the UI can ask of the core. Implementations must be cheap to call from many
 /// threads; long jobs report through `progress`.
-/// Developer mode (addendum 7) is the [`dev::DevBackend`] half.
-pub trait Backend: dev::DevBackend + Send + Sync + 'static {
+/// Developer mode (addendum 7) is the [`dev::DevBackend`] half; its assets (7.16) the
+/// [`assets::AssetBackend`] half.
+pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'static {
     fn overview(&self) -> CmdResult<Overview>;
     fn discover_installs(&self, deep: bool) -> CmdResult<Vec<InstallSummary>>;
     /// Opens the native folder picker in the real backend; the webview never sends a path.
@@ -384,6 +388,21 @@ macro_rules! contract_handler {
             $crate::contract::dev::dev_diff_records,
             $crate::contract::dev::dev_diff_groups,
             $crate::contract::dev::dev_diff_record,
+            $crate::contract::assets::asset_status,
+            $crate::contract::assets::asset_close,
+            $crate::contract::assets::asset_list,
+            $crate::contract::assets::asset_search,
+            $crate::contract::assets::asset_preview,
+            $crate::contract::assets::asset_extract,
+            $crate::contract::assets::asset_sounds,
+            $crate::contract::assets::asset_sound,
+            $crate::contract::assets::asset_export_sounds,
+            $crate::contract::assets::asset_export_model,
+            $crate::contract::assets::asset_cache_status,
+            $crate::contract::assets::asset_cache_pick,
+            $crate::contract::assets::asset_cache_reset,
+            $crate::contract::assets::asset_cache_clear,
+            $crate::contract::assets::asset_cache_move,
             $crate::contract::mcp_status,
             $crate::contract::set_mcp_enabled,
         ]
@@ -484,11 +503,28 @@ pub const COMMAND_NAMES: &[&str] = &[
     "dev_diff_records",
     "dev_diff_groups",
     "dev_diff_record",
+    "asset_status",
+    "asset_close",
+    "asset_list",
+    "asset_search",
+    "asset_preview",
+    "asset_extract",
+    "asset_sounds",
+    "asset_sound",
+    "asset_export_sounds",
+    "asset_export_model",
+    "asset_cache_status",
+    "asset_cache_pick",
+    "asset_cache_reset",
+    "asset_cache_clear",
+    "asset_cache_move",
     "mcp_status",
     "set_mcp_enabled",
 ];
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_assets;
 #[cfg(test)]
 mod tests_dev;
