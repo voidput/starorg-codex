@@ -23,6 +23,11 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+# The channel names a directory under .tmp/gamedata that is wiped below: no dots or slashes.
+case "$channel" in
+  ''|-*|*[!A-Za-z0-9_-]*) echo "bad --channel: $channel (letters, digits, - and _ only, e.g. LIVE, TECH-PREVIEW)" >&2; exit 2 ;;
+esac
+
 golden=${GOLDEN_DIR:-$HOME/git/sc-gamedata/data}
 [ -d "$golden" ] || { echo "no golden directory at $golden (set GOLDEN_DIR)" >&2; exit 2; }
 out="$root/.tmp/gamedata/$channel"

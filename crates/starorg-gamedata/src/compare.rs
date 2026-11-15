@@ -1,7 +1,12 @@
-//! Semantic diff of two datasets, for checking a port against `sc-gamedata`'s golden dumps.
+//! Diff of two datasets, for checking a port against `sc-gamedata`'s golden dumps.
 //!
-//! - `_extracted` (the timestamp) at the top level is ignored;
-//! - numbers are equal within a relative tolerance of 1e-6 (`|a-b| <= 1e-6 * max(|a|,|b|)`);
+//! [`compare_text`] is a byte comparison: the two files are identical only when their text
+//! is the same after removing the one top-level `_extracted` line (the timestamp). When the
+//! text differs, [`diff`] says where, as paths:
+//!
+//! - `_extracted` at the top level is ignored;
+//! - numbers are compared exactly, as parsed (`1` and `1.0` differ, so do integers one
+//!   apart at any magnitude);
 //! - arrays of objects are matched by a stable id field when one identifies every element
 //!   on both sides ([`ID_FIELDS`], first that works), else by position; an order change is
 //!   one difference of its own;
@@ -22,8 +27,6 @@ pub const ID_FIELDS: &[&str] = &[
     "ref",
     "name",
 ];
-
-pub const TOLERANCE: f64 = 1e-6;
 
 /// Top-level keys never compared.
 pub const IGNORED_TOP_LEVEL: &[&str] = &["_extracted"];
@@ -61,18 +64,10 @@ fn short(v: &Value) -> String {
     }
 }
 
-pub fn numbers_equal(a: f64, b: f64) -> bool {
-    a == b || (a - b).abs() <= TOLERANCE * a.abs().max(b.abs())
-}
-
 fn walk(out: &mut Diff, path: String, a: &Value, b: &Value) {
     match (a, b) {
         (Value::Number(x), Value::Number(y)) => {
-            let (x, y) = (
-                x.as_f64().unwrap_or(f64::NAN),
-                y.as_f64().unwrap_or(f64::NAN),
-            );
-            if !numbers_equal(x, y) {
+            if x != y {
                 out.paths.push(format!("{path}: ours {x} vs golden {y}"));
             }
         }
@@ -206,6 +201,8 @@ pub enum Outcome {
     Identical,
     Differs(Diff),
     MissingGolden,
+    /// The golden directory has the dataset and we did not produce it.
+    MissingOurs,
     Unreadable(String),
 }
 
@@ -219,6 +216,7 @@ impl Outcome {
         match self {
             Outcome::Identical => format!("{name}: identical"),
             Outcome::MissingGolden => format!("{name}: no golden file to compare with"),
+            Outcome::MissingOurs => format!("{name}: in the golden directory, not produced"),
             Outcome::Unreadable(e) => format!("{name}: cannot compare: {e}"),
             Outcome::Differs(d) => {
                 let mut s = format!("{name}: {} differing paths", d.paths.len());
@@ -235,17 +233,62 @@ impl Outcome {
     }
 }
 
-/// Compare two files' text.
+/// The text without its first top-level `"_extracted": ...` line (two-space indent, as
+/// `JSON.stringify(_, null, 2)` writes the header).
+pub fn strip_extracted(text: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut removed = false;
+    for line in text.split_inclusive('\n') {
+        if !removed && line.starts_with("  \"_extracted\": ") {
+            removed = true;
+            continue;
+        }
+        out.push_str(line);
+    }
+    out
+}
+
+/// The first line where two texts differ, as a report path.
+fn first_text_difference(a: &str, b: &str) -> String {
+    let (mut la, mut lb) = (a.lines(), b.lines());
+    let mut n = 1;
+    loop {
+        match (la.next(), lb.next()) {
+            (Some(x), Some(y)) if x == y => n += 1,
+            (None, None) => {
+                return "text differs only in line endings or a final newline".to_string();
+            }
+            (x, y) => {
+                let cut = |s: Option<&str>| {
+                    s.map(|s| short(&Value::String(s.to_string())))
+                        .unwrap_or_else(|| "<end of file>".to_string())
+                };
+                return format!(
+                    "line {n}: text differs with equal values (formatting, escapes or duplicate keys): ours {} vs golden {}",
+                    cut(x),
+                    cut(y)
+                );
+            }
+        }
+    }
+}
+
+/// Compare two files' text: identical when the bytes match apart from the top-level
+/// `_extracted` line; otherwise the differing paths, or the first differing line when the
+/// values are equal and only the text is not.
 pub fn compare_text(ours: &str, golden: &str) -> Outcome {
+    let (a_text, b_text) = (strip_extracted(ours), strip_extracted(golden));
+    if a_text == b_text {
+        return Outcome::Identical;
+    }
     let parse = |s: &str| serde_json::from_str::<Value>(s);
     match (parse(ours), parse(golden)) {
         (Ok(a), Ok(b)) => {
-            let d = diff(&a, &b);
+            let mut d = diff(&a, &b);
             if d.is_empty() {
-                Outcome::Identical
-            } else {
-                Outcome::Differs(d)
+                d.paths.push(first_text_difference(&a_text, &b_text));
             }
+            Outcome::Differs(d)
         }
         (Err(e), _) => Outcome::Unreadable(format!("ours: {e}")),
         (_, Err(e)) => Outcome::Unreadable(format!("golden: {e}")),
@@ -258,14 +301,72 @@ mod tests {
     use serde_json::json;
 
     #[test]
-    fn identical_modulo_timestamp_and_tolerance() {
-        let a = json!({"_extracted": "x", "v": 1.0000001, "n": 0});
-        let b = json!({"_extracted": "y", "v": 1.0, "n": 0.0});
-        assert!(diff(&a, &b).is_empty());
-        let c = json!({"_extracted": "y", "v": 1.01, "n": 0});
+    fn numbers_compare_exactly() {
+        let a = json!({"_extracted": "x", "n": 0, "price": 2_500_001, "big": 9_007_199_254_740_993_u64});
+        let b = json!({"_extracted": "y", "n": 0, "price": 2_500_000, "big": 9_007_199_254_740_992_u64});
         assert_eq!(
-            diff(&a, &c).paths,
-            vec!["$.v: ours 1.0000001 vs golden 1.01"]
+            diff(&a, &b).paths,
+            vec![
+                "$.price: ours 2500001 vs golden 2500000",
+                "$.big: ours 9007199254740993 vs golden 9007199254740992",
+            ]
+        );
+        let f = json!({"v": 0.3333334, "w": 1.0});
+        let g = json!({"v": 0.3333331, "w": 1});
+        assert_eq!(
+            diff(&f, &g).paths,
+            vec![
+                "$.v: ours 0.3333334 vs golden 0.3333331",
+                "$.w: ours 1.0 vs golden 1"
+            ]
+        );
+    }
+
+    #[test]
+    fn text_identical_apart_from_extracted_line() {
+        let a = "{\n  \"_source\": \"s\",\n  \"_extracted\": \"2026-01-01\",\n  \"v\": 1\n}\n";
+        let b = "{\n  \"_source\": \"s\",\n  \"_extracted\": \"2026-02-02\",\n  \"v\": 1\n}\n";
+        assert!(compare_text(a, b).is_ok());
+        // A nested `_extracted` line is not the header and stays.
+        assert_eq!(
+            strip_extracted("{\n    \"_extracted\": 1\n}"),
+            "{\n    \"_extracted\": 1\n}"
+        );
+    }
+
+    #[test]
+    fn equal_values_with_different_text_differ() {
+        // Number formatting, escapes and duplicate keys parse to equal values.
+        for (ours, golden) in [
+            ("{\n  \"v\": 1.0\n}", "{\n  \"v\": 1\n}"),
+            (
+                "{\n  \"v\": 1e21\n}",
+                "{\n  \"v\": 1000000000000000000000\n}",
+            ),
+            ("{\n  \"v\": \"\\u00e9\"\n}", "{\n  \"v\": \"\u{e9}\"\n}"),
+            ("{\n  \"v\": 2,\n  \"v\": 1\n}", "{\n  \"v\": 1\n}"),
+        ] {
+            let Outcome::Differs(d) = compare_text(ours, golden) else {
+                panic!("{ours:?} vs {golden:?} reported identical");
+            };
+            assert_eq!(d.paths.len(), 1, "{:?}", d.paths);
+        }
+        let Outcome::Differs(d) = compare_text("{\n  \"v\": 1.0\n}", "{\n  \"v\": 1\n}") else {
+            unreachable!()
+        };
+        assert!(
+            d.paths[0].starts_with("$.v: ours 1.0 vs golden 1"),
+            "{:?}",
+            d.paths
+        );
+        let Outcome::Differs(d) = compare_text("{\n  \"v\": 2,\n  \"v\": 1\n}", "{\n  \"v\": 1\n}")
+        else {
+            unreachable!()
+        };
+        assert!(
+            d.paths[0].starts_with("line 2: text differs"),
+            "{:?}",
+            d.paths
         );
     }
 
