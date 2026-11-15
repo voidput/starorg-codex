@@ -740,3 +740,34 @@ rules apply (`group_state: approximate`) until `sc-gamedata` publishes loc keys 
 | Q-G5 | Manufacturer and size as group-by modes or only as filters? | **Both**: flat group-by lists plus chips |
 | Q-G6 | Default when the screen opens | **Group by Type, nothing selected** (same rows as today, tree visible) |
 | Q-G7 | Group labels: English only? | **Yes**, as the rest of the app |
+
+### 8.10 Implementation notes (branch `devmode`, 2026-11-14, local only)
+
+Section 8 is implemented; section 7 (Developer mode) is not (the user's request was the
+grouping only; section 7 stays spec text).
+
+- **Core** `starorg-core::groups`: `rules.rs` holds the hierarchy (19 top-level groups, 85
+  nodes) and the item-type, struct-type, canvas-path and key-prefix tables; `assign` gives one
+  leaf per stock key, a manufacturer (only codes with a stock `manufacturer_Name<code>` key:
+  manufacturer records also hold paint and decal logos) and a size (1-12). Row cost 4 bytes
+  (`u8` group, `u16` manufacturer, `u8` size).
+- **Reference pass** `starorg-data::keyrefs` + a no-output StarBreaker `ExportSink`
+  (`starbreaker.rs`) over every main record, in parallel. The worker runs it only with
+  `--keyrefs`, which only the app passes (Q-G1). Output `keyrefs.json` (**plain JSON, not
+  zstd**: core has no zstd dependency; 3.9 MB on LIVE, 0.46 MB if compressed), hashed in
+  `meta.json`, optional; `cache::add_keyrefs` exists, the app uses `apply::reload_channel`.
+- **Measured on LIVE 4.10.200.58746** (release, 32 threads, warm cache, read only):
+  worker without the pass 1.02 s wall / 7.7 s CPU / 892 MB peak; with it 1.22-1.24 s wall /
+  11.1-11.3 s CPU / 891 MB peak. 58,233 keys referenced; `assign` 27-31 ms; Other 6,277 keys
+  (6.9 %) exact, 11,790 approximate; 108 named manufacturers. 13 entity item types (67 keys)
+  still fall to "Other items › Misc" (`AIModule`, `*Controller`, `Hangar`, `Room`, …).
+- **Contract** as 8.4, plus `read_string_groups(ChannelRef) -> GroupState` and
+  `StringRow.group_label`. Manufacturer filter `none` and size `0` mean "without one". The
+  query lives in one module (`contract/strings_query.rs`) shared by the real and mock
+  backends; `diag::query` was removed.
+- **UI deviations from 8.5:** group-by is a select in the filter bar (not a segmented
+  control above the tree), so "None" can hide the pane entirely; the sort select labels the
+  generator sort "Generator"; an approximate build reads its groups automatically once per
+  channel and session (Retry on failure, e.g. `busy`).
+- **Not done:** sticky group headers (Q-G2, as recommended); CLI output of groups; dump
+  sources still give approximate groups until `sc-gamedata` publishes loc keys (8.7).
