@@ -25,6 +25,12 @@ comment; Dependabot (`github-actions`) moves the SHA and comment together. Each 
 per ecosystem, so CI and Security run once per batch; limit 5 open PRs each. `tauri`/`tauri-*` crates and
 `@tauri-apps/*` npm packages form their own group so the Rust crate and JS API bump in lockstep.
 
+Deferred majors (each has a targeted `ignore` in `dependabot.yml`; drop it when revisiting):
+- `typescript` >= 7 (deferred 2026-11-15, 1.0.0 dependency pass). TypeScript 7 is the native (Go) compiler and
+  ships no JS compiler API: the npm package's main export is only its version. `svelte-check` 4.7.8, which
+  `npm run check` and CI use, loads that API and declares `typescript: ^5.0.0 || ^6.0.0`; with 7.0.2 installed
+  it crashes on start. Revisit when svelte-check (or the Svelte language tools) support TS 7. 6.x stays allowed.
+
 ## Secrets
 | Secret | Required | Use |
 |---|---|---|
