@@ -6,7 +6,7 @@ the third-party software listed below, each under its own license. This file is 
 
 ## Rust crates
 
-- MIT License: 422 crate(s)
+- MIT License: 419 crate(s)
 - Unicode License v3: 19 crate(s)
 - Apache License 2.0: 11 crate(s)
 - BSD 3-Clause "New" or "Revised" License: 11 crate(s)
@@ -4811,9 +4811,7 @@ Used by:
 - is_terminal_polyfill 1.70.2
 - once_cell_polyfill 1.70.2
 - serde_spanned 1.1.3
-- toml 0.9.12+spec-1.1.0
 - toml 1.2.1+spec-1.1.0
-- toml_datetime 0.7.5+spec-1.1.0
 - toml_datetime 1.1.3+spec-1.1.0
 - toml_edit 0.19.15
 - toml_edit 0.20.2
@@ -6717,7 +6715,6 @@ DEALINGS IN THE SOFTWARE.
 
 Used by:
 - winnow 0.5.40
-- winnow 0.7.15
 - winnow 1.0.5
 
 ```text
