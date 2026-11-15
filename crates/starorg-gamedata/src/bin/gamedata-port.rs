@@ -3,6 +3,7 @@
 //! ```text
 //! gamedata-port extract --channel LIVE --out .tmp/gamedata/LIVE [--domain manufacturers]
 //! gamedata-port compare .tmp/gamedata/LIVE ~/git/sc-gamedata/data [--domain manufacturers]
+//! gamedata-port search-index .tmp/gamedata/LIVE
 //! gamedata-port list
 //! ```
 //!
@@ -14,7 +15,7 @@ use starorg_gamedata::compare::{Outcome, compare_text};
 use starorg_gamedata::domain::{Domain, FileSource, NoFiles};
 use starorg_gamedata::pipeline::{self, Game};
 use starorg_gamedata::source::{self, ArchiveFiles, DataCoreSource};
-use starorg_gamedata::{domains, output, strings};
+use starorg_gamedata::{domains, output, search_index, strings};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
@@ -30,7 +31,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Write game-<domain>.json for the registered domains (and the string table).
+    /// Write game-<domain>.json for the registered domains (and the string table), then
+    /// game-search-index.json when item-tags and ships are both in --out.
     Extract {
         /// LIVE, PTU, EPTU, HOTFIX: picks the install when --p4k is not given.
         #[arg(long, default_value = "LIVE")]
@@ -48,17 +50,22 @@ enum Command {
         #[arg(long)]
         redact_strings: bool,
     },
-    /// Semantic diff of our datasets against golden ones. Exits 1 on any difference.
+    /// Byte compare of our datasets with golden ones (paths on a difference). Exits 1 on any
+    /// difference or missing dataset.
     Compare {
         ours: PathBuf,
         golden: PathBuf,
-        /// Only these datasets. Default: every game-*.json in <ours>.
+        /// Only these datasets. Default: every game-*.json in <ours> or <golden>, so a
+        /// dataset only the golden side has is reported as not produced.
         #[arg(long)]
         domain: Vec<String>,
         /// Example paths printed per dataset.
         #[arg(long, default_value_t = 20)]
         examples: usize,
     },
+    /// (Re)build game-search-index.json in <dir> from the game-item-tags.json and
+    /// game-ships.json there; removes a stale index when one of them is missing.
+    SearchIndex { dir: PathBuf },
     /// List the registered domains.
     List,
 }
@@ -82,6 +89,10 @@ fn main() -> ExitCode {
                 "{:28} The string table (not a record domain).",
                 strings::NAME
             );
+            println!(
+                "{:28} Derived from item-tags + ships after an extract (not a record domain).",
+                search_index::NAME
+            );
             ExitCode::SUCCESS
         }
         Command::Extract {
@@ -91,6 +102,13 @@ fn main() -> ExitCode {
             domain,
             redact_strings,
         } => match extract(&channel, p4k.as_deref(), &out, &domain, redact_strings) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::from(2)
+            }
+        },
+        Command::SearchIndex { dir } => match write_index(&dir) {
             Ok(()) => ExitCode::SUCCESS,
             Err(e) => {
                 eprintln!("error: {e}");
@@ -117,19 +135,33 @@ fn extract(
         || names
             .iter()
             .any(|n| file_name(n) == format!("{}.json", strings::NAME));
+    let is = |n: &String, name: &str| file_name(n) == format!("{name}.json");
     let selected: Vec<&'static dyn Domain> = if names.is_empty() {
         domains::all()
     } else {
-        names
-            .iter()
-            .filter(|n| file_name(n) != format!("{}.json", strings::NAME))
-            .map(|n| {
-                domains::find(n.strip_suffix(".json").unwrap_or(n)).ok_or_else(|| {
-                    let known: Vec<_> = domains::all().iter().map(|d| d.name()).collect();
-                    format!("unknown domain {n:?}; registered: {}", known.join(", "))
-                })
-            })
-            .collect::<Result<_, _>>()?
+        let mut wanted: Vec<&str> = Vec::new();
+        for n in names {
+            if is(n, strings::NAME) {
+                continue;
+            }
+            if is(n, search_index::NAME) {
+                // The index needs both of its inputs in --out.
+                wanted.extend(["game-item-tags", "game-ships"]);
+            } else {
+                wanted.push(n.strip_suffix(".json").unwrap_or(n));
+            }
+        }
+        let mut selected: Vec<&'static dyn Domain> = Vec::new();
+        for n in wanted {
+            let d = domains::find(n).ok_or_else(|| {
+                let known: Vec<_> = domains::all().iter().map(|d| d.name()).collect();
+                format!("unknown domain {n:?}; registered: {}", known.join(", "))
+            })?;
+            if !selected.iter().any(|s| s.name() == d.name()) {
+                selected.push(d);
+            }
+        }
+        selected
     };
 
     let p4k = source::find_data_p4k(p4k, channel)?;
@@ -181,25 +213,60 @@ fn extract(
         );
         write(strings::NAME, &output::to_js_json(&v))?;
     }
+    // Derived from item-tags + ships: rebuilt after every extract that leaves both in
+    // --out, removed when one is missing (as sc-gamedata's parse does).
+    write_index(out)
+}
+
+fn write_index(dir: &Path) -> Result<(), String> {
+    match search_index::write_search_index(dir)
+        .map_err(|e| format!("{}: {e}", search_index::FILE))?
+    {
+        Some(w) => eprintln!(
+            "  wrote {} ({} entries, {} KB)",
+            w.file.display(),
+            w.entries,
+            w.bytes / 1024
+        ),
+        None => eprintln!(
+            "  {} not written: needs game-item-tags.json and game-ships.json in {}",
+            search_index::FILE,
+            dir.display()
+        ),
+    }
     Ok(())
+}
+
+/// The `game-*.json` file names in `dir` (none when it cannot be read).
+fn datasets_in(dir: &Path) -> Vec<String> {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| n.starts_with("game-") && n.ends_with(".json"))
+        .collect()
 }
 
 fn compare(ours: &Path, golden: &Path, names: &[String], examples: usize) -> ExitCode {
     let files: Vec<String> = if names.is_empty() {
-        let mut v: Vec<String> = std::fs::read_dir(ours)
-            .into_iter()
-            .flatten()
-            .flatten()
-            .filter_map(|e| e.file_name().into_string().ok())
-            .filter(|n| n.starts_with("game-") && n.ends_with(".json"))
-            .collect();
+        let mut v = datasets_in(ours);
+        for name in datasets_in(golden) {
+            if !v.contains(&name) {
+                v.push(name);
+            }
+        }
         v.sort();
         v
     } else {
         names.iter().map(|n| file_name(n)).collect()
     };
     if files.is_empty() {
-        eprintln!("no game-*.json in {}", ours.display());
+        eprintln!(
+            "no game-*.json in {} or {}",
+            ours.display(),
+            golden.display()
+        );
         return ExitCode::from(2);
     }
     let mut failed = 0;
@@ -208,6 +275,7 @@ fn compare(ours: &Path, golden: &Path, names: &[String], examples: usize) -> Exi
         let read = |dir: &Path| std::fs::read_to_string(dir.join(f));
         let outcome = match (read(ours), read(golden)) {
             (Ok(a), Ok(b)) => compare_text(&a, &b),
+            (Err(_), Ok(_)) if !ours.join(f).exists() => Outcome::MissingOurs,
             (Err(e), _) => Outcome::Unreadable(format!("ours: {e}")),
             (_, Err(_)) => Outcome::MissingGolden,
         };

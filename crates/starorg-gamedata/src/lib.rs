@@ -7,12 +7,14 @@
 //! - [`entity`] (`entity.ts`): components of `EntityClassDefinition` records;
 //! - [`localization`] (`localization.ts`): the string table, `localize`, overlays, and the
 //!   published-dump redaction (off by default);
+//! - [`search_index`] (`search-index.ts`): `game-search-index.json`, derived from the
+//!   item-tags and ships datasets;
 //! - [`cryxml`] (`cryxml.ts`): CryXmlB documents in raw archive files;
 //! - [`glob`] (`glob.ts`), [`collate`] (`Intl.Collator`/`localeCompare` orders);
 //! - [`output`]: `JSON.stringify(_, null, 2)`-exact writing and the dataset header;
 //! - [`domain`] + [`domains`]: the `Domain` trait and the registry;
 //! - [`pipeline`]: extraction scoping and running a domain;
-//! - [`compare`]: the semantic diff the `gamedata-port` harness uses against golden dumps;
+//! - [`compare`]: the byte compare and path diff the `gamedata-port` harness uses against golden dumps;
 //! - [`source`]: the real archive via `starorg-data`'s StarBreaker adapter;
 //! - [`fixtures`]: in-memory sources for tests.
 
@@ -33,5 +35,6 @@ pub mod localization;
 pub mod output;
 pub mod pipeline;
 pub mod records;
+pub mod search_index;
 pub mod source;
 pub mod strings;

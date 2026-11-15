@@ -40,6 +40,41 @@ pub fn to_js_json(value: &Value) -> String {
     out
 }
 
+/// `JSON.stringify(value)`: no whitespace, same numbers, key order and escapes.
+pub fn to_js_json_compact(value: &Value) -> String {
+    let mut out = String::new();
+    write_compact(&mut out, value);
+    out
+}
+
+fn write_compact(out: &mut String, value: &Value) {
+    match value {
+        Value::Array(a) => {
+            out.push('[');
+            for (i, v) in a.iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                write_compact(out, v);
+            }
+            out.push(']');
+        }
+        Value::Object(m) => {
+            out.push('{');
+            for (i, k) in js_key_order(m).into_iter().enumerate() {
+                if i > 0 {
+                    out.push(',');
+                }
+                write_string(out, k);
+                out.push(':');
+                write_compact(out, &m[k]);
+            }
+            out.push('}');
+        }
+        scalar => write_value(out, scalar, 0),
+    }
+}
+
 /// A canonical array index as JavaScript orders it: `0`, or no leading zero, below 2^32-1.
 fn array_index(key: &str) -> Option<u32> {
     if key.is_empty() || key.len() > 10 || !key.bytes().all(|b| b.is_ascii_digit()) {
@@ -228,6 +263,18 @@ pub fn iso_from_millis(ms: i64) -> String {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn compact_matches_json_stringify() {
+        let v: Value = serde_json::from_str(
+            r#"{"b":[1,5.0,"x\n"],"10":null,"a":{"2":true,"1":-0.0},"e":1e21}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            to_js_json_compact(&v),
+            r#"{"10":null,"b":[1,5,"x\n"],"a":{"1":0,"2":true},"e":1e+21}"#
+        );
+    }
 
     #[test]
     fn numbers_print_like_javascript() {
