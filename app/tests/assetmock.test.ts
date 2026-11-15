@@ -77,7 +77,7 @@ test('every asset sample of the Rust mock comes back equal from the TS mock', as
   got.asset_sound = await h.asset_sound({ req: { target: live, sound: first } });
   got.asset_sound_cached = await h.asset_sound({ req: { target: live, sound: first } });
   got.asset_export_sounds = await h.asset_export_sounds({ req: { target: live, what: ship(1), sounds: [], wem: false } });
-  const model = (preset: 'full' | 'print-shell', lod: number, stl: boolean) => ({ req: { target: live, what: ship(2), name: 'SYN_Ship_002', preset, lod, stl } });
+  const model = (preset: 'full' | 'print-shell', lod: number, stl: boolean) => ({ req: { target: live, what: ship(2), name: 'SYN_Ship_002', preset, lod, stl, force: false } });
   got.asset_export_model = await h.asset_export_model(model('print-shell', 0, true));
   got.asset_export_model_cached = await h.asset_export_model(model('print-shell', 0, false));
   got.asset_export_model_full = await h.asset_export_model(model('full', 1, false));
