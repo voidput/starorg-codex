@@ -80,7 +80,7 @@ registry! {
 
     // starmap, // starmap.ts
 
-    // weapons, // weapons.ts
+    weapons, // weapons.ts
 
     // wikelo, // wikelo.ts -> game-wikelo-trades
 }
