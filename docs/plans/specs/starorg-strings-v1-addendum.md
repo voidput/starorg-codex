@@ -8,7 +8,7 @@ updated: 2026-11-14
 # StarOrg Strings v1 — addendum (user requests 2026-11-14)
 
 Direction settled in [the v1 spec](starorg-strings-v1.md) revision 2 (sections 3.4, 8, 11);
-the features below are v1.1 unless open question Q17 says otherwise. Corrections from the
+the features below are **v1** (Q17 decided 2026-11-14): hooks in M1, published dumps in M2. Corrections from the
 review are marked **Corrected**.
 
 ## 1. Data source: published dumps first, local extraction as fallback

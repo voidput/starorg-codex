@@ -2128,10 +2128,10 @@ values printed; duplicated bomb-rack lines; ASCII-order bullet sorting; writing 
 | Q14 | Where do contract descriptions live when there is no `Description` override? | Answer in M2a | M2a |
 | Q15 | Is ship insurance time in DataCore? | Answer in M2a; line omitted otherwise | M2a |
 | Q16 | Should keys whose stock value ends inside an open EM tag get our text, or be skipped? | Append; decided by the M2 in-game check | M2 |
-| Q17 | Published dumps and the hook installer commands: v1 or v1.1? | v1.1; the `GameSource` trait is ready for dumps from M0 | M2 |
+| Q17 | Published dumps and the hook installer commands: v1 or v1.1? | **Decided 2026-11-14: v1.** Hook commands (`hook prelaunch|postexit|install|uninstall|status`) in M1; `PublishedDump` source in M2 | Done |
 | Q18 | Should `doctor` offer to delete stray folders and the empty `languages.ini` left by other tools? | Report only in v1 | M1 |
 | Q19 | Who tests on Windows with a real 160 GB install? | Not known. Without an owner, Windows ships as "beta" | End of M0 |
-| Q20 | Our own licence, and whether the source ever goes public | Not chosen; all rights reserved meanwhile | End of M0 |
+| Q20 | Our own licence, and whether the source ever goes public | **Decided 2026-11-14: MIT** (matches StarBreaker). Going public stays tied to Q1 | Done |
 | Q21 | Is `g_language = english` needed when the line is absent, and does a loose file replace or overlay the p4k table? | Answer by the M1 in-game checks | M1 |
 
 ---

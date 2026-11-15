@@ -14,3 +14,6 @@ updated: 2026-11-14
 - [[decisions/tauri-svelte-ui|Tauri + Svelte UI]] ([plain](decisions/tauri-svelte-ui.md))
 - [[decisions/starbreaker-as-library|StarBreaker as a library]] ([plain](decisions/starbreaker-as-library.md))
 - [[decisions/own-patch-format|Own patch format]] ([plain](decisions/own-patch-format.md))
+
+## Board
+- [[plans/now/todo|Now]] ([plain](plans/now/todo.md)) · [[plans/next/backlog|Next]] ([plain](plans/next/backlog.md)) · [[plans/later/ideas|Later]] ([plain](plans/later/ideas.md))
