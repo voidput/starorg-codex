@@ -1,5 +1,6 @@
 [package]
 name = "starorg-cli"
+description = "StarOrg Strings command-line interface"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -7,6 +8,24 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish.workspace = true
+
+[lib]
+name = "starorg_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "starorg-strings"
+path = "src/main.rs"
+
+[dependencies]
+starorg-core.workspace = true
+starorg-data.workspace = true
+clap.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

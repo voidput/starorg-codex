@@ -13,6 +13,10 @@ publish.workspace = true
 starbreaker-p4k.workspace = true
 starbreaker-datacore.workspace = true
 thiserror.workspace = true
+starorg-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+crc32c.workspace = true
 
 [lints]
 workspace = true

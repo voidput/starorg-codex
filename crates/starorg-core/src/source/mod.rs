@@ -5,6 +5,8 @@
 //! English text, so `base_ini` always comes from the local `Data.p4k`; a dump source loads
 //! only `GameData` itself and asks a local source for the text.
 
+pub mod local;
+
 use crate::discovery::Channel;
 use crate::model::GameData;
 use serde::{Deserialize, Serialize};
