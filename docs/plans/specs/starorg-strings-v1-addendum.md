@@ -142,4 +142,8 @@ automatically.
 guild, not per in-game character. Options: (a) link one character per StarOrg account
 (default: the main), alts stay local; (b) push the union of chosen characters; (c) StarOrg adds
 an optional character/RSI-handle dimension (RSI+ already syncs hangars per RSI handle).
-Recommendation: (a) for v1, (c) as a StarOrg follow-up.
+**Decided 2026-11-14: (b).** Settings → StarOrg → "Characters to sync": the user ticks any
+of their characters (default: all known ones); push sends the union of their owned sets.
+Pull still writes into one chosen character (never spread across alts). Each pushed entry keeps
+its per-character origin locally so un-ticking a character never removes anything server-side.
+(c) stays a possible StarOrg follow-up.
