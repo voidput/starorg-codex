@@ -99,8 +99,10 @@ pub fn load(input: &DevInput) -> Result<LoadedDcb, ExtractError> {
                 .or_else(|| archive.entry(DCB_FALLBACK_ENTRY))
                 .ok_or(ExtractError::Missing(DCB_ENTRY))?;
             let dcb = extract::read_checked(&archive, &info, MAX_DCB_BYTES)?;
-            let media = media_names(&archive);
+            let (geometry, triggers) = media_hashes(&archive);
             drop(archive);
+            let media = MediaNames::from_hashes(&geometry, &triggers);
+            drop((geometry, triggers));
             Ok(LoadedDcb {
                 dcb,
                 ini,
@@ -122,8 +124,10 @@ pub fn load(input: &DevInput) -> Result<LoadedDcb, ExtractError> {
     }
 }
 
-/// The archive's geometry files and ATL triggers, as hashes (7.17).
-pub fn media_names(archive: &crate::starbreaker::Archive) -> MediaNames {
+/// The archive's geometry files and ATL triggers, as hashes (7.17). Plain vectors: the sets
+/// are built by [`MediaNames::from_hashes`] once the archive is dropped, so nothing
+/// long-lived is allocated while the archive index is.
+pub fn media_hashes(archive: &crate::starbreaker::Archive) -> (Vec<u64>, Vec<u64>) {
     let geometry = archive
         .entry_names()
         .filter(|n| {
@@ -134,12 +138,13 @@ pub fn media_names(archive: &crate::starbreaker::Archive) -> MediaNames {
         })
         .map(|n| media::hash(&crate::starbreaker::norm_asset_path(n)))
         .collect();
-    let triggers = archive
-        .atl_trigger_names()
-        .iter()
-        .map(|t| media::hash(t))
-        .collect();
-    MediaNames { geometry, triggers }
+    (geometry, archive.atl_trigger_hashes())
+}
+
+/// [`media_hashes`] as sets; call it after the archive is dropped.
+pub fn media_names(archive: &crate::starbreaker::Archive) -> MediaNames {
+    let (g, t) = media_hashes(archive);
+    MediaNames::from_hashes(&g, &t)
 }
 
 /// Resident memory of this process, where the OS tells us cheaply (Linux).
@@ -483,9 +488,8 @@ pub struct Session<'d, 'a> {
     names: NameCache,
     /// Sections, quick filters and the Models/Sounds views (7.17).
     pub sections: SectionIndex,
-    /// Geometry file (hash of the normalised path) -> entities naming it, for "Open owning
-    /// record" in Files.
-    owners: HashMap<u64, Vec<u32>, media::HashBuild>,
+    /// (geometry file hash, entity) sorted, for "Open owning record" in Files.
+    owners: Vec<(u64, u32)>,
     pub section_stats: Option<SectionStats>,
 }
 
@@ -575,7 +579,7 @@ impl<'d, 'a> Session<'d, 'a> {
             lru: Lru::default(),
             names: NameCache::default(),
             sections: SectionIndex::default(),
-            owners: HashMap::default(),
+            owners: Vec::new(),
             section_stats: None,
         }
     }
@@ -584,77 +588,77 @@ impl<'d, 'a> Session<'d, 'a> {
     /// geometry and trigger names (`None` = trust the fields).
     pub fn index_sections(&mut self, media: Option<&MediaNames>) -> SectionStats {
         let t = Instant::now();
-        let raw = self.db.scan_facets();
-        let scan_ms = t.elapsed().as_millis() as u64;
         let stock = self.stock.as_ref();
         let text = |k: &str| {
             stock
                 .and_then(|s| s.value(k.trim_start_matches('@')))
                 .map(str::to_string)
         };
-        let mut owners: HashMap<u64, Vec<u32>, media::HashBuild> = HashMap::default();
+        // Each entity's facts and the hashes of the geometry files it names that exist.
+        let scanned = self.db.scan_facets(|_, r| {
+            let geometry: Vec<u64> = r
+                .geometry
+                .iter()
+                .filter(|g| media.is_none_or(|m| m.has_geometry(g)))
+                .map(|g| media::hash(g))
+                .collect();
+            let model = r.vehicle || !geometry.is_empty();
+            let sounds = match media {
+                Some(m) => r.triggers.iter().any(|t| m.has_trigger(t)),
+                None => !r.triggers.is_empty(),
+            };
+            let (grade, class) = r
+                .description
+                .as_deref()
+                .and_then(text)
+                .map(|d| sections::desc_facts(&d))
+                .unwrap_or_default();
+            let facts = Facts {
+                item_type: r.item_type,
+                sub_type: r.sub_type,
+                size: r.size,
+                manufacturer: r.manufacturer,
+                display: r
+                    .display
+                    .as_deref()
+                    .and_then(text)
+                    .filter(|t| !t.trim().is_empty()),
+                grade,
+                class,
+                model,
+                sounds,
+            };
+            (facts, geometry)
+        });
+        let scan_ms = t.elapsed().as_millis() as u64;
         let mut stats = SectionStats {
             scan_ms,
             verified: media.is_some(),
+            entities: scanned.len() as u32,
             ..Default::default()
         };
-        let facts: Vec<Option<Facts>> = raw
+        let mut owners: Vec<(u64, u32)> = Vec::new();
+        let facts: Vec<(u32, Facts)> = scanned
             .into_iter()
-            .enumerate()
-            .map(|(i, r)| {
-                let r = r?;
-                stats.entities += 1;
-                let model = r.vehicle
-                    || match media {
-                        Some(m) => r.geometry.iter().any(|g| m.has_geometry(g)),
-                        None => !r.geometry.is_empty(),
-                    };
-                let sounds = match media {
-                    Some(m) => r.triggers.iter().any(|t| m.has_trigger(t)),
-                    None => !r.triggers.is_empty(),
-                };
-                for g in &r.geometry {
-                    if media.is_none_or(|m| m.has_geometry(g)) {
-                        let v = owners.entry(media::hash(g)).or_default();
-                        if v.len() < 16 {
-                            v.push(i as u32);
-                        }
-                    }
-                }
-                stats.models += u32::from(model);
-                stats.sounds += u32::from(sounds);
-                let (grade, class) = r
-                    .description
-                    .as_deref()
-                    .and_then(text)
-                    .map(|d| sections::desc_facts(&d))
-                    .unwrap_or_default();
-                Some(Facts {
-                    item_type: r.item_type,
-                    sub_type: r.sub_type,
-                    size: r.size,
-                    manufacturer: r.manufacturer,
-                    display: r
-                        .display
-                        .as_deref()
-                        .and_then(text)
-                        .filter(|t| !t.trim().is_empty()),
-                    grade,
-                    class,
-                    model,
-                    sounds,
-                })
+            .map(|(i, (f, geometry))| {
+                stats.models += u32::from(f.model);
+                stats.sounds += u32::from(f.sounds);
+                owners.extend(geometry.into_iter().map(|g| (g, i)));
+                (i, f)
             })
             .collect();
         let makers =
             |code: &str| text(&format!("manufacturer_Name{code}")).filter(|t| !t.trim().is_empty());
         self.sections = SectionIndex::new(self.db.index(), &facts, &makers);
         drop(facts);
+        owners.sort_unstable();
+        owners.dedup();
         owners.shrink_to_fit();
-        let owner_bytes: usize = owners.values().map(|v| v.capacity() * 4 + 40).sum();
         self.owners = owners;
         stats.build_ms = t.elapsed().as_millis() as u64;
-        stats.bytes = (self.sections.bytes() + owner_bytes + media.map_or(0, |m| m.bytes())) as u64;
+        stats.bytes = (self.sections.bytes()
+            + self.owners.capacity() * 12
+            + media.map_or(0, |m| m.bytes())) as u64;
         self.section_stats = Some(stats.clone());
         stats
     }
@@ -678,11 +682,14 @@ impl<'d, 'a> Session<'d, 'a> {
     /// Entities whose geometry is this archive file (`Data\Objects\...cga`).
     pub fn owners(&self, path: &str) -> Vec<SearchHit> {
         let ix = self.db.index();
-        self.owners
-            .get(&media::hash(&crate::starbreaker::norm_asset_path(path)))
+        let h = media::hash(&crate::starbreaker::norm_asset_path(path));
+        let at = self.owners.partition_point(|x| x.0 < h);
+        Some(&self.owners[at..])
             .map(|v| {
                 v.iter()
-                    .filter_map(|&i| ix.entry(i as usize))
+                    .take_while(|x| x.0 == h)
+                    .take(16)
+                    .filter_map(|&(_, i)| ix.entry(i as usize))
                     .map(|e| SearchHit {
                         guid: e.guid.clone(),
                         name: e.name.clone(),

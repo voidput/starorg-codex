@@ -45,6 +45,13 @@ pub struct MediaNames {
 }
 
 impl MediaNames {
+    pub fn from_hashes(geometry: &[u64], triggers: &[u64]) -> Self {
+        Self {
+            geometry: geometry.iter().copied().collect(),
+            triggers: triggers.iter().copied().collect(),
+        }
+    }
+
     pub fn has_geometry(&self, norm_path: &str) -> bool {
         self.geometry.contains(&hash(norm_path))
     }

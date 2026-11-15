@@ -131,9 +131,12 @@ fn fixture() -> (ExplorerIndex, SectionIndex) {
     ];
     let (entries, facts): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
     let ix = ExplorerIndex::new(entries);
-    let mut facts = facts;
-    // Re-key facts to the index order (the index keeps the input order).
-    facts.truncate(ix.len());
+    // The index keeps the input order.
+    let facts: Vec<(u32, Facts)> = facts
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, f)| f.map(|f| (i as u32, f)))
+        .collect();
     let si = SectionIndex::new(&ix, &facts, &|c| {
         (c == "AEGS").then(|| "Aegis Dynamics".to_string())
     });
@@ -646,4 +649,32 @@ fn an_unbuilt_index_answers_nothing() {
     assert!(!si.covers(&ix));
     assert!(si.tree(&ix, "", 0, 500, true, false).nodes.is_empty());
     assert_eq!(si.list(&ix, &ListQuery::default()).total, 0);
+}
+
+#[test]
+fn compare_marks_come_from_the_dataset_diff_by_guid() {
+    use crate::dev::dataset::infer;
+    use crate::dev::diff::diff_sources;
+    let g = |n: u32| format!("00000000-0000-0000-0000-{n:012x}");
+    let a = serde_json::json!({ "components": [
+        { "id": g(1), "name": "a", "health": 1 },
+        { "id": g(2), "name": "b", "health": 2 },
+        { "id": g(3), "name": "gone", "health": 3 },
+    ]});
+    let b = serde_json::json!({ "components": [
+        { "id": g(1), "name": "a", "health": 1 },
+        { "id": g(2), "name": "b", "health": 20 },
+        { "id": g(4), "name": "new", "health": 4 },
+        { "id": "not-a-guid", "name": "x", "health": 5 },
+    ]});
+    let (da, db) = (infer("gamedata.json", 0, a), infer("gamedata.json", 0, b));
+    let tables = diff_sources(
+        &[("gamedata.json".into(), &da)],
+        &[("gamedata.json".into(), &db)],
+        &|_, _| {},
+    );
+    let (mut marks, removed) = compare_marks(&tables, &[("gamedata.json".into(), &db)]);
+    marks.sort_by(|x, y| x.0.cmp(&y.0));
+    assert_eq!(marks, [(g(2), Change::Changed), (g(4), Change::Added)]);
+    assert_eq!(removed, 1);
 }

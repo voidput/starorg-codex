@@ -1392,6 +1392,181 @@ game-folder refusal (channel, sibling channel, install root; no Wine prefix), fr
 - A 3D preview in the app (exports only).
 - Progress labels inside a model export (the protocol carries done/total only).
 
+### 7.17 Explorer item finder: sections, filters, models and sounds (branch `explorer-sections`, 2026-11-15, local only)
+
+Owner feedback: "explorer needs better sections and quick filters", then "better filtering,
+searching and grouping", "easy ways to find models or sounds". The Explorer is used for four
+jobs: finding items and ships with their stats, grabbing assets, raw DataCore digging, and
+seeing what changed against another channel. It now has three modes (top bar, kept per
+viewer): **Items** (the default item finder), **Assets** (models and sounds) and **Raw** (the
+type / path tree of 7.4, unchanged). The record pane (references, JSON tree, exports, sounds,
+model export, history) is shared by all three.
+
+**Sections** (`starorg-core::dev::sections::rules`, one data table with tests). Every record
+lands in exactly one section; rules are checked in order, first hit wins: entity
+`AttachDef.Type` (exact or prefix), then entity folders (entities without a type), then struct
+types (exact or prefix, non-entities only), then folders below the records root; an entity no
+rule names is an item ("Props & other items"), anything else "Other". Chosen from the LIVE
+4.10.200.58746 `Data.p4k` (118,499 records, 63,440 main, 30,083 entities with 170 item types).
+Main records per section on LIVE, all / player-usable (see the heuristic below):
+
+| Section | Sub-levels | Main | Player-usable |
+|---|---|---|---|
+| Models (view) | section > ... | 25,913 | 22,357 |
+| Sounds (view) | section > ... | 12,419 | 9,707 |
+| Ships & vehicles | type > sub-type > manufacturer | 2,440 | 1,614 |
+| Ship weapons | type > size > manufacturer | 1,085 | 1,050 |
+| Ship components | type > size > manufacturer | 3,709 | 3,584 |
+| Missiles & torpedoes | type > size > manufacturer | 266 | 260 |
+| FPS weapons | type > sub-type > manufacturer | 1,064 | 1,049 |
+| Armor & clothing | type > manufacturer | 4,585 | 4,560 |
+| Attachments | sub-type > size | 501 | 482 |
+| Consumables & medical | type > sub-type | 329 | 316 |
+| Mining & salvage | type > size | 1,388 | 1,371 |
+| Commodities & resources | type > folder | 1,974 | 1,931 |
+| Missions & contracts | struct type > folder | 5,777 | 5,777 |
+| Locations & star map | struct type > folder | 2,951 | 2,951 |
+| Factions & reputation | struct type > folder | 2,217 | 2,214 |
+| Blueprints & crafting | struct type > folder | 1,966 | 1,966 |
+| Loadouts & loot | struct type > folder | 972 | 972 |
+| Shops | type > folder | 767 | 695 |
+| Characters & NPCs | type > folder | 4,880 | 3,123 |
+| Props & other items | type > sub-type | 10,342 | 9,441 |
+| Audio, UI & dialogue | struct type > folder | 11,143 | 11,142 |
+| Other | struct type > folder | 5,084 | 5,084 |
+
+All records (sub-records included) sum to 118,499 (Audio, UI & dialogue 46,190 with the
+dialogue sub-records; Other 24,743 with the 18,961 tags). A level where no record has a value
+is skipped; "Type" reads through a small label table (`Cooler` > Coolers, `NOITEM_Vehicle` >
+Vehicles, `Vehicle_Spaceship` > Spaceships). Paints and decals sit with Ships & vehicles,
+missile racks with missiles, mining/salvage heads and modules with Mining & salvage.
+
+**AI / NPC / test / template variants** ("Player-usable only" hides them). Entities only: a
+name token (split at `_ - . space`, case-insensitive) of `ai npc template test debug dummy
+unmanned placeholder temp tmp shipboarded boarded derelict wreck tutorial ea pir`, or a
+folder named `npc_archetypes featuretests templates template test tests ai npc debug
+placeholder`. Not for other records: `Template` and `Derelict` are words of mission and
+location names, `Legacy` armor is player armor. LIVE: 741 of 1,122 vehicle entities, 1,646 of
+2,302 player body parts, 11 of 518 FPS weapons, 3 of 207 ship guns; a heuristic, so the badge
+says "AI/test" and nothing is hidden unless the filter is on.
+
+**Worker index** (`dev-worker`, at start, before `ready`):
+- A facet sink walks every main entity once (no JSON built, rayon): `AttachDef` type,
+  sub-type, size, manufacturer code, `Localization.Name` and `.Description` keys (else the
+  vehicle name), geometry file names under `SGeometryResourceParams`, the vehicle definition,
+  and the entity's own `audioTrigger` values. The display key reads through the stock
+  `global.ini`; grade and class come from the description's `Grade:` / `Class:` lines.
+- **Has model / has sounds are checked, not guessed**: while the archive is still open the
+  worker hashes every geometry file name of the archive (`.cga .cgf .skin .chr .cdf`, 401,308
+  on LIVE) and every ATL trigger name of the GameAudio documents (62,657; parsed in parallel,
+  StarBreaker's sequential reader took 0.8 s). A model means a named geometry file exists (or
+  a vehicle definition is set); sounds means one of the entity's own triggers exists (its
+  loadout's are not counted; the Sounds panel still shows them). The sets are FNV-1a hashes,
+  about 5 MB; the archive is dropped as before.
+- A geometry file -> entities map serves "Open owning record" in Files.
+- The section index is a compact row per record (32 bytes: section, size, flags, interned
+  kind, sub-type, maker, folder, grade, class, tag) plus display names and a name order.
+- A bare `--dcb` input (tests) trusts the fields (`verified: false` in the status).
+
+**Search** (`list`, every word, case-insensitive): the readable name, short name, struct and
+item type, sub-type, manufacturer code and name, class and tag. Rank: readable name exact >
+whole word > prefix > word prefix > anywhere, then the same on the short name, then words
+spread over fields, then a fuzzy in-order subsequence (`glds` finds Gladius); ties put player
+items before variants, named records before raw ones, shorter names first ("Aegis Gladius"
+before its paints). Prefixes are hard filters, shown as chips: `type:` `maker:` `size:2`
+`size:1-3` `section:` `grade:` `class:` `tag:` `has:model` `has:sounds`. Words are
+highlighted in the rows; recent searches (10) are offered by the box (local storage).
+
+**Filters** (facet sidebar and quick toggles, OR within a facet, AND across): section, type,
+sub-type, size, manufacturer, grade, class, tag, player-usable, has model, has sounds, and
+"Added / Changed vs <channel>". Counts follow the facet rule (each facet counts what passes
+every other filter and the search), at most 60 values per facet. Filters are remembered per
+section, presets (search + filters + sort + grouping + section, 20 at most) are saved by name;
+both in local storage, every access guarded. The record history carries the finder view, so
+Back/Forward brings back the list, filters and grouping a record was opened from.
+
+**List**: sort by name, size or manufacturer; group by section, type, manufacturer or size
+with collapsible headers and counts (a folded group keeps its count, its rows are left out).
+Rows: section icon, readable name, short id (muted, mono), type / sub-type / size / maker /
+grade / class, model and sound badges, "AI/test", "New" / "Changed", and headline stats from
+the build's GameData (ships size, crew, cargo, SCM, DPS; weapons DPS, alpha, range, speed;
+components output, shield HP, QT speed, power, health; missiles damage, lock range and time).
+Stat columns show while the name keeps about 300 px; the rest read inline. The tree and the
+list stay in sync (a node is the list's scope, shown as a removable chip).
+
+**Compare** ("Compare with…", every mode): the Diff screen's machinery on the two builds'
+GameData (A = the other channel, B = this one), then the added and changed rows' GUIDs are
+sent to the worker as marks (`marks` op). Computed when picked; needs the other channel's
+game data to have been read (as the Diff screen). Records only in the other build are counted,
+not listed. LIVE against PTU GameData: 1,833 marks (63 added), 459 only in PTU, 1,790 found
+in the LIVE index; GameData read 100 ms, diff + marks 57 ms, marking 0.4 ms, the list of all
+changes 8 ms (Ships & vehicles 1,088, Ship weapons 329, Ship components 337, ...).
+
+**Assets mode**: the Models and Sounds views (by section, then the section's levels), the same
+filters and list, the record pane's Sounds and Export model. "Sound events" searches ATL
+triggers (name, Wwise event, bank; every word) in the asset worker, which starts on the first
+such search and reads the audio index only (not on Explorer open); a hit shows its event, bank
+and sounds with play buttons and "Export .ogg…" (the §7.16 cache and dialogs).
+
+**Files**: a geometry file offers "Open owning record" (one owner opens it, several are
+listed).
+
+**Contract** (additive): `dev_list` (`ListQuery` > `ListPage`: items, total, matched, facet
+counts, group heads, title, understood prefixes, words), `dev_owner`, `dev_compare` (`other:
+null` clears); `dev_tree` root `section` with `player_only`; `TreeRoot::Section`,
+`NodeKind::Section`; `DevStatus.sections` (build stats) and `.compared`; `asset_sound_search`,
+`asset_trigger`. Both mocks carry a synthetic item catalogue (57 records over the sections);
+the TS mock ports the section index and gets each record's section from the Rust table
+(`mock-dev.gen.json`), so the rules stay in one place; samples replay equal.
+
+**Measured on LIVE 4.10.200.58746** (release, 32 cores, warm cache, read only). The app's
+worker (`dev-worker --p4k`) against the same binary built from main:
+
+| | main | this branch |
+|---|---|---|
+| Ready (load, parse, index; here also the name sets and the section index) | 0.69-0.74 s | 1.23-1.27 s |
+| Steady RSS after `ready` | 512 MB | 554-557 MB |
+| Peak RSS (archive index) | 921 MB | 922-923 MB |
+
+- Inside that: archive name sets 77-104 ms (about 5 MB held), entity scan 0.32-0.35 s on the
+  4-thread pool, index build about 85 ms; the index counts about 11.9 MB (rows, names,
+  strings, media sets, owner map).
+- Thread count is a memory trade-off: the scans first ran on rayon's global pool (one thread
+  per core): ready 0.97 s but 702 MB steady (the allocator kept the threads' memory); 6 or
+  more threads 690+ MB; 4 threads (a pool that ends after each scan) 555 MB. Building the
+  name sets after the archive is dropped and handing each entity's facts over compactly (no
+  dense per-record vectors) took another 30 MB off. The Settings hint now says about 550 MB.
+- Requests in the worker: Sections root 1 ms; `list` of every main record grouped by section
+  20-36 ms; `gladius` (fuzzy, ranked) 75-105 ms; `type:cooler size:1 maker:aegis` 14-17 ms;
+  `has:model` player only (22,357 rows) 17-21 ms; `owner` 0.1 ms. Steady RSS +9 MB after
+  these (record LRU and display names, as before).
+- Search finds "Aegis Gladius" first for `gladius` (246 hits over 13 sections); `owner` of
+  `AEGS_Gladius.cga` gives AEGS_Gladius, its Dunlevy and PIR variants.
+
+**Tests**: core (`dev/sections/tests.rs`: one section per record, rule table examples, variant
+heuristic, trees and media views, list filters / facet rule / sorts / paging, query prefixes,
+description facts, fuzzy ranking, grouping and folding, change marks, compare marks); worker
+(facet sink events, protocol ops `list` / `owner` / `marks` / section tree, lazy build); asset
+worker (trigger search on a synthetic GameAudio document); app (samples for every new command,
+Rust mock = TS mock replay, `dev-disabled`, the real worker on the synthetic DCB); webview
+(`tests/finder.test.ts`); renders `app/scripts/render-finder.cjs` (`.tmp/renders/finder/`,
+1024x700 and 1280x800, dark and light; checks a picked facet value gives its count, no
+overflow) and `keyboard-dev.cjs` finder checks (tree typeahead, F6, list keys, folding with
+Enter, Alt+Left restoring filters). The older dev scripts pin the Raw mode. Real-archive
+measurement: `tests/dev_real.rs::live_sections_index_counts_and_cost` (ignored; set
+`STARORG_GD_A`/`STARORG_GD_B` to two GameData files for the compare numbers).
+
+**Not done / follow-ups**:
+- Raw mode lists keep raw names and show no change badges (the compare marks live in the
+  finder's list).
+- Stats come from GameData only (ships, weapons, components, missiles); other sections show
+  none. Sorting by a stat is not offered.
+- "Has sounds" counts the entity's own triggers, not its loadout's.
+- The sound-event search starts the asset worker (0.5 s, 0.45 GB; its archive index) as §7.16
+  does for Files.
+- `render-dev.cjs` `datasets-columns` at 1024x700 reports `main+149` horizontal overflow on the
+  Datasets screen (not touched here; not run at that size before).
+
 ### 7.18 Memory limit (Developer mode and MCP workers; branch `ram-limit`, 2026-11-15)
 
 Owner request: "in devmode/mcp mode give a warning it may eat lots of ram and give it a ram

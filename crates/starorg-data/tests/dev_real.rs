@@ -269,6 +269,61 @@ fn live_sections_index_counts_and_cost() {
     assert_eq!(gl.items[0].name, ship.name, "the ship ranks first");
     let gun = s.list(&q("type:weapongun", Filters::default(), ListGroup::None));
     assert!(gun.items.iter().filter(|i| i.sounds).count() > 50);
+    // "Changed vs <channel>" (optional): GameData of the other build (A) and of this one (B)
+    // as the app reads them, `STARORG_GD_A` / `STARORG_GD_B` (JSON files).
+    if let (Some(a), Some(b)) = (
+        std::env::var_os("STARORG_GD_A"),
+        std::env::var_os("STARORG_GD_B"),
+    ) {
+        use starorg_core::dev::dataset::{Dataset, infer};
+        use starorg_core::dev::sections::{Change, compare_marks};
+        let read = |p: &std::ffi::OsStr| -> Dataset {
+            let gd: starorg_core::model::GameData =
+                serde_json::from_slice(&std::fs::read(p).unwrap()).unwrap();
+            infer("gamedata.json", 0, serde_json::to_value(&gd).unwrap())
+        };
+        let t = Instant::now();
+        let (da, db) = (read(&a), read(&b));
+        let t_read = t.elapsed();
+        let t = Instant::now();
+        let tables = starorg_core::dev::diff::diff_sources(
+            &[("gamedata.json".into(), &da)],
+            &[("gamedata.json".into(), &db)],
+            &|_, _| {},
+        );
+        let (marks, removed) = compare_marks(&tables, &[("gamedata.json".into(), &db)]);
+        let t_diff = t.elapsed();
+        let t = Instant::now();
+        let found: Vec<(usize, Change)> = marks
+            .iter()
+            .filter_map(|(g, c)| ix.by_guid(g).map(|i| (i, *c)))
+            .collect();
+        let n = found.len();
+        s.sections.set_changes(found);
+        let t_mark = t.elapsed();
+        let added = marks.iter().filter(|m| m.1 == Change::Added).count();
+        let t = Instant::now();
+        let changed = s.list(&q(
+            "",
+            Filters {
+                changes: vec!["changed".into(), "added".into()],
+                ..Default::default()
+            },
+            ListGroup::Section,
+        ));
+        println!(
+            "compare: read GameData {t_read:?}, diff + marks {t_diff:?}, {} marks ({added} added), {removed} only in A, {n} found in the index in {t_mark:?}; list of changes {} rows in {:?}, by section {:?}",
+            marks.len(),
+            changed.total,
+            t.elapsed(),
+            changed
+                .groups
+                .iter()
+                .map(|g| (g.label.as_str(), g.count))
+                .collect::<Vec<_>>()
+        );
+        assert!(n > 0);
+    }
     println!(
         "RSS after queries {:?} MB, peak {:?} MB",
         devworker::rss_bytes().map(|b| b / 1_000_000),

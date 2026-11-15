@@ -430,11 +430,12 @@ fn folder_of(rel: &str) -> String {
 }
 
 impl SectionIndex {
-    /// Build over `ix`; `facts[i]` belongs to entry `i` (missing = nothing known). `makers`
-    /// reads a manufacturer code (`manufacturer_Name<CODE>` in the stock text).
+    /// Build over `ix`; `facts` holds (entry, facts) in entry order for the records the
+    /// worker read (entities), nothing for the rest. `makers` reads a manufacturer code
+    /// (`manufacturer_Name<CODE>` in the stock text).
     pub fn new(
         ix: &ExplorerIndex,
-        facts: &[Option<Facts>],
+        facts: &[(u32, Facts)],
         makers: &dyn Fn(&str) -> Option<String>,
     ) -> Self {
         let mut strings = Vec::new();
@@ -446,8 +447,12 @@ impl SectionIndex {
                 strings: &mut strings,
                 map: HashMap::new(),
             };
+            let mut next = facts.iter().peekable();
             for (i, e) in ix.entries().iter().enumerate() {
-                let f = facts.get(i).and_then(Option::as_ref);
+                while next.peek().is_some_and(|x| (x.0 as usize) < i) {
+                    next.next();
+                }
+                let f = next.peek().filter(|x| x.0 as usize == i).map(|x| &x.1);
                 let entity = e.struct_type == "EntityClassDefinition";
                 let rel = relative_path(&e.path).replace('\\', "/").to_lowercase();
                 let item = f
@@ -504,8 +509,20 @@ impl SectionIndex {
             name_pos: Vec::new(),
             changes: HashMap::new(),
         };
+        // Readable-name order: every label lower-cased into one buffer (one allocation, freed
+        // right after), then the entries sorted by their slice of it.
+        let mut buf = String::new();
+        let mut at: Vec<(u32, u32)> = Vec::with_capacity(out.recs.len());
+        for i in 0..out.recs.len() {
+            let start = buf.len() as u32;
+            buf.extend(out.label(ix, i).chars().flat_map(char::to_lowercase));
+            at.push((start, buf.len() as u32));
+        }
+        let key = |i: u32| &buf[at[i as usize].0 as usize..at[i as usize].1 as usize];
         let mut order: Vec<u32> = (0..out.recs.len() as u32).collect();
-        order.sort_by_cached_key(|&i| (out.label(ix, i as usize).to_lowercase(), i));
+        order.sort_by(|&a, &b| key(a).cmp(key(b)).then(a.cmp(&b)));
+        drop(at);
+        drop(buf);
         let mut by_section = std::mem::take(&mut out.by_section);
         out.name_pos = vec![0; out.recs.len()];
         for (pos, &i) in order.iter().enumerate() {
@@ -1383,6 +1400,43 @@ impl SectionIndex {
             stats: Vec::new(),
         }
     }
+}
+
+/// Marks of a dataset diff (A = the other build, B = this one; see
+/// [`super::diff::diff_sources`]) by record GUID: rows added or changed in B whose `id` is a
+/// GUID (every GameData list has one), and the number of rows only in A.
+pub fn compare_marks(
+    tables: &[super::diff::TableDiff],
+    b: &[(String, &super::dataset::Dataset)],
+) -> (Vec<(String, Change)>, u32) {
+    use super::diff::RecordState;
+    let mut marks = Vec::new();
+    let mut removed = 0;
+    for t in tables {
+        let rows = b
+            .iter()
+            .find(|x| x.0 == t.summary.dataset)
+            .and_then(|x| x.1.table(&t.summary.table));
+        for r in &t.records {
+            let change = match r.state {
+                RecordState::Added => Change::Added,
+                RecordState::Changed => Change::Changed,
+                RecordState::Removed => {
+                    removed += 1;
+                    continue;
+                }
+            };
+            let id = rows
+                .and_then(|tb| tb.rows.get(r.b? as usize))
+                .and_then(|v| v.get("id"))
+                .and_then(serde_json::Value::as_str)
+                .filter(|g| super::explorer::is_guid(g));
+            if let Some(g) = id {
+                marks.push((g.to_lowercase(), change));
+            }
+        }
+    }
+    (marks, removed)
 }
 
 /// A row's group: (order, label, key).

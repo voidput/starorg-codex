@@ -189,7 +189,7 @@
         <SwitchRow
           id="dev-mode"
           label="Developer mode"
-          hint="Adds tools to browse the game's data records and compare datasets. Read only. Its workers can use several GB of RAM (about 0.5-1 GB open, model exports up to 11 GB), each held to the memory limit below."
+          hint="Adds tools to browse the game's data records and compare datasets. Read only. Its workers can use several GB of RAM (about 0.55-1 GB open, model exports up to 11 GB), each held to the memory limit below."
           checked={s.advanced.developer_mode || devWarning}
           onchange={(v) => (v ? (devWarning = true) : patch((x) => (x.advanced.developer_mode = false)))}
         />

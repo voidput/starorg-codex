@@ -994,41 +994,6 @@ impl RealBackend {
     }
 }
 
-/// Marks of a GameData diff (A = other build, B = this one) by record GUID: added and changed
-/// rows of B whose `id` (or `item.id`) is a GUID; and how many rows exist only in A.
-pub fn compare_marks(
-    tables: &[TableDiff],
-    b: &[(String, Arc<Dataset>)],
-) -> (Vec<(String, Change)>, u32) {
-    let mut marks = Vec::new();
-    let mut removed = 0;
-    for t in tables {
-        let rows = b
-            .iter()
-            .find(|x| x.0 == t.summary.dataset)
-            .and_then(|x| x.1.table(&t.summary.table));
-        for r in &t.records {
-            let change = match r.state {
-                RecordState::Added => Change::Added,
-                RecordState::Changed => Change::Changed,
-                RecordState::Removed => {
-                    removed += 1;
-                    continue;
-                }
-            };
-            let row = rows.and_then(|tb| tb.rows.get(r.b? as usize));
-            let id = row
-                .and_then(|v| v.get("id").or_else(|| v.pointer("/item/id")))
-                .and_then(Value::as_str)
-                .filter(|g| starorg_core::dev::explorer::is_guid(g));
-            if let Some(g) = id {
-                marks.push((g.to_lowercase(), change));
-            }
-        }
-    }
-    (marks, removed)
-}
-
 fn dump_or_missing(source: &str) -> AppError {
     if source.starts_with("dump:") {
         dump_refusal(false)
@@ -1121,7 +1086,8 @@ impl DevBackend for RealBackend {
         let ra: Vec<(String, &Dataset)> = a.iter().map(|x| (x.0.clone(), &*x.1)).collect();
         let rb: Vec<(String, &Dataset)> = b.iter().map(|x| (x.0.clone(), &*x.1)).collect();
         let tables = diff::diff_sources(&ra, &rb, &|_, _| {});
-        let (marks, removed) = compare_marks(&tables, &b);
+        let rb: Vec<(String, &Dataset)> = b.iter().map(|x| (x.0.clone(), &*x.1)).collect();
+        let (marks, removed) = starorg_core::dev::sections::compare_marks(&tables, &rb);
         let (added, changed) = marks.iter().fold((0, 0), |(a, c), m| match m.1 {
             Change::Added => (a + 1, c),
             Change::Changed => (a, c + 1),

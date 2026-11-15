@@ -1062,7 +1062,12 @@ fn build_core() -> MockCore {
         facts.push(catalogue_facts(r));
     }
     let index = ExplorerIndex::new(entries);
-    let sections = SectionIndex::new(&index, &facts, &maker_name);
+    let sparse: Vec<(u32, Facts)> = facts
+        .iter()
+        .enumerate()
+        .filter_map(|(i, f)| f.clone().map(|f| (i as u32, f)))
+        .collect();
+    let sections = SectionIndex::new(&index, &sparse, &maker_name);
     MockCore {
         index,
         values,

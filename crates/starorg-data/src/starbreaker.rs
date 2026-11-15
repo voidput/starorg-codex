@@ -48,12 +48,13 @@ impl Archive {
         self.inner
     }
 
-    /// Every ATL trigger name of the archive's GameAudio documents (addendum 7.17: the
-    /// explorer's "has sounds" index). Read before the archive is dropped.
-    pub fn atl_trigger_names(&self) -> Vec<String> {
+    /// Hashes ([`starorg_core::dev::media::hash`]) of every ATL trigger name of the
+    /// archive's GameAudio documents (addendum 7.17: the explorer's "has sounds" check). Read
+    /// before the archive is dropped; StarBreaker's `AtlIndex::from_p4k` reads the documents
+    /// one after another (about 0.8 s on LIVE), so the same parse runs per document in
+    /// parallel, keeping only the hashes.
+    pub fn atl_trigger_hashes(&self) -> Vec<u64> {
         use rayon::prelude::*;
-        // StarBreaker's `AtlIndex::from_p4k` reads the documents one after another (about
-        // 0.8 s on LIVE); the same parse per document, in parallel.
         let docs: Vec<_> = self
             .inner
             .entries()
@@ -63,17 +64,22 @@ impl Archive {
                     && e.name.to_ascii_lowercase().ends_with(".xml")
             })
             .collect();
-        docs.par_iter()
-            .flat_map_iter(|e| {
-                let mut ix = starbreaker_wwise::atl::AtlIndex::default();
-                if let Ok(data) = self.inner.read(e)
-                    && let Ok(Some(doc)) = starbreaker_wwise::game_audio::parse_document(&data)
-                {
-                    let _ = ix.add_document(&doc);
-                }
-                ix.iter().map(|(n, _)| n.to_string()).collect::<Vec<_>>()
-            })
-            .collect()
+        let run = || {
+            docs.par_iter()
+                .flat_map_iter(|e| {
+                    let mut ix = starbreaker_wwise::atl::AtlIndex::default();
+                    if let Ok(data) = self.inner.read(e)
+                        && let Ok(Some(doc)) = starbreaker_wwise::game_audio::parse_document(&data)
+                    {
+                        let _ = ix.add_document(&doc);
+                    }
+                    ix.iter()
+                        .map(|(n, _)| starorg_core::dev::media::hash(n))
+                        .collect::<Vec<_>>()
+                })
+                .collect()
+        };
+        small_pool(run)
     }
 
     /// Number of entries StarBreaker parsed from the central directory.
@@ -870,6 +876,26 @@ pub struct RawFacets {
     pub triggers: Vec<String>,
 }
 
+/// Run `f` on a short-lived pool of [`POOL_THREADS`] threads (7.17). The dev worker lives
+/// for minutes: with rayon's global pool (one thread per core) the allocator kept about 190 MB
+/// more resident after the explorer's scans; a few threads that end with the pool keep it
+/// near the old steady size.
+pub fn small_pool<T: Send>(f: impl FnOnce() -> T + Send) -> T {
+    let n = std::env::var("XX_POOL")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(POOL_THREADS);
+    match rayon::ThreadPoolBuilder::new().num_threads(n).build() {
+        Ok(pool) => pool.install(f),
+        Err(_) => f(),
+    }
+}
+
+/// Threads of [`small_pool`]. LIVE dev worker, ready / steady RSS: 4 threads 1.25 s and
+/// 555 MB; 6 threads 1.14 s and 690 MB; 16 threads 0.97 s and 698 MB (rayon's global pool
+/// 0.97 s and 702 MB; without the explorer sections 0.74 s and 512 MB).
+pub const POOL_THREADS: usize = 4;
+
 /// Geometry file extensions a model export can start from.
 pub const GEOMETRY_EXTS: &[&str] = &[".cga", ".cgf", ".skin", ".chr", ".cdf"];
 
@@ -1127,22 +1153,26 @@ pub fn scan_events_for_test() -> RawFacets {
 }
 
 impl DevDatabase<'_> {
-    /// [`RawFacets`] of every main `EntityClassDefinition` record, by index entry, in
-    /// parallel. Other records (and entities the walker cannot read) get `None`.
-    pub fn scan_facets(&self) -> Vec<Option<RawFacets>> {
+    /// [`RawFacets`] of every main `EntityClassDefinition` record, read in parallel and
+    /// turned into `T` by `f` right away (so the raw strings never pile up), as (index entry,
+    /// `T`) in index order. Entities the walker cannot read are left out.
+    pub fn scan_facets<T: Send>(&self, f: impl Fn(usize, RawFacets) -> T + Sync) -> Vec<(u32, T)> {
         use rayon::prelude::*;
         let db = &self.db;
         let entity = db.struct_id("EntityClassDefinition");
-        db.records()
-            .par_iter()
-            .map(|r| {
-                if Some(r.struct_id()) != entity || !db.is_main_record(r) {
-                    return None;
-                }
-                let mut sink = FacetSink::default();
-                starbreaker_datacore::walker::walk_record(db, r, &mut sink).ok()?;
-                Some(sink.out)
-            })
-            .collect()
+        small_pool(|| {
+            db.records()
+                .par_iter()
+                .enumerate()
+                .filter_map(|(i, r)| {
+                    if Some(r.struct_id()) != entity || !db.is_main_record(r) {
+                        return None;
+                    }
+                    let mut sink = FacetSink::default();
+                    starbreaker_datacore::walker::walk_record(db, r, &mut sink).ok()?;
+                    Some((i as u32, f(i, sink.out)))
+                })
+                .collect()
+        })
     }
 }
