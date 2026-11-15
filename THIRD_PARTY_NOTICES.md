@@ -8,8 +8,8 @@ the third-party software listed below, each under its own license. This file is 
 
 - MIT License: 419 crate(s)
 - Unicode License v3: 19 crate(s)
+- BSD 3-Clause "New" or "Revised" License: 12 crate(s)
 - Apache License 2.0: 11 crate(s)
-- BSD 3-Clause "New" or "Revised" License: 11 crate(s)
 - Mozilla Public License 2.0: 5 crate(s)
 - zlib License: 2 crate(s)
 - BSD 2-Clause "Simplified" License: 1 crate(s)
@@ -1408,6 +1408,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 Used by:
 - ogg 0.8.0
+- ogg 0.9.2
 
 ```text
 NOTE:

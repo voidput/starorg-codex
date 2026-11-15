@@ -541,10 +541,8 @@ pub fn ogg_opus_from_packets(
     {
         let mut w = PacketWriter::new(&mut out);
         let e = |e: std::io::Error| e.to_string();
-        w.write_packet(head.into_boxed_slice(), serial, End::EndPage, 0)
-            .map_err(e)?;
-        w.write_packet(tags.into_boxed_slice(), serial, End::EndPage, 0)
-            .map_err(e)?;
+        w.write_packet(head, serial, End::EndPage, 0).map_err(e)?;
+        w.write_packet(tags, serial, End::EndPage, 0).map_err(e)?;
         let end = total.map(|t| t + u64::from(pre_skip));
         let mut gp = 0u64;
         for (i, p) in packets.iter().enumerate() {
@@ -561,8 +559,7 @@ pub fn ogg_opus_from_packets(
             } else {
                 End::NormalPacket
             };
-            w.write_packet(p.to_vec().into_boxed_slice(), serial, inf, g)
-                .map_err(e)?;
+            w.write_packet(*p, serial, inf, g).map_err(e)?;
         }
     }
     Ok(out)
