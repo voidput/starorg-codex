@@ -645,6 +645,21 @@ options, the branding stamp switch, and which built-in patches are disabled. Unk
 kept on write so an older app version does not drop newer settings. A profile hash goes into
 the applied manifest.
 
+**Only changes are stored (`schema = 2`).** The `[enhance]` table holds only the settings that
+differ from the named preset; a profile equal to a preset has no `[enhance]` at all. A default
+a later build changes therefore reaches everyone who left that setting alone (the hash already
+counts only settings off the defaults, so writing sparse does not change it).
+
+Schema-1 files (builds up to the `[Owned]` colour change) wrote every key out, so `owned_em = 0`
+stayed pinned after its default became 4. Every reader treats a schema-1 file as migrated, and
+the app rewrites it once: each colour/marker key (`header_em`, `label_em`, `title_bp_em`,
+`title_rep_em`, `title_owned`, `owned_em`, `owned_line`, `missing_marker`, `missing_em`,
+`variant_em`, `reward_em`, `colour_test`) still at its schema-1 default is dropped, everything
+else stays as saved, `schema` becomes 2, the old file is kept as `profile.toml.bak-schema1` and
+one Activity line names the keys. Only `owned_em` changes its effective value; a non-default
+value is a real choice and is kept, and a schema-2 `owned_em = 0` is never touched. The profile
+hash is unchanged, so the one re-apply prompt comes from `OUTPUT_VERSION` 4.
+
 Presets shipped: **Recommended** (all v1 stat blocks, name tags, mission info, patches),
 **Minimal** (name tags and patches only), **Everything**.
 
