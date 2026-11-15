@@ -5,7 +5,10 @@
 pub mod dataset;
 pub mod diff;
 pub mod explorer;
+pub mod group;
 pub mod record;
 
+#[cfg(test)]
+mod group_tests;
 #[cfg(test)]
 mod tests;

@@ -101,6 +101,9 @@ pub struct TableInfo {
     /// The column that names a record (diff identity), when one is unique.
     pub identity: Option<String>,
     pub default_columns: Vec<String>,
+    /// Group-bys offered for the tree (addendum 7.13), the default first; empty = no tree.
+    #[serde(default)]
+    pub group_presets: Vec<super::group::GroupPreset>,
 }
 
 /// One table: rows are JSON objects.
@@ -118,7 +121,8 @@ pub struct Dataset {
     pub tables: Vec<Table>,
 }
 
-fn scalar_text(v: &Value) -> Option<String> {
+/// Text of a scalar (strings, numbers, booleans).
+pub fn scalar_text(v: &Value) -> Option<String> {
     match v {
         Value::String(s) => Some(s.clone()),
         Value::Number(n) => Some(n.to_string()),
@@ -471,6 +475,7 @@ impl Table {
             columns: self.columns.clone(),
             identity: identity_column(&self.rows, None),
             default_columns: default_columns(&self.columns),
+            group_presets: super::group::presets(self),
         }
     }
 
@@ -521,6 +526,9 @@ pub struct RowsQuery {
     pub offset: u32,
     #[serde(default)]
     pub limit: u32,
+    /// Only the rows of this group tree node (addendum 7.13).
+    #[serde(default)]
+    pub group: Option<super::group::GroupPick>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -585,7 +593,20 @@ fn cmp_cells(a: Option<&Value>, b: Option<&Value>) -> Ordering {
     }
 }
 
-/// Search (substring over the scalar cells of the shown columns), filters, sort, page.
+/// Whether a row passes the filters and the search (`needle` lowercased; substring over the
+/// scalar cells of `columns`).
+pub fn row_matches(r: &Value, columns: &[String], needle: &str, filters: &[RowFilter]) -> bool {
+    filters.iter().all(|f| filter_ok(r, f))
+        && (needle.is_empty()
+            || columns.iter().any(|c| {
+                r.get(c)
+                    .and_then(scalar_text)
+                    .is_some_and(|s| s.to_lowercase().contains(needle))
+            }))
+}
+
+/// Search (substring over the scalar cells of the shown columns), filters, group node, sort,
+/// page.
 pub fn query_rows(t: &Table, q: &RowsQuery, max_page: usize) -> RowsPage {
     let columns = if q.columns.is_empty() {
         default_columns(&t.columns)
@@ -596,13 +617,8 @@ pub fn query_rows(t: &Table, q: &RowsQuery, max_page: usize) -> RowsPage {
     let mut hits: Vec<usize> = (0..t.rows.len())
         .filter(|&i| {
             let r = &t.rows[i];
-            q.filters.iter().all(|f| filter_ok(r, f))
-                && (needle.is_empty()
-                    || columns.iter().any(|c| {
-                        r.get(c)
-                            .and_then(scalar_text)
-                            .is_some_and(|s| s.to_lowercase().contains(&needle))
-                    }))
+            row_matches(r, &columns, &needle, &q.filters)
+                && q.group.as_ref().is_none_or(|g| super::group::row_in(r, g))
         })
         .collect();
     if let Some(s) = &q.sort {
