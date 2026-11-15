@@ -164,9 +164,15 @@ fn sounds_build_the_audio_index_on_demand() {
         media_path: None,
     };
     let wem = idx.media_bytes(&a, &r).unwrap();
-    let (bytes, ext) = audio::decode(&wem).unwrap();
-    assert_eq!(ext, "wem", "PCM stays WEM");
-    assert_eq!(bytes, wem);
+    let c = audio::decode(&wem).unwrap();
+    assert_eq!(c.format.ext(), "wav", "PCM becomes WAV");
+    assert_eq!(c.bytes.len(), 44 + 480 * 2);
+    let odd = audio::SoundRef {
+        media_id: 123457,
+        ..r.clone()
+    };
+    let e = audio::decode(&idx.media_bytes(&a, &odd).unwrap()).unwrap_err();
+    assert_eq!(e.codec, Some(super::wemcodec::Codec::Other(0x8311)));
     let missing = audio::SoundRef {
         media_id: 9,
         ..r.clone()

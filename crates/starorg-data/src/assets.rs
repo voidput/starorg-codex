@@ -22,6 +22,7 @@ pub mod model;
 pub mod stl;
 #[cfg(any(test, feature = "synthetic-dcb"))]
 pub mod synthetic;
+pub mod wemcodec;
 
 use crate::extract::{DCB_ENTRY, DCB_FALLBACK_ENTRY, MAX_DCB_BYTES};
 use serde::{Deserialize, Serialize};

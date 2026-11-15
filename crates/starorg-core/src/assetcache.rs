@@ -8,7 +8,7 @@
 //!
 //! ```text
 //! .starorg-asset-cache            marker: this folder is ours
-//! <CHANNEL>/<build-key>/audio/    <media key>.ogg | .wem
+//! <CHANNEL>/<build-key>/audio/    <media key>.ogg | .opus | .wav | .wem
 //! <CHANNEL>/<build-key>/models/   <record>-<preset>-lod<n>.glb
 //! <CHANNEL>/<build-key>/previews/ <path hash>.png
 //! ```
@@ -113,7 +113,9 @@ pub fn build_name_ok(n: &str) -> bool {
 
 /// A file name we make: `[A-Za-z0-9._-]` ending in one of our extensions (or `.part`).
 fn file_name_ok(n: &str) -> bool {
-    const EXTS: [&str; 6] = [".ogg", ".wem", ".glb", ".png", ".jpg", ".part"];
+    const EXTS: [&str; 8] = [
+        ".ogg", ".opus", ".wav", ".wem", ".glb", ".png", ".jpg", ".part",
+    ];
     !n.starts_with('.')
         && n.len() <= 200
         && n.chars()

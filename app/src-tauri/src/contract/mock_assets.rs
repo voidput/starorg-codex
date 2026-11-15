@@ -678,6 +678,8 @@ impl AssetBackend for MockBackend {
             duration: if cached { None } else { Some(0.25) },
             cached,
             note: None,
+            format: "Vorbis (.ogg)".into(),
+            hint: None,
         })
     }
 

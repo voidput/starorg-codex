@@ -205,7 +205,7 @@ fn files_previews_and_sounds_with_the_cache() {
     );
     let x = pv(synthetic::XML);
     assert!(x.text.unwrap().contains("speed"));
-    // One sound (PCM: kept as WEM, not playable here), cached.
+    // One sound (PCM: converted to WAV, playable), cached.
     let snd = SoundRef {
         media_id: 123456,
         source: SourceKind::MediaFile,
@@ -219,7 +219,29 @@ fn files_previews_and_sounds_with_the_cache() {
             sound: snd.clone(),
         })
         .unwrap();
-    assert!(a.mime.is_empty() && a.note.is_some() && !a.cached);
+    assert_eq!(
+        (a.mime.as_str(), a.format.as_str()),
+        ("audio/wav", "PCM (.wav)")
+    );
+    assert!(a.note.is_none() && !a.cached && a.data.starts_with("UklGR"));
+    // A codec that is not converted stays WEM, with its codec named (never "Not Vorbis").
+    let odd = SoundRef {
+        media_id: 123457,
+        ..snd.clone()
+    };
+    let o = f
+        .backend
+        .asset_sound(AssetSoundRequest {
+            target: live.clone(),
+            sound: odd.clone(),
+        })
+        .unwrap();
+    assert!(o.mime.is_empty() && o.data.is_empty() && o.hint.is_none());
+    assert_eq!(
+        o.note.as_deref(),
+        Some("PTADPCM (fmt 0x8311) audio cannot be converted; it is kept as .wem")
+    );
+    assert_eq!(o.format, "PTADPCM (fmt 0x8311) (.wem)");
     // The record's sounds read the DataCore and the audio index on demand.
     let rs = f
         .backend
@@ -243,11 +265,19 @@ fn files_previews_and_sounds_with_the_cache() {
             sound: snd,
         })
         .unwrap();
-    assert!(a.cached);
+    assert!(a.cached && a.mime == "audio/wav");
+    let o = f
+        .backend
+        .asset_sound(AssetSoundRequest {
+            target: live.clone(),
+            sound: odd,
+        })
+        .unwrap();
+    assert!(o.cached && o.note.unwrap().starts_with("PTADPCM"));
     assert!(!f.backend.asset_worker_running(&live));
     assert_eq!(f.starts(), 1, "cache hits start no worker");
     let c = f.backend.asset_cache_status().unwrap();
-    assert_eq!(c.files, 2);
+    assert_eq!(c.files, 3);
     assert!(c.bytes > 0);
     // A game patch (another build key) misses; the old build's files go on the next write.
     let cache = f.cache();
@@ -321,29 +351,35 @@ fn extract_and_exports_respect_dialogs_and_the_game_folder() {
         )
         .unwrap_err();
     assert_eq!(e.code, ErrorCode::NotFound);
-    // Picked sounds: the WEM is written.
+    // Picked sounds: the PCM one as .wav, the PTADPCM one kept as .wem; the note says so.
+    let pick = |id: u32| AssetSoundPick {
+        trigger: "Play_Test".into(),
+        sound: SoundRef {
+            media_id: id,
+            source: SourceKind::MediaFile,
+            bank: String::new(),
+            media_path: None,
+        },
+    };
     let r = f
         .backend
         .asset_export_sounds(
             AssetExportSoundsRequest {
                 target: live.clone(),
                 what: dcb::guid_text(1, 2),
-                sounds: vec![AssetSoundPick {
-                    trigger: "Play_Test".into(),
-                    sound: SoundRef {
-                        media_id: 123456,
-                        source: SourceKind::MediaFile,
-                        bank: String::new(),
-                        media_path: None,
-                    },
-                }],
+                sounds: vec![pick(123456), pick(123457)],
                 wem: false,
             },
             &noop,
         )
         .unwrap();
-    assert_eq!(r.files, 1);
-    assert!(out.join("Play_Test_123456.wem").exists());
+    assert_eq!(r.files, 2);
+    assert!(out.join("Play_Test_123456.wav").exists());
+    assert!(out.join("Play_Test_123457.wem").exists());
+    assert_eq!(
+        r.note.as_deref(),
+        Some("1 .wav, 1 .wem (the .wem files were not converted; the log says why)")
+    );
     // A model of a non-entity fails in its own worker, which is stopped afterwards.
     let starts = f.starts();
     let model = |save: PathBuf| {

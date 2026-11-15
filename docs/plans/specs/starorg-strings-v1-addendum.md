@@ -1266,7 +1266,7 @@ StarBreaker (MIT, Copyright (c) 2026 Diogo Trindade) at the pinned rev `041e5592
 `starbreaker-3d` (entity -> GLB), `-dds`, `-cryxml`, `-wem`, `-wwise` (incl. `datacore_audio`,
 `game_audio`) are workspace dependencies at the same rev as `-p4k`/`-datacore`; the sounds logic
 is a port of StarBreaker's app `audio_commands.rs` (source classification, bank path index,
-event resolution, WEM -> Ogg); the presets are `sc-ship-models/scripts/export_ships.sh`'s.
+event resolution, the Vorbis WEM -> Ogg; the other codecs are ours, see *Sound formats*); the presets are `sc-ship-models/scripts/export_ships.sh`'s.
 
 **Process model.** A new child process, `starorg-strings-app asset-worker --p4k <P>`
 (`starorg-data::assetworker`), same JSON-lines protocol and replies as `dev-worker`; every
@@ -1289,8 +1289,8 @@ inside the game folder or its Wine prefix).
   export, and for the first sounds request (DataCore + audio index); the app waits up to 30 s for
   it (an explorer start), then answers `busy`.
 
-**Asset cache** (`starorg_core::assetcache`). Decoded sounds (`audio/<media id>.ogg`, or `.wem`
-when not Vorbis), exported models (`models/<record>-<full|print>-lod<n>.glb`) and texture
+**Asset cache** (`starorg_core::assetcache`). Decoded sounds (`audio/<media id>.ogg|.opus|.wav`,
+or `.wem` for a codec that is not converted), exported models (`models/<record>-<full|print>-lod<n>.glb`) and texture
 previews (`previews/<path hash>.png`) under `<root>/<CHANNEL>/<build key>/`. The root is
 `<app cache>/assets` by default; for a folder the user picks it is always a subfolder of its
 own, `<chosen>/StarOrg Codex asset cache/`, so nothing of the user's is ever inside the layout. The build key
@@ -1298,8 +1298,9 @@ is the extraction cache key (p4k size, mtime, change number, StarBreaker rev), s
 misses; the first write for a new build removes the channel's older builds. LRU by modification
 time (a hit touches the file), 2 GiB cap (`[dev] asset_cache_max_mb`), files over a quarter of
 the cap are not kept, stale `.part` files go after an hour. A hit is answered without starting a
-worker (preview, play, sounds export without `.wem`, model export); a sound ww2ogg cannot
-rebuild is cached as its WEM, and an export caches only the files written by that run.
+worker (preview, play, sounds export without `.wem`, model export); a sound that is not converted
+is cached as its WEM (a cached WEM of a codec this build converts is not a hit: it is converted
+again), and an export caches only the files written by that run.
 
 - **Safety.** Eviction, pruning, clear and move act only under a root that holds our marker
   (`.starorg-asset-cache`, a regular file) and only on files of the layout: channel folders named
@@ -1328,8 +1329,9 @@ rebuild is cached as its WEM, and an export caches only the files written by tha
 
 **Contract** (`contract/assets.rs`, `assets.ts`, the `AssetBackend` half of `Backend`):
 `asset_status`, `asset_close`, `asset_list`, `asset_search`, `asset_preview` (image as a
-`data:` URL, text inline at most 1 MiB), `asset_extract`, `asset_sounds`, `asset_sound` (Ogg as
-base64), `asset_export_sounds`, `asset_export_model`, `asset_cache_status|pick|reset|clear|move`.
+`data:` URL, text inline at most 1 MiB), `asset_extract`, `asset_sounds`, `asset_sound` (the
+converted file as base64, its MIME type, `format` such as `Vorbis (.ogg)`, `note` naming the
+codec when it is kept as `.wem`, `hint` for a webview that cannot play it), `asset_export_sounds`, `asset_export_model`, `asset_cache_status|pick|reset|clear|move`.
 All but the cache calls answer `dev-disabled` while Developer mode is off. Mocks in Rust
 (`mock_assets.rs`) and TS (`mock-assets.ts`, data `mock-assets.gen.json`); `assetmock.test.ts`
 replays every asset sample against the TS mock.
@@ -1338,7 +1340,7 @@ replays every asset sample against the TS mock.
 (every word), preview (texture PNG at most 1024 px a side, CryXML/XML text, WEM play button),
 Extract (selected file or current folder; "Convert": textures to PNG with their mip files merged,
 CryXmlB to XML). Explorer record header: Sounds (opens a list of triggers with their sounds, play,
-Export .ogg… / + .wem) and Export model… (Print shell or Full, LOD 0-4, optional STL). Next to
+Export sounds… / + .wem) and Export model… (Print shell or Full, LOD 0-4, optional STL). Next to
 every export: "For personal use: these are Cloud Imperium's assets; don't redistribute."
 
 **Presets** (`assets::model`): *Full (textures)* = materials and textures (mip 2), interiors,
@@ -1350,7 +1352,8 @@ primitives of the default scene, node transforms baked, Y-up -> Z-up), what
 **CLI.** `starorg-strings dev extract <p4k path|folder|glob>... --out DIR [--convert]`,
 `dev export-model <guid|name> --out FILE [--preset full|print] [--lod N] [--stl]
 [--cache-dir DIR]`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
-[--cache-dir DIR]`; in process, `extract.lock` while the archive is read, never into the install
+[--cache-dir DIR]` (`--list` names each sound's codec and the file it becomes; the summary counts
+files by extension and lists the sounds kept as `.wem`, with why); in process, `extract.lock` while the archive is read, never into the install
 or a Wine prefix.
 
 **Measured on LIVE 4.10.200.58746** (release, 32 threads, warm page cache, `Data.p4k` read only,
@@ -1366,7 +1369,8 @@ outputs under `.tmp/`):
 | AEGS_Javelin, Full, LOD 0 | 24.0 s | 6.91 GB | GLB 513 MB |
 | AEGS_Idris_M, Full, LOD 1 | 32.9 s | 10.87 GB | GLB 502 MB (`RAYON_NUM_THREADS=4`: 48.5 s, 9.56 GB) |
 | AEGS_Gladius sounds: list (DataCore + audio index) | 0.9 s | 0.89 GB | 73 triggers (53 from the loadout), 2,328 sounds |
-| AEGS_Gladius sounds: export all | 13.9 s | 0.89 GB | 2,305 Ogg + 23 WEM (ww2ogg cannot rebuild those; kept as WEM), 197 MB |
+| AEGS_Gladius sounds: export all | 13.9 s | 0.89 GB | 2,305 Ogg + 23 WEM (before *Sound formats*), 197 MB |
+| Same, after *Sound formats* | | | 2,328 Ogg, 0 WEM, 197 MB; all decode with `ffmpeg -xerror` |
 | Same again from the asset cache | 0.9 s | 0.89 GB | no decoding |
 
 The archive index (about 0.9 GB) is the floor of every asset run; the Full preset's textures
@@ -1399,6 +1403,59 @@ read, `--no-cache`, sounds list. App: contract samples for every asset command, 
 nothing starts before a request, cache hits start no worker, extract/export dialogs and the
 game-folder refusal (channel, sibling channel, install root; no Wine prefix), fresh worker per model, cache folder validate/switch/move/clear, a config pointing into the install refused at use (status shows it, nothing created). Renders:
 `app/scripts/render-assets.cjs` (`.tmp/renders/assets/`).
+
+**Sound formats** (branch `sounds-codecs`, 2026-11-15; `assets::wemcodec`). Two user reports:
+"Play_PHOB_Med_Cargo_Box_Metal_b_Impacts 1044913056 cannot be played here — Not Vorbis audio" and
+"Could not play Play_SSDM_Shared_Explosion_Base_Light 1020390043 — NotSupportedError: The
+operation is not supported."
+
+- *1044913056 was Vorbis.* Every sound in LIVE is Wwise Vorbis (fmt `0xFFFF`): 118,478 of the
+  118,484 loose `.wem` and 2,314 of the 2,428 bank-embedded media; the rest (6 + 114) is `PLUG`
+  plugin data (convolution-reverb impulse responses), not audio. No PCM, IMA ADPCM or Opus. The
+  failures came from StarBreaker's `vorbis_to_ogg` quality check (ww2ogg `validate`: more than
+  10% of the samples of any of the first 10 packets at full scale is "likely wrong codebook"),
+  which rejects loud, clipped impacts, gunshots and explosions; the app then said "Not Vorbis".
+  Now, on that error, the WEM is converted again with the aoTuV codebooks and kept when lewton
+  decodes the whole stream without error, with samples, and under 25% of them at full scale.
+- *1020390043 converted fine* (a valid stereo 48 kHz Ogg Vorbis that ffmpeg and GStreamer's
+  `oggdemux ! vorbisdec` decode); the webview could not play anything. On Linux the webview is
+  WebKitGTK, whose `<audio>` runs a GStreamer `playbin` with `autoaudiosink`, and that element
+  (plugin `autodetect`) is in gst-plugins-good, which was not installed: `gst-launch-1.0 playbin3
+  uri=…` fails with "The autoaudiosink element is missing", which WebKit reports as
+  `NotSupportedError`. Nothing in the file can fix that. `asset_sound` now carries `hint`
+  (Linux: no `libgstautodetect.so` in the GStreamer plugin folders) and the player turns a refused
+  play into "The app's webview could not play this Vorbis (.ogg) file. <what is missing>. Export
+  it to play it in another player." with an **Export…** action, instead of the raw error. `.wav`
+  also needs gst-plugins-good (`wavparse`); `.ogg`/`.opus` need only gst-plugins-base.
+
+| fmt tag | Codec | Becomes |
+|---|---|---|
+| `0xFFFF` | Wwise Vorbis | `.ogg` (StarBreaker, then the aoTuV retry) |
+| `0x0001`, `0xFFFE` | PCM | `.wav` (Wwise chunks dropped; WAVE_FORMAT_EXTENSIBLE with the Wwise channel mask above 2 channels) |
+| `0x0002`, `0x0069` | Wwise IMA ADPCM | `.wav`, 16-bit PCM (0x24-byte blocks per channel, header sample + 63 nibbles, vgmstream's layout) |
+| `0x3040` | Opus (Ogg) | `.opus`: the Ogg stream in the data chunk (after `meta`'s skip) |
+| `0x3041` | Wwise Opus | `.opus`: the packets (sizes from the `seek` table) in an Ogg Opus, pre-skip and length from `fmt`, mapping family 0, 1 or 255 |
+| `PLUG`, others | named, kept | `.wem`, with "Wwise plugin data … not audio" or "<codec> audio cannot be converted" |
+
+MIME: `audio/ogg` for `.ogg` and `.opus`, `audio/wav` for `.wav`. The asset cache layout accepts
+`.opus` and `.wav` (they were not files of the layout before, so they would not have been
+counted or evicted). New direct dependencies of `starorg-data`, already in the tree through
+`starbreaker-wem`: `ww2ogg` 0.1.0 (BSD-3-Clause), `lewton` 0.10.2 (MIT OR Apache-2.0), `ogg`
+0.8.0 (BSD-3-Clause).
+
+Real data (`crates/starorg-data/tests/real_sounds.rs`, ignored, LIVE read only):
+
+| Set | Before | After |
+|---|---|---|
+| The two reported triggers | PHOB: 11 of 19 sounds kept as WEM (1044913056 among them); SSDM: 1 of 16 (576434116) | all 36 sound entries Vorbis -> `.ogg` (1044913056: 1.62 s; 1020390043: 7.21 s) |
+| 6 records (Gladius, Arrow, Cutlass Black, Freelancer, two FPS weapons; 7,709 unique) | 7,608 Ogg, 101 WEM | 7,709 Ogg, 0 WEM; each Ogg decodes to its end |
+| 2,000 random loose media | 1,987 Ogg, 12 WEM (11 Vorbis, 1 PLUG) | 1,999 Ogg, 1 kept (PLUG, named) |
+
+Tests: synthetic WEMs built in the tests for every codec (PCM and extensible PCM to WAV, IMA
+round trip through an encoder, Wwise Opus to Ogg Opus with granules and pre-skip, Ogg Opus
+unwrapped, multichannel family 1, Opus TOC durations, the Vorbis full-decode check, broken
+Vorbis / PLUG / unknown codecs named), the worker and app on a synthetic archive with a PCM and
+a PTADPCM WEM, the cache extensions, the GStreamer hint, and the webview failure message.
 
 **Not done / follow-ups:**
 - A texture size choice for the Full preset (mip 2 is fixed; mip 3-4 would cut the memory).
@@ -1568,7 +1625,7 @@ changes 8 ms (Ships & vehicles 1,088, Ship weapons 329, Ship components 337, ...
 filters and list, the record pane's Sounds and Export model. "Sound events" searches ATL
 triggers (name, Wwise event, bank; every word) in the asset worker, which starts on the first
 such search and reads the audio index only (not on Explorer open); a hit shows its event, bank
-and sounds with play buttons and "Export .ogg…" (the §7.16 cache and dialogs). At most 500
+and sounds with play buttons and "Export sounds…" (the §7.16 cache and dialogs). At most 500
 hits are listed with the total ("add words to narrow them"); an unknown trigger is
 `not-found`.
 

@@ -1,6 +1,7 @@
 //! A small synthetic `Data.p4k` (a plain stored ZIP whose `crc32` fields are CRC-32C, as
 //! CIG's are) for the asset worker tests: a DataCore, a texture split into a base file and a
-//! mip sibling, XML, a CryXmlB-free text file, a non-Vorbis WEM and some folders. Test
+//! mip sibling, XML, a CryXmlB-free text file, a PCM WEM, a WEM of a codec
+//! that is not converted and some folders. Test
 //! builds only (`synthetic-dcb`).
 
 use std::path::Path;
@@ -44,10 +45,15 @@ pub fn dds_split(width: u32, height: u32) -> (Vec<u8>, Vec<u8>) {
     (base, mip(width, height, 200))
 }
 
-/// A RIFF/WAVE WEM with a PCM `fmt ` chunk: parsed as WEM, not Vorbis (kept as `.wem`).
+/// A RIFF/WAVE WEM with a PCM `fmt ` chunk (converted to `.wav`).
 pub fn pcm_wem(samples: usize) -> Vec<u8> {
+    wem_of(1, samples)
+}
+
+/// A WEM of fmt `tag` with 16-bit mono fmt fields and `samples` zero samples.
+pub fn wem_of(tag: u16, samples: usize) -> Vec<u8> {
     let mut fmt = Vec::new();
-    fmt.extend_from_slice(&1u16.to_le_bytes()); // PCM
+    fmt.extend_from_slice(&tag.to_le_bytes());
     fmt.extend_from_slice(&1u16.to_le_bytes()); // mono
     fmt.extend_from_slice(&48_000u32.to_le_bytes());
     fmt.extend_from_slice(&96_000u32.to_le_bytes());
@@ -127,8 +133,10 @@ pub fn zip(files: &[(&str, Vec<u8>)]) -> Vec<u8> {
 pub const TEXTURE: &str = "Data\\Textures\\ships\\syn_hull_diff.dds";
 /// The XML file.
 pub const XML: &str = "Data\\Scripts\\syn_config.xml";
-/// The loose WEM.
+/// The loose WEM (PCM).
 pub const WEM: &str = "Data\\Sounds\\wwise\\Media\\123456.wem";
+/// A loose WEM of a codec that stays `.wem` (PTADPCM, fmt 0x8311).
+pub const ODD_WEM: &str = "Data\\Sounds\\wwise\\Media\\123457.wem";
 
 /// A GameAudio document with two ATL triggers (the Explorer's Sounds search, 7.17).
 pub const GAME_AUDIO: &str = "Data\\Libs\\GameAudio\\syn_audio.xml";
@@ -159,6 +167,7 @@ pub fn files() -> Vec<(&'static str, Vec<u8>)> {
             b"<Material/>".to_vec(),
         ),
         (WEM, pcm_wem(480)),
+        (ODD_WEM, wem_of(0x8311, 64)),
         ("Data\\Sounds\\wwise\\bad.wem", b"not a wem".to_vec()),
     ]
 }

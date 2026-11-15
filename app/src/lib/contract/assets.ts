@@ -167,7 +167,7 @@ export interface AssetSoundRequest {
 
 export interface AssetAudio {
   key: string;
-  /** `audio/ogg`, or '' when the sound is not Vorbis. */
+  /** `audio/ogg` (.ogg, .opus) or `audio/wav`; '' when the sound stays a .wem (`note` says why). */
   mime: string;
   /** Base64; '' when not playable. */
   data: string;
@@ -175,6 +175,10 @@ export interface AssetAudio {
   duration: number | null;
   cached: boolean;
   note: string | null;
+  /** The codec and the file it became, e.g. `Vorbis (.ogg)`. */
+  format: string;
+  /** What this system lacks when the webview refuses to play it (Linux: gst-plugins-good). */
+  hint: string | null;
 }
 
 export interface AssetSoundPick {

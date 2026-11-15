@@ -121,14 +121,23 @@ pub struct AssetSoundRequest {
 pub struct AssetAudio {
     /// The cache key (the webview keeps a small LRU by it).
     pub key: String,
-    /// `audio/ogg`; empty when the sound is not Vorbis (export it as `.wem`).
+    /// `audio/ogg` (Vorbis `.ogg`, Opus `.opus`) or `audio/wav` (PCM, IMA ADPCM); empty when
+    /// the sound stays a `.wem` (`note` says why).
     pub mime: String,
-    /// Base64 of the Ogg file; empty when not playable.
+    /// Base64 of the converted file; empty when not playable.
     pub data: String,
     pub bytes: u64,
     pub duration: Option<f64>,
     pub cached: bool,
+    /// Why it is not playable (its codec named), when it is not.
     pub note: Option<String>,
+    /// The WEM's codec and the file it became: `Vorbis (.ogg)`, `PCM (.wav)`, `fmt 0x8311 (.wem)`.
+    #[serde(default)]
+    pub format: String,
+    /// Shown when the webview refuses to play it: what is missing on this system (Linux:
+    /// GStreamer's gst-plugins-good). `None` when nothing is known to be missing.
+    #[serde(default)]
+    pub hint: Option<String>,
 }
 
 /// The Explorer's Sounds search (7.17): ATL triggers by name, event or bank.

@@ -21,12 +21,12 @@
 use crate::assets::audio::{self, SoundRef};
 use crate::assets::files;
 use crate::assets::model::{self, ModelOptions};
-use crate::assets::{AssetArchive, AssetError, AssetResult, peak_rss_bytes};
+use crate::assets::{AssetArchive, AssetError, AssetResult, peak_rss_bytes, wemcodec};
 use crate::devworker::{ExportProgress, Reply, ReplyError, WorkerInfo, rss_bytes};
 use crate::extract::panic_message;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, Write};
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
@@ -80,15 +80,16 @@ pub enum AssetRequest {
     Trigger {
         name: String,
     },
-    /// One sound: Ogg to `out_ogg` (Vorbis), else (or with `raw`) the WEM to `out_wem`.
+    /// One sound, written at `out` with the extension of what it became
+    /// ([`wemcodec::EXTS`]): `.ogg`, `.opus` or `.wav`, else (or with `raw`) the `.wem`.
     Sound {
         sound: SoundRef,
-        out_ogg: PathBuf,
-        out_wem: PathBuf,
+        out: PathBuf,
         #[serde(default)]
         raw: bool,
     },
-    /// Streamed: sounds as `<trigger>_<id>.ogg` (and `.wem` with `wem`) in `out_dir`.
+    /// Streamed: sounds as `<trigger>_<id>.<ogg|opus|wav|wem>` (and the `.wem` too with
+    /// `wem`) in `out_dir`.
     ExportSounds {
         sounds: Vec<(String, SoundRef)>,
         out_dir: PathBuf,
@@ -128,10 +129,16 @@ pub struct AssetStatus {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SoundDone {
     pub path: String,
-    /// `ogg` or `wem`.
+    /// `ogg`, `opus`, `wav` or `wem`.
     pub ext: String,
     pub bytes: u64,
     pub duration: Option<f64>,
+    /// The WEM's codec (`Vorbis`, `PCM`, ...); empty when unknown.
+    #[serde(default)]
+    pub codec: String,
+    /// Why it was kept as `.wem` (not with `raw`).
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -145,18 +152,39 @@ pub struct SoundsDone {
     /// WEM), for the asset cache. A file left in the folder by an earlier run is never here.
     #[serde(default)]
     pub written: Vec<WrittenSound>,
+    /// Sounds written by this run, by extension (`ogg`, `wav`, `opus`, `wem`; the extra
+    /// `.wem` copies of `wem` not counted).
+    #[serde(default)]
+    pub formats: BTreeMap<String, u32>,
+    /// The first 20 sounds kept as `.wem`, each with why.
+    #[serde(default)]
+    pub kept: Vec<String>,
+}
+
+impl SoundsDone {
+    /// `2305 .ogg, 23 .wem` (most first).
+    pub fn formats_line(formats: &BTreeMap<String, u32>) -> String {
+        let mut v: Vec<_> = formats.iter().collect();
+        v.sort_by(|a, b| b.1.cmp(a.1).then(a.0.cmp(b.0)));
+        v.iter()
+            .map(|(e, n)| format!("{n} .{e}"))
+            .collect::<Vec<_>>()
+            .join(", ")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WrittenSound {
     /// [`SoundRef::key`].
     pub key: String,
-    /// `ogg` or `wem`.
+    /// `ogg`, `opus`, `wav` or `wem`.
     pub ext: String,
     pub path: String,
 }
 
-/// A cached sound: its Ogg, else its kept WEM.
+/// A cached sound: its converted file, else its kept WEM. A kept WEM of a codec this build
+/// converts (cached by an older build, or a stream that did not convert) is not a hit, so it
+/// is converted again; only its header is read.
 pub fn cached_sound(
     c: &starorg_core::assetcache::AssetCache,
     channel: &str,
@@ -165,12 +193,27 @@ pub fn cached_sound(
 ) -> Option<(PathBuf, &'static str)> {
     use starorg_core::assetcache::Kind;
     let k = s.key();
-    c.get(channel, build, Kind::Audio, &k, "ogg")
-        .map(|p| (p, "ogg"))
-        .or_else(|| {
-            c.get(channel, build, Kind::Audio, &k, "wem")
-                .map(|p| (p, "wem"))
-        })
+    let (p, x) = wemcodec::EXTS
+        .iter()
+        .find_map(|x| c.get(channel, build, Kind::Audio, &k, x).map(|p| (p, *x)))?;
+    if x == "wem" && kept_codec(&p).is_none() {
+        return None;
+    }
+    Some((p, x))
+}
+
+/// The codec of a kept `.wem` file when this build does not convert it (from its header).
+pub fn kept_codec(p: &Path) -> Option<wemcodec::Codec> {
+    use std::io::Read;
+    let mut head = Vec::new();
+    std::fs::File::open(p)
+        .ok()?
+        .take(64 * 1024)
+        .read_to_end(&mut head)
+        .ok()?;
+    wemcodec::codec_of(&head)
+        .ok()
+        .filter(|c| c.format().is_none())
 }
 
 /// Put the sounds this run wrote into the asset cache.
@@ -192,36 +235,37 @@ pub fn cache_written(
     }
 }
 
-/// Write one sound: Ogg when it is Vorbis (and not `raw`), else the WEM.
+/// Write one sound at `out` with its extension: converted ([`audio::decode`]) unless `raw`,
+/// else (a codec that is not converted, a stream that does not convert) the WEM.
 pub fn write_sound(
     a: &AssetArchive,
     s: &SoundRef,
-    out_ogg: &Path,
-    out_wem: &Path,
+    out: &Path,
     raw: bool,
 ) -> AssetResult<SoundDone> {
-    a.check_out(out_ogg)?;
-    a.check_out(out_wem)?;
+    a.check_out(out)?;
     let idx = a.audio()?;
     let wem = idx.media_bytes(a, s)?;
     let duration = audio::duration(&wem);
-    // A Vorbis stream ww2ogg cannot rebuild (a few per ship) is kept as the original WEM.
-    let (bytes, ext) = if raw {
-        (wem, "wem")
+    let codec = wemcodec::codec_of(&wem).ok();
+    let (bytes, ext, note) = if raw {
+        (wem, "wem", None)
     } else {
         match audio::decode(&wem) {
-            Ok(x) => x,
-            Err(_) if starbreaker_wem::WemFile::parse(&wem).is_ok() => (wem, "wem"),
-            Err(e) => return Err(e),
+            Ok(c) => (c.bytes, c.format.ext(), None),
+            Err(u) if u.codec.is_some() => (wem, "wem", Some(u.message())),
+            Err(u) => return Err(AssetError::invalid(u.message())),
         }
     };
-    let out = if ext == "ogg" { out_ogg } else { out_wem };
-    write_file(out, &bytes)?;
+    let path = out.with_extension(ext);
+    write_file(&path, &bytes)?;
     Ok(SoundDone {
-        path: out.display().to_string(),
+        path: path.display().to_string(),
         ext: ext.into(),
         bytes: bytes.len() as u64,
         duration,
+        codec: codec.map(|c| c.to_string()).unwrap_or_default(),
+        note,
     })
 }
 
@@ -245,6 +289,8 @@ pub fn export_sounds(
         failed: Vec::new(),
         failures: 0,
         written: Vec::new(),
+        formats: BTreeMap::new(),
+        kept: Vec::new(),
     };
     let fail = |d: &mut SoundsDone, what: String| {
         d.failures += 1;
@@ -253,19 +299,24 @@ pub fn export_sounds(
         }
     };
     for (k, (trigger, s)) in sounds.iter().enumerate() {
-        let ogg = out_dir.join(audio::file_name(trigger, s, "ogg"));
         let raw = out_dir.join(audio::file_name(trigger, s, "wem"));
-        match write_sound(a, s, &ogg, &raw, false) {
+        match write_sound(a, s, &raw, false) {
             Ok(x) => {
                 d.files += 1;
                 d.bytes += x.bytes;
+                *d.formats.entry(x.ext.clone()).or_default() += 1;
+                if let Some(n) = &x.note
+                    && d.kept.len() < 20
+                {
+                    d.kept.push(format!("{trigger} {}: {n}", s.key()));
+                }
                 d.written.push(WrittenSound {
                     key: s.key(),
                     ext: x.ext.clone(),
                     path: x.path.clone(),
                 });
-                if wem && x.ext == "ogg" {
-                    match write_sound(a, s, &ogg, &raw, true) {
+                if wem && x.ext != "wem" {
+                    match write_sound(a, s, &raw, true) {
                         Ok(y) => {
                             d.files += 1;
                             d.bytes += y.bytes;
@@ -388,12 +439,7 @@ impl Server {
                 to_value(a.audio()?.search_triggers(query, *limit as usize))
             }
             AssetRequest::Trigger { name } => to_value(a.audio()?.trigger(a, name)?),
-            AssetRequest::Sound {
-                sound,
-                out_ogg,
-                out_wem,
-                raw,
-            } => to_value(write_sound(a, sound, out_ogg, out_wem, *raw)?),
+            AssetRequest::Sound { sound, out, raw } => to_value(write_sound(a, sound, out, *raw)?),
             AssetRequest::TestPanic if self.test_panic => {
                 panic!("test panic inside the asset worker")
             }

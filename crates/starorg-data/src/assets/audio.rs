@@ -1,10 +1,11 @@
 //! Sounds of a record: DataCore audio triggers -> ATL triggers -> Wwise bank events -> media,
-//! then WEM -> Ogg Vorbis. Ported from StarBreaker's Tauri app (`app/src-tauri/src/
-//! audio_commands.rs` at the pinned rev, MIT, Copyright (c) 2026 Diogo Trindade): the source
+//! then WEM -> a standard audio file ([`super::wemcodec`]). Ported from StarBreaker's Tauri app
+//! (`app/src-tauri/src/audio_commands.rs` at the pinned rev, MIT, Copyright (c) 2026 Diogo
+//! Trindade): the source
 //! classification (embedded in a bank, loose media file, external source, unavailable), the
 //! bank path index, the companion-bank-less event resolution and the decode.
 
-use super::{AssetArchive, AssetError, AssetResult, find_record, record_short_name};
+use super::{AssetArchive, AssetError, AssetResult, find_record, record_short_name, wemcodec};
 use serde::{Deserialize, Serialize};
 use starbreaker_datacore::database::Database;
 use starbreaker_datacore::loadout::{EntityIndex, LoadoutNode, resolve_loadout_indexed};
@@ -19,6 +20,8 @@ pub const BANK_CACHE: usize = 64;
 pub const MAX_LOADOUT: usize = 200;
 /// Largest media file read (streamed music runs to tens of MB).
 pub const MAX_MEDIA: u64 = 512 * 1024 * 1024;
+/// Largest file `--list` reads to name a sound's codec.
+pub const PROBE_MAX: u64 = 64 * 1024 * 1024;
 /// Largest bank read.
 const MAX_BANK: u64 = 1024 * 1024 * 1024;
 
@@ -372,18 +375,69 @@ impl AudioIndex {
     }
 }
 
-/// Vorbis WEM -> Ogg (`ogg`); any other codec stays WEM (`wem`).
-pub fn decode(wem: &[u8]) -> AssetResult<(Vec<u8>, &'static str)> {
-    let parsed = starbreaker_wem::WemFile::parse(wem)
-        .map_err(|e| AssetError::invalid(format!("not a WEM file: {e}")))?;
-    match parsed.codec_type() {
-        starbreaker_wem::WemCodec::Vorbis => crate::extract::guarded("WEM decode", || {
-            starbreaker_wem::decode::vorbis_to_ogg(wem)
-                .map_err(|e| crate::extract::ExtractError::Output(e.to_string()))
-        })
-        .map(|b| (b, "ogg"))
-        .map_err(|e| AssetError::invalid(e.to_string())),
-        _ => Ok((wem.to_vec(), "wem")),
+impl AudioIndex {
+    /// Each sound's codec from its header (`dev export-sounds --list`): loose media up to
+    /// [`PROBE_MAX`] are read, each bank once; `None` where it was not read.
+    pub fn media_codecs(
+        &self,
+        a: &AssetArchive,
+        sounds: &[&SoundRef],
+    ) -> HashMap<String, Option<wemcodec::Codec>> {
+        let mut out = HashMap::new();
+        let mut by_bank: HashMap<&str, Vec<&SoundRef>> = HashMap::new();
+        for s in sounds {
+            match (s.source, &s.media_path) {
+                (SourceKind::Embedded, None) => by_bank.entry(s.bank.as_str()).or_default().push(s),
+                (SourceKind::Unavailable, _) => {
+                    out.insert(s.key(), None);
+                }
+                _ => {
+                    let path = s.media_path.clone().unwrap_or_else(|| {
+                        self.paths
+                            .get(&format!("{}.wem", s.media_id))
+                            .cloned()
+                            .unwrap_or_else(|| {
+                                format!("Data\\Sounds\\wwise\\Media\\{}.wem", s.media_id)
+                            })
+                    });
+                    let c = a
+                        .entry(&path)
+                        .filter(|e| e.uncompressed_size <= PROBE_MAX)
+                        .and_then(|e| a.read(e, PROBE_MAX).ok())
+                        .and_then(|b| wemcodec::codec_of(&b).ok());
+                    out.insert(s.key(), c);
+                }
+            }
+        }
+        for (bank, list) in by_bank {
+            let data = a
+                .entry(&self.bank_path(bank))
+                .filter(|e| e.uncompressed_size <= PROBE_MAX)
+                .and_then(|e| a.read(e, PROBE_MAX).ok());
+            let bnk = data.as_deref().and_then(|d| BnkFile::parse(d).ok());
+            for s in list {
+                let c = bnk
+                    .as_ref()
+                    .and_then(|b| b.wem_data_by_id(s.media_id).ok())
+                    .and_then(|w| wemcodec::codec_of(w).ok());
+                out.insert(s.key(), c);
+            }
+        }
+        out
+    }
+}
+
+/// WEM -> the standard file of its codec ([`wemcodec`]: Vorbis `.ogg`, PCM and IMA ADPCM
+/// `.wav`, Opus `.opus`); `Err` says why it stays a WEM, naming the codec.
+pub fn decode(wem: &[u8]) -> Result<wemcodec::Converted, wemcodec::Unconverted> {
+    match crate::extract::guarded("WEM decode", || {
+        Ok::<_, crate::extract::ExtractError>(wemcodec::convert(wem))
+    }) {
+        Ok(r) => r,
+        Err(e) => Err(wemcodec::Unconverted {
+            codec: wemcodec::codec_of(wem).ok(),
+            reason: e.to_string(),
+        }),
     }
 }
 

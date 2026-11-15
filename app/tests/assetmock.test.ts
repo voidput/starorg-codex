@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createAssetMock, type AssetMockData, isDdsSibling, modelFileName } from '../src/lib/contract/mock-assets.ts';
-import { AudioLru } from '../src/lib/audiolru.ts';
+import { AudioLru, playFailure } from '../src/lib/audiolru.ts';
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`../src/lib/contract/${f}`, import.meta.url), 'utf8'));
 const samples = read('samples.gen.json');
@@ -125,4 +125,14 @@ test('the audio LRU keeps the newest few and revokes the rest', () => {
   lru.clear();
   assert.equal(lru.size, 0);
   assert.equal(revoked.length, 4);
+});
+
+test('a sound the webview refuses names the file and what is missing', () => {
+  const ns = new DOMException('The operation is not supported.', 'NotSupportedError');
+  const hint = 'Install gst-plugins-good.';
+  const m = playFailure(ns, 'Vorbis (.ogg)', hint);
+  assert.equal(m, "The app's webview could not play this Vorbis (.ogg) file. Install gst-plugins-good. Export it to play it in another player.");
+  assert.ok(!m.includes('NotSupportedError'));
+  assert.match(playFailure(ns, '', null), /^The app's webview could not play this sound\. Its media engine reported the format as not supported\./);
+  assert.equal(playFailure(new DOMException('x', 'NetworkError'), 'PCM (.wav)', hint), 'NetworkError: x');
 });

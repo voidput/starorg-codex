@@ -4764,6 +4764,8 @@ dependencies = [
  "crc32c",
  "gltf",
  "image",
+ "lewton",
+ "ogg",
  "rayon",
  "serde",
  "serde_json",
@@ -4778,6 +4780,7 @@ dependencies = [
  "starorg-core",
  "tempfile",
  "thiserror 2.0.21",
+ "ww2ogg",
 ]
 
 [[package]]

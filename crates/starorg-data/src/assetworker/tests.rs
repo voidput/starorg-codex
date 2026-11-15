@@ -106,11 +106,25 @@ fn answers_files_sounds_and_errors_then_exits_on_eof() {
         6,
         json!({"op": "sound",
                "sound": {"media_id": 123456, "source": "media-file", "bank": ""},
-               "out_ogg": w.root.join("a.ogg"), "out_wem": w.root.join("a.wem")}),
+               "out": w.root.join("a.wem")}),
     );
     let done: SoundDone = serde_json::from_value(one.result.unwrap()).unwrap();
+    assert_eq!((done.ext.as_str(), done.codec.as_str()), ("wav", "PCM"));
+    assert_eq!(done.note, None);
+    assert!(w.root.join("a.wav").exists());
+    let odd = w.call(
+        61,
+        json!({"op": "sound",
+               "sound": {"media_id": 123457, "source": "media-file", "bank": ""},
+               "out": w.root.join("b.wem")}),
+    );
+    let done: SoundDone = serde_json::from_value(odd.result.unwrap()).unwrap();
     assert_eq!(done.ext, "wem");
-    assert!(w.root.join("a.wem").exists());
+    assert_eq!(
+        done.note.as_deref(),
+        Some("PTADPCM (fmt 0x8311) audio cannot be converted; it is kept as .wem")
+    );
+    assert!(w.root.join("b.wem").exists());
     let st = w.call(7, json!({"op": "status"}));
     let st: AssetStatus = serde_json::from_value(st.result.unwrap()).unwrap();
     assert!(st.datacore && st.audio, "built on demand and kept");
@@ -158,12 +172,22 @@ fn streams_extract_and_sound_exports_with_progress() {
         2,
         json!({"op": "export-sounds",
                "sounds": [["Play_Thing", {"media_id": 123456, "source": "media-file", "bank": ""}],
+                          ["Odd", {"media_id": 123457, "source": "media-file", "bank": ""}],
                           ["Gone", {"media_id": 7, "source": "unavailable", "bank": "b.bnk"}]],
                "out_dir": w.root.join("snd"), "wem": true}),
     );
     let d: SoundsDone = serde_json::from_value(r.result.unwrap()).unwrap();
-    assert_eq!((d.files, d.failures), (1, 1));
-    assert!(w.root.join("snd").join("Play_Thing_123456.wem").exists());
+    // The PCM sound as .wav plus its .wem; the PTADPCM one kept as .wem; one failure.
+    assert_eq!((d.files, d.failures), (3, 1));
+    let snd = w.root.join("snd");
+    assert!(snd.join("Play_Thing_123456.wav").exists());
+    assert!(snd.join("Play_Thing_123456.wem").exists());
+    assert!(snd.join("Odd_123457.wem").exists());
+    assert_eq!(SoundsDone::formats_line(&d.formats), "1 .wav, 1 .wem");
+    assert_eq!(d.kept.len(), 1);
+    assert!(d.kept[0].starts_with("Odd 123457: PTADPCM"), "{:?}", d.kept);
+    let ext: Vec<_> = d.written.iter().map(|w| w.ext.as_str()).collect();
+    assert_eq!(ext, ["wav", "wem"]);
     // A model export of a non-entity fails cleanly, as a streamed job.
     let r = w.call(
         3,

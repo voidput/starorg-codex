@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * One sound event of the Explorer's Sounds search (addendum 7.17): the ATL trigger, its Wwise
-   * event and bank, and the sounds it plays, each playable; "Export .ogg…" writes them through
+   * event and bank, and the sounds it plays, each playable; "Export sounds…" writes them through
    * a native folder dialog (the asset cache answers without decoding again).
    */
   import Play from '@lucide/svelte/icons/play';
@@ -49,7 +49,7 @@
     try {
       const r = await assetApi.exportSounds({ target: $state.snapshot(target), what: info.name, sounds: playable.map((s) => ({ trigger: info!.name, sound: ref(s) })), wem });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
-      else toast('success', `Exported ${r.files} sound files${r.cached ? ' from the cache' : ''}`, `${bytesText(r.bytes)} · ${r.path}`);
+      else toast('success', `Exported ${r.files} sound files${r.cached ? ' from the cache' : ''}`, [bytesText(r.bytes), r.note, r.path, r.failed.length ? `${r.failed.length} failed` : ''].filter(Boolean).join(' · '));
     } catch (e) {
       toast('error', 'Sound export failed', toContractError(e).message);
     } finally {
@@ -86,14 +86,14 @@
       <div class="flex flex-wrap items-center gap-2">
         <span class="text-muted-foreground">{playable.length} of {info.sounds.length} sounds playable</span>
         <span class="flex-1"></span>
-        <Button variant="outline" size="xs" disabled={exporting || playable.length === 0} onclick={() => void exportAll(false)}><Download aria-hidden="true" /> Export .ogg…</Button>
+        <Button variant="outline" size="xs" disabled={exporting || playable.length === 0} title="Vorbis as .ogg, PCM and IMA ADPCM as .wav, Opus as .opus; other codecs stay .wem" onclick={() => void exportAll(false)}><Download aria-hidden="true" /> Export sounds…</Button>
         <Button variant="ghost" size="xs" disabled={exporting || playable.length === 0} onclick={() => void exportAll(true)}>+ .wem</Button>
       </div>
       <p class="text-muted-foreground text-[11px]">{PERSONAL_USE}</p>
       <div class="flex flex-wrap gap-1" aria-label="Sounds">
         {#each info.sounds as s (soundId(s))}
           {@const k = soundId(s)}
-          <Button variant={player.playing === k ? 'default' : 'outline'} size="xs" disabled={!s.playable} title={s.playable ? `${s.source} · ${s.detail}` : s.detail} aria-label={`${player.playing === k ? 'Stop' : 'Play'} ${name} ${s.label}`} onclick={() => void player.play($state.snapshot(target), ref(s), `${name} ${s.label}`)}>
+          <Button variant={player.playing === k ? 'default' : 'outline'} size="xs" disabled={!s.playable} title={s.playable ? `${s.source} · ${s.detail}` : s.detail} aria-label={`${player.playing === k ? 'Stop' : 'Play'} ${name} ${s.label}`} onclick={() => void player.play($state.snapshot(target), ref(s), `${name} ${s.label}`, name)}>
             {#if player.loading === k}<LoaderCircle class="animate-spin motion-reduce:animate-none" aria-hidden="true" />{:else if player.playing === k}<Square aria-hidden="true" />{:else}<Play aria-hidden="true" />{/if}
             <span class="mono">{s.label}</span>
           </Button>

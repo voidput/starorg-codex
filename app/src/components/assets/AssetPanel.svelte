@@ -72,7 +72,7 @@
     try {
       const r = await assetApi.exportSounds({ target: $state.snapshot(target), what: guid, sounds: [], wem });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
-      else toast('success', `Exported ${r.files} sound files${r.cached ? ' from the cache' : ''}`, `${bytesText(r.bytes)} · ${r.path}${r.failed.length ? ` · ${r.failed.length} failed` : ''}`);
+      else toast('success', `Exported ${r.files} sound files${r.cached ? ' from the cache' : ''}`, [bytesText(r.bytes), r.note, r.path, r.failed.length ? `${r.failed.length} failed` : ''].filter(Boolean).join(' · '));
     } catch (e) {
       const err = toContractError(e);
       if (err.code === 'cancelled') toast('info', 'Export stopped', 'Files already written stay.');
@@ -101,7 +101,7 @@
     try {
       const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl, force });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
-      else toast('success', `Exported ${name}${r.cached ? ' from the cache' : ''}`, `${bytesText(r.bytes)} · ${r.path}`);
+      else toast('success', `Exported ${name}${r.cached ? ' from the cache' : ''}`, [bytesText(r.bytes), r.note, r.path, r.failed.length ? `${r.failed.length} failed` : ''].filter(Boolean).join(' · '));
     } catch (e) {
       const err = toContractError(e);
       if (err.code === 'needs-decision') memWarn = err.message;
@@ -135,7 +135,7 @@
         <div class="flex flex-wrap items-center gap-2">
           <span class="text-muted-foreground">{sounds.triggers.length} triggers · {sounds.playable} of {sounds.sounds} sounds playable{sounds.loadout ? ` · includes ${sounds.loadout} loadout items` : ''}</span>
           <span class="flex-1"></span>
-          <Button variant="outline" size="xs" disabled={exporting || sounds.playable === 0} onclick={() => void exportSounds(false)}><Download aria-hidden="true" /> Export .ogg…</Button>
+          <Button variant="outline" size="xs" disabled={exporting || sounds.playable === 0} title="Vorbis as .ogg, PCM and IMA ADPCM as .wav, Opus as .opus; other codecs stay .wem" onclick={() => void exportSounds(false)}><Download aria-hidden="true" /> Export sounds…</Button>
           <Button variant="ghost" size="xs" disabled={exporting || sounds.playable === 0} onclick={() => void exportSounds(true)}>+ .wem</Button>
         </div>
         <p class="text-muted-foreground text-[11px]">{PERSONAL_USE}</p>
@@ -159,7 +159,7 @@
                       disabled={!s.playable}
                       title={s.playable ? `${s.source} · ${s.detail}` : s.detail}
                       aria-label={`${player.playing === k ? 'Stop' : 'Play'} ${t.name} ${s.label}`}
-                      onclick={() => void player.play($state.snapshot(target), ref(s), `${t.name} ${s.label}`)}
+                      onclick={() => void player.play($state.snapshot(target), ref(s), `${t.name} ${s.label}`, t.name)}
                     >
                       {#if player.loading === k}<LoaderCircle class="animate-spin motion-reduce:animate-none" aria-hidden="true" />{:else if player.playing === k}<Square aria-hidden="true" />{:else}<Play aria-hidden="true" />{/if}
                       <span class="mono">{s.label}</span>

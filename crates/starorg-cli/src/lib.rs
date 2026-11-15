@@ -590,16 +590,18 @@ pub enum DevCmd {
         #[command(flatten)]
         test_p4k: TestP4kArg,
     },
-    /// A record's sounds (its audio triggers and its default loadout's) as Ogg Vorbis.
+    /// A record's sounds (its audio triggers and its default loadout's) as standard audio
+    /// files: Vorbis .ogg, PCM and IMA ADPCM .wav, Opus .opus; other codecs stay .wem.
     ExportSounds {
         #[arg(value_name = "GUID|NAME")]
         what: String,
         #[arg(long, value_name = "DIR")]
         out: PathBuf,
-        /// Also write the original .wem next to each .ogg.
+        /// Also write the original .wem next to each converted file.
         #[arg(long)]
         wem: bool,
-        /// List the triggers and sounds; write nothing.
+        /// List the triggers and sounds (each with its codec and the file it becomes); write
+        /// nothing.
         #[arg(long)]
         list: bool,
         /// Asset cache folder (default: the setting, else the app cache's `assets`).

@@ -362,3 +362,18 @@ fn base64_matches_rfc4648_vectors() {
         assert_eq!(base64(i.as_bytes()), o);
     }
 }
+
+#[test]
+fn every_sound_format_is_one_of_ours() {
+    for x in ["ogg", "opus", "wav", "wem"] {
+        assert!(file_name_ok(&format!("123.{x}")), "{x}");
+    }
+    assert!(!file_name_ok("123.mp3"));
+    let t = tempfile::tempdir().unwrap();
+    let c = AssetCache::new(t.path().join("assets"), 1 << 20);
+    c.prepare("LIVE", B, Kind::Audio).unwrap();
+    for x in ["opus", "wav"] {
+        std::fs::write(c.path("LIVE", B, Kind::Audio, "9", x), b"x").unwrap();
+    }
+    assert_eq!(c.usage().files, 2, "counted (and evicted) like the rest");
+}

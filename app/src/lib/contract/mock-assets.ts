@@ -291,7 +291,7 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
         openW(req.target);
         add(`audio:${k}`, 2824);
       }
-      return { key: k, mime: 'audio/ogg', data: data.ogg, bytes: 2824, duration: c ? null : 0.25, cached: c, note: null };
+      return { key: k, mime: 'audio/ogg', data: data.ogg, bytes: 2824, duration: c ? null : 0.25, cached: c, note: null, format: 'Vorbis (.ogg)', hint: null };
     },
     asset_export_sounds: async ({ req }) => {
       on(req.target);

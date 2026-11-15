@@ -13,6 +13,7 @@ use starorg_core::memlimit;
 use starorg_data::assets::audio::{self, SoundRef};
 use starorg_data::assets::files;
 use starorg_data::assets::model::{self, ModelOptions, ModelPreset};
+use starorg_data::assets::wemcodec;
 use starorg_data::assets::{AssetArchive, AssetError};
 use starorg_data::assetworker;
 use std::path::{Path, PathBuf};
@@ -512,8 +513,37 @@ fn export_sounds(
         })
         .collect();
     if list {
+        // Each playable sound's codec, from its header (and the file it becomes).
+        let idx = match a.audio() {
+            Ok(i) => i,
+            Err(e) => return asset_fail(g, &e),
+        };
+        let refs: Vec<&SoundRef> = sounds.iter().map(|(_, s)| s).collect();
+        let codecs = idx.media_codecs(&a, &refs);
+        let codec_of = |s: &SoundRef| codecs.get(&s.key()).copied().flatten();
+        let as_file = |s: &SoundRef| match codec_of(s) {
+            Some(c) => format!(
+                "{c} -> .{}",
+                c.format().map(wemcodec::Format::ext).unwrap_or("wem")
+            ),
+            None => "?".into(),
+        };
         if g.json {
-            println!("{}", json!({ "schema": JSON_SCHEMA, "sounds": rs }));
+            let by_key: serde_json::Map<String, serde_json::Value> = sounds
+                .iter()
+                .map(|(_, s)| {
+                    let c = codec_of(s);
+                    (
+                        s.key(),
+                        json!({ "codec": c.map(|c| c.to_string()),
+                                "ext": c.map(|c| c.format().map(wemcodec::Format::ext).unwrap_or("wem")) }),
+                    )
+                })
+                .collect();
+            println!(
+                "{}",
+                json!({ "schema": JSON_SCHEMA, "sounds": rs, "codecs": by_key })
+            );
         } else {
             for tr in &rs.triggers {
                 println!(
@@ -531,7 +561,11 @@ fn export_sounds(
                         "    {:<12} {:<12} {}",
                         s.label,
                         format!("{:?}", s.sound.source),
-                        if s.playable { "" } else { "unavailable" }
+                        if s.playable {
+                            as_file(&s.sound)
+                        } else {
+                            "unavailable".into()
+                        }
                     );
                 }
             }
@@ -545,9 +579,10 @@ fn export_sounds(
     };
     let mut files_n = 0u32;
     let mut bytes = 0u64;
+    let mut formats = std::collections::BTreeMap::<String, u32>::new();
     let mut todo = Vec::new();
     for (trigger, s) in &sounds {
-        // A cached Ogg (or a WEM kept as WEM); with --wem every sound is read again.
+        // A cached converted file (or a WEM kept as WEM); with --wem every sound is read again.
         let hit = (!wem)
             .then(|| {
                 c.as_ref()
@@ -560,6 +595,7 @@ fn export_sounds(
                     Ok(n) => {
                         files_n += 1;
                         bytes += n;
+                        *formats.entry(ext.to_string()).or_default() += 1;
                     }
                     Err(_) => todo.push((trigger.clone(), s.clone())),
                 }
@@ -579,22 +615,32 @@ fn export_sounds(
             }
             let files_n = files_n + d.files;
             let bytes = bytes + d.bytes;
+            for (e, n) in &d.formats {
+                *formats.entry(e.clone()).or_default() += n;
+            }
             if g.json {
                 println!(
                     "{}",
                     json!({ "schema": JSON_SCHEMA, "record": rs.name, "triggers": rs.triggers.len(),
-                            "files": files_n, "bytes": bytes, "out": out_abs,
-                            "failures": d.failures, "failed": d.failed })
+                            "files": files_n, "bytes": bytes, "out": out_abs, "formats": formats,
+                            "kept": d.kept, "failures": d.failures, "failed": d.failed })
                 );
             } else if !g.quiet {
                 eprintln!(
-                    "starorg-strings: {} sound files ({} bytes) of {} ({} triggers) written to {}",
+                    "starorg-strings: {} sound files ({} bytes; {}) of {} ({} triggers) written to {}",
                     files_n,
                     bytes,
+                    assetworker::SoundsDone::formats_line(&formats),
                     rs.name,
                     rs.triggers.len(),
                     out_abs.display()
                 );
+                for k in &d.kept {
+                    eprintln!("  kept as .wem: {k}");
+                }
+                for f in &d.failed {
+                    eprintln!("  failed: {f}");
+                }
             }
             ExitCode::from(exit::OK)
         }

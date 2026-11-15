@@ -24,6 +24,7 @@ use starorg_core::lock;
 use starorg_core::memlimit;
 use starorg_data::assets::files::FileSearch;
 use starorg_data::assets::model::{self, ModelDone, ModelOptions};
+use starorg_data::assets::wemcodec;
 use starorg_data::assetworker::{AssetRequest, AssetStatus as WorkerStatus, SoundDone, SoundsDone};
 use starorg_data::devworker::ExportProgress;
 use std::path::{Path, PathBuf};
@@ -372,12 +373,9 @@ impl RealBackend {
         Ok(self.cache_status())
     }
 
-    fn sound_paths(&self, c: &AssetCache, key: &WorkerKey, s: &SoundRef) -> (PathBuf, PathBuf) {
-        let k = s.key();
-        (
-            c.path(&key.channel, &key.build, Kind::Audio, &k, "ogg"),
-            c.path(&key.channel, &key.build, Kind::Audio, &k, "wem"),
-        )
+    /// Where the worker writes a sound (it sets the extension: `ogg`, `opus`, `wav`, `wem`).
+    fn sound_path(&self, c: &AssetCache, key: &WorkerKey, s: &SoundRef) -> PathBuf {
+        c.path(&key.channel, &key.build, Kind::Audio, &s.key(), "wem")
     }
 }
 
@@ -611,49 +609,73 @@ impl AssetBackend for RealBackend {
         let (_, key) = self.asset_target(&req.target)?;
         let c = self.asset_cache()?;
         let skey = req.sound.key();
-        let audio = |path: &Path, cached: bool, duration: Option<f64>| -> CmdResult<AssetAudio> {
-            let b = std::fs::read(path).map_err(io)?;
-            Ok(AssetAudio {
-                key: skey.clone(),
-                mime: "audio/ogg".into(),
-                bytes: b.len() as u64,
-                data: assetcache::base64(&b),
-                duration,
-                cached,
-                note: None,
-            })
-        };
-        if let Some(hit) = c.get(&key.channel, &key.build, Kind::Audio, &skey, "ogg") {
-            return audio(&hit, true, None);
-        }
-        let not_vorbis = |bytes: u64, cached: bool| AssetAudio {
+        let hint = webview_audio_hint();
+        let playable =
+            |path: &Path, ext: &str, cached: bool, duration: Option<f64>, codec: String| {
+                let b = std::fs::read(path).map_err(io)?;
+                Ok(AssetAudio {
+                    key: skey.clone(),
+                    mime: wemcodec::mime_of(ext).into(),
+                    bytes: b.len() as u64,
+                    data: assetcache::base64(&b),
+                    duration,
+                    cached,
+                    note: None,
+                    format: codec_label(&codec, ext),
+                    hint: hint.clone(),
+                })
+            };
+        // A kept WEM: why, from its codec (read back from the cached file when cached).
+        let kept = |bytes: u64, cached: bool, codec: String, note: Option<String>| AssetAudio {
             key: skey.clone(),
             mime: String::new(),
             data: String::new(),
             bytes,
             duration: None,
             cached,
-            note: Some("Not Vorbis audio: it cannot be played here; export it as .wem".into()),
+            note: Some(
+                note.unwrap_or_else(|| "It cannot be played here; export it as .wem".into()),
+            ),
+            format: codec_label(&codec, "wem"),
+            hint: None,
         };
-        if let Some(hit) = c.get(&key.channel, &key.build, Kind::Audio, &skey, "wem") {
+        if let Some((hit, ext)) =
+            starorg_data::assetworker::cached_sound(&c, &key.channel, &key.build, &req.sound)
+        {
+            if ext != "wem" {
+                return playable(&hit, ext, true, None, String::new());
+            }
+            // A kept WEM (cached_sound passes only codecs this build does not convert).
             let n = std::fs::metadata(&hit).map(|m| m.len()).unwrap_or(0);
-            return Ok(not_vorbis(n, true));
+            let codec = starorg_data::assetworker::kept_codec(&hit);
+            let note = codec.map(|c| {
+                wemcodec::Unconverted {
+                    codec: Some(c),
+                    reason: "not supported".into(),
+                }
+                .message()
+            });
+            let name = codec.map(|c| c.to_string()).unwrap_or_default();
+            return Ok(kept(n, true, name, note));
         }
         let w = self.asset_worker(&req.target)?;
         c.prepare(&key.channel, &key.build, Kind::Audio)
             .map_err(io)?;
-        let (ogg, wem) = self.sound_paths(&c, &key, &req.sound);
+        let out = self.sound_path(&c, &key, &req.sound);
         let d: SoundDone = w.call(&AssetRequest::Sound {
             sound: req.sound,
-            out_ogg: ogg.clone(),
-            out_wem: wem,
+            out: out.clone(),
             raw: false,
         })?;
+        if d.ext != "wem" && out.exists() {
+            // A WEM an older build kept: the converted file replaces it.
+            let _ = std::fs::remove_file(&out);
+        }
         let _ = c.written(&key.channel, &key.build);
-        if d.ext == "ogg" {
-            audio(&ogg, false, d.duration)
+        if d.ext == "wem" {
+            Ok(kept(d.bytes, false, d.codec, d.note))
         } else {
-            Ok(not_vorbis(d.bytes, false))
+            playable(Path::new(&d.path), &d.ext, false, d.duration, d.codec)
         }
     }
 
@@ -697,6 +719,7 @@ impl AssetBackend for RealBackend {
         let c = self.asset_cache()?;
         let mut files = 0u32;
         let mut bytes = 0u64;
+        let mut formats = std::collections::BTreeMap::<String, u32>::new();
         let mut todo = Vec::new();
         for p in &picks {
             let hit = (!req.wem)
@@ -706,16 +729,20 @@ impl AssetBackend for RealBackend {
                 .flatten();
             match hit.map(|(h, ext)| {
                 let name = starorg_data::assets::audio::file_name(&p.trigger, &p.sound, ext);
-                std::fs::create_dir_all(&dir).and_then(|()| std::fs::copy(&h, dir.join(&name)))
+                std::fs::create_dir_all(&dir)
+                    .and_then(|()| std::fs::copy(&h, dir.join(&name)))
+                    .map(|n| (n, ext))
             }) {
-                Some(Ok(n)) => {
+                Some(Ok((n, ext))) => {
                     files += 1;
                     bytes += n;
+                    *formats.entry(ext.to_string()).or_default() += 1;
                 }
                 _ => todo.push((p.trigger.clone(), p.sound.clone())),
             }
         }
         let mut failed = Vec::new();
+        let mut kept = Vec::new();
         let cached = todo.is_empty();
         if !todo.is_empty() {
             let w = self.asset_worker(&req.target)?;
@@ -735,16 +762,33 @@ impl AssetBackend for RealBackend {
             files += d.files;
             bytes += d.bytes;
             failed = d.failed.clone();
+            for (e, n) in &d.formats {
+                *formats.entry(e.clone()).or_default() += n;
+            }
+            kept = d.kept.clone();
             starorg_data::assetworker::cache_written(&c, &key.channel, &key.build, &d);
         }
         self.log(
             LogLevel::Info,
             Some(JobKind::Dev),
             Some(&ch.name),
-            &format!("Exported {files} sound files to {}", dir.display()),
+            &format!(
+                "Exported {files} sound files ({}) to {}",
+                SoundsDone::formats_line(&formats),
+                dir.display()
+            ),
         );
+        for k in &kept {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Dev),
+                Some(&ch.name),
+                &format!("Kept as .wem: {k}"),
+            );
+        }
         let mut r = export_result(Some(dir.display().to_string()), files, bytes, cached);
         r.failed = failed;
+        r.note = export_note(&formats, kept.len());
         Ok(r)
     }
 
@@ -938,5 +982,123 @@ impl RealBackend {
     /// Whether the asset worker runs for this channel (tests: nothing starts it early).
     pub fn asset_worker_running(&self, r: &ChannelRef) -> bool {
         self.asset_worker_if_ready(r).is_some()
+    }
+}
+
+/// `Vorbis (.ogg)`; the extension alone when the codec is not known (a cached file).
+fn codec_label(codec: &str, ext: &str) -> String {
+    match (codec.is_empty(), ext) {
+        (true, "ogg") => "Ogg Vorbis (.ogg)".into(),
+        (true, "opus") => "Ogg Opus (.opus)".into(),
+        (true, "wav") => "WAV (.wav)".into(),
+        (true, x) => format!(".{x}"),
+        (false, x) => format!("{codec} (.{x})"),
+    }
+}
+
+/// `2305 .ogg, 23 .wem (kept as .wem: their codec or stream is not converted; see the log)`.
+fn export_note(formats: &std::collections::BTreeMap<String, u32>, kept: usize) -> Option<String> {
+    if formats.is_empty() {
+        return None;
+    }
+    let line = SoundsDone::formats_line(formats);
+    Some(if kept > 0 || formats.contains_key("wem") {
+        format!("{line} (the .wem files were not converted; the log says why)")
+    } else {
+        line
+    })
+}
+
+/// Why the webview may not play a sound it is handed (addendum 7.16). On Linux the webview is
+/// WebKitGTK, which plays `<audio>` through GStreamer and needs `autoaudiosink` (and
+/// `wavparse` for `.wav`) from gst-plugins-good: without it every sound fails with
+/// "NotSupportedError". `None` when the plugin is there or the plugin folders are not found.
+pub fn webview_audio_hint() -> Option<String> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+    gst_hint(&gst_plugin_dirs())
+}
+
+fn gst_plugin_dirs() -> Vec<PathBuf> {
+    let mut v: Vec<PathBuf> = Vec::new();
+    for k in [
+        "GST_PLUGIN_SYSTEM_PATH_1_0",
+        "GST_PLUGIN_SYSTEM_PATH",
+        "GST_PLUGIN_PATH_1_0",
+        "GST_PLUGIN_PATH",
+    ] {
+        if let Some(p) = std::env::var_os(k) {
+            v.extend(std::env::split_paths(&p));
+        }
+    }
+    for d in [
+        "/usr/lib/gstreamer-1.0",
+        "/usr/lib64/gstreamer-1.0",
+        "/usr/lib/x86_64-linux-gnu/gstreamer-1.0",
+        "/usr/lib/aarch64-linux-gnu/gstreamer-1.0",
+        "/usr/local/lib/gstreamer-1.0",
+    ] {
+        v.push(PathBuf::from(d));
+    }
+    v
+}
+
+/// The hint for these GStreamer plugin folders (see [`webview_audio_hint`]).
+pub fn gst_hint(dirs: &[PathBuf]) -> Option<String> {
+    let found: Vec<&PathBuf> = dirs.iter().filter(|d| d.is_dir()).collect();
+    if found.is_empty() {
+        return None;
+    }
+    let has = |lib: &str| found.iter().any(|d| d.join(lib).exists());
+    if has("libgstautodetect.so") {
+        return None;
+    }
+    Some(
+        "The app's webview (WebKitGTK) plays sounds through GStreamer, and its audio output \
+         (autoaudiosink, in gst-plugins-good) is not installed, so no sound can play here. \
+         Install gst-plugins-good (Arch: pacman -S gst-plugins-good; Debian/Ubuntu: \
+         gstreamer1.0-plugins-good) and restart the app, or export the sound and play it \
+         in another player."
+            .into(),
+    )
+}
+
+#[cfg(test)]
+mod sound_tests {
+    use super::*;
+
+    #[test]
+    fn the_gstreamer_hint_names_the_missing_plugin() {
+        let t = tempfile::tempdir().unwrap();
+        let none = t.path().join("nope");
+        // No plugin folder found: nothing is known.
+        assert_eq!(gst_hint(std::slice::from_ref(&none)), None);
+        let dir = t.path().join("gstreamer-1.0");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("libgstogg.so"), b"").unwrap();
+        let h = gst_hint(&[none.clone(), dir.clone()]).unwrap();
+        assert!(
+            h.contains("gst-plugins-good") && h.contains("autoaudiosink"),
+            "{h}"
+        );
+        std::fs::write(dir.join("libgstautodetect.so"), b"").unwrap();
+        assert_eq!(gst_hint(&[none, dir]), None);
+    }
+
+    #[test]
+    fn labels_and_export_notes_name_the_formats() {
+        assert_eq!(codec_label("Vorbis", "ogg"), "Vorbis (.ogg)");
+        assert_eq!(codec_label("", "opus"), "Ogg Opus (.opus)");
+        assert_eq!(codec_label("fmt 0x8311", "wem"), "fmt 0x8311 (.wem)");
+        let mut f = std::collections::BTreeMap::new();
+        assert_eq!(export_note(&f, 0), None);
+        f.insert("ogg".to_string(), 2305);
+        assert_eq!(export_note(&f, 0).as_deref(), Some("2305 .ogg"));
+        f.insert("wem".to_string(), 1);
+        assert_eq!(
+            export_note(&f, 1).as_deref(),
+            Some("2305 .ogg, 1 .wem (the .wem files were not converted; the log says why)")
+        );
     }
 }
