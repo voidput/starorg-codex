@@ -4,7 +4,7 @@
 //! Kept in one batch file so parallel ports never edit the same lines; a later cleanup
 //! can fold these into the shared helper slots once every batch has landed.
 
-use serde_json::Value;
+use serde_json::{Map, Value};
 
 /// `Math.round`: nearest integer, ties toward +infinity (`Math.round(-2.5) == -2`).
 pub fn js_round(x: f64) -> f64 {
@@ -49,6 +49,103 @@ pub fn entity_name(value: Option<&Value>) -> Option<&str> {
     })
 }
 
+/// `src/tags.ts`, for `loot.ts`: `Tag.<guid>` record name -> path below the root
+/// (`Rarity/Common`). Here rather than in the `tags` slot so a parallel port of that slot
+/// does not conflict; fold together later.
+pub type TagIndex = std::collections::HashMap<String, String>;
+
+/// `buildTagIndex`: walk `TagDatabase.tags`, dropping the `Global` root from paths.
+pub fn build_tag_index(database: Option<&crate::records::GameRecord>) -> TagIndex {
+    fn walk(tag: &Map<String, Value>, path: &[String], index: &mut TagIndex) {
+        let name = tag.get("tagName").and_then(Value::as_str).unwrap_or("?");
+        let here: Vec<String> = if path.is_empty() && name == "Global" {
+            Vec::new()
+        } else {
+            path.iter().cloned().chain([name.to_string()]).collect()
+        };
+        if let Some(rn) = tag.get("_RecordName_").and_then(Value::as_str)
+            && !here.is_empty()
+        {
+            index.insert(rn.to_string(), here.join("/"));
+        }
+        for child in crate::records::array(tag.get("children")) {
+            if let Some(c) = child.as_object() {
+                walk(c, &here, index);
+            }
+        }
+    }
+    let mut index = TagIndex::new();
+    if let Some(db) = database {
+        for tag in crate::records::array(db.value.get("tags")) {
+            if let Some(t) = tag.as_object() {
+                walk(t, &[], &mut index);
+            }
+        }
+    }
+    index
+}
+
+const DROPPED_KEYS: [&str; 4] = ["_Type_", "_RecordPath_", "_RecordId_", "_Pointer_"];
+
+/// Last path segment of a `file://` reference, minus `.json` (case-insensitive).
+fn tag_file_name(reference: &str) -> &str {
+    let file = reference.rsplit('/').next().unwrap_or(reference);
+    let cut = file.len().saturating_sub(5);
+    match file.get(cut..) {
+        Some(ext) if file.len() >= 5 && ext.eq_ignore_ascii_case(".json") => &file[..cut],
+        _ => file,
+    }
+}
+
+/// `compactValue`: type tags and record ids go, tag references become tag paths, record
+/// references and `file://` paths become names, nulls and empty strings/lists/objects
+/// disappear (`None`).
+pub fn compact_value(value: &Value, tags: &TagIndex) -> Option<Value> {
+    match value {
+        Value::Null => None,
+        Value::String(s) => {
+            if s.starts_with("file://") {
+                Some(Value::String(tag_file_name(s).to_string()))
+            } else if s.is_empty() {
+                None
+            } else {
+                Some(value.clone())
+            }
+        }
+        Value::Array(a) => {
+            let out: Vec<Value> = a.iter().filter_map(|v| compact_value(v, tags)).collect();
+            (!out.is_empty()).then_some(Value::Array(out))
+        }
+        Value::Object(obj) => {
+            if let Some(rn) = obj.get("_RecordName_").and_then(Value::as_str) {
+                if rn.starts_with("Tag.") {
+                    return Some(Value::String(
+                        tags.get(rn).cloned().unwrap_or_else(|| rn.to_string()),
+                    ));
+                }
+                let has_fields = obj
+                    .keys()
+                    .any(|k| !DROPPED_KEYS.contains(&k.as_str()) && k != "_RecordName_");
+                if !has_fields {
+                    let short = rn.find('.').map_or(rn, |i| &rn[i + 1..]);
+                    return Some(Value::String(short.to_string()));
+                }
+            }
+            let mut out = Map::new();
+            for (k, v) in obj {
+                if DROPPED_KEYS.contains(&k.as_str()) {
+                    continue;
+                }
+                if let Some(c) = compact_value(v, tags) {
+                    out.insert(k.clone(), c);
+                }
+            }
+            (!out.is_empty()).then_some(Value::Object(out))
+        }
+        _ => Some(value.clone()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -66,6 +163,42 @@ mod tests {
             "1.005*100 = 100.49999999999999"
         );
         assert!(truthy(Some(1.0)) && !truthy(Some(0.0)) && !truthy(None));
+    }
+
+    #[test]
+    fn tags_and_compaction() {
+        // Cases from sc-gamedata src/domains/personal.test.ts ("tags").
+        use serde_json::json;
+        let db = crate::records::normalize_record(
+            json!({"_RecordName_": "TagDatabase.TagDatabase", "_RecordValue_": {"_Type_": "TagDatabase", "tags": [
+                {"_RecordName_": "Tag.root", "tagName": "Global", "children": [
+                    {"_RecordName_": "Tag.rarity", "tagName": "Rarity", "children": [
+                        {"_RecordName_": "Tag.common", "tagName": "Common", "children": []}, null]}]}]}}),
+            "libs/foundry/records/tagdatabase/tagdatabase.tagdatabase",
+        )
+        .unwrap();
+        let tags = build_tag_index(Some(&db));
+        assert_eq!(
+            tags.get("Tag.common").map(String::as_str),
+            Some("Rarity/Common")
+        );
+        assert!(!tags.contains_key("Tag.root"));
+        let v = json!({"_Type_": "X",
+            "archetype": "file://./../../../../libs/foundry/records/lootgeneration/lootarchetypes/lootarchetype_armorcache_rare.json",
+            "tag": {"_RecordName_": "Tag.common", "_RecordId_": "common"},
+            "resource": {"_RecordName_": "ResourceType.Gold", "_RecordId_": "g"},
+            "weight": 0, "empty": [], "missing": null});
+        assert_eq!(
+            compact_value(&v, &tags),
+            Some(
+                json!({"archetype": "lootarchetype_armorcache_rare", "tag": "Rarity/Common", "resource": "Gold", "weight": 0})
+            )
+        );
+        assert_eq!(compact_value(&json!({"_Type_": "X"}), &tags), None);
+        assert_eq!(
+            compact_value(&json!({"_RecordName_": "Tag.zzz"}), &tags),
+            Some(json!("Tag.zzz"))
+        );
     }
 
     #[test]

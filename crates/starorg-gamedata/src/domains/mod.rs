@@ -56,7 +56,7 @@ registry! {
 
     // law, // law.ts
 
-    // loot, // loot.ts
+    loot, // loot.ts
 
     manufacturers, // manufacturers.ts
 
