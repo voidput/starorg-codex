@@ -21,7 +21,7 @@ const steps = ['install', 'channels', 'source', 'enhancements', 'review', 'apply
     };
     for (const [i, s] of steps.entries()) {
       await shot(`${i + 1}-${s}`, `?wizard=${s}`, async (p) => {
-        if (s === 'apply') await p.getByRole('button', { name: 'Open StarOrg Strings' }).waitFor({ timeout: 10000 });
+        if (s === 'apply') await p.getByRole('button', { name: 'Open StarOrg Codex' }).waitFor({ timeout: 10000 });
         if (s === 'review') await p.getByText('strings changed').first().waitFor();
         if (s === 'enhancements') await p.getByText('Ship description').waitFor();
       });

@@ -194,7 +194,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
         d(
             "string",
             "Game text",
-            "A localization string by key, or a search of keys and text: the stock text and the text StarOrg Strings applied to the channel (its enhanced global.ini), if applied.",
+            "A localization string by key, or a search of keys and text: the stock text and the text StarOrg Codex applied to the channel (its enhanced global.ini), if applied.",
             schema(
                 channels,
                 merge(
@@ -526,7 +526,7 @@ fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
     out
 }
 
-const NO_UEX: &str = "no shop data: StarOrg Strings downloads nothing; put uex-item-prices.json and uex-terminals.json (sc-gamedata `fetch` output) in the UEX folder named by the status tool to answer shop questions";
+const NO_UEX: &str = "no shop data: StarOrg Codex downloads nothing; put uex-item-prices.json and uex-terminals.json (sc-gamedata `fetch` output) in the UEX folder named by the status tool to answer shop questions";
 
 /// The items a name resolved to, and the `inexact` marker when only fuzzy ranking found them.
 struct Resolved {
@@ -1278,7 +1278,7 @@ fn compare(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
     Ok(v)
 }
 
-/// The channel's loose `global.ini`, parsed, and whether StarOrg Strings wrote it.
+/// The channel's loose `global.ini`, parsed, and whether StarOrg Codex wrote it.
 pub struct Applied {
     pub ini: StockIni,
     pub ours: bool,
@@ -1342,10 +1342,10 @@ fn string(ctx: &Ctx<'_>, a: &Args<'_>, cache: &AppliedCache) -> ToolResult<Value
     };
     let applied_note = match &applied {
         Some(a) if a.ours => {
-            "enhanced = the text StarOrg Strings applied to this channel (only where it differs from stock)"
+            "enhanced = the text StarOrg Codex applied to this channel (only where it differs from stock)"
         }
         Some(_) => {
-            "installed = text of a global.ini in the channel that StarOrg Strings did not write (another tool's)"
+            "installed = text of a global.ini in the channel that StarOrg Codex did not write (another tool's)"
         }
         None => "nothing applied to this channel: the game shows the stock text",
     };

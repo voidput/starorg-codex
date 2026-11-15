@@ -1,5 +1,5 @@
 /*
- * StarOrg Strings design tokens (spec 9.2).
+ * StarOrg Codex design tokens (spec 9.2).
  * Variable names are the shadcn set RSI+ uses, and the `@theme inline` block is RSI+'s, so its
  * components port unchanged. Values are the reconciled RSI+ / StarOrg Tools palette: StarOrg's
  * void surfaces and slate text, RSI+'s cyan primary and status hues.

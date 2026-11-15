@@ -108,7 +108,7 @@
       value = d.row.result;
       rejected = null;
       onchanged(d.row);
-      toast('success', 'Edit removed', 'The key goes back to what StarOrg Strings builds.');
+      toast('success', 'Edit removed', 'The key goes back to what StarOrg Codex builds.');
     } catch (e) {
       toast('error', 'Reset failed', toContractError(e).message);
     }
@@ -166,7 +166,7 @@
           {#if d.override_value !== null}<ToneBadge tone="info" label="Edited" />{/if}
         </div>
         <p class="text-muted-foreground text-[12px]" id="sd-pin">
-          Your edit replaces this key's text as it is. Stats StarOrg Strings builds into it stop updating after a game patch.
+          Your edit replaces this key's text as it is. Stats StarOrg Codex builds into it stop updating after a game patch.
           {#if value !== stock}<button type="button" class="text-primary underline-offset-2 hover:underline" onclick={() => { value = stock; rejected = null; }}>Start from stock text</button>{/if}
         </p>
         <label for="sd-value" class="text-muted-foreground text-[12px]">Raw text as in global.ini. Write a line break as \n; tags as &lt;EM4&gt;…&lt;/EM4&gt;.</label>

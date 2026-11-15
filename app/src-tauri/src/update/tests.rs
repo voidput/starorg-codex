@@ -63,7 +63,7 @@ fn status(code: u16, remaining: Option<u32>) -> Result<Reply, String> {
 const LIST: &str = r####"[
   {"tag_name":"v0.4.0","name":"draft","body":"","draft":true,"prerelease":false},
   {"tag_name":"v0.3.0-beta.1","name":"Beta","body":"beta","draft":false,"prerelease":true,"published_at":"2026-11-21T10:00:00Z"},
-  {"tag_name":"v0.2.0","name":"StarOrg Strings 0.2.0","body":"### Features\n* **app:** update check <script>x</script>","draft":false,"prerelease":false,"published_at":"2026-11-20T10:00:00Z","html_url":"https://evil.example/x"},
+  {"tag_name":"v0.2.0","name":"StarOrg Codex 0.2.0","body":"### Features\n* **app:** update check <script>x</script>","draft":false,"prerelease":false,"published_at":"2026-11-20T10:00:00Z","html_url":"https://evil.example/x"},
   {"tag_name":"v0.1.5","name":"","body":"","draft":false,"prerelease":false},
   {"tag_name":"not-a-version","draft":false,"prerelease":false},
   {"tag_name":"v9.9.9/../x","draft":false,"prerelease":false}
@@ -112,7 +112,7 @@ fn semver_compare_and_prerelease_rules() {
         release.url,
         "https://github.com/voidput/starorg-strings/releases/tag/v0.2.0"
     );
-    assert_eq!(release.title, "StarOrg Strings 0.2.0");
+    assert_eq!(release.title, "StarOrg Codex 0.2.0");
     assert_eq!(release.published.as_deref(), Some("2026-11-20T10:00:00Z"));
     assert_eq!(release.notes[0].kind, NoteKind::Heading);
     assert_eq!(release.notes[1].text, "app: update check x");

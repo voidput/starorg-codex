@@ -495,7 +495,7 @@ pub fn map_reply(reply: &Reply, prefs: &UpdatePrefs, current: &Version) -> Updat
                 .next()
                 .map(|b| b.text)
                 .filter(|t| !t.is_empty())
-                .unwrap_or_else(|| format!("StarOrg Strings {v}"));
+                .unwrap_or_else(|| format!("StarOrg Codex {v}"));
             UpdateCheck::Available {
                 release: ReleaseView {
                     version: v.to_string(),

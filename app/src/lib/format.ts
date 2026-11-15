@@ -119,7 +119,7 @@ export const JOB_LABEL: Record<JobKind, string> = {
 };
 
 export const BACKUP_REASON: Record<BackupReason, string> = {
-  'pre-existing': 'From before StarOrg Strings',
+  'pre-existing': 'From before StarOrg Codex',
   'before-apply': 'Before an apply',
   'before-restore': 'Before a restore',
   manual: 'Backed up by you',

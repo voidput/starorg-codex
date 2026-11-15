@@ -1,4 +1,4 @@
-# StarOrg Strings app (`starorg-strings-app`)
+# StarOrg Codex app (`starorg-strings-app`)
 
 Tauri 2 shell (`src-tauri/`, a workspace member) with a Svelte 5 + Tailwind 4 +
 shadcn-svelte frontend (`src/`). Design tokens: spec section 9.2, in `src/app.css`.

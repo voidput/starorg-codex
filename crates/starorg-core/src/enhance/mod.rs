@@ -747,7 +747,7 @@ pub fn generate_with(
 
     if p.branding {
         let text = format!(
-            "\\nText enhanced with StarOrg Strings v{}",
+            "\\nText enhanced with StarOrg Codex v{}",
             env!("CARGO_PKG_VERSION")
         );
         en.offer(

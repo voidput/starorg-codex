@@ -86,7 +86,7 @@
       {/each}
     </nav>
     <Card.Root id="game">
-      <Card.Header><Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Game</Card.Title><Card.Description>Where StarOrg Strings writes, and which channels are set up.</Card.Description></Card.Header>
+      <Card.Header><Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Game</Card.Title><Card.Description>Where StarOrg Codex writes, and which channels are set up.</Card.Description></Card.Header>
       <Card.Content class="grid gap-3">
         {#if app.install}
           <div class="grid gap-0.5">
@@ -164,7 +164,7 @@
     <Card.Root id="network">
       <Card.Header>
         <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Network</Card.Title>
-        <Card.Description>All off by default. With these off, StarOrg Strings' own code makes no network request.</Card.Description>
+        <Card.Description>All off by default. With these off, StarOrg Codex' own code makes no network request.</Card.Description>
       </Card.Header>
       <Card.Content class="grid gap-1">
         <UpdatesSection checked={s.network.check_updates} onchange={(v) => patch((x) => (x.network.check_updates = v))} />

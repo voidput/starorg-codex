@@ -1,6 +1,6 @@
 [package]
 name = "starorg-strings-app"
-description = "StarOrg Strings desktop app (Tauri shell over starorg-core)"
+description = "StarOrg Codex desktop app (Tauri shell over starorg-core)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

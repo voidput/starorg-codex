@@ -1,11 +1,11 @@
 ---
-title: StarOrg Strings v1 — addendum (user requests 2026-11-14)
+title: StarOrg Codex v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
 updated: 2026-11-15
 ---
 
-# StarOrg Strings v1 — addendum (user requests 2026-11-14)
+# StarOrg Codex v1 — addendum (user requests 2026-11-14)
 
 Direction settled in [the v1 spec](starorg-strings-v1.md) revision 2 (sections 3.4, 8, 11);
 the features below are **v1** (Q17 decided 2026-11-14): hooks in M1, published dumps in M2. Corrections from the

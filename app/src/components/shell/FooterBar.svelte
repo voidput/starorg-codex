@@ -13,7 +13,7 @@
     <span>Data.p4k {fmtDate(ch.p4k_time)}</span>
     <span>{cache}</span>
   {:else}
-    <span>{app.overview ? `v${app.overview.app_version}` : 'StarOrg Strings'}</span>
+    <span>{app.overview ? `v${app.overview.app_version}` : 'StarOrg Codex'}</span>
   {/if}
   <span class="flex-1"></span>
   <span role="status" aria-live="polite">

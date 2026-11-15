@@ -1,6 +1,6 @@
 [package]
 name = "starorg-cli"
-description = "StarOrg Strings command-line interface"
+description = "StarOrg Codex command-line interface"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true

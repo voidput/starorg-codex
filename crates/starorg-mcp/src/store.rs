@@ -73,7 +73,7 @@ pub struct StoreConfig {
     /// Optional UEX price files (`uex-item-prices.json`, `uex-terminals.json`) the user put
     /// there; never fetched.
     pub uex_dir: Option<PathBuf>,
-    /// SHA-256 of every `global.ini` StarOrg Strings wrote (`outputs.json`), to tell our
+    /// SHA-256 of every `global.ini` StarOrg Codex wrote (`outputs.json`), to tell our
     /// applied text from another tool's.
     pub our_outputs: Vec<String>,
     pub extractor: Arc<dyn Extractor>,

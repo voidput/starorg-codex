@@ -151,10 +151,10 @@ pub(crate) fn notify(g: &GlobalOpts, code: u8, summary: &str, applied_something:
     let r = std::process::Command::new("notify-send")
         .args([
             "--app-name",
-            "StarOrg Strings",
+            "StarOrg Codex",
             "--urgency",
             urgency,
-            "StarOrg Strings",
+            "StarOrg Codex",
             summary,
         ])
         .stdin(std::process::Stdio::null())
@@ -325,7 +325,7 @@ pub fn setup(
     };
     if !yes {
         let msg = format!(
-            "setup writes nothing without --yes. It would allow StarOrg Strings to back up and replace {}'s loose global.ini{}",
+            "setup writes nothing without --yes. It would allow StarOrg Codex to back up and replace {}'s loose global.ini{}",
             ch.name,
             lang_note
                 .as_deref()

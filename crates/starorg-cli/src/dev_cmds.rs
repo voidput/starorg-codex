@@ -52,7 +52,7 @@ fn load(
                 g,
                 exit::SKIPPED,
                 "busy",
-                "another StarOrg Strings run is reading game data; try again",
+                "another StarOrg Codex run is reading game data; try again",
             ));
         }
         Err(e) => return Err(fail(g, exit::ERROR, "error", &e.to_string())),

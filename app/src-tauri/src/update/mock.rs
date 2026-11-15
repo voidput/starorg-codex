@@ -13,9 +13,9 @@ pub const MOCK_NOW: u64 = 1_794_691_805;
 /// markup that must not survive), an older one.
 pub const MOCK_RELEASES: &str = r####"[
   {"tag_name":"v0.3.0","name":"draft","body":"not published","draft":true,"prerelease":false},
-  {"tag_name":"v0.2.1-beta.1","name":"StarOrg Strings 0.2.1 beta 1","body":"### Bug Fixes\n\n* **app:** beta fix","draft":false,"prerelease":true,"published_at":"2026-11-13T18:00:00Z"},
-  {"tag_name":"v0.2.0","name":"StarOrg Strings 0.2.0","body":"## [0.2.0](https://github.com/voidput/starorg-strings/compare/v0.1.0...v0.2.0) (2026-11-12)\n\n### Features\n\n* **app:** check for updates from GitHub releases ([#15](https://github.com/voidput/starorg-strings/issues/15))\n* **app:** install signed updates on AppImage and Windows <img src=x onerror=alert(1)>\n\n### Bug Fixes\n\n* **core:** keep the `user.cfg` order when re-applying","draft":false,"prerelease":false,"published_at":"2026-11-12T16:20:00Z"},
-  {"tag_name":"v0.1.0","name":"StarOrg Strings 0.1.0","body":"First release.","draft":false,"prerelease":false,"published_at":"2026-11-01T12:00:00Z"}
+  {"tag_name":"v0.2.1-beta.1","name":"StarOrg Codex 0.2.1 beta 1","body":"### Bug Fixes\n\n* **app:** beta fix","draft":false,"prerelease":true,"published_at":"2026-11-13T18:00:00Z"},
+  {"tag_name":"v0.2.0","name":"StarOrg Codex 0.2.0","body":"## [0.2.0](https://github.com/voidput/starorg-strings/compare/v0.1.0...v0.2.0) (2026-11-12)\n\n### Features\n\n* **app:** check for updates from GitHub releases ([#15](https://github.com/voidput/starorg-strings/issues/15))\n* **app:** install signed updates on AppImage and Windows <img src=x onerror=alert(1)>\n\n### Bug Fixes\n\n* **core:** keep the `user.cfg` order when re-applying","draft":false,"prerelease":false,"published_at":"2026-11-12T16:20:00Z"},
+  {"tag_name":"v0.1.0","name":"StarOrg Codex 0.1.0","body":"First release.","draft":false,"prerelease":false,"published_at":"2026-11-01T12:00:00Z"}
 ]"####;
 
 struct Scripted;

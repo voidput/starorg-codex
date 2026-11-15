@@ -85,7 +85,7 @@ jobs:
           ACCOUNT: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
         run: |
-          artifact-signing-cli -e "$ENDPOINT" -a "$ACCOUNT" -c "$PROFILE" -d "StarOrg Strings CLI" \
+          artifact-signing-cli -e "$ENDPOINT" -a "$ACCOUNT" -c "$PROFILE" -d "StarOrg Codex CLI" \
             "target/${{ matrix.target }}/release/starorg-strings.exe"
       # Fail the release rather than ship an exe whose signature does not check out.
       - name: Verify the CLI signature

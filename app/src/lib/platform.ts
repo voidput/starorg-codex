@@ -12,8 +12,8 @@ export const onWindows: boolean = typeof navigator !== 'undefined' && isWindowsA
 /** Setup wizard, "Find your game": where discovery looked. */
 export function searchedWhere(windows: boolean): string {
   return windows
-    ? 'StarOrg Strings looked in the RSI Launcher logs and the usual install folders on every drive (Program Files, Roberts Space Industries, Games).'
-    : 'StarOrg Strings looked in the LUG Helper config, your Wine prefixes, Lutris and the RSI Launcher logs.';
+    ? 'StarOrg Codex looked in the RSI Launcher logs and the usual install folders on every drive (Program Files, Roberts Space Industries, Games).'
+    : 'StarOrg Codex looked in the LUG Helper config, your Wine prefixes, Lutris and the RSI Launcher logs.';
 }
 
 /** Setup wizard, nothing found. */

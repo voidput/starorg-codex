@@ -29,7 +29,7 @@ function beta(): T.UpdateCheck {
   const v = '0.2.1-beta.1';
   return {
     state: 'available',
-    release: { ...clone(a.release), version: v, tag: `v${v}`, title: 'StarOrg Strings 0.2.1 beta 1', url: a.release.url.replace(a.release.tag, `v${v}`), prerelease: true, published: '2026-11-13T18:00:00Z', notes: [{ kind: 'heading', text: 'Bug Fixes' }, { kind: 'item', text: 'app: beta fix' }], notes_truncated: false },
+    release: { ...clone(a.release), version: v, tag: `v${v}`, title: 'StarOrg Codex 0.2.1 beta 1', url: a.release.url.replace(a.release.tag, `v${v}`), prerelease: true, published: '2026-11-13T18:00:00Z', notes: [{ kind: 'heading', text: 'Bug Fixes' }, { kind: 'item', text: 'app: beta fix' }], notes_truncated: false },
   };
 }
 

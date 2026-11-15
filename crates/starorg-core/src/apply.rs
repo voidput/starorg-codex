@@ -751,10 +751,7 @@ fn take_channel_lock(ctx: &Ctx, t: &Target<'_>) -> Result<lock::Lock, (Outcome, 
         LockError::Held(_) => (
             Outcome::Skipped,
             exit::SKIPPED,
-            format!(
-                "another StarOrg Strings run is working on {}",
-                t.channel.name
-            ),
+            format!("another StarOrg Codex run is working on {}", t.channel.name),
         ),
         other => (Outcome::Failed, exit::ERROR, other.to_string()),
     })

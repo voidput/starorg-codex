@@ -80,7 +80,7 @@
   aria-label="Main"
 >
   <div class={cn('flex h-12 items-center gap-2 px-3', collapsed && 'justify-center px-0')}>
-    {#if !collapsed}<span class="eyebrow text-primary flex-1 truncate">StarOrg Strings</span>{/if}
+    {#if !collapsed}<span class="eyebrow text-primary flex-1 truncate">StarOrg Codex</span>{/if}
     <Button variant="ghost" size="icon-sm" aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!collapsed} onclick={() => (collapsed = !collapsed)}>
       {#if collapsed}<PanelLeftOpen aria-hidden="true" />{:else}<PanelLeftClose aria-hidden="true" />{/if}
     </Button>
@@ -126,7 +126,7 @@
     <img src="/logo.png" alt="" class="size-7" width="28" height="28" />
     {#if !collapsed}
       <div class="min-w-0">
-        <div class="truncate text-[12px] font-semibold">StarOrg Strings</div>
+        <div class="truncate text-[12px] font-semibold">StarOrg Codex</div>
         <div class="text-muted-foreground mono text-[11px]">{version ? `v${version}` : ''}</div>
       </div>
     {/if}

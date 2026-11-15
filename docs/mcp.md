@@ -6,7 +6,7 @@ updated: 2026-11-15
 
 # Local MCP server (experimental)
 
-StarOrg Strings can answer questions about your game data for an AI assistant on the same
+StarOrg Codex can answer questions about your game data for an AI assistant on the same
 computer (Claude Code, Claude Desktop, or any other [Model Context Protocol](https://modelcontextprotocol.io)
 client): "where do I get the FS-9?", "does Pilot_A own the Arrowhead blueprint?", "what changed
 in ships between LIVE and PTU?". It is **read-only** and **local**: it reads the game install and
@@ -72,7 +72,7 @@ previous page as `cursor`. Answers are compact JSON.
 | `how_to_obtain` | every source, easiest first: buy, contract/Wikelo reward, craft, loot; `owned_by` marks blueprints a character owns | item-tags, loot, item-sources, blueprints, wikelo-trades, UEX; the owned-blueprint store |
 | `mission` | missions and contracts by name, giver, type, with the blueprints and items contracts award | missions, blueprints, item-sources |
 | `compare` | 2 to 4 items or ships side by side, every numeric stat they share | as `item` |
-| `string` | a localization key, or a text search: stock text, and the text StarOrg Strings applied to that channel | strings-english; the channel's `global.ini` |
+| `string` | a localization key, or a text search: stock text, and the text StarOrg Codex applied to that channel | strings-english; the channel's `global.ini` |
 | `diff` | a dataset between two channels (`to`), or against an older cached build (`from_build`) | that dataset, twice |
 | `status` | channels, cached builds and datasets, what extracting each cost, server memory | nothing |
 
@@ -107,7 +107,7 @@ estimates: an even pick inside a loot pool is assumed; the game data does not sa
 Shop stock is server-side and in no game file. Prices come only from UEX (player-reported)
 files you put in the cache folder yourself, `<cache>/mcp/uex/uex-item-prices.json` and
 `uex-terminals.json` (the files `sc-gamedata fetch uex-item-prices uex-terminals` writes; the
-`status` tool prints the folder). StarOrg Strings never downloads them. Without them, the shop
+`status` tool prints the folder). StarOrg Codex never downloads them. Without them, the shop
 tools say so and the other sources still answer.
 
 ## Data, cache and memory
@@ -159,7 +159,7 @@ byte-identical (`scripts/compare-gamedata.sh`).
   `localhost`/`127.0.0.1` (DNS rebinding), caps request bodies at 1 MiB, and answers one
   endpoint, `/mcp`.
 - Your owned blueprints, character names and fleet are personal data. They are answered only to
-  the local client you connected; StarOrg Strings sends them nowhere. What that client (an AI
+  the local client you connected; StarOrg Codex sends them nowhere. What that client (an AI
   assistant) then does with an answer is up to the client and its provider: an assistant that
   runs in the cloud sends tool answers to its provider as part of the conversation. Leave the
   server off, or do not ask about owned blueprints, if you do not want that.

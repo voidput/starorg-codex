@@ -44,7 +44,7 @@
 </script>
 
 {#if phase === 'done'}
-  <div class="flex items-center gap-2 text-[15px] font-semibold"><CircleCheck class="text-success size-5" aria-hidden="true" /> StarOrg Strings is set up</div>
+  <div class="flex items-center gap-2 text-[15px] font-semibold"><CircleCheck class="text-success size-5" aria-hidden="true" /> StarOrg Codex is set up</div>
 {/if}
 
 <ul class="grid gap-3" aria-label="Channels">

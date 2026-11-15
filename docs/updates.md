@@ -6,7 +6,7 @@ updated: 2026-11-14
 
 # Updates: check, install, signing
 
-How StarOrg Strings finds and installs new versions. Design: spec sections 11 (network policy)
+How StarOrg Codex finds and installs new versions. Design: spec sections 11 (network policy)
 and 12 (release, updater); this note is the as-built reference and the owner's checklist.
 
 ## What the user sees
@@ -15,7 +15,7 @@ and 12 (release, updater); this note is the as-built reference and the owner's c
   nothing and keeps whatever it last knew.
 - With it on: one check when the app starts, **at most once per 24 hours** (a failed check
   counts too), plus **Check now**. Turning the switch on runs the first check right away.
-- A newer version shows a **banner above every screen**: "StarOrg Strings X.Y.Z is available",
+- A newer version shows a **banner above every screen**: "StarOrg Codex X.Y.Z is available",
   What's new (the release notes), Install and restart (where supported) or Download from the
   release page, **Skip this version** (that exact version only; a newer one shows again; Undo is
   in Settings), and X (hide until the next start).

@@ -19,7 +19,7 @@ M0: skeleton and decisions — [[specs/starorg-strings-v1]] ([plain](../specs/st
 - [ ] decide release location (Q1) and Windows tester (Q19) ([#9](https://github.com/voidput/starorg-strings/issues/9)); the update check's default repo follows it (docs/updates.md, Private repo caveat)
 - [ ] Windows tester runs [windows-test-checklist](../../windows-test-checklist.md) on a real install and files the report ([#9](https://github.com/voidput/starorg-strings/issues/9))
 - [ ] Owner: Azure Artifact Signing + `AZURE_*` secrets/variables ([#16](https://github.com/voidput/starorg-strings/issues/16); steps in [windows](../../windows.md))
-- [ ] Owner: delete the duplicate Partner Center app "StarOrgStrings" (identity `StarOrgLabs.StarOrgStrings`, never submitted). Keep "StarOrg Strings" (Store ID 9NWHZD6MLMLD, identity `StarOrgLabs.293108C0BE3BF`), which the repo variables MSIX_* / MS_STORE_* point at
+- [ ] Owner: delete the duplicate Partner Center app "StarOrgStrings" (identity `StarOrgLabs.StarOrgStrings`, never submitted). Keep "StarOrg Codex" (Store ID 9NWHZD6MLMLD, identity `StarOrgLabs.293108C0BE3BF`), which the repo variables MSIX_* / MS_STORE_* point at
 
 M1 + M2 (merged into main; verification fixes 2026-11-14, local only, not pushed)
 

@@ -461,7 +461,7 @@ pub fn redact(b: &RealBackend, text: &str) -> (String, u32) {
 
 pub fn diagnostics(b: &RealBackend) -> Diagnostics {
     let mut text = format!(
-        "StarOrg Strings {} diagnostics ({})\n\n",
+        "StarOrg Codex {} diagnostics ({})\n\n",
         b.ctx().app_version,
         std::env::consts::OS
     );

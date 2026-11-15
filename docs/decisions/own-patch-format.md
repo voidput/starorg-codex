@@ -86,4 +86,4 @@ state, so changing patches marks a channel as needing re-apply.
 - Patch output goes through the same validation as everything else. A patch that would break
   a rule (tokens, EM tags, format keys) is dropped alone, with a warning.
 
-Spec: [StarOrg Strings v1](../plans/specs/starorg-strings-v1.md), section 4.5.
+Spec: [StarOrg Codex v1](../plans/specs/starorg-strings-v1.md), section 4.5.

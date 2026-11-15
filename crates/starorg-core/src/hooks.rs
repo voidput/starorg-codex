@@ -96,10 +96,10 @@ pub fn block(kind: Kind, o: &BlockOpts) -> String {
     call.push_str(" || true");
     let what = match kind {
         Kind::Prelaunch => {
-            "# StarOrg Strings: re-apply enhanced strings when the build or settings changed."
+            "# StarOrg Codex: re-apply enhanced strings when the build or settings changed."
         }
         Kind::Postexit => {
-            "# StarOrg Strings: read new blueprints from Game.log, then re-apply if needed."
+            "# StarOrg Codex: read new blueprints from Game.log, then re-apply if needed."
         }
     };
     [

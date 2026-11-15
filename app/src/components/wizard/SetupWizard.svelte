@@ -212,7 +212,7 @@
     <header class="flex items-start justify-between gap-4 border-b px-6 pt-5 pb-4">
       <div>
         <div class="eyebrow text-primary">{again ? 'Setup' : 'First-run setup'}</div>
-        <h1 id="wizard-title" class="text-h1">{again ? 'Set up channels again' : 'Set up StarOrg Strings'}</h1>
+        <h1 id="wizard-title" class="text-h1">{again ? 'Set up channels again' : 'Set up StarOrg Codex'}</h1>
       </div>
       <Button variant="ghost" size="sm" onclick={requestClose} disabled={phase === 'running'}>
         {#if phase === 'done'}Close{:else}<X aria-hidden="true" /> Set up later{/if}
@@ -290,7 +290,7 @@
         {#if phase === 'failed'}
           <Button variant="outline" onclick={() => { phase = 'idle'; go(STEPS.length - 2); }}><ArrowLeft aria-hidden="true" /> Back to review</Button>
         {:else if phase === 'done'}
-          <Button onclick={finish}>Open StarOrg Strings <ArrowRight aria-hidden="true" /></Button>
+          <Button onclick={finish}>Open StarOrg Codex <ArrowRight aria-hidden="true" /></Button>
         {/if}
       {:else}
         <Button onclick={next} aria-describedby={showBlock && block ? "wizard-block" : undefined}>Next <ArrowRight aria-hidden="true" /></Button>

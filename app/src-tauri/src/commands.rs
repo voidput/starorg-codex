@@ -101,7 +101,7 @@ pub async fn list_channels(
 #[tauri::command]
 pub fn app_info() -> AppInfo {
     AppInfo {
-        name: "StarOrg Strings".to_string(),
+        name: "StarOrg Codex".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
     }
 }
@@ -228,7 +228,7 @@ mod tests {
             .build(mock_context(noop_assets()))
             .unwrap();
         let v = invoke(&app, "app_info");
-        assert_eq!(v["name"], "StarOrg Strings");
+        assert_eq!(v["name"], "StarOrg Codex");
         assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
     }
 

@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "StarOrg Strings",
+  "productName": "StarOrg Codex",
   "mainBinaryName": "starorg-strings-app",
   "identifier": "tools.starorg.strings",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "StarOrg Strings",
+        "title": "StarOrg Codex",
         "width": 1200,
         "height": 780,
         "minWidth": 960,

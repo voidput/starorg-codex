@@ -548,7 +548,7 @@ fn apply_while_the_channel_lock_is_held_is_skipped_with_a_reason() {
         r.reason
             .as_deref()
             .unwrap()
-            .contains("another StarOrg Strings run"),
+            .contains("another StarOrg Codex run"),
         "{r:?}"
     );
     assert!(!f.ini("LIVE").exists());
