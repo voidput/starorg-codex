@@ -1,6 +1,6 @@
 //! Ship description stat block (spec 5.2).
 
-use super::format::{SEP, by_size, d1, d2, int, line, nz};
+use super::format::{SEP, by_size, d1, d2, int, line, pos};
 use super::items::damage_label;
 use super::profile::Profile;
 use crate::ini::StockIni;
@@ -79,7 +79,7 @@ pub fn ship_lines(s: &Ship, stock: &StockIni, p: &Profile) -> Option<Vec<String>
         line([
             resolve(stock, s.loc.role.as_deref()).map(|r| format!("Role: {r}")),
             resolve(stock, s.loc.career.as_deref()).map(|c| format!("Career: {c}")),
-            nz(s.crew_size).map(|c| format!("Crew: {}", int(c))),
+            pos(s.crew_size).map(|c| format!("Crew: {}", int(c))),
         ]),
     );
     // maxBoundingBoxSize: y is length, x is beam, z is height (M2a: the Gladius is
@@ -88,9 +88,9 @@ pub fn ship_lines(s: &Ship, stock: &StockIni, p: &Profile) -> Option<Vec<String>
         "size",
         s.bounding_box.as_ref().and_then(|b| {
             let (l, w, h) = (
-                nz(b.get("y").copied())?,
-                nz(b.get("x").copied())?,
-                nz(b.get("z").copied())?,
+                pos(b.get("y").copied())?,
+                pos(b.get("x").copied())?,
+                pos(b.get("z").copied())?,
             );
             Some(format!("Size: {} × {} × {} m", d1(l), d1(w), d1(h)))
         }),
@@ -99,24 +99,24 @@ pub fn ship_lines(s: &Ship, stock: &StockIni, p: &Profile) -> Option<Vec<String>
     push(
         "speed",
         line([
-            nz(f.and_then(|f| f.scm_speed)).map(|v| format!("SCM: {} m/s", int(v))),
-            nz(f.and_then(|f| f.max_speed)).map(|v| format!("Max: {} m/s", int(v))),
+            pos(f.and_then(|f| f.scm_speed)).map(|v| format!("SCM: {} m/s", int(v))),
+            pos(f.and_then(|f| f.max_speed)).map(|v| format!("Max: {} m/s", int(v))),
         ]),
     );
     push(
         "boost",
         line([
-            nz(f.and_then(|f| f.boost_speed_forward)).map(|v| format!("{} m/s fwd", int(v))),
-            nz(f.and_then(|f| f.boost_speed_backward)).map(|v| format!("{} m/s back", int(v))),
+            pos(f.and_then(|f| f.boost_speed_forward)).map(|v| format!("{} m/s fwd", int(v))),
+            pos(f.and_then(|f| f.boost_speed_backward)).map(|v| format!("{} m/s back", int(v))),
         ])
         .map(|s| format!("Boost: {s}")),
     );
     push(
         "rotation",
         line([
-            nz(f.and_then(|f| f.pitch)).map(|v| format!("Pitch: {}°/s", int(v))),
-            nz(f.and_then(|f| f.yaw)).map(|v| format!("Yaw: {}°/s", int(v))),
-            nz(f.and_then(|f| f.roll)).map(|v| format!("Roll: {}°/s", int(v))),
+            pos(f.and_then(|f| f.pitch)).map(|v| format!("Pitch: {}°/s", int(v))),
+            pos(f.and_then(|f| f.yaw)).map(|v| format!("Yaw: {}°/s", int(v))),
+            pos(f.and_then(|f| f.roll)).map(|v| format!("Roll: {}°/s", int(v))),
         ]),
     );
     if let Some(lo) = &s.loadout {
@@ -146,7 +146,7 @@ pub fn ship_lines(s: &Ship, stock: &StockIni, p: &Profile) -> Option<Vec<String>
     if let Some(a) = &s.armor {
         push(
             "armor",
-            nz(a.health).map(|h| format!("Armor HP: {}", int(h))),
+            pos(a.health).map(|h| format!("Armor HP: {}", int(h))),
         );
         push(
             "damage_taken",
@@ -166,9 +166,9 @@ pub fn ship_lines(s: &Ship, stock: &StockIni, p: &Profile) -> Option<Vec<String>
     push(
         "cargo",
         line([
-            nz(t.and_then(|t| t.cargo_scu)).map(|v| format!("Cargo: {} SCU", d1(v))),
-            nz(t.and_then(|t| t.fuel)).map(|v| format!("H2 fuel: {} SCU", d1(v))),
-            nz(t.and_then(|t| t.quantum_fuel)).map(|v| format!("QT fuel: {} SCU", d1(v))),
+            pos(t.and_then(|t| t.cargo_scu)).map(|v| format!("Cargo: {} SCU", d1(v))),
+            pos(t.and_then(|t| t.fuel)).map(|v| format!("H2 fuel: {} SCU", d1(v))),
+            pos(t.and_then(|t| t.quantum_fuel)).map(|v| format!("QT fuel: {} SCU", d1(v))),
         ]),
     );
     (!out.is_empty()).then_some(out)

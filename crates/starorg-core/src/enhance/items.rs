@@ -5,7 +5,7 @@
 //! left out.
 
 use super::format::{
-    SEP, by_size, d1, d2, distance, distance_range, int, line, nz, pct, pct_signed, sig2,
+    SEP, by_size, d1, d2, distance, distance_range, int, line, nz, pct, pct_signed, pos, sig2,
 };
 use super::profile::Profile;
 use super::tags::Element;
@@ -110,8 +110,8 @@ fn common(
     l.push(
         "health",
         line([
-            nz(health).map(|v| format!("Component HP: {}", int(v))),
-            nz(distortion).map(|v| format!("Max distortion: {}", int(v))),
+            pos(health).map(|v| format!("Component HP: {}", int(v))),
+            pos(distortion).map(|v| format!("Max distortion: {}", int(v))),
         ]),
     );
     l.out.len() - before
@@ -381,7 +381,7 @@ pub fn weapon_lines(w: &Weapon, p: &Profile) -> Option<Vec<String>> {
         l.push("rate", Some(format!("Mode: {}", mode_list(w, head))));
         l.push(
             "velocity",
-            nz(head.zero_damage_range).map(|r| format!("Range: {}", distance(r))),
+            pos(head.zero_damage_range).map(|r| format!("Range: {}", distance(r))),
         );
     } else {
         let per_shot = ammo.and_then(|a| a.damage).filter(|d| !d.is_empty());
@@ -392,21 +392,21 @@ pub fn weapon_lines(w: &Weapon, p: &Profile) -> Option<Vec<String>> {
                     .as_ref()
                     .and_then(|d| damage_text(d, head))
                     .map(|t| format!("Damage: {t}")),
-                nz(head.dps).map(|v| format!("DPS: {}", d1(v))),
+                pos(head.dps).map(|v| format!("DPS: {}", d1(v))),
             ]),
         );
         l.push(
             "rate",
             line([
-                nz(head.effective_rate()).map(|r| format!("Fire rate: {} RPM", int(r))),
+                pos(head.effective_rate()).map(|r| format!("Fire rate: {} RPM", int(r))),
                 Some(format!("Mode: {}", mode_list(w, head))),
             ]),
         );
         l.push(
             "velocity",
             line([
-                nz(ammo.and_then(|a| a.speed)).map(|v| format!("Velocity: {} m/s", int(v))),
-                nz(ammo.and_then(|a| a.range)).map(|r| format!("Range: {}", distance(r))),
+                pos(ammo.and_then(|a| a.speed)).map(|v| format!("Velocity: {} m/s", int(v))),
+                pos(ammo.and_then(|a| a.range)).map(|r| format!("Range: {}", distance(r))),
             ]),
         );
     }
@@ -414,12 +414,12 @@ pub fn weapon_lines(w: &Weapon, p: &Profile) -> Option<Vec<String>> {
         WeaponClass::Ship => {
             let cap = w
                 .capacitor
-                .filter(|c| nz(c.shots).is_some() || nz(c.cost_per_shot).is_some());
+                .filter(|c| pos(c.shots).is_some() || pos(c.cost_per_shot).is_some());
             match cap {
                 Some(c) if ammo.and_then(|a| a.capacity).filter(|v| *v > 0.0).is_none() => {
                     // `requestedRegenPerSec` is in the same unit as the cost per shot;
                     // `maxRegenPerSec` counts shots.
-                    let regen = match (nz(c.requested_regen_per_second), nz(c.regen_cooldown)) {
+                    let regen = match (pos(c.requested_regen_per_second), pos(c.regen_cooldown)) {
                         (Some(r), Some(t)) => Some(format!("Regen: {}/s after {}s", int(r), d1(t))),
                         (Some(r), None) => Some(format!("Regen: {}/s", int(r))),
                         _ => None,
@@ -427,14 +427,14 @@ pub fn weapon_lines(w: &Weapon, p: &Profile) -> Option<Vec<String>> {
                     l.push(
                         "ammo",
                         line([
-                            nz(c.cost_per_shot).map(|v| format!("Capacitor: {} per shot", d1(v))),
+                            pos(c.cost_per_shot).map(|v| format!("Capacitor: {} per shot", d1(v))),
                             regen,
                         ]),
                     );
                 }
                 _ => l.push(
                     "ammo",
-                    nz(ammo.and_then(|a| a.capacity)).map(|v| format!("Ammo: {}", int(v))),
+                    pos(ammo.and_then(|a| a.capacity)).map(|v| format!("Ammo: {}", int(v))),
                 ),
             }
             common(&mut l, w.power, w.em, w.ir, w.health, None);
@@ -461,8 +461,8 @@ pub fn weapon_lines(w: &Weapon, p: &Profile) -> Option<Vec<String>> {
             l.push(
                 "magazine",
                 line([
-                    nz(ammo.and_then(|a| a.capacity)).map(|v| format!("Magazine: {}", int(v))),
-                    nz(w.mass).map(|v| format!("Weight: {} kg", d1(v))),
+                    pos(ammo.and_then(|a| a.capacity)).map(|v| format!("Magazine: {}", int(v))),
+                    pos(w.mass).map(|v| format!("Weight: {} kg", d1(v))),
                 ]),
             );
         }
@@ -510,7 +510,7 @@ pub fn missile_lines(m: &Missile, p: &Profile) -> Option<Vec<String>> {
         "damage",
         line([
             dmg,
-            nz(m.explosion_radius).map(|r| format!("Blast radius: {} m", int(r))),
+            pos(m.explosion_radius).map(|r| format!("Blast radius: {} m", int(r))),
         ]),
     );
     if !m.is_bomb {
@@ -521,12 +521,12 @@ pub fn missile_lines(m: &Missile, p: &Profile) -> Option<Vec<String>> {
                     .as_deref()
                     .and_then(tracking_label)
                     .map(|t| format!("Tracking: {t}")),
-                nz(m.lock_time).map(|t| format!("Lock: {}s", d1(t))),
+                pos(m.lock_time).map(|t| format!("Lock: {}s", d1(t))),
             ]),
         );
         l.push(
             "lock_range",
-            match (nz(m.lock_range_min), nz(m.lock_range_max)) {
+            match (pos(m.lock_range_min), pos(m.lock_range_max)) {
                 (Some(a), Some(b)) => Some(format!("Lock range: {}", distance_range(a, b))),
                 (None, Some(b)) => Some(format!("Lock range: {}", distance(b))),
                 _ => None,
@@ -536,13 +536,13 @@ pub fn missile_lines(m: &Missile, p: &Profile) -> Option<Vec<String>> {
     l.push(
         "speed",
         line([
-            nz(m.speed).map(|v| format!("Speed: {} m/s", int(v))),
-            nz(m.max_lifetime).map(|v| format!("Lifetime: {}s", d1(v))),
+            pos(m.speed).map(|v| format!("Speed: {} m/s", int(v))),
+            pos(m.max_lifetime).map(|v| format!("Lifetime: {}s", d1(v))),
         ]),
     );
     l.push(
         "health",
-        nz(m.health).map(|v| format!("Component HP: {}", int(v))),
+        pos(m.health).map(|v| format!("Component HP: {}", int(v))),
     );
     (!l.out.is_empty()).then_some(l.out)
 }
@@ -565,4 +565,27 @@ pub fn missile_tag(m: &Missile) -> Vec<Element> {
     }
     v.extend(m.item.size.map(Element::Size));
     v
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unset_lock_range_is_left_out_not_printed_as_minus_one() {
+        // LIVE item_DescNOVP_Rocket_Venom_S1_Strike_TL_IR: both bounds are DataCore's -1.
+        let m = Missile {
+            lock_range_min: Some(-1.0),
+            lock_range_max: Some(-1.0),
+            speed: Some(-1.0),
+            lock_time: Some(1.0),
+            tracking_signal: Some("Infrared".into()),
+            ..Default::default()
+        };
+        let lines = missile_lines(&m, &Profile::default()).unwrap_or_default();
+        let all = lines.join("\n");
+        assert!(!all.contains("-1"), "{all}");
+        assert!(!all.contains("Lock range"), "{all}");
+        assert!(!all.contains("Speed"), "{all}");
+    }
 }

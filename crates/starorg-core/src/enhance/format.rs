@@ -118,6 +118,12 @@ pub fn nz(v: Option<f64>) -> Option<f64> {
     v.filter(|x| *x != 0.0 && x.is_finite())
 }
 
+/// A magnitude that only makes sense above zero (speeds, ranges, counts, HP). DataCore uses
+/// `-1` as "not set"; printing it gives "Lock range: -1 m" (spec 5.1: no placeholder values).
+pub fn pos(v: Option<f64>) -> Option<f64> {
+    v.filter(|x| *x > 0.0 && x.is_finite())
+}
+
 /// Join the present parts with [`SEP`]; `None` when nothing is left.
 pub fn line(parts: impl IntoIterator<Item = Option<String>>) -> Option<String> {
     let v: Vec<String> = parts.into_iter().flatten().collect();
@@ -218,5 +224,8 @@ mod tests {
         assert_eq!(by_size([(None, 2.0)]).as_deref(), Some("2×"));
         assert_eq!(nz(Some(0.0)), None);
         assert_eq!(nz(Some(f64::NAN)), None);
+        assert_eq!(pos(Some(-1.0)), None);
+        assert_eq!(pos(Some(0.0)), None);
+        assert_eq!(pos(Some(2.5)), Some(2.5));
     }
 }

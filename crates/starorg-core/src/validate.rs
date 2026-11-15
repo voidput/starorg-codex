@@ -92,6 +92,8 @@ pub struct Tokens<'a> {
     pub em: EmSignature,
     /// Some tag was opened while another (any number) was open.
     pub any_nesting: bool,
+    /// The value ends while an EM tag is still open (CIG's "open tail" values).
+    pub open_tail: bool,
 }
 
 impl Tokens<'_> {
@@ -226,6 +228,7 @@ pub fn tokens(s: &str) -> Tokens<'_> {
     }
     for (n, d) in open {
         t.em.entry(n).or_default().0 = d;
+        t.open_tail |= d > 0;
     }
     t.em.retain(|_, v| *v != (0, 0, 0));
     t
@@ -251,9 +254,18 @@ pub fn check_value(stock: &str, value: &str, op: Op, added: &[&str]) -> Result<(
     if op.adds_text() && added.iter().any(|a| !tokens(a).em_balanced()) {
         return Err(Rule::AddedEmUnbalanced);
     }
-    if vt.em != st.em
-        && !(op.whole_replacement() && vt.em.values().all(|&(o, c, n)| o == 0 && c == 0 && n == 0))
-    {
+    // Appending balanced text after CIG's open tail nests it inside their tag: only the
+    // unmatched opens and closes must stay as stock has them (spec 7.3, `open-tail`).
+    let balance = |t: &Tokens<'_>| -> BTreeMap<u32, (u32, u32)> {
+        t.em.iter()
+            .filter(|(_, (o, c, _))| *o > 0 || *c > 0)
+            .map(|(k, (o, c, _))| (*k, (*o, *c)))
+            .collect()
+    };
+    let em_ok = vt.em == st.em
+        || (op.whole_replacement() && vt.em.values().all(|&(o, c, n)| o == 0 && c == 0 && n == 0))
+        || (op.adds_text() && st.open_tail && balance(&vt) == balance(&st));
+    if !em_ok {
         return Err(Rule::EmSignature);
     }
     let vars_ok = match op {
@@ -271,22 +283,43 @@ pub fn check_value(stock: &str, value: &str, op: Op, added: &[&str]) -> Result<(
     if !st.formats.is_empty() && (!op.allowed_on_format_key() || vt.literal_percent > 0) {
         return Err(Rule::FormatKey);
     }
-    if op.generated() && added.iter().any(|a| !percent_rule_ok(a)) {
+    if op.generated() && added.iter().any(|a| !percent_rule_ok(a, true)) {
         return Err(Rule::PercentRule);
     }
     Ok(())
 }
 
-/// Spec 5.1: a `%` we write is followed by the end of the text, the two-character escape
-/// `\n`, or two spaces.
-pub fn percent_rule_ok(s: &str) -> bool {
+/// Spec 5.1: a `%` we write is followed by the end of the value, the two-character escape
+/// `\n`, or two spaces. `at_end` says whether the end of `s` is the end of the value (false
+/// for a prefix). `%%` and format specifiers are not literal signs.
+pub fn percent_rule_ok(s: &str, at_end: bool) -> bool {
     let b = s.as_bytes();
-    b.iter().enumerate().all(|(i, &c)| {
-        c != b'%' || {
-            let rest = &b[i + 1..];
-            rest.is_empty() || rest.starts_with(b"\\n") || rest.starts_with(b"  ")
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] != b'%' {
+            i += 1;
+            continue;
         }
-    })
+        if b.get(i + 1) == Some(&b'%') {
+            i += 2;
+            continue;
+        }
+        if let Some(end) = format_spec(b, i) {
+            i = end;
+            continue;
+        }
+        let rest = &b[i + 1..];
+        if !((rest.is_empty() && at_end) || rest.starts_with(b"\\n") || rest.starts_with(b"  ")) {
+            return false;
+        }
+        i += 1;
+    }
+    true
+}
+
+/// A format key: its stock value has at least one format specifier.
+pub fn is_format_value(stock: &str) -> bool {
+    !tokens(stock).formats.is_empty()
 }
 
 /// A whole-file failure: a bug in our writer. Nothing is written.
@@ -305,8 +338,11 @@ pub enum FileError {
 }
 
 /// Whole-file rules on the rendered bytes.
+///
+/// The BOM rule holds whatever stock looks like (spec 7.3): the game's own file starts with
+/// one, so a stock without it means the input is wrong, and nothing is written.
 pub fn check_file(stock: &StockIni, out: &[u8]) -> Result<(), FileError> {
-    if stock.has_bom() && !out.starts_with(BOM) {
+    if !out.starts_with(BOM) {
         return Err(FileError::NoBom);
     }
     if std::str::from_utf8(out).is_err() {
@@ -349,6 +385,8 @@ mod tests {
         assert_eq!(t.em[&2], (0, 1, 0));
         assert!(t.any_nesting && !t.em_balanced());
         assert!(!tokens("<EM3>a</EM3><EM4>b</EM4>").any_nesting);
+        assert!(tokens("text <EM4>open").open_tail);
+        assert!(!tokens("<EM4>a</EM4>").open_tail);
         assert!(tokens("<EM>not a tag <EMx>").em.is_empty());
         assert!(tokens("~ not a var ~x(").variables.is_empty());
     }
@@ -462,5 +500,14 @@ mod tests {
             check_file(&stock, b"\xEF\xBB\xBFa=\xFF\r\nb,P=2\r\n"),
             Err(FileError::NotUtf8)
         );
+        // A BOM-less stock does not make a BOM-less output acceptable.
+        let no_bom = StockIni::parse(b"a=1\r\nb,P=2\r\n".to_vec());
+        assert_eq!(
+            check_file(&no_bom, no_bom.as_bytes()),
+            Err(FileError::NoBom)
+        );
+        assert!(percent_rule_ok("25%", true));
+        assert!(!percent_rule_ok("25%", false));
+        assert!(percent_rule_ok("%s and 100%%", false));
     }
 }
