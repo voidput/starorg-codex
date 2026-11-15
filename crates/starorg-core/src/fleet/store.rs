@@ -444,6 +444,32 @@ pub fn load_shared(dirs: &AppDirs) -> Result<ShipNames, String> {
     }
 }
 
+/// The shared settings before a save replaces them. A file that cannot be read as settings
+/// (not UTF-8, not TOML, a bad value) is moved aside to `ship-names.toml.bad-<stamp>` first, so
+/// the save does not lose what the user wrote; the result is then the default. Returns the
+/// backup path when one was made. A read error (permissions) stays an error.
+pub fn load_shared_for_save(dirs: &AppDirs) -> Result<(ShipNames, Option<PathBuf>), String> {
+    let p = ship_names_path(dirs);
+    let bytes = match fsutil::read_limited(&p, FILE_LIMIT) {
+        Ok(None) => return Ok((ShipNames::default(), None)),
+        Ok(Some(b)) => b,
+        Err(e) => return Err(format!("{}: {e}", p.display())),
+    };
+    let parsed = String::from_utf8(bytes)
+        .map_err(|_| ())
+        .and_then(|t| ShipNames::parse(&t).map_err(|_| ()));
+    match parsed {
+        Ok(s) => Ok((s, None)),
+        Err(()) => {
+            let mut name = p.file_name().unwrap_or_default().to_os_string();
+            name.push(format!(".bad-{}", fsutil::stamp(fsutil::unix_now())));
+            let bak = p.with_file_name(name);
+            fsutil::rename_retry(&p, &bak).map_err(|e| format!("{}: {e}", bak.display()))?;
+            Ok((ShipNames::default(), Some(bak)))
+        }
+    }
+}
+
 pub fn save_shared(dirs: &AppDirs, s: &ShipNames) -> Result<(), String> {
     let p = ship_names_path(dirs);
     let text = s.to_toml()?;
@@ -479,17 +505,31 @@ impl Scope {
 
 pub const PROFILE_TABLE: &str = "ship_names";
 
+fn raw_use(profile: &state::Profile) -> Option<&toml::Value> {
+    profile.table.get(PROFILE_TABLE).and_then(|t| t.get("use"))
+}
+
+/// The scope; an unknown `use` value counts as shared (see [`scope_warning`]).
 pub fn scope_of(profile: &state::Profile) -> Scope {
-    match profile
-        .table
-        .get(PROFILE_TABLE)
-        .and_then(|t| t.get("use"))
-        .and_then(|v| v.as_str())
-    {
+    match raw_use(profile).and_then(|v| v.as_str()) {
         Some("channel") => Scope::Channel,
         Some("off") => Scope::Off,
         _ => Scope::Shared,
     }
+}
+
+/// A warning when `use` is set to something other than `shared`, `channel` or `off`.
+pub fn scope_warning(profile: &state::Profile) -> Option<Warning> {
+    let v = raw_use(profile)?;
+    if matches!(v.as_str(), Some("shared" | "channel" | "off")) {
+        return None;
+    }
+    Some(Warning::new(
+        "ship-names",
+        format!(
+            "profile.toml [ship_names] use = {v} is not \"shared\", \"channel\" or \"off\"; the shared settings are used"
+        ),
+    ))
 }
 
 /// The channel's own table (`use = "channel"`), without `use`.
@@ -592,7 +632,8 @@ pub fn effective(dirs: &AppDirs, profile: &state::Profile) -> Effective {
         Scope::Channel => channel_settings(profile),
         Scope::Off => Ok(ShipNames::default()),
     };
-    match raw {
+    let scope_warn = scope_warning(profile);
+    let mut eff = match raw {
         Ok(s) => {
             let (settings, warnings, invalid) = s.validated();
             Effective {
@@ -611,7 +652,9 @@ pub fn effective(dirs: &AppDirs, profile: &state::Profile) -> Effective {
             )],
             invalid: true,
         },
-    }
+    };
+    eff.warnings.splice(0..0, scope_warn);
+    eff
 }
 
 #[cfg(test)]
@@ -798,6 +841,57 @@ hull = "vehicle_NameDRAK_Cutlass_Black"
         let e = effective(&dirs, &p);
         assert!(e.invalid && e.active().is_none());
         assert_eq!(e.warnings[0].kind, "ship-names-invalid");
+    }
+
+    #[test]
+    fn unknown_scope_value_warns_and_uses_shared() {
+        let t = tempfile::tempdir().unwrap();
+        let dirs = AppDirs::under(t.path());
+        let mut p = state::Profile::preset("recommended").unwrap();
+        let mut tbl = toml::Table::new();
+        tbl.insert("use".into(), "chanel".into());
+        p.table.insert(PROFILE_TABLE.into(), tbl.into());
+        assert_eq!(scope_of(&p), Scope::Shared);
+        let e = effective(&dirs, &p);
+        assert_eq!(e.scope, Scope::Shared);
+        assert!(
+            e.warnings
+                .iter()
+                .any(|w| w.kind == "ship-names" && w.detail.contains("chanel")),
+            "{:?}",
+            e.warnings
+        );
+        for ok in [Scope::Shared, Scope::Channel, Scope::Off] {
+            set_channel(&mut p, ok, Some(&ShipNames::default()));
+            assert!(scope_warning(&p).is_none(), "{ok:?}");
+        }
+    }
+
+    #[test]
+    fn save_over_a_broken_shared_file_keeps_a_copy() {
+        let t = tempfile::tempdir().unwrap();
+        let dirs = AppDirs::under(t.path());
+        assert_eq!(
+            load_shared_for_save(&dirs).unwrap(),
+            (ShipNames::default(), None)
+        );
+        let mut s = ShipNames::default();
+        s.ships.push(entry("vehicle_NameA", None));
+        save_shared(&dirs, &s).unwrap();
+        assert_eq!(load_shared_for_save(&dirs).unwrap(), (s, None));
+        let broken = "style = \"roman\"\n# my notes\n";
+        std::fs::write(ship_names_path(&dirs), broken).unwrap();
+        let (got, bak) = load_shared_for_save(&dirs).unwrap();
+        assert_eq!(got, ShipNames::default());
+        let bak = bak.expect("backup made");
+        assert_eq!(std::fs::read_to_string(&bak).unwrap(), broken);
+        assert!(!ship_names_path(&dirs).exists());
+        assert!(
+            bak.file_name()
+                .unwrap()
+                .to_string_lossy()
+                .starts_with("ship-names.toml.bad-")
+        );
     }
 
     #[test]

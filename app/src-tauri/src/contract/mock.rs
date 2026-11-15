@@ -900,7 +900,7 @@ pub(crate) const MOCK_HULLS: &[(&str, &str, Option<&str>, &str, bool)] = &[
 pub(crate) const MOCK_FLEET_FILE: &str = r#"[
  {"ship_code":"KSTL_Kite","ship_name":"Needle","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Kite","lti":true,"warbond":false,"entity_type":"ship","pledge_id":"90000001","pledge_name":"Synthetic pledge","pledge_date":"January 01, 2950","pledge_cost":"$10.00 USD"},
  {"ship_code":"KSTL_Kite","ship_name":"Kite","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Kite","entity_type":"ship"},
- {"ship_code":"KSTL_Talon","ship_name":"Talon","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Talon","entity_type":"ship"},
+ {"ship_name":"Talon","manufacturer_code":"KSTL","manufacturer_name":"Kestrel","name":"Talon","entity_type":"ship"},
  {"ship_code":"ORBW_Lantern","ship_name":"Rusty","manufacturer_code":"ORBW","manufacturer_name":"Orbit Works","name":"Lantern","entity_type":"ship"},
  {"ship_code":"RDGE_Hauler","ship_name":"Hauler","manufacturer_code":"RDGE","manufacturer_name":"Ridge Freight","name":"Hauler","entity_type":"ship"},
  {"ship_code":"RDGE_Hauler","ship_name":"Hauler","manufacturer_code":"RDGE","manufacturer_name":"Ridge Freight","name":"Hauler","entity_type":"ship"},

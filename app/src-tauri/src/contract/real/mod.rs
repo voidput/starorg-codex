@@ -2525,7 +2525,9 @@ impl Backend for RealBackend {
         {
             let _lock = self.fleet_lock()?;
             if scope == fleet_store::Scope::Shared {
-                let mut shared = fleet_store::load_shared(self.dirs()).unwrap_or_default();
+                // An unreadable file is moved aside (`.bad-<stamp>`), never overwritten.
+                let (mut shared, _backup) =
+                    fleet_store::load_shared_for_save(self.dirs()).map_err(io)?;
                 shared.merge_from(&new);
                 fleet_store::save_shared(self.dirs(), &shared).map_err(io)?;
             }

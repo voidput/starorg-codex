@@ -101,7 +101,8 @@ pub fn plan(s: &ShipNames, cat: &Catalog) -> Plan {
             Style::None => String::new(),
             Style::Numeric => format!("{:0w$}", i + 1, w = num_w),
             Style::GroupLetter => {
-                let letter = (b'A' + (block_of[i] as u8).min(25)) as char;
+                // Clamp before narrowing: past Z stays Z (validation caps groups at 26).
+                let letter = (b'A' + block_of[i].min(25) as u8) as char;
                 format!("{letter}{:0w$}", in_block[i], w = blk_w)
             }
             Style::Symbol => s.symbol.clone(),

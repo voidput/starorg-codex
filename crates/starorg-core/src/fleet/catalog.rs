@@ -1,8 +1,10 @@
 //! The hulls of one build (addendum §6.2).
 //!
-//! A **hull** is a stock key that starts with `vehicle_Name` (folded), does not end in
-//! `_short`, is referenced as `loc.name` by at least one ship record, and whose stock value
-//! is real text. Its **id** is the key as stock spells it without a flag suffix
+//! A **hull** is a stock key that is referenced as `loc.name` by at least one ship record,
+//! does not end in `short` (folded), whose stock value is real text, and that either starts
+//! with `vehicle_Name` (folded) or is named by a player-hull record whatever its prefix, as
+//! long as it contains `VehicleName` (the Wikelo hulls name themselves
+//! `TheCollector_ShipMod_*_VehicleName`). Its **id** is the key as stock spells it without a flag suffix
 //! (`vehicle_NameAEGS_Avenger_Titan`): stable across builds and channels, and exactly the
 //! key the generator writes. Ids are compared folded (spec 4.3).
 
@@ -11,7 +13,7 @@ use crate::ini::{StockIni, fold_key, strip_flag_suffix};
 use crate::model::namesake::named_after;
 use crate::model::{GameData, is_placeholder_name, loc_key};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Hull {
@@ -51,6 +53,65 @@ pub fn sort_key(s: &str) -> String {
     s.to_lowercase()
 }
 
+/// Finds the short key of a hull. Stock spells most as `<hull>_short`; some drop the `_`
+/// (`..._VehicleNameShort`), some spell the hull part differently (`KRIG_L-22` for the long
+/// key's `KRIG_L22`, `AGES` for `AEGS`). Tried in that order; the loose forms only count when
+/// exactly one key fits.
+struct ShortKeys {
+    /// Squashed key without its `short` ending -> stock lines.
+    squashed: BTreeMap<String, Vec<usize>>,
+    /// Same, with the maker segment's letters sorted (catches a transposed maker code).
+    anagram: BTreeMap<String, Vec<usize>>,
+}
+
+/// `vehicle_NameAGES_Firebird` -> `vehicle_name` + `aegs` (letters sorted) + rest, squashed.
+fn maker_anagram(key: &str) -> Option<String> {
+    let lower = key.to_ascii_lowercase();
+    let rest = lower.strip_prefix("vehicle_name")?;
+    let (maker, tail) = rest.split_once('_')?;
+    let mut m: Vec<char> = maker.chars().collect();
+    m.sort_unstable();
+    Some(format!(
+        "{}|{}",
+        m.into_iter().collect::<String>(),
+        super::squash(tail)
+    ))
+}
+
+impl ShortKeys {
+    fn new(stock: &StockIni) -> Self {
+        let mut squashed: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        let mut anagram: BTreeMap<String, Vec<usize>> = BTreeMap::new();
+        for (line, key, _) in stock.entries() {
+            let base = strip_flag_suffix(key);
+            let lower = base.to_ascii_lowercase();
+            let Some(head) = lower.strip_suffix("short") else {
+                continue;
+            };
+            let head = head.strip_suffix('_').unwrap_or(head);
+            squashed.entry(super::squash(head)).or_default().push(line);
+            if let Some(a) = maker_anagram(head) {
+                anagram.entry(a).or_default().push(line);
+            }
+        }
+        Self { squashed, anagram }
+    }
+
+    fn find(&self, stock: &StockIni, hull: &str) -> Option<usize> {
+        for exact in [format!("{hull}_short"), format!("{hull}short")] {
+            if let Ok(l) = stock.find(&exact) {
+                return Some(l);
+            }
+        }
+        let one = |v: Option<&Vec<usize>>| match v.map(Vec::as_slice) {
+            Some([l]) => Some(*l),
+            _ => None,
+        };
+        one(self.squashed.get(&super::squash(hull)))
+            .or_else(|| one(self.anagram.get(&maker_anagram(hull)?)))
+    }
+}
+
 impl Catalog {
     pub fn new(mut hulls: Vec<Hull>) -> Self {
         hulls.sort_by(|a, b| {
@@ -77,13 +138,26 @@ impl Catalog {
             npc: u32,
             namesake: bool,
         }
+        let is_player = |s: &crate::model::Ship| !s.is_template && is_player_hull(s.short_name());
+        // Keys a player-hull record names itself by, whatever their prefix, as long as they
+        // still say `VehicleName` (`vehicles_NameOrbital_Sentry`, a turret, does not).
+        let player_keys: BTreeSet<String> = gd
+            .ships
+            .iter()
+            .filter(|s| is_player(s))
+            .filter_map(|s| s.loc.name.as_deref().and_then(loc_key))
+            .map(fold_key)
+            .filter(|k| k.replace('_', "").contains("vehiclename"))
+            .collect();
         let mut by: BTreeMap<String, Acc> = BTreeMap::new();
         for s in &gd.ships {
             let Some(key) = s.loc.name.as_deref().and_then(loc_key) else {
                 continue;
             };
             let folded = fold_key(key);
-            if !folded.starts_with("vehicle_name") || folded.ends_with("_short") {
+            if folded.ends_with("short")
+                || !(folded.starts_with("vehicle_name") || player_keys.contains(&folded))
+            {
                 continue;
             }
             let Ok(line) = stock.find(key) else { continue };
@@ -101,7 +175,7 @@ impl Catalog {
                 npc: 0,
                 namesake: false,
             });
-            let player = !s.is_template && is_player_hull(s.short_name());
+            let player = is_player(s);
             if player {
                 a.flyable = true;
                 if named_after(&a.hull, s.short_name()) {
@@ -122,10 +196,11 @@ impl Catalog {
                     .or_default() += 1;
             }
         }
+        let shorts = ShortKeys::new(stock);
         let hulls = by
             .into_values()
             .map(|a| {
-                let short_line = stock.find(&format!("{}_short", a.hull)).ok();
+                let short_line = shorts.find(stock, &a.hull);
                 let maker = a
                     .makers
                     .iter()
@@ -233,5 +308,84 @@ mod tests {
         assert!(c.get("vehicle_NameORIG_890Jump").unwrap().namesake);
         assert!(!c.get("vehicle_NameORIG_890Jump_Hijacked").unwrap().namesake);
         assert!(c.get("vehicle_NameConcept").is_none());
+    }
+
+    #[test]
+    fn player_hulls_named_by_other_keys_and_odd_short_keys() {
+        let stock = StockIni::parse(
+            [
+                "TheCollector_ShipMod_SYN_Alpha_VehicleName=Synth Alpha Special",
+                "TheCollector_ShipMod_SYN_Alpha_VehicleNameShort=Alpha SP",
+                "TheCollector_ShipMod_SYN_Npc_VehicleName=Synth Npc Special",
+                "vehicle_NameSYNA_Bravo_Collector=Synth Bravo Collector",
+                "vehicle_NameSNYA_Bravo_Collector_short=Bravo CL",
+                "vehicle_NameSYNA_C22_Wolf=Synth C-22 Wolf",
+                "vehicle_NameSYNA_C-22_Wolf_short=Wolf",
+                "vehicle_NameSYNA_Delta=Synth Delta",
+                "vehicle_NameSYNA_Delta_short=Delta",
+                "vehicle_NameSYNA_Del_ta_short=Other",
+                "mission_Name_Synth=Some mission",
+                "vehicles_NameSynth_Sentry=Synth Sentry",
+            ]
+            .join("\n")
+            .into_bytes(),
+        );
+        let gd = GameData {
+            ships: vec![
+                ship(
+                    "SYNA_Alpha_Collector_Mod",
+                    "TheCollector_ShipMod_SYN_Alpha_VehicleName",
+                    "syna",
+                ),
+                // A non-player record naming itself by an odd key stays out.
+                ship(
+                    "SYNA_Npc_PU_AI_CIV",
+                    "TheCollector_ShipMod_SYN_Npc_VehicleName",
+                    "syna",
+                ),
+                ship("SYNA_Mission_AI", "mission_Name_Synth", "syna"),
+                ship("SYNA_Sentry", "vehicles_NameSynth_Sentry", "syna"),
+                ship(
+                    "SYNA_Bravo_Collector",
+                    "vehicle_NameSYNA_Bravo_Collector",
+                    "syna",
+                ),
+                ship("SYNA_C22_Wolf", "vehicle_NameSYNA_C22_Wolf", "syna"),
+                ship("SYNA_Delta", "vehicle_NameSYNA_Delta", "syna"),
+            ],
+            ..Default::default()
+        };
+        let c = Catalog::build(&gd, &stock);
+        let a = c
+            .get("TheCollector_ShipMod_SYN_Alpha_VehicleName")
+            .expect("player hull with a non-vehicle_Name key");
+        assert!(a.flyable);
+        assert_eq!(a.name, "Synth Alpha Special");
+        assert_eq!(
+            a.short_key.as_deref(),
+            Some("TheCollector_ShipMod_SYN_Alpha_VehicleNameShort")
+        );
+        assert!(c.get("TheCollector_ShipMod_SYN_Npc_VehicleName").is_none());
+        assert!(c.get("mission_Name_Synth").is_none());
+        assert!(
+            c.get("vehicles_NameSynth_Sentry").is_none(),
+            "player record, but not a VehicleName key"
+        );
+        let short = |id: &str| c.get(id).unwrap().short_key.clone();
+        assert_eq!(
+            short("vehicle_NameSYNA_Bravo_Collector").as_deref(),
+            Some("vehicle_NameSNYA_Bravo_Collector_short"),
+            "transposed maker code"
+        );
+        assert_eq!(
+            short("vehicle_NameSYNA_C22_Wolf").as_deref(),
+            Some("vehicle_NameSYNA_C-22_Wolf_short"),
+            "punctuation differs"
+        );
+        assert_eq!(
+            short("vehicle_NameSYNA_Delta").as_deref(),
+            Some("vehicle_NameSYNA_Delta_short"),
+            "the exact spelling wins over a loose one"
+        );
     }
 }

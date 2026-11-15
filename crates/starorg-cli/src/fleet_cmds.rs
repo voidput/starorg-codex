@@ -238,6 +238,11 @@ fn import_cmd(
         for a in &r.ambiguous {
             println!("  ambiguous: {} -> {}", a.name, a.candidates.join(", "));
         }
+        if r.format == import::Format::XplorCsv && !r.unmatched.is_empty() {
+            println!(
+                "  note: HangarXPLOR CSV gives a ship you named only by its name, so it shows as unmatched; the JSON export keeps both"
+            );
+        }
         if !r.unmatched.is_empty() || !r.ambiguous.is_empty() {
             println!("  match by hand: starorg-strings fleet match \"<row name>\" <hull id|none>");
         }

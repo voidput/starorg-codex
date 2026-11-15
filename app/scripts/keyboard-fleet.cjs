@@ -104,6 +104,47 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.getByText('Saved', { exact: true }).waitFor();
   check('Save stores the list', true);
 
+  // Scope: back to the shared list asks in the app's own dialog (no native confirm), and a
+  // turned-down pick can be made again.
+  let nativeDialog = false;
+  page.on('dialog', async (d) => {
+    nativeDialog = true;
+    await d.dismiss();
+  });
+  const scopeTo = async (label) => {
+    await page.getByRole('combobox', { name: 'Applies to' }).click();
+    await page.getByRole('option', { name: label }).click();
+  };
+  await scopeTo('Only LIVE');
+  check('Only LIVE needs no question', (await page.getByRole('combobox', { name: 'Applies to' }).textContent()).includes('Only LIVE'));
+  await scopeTo('All channels');
+  const ask = page.getByRole('dialog', { name: 'Use the shared list again?' });
+  await ask.waitFor();
+  check('All channels asks in an app dialog', await ask.isVisible());
+  await ask.getByRole('button', { name: 'Cancel' }).click();
+  await ask.waitFor({ state: 'hidden' });
+  check('Cancel keeps the channel list', (await page.getByRole('combobox', { name: 'Applies to' }).textContent()).includes('Only LIVE'));
+  await scopeTo('All channels');
+  await ask.waitFor();
+  check('the same pick asks again', await ask.isVisible());
+  await ask.getByRole('button', { name: 'Use the shared list' }).click();
+  await ask.waitFor({ state: 'hidden' });
+  check('confirm switches to all channels', (await page.getByRole('combobox', { name: 'Applies to' }).textContent()).includes('All channels'));
+  check('no native script dialog', !nativeDialog);
+
+  // A suggested name the game cannot take is offered disabled, not applied.
+  await page.goto(`${BASE}&screen=ships&fleet=imported`);
+  await page.getByRole('listbox', { name: 'My ships, in order' }).waitFor();
+  await page.getByRole('button', { name: 'Import fleet' }).first().click();
+  await page.getByRole('radio', { name: 'Paste a list' }).or(page.getByRole('button', { name: 'Paste a list' })).first().click();
+  await page.getByLabel(/One ship per line/).fill(JSON.stringify([{ name: 'Kite', ship_name: '50% <off>', entity_type: 'ship' }]));
+  await page.getByRole('button', { name: 'Check list' }).click();
+  await page.getByRole('button', { name: /^Import \d+ model/ }).click();
+  const chip = page.getByRole('button', { name: 'Use “50% <off>”' });
+  await chip.waitFor();
+  check('a bad suggestion is disabled', await chip.isDisabled());
+  check('it says why', /Cannot be used/.test((await chip.getAttribute('title')) ?? ''));
+
   console.log(results.join('\n'));
   console.log(errors.length ? 'page errors:\n' + errors.join('\n') : 'no page errors');
   await browser.close();

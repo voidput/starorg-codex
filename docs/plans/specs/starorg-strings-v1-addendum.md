@@ -301,7 +301,14 @@ game folders.
   name is used by two keys (`Origin 890 Jump`: the hull and its hijacked mission variant). No
   hull name is a format key and none holds `~`, `%` or `<`.
 - 14 ship records name themselves with non-vehicle keys (`hud_wreckage`,
-  `TheCollector_ShipMod_*`, `vehicles_NameOrbital_Sentry*`). Those are out of scope.
+  `TheCollector_ShipMod_*`, `vehicles_NameOrbital_Sentry*`). Six of them are player-ownable
+  Wikelo hulls (`ANVL_Hornet_F7_Mk2_Collector_Mod` → `TheCollector_ShipMod_F7_Hornet_VehicleName`
+  = `Anvil F7 Hornet Mk Wikelo`; the Fortune, Guardian QI, Pulse, Ursa Medivac and Nox Wikelo
+  specials), so they are hulls too (§6.2); their short keys end `VehicleNameShort` without the
+  `_`. The wreckage and sentry keys stay out.
+- Two flyable LIVE hulls spell the short key differently from the long key:
+  `vehicle_NameAEGS_Firebird_Collector_Milt` / `vehicle_NameAGES_Firebird_Collector_Milt_short`
+  and `vehicle_NameKRIG_L22_Alpha_Wolf` / `vehicle_NameKRIG_L-22_Alpha_Wolf_short`.
 - Channels differ (LIVE has 8 hulls PTU lacks, HOTFIX has 2 LIVE lacks), so a shared list
   must tolerate hulls a build does not have.
 
@@ -310,9 +317,15 @@ game folders.
 `fleet::Catalog`, built from `GameData.ships` + stock, cached with the extraction (no schema
 change).
 
-- A **hull** is a stock key that starts with `vehicle_Name` (folded), does not end in
-  `_short`, is referenced as `loc.name` by at least one ship record, and whose stock value is
-  not empty or a placeholder.
+- A **hull** is a stock key that is referenced as `loc.name` by at least one ship record,
+  does not end in `short` (folded), whose stock value is not empty or a placeholder, and that
+  either starts with `vehicle_Name` (folded) or is named by a player-hull record whatever its
+  prefix as long as it still contains `VehicleName` (ignoring case and `_`). The second rule
+  takes in the Wikelo `TheCollector_ShipMod_*_VehicleName` keys and leaves out
+  `vehicles_NameOrbital_Sentry`. LIVE then has 292 flyable hulls (PTU 284, HOTFIX 287).
+- **Short key**: `<hull>_short`, else `<hull>Short`; else, only when exactly one stock key fits,
+  a `…short` key equal to the hull id with punctuation ignored (`KRIG_L-22` for `KRIG_L22`) or
+  with the maker code's letters transposed (`AGES` for `AEGS`).
 - **Hull id** = that key as stock spells it, without the flag suffix
   (`vehicle_NameAEGS_Avenger_Titan`). Compared folded (spec 4.3). It is stable across builds
   and channels, readable in a hand-edited file, and it is exactly the key we write.
@@ -331,18 +344,25 @@ import (§4).
 |---|---|---|
 | **HangarXPLOR JSON** (RSI+ "Export fleet", FleetYards, myfleet.gg / FleetView, Starjump / hangar.link) | First non-space character is `[` | Per row: `name` (ship, maker stripped), `ship_name` (custom name, or the ship), `ship_code`, `manufacturer_code`, `entity_type`. Rows whose `entity_type` is present and not `ship` are skipped. Field names are read ignoring case and `_` (`shipCode` = `ship_code`) |
 | **HangarXPLOR CSV** | First line has the columns `Manufacturer` and `Ship` | `Manufacturer`, `Ship`. Quoted fields with `""` escapes; unquoted also accepted |
-| **Plain text** | Anything else | One ship per line; blank lines and `#` comments ignored; an optional count (`2x Gladius`, `Gladius x2`); a maker in front is fine (`Aegis Gladius`) |
+| *Other CSV* | Any other first line with three or more comma-separated fields, or a tab | Refused: "not a fleet export: no Manufacturer and Ship columns". Never read as text |
+| **Plain text** | Anything else | One ship per line; blank lines and `#` comments ignored; an optional count (`2x Gladius`, `Gladius x2`); a maker in front is fine (`Aegis Gladius`). Lines with `,` `;` tab `"` `|` or over 100 characters are skipped (counted in `skipped`) |
 
 - Source of truth for the JSON and CSV shapes: `rsi-plus/src/lib/export.ts` (`XplorRow`,
   `starOrgRows`, `xplorCsv`, `shipLines`). The RSI+ StarOrg preset (`acquired`, no
   `pledge_date`) is the same shape and needs no special case.
 - **Never read into memory beyond the parse, never stored:** `pledge_id`, `pledge_name`,
   `pledge_date`, `pledge_cost`, `lti`, `warbond`, `insurance`, `acquired`.
+- **A record of another file is never a ship name.** A spreadsheet re-export or a headerless
+  paste would otherwise put whole rows (pledge name, cost, date) into `pending[]` as unmatched
+  names; the *Other CSV* and text rules above stop that (synthetic test with a
+  `Name,Manufacturer,LTI,Pledge ID,…` file).
 - Limits: UTF-8 (BOM dropped), 5 MB, 5,000 rows. A JSON object at the top level, or an array
   with no usable row, is refused with "not a fleet export".
 - **CSV caveat.** In the CSV, `Ship` holds the custom name when the ship has one, and the hull
   name is then nowhere in the row. Such rows come out unmatched; once matched by hand the row
-  text becomes the rename suggestion. The JSON export has no such gap, so the UI recommends it.
+  text becomes the rename suggestion. The JSON export has no such gap, so the UI recommends it,
+  and the report says so (CLI note, a line in the dialog's "Not matched" box) when a CSV import
+  has unmatched rows.
 - **FleetYards' own (non-HangarXPLOR) export:** not supported as a format in this version.
   Its shape could not be confirmed from public documentation. The case-and-underscore-blind
   field reading above accepts a camelCase file with the same fields; anything else is refused.
@@ -357,7 +377,8 @@ hulls stops with *ambiguous*):
    `vehicle_NameRSI_Ursa_Rover_Emerald`, `Cutlass Black Best In Show Edition 2949` →
    `…DRAK_Cutlass_Black_ShipShowdown`, paint editions that are not separate hulls such as
    `MOLE Carbon` → the MOLE). Small and hand-kept; an alias whose target is not in the build
-   is ignored.
+   is ignored. Tried with the row name as given and with a leading maker name removed
+   (`Drake Interplanetary Dragonfly Black`, the RSI+ `shipLines` shape).
 3. **Exact normalised name.** Normalise: lower case, typographic quotes to ASCII, every run of
    non-alphanumerics to one space, trim. The row name is tried as given and with a leading
    maker removed (maker names and codes from a table keyed by the game's manufacturer code:
@@ -365,7 +386,8 @@ hulls stops with *ambiguous*):
    compared with each hull's long name, long name without maker, and short name.
 4. **Without "Mk".** The same with `Mk <roman or digits>` removed on both sides
    (`Constellation Andromeda` = `Constellation Mk IV Andromeda`). A row with no Mk that fits
-   both a Mk I and a Mk II hull is ambiguous, not guessed.
+   both a Mk I and a Mk II hull is ambiguous, not guessed, unless its `ship_code` equals one
+   of those hull ids exactly (`F7C Hornet` + `ANVL_Hornet_F7C` = the Mk I).
 5. **Same words, any order**, ignoring `edition` (`Hercules Starlifter C2` = `C2 Hercules
    Starlifter`, `Spirit C1` = `C1 Spirit`, `Valkyrie Liberator Edition`).
 6. **`ship_code`**: the code with non-alphanumerics removed equals the hull id's suffix the
@@ -690,7 +712,9 @@ Built as specified above; local only, not pushed. Differences and findings:
   Mustang Alpha Vindicator. Every target exists and is flyable in LIVE (ignored test).
 - **Matching, HangarXPLOR's public table (305 rows, synthetic JSON export)** with aliases:
   LIVE 265 matched (232 exact, 14 alias, 5 Mk, 11 word order, 3 code), 6 ambiguous (the six
-  Hornets without Mk), 34 unmatched; PTU 258; HOTFIX 265. The unmatched ones were checked:
+  Hornets without Mk), 34 unmatched; PTU 258; HOTFIX 265. After the exact-ship-code rule for
+  Mk rows and the Wikelo hulls (verifier fixes): LIVE 271 matched (11 Mk), 0 ambiguous, 34
+  unmatched; PTU 264; HOTFIX 271. The unmatched ones were checked:
   concept ships and keys no ship record names (Hull D/E, Kraken, Orion, Odyssey, Ranger, G12,
   ATLS, Nautilus, Retaliator Bomber, Zeus Mk II MR, …).
 - **Finding: letter prefixes interleave.** With `group-letter`, `A2 …` sorts before

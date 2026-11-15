@@ -481,9 +481,17 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       }
       return { rows, format: 'xplor-json' as T.FleetFormat, total: (arr as unknown[]).length };
     }
+    // Same rule as the core: a CSV-shaped first line is a CSV (refused here without the
+    // HangarXPLOR columns); CSV-shaped or over-long lines are never read as ship names.
+    const first = t.split(/\r?\n/)[0] ?? '';
+    if (first.split(',').length >= 3 || first.includes('\t')) {
+      const cols = first.split(',').map((c) => c.trim().replace(/^"|"$/g, '').toLowerCase());
+      if (!(cols.includes('manufacturer') && cols.includes('ship'))) fail('invalid', 'not a fleet export: no Manufacturer and Ship columns');
+    }
     for (const line of t.split(/\r?\n/)) {
       const l = line.trim();
       if (!l || l.startsWith('#')) continue;
+      if (Array.from(l).length > 100 || /[,;\t"|]/.test(l)) continue;
       const m = /^(\d+)\s*[x×]\s+(.+)$/i.exec(l) ?? null;
       const m2 = /^(.+?)\s+[x×](\d+)$/i.exec(l) ?? null;
       if (m) rows.push({ name: m[2]!, count: Number(m[1]), custom: null, maker: null });
@@ -496,7 +504,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   const MOCK_FILE = JSON.stringify([
     { ship_code: 'KSTL_Kite', ship_name: 'Needle', manufacturer_code: 'KSTL', name: 'Kite', entity_type: 'ship', pledge_id: '90000001' },
     { ship_code: 'KSTL_Kite', ship_name: 'Kite', manufacturer_code: 'KSTL', name: 'Kite', entity_type: 'ship' },
-    { ship_code: 'KSTL_Talon', ship_name: 'Talon', manufacturer_code: 'KSTL', name: 'Talon', entity_type: 'ship' },
+    { ship_name: 'Talon', manufacturer_code: 'KSTL', name: 'Talon', entity_type: 'ship' },
     { ship_code: 'ORBW_Lantern', ship_name: 'Rusty', manufacturer_code: 'ORBW', name: 'Lantern', entity_type: 'ship' },
     { ship_code: 'RDGE_Hauler', ship_name: 'Hauler', manufacturer_code: 'RDGE', name: 'Hauler', entity_type: 'ship' },
     { ship_code: 'RDGE_Hauler', ship_name: 'Hauler', manufacturer_code: 'RDGE', name: 'Hauler', entity_type: 'ship' },

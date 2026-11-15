@@ -43,6 +43,7 @@
   import SelectField from '@/components/common/SelectField.svelte';
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
+  import ActionDialog from '@/components/common/ActionDialog.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import FleetImportDialog from '@/components/ships/FleetImportDialog.svelte';
   import MatchDialog from '@/components/ships/MatchDialog.svelte';
@@ -372,9 +373,15 @@
   }
 
   // --- Scope -----------------------------------------------------------------------------
-  function setScope(next: ShipNamesScope) {
+  // Leaving a channel's own list asks first, in the app's own dialog (native confirm() is
+  // not dependable in every webview).
+  let sharedAsk = $state(false);
+  function setScope(next: ShipNamesScope, asked = false) {
     if (!draft || !view) return;
-    if (next === 'shared' && draft.scope === 'channel' && !confirm(`Use the list shared by all channels on ${chName} again? ${chName}'s own list is dropped when you save.`)) return;
+    if (next === 'shared' && draft.scope === 'channel' && !asked) {
+      sharedAsk = true;
+      return;
+    }
     draft = {
       scope: next,
       settings: next === 'shared' && draft.scope !== 'shared' ? structuredClone($state.snapshot(view.shared_settings) as ShipNamesSettings) : draft.settings,
@@ -580,7 +587,8 @@
                       {#if own?.names.length && !e.name}
                         <span class="flex flex-wrap items-center gap-1">
                           {#each own.names as n (n)}
-                            <button type="button" tabindex={-1} class="border-primary/40 text-primary hover:bg-primary/10 rounded-full border px-1.5 text-[11.5px]" onclick={() => edit((x) => names.rename(x, e.hull, n))}>Use “{n}”</button>
+                            {@const bad = names.nameProblem(n)}
+                            <button type="button" tabindex={-1} disabled={!!bad} title={bad ? `Cannot be used as a name: ${bad}` : undefined} class="border-primary/40 text-primary hover:bg-primary/10 rounded-full border px-1.5 text-[11.5px] disabled:pointer-events-none disabled:opacity-50" onclick={() => { if (!bad) edit((x) => names.rename(x, e.hull, n)); }}>Use “{n}”</button>
                           {/each}
                           {#if own.names.length > 1}<span class="text-muted-foreground text-[11.5px]">One model has one name in the game.</span>{/if}
                         </span>
@@ -685,5 +693,6 @@
 
 {#if view && app.target}
   <FleetImportDialog bind:open={importOpen} target={app.target} catalog={view.catalog} initialMode={importMode} ondone={() => { handPick = false; void reload(); }} />
+  <ActionDialog bind:open={sharedAsk} title="Use the shared list again?" description={`${chName} goes back to the list shared by all channels. ${chName}'s own list is dropped when you save.`} confirmLabel="Use the shared list" onconfirm={async () => setScope('shared', true)} />
   <MatchDialog bind:open={matchOpen} target={app.target} {view} onchange={(v) => absorb(v)} />
 {/if}

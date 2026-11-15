@@ -112,3 +112,56 @@ fn every_alias_target_exists_in_live() {
         }
     }
 }
+
+#[test]
+#[ignore = "needs a cached extraction of LIVE"]
+fn odd_name_keys_and_short_spellings_are_caught() {
+    let dirs = cached("LIVE");
+    assert!(!dirs.is_empty(), "no cached LIVE extraction");
+    for dir in dirs {
+        let cat = catalog(&dir);
+        let odd: Vec<&str> = cat
+            .flyable()
+            .filter(|h| !h.hull.to_ascii_lowercase().starts_with("vehicle_name"))
+            .map(|h| h.hull.as_str())
+            .collect();
+        println!("player hulls named by other keys: {odd:?}");
+        // The Wikelo hulls name themselves `TheCollector_ShipMod_*_VehicleName` (4.10).
+        assert!(
+            odd.iter().any(|k| k.starts_with("TheCollector_ShipMod_")),
+            "{odd:?}"
+        );
+        for h in cat.flyable() {
+            if h.hull.starts_with("TheCollector_ShipMod_") {
+                assert!(h.short_key.is_some(), "{} has no short key", h.hull);
+            }
+        }
+        let missing: Vec<&str> = cat
+            .flyable()
+            .filter(|h| h.short_key.is_none())
+            .map(|h| h.hull.as_str())
+            .collect();
+        println!("flyable hulls without a short key: {missing:?}");
+        assert!(
+            odd.iter().all(|k| k
+                .replace('_', "")
+                .to_ascii_lowercase()
+                .contains("vehiclename")),
+            "{odd:?}"
+        );
+        for (hull, short) in [
+            (
+                "vehicle_NameAEGS_Firebird_Collector_Milt",
+                "vehicle_NameAGES_Firebird_Collector_Milt_short",
+            ),
+            (
+                "vehicle_NameKRIG_L22_Alpha_Wolf",
+                "vehicle_NameKRIG_L-22_Alpha_Wolf_short",
+            ),
+        ] {
+            if let Some(h) = cat.get(hull) {
+                assert_eq!(h.short_key.as_deref(), Some(short), "{hull}");
+            }
+        }
+    }
+}

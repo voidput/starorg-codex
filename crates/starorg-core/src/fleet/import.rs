@@ -72,7 +72,10 @@ pub struct Parsed {
 const NOT_FLEET: &str = "not a fleet export";
 
 /// Detect the format: `[` (or `{`) first = HangarXPLOR JSON; a first line with the columns
-/// `Manufacturer` and `Ship` = HangarXPLOR CSV; anything else = plain text.
+/// `Manufacturer` and `Ship`, or any other first line that looks like a CSV header (three or
+/// more comma-separated fields, or a tab), = CSV; anything else = plain text. An unrecognised
+/// CSV is refused by the CSV reader instead of being read as text, where whole rows (pledge
+/// names, costs, dates) would end up as unmatched ship names (§6.8).
 pub fn detect(text: &str) -> Format {
     let t = text.trim_start();
     // `{` too, so a JSON object is refused as "not a fleet export" instead of read as text.
@@ -84,7 +87,8 @@ pub fn detect(text: &str) -> Format {
         .into_iter()
         .map(|c| c.trim().to_ascii_lowercase())
         .collect();
-    if cols.iter().any(|c| c == "manufacturer") && cols.iter().any(|c| c == "ship") {
+    let recognised = cols.iter().any(|c| c == "manufacturer") && cols.iter().any(|c| c == "ship");
+    if recognised || cols.len() >= 3 || first.contains('\t') {
         Format::XplorCsv
     } else {
         Format::Text
@@ -276,8 +280,19 @@ fn text_count(line: &str) -> (u32, &str) {
     (1, line)
 }
 
+/// Longest plain-text line read as a ship (characters). The longest maker + ship name is
+/// about 70; anything longer is not a ship name.
+pub const TEXT_LINE_MAX: usize = 100;
+
+/// A plain-text line that is not a ship name but a record of some other file (CSV, TSV, a
+/// pasted table): skipped, never stored (§6.8).
+fn not_a_name(line: &str) -> bool {
+    line.chars().count() > TEXT_LINE_MAX || line.contains([',', ';', '\t', '"', '|'])
+}
+
 fn parse_text(text: &str) -> Result<Parsed, String> {
     let mut rows = Vec::new();
+    let mut skipped = 0;
     let mut total = 0;
     for line in text.lines() {
         let l = line.trim();
@@ -287,6 +302,10 @@ fn parse_text(text: &str) -> Result<Parsed, String> {
         total += 1;
         if total > MAX_ROWS {
             return Err(too_many());
+        }
+        if not_a_name(l) {
+            skipped += 1;
+            continue;
         }
         let (count, name) = text_count(l);
         if !name.is_empty() {
@@ -302,7 +321,7 @@ fn parse_text(text: &str) -> Result<Parsed, String> {
     Ok(Parsed {
         format: Format::Text,
         total,
-        skipped: 0,
+        skipped,
         rows,
     })
 }
@@ -451,11 +470,16 @@ impl<'a> Matcher<'a> {
                 }
             }
         }
-        if let Some(h) = self.aliases.get(&key).and_then(|id| self.known(id)) {
-            return Match::Hull(h, Tier::Alias);
-        }
         let mut row_forms = vec![key.clone()];
         row_forms.extend(strip_maker(&key));
+        // The alias table holds store names without the maker; RSI+ `shipLines` puts the
+        // maker first (`Drake Interplanetary Dragonfly Black`).
+        if let Some(h) = row_forms
+            .iter()
+            .find_map(|f| self.aliases.get(f).and_then(|id| self.known(id)))
+        {
+            return Match::Hull(h, Tier::Alias);
+        }
         type Form<'f> = &'f dyn Fn(&str) -> String;
         let tiers: [(Tier, Form<'_>); 2] = [
             (Tier::Exact, &|s: &str| s.to_string()),
@@ -476,6 +500,16 @@ impl<'a> Matcher<'a> {
                     .copied()
                     .filter(|h| has_mk(&normalize(&h.name)))
                     .collect();
+                // An exact ship-code hit settles it (`ANVL_Hornet_F7C` = the Mk I hull id).
+                let code = row.code.as_deref().map(squash).unwrap_or_default();
+                let by_code: Vec<&Hull> = mks
+                    .iter()
+                    .copied()
+                    .filter(|h| !code.is_empty() && hull_suffix(&h.hull) == code)
+                    .collect();
+                if let [h] = by_code.as_slice() {
+                    return Match::Hull(h.hull.clone(), Tier::Mk);
+                }
                 if mks.len() > 1 {
                     return Match::Ambiguous({
                         let mut v: Vec<String> = mks.iter().map(|h| h.hull.clone()).collect();
@@ -1009,6 +1043,74 @@ mod tests {
                 "vehicle_NameANVL_Hornet_F7A_Mk2".into()
             ])
         );
+    }
+
+    #[test]
+    fn exact_ship_code_settles_mk() {
+        let c = catalog();
+        let saved = BTreeMap::new();
+        let m = Matcher::new(&c, aliases(), &saved);
+        let mut r = row("F7A Hornet");
+        r.code = Some("ANVL_Hornet_F7A".into());
+        assert_eq!(m.find(&r), hit("vehicle_NameANVL_Hornet_F7A", Tier::Mk));
+        r.code = Some("ANVL_Hornet_F7A_Mk2".into());
+        assert_eq!(m.find(&r), hit("vehicle_NameANVL_Hornet_F7A_Mk2", Tier::Mk));
+        r.code = Some("ANVL_Hornet".into());
+        assert!(matches!(m.find(&r), Match::Ambiguous(_)), "no exact hit");
+    }
+
+    #[test]
+    fn alias_tried_after_the_maker_is_stripped() {
+        assert_eq!(
+            find("Ursa Rover"),
+            hit("vehicle_NameRSI_Ursa_Rover", Tier::Alias)
+        );
+        assert_eq!(
+            find("Roberts Space Industries Ursa Rover"),
+            hit("vehicle_NameRSI_Ursa_Rover", Tier::Alias)
+        );
+        assert_eq!(
+            find("RSI Ursa Rover Fortuna"),
+            hit("vehicle_NameRSI_Ursa_Rover_Emerald", Tier::Alias)
+        );
+    }
+
+    #[test]
+    fn unrecognised_csv_is_refused_not_read_as_text() {
+        // A spreadsheet re-export with other column names: no row may become a ship name.
+        let text = "Name,Manufacturer,LTI,Pledge ID,Pledge,Cost,Date\n\"Gladius\",\"Aegis Dynamics\",true,99000001,\"Standalone Ship - Synthetic Pack\",\"$123.45 USD\",\"Jan 01, 2950\"\n";
+        assert_eq!(detect(text), Format::XplorCsv);
+        let e = parse(text.as_bytes(), None).unwrap_err();
+        assert!(e.contains("no Manufacturer and Ship columns"), "{e}");
+        assert!(
+            !e.contains("99000001") && !e.contains("Synthetic Pack"),
+            "{e}"
+        );
+        // Tab-separated too.
+        assert!(parse(b"Ship\tPledge\nGladius\tPack\n", None).is_err());
+        // Forced text, or a headerless paste: CSV-shaped and over-long lines are skipped.
+        let headerless = "Gladius\n\"Gladius\",\"Aegis Dynamics\",true,99000001,\"Pack\"\nArrow;99000002;$75\nArrow | 75\n";
+        let p = parse(headerless.as_bytes(), Some(Format::Text)).unwrap();
+        let names: Vec<&str> = p.rows.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["Gladius"]);
+        assert_eq!((p.total, p.skipped), (4, 3));
+        let long = format!("{}\n", "A".repeat(TEXT_LINE_MAX + 1));
+        assert!(parse(long.as_bytes(), Some(Format::Text)).is_err());
+        let fleet = run(
+            &parse(headerless.as_bytes(), Some(Format::Text)).unwrap(),
+            &catalog(),
+            &FleetFile::default(),
+            false,
+        )
+        .fleet;
+        let json = serde_json::to_string(&fleet).unwrap();
+        assert!(
+            !json.contains("99000001") && !json.contains("Pack"),
+            "{json}"
+        );
+        // A plain list is still plain text.
+        assert_eq!(detect("Gladius\nArrow\n"), Format::Text);
+        assert_eq!(detect("2x Gladius\n"), Format::Text);
     }
 
     #[test]

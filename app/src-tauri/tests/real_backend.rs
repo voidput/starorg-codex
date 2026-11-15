@@ -842,6 +842,26 @@ fn fleet_import_order_and_ship_names_through_apply() {
     );
     assert!(!profile_has_table(&f), "the channel's own list is dropped");
 
+    // A hand-broken shared file is moved aside before a save, not overwritten.
+    let broken = "style = \"roman\"\n# notes kept\n";
+    std::fs::write(&names_toml, broken).unwrap();
+    save(&s, ShipNamesScope::Shared);
+    let kept: Vec<String> = std::fs::read_dir(names_toml.parent().unwrap())
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("ship-names.toml.bad-"))
+        .collect();
+    assert_eq!(kept.len(), 1, "{kept:?}");
+    assert_eq!(
+        std::fs::read_to_string(names_toml.with_file_name(&kept[0])).unwrap(),
+        broken
+    );
+    assert!(
+        std::fs::read_to_string(&names_toml)
+            .unwrap()
+            .contains("enabled = true")
+    );
+
     // Hand match and an override that wins.
     let v = f
         .backend

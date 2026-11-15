@@ -190,7 +190,7 @@
             <TriangleAlert aria-hidden="true" />
             <Alert.Title>Not matched</Alert.Title>
             <Alert.Description>
-              <p>No ship of {target.channel} has these names: concept ships, store names the game spells differently, or typos. They stay in a list to match by hand later.</p>
+              <p>No ship of {target.channel} has these names: concept ships, store names the game spells differently, or typos. They stay in a list to match by hand later.{#if r.format === 'xplor-csv'} A HangarXPLOR CSV gives a ship you named only by that name, so it lands here; the JSON export keeps both.{/if}</p>
               <ul class="max-h-32 list-inside list-disc overflow-y-auto text-[12px]">{#each r.unmatched as u (u.name)}<li>{u.name}{u.count > 1 ? ` ×${u.count}` : ''}</li>{/each}</ul>
             </Alert.Description>
           </Alert.Root>
