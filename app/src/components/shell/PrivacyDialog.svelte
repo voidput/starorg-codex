@@ -53,6 +53,7 @@
 
   function settings() {
     open = false;
+    app.settingsSection = 'network';
     app.go('settings');
   }
 </script>

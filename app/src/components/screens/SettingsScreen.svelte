@@ -6,6 +6,7 @@
    */
   import Wand from '@lucide/svelte/icons/wand-sparkles';
   import * as Card from '@/components/ui/card';
+  import { jumpToSection } from '@/lib/scroll';
   import { Button } from '@/components/ui/button';
   import Segmented from '@/components/common/Segmented.svelte';
   import SwitchRow from '@/components/common/SwitchRow.svelte';
@@ -33,15 +34,7 @@
     { id: 'experimental', label: 'Experimental' },
     { id: 'cli', label: 'Command line' },
   ];
-  function jump(id: string) {
-    const el = document.getElementById(id);
-    const main = document.getElementById('main');
-    if (!el || !main) return;
-    // Scroll <main> only: scrollIntoView() would also scroll the window frame.
-    const top = main.scrollTop + el.getBoundingClientRect().top - main.getBoundingClientRect().top - 12;
-    main.scrollTo({ top, behavior: 'smooth' });
-    el.querySelector<HTMLElement>('[data-slot=card-title]')?.focus({ preventScroll: true });
-  }
+  const jump = (id: string) => void jumpToSection(id);
 
   const accents: Accent[] = ['cyan', 'green', 'amber', 'orange', 'rose', 'violet'];
   const swatch: Record<Accent, string> = { cyan: '#3cc8ff', green: '#3ddc97', amber: '#ffd166', orange: '#ff9f43', rose: '#ff6b9d', violet: '#a78bfa' };
