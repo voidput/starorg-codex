@@ -8,8 +8,17 @@
 use crate::fsutil;
 use std::path::{Path, PathBuf};
 
-pub const BEGIN: &str = "# >>> starorg-strings hook >>>";
-pub const END: &str = "# <<< starorg-strings hook <<<";
+pub const BEGIN: &str = "# >>> starorg-codex hook >>>";
+pub const END: &str = "# <<< starorg-codex hook <<<";
+/// The markers before 0.3.0. A block between them is found like a current one, reported as
+/// [`BlockState::Outdated`], and `install` replaces it in place with the new block.
+pub const LEGACY_BEGIN: &str = "# >>> starorg-strings hook >>>";
+pub const LEGACY_END: &str = "# <<< starorg-strings hook <<<";
+
+/// The CLI the block calls (from `PATH` unless `--bin` is given).
+pub const CLI: &str = "starorg-codex";
+/// The CLI's name before 0.3.0; still installed as an alias for one release.
+pub const LEGACY_CLI: &str = "starorg-strings";
 
 /// Scripts are small; anything bigger is not a hook script.
 pub const SCRIPT_LIMIT: u64 = 1 << 20;
@@ -61,7 +70,7 @@ pub fn sh_quote(s: &str) -> String {
 /// What the block calls.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct BlockOpts {
-    /// Absolute binary path; `None` = `starorg-strings` from `PATH`.
+    /// Absolute binary path; `None` = [`CLI`] from `PATH`.
     pub bin: Option<String>,
     /// `--game-dir` to pass (when the install was given explicitly).
     pub game_dir: Option<String>,
@@ -77,8 +86,8 @@ pub fn block(kind: Kind, o: &BlockOpts) -> String {
             (format!("if [ -x {q} ]; then"), q)
         }
         None => (
-            "if command -v starorg-strings >/dev/null 2>&1; then".to_string(),
-            "starorg-strings".to_string(),
+            format!("if command -v {CLI} >/dev/null 2>&1; then"),
+            CLI.to_string(),
         ),
     };
     let mut call = format!("    {cmd} hook {}", kind.as_str());
@@ -105,7 +114,7 @@ pub fn block(kind: Kind, o: &BlockOpts) -> String {
     [
         BEGIN,
         what,
-        "# Managed by `starorg-strings hook install`; `hook uninstall` removes it. Edit outside.",
+        "# Managed by `starorg-codex hook install`; `hook uninstall` removes it. Edit outside.",
         &guard,
         &call,
         "fi",
@@ -128,11 +137,16 @@ pub enum BlockState {
     },
 }
 
-/// Line spans of the block: (first line index, last line index).
+/// Line spans of the block: (first line index, last line index). Old (pre-0.3.0) and new
+/// markers count alike, so an old block is found, and replaced, like a current one.
 fn find(lines: &[&str]) -> Result<Option<(usize, usize)>, String> {
-    let is = |l: &str, m: &str| l.trim_end_matches('\r').trim() == m;
-    let begins: Vec<usize> = (0..lines.len()).filter(|&i| is(lines[i], BEGIN)).collect();
-    let ends: Vec<usize> = (0..lines.len()).filter(|&i| is(lines[i], END)).collect();
+    let is = |l: &str, m: &[&str]| m.contains(&l.trim_end_matches('\r').trim());
+    let begins: Vec<usize> = (0..lines.len())
+        .filter(|&i| is(lines[i], &[BEGIN, LEGACY_BEGIN]))
+        .collect();
+    let ends: Vec<usize> = (0..lines.len())
+        .filter(|&i| is(lines[i], &[END, LEGACY_END]))
+        .collect();
     match (begins.as_slice(), ends.as_slice()) {
         ([], []) => Ok(None),
         ([b], [e]) if b < e => Ok(Some((*b, *e))),
@@ -180,8 +194,16 @@ pub fn inspect(text: &str, expected: &str) -> BlockState {
     }
 }
 
-/// Lines outside the block that call `starorg-strings` (a hand-made snippet like the one in
-/// spec 8): 1-based line numbers.
+/// The block (or a stray marker) uses the pre-0.3.0 markers.
+pub fn has_legacy_markers(text: &str) -> bool {
+    text.lines().any(|l| {
+        let t = l.trim_end_matches('\r').trim();
+        t == LEGACY_BEGIN || t == LEGACY_END
+    })
+}
+
+/// Lines outside the block that call the CLI, by its name or its pre-0.3.0 name (a
+/// hand-made snippet like the one in spec 8): 1-based line numbers.
 pub fn manual_calls(text: &str) -> Vec<usize> {
     let lines = split(text);
     let span = find(&lines).ok().flatten();
@@ -191,7 +213,8 @@ pub fn manual_calls(text: &str) -> Vec<usize> {
         .filter(|(i, _)| span.is_none_or(|(b, e)| *i < b || *i > e))
         .filter(|(_, l)| {
             let t = l.trim_start();
-            !t.starts_with('#') && t.contains("starorg-strings ")
+            !t.starts_with('#')
+                && (t.contains(&format!("{CLI} ")) || t.contains(&format!("{LEGACY_CLI} ")))
         })
         .map(|(i, _)| i + 1)
         .collect()
@@ -428,7 +451,7 @@ mod tests {
         let newer = block(
             Kind::Prelaunch,
             &BlockOpts {
-                bin: Some("/opt/My Tools/starorg-strings".into()),
+                bin: Some("/opt/My Tools/starorg-codex".into()),
                 timeout: Some(30),
                 notify: true,
                 ..BlockOpts::default()
@@ -436,10 +459,40 @@ mod tests {
         );
         assert_eq!(inspect(&old, &newer), BlockState::Outdated);
         let out = install(&old, &newer).unwrap();
-        assert!(out.contains("if [ -x '/opt/My Tools/starorg-strings' ]; then"));
+        assert!(out.contains("if [ -x '/opt/My Tools/starorg-codex' ]; then"));
         assert!(out.contains("--timeout 30 --notify || true"));
         assert_eq!(inspect(&out, &newer), BlockState::Current);
         assert_eq!(uninstall(&out).unwrap().unwrap(), SCRIPT);
+    }
+
+    /// The block 0.2.x wrote (old markers, old CLI name), as in a real LUG Helper script.
+    const OLD_BLOCK: &str = "# >>> starorg-strings hook >>>\n# StarOrg Codex: re-apply enhanced strings when the build or settings changed.\n# Managed by `starorg-strings hook install`; `hook uninstall` removes it. Edit outside.\nif command -v starorg-strings >/dev/null 2>&1; then\n    starorg-strings hook prelaunch ${WINEPREFIX:+--prefix \"$WINEPREFIX\"} --timeout 60 || true\nfi\n# <<< starorg-strings hook <<<\n";
+
+    #[test]
+    fn old_marker_block_is_outdated_and_replaced_in_place() {
+        let s = format!("#!/bin/bash\necho user\n{OLD_BLOCK}exit 0\n");
+        assert_eq!(inspect(&s, &blk()), BlockState::Outdated);
+        assert!(has_legacy_markers(&s));
+        assert!(
+            manual_calls(&s).is_empty(),
+            "the old block is not a hand-made call"
+        );
+        let out = install(&s, &blk()).unwrap();
+        assert_eq!(out, format!("#!/bin/bash\necho user\n{}exit 0\n", blk()));
+        assert!(!out.contains("starorg-strings"), "{out}");
+        assert!(out.contains("if command -v starorg-codex >/dev/null 2>&1; then"));
+        assert!(out.contains("    starorg-codex hook prelaunch "));
+        assert_eq!(inspect(&out, &blk()), BlockState::Current);
+        assert!(!has_legacy_markers(&out));
+        // Uninstall removes an old block too.
+        assert_eq!(
+            uninstall(&s).unwrap().unwrap(),
+            "#!/bin/bash\necho user\nexit 0\n"
+        );
+        // An old block next to a new one is two blocks: refused, fixed by hand.
+        let two = format!("{OLD_BLOCK}{}", blk());
+        assert!(matches!(inspect(&two, &blk()), BlockState::Broken { .. }));
+        assert!(install(&two, &blk()).is_err());
     }
 
     #[test]
@@ -490,10 +543,10 @@ mod tests {
     #[test]
     fn manual_and_other_tools() {
         let s = format!(
-            "{SCRIPT}starorg-strings apply --all --if-stale\n# starorg-strings commented\n\"$SMARTCITIZEN\" check\n"
+            "{SCRIPT}starorg-strings apply --all --if-stale\n# starorg-strings commented\nstarorg-codex apply --all\n\"$SMARTCITIZEN\" check\n"
         );
         let out = install(&s, &blk()).unwrap();
-        assert_eq!(manual_calls(&out).len(), 1);
+        assert_eq!(manual_calls(&out).len(), 2, "old and new CLI names");
         assert_eq!(other_tools(&out), vec!["Smart Citizen".to_string()]);
         assert!(manual_calls(&install(SCRIPT, &blk()).unwrap()).is_empty());
     }

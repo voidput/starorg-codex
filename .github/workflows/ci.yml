@@ -91,7 +91,7 @@ jobs:
       # dev-dependencies; a release build of the CLI or the app must never carry them.
       - name: No test hooks in release builds
         run: |
-          for p in starorg-cli starorg-strings-app; do
+          for p in starorg-cli starorg-codex-app; do
             if cargo tree -p "$p" --locked -e normal,features --prefix none | grep -q 'test-hooks'; then
               echo "::error::$p enables a test-hooks feature in its normal dependency tree"
               exit 1

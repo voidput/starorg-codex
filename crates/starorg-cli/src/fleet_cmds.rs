@@ -244,7 +244,7 @@ fn import_cmd(
             );
         }
         if !r.unmatched.is_empty() || !r.ambiguous.is_empty() {
-            println!("  match by hand: starorg-strings fleet match \"<row name>\" <hull id|none>");
+            println!("  match by hand: starorg-codex fleet match \"<row name>\" <hull id|none>");
         }
         if written && appended > 0 {
             println!(
@@ -262,7 +262,7 @@ fn import_cmd(
             eprintln!("  warning: {msg}");
             return ExitCode::from(exit::OK);
         }
-        eprintln!("starorg-strings: {msg}");
+        eprintln!("starorg-codex: {msg}");
         return ExitCode::from(exit::ERROR);
     }
     ExitCode::from(exit::OK)

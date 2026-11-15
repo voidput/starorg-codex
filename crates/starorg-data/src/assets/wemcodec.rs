@@ -532,7 +532,7 @@ pub fn ogg_opus_from_packets(
     }
     let mut tags = Vec::new();
     tags.extend_from_slice(b"OpusTags");
-    let vendor = b"starorg-strings";
+    let vendor = b"starorg-codex";
     tags.extend_from_slice(&(vendor.len() as u32).to_le_bytes());
     tags.extend_from_slice(vendor);
     tags.extend_from_slice(&0u32.to_le_bytes());

@@ -1,5 +1,5 @@
 [package]
-name = "starorg-strings-app"
+name = "starorg-codex-app"
 description = "StarOrg Codex desktop app (Tauri shell over starorg-core)"
 version.workspace = true
 edition.workspace = true
@@ -8,14 +8,14 @@ license.workspace = true
 repository.workspace = true
 authors.workspace = true
 publish.workspace = true
-default-run = "starorg-strings-app"
+default-run = "starorg-codex-app"
 
 [lib]
-name = "starorg_strings_app"
+name = "starorg_codex_app"
 path = "src/lib.rs"
 
 [[bin]]
-name = "starorg-strings-app"
+name = "starorg-codex-app"
 path = "src/main.rs"
 
 [build-dependencies]

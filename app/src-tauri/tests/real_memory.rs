@@ -2,17 +2,17 @@
 //! `config.toml`, and the real `dev-worker` (this package's binary, on a synthetic DCB)
 //! stopped by a tiny limit and reported as such instead of a plain crash.
 
+use starorg_codex_app::contract::Backend;
+use starorg_codex_app::contract::dev::*;
+use starorg_codex_app::contract::real::{
+    DevSpawner, DialogSlot, RealBackend, RealConfig, SourceFactory,
+};
+use starorg_codex_app::contract::types::*;
 use starorg_core::appdirs::AppDirs;
 use starorg_core::apply::Ctx;
 use starorg_core::discovery::{Channel, DiscoveryEnv, DiscoveryRequest};
 use starorg_core::source::GameSource;
 use starorg_data::starbreaker::synthetic;
-use starorg_strings_app::contract::Backend;
-use starorg_strings_app::contract::dev::*;
-use starorg_strings_app::contract::real::{
-    DevSpawner, DialogSlot, RealBackend, RealConfig, SourceFactory,
-};
-use starorg_strings_app::contract::types::*;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::Arc;
@@ -30,7 +30,7 @@ struct Synthetic {
 }
 impl DevSpawner for Synthetic {
     fn command(&self, _: &Channel) -> Result<Command, String> {
-        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-strings-app"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-codex-app"));
         c.arg("dev-worker")
             .arg("--dcb")
             .arg(&self.dcb)

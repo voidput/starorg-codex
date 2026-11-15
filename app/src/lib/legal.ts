@@ -2,7 +2,7 @@
  * Legal texts shown in Footer -> About (AboutDialog.svelte). The same wording is in the root
  * README.md and docs/store-listing.md; keep them in step.
  */
-export const REPO_URL = 'https://github.com/voidput/starorg-strings';
+export const REPO_URL = 'https://github.com/voidput/starorg-codex';
 
 /** Fan content disclaimer (RSI/CIG fan content policy). */
 export const FAN_DISCLAIMER =

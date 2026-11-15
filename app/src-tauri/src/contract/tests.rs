@@ -379,7 +379,7 @@ fn mcp_server_is_off_by_default_and_runs_on_loopback() {
     let b = MockBackend::default();
     let off = b.mcp_status().unwrap();
     assert!(!off.running && off.url.is_none() && off.token.is_none());
-    assert_eq!(off.stdio, "starorg-strings mcp");
+    assert_eq!(off.stdio, "starorg-codex mcp");
     let on = b.set_mcp_enabled(McpToggle { enabled: true }).unwrap();
     assert!(on.running, "{:?}", on.error);
     assert!(on.url.as_deref().unwrap().starts_with("http://127.0.0.1:"));
@@ -485,7 +485,7 @@ fn update_samples() -> (UpdateStatus, UpdateStatus, UpdateStatus) {
 }
 
 /// `samples.gen.json` is what the TS types are checked against (`samples.check.ts`).
-/// Regenerate with `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app`.
+/// Regenerate with `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app`.
 /// Objects with sorted keys, whatever serde_json's `preserve_order` feature says (starorg-data
 /// turns it on for the whole build).
 pub(super) fn sorted(v: Value) -> Value {
@@ -513,7 +513,7 @@ fn samples_match_the_committed_file() {
         .replace("\r\n", "\n");
     assert!(
         committed == text,
-        "{} is out of date: run UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app, then npm run check",
+        "{} is out of date: run UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app, then npm run check",
         path.display()
     );
 }
@@ -1217,7 +1217,7 @@ fn errors_cross_ipc_as_app_error() {
         e["detail"]
             .as_str()
             .unwrap()
-            .contains("starorg-strings setup")
+            .contains("starorg-codex setup")
     );
 }
 
@@ -2095,7 +2095,7 @@ fn update_check_over_ipc_needs_the_switch_and_takes_a_req() {
         "network-off"
     );
     let st = ipc("update_status", json!({})).unwrap();
-    assert_eq!(st["prefs"]["repo"], "voidput/starorg-strings");
+    assert_eq!(st["prefs"]["repo"], "voidput/starorg-codex");
     assert_eq!(
         ipc("skip_update", json!({ "version": "0.2.0" })).unwrap()["skipped_version"],
         "0.2.0"

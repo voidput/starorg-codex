@@ -1,5 +1,5 @@
 fn main() -> std::process::ExitCode {
-    // `starorg-strings status | head -1`: a closed stdout is not an error. println!
+    // `starorg-codex status | head -1`: a closed stdout is not an error. println!
     // panics on EPIPE; exit quietly instead of printing a panic message.
     let default_hook = std::panic::take_hook();
     std::panic::set_hook(Box::new(move |info| {

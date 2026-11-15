@@ -208,23 +208,23 @@
         <Card.Description>Everything the app does is also a command; scripts and launch hooks use it.</Card.Description>
       </Card.Header>
       <Card.Content class="grid gap-2">
-        <pre class="mono bg-background/60 overflow-x-auto rounded-md border p-3 text-[12px] leading-relaxed">starorg-strings status --json
-starorg-strings apply --channel LIVE
-starorg-strings apply --all --if-stale --timeout 20
-starorg-strings remove --channel LIVE
-starorg-strings blueprints import owned-blueprints.json --character Pilot_A --dry-run
-starorg-strings blueprints reimport --character Pilot_A --replace --dry-run
-starorg-strings blueprints rescan --channel LIVE --dry-run
-{#if s.advanced.developer_mode}starorg-strings dev types --channel LIVE
-starorg-strings dev record &lt;guid|path|name&gt; --channel LIVE
-starorg-strings dev extract "Data/Libs/Config/*.xml" --out DIR --convert
-starorg-strings dev export-model AEGS_Javelin --preset print --out javelin.glb
-starorg-strings dev export-sounds AEGS_Gladius --out DIR
-{/if}starorg-strings sync status    # StarOrg environment and what to sync
-starorg-strings sync set --import-game-log off
-starorg-strings doctor
-starorg-strings mcp            # experimental: MCP server on stdio</pre>
-        <p class="text-muted-foreground text-[12px]">Exit codes: 0 done, 5 applied with warnings, other values an error named in the output. Before uninstalling, run <span class="mono">starorg-strings remove --all</span> to put stock text back.</p>
+        <pre class="mono bg-background/60 overflow-x-auto rounded-md border p-3 text-[12px] leading-relaxed">starorg-codex status --json
+starorg-codex apply --channel LIVE
+starorg-codex apply --all --if-stale --timeout 20
+starorg-codex remove --channel LIVE
+starorg-codex blueprints import owned-blueprints.json --character Pilot_A --dry-run
+starorg-codex blueprints reimport --character Pilot_A --replace --dry-run
+starorg-codex blueprints rescan --channel LIVE --dry-run
+{#if s.advanced.developer_mode}starorg-codex dev types --channel LIVE
+starorg-codex dev record &lt;guid|path|name&gt; --channel LIVE
+starorg-codex dev extract "Data/Libs/Config/*.xml" --out DIR --convert
+starorg-codex dev export-model AEGS_Javelin --preset print --out javelin.glb
+starorg-codex dev export-sounds AEGS_Gladius --out DIR
+{/if}starorg-codex sync status    # StarOrg environment and what to sync
+starorg-codex sync set --import-game-log off
+starorg-codex doctor
+starorg-codex mcp            # experimental: MCP server on stdio</pre>
+        <p class="text-muted-foreground text-[12px]">Exit codes: 0 done, 5 applied with warnings, other values an error named in the output. Before uninstalling, run <span class="mono">starorg-codex remove --all</span> to put stock text back.</p>
       </Card.Content>
     </Card.Root>
   </div>

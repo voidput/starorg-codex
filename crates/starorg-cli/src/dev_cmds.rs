@@ -228,7 +228,7 @@ fn export_type(
                 );
             } else if !g.quiet {
                 eprintln!(
-                    "starorg-strings: {} {name} records ({} bytes) written to {}",
+                    "starorg-codex: {} {name} records ({} bytes) written to {}",
                     done.records, done.bytes, done.path
                 );
             }

@@ -2,7 +2,7 @@
 //!
 //! Ignored by default: it needs the extraction cache of an installed channel. Read only: it
 //! reads `gamedata.json` and `base.ini` from the cache (`$STARORG_CACHE_DIR`, default
-//! `~/.cache/starorg-strings`) and never touches the game. Run with
+//! `~/.cache/starorg-codex`) and never touches the game. Run with
 //!
 //! ```sh
 //! cargo test -p starorg-core --test fleet_real -- --ignored --nocapture
@@ -22,7 +22,7 @@ fn cache_root() -> PathBuf {
     std::env::var_os("STARORG_CACHE_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(|| {
-            PathBuf::from(std::env::var_os("HOME").expect("HOME")).join(".cache/starorg-strings")
+            PathBuf::from(std::env::var_os("HOME").expect("HOME")).join(".cache/starorg-codex")
         })
 }
 

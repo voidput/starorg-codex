@@ -6,7 +6,7 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-pub const BIN: &str = env!("CARGO_BIN_EXE_starorg-strings");
+pub const BIN: &str = env!("CARGO_BIN_EXE_starorg-codex");
 pub const BOM: &[u8] = b"\xEF\xBB\xBF";
 
 pub struct Fake {
@@ -141,13 +141,12 @@ impl Fake {
     }
 
     pub fn data_dir(&self, ch: &str) -> PathBuf {
-        let cfg =
-            std::fs::read_to_string(self.base.join("home/config/starorg-strings/config.toml"))
-                .unwrap();
+        let cfg = std::fs::read_to_string(self.base.join("home/config/starorg-codex/config.toml"))
+            .unwrap();
         let t: toml::Table = cfg.parse().unwrap();
         let id = t["installs"][0]["id"].as_str().unwrap().to_string();
         self.base
-            .join("home/data/starorg-strings/channels")
+            .join("home/data/starorg-codex/channels")
             .join(id)
             .join(ch)
     }

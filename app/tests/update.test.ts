@@ -45,9 +45,9 @@ test('settings line: off, never, up to date, available, not visible', () => {
 });
 
 test('the hint names the host and what is sent', () => {
-  const h = requestHint('voidput/starorg-strings');
+  const h = requestHint('voidput/starorg-codex');
   assert.match(h, /api\.github\.com/);
-  assert.match(h, /StarOrg-Strings\/<version>/);
+  assert.match(h, /StarOrg-Codex\/<version>/);
   assert.match(h, /no account, token or install id/);
 });
 

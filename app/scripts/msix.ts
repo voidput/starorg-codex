@@ -4,7 +4,7 @@
  * `tauri build --features store --no-bundle`; the .msix is unsigned on purpose (the Store
  * signs what it publishes).
  *
- *   node scripts/msix.ts stage --exe <starorg-strings-app.exe> --version <x.y.z> --out <dir>
+ *   node scripts/msix.ts stage --exe <starorg-codex-app.exe> --version <x.y.z> --out <dir>
  *
  * Identity comes from the repo variables MSIX_IDENTITY_NAME, MSIX_PUBLISHER (CN=...) and
  * MSIX_PUBLISHER_DISPLAY_NAME (Partner Center -> the app -> Product identity). Pure functions
@@ -16,7 +16,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export interface MsixIdentity {
-  /** Package/Identity/Name, e.g. `12345VoidPut.StarOrgStrings`. */
+  /** Package/Identity/Name, e.g. `12345VoidPut.StarOrgCodex`. */
   name: string;
   /** Package/Identity/Publisher, e.g. `CN=1A2B3C4D-...`. */
   publisher: string;
@@ -119,7 +119,7 @@ export function renderManifest(m: ManifestInput): string {
     '    <Resource Language="en-us" />',
     '  </Resources>',
     '  <Applications>',
-    `    <Application Id="StarOrgStrings" Executable="${xml(m.executable)}" EntryPoint="Windows.FullTrustApplication">`,
+    `    <Application Id="StarOrgCodex" Executable="${xml(m.executable)}" EntryPoint="Windows.FullTrustApplication">`,
     '      <uap:VisualElements',
     `        DisplayName="${xml(DISPLAY_NAME)}"`,
     `        Description="${xml(DESCRIPTION)}"`,

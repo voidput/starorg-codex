@@ -3,10 +3,25 @@
 use std::path::Path;
 use std::process::{Command, Output};
 
-const BIN: &str = env!("CARGO_BIN_EXE_starorg-strings");
+const BIN: &str = env!("CARGO_BIN_EXE_starorg-codex");
+
+/// A throwaway home for every run: the CLI moves pre-0.3.0 app folders it finds under HOME
+/// and the XDG dirs, and a test must never touch the real ones.
+fn sandbox() -> &'static Path {
+    static T: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+    T.get_or_init(|| tempfile::tempdir().unwrap()).path()
+}
+
+fn isolated(c: &mut Command) -> &mut Command {
+    let h = sandbox();
+    c.env("HOME", h)
+        .env("XDG_CONFIG_HOME", h.join("config"))
+        .env("XDG_DATA_HOME", h.join("data"))
+        .env("XDG_CACHE_HOME", h.join("cache"))
+}
 
 fn run(args: &[&str]) -> Output {
-    Command::new(BIN)
+    isolated(&mut Command::new(BIN))
         .args(args)
         .env_remove("WINEPREFIX")
         .output()
@@ -347,7 +362,7 @@ fn version_prints_build_details_without_network() {
     let out = run(&["version", "--json"]);
     assert_eq!(out.status.code(), Some(0));
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert_eq!(v["name"], "starorg-strings");
+    assert_eq!(v["name"], "starorg-codex");
     assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
     assert_eq!(v["features"]["published_dumps"], false);
     assert_eq!(v["starbreaker_commit"].as_str().unwrap().len(), 40);
@@ -355,9 +370,144 @@ fn version_prints_build_details_without_network() {
     assert_eq!(human.status.code(), Some(0));
     let text = String::from_utf8(human.stdout).unwrap();
     assert!(
-        text.starts_with(&format!("starorg-strings {}\n", env!("CARGO_PKG_VERSION"))),
+        text.starts_with(&format!("starorg-codex {}\n", env!("CARGO_PKG_VERSION"))),
         "{text}"
     );
     assert!(text.contains("/releases"));
     assert!(run(&["version", "--quiet"]).stdout.is_empty());
+}
+
+/// `starorg-codex` under its pre-0.3.0 name: the release ships a `starorg-strings` link
+/// (Linux) or copy (Windows) that must keep working, with one deprecation line on stderr.
+#[test]
+fn old_name_alias_works_and_says_it_is_deprecated() {
+    let t = tempfile::tempdir().unwrap();
+    let alias = t
+        .path()
+        .join(format!("starorg-strings{}", std::env::consts::EXE_SUFFIX));
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(BIN, &alias).unwrap();
+    #[cfg(not(unix))]
+    std::fs::copy(BIN, &alias).unwrap();
+    let old = isolated(&mut Command::new(&alias))
+        .args(["version", "--json"])
+        .output()
+        .unwrap();
+    let new = run(&["version", "--json"]);
+    assert_eq!(old.status.code(), Some(0), "{old:?}");
+    assert_eq!(old.stdout, new.stdout, "same program, same output");
+    let err = String::from_utf8_lossy(&old.stderr);
+    assert_eq!(
+        err.matches(starorg_cli::LEGACY_NOTE).count(),
+        1,
+        "one deprecation line: {err}"
+    );
+    assert!(err.contains("starorg-codex hook install"), "{err}");
+    assert!(!String::from_utf8_lossy(&new.stderr).contains("is now starorg-codex"));
+    // Usage errors still exit 2 under the old name.
+    let bad = isolated(&mut Command::new(&alias))
+        .arg("no-such-command")
+        .output()
+        .unwrap();
+    assert_eq!(bad.status.code(), Some(2));
+}
+
+fn xdg(home: &Path) -> impl Fn(&mut Command) -> &mut Command + '_ {
+    move |c: &mut Command| {
+        c.env_remove("WINEPREFIX")
+            .env("HOME", home)
+            .env("XDG_CONFIG_HOME", home.join("config"))
+            .env("XDG_DATA_HOME", home.join("data"))
+            .env("XDG_CACHE_HOME", home.join("cache"))
+    }
+}
+
+fn old_folders(home: &Path) {
+    for (d, f, body) in [
+        ("config", "config.toml", "schema = 1\n"),
+        ("data", "outputs.json", "{}\n"),
+        ("cache", "assets/x.bin", "cached"),
+    ] {
+        let p = home.join(d).join("starorg-strings").join(f);
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, body).unwrap();
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn first_start_moves_the_old_app_folders_once() {
+    let t = tempfile::tempdir().unwrap();
+    let home = t.path();
+    old_folders(home);
+    let env = xdg(home);
+    let o = env(&mut Command::new(BIN)).arg("version").output().unwrap();
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    let err = String::from_utf8_lossy(&o.stderr);
+    assert_eq!(err.matches("App folders moved").count(), 1, "{err}");
+    for (d, f) in [
+        ("config", "config.toml"),
+        ("data", "outputs.json"),
+        ("cache", "assets/x.bin"),
+    ] {
+        assert!(
+            home.join(d).join("starorg-codex").join(f).is_file(),
+            "{d}/{f}"
+        );
+        assert!(!home.join(d).join("starorg-strings").exists(), "{d} moved");
+    }
+    assert!(!home.join("data/.starorg-codex-migration.lock").exists());
+    // Second start: silent.
+    let o = env(&mut Command::new(BIN)).arg("version").output().unwrap();
+    assert!(o.stderr.is_empty(), "{o:?}");
+    // An old folder next to the new one is left alone; only status/doctor mention it.
+    std::fs::create_dir_all(home.join("config/starorg-strings")).unwrap();
+    std::fs::write(home.join("config/starorg-strings/config.toml"), "old\n").unwrap();
+    let o = env(&mut Command::new(BIN)).arg("version").output().unwrap();
+    assert!(o.stderr.is_empty(), "{o:?}");
+    let o = env(&mut Command::new(BIN)).arg("doctor").output().unwrap();
+    assert!(
+        String::from_utf8_lossy(&o.stderr).contains("left alone"),
+        "{o:?}"
+    );
+    assert_eq!(
+        std::fs::read_to_string(home.join("config/starorg-strings/config.toml")).unwrap(),
+        "old\n"
+    );
+    assert_eq!(
+        std::fs::read_to_string(home.join("config/starorg-codex/config.toml")).unwrap(),
+        "schema = 1\n"
+    );
+}
+
+/// The app and a launch hook starting at once: each folder is moved by exactly one of them.
+#[cfg(unix)]
+#[test]
+fn concurrent_first_starts_move_once() {
+    let t = tempfile::tempdir().unwrap();
+    let home = t.path();
+    old_folders(home);
+    let env = xdg(home);
+    let kids: Vec<_> = (0..6)
+        .map(|_| {
+            env(&mut Command::new(BIN))
+                .arg("version")
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::piped())
+                .spawn()
+                .unwrap()
+        })
+        .collect();
+    let errs: Vec<String> = kids
+        .into_iter()
+        .map(|k| String::from_utf8_lossy(&k.wait_with_output().unwrap().stderr).into_owned())
+        .collect();
+    let moved: usize = errs.iter().map(|e| e.matches(" -> ").count()).sum();
+    assert_eq!(moved, 3, "config, data and cache moved once each: {errs:?}");
+    assert!(errs.iter().all(|e| !e.contains("warning")), "{errs:?}");
+    assert_eq!(
+        std::fs::read_to_string(home.join("config/starorg-codex/config.toml")).unwrap(),
+        "schema = 1\n"
+    );
+    assert!(home.join("cache/starorg-codex/assets/x.bin").is_file());
 }

@@ -7,7 +7,7 @@ use starorg_data::starbreaker::synthetic as dcb;
 use std::path::Path;
 use std::process::{Command, Output};
 
-const BIN: &str = env!("CARGO_BIN_EXE_starorg-strings");
+const BIN: &str = env!("CARGO_BIN_EXE_starorg-codex");
 
 fn run(home: &Path, args: &[&str], env: &[(&str, &str)]) -> Output {
     let mut c = Command::new(BIN);

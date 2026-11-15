@@ -10,10 +10,10 @@ import { FIRST_STORE_VERSION, LOGOS, identityProblem, msixVersion, pngSize, rend
 const ICONS = new URL('../src-tauri/icons/', import.meta.url);
 const GOLDEN = new URL('./fixtures/AppxManifest.golden.xml', import.meta.url);
 // Placeholder identity, the shape Partner Center gives (Product identity page).
-const ID = { name: '12345Example.StarOrgStrings', publisher: 'CN=00000000-1111-2222-3333-444444444444', publisherDisplayName: 'Example & Co' };
+const ID = { name: '12345Example.StarOrgCodex', publisher: 'CN=00000000-1111-2222-3333-444444444444', publisherDisplayName: 'Example & Co' };
 
 test('manifest matches the golden file byte for byte', () => {
-  const got = renderManifest({ ...ID, version: '1.3.1.0', executable: 'starorg-strings-app.exe' });
+  const got = renderManifest({ ...ID, version: '1.3.1.0', executable: 'starorg-codex-app.exe' });
   if (process.env.UPDATE_GOLDEN === '1') writeFileSync(GOLDEN, got);
   assert.equal(got, readFileSync(GOLDEN, 'utf8'));
   assert.match(got, /TargetDeviceFamily Name="Windows\.Desktop"/);
@@ -53,11 +53,11 @@ test('identity from repo variables: all three needed, CN= publisher, schema-safe
 
 test('stage lays out the package root for makeappx', () => {
   const dir = mkdtempSync(join(tmpdir(), 'msix-'));
-  const exe = join(dir, 'starorg-strings-app.exe');
+  const exe = join(dir, 'starorg-codex-app.exe');
   writeFileSync(exe, 'MZ fake');
   const out = join(dir, 'pkg');
-  stage({ ...ID, version: '1.3.1.0', executable: 'starorg-strings-app.exe', exePath: exe, iconsDir: fileURLToPath(ICONS), out });
-  assert.deepEqual(readdirSync(out).sort(), ['AppxManifest.xml', 'Assets', 'starorg-strings-app.exe']);
+  stage({ ...ID, version: '1.3.1.0', executable: 'starorg-codex-app.exe', exePath: exe, iconsDir: fileURLToPath(ICONS), out });
+  assert.deepEqual(readdirSync(out).sort(), ['AppxManifest.xml', 'Assets', 'starorg-codex-app.exe']);
   assert.deepEqual(readdirSync(join(out, 'Assets')).sort(), LOGOS.map((l) => l.file).sort());
   assert.equal(readFileSync(join(out, 'AppxManifest.xml'), 'utf8'), readFileSync(GOLDEN, 'utf8'));
 });

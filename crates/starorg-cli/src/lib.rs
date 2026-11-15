@@ -1,4 +1,4 @@
-//! Command-line interface: `run(args) -> ExitCode` and the `starorg-strings` binary
+//! Command-line interface: `run(args) -> ExitCode` and the `starorg-codex` binary
 //! (spec 8).
 //!
 //! The CLI never opens a window, needs no display, and links no GTK, WebView or HTTP client.
@@ -26,7 +26,7 @@ pub use starorg_core::apply::exit;
 
 #[derive(Debug, Parser)]
 #[command(
-    name = "starorg-strings",
+    name = "starorg-codex",
     version,
     about = "Enhanced Star Citizen strings"
 )]
@@ -391,7 +391,7 @@ pub enum HookCmd {
     Install {
         #[command(flatten)]
         scripts: HookScripts,
-        /// Call this binary by absolute path instead of `starorg-strings` from PATH.
+        /// Call this binary by absolute path instead of `starorg-codex` from PATH.
         #[arg(long, value_name = "PATH")]
         bin: Option<PathBuf>,
     },
@@ -672,6 +672,34 @@ pub enum FleetCmd {
     Clear,
 }
 
+/// The deprecation note printed (stderr) when the CLI runs under its pre-0.3.0 name.
+pub const LEGACY_NOTE: &str = "starorg-strings is now starorg-codex: the old name keeps working until the next release; update your scripts (`starorg-codex hook install` updates the LUG Helper hooks)";
+
+/// Started as `starorg-strings` (the alias link or copy the 0.3.0 release still ships).
+fn invoked_as_legacy(args: &[OsString]) -> bool {
+    args.first()
+        .and_then(|a| Path::new(a).file_stem())
+        .is_some_and(|s| s == starorg_core::hooks::LEGACY_CLI)
+}
+
+/// The one-time move of the pre-0.3.0 app folders (starorg_core::legacy), on stderr. The
+/// "old folder left alone" notice only for `status` and `doctor`, not on every hook run.
+fn migrate_app_folders(cmd: &Command) {
+    let mut report = starorg_core::legacy::migrate_from_env();
+    if !matches!(cmd, Command::Status { .. } | Command::Doctor) {
+        report
+            .events
+            .retain(|e| !matches!(e, starorg_core::legacy::Event::BothExist { .. }));
+    }
+    for (level, line) in report.lines() {
+        let tag = match level {
+            starorg_core::legacy::Level::Info => "",
+            starorg_core::legacy::Level::Warn => "warning: ",
+        };
+        eprintln!("starorg-codex: {tag}{line}");
+    }
+}
+
 /// Parse `args` (including the program name) and run. Never panics on bad input.
 pub fn run<I, T>(args: I) -> ExitCode
 where
@@ -682,6 +710,9 @@ where
     // The MCP server's extraction worker: one dataset per process (starorg_mcp::worker).
     if let Some(code) = starorg_mcp::worker::worker_main(&args) {
         return ExitCode::from(code as u8);
+    }
+    if invoked_as_legacy(&args) {
+        eprintln!("{LEGACY_NOTE}");
     }
     let cli = match Cli::try_parse_from(args) {
         Ok(c) => c,
@@ -694,6 +725,9 @@ where
             });
         }
     };
+    if !matches!(cli.command, Command::ExtractWorker { .. }) {
+        migrate_app_folders(&cli.command);
+    }
     match cli.command {
         Command::Channels => commands::channels(&cli.global),
         Command::Build {
@@ -821,7 +855,7 @@ where
             protected.extend(starorg_core::discovery::enclosing_wine_prefix(&p4k_abs));
             if let Some(r) = protected.iter().find(|r| out_abs.starts_with(r)) {
                 eprintln!(
-                    "starorg-strings: --out {} is inside {}; refusing",
+                    "starorg-codex: --out {} is inside {}; refusing",
                     out_abs.display(),
                     r.display()
                 );

@@ -3,17 +3,17 @@
 //! in a temp folder, and native dialogs replaced by fixed answers. Read only; nothing here
 //! touches a game install.
 
+use starorg_codex_app::contract::Backend;
+use starorg_codex_app::contract::dev::*;
+use starorg_codex_app::contract::real::{
+    DevSpawner, DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory,
+};
+use starorg_codex_app::contract::types::*;
 use starorg_core::appdirs::AppDirs;
 use starorg_core::apply::Ctx;
 use starorg_core::discovery::{Channel, DiscoveryEnv, DiscoveryRequest};
 use starorg_core::source::GameSource;
 use starorg_data::starbreaker::synthetic;
-use starorg_strings_app::contract::Backend;
-use starorg_strings_app::contract::dev::*;
-use starorg_strings_app::contract::real::{
-    DevSpawner, DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory,
-};
-use starorg_strings_app::contract::types::*;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -53,7 +53,7 @@ struct Synthetic {
 impl DevSpawner for Synthetic {
     fn command(&self, _: &Channel) -> Result<Command, String> {
         *self.starts.lock().unwrap() += 1;
-        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-strings-app"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-codex-app"));
         c.arg("dev-worker")
             .arg("--dcb")
             .arg(&self.dcb)
@@ -67,7 +67,7 @@ impl DevSpawner for Synthetic {
 struct Broken;
 impl DevSpawner for Broken {
     fn command(&self, _: &Channel) -> Result<Command, String> {
-        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-strings-app"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-codex-app"));
         c.args(["dev-worker", "--dcb"])
             .arg(Path::new("/nonexistent/Game2.dcb"));
         Ok(c)
@@ -443,7 +443,7 @@ fn folder_datasets_rows_and_diff() {
 
 #[test]
 fn the_worker_serves_sections_list_owner_and_compare() {
-    use starorg_strings_app::contract::dev::{
+    use starorg_codex_app::contract::dev::{
         DevCompareRequest, DevListRequest, DevOwnerRequest, ListGroup, ListQuery,
     };
     let f = fake(false);

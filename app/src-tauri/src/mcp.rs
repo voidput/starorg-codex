@@ -44,14 +44,14 @@ fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
 /// `claude mcp add` for Claude Code.
 pub fn claude_code_config(url: &str, token: &str) -> String {
     format!(
-        "claude mcp add --transport http starorg-strings {url} --header \"Authorization: Bearer {token}\""
+        "claude mcp add --transport http starorg-codex {url} --header \"Authorization: Bearer {token}\""
     )
 }
 
 /// `claude_desktop_config.json` entry: Claude Desktop starts stdio servers, so it reaches
 /// this one through the `mcp-remote` bridge (an npm package the user's npx fetches).
 pub fn claude_desktop_config(url: &str, token: &str) -> String {
-    let v = serde_json::json!({"mcpServers": {"starorg-strings": {
+    let v = serde_json::json!({"mcpServers": {"starorg-codex": {
         "command": "npx",
         "args": ["-y", "mcp-remote", url, "--header", "Authorization:${STARORG_MCP_AUTH}"],
         "env": {"STARORG_MCP_AUTH": format!("Bearer {token}")}
@@ -60,7 +60,7 @@ pub fn claude_desktop_config(url: &str, token: &str) -> String {
 }
 
 /// The same tools without the app: the CLI over stdio (no token; any MCP client).
-pub const STDIO_COMMAND: &str = "starorg-strings mcp";
+pub const STDIO_COMMAND: &str = "starorg-codex mcp";
 
 impl McpHost {
     pub fn status(&self) -> McpStatus {

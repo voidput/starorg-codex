@@ -1,6 +1,6 @@
 //! The `extract-worker` process body (spec 3.3).
 //!
-//! The parent starts `starorg-strings extract-worker --p4k <path> --out <dir>` and waits. On
+//! The parent starts `starorg-codex extract-worker --p4k <path> --out <dir>` and waits. On
 //! success the worker has written `<dir>/` atomically (built in `<dir>.tmp-<pid>/`, files
 //! fsynced, then renamed) with:
 //!

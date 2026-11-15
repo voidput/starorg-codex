@@ -155,13 +155,13 @@ jobs:
           PROFILE: ${{ vars.AZURE_SIGNING_PROFILE }}
         run: |
           artifact-signing-cli -e "$ENDPOINT" -a "$ACCOUNT" -c "$PROFILE" -d "StarOrg Codex CLI" \
-            "target/${{ matrix.target }}/release/starorg-strings.exe"
+            "target/${{ matrix.target }}/release/starorg-codex.exe"
       # Fail the release rather than ship an exe whose signature does not check out.
       - name: Verify the CLI signature
         if: runner.os == 'Windows' && steps.winsign.outputs.enabled == 'true'
         shell: pwsh
         run: |
-          $f = "target\${{ matrix.target }}\release\starorg-strings.exe"
+          $f = "target\${{ matrix.target }}\release\starorg-codex.exe"
           $sig = Get-AuthenticodeSignature $f
           Write-Host "$f : $($sig.Status) $($sig.SignerCertificate.Subject)"
           if ($sig.Status -ne 'Valid') { throw "Authenticode signature of $f is $($sig.Status): $($sig.StatusMessage)" }
@@ -170,11 +170,19 @@ jobs:
         env:
           TAG: ${{ needs.release-please.outputs.tag_name }}
         run: |
-          name="starorg-strings-${TAG}-${{ matrix.name }}"
+          name="starorg-codex-${TAG}-${{ matrix.name }}"
           mkdir -p "dist/$name"
-          bin=target/${{ matrix.target }}/release/starorg-strings
+          bin=target/${{ matrix.target }}/release/starorg-codex
           [ "${{ runner.os }}" = Windows ] && bin="$bin.exe"
           cp "$bin" LICENSE THIRD_PARTY_NOTICES.md "dist/$name/"
+          # The pre-0.3.0 name, for one release (scripts and LUG Helper hooks that still call
+          # it; the CLI prints a deprecation line): a link in the tarball, a copy in the zip
+          # (the same signed exe). Remove in the release after 0.3.
+          if [ "${{ runner.os }}" = Windows ]; then
+            cp "dist/$name/starorg-codex.exe" "dist/$name/starorg-strings.exe"
+          else
+            ln -s starorg-codex "dist/$name/starorg-strings"
+          fi
           cd dist
           if [ "${{ matrix.ext }}" = zip ]; then 7z a "$name.zip" "$name"; else tar czf "$name.tar.gz" "$name"; fi
           rm -rf "$name"
@@ -304,7 +312,7 @@ jobs:
         if: steps.app.outputs.present == 'true' && runner.os == 'Windows' && steps.winsign.outputs.enabled == 'true'
         shell: pwsh
         run: |
-          # Tauri signs the copy of the app exe it packs, not target\release\starorg-strings-app.exe
+          # Tauri signs the copy of the app exe it packs, not target\release\starorg-codex-app.exe
           # (v0.0.2: that file is NotSigned while the exe inside the MSI is signed), so check the
           # installers here; the packed exe is covered by the installer signature chain.
           $files = @(Get-ChildItem target\release\bundle -Recurse -Include *.exe, *.msi)
@@ -398,7 +406,7 @@ jobs:
       - name: Stage the package (AppxManifest.xml, logos)
         if: steps.identity.outputs.configured == 'true'
         shell: bash
-        run: node app/scripts/msix.ts stage --exe target/release/starorg-strings-app.exe --version "$VERSION" --out .tmp/msix
+        run: node app/scripts/msix.ts stage --exe target/release/starorg-codex-app.exe --version "$VERSION" --out .tmp/msix
       - name: makeappx pack
         if: steps.identity.outputs.configured == 'true'
         shell: pwsh
@@ -410,7 +418,7 @@ jobs:
             Select-Object -Last 1
           if (-not $makeappx) { throw "makeappx.exe not found under $kits (Windows SDK)" }
           New-Item -ItemType Directory -Force dist | Out-Null
-          $out = "dist\starorg-strings_${env:VERSION}_x64_store-submission-unsigned.msix"
+          $out = "dist\starorg-codex_${env:VERSION}_x64_store-submission-unsigned.msix"
           & $makeappx.FullName pack /d .tmp\msix /p $out /o
           if ($LASTEXITCODE -ne 0) { throw "makeappx failed ($LASTEXITCODE)" }
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2

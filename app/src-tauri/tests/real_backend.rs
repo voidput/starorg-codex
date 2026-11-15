@@ -6,6 +6,13 @@
 //! runs. App folders are under the temp folder; discovery is pinned to the fake install.
 //! Names, ids and text are invented.
 
+use starorg_codex_app::contract::Backend;
+use starorg_codex_app::contract::real::UPDATE_JSON;
+use starorg_codex_app::contract::real::{
+    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory, StarOrgDeps,
+};
+use starorg_codex_app::contract::types::*;
+use starorg_codex_app::update::{ReleaseFetch, Updater};
 use starorg_core::appdirs::AppDirs;
 use starorg_core::apply::Ctx;
 use starorg_core::discovery::{Channel, DiscoveryEnv, DiscoveryRequest};
@@ -13,13 +20,6 @@ use starorg_core::model::{Blueprint, GameData, Ship, ShipLoc};
 use starorg_core::source::{Budget, GameSource, Loaded, Origin, SourceError};
 use starorg_net::releases::Reply;
 use starorg_net::starorg::mock::{MockServer, MockState};
-use starorg_strings_app::contract::Backend;
-use starorg_strings_app::contract::real::UPDATE_JSON;
-use starorg_strings_app::contract::real::{
-    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory, StarOrgDeps,
-};
-use starorg_strings_app::contract::types::*;
-use starorg_strings_app::update::{ReleaseFetch, Updater};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -1374,7 +1374,7 @@ fn starorg_environment_changed_outside_the_app_signs_the_old_one_out() {
     let f = starorg_fake(&m);
     set_sync(&f, true, |_| {});
     f.backend.starorg_login("LIVE".into()).unwrap();
-    // `starorg-strings sync set --environment dev`: config.toml only, no token touched.
+    // `starorg-codex sync set --environment dev`: config.toml only, no token touched.
     let mut cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
     cfg.sync.environment = starorg_core::starorg::Environment::Dev;
     cfg.save(&f.dirs).unwrap();
@@ -1828,7 +1828,7 @@ struct FakeGitHub {
 impl ReleaseFetch for FakeGitHub {
     fn fetch(&self, repo: &str) -> Result<Reply, String> {
         self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        assert_eq!(repo, "voidput/starorg-strings");
+        assert_eq!(repo, "voidput/starorg-codex");
         Ok(Reply {
             status: 200,
             rate_limit_remaining: Some(59),
@@ -2063,6 +2063,54 @@ fn measure_strings_owners_on_real_live() {
             );
         }
     }
+}
+
+/// The start-up folder move (0.3.0 rename) is told in Activity: one line per outcome.
+#[test]
+fn folder_migration_is_one_activity_line_per_outcome() {
+    use starorg_core::legacy::{Event, Report};
+    let f = Fake::new();
+    let r = Report {
+        events: vec![
+            Event::Moved {
+                old: "/h/.config/starorg-strings".into(),
+                new: "/h/.config/starorg-codex".into(),
+            },
+            Event::Moved {
+                old: "/h/.local/share/starorg-strings".into(),
+                new: "/h/.local/share/starorg-codex".into(),
+            },
+            Event::BothExist {
+                old: "/h/.cache/starorg-strings".into(),
+                new: "/h/.cache/starorg-codex".into(),
+            },
+        ],
+    };
+    f.backend.log_folder_migration(&r);
+    let log = f.backend.activity(10).unwrap();
+    let moved: Vec<_> = log
+        .iter()
+        .filter(|e| e.message.starts_with("App folders moved"))
+        .collect();
+    assert_eq!(moved.len(), 1, "{log:?}");
+    assert_eq!(moved[0].level, LogLevel::Info);
+    assert!(moved[0].message.contains("/h/.local/share/starorg-codex"));
+    assert!(log.iter().any(
+        |e| e.message.contains("left alone") && e.message.contains("/h/.cache/starorg-strings")
+    ));
+    f.backend.log_folder_migration(&Report {
+        events: vec![Event::Failed {
+            old: "/h/x-old".into(),
+            new: "/h/x-new".into(),
+            error: "rename: busy".into(),
+        }],
+    });
+    let log = f.backend.activity(10).unwrap();
+    assert!(
+        log.iter()
+            .any(|e| e.level == LogLevel::Warn && e.message.contains("rename: busy")),
+        "{log:?}"
+    );
 }
 
 /// A schema-1 `profile.toml` is rewritten once when the channel is listed: one Activity

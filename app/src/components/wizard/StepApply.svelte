@@ -65,7 +65,7 @@
 
   const STEPS = ['Checking the game is not running', 'Reading game data', 'Building text', 'Validating', 'Backing up and writing'];
   const reportOf = (ch: string) => reports.find((r) => r.channel === ch);
-  const snippet = `starorg-strings apply --all --if-stale --timeout 60 --notify`;
+  const snippet = `starorg-codex apply --all --if-stale --timeout 60 --notify`;
 </script>
 
 {#if phase === 'done'}

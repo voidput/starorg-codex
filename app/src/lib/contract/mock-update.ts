@@ -71,7 +71,7 @@ export function createUpdateMock(settings: () => T.Settings, params: URLSearchPa
     set_update_prefs: ({ req }) => {
       const repo = req.repo.trim().replace(/\/+$/, '').replace(/^https:\/\/github\.com\//, '');
       if (!/^[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+$/.test(repo) || repo.split('/').some((p) => p === '.' || p === '..')) {
-        fail('invalid', 'Enter the repository as owner/name, for example voidput/starorg-strings.');
+        fail('invalid', 'Enter the repository as owner/name, for example voidput/starorg-codex.');
       }
       if (repo !== st.prefs.repo || req.include_prereleases !== st.prefs.include_prereleases) {
         st = { ...st, last_checked: null, check: { state: 'not-checked' } };

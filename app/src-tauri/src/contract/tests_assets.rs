@@ -454,7 +454,7 @@ fn mock_assets_data_matches_the_committed_file() {
         .replace("\r\n", "\n");
     assert!(
         committed == text,
-        "{} is out of date: run UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app",
+        "{} is out of date: run UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app",
         path.display()
     );
 }

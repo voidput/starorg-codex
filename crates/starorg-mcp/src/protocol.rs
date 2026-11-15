@@ -10,7 +10,7 @@ use serde_json::{Map, Value, json};
 use std::time::Instant;
 
 pub const PROTOCOL_VERSIONS: &[&str] = &["2025-06-18", "2025-03-26", "2024-11-05"];
-pub const SERVER_NAME: &str = "starorg-strings";
+pub const SERVER_NAME: &str = "starorg-codex";
 
 /// JSON-RPC error codes.
 pub mod code {

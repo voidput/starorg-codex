@@ -48,7 +48,7 @@
         {
           "type": "toml",
           "path": "Cargo.lock",
-          "jsonpath": "$.package[?(@.name.value==\"starorg-strings-app\")].version"
+          "jsonpath": "$.package[?(@.name.value==\"starorg-codex-app\")].version"
         },
         {
           "type": "json",

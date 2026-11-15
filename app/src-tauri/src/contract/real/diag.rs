@@ -199,7 +199,7 @@ fn chk(level: CheckLevel, label: impl Into<String>, detail: Option<String>) -> D
     }
 }
 
-/// What `starorg-strings doctor` checks, as sections. Counts only for personal data.
+/// What `starorg-codex doctor` checks, as sections. Counts only for personal data.
 pub fn doctor(b: &RealBackend) -> DoctorReport {
     let dirs = b.dirs();
     let mut app = vec![chk(
@@ -363,9 +363,9 @@ pub fn doctor(b: &RealBackend) -> DoctorReport {
     let mut hook_checks = vec![chk(
         CheckLevel::Info,
         if hooks.cli_on_path {
-            "starorg-strings is on PATH"
+            "starorg-codex is on PATH"
         } else {
-            "starorg-strings is not on PATH (the launch hooks call it)"
+            "starorg-codex is not on PATH (the launch hooks call it)"
         },
         None,
     )];
@@ -517,7 +517,7 @@ pub fn diagnostics(b: &RealBackend) -> Diagnostics {
     let (text, redacted) = redact(b, &text);
     let stamp = fsutil::stamp(fsutil::unix_now());
     Diagnostics {
-        file_name: format!("starorg-strings-diagnostics-{stamp}.txt"),
+        file_name: format!("starorg-codex-diagnostics-{stamp}.txt"),
         text,
         redacted,
     }

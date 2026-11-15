@@ -1897,7 +1897,7 @@ pub struct Diagnostics {
 /// Where releases are looked up, and whether pre-releases count.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UpdatePrefs {
-    /// `owner/name` on github.com. Default `voidput/starorg-strings`; a public mirror works.
+    /// `owner/name` on github.com. Default `voidput/starorg-codex`; a public mirror works.
     pub repo: String,
     pub include_prereleases: bool,
 }
@@ -2059,7 +2059,7 @@ pub struct McpStatus {
     pub claude_code: Option<String>,
     /// `claude_desktop_config.json` entry (through `mcp-remote`), while running.
     pub claude_desktop: Option<String>,
-    /// The same tools over stdio from the CLI: `starorg-strings mcp`.
+    /// The same tools over stdio from the CLI: `starorg-codex mcp`.
     pub stdio: String,
     /// Newest first, at most 100.
     pub requests: Vec<McpRequest>,

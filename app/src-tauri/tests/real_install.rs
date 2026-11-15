@@ -1,16 +1,16 @@
 //! The wizard's preview and Review dry run against a real Star Citizen install, read only
 //! (Windows report: an empty preview column and a Review block that never resolved).
 //! Ignored by default; run with
-//! `SC_GAME_DIR=<folder that contains LIVE> SC_WORKER=<starorg-strings CLI> cargo test -p starorg-strings-app --test real_install -- --ignored --nocapture`.
+//! `SC_GAME_DIR=<folder that contains LIVE> SC_WORKER=<starorg-codex CLI> cargo test -p starorg-codex-app --test real_install -- --ignored --nocapture`.
 //! App folders go to a temp folder; nothing is written into the game folder (checked).
 
+use starorg_codex_app::contract::Backend;
+use starorg_codex_app::contract::real::{DialogSlot, RealBackend, RealConfig, SourceFactory};
+use starorg_codex_app::contract::types::*;
 use starorg_core::appdirs::AppDirs;
 use starorg_core::apply::Ctx;
 use starorg_core::discovery::{DiscoveryEnv, DiscoveryRequest};
 use starorg_core::source::{GameSource, local::LocalExtraction};
-use starorg_strings_app::contract::Backend;
-use starorg_strings_app::contract::real::{DialogSlot, RealBackend, RealConfig, SourceFactory};
-use starorg_strings_app::contract::types::*;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Instant;

@@ -22,7 +22,7 @@ pub struct Args<'a> {
 }
 
 /// Default dump cache: `$XDG_CACHE_HOME` or `~/.cache` on Linux, `%LOCALAPPDATA%` on
-/// Windows, below `starorg-strings/dumps` (spec 4.2).
+/// Windows, below `starorg-codex/dumps` (spec 4.2).
 fn default_cache() -> Option<PathBuf> {
     if cfg!(windows) {
         std::env::var_os("LOCALAPPDATA").map(|d| {
@@ -35,7 +35,7 @@ fn default_cache() -> Option<PathBuf> {
         std::env::var_os("XDG_CACHE_HOME")
             .map(PathBuf::from)
             .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-            .map(|c| c.join("starorg-strings"))
+            .map(|c| c.join("starorg-codex"))
     }
     .map(|c| starorg_core::source::dump::cache_root(&c))
 }

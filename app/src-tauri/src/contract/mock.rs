@@ -1254,14 +1254,14 @@ fn mock_fleet_view(c: &MockChannel, s: &MockState) -> FleetView {
         effective: &eff,
         shared: &s.ship_names,
         overrides: &overrides,
-        fleet_file: "~/.local/share/starorg-strings/fleet.json".into(),
+        fleet_file: "~/.local/share/starorg-codex/fleet.json".into(),
         settings_file: if scope == Scope::Channel {
             format!(
-                "~/.local/share/starorg-strings/channels/{INSTALL_ID}/{}/profile.toml",
+                "~/.local/share/starorg-codex/channels/{INSTALL_ID}/{}/profile.toml",
                 c.summary.channel
             )
         } else {
-            "~/.local/share/starorg-strings/ship-names.toml".into()
+            "~/.local/share/starorg-codex/ship-names.toml".into()
         },
     })
 }
@@ -1344,7 +1344,7 @@ impl Backend for MockBackend {
                 target_is_link: false,
                 link_target: None,
                 backup_dir: format!(
-                    "~/.local/share/starorg-strings/channels/{}/{}/backups",
+                    "~/.local/share/starorg-codex/channels/{}/{}/backups",
                     req.install, c.channel
                 ),
                 user_cfg_line: (summary.language == Language::Other)
@@ -1454,7 +1454,7 @@ impl Backend for MockBackend {
                 code: ErrorCode::NeedsDecision,
                 message: format!("{ch_name} is not set up. Run setup for this channel first."),
                 detail: Some(format!(
-                    "starorg-strings setup --channel {ch_name} --preset recommended --yes"
+                    "starorg-codex setup --channel {ch_name} --preset recommended --yes"
                 )),
             });
         }
@@ -1574,7 +1574,7 @@ impl Backend for MockBackend {
                     .then(|| "g_language = english".into()),
             };
             r.backup_dir = Some(format!(
-                "~/.local/share/starorg-strings/channels/{}/{}/backups",
+                "~/.local/share/starorg-codex/channels/{}/{}/backups",
                 req.target.install, c.summary.channel
             ));
             r.duration_ms = 1830;
@@ -1769,7 +1769,7 @@ impl Backend for MockBackend {
             Ok(BackupList {
                 channel: c.summary.channel.clone(),
                 folder: format!(
-                    "~/.local/share/starorg-strings/channels/{}/{}/backups",
+                    "~/.local/share/starorg-codex/channels/{}/{}/backups",
                     req.install, c.summary.channel
                 ),
                 backups: c.backups.iter().rev().cloned().collect(),
@@ -2861,7 +2861,7 @@ impl Backend for MockBackend {
         drop(s);
         let (text, redacted) = redact(&text);
         Ok(Diagnostics {
-            file_name: "starorg-strings-diagnostics-20261114-213005.txt".into(),
+            file_name: "starorg-codex-diagnostics-20261114-213005.txt".into(),
             text,
             redacted,
         })
@@ -2920,7 +2920,7 @@ impl Backend for MockBackend {
                 Ok(starorg_mcp::store::StoreConfig {
                     channels: vec![],
                     default_channel: None,
-                    cache_dir: std::env::temp_dir().join("starorg-strings-mock-mcp"),
+                    cache_dir: std::env::temp_dir().join("starorg-codex-mock-mcp"),
                     uex_dir: None,
                     our_outputs: vec![],
                     extractor: std::sync::Arc::new(NoGameData),

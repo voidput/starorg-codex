@@ -1,7 +1,7 @@
 //! The `asset-worker` process body (addendum 7.16): the archive's files, sounds and models
 //! behind the same JSON-lines protocol as `dev-worker` ([`crate::devworker`]).
 //!
-//! The app starts `starorg-strings-app asset-worker --p4k <P>` the first time the Files
+//! The app starts `starorg-codex-app asset-worker --p4k <P>` the first time the Files
 //! browser, a Sounds panel or a Model export needs it (never when the Dev screen opens). The
 //! worker opens the archive index read only (count check as extraction does) and prints
 //! `{"event":"ready","info":{...}}` ([`WorkerInfo`], `records` = archive entries) or

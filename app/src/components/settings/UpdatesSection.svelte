@@ -23,7 +23,7 @@
   let repo = $state('');
   let editing = $state(false);
   $effect(() => {
-    if (!editing) repo = st?.prefs.repo ?? 'voidput/starorg-strings';
+    if (!editing) repo = st?.prefs.repo ?? 'voidput/starorg-codex';
   });
   const tone = { muted: 'text-muted-foreground', success: 'text-success', info: 'text-foreground', warning: 'text-foreground' } as const;
 
@@ -42,7 +42,7 @@
     <p class="text-[13px]" role="status">{st?.install_note || 'Updates come from the Microsoft Store.'}</p>
   </div>
 {:else}
-<SwitchRow id="net-updates" label="Check for updates" hint={requestHint(st?.prefs.repo ?? 'voidput/starorg-strings')} {checked} onchange={toggle} />
+<SwitchRow id="net-updates" label="Check for updates" hint={requestHint(st?.prefs.repo ?? 'voidput/starorg-codex')} {checked} onchange={toggle} />
 {#if checked && st}
   <div class="mb-1 ml-11.5 grid gap-2.5 border-l pl-3">
     <div class="flex flex-wrap items-center gap-2">

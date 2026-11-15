@@ -44,7 +44,7 @@ export function checkLine(s: UpdateStatus): { tone: 'muted' | 'success' | 'info'
 
 /** What "Check for updates" sends, for the switch hint. */
 export function requestHint(repo: string): string {
-  return `When the app starts (at most once a day) and when you press Check now: one request to api.github.com for the releases of ${repo}. It sends only "StarOrg-Strings/<version>" as its user agent: no account, token or install id.`;
+  return `When the app starts (at most once a day) and when you press Check now: one request to api.github.com for the releases of ${repo}. It sends only "StarOrg-Codex/<version>" as its user agent: no account, token or install id.`;
 }
 
 /** Settings switch for the update check: the save must land before the check or status

@@ -1,7 +1,7 @@
 //! The `dev-worker` process body (addendum 7.2): the DataCore explorer behind a JSON-lines
 //! protocol, so a DataCore panic never takes the app down.
 //!
-//! The app starts `starorg-strings-app dev-worker --p4k <P>` (or `--dcb <file> [--ini
+//! The app starts `starorg-codex-app dev-worker --p4k <P>` (or `--dcb <file> [--ini
 //! <file>]`). The worker opens the archive read only (count check, size limits, CRC-32C as
 //! extraction does), reads `Game2.dcb` and the stock `global.ini`, drops the archive index,
 //! parses and indexes every record, then prints one event line:

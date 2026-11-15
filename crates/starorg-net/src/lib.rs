@@ -51,7 +51,7 @@ impl GitHubTransport {
             .tls_config(tls)
             .https_only(true)
             .timeout_global(Some(Duration::from_secs(60)))
-            .user_agent(concat!("starorg-strings/", env!("CARGO_PKG_VERSION")))
+            .user_agent(concat!("starorg-codex/", env!("CARGO_PKG_VERSION")))
             .http_status_as_error(false)
             .build()
             .into();

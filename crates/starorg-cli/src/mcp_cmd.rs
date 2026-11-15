@@ -1,4 +1,4 @@
-//! `starorg-strings mcp [--channel NAME]`: the experimental local MCP server over stdio.
+//! `starorg-codex mcp [--channel NAME]`: the experimental local MCP server over stdio.
 //!
 //! stdout carries the protocol only; status lines go to stderr (none with `--quiet`).
 //! Datasets are extracted on first use by this same binary started as
@@ -55,7 +55,7 @@ pub fn run(g: &GlobalOpts, channel: Option<&str>, limit: Option<u64>) -> ExitCod
     if !quiet {
         let names: Vec<&str> = cfg.channels.iter().map(|c| c.name.as_str()).collect();
         eprintln!(
-            "starorg-strings mcp: experimental, read-only; channels {} (cache {}; memory limit per extraction {})",
+            "starorg-codex mcp: experimental, read-only; channels {} (cache {}; memory limit per extraction {})",
             if names.is_empty() {
                 "none found".to_string()
             } else {
@@ -76,7 +76,7 @@ pub fn run(g: &GlobalOpts, channel: Option<&str>, limit: Option<u64>) -> ExitCod
     match starorg_mcp::stdio::serve(&server, stdin.lock(), stdout.lock(), |_| {}) {
         Ok(()) => ExitCode::from(exit::OK),
         Err(e) => {
-            eprintln!("starorg-strings mcp: {e}");
+            eprintln!("starorg-codex mcp: {e}");
             ExitCode::from(exit::ERROR)
         }
     }

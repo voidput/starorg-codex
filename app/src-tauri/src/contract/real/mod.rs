@@ -6,7 +6,7 @@
 //!   `needs-decision`, ...), exactly as M1 returns them; `Err` only when a call cannot run.
 //! - Every method is blocking and runs on Tauri's blocking pool (`contract::run`).
 //! - Extraction runs in a separate worker process: this same binary started as
-//!   `starorg-strings-app extract-worker ...` (see `main.rs`, spec 3.3).
+//!   `starorg-codex-app extract-worker ...` (see `main.rs`, spec 3.3).
 //! - The core has no cancellation points inside an apply, so every job reports
 //!   `cancellable: false` and `cancel_job` refuses.
 //! - StarOrg Tools ([`starorg`]): loopback PKCE sign-in, pull, push and the hangar against
@@ -444,6 +444,17 @@ impl RealBackend {
 
     fn dirs(&self) -> &AppDirs {
         &self.cfg.ctx.dirs
+    }
+
+    /// One Activity line per outcome of the start-up folder move (moved, left alone, failed).
+    pub fn log_folder_migration(&self, r: &starorg_core::legacy::Report) {
+        for (level, line) in r.lines() {
+            let level = match level {
+                starorg_core::legacy::Level::Info => LogLevel::Info,
+                starorg_core::legacy::Level::Warn => LogLevel::Warn,
+            };
+            self.log(level, None, None, &line);
+        }
     }
 
     fn log(&self, level: LogLevel, job: Option<JobKind>, channel: Option<&str>, msg: &str) {
@@ -1432,9 +1443,9 @@ impl RealBackend {
 
     fn cli_on_path() -> bool {
         let exe = if cfg!(windows) {
-            "starorg-strings.exe"
+            "starorg-codex.exe"
         } else {
-            "starorg-strings"
+            "starorg-codex"
         };
         std::env::var_os("PATH")
             .is_some_and(|p| std::env::split_paths(&p).any(|d| d.join(exe).is_file()))

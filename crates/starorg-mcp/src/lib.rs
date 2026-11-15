@@ -7,7 +7,7 @@
 //!   cached as JSON under the app cache directory;
 //! - [`worker`]: that extraction worker (`mcp-extract-worker`), with its own RSS measurement;
 //! - [`owned`]: owned blueprints from the app's store, for `how_to_obtain`;
-//! - [`stdio`] (the CLI's `starorg-strings mcp`) and `http` (feature `http`, the app's
+//! - [`stdio`] (the CLI's `starorg-codex mcp`) and `http` (feature `http`, the app's
 //!   loopback server) transports;
 //! - [`rss`]: resident memory of this process.
 //!

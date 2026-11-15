@@ -7,7 +7,7 @@ use starorg_data::starbreaker::synthetic as dcb;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 
-const BIN: &str = env!("CARGO_BIN_EXE_starorg-strings");
+const BIN: &str = env!("CARGO_BIN_EXE_starorg-codex");
 
 fn run(home: &Path, args: &[&str]) -> Output {
     Command::new(BIN)
@@ -279,10 +279,7 @@ fn a_cache_folder_in_the_game_folder_or_prefix_is_refused_at_use() {
             p.parent().unwrap().join("x"),
         )
     } else {
-        (
-            t.path().join("config").join("starorg-strings"),
-            pfx.join("x"),
-        )
+        (t.path().join("config").join("starorg-codex"), pfx.join("x"))
     };
     std::fs::create_dir_all(&cfg).unwrap();
     std::fs::write(

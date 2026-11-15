@@ -37,7 +37,7 @@ fn soft(g: &GlobalOpts, kind: Kind, msg: &str) -> ExitCode {
                     "exit_code": exit::ERROR, "error": msg })
         );
     }
-    eprintln!("starorg-strings hook {}: {msg} (non-fatal)", kind.as_str());
+    eprintln!("starorg-codex hook {}: {msg} (non-fatal)", kind.as_str());
     ExitCode::from(exit::OK)
 }
 
@@ -67,7 +67,7 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
                     scans.push(json!({ "channel": ch.name, "scan": r }));
                 }
                 Err(e) => {
-                    eprintln!("starorg-strings: {}: blueprint scan skipped: {e}", ch.name);
+                    eprintln!("starorg-codex: {}: blueprint scan skipped: {e}", ch.name);
                     scans.push(json!({ "channel": ch.name, "error": e }));
                 }
             }
@@ -130,7 +130,7 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
             exit::NEEDS_DECISION => "needs a decision (see above)",
             _ => "apply failed",
         };
-        eprintln!("starorg-strings {command}: {what} (non-fatal)");
+        eprintln!("starorg-codex {command}: {what} (non-fatal)");
     }
     ExitCode::from(exit::OK)
 }
@@ -200,9 +200,8 @@ fn block_opts(g: &GlobalOpts, bin: Option<&Path>, p: &Places) -> BlockOpts {
 }
 
 fn on_path() -> bool {
-    std::env::var_os("PATH").is_some_and(|path| {
-        std::env::split_paths(&path).any(|d| d.join("starorg-strings").is_file())
-    })
+    std::env::var_os("PATH")
+        .is_some_and(|path| std::env::split_paths(&path).any(|d| d.join(hooks::CLI).is_file()))
 }
 
 fn edit(g: &GlobalOpts, s: &HookScripts, bin: Option<&Path>, install_: bool) -> ExitCode {
@@ -303,7 +302,7 @@ fn edit(g: &GlobalOpts, s: &HookScripts, bin: Option<&Path>, install_: bool) -> 
             let manual = hooks::manual_calls(&after);
             if !manual.is_empty() {
                 res["warning"] = json!(format!(
-                    "also calls starorg-strings outside the block (line {}); it would run twice",
+                    "also calls starorg-codex outside the block (line {}); it would run twice",
                     manual
                         .iter()
                         .map(usize::to_string)
@@ -342,7 +341,7 @@ fn edit(g: &GlobalOpts, s: &HookScripts, bin: Option<&Path>, install_: bool) -> 
         }
         if install_ && bin.is_none() && !on_path() {
             println!(
-                "note: starorg-strings is not on PATH; the block does nothing until it is (or use --bin)"
+                "note: starorg-codex is not on PATH; the block does nothing until it is (or use --bin)"
             );
         }
     }
@@ -403,11 +402,15 @@ fn status(g: &GlobalOpts, s: &HookScripts, bin: Option<&Path>) -> ExitCode {
             "link": script.is_link, "result": result });
         if let BlockState::Broken { why } = st {
             res["reason"] = json!(why);
+        } else if st == BlockState::Outdated && hooks::has_legacy_markers(&text) {
+            res["reason"] = json!(
+                "written by starorg-strings (before 0.3.0); `starorg-codex hook install` replaces it in place"
+            );
         }
         let manual = hooks::manual_calls(&text);
         if !manual.is_empty() {
             res["warning"] = json!(format!(
-                "calls starorg-strings outside the block (line {})",
+                "calls starorg-codex outside the block (line {})",
                 manual
                     .iter()
                     .map(usize::to_string)
@@ -437,7 +440,7 @@ fn status(g: &GlobalOpts, s: &HookScripts, bin: Option<&Path>) -> ExitCode {
             print_result(r);
         }
         println!(
-            "starorg-strings on PATH: {}",
+            "starorg-codex on PATH: {}",
             if on_path() { "yes" } else { "no" }
         );
     }

@@ -475,7 +475,7 @@ fn hook_install_status_uninstall() {
     let text = std::fs::read_to_string(&pre).unwrap();
     assert!(text.starts_with("#!/usr/bin/env bash\n# user's pre-launch script\n"));
     assert!(
-        text.ends_with("# <<< starorg-strings hook <<<\nexit 0\n"),
+        text.ends_with("# <<< starorg-codex hook <<<\nexit 0\n"),
         "{text}"
     );
     assert!(text.contains(" hook prelaunch --game-dir "));
@@ -500,7 +500,7 @@ fn hook_install_status_uninstall() {
     ]);
     assert_eq!(v["scripts"][0]["result"], "updated");
     let text = std::fs::read_to_string(&pre).unwrap();
-    assert_eq!(text.matches("# >>> starorg-strings hook >>>").count(), 1);
+    assert_eq!(text.matches("# >>> starorg-codex hook >>>").count(), 1);
     assert!(text.contains("--notify || true"));
 
     let (code, v) = f.json(&["hook", "uninstall", "--prefix", prefix]);
@@ -649,7 +649,7 @@ fn sync_set_takes_starorg_env_and_postexit_leaves_the_app_a_note() {
     assert_eq!(v["sync_pending"], true);
     let note = std::fs::read_to_string(
         f.base
-            .join("home/data/starorg-strings/starorg-sync-pending.txt"),
+            .join("home/data/starorg-codex/starorg-sync-pending.txt"),
     )
     .unwrap();
     assert!(note.lines().any(|l| l == "LIVE"), "{note}");

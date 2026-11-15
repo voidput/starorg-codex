@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 fn client(m: &MockServer) -> Client {
-    Client::new(&m.base, "starorg-strings-test").unwrap()
+    Client::new(&m.base, "starorg-codex-test").unwrap()
 }
 
 fn sign_in(m: &MockServer) -> Result<starorg_net::starorg::TokenGrant, StarOrgError> {
@@ -183,4 +183,13 @@ fn hangar_logout_and_revoked_token() {
         Err(StarOrgError::Unauthorized(_))
     ));
     assert_eq!(m.requests().len(), before);
+}
+
+/// `SOURCE` and `AUDIENCE` are wire values of the StarOrg Tools server (its `OwnedSource`
+/// literal and token audience), not the app's name: the 0.3.0 rename must not touch them,
+/// or every blueprint push gets HTTP 422.
+#[test]
+fn server_wire_values_keep_the_pre_rename_names() {
+    assert_eq!(starorg_net::starorg::SOURCE, "starorg_strings");
+    assert_eq!(starorg_net::starorg::AUDIENCE, "strings");
 }

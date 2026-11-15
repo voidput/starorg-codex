@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
-const BIN: &str = env!("CARGO_BIN_EXE_starorg-strings");
+const BIN: &str = env!("CARGO_BIN_EXE_starorg-codex");
 
 fn fake_channel(dir: &Path) -> Channel {
     Channel {
@@ -99,7 +99,7 @@ fn worker_error_message_reaches_the_parent() {
 #[test]
 fn missing_worker_binary() {
     let t = tempfile::tempdir().unwrap();
-    let src = LocalExtraction::new("/nonexistent/starorg-strings");
+    let src = LocalExtraction::new("/nonexistent/starorg-codex");
     match src.load(&fake_channel(t.path()), &Budget::unlimited()) {
         Err(SourceError::Worker(msg)) => assert!(msg.contains("cannot start"), "{msg}"),
         other => panic!("unexpected {other:?}"),

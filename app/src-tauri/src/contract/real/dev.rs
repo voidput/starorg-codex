@@ -1,7 +1,7 @@
 //! Developer mode in the real backend (addendum 7): one `dev-worker` child process for the
 //! selected channel, datasets from our GameData and local folders, and the dataset diff.
 //!
-//! - The worker is this binary (`starorg-strings-app dev-worker --p4k <P>`), started on the
+//! - The worker is this binary (`starorg-codex-app dev-worker --p4k <P>`), started on the
 //!   first Dev request, restarted when the channel or its build changes, stopped after
 //!   [`IDLE`] without a request, when Developer mode is turned off, and when the app exits
 //!   (its stdin closes; the worker exits on EOF). Starting holds `locks/extract.lock` until

@@ -270,7 +270,7 @@ fn lifecycle_and_schemas() {
         )
         .unwrap();
     assert_eq!(init["result"]["protocolVersion"], "2025-03-26");
-    assert_eq!(init["result"]["serverInfo"]["name"], "starorg-strings");
+    assert_eq!(init["result"]["serverInfo"]["name"], "starorg-codex");
     assert!(init["result"]["capabilities"]["tools"].is_object());
     // Unknown versions get the newest; notifications get no answer.
     let init2 = s
@@ -814,7 +814,7 @@ mod http {
         let (st, head, body) = post(addr, Some(&token), "", init);
         assert_eq!(st, 200, "{body}");
         let v: Value = serde_json::from_str(&body).unwrap();
-        assert_eq!(v["result"]["serverInfo"]["name"], "starorg-strings");
+        assert_eq!(v["result"]["serverInfo"]["name"], "starorg-codex");
         let sid = head
             .lines()
             .find_map(|l| l.strip_prefix("Mcp-Session-Id: "))

@@ -4,6 +4,13 @@
 //! before a Files / Sounds / Model request, that cache hits need no worker, and the cache
 //! folder setting (validation, switch, move, clear).
 
+use starorg_codex_app::contract::Backend;
+use starorg_codex_app::contract::assets::*;
+use starorg_codex_app::contract::dev::WorkerState;
+use starorg_codex_app::contract::real::{
+    AssetSpawner, DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory,
+};
+use starorg_codex_app::contract::types::*;
 use starorg_core::appdirs::AppDirs;
 use starorg_core::apply::Ctx;
 use starorg_core::assetcache::{self, AssetCache, Kind};
@@ -11,13 +18,6 @@ use starorg_core::discovery::{Channel, DiscoveryEnv, DiscoveryRequest};
 use starorg_core::source::GameSource;
 use starorg_data::assets::synthetic;
 use starorg_data::starbreaker::synthetic as dcb;
-use starorg_strings_app::contract::Backend;
-use starorg_strings_app::contract::assets::*;
-use starorg_strings_app::contract::dev::WorkerState;
-use starorg_strings_app::contract::real::{
-    AssetSpawner, DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory,
-};
-use starorg_strings_app::contract::types::*;
 use std::path::PathBuf;
 use std::process::Command;
 use std::sync::{Arc, Mutex};
@@ -53,7 +53,7 @@ struct Counting(Arc<Mutex<u32>>);
 impl AssetSpawner for Counting {
     fn command(&self, ch: &Channel) -> Result<Command, String> {
         *self.0.lock().unwrap() += 1;
-        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-strings-app"));
+        let mut c = Command::new(env!("CARGO_BIN_EXE_starorg-codex-app"));
         c.arg("asset-worker").arg("--p4k").arg(&ch.p4k);
         Ok(c)
     }

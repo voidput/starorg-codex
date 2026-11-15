@@ -1,4 +1,4 @@
-//! `starorg-strings version` (docs/updates.md).
+//! `starorg-codex version` (docs/updates.md).
 
 use crate::commands::JSON_SCHEMA;
 use crate::{GlobalOpts, exit};
@@ -9,7 +9,7 @@ use std::process::ExitCode;
 pub fn version_info() -> serde_json::Value {
     json!({
         "schema": JSON_SCHEMA,
-        "name": "starorg-strings",
+        "name": "starorg-codex",
         "version": env!("CARGO_PKG_VERSION"),
         "target": format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
         "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
@@ -21,7 +21,7 @@ pub fn version_info() -> serde_json::Value {
     })
 }
 
-/// `starorg-strings version`: prints the version and build details. It never checks for
+/// `starorg-codex version`: prints the version and build details. It never checks for
 /// updates (the CLI has no HTTP client; spec 11): new releases are on the release page.
 pub fn version(g: &GlobalOpts) -> ExitCode {
     let v = version_info();
@@ -29,7 +29,7 @@ pub fn version(g: &GlobalOpts) -> ExitCode {
         println!("{v}");
     } else if !g.quiet {
         let s = |k: &str| v[k].as_str().unwrap_or_default().to_string();
-        println!("starorg-strings {}", s("version"));
+        println!("starorg-codex {}", s("version"));
         println!("  target:      {} ({})", s("target"), s("profile"));
         println!(
             "  features:    published-dumps {}",

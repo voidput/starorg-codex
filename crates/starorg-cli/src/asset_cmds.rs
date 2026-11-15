@@ -188,7 +188,7 @@ impl Ticker {
         let mut l = self.last.lock().unwrap_or_else(|p| p.into_inner());
         if l.elapsed() >= Duration::from_secs(2) {
             *l = Instant::now();
-            eprintln!("starorg-strings: {what} {:.0} %", f * 100.0);
+            eprintln!("starorg-codex: {what} {:.0} %", f * 100.0);
         }
     }
 }
@@ -304,7 +304,7 @@ fn extract(
                 );
             } else if !g.quiet {
                 eprintln!(
-                    "starorg-strings: {} files ({} bytes, {} converted) written to {}",
+                    "starorg-codex: {} files ({} bytes, {} converted) written to {}",
                     d.files, d.bytes, d.converted, d.out_dir
                 );
                 for f in &d.failed {
@@ -402,12 +402,12 @@ fn export_model(
         }
         memlimit::Fit::LowFree { need, free } if !g.quiet && !g.json => {
             eprintln!(
-                "starorg-strings: {}",
+                "starorg-codex: {}",
                 memlimit::low_free_message("This export", need, free)
             );
         }
         _ if o.preset == ModelPreset::Full && !g.quiet && !g.json => {
-            eprintln!("starorg-strings: {}", model::FULL_MEMORY_NOTE);
+            eprintln!("starorg-codex: {}", model::FULL_MEMORY_NOTE);
         }
         _ => {}
     }
@@ -460,14 +460,14 @@ fn report_model(
         );
     } else if !g.quiet {
         eprintln!(
-            "starorg-strings: model ({} bytes{}) written to {}",
+            "starorg-codex: model ({} bytes{}) written to {}",
             bytes,
             if cached { ", from the cache" } else { "" },
             out.display()
         );
         if let Some((p, n)) = stl {
             eprintln!(
-                "starorg-strings: STL ({n} triangles) written to {}",
+                "starorg-codex: STL ({n} triangles) written to {}",
                 p.display()
             );
         }
@@ -627,7 +627,7 @@ fn export_sounds(
                 );
             } else if !g.quiet {
                 eprintln!(
-                    "starorg-strings: {} sound files ({} bytes; {}) of {} ({} triggers) written to {}",
+                    "starorg-codex: {} sound files ({} bytes; {}) of {} ({} triggers) written to {}",
                     files_n,
                     bytes,
                     assetworker::SoundsDone::formats_line(&formats),

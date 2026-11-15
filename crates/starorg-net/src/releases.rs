@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn repo_names_are_checked() {
-        assert!(valid_repo("voidput/starorg-strings"));
+        assert!(valid_repo("voidput/starorg-codex"));
         assert!(valid_repo("a.b/c_d-e"));
         for bad in [
             "",
@@ -116,8 +116,8 @@ mod tests {
             assert!(!valid_repo(bad), "{bad}");
         }
         assert_eq!(
-            releases_url("voidput/starorg-strings").unwrap(),
-            "https://api.github.com/repos/voidput/starorg-strings/releases?per_page=30"
+            releases_url("voidput/starorg-codex").unwrap(),
+            "https://api.github.com/repos/voidput/starorg-codex/releases?per_page=30"
         );
         assert!(releases_url("a/b/c").is_none());
     }
@@ -126,7 +126,7 @@ mod tests {
     #[test]
     #[ignore = "network"]
     fn public_repo_lists_releases() {
-        let r = fetch_releases("tauri-apps/tauri", "StarOrg-Strings/0.0.0").unwrap();
+        let r = fetch_releases("tauri-apps/tauri", "StarOrg-Codex/0.0.0").unwrap();
         assert_eq!(r.status, 200);
         assert!(r.body.starts_with(b"["));
     }

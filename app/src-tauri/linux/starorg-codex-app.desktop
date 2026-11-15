@@ -1,0 +1,10 @@
+[Desktop Entry]
+# Hidden alias so Wayland compositors (KDE, GNOME) can match the window's app_id
+# "starorg-codex-app" to an icon. The visible menu entry is "StarOrg Codex.desktop".
+Type=Application
+Name=StarOrg Codex
+Exec=starorg-codex-app
+Icon=starorg-codex-app
+StartupWMClass=starorg-codex-app
+NoDisplay=true
+Terminal=false

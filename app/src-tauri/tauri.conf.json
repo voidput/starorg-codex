@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "StarOrg Codex",
-  "mainBinaryName": "starorg-strings-app",
-  "identifier": "tools.starorg.strings",
+  "mainBinaryName": "starorg-codex-app",
+  "identifier": "tools.starorg.codex",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://127.0.0.1:1420",
@@ -54,7 +54,7 @@
     "shortDescription": "Star Citizen text enhancements",
     "copyright": "Copyright (c) 2026 StarOrg Tools. MIT License.",
     "license": "MIT",
-    "homepage": "https://github.com/voidput/starorg-strings",
+    "homepage": "https://github.com/voidput/starorg-codex",
     "resources": {
       "../../LICENSE": "LICENSE",
       "../../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
@@ -67,15 +67,20 @@
       "icons/icon.ico"
     ],
     "createUpdaterArtifacts": false,
+    "windows": {
+      "wix": {
+        "upgradeCode": "c6237751-9461-5af9-a0e2-d71aacef213e"
+      }
+    },
     "linux": {
       "deb": {
         "files": {
-          "/usr/share/applications/starorg-strings-app.desktop": "linux/starorg-strings-app.desktop"
+          "/usr/share/applications/starorg-codex-app.desktop": "linux/starorg-codex-app.desktop"
         }
       },
       "rpm": {
         "files": {
-          "/usr/share/applications/starorg-strings-app.desktop": "linux/starorg-strings-app.desktop"
+          "/usr/share/applications/starorg-codex-app.desktop": "linux/starorg-codex-app.desktop"
         }
       }
     }

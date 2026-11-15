@@ -110,7 +110,7 @@ fn semver_compare_and_prerelease_rules() {
     // URL is built from the repo and tag, never the response's html_url.
     assert_eq!(
         release.url,
-        "https://github.com/voidput/starorg-strings/releases/tag/v0.2.0"
+        "https://github.com/voidput/starorg-codex/releases/tag/v0.2.0"
     );
     assert_eq!(release.title, "StarOrg Codex 0.2.0");
     assert_eq!(release.published.as_deref(), Some("2026-11-20T10:00:00Z"));
@@ -303,22 +303,19 @@ fn prefs_change_the_repo_and_reset_the_last_result() {
         .set_prefs(
             true,
             prefs(
-                "https://github.com/mirror-org/starorg-strings-releases/",
+                "https://github.com/mirror-org/starorg-codex-releases/",
                 false,
             ),
         )
         .unwrap();
-    assert_eq!(s.prefs.repo, "mirror-org/starorg-strings-releases");
+    assert_eq!(s.prefs.repo, "mirror-org/starorg-codex-releases");
     assert_eq!(s.check, UpdateCheck::NotChecked);
     assert_eq!(s.last_checked, None);
     // So the start-up check runs again, against the new repo.
     u.check(true, false).unwrap();
     assert_eq!(
         fake.repos.lock().unwrap().as_slice(),
-        [
-            "voidput/starorg-strings",
-            "mirror-org/starorg-strings-releases"
-        ]
+        ["voidput/starorg-codex", "mirror-org/starorg-codex-releases"]
     );
     for bad in ["", "nope", "a/b/c", "a b/c", "../x/y"] {
         assert_eq!(
@@ -329,7 +326,7 @@ fn prefs_change_the_repo_and_reset_the_last_result() {
     }
     // Same prefs again keep the result.
     let s = u
-        .set_prefs(true, prefs("mirror-org/starorg-strings-releases", false))
+        .set_prefs(true, prefs("mirror-org/starorg-codex-releases", false))
         .unwrap();
     assert!(available(&s).is_some());
 }
@@ -425,12 +422,12 @@ fn release_page_and_install_use_the_checked_release_only() {
     u.install(true).unwrap();
     assert_eq!(
         rec.opened.lock().unwrap().as_slice(),
-        ["https://github.com/voidput/starorg-strings/releases/tag/v0.2.0"]
+        ["https://github.com/voidput/starorg-codex/releases/tag/v0.2.0"]
     );
     assert_eq!(
         rec.installs.lock().unwrap().as_slice(),
         [(
-            "https://github.com/voidput/starorg-strings/releases/download/v0.2.0/latest.json"
+            "https://github.com/voidput/starorg-codex/releases/download/v0.2.0/latest.json"
                 .to_string(),
             "0.2.0".to_string()
         )]
@@ -455,24 +452,24 @@ fn release_page_and_install_use_the_checked_release_only() {
 
 #[test]
 fn only_github_release_pages_of_the_repo_open() {
-    let repo = "voidput/starorg-strings";
+    let repo = "voidput/starorg-codex";
     assert!(allowed_release_url(
-        "https://github.com/voidput/starorg-strings/releases/tag/v0.2.0",
+        "https://github.com/voidput/starorg-codex/releases/tag/v0.2.0",
         repo
     ));
     assert!(allowed_release_url(
-        "https://github.com/voidput/starorg-strings/releases",
+        "https://github.com/voidput/starorg-codex/releases",
         repo
     ));
     for bad in [
-        "http://github.com/voidput/starorg-strings/releases/tag/v1",
-        "https://github.com.evil.example/voidput/starorg-strings/releases",
-        "https://evil.example/voidput/starorg-strings/releases",
-        "https://github.com/voidput/starorg-strings-other/releases",
-        "https://github.com/voidput/starorg-strings/releasesx",
-        "https://github.com/voidput/starorg-strings/releases/../../../x",
-        "https://github.com/voidput/starorg-strings/releases/tag/v1?x=<script>",
-        "https://github.com/voidput/starorg-strings/releases/tag/v1#frag",
+        "http://github.com/voidput/starorg-codex/releases/tag/v1",
+        "https://github.com.evil.example/voidput/starorg-codex/releases",
+        "https://evil.example/voidput/starorg-codex/releases",
+        "https://github.com/voidput/starorg-codex-other/releases",
+        "https://github.com/voidput/starorg-codex/releasesx",
+        "https://github.com/voidput/starorg-codex/releases/../../../x",
+        "https://github.com/voidput/starorg-codex/releases/tag/v1?x=<script>",
+        "https://github.com/voidput/starorg-codex/releases/tag/v1#frag",
         "javascript:alert(1)",
         "",
     ] {
@@ -488,7 +485,7 @@ fn only_github_release_pages_of_the_repo_open() {
 fn user_agent_is_name_and_version_only() {
     assert_eq!(
         user_agent(),
-        format!("StarOrg-Strings/{}", env!("CARGO_PKG_VERSION"))
+        format!("StarOrg-Codex/{}", env!("CARGO_PKG_VERSION"))
     );
 }
 
@@ -528,4 +525,20 @@ fn store_builds_never_request_or_install() {
         "a Store build ran the updater"
     );
     assert!(rec.opened.lock().unwrap().is_empty());
+}
+
+#[test]
+fn saved_pre_rename_repo_reads_as_the_default() {
+    let s = |r: Option<&str>| Saved {
+        repo: r.map(str::to_string),
+        ..Saved::default()
+    };
+    assert_eq!(Updater::prefs(&s(None)).repo, DEFAULT_REPO);
+    assert_eq!(Updater::prefs(&s(Some(LEGACY_REPO))).repo, DEFAULT_REPO);
+    assert_eq!(
+        Updater::prefs(&s(Some("Voidput/StarOrg-Strings"))).repo,
+        DEFAULT_REPO
+    );
+    assert_eq!(Updater::prefs(&s(Some("me/mirror"))).repo, "me/mirror");
+    assert_eq!(DEFAULT_REPO, "voidput/starorg-codex");
 }

@@ -1,4 +1,4 @@
-//! `starorg-strings mcp`: the stdio MCP server against a fake install (no game data).
+//! `starorg-codex mcp`: the stdio MCP server against a fake install (no game data).
 #![cfg(unix)]
 
 mod common;
@@ -51,7 +51,7 @@ fn stdio_server_lists_tools_and_answers_from_the_cache() {
     let p4k = f.lib.join("LIVE/Data.p4k");
     let dir = f
         .base
-        .join("home/cache/starorg-strings/mcp/LIVE")
+        .join("home/cache/starorg-codex/mcp/LIVE")
         .join(format!(
             "4.10.200.58746-{}",
             starorg_mcp::store::Store::fingerprint(&p4k)
@@ -77,10 +77,7 @@ fn stdio_server_lists_tools_and_answers_from_the_cache() {
             call(6, "string", json!({"key": "item_NameA", "channel": "PTU"})),
         ],
     );
-    assert_eq!(
-        answers[0]["result"]["serverInfo"]["name"],
-        "starorg-strings"
-    );
+    assert_eq!(answers[0]["result"]["serverInfo"]["name"], "starorg-codex");
     let tools = answers[1]["result"]["tools"].as_array().unwrap();
     assert_eq!(tools.len(), 10);
     assert_eq!(

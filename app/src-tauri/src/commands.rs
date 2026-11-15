@@ -8,7 +8,7 @@ use starorg_core::discovery::{
     Channel, Discovery, DiscoveryEnv, DiscoveryRequest, Install, discover,
 };
 
-/// Same schema number and field names as `starorg-strings channels --json`.
+/// Same schema number and field names as `starorg-codex channels --json`.
 pub const CHANNELS_SCHEMA: u32 = 1;
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -84,7 +84,7 @@ pub struct DiscoveryConfig {
     pub request: DiscoveryRequest,
 }
 
-/// Find installs and their channels: the same data as `starorg-strings channels`.
+/// Find installs and their channels: the same data as `starorg-codex channels`.
 #[tauri::command]
 pub async fn list_channels(
     config: tauri::State<'_, DiscoveryConfig>,
@@ -233,7 +233,7 @@ mod tests {
     }
 
     /// Prints what the app shows for this machine, for comparing with
-    /// `starorg-strings channels --json`. Needs a real install.
+    /// `starorg-codex channels --json`. Needs a real install.
     #[test]
     #[ignore]
     fn print_real_channels() {

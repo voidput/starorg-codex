@@ -71,7 +71,7 @@ runs:
             "${ENDPOINT%/}/codesigningaccounts/${ACCOUNT}/certificateprofiles/${PROFILE}/sign/eku?api-version=2023-06-15-preview")
           if [ "$code" != "200" ]; then
             echo "enabled=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::Windows binaries are NOT signed: certificate profile '${PROFILE}' on '${ACCOUNT}' answered HTTP ${code} (profile not created yet, or starorg-strings-ci lacks the Artifact Signing Certificate Profile Signer role). docs/windows.md"
+            echo "::warning::Windows binaries are NOT signed: certificate profile '${PROFILE}' on '${ACCOUNT}' answered HTTP ${code} (profile not created yet, or starorg-codex-ci lacks the Artifact Signing Certificate Profile Signer role). docs/windows.md"
             exit 0
           fi
           echo "enabled=true" >> "$GITHUB_OUTPUT"

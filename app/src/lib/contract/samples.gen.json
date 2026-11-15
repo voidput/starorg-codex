@@ -52,7 +52,7 @@
   },
   "apply": {
     "backup": "20261114-213001-pre-existing",
-    "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+    "backup_dir": "~/.local/share/starorg-codex/channels/inst-7f3a/LIVE/backups",
     "build": {
       "branch": "sc-alpha-4.10.0",
       "change": 13165946,
@@ -2728,7 +2728,7 @@
         "published": "2026-11-12T16:20:00Z",
         "tag": "v0.2.0",
         "title": "StarOrg Codex 0.2.0",
-        "url": "https://github.com/voidput/starorg-strings/releases/tag/v0.2.0",
+        "url": "https://github.com/voidput/starorg-codex/releases/tag/v0.2.0",
         "version": "0.2.0"
       },
       "state": "available"
@@ -2740,7 +2740,7 @@
     "last_checked": "2026-11-14T21:30:05Z",
     "prefs": {
       "include_prereleases": false,
-      "repo": "voidput/starorg-strings"
+      "repo": "voidput/starorg-codex"
     },
     "skipped_version": null
   },
@@ -8841,11 +8841,11 @@
   },
   "error": {
     "code": "needs-decision",
-    "detail": "starorg-strings setup --channel PTU --preset recommended --yes",
+    "detail": "starorg-codex setup --channel PTU --preset recommended --yes",
     "message": "PTU is not set up. Run setup for this channel first."
   },
   "export_diagnostics": {
-    "file_name": "starorg-strings-diagnostics-20261114-213005.txt",
+    "file_name": "starorg-codex-diagnostics-20261114-213005.txt",
     "redacted": 5,
     "text": "StarOrg Codex diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 11 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 0 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import (dry run): 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
   },
@@ -9018,7 +9018,7 @@
     ],
     "catalog_ready": true,
     "channel": "HOTFIX",
-    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "fleet_file": "~/.local/share/starorg-codex/fleet.json",
     "format": null,
     "imported_at": null,
     "invalid": false,
@@ -9069,7 +9069,7 @@
       "style": "numeric",
       "symbol": "*"
     },
-    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "settings_file": "~/.local/share/starorg-codex/ship-names.toml",
     "shared_settings": {
       "enabled": true,
       "groups": [
@@ -9409,7 +9409,7 @@
     ],
     "catalog_ready": true,
     "channel": "LIVE",
-    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "fleet_file": "~/.local/share/starorg-codex/fleet.json",
     "format": "xplor-json",
     "imported_at": "2026-11-14T21:30:05Z",
     "invalid": false,
@@ -9491,7 +9491,7 @@
       "style": "numeric",
       "symbol": "*"
     },
-    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "settings_file": "~/.local/share/starorg-codex/ship-names.toml",
     "shared_settings": {
       "enabled": false,
       "groups": [],
@@ -9694,7 +9694,7 @@
     ],
     "catalog_ready": true,
     "channel": "LIVE",
-    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "fleet_file": "~/.local/share/starorg-codex/fleet.json",
     "format": "xplor-json",
     "imported_at": "2026-11-14T21:30:05Z",
     "invalid": false,
@@ -9781,7 +9781,7 @@
       "style": "numeric",
       "symbol": "*"
     },
-    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "settings_file": "~/.local/share/starorg-codex/ship-names.toml",
     "shared_settings": {
       "enabled": true,
       "groups": [
@@ -10026,7 +10026,7 @@
       }
     ],
     "channel": "LIVE",
-    "folder": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+    "folder": "~/.local/share/starorg-codex/channels/inst-7f3a/LIVE/backups",
     "keep_builds": 3,
     "keep_newest": 10,
     "offers": {
@@ -10148,7 +10148,7 @@
     "requests": [],
     "running": false,
     "started": null,
-    "stdio": "starorg-strings mcp",
+    "stdio": "starorg-codex mcp",
     "token": null,
     "url": null
   },
@@ -10598,7 +10598,7 @@
   "plan_setup": {
     "channels": [
       {
-        "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+        "backup_dir": "~/.local/share/starorg-codex/channels/inst-7f3a/LIVE/backups",
         "channel": "LIVE",
         "counts": {
           "changed": 11106,
@@ -10619,7 +10619,7 @@
         "user_cfg_path": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
       },
       {
-        "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/PTU/backups",
+        "backup_dir": "~/.local/share/starorg-codex/channels/inst-7f3a/PTU/backups",
         "channel": "PTU",
         "counts": {
           "changed": 11143,
@@ -12615,7 +12615,7 @@
     "replace_refused": null,
     "warnings": []
   },
-  "save_diagnostics": "~/starorg-strings-diagnostics-20261114-213005.txt",
+  "save_diagnostics": "~/starorg-codex-diagnostics-20261114-213005.txt",
   "save_ship_names": {
     "catalog": [
       {
@@ -12781,7 +12781,7 @@
     ],
     "catalog_ready": true,
     "channel": "LIVE",
-    "fleet_file": "~/.local/share/starorg-strings/fleet.json",
+    "fleet_file": "~/.local/share/starorg-codex/fleet.json",
     "format": "xplor-json",
     "imported_at": "2026-11-14T21:30:05Z",
     "invalid": false,
@@ -12868,7 +12868,7 @@
       "style": "numeric",
       "symbol": "*"
     },
-    "settings_file": "~/.local/share/starorg-strings/ship-names.toml",
+    "settings_file": "~/.local/share/starorg-codex/ship-names.toml",
     "shared_settings": {
       "enabled": true,
       "groups": [
@@ -12916,8 +12916,8 @@
       "LIVE",
       "PTU"
     ],
-    "claude_code": "claude mcp add --transport http starorg-strings http://127.0.0.1:41237/mcp --header \"Authorization: Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"",
-    "claude_desktop": "{\n  \"mcpServers\": {\n    \"starorg-strings\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"http://127.0.0.1:41237/mcp\",\n        \"--header\",\n        \"Authorization:${STARORG_MCP_AUTH}\"\n      ],\n      \"env\": {\n        \"STARORG_MCP_AUTH\": \"Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\n      }\n    }\n  }\n}",
+    "claude_code": "claude mcp add --transport http starorg-codex http://127.0.0.1:41237/mcp --header \"Authorization: Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"",
+    "claude_desktop": "{\n  \"mcpServers\": {\n    \"starorg-codex\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"http://127.0.0.1:41237/mcp\",\n        \"--header\",\n        \"Authorization:${STARORG_MCP_AUTH}\"\n      ],\n      \"env\": {\n        \"STARORG_MCP_AUTH\": \"Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\n      }\n    }\n  }\n}",
     "error": null,
     "requests": [
       {
@@ -12939,7 +12939,7 @@
     ],
     "running": true,
     "started": "2026-11-14T21:30:05.000Z",
-    "stdio": "starorg-strings mcp",
+    "stdio": "starorg-codex mcp",
     "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "url": "http://127.0.0.1:41237/mcp"
   },
@@ -13383,7 +13383,7 @@
     "last_checked": null,
     "prefs": {
       "include_prereleases": false,
-      "repo": "voidput/starorg-strings"
+      "repo": "voidput/starorg-codex"
     },
     "skipped_version": null
   }

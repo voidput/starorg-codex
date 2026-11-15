@@ -5,10 +5,25 @@ use starorg_data::starbreaker::synthetic;
 use std::path::Path;
 use std::process::{Command, Output};
 
-const BIN: &str = env!("CARGO_BIN_EXE_starorg-strings");
+const BIN: &str = env!("CARGO_BIN_EXE_starorg-codex");
+
+/// A throwaway home for every run: the CLI moves pre-0.3.0 app folders it finds under HOME
+/// and the XDG dirs, and a test must never touch the real ones.
+fn sandbox() -> &'static Path {
+    static T: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+    T.get_or_init(|| tempfile::tempdir().unwrap()).path()
+}
+
+fn isolated(c: &mut Command) -> &mut Command {
+    let h = sandbox();
+    c.env("HOME", h)
+        .env("XDG_CONFIG_HOME", h.join("config"))
+        .env("XDG_DATA_HOME", h.join("data"))
+        .env("XDG_CACHE_HOME", h.join("cache"))
+}
 
 fn run(args: &[&str]) -> Output {
-    Command::new(BIN)
+    isolated(&mut Command::new(BIN))
         .args(args)
         .env_remove("WINEPREFIX")
         .output()

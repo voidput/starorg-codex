@@ -17,7 +17,7 @@
   let { prefs }: { prefs: Prefs } = $props();
 
   const store = $derived(storeManaged(updates.status));
-  const repo = $derived(updates.status?.prefs.repo ?? 'voidput/starorg-strings');
+  const repo = $derived(updates.status?.prefs.repo ?? 'voidput/starorg-codex');
   const themes: { id: Theme; label: string }[] = [
     { id: 'system', label: 'System' },
     { id: 'dark', label: 'Dark' },

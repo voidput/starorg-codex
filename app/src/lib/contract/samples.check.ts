@@ -1,6 +1,6 @@
 /**
  * Type-checks samples.gen.json (real output of the Rust mock, written by
- * `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app`) against the TS mirror.
+ * `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app`) against the TS mirror.
  * `npm run check` fails when a field is missing, renamed, of another JSON type, or extra.
  * String-union values are checked by the Rust test `ts_unions_list_every_variant`.
  */

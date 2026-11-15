@@ -1,21 +1,26 @@
 #!/bin/sh
-# Install StarOrg Codex on Linux for the current user: the `starorg-strings` CLI and,
-# with --app, the AppImage with a menu entry. Downloads from GitHub releases with curl,
+# Install StarOrg Codex on Linux for the current user: the `starorg-codex` CLI (plus a
+# `starorg-strings` link, its pre-0.3.0 name, for one release) and, with --app, the AppImage
+# with a menu entry. Downloads from GitHub releases with curl,
 # checks every file against the release's SHA256SUMS, never uses sudo, writes only below
 # $HOME (or the XDG dirs you point it at). See docs/linux.md.
 #
 #   sh install-linux.sh [--version X.Y.Z] [--app] [--bin-dir DIR] [--dry-run]
 #   sh install-linux.sh --uninstall [--app]
 #
-#   curl -fsSL https://raw.githubusercontent.com/voidput/starorg-strings/main/scripts/install-linux.sh | sh -s -- --app
+#   curl -fsSL https://raw.githubusercontent.com/voidput/starorg-codex/main/scripts/install-linux.sh | sh -s -- --app
 
 set -eu
 
-REPO="${STARORG_REPO:-voidput/starorg-strings}"
+REPO="${STARORG_REPO:-voidput/starorg-codex}"
 BIN_DIR="${XDG_BIN_HOME:-$HOME/.local/bin}"
 DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
 CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
-APP_ID="starorg-strings-app"
+APP_ID="starorg-codex-app"
+# Names before 0.3.0: the CLI keeps a link under its old name for one release; the old menu
+# entry and icon are replaced.
+LEGACY_CLI="starorg-strings"
+LEGACY_APP_ID="starorg-strings-app"
 APPIMAGE_NAME="StarOrg-Codex.AppImage"
 
 VERSION=""
@@ -39,7 +44,7 @@ Usage: install-linux.sh [options]
                     Settings, backups and the game are left alone.
   -h, --help        This help
 
-Environment: STARORG_REPO (default voidput/starorg-strings), XDG_BIN_HOME,
+Environment: STARORG_REPO (default voidput/starorg-codex), XDG_BIN_HOME,
 XDG_DATA_HOME, XDG_CACHE_HOME.
 EOF
 }
@@ -111,10 +116,13 @@ if [ "$(id -u)" = 0 ]; then
     die "do not run this as root: it installs for your user only, and StarOrg Codex refuses to change game files as root"
 fi
 
-CLI_DEST="$BIN_DIR/starorg-strings"
+CLI_DEST="$BIN_DIR/starorg-codex"
+LEGACY_CLI_DEST="$BIN_DIR/$LEGACY_CLI"
 APP_DEST="$BIN_DIR/$APPIMAGE_NAME"
 DESKTOP_DEST="$DATA_HOME/applications/$APP_ID.desktop"
 ICON_DEST="$DATA_HOME/icons/hicolor/128x128/apps/$APP_ID.png"
+LEGACY_DESKTOP="$DATA_HOME/applications/$LEGACY_APP_ID.desktop"
+LEGACY_ICON="$DATA_HOME/icons/hicolor/128x128/apps/$LEGACY_APP_ID.png"
 
 # The exact line that puts BIN_DIR on PATH for the user's login shell.
 path_hint() {
@@ -148,7 +156,7 @@ check_path() {
     *":$BIN_DIR:"* | *":$BIN_DIR/:"*) return 0 ;;
     esac
     say ""
-    say "*** $BIN_DIR is not on your PATH, so 'starorg-strings' will say \"command not found\"."
+    say "*** $BIN_DIR is not on your PATH, so 'starorg-codex' will say \"command not found\"."
     say "Add it (detected shell: $(basename "${SHELL:-sh}")):"
     say ""
     path_hint
@@ -158,11 +166,12 @@ check_path() {
 
 if [ "$UNINSTALL" = 1 ]; then
     say "Before uninstalling, put the game back to stock if you applied anything:"
-    say "  starorg-strings remove --all      (or Remove in the app)"
+    say "  starorg-codex remove --all      (or Remove in the app)"
     say ""
     remove_file "$CLI_DEST"
+    remove_file "$LEGACY_CLI_DEST"
     if [ "$WANT_APP" = 1 ]; then
-        for f in "$APP_DEST" "$DESKTOP_DEST" "$ICON_DEST"; do
+        for f in "$APP_DEST" "$DESKTOP_DEST" "$ICON_DEST" "$LEGACY_DESKTOP" "$LEGACY_ICON"; do
             remove_file "$f"
         done
         if command -v update-desktop-database >/dev/null 2>&1; then
@@ -171,9 +180,9 @@ if [ "$UNINSTALL" = 1 ]; then
     fi
     say ""
     say "Kept (delete by hand if you want them gone; backups of game files live here):"
-    say "  ${XDG_CONFIG_HOME:-$HOME/.config}/starorg-strings"
-    say "  $DATA_HOME/starorg-strings"
-    say "  $CACHE_HOME/starorg-strings"
+    say "  ${XDG_CONFIG_HOME:-$HOME/.config}/starorg-codex"
+    say "  $DATA_HOME/starorg-codex"
+    say "  $CACHE_HOME/starorg-codex"
     exit 0
 fi
 
@@ -205,9 +214,23 @@ say "StarOrg Codex $TAG from $REPO"
 sums="$(dl "$BASE/SHA256SUMS")" ||
     die "release $TAG has no SHA256SUMS (wrong version, or the release is still being built: try again in a few minutes)"
 
-CLI_ASSET="starorg-strings-$TAG-linux-x86_64.tar.gz"
-printf '%s\n' "$sums" | awk -v n="$CLI_ASSET" '$2 == n || $2 == "*" n { f = 1 } END { exit !f }' ||
-    die "$CLI_ASSET is not in SHA256SUMS of $TAG"
+in_sums() { printf '%s\n' "$sums" | awk -v n="$1" '$2 == n || $2 == "*" n { f = 1 } END { exit !f }'; }
+
+# Releases before 0.3.0 (--version 0.2.0) ship starorg-strings-<tag>-...: installed under
+# that name, without the link, as they were.
+CLI_NAME="starorg-codex"
+CLI_ASSET="$CLI_NAME-$TAG-linux-x86_64.tar.gz"
+if ! in_sums "$CLI_ASSET" && in_sums "$LEGACY_CLI-$TAG-linux-x86_64.tar.gz"; then
+    CLI_NAME="$LEGACY_CLI"
+    CLI_ASSET="$CLI_NAME-$TAG-linux-x86_64.tar.gz"
+    CLI_DEST="$LEGACY_CLI_DEST"
+    # Its AppImage still has the old window id and icon name.
+    APP_ID="$LEGACY_APP_ID"
+    DESKTOP_DEST="$LEGACY_DESKTOP"
+    ICON_DEST="$LEGACY_ICON"
+    warn "$TAG is from before the rename to starorg-codex: installing it as $LEGACY_CLI"
+fi
+in_sums "$CLI_ASSET" || die "$CLI_ASSET is not in SHA256SUMS of $TAG"
 
 APP_ASSET=""
 if [ "$WANT_APP" = 1 ]; then
@@ -226,6 +249,7 @@ if [ "$DRY_RUN" = 1 ]; then
         fi
     done
     say "  would install the CLI to $CLI_DEST"
+    [ "$CLI_NAME" = "$LEGACY_CLI" ] || say "  would link $LEGACY_CLI_DEST -> starorg-codex (the old name, until the next release)"
     if [ "$WANT_APP" = 1 ]; then
         say "  would install the app to $APP_DEST"
         say "  would write $DESKTOP_DEST and $ICON_DEST"
@@ -250,15 +274,22 @@ fetch() {
 fetch "$CLI_ASSET"
 mkdir -p "$WORK/cli"
 tar -xzf "$WORK/$CLI_ASSET" -C "$WORK/cli"
-cli_bin="$WORK/cli/starorg-strings-$TAG-linux-x86_64/starorg-strings"
-[ -f "$cli_bin" ] || die "the archive does not contain starorg-strings-$TAG-linux-x86_64/starorg-strings"
+cli_bin="$WORK/cli/$CLI_NAME-$TAG-linux-x86_64/$CLI_NAME"
+[ -f "$cli_bin" ] && [ ! -L "$cli_bin" ] || die "the archive does not contain $CLI_NAME-$TAG-linux-x86_64/$CLI_NAME"
 
 mkdir -p "$BIN_DIR"
-# Copy next to the target, then rename: a running starorg-strings is never half-written.
+# Copy next to the target, then rename: a running starorg-codex is never half-written.
 cp "$cli_bin" "$CLI_DEST.new"
 chmod 0755 "$CLI_DEST.new"
 mv -f "$CLI_DEST.new" "$CLI_DEST"
 say "installed $CLI_DEST ($("$CLI_DEST" --version 2>/dev/null || echo "version unknown"))"
+if [ "$CLI_NAME" != "$LEGACY_CLI" ]; then
+    # The old name for scripts and LUG Helper hooks that still call it (it prints a
+    # deprecation line). Replaces a 0.2 binary of that name in one rename.
+    ln -sf starorg-codex "$LEGACY_CLI_DEST.new"
+    mv -f "$LEGACY_CLI_DEST.new" "$LEGACY_CLI_DEST"
+    say "linked $LEGACY_CLI_DEST -> starorg-codex (the old name works until the next release)"
+fi
 
 if [ "$WANT_APP" = 1 ]; then
     fetch "$APP_ASSET"
@@ -293,6 +324,12 @@ Categories=Utility;Game;
 Terminal=false
 EOF
     say "installed $DESKTOP_DEST"
+    # The 0.2 menu entry and icon (named after the old window id) would show the app twice.
+    if [ "$APP_ID" != "$LEGACY_APP_ID" ]; then
+        for f in "$LEGACY_DESKTOP" "$LEGACY_ICON"; do
+            remove_file "$f"
+        done
+    fi
     if command -v update-desktop-database >/dev/null 2>&1; then
         update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
     fi
@@ -307,5 +344,5 @@ EOF
 fi
 
 say ""
-say "Done. Check it with: starorg-strings --version && starorg-strings doctor"
+say "Done. Check it with: starorg-codex --version && starorg-codex doctor"
 check_path

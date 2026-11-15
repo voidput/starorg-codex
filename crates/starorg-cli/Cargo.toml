@@ -14,7 +14,7 @@ name = "starorg_cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "starorg-strings"
+name = "starorg-codex"
 path = "src/main.rs"
 
 [dependencies]

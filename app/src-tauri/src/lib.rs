@@ -41,10 +41,14 @@ fn backend() -> (BackendState, contract::real::DialogSlot, update::HostSlot) {
     }
     #[cfg(not(feature = "mock-backend"))]
     {
+        // Before anything reads the app folders: the one-time move of the pre-0.3.0
+        // `starorg-strings` folders (starorg_core::legacy), reported in Activity below.
+        let migration = starorg_core::legacy::migrate_from_env();
         let mut cfg = contract::real::RealConfig::from_env()
             .unwrap_or_else(|e| panic!("StarOrg Codex cannot start: {e}"));
         cfg.dialogs = slot.clone();
         let b = std::sync::Arc::new(contract::real::RealBackend::new(cfg));
+        b.log_folder_migration(&migration);
         let host = b.update_host();
         // "Sync automatically after game exit" (Settings -> StarOrg Tools): a cheap check
         // every 20 s that does nothing unless that switch, the network switch and a sign-in
@@ -96,7 +100,7 @@ pub fn run() {
     });
 }
 
-/// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only] [--keyrefs]`: the extraction
+/// `starorg-codex-app extract-worker --p4k <P> --out <DIR> [--ini-only] [--keyrefs]`: the extraction
 /// worker the real backend starts (spec 3.3), the same protocol as the CLI's hidden
 /// subcommand. Returns the exit code, or `None` when the arguments are not a worker call.
 pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {

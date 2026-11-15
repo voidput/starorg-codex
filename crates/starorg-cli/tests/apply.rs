@@ -513,7 +513,7 @@ fn lock_timeout_and_dry_run() {
         .into_owned();
     let lock = f
         .base
-        .join(format!("home/data/starorg-strings/locks/{id}-LIVE.lock"));
+        .join(format!("home/data/starorg-codex/locks/{id}-LIVE.lock"));
     std::fs::create_dir_all(lock.parent().unwrap()).unwrap();
     let file = std::fs::OpenOptions::new()
         .create(true)

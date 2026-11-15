@@ -14,7 +14,7 @@ use serde_json::Value;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const BIN: &str = env!("CARGO_BIN_EXE_starorg-strings");
+const BIN: &str = env!("CARGO_BIN_EXE_starorg-codex");
 const BOM: &[u8] = b"\xEF\xBB\xBF";
 
 fn stock() -> Vec<u8> {

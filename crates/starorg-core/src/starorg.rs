@@ -11,7 +11,7 @@
 //!   game exits. The CLI has no HTTP client; its post-exit hook only leaves a
 //!   [`PENDING_FILE`] note for the app when `auto_sync` is on.
 //!
-//! `STARORG_ENV` (`production` / `dev`) is what a bare `starorg-strings sync set` saves; it
+//! `STARORG_ENV` (`production` / `dev`) is what a bare `starorg-codex sync set` saves; it
 //! never overrides the saved environment on its own.
 
 use crate::appdirs::AppDirs;

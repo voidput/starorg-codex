@@ -715,7 +715,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       overrides,
       warnings: [],
       invalid: false,
-      settings_file: sc.scope === 'channel' ? `~/.local/share/starorg-strings/channels/${r.install}/${r.channel}/profile.toml` : fv.settings_file,
+      settings_file: sc.scope === 'channel' ? `~/.local/share/starorg-codex/channels/${r.install}/${r.channel}/profile.toml` : fv.settings_file,
     };
   };
   const checkNames = (st: T.ShipNamesSettings) => {
@@ -802,7 +802,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
           target: `${inst.root}/${c.channel}/Data/Localization/english/global.ini`,
           target_is_link: false,
           link_target: null,
-          backup_dir: `~/.local/share/starorg-strings/channels/${req.install}/${c.channel}/backups`,
+          backup_dir: `~/.local/share/starorg-codex/channels/${req.install}/${c.channel}/backups`,
           user_cfg_line: s.language === 'other' ? 'g_language = english' : null,
           user_cfg_path: `${inst.root}/${c.channel}/USER.cfg`,
           replaces_tool: s.foreign_tool,
@@ -841,7 +841,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     apply: async ({ req }) => {
       const c = chan(req.target);
       const name = req.target.channel;
-      if (!c.summary.set_up) fail('needs-decision', `${name} is not set up. Run setup for this channel first.`, `starorg-strings setup --channel ${name} --preset recommended --yes`);
+      if (!c.summary.set_up) fail('needs-decision', `${name} is not set up. Run setup for this channel first.`, `starorg-codex setup --channel ${name} --preset recommended --yes`);
       if (c.summary.game_running) {
         addLog('warn', 'apply', name, 'Apply skipped: the game is running');
         return { ...emptyReport(c.summary, 'skipped'), reason: `Star Citizen is running on ${name}. Close the game, then apply.` };
@@ -883,7 +883,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         shared_with: [],
         line: notEnglish ? 'g_language = english' : null,
       };
-      r.backup_dir = `~/.local/share/starorg-strings/channels/${req.target.install}/${name}/backups`;
+      r.backup_dir = `~/.local/share/starorg-codex/channels/${req.target.install}/${name}/backups`;
       r.duration_ms = 1830;
       if (!req.dry_run) {
         const seq = c.backups.length + 1;
@@ -941,7 +941,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     list_backups: ({ req }) => {
       const c = chan(req);
-      return { channel: req.channel, folder: `~/.local/share/starorg-strings/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 10, keep_builds: 3 };
+      return { channel: req.channel, folder: `~/.local/share/starorg-codex/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 10, keep_builds: 3 };
     },
     backup_now: ({ req }) => {
       const c = chan(req);
@@ -1410,12 +1410,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       for (const e of log.slice(-50).reverse()) text += `${e.time} ${e.level} ${e.message}\n`;
       text += `\n## Characters\n${CHARACTER_NAMES[0]} (geid ${CHARACTER_IDS[0]}) active on LIVE\nStarOrg user: ${starorg.user ?? 'not signed in'}\n`;
       const [out, redacted] = redact(text);
-      return { file_name: 'starorg-strings-diagnostics-20261114-213005.txt', text: out, redacted };
+      return { file_name: 'starorg-codex-diagnostics-20261114-213005.txt', text: out, redacted };
     },
     // The browser has no native save dialog: the UI downloads a blob instead and never calls this.
     save_diagnostics: () => {
       addLog('info', null, null, 'Saved diagnostics');
-      return '~/starorg-strings-diagnostics-20261114-213005.txt';
+      return '~/starorg-codex-diagnostics-20261114-213005.txt';
     },
     // Experimental local MCP server. The browser cannot listen on a port: "on" shows the
     // sample status of a running server (fixed URL and token). `?mcp=on` starts it on.

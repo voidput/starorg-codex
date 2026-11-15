@@ -43,7 +43,7 @@ struct Meta {
 /// Extract from the channel's own `Data.p4k` with the worker process.
 #[derive(Debug, Clone)]
 pub struct LocalExtraction {
-    /// The `starorg-strings` binary (CLI), started as `<worker> extract-worker ...`.
+    /// The `starorg-codex` binary (CLI), started as `<worker> extract-worker ...`.
     pub worker: PathBuf,
     /// Where the worker writes its output; a fresh temp dir inside is used per load. `None`
     /// uses the system temp dir. (The M1 cache replaces this.)

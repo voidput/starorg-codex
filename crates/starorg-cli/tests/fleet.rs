@@ -49,7 +49,7 @@ fn export(f: &Fake) -> PathBuf {
 }
 
 fn data_root(f: &Fake) -> PathBuf {
-    f.base.join("home/data/starorg-strings")
+    f.base.join("home/data/starorg-codex")
 }
 
 fn run_json(f: &Fake, gd: &std::path::Path, args: &[&str]) -> (i32, Value) {

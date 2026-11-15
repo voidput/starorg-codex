@@ -319,9 +319,9 @@ mod tests {
 
     #[test]
     fn release_please_body_becomes_plain_blocks() {
-        let body = "## [0.2.0](https://github.com/voidput/starorg-strings/compare/v0.1.0...v0.2.0) (2026-11-20)\n\n\
+        let body = "## [0.2.0](https://github.com/voidput/starorg-codex/compare/v0.1.0...v0.2.0) (2026-11-20)\n\n\
                     ### Features\n\n\
-                    * **app:** update check ([#15](https://github.com/voidput/starorg-strings/issues/15)) ([abc1234](https://github.com/x/y/commit/abc1234))\n\
+                    * **app:** update check ([#15](https://github.com/voidput/starorg-codex/issues/15)) ([abc1234](https://github.com/x/y/commit/abc1234))\n\
                     * keep `snake_case` names\n\n\
                     ### Bug Fixes\n\n\
                     1. one\n2) two\n";

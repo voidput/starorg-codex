@@ -58,7 +58,7 @@
     {#if !hs}
       <Skeleton class="h-16 w-full" />
     {:else if !hs.supported}
-      <p class="text-muted-foreground">Launch hooks are for the LUG Helper on Linux. On Windows, apply from Home after a game update, or schedule <span class="mono">starorg-strings apply --all --if-stale</span>.</p>
+      <p class="text-muted-foreground">Launch hooks are for the LUG Helper on Linux. On Windows, apply from Home after a game update, or schedule <span class="mono">starorg-codex apply --all --if-stale</span>.</p>
     {:else}
       <ul class="grid gap-2">
         {#each hs.scripts as s (s.kind)}
@@ -70,7 +70,7 @@
           </li>
         {/each}
       </ul>
-      {#if !hs.cli_on_path}<p class="text-warning text-[12px]">The starorg-strings command is not on PATH; the hooks call it by full path.</p>{/if}
+      {#if !hs.cli_on_path}<p class="text-warning text-[12px]">The starorg-codex command is not on PATH; the hooks call it by full path.</p>{/if}
       <div class="flex flex-wrap gap-2">
         <Button size="sm" disabled={busy || !needsUpdate} onclick={() => run(() => api.hooksInstall(), installed ? 'Launch hooks updated' : 'Launch hooks installed')}><Plug aria-hidden="true" /> {installed ? 'Update hooks' : 'Install hooks'}</Button>
         {#if installed}

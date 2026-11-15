@@ -977,7 +977,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             Outcome::NeedsDecision,
             exit::NEEDS_DECISION,
             Some(format!(
-                "the game language in {} is {value}; v1 writes English only. Run `starorg-strings setup --channel {} --switch-language --yes` to switch it",
+                "the game language in {} is {value}; v1 writes English only. Run `starorg-codex setup --channel {} --switch-language --yes` to switch it",
                 cfg.path.display(),
                 t.channel.name
             )),
@@ -1196,7 +1196,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
 
     if let Some(p) = ctx.pause_before_cfg {
         eprintln!(
-            "starorg-strings: test pause before user.cfg ({} ms)",
+            "starorg-codex: test pause before user.cfg ({} ms)",
             p.as_millis()
         );
         std::thread::sleep(p);
@@ -1206,7 +1206,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         reached.push(".reached");
         let _ = std::fs::write(&reached, b"");
         eprintln!(
-            "starorg-strings: test pause before user.cfg until {}",
+            "starorg-codex: test pause before user.cfg until {}",
             go.display()
         );
         let deadline = std::time::Instant::now() + Duration::from_secs(120);
@@ -1338,7 +1338,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     }
     if let Some(p) = ctx.pause_after_write {
         eprintln!(
-            "starorg-strings: test pause after write ({} ms)",
+            "starorg-codex: test pause after write ({} ms)",
             p.as_millis()
         );
         std::thread::sleep(p);
@@ -1410,7 +1410,7 @@ fn finish_code(r: Report, outcome: Outcome, started: Instant) -> Report {
 
 fn setup_hint(t: &Target<'_>) -> String {
     format!(
-        "channel {} is not set up; run `starorg-strings setup --channel {} --preset recommended --yes`",
+        "channel {} is not set up; run `starorg-codex setup --channel {} --preset recommended --yes`",
         t.channel.name, t.channel.name
     )
 }

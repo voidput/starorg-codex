@@ -134,7 +134,7 @@ fn env_key(e: StarOrgEnv) -> &'static str {
 }
 
 fn user_agent() -> String {
-    concat!("starorg-strings/", env!("CARGO_PKG_VERSION")).to_string()
+    concat!("starorg-codex/", env!("CARGO_PKG_VERSION")).to_string()
 }
 
 fn off(what: &str) -> AppError {

@@ -47,12 +47,12 @@ pub fn arm_here(g: &GlobalOpts, limit: Option<u64>, told: bool) {
                     json!({ "schema": crate::commands::JSON_SCHEMA, "error": { "kind": "memory-limit", "message": m } })
                 );
             }
-            eprintln!("starorg-strings: {m}");
+            eprintln!("starorg-codex: {m}");
         }),
     );
     if told && !g.quiet && !g.json {
         eprintln!(
-            "starorg-strings: memory limit {} ({}; --memory-limit to change, 0 = none)",
+            "starorg-codex: memory limit {} ({}; --memory-limit to change, 0 = none)",
             memlimit::human(limit),
             a.hard.label()
         );

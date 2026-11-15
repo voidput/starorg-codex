@@ -4,7 +4,7 @@
 //!   result is kept and shown as it was.
 //! - On: at most one request per 24 h when the app starts, plus "Check now". One GET of the
 //!   repo's release list ([`starorg_net::releases`]), no credentials, `User-Agent:
-//!   StarOrg-Strings/<version>` only.
+//!   StarOrg-Codex/<version>` only.
 //! - Drafts are ignored; pre-releases only with "Include pre-releases". Versions compare by
 //!   semver precedence (build metadata ignored).
 //! - Release notes are reduced to plain text blocks ([`notes`]); the release page URL is
@@ -35,13 +35,16 @@ use std::path::PathBuf;
 use std::sync::Mutex;
 
 /// The source repo; Q1 may move public releases elsewhere (a mirror is a setting).
-pub const DEFAULT_REPO: &str = "voidput/starorg-strings";
+pub const DEFAULT_REPO: &str = "voidput/starorg-codex";
+/// The repo's name before 0.3.0. GitHub redirects it, but release links would then not
+/// match the checked repo ([`allowed_release_url`]), so a saved copy reads as the default.
+pub const LEGACY_REPO: &str = "voidput/starorg-strings";
 /// The start-up check runs at most this often.
 pub const CHECK_EVERY_SECS: u64 = 24 * 60 * 60;
 
 /// The only identifying header sent: the app's name and version.
 pub fn user_agent() -> String {
-    format!("StarOrg-Strings/{}", env!("CARGO_PKG_VERSION"))
+    format!("StarOrg-Codex/{}", env!("CARGO_PKG_VERSION"))
 }
 
 /// One HTTP GET of a repo's release list. `Err` = no HTTP answer (offline).
@@ -184,7 +187,11 @@ impl Updater {
 
     fn prefs(s: &Saved) -> UpdatePrefs {
         UpdatePrefs {
-            repo: s.repo.clone().unwrap_or_else(|| DEFAULT_REPO.to_string()),
+            repo: s
+                .repo
+                .clone()
+                .filter(|r| !r.eq_ignore_ascii_case(LEGACY_REPO))
+                .unwrap_or_else(|| DEFAULT_REPO.to_string()),
             include_prereleases: s.include_prereleases,
         }
     }
@@ -261,7 +268,7 @@ impl Updater {
         if !valid_repo(&repo) {
             return Err(AppError::new(
                 ErrorCode::Invalid,
-                "Enter the repository as owner/name, for example voidput/starorg-strings.",
+                "Enter the repository as owner/name, for example voidput/starorg-codex.",
             ));
         }
         let mut s = self.store.load();

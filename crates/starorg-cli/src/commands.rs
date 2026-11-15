@@ -37,7 +37,7 @@ pub(crate) fn fail(g: &GlobalOpts, code: u8, kind: &str, message: &str) -> ExitC
             json!({ "schema": JSON_SCHEMA, "error": { "kind": kind, "message": message } })
         );
     }
-    eprintln!("starorg-strings: {message}");
+    eprintln!("starorg-codex: {message}");
     ExitCode::from(code)
 }
 

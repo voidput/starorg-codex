@@ -156,7 +156,7 @@ pub(crate) fn print_scan(g: &GlobalOpts, ch: &str, store: &Store, r: &ScanReport
     print_repairs(ch, store, r);
     if r.disabled {
         println!(
-            "{ch}: Game.log import is off (starorg-strings sync set --import-game-log on); no log read"
+            "{ch}: Game.log import is off (starorg-codex sync set --import-game-log on); no log read"
         );
         return;
     }
@@ -251,7 +251,7 @@ fn rescan_cmd(g: &GlobalOpts, channel: &str, dry_run: bool, replace: bool) -> Ex
             g,
             exit::USAGE,
             "disabled",
-            "Game.log import is off (starorg-strings sync set --import-game-log on); no log read",
+            "Game.log import is off (starorg-codex sync set --import-game-log on); no log read",
         );
     }
     let data = c
@@ -372,7 +372,7 @@ fn scan_cmd(g: &GlobalOpts, channel: Option<&str>) -> ExitCode {
                 out.push(json!({ "channel": ch.name, "scan": r }));
             }
             Err(e) => {
-                eprintln!("starorg-strings: {e}");
+                eprintln!("starorg-codex: {e}");
                 code = exit::worst([code, exit::SKIPPED]);
                 out.push(json!({ "channel": ch.name, "error": e }));
             }
@@ -824,7 +824,7 @@ fn import_cmd(
         if dry_run {
             eprintln!("  warning: {msg}");
         } else {
-            eprintln!("starorg-strings: {msg}");
+            eprintln!("starorg-codex: {msg}");
         }
     }
     ExitCode::from(code)

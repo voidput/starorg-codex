@@ -125,7 +125,7 @@ pub(crate) fn register(g: &GlobalOpts, c: &Ctx, i: &Install) -> Result<String, E
         && !g.quiet
     {
         eprintln!(
-            "starorg-strings: re-linked moved install {} -> {}",
+            "starorg-codex: re-linked moved install {} -> {}",
             old_path.display(),
             i.root.display()
         );
@@ -163,7 +163,7 @@ pub(crate) fn notify(g: &GlobalOpts, code: u8, summary: &str, applied_something:
         .stderr(std::process::Stdio::null())
         .status();
     if r.is_err() && !g.quiet {
-        eprintln!("starorg-strings: notify-send not available; {summary}");
+        eprintln!("starorg-codex: notify-send not available; {summary}");
     }
 }
 
@@ -937,7 +937,7 @@ pub fn doctor(g: &GlobalOpts) -> ExitCode {
         "installs": installs,
         "patches": set.patches.iter().map(|p| json!({"id": p.file.id, "origin": p.origin})).collect::<Vec<_>>(),
         "patch_errors": set.errors,
-        "gpu_session": "reported by the GUI (starorg-strings-app); the CLI needs no display",
+        "gpu_session": "reported by the GUI (starorg-codex-app); the CLI needs no display",
     });
     if g.json {
         println!("{report}");
