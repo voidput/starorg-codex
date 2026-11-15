@@ -177,7 +177,7 @@ command lists its options; `--json` gives one JSON object for scripts.
 | Command | Does |
 |---|---|
 | `channels` | List installs and channels with branch, game version and change number |
-| `setup --channel LIVE --preset recommended` | Set up a channel (consent to write) with a starting profile |
+| `setup --channel LIVE --preset recommended --yes` | Set up a channel with a starting profile; `--yes` is the consent to write (without it, setup only says what it would do, exit 6) |
 | `apply --channel LIVE` / `apply --all --if-stale` | Build and apply; `--dry-run` writes nothing |
 | `status` | Applied, Stale, Changed by another tool, or Not applied, per channel |
 | `remove --all` | Back to stock |

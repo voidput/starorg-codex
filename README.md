@@ -71,7 +71,7 @@ Wine prefix, launch hooks and troubleshooting: [docs/linux.md](docs/linux.md).
 
 ```sh
 starorg-codex channels                                # what was found
-starorg-codex setup --channel LIVE --preset recommended
+starorg-codex setup --channel LIVE --preset recommended --yes   # --yes = consent to write there
 starorg-codex apply --channel LIVE --dry-run          # check, writes nothing
 starorg-codex apply --channel LIVE
 starorg-codex remove --all                            # back to stock
