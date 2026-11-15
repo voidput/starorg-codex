@@ -38,6 +38,23 @@ fn stock_bytes() -> Vec<u8> {
     v
 }
 
+/// The loc-reference pass of the fake build: a rifle entity names `item_NameRifle`.
+fn test_keyrefs() -> starorg_core::groups::KeyRefs {
+    let mut b = starorg_core::groups::KeyRefsBuilder::new();
+    b.add(
+        starorg_core::groups::RefSource {
+            struct_type: "EntityClassDefinition".into(),
+            item_type: Some("WeaponPersonal".into()),
+            size: Some(2),
+            manufacturer: Some("KSAR".into()),
+            folder: "entities/scitem/weapons".into(),
+            ..Default::default()
+        },
+        ["@item_NameRifle"],
+    );
+    b.finish()
+}
+
 /// Stock text from memory and one blueprint whose product is named by `item_NameRifle`.
 struct TestSource;
 
@@ -54,6 +71,7 @@ impl GameSource for TestSource {
                 }],
                 ..GameData::default()
             },
+            keyrefs: Some(test_keyrefs()),
             origin: Origin::LocalExtraction {
                 starbreaker_commit: "test".into(),
             },

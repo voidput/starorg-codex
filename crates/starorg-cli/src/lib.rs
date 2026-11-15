@@ -247,6 +247,9 @@ pub enum Command {
         /// Read only the stock global.ini (skip DataCore).
         #[arg(long)]
         ini_only: bool,
+        /// Also write keyrefs.json (the loc-reference pass for Strings grouping).
+        #[arg(long, conflicts_with = "ini_only")]
+        keyrefs: bool,
         /// Test hook: panic inside the guarded extraction.
         #[arg(long, hide = true)]
         test_panic: bool,
@@ -457,10 +460,11 @@ where
             p4k,
             out,
             ini_only,
+            keyrefs,
             test_panic,
             test_hang,
         } => {
-            use starorg_data::worker::{TestHook, run_with};
+            use starorg_data::worker::{TestHook, run_opts};
             // The worker writes only below --out; never inside the game or its prefix.
             let out_abs = commands::canonical_lenient(&out);
             let p4k_abs = commands::canonical_lenient(&p4k);
@@ -487,7 +491,8 @@ where
             } else {
                 TestHook::None
             };
-            ExitCode::from(run_with(&p4k, &out, hook, ini_only) as u8)
+            let opts = starorg_data::extract::Options { ini_only, keyrefs };
+            ExitCode::from(run_opts(&p4k, &out, hook, opts) as u8)
         }
     }
 }

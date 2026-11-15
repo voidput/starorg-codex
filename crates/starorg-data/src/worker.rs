@@ -6,7 +6,8 @@
 //!
 //! - `base.ini`: the stock `global.ini`, byte for byte;
 //! - `gamedata.json`: the serialised `GameData`;
-//! - `meta.json`: [`WorkerMeta`].
+//! - `meta.json`: [`WorkerMeta`];
+//! - `keyrefs.json` (with `--keyrefs` only): the loc-reference pass.
 //!
 //! It prints one JSON line on stdout, [`WorkerReport`], and exits 0, or 1 on any error
 //! (including a caught panic). On failure `<dir>` does not exist.
@@ -21,6 +22,8 @@ use std::path::{Path, PathBuf};
 pub const BASE_INI: &str = "base.ini";
 pub const GAMEDATA_JSON: &str = "gamedata.json";
 pub const META_JSON: &str = "meta.json";
+/// Written only with `--keyrefs`: [`starorg_core::groups::KeyRefs`].
+pub const KEYREFS_JSON: &str = "keyrefs.json";
 
 /// Test hooks, reachable only through hidden CLI flags.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -78,6 +81,9 @@ fn write_output(out: &Path, x: &extract::Extraction) -> std::io::Result<()> {
     let result = (|| {
         write_synced(&tmp.join(BASE_INI), &x.base_ini)?;
         write_synced(&tmp.join(GAMEDATA_JSON), &serde_json::to_vec(game_data)?)?;
+        if let Some(k) = &x.keyrefs {
+            write_synced(&tmp.join(KEYREFS_JSON), &serde_json::to_vec(k)?)?;
+        }
         write_synced(&tmp.join(META_JSON), &serde_json::to_vec_pretty(&meta)?)?;
         if out.exists() {
             std::fs::remove_dir_all(out)?;
@@ -97,6 +103,19 @@ pub fn run(p4k: &Path, out: &Path, hook: TestHook) -> i32 {
 
 /// [`run`], optionally reading only the stock `global.ini` (`--ini-only`).
 pub fn run_with(p4k: &Path, out: &Path, hook: TestHook, ini_only: bool) -> i32 {
+    run_opts(
+        p4k,
+        out,
+        hook,
+        extract::Options {
+            ini_only,
+            keyrefs: false,
+        },
+    )
+}
+
+/// [`run`] with every extraction option (`--ini-only`, `--keyrefs`).
+pub fn run_opts(p4k: &Path, out: &Path, hook: TestHook, opts: extract::Options) -> i32 {
     let result = guarded("extraction", || {
         match hook {
             TestHook::None => {}
@@ -105,7 +124,7 @@ pub fn run_with(p4k: &Path, out: &Path, hook: TestHook, ini_only: bool) -> i32 {
                 std::thread::sleep(std::time::Duration::from_secs(3600));
             },
         }
-        let x = extract::extract_with(p4k, ini_only)?;
+        let x = extract::extract_opts(p4k, opts)?;
         write_output(out, &x)
             .map_err(|e| ExtractError::Output(format!("{}: {e}", out.display())))?;
         Ok(())

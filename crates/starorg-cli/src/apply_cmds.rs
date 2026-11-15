@@ -32,6 +32,7 @@ impl GameSource for FileSource {
         Ok(Loaded {
             base_ini: std::fs::read(&self.0)?,
             game_data: GameData::default(),
+            keyrefs: None,
             origin: Origin::LocalExtraction {
                 starbreaker_commit: "test-stock-ini".into(),
             },

@@ -61,7 +61,8 @@ pub struct WorkerSource;
 impl SourceFactory for WorkerSource {
     fn source(&self, dirs: &AppDirs) -> Result<Box<dyn GameSource>, String> {
         let exe = std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
-        let mut s = LocalExtraction::new(exe);
+        // App-started extractions also run the loc-reference pass (Strings grouping).
+        let mut s = LocalExtraction::new(exe).with_keyrefs();
         s.work_root = Some(dirs.cache.join("work"));
         Ok(Box::new(s))
     }

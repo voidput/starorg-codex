@@ -811,9 +811,11 @@ fn load_stock(
     source: &dyn GameSource,
     budget: &Budget,
     warnings: &mut Vec<Warning>,
+    fresh: bool,
 ) -> Result<crate::source::Loaded, LoadErr> {
     let cache_dir = ctx.dirs.channel_cache(t.id(), &t.channel.name);
     if ctx.use_cache
+        && !fresh
         && let Some(inp) = inputs
     {
         match cache::load(&cache_dir, inp, ctx.min_stock_keys) {
@@ -863,7 +865,26 @@ pub fn load_channel(
         .fingerprint()
         .ok()
         .map(|fp| KeyInputs::local(&fp, &ctx.starbreaker_commit));
-    load_stock(ctx, t, key_inputs.as_ref(), source, budget, warnings).map_err(|e| match e {
+    load_stock(ctx, t, key_inputs.as_ref(), source, budget, warnings, false).map_err(|e| match e {
+        LoadErr::Skip(w) | LoadErr::Fail(w) => w,
+    })
+}
+
+/// [`load_channel`] that ignores a cached entry: extracts again and replaces the entry. The
+/// app uses it to add the loc-reference pass to an entry a launch hook wrote (addendum 8.2).
+pub fn reload_channel(
+    ctx: &Ctx,
+    t: &Target<'_>,
+    source: &dyn GameSource,
+    budget: &Budget,
+    warnings: &mut Vec<Warning>,
+) -> Result<crate::source::Loaded, String> {
+    let key_inputs = t
+        .channel
+        .fingerprint()
+        .ok()
+        .map(|fp| KeyInputs::local(&fp, &ctx.starbreaker_commit));
+    load_stock(ctx, t, key_inputs.as_ref(), source, budget, warnings, true).map_err(|e| match e {
         LoadErr::Skip(w) | LoadErr::Fail(w) => w,
     })
 }
@@ -987,6 +1008,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         source,
         &opts.budget,
         &mut r.warnings,
+        false,
     ) {
         Ok(l) => l,
         Err(LoadErr::Skip(why)) => {

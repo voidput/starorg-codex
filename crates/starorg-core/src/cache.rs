@@ -14,6 +14,7 @@
 
 use crate::discovery::Fingerprint;
 use crate::fsutil;
+use crate::groups::{KEYREFS_SCHEMA, KeyRefs};
 use crate::ini::{BOM, StockIni};
 use crate::model::{GAMEDATA_SCHEMA, GameData};
 use crate::source::{Loaded, Origin, Warning};
@@ -24,6 +25,8 @@ pub const MIN_STOCK_KEYS: usize = 50_000;
 const META: &str = "meta.json";
 const BASE: &str = "base.ini";
 const GAMEDATA: &str = "gamedata.json";
+/// Optional (addendum 8.2): entries written by a launch hook have none.
+const KEYREFS: &str = "keyrefs.json";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyInputs {
@@ -60,6 +63,8 @@ struct Meta {
     inputs: KeyInputs,
     base_ini_sha256: String,
     gamedata_sha256: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    keyrefs_sha256: Option<String>,
     origin: Origin,
     #[serde(default)]
     warnings: Vec<Warning>,
@@ -128,6 +133,7 @@ pub fn load(channel_cache: &Path, inputs: &KeyInputs, min_keys: usize) -> Result
     Ok(Loaded {
         base_ini: base,
         game_data,
+        keyrefs: load_keyrefs(&dir, meta.keyrefs_sha256.as_deref()),
         origin: meta.origin,
         warnings: meta.warnings,
     })
@@ -146,10 +152,15 @@ pub fn store(
     let dir = channel_cache.join(&key);
     let tmp = channel_cache.join(format!("{key}.tmp-{}", std::process::id()));
     let gd = serde_json::to_vec(&loaded.game_data).map_err(std::io::Error::other)?;
+    let kr = match &loaded.keyrefs {
+        Some(k) => Some(serde_json::to_vec(k).map_err(std::io::Error::other)?),
+        None => None,
+    };
     let meta = Meta {
         inputs: inputs.clone(),
         base_ini_sha256: fsutil::sha256_hex(&loaded.base_ini),
         gamedata_sha256: fsutil::sha256_hex(&gd),
+        keyrefs_sha256: kr.as_deref().map(fsutil::sha256_hex),
         origin: loaded.origin.clone(),
         warnings: loaded.warnings.clone(),
     };
@@ -158,6 +169,9 @@ pub fn store(
             std::fs::remove_dir_all(&tmp)?;
         }
         std::fs::create_dir_all(&tmp)?;
+        if let Some(kr) = &kr {
+            write_synced(&tmp.join(KEYREFS), kr)?;
+        }
         for (name, bytes) in [
             (BASE, loaded.base_ini.as_slice()),
             (GAMEDATA, gd.as_slice()),
@@ -192,6 +206,51 @@ pub fn store(
     Ok(())
 }
 
+fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    let mut f = std::fs::File::create(path)?;
+    std::io::Write::write_all(&mut f, bytes)?;
+    f.sync_all()
+}
+
+/// `keyrefs.json` of an entry when present, hashed as `meta.json` says and of the current
+/// schema; anything else counts as absent (grouping is then approximate, nothing else).
+fn load_keyrefs(dir: &Path, sha: Option<&str>) -> Option<KeyRefs> {
+    let sha = sha?;
+    let bytes = std::fs::read(dir.join(KEYREFS)).ok()?;
+    if fsutil::sha256_hex(&bytes) != sha {
+        return None;
+    }
+    serde_json::from_slice::<KeyRefs>(&bytes)
+        .ok()
+        .filter(|k| k.schema == KEYREFS_SCHEMA)
+}
+
+/// Add (or replace) `keyrefs.json` of an existing, verified entry: the file is written first,
+/// then `meta.json` is replaced through a temp file and a rename. An entry that no longer
+/// exists is not recreated.
+pub fn add_keyrefs(
+    channel_cache: &Path,
+    inputs: &KeyInputs,
+    keyrefs: &KeyRefs,
+) -> std::io::Result<()> {
+    let dir = entry_dir(channel_cache, inputs);
+    let mut meta: Meta = fsutil::read_json(&dir.join(META))?
+        .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "no cache entry"))?;
+    if &meta.inputs != inputs {
+        return Err(std::io::Error::other("cache entry is for other inputs"));
+    }
+    let bytes = serde_json::to_vec(keyrefs).map_err(std::io::Error::other)?;
+    write_synced(&dir.join(KEYREFS), &bytes)?;
+    meta.keyrefs_sha256 = Some(fsutil::sha256_hex(&bytes));
+    let tmp = dir.join(format!("{META}.tmp-{}", std::process::id()));
+    write_synced(
+        &tmp,
+        &serde_json::to_vec_pretty(&meta).map_err(std::io::Error::other)?,
+    )?;
+    fsutil::rename_retry(&tmp, &dir.join(META))?;
+    fsutil::fsync_dir(&dir)
+}
+
 /// The entry's `base.ini` path when a verified entry exists (used by `patches` to evaluate
 /// without extracting).
 pub fn has_entry(channel_cache: &Path, inputs: &KeyInputs) -> bool {
@@ -210,6 +269,7 @@ mod tests {
         Loaded {
             base_ini: base,
             game_data: GameData::default(),
+            keyrefs: None,
             origin: Origin::LocalExtraction {
                 starbreaker_commit: "c".into(),
             },
@@ -241,6 +301,21 @@ mod tests {
         store(t.path(), &i, &loaded(), 5).unwrap();
         std::fs::write(entry_dir(t.path(), &i).join(BASE), b"\xEF\xBB\xBFtampered").unwrap();
         assert!(matches!(load(t.path(), &i, 5), Err(Miss::Rejected(_))));
+        // Keyrefs: absent, then added to the entry, then tampered (dropped, entry kept).
+        store(t.path(), &i, &loaded(), 5).unwrap();
+        assert_eq!(load(t.path(), &i, 5).unwrap().keyrefs, None);
+        let mut b = crate::groups::KeyRefsBuilder::new();
+        b.add(crate::groups::RefSource::default(), ["@k1"]);
+        let kr = b.finish();
+        add_keyrefs(t.path(), &i, &kr).unwrap();
+        assert_eq!(load(t.path(), &i, 5).unwrap().keyrefs, Some(kr.clone()));
+        let mut with = loaded();
+        with.keyrefs = Some(kr.clone());
+        store(t.path(), &i, &with, 5).unwrap();
+        assert_eq!(load(t.path(), &i, 5).unwrap().keyrefs, Some(kr));
+        std::fs::write(entry_dir(t.path(), &i).join(KEYREFS), b"{}").unwrap();
+        let l = load(t.path(), &i, 5).unwrap();
+        assert_eq!(l.keyrefs, None);
         // A different schema or source is a different key.
         let mut other = i.clone();
         other.schema += 1;

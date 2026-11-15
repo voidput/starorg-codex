@@ -13,6 +13,7 @@ pub mod config;
 pub mod discovery;
 pub mod enhance;
 pub mod fsutil;
+pub mod groups;
 pub mod hooks;
 pub mod ini;
 pub mod lock;

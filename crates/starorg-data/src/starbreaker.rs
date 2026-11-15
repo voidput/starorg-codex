@@ -155,6 +155,123 @@ impl<'a> DataCoreStore<'a> {
     }
 }
 
+impl DataCoreStore<'_> {
+    /// The loc-reference pass (addendum 8.2) over every main record, in parallel. Records the
+    /// walker cannot read are skipped (the pass only feeds grouping).
+    pub fn scan_key_refs(&self) -> Vec<crate::keyrefs::Scanned> {
+        use rayon::prelude::*;
+        let db = &self.db;
+        db.records()
+            .par_iter()
+            .filter(|r| db.is_main_record(r))
+            .filter_map(|r| {
+                let path = record_path(db.resolve_string(r.file_name_offset))?;
+                let mut sink = ScanSink::default();
+                starbreaker_datacore::walker::walk_record(db, r, &mut sink).ok()?;
+                Some(crate::keyrefs::Scanned {
+                    struct_type: db.struct_name(r.struct_id()).to_string(),
+                    path,
+                    scan: sink.0.into(),
+                })
+            })
+            .collect()
+    }
+}
+
+/// An export sink that builds no output: it forwards strings, sizes and record references to
+/// [`crate::keyrefs::RecordScan`].
+#[derive(Default)]
+struct ScanSink(crate::keyrefs::RecordScan);
+
+impl starbreaker_datacore::sink::ExportSink for ScanSink {
+    type Error = std::io::Error;
+
+    fn extension(&self) -> &str {
+        "json"
+    }
+    fn begin_object(&mut self, name: Option<&str>) -> Result<(), Self::Error> {
+        self.0.begin(name);
+        Ok(())
+    }
+    fn end_object(&mut self) -> Result<(), Self::Error> {
+        self.0.end();
+        Ok(())
+    }
+    fn begin_array(&mut self, name: &str) -> Result<(), Self::Error> {
+        self.0.begin(Some(name));
+        Ok(())
+    }
+    fn end_array(&mut self) -> Result<(), Self::Error> {
+        self.0.end();
+        Ok(())
+    }
+    fn write_null(&mut self, _: Option<&str>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_bool(&mut self, _: Option<&str>, _: bool) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_i8(&mut self, n: Option<&str>, v: i8) -> Result<(), Self::Error> {
+        self.0.int(n, v.into());
+        Ok(())
+    }
+    fn write_i16(&mut self, n: Option<&str>, v: i16) -> Result<(), Self::Error> {
+        self.0.int(n, v.into());
+        Ok(())
+    }
+    fn write_i32(&mut self, n: Option<&str>, v: i32) -> Result<(), Self::Error> {
+        self.0.int(n, v.into());
+        Ok(())
+    }
+    fn write_i64(&mut self, n: Option<&str>, v: i64) -> Result<(), Self::Error> {
+        self.0.int(n, v);
+        Ok(())
+    }
+    fn write_u8(&mut self, n: Option<&str>, v: u8) -> Result<(), Self::Error> {
+        self.0.int(n, v.into());
+        Ok(())
+    }
+    fn write_u16(&mut self, n: Option<&str>, v: u16) -> Result<(), Self::Error> {
+        self.0.int(n, v.into());
+        Ok(())
+    }
+    fn write_u32(&mut self, n: Option<&str>, v: u32) -> Result<(), Self::Error> {
+        self.0.int(n, v.into());
+        Ok(())
+    }
+    fn write_u64(&mut self, n: Option<&str>, v: u64) -> Result<(), Self::Error> {
+        self.0.int(n, i64::try_from(v).unwrap_or(i64::MAX));
+        Ok(())
+    }
+    fn write_f32(&mut self, _: Option<&str>, _: f32) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_f64(&mut self, _: Option<&str>, _: f64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_str(&mut self, n: Option<&str>, v: &str) -> Result<(), Self::Error> {
+        self.0.string(n, v);
+        Ok(())
+    }
+    fn write_guid(
+        &mut self,
+        _: Option<&str>,
+        _: &starbreaker_datacore::types::CigGuid,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_record_ref(
+        &mut self,
+        name: Option<&str>,
+        _: &starbreaker_datacore::types::CigGuid,
+        _: &str,
+        path: &str,
+    ) -> Result<(), Self::Error> {
+        self.0.record_ref(name, path);
+        Ok(())
+    }
+}
+
 impl RecordStore for DataCoreStore<'_> {
     fn records(&self) -> &[RecordMeta] {
         &self.metas
