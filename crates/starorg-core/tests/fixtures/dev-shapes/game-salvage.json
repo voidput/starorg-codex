@@ -1,0 +1,20 @@
+{
+ "_source": "syn-1602",
+ "_extracted": "syn-1603",
+ "_build": "syn-1604",
+ "structural": {
+  "key0": 0.75,
+  "key1": 1.0,
+  "key2": 1.25,
+  "key3": 56
+ },
+ "repairBeam": {
+  "key0": 57,
+  "key1": 2.0,
+  "key2": 2.25,
+  "key3": 60
+ },
+ "summary": {
+  "records": 61
+ }
+}

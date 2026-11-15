@@ -1,0 +1,43 @@
+{
+ "_source": "syn-780",
+ "_extracted": "syn-781",
+ "_build": "syn-782",
+ "items": [
+  {
+   "name": "syn-783",
+   "className": "syn-784",
+   "id": "syn-785",
+   "type": "syn-786",
+   "tags": [
+    "syn-787"
+   ]
+  },
+  {
+   "name": "syn-788",
+   "className": "syn-789",
+   "id": "syn-790",
+   "isTemplate": true,
+   "tags": [
+    "syn-791",
+    "syn-792"
+   ]
+  },
+  {
+   "name": "syn-793",
+   "className": "syn-794",
+   "id": "syn-795",
+   "isTemplate": true,
+   "tags": [
+    "syn-796",
+    "syn-797"
+   ]
+  }
+ ],
+ "summary": {
+  "items": 22,
+  "withAmmo": 23,
+  "canGenerateAsLoot": 24,
+  "cannotGenerateAsLoot": 25,
+  "tags": 26
+ }
+}

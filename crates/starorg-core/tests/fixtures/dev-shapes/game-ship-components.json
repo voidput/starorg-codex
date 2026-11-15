@@ -1,0 +1,2843 @@
+{
+ "_source": "syn-1653",
+ "_extracted": "syn-1654",
+ "_build": "syn-1655",
+ "armor": [
+  {
+   "name": "syn-1656",
+   "isTemplate": true,
+   "recordName": "syn-1657",
+   "id": "syn-1658",
+   "category": "syn-1659",
+   "type": "syn-1660",
+   "subType": "syn-1661",
+   "size": 13,
+   "grade": 14,
+   "manufacturer": "syn-1664",
+   "health": 16,
+   "durability": {
+    "health": 17,
+    "resistances": {
+     "physical": 16.25,
+     "energy": 16.5
+    }
+   },
+   "volume": 20,
+   "stats": {
+    "signalInfrared": 17.0,
+    "signalElectromagnetic": 22,
+    "signalCrossSection": 23
+   },
+   "detail": {
+    "damageMultiplier": {
+     "physical": 17.75,
+     "energy": 18.0,
+     "distortion": 26,
+     "thermal": 27,
+     "biochemical": 28,
+     "stun": 29
+    },
+    "deflection": {
+     "physical": 30,
+     "energy": 31,
+     "distortion": 32,
+     "thermal": 33,
+     "biochemical": 34,
+     "stun": 35
+    },
+    "penetrationAbsorption": {
+     "physical": 36,
+     "energy": 37,
+     "distortion": 38,
+     "thermal": 39,
+     "biochemical": 40,
+     "stun": 41
+    }
+   }
+  },
+  {
+   "name": "syn-1691",
+   "isTemplate": true,
+   "recordName": "syn-1692",
+   "id": "syn-1693",
+   "category": "syn-1694",
+   "type": "syn-1695",
+   "subType": "syn-1696",
+   "size": 48,
+   "grade": 49,
+   "manufacturer": "syn-1699",
+   "health": 51,
+   "durability": {
+    "health": 52,
+    "resistances": {
+     "physical": 2.75,
+     "energy": 3.0
+    }
+   },
+   "volume": 55,
+   "stats": {
+    "signalInfrared": 3.5,
+    "signalElectromagnetic": 3.75,
+    "signalCrossSection": 58
+   },
+   "detail": {
+    "damageMultiplier": {
+     "physical": 4.25,
+     "energy": 4.5,
+     "distortion": 61,
+     "thermal": 62,
+     "biochemical": 63,
+     "stun": 64
+    },
+    "deflection": {
+     "physical": 65,
+     "energy": 66,
+     "distortion": 67,
+     "thermal": 68,
+     "biochemical": 69,
+     "stun": 70
+    },
+    "penetrationAbsorption": {
+     "physical": 71,
+     "energy": 72,
+     "distortion": 73,
+     "thermal": 74,
+     "biochemical": 75,
+     "stun": 76
+    }
+   }
+  },
+  {
+   "name": "syn-1726",
+   "recordName": "syn-1727",
+   "id": "syn-1728",
+   "category": "syn-1729",
+   "type": "syn-1730",
+   "subType": "syn-1731",
+   "size": 83,
+   "grade": 84,
+   "manufacturer": "syn-1734",
+   "health": 86,
+   "durability": {
+    "health": 87,
+    "resistances": {
+     "physical": 11.5,
+     "energy": 11.75
+    }
+   },
+   "volume": 90,
+   "stats": {
+    "signalInfrared": 91,
+    "signalElectromagnetic": 92,
+    "signalCrossSection": 93
+   },
+   "detail": {
+    "damageMultiplier": {
+     "physical": 13.0,
+     "energy": 13.25,
+     "distortion": 96,
+     "thermal": 0,
+     "biochemical": 1,
+     "stun": 2
+    },
+    "deflection": {
+     "physical": 3,
+     "energy": 4,
+     "distortion": 5,
+     "thermal": 6,
+     "biochemical": 7,
+     "stun": 8
+    },
+    "penetrationAbsorption": {
+     "physical": 9,
+     "energy": 10,
+     "distortion": 11,
+     "thermal": 12,
+     "biochemical": 13,
+     "stun": 14
+    }
+   }
+  }
+ ],
+ "batteries": [
+  {
+   "name": "syn-1761",
+   "isTemplate": true,
+   "recordName": "syn-1762",
+   "id": "syn-1763",
+   "category": "syn-1764",
+   "type": "syn-1765",
+   "size": 20,
+   "grade": 21,
+   "manufacturer": "syn-1768",
+   "power": 23,
+   "em": 24,
+   "ir": 25,
+   "health": 26,
+   "mass": 27,
+   "distortionMax": 28,
+   "durability": {
+    "health": 29,
+    "selfRepair": {
+     "count": 30,
+     "seconds": 21.5,
+     "healthRatio": 21.75
+    },
+    "repairRestoreRatio": 22.0,
+    "wear": {
+     "maxLifetimeHours": 0.0,
+     "damageConversionRate": 0.25,
+     "overheatMultiplier": 36
+    },
+    "misfireWindow": {
+     "min": 37,
+     "max": 38
+    }
+   },
+   "distortion": {
+    "max": 39,
+    "decayDelay": 1.5,
+    "decayRate": 1.75,
+    "warningRatio": 2.0,
+    "recoveryRatio": 43,
+    "secondsToRecover": 2.5
+   },
+   "volume": 45,
+   "stats": {
+    "standardCargoUnits": 46
+   }
+  },
+  {
+   "name": "syn-1793",
+   "isTemplate": true,
+   "recordName": "syn-1794",
+   "id": "syn-1795",
+   "category": "syn-1796",
+   "type": "syn-1797",
+   "size": 52,
+   "grade": 53,
+   "manufacturer": "syn-1800",
+   "power": 55,
+   "em": 56,
+   "ir": 57,
+   "health": 58,
+   "mass": 59,
+   "distortionMax": 60,
+   "durability": {
+    "health": 61,
+    "selfRepair": {
+     "count": 62,
+     "seconds": 63,
+     "healthRatio": 7.5
+    },
+    "repairRestoreRatio": 7.75,
+    "wear": {
+     "maxLifetimeHours": 8.0,
+     "damageConversionRate": 8.25,
+     "overheatMultiplier": 68
+    },
+    "misfireWindow": {
+     "min": 69,
+     "max": 70
+    }
+   },
+   "distortion": {
+    "max": 71,
+    "decayDelay": 9.5,
+    "decayRate": 9.75,
+    "warningRatio": 10.0,
+    "recoveryRatio": 75,
+    "secondsToRecover": 10.5
+   },
+   "volume": 77,
+   "stats": {
+    "standardCargoUnits": 78
+   }
+  },
+  {
+   "name": "syn-1825",
+   "isTemplate": true,
+   "recordName": "syn-1826",
+   "id": "syn-1827",
+   "category": "syn-1828",
+   "type": "syn-1829",
+   "size": 84,
+   "grade": 85,
+   "manufacturer": "syn-1832",
+   "power": 87,
+   "em": 88,
+   "ir": 89,
+   "health": 90,
+   "mass": 91,
+   "distortionMax": 92,
+   "durability": {
+    "health": 93,
+    "selfRepair": {
+     "count": 94,
+     "seconds": 15.25,
+     "healthRatio": 15.5
+    },
+    "repairRestoreRatio": 15.75,
+    "wear": {
+     "maxLifetimeHours": 16.0,
+     "damageConversionRate": 16.25,
+     "overheatMultiplier": 3
+    },
+    "misfireWindow": {
+     "min": 4,
+     "max": 5
+    }
+   },
+   "distortion": {
+    "max": 6,
+    "decayDelay": 17.5,
+    "decayRate": 17.75,
+    "warningRatio": 18.0,
+    "recoveryRatio": 10,
+    "secondsToRecover": 18.5
+   },
+   "volume": 12,
+   "stats": {
+    "standardCargoUnits": 13
+   }
+  }
+ ],
+ "missileRacks": [
+  {
+   "name": "syn-1857",
+   "recordName": "syn-1858",
+   "id": "syn-1859",
+   "category": "syn-1860",
+   "type": "syn-1861",
+   "subType": "syn-1862",
+   "size": 20,
+   "grade": 21,
+   "manufacturer": "syn-1865",
+   "em": 23,
+   "ir": 24,
+   "health": 25,
+   "mass": 26,
+   "durability": {
+    "health": 27,
+    "selfRepair": {
+     "count": 28,
+     "seconds": 29,
+     "healthRatio": 1.0
+    },
+    "repairRestoreRatio": 1.25
+   },
+   "volume": 32,
+   "stats": {
+    "missileCount": 33,
+    "missileSize": 34
+   }
+  },
+  {
+   "name": "syn-1878",
+   "recordName": "syn-1879",
+   "id": "syn-1880",
+   "category": "syn-1881",
+   "type": "syn-1882",
+   "subType": "syn-1883",
+   "size": 41,
+   "grade": 42,
+   "manufacturer": "syn-1886",
+   "em": 44,
+   "ir": 45,
+   "health": 46,
+   "mass": 47,
+   "durability": {
+    "health": 48,
+    "selfRepair": {
+     "count": 49,
+     "seconds": 50,
+     "healthRatio": 6.25
+    },
+    "repairRestoreRatio": 6.5
+   },
+   "volume": 53,
+   "stats": {
+    "missileCount": 54,
+    "missileSize": 55
+   }
+  },
+  {
+   "name": "syn-1899",
+   "recordName": "syn-1900",
+   "id": "syn-1901",
+   "category": "syn-1902",
+   "type": "syn-1903",
+   "subType": "syn-1904",
+   "size": 62,
+   "grade": 63,
+   "manufacturer": "syn-1907",
+   "em": 65,
+   "ir": 66,
+   "health": 67,
+   "mass": 68,
+   "durability": {
+    "health": 69,
+    "selfRepair": {
+     "count": 70,
+     "seconds": 71,
+     "healthRatio": 11.5
+    },
+    "repairRestoreRatio": 11.75
+   },
+   "volume": 74,
+   "stats": {
+    "missileCount": 75,
+    "missileSize": 76
+   }
+  }
+ ],
+ "cargoGrids": [
+  {
+   "name": "syn-1920",
+   "isTemplate": true,
+   "recordName": "syn-1921",
+   "id": "syn-1922",
+   "category": "syn-1923",
+   "type": "syn-1924",
+   "size": 82,
+   "grade": 83,
+   "mass": 84,
+   "volume": 85,
+   "stats": {
+    "scu": 86
+   },
+   "detail": {
+    "container": "syn-1930",
+    "interiorDimensions": {
+     "x": 15.5,
+     "y": 89,
+     "z": 16.0
+    }
+   }
+  },
+  {
+   "name": "syn-1934",
+   "isTemplate": true,
+   "recordName": "syn-1935",
+   "id": "syn-1936",
+   "category": "syn-1937",
+   "type": "syn-1938",
+   "size": 96,
+   "grade": 0,
+   "mass": 1,
+   "volume": 2,
+   "stats": {
+    "scu": 3
+   },
+   "detail": {
+    "container": "syn-1944",
+    "interiorDimensions": {
+     "x": 19.0,
+     "y": 6,
+     "z": 19.5
+    }
+   }
+  },
+  {
+   "name": "syn-1948",
+   "isTemplate": true,
+   "recordName": "syn-1949",
+   "id": "syn-1950",
+   "category": "syn-1951",
+   "type": "syn-1952",
+   "size": 13,
+   "grade": 14,
+   "mass": 15,
+   "volume": 16,
+   "stats": {
+    "scu": 17
+   },
+   "detail": {
+    "container": "syn-1958",
+    "interiorDimensions": {
+     "x": 19,
+     "y": 0.5,
+     "z": 0.75
+    }
+   }
+  }
+ ],
+ "coolers": [
+  {
+   "name": "syn-1962",
+   "recordName": "syn-1963",
+   "id": "syn-1964",
+   "category": "syn-1965",
+   "type": "syn-1966",
+   "size": 27,
+   "grade": 28,
+   "manufacturer": "syn-1969",
+   "power": 30,
+   "em": 31,
+   "ir": 32,
+   "health": 33,
+   "mass": 34,
+   "distortionMax": 35,
+   "durability": {
+    "health": 36,
+    "resistances": {
+     "physical": 4.75,
+     "energy": 5.0,
+     "thermal": 5.25
+    },
+    "selfRepair": {
+     "count": 40,
+     "seconds": 5.75,
+     "healthRatio": 6.0
+    },
+    "repairRestoreRatio": 6.25,
+    "wear": {
+     "maxLifetimeHours": 44,
+     "damageConversionRate": 6.75,
+     "overheatMultiplier": 46
+    },
+    "misfireWindow": {
+     "min": 47,
+     "max": 48
+    }
+   },
+   "distortion": {
+    "max": 49,
+    "decayDelay": 8.0,
+    "decayRate": 8.25,
+    "warningRatio": 8.5,
+    "recoveryRatio": 53,
+    "secondsToRecover": 9.0
+   },
+   "volume": 55,
+   "stats": {
+    "coolantOutput": 56
+   }
+  },
+  {
+   "name": "syn-1997",
+   "recordName": "syn-1998",
+   "id": "syn-1999",
+   "category": "syn-2000",
+   "type": "syn-2001",
+   "size": 62,
+   "grade": 63,
+   "manufacturer": "syn-2004",
+   "power": 65,
+   "em": 66,
+   "ir": 67,
+   "health": 68,
+   "mass": 69,
+   "distortionMax": 70,
+   "durability": {
+    "health": 71,
+    "resistances": {
+     "physical": 13.5,
+     "energy": 13.75,
+     "thermal": 14.0
+    },
+    "selfRepair": {
+     "count": 75,
+     "seconds": 14.5,
+     "healthRatio": 14.75
+    },
+    "repairRestoreRatio": 15.0,
+    "wear": {
+     "maxLifetimeHours": 79,
+     "damageConversionRate": 15.5,
+     "overheatMultiplier": 81
+    },
+    "misfireWindow": {
+     "min": 82,
+     "max": 83
+    }
+   },
+   "distortion": {
+    "max": 84,
+    "decayDelay": 16.75,
+    "decayRate": 17.0,
+    "warningRatio": 17.25,
+    "recoveryRatio": 88,
+    "secondsToRecover": 17.75
+   },
+   "volume": 90,
+   "stats": {
+    "coolantOutput": 91
+   }
+  },
+  {
+   "name": "syn-2032",
+   "recordName": "syn-2033",
+   "id": "syn-2034",
+   "category": "syn-2035",
+   "type": "syn-2036",
+   "size": 0,
+   "grade": 1,
+   "manufacturer": "syn-2039",
+   "power": 3,
+   "em": 4,
+   "ir": 5,
+   "health": 6,
+   "mass": 7,
+   "distortionMax": 8,
+   "durability": {
+    "health": 9,
+    "resistances": {
+     "physical": 0.0,
+     "energy": 0.25,
+     "thermal": 0.5
+    },
+    "selfRepair": {
+     "count": 13,
+     "seconds": 1.0,
+     "healthRatio": 1.25
+    },
+    "repairRestoreRatio": 1.5,
+    "wear": {
+     "maxLifetimeHours": 17,
+     "damageConversionRate": 2.0,
+     "overheatMultiplier": 19
+    },
+    "misfireWindow": {
+     "min": 20,
+     "max": 21
+    }
+   },
+   "distortion": {
+    "max": 22,
+    "decayDelay": 3.25,
+    "decayRate": 3.5,
+    "warningRatio": 3.75,
+    "recoveryRatio": 26,
+    "secondsToRecover": 4.25
+   },
+   "volume": 28,
+   "stats": {
+    "coolantOutput": 29
+   }
+  }
+ ],
+ "countermeasures": [
+  {
+   "name": "syn-2067",
+   "isTemplate": true,
+   "recordName": "syn-2068",
+   "id": "syn-2069",
+   "category": "syn-2070",
+   "type": "syn-2071",
+   "subType": "syn-2072",
+   "size": 36,
+   "grade": 37,
+   "manufacturer": "syn-2075",
+   "health": 39,
+   "mass": 40,
+   "durability": {
+    "health": 41
+   },
+   "volume": 42,
+   "stats": {
+    "maxAmmoCount": 43,
+    "maxRestockCount": 44
+   },
+   "detail": {
+    "ammo": "syn-2082"
+   }
+  },
+  {
+   "name": "syn-2083",
+   "isTemplate": true,
+   "recordName": "syn-2084",
+   "id": "syn-2085",
+   "category": "syn-2086",
+   "type": "syn-2087",
+   "subType": "syn-2088",
+   "size": 52,
+   "grade": 53,
+   "manufacturer": "syn-2091",
+   "health": 55,
+   "mass": 56,
+   "durability": {
+    "health": 57
+   },
+   "volume": 58,
+   "stats": {
+    "maxAmmoCount": 59,
+    "maxRestockCount": 60
+   },
+   "detail": {
+    "ammo": "syn-2098"
+   }
+  },
+  {
+   "name": "syn-2099",
+   "isTemplate": true,
+   "recordName": "syn-2100",
+   "id": "syn-2101",
+   "category": "syn-2102",
+   "type": "syn-2103",
+   "subType": "syn-2104",
+   "size": 68,
+   "grade": 69,
+   "manufacturer": "syn-2107",
+   "health": 71,
+   "mass": 72,
+   "durability": {
+    "health": 73
+   },
+   "volume": 74,
+   "stats": {
+    "maxAmmoCount": 75,
+    "maxRestockCount": 76
+   },
+   "detail": {
+    "ammo": "syn-2114"
+   }
+  }
+ ],
+ "fuelTanks": [
+  {
+   "name": "syn-2115",
+   "recordName": "syn-2116",
+   "id": "syn-2117",
+   "category": "syn-2118",
+   "type": "syn-2119",
+   "subType": "syn-2120",
+   "size": 84,
+   "grade": 85,
+   "em": 86,
+   "ir": 87,
+   "durability": {
+    "selfRepair": {
+     "count": 88,
+     "seconds": 89,
+     "healthRatio": 20.0
+    },
+    "repairRestoreRatio": 20.25
+   },
+   "volume": 92,
+   "stats": {
+    "standardCargoUnits": 20.75
+   }
+  },
+  {
+   "name": "syn-2131",
+   "recordName": "syn-2132",
+   "id": "syn-2133",
+   "category": "syn-2134",
+   "type": "syn-2135",
+   "subType": "syn-2136",
+   "size": 3,
+   "grade": 4,
+   "manufacturer": "syn-2139",
+   "em": 6,
+   "ir": 7,
+   "durability": {
+    "selfRepair": {
+     "count": 8,
+     "seconds": 9,
+     "healthRatio": 2.0
+    },
+    "repairRestoreRatio": 2.25
+   },
+   "volume": 12,
+   "stats": {
+    "standardCargoUnits": 2.75
+   }
+  },
+  {
+   "name": "syn-2148",
+   "recordName": "syn-2149",
+   "id": "syn-2150",
+   "category": "syn-2151",
+   "type": "syn-2152",
+   "subType": "syn-2153",
+   "size": 20,
+   "grade": 21,
+   "manufacturer": "syn-2156",
+   "em": 23,
+   "ir": 24,
+   "durability": {
+    "selfRepair": {
+     "count": 25,
+     "seconds": 26,
+     "healthRatio": 6.25
+    },
+    "repairRestoreRatio": 6.5
+   },
+   "volume": 29,
+   "stats": {
+    "standardCargoUnits": 7.0
+   }
+  }
+ ],
+ "quantumFuelTanks": [
+  {
+   "name": "syn-2165",
+   "recordName": "syn-2166",
+   "id": "syn-2167",
+   "category": "syn-2168",
+   "type": "syn-2169",
+   "subType": "syn-2170",
+   "size": 37,
+   "grade": 38,
+   "em": 39,
+   "ir": 40,
+   "durability": {
+    "selfRepair": {
+     "count": 41,
+     "seconds": 42,
+     "healthRatio": 10.25
+    },
+    "repairRestoreRatio": 10.5
+   },
+   "volume": 45,
+   "stats": {
+    "standardCargoUnits": 11.0
+   }
+  },
+  {
+   "name": "syn-2181",
+   "recordName": "syn-2182",
+   "id": "syn-2183",
+   "category": "syn-2184",
+   "type": "syn-2185",
+   "subType": "syn-2186",
+   "size": 53,
+   "grade": 54,
+   "em": 55,
+   "ir": 56,
+   "durability": {
+    "selfRepair": {
+     "count": 57,
+     "seconds": 58,
+     "healthRatio": 14.25
+    },
+    "repairRestoreRatio": 14.5
+   },
+   "volume": 61,
+   "stats": {
+    "standardCargoUnits": 15.0
+   }
+  },
+  {
+   "name": "syn-2197",
+   "recordName": "syn-2198",
+   "id": "syn-2199",
+   "category": "syn-2200",
+   "type": "syn-2201",
+   "subType": "syn-2202",
+   "size": 69,
+   "grade": 70,
+   "em": 71,
+   "ir": 72,
+   "durability": {
+    "selfRepair": {
+     "count": 73,
+     "seconds": 74,
+     "healthRatio": 18.25
+    },
+    "repairRestoreRatio": 18.5
+   },
+   "volume": 77,
+   "stats": {
+    "standardCargoUnits": 19.0
+   }
+  }
+ ],
+ "jumpDrives": [
+  {
+   "name": "syn-2213",
+   "recordName": "syn-2214",
+   "id": "syn-2215",
+   "category": "syn-2216",
+   "type": "syn-2217",
+   "size": 84,
+   "grade": 85,
+   "manufacturer": "syn-2220",
+   "em": 87,
+   "ir": 88,
+   "health": 89,
+   "mass": 90,
+   "distortionMax": 91,
+   "durability": {
+    "health": 92,
+    "resistances": {
+     "physical": 0.5,
+     "energy": 0.75,
+     "thermal": 1.0
+    },
+    "selfRepair": {
+     "count": 96,
+     "seconds": 0,
+     "healthRatio": 1.75
+    },
+    "repairRestoreRatio": 2.0,
+    "wear": {
+     "maxLifetimeHours": 3,
+     "damageConversionRate": 2.5,
+     "overheatMultiplier": 5
+    },
+    "misfireWindow": {
+     "min": 6,
+     "max": 7
+    }
+   },
+   "distortion": {
+    "max": 8,
+    "decayDelay": 9,
+    "decayRate": 10,
+    "warningRatio": 4.25,
+    "recoveryRatio": 4.5,
+    "secondsToRecover": 4.75
+   },
+   "volume": 14,
+   "stats": {
+    "alignmentRate": 5.25,
+    "alignmentDecayRate": 5.5,
+    "tuningRate": 5.75,
+    "tuningDecayRate": 6.0,
+    "fuelUsageEfficiencyMultiplier": 19
+   }
+  },
+  {
+   "name": "syn-2251",
+   "isTemplate": true,
+   "recordName": "syn-2252",
+   "id": "syn-2253",
+   "category": "syn-2254",
+   "type": "syn-2255",
+   "size": 25,
+   "grade": 26,
+   "em": 27,
+   "ir": 28,
+   "health": 29,
+   "mass": 30,
+   "distortionMax": 31,
+   "durability": {
+    "health": 32,
+    "resistances": {
+     "physical": 9.75,
+     "energy": 10.0,
+     "thermal": 10.25
+    },
+    "selfRepair": {
+     "count": 36,
+     "seconds": 10.75,
+     "healthRatio": 11.0
+    },
+    "repairRestoreRatio": 11.25,
+    "wear": {
+     "maxLifetimeHours": 40,
+     "damageConversionRate": 11.75,
+     "overheatMultiplier": 42
+    },
+    "misfireWindow": {
+     "min": 43,
+     "max": 44
+    }
+   },
+   "distortion": {
+    "max": 45,
+    "decayDelay": 46,
+    "decayRate": 47,
+    "warningRatio": 13.5,
+    "recoveryRatio": 13.75,
+    "secondsToRecover": 14.0
+   },
+   "volume": 51,
+   "stats": {
+    "alignmentRate": 14.5,
+    "alignmentDecayRate": 14.75,
+    "tuningRate": 15.0,
+    "tuningDecayRate": 15.25,
+    "fuelUsageEfficiencyMultiplier": 56
+   }
+  },
+  {
+   "name": "syn-2288",
+   "recordName": "syn-2289",
+   "id": "syn-2290",
+   "category": "syn-2291",
+   "type": "syn-2292",
+   "size": 62,
+   "grade": 63,
+   "manufacturer": "syn-2295",
+   "em": 65,
+   "ir": 66,
+   "health": 67,
+   "mass": 68,
+   "distortionMax": 69,
+   "durability": {
+    "health": 70,
+    "resistances": {
+     "physical": 19.25,
+     "energy": 19.5,
+     "thermal": 19.75
+    },
+    "selfRepair": {
+     "count": 74,
+     "seconds": 20.25,
+     "healthRatio": 20.5
+    },
+    "repairRestoreRatio": 20.75,
+    "wear": {
+     "maxLifetimeHours": 78,
+     "damageConversionRate": 21.25,
+     "overheatMultiplier": 80
+    },
+    "misfireWindow": {
+     "min": 81,
+     "max": 82
+    }
+   },
+   "distortion": {
+    "max": 83,
+    "decayDelay": 84,
+    "decayRate": 85,
+    "warningRatio": 0.75,
+    "recoveryRatio": 1.0,
+    "secondsToRecover": 1.25
+   },
+   "volume": 89,
+   "stats": {
+    "alignmentRate": 1.75,
+    "alignmentDecayRate": 2.0,
+    "tuningRate": 2.25,
+    "tuningDecayRate": 2.5,
+    "fuelUsageEfficiencyMultiplier": 2.75
+   }
+  }
+ ],
+ "lifeSupport": [
+  {
+   "name": "syn-2326",
+   "recordName": "syn-2327",
+   "id": "syn-2328",
+   "category": "syn-2329",
+   "type": "syn-2330",
+   "size": 3,
+   "grade": 4,
+   "manufacturer": "syn-2333",
+   "power": 6,
+   "em": 7,
+   "ir": 8,
+   "health": 9,
+   "mass": 10,
+   "distortionMax": 11,
+   "durability": {
+    "health": 12,
+    "resistances": {
+     "physical": 6.75,
+     "energy": 7.0,
+     "thermal": 7.25
+    },
+    "selfRepair": {
+     "count": 16,
+     "seconds": 7.75,
+     "healthRatio": 8.0
+    },
+    "repairRestoreRatio": 8.25,
+    "wear": {
+     "maxLifetimeHours": 20,
+     "damageConversionRate": 8.75,
+     "overheatMultiplier": 22
+    },
+    "misfireWindow": {
+     "min": 23,
+     "max": 24
+    }
+   },
+   "distortion": {
+    "max": 25,
+    "decayDelay": 10.0,
+    "decayRate": 10.25,
+    "warningRatio": 10.5,
+    "recoveryRatio": 29,
+    "secondsToRecover": 11.0
+   },
+   "stats": {
+    "lifeSupportOutput": 11.25
+   }
+  },
+  {
+   "name": "syn-2360",
+   "isTemplate": true,
+   "recordName": "syn-2361",
+   "id": "syn-2362",
+   "category": "syn-2363",
+   "type": "syn-2364",
+   "size": 37,
+   "grade": 38,
+   "manufacturer": "syn-2367",
+   "power": 40,
+   "em": 41,
+   "ir": 42,
+   "health": 43,
+   "mass": 44,
+   "distortionMax": 45,
+   "durability": {
+    "health": 46,
+    "resistances": {
+     "physical": 15.25,
+     "energy": 15.5,
+     "thermal": 15.75
+    },
+    "selfRepair": {
+     "count": 50,
+     "seconds": 16.25,
+     "healthRatio": 16.5
+    },
+    "repairRestoreRatio": 16.75,
+    "wear": {
+     "maxLifetimeHours": 54,
+     "damageConversionRate": 17.25,
+     "overheatMultiplier": 56
+    },
+    "misfireWindow": {
+     "min": 57,
+     "max": 58
+    }
+   },
+   "distortion": {
+    "max": 59,
+    "decayDelay": 18.5,
+    "decayRate": 18.75,
+    "warningRatio": 19.0,
+    "recoveryRatio": 63,
+    "secondsToRecover": 19.5
+   },
+   "stats": {
+    "lifeSupportOutput": 19.75
+   }
+  },
+  {
+   "name": "syn-2394",
+   "recordName": "syn-2395",
+   "id": "syn-2396",
+   "category": "syn-2397",
+   "type": "syn-2398",
+   "size": 71,
+   "grade": 72,
+   "manufacturer": "syn-2401",
+   "power": 74,
+   "em": 75,
+   "ir": 76,
+   "health": 77,
+   "mass": 78,
+   "distortionMax": 79,
+   "durability": {
+    "health": 80,
+    "resistances": {
+     "physical": 1.5,
+     "energy": 1.75,
+     "thermal": 2.0
+    },
+    "selfRepair": {
+     "count": 84,
+     "seconds": 85,
+     "healthRatio": 2.75
+    },
+    "repairRestoreRatio": 3.0,
+    "wear": {
+     "maxLifetimeHours": 88,
+     "damageConversionRate": 3.5,
+     "overheatMultiplier": 90
+    },
+    "misfireWindow": {
+     "min": 91,
+     "max": 92
+    }
+   },
+   "distortion": {
+    "max": 93,
+    "decayDelay": 4.75,
+    "decayRate": 95,
+    "warningRatio": 5.25,
+    "recoveryRatio": 0,
+    "secondsToRecover": 5.75
+   },
+   "stats": {
+    "lifeSupportOutput": 6.0
+   }
+  }
+ ],
+ "powerPlants": [
+  {
+   "name": "syn-2428",
+   "recordName": "syn-2429",
+   "id": "syn-2430",
+   "category": "syn-2431",
+   "type": "syn-2432",
+   "subType": "syn-2433",
+   "size": 9,
+   "grade": 10,
+   "manufacturer": "syn-2436",
+   "em": 12,
+   "ir": 13,
+   "health": 14,
+   "mass": 15,
+   "distortionMax": 16,
+   "durability": {
+    "health": 17,
+    "resistances": {
+     "physical": 10.0,
+     "energy": 10.25,
+     "thermal": 10.5
+    },
+    "selfRepair": {
+     "count": 21,
+     "seconds": 11.0,
+     "healthRatio": 11.25
+    },
+    "repairRestoreRatio": 11.5,
+    "wear": {
+     "maxLifetimeHours": 25,
+     "damageConversionRate": 12.0,
+     "overheatMultiplier": 27
+    },
+    "misfireWindow": {
+     "min": 28,
+     "max": 29
+    }
+   },
+   "distortion": {
+    "max": 30,
+    "decayDelay": 13.25,
+    "decayRate": 13.5,
+    "warningRatio": 13.75,
+    "recoveryRatio": 34,
+    "secondsToRecover": 14.25
+   },
+   "volume": 36,
+   "stats": {
+    "powerOutput": 37
+   }
+  },
+  {
+   "name": "syn-2463",
+   "recordName": "syn-2464",
+   "id": "syn-2465",
+   "category": "syn-2466",
+   "type": "syn-2467",
+   "subType": "syn-2468",
+   "size": 44,
+   "grade": 45,
+   "manufacturer": "syn-2471",
+   "em": 47,
+   "ir": 48,
+   "health": 49,
+   "mass": 50,
+   "distortionMax": 51,
+   "durability": {
+    "health": 52,
+    "resistances": {
+     "physical": 18.75,
+     "energy": 19.0,
+     "thermal": 19.25
+    },
+    "selfRepair": {
+     "count": 56,
+     "seconds": 19.75,
+     "healthRatio": 20.0
+    },
+    "repairRestoreRatio": 20.25,
+    "wear": {
+     "maxLifetimeHours": 60,
+     "damageConversionRate": 20.75,
+     "overheatMultiplier": 62
+    },
+    "misfireWindow": {
+     "min": 63,
+     "max": 64
+    }
+   },
+   "distortion": {
+    "max": 65,
+    "decayDelay": 22.0,
+    "decayRate": 67,
+    "warningRatio": 0.25,
+    "recoveryRatio": 69,
+    "secondsToRecover": 0.75
+   },
+   "volume": 71,
+   "stats": {
+    "powerOutput": 72
+   }
+  },
+  {
+   "name": "syn-2498",
+   "recordName": "syn-2499",
+   "id": "syn-2500",
+   "category": "syn-2501",
+   "type": "syn-2502",
+   "subType": "syn-2503",
+   "size": 79,
+   "grade": 80,
+   "manufacturer": "syn-2506",
+   "em": 82,
+   "ir": 83,
+   "health": 84,
+   "mass": 85,
+   "distortionMax": 86,
+   "durability": {
+    "health": 87,
+    "resistances": {
+     "physical": 5.25,
+     "energy": 5.5,
+     "thermal": 5.75
+    },
+    "selfRepair": {
+     "count": 91,
+     "seconds": 92,
+     "healthRatio": 6.5
+    },
+    "repairRestoreRatio": 6.75,
+    "wear": {
+     "maxLifetimeHours": 95,
+     "damageConversionRate": 7.25,
+     "overheatMultiplier": 0
+    },
+    "misfireWindow": {
+     "min": 1,
+     "max": 2
+    }
+   },
+   "distortion": {
+    "max": 3,
+    "decayDelay": 8.5,
+    "decayRate": 8.75,
+    "warningRatio": 9.0,
+    "recoveryRatio": 7,
+    "secondsToRecover": 9.5
+   },
+   "volume": 9,
+   "stats": {
+    "powerOutput": 10
+   }
+  }
+ ],
+ "quantumDrives": [
+  {
+   "name": "syn-2533",
+   "recordName": "syn-2534",
+   "id": "syn-2535",
+   "category": "syn-2536",
+   "type": "syn-2537",
+   "size": 16,
+   "grade": 17,
+   "manufacturer": "syn-2540",
+   "power": 19,
+   "em": 20,
+   "ir": 21,
+   "health": 22,
+   "mass": 23,
+   "distortionMax": 24,
+   "durability": {
+    "health": 25,
+    "resistances": {
+     "physical": 14.0,
+     "energy": 14.25,
+     "thermal": 14.5
+    },
+    "selfRepair": {
+     "count": 29,
+     "seconds": 15.0,
+     "healthRatio": 15.25
+    },
+    "repairRestoreRatio": 15.5,
+    "wear": {
+     "maxLifetimeHours": 33,
+     "damageConversionRate": 16.0,
+     "overheatMultiplier": 35
+    },
+    "misfireWindow": {
+     "min": 36,
+     "max": 37
+    }
+   },
+   "distortion": {
+    "max": 38,
+    "decayDelay": 17.25,
+    "decayRate": 17.5,
+    "warningRatio": 17.75,
+    "recoveryRatio": 42,
+    "secondsToRecover": 18.25
+   },
+   "volume": 44,
+   "stats": {
+    "quantumFuelRequirement": 18.75,
+    "disconnectRange": 46,
+    "driveSpeed": 47,
+    "cooldownTime": 19.5,
+    "stageOneAccelRate": 49,
+    "stageTwoAccelRate": 50,
+    "spoolUpTime": 20.25,
+    "engageSpeed": 52,
+    "calibrationRate": 53,
+    "minCalibrationRequirement": 54,
+    "maxCalibrationRequirement": 55,
+    "inFlightThermalEnergyDraw": 56,
+    "splineDriveSpeed": 57
+   }
+  },
+  {
+   "name": "syn-2580",
+   "recordName": "syn-2581",
+   "id": "syn-2582",
+   "category": "syn-2583",
+   "type": "syn-2584",
+   "size": 63,
+   "grade": 64,
+   "manufacturer": "syn-2587",
+   "power": 66,
+   "em": 67,
+   "ir": 68,
+   "health": 69,
+   "mass": 70,
+   "distortionMax": 71,
+   "durability": {
+    "health": 72,
+    "resistances": {
+     "physical": 3.5,
+     "energy": 3.75,
+     "thermal": 4.0
+    },
+    "selfRepair": {
+     "count": 76,
+     "seconds": 77,
+     "healthRatio": 4.75
+    },
+    "repairRestoreRatio": 5.0,
+    "wear": {
+     "maxLifetimeHours": 80,
+     "damageConversionRate": 5.5,
+     "overheatMultiplier": 82
+    },
+    "misfireWindow": {
+     "min": 83,
+     "max": 84
+    }
+   },
+   "distortion": {
+    "max": 85,
+    "decayDelay": 6.75,
+    "decayRate": 87,
+    "warningRatio": 7.25,
+    "recoveryRatio": 89,
+    "secondsToRecover": 7.75
+   },
+   "volume": 91,
+   "stats": {
+    "quantumFuelRequirement": 8.25,
+    "disconnectRange": 93,
+    "driveSpeed": 94,
+    "cooldownTime": 9.0,
+    "stageOneAccelRate": 96,
+    "stageTwoAccelRate": 0,
+    "spoolUpTime": 9.75,
+    "engageSpeed": 2,
+    "calibrationRate": 3,
+    "minCalibrationRequirement": 4,
+    "maxCalibrationRequirement": 5,
+    "inFlightThermalEnergyDraw": 6,
+    "splineDriveSpeed": 7
+   }
+  },
+  {
+   "name": "syn-2627",
+   "recordName": "syn-2628",
+   "id": "syn-2629",
+   "category": "syn-2630",
+   "type": "syn-2631",
+   "size": 13,
+   "grade": 14,
+   "manufacturer": "syn-2634",
+   "power": 16,
+   "em": 17,
+   "ir": 18,
+   "health": 19,
+   "mass": 20,
+   "distortionMax": 21,
+   "durability": {
+    "health": 22,
+    "resistances": {
+     "physical": 15.25,
+     "energy": 15.5,
+     "thermal": 15.75
+    },
+    "selfRepair": {
+     "count": 26,
+     "seconds": 16.25,
+     "healthRatio": 16.5
+    },
+    "repairRestoreRatio": 16.75,
+    "wear": {
+     "maxLifetimeHours": 30,
+     "damageConversionRate": 17.25,
+     "overheatMultiplier": 32
+    },
+    "misfireWindow": {
+     "min": 33,
+     "max": 34
+    }
+   },
+   "distortion": {
+    "max": 35,
+    "decayDelay": 18.5,
+    "decayRate": 18.75,
+    "warningRatio": 19.0,
+    "recoveryRatio": 39,
+    "secondsToRecover": 19.5
+   },
+   "volume": 41,
+   "stats": {
+    "quantumFuelRequirement": 20.0,
+    "disconnectRange": 43,
+    "driveSpeed": 44,
+    "cooldownTime": 20.75,
+    "stageOneAccelRate": 46,
+    "stageTwoAccelRate": 47,
+    "spoolUpTime": 21.5,
+    "engageSpeed": 49,
+    "calibrationRate": 50,
+    "minCalibrationRequirement": 51,
+    "maxCalibrationRequirement": 52,
+    "inFlightThermalEnergyDraw": 53,
+    "splineDriveSpeed": 54
+   }
+  }
+ ],
+ "quantumEnforcement": [
+  {
+   "name": "syn-2674",
+   "recordName": "syn-2675",
+   "id": "syn-2676",
+   "category": "syn-2677",
+   "type": "syn-2678",
+   "size": 60,
+   "grade": 61,
+   "manufacturer": "syn-2681",
+   "power": 63,
+   "em": 64,
+   "ir": 65,
+   "durability": {
+    "selfRepair": {
+     "count": 66,
+     "seconds": 67,
+     "healthRatio": 4.25
+    },
+    "repairRestoreRatio": 4.5
+   },
+   "volume": 70,
+   "stats": {
+    "jammerRange": 71,
+    "maxPowerDraw": 72,
+    "chargeTimeSecs": 73,
+    "dischargeTimeSecs": 74,
+    "cooldownTimeSecs": 75,
+    "radiusMeters": 76
+   }
+  },
+  {
+   "name": "syn-2696",
+   "isTemplate": true,
+   "recordName": "syn-2697",
+   "id": "syn-2698",
+   "category": "syn-2699",
+   "type": "syn-2700",
+   "size": 82,
+   "grade": 83,
+   "power": 84,
+   "em": 85,
+   "ir": 86,
+   "durability": {
+    "selfRepair": {
+     "count": 87,
+     "seconds": 88,
+     "healthRatio": 9.5
+    },
+    "repairRestoreRatio": 9.75
+   },
+   "volume": 91,
+   "stats": {
+    "jammerRange": 92,
+    "maxPowerDraw": 93,
+    "chargeTimeSecs": 94,
+    "dischargeTimeSecs": 95,
+    "cooldownTimeSecs": 96,
+    "radiusMeters": 0
+   }
+  },
+  {
+   "name": "syn-2717",
+   "recordName": "syn-2718",
+   "id": "syn-2719",
+   "category": "syn-2720",
+   "type": "syn-2721",
+   "size": 6,
+   "grade": 7,
+   "manufacturer": "syn-2724",
+   "power": 9,
+   "em": 10,
+   "ir": 11,
+   "durability": {
+    "selfRepair": {
+     "count": 12,
+     "seconds": 13,
+     "healthRatio": 15.0
+    },
+    "repairRestoreRatio": 15.25
+   },
+   "volume": 16,
+   "stats": {
+    "jammerRange": 17,
+    "maxPowerDraw": 18,
+    "chargeTimeSecs": 19,
+    "dischargeTimeSecs": 20,
+    "cooldownTimeSecs": 21,
+    "radiusMeters": 22
+   }
+  }
+ ],
+ "radars": [
+  {
+   "name": "syn-2739",
+   "recordName": "syn-2740",
+   "id": "syn-2741",
+   "category": "syn-2742",
+   "type": "syn-2743",
+   "subType": "syn-2744",
+   "size": 29,
+   "grade": 30,
+   "manufacturer": "syn-2747",
+   "power": 32,
+   "em": 33,
+   "ir": 34,
+   "health": 35,
+   "mass": 36,
+   "distortionMax": 37,
+   "durability": {
+    "health": 38,
+    "resistances": {
+     "physical": 21.25,
+     "energy": 21.5,
+     "thermal": 21.75
+    },
+    "selfRepair": {
+     "count": 42,
+     "seconds": 0.0,
+     "healthRatio": 0.25
+    },
+    "repairRestoreRatio": 0.5,
+    "wear": {
+     "maxLifetimeHours": 46,
+     "damageConversionRate": 1.0,
+     "overheatMultiplier": 48
+    },
+    "misfireWindow": {
+     "min": 49,
+     "max": 50
+    }
+   },
+   "distortion": {
+    "max": 51,
+    "decayDelay": 2.25,
+    "decayRate": 53,
+    "warningRatio": 2.75,
+    "recoveryRatio": 55,
+    "secondsToRecover": 3.25
+   },
+   "volume": 57,
+   "stats": {
+    "cooldownTime": 3.75
+   },
+   "detail": {
+    "signatureDetection": [
+     {
+      "sensitivity": 4.0,
+      "piercing": 4.25,
+      "passive": true,
+      "active": true
+     },
+     {
+      "sensitivity": 4.5,
+      "piercing": 4.75,
+      "passive": true,
+      "active": true
+     },
+     {
+      "sensitivity": 5.0,
+      "piercing": 5.25,
+      "passive": false,
+      "active": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "syn-2781",
+   "recordName": "syn-2782",
+   "id": "syn-2783",
+   "category": "syn-2784",
+   "type": "syn-2785",
+   "subType": "syn-2786",
+   "size": 71,
+   "grade": 72,
+   "manufacturer": "syn-2789",
+   "power": 74,
+   "em": 75,
+   "ir": 76,
+   "health": 77,
+   "mass": 78,
+   "distortionMax": 79,
+   "durability": {
+    "health": 80,
+    "resistances": {
+     "physical": 9.5,
+     "energy": 9.75,
+     "thermal": 10.0
+    },
+    "selfRepair": {
+     "count": 84,
+     "seconds": 10.5,
+     "healthRatio": 10.75
+    },
+    "repairRestoreRatio": 11.0,
+    "wear": {
+     "maxLifetimeHours": 88,
+     "damageConversionRate": 11.5,
+     "overheatMultiplier": 90
+    },
+    "misfireWindow": {
+     "min": 91,
+     "max": 92
+    }
+   },
+   "distortion": {
+    "max": 93,
+    "decayDelay": 12.75,
+    "decayRate": 13.0,
+    "warningRatio": 13.25,
+    "recoveryRatio": 0,
+    "secondsToRecover": 13.75
+   },
+   "volume": 2,
+   "stats": {
+    "cooldownTime": 14.25
+   },
+   "detail": {
+    "signatureDetection": [
+     {
+      "sensitivity": 14.5,
+      "piercing": 14.75,
+      "passive": true,
+      "active": true
+     },
+     {
+      "sensitivity": 15.0,
+      "piercing": 15.25,
+      "passive": true,
+      "active": true
+     },
+     {
+      "sensitivity": 15.5,
+      "piercing": 15.75,
+      "passive": false,
+      "active": true
+     }
+    ]
+   }
+  },
+  {
+   "name": "syn-2823",
+   "recordName": "syn-2824",
+   "id": "syn-2825",
+   "category": "syn-2826",
+   "type": "syn-2827",
+   "subType": "syn-2828",
+   "size": 16,
+   "grade": 17,
+   "manufacturer": "syn-2831",
+   "power": 19,
+   "em": 20,
+   "ir": 21,
+   "health": 22,
+   "mass": 23,
+   "distortionMax": 24,
+   "durability": {
+    "health": 25,
+    "resistances": {
+     "physical": 20.0,
+     "energy": 20.25,
+     "thermal": 20.5
+    },
+    "selfRepair": {
+     "count": 29,
+     "seconds": 21.0,
+     "healthRatio": 21.25
+    },
+    "repairRestoreRatio": 21.5,
+    "wear": {
+     "maxLifetimeHours": 33,
+     "damageConversionRate": 22.0,
+     "overheatMultiplier": 35
+    },
+    "misfireWindow": {
+     "min": 36,
+     "max": 37
+    }
+   },
+   "distortion": {
+    "max": 38,
+    "decayDelay": 1.0,
+    "decayRate": 40,
+    "warningRatio": 1.5,
+    "recoveryRatio": 42,
+    "secondsToRecover": 2.0
+   },
+   "volume": 44,
+   "stats": {
+    "cooldownTime": 2.5
+   },
+   "detail": {
+    "signatureDetection": [
+     {
+      "sensitivity": 2.75,
+      "piercing": 3.0,
+      "passive": true,
+      "active": true
+     },
+     {
+      "sensitivity": 3.25,
+      "piercing": 3.5,
+      "passive": true,
+      "active": true
+     },
+     {
+      "sensitivity": 3.75,
+      "piercing": 4.0,
+      "passive": false,
+      "active": true
+     }
+    ]
+   }
+  }
+ ],
+ "selfDestruct": [
+  {
+   "name": "syn-2865",
+   "recordName": "syn-2866",
+   "id": "syn-2867",
+   "category": "syn-2868",
+   "type": "syn-2869",
+   "size": 57,
+   "grade": 58,
+   "em": 59,
+   "ir": 60,
+   "durability": {
+    "selfRepair": {
+     "count": 61,
+     "seconds": 62,
+     "healthRatio": 7.0
+    },
+    "repairRestoreRatio": 7.25
+   },
+   "volume": 65,
+   "stats": {
+    "damage": 66,
+    "minRadius": 67,
+    "radius": 68,
+    "time": 69
+   }
+  },
+  {
+   "name": "syn-2883",
+   "recordName": "syn-2884",
+   "id": "syn-2885",
+   "category": "syn-2886",
+   "type": "syn-2887",
+   "size": 75,
+   "grade": 76,
+   "em": 77,
+   "ir": 78,
+   "durability": {
+    "selfRepair": {
+     "count": 79,
+     "seconds": 80,
+     "healthRatio": 11.5
+    },
+    "repairRestoreRatio": 11.75
+   },
+   "volume": 83,
+   "stats": {
+    "damage": 84,
+    "minRadius": 85,
+    "radius": 86,
+    "time": 87
+   }
+  },
+  {
+   "name": "syn-2901",
+   "recordName": "syn-2902",
+   "id": "syn-2903",
+   "category": "syn-2904",
+   "type": "syn-2905",
+   "size": 93,
+   "grade": 94,
+   "em": 95,
+   "ir": 96,
+   "durability": {
+    "selfRepair": {
+     "count": 0,
+     "seconds": 1,
+     "healthRatio": 16.0
+    },
+    "repairRestoreRatio": 16.25
+   },
+   "volume": 4,
+   "stats": {
+    "damage": 5,
+    "minRadius": 6,
+    "radius": 7,
+    "time": 8
+   }
+  }
+ ],
+ "shields": [
+  {
+   "name": "syn-2919",
+   "recordName": "syn-2920",
+   "id": "syn-2921",
+   "category": "syn-2922",
+   "type": "syn-2923",
+   "size": 14,
+   "grade": 15,
+   "manufacturer": "syn-2926",
+   "power": 17,
+   "em": 18,
+   "ir": 19,
+   "health": 20,
+   "mass": 21,
+   "distortionMax": 22,
+   "durability": {
+    "health": 23,
+    "resistances": {
+     "physical": 21.5,
+     "energy": 21.75,
+     "thermal": 22.0
+    },
+    "selfRepair": {
+     "count": 27,
+     "seconds": 0.25,
+     "healthRatio": 0.5
+    },
+    "repairRestoreRatio": 0.75,
+    "wear": {
+     "maxLifetimeHours": 31,
+     "damageConversionRate": 1.25,
+     "overheatMultiplier": 33
+    },
+    "misfireWindow": {
+     "min": 34,
+     "max": 35
+    }
+   },
+   "distortion": {
+    "max": 36,
+    "decayDelay": 2.5,
+    "decayRate": 2.75,
+    "warningRatio": 3.0,
+    "recoveryRatio": 40,
+    "secondsToRecover": 3.5
+   },
+   "volume": 42,
+   "stats": {
+    "MaxShieldHealth": 43,
+    "MaxShieldRegen": 44,
+    "DecayRatio": 4.5,
+    "DownedRegenDelay": 4.75,
+    "DamagedRegenDelay": 5.0,
+    "ReservePoolDrainRateRatio": 5.25,
+    "ReservePoolMaxHealthRatio": 49,
+    "ReservePoolRegenRateRatio": 50,
+    "ElectricalChargeDamageResistance": 51,
+    "maxStunTime": 52
+   },
+   "detail": {
+    "resistance": {
+     "physical": {
+      "min": 53,
+      "max": 6.75
+     },
+     "energy": {
+      "min": 55,
+      "max": 56
+     },
+     "distortion": {
+      "min": 7.5,
+      "max": 7.75
+     },
+     "thermal": {
+      "min": 59,
+      "max": 60
+     },
+     "biochemical": {
+      "min": 61,
+      "max": 62
+     },
+     "stun": {
+      "min": 63,
+      "max": 64
+     }
+    },
+    "absorption": {
+     "physical": {
+      "min": 65,
+      "max": 9.75
+     },
+     "energy": {
+      "min": 67,
+      "max": 68
+     },
+     "distortion": {
+      "min": 69,
+      "max": 70
+     },
+     "thermal": {
+      "min": 71,
+      "max": 72
+     },
+     "biochemical": {
+      "min": 73,
+      "max": 74
+     },
+     "stun": {
+      "min": 75,
+      "max": 76
+     }
+    }
+   }
+  },
+  {
+   "name": "syn-2987",
+   "recordName": "syn-2988",
+   "id": "syn-2989",
+   "category": "syn-2990",
+   "type": "syn-2991",
+   "size": 82,
+   "grade": 83,
+   "manufacturer": "syn-2994",
+   "power": 85,
+   "em": 86,
+   "ir": 87,
+   "health": 88,
+   "mass": 89,
+   "distortionMax": 90,
+   "durability": {
+    "health": 91,
+    "resistances": {
+     "physical": 16.25,
+     "energy": 16.5,
+     "thermal": 16.75
+    },
+    "selfRepair": {
+     "count": 95,
+     "seconds": 17.25,
+     "healthRatio": 17.5
+    },
+    "repairRestoreRatio": 17.75,
+    "wear": {
+     "maxLifetimeHours": 2,
+     "damageConversionRate": 18.25,
+     "overheatMultiplier": 4
+    },
+    "misfireWindow": {
+     "min": 5,
+     "max": 6
+    }
+   },
+   "distortion": {
+    "max": 7,
+    "decayDelay": 19.5,
+    "decayRate": 19.75,
+    "warningRatio": 20.0,
+    "recoveryRatio": 11,
+    "secondsToRecover": 20.5
+   },
+   "volume": 13,
+   "stats": {
+    "MaxShieldHealth": 14,
+    "MaxShieldRegen": 15,
+    "DecayRatio": 21.5,
+    "DownedRegenDelay": 21.75,
+    "DamagedRegenDelay": 22.0,
+    "ReservePoolDrainRateRatio": 0.0,
+    "ReservePoolMaxHealthRatio": 20,
+    "ReservePoolRegenRateRatio": 21,
+    "ElectricalChargeDamageResistance": 22,
+    "maxStunTime": 23
+   },
+   "detail": {
+    "resistance": {
+     "physical": {
+      "min": 24,
+      "max": 1.5
+     },
+     "energy": {
+      "min": 26,
+      "max": 27
+     },
+     "distortion": {
+      "min": 2.25,
+      "max": 2.5
+     },
+     "thermal": {
+      "min": 30,
+      "max": 31
+     },
+     "biochemical": {
+      "min": 32,
+      "max": 33
+     },
+     "stun": {
+      "min": 34,
+      "max": 35
+     }
+    },
+    "absorption": {
+     "physical": {
+      "min": 36,
+      "max": 4.5
+     },
+     "energy": {
+      "min": 38,
+      "max": 39
+     },
+     "distortion": {
+      "min": 40,
+      "max": 41
+     },
+     "thermal": {
+      "min": 42,
+      "max": 43
+     },
+     "biochemical": {
+      "min": 44,
+      "max": 45
+     },
+     "stun": {
+      "min": 46,
+      "max": 47
+     }
+    }
+   }
+  },
+  {
+   "name": "syn-3055",
+   "recordName": "syn-3056",
+   "id": "syn-3057",
+   "category": "syn-3058",
+   "type": "syn-3059",
+   "size": 53,
+   "grade": 54,
+   "manufacturer": "syn-3062",
+   "power": 56,
+   "em": 57,
+   "ir": 58,
+   "health": 59,
+   "mass": 60,
+   "distortionMax": 61,
+   "durability": {
+    "health": 62,
+    "resistances": {
+     "physical": 11.0,
+     "energy": 11.25,
+     "thermal": 11.5
+    },
+    "selfRepair": {
+     "count": 66,
+     "seconds": 67,
+     "healthRatio": 12.25
+    },
+    "repairRestoreRatio": 12.5,
+    "wear": {
+     "maxLifetimeHours": 70,
+     "damageConversionRate": 13.0,
+     "overheatMultiplier": 72
+    },
+    "misfireWindow": {
+     "min": 73,
+     "max": 74
+    }
+   },
+   "distortion": {
+    "max": 75,
+    "decayDelay": 14.25,
+    "decayRate": 77,
+    "warningRatio": 14.75,
+    "recoveryRatio": 79,
+    "secondsToRecover": 15.25
+   },
+   "volume": 81,
+   "stats": {
+    "MaxShieldHealth": 82,
+    "MaxShieldRegen": 83,
+    "DecayRatio": 16.25,
+    "DownedRegenDelay": 85,
+    "DamagedRegenDelay": 86,
+    "ReservePoolDrainRateRatio": 17.0,
+    "ReservePoolMaxHealthRatio": 88,
+    "ReservePoolRegenRateRatio": 89,
+    "ElectricalChargeDamageResistance": 90,
+    "maxStunTime": 91
+   },
+   "detail": {
+    "resistance": {
+     "physical": {
+      "min": 92,
+      "max": 18.5
+     },
+     "energy": {
+      "min": 94,
+      "max": 95
+     },
+     "distortion": {
+      "min": 19.25,
+      "max": 19.5
+     },
+     "thermal": {
+      "min": 1,
+      "max": 2
+     },
+     "biochemical": {
+      "min": 3,
+      "max": 4
+     },
+     "stun": {
+      "min": 5,
+      "max": 6
+     }
+    },
+    "absorption": {
+     "physical": {
+      "min": 7,
+      "max": 21.5
+     },
+     "energy": {
+      "min": 9,
+      "max": 10
+     },
+     "distortion": {
+      "min": 11,
+      "max": 12
+     },
+     "thermal": {
+      "min": 13,
+      "max": 14
+     },
+     "biochemical": {
+      "min": 15,
+      "max": 16
+     },
+     "stun": {
+      "min": 17,
+      "max": 18
+     }
+    }
+   }
+  }
+ ],
+ "thrusters": [
+  {
+   "name": "syn-3123",
+   "isTemplate": true,
+   "recordName": "syn-3124",
+   "id": "syn-3125",
+   "category": "syn-3126",
+   "type": "syn-3127",
+   "size": 24,
+   "grade": 25,
+   "em": 26,
+   "ir": 27,
+   "health": 28,
+   "mass": 29,
+   "durability": {
+    "health": 30,
+    "selfRepair": {
+     "count": 31,
+     "seconds": 32,
+     "healthRatio": 5.5
+    },
+    "repairRestoreRatio": 5.75
+   },
+   "volume": 35,
+   "stats": {
+    "thrustCapacity": 36,
+    "fuelBurnRatePer10KNewton": 6.5,
+    "minHealthThrustMultiplier": 6.75
+   },
+   "detail": {
+    "thrusterType": "syn-3143"
+   }
+  },
+  {
+   "name": "syn-3144",
+   "isTemplate": true,
+   "recordName": "syn-3145",
+   "id": "syn-3146",
+   "category": "syn-3147",
+   "type": "syn-3148",
+   "subType": "syn-3149",
+   "size": 46,
+   "grade": 47,
+   "manufacturer": "syn-3152",
+   "em": 49,
+   "ir": 50,
+   "health": 51,
+   "mass": 52,
+   "durability": {
+    "health": 53,
+    "selfRepair": {
+     "count": 54,
+     "seconds": 55,
+     "healthRatio": 11.25
+    },
+    "repairRestoreRatio": 11.5
+   },
+   "volume": 58,
+   "stats": {
+    "thrustCapacity": 59,
+    "fuelBurnRatePer10KNewton": 12.25,
+    "minHealthThrustMultiplier": 12.5
+   },
+   "detail": {
+    "thrusterType": "syn-3166"
+   }
+  },
+  {
+   "name": "syn-3167",
+   "isTemplate": true,
+   "recordName": "syn-3168",
+   "id": "syn-3169",
+   "category": "syn-3170",
+   "type": "syn-3171",
+   "subType": "syn-3172",
+   "size": 69,
+   "grade": 70,
+   "manufacturer": "syn-3175",
+   "em": 72,
+   "ir": 73,
+   "health": 74,
+   "mass": 75,
+   "durability": {
+    "health": 76,
+    "selfRepair": {
+     "count": 77,
+     "seconds": 78,
+     "healthRatio": 17.0
+    },
+    "repairRestoreRatio": 17.25
+   },
+   "volume": 81,
+   "stats": {
+    "thrustCapacity": 17.75,
+    "fuelBurnRatePer10KNewton": 18.0,
+    "minHealthThrustMultiplier": 18.25
+   },
+   "detail": {
+    "thrusterType": "syn-3189"
+   }
+  }
+ ],
+ "weapons": [
+  {
+   "name": "syn-3190",
+   "recordName": "syn-3191",
+   "id": "syn-3192",
+   "category": "syn-3193",
+   "type": "syn-3194",
+   "subType": "syn-3195",
+   "size": 92,
+   "grade": 93,
+   "manufacturer": "syn-3198",
+   "power": 95,
+   "em": 96,
+   "ir": 0,
+   "health": 1,
+   "mass": 2,
+   "distortionMax": 3,
+   "durability": {
+    "health": 4,
+    "selfRepair": {
+     "count": 5,
+     "seconds": 6,
+     "healthRatio": 1.0
+    },
+    "repairRestoreRatio": 1.25,
+    "wear": {
+     "maxLifetimeHours": 9,
+     "damageConversionRate": 1.75,
+     "overheatMultiplier": 11
+    }
+   },
+   "distortion": {
+    "max": 12,
+    "decayDelay": 13,
+    "decayRate": 14,
+    "warningRatio": 3.0,
+    "recoveryRatio": 16,
+    "secondsToRecover": 17
+   },
+   "volume": 18,
+   "stats": {}
+  },
+  {
+   "name": "syn-3220",
+   "recordName": "syn-3221",
+   "id": "syn-3222",
+   "category": "syn-3223",
+   "type": "syn-3224",
+   "subType": "syn-3225",
+   "size": 25,
+   "grade": 26,
+   "manufacturer": "syn-3228",
+   "power": 28,
+   "em": 29,
+   "ir": 30,
+   "health": 31,
+   "mass": 32,
+   "distortionMax": 33,
+   "durability": {
+    "health": 34,
+    "selfRepair": {
+     "count": 35,
+     "seconds": 36,
+     "healthRatio": 8.5
+    },
+    "repairRestoreRatio": 8.75,
+    "wear": {
+     "maxLifetimeHours": 39,
+     "damageConversionRate": 9.25,
+     "overheatMultiplier": 41
+    }
+   },
+   "distortion": {
+    "max": 42,
+    "decayDelay": 43,
+    "decayRate": 44,
+    "warningRatio": 10.5,
+    "recoveryRatio": 46,
+    "secondsToRecover": 47
+   },
+   "volume": 48,
+   "stats": {}
+  },
+  {
+   "name": "syn-3250",
+   "recordName": "syn-3251",
+   "id": "syn-3252",
+   "category": "syn-3253",
+   "type": "syn-3254",
+   "subType": "syn-3255",
+   "size": 55,
+   "grade": 56,
+   "manufacturer": "syn-3258",
+   "power": 58,
+   "em": 59,
+   "ir": 60,
+   "health": 61,
+   "mass": 62,
+   "distortionMax": 63,
+   "durability": {
+    "health": 64,
+    "selfRepair": {
+     "count": 65,
+     "seconds": 66,
+     "healthRatio": 16.0
+    },
+    "repairRestoreRatio": 16.25,
+    "wear": {
+     "maxLifetimeHours": 69,
+     "damageConversionRate": 16.75,
+     "overheatMultiplier": 71
+    }
+   },
+   "distortion": {
+    "max": 72,
+    "decayDelay": 73,
+    "decayRate": 74,
+    "warningRatio": 18.0,
+    "recoveryRatio": 76,
+    "secondsToRecover": 77
+   },
+   "volume": 78,
+   "stats": {}
+  }
+ ],
+ "mounts": [
+  {
+   "name": "syn-3280",
+   "isTemplate": true,
+   "recordName": "syn-3281",
+   "id": "syn-3282",
+   "category": "syn-3283",
+   "type": "syn-3284",
+   "subType": "syn-3285",
+   "size": 85,
+   "grade": 86,
+   "health": 87,
+   "mass": 88,
+   "durability": {
+    "health": 89,
+    "wear": {
+     "maxLifetimeHours": 90,
+     "damageConversionRate": 22.0,
+     "overheatMultiplier": 92
+    }
+   },
+   "volume": 93,
+   "stats": {
+    "gunCount": 94
+   }
+  },
+  {
+   "name": "syn-3296",
+   "recordName": "syn-3297",
+   "id": "syn-3298",
+   "category": "syn-3299",
+   "type": "syn-3300",
+   "subType": "syn-3301",
+   "size": 4,
+   "grade": 5,
+   "manufacturer": "syn-3304",
+   "health": 7,
+   "mass": 8,
+   "durability": {
+    "health": 9,
+    "wear": {
+     "maxLifetimeHours": 10,
+     "damageConversionRate": 4.0,
+     "overheatMultiplier": 12
+    }
+   },
+   "volume": 13,
+   "stats": {
+    "gunCount": 14,
+    "gunSize": 15
+   }
+  },
+  {
+   "name": "syn-3314",
+   "recordName": "syn-3315",
+   "id": "syn-3316",
+   "category": "syn-3317",
+   "type": "syn-3318",
+   "subType": "syn-3319",
+   "size": 22,
+   "grade": 23,
+   "manufacturer": "syn-3322",
+   "health": 25,
+   "mass": 26,
+   "durability": {
+    "health": 27,
+    "wear": {
+     "maxLifetimeHours": 28,
+     "damageConversionRate": 8.5,
+     "overheatMultiplier": 30
+    }
+   },
+   "volume": 31,
+   "stats": {
+    "gunCount": 32,
+    "gunSize": 33
+   }
+  }
+ ],
+ "emp": [
+  {
+   "name": "syn-3332",
+   "recordName": "syn-3333",
+   "id": "syn-3334",
+   "category": "syn-3335",
+   "type": "syn-3336",
+   "size": 39,
+   "grade": 40,
+   "manufacturer": "syn-3339",
+   "power": 42,
+   "em": 43,
+   "ir": 44,
+   "health": 45,
+   "mass": 46,
+   "distortionMax": 47,
+   "durability": {
+    "health": 48,
+    "selfRepair": {
+     "count": 49,
+     "seconds": 50,
+     "healthRatio": 14.0
+    },
+    "repairRestoreRatio": 14.25,
+    "wear": {
+     "maxLifetimeHours": 53,
+     "damageConversionRate": 14.75,
+     "overheatMultiplier": 55
+    }
+   },
+   "distortion": {
+    "max": 56,
+    "decayDelay": 57,
+    "decayRate": 58,
+    "warningRatio": 16.0,
+    "recoveryRatio": 60,
+    "secondsToRecover": 61
+   },
+   "volume": 62,
+   "stats": {
+    "chargeTime": 63,
+    "distortionDamage": 64,
+    "empRadius": 65,
+    "minEmpRadius": 66,
+    "physRadius": 67,
+    "minPhysRadius": 68,
+    "pressure": 69,
+    "unleashTime": 18.75,
+    "cooldownTime": 71
+   }
+  },
+  {
+   "name": "syn-3370",
+   "recordName": "syn-3371",
+   "id": "syn-3372",
+   "category": "syn-3373",
+   "type": "syn-3374",
+   "size": 77,
+   "grade": 78,
+   "power": 79,
+   "em": 80,
+   "ir": 81,
+   "health": 82,
+   "mass": 83,
+   "distortionMax": 84,
+   "durability": {
+    "health": 85,
+    "selfRepair": {
+     "count": 86,
+     "seconds": 87,
+     "healthRatio": 1.0
+    },
+    "repairRestoreRatio": 1.25,
+    "wear": {
+     "maxLifetimeHours": 90,
+     "damageConversionRate": 1.75,
+     "overheatMultiplier": 92
+    }
+   },
+   "distortion": {
+    "max": 93,
+    "decayDelay": 94,
+    "decayRate": 95,
+    "warningRatio": 3.0,
+    "recoveryRatio": 0,
+    "secondsToRecover": 1
+   },
+   "volume": 2,
+   "stats": {
+    "chargeTime": 3,
+    "distortionDamage": 4,
+    "empRadius": 5,
+    "minEmpRadius": 6,
+    "physRadius": 7,
+    "minPhysRadius": 8,
+    "pressure": 9,
+    "unleashTime": 5.75,
+    "cooldownTime": 11
+   }
+  },
+  {
+   "name": "syn-3407",
+   "recordName": "syn-3408",
+   "id": "syn-3409",
+   "category": "syn-3410",
+   "type": "syn-3411",
+   "size": 17,
+   "grade": 18,
+   "manufacturer": "syn-3414",
+   "power": 20,
+   "em": 21,
+   "ir": 22,
+   "health": 23,
+   "mass": 24,
+   "distortionMax": 25,
+   "durability": {
+    "health": 26,
+    "selfRepair": {
+     "count": 27,
+     "seconds": 28,
+     "healthRatio": 10.5
+    },
+    "repairRestoreRatio": 10.75,
+    "wear": {
+     "maxLifetimeHours": 31,
+     "damageConversionRate": 11.25,
+     "overheatMultiplier": 33
+    }
+   },
+   "distortion": {
+    "max": 34,
+    "decayDelay": 35,
+    "decayRate": 36,
+    "warningRatio": 12.5,
+    "recoveryRatio": 38,
+    "secondsToRecover": 39
+   },
+   "volume": 40,
+   "stats": {
+    "chargeTime": 41,
+    "distortionDamage": 42,
+    "empRadius": 43,
+    "minEmpRadius": 44,
+    "physRadius": 45,
+    "minPhysRadius": 46,
+    "pressure": 47,
+    "unleashTime": 15.25,
+    "cooldownTime": 49
+   }
+  }
+ ],
+ "missiles": [
+  {
+   "name": "syn-3445",
+   "recordName": "syn-3446",
+   "id": "syn-3447",
+   "category": "syn-3448",
+   "type": "syn-3449",
+   "subType": "syn-3450",
+   "size": 56,
+   "grade": 57,
+   "manufacturer": "syn-3453",
+   "health": 59,
+   "mass": 60,
+   "distortionMax": 61,
+   "durability": {
+    "health": 62,
+    "resistances": {
+     "biochemical": 63,
+     "stun": 64
+    }
+   },
+   "distortion": {
+    "max": 65,
+    "decayDelay": 19.75,
+    "decayRate": 67,
+    "warningRatio": 20.25,
+    "recoveryRatio": 20.5,
+    "secondsToRecover": 70
+   },
+   "volume": 71,
+   "stats": {
+    "lockTime": 72,
+    "lockRangeMax": 73,
+    "maxRadius": 21.75,
+    "linearSpeed": 75,
+    "maxLifetime": 76
+   }
+  },
+  {
+   "name": "syn-3472",
+   "recordName": "syn-3473",
+   "id": "syn-3474",
+   "category": "syn-3475",
+   "type": "syn-3476",
+   "subType": "syn-3477",
+   "size": 83,
+   "grade": 84,
+   "manufacturer": "syn-3480",
+   "health": 86,
+   "mass": 87,
+   "distortionMax": 88,
+   "durability": {
+    "health": 89,
+    "resistances": {
+     "biochemical": 90,
+     "stun": 91
+    }
+   },
+   "distortion": {
+    "max": 92,
+    "decayDelay": 4.25,
+    "decayRate": 94,
+    "warningRatio": 4.75,
+    "recoveryRatio": 5.0,
+    "secondsToRecover": 0
+   },
+   "volume": 1,
+   "stats": {
+    "lockTime": 5.75,
+    "lockRangeMax": 3,
+    "maxRadius": 4,
+    "linearSpeed": 5,
+    "maxLifetime": 6
+   }
+  },
+  {
+   "name": "syn-3499",
+   "recordName": "syn-3500",
+   "id": "syn-3501",
+   "category": "syn-3502",
+   "type": "syn-3503",
+   "subType": "syn-3504",
+   "size": 13,
+   "grade": 14,
+   "manufacturer": "syn-3507",
+   "health": 16,
+   "mass": 17,
+   "distortionMax": 18,
+   "durability": {
+    "health": 19,
+    "resistances": {
+     "biochemical": 20,
+     "stun": 21
+    }
+   },
+   "distortion": {
+    "max": 22,
+    "decayDelay": 11.0,
+    "decayRate": 24,
+    "warningRatio": 11.5,
+    "recoveryRatio": 11.75,
+    "secondsToRecover": 27
+   },
+   "volume": 28,
+   "stats": {
+    "lockTime": 12.5,
+    "lockRangeMax": 30,
+    "maxRadius": 31,
+    "linearSpeed": 32,
+    "maxLifetime": 33
+   }
+  }
+ ],
+ "summary": {
+  "armor": 34,
+  "batteries": 35,
+  "missileRacks": 36,
+  "cargoGrids": 37,
+  "coolers": 38,
+  "countermeasures": 39,
+  "fuelTanks": 40,
+  "quantumFuelTanks": 41,
+  "jumpDrives": 42,
+  "lifeSupport": 43,
+  "powerPlants": 44,
+  "quantumDrives": 45,
+  "quantumEnforcement": 46,
+  "radars": 47,
+  "selfDestruct": 48,
+  "shields": 49,
+  "thrusters": 50,
+  "weapons": 51,
+  "mounts": 52,
+  "emp": 53,
+  "missiles": 54
+ }
+}

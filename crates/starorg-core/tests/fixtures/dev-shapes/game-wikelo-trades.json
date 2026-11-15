@@ -1,0 +1,75 @@
+{
+ "_source": "syn-4315",
+ "_extracted": "syn-4316",
+ "_build": "syn-4317",
+ "trades": [
+  {
+   "name": "syn-4318",
+   "recordName": "syn-4319",
+   "id": "syn-4320",
+   "handIns": [
+    {
+     "amount": 53,
+     "item": "syn-4322"
+    },
+    {
+     "amount": 55,
+     "item": "syn-4324"
+    },
+    {
+     "amount": 57,
+     "item": "syn-4326"
+    }
+   ]
+  },
+  {
+   "name": "syn-4327",
+   "recordName": "syn-4328",
+   "id": "syn-4329",
+   "handIns": [
+    {
+     "amount": 62,
+     "item": "syn-4331"
+    },
+    {
+     "amount": 64,
+     "item": "syn-4333"
+    },
+    {
+     "amount": 66,
+     "item": "syn-4335"
+    }
+   ]
+  },
+  {
+   "name": "syn-4336",
+   "recordName": "syn-4337",
+   "id": "syn-4338",
+   "handIns": [
+    {
+     "amount": 71,
+     "item": "syn-4340"
+    },
+    {
+     "amount": 73,
+     "item": "syn-4342"
+    },
+    {
+     "amount": 75,
+     "item": "syn-4344"
+    }
+   ]
+  }
+ ],
+ "totalDemand": {
+  "key0": 77,
+  "key1": 78,
+  "key2": 79,
+  "key3": 80
+ },
+ "summary": {
+  "trades": 81,
+  "collectorRecordsWithoutHandIns": 82,
+  "distinctItemsRequested": 83
+ }
+}

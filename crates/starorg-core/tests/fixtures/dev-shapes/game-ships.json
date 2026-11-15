@@ -1,0 +1,691 @@
+{
+ "_source": "syn-3547",
+ "_extracted": "syn-3548",
+ "_build": "syn-3549",
+ "vehicles": [
+  {
+   "name": "syn-3550",
+   "recordName": "syn-3551",
+   "id": "syn-3552",
+   "displayName": "syn-3553",
+   "description": "syn-3554",
+   "manufacturer": "syn-3555",
+   "movementClass": "syn-3556",
+   "career": "syn-3557",
+   "role": "syn-3558",
+   "crewSize": 67,
+   "size": 68,
+   "boundingBox": {
+    "x": 69,
+    "y": 70,
+    "z": 0.75
+   },
+   "hull": {
+    "damageNormalization": 72
+   },
+   "crossSection": {
+    "x": 73,
+    "y": 74,
+    "z": 75
+   },
+   "loadout": {
+    "powerPlants": [
+     {
+      "item": "syn-3568",
+      "name": "syn-3569",
+      "size": 78
+     }
+    ],
+    "coolers": [
+     {
+      "item": "syn-3571",
+      "name": "syn-3572",
+      "size": 81,
+      "count": 82
+     }
+    ],
+    "shields": [
+     {
+      "item": "syn-3575",
+      "name": "syn-3576",
+      "size": 85,
+      "count": 86
+     }
+    ],
+    "armor": {
+     "item": "syn-3579",
+     "name": "syn-3580",
+     "size": 89
+    },
+    "radars": [
+     {
+      "item": "syn-3582",
+      "name": "syn-3583",
+      "size": 92
+     }
+    ],
+    "fuelTanks": [
+     {
+      "item": "syn-3585",
+      "name": "syn-3586",
+      "size": 95,
+      "count": 96
+     }
+    ],
+    "quantumDrives": [
+     {
+      "item": "syn-3589",
+      "name": "syn-3590",
+      "size": 2
+     }
+    ],
+    "jumpDrives": [
+     {
+      "item": "syn-3592",
+      "name": "syn-3593",
+      "size": 5
+     }
+    ],
+    "quantumFuelTanks": [
+     {
+      "item": "syn-3595",
+      "name": "syn-3596",
+      "size": 8
+     }
+    ],
+    "weapons": [
+     {
+      "item": "syn-3598",
+      "name": "syn-3599",
+      "size": 11,
+      "type": "syn-3601",
+      "mount": "syn-3602",
+      "dps": 14
+     },
+     {
+      "item": "syn-3604",
+      "name": "syn-3605",
+      "size": 17,
+      "type": "syn-3607",
+      "mount": "syn-3608",
+      "dps": 12.25,
+      "count": 21
+     }
+    ],
+    "missiles": [
+     {
+      "item": "syn-3611",
+      "name": "syn-3612",
+      "size": 24,
+      "rack": "syn-3614",
+      "damage": 26,
+      "count": 27
+     },
+     {
+      "item": "syn-3617",
+      "name": "syn-3618",
+      "size": 30,
+      "rack": "syn-3620",
+      "damage": 32,
+      "count": 33
+     }
+    ],
+    "countermeasures": [
+     {
+      "item": "syn-3623",
+      "name": "syn-3624",
+      "size": 36,
+      "ammo": "syn-3626",
+      "capacity": 38
+     },
+     {
+      "item": "syn-3628",
+      "name": "syn-3629",
+      "size": 41,
+      "ammo": "syn-3631",
+      "capacity": 43
+     }
+    ],
+    "lifeSupport": [
+     {
+      "item": "syn-3633",
+      "name": "syn-3634",
+      "size": 46
+     }
+    ],
+    "thrusters": {
+     "main": 47,
+     "retro": 48,
+     "maneuver": 49
+    },
+    "turrets": 50,
+    "missileRacks": 51
+   },
+   "totals": {
+    "weaponDps": 20.25,
+    "weapons": 53,
+    "missiles": 54,
+    "missileDamage": 55,
+    "shieldHealth": 56,
+    "shieldRegen": 57,
+    "armorHealth": 58,
+    "powerOutput": 59,
+    "fuel": 0.0,
+    "quantumFuel": 0.25,
+    "thrustMain": 62,
+    "thrustRetro": 0.75,
+    "thrustManeuver": 64,
+    "countermeasures": {
+     "flare": 65,
+     "chaff": 66
+    }
+   },
+   "flight": {
+    "controller": "syn-3656",
+    "scmSpeed": 68,
+    "maxSpeed": 69,
+    "boostSpeedForward": 70,
+    "boostSpeedBackward": 71,
+    "pitch": 72,
+    "yaw": 73,
+    "roll": 74,
+    "boostCapacitor": {
+     "max": 75,
+     "regenPerSecond": 4.0,
+     "regenDelay": 4.25
+    },
+    "stunThresholdGs": 78
+   },
+   "armor": {
+    "item": "syn-3668",
+    "health": 80,
+    "deflection": {
+     "physical": 81,
+     "energy": 82,
+     "distortion": 83,
+     "thermal": 84,
+     "biochemical": 85,
+     "stun": 86
+    },
+    "damageMultiplier": {
+     "physical": 6.75,
+     "energy": 7.0,
+     "distortion": 89,
+     "thermal": 90,
+     "biochemical": 91,
+     "stun": 92
+    },
+    "signals": {
+     "signalInfrared": 8.25,
+     "signalElectromagnetic": 8.5,
+     "signalCrossSection": 8.75
+    }
+   },
+   "powerPools": {
+    "WeaponGun": 96
+   }
+  },
+  {
+   "name": "syn-3686",
+   "recordName": "syn-3687",
+   "id": "syn-3688",
+   "displayName": "syn-3689",
+   "description": "syn-3690",
+   "manufacturer": "syn-3691",
+   "movementClass": "syn-3692",
+   "career": "syn-3693",
+   "role": "syn-3694",
+   "crewSize": 9,
+   "size": 10,
+   "boundingBox": {
+    "x": 11,
+    "y": 12,
+    "z": 12.5
+   },
+   "hull": {
+    "damageNormalization": 14
+   },
+   "crossSection": {
+    "x": 15,
+    "y": 16,
+    "z": 17
+   },
+   "loadout": {
+    "powerPlants": [
+     {
+      "item": "syn-3704",
+      "name": "syn-3705",
+      "size": 20
+     }
+    ],
+    "coolers": [
+     {
+      "item": "syn-3707",
+      "name": "syn-3708",
+      "size": 23,
+      "count": 24
+     }
+    ],
+    "shields": [
+     {
+      "item": "syn-3711",
+      "name": "syn-3712",
+      "size": 27,
+      "count": 28
+     }
+    ],
+    "armor": {
+     "item": "syn-3715",
+     "name": "syn-3716",
+     "size": 31
+    },
+    "radars": [
+     {
+      "item": "syn-3718",
+      "name": "syn-3719",
+      "size": 34
+     }
+    ],
+    "fuelTanks": [
+     {
+      "item": "syn-3721",
+      "name": "syn-3722",
+      "size": 37,
+      "count": 38
+     }
+    ],
+    "quantumDrives": [
+     {
+      "item": "syn-3725",
+      "name": "syn-3726",
+      "size": 41
+     }
+    ],
+    "jumpDrives": [
+     {
+      "item": "syn-3728",
+      "name": "syn-3729",
+      "size": 44
+     }
+    ],
+    "quantumFuelTanks": [
+     {
+      "item": "syn-3731",
+      "name": "syn-3732",
+      "size": 47
+     }
+    ],
+    "weapons": [
+     {
+      "item": "syn-3734",
+      "name": "syn-3735",
+      "size": 50,
+      "type": "syn-3737",
+      "mount": "syn-3738",
+      "dps": 53
+     },
+     {
+      "item": "syn-3740",
+      "name": "syn-3741",
+      "size": 56,
+      "type": "syn-3743",
+      "mount": "syn-3744",
+      "dps": 1.75,
+      "count": 60
+     }
+    ],
+    "missiles": [
+     {
+      "item": "syn-3747",
+      "name": "syn-3748",
+      "size": 63,
+      "rack": "syn-3750",
+      "damage": 65,
+      "count": 66
+     },
+     {
+      "item": "syn-3753",
+      "name": "syn-3754",
+      "size": 69,
+      "rack": "syn-3756",
+      "damage": 71,
+      "count": 72
+     }
+    ],
+    "countermeasures": [
+     {
+      "item": "syn-3759",
+      "name": "syn-3760",
+      "size": 75,
+      "ammo": "syn-3762",
+      "capacity": 77
+     },
+     {
+      "item": "syn-3764",
+      "name": "syn-3765",
+      "size": 80,
+      "ammo": "syn-3767",
+      "capacity": 82
+     }
+    ],
+    "lifeSupport": [
+     {
+      "item": "syn-3769",
+      "name": "syn-3770",
+      "size": 85
+     }
+    ],
+    "thrusters": {
+     "main": 86,
+     "retro": 87,
+     "maneuver": 88
+    },
+    "turrets": 89,
+    "missileRacks": 90
+   },
+   "totals": {
+    "weaponDps": 9.75,
+    "weapons": 92,
+    "missiles": 93,
+    "missileDamage": 94,
+    "shieldHealth": 95,
+    "shieldRegen": 96,
+    "armorHealth": 0,
+    "powerOutput": 1,
+    "fuel": 11.75,
+    "quantumFuel": 12.0,
+    "thrustMain": 4,
+    "thrustRetro": 12.5,
+    "thrustManeuver": 6,
+    "countermeasures": {
+     "flare": 7,
+     "chaff": 8
+    }
+   },
+   "flight": {
+    "controller": "syn-3792",
+    "scmSpeed": 10,
+    "maxSpeed": 11,
+    "boostSpeedForward": 12,
+    "boostSpeedBackward": 13,
+    "pitch": 14,
+    "yaw": 15,
+    "roll": 16,
+    "boostCapacitor": {
+     "max": 17,
+     "regenPerSecond": 15.75,
+     "regenDelay": 16.0
+    },
+    "stunThresholdGs": 20
+   },
+   "armor": {
+    "item": "syn-3804",
+    "health": 22,
+    "deflection": {
+     "physical": 23,
+     "energy": 24,
+     "distortion": 25,
+     "thermal": 26,
+     "biochemical": 27,
+     "stun": 28
+    },
+    "damageMultiplier": {
+     "physical": 18.5,
+     "energy": 18.75,
+     "distortion": 31,
+     "thermal": 32,
+     "biochemical": 33,
+     "stun": 34
+    },
+    "signals": {
+     "signalInfrared": 20.0,
+     "signalElectromagnetic": 20.25,
+     "signalCrossSection": 20.5
+    }
+   },
+   "powerPools": {
+    "WeaponGun": 38
+   }
+  },
+  {
+   "name": "syn-3822",
+   "recordName": "syn-3823",
+   "id": "syn-3824",
+   "displayName": "syn-3825",
+   "description": "syn-3826",
+   "manufacturer": "syn-3827",
+   "movementClass": "syn-3828",
+   "career": "syn-3829",
+   "role": "syn-3830",
+   "crewSize": 48,
+   "size": 49,
+   "boundingBox": {
+    "x": 50,
+    "y": 51,
+    "z": 2.0
+   },
+   "hull": {
+    "damageNormalization": 53
+   },
+   "crossSection": {
+    "x": 54,
+    "y": 55,
+    "z": 56
+   },
+   "loadout": {
+    "powerPlants": [
+     {
+      "item": "syn-3840",
+      "name": "syn-3841",
+      "size": 59
+     }
+    ],
+    "coolers": [
+     {
+      "item": "syn-3843",
+      "name": "syn-3844",
+      "size": 62,
+      "count": 63
+     }
+    ],
+    "shields": [
+     {
+      "item": "syn-3847",
+      "name": "syn-3848",
+      "size": 66,
+      "count": 67
+     }
+    ],
+    "armor": {
+     "item": "syn-3851",
+     "name": "syn-3852",
+     "size": 70
+    },
+    "radars": [
+     {
+      "item": "syn-3854",
+      "name": "syn-3855",
+      "size": 73
+     }
+    ],
+    "fuelTanks": [
+     {
+      "item": "syn-3857",
+      "name": "syn-3858",
+      "size": 76,
+      "count": 77
+     }
+    ],
+    "quantumDrives": [
+     {
+      "item": "syn-3861",
+      "name": "syn-3862",
+      "size": 80
+     }
+    ],
+    "jumpDrives": [
+     {
+      "item": "syn-3864",
+      "name": "syn-3865",
+      "size": 83
+     }
+    ],
+    "quantumFuelTanks": [
+     {
+      "item": "syn-3867",
+      "name": "syn-3868",
+      "size": 86
+     }
+    ],
+    "weapons": [
+     {
+      "item": "syn-3870",
+      "name": "syn-3871",
+      "size": 89,
+      "type": "syn-3873",
+      "mount": "syn-3874",
+      "dps": 92
+     },
+     {
+      "item": "syn-3876",
+      "name": "syn-3877",
+      "size": 95,
+      "type": "syn-3879",
+      "mount": "syn-3880",
+      "dps": 13.5,
+      "count": 2
+     }
+    ],
+    "missiles": [
+     {
+      "item": "syn-3883",
+      "name": "syn-3884",
+      "size": 5,
+      "rack": "syn-3886",
+      "damage": 7,
+      "count": 8
+     },
+     {
+      "item": "syn-3889",
+      "name": "syn-3890",
+      "size": 11,
+      "rack": "syn-3892",
+      "damage": 13,
+      "count": 14
+     }
+    ],
+    "countermeasures": [
+     {
+      "item": "syn-3895",
+      "name": "syn-3896",
+      "size": 17,
+      "ammo": "syn-3898",
+      "capacity": 19
+     },
+     {
+      "item": "syn-3900",
+      "name": "syn-3901",
+      "size": 22,
+      "ammo": "syn-3903",
+      "capacity": 24
+     }
+    ],
+    "lifeSupport": [
+     {
+      "item": "syn-3905",
+      "name": "syn-3906",
+      "size": 27
+     }
+    ],
+    "thrusters": {
+     "main": 28,
+     "retro": 29,
+     "maneuver": 30
+    },
+    "turrets": 31,
+    "missileRacks": 32
+   },
+   "totals": {
+    "weaponDps": 21.5,
+    "weapons": 34,
+    "missiles": 35,
+    "missileDamage": 36,
+    "shieldHealth": 37,
+    "shieldRegen": 38,
+    "armorHealth": 39,
+    "powerOutput": 40,
+    "fuel": 1.25,
+    "quantumFuel": 1.5,
+    "thrustMain": 43,
+    "thrustRetro": 2.0,
+    "thrustManeuver": 45,
+    "countermeasures": {
+     "flare": 46,
+     "chaff": 47
+    }
+   },
+   "flight": {
+    "controller": "syn-3928",
+    "scmSpeed": 49,
+    "maxSpeed": 50,
+    "boostSpeedForward": 51,
+    "boostSpeedBackward": 52,
+    "pitch": 53,
+    "yaw": 54,
+    "roll": 55,
+    "boostCapacitor": {
+     "max": 56,
+     "regenPerSecond": 5.25,
+     "regenDelay": 5.5
+    },
+    "stunThresholdGs": 59
+   },
+   "armor": {
+    "item": "syn-3940",
+    "health": 61,
+    "deflection": {
+     "physical": 62,
+     "energy": 63,
+     "distortion": 64,
+     "thermal": 65,
+     "biochemical": 66,
+     "stun": 67
+    },
+    "damageMultiplier": {
+     "physical": 8.0,
+     "energy": 8.25,
+     "distortion": 70,
+     "thermal": 71,
+     "biochemical": 72,
+     "stun": 73
+    },
+    "signals": {
+     "signalInfrared": 9.5,
+     "signalElectromagnetic": 9.75,
+     "signalCrossSection": 10.0
+    }
+   },
+   "powerPools": {
+    "WeaponGun": 77
+   }
+  }
+ ],
+ "byManufacturer": {
+  "key0": 78,
+  "key1": 79,
+  "key2": 80,
+  "key3": 81
+ },
+ "byRole": {
+  "key0": 82,
+  "key1": 83,
+  "key2": 84,
+  "key3": 85
+ },
+ "summary": {
+  "vehicles": 86,
+  "named": 87,
+  "templates": 88,
+  "withLoadout": 89
+ }
+}

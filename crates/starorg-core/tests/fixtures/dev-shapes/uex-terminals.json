@@ -1,0 +1,54 @@
+{
+ "_source": "syn-4380",
+ "_fetched": "syn-4381",
+ "terminals": [
+  {
+   "id": 17,
+   "name": "syn-4383",
+   "fullname": "syn-4384",
+   "nickname": "syn-4385",
+   "displayname": "syn-4386",
+   "code": "syn-4387",
+   "type": "syn-4388",
+   "star_system_name": "syn-4389",
+   "planet_name": "syn-4390",
+   "orbit_name": "syn-4391",
+   "space_station_name": "syn-4392",
+   "is_available": 28,
+   "is_available_live": 29
+  },
+  {
+   "id": 30,
+   "name": "syn-4396",
+   "fullname": "syn-4397",
+   "nickname": "syn-4398",
+   "displayname": "syn-4399",
+   "code": "syn-4400",
+   "type": "syn-4401",
+   "star_system_name": "syn-4402",
+   "planet_name": "syn-4403",
+   "orbit_name": "syn-4404",
+   "space_station_name": "syn-4405",
+   "is_available": 41,
+   "is_available_live": 42
+  },
+  {
+   "id": 43,
+   "name": "syn-4409",
+   "fullname": "syn-4410",
+   "nickname": "syn-4411",
+   "displayname": "syn-4412",
+   "code": "syn-4413",
+   "type": "syn-4414",
+   "star_system_name": "syn-4415",
+   "planet_name": "syn-4416",
+   "orbit_name": "syn-4417",
+   "space_station_name": "syn-4418",
+   "is_available": 54,
+   "is_available_live": 55
+  }
+ ],
+ "summary": {
+  "terminals": 56
+ }
+}

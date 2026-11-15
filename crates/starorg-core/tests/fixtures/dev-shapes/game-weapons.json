@@ -1,0 +1,313 @@
+{
+ "_source": "syn-4096",
+ "_extracted": "syn-4097",
+ "_build": "syn-4098",
+ "shipWeapons": [
+  {
+   "name": "syn-4099",
+   "recordName": "syn-4100",
+   "id": "syn-4101",
+   "class": "syn-4102",
+   "type": "syn-4103",
+   "subType": "syn-4104",
+   "size": 31,
+   "grade": 32,
+   "manufacturer": "syn-4107",
+   "dps": 3.5,
+   "range": 35,
+   "power": 36,
+   "em": 37,
+   "ir": 38,
+   "health": 39,
+   "durability": {
+    "health": 40,
+    "selfRepair": {
+     "count": 41,
+     "seconds": 42,
+     "healthRatio": 5.75
+    },
+    "repairRestoreRatio": 6.0,
+    "wear": {
+     "maxLifetimeHours": 45,
+     "damageConversionRate": 6.5,
+     "overheatMultiplier": 47
+    }
+   },
+   "mass": 48,
+   "heatPerShot": 49,
+   "volume": 50,
+   "distortion": {
+    "max": 51,
+    "decayDelay": 52,
+    "decayRate": 53,
+    "warningRatio": 8.5,
+    "recoveryRatio": 55,
+    "secondsToRecover": 56
+   },
+   "modes": [
+    {
+     "name": "syn-4131",
+     "kind": "syn-4132",
+     "heatPerShot": 59,
+     "fullDamageRange": 60,
+     "zeroDamageRange": 61,
+     "dps": 10.5
+    },
+    {
+     "name": "syn-4137",
+     "kind": "syn-4138"
+    }
+   ]
+  },
+  {
+   "name": "syn-4139",
+   "recordName": "syn-4140",
+   "id": "syn-4141",
+   "class": "syn-4142",
+   "type": "syn-4143",
+   "subType": "syn-4144",
+   "size": 71,
+   "grade": 72,
+   "manufacturer": "syn-4147",
+   "dps": 13.5,
+   "range": 75,
+   "power": 76,
+   "em": 77,
+   "ir": 78,
+   "health": 79,
+   "durability": {
+    "health": 80,
+    "selfRepair": {
+     "count": 81,
+     "seconds": 82,
+     "healthRatio": 15.75
+    },
+    "repairRestoreRatio": 16.0,
+    "wear": {
+     "maxLifetimeHours": 85,
+     "damageConversionRate": 16.5,
+     "overheatMultiplier": 87
+    }
+   },
+   "mass": 88,
+   "heatPerShot": 89,
+   "volume": 90,
+   "distortion": {
+    "max": 91,
+    "decayDelay": 92,
+    "decayRate": 93,
+    "warningRatio": 18.5,
+    "recoveryRatio": 95,
+    "secondsToRecover": 96
+   },
+   "modes": [
+    {
+     "name": "syn-4171",
+     "kind": "syn-4172",
+     "heatPerShot": 2,
+     "fullDamageRange": 3,
+     "zeroDamageRange": 4,
+     "dps": 20.5
+    },
+    {
+     "name": "syn-4177",
+     "kind": "syn-4178"
+    }
+   ]
+  },
+  {
+   "name": "syn-4179",
+   "recordName": "syn-4180",
+   "id": "syn-4181",
+   "class": "syn-4182",
+   "type": "syn-4183",
+   "subType": "syn-4184",
+   "size": 14,
+   "grade": 15,
+   "manufacturer": "syn-4187",
+   "dps": 1.25,
+   "range": 18,
+   "power": 19,
+   "em": 20,
+   "ir": 21,
+   "health": 22,
+   "durability": {
+    "health": 23,
+    "selfRepair": {
+     "count": 24,
+     "seconds": 25,
+     "healthRatio": 3.5
+    },
+    "repairRestoreRatio": 3.75,
+    "wear": {
+     "maxLifetimeHours": 28,
+     "damageConversionRate": 4.25,
+     "overheatMultiplier": 30
+    }
+   },
+   "mass": 31,
+   "heatPerShot": 32,
+   "volume": 33,
+   "distortion": {
+    "max": 34,
+    "decayDelay": 35,
+    "decayRate": 36,
+    "warningRatio": 6.25,
+    "recoveryRatio": 38,
+    "secondsToRecover": 39
+   },
+   "modes": [
+    {
+     "name": "syn-4211",
+     "kind": "syn-4212",
+     "heatPerShot": 42,
+     "fullDamageRange": 43,
+     "zeroDamageRange": 44,
+     "dps": 8.25
+    },
+    {
+     "name": "syn-4217",
+     "kind": "syn-4218"
+    }
+   ]
+  }
+ ],
+ "fpsWeapons": [
+  {
+   "name": "syn-4219",
+   "recordName": "syn-4220",
+   "id": "syn-4221",
+   "class": "syn-4222",
+   "isTemplate": true,
+   "modes": []
+  },
+  {
+   "name": "syn-4223",
+   "recordName": "syn-4224",
+   "id": "syn-4225",
+   "class": "syn-4226",
+   "isTemplate": true,
+   "modes": []
+  },
+  {
+   "name": "syn-4227",
+   "recordName": "syn-4228",
+   "id": "syn-4229",
+   "class": "syn-4230",
+   "isTemplate": true,
+   "damageType": "syn-4231",
+   "range": 61,
+   "speed": 62,
+   "penetration": 63,
+   "ammoCapacity": 64,
+   "ammo": {
+    "recordName": "syn-4236",
+    "magazine": "syn-4237",
+    "speed": 67,
+    "lifetime": 68,
+    "range": 69,
+    "damage": {
+     "physical": 70
+    },
+    "damagePerShot": 71,
+    "penetration": 72,
+    "penetrationRadius": {
+     "near": 15.25,
+     "far": 74
+    },
+    "falloff": {
+     "physical": {
+      "minDistance": 75,
+      "perMeter": 16.0,
+      "floor": 77
+     }
+    },
+    "pierce": {
+     "maxThickness": 78,
+     "level1": 79,
+     "level2": 80,
+     "level3": 81
+    },
+    "capacity": 82
+   },
+   "modes": []
+  }
+ ],
+ "missiles": [
+  {
+   "name": "syn-4254",
+   "recordName": "syn-4255",
+   "id": "syn-4256",
+   "size": 86,
+   "manufacturer": "syn-4258",
+   "damage": {
+    "physical": 88,
+    "energy": 89
+   },
+   "damageTotal": 90,
+   "damageType": "syn-4262",
+   "trackingSignal": "syn-4263",
+   "lockTime": 93,
+   "lockRangeMin": 94,
+   "lockRangeMax": 95,
+   "lockingAngle": 96,
+   "speed": 0,
+   "boostDuration": 21.5,
+   "maxLifetime": 2,
+   "explosionRadius": 22.0,
+   "health": 4
+  },
+  {
+   "name": "syn-4273",
+   "recordName": "syn-4274",
+   "id": "syn-4275",
+   "size": 8,
+   "manufacturer": "syn-4277",
+   "damage": {
+    "physical": 10
+   },
+   "damageTotal": 11,
+   "damageType": "syn-4280",
+   "trackingSignal": "syn-4281",
+   "lockTime": 2.5,
+   "lockRangeMin": 15,
+   "lockRangeMax": 16,
+   "lockingAngle": 17,
+   "speed": 18,
+   "boostDuration": 19,
+   "maxLifetime": 20,
+   "explosionRadius": 21,
+   "health": 22
+  },
+  {
+   "name": "syn-4291",
+   "recordName": "syn-4292",
+   "id": "syn-4293",
+   "size": 26,
+   "manufacturer": "syn-4295",
+   "damage": {
+    "physical": 28
+   },
+   "damageTotal": 29,
+   "damageType": "syn-4298",
+   "trackingSignal": "syn-4299",
+   "lockTime": 7.0,
+   "lockRangeMin": 33,
+   "lockRangeMax": 34,
+   "lockingAngle": 35,
+   "speed": 36,
+   "boostDuration": 37,
+   "maxLifetime": 38,
+   "explosionRadius": 39,
+   "health": 40
+  }
+ ],
+ "summary": {
+  "shipWeapons": 41,
+  "shipWeaponsWithDps": 42,
+  "fpsWeapons": 43,
+  "fpsWeaponsWithDps": 44,
+  "missiles": 45,
+  "ammo": 46
+ }
+}

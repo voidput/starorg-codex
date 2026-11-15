@@ -1,0 +1,100 @@
+{
+ "_source": "syn-373",
+ "_extracted": "syn-374",
+ "_build": "syn-375",
+ "manifests": [
+  {
+   "name": "syn-376",
+   "recordName": "syn-377",
+   "id": "syn-378",
+   "category": "syn-379",
+   "fillMode": "syn-380",
+   "minCapacity": 6.25,
+   "maxCapacity": 6.5,
+   "resources": [
+    {
+     "resource": "syn-383",
+     "probability": 93
+    }
+   ],
+   "spawnRules": [],
+   "lockCargoGridsOnSpawn": false
+  },
+  {
+   "name": "syn-385",
+   "recordName": "syn-386",
+   "id": "syn-387",
+   "category": "syn-388",
+   "fillMode": "syn-389",
+   "minCapacity": 8.5,
+   "maxCapacity": 8.75,
+   "resources": [
+    {
+     "resource": "syn-392",
+     "probability": 5
+    }
+   ],
+   "spawnRules": [],
+   "lockCargoGridsOnSpawn": false
+  },
+  {
+   "name": "syn-394",
+   "recordName": "syn-395",
+   "id": "syn-396",
+   "category": "syn-397",
+   "fillMode": "syn-398",
+   "minCapacity": 10.75,
+   "maxCapacity": 11.0,
+   "resources": [
+    {
+     "resource": "syn-401",
+     "probability": 14
+    }
+   ],
+   "spawnRules": [],
+   "lockCargoGridsOnSpawn": false
+  }
+ ],
+ "loading": {
+  "key0": 11.75,
+  "key1": 16,
+  "key2": 17,
+  "key3": [
+   {
+    "scu": 12.5,
+    "value": 19
+   },
+   {
+    "scu": 13.0,
+    "value": 21
+   },
+   {
+    "scu": 13.5,
+    "value": 23
+   }
+  ]
+ },
+ "byCategory": {
+  "key0": [
+   "syn-412",
+   "syn-413",
+   "syn-414"
+  ],
+  "key1": [
+   "syn-415"
+  ],
+  "key2": [
+   "syn-416",
+   "syn-417",
+   "syn-418"
+  ],
+  "key3": [
+   "syn-419",
+   "syn-420",
+   "syn-421"
+  ]
+ },
+ "summary": {
+  "manifests": 34
+ }
+}

@@ -1,0 +1,139 @@
+{
+ "_source": "syn-423",
+ "_extracted": "syn-424",
+ "_build": "syn-425",
+ "resources": [
+  {
+   "name": "syn-426",
+   "recordName": "syn-427",
+   "id": "syn-428",
+   "displayName": "syn-429",
+   "description": "syn-430",
+   "group": "syn-431",
+   "subgroups": [],
+   "densityGramsPerCc": 44
+  },
+  {
+   "name": "syn-433",
+   "recordName": "syn-434",
+   "id": "syn-435",
+   "group": "syn-436",
+   "subgroups": [],
+   "densityGramsPerCc": 49
+  },
+  {
+   "name": "syn-438",
+   "recordName": "syn-439",
+   "id": "syn-440",
+   "displayName": "syn-441",
+   "group": "syn-442",
+   "subgroups": [],
+   "densityGramsPerCc": 55
+  }
+ ],
+ "items": [
+  {
+   "name": "syn-444",
+   "recordName": "syn-445",
+   "id": "syn-446",
+   "displayName": "syn-447",
+   "type": "syn-448",
+   "category": "syn-449",
+   "resource": "syn-450",
+   "capacityScu": 63,
+   "description": "syn-452"
+  },
+  {
+   "name": "syn-453",
+   "recordName": "syn-454",
+   "id": "syn-455",
+   "displayName": "syn-456",
+   "type": "syn-457",
+   "category": "syn-458",
+   "resource": "syn-459",
+   "capacityScu": 3.75,
+   "description": "syn-461"
+  },
+  {
+   "name": "syn-462",
+   "recordName": "syn-463",
+   "id": "syn-464",
+   "displayName": "syn-465",
+   "type": "syn-466",
+   "category": "syn-467",
+   "resource": "syn-468",
+   "capacityScu": 6.0,
+   "description": "syn-470"
+  }
+ ],
+ "damage": [
+  {
+   "name": "syn-471",
+   "recordName": "syn-472",
+   "minimumSpeed": 85,
+   "speedSquaredToDamage": 7.25,
+   "gracePeriod": 87,
+   "explosionDamage": 88,
+   "explosionMinRadius": 8.0,
+   "explosionMaxRadius": 8.25,
+   "explosionPressure": 91,
+   "volatilityRadiusFactor": 8.75,
+   "volatilityDamageFactor": 9.0,
+   "volatilityForceFactor": 94,
+   "volatilityCommodityDamageFactor": 95
+  },
+  {
+   "name": "syn-484",
+   "recordName": "syn-485",
+   "minimumSpeed": 1,
+   "speedSquaredToDamage": 10.5,
+   "gracePeriod": 3,
+   "explosionDamage": 4,
+   "explosionMinRadius": 11.25,
+   "explosionMaxRadius": 11.5,
+   "explosionPressure": 7,
+   "volatilityRadiusFactor": 12.0,
+   "volatilityDamageFactor": 12.25,
+   "volatilityForceFactor": 10,
+   "volatilityCommodityDamageFactor": 11
+  },
+  {
+   "name": "syn-497",
+   "recordName": "syn-498",
+   "minimumSpeed": 14,
+   "speedSquaredToDamage": 13.75,
+   "gracePeriod": 16,
+   "explosionDamage": 17,
+   "explosionMinRadius": 14.5,
+   "explosionMaxRadius": 14.75,
+   "explosionPressure": 20,
+   "volatilityRadiusFactor": 15.25,
+   "volatilityDamageFactor": 15.5,
+   "volatilityForceFactor": 23,
+   "volatilityCommodityDamageFactor": 24
+  }
+ ],
+ "byGroup": {
+  "key0": [
+   "syn-510",
+   "syn-511"
+  ],
+  "key1": [
+   "syn-512",
+   "syn-513",
+   "syn-514"
+  ],
+  "key2": [
+   "syn-515",
+   "syn-516"
+  ],
+  "key3": [
+   "syn-517"
+  ]
+ },
+ "summary": {
+  "resources": 33,
+  "items": 34,
+  "damage": 35
+ }
+}

@@ -1,0 +1,115 @@
+{
+ "_source": "syn-4007",
+ "_extracted": "syn-4008",
+ "_build": "syn-4009",
+ "locations": [
+  {
+   "name": "syn-4010",
+   "recordName": "syn-4011",
+   "id": "syn-4012",
+   "displayName": "syn-4013",
+   "description": "syn-4014",
+   "parent": "syn-4015",
+   "type": "syn-4016",
+   "size": 40,
+   "isScannable": false,
+   "quantum": {
+    "obstructionRadius": 41,
+    "arrivalRadius": 42,
+    "adoptionRadius": 43,
+    "arrivalPointDetectionOffset": 44,
+    "subPointRadiusMultiplier": 4.25
+   },
+   "rotationHours": 4.5,
+   "gridRadius": 47,
+   "position": {
+    "x": 5.0,
+    "y": 5.25,
+    "z": 50
+   },
+   "path": [
+    "syn-4028",
+    "syn-4029"
+   ],
+   "system": "syn-4030"
+  },
+  {
+   "name": "syn-4031",
+   "recordName": "syn-4032",
+   "id": "syn-4033",
+   "displayName": "syn-4034",
+   "description": "syn-4035",
+   "parent": "syn-4036",
+   "type": "syn-4037",
+   "size": 61,
+   "isScannable": false,
+   "quantum": {
+    "obstructionRadius": 62,
+    "arrivalRadius": 63,
+    "adoptionRadius": 64,
+    "arrivalPointDetectionOffset": 65,
+    "subPointRadiusMultiplier": 9.5
+   },
+   "local": {
+    "x": 9.75,
+    "y": 10.0,
+    "z": 10.25
+   },
+   "turnsWith": "syn-4047",
+   "path": [
+    "syn-4048",
+    "syn-4049",
+    "syn-4050"
+   ],
+   "system": "syn-4051"
+  },
+  {
+   "name": "syn-4052",
+   "recordName": "syn-4053",
+   "id": "syn-4054",
+   "displayName": "syn-4055",
+   "description": "syn-4056",
+   "parent": "syn-4057",
+   "type": "syn-4058",
+   "size": 82,
+   "isScannable": false,
+   "quantum": {
+    "obstructionRadius": 83,
+    "arrivalRadius": 84,
+    "adoptionRadius": 85,
+    "arrivalPointDetectionOffset": 86,
+    "subPointRadiusMultiplier": 14.75
+   },
+   "rotationHours": 15.0,
+   "gridRadius": 89,
+   "position": {
+    "x": 15.5,
+    "y": 15.75,
+    "z": 92
+   },
+   "path": [
+    "syn-4070",
+    "syn-4071"
+   ],
+   "system": "syn-4072"
+  }
+ ],
+ "byType": {
+  "key0": 96,
+  "key1": 0,
+  "key2": 1,
+  "key3": 2
+ },
+ "summary": {
+  "locations": 3,
+  "visible": 4,
+  "hidden": 5,
+  "positioned": 6,
+  "turning": 7,
+  "rotating": 8,
+  "armistice": 9,
+  "monitored": 10,
+  "jammed": 11,
+  "typeNamesResolved": 12
+ }
+}

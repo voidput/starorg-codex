@@ -10,6 +10,7 @@ pub mod blueprints;
 pub mod build;
 pub mod cache;
 pub mod config;
+pub mod dev;
 pub mod discovery;
 pub mod enhance;
 pub mod fleet;

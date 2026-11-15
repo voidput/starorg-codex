@@ -1,0 +1,350 @@
+{
+ "_source": "syn-179",
+ "_extracted": "syn-180",
+ "_build": "syn-181",
+ "blueprints": [
+  {
+   "name": "syn-182",
+   "recordName": "syn-183",
+   "id": "syn-184",
+   "category": "syn-185",
+   "produces": "syn-186",
+   "tiers": [
+    {
+     "craftTimeSeconds": 90,
+     "costs": [
+      {
+       "kind": "syn-188",
+       "count": 92,
+       "label": "syn-190",
+       "options": [
+        {
+         "kind": "syn-191",
+         "count": 95,
+         "label": "syn-193",
+         "options": [
+          {
+           "kind": "syn-194",
+           "resource": "syn-195",
+           "scu": 4.5,
+           "minQuality": 3
+          }
+         ]
+        },
+        {
+         "kind": "syn-198",
+         "count": 5,
+         "label": "syn-200",
+         "options": [
+          {
+           "kind": "syn-201",
+           "resource": "syn-202",
+           "scu": 6.25,
+           "minQuality": 10
+          }
+         ]
+        },
+        {
+         "kind": "syn-205",
+         "count": 12,
+         "label": "syn-207",
+         "options": [
+          {
+           "kind": "syn-208",
+           "item": "syn-209",
+           "quantity": 16,
+           "minQuality": 17
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "displayName": "syn-212",
+   "rewardedBy": [
+    {
+     "mission": "syn-213",
+     "contract": "syn-214",
+     "generator": "syn-215",
+     "pool": "syn-216",
+     "chance": 23,
+     "weight": 24,
+     "poolWeight": 25
+    },
+    {
+     "mission": "syn-220",
+     "contract": "syn-221",
+     "generator": "syn-222",
+     "pool": "syn-223",
+     "chance": 30,
+     "weight": 31,
+     "poolWeight": 32
+    },
+    {
+     "mission": "syn-227",
+     "contract": "syn-228",
+     "generator": "syn-229",
+     "pool": "syn-230",
+     "chance": 37,
+     "weight": 38,
+     "poolWeight": 39
+    }
+   ]
+  },
+  {
+   "name": "syn-234",
+   "recordName": "syn-235",
+   "id": "syn-236",
+   "category": "syn-237",
+   "produces": "syn-238",
+   "tiers": [
+    {
+     "craftTimeSeconds": 45,
+     "costs": [
+      {
+       "kind": "syn-240",
+       "count": 47,
+       "label": "syn-242",
+       "options": [
+        {
+         "kind": "syn-243",
+         "count": 50,
+         "label": "syn-245",
+         "options": [
+          {
+           "kind": "syn-246",
+           "resource": "syn-247",
+           "scu": 17.5,
+           "minQuality": 55
+          }
+         ]
+        },
+        {
+         "kind": "syn-250",
+         "count": 57,
+         "label": "syn-252",
+         "options": [
+          {
+           "kind": "syn-253",
+           "resource": "syn-254",
+           "scu": 19.25,
+           "minQuality": 62
+          }
+         ]
+        },
+        {
+         "kind": "syn-257",
+         "count": 64,
+         "label": "syn-259",
+         "options": [
+          {
+           "kind": "syn-260",
+           "item": "syn-261",
+           "quantity": 68,
+           "minQuality": 69
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "displayName": "syn-264",
+   "rewardedBy": [
+    {
+     "mission": "syn-265",
+     "contract": "syn-266",
+     "generator": "syn-267",
+     "pool": "syn-268",
+     "chance": 75,
+     "weight": 76,
+     "poolWeight": 77
+    },
+    {
+     "mission": "syn-272",
+     "contract": "syn-273",
+     "generator": "syn-274",
+     "pool": "syn-275",
+     "chance": 82,
+     "weight": 83,
+     "poolWeight": 84
+    },
+    {
+     "mission": "syn-279",
+     "contract": "syn-280",
+     "generator": "syn-281",
+     "pool": "syn-282",
+     "chance": 89,
+     "weight": 90,
+     "poolWeight": 91
+    }
+   ]
+  },
+  {
+   "name": "syn-286",
+   "recordName": "syn-287",
+   "id": "syn-288",
+   "category": "syn-289",
+   "produces": "syn-290",
+   "tiers": [
+    {
+     "craftTimeSeconds": 0,
+     "costs": [
+      {
+       "kind": "syn-292",
+       "count": 2,
+       "label": "syn-294",
+       "options": [
+        {
+         "kind": "syn-295",
+         "count": 5,
+         "label": "syn-297",
+         "options": [
+          {
+           "kind": "syn-298",
+           "resource": "syn-299",
+           "scu": 8.25,
+           "minQuality": 10
+          }
+         ]
+        },
+        {
+         "kind": "syn-302",
+         "count": 12,
+         "label": "syn-304",
+         "options": [
+          {
+           "kind": "syn-305",
+           "resource": "syn-306",
+           "scu": 10.0,
+           "minQuality": 17
+          }
+         ]
+        },
+        {
+         "kind": "syn-309",
+         "count": 19,
+         "label": "syn-311",
+         "options": [
+          {
+           "kind": "syn-312",
+           "item": "syn-313",
+           "quantity": 23,
+           "minQuality": 24
+          }
+         ]
+        }
+       ]
+      }
+     ]
+    }
+   ],
+   "displayName": "syn-316",
+   "rewardedBy": [
+    {
+     "mission": "syn-317",
+     "contract": "syn-318",
+     "generator": "syn-319",
+     "pool": "syn-320",
+     "chance": 30,
+     "weight": 31,
+     "poolWeight": 32
+    },
+    {
+     "mission": "syn-324",
+     "contract": "syn-325",
+     "generator": "syn-326",
+     "pool": "syn-327",
+     "chance": 37,
+     "weight": 38,
+     "poolWeight": 39
+    },
+    {
+     "mission": "syn-331",
+     "contract": "syn-332",
+     "generator": "syn-333",
+     "pool": "syn-334",
+     "chance": 44,
+     "weight": 45,
+     "poolWeight": 46
+    }
+   ]
+  }
+ ],
+ "rewardPools": [
+  {
+   "name": "syn-338",
+   "blueprints": [
+    {
+     "blueprint": "syn-339",
+     "weight": 49
+    },
+    {
+     "blueprint": "syn-341",
+     "weight": 51
+    },
+    {
+     "blueprint": "syn-343",
+     "weight": 53
+    }
+   ]
+  },
+  {
+   "name": "syn-345",
+   "blueprints": [
+    {
+     "blueprint": "syn-346",
+     "weight": 56
+    },
+    {
+     "blueprint": "syn-348",
+     "weight": 58
+    },
+    {
+     "blueprint": "syn-350",
+     "weight": 60
+    }
+   ]
+  },
+  {
+   "name": "syn-352",
+   "blueprints": [
+    {
+     "blueprint": "syn-353",
+     "weight": 63
+    },
+    {
+     "blueprint": "syn-355",
+     "weight": 65
+    },
+    {
+     "blueprint": "syn-357",
+     "weight": 67
+    }
+   ]
+  }
+ ],
+ "resourceUse": {
+  "key0": 68,
+  "key1": 69,
+  "key2": 70,
+  "key3": 71
+ },
+ "byCategory": {
+  "key0": 72,
+  "key1": 73,
+  "key2": 74,
+  "key3": 75
+ },
+ "summary": {
+  "blueprints": 76,
+  "distinctResources": 77,
+  "categories": 78,
+  "named": 79,
+  "rewarded": 80,
+  "rewardPools": 81
+ }
+}

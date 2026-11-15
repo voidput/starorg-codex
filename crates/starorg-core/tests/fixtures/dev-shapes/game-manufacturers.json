@@ -1,0 +1,64 @@
+{
+ "_source": "syn-1064",
+ "_extracted": "syn-1065",
+ "_build": "syn-1066",
+ "manufacturers": [
+  {
+   "code": "syn-1067",
+   "recordName": "syn-1068",
+   "id": "syn-1069",
+   "name": "syn-1070",
+   "description": "syn-1071"
+  },
+  {
+   "code": "syn-1072",
+   "recordName": "syn-1073",
+   "id": "syn-1074",
+   "name": "syn-1075",
+   "description": "syn-1076"
+  },
+  {
+   "code": "syn-1077",
+   "recordName": "syn-1078",
+   "id": "syn-1079",
+   "name": "syn-1080",
+   "description": "syn-1081"
+  }
+ ],
+ "byCode": {
+  "key0": "syn-1082",
+  "key1": "syn-1083",
+  "key2": "syn-1084",
+  "key3": "syn-1085"
+ },
+ "sharedNames": [
+  {
+   "name": "syn-1086",
+   "codes": [
+    "syn-1087",
+    "syn-1088",
+    "syn-1089"
+   ]
+  },
+  {
+   "name": "syn-1090",
+   "codes": [
+    "syn-1091",
+    "syn-1092",
+    "syn-1093"
+   ]
+  },
+  {
+   "name": "syn-1094",
+   "codes": [
+    "syn-1095",
+    "syn-1096"
+   ]
+  }
+ ],
+ "summary": {
+  "manufacturers": 30,
+  "unnamedOrPlaceholder": 31,
+  "namesUsedByMultipleCodes": 32
+ }
+}

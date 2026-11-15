@@ -1,0 +1,222 @@
+{
+ "_source": "syn-803",
+ "_extracted": "syn-804",
+ "_build": "syn-805",
+ "crimes": [
+  {
+   "name": "syn-806",
+   "recordName": "syn-807",
+   "displayName": "syn-808",
+   "category": "syn-809",
+   "triggers": [],
+   "parameters": {
+    "isFelony": true,
+    "lifetime": 34,
+    "felonyMerits": 35
+   }
+  },
+  {
+   "name": "syn-812",
+   "recordName": "syn-813",
+   "displayName": "syn-814",
+   "category": "syn-815",
+   "triggers": [
+    "syn-816"
+   ],
+   "parameters": {
+    "isFelony": true,
+    "lifetime": 41,
+    "coolOffTime": 42,
+    "felonyMerits": 43
+   }
+  },
+  {
+   "name": "syn-820",
+   "recordName": "syn-821",
+   "displayName": "syn-822",
+   "category": "syn-823",
+   "triggers": [
+    "syn-824"
+   ],
+   "parameters": {
+    "isFelony": true,
+    "lifetime": 49,
+    "felonyMerits": 50
+   }
+  }
+ ],
+ "jurisdictions": [
+  {
+   "name": "syn-827",
+   "recordName": "syn-828",
+   "displayName": "syn-829",
+   "parent": "syn-830",
+   "respectsParentLaws": true,
+   "isPrison": false,
+   "baseFine": 55,
+   "maxStolenGoodsPossessionScu": 56,
+   "crimes": [
+    {
+     "crime": "syn-833"
+    },
+    {
+     "crime": "syn-834"
+    },
+    {
+     "crime": "syn-835"
+    }
+   ],
+   "prohibitedGoods": [
+    "syn-836",
+    "syn-837",
+    "syn-838"
+   ],
+   "prohibitedResources": [
+    "syn-839",
+    "syn-840",
+    "syn-841"
+   ],
+   "controlledSubstanceClasses": [
+    {
+     "commodities": [
+      "syn-842",
+      "syn-843",
+      "syn-844"
+     ],
+     "resources": [
+      "syn-845",
+      "syn-846",
+      "syn-847"
+     ],
+     "maxPossessionScu": 11.75
+    },
+    {
+     "commodities": [
+      "syn-849",
+      "syn-850"
+     ],
+     "resources": [
+      "syn-851",
+      "syn-852"
+     ],
+     "maxPossessionScu": 13.0
+    },
+    {
+     "commodities": [
+      "syn-854",
+      "syn-855"
+     ],
+     "resources": [
+      "syn-856",
+      "syn-857"
+     ],
+     "maxPossessionScu": 14.25
+    }
+   ],
+   "impounding": []
+  },
+  {
+   "name": "syn-859",
+   "recordName": "syn-860",
+   "displayName": "syn-861",
+   "respectsParentLaws": false,
+   "isPrison": false,
+   "baseFine": 86,
+   "maxStolenGoodsPossessionScu": 87,
+   "crimes": [],
+   "prohibitedGoods": [],
+   "prohibitedResources": [],
+   "controlledSubstanceClasses": [
+    {
+     "commodities": [],
+     "resources": [],
+     "maxPossessionScu": 15.75
+    },
+    {
+     "commodities": [],
+     "resources": [],
+     "maxPossessionScu": 16.0
+    },
+    {
+     "commodities": [],
+     "resources": [],
+     "maxPossessionScu": 16.25
+    }
+   ],
+   "impounding": []
+  },
+  {
+   "name": "syn-867",
+   "recordName": "syn-868",
+   "displayName": "syn-869",
+   "parent": "syn-870",
+   "respectsParentLaws": true,
+   "isPrison": false,
+   "baseFine": 95,
+   "maxStolenGoodsPossessionScu": 96,
+   "crimes": [
+    {
+     "crime": "syn-873"
+    },
+    {
+     "crime": "syn-874"
+    },
+    {
+     "crime": "syn-875"
+    }
+   ],
+   "prohibitedGoods": [
+    "syn-876",
+    "syn-877",
+    "syn-878"
+   ],
+   "prohibitedResources": [
+    "syn-879",
+    "syn-880",
+    "syn-881"
+   ],
+   "controlledSubstanceClasses": [
+    {
+     "commodities": [
+      "syn-882",
+      "syn-883",
+      "syn-884"
+     ],
+     "resources": [
+      "syn-885",
+      "syn-886",
+      "syn-887"
+     ],
+     "maxPossessionScu": 21.75
+    },
+    {
+     "commodities": [
+      "syn-889"
+     ],
+     "resources": [
+      "syn-890"
+     ],
+     "maxPossessionScu": 0.25
+    },
+    {
+     "commodities": [
+      "syn-892",
+      "syn-893",
+      "syn-894"
+     ],
+     "resources": [
+      "syn-895",
+      "syn-896",
+      "syn-897"
+     ],
+     "maxPossessionScu": 2.0
+    }
+   ],
+   "impounding": []
+  }
+ ],
+ "summary": {
+  "crimes": 26,
+  "jurisdictions": 27
+ }
+}

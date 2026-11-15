@@ -1,0 +1,84 @@
+{
+ "_source": "syn-1552",
+ "_extracted": "syn-1553",
+ "_build": "syn-1554",
+ "standings": [
+  {
+   "name": "syn-1555",
+   "recordName": "syn-1556",
+   "id": "syn-1557",
+   "organisation": "syn-1558",
+   "minReputation": 7
+  },
+  {
+   "name": "syn-1560",
+   "recordName": "syn-1561",
+   "id": "syn-1562",
+   "organisation": "syn-1563",
+   "minReputation": 12
+  },
+  {
+   "name": "syn-1565",
+   "recordName": "syn-1566",
+   "id": "syn-1567",
+   "organisation": "syn-1568",
+   "minReputation": 17
+  }
+ ],
+ "byOrganisation": {
+  "key0": [
+   {
+    "name": "syn-1570",
+    "recordName": "syn-1571",
+    "id": "syn-1572",
+    "organisation": "syn-1573",
+    "minReputation": 22
+   },
+   {
+    "name": "syn-1575",
+    "recordName": "syn-1576",
+    "id": "syn-1577",
+    "organisation": "syn-1578",
+    "minReputation": 27
+   },
+   {
+    "name": "syn-1580",
+    "recordName": "syn-1581",
+    "id": "syn-1582",
+    "organisation": "syn-1583",
+    "minReputation": 32
+   }
+  ],
+  "key1": [
+   {
+    "name": "syn-1585",
+    "recordName": "syn-1586",
+    "id": "syn-1587",
+    "organisation": "syn-1588",
+    "minReputation": 37
+   }
+  ],
+  "key2": [
+   {
+    "name": "syn-1590",
+    "recordName": "syn-1591",
+    "id": "syn-1592",
+    "organisation": "syn-1593",
+    "minReputation": 42
+   }
+  ],
+  "key3": [
+   {
+    "name": "syn-1595",
+    "recordName": "syn-1596",
+    "id": "syn-1597",
+    "organisation": "syn-1598",
+    "minReputation": 47
+   }
+  ]
+ },
+ "summary": {
+  "standings": 48,
+  "organisations": 49
+ }
+}

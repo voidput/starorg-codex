@@ -1,0 +1,14 @@
+{
+ "_source": "syn-1461",
+ "_extracted": "syn-1462",
+ "_build": "syn-1463",
+ "rules": {
+  "key0": 9,
+  "key1": 10.25,
+  "key2": 11,
+  "key3": 12
+ },
+ "summary": {
+  "records": 13
+ }
+}

@@ -1,0 +1,67 @@
+{
+ "_source": "syn-3970",
+ "_extracted": "syn-3971",
+ "_build": "syn-3972",
+ "selling": {
+  "key0": 93,
+  "key1": 94,
+  "key2": 95,
+  "key3": [
+   96,
+   0,
+   1
+  ]
+ },
+ "commodities": {
+  "key0": {
+   "no": 2,
+   "veryLow": 3,
+   "low": 4,
+   "medium": 5,
+   "high": 6,
+   "veryHigh": 7
+  },
+  "key1": {
+   "no": 8,
+   "veryLow": 9,
+   "low": 10,
+   "medium": 11,
+   "high": 12,
+   "veryHigh": 13
+  },
+  "key2": 14,
+  "key3": [
+   {
+    "scu": 19.0,
+    "value": 16
+   },
+   {
+    "scu": 19.5,
+    "value": 18
+   },
+   {
+    "scu": 20.0,
+    "value": 20
+   }
+  ]
+ },
+ "buying": {
+  "key0": 21,
+  "key1": [
+   {
+    "item": "syn-3999",
+    "tier": "syn-4000",
+    "percentageModifier": 24
+   },
+   {
+    "item": "syn-4002",
+    "tier": "syn-4003",
+    "percentageModifier": 27
+   }
+  ],
+  "key2": 28
+ },
+ "summary": {
+  "itemTypeModifiers": 29
+ }
+}

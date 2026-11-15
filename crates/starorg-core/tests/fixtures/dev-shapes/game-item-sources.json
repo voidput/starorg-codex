@@ -1,0 +1,257 @@
+{
+ "_source": "syn-645",
+ "_extracted": "syn-646",
+ "_build": "syn-647",
+ "areas": [
+  {
+   "name": "syn-648",
+   "configs": [
+    {
+     "name": "syn-649",
+     "spawnTags": [
+      "syn-650"
+     ],
+     "fillChance": 7.0,
+     "slots": [
+      {
+       "entity": "syn-652",
+       "preset": "syn-653",
+       "weight": 7.75
+      },
+      {
+       "entity": "syn-655",
+       "preset": "syn-656",
+       "weight": 8.5
+      },
+      {
+       "entity": "syn-658",
+       "preset": "syn-659",
+       "weight": 9.25
+      }
+     ]
+    },
+    {
+     "name": "syn-661",
+     "spawnTags": [
+      "syn-662"
+     ],
+     "fillChance": 10.0,
+     "slots": [
+      {
+       "entity": "syn-664",
+       "preset": "syn-665",
+       "weight": 10.75
+      },
+      {
+       "entity": "syn-667",
+       "preset": "syn-668",
+       "weight": 11.5
+      },
+      {
+       "entity": "syn-670",
+       "preset": "syn-671",
+       "weight": 12.25
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "syn-673",
+   "configs": [
+    {
+     "name": "syn-674",
+     "spawnTags": [
+      "syn-675"
+     ],
+     "slots": [
+      {
+       "entity": "syn-676",
+       "entityName": "syn-677",
+       "preset": "syn-678",
+       "weight": 0,
+       "contains": [
+        "syn-680"
+       ]
+      }
+     ]
+    },
+    {
+     "name": "syn-681",
+     "spawnTags": [
+      "syn-682"
+     ],
+     "slots": [
+      {
+       "entity": "syn-683",
+       "entityName": "syn-684",
+       "preset": "syn-685",
+       "weight": 7,
+       "contains": [
+        "syn-687"
+       ]
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "syn-688",
+   "configs": [
+    {
+     "name": "syn-689",
+     "spawnTags": [
+      "syn-690"
+     ],
+     "slots": [
+      {
+       "entity": "syn-691",
+       "entityName": "syn-692",
+       "preset": "syn-693",
+       "weight": 17.75,
+       "loot": {
+        "table": "syn-695",
+        "version": "syn-696",
+        "maxResults": 18,
+        "chance": 19
+       }
+      },
+      {
+       "entity": "syn-699",
+       "entityName": "syn-700",
+       "preset": "syn-701",
+       "weight": 19.75,
+       "loot": {
+        "table": "syn-703",
+        "version": "syn-704",
+        "maxResults": 26,
+        "chance": 27
+       }
+      },
+      {
+       "entity": "syn-707",
+       "entityName": "syn-708",
+       "preset": "syn-709",
+       "weight": 21.75,
+       "loot": {
+        "table": "syn-711",
+        "version": "syn-712",
+        "maxResults": 34,
+        "chance": 35
+       }
+      }
+     ]
+    },
+    {
+     "name": "syn-715",
+     "spawnTags": [
+      "syn-716"
+     ],
+     "slots": [
+      {
+       "entity": "syn-717",
+       "entityName": "syn-718",
+       "preset": "syn-719",
+       "weight": 2.0,
+       "loot": {
+        "table": "syn-721",
+        "version": "syn-722",
+        "maxResults": 44,
+        "chance": 45
+       }
+      },
+      {
+       "entity": "syn-725",
+       "entityName": "syn-726",
+       "preset": "syn-727",
+       "weight": 49,
+       "loot": {
+        "table": "syn-729",
+        "version": "syn-730",
+        "maxResults": 52,
+        "chance": 53
+       }
+      },
+      {
+       "entity": "syn-733",
+       "entityName": "syn-734",
+       "preset": "syn-735",
+       "weight": 57,
+       "loot": {
+        "table": "syn-737",
+        "version": "syn-738",
+        "maxResults": 60,
+        "chance": 61
+       }
+      }
+     ]
+    },
+    {
+     "name": "syn-741",
+     "spawnTags": [
+      "syn-742"
+     ],
+     "slots": [
+      {
+       "entity": "syn-743",
+       "preset": "syn-744",
+       "weight": 66,
+       "contains": [
+        "syn-746",
+        "syn-747"
+       ]
+      },
+      {
+       "entity": "syn-748",
+       "preset": "syn-749",
+       "weight": 71
+      },
+      {
+       "entity": "syn-751",
+       "entityName": "syn-752",
+       "preset": "syn-753",
+       "weight": 75,
+       "loot": {
+        "table": "syn-755",
+        "version": "syn-756",
+        "maxResults": 78,
+        "chance": 79
+       }
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "contractAwards": [
+  {
+   "generator": "syn-759",
+   "contract": "syn-760",
+   "item": "syn-761",
+   "amount": 83,
+   "weighting": 84
+  },
+  {
+   "generator": "syn-764",
+   "contract": "syn-765",
+   "item": "syn-766",
+   "amount": 88,
+   "weighting": 89
+  },
+  {
+   "generator": "syn-769",
+   "contract": "syn-770",
+   "item": "syn-771",
+   "amount": 93,
+   "weighting": 15.25
+  }
+ ],
+ "summary": {
+  "areas": 95,
+  "configs": 96,
+  "slots": 0,
+  "lootSlots": 1,
+  "fixedSlots": 2,
+  "contractAwards": 3
+ }
+}

@@ -1,0 +1,40 @@
+{
+ "_source": "syn-617",
+ "_extracted": "syn-618",
+ "_build": "syn-619",
+ "weapons": [
+  {
+   "name": "syn-620",
+   "recordName": "syn-621",
+   "id": "syn-622",
+   "kind": "syn-623",
+   "type": "syn-624",
+   "subType": "syn-625",
+   "size": 44
+  },
+  {
+   "name": "syn-627",
+   "recordName": "syn-628",
+   "id": "syn-629",
+   "kind": "syn-630",
+   "type": "syn-631",
+   "subType": "syn-632",
+   "size": 51
+  },
+  {
+   "name": "syn-634",
+   "recordName": "syn-635",
+   "id": "syn-636",
+   "kind": "syn-637",
+   "type": "syn-638",
+   "subType": "syn-639",
+   "size": 58
+  }
+ ],
+ "summary": {
+  "weapons": 59,
+  "ranged": 60,
+  "melee": 61,
+  "templates": 62
+ }
+}

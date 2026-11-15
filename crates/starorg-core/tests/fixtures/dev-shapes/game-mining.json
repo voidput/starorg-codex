@@ -1,0 +1,116 @@
+{
+ "_source": "syn-1359",
+ "_extracted": "syn-1360",
+ "_build": "syn-1361",
+ "mineableElements": [
+  {
+   "name": "syn-1362",
+   "recordName": "syn-1363",
+   "id": "syn-1364",
+   "instability": 7,
+   "resistance": 7.75,
+   "optimalWindowMidpoint": 8.0,
+   "optimalWindowRandomness": 8.25,
+   "optimalWindowThinness": 8.5,
+   "explosionMultiplier": 12,
+   "clusterFactor": 9.0
+  },
+  {
+   "name": "syn-1372",
+   "recordName": "syn-1373",
+   "id": "syn-1374",
+   "instability": 17,
+   "resistance": 18,
+   "optimalWindowMidpoint": 10.5,
+   "optimalWindowRandomness": 20,
+   "optimalWindowThinness": 21,
+   "explosionMultiplier": 22,
+   "clusterFactor": 23
+  },
+  {
+   "name": "syn-1382",
+   "recordName": "syn-1383",
+   "id": "syn-1384",
+   "instability": 27,
+   "resistance": 28,
+   "optimalWindowMidpoint": 29,
+   "optimalWindowRandomness": 30,
+   "optimalWindowThinness": 31,
+   "explosionMultiplier": 32,
+   "clusterFactor": 33
+  }
+ ],
+ "miningModules": [
+  {
+   "name": "syn-1392",
+   "recordName": "syn-1393",
+   "id": "syn-1394",
+   "modifiers": {
+    "resistanceModifier": {
+     "value": 15.0,
+     "kind": "syn-1396",
+     "showInUI": true
+    },
+    "shatterDamageModifier": {
+     "value": 39,
+     "kind": "syn-1398",
+     "showInUI": true
+    },
+    "isOptimalRateGood": true
+   }
+  },
+  {
+   "name": "syn-1399",
+   "recordName": "syn-1400",
+   "id": "syn-1401",
+   "modifiers": {
+    "optimalChargeWindowSizeModifier": {
+     "value": 44,
+     "kind": "syn-1403",
+     "showInUI": true
+    },
+    "isOptimalRateGood": true
+   }
+  },
+  {
+   "name": "syn-1404",
+   "recordName": "syn-1405",
+   "id": "syn-1406",
+   "modifiers": {
+    "resistanceModifier": {
+     "value": 18.0,
+     "kind": "syn-1408",
+     "showInUI": true
+    },
+    "catastrophicChargeWindowRateModifier": {
+     "value": 51,
+     "kind": "syn-1410",
+     "showInUI": true
+    },
+    "isOptimalRateGood": true
+   }
+  }
+ ],
+ "elementSignatures": {
+  "key0": {
+   "resistance": 19.0,
+   "instability": 54
+  },
+  "key1": {
+   "resistance": 55,
+   "instability": 56
+  },
+  "key2": {
+   "resistance": 57,
+   "instability": 58
+  },
+  "key3": {
+   "resistance": 20.5,
+   "instability": 60
+  }
+ },
+ "summary": {
+  "mineableElements": 61,
+  "miningModules": 62
+ }
+}

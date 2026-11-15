@@ -1,0 +1,52 @@
+{
+ "_source": "syn-583",
+ "_extracted": "syn-584",
+ "_build": "syn-585",
+ "containers": [
+  {
+   "name": "syn-586",
+   "recordName": "syn-587",
+   "id": "syn-588",
+   "inventoryType": "syn-589",
+   "interiorDimensions": {
+    "x": 8,
+    "y": 9,
+    "z": 10
+   },
+   "volumeCubicMetres": 11,
+   "approxScu": 12
+  },
+  {
+   "name": "syn-595",
+   "recordName": "syn-596",
+   "id": "syn-597",
+   "inventoryType": "syn-598",
+   "interiorDimensions": {
+    "x": 17,
+    "y": 18,
+    "z": 19
+   },
+   "volumeCubicMetres": 20,
+   "approxScu": 21
+  },
+  {
+   "name": "syn-604",
+   "recordName": "syn-605",
+   "id": "syn-606",
+   "inventoryType": "syn-607",
+   "interiorDimensions": {
+    "x": 26,
+    "y": 27,
+    "z": 28
+   },
+   "volumeCubicMetres": 29,
+   "approxScu": 30
+  }
+ ],
+ "summary": {
+  "containers": 31,
+  "withDimensions": 32,
+  "unbounded": 33,
+  "largestScu": 34
+ }
+}

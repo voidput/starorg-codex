@@ -1,0 +1,59 @@
+{
+ "_source": "syn-1421",
+ "_extracted": "syn-1422",
+ "_build": "syn-1423",
+ "missions": [
+  {
+   "name": "syn-1424",
+   "recordName": "syn-1425",
+   "id": "syn-1426",
+   "title": "syn-1427",
+   "description": "syn-1428",
+   "giver": "syn-1429",
+   "type": "syn-1430",
+   "reward": 73,
+   "currency": "syn-1432",
+   "lawful": false
+  },
+  {
+   "name": "syn-1433",
+   "recordName": "syn-1434",
+   "id": "syn-1435",
+   "title": "syn-1436",
+   "description": "syn-1437",
+   "giver": "syn-1438",
+   "type": "syn-1439",
+   "reward": 82,
+   "currency": "syn-1441",
+   "notForRelease": true,
+   "lawful": true
+  },
+  {
+   "name": "syn-1442",
+   "recordName": "syn-1443",
+   "id": "syn-1444",
+   "title": "syn-1445",
+   "description": "syn-1446",
+   "giver": "syn-1447",
+   "type": "syn-1448",
+   "reward": 91,
+   "currency": "syn-1450",
+   "notForRelease": true,
+   "lawful": true
+  }
+ ],
+ "byGiver": {
+  "key0": 93,
+  "key1": 94,
+  "key2": 95,
+  "key3": 96
+ },
+ "summary": {
+  "missions": 0,
+  "live": 1,
+  "notForRelease": 2,
+  "withPayout": 3,
+  "medianReward": 4,
+  "maxReward": 5
+ }
+}

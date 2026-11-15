@@ -1,0 +1,189 @@
+{
+ "_source": "syn-58",
+ "_extracted": "syn-59",
+ "_build": "syn-60",
+ "armor": [
+  {
+   "name": "syn-61",
+   "recordName": "syn-62",
+   "id": "syn-63",
+   "slot": "syn-64",
+   "weight": "syn-65",
+   "manufacturer": "syn-66",
+   "grade": 67,
+   "mass": 68,
+   "temperatureMin": 69,
+   "temperatureMax": 70,
+   "radiationCapacity": 71,
+   "radiationDissipationRate": 18.0,
+   "gForceResistance": 18.25,
+   "resistanceProfile": "syn-74",
+   "resistances": {
+    "physical": {
+     "multiplier": 18.75
+    },
+    "energy": {
+     "multiplier": 19.0
+    },
+    "distortion": {
+     "multiplier": 19.25
+    },
+    "thermal": {
+     "multiplier": 19.5
+    },
+    "biochemical": {
+     "multiplier": 19.75
+    },
+    "stun": {
+     "multiplier": 20.0
+    }
+   },
+   "impactForceResistance": 20.25,
+   "emSignature": 82
+  },
+  {
+   "name": "syn-83",
+   "recordName": "syn-84",
+   "id": "syn-85",
+   "slot": "syn-86",
+   "weight": "syn-87",
+   "manufacturer": "syn-88",
+   "grade": 89,
+   "mass": 90,
+   "temperatureMin": 91,
+   "temperatureMax": 92,
+   "radiationCapacity": 93,
+   "radiationDissipationRate": 1.25,
+   "gForceResistance": 1.5,
+   "resistanceProfile": "syn-96",
+   "resistances": {
+    "physical": {
+     "multiplier": 2.0
+    },
+    "energy": {
+     "multiplier": 2.25
+    },
+    "distortion": {
+     "multiplier": 2.5
+    },
+    "thermal": {
+     "multiplier": 2.75
+    },
+    "biochemical": {
+     "multiplier": 3.0
+    },
+    "stun": {
+     "multiplier": 3.25
+    }
+   },
+   "impactForceResistance": 3.5,
+   "emSignature": 7
+  },
+  {
+   "name": "syn-105",
+   "recordName": "syn-106",
+   "id": "syn-107",
+   "slot": "syn-108",
+   "weight": "syn-109",
+   "manufacturer": "syn-110",
+   "grade": 14,
+   "mass": 15,
+   "temperatureMin": 16,
+   "temperatureMax": 17,
+   "radiationCapacity": 18,
+   "radiationDissipationRate": 6.75,
+   "gForceResistance": 7.0,
+   "resistanceProfile": "syn-118",
+   "resistances": {
+    "physical": {
+     "multiplier": 7.5
+    },
+    "energy": {
+     "multiplier": 7.75
+    },
+    "distortion": {
+     "multiplier": 8.0
+    },
+    "thermal": {
+     "multiplier": 8.25
+    },
+    "biochemical": {
+     "multiplier": 8.5
+    },
+    "stun": {
+     "multiplier": 8.75
+    }
+   },
+   "impactForceResistance": 9.0,
+   "emSignature": 29
+  }
+ ],
+ "clothing": [
+  {
+   "name": "syn-127",
+   "recordName": "syn-128",
+   "id": "syn-129",
+   "slot": "syn-130",
+   "manufacturer": "syn-131",
+   "grade": 35,
+   "mass": 36,
+   "temperatureMin": 37,
+   "temperatureMax": 38,
+   "radiationCapacity": 39,
+   "radiationDissipationRate": 40,
+   "gForceResistance": 41,
+   "storageMicroScu": 42
+  },
+  {
+   "name": "syn-140",
+   "recordName": "syn-141",
+   "id": "syn-142",
+   "slot": "syn-143",
+   "manufacturer": "syn-144",
+   "grade": 48,
+   "mass": 14.25,
+   "temperatureMin": 50,
+   "temperatureMax": 51,
+   "radiationCapacity": 52,
+   "radiationDissipationRate": 53,
+   "gForceResistance": 54
+  },
+  {
+   "name": "syn-152",
+   "recordName": "syn-153",
+   "id": "syn-154",
+   "slot": "syn-155",
+   "manufacturer": "syn-156",
+   "grade": 60,
+   "mass": 17.25,
+   "temperatureMin": 62,
+   "temperatureMax": 63,
+   "radiationCapacity": 64,
+   "radiationDissipationRate": 65,
+   "gForceResistance": 66
+  }
+ ],
+ "bySlot": {
+  "key0": {
+   "Arms": 67,
+   "Backpack": 68,
+   "Core": 69,
+   "Helmet": 70,
+   "Legs": 71,
+   "Undersuit": 72
+  },
+  "key1": {
+   "Backpack": 73,
+   "Feet": 74,
+   "Hands": 75,
+   "Hat": 76,
+   "Legs": 77,
+   "Torso_0": 78,
+   "Torso_1": 79
+  }
+ },
+ "summary": {
+  "armor": 80,
+  "clothing": 81
+ }
+}

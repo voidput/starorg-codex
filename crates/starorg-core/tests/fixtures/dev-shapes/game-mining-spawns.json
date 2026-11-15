@@ -1,0 +1,384 @@
+{
+ "_source": "syn-1100",
+ "_extracted": "syn-1101",
+ "_build": "syn-1102",
+ "locations": [
+  {
+   "key": "syn-1103",
+   "recordName": "syn-1104",
+   "system": "syn-1105",
+   "body": "syn-1106",
+   "entries": [
+    {
+     "group": "syn-1107",
+     "groupProbability": 10.0,
+     "relativeProbability": 10.25,
+     "spawnShare": 10.5,
+     "harvestable": "syn-1111",
+     "rock": "syn-1112",
+     "kind": "syn-1113",
+     "tier": "syn-1114",
+     "deposit": "syn-1115",
+     "signature": 49,
+     "ores": [
+      {
+       "element": "syn-1117",
+       "minPercent": 12.5,
+       "maxPercent": 12.75,
+       "probability": 53,
+       "qualityScale": 54
+      },
+      {
+       "element": "syn-1122",
+       "minPercent": 13.75,
+       "maxPercent": 14.0,
+       "probability": 58,
+       "qualityScale": 14.5
+      }
+     ]
+    },
+    {
+     "group": "syn-1127",
+     "groupProbability": 15.0,
+     "relativeProbability": 15.25,
+     "spawnShare": 15.5,
+     "harvestable": "syn-1131",
+     "rock": "syn-1132",
+     "kind": "syn-1133",
+     "tier": "syn-1134",
+     "deposit": "syn-1135",
+     "signature": 69,
+     "ores": [
+      {
+       "element": "syn-1137",
+       "minPercent": 17.5,
+       "maxPercent": 17.75,
+       "probability": 73,
+       "qualityScale": 74
+      },
+      {
+       "element": "syn-1142",
+       "minPercent": 18.75,
+       "maxPercent": 19.0,
+       "probability": 78,
+       "qualityScale": 19.5
+      },
+      {
+       "element": "syn-1147",
+       "minPercent": 81,
+       "maxPercent": 82,
+       "probability": 83,
+       "qualityScale": 20.75
+      }
+     ]
+    },
+    {
+     "group": "syn-1152",
+     "groupProbability": 21.25,
+     "relativeProbability": 21.5,
+     "spawnShare": 21.75,
+     "harvestable": "syn-1156",
+     "rock": "syn-1157",
+     "kind": "syn-1158",
+     "tier": "syn-1159",
+     "deposit": "syn-1160",
+     "signature": 94,
+     "ores": [
+      {
+       "element": "syn-1162",
+       "minPercent": 1.5,
+       "maxPercent": 1.75,
+       "probability": 1,
+       "qualityScale": 2
+      },
+      {
+       "element": "syn-1167",
+       "minPercent": 2.75,
+       "maxPercent": 3.0,
+       "probability": 6,
+       "qualityScale": 3.5
+      },
+      {
+       "element": "syn-1172",
+       "minPercent": 9,
+       "maxPercent": 10,
+       "probability": 11,
+       "qualityScale": 4.75
+      }
+     ]
+    }
+   ],
+   "ores": [
+    "syn-1177",
+    "syn-1178",
+    "syn-1179"
+   ]
+  },
+  {
+   "key": "syn-1180",
+   "recordName": "syn-1181",
+   "system": "syn-1182",
+   "entries": [
+    {
+     "group": "syn-1183",
+     "groupProbability": 6.75,
+     "relativeProbability": 21,
+     "spawnShare": 7.25,
+     "harvestable": "syn-1187"
+    },
+    {
+     "group": "syn-1188",
+     "groupProbability": 8.0,
+     "relativeProbability": 26,
+     "spawnShare": 8.5,
+     "harvestable": "syn-1192"
+    },
+    {
+     "group": "syn-1193",
+     "groupProbability": 9.25,
+     "relativeProbability": 9.5,
+     "spawnShare": 9.75,
+     "harvestable": "syn-1197",
+     "rock": "syn-1198",
+     "kind": "syn-1199",
+     "tier": "syn-1200",
+     "deposit": "syn-1201",
+     "signature": 38,
+     "ores": [
+      {
+       "element": "syn-1203",
+       "minPercent": 11.75,
+       "maxPercent": 12.0,
+       "probability": 42,
+       "qualityScale": 43
+      },
+      {
+       "element": "syn-1208",
+       "minPercent": 13.0,
+       "maxPercent": 13.25,
+       "probability": 47,
+       "qualityScale": 13.75
+      }
+     ]
+    }
+   ],
+   "ores": [
+    "syn-1213",
+    "syn-1214",
+    "syn-1215"
+   ]
+  },
+  {
+   "key": "syn-1216",
+   "recordName": "syn-1217",
+   "system": "syn-1218",
+   "entries": [
+    {
+     "group": "syn-1219",
+     "groupProbability": 15.75,
+     "relativeProbability": 57,
+     "spawnShare": 16.25,
+     "harvestable": "syn-1223"
+    },
+    {
+     "group": "syn-1224",
+     "groupProbability": 17.0,
+     "relativeProbability": 62,
+     "spawnShare": 17.5,
+     "harvestable": "syn-1228"
+    },
+    {
+     "group": "syn-1229",
+     "groupProbability": 18.25,
+     "relativeProbability": 18.5,
+     "spawnShare": 18.75,
+     "harvestable": "syn-1233",
+     "rock": "syn-1234",
+     "kind": "syn-1235",
+     "tier": "syn-1236",
+     "deposit": "syn-1237",
+     "signature": 74,
+     "ores": [
+      {
+       "element": "syn-1239",
+       "minPercent": 20.75,
+       "maxPercent": 21.0,
+       "probability": 78,
+       "qualityScale": 79
+      },
+      {
+       "element": "syn-1244",
+       "minPercent": 22.0,
+       "maxPercent": 0.0,
+       "probability": 83,
+       "qualityScale": 0.5
+      }
+     ]
+    }
+   ],
+   "ores": [
+    "syn-1249",
+    "syn-1250",
+    "syn-1251"
+   ]
+  }
+ ],
+ "rocks": [
+  {
+   "rock": "syn-1252",
+   "kind": "syn-1253",
+   "composition": "syn-1254",
+   "deposit": "syn-1255",
+   "signature": 92,
+   "minimumDistinctElements": 93,
+   "ores": [
+    {
+     "element": "syn-1258",
+     "minPercent": 95,
+     "maxPercent": 96,
+     "probability": 3.75,
+     "qualityScale": 1
+    },
+    {
+     "element": "syn-1263",
+     "minPercent": 3,
+     "maxPercent": 4,
+     "probability": 5.0,
+     "qualityScale": 6
+    },
+    {
+     "element": "syn-1268",
+     "minPercent": 8,
+     "maxPercent": 9,
+     "probability": 6.25,
+     "qualityScale": 11
+    }
+   ],
+   "spawnsAt": []
+  },
+  {
+   "rock": "syn-1273",
+   "kind": "syn-1274",
+   "composition": "syn-1275",
+   "deposit": "syn-1276",
+   "signature": 16,
+   "minimumDistinctElements": 17,
+   "ores": [
+    {
+     "element": "syn-1279",
+     "minPercent": 19,
+     "maxPercent": 20,
+     "probability": 21,
+     "qualityScale": 22
+    }
+   ],
+   "spawnsAt": []
+  },
+  {
+   "rock": "syn-1284",
+   "kind": "syn-1285",
+   "composition": "syn-1286",
+   "deposit": "syn-1287",
+   "signature": 27,
+   "minimumDistinctElements": 28,
+   "ores": [
+    {
+     "element": "syn-1290",
+     "minPercent": 30,
+     "maxPercent": 31,
+     "probability": 11.75,
+     "qualityScale": 33
+    },
+    {
+     "element": "syn-1295",
+     "minPercent": 35,
+     "maxPercent": 36,
+     "probability": 13.0,
+     "qualityScale": 38
+    },
+    {
+     "element": "syn-1300",
+     "minPercent": 40,
+     "maxPercent": 41,
+     "probability": 14.25,
+     "qualityScale": 43
+    }
+   ],
+   "spawnsAt": []
+  }
+ ],
+ "oreSpawns": [
+  {
+   "ore": "syn-1305",
+   "location": "syn-1306",
+   "system": "syn-1307",
+   "body": "syn-1308",
+   "rock": "syn-1309",
+   "kind": "syn-1310",
+   "tier": "syn-1311",
+   "signature": 51,
+   "spawnShare": 16.75,
+   "minPercent": 53,
+   "maxPercent": 54,
+   "qualityScale": 17.5
+  },
+  {
+   "ore": "syn-1317",
+   "location": "syn-1318",
+   "system": "syn-1319",
+   "body": "syn-1320",
+   "rock": "syn-1321",
+   "kind": "syn-1322",
+   "tier": "syn-1323",
+   "signature": 63,
+   "spawnShare": 19.75,
+   "minPercent": 65,
+   "maxPercent": 66,
+   "qualityScale": 20.5
+  },
+  {
+   "ore": "syn-1329",
+   "location": "syn-1330",
+   "system": "syn-1331",
+   "rock": "syn-1332",
+   "kind": "syn-1333",
+   "tier": "syn-1334",
+   "signature": 74,
+   "spawnShare": 0.25,
+   "minPercent": 76,
+   "maxPercent": 77,
+   "qualityScale": 1.0
+  }
+ ],
+ "oreLocations": {
+  "key0": [
+   "syn-1340",
+   "syn-1341",
+   "syn-1342"
+  ],
+  "key1": [
+   "syn-1343",
+   "syn-1344",
+   "syn-1345"
+  ],
+  "key2": [
+   "syn-1346",
+   "syn-1347",
+   "syn-1348"
+  ],
+  "key3": [
+   "syn-1349",
+   "syn-1350",
+   "syn-1351"
+  ]
+ },
+ "summary": {
+  "locations": 91,
+  "locationsWithOres": 92,
+  "locationsNamed": 93,
+  "distinctOres": 94,
+  "spawnEntries": 95,
+  "rocks": 96,
+  "rocksWithSignature": 0
+ }
+}

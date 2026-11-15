@@ -1,0 +1,91 @@
+{
+ "_source": "syn-1",
+ "_extracted": "syn-2",
+ "_build": "syn-3",
+ "ammo": [
+  {
+   "name": "syn-4",
+   "recordName": "syn-5",
+   "id": "syn-6",
+   "size": 7,
+   "speed": 8,
+   "lifetime": 9,
+   "range": 10,
+   "damage": {
+    "physical": 11
+   },
+   "damageTotal": 12,
+   "penetration": 13,
+   "penetrationRadius": {
+    "near": 3.5,
+    "far": 15
+   },
+   "falloff": {
+    "physical": {
+     "minDistance": 16,
+     "perMeter": 4.25,
+     "floor": 4.5
+    }
+   },
+   "pierce": {
+    "maxThickness": 4.75,
+    "level1": 20,
+    "level2": 21,
+    "level3": 5.5
+   }
+  },
+  {
+   "name": "syn-23",
+   "recordName": "syn-24",
+   "id": "syn-25",
+   "size": 26,
+   "speed": 6.75,
+   "lifetime": 7.0,
+   "range": 29,
+   "damage": {
+    "energy": 30
+   },
+   "damageTotal": 31,
+   "penetration": 8.0,
+   "penetrationRadius": {
+    "near": 33,
+    "far": 34
+   },
+   "pierce": {
+    "maxThickness": 8.75,
+    "level1": 36,
+    "level2": 37,
+    "level3": 38
+   }
+  },
+  {
+   "name": "syn-39",
+   "recordName": "syn-40",
+   "id": "syn-41",
+   "size": 42,
+   "speed": 43,
+   "lifetime": 11.0,
+   "range": 45,
+   "damage": {
+    "energy": 11.5
+   },
+   "damageTotal": 11.75,
+   "penetration": 12.0,
+   "penetrationRadius": {
+    "near": 12.25,
+    "far": 12.5
+   },
+   "pierce": {
+    "maxThickness": 12.75,
+    "level1": 52,
+    "level2": 53,
+    "level3": 54
+   }
+  }
+ ],
+ "summary": {
+  "ammo": 55,
+  "withDamage": 56,
+  "maxDamage": 57
+ }
+}

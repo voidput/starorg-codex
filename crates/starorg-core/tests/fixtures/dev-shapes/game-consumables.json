@@ -1,0 +1,130 @@
+{
+ "_source": "syn-521",
+ "_extracted": "syn-522",
+ "_build": "syn-523",
+ "consumables": [
+  {
+   "name": "syn-524",
+   "recordName": "syn-525",
+   "id": "syn-526",
+   "itemType": "syn-527",
+   "volumeMicroScu": 43,
+   "contents": [],
+   "oneShot": false,
+   "discardWhenConsumed": false
+  },
+  {
+   "name": "syn-529",
+   "recordName": "syn-530",
+   "id": "syn-531",
+   "itemType": "syn-532",
+   "volumeMicroScu": 48,
+   "contents": [],
+   "oneShot": false,
+   "discardWhenConsumed": false
+  },
+  {
+   "name": "syn-534",
+   "recordName": "syn-535",
+   "id": "syn-536",
+   "itemType": "syn-537",
+   "subType": "syn-538",
+   "volumeMicroScu": 54,
+   "contents": [
+    {
+     "subtype": "syn-540",
+     "type": "syn-541",
+     "ratio": 57
+    }
+   ],
+   "stats": {
+    "BloodDrugLevel": 58
+   },
+   "buffs": [
+    {
+     "buff": "syn-544"
+    },
+    {
+     "buff": "syn-545"
+    },
+    {
+     "buff": "syn-546"
+    }
+   ],
+   "oneShot": true,
+   "discardWhenConsumed": true
+  }
+ ],
+ "subtypes": [
+  {
+   "name": "syn-547",
+   "type": "syn-548",
+   "effectsPerMicroScu": [
+    {
+     "kind": "syn-549",
+     "statType": "syn-550",
+     "statPointChange": 4.25,
+     "statCooldownChange": 4.5
+    },
+    {
+     "kind": "syn-553",
+     "buffType": "syn-554"
+    },
+    {
+     "kind": "syn-555",
+     "buffType": "syn-556"
+    }
+   ]
+  },
+  {
+   "name": "syn-557",
+   "type": "syn-558",
+   "effectsPerMicroScu": [
+    {
+     "kind": "syn-559",
+     "statType": "syn-560",
+     "statPointChange": 6.75,
+     "statCooldownChange": 7.0
+    },
+    {
+     "kind": "syn-563",
+     "buffType": "syn-564"
+    },
+    {
+     "kind": "syn-565",
+     "buffType": "syn-566"
+    }
+   ]
+  },
+  {
+   "name": "syn-567",
+   "type": "syn-568",
+   "effectsPerMicroScu": [
+    {
+     "kind": "syn-569",
+     "statType": "syn-570",
+     "statPointChange": 9.25,
+     "statCooldownChange": 9.5
+    },
+    {
+     "kind": "syn-573",
+     "buffType": "syn-574"
+    },
+    {
+     "kind": "syn-575",
+     "buffType": "syn-576"
+    }
+   ]
+  }
+ ],
+ "byContentType": {
+  "key0": 92,
+  "key1": 93,
+  "key2": 94,
+  "key3": 95
+ },
+ "summary": {
+  "consumables": 96,
+  "subtypes": 0
+ }
+}

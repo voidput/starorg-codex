@@ -1,0 +1,40 @@
+{
+ "_source": "syn-4352",
+ "_fetched": "syn-4353",
+ "prices": [
+  {
+   "item_name": "syn-4354",
+   "item_uuid": "syn-4355",
+   "id_item": 88,
+   "id_category": 89,
+   "terminal_name": "syn-4358",
+   "id_terminal": 91,
+   "price_buy": 92,
+   "date_modified": 93
+  },
+  {
+   "item_name": "syn-4362",
+   "item_uuid": "syn-4363",
+   "id_item": 96,
+   "id_category": 0,
+   "terminal_name": "syn-4366",
+   "id_terminal": 2,
+   "price_buy": 3,
+   "date_modified": 4
+  },
+  {
+   "item_name": "syn-4370",
+   "item_uuid": "syn-4371",
+   "id_item": 7,
+   "id_category": 8,
+   "terminal_name": "syn-4374",
+   "id_terminal": 10,
+   "price_buy": 11,
+   "date_modified": 12
+  }
+ ],
+ "summary": {
+  "prices": 13,
+  "items": 14
+ }
+}

@@ -1,0 +1,431 @@
+{
+ "_source": "syn-901",
+ "_extracted": "syn-902",
+ "_build": "syn-903",
+ "tables": [
+  {
+   "name": "syn-904",
+   "recordName": "syn-905",
+   "version": "syn-906",
+   "lootArchetypes": [
+    {
+     "archetype": "syn-907",
+     "weight": 35,
+     "numberOfResultsConstraints": {
+      "minResults": 36,
+      "maxResults": 37
+     }
+    }
+   ]
+  },
+  {
+   "name": "syn-911",
+   "recordName": "syn-912",
+   "version": "syn-913",
+   "lootArchetypes": [
+    {
+     "archetype": "syn-914",
+     "weight": 6.25,
+     "numberOfResultsConstraints": {
+      "minResults": 43,
+      "maxResults": 44
+     }
+    },
+    {
+     "archetype": "syn-918",
+     "weight": 7.25,
+     "numberOfResultsConstraints": {
+      "minResults": 47,
+      "maxResults": 48
+     }
+    },
+    {
+     "archetype": "syn-922",
+     "weight": 8.25,
+     "numberOfResultsConstraints": {
+      "minResults": 51,
+      "maxResults": 52
+     }
+    }
+   ]
+  },
+  {
+   "name": "syn-926",
+   "recordName": "syn-927",
+   "version": "syn-928",
+   "lootArchetypes": [
+    {
+     "archetype": "syn-929",
+     "weight": 57,
+     "numberOfResultsConstraints": {
+      "minResults": 58,
+      "maxResults": 59
+     }
+    },
+    {
+     "archetype": "syn-933",
+     "weight": 11.0,
+     "numberOfResultsConstraints": {
+      "minResults": 62,
+      "maxResults": 63
+     }
+    }
+   ]
+  }
+ ],
+ "archetypes": [
+  {
+   "name": "syn-937",
+   "recordName": "syn-938",
+   "version": "syn-939",
+   "excludedTags": {
+    "tags": [
+     "syn-940"
+    ]
+   },
+   "primaryOrGroup": {
+    "entries": [
+     {
+      "name": "syn-941",
+      "tag": "syn-942",
+      "weight": 70
+     }
+    ]
+   }
+  },
+  {
+   "name": "syn-944",
+   "recordName": "syn-945",
+   "version": "syn-946",
+   "excludedTags": {
+    "tags": [
+     "syn-947"
+    ]
+   },
+   "primaryOrGroup": {
+    "entries": [
+     {
+      "name": "syn-948",
+      "tag": "syn-949",
+      "weight": 77,
+      "optionalData": [
+       {
+        "min": 78,
+        "max": 79
+       }
+      ]
+     },
+     {
+      "name": "syn-953",
+      "tag": "syn-954",
+      "weight": 82,
+      "optionalData": [
+       {
+        "min": 83,
+        "max": 84
+       }
+      ]
+     }
+    ]
+   }
+  },
+  {
+   "name": "syn-958",
+   "recordName": "syn-959",
+   "version": "syn-960",
+   "excludedTags": {
+    "tags": [
+     "syn-961",
+     "syn-962",
+     "syn-963"
+    ]
+   },
+   "primaryOrGroup": {
+    "entries": [
+     {
+      "name": "syn-964",
+      "tag": "syn-965",
+      "weight": 93,
+      "optionalData": [
+       {
+        "min": 94,
+        "max": 95
+       }
+      ]
+     }
+    ]
+   },
+   "secondaryOrGroups": [
+    {
+     "groupName": "syn-969",
+     "entries": [
+      {
+       "tag": "syn-970",
+       "weight": 1
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "secondaryChoices": [
+  {
+   "name": "syn-972",
+   "recordName": "syn-973",
+   "choices": [
+    {
+     "name": "syn-974",
+     "weight": 5,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-976",
+        "syn-977"
+       ]
+      }
+     }
+    },
+    {
+     "name": "syn-978",
+     "weight": 0.0,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-980"
+       ]
+      }
+     }
+    },
+    {
+     "name": "syn-981",
+     "weight": 12,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-983",
+        "syn-984"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "syn-985",
+   "recordName": "syn-986",
+   "choices": [
+    {
+     "name": "syn-987",
+     "weight": 18,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-989",
+        "syn-990"
+       ]
+      }
+     }
+    },
+    {
+     "name": "syn-991",
+     "weight": 3.25,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-993"
+       ]
+      }
+     }
+    },
+    {
+     "name": "syn-994",
+     "weight": 25,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-996",
+        "syn-997"
+       ]
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "syn-998",
+   "recordName": "syn-999",
+   "choices": [
+    {
+     "name": "syn-1000",
+     "weight": 31,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-1002",
+        "syn-1003"
+       ]
+      }
+     }
+    },
+    {
+     "name": "syn-1004",
+     "weight": 6.5,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-1006"
+       ]
+      }
+     }
+    },
+    {
+     "name": "syn-1007",
+     "weight": 38,
+     "selector": {
+      "tags": {
+       "positiveTags": [
+        "syn-1009",
+        "syn-1010"
+       ]
+      }
+     }
+    }
+   ]
+  }
+ ],
+ "filters": [
+  {
+   "name": "syn-1011",
+   "recordName": "syn-1012",
+   "filter": {
+    "filters": [
+     {
+      "name": "syn-1013",
+      "mode": "syn-1014",
+      "filter": {
+       "filterRecord": "syn-1015"
+      }
+     },
+     {
+      "name": "syn-1016",
+      "mode": "syn-1017",
+      "filter": {
+       "filterRecord": "syn-1018"
+      }
+     },
+     {
+      "name": "syn-1019",
+      "mode": "syn-1020",
+      "filter": {
+       "tagFilter": {
+        "positiveTags": [
+         "syn-1021"
+        ],
+        "negativeTags": [
+         "syn-1022"
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "name": "syn-1023",
+   "recordName": "syn-1024",
+   "filter": {
+    "filters": [
+     {
+      "name": "syn-1025",
+      "mode": "syn-1026",
+      "filter": {
+       "filterRecord": "syn-1027"
+      }
+     },
+     {
+      "name": "syn-1028",
+      "mode": "syn-1029",
+      "filter": {
+       "filterRecord": "syn-1030"
+      }
+     },
+     {
+      "name": "syn-1031",
+      "mode": "syn-1032",
+      "filter": {
+       "tagFilter": {
+        "positiveTags": [
+         "syn-1033"
+        ],
+        "negativeTags": [
+         "syn-1034"
+        ]
+       }
+      }
+     }
+    ]
+   }
+  },
+  {
+   "name": "syn-1035",
+   "recordName": "syn-1036",
+   "filter": {
+    "filters": [
+     {
+      "name": "syn-1037",
+      "mode": "syn-1038",
+      "filter": {
+       "filterRecord": "syn-1039"
+      }
+     },
+     {
+      "name": "syn-1040",
+      "mode": "syn-1041",
+      "filter": {
+       "filterRecord": "syn-1042"
+      }
+     },
+     {
+      "name": "syn-1043",
+      "mode": "syn-1044",
+      "filter": {
+       "tagFilter": {
+        "positiveTags": [
+         "syn-1045"
+        ]
+       }
+      }
+     }
+    ]
+   }
+  }
+ ],
+ "specialEvents": [
+  {
+   "eventString": "syn-1046",
+   "probabilityPerContainer": 17.0,
+   "minEntriesPerContainer": 78,
+   "maxEntriesPerContainer": 79,
+   "archetype": "syn-1050"
+  },
+  {
+   "eventString": "syn-1051",
+   "probabilityPerContainer": 18.25,
+   "minEntriesPerContainer": 83,
+   "maxEntriesPerContainer": 84,
+   "archetype": "syn-1055"
+  },
+  {
+   "eventString": "syn-1056",
+   "probabilityPerContainer": 19.5,
+   "minEntriesPerContainer": 88,
+   "maxEntriesPerContainer": 89,
+   "archetype": "syn-1060"
+  }
+ ],
+ "summary": {
+  "tables": 91,
+  "archetypes": 92,
+  "tags": 93
+ }
+}

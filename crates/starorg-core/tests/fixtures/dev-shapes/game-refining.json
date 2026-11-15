@@ -1,0 +1,121 @@
+{
+ "_source": "syn-1469",
+ "_extracted": "syn-1470",
+ "_build": "syn-1471",
+ "processes": [
+  {
+   "name": "syn-1472",
+   "recordName": "syn-1473",
+   "id": "syn-1474",
+   "displayName": "syn-1475",
+   "speed": "syn-1476",
+   "quality": "syn-1477",
+   "description": "syn-1478",
+   "ratings": {
+    "yield": "syn-1479",
+    "cost": "syn-1480",
+    "speed": "syn-1481",
+    "yieldRank": 27,
+    "costRank": 28,
+    "speedRank": 29
+   }
+  },
+  {
+   "name": "syn-1485",
+   "recordName": "syn-1486",
+   "id": "syn-1487",
+   "displayName": "syn-1488",
+   "speed": "syn-1489",
+   "quality": "syn-1490",
+   "description": "syn-1491",
+   "ratings": {
+    "yield": "syn-1492",
+    "cost": "syn-1493",
+    "speed": "syn-1494",
+    "yieldRank": 40,
+    "costRank": 41,
+    "speedRank": 42
+   }
+  },
+  {
+   "name": "syn-1498",
+   "recordName": "syn-1499",
+   "id": "syn-1500",
+   "displayName": "syn-1501",
+   "speed": "syn-1502",
+   "quality": "syn-1503",
+   "description": "syn-1504",
+   "ratings": {
+    "yield": "syn-1505",
+    "cost": "syn-1506",
+    "speed": "syn-1507",
+    "yieldRank": 53,
+    "costRank": 54,
+    "speedRank": 55
+   }
+  }
+ ],
+ "refinables": [
+  {
+   "raw": "syn-1511",
+   "rawDisplayName": "syn-1512",
+   "refined": "syn-1513",
+   "refinedDisplayName": "syn-1514",
+   "rawDescription": "syn-1515",
+   "refinedDescription": "syn-1516",
+   "group": "syn-1517",
+   "rawDensityGramsPerCc": 1.25,
+   "refinedDensityGramsPerCc": 64
+  },
+  {
+   "raw": "syn-1520",
+   "rawDisplayName": "syn-1521",
+   "refined": "syn-1522",
+   "refinedDisplayName": "syn-1523",
+   "rawDescription": "syn-1524",
+   "refinedDescription": "syn-1525",
+   "group": "syn-1526",
+   "rawDensityGramsPerCc": 3.5,
+   "refinedDensityGramsPerCc": 73
+  },
+  {
+   "raw": "syn-1529",
+   "rawDisplayName": "syn-1530",
+   "refined": "syn-1531",
+   "refinedDisplayName": "syn-1532",
+   "rawDescription": "syn-1533",
+   "refinedDescription": "syn-1534",
+   "group": "syn-1535",
+   "rawDensityGramsPerCc": 5.75,
+   "refinedDensityGramsPerCc": 82
+  }
+ ],
+ "workloadTiers": [
+  {
+   "level": "syn-1538",
+   "text": "syn-1539"
+  },
+  {
+   "level": "syn-1540",
+   "text": "syn-1541"
+  },
+  {
+   "level": "syn-1542",
+   "text": "syn-1543"
+  }
+ ],
+ "settings": {
+  "key0": 89,
+  "key1": 90,
+  "key2": [
+   "syn-1546",
+   "syn-1547",
+   "syn-1548"
+  ]
+ },
+ "summary": {
+  "processes": 94,
+  "rated": 95,
+  "refinables": 96
+ }
+}
