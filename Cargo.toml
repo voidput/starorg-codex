@@ -23,6 +23,12 @@ starorg-net = { path = "crates/starorg-net" }
 starbreaker-p4k = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
 starbreaker-datacore = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
 starbreaker-common = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+# Developer mode asset export (addendum 7.16): models, textures, sounds, CryXML. Same rev.
+starbreaker-3d = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+starbreaker-dds = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+starbreaker-wem = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+starbreaker-wwise = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
+starbreaker-cryxml = { git = "https://github.com/voidput/StarBreaker", rev = "041e559215e18e1b13b124cab0e3ecb0f3aa50d4" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"

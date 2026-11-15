@@ -12,6 +12,15 @@ publish.workspace = true
 [dependencies]
 starbreaker-p4k.workspace = true
 starbreaker-datacore.workspace = true
+# Asset worker (addendum 7.16): entity -> GLB, DDS -> PNG, WEM -> Ogg, Wwise triggers, CryXML.
+starbreaker-3d.workspace = true
+starbreaker-dds.workspace = true
+starbreaker-wem.workspace = true
+starbreaker-wwise.workspace = true
+starbreaker-cryxml.workspace = true
+starbreaker-common.workspace = true
+# GLB -> STL for the print-shell preset (already in the tree through starbreaker-3d).
+gltf = { version = "1", default-features = false, features = ["utils"] }
 thiserror.workspace = true
 starorg-core.workspace = true
 serde.workspace = true

@@ -42,6 +42,12 @@ impl Archive {
             .map_err(|e| ArchiveError::Open(e.to_string()))
     }
 
+    /// The StarBreaker archive itself, for the asset worker ([`crate::assets`]), which keeps
+    /// the index open while it serves requests.
+    pub fn into_mapped(self) -> starbreaker_p4k::MappedP4k {
+        self.inner
+    }
+
     /// Number of entries StarBreaker parsed from the central directory.
     pub fn parsed_entries(&self) -> usize {
         self.inner.len()
@@ -383,7 +389,9 @@ mod tests {
             .lines()
             .filter(|l| l.starts_with("starbreaker-"))
             .collect();
-        assert_eq!(pins.len(), 3, "three StarBreaker crates are pinned");
+        // p4k, datacore, common; and the asset export crates (addendum 7.16): 3d, dds, wem,
+        // wwise, cryxml.
+        assert_eq!(pins.len(), 8, "eight StarBreaker crates are pinned");
         for line in pins {
             assert!(
                 line.contains("https://github.com/voidput/StarBreaker"),
