@@ -65,7 +65,8 @@
           "path": "app/package-lock.json",
           "jsonpath": "$.packages[''].version"
         }
-      ]
+      ],
+      "release-as": "0.0.2"
     }
   }
 }
