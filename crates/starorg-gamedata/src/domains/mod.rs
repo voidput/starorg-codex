@@ -32,7 +32,7 @@ macro_rules! registry {
 }
 
 registry! {
-    // ammo, // ammo.ts
+    ammo, // ammo.ts
 
     // armor, // armor.ts
 
