@@ -20,6 +20,7 @@ pub mod fsutil;
 pub mod groups;
 pub mod hooks;
 pub mod ini;
+pub mod legacy;
 pub mod lock;
 pub mod memlimit;
 pub mod merge;
