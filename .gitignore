@@ -1,0 +1,6 @@
+.tmp/
+tmp/
+target/
+node_modules/
+dist/
+.env
