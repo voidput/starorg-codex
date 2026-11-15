@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** Review with jump-to-edit (spec 9.4 step 5): target path and link target, counts, backup location, the user.cfg line. */
+  /** Review with jump-to-edit (spec 9.4 step 5): target path and link target, counts, backup location, the user.cfg line, and the Preferences. */
   import Pencil from '@lucide/svelte/icons/pencil';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import { Button } from '@/components/ui/button';
@@ -9,7 +9,9 @@
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { InstallSummary, SetupPlan } from '@/lib/contract/types';
   import { int } from '@/lib/format';
-  import { request, type Draft, type StepId } from './draft.svelte';
+  import { updates } from '@/lib/stores/update.svelte';
+  import { storeManaged } from '@/lib/update';
+  import { prefsSummary, request, type Draft, type StepId } from './draft.svelte';
 
   let { draft, install, onedit }: { draft: Draft; install: InstallSummary; onedit: (s: StepId) => void } = $props();
 
@@ -30,6 +32,7 @@
   });
 
   const picked = $derived(install.channels.filter((c) => draft.channels[c.channel]?.consent));
+  const prefRows = $derived(draft.prefs ? prefsSummary(draft.prefs, storeManaged(updates.status)) : []);
   const presetName = $derived({ recommended: 'Recommended', minimal: 'Minimal', everything: 'Everything' }[draft.preset]);
   import PathText from '@/components/common/PathText.svelte';
 </script>
@@ -62,6 +65,13 @@
     <dd>{presetName}{draft.fix_known_bugs ? ', with text fixes' : ', no text fixes'}</dd>
     {@render edit('enhancements', 'enhancements')}
   </div>
+  {#each prefRows as row, i (row.label)}
+    <div class="grid grid-cols-[9rem_1fr_auto] items-start gap-3 px-3 py-2">
+      <dt class="text-muted-foreground">{row.label}</dt>
+      <dd>{row.value}</dd>
+      {#if i === 0}{@render edit('prefs', 'preferences')}{:else}<span></span>{/if}
+    </div>
+  {/each}
 </dl>
 
 <section aria-labelledby="writes-title" class="grid gap-2">
