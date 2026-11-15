@@ -149,6 +149,18 @@ in memory until it exits, so its memory grows with the channels and datasets ask
 few hundred MB for LIVE, PTU and HOTFIX). The pruning (`Domain::prune`) keeps the extracted datasets
 byte-identical (`scripts/compare-gamedata.sh`).
 
+### Memory limit
+
+Each extraction worker is held to the memory limit (Settings > Advanced > Memory limit in the
+app; `starorg-strings mcp --memory-limit <GB>` or `STARORG_MEMORY_LIMIT_GB` on the command line;
+default the app's setting, else 5 GB or half the RAM; `0` = none). A dataset whose measured peak
+(table above) is over the limit, or over the memory free at that moment, is refused before a
+worker starts, as a tool error: "Extracting game-ships needs about 4.1 GB, more than the 1.5 GB
+memory limit. Raise the limit ...". A worker that grows past 90% of the limit stops itself with
+"Stopped: needed more than X GB ..."; a hard cap (`RLIMIT_DATA` on Linux) sits 10% (at least
+512 MB) above as a last resort. The server process itself is not limited. Turning the server on
+in the app shows these numbers first. Details: addendum 7.17.
+
 ## Security and privacy
 
 - Read-only: no tool writes game files, settings or the owned-blueprint store. The only writes

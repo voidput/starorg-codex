@@ -33,6 +33,10 @@ no crash upload and no account of its own.**
   (`<cache>/assets`, or a `StarOrg Codex asset cache` subfolder of a folder you choose in
   Settings -> Advanced; 2 GB at most; only its own files are ever removed) that
   "Clear" empties. These are Cloud Imperium's assets: for your own use, not to redistribute.
+- The memory limit of the Developer mode and MCP workers (Settings -> Advanced -> Memory limit,
+  `[dev] memory_limit_gb` in `config.toml`) reads this computer's total and free RAM locally
+  (`/proc/meminfo` on Linux, the system's memory status on Windows) to show it next to the slider
+  and in the warning before Developer mode or the MCP server is turned on. It is not sent anywhere.
 
 ## Network
 
