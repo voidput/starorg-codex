@@ -615,7 +615,10 @@ mod tests {
         let r = ensure(d.path(), &mut s).unwrap().unwrap();
         assert!(!r.changed() && r.backup.is_none());
         s.save(d.path()).unwrap();
-        assert!(!crate::blueprints::dir(d.path()).exists(), "nothing written");
+        assert!(
+            !crate::blueprints::dir(d.path()).exists(),
+            "nothing written"
+        );
     }
 
     #[test]

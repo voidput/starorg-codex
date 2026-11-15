@@ -4,10 +4,12 @@
 //!
 //! | File | Content |
 //! |---|---|
-//! | `characters.json` | Characters seen in this channel's logs, keyed by `geid` |
+//! | `characters.json` | Characters seen in this channel's logs, keyed by `geid`; merged ids (`aliases`) and the store repair version |
 //! | `<geid>.json` | That character's owned set |
 //! | `unattributed.json` | Blueprints seen before any login line in their log file |
 //! | `scan.json` | Per log file: size, mtime, head hash, offset, character at the offset |
+//! | `import.json` | The last Smart Citizen export imported (path), for a re-import |
+//! | `backups/<time>-<reason>/` | Copies of the JSON files above, taken before a merge, the one-time repair or a re-scan; never removed automatically |
 //!
 //! `geid`, `accountId` and handles are personal data: they stay in these files and in the
 //! user's own terminal, are never uploaded, and are redacted in `doctor`.

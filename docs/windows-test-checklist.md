@@ -97,6 +97,11 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
 - [ ] Backups lists that file as from another tool (Smart Citizen).
 - [ ] Remove (or restore that backup): Smart Citizen's file is back byte for byte (Smart Citizen
       still works in game).
+- [ ] Blueprints -> Import from Smart Citizen: the file picker opens once (Confirm reuses the
+      file), and the character list shows each of your characters once.
+- [ ] Blueprints -> Fix owned blueprints -> Re-scan game logs and Re-import from Smart Citizen:
+      each shows what changes before Confirm. After Confirm, Overview offers a re-apply ("owned
+      blueprints"), and missions list blueprints you own with [Owned].
 
 ## 9. Odds and ends
 
