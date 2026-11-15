@@ -14,6 +14,7 @@ use starorg_core::dev::diff::{self, TableDiff};
 use starorg_core::dev::explorer::{Entry, ExplorerIndex, MAX_PAGE};
 use starorg_core::dev::readable::{self, KnownRecord, LabelKind, MapLookup};
 use starorg_core::dev::record;
+use starorg_core::dev::sections::{Facts, SectionIndex};
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
@@ -62,10 +63,869 @@ fn reference(guid: String, name: String, ty: &str, path: String) -> Value {
     json!({ record::REF_KEY: guid, "name": name, "type": ty, "path": path })
 }
 
-/// The synthetic DataCore: index entries and record values (same order).
+/// The synthetic DataCore: index entries and record values (same order), and what the
+/// section index knows about them (7.17).
 pub struct MockCore {
     pub index: ExplorerIndex,
     pub values: Vec<Value>,
+    pub facts: Vec<Option<Facts>>,
+    pub sections: SectionIndex,
+}
+
+/// The item catalogue (7.17): synthetic records spread over the sections, so the item
+/// finder has something to show. (struct type, item type, sub-type, size, maker, display
+/// name, folder below the records root, grade, class, model, sounds). No CIG data.
+type CatRow = (
+    &'static str,
+    &'static str,
+    &'static str,
+    i64,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    &'static str,
+    bool,
+    bool,
+);
+const E: &str = "EntityClassDefinition";
+pub const CATALOGUE: &[CatRow] = &[
+    (
+        E,
+        "NOITEM_Vehicle",
+        "Vehicle_Spaceship",
+        1,
+        "SYNA",
+        "Alpha Sparrow",
+        "entities/spaceships",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "NOITEM_Vehicle",
+        "Vehicle_Spaceship",
+        2,
+        "SYNA",
+        "Alpha Kestrel",
+        "entities/spaceships",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "NOITEM_Vehicle",
+        "Vehicle_Spaceship",
+        3,
+        "SYNB",
+        "Beta Hauler",
+        "entities/spaceships",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "NOITEM_Vehicle",
+        "Vehicle_Spaceship",
+        4,
+        "SYNC",
+        "Gamma Carrier",
+        "entities/spaceships",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "NOITEM_Vehicle",
+        "Vehicle_Spaceship",
+        2,
+        "SYNA",
+        "Alpha Kestrel PU AI CIV",
+        "entities/spaceships",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "NOITEM_Vehicle",
+        "Vehicle_Spaceship",
+        3,
+        "SYNB",
+        "Beta Hauler Template",
+        "entities/spaceships",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        E,
+        "NOITEM_Vehicle",
+        "Vehicle_GroundVehicle",
+        1,
+        "SYNB",
+        "Beta Rover",
+        "entities/groundvehicles",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "Paints",
+        "UNDEFINED",
+        1,
+        "SYNA",
+        "Kestrel Ember Livery",
+        "entities/scitem/ships/paints",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "WeaponGun",
+        "Gun",
+        1,
+        "SYNA",
+        "Ember Repeater S1",
+        "entities/scitem/ships/weapons",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "WeaponGun",
+        "Gun",
+        2,
+        "SYNA",
+        "Ember Repeater S2",
+        "entities/scitem/ships/weapons",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "WeaponGun",
+        "Gun",
+        3,
+        "SYNB",
+        "Torrent Cannon S3",
+        "entities/scitem/ships/weapons",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "WeaponGun",
+        "Rocket",
+        4,
+        "SYNC",
+        "Breaker Scattergun S4",
+        "entities/scitem/ships/weapons",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "WeaponDefensive",
+        "CountermeasureLauncher",
+        1,
+        "SYNB",
+        "Chaff Launcher",
+        "entities/scitem/ships/countermeasures",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Cooler",
+        "UNDEFINED",
+        1,
+        "SYNA",
+        "Frost Cooler",
+        "entities/scitem/ships/cooler",
+        "C",
+        "Military",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Cooler",
+        "UNDEFINED",
+        2,
+        "SYNB",
+        "Glacier Cooler",
+        "entities/scitem/ships/cooler",
+        "A",
+        "Civilian",
+        true,
+        false,
+    ),
+    (
+        E,
+        "PowerPlant",
+        "Power",
+        1,
+        "SYNA",
+        "Spark Power Plant",
+        "entities/scitem/ships/powerplant",
+        "B",
+        "Industrial",
+        true,
+        true,
+    ),
+    (
+        E,
+        "PowerPlant",
+        "Power",
+        2,
+        "SYNC",
+        "Dynamo Power Plant",
+        "entities/scitem/ships/powerplant",
+        "D",
+        "Civilian",
+        true,
+        true,
+    ),
+    (
+        E,
+        "Shield",
+        "UNDEFINED",
+        1,
+        "SYNB",
+        "Aegis Shell Shield",
+        "entities/scitem/ships/shieldgenerator",
+        "A",
+        "Military",
+        true,
+        true,
+    ),
+    (
+        E,
+        "Shield",
+        "UNDEFINED",
+        3,
+        "SYNC",
+        "Bastion Shield",
+        "entities/scitem/ships/shieldgenerator",
+        "C",
+        "Stealth",
+        true,
+        true,
+    ),
+    (
+        E,
+        "QuantumDrive",
+        "UNDEFINED",
+        1,
+        "SYNA",
+        "Leap Quantum Drive",
+        "entities/scitem/ships/quantumdrive",
+        "B",
+        "Competition",
+        true,
+        true,
+    ),
+    (
+        E,
+        "QuantumDrive",
+        "UNDEFINED",
+        2,
+        "SYNB",
+        "Vault Quantum Drive",
+        "entities/scitem/ships/quantumdrive",
+        "C",
+        "Civilian",
+        true,
+        true,
+    ),
+    (
+        E,
+        "QuantumDrive",
+        "UNDEFINED",
+        1,
+        "SYNA",
+        "Leap Quantum Drive Template",
+        "entities/scitem/ships/quantumdrive",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        E,
+        "Missile",
+        "Missile",
+        1,
+        "SYNC",
+        "Wasp Missile",
+        "entities/scitem/ships/missiles",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "Missile",
+        "Torpedo",
+        3,
+        "SYNC",
+        "Hammer Torpedo",
+        "entities/scitem/ships/missiles",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "MissileLauncher",
+        "MissileRack",
+        2,
+        "SYNB",
+        "Quiver Missile Rack",
+        "entities/scitem/ships/missileracks",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "WeaponPersonal",
+        "Medium",
+        2,
+        "SYNA",
+        "Viper Rifle",
+        "entities/scitem/weapons/fps_weapons",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "WeaponPersonal",
+        "Small",
+        1,
+        "SYNB",
+        "Hornet Pistol",
+        "entities/scitem/weapons/fps_weapons",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "WeaponPersonal",
+        "Large",
+        3,
+        "SYNC",
+        "Thumper Launcher",
+        "entities/scitem/weapons/fps_weapons",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "Gadget",
+        "Gadget",
+        1,
+        "SYNB",
+        "Tracker Gadget",
+        "entities/scitem/weapons/gadgets",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Char_Armor_Helmet",
+        "UNDEFINED",
+        1,
+        "SYNA",
+        "Sentinel Helmet",
+        "entities/scitem/characters/human/armor",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Char_Armor_Torso",
+        "UNDEFINED",
+        1,
+        "SYNA",
+        "Sentinel Core",
+        "entities/scitem/characters/human/armor",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Char_Clothing_Feet",
+        "UNDEFINED",
+        1,
+        "SYNC",
+        "Trail Boots",
+        "entities/scitem/characters/human/clothing",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "WeaponAttachment",
+        "Barrel",
+        1,
+        "SYNA",
+        "Hush Suppressor",
+        "entities/scitem/weapons/attachments",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "WeaponAttachment",
+        "IronSight",
+        2,
+        "SYNB",
+        "Clear Scope 4x",
+        "entities/scitem/weapons/attachments",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "WeaponAttachment",
+        "Magazine",
+        1,
+        "SYNA",
+        "Viper Magazine",
+        "entities/scitem/weapons/attachments",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Food",
+        "Bar",
+        1,
+        "",
+        "Ration Bar",
+        "entities/scitem/consumables/food",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Drink",
+        "Can",
+        1,
+        "",
+        "Fizz Can",
+        "entities/scitem/consumables/drink",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "FPS_Consumable",
+        "Medical",
+        1,
+        "SYNB",
+        "Mend Pen",
+        "entities/scitem/consumables/medical",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "WeaponMining",
+        "Gun",
+        1,
+        "SYNC",
+        "Drill Head S1",
+        "entities/scitem/ships/mining",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "MiningModifier",
+        "Gun",
+        1,
+        "SYNC",
+        "Focus Module",
+        "entities/scitem/ships/mining",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Cargo",
+        "UNDEFINED",
+        1,
+        "",
+        "Copper Crate",
+        "entities/commodities/metals",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "ShopDisplay",
+        "UNDEFINED",
+        1,
+        "",
+        "Rifle Rack Display",
+        "entities/scitem/shopdisplays",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "NOITEM_Player",
+        "UNDEFINED",
+        1,
+        "",
+        "Player Body",
+        "entities/scitem/characters/human/body",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "",
+        "",
+        0,
+        "",
+        "Guard NPC 01",
+        "actor/actors/npc_archetypes/guards",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        E,
+        "Usable",
+        "UNDEFINED",
+        1,
+        "",
+        "Bench Seat",
+        "entities/scitem/usables",
+        "",
+        "",
+        true,
+        false,
+    ),
+    (
+        E,
+        "Door",
+        "UNDEFINED",
+        1,
+        "",
+        "Hangar Door",
+        "entities/scitem/doors",
+        "",
+        "",
+        true,
+        true,
+    ),
+    (
+        "ContractGenerator",
+        "",
+        "",
+        0,
+        "",
+        "Delivery Contracts",
+        "contracts/contractgenerator",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "MissionBrokerEntry",
+        "",
+        "",
+        0,
+        "",
+        "Salvage Run",
+        "missionbroker/pu_missions",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "StarMapObject",
+        "",
+        "",
+        0,
+        "",
+        "Synthetic Moon",
+        "starmap/pu/system",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "StarMapObject",
+        "",
+        "",
+        0,
+        "",
+        "Synthetic Station",
+        "starmap/pu/system",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "CraftingBlueprintRecord",
+        "",
+        "",
+        0,
+        "",
+        "BP Viper Rifle",
+        "crafting/blueprints/weapons",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "SCItemManufacturer",
+        "",
+        "",
+        0,
+        "",
+        "Alpha Synthetics Maker",
+        "scitemmanufacturer",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "FactionReputation",
+        "",
+        "",
+        0,
+        "",
+        "Courier Guild",
+        "reputation/factions",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "LoadoutKit",
+        "",
+        "",
+        0,
+        "",
+        "Guard Kit",
+        "loadoutkits/guards",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "ShopFranchise",
+        "",
+        "",
+        0,
+        "",
+        "Rifle Store",
+        "franchises",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "BuildingBlocks_Canvas",
+        "",
+        "",
+        0,
+        "",
+        "Hud Canvas",
+        "ui/hud",
+        "",
+        "",
+        false,
+        false,
+    ),
+    (
+        "AmmoParams",
+        "",
+        "",
+        0,
+        "",
+        "Ember Rounds",
+        "ammoparams/vehicle",
+        "",
+        "",
+        false,
+        false,
+    ),
+];
+
+pub fn catalogue_guid(n: usize) -> String {
+    format!("54000000-0000-4000-8000-{n:012x}")
+}
+
+/// The record name of catalogue row `n`: `SYN_Alpha_Kestrel_PU_AI_CIV`.
+pub fn catalogue_name(n: usize) -> String {
+    format!("SYN_{}", CATALOGUE[n].5.replace([' ', '-'], "_"))
+}
+
+/// Synthetic headline stats of the catalogue (the real backend reads them from GameData).
+pub fn catalogue_stats() -> HashMap<String, Vec<Stat>> {
+    let st = |key: &str, label: &str, value: f64, unit: Option<&str>| Stat {
+        key: key.into(),
+        label: label.into(),
+        value,
+        unit: unit.map(str::to_string),
+    };
+    CATALOGUE
+        .iter()
+        .enumerate()
+        .filter_map(|(n, r)| {
+            let k = n as f64;
+            let v = match r.1 {
+                "NOITEM_Vehicle" => vec![
+                    st("size", "Size", r.3 as f64, None),
+                    st("crew", "Crew", (r.3 as f64).max(1.0), None),
+                    st("cargo", "Cargo", r.3 as f64 * 16.0, Some("SCU")),
+                    st("scm", "SCM", 240.0 - r.3 as f64 * 30.0, Some("m/s")),
+                ],
+                "WeaponGun" | "WeaponPersonal" => vec![
+                    st("dps", "DPS", 120.0 + k * 11.5, None),
+                    st("range", "Range", 1500.0 + k * 50.0, Some("m")),
+                ],
+                "Cooler" | "PowerPlant" | "Shield" | "QuantumDrive" => vec![
+                    st("power", "Power", 10.0 + k, None),
+                    st("health", "Health", 500.0 + k * 25.0, Some("HP")),
+                ],
+                "Missile" => vec![st("damage", "Damage", 1000.0 + k * 100.0, None)],
+                _ => return None,
+            };
+            Some((catalogue_guid(n), v))
+        })
+        .collect()
+}
+
+/// Archive files the catalogue's models are (for "Open owning record").
+pub fn catalogue_geometry(n: usize) -> Option<String> {
+    (CATALOGUE[n].0 == E && CATALOGUE[n].9).then(|| {
+        format!(
+            "Data\\Objects\\syn\\{}.cga",
+            catalogue_name(n).to_lowercase()
+        )
+    })
+}
+
+fn catalogue_facts(r: &CatRow) -> Option<Facts> {
+    let some = |s: &str| (!s.is_empty()).then(|| s.to_string());
+    (r.0 == E).then(|| Facts {
+        item_type: some(r.1),
+        sub_type: some(r.2),
+        size: (r.3 > 0).then_some(r.3),
+        manufacturer: some(r.4),
+        display: some(r.5),
+        grade: some(r.7),
+        class: some(r.8),
+        model: r.9,
+        sounds: r.10,
+    })
+}
+
+/// Records the mock marks against another channel (7.17): every third catalogue record
+/// changed, every seventh added, always the same so both mocks agree.
+pub fn catalogue_marks() -> Vec<(String, Change)> {
+    (0..CATALOGUE.len())
+        .filter_map(|n| {
+            let c = if n % 7 == 3 {
+                Change::Added
+            } else if n % 3 == 1 {
+                Change::Changed
+            } else {
+                return None;
+            };
+            Some((catalogue_guid(n), c))
+        })
+        .collect()
+}
+
+/// `manufacturer_Name<CODE>` of the mock's makers.
+pub fn maker_name(code: &str) -> Option<String> {
+    MAKERS
+        .iter()
+        .find(|x| x.0.eq_ignore_ascii_case(code))
+        .map(|x| x.1.to_string())
 }
 
 fn build_core() -> MockCore {
@@ -160,9 +1020,48 @@ fn build_core() -> MockCore {
             "_RecordValue_": { "_Type_": "SynTag", "Label": format!("tag {n}") },
         }));
     }
+    let mut facts: Vec<Option<Facts>> = vec![None; entries.len()];
+    for (n, r) in CATALOGUE.iter().enumerate() {
+        let name = catalogue_name(n);
+        let path = format!("libs/foundry/records/{}/{}.xml", r.6, name.to_lowercase());
+        entries.push(Entry {
+            guid: catalogue_guid(n),
+            name: format!("{}.{name}", r.0),
+            struct_type: r.0.into(),
+            path,
+            main: true,
+            tag: None,
+        });
+        let body = if r.0 == E {
+            json!({
+                "_Type_": E,
+                "Components": [{
+                    "_Type_": "SAttachableComponentParams",
+                    "AttachDef": {
+                        "_Type_": "SItemDefinition",
+                        "Type": r.1, "SubType": r.2, "Size": r.3, "Grade": r.7,
+                        "Manufacturer": r.4,
+                        "Localization": { "Name": r.5 },
+                    },
+                }],
+            })
+        } else {
+            json!({ "_Type_": r.0, "displayName": r.5 })
+        };
+        values.push(json!({
+            "_RecordName_": format!("{}.{name}", r.0),
+            "_RecordId_": catalogue_guid(n),
+            "_RecordValue_": body,
+        }));
+        facts.push(catalogue_facts(r));
+    }
+    let index = ExplorerIndex::new(entries);
+    let sections = SectionIndex::new(&index, &facts, &maker_name);
     MockCore {
-        index: ExplorerIndex::new(entries),
+        index,
         values,
+        facts,
+        sections,
     }
 }
 
@@ -424,6 +1323,8 @@ pub struct DevMock {
     open: Option<(String, String)>,
     folder: bool,
     diff: Option<MockDiff>,
+    /// The channel the explorer is compared with (7.17).
+    compared: Option<DevCompare>,
 }
 
 fn not_found(m: impl Into<String>) -> AppError {
@@ -473,6 +1374,20 @@ impl MockBackend {
             start_ms: open.then_some(840),
             memory: open.then_some(412 * 1024 * 1024),
             error: None,
+            sections: open.then(|| SectionStats {
+                build_ms: 210,
+                scan_ms: 95,
+                bytes: 11 * 1024 * 1024,
+                entities: c.facts.iter().flatten().count() as u32,
+                models: c.facts.iter().flatten().filter(|f| f.model).count() as u32,
+                sounds: c.facts.iter().flatten().filter(|f| f.sounds).count() as u32,
+                verified: true,
+            }),
+            compared: if open {
+                self.dev_state().compared.clone()
+            } else {
+                None
+            },
         }
     }
 
@@ -650,6 +1565,16 @@ impl DevBackend for MockBackend {
 
     fn dev_tree(&self, req: DevTreeRequest) -> CmdResult<TreePage> {
         let c = self.explorer(&req.target)?;
+        if req.root == TreeRoot::Section {
+            return Ok(c.sections.tree(
+                &c.index,
+                &req.node,
+                req.offset as usize,
+                (req.limit as usize).min(MAX_PAGE),
+                req.main_only,
+                req.player_only,
+            ));
+        }
         Ok(c.index.tree(
             req.root,
             &req.node,
@@ -657,6 +1582,84 @@ impl DevBackend for MockBackend {
             (req.limit as usize).min(MAX_PAGE),
             req.main_only,
         ))
+    }
+
+    fn dev_list(&self, req: DevListRequest) -> CmdResult<ListPage> {
+        let c = self.explorer(&req.target)?;
+        let mut q = req.query;
+        q.limit = q.limit.min(MAX_PAGE as u32);
+        let marked = self.dev_state().compared.is_some();
+        let mut page = if marked {
+            let mut si = c.sections.clone();
+            si.set_changes(
+                catalogue_marks()
+                    .into_iter()
+                    .filter_map(|(g, ch)| c.index.by_guid(&g).map(|i| (i, ch))),
+            );
+            si.list(&c.index, &q)
+        } else {
+            c.sections.list(&c.index, &q)
+        };
+        let l = lookup(false);
+        let stats = catalogue_stats();
+        for it in &mut page.items {
+            if it.detail.is_none()
+                && let Some(r) = readable::Lookup::by_guid(&l, &it.guid)
+            {
+                let rd = readable::record_label(&l, &r);
+                if rd.detail.is_some() {
+                    it.detail = rd.detail;
+                    it.label = rd.text;
+                }
+            }
+            if let Some(s) = stats.get(&it.guid) {
+                it.stats = s.clone();
+            }
+        }
+        Ok(page)
+    }
+
+    fn dev_owner(&self, req: DevOwnerRequest) -> CmdResult<Vec<SearchHit>> {
+        let c = self.explorer(&req.target)?;
+        let want = req.path.replace('/', "\\").to_lowercase();
+        Ok((0..CATALOGUE.len())
+            .filter(|n| catalogue_geometry(*n).is_some_and(|g| g.to_lowercase() == want))
+            .filter_map(|n| c.index.by_guid(&catalogue_guid(n)))
+            .filter_map(|i| c.index.entry(i))
+            .map(|e| SearchHit {
+                guid: e.guid.clone(),
+                name: e.name.clone(),
+                struct_type: e.struct_type.clone(),
+                path: e.path.clone(),
+                main: e.main,
+            })
+            .collect())
+    }
+
+    fn dev_compare(&self, req: DevCompareRequest) -> CmdResult<Option<DevCompare>> {
+        self.explorer(&req.target)?;
+        if !req.other.as_deref().is_some_and(|o| {
+            o != req.target.channel
+                && self.has_channel(&ChannelRef {
+                    install: req.target.install.clone(),
+                    channel: o.to_string(),
+                })
+        }) {
+            self.dev_state().compared = None;
+            return Ok(None);
+        }
+        let marks = catalogue_marks();
+        let added = marks.iter().filter(|m| m.1 == Change::Added).count() as u32;
+        let out = DevCompare {
+            other: req.other.unwrap_or_default(),
+            added,
+            changed: marks.len() as u32 - added,
+            removed: 2,
+            marked: marks.len() as u32,
+            ms: 12,
+        };
+        self.dev_state().compared = Some(out.clone());
+        Ok(Some(out))
     }
 
     fn dev_search(&self, req: DevSearchRequest) -> CmdResult<SearchPage> {
@@ -1017,6 +2020,14 @@ pub fn gen_file() -> Value {
         "huge": { "guid": ship_guid(HUGE_SHIP), "ports": HUGE_PORTS },
         "builds": (["LIVE", "PTU", "HOTFIX"].iter().map(|c| (c.to_string(), build_value(c))).collect::<serde_json::Map<_, _>>()),
         "known": known(),
+        "facts": c.facts,
+        // The section table stays in Rust: the TS mock gets each record's section.
+        "sections": {
+            "defs": (starorg_core::dev::sections::rules::SECTIONS.iter().map(|d| json!({ "id": d.id, "label": d.label, "levels": d.levels.iter().map(|l| l.id()).collect::<Vec<_>>() })).collect::<Vec<_>>()),
+            "labels": starorg_core::dev::sections::rules::VALUE_LABELS,
+            "records": ((0..c.index.len()).map(|i| json!([c.sections.section_id(i), c.sections.is_variant(i)])).collect::<Vec<_>>()),
+        },
+        "catalogue": { "stats": catalogue_stats().into_iter().collect::<std::collections::BTreeMap<_, _>>(), "marks": catalogue_marks(), "geometry": ((0..CATALOGUE.len()).filter_map(|n| catalogue_geometry(n).map(|g| json!([g, catalogue_guid(n)]))).collect::<Vec<_>>()) },
         "makers": (MAKERS.iter().map(|(c, n)| (c.to_string(), Value::from(*n))).collect::<serde_json::Map<_, _>>()),
         "enhanced": (enhanced().iter().map(|(k, v)| (k.clone(), Value::from(v.clone()))).collect::<std::collections::BTreeMap<_, _>>()),
         "folder": { "label": FOLDER_LABEL, "path": FOLDER_PATH, "files": (folder_files().into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) },

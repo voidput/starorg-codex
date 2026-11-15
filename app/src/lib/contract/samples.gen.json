@@ -440,6 +440,52 @@
     "mime": "audio/ogg",
     "note": null
   },
+  "asset_sound_search": {
+    "hits": [
+      {
+        "bank": "SYN_Ship_01.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_001_Engine_Loop",
+        "name": "Play_SYN_Ship_001_Engine_Loop"
+      }
+    ],
+    "total": 1
+  },
+  "asset_sound_search_words": {
+    "hits": [
+      {
+        "bank": "SYN_Ship_00.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_000_Door_Open",
+        "name": "Play_SYN_Ship_000_Door_Open"
+      },
+      {
+        "bank": "SYN_Ship_01.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_001_Door_Open",
+        "name": "Play_SYN_Ship_001_Door_Open"
+      },
+      {
+        "bank": "SYN_Ship_02.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_002_Door_Open",
+        "name": "Play_SYN_Ship_002_Door_Open"
+      },
+      {
+        "bank": "SYN_Ship_03.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_003_Door_Open",
+        "name": "Play_SYN_Ship_003_Door_Open"
+      },
+      {
+        "bank": "SYN_Ship_00.bnk",
+        "duration_type": "Infinite",
+        "event": "Play_SYN_Ship_004_Door_Open",
+        "name": "Play_SYN_Ship_004_Door_Open"
+      }
+    ],
+    "total": 40
+  },
   "asset_sounds": {
     "loadout": 1,
     "name": "SYN_Ship_001",
@@ -577,6 +623,34 @@
     "error": null,
     "memory": 954204160,
     "state": "ready"
+  },
+  "asset_trigger": {
+    "bank": "SYN_Ship_01.bnk",
+    "duration_type": "Infinite",
+    "event": "Play_SYN_Ship_001_Engine_Loop",
+    "from": "",
+    "name": "Play_SYN_Ship_001_Engine_Loop",
+    "property": "",
+    "sounds": [
+      {
+        "bank": "SYN_Ship_01.bnk",
+        "detail": "embedded in the bank",
+        "label": "700010",
+        "media_id": 700010,
+        "media_path": null,
+        "playable": true,
+        "source": "embedded"
+      },
+      {
+        "bank": "SYN_Ship_01.bnk",
+        "detail": "embedded in the bank",
+        "label": "700011",
+        "media_id": 700011,
+        "media_path": null,
+        "playable": true,
+        "source": "embedded"
+      }
+    ]
   },
   "backup_now": {
     "build": {
@@ -814,15 +888,26 @@
   "dev_close": {
     "build": "4.10.0-mock",
     "channel": "LIVE",
+    "compared": null,
     "error": null,
     "main": 0,
     "memory": null,
     "records": 0,
+    "sections": null,
     "start_ms": null,
     "started": null,
     "state": "stopped",
     "types": 0
   },
+  "dev_compare": {
+    "added": 8,
+    "changed": 16,
+    "marked": 24,
+    "ms": 12,
+    "other": "PTU",
+    "removed": 2
+  },
+  "dev_compare_clear": null,
   "dev_dataset": {
     "bytes": 6115,
     "facts": [
@@ -1404,18 +1489,2411 @@
     ],
     "total": 10
   },
+  "dev_list": {
+    "facets": {
+      "changes": [],
+      "classes": [
+        {
+          "count": 3,
+          "label": "Civilian",
+          "value": "Civilian"
+        },
+        {
+          "count": 2,
+          "label": "Military",
+          "value": "Military"
+        },
+        {
+          "count": 1,
+          "label": "Competition",
+          "value": "Competition"
+        },
+        {
+          "count": 1,
+          "label": "Industrial",
+          "value": "Industrial"
+        },
+        {
+          "count": 1,
+          "label": "Stealth",
+          "value": "Stealth"
+        }
+      ],
+      "grades": [
+        {
+          "count": 2,
+          "label": "Grade A",
+          "value": "A"
+        },
+        {
+          "count": 2,
+          "label": "Grade B",
+          "value": "B"
+        },
+        {
+          "count": 3,
+          "label": "Grade C",
+          "value": "C"
+        },
+        {
+          "count": 1,
+          "label": "Grade D",
+          "value": "D"
+        }
+      ],
+      "kinds": [
+        {
+          "count": 200,
+          "label": "SynComponent",
+          "value": "SynComponent"
+        },
+        {
+          "count": 40,
+          "label": "SynShip",
+          "value": "SynShip"
+        },
+        {
+          "count": 7,
+          "label": "Vehicles",
+          "value": "NOITEM_Vehicle"
+        },
+        {
+          "count": 4,
+          "label": "Guns",
+          "value": "WeaponGun"
+        },
+        {
+          "count": 3,
+          "label": "Quantum drives",
+          "value": "QuantumDrive"
+        },
+        {
+          "count": 3,
+          "label": "WeaponAttachment",
+          "value": "WeaponAttachment"
+        },
+        {
+          "count": 3,
+          "label": "Weapons",
+          "value": "WeaponPersonal"
+        },
+        {
+          "count": 2,
+          "label": "Coolers",
+          "value": "Cooler"
+        },
+        {
+          "count": 2,
+          "label": "Missiles",
+          "value": "Missile"
+        },
+        {
+          "count": 2,
+          "label": "Power plants",
+          "value": "PowerPlant"
+        },
+        {
+          "count": 2,
+          "label": "Shield generators",
+          "value": "Shield"
+        },
+        {
+          "count": 2,
+          "label": "StarMapObject",
+          "value": "StarMapObject"
+        },
+        {
+          "count": 1,
+          "label": "AmmoParams",
+          "value": "AmmoParams"
+        },
+        {
+          "count": 1,
+          "label": "BuildingBlocks_Canvas",
+          "value": "BuildingBlocks_Canvas"
+        },
+        {
+          "count": 1,
+          "label": "Cargo",
+          "value": "Cargo"
+        },
+        {
+          "count": 1,
+          "label": "ContractGenerator",
+          "value": "ContractGenerator"
+        },
+        {
+          "count": 1,
+          "label": "Countermeasures",
+          "value": "WeaponDefensive"
+        },
+        {
+          "count": 1,
+          "label": "CraftingBlueprintRecord",
+          "value": "CraftingBlueprintRecord"
+        },
+        {
+          "count": 1,
+          "label": "Door",
+          "value": "Door"
+        },
+        {
+          "count": 1,
+          "label": "Drinks",
+          "value": "Drink"
+        },
+        {
+          "count": 1,
+          "label": "EntityClassDefinition",
+          "value": "EntityClassDefinition"
+        },
+        {
+          "count": 1,
+          "label": "FactionReputation",
+          "value": "FactionReputation"
+        },
+        {
+          "count": 1,
+          "label": "Food",
+          "value": "Food"
+        },
+        {
+          "count": 1,
+          "label": "Gadgets",
+          "value": "Gadget"
+        },
+        {
+          "count": 1,
+          "label": "Helmets",
+          "value": "Char_Armor_Helmet"
+        },
+        {
+          "count": 1,
+          "label": "LoadoutKit",
+          "value": "LoadoutKit"
+        },
+        {
+          "count": 1,
+          "label": "Medical & tools",
+          "value": "FPS_Consumable"
+        },
+        {
+          "count": 1,
+          "label": "Mining lasers",
+          "value": "WeaponMining"
+        },
+        {
+          "count": 1,
+          "label": "Mining modules",
+          "value": "MiningModifier"
+        },
+        {
+          "count": 1,
+          "label": "Missile racks",
+          "value": "MissileLauncher"
+        },
+        {
+          "count": 1,
+          "label": "MissionBrokerEntry",
+          "value": "MissionBrokerEntry"
+        },
+        {
+          "count": 1,
+          "label": "Paints",
+          "value": "Paints"
+        },
+        {
+          "count": 1,
+          "label": "Player body parts",
+          "value": "NOITEM_Player"
+        },
+        {
+          "count": 1,
+          "label": "SCItemManufacturer",
+          "value": "SCItemManufacturer"
+        },
+        {
+          "count": 1,
+          "label": "Shoes",
+          "value": "Char_Clothing_Feet"
+        },
+        {
+          "count": 1,
+          "label": "ShopDisplay",
+          "value": "ShopDisplay"
+        },
+        {
+          "count": 1,
+          "label": "ShopFranchise",
+          "value": "ShopFranchise"
+        },
+        {
+          "count": 1,
+          "label": "SynTag",
+          "value": "SynTag"
+        },
+        {
+          "count": 1,
+          "label": "Torso armor",
+          "value": "Char_Armor_Torso"
+        },
+        {
+          "count": 1,
+          "label": "Usable",
+          "value": "Usable"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 15,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        },
+        {
+          "count": 13,
+          "label": "Beta Works (SYNB)",
+          "value": "SYNB"
+        },
+        {
+          "count": 10,
+          "label": "Gamma Test Yards (SYNC)",
+          "value": "SYNC"
+        }
+      ],
+      "model": 44,
+      "player": 294,
+      "sections": [
+        {
+          "count": 8,
+          "label": "Ships & vehicles",
+          "value": "ships"
+        },
+        {
+          "count": 6,
+          "label": "Ship weapons",
+          "value": "ship-weapons"
+        },
+        {
+          "count": 9,
+          "label": "Ship components",
+          "value": "components"
+        },
+        {
+          "count": 3,
+          "label": "Missiles & torpedoes",
+          "value": "missiles"
+        },
+        {
+          "count": 4,
+          "label": "FPS weapons",
+          "value": "fps-weapons"
+        },
+        {
+          "count": 3,
+          "label": "Armor & clothing",
+          "value": "armor"
+        },
+        {
+          "count": 3,
+          "label": "Attachments",
+          "value": "attachments"
+        },
+        {
+          "count": 3,
+          "label": "Consumables & medical",
+          "value": "consumables"
+        },
+        {
+          "count": 2,
+          "label": "Mining & salvage",
+          "value": "mining"
+        },
+        {
+          "count": 1,
+          "label": "Commodities & resources",
+          "value": "commodities"
+        },
+        {
+          "count": 2,
+          "label": "Missions & contracts",
+          "value": "missions"
+        },
+        {
+          "count": 2,
+          "label": "Locations & star map",
+          "value": "locations"
+        },
+        {
+          "count": 2,
+          "label": "Factions & reputation",
+          "value": "factions"
+        },
+        {
+          "count": 1,
+          "label": "Blueprints & crafting",
+          "value": "blueprints"
+        },
+        {
+          "count": 1,
+          "label": "Loadouts & loot",
+          "value": "loadouts"
+        },
+        {
+          "count": 2,
+          "label": "Shops",
+          "value": "shops"
+        },
+        {
+          "count": 2,
+          "label": "Characters & NPCs",
+          "value": "characters"
+        },
+        {
+          "count": 2,
+          "label": "Props & other items",
+          "value": "items"
+        },
+        {
+          "count": 1,
+          "label": "Audio, UI & dialogue",
+          "value": "audio-ui"
+        },
+        {
+          "count": 241,
+          "label": "Other",
+          "value": "other"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 28,
+          "label": "S1",
+          "value": "1"
+        },
+        {
+          "count": 9,
+          "label": "S2",
+          "value": "2"
+        },
+        {
+          "count": 6,
+          "label": "S3",
+          "value": "3"
+        },
+        {
+          "count": 2,
+          "label": "S4",
+          "value": "4"
+        }
+      ],
+      "sounds": 26,
+      "sub_types": [
+        {
+          "count": 16,
+          "label": "UNDEFINED",
+          "value": "UNDEFINED"
+        },
+        {
+          "count": 6,
+          "label": "Spaceships",
+          "value": "Vehicle_Spaceship"
+        },
+        {
+          "count": 5,
+          "label": "Gun",
+          "value": "Gun"
+        },
+        {
+          "count": 2,
+          "label": "Power",
+          "value": "Power"
+        },
+        {
+          "count": 1,
+          "label": "Bar",
+          "value": "Bar"
+        },
+        {
+          "count": 1,
+          "label": "Barrel",
+          "value": "Barrel"
+        },
+        {
+          "count": 1,
+          "label": "Can",
+          "value": "Can"
+        },
+        {
+          "count": 1,
+          "label": "CountermeasureLauncher",
+          "value": "CountermeasureLauncher"
+        },
+        {
+          "count": 1,
+          "label": "Gadgets",
+          "value": "Gadget"
+        },
+        {
+          "count": 1,
+          "label": "Ground vehicles",
+          "value": "Vehicle_GroundVehicle"
+        },
+        {
+          "count": 1,
+          "label": "IronSight",
+          "value": "IronSight"
+        },
+        {
+          "count": 1,
+          "label": "Large",
+          "value": "Large"
+        },
+        {
+          "count": 1,
+          "label": "Magazine",
+          "value": "Magazine"
+        },
+        {
+          "count": 1,
+          "label": "Medical",
+          "value": "Medical"
+        },
+        {
+          "count": 1,
+          "label": "Medium",
+          "value": "Medium"
+        },
+        {
+          "count": 1,
+          "label": "MissileRack",
+          "value": "MissileRack"
+        },
+        {
+          "count": 1,
+          "label": "Missiles",
+          "value": "Missile"
+        },
+        {
+          "count": 1,
+          "label": "Rocket",
+          "value": "Rocket"
+        },
+        {
+          "count": 1,
+          "label": "Small",
+          "value": "Small"
+        },
+        {
+          "count": 1,
+          "label": "Torpedo",
+          "value": "Torpedo"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": null,
+        "class": "Military",
+        "detail": "SYN_Aegis_Shell_Shield",
+        "grade": "A",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000011",
+        "kind": "Shield",
+        "kind_label": "Shield generators",
+        "label": "Aegis Shell Shield",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Aegis_Shell_Shield",
+        "section": "components",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 27.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 925.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000001",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel_PU_AI_CIV",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000004",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel PU AI CIV",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel_PU_AI_CIV",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": true
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Sparrow",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000000",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Sparrow",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Sparrow",
+        "section": "ships",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 16.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 210.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": "Stealth",
+        "detail": "SYN_Bastion_Shield",
+        "grade": "C",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000012",
+        "kind": "Shield",
+        "kind_label": "Shield generators",
+        "label": "Bastion Shield",
+        "main": true,
+        "maker_label": "Gamma Test Yards",
+        "manufacturer": "SYNC",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Bastion_Shield",
+        "section": "components",
+        "size": 3,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 28.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 950.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      }
+    ],
+    "matched": 298,
+    "offset": 0,
+    "title": "",
+    "total": 298,
+    "understood": [],
+    "words": []
+  },
+  "dev_list_changed": {
+    "facets": {
+      "changes": [
+        {
+          "count": 8,
+          "label": "Added",
+          "value": "added"
+        },
+        {
+          "count": 16,
+          "label": "Changed",
+          "value": "changed"
+        }
+      ],
+      "classes": [
+        {
+          "count": 1,
+          "label": "Civilian",
+          "value": "Civilian"
+        },
+        {
+          "count": 1,
+          "label": "Competition",
+          "value": "Competition"
+        },
+        {
+          "count": 1,
+          "label": "Military",
+          "value": "Military"
+        }
+      ],
+      "grades": [
+        {
+          "count": 1,
+          "label": "Grade B",
+          "value": "B"
+        },
+        {
+          "count": 1,
+          "label": "Grade C",
+          "value": "C"
+        },
+        {
+          "count": 1,
+          "label": "Grade D",
+          "value": "D"
+        }
+      ],
+      "kinds": [
+        {
+          "count": 2,
+          "label": "Vehicles",
+          "value": "NOITEM_Vehicle"
+        },
+        {
+          "count": 1,
+          "label": "BuildingBlocks_Canvas",
+          "value": "BuildingBlocks_Canvas"
+        },
+        {
+          "count": 1,
+          "label": "Cargo",
+          "value": "Cargo"
+        },
+        {
+          "count": 1,
+          "label": "ContractGenerator",
+          "value": "ContractGenerator"
+        },
+        {
+          "count": 1,
+          "label": "Coolers",
+          "value": "Cooler"
+        },
+        {
+          "count": 1,
+          "label": "EntityClassDefinition",
+          "value": "EntityClassDefinition"
+        },
+        {
+          "count": 1,
+          "label": "Gadgets",
+          "value": "Gadget"
+        },
+        {
+          "count": 1,
+          "label": "Medical & tools",
+          "value": "FPS_Consumable"
+        },
+        {
+          "count": 1,
+          "label": "Missiles",
+          "value": "Missile"
+        },
+        {
+          "count": 1,
+          "label": "Paints",
+          "value": "Paints"
+        },
+        {
+          "count": 1,
+          "label": "Power plants",
+          "value": "PowerPlant"
+        },
+        {
+          "count": 1,
+          "label": "Quantum drives",
+          "value": "QuantumDrive"
+        },
+        {
+          "count": 1,
+          "label": "StarMapObject",
+          "value": "StarMapObject"
+        },
+        {
+          "count": 1,
+          "label": "WeaponAttachment",
+          "value": "WeaponAttachment"
+        },
+        {
+          "count": 1,
+          "label": "Weapons",
+          "value": "WeaponPersonal"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 7,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        },
+        {
+          "count": 2,
+          "label": "Beta Works (SYNB)",
+          "value": "SYNB"
+        },
+        {
+          "count": 2,
+          "label": "Gamma Test Yards (SYNC)",
+          "value": "SYNC"
+        }
+      ],
+      "model": 13,
+      "player": 14,
+      "sections": [
+        {
+          "count": 3,
+          "label": "Ships & vehicles",
+          "value": "ships"
+        },
+        {
+          "count": 3,
+          "label": "Ship components",
+          "value": "components"
+        },
+        {
+          "count": 1,
+          "label": "Missiles & torpedoes",
+          "value": "missiles"
+        },
+        {
+          "count": 2,
+          "label": "FPS weapons",
+          "value": "fps-weapons"
+        },
+        {
+          "count": 1,
+          "label": "Attachments",
+          "value": "attachments"
+        },
+        {
+          "count": 1,
+          "label": "Consumables & medical",
+          "value": "consumables"
+        },
+        {
+          "count": 1,
+          "label": "Commodities & resources",
+          "value": "commodities"
+        },
+        {
+          "count": 1,
+          "label": "Missions & contracts",
+          "value": "missions"
+        },
+        {
+          "count": 1,
+          "label": "Locations & star map",
+          "value": "locations"
+        },
+        {
+          "count": 1,
+          "label": "Characters & NPCs",
+          "value": "characters"
+        },
+        {
+          "count": 1,
+          "label": "Audio, UI & dialogue",
+          "value": "audio-ui"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 8,
+          "label": "S1",
+          "value": "1"
+        },
+        {
+          "count": 4,
+          "label": "S2",
+          "value": "2"
+        }
+      ],
+      "sounds": 8,
+      "sub_types": [
+        {
+          "count": 4,
+          "label": "UNDEFINED",
+          "value": "UNDEFINED"
+        },
+        {
+          "count": 2,
+          "label": "Spaceships",
+          "value": "Vehicle_Spaceship"
+        },
+        {
+          "count": 1,
+          "label": "Gadgets",
+          "value": "Gadget"
+        },
+        {
+          "count": 1,
+          "label": "Magazine",
+          "value": "Magazine"
+        },
+        {
+          "count": 1,
+          "label": "Medical",
+          "value": "Medical"
+        },
+        {
+          "count": 1,
+          "label": "Medium",
+          "value": "Medium"
+        },
+        {
+          "count": 1,
+          "label": "Missiles",
+          "value": "Missile"
+        },
+        {
+          "count": 1,
+          "label": "Power",
+          "value": "Power"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": "changed",
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000001",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": "changed",
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel_PU_AI_CIV",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000004",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel PU AI CIV",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel_PU_AI_CIV",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": true
+      },
+      {
+        "change": "changed",
+        "class": null,
+        "detail": "SYN_Copper_Crate",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000028",
+        "kind": "Cargo",
+        "kind_label": null,
+        "label": "Copper Crate",
+        "main": true,
+        "maker_label": null,
+        "manufacturer": null,
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Copper_Crate",
+        "section": "commodities",
+        "size": 1,
+        "sounds": false,
+        "stats": [],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": "changed",
+        "class": "Civilian",
+        "detail": "SYN_Dynamo_Power_Plant",
+        "grade": "D",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000010",
+        "kind": "PowerPlant",
+        "kind_label": "Power plants",
+        "label": "Dynamo Power Plant",
+        "main": true,
+        "maker_label": "Gamma Test Yards",
+        "manufacturer": "SYNC",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Dynamo_Power_Plant",
+        "section": "components",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 26.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 900.0
+          }
+        ],
+        "sub_type": "Power",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": "changed",
+        "class": "Military",
+        "detail": "SYN_Frost_Cooler",
+        "grade": "C",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-00000000000d",
+        "kind": "Cooler",
+        "kind_label": "Coolers",
+        "label": "Frost Cooler",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Frost_Cooler",
+        "section": "components",
+        "size": 1,
+        "sounds": false,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 23.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 825.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": "changed",
+        "class": null,
+        "detail": "SYN_Guard_NPC_01",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-00000000002b",
+        "kind": "EntityClassDefinition",
+        "kind_label": null,
+        "label": "Guard NPC 01",
+        "main": true,
+        "maker_label": null,
+        "manufacturer": null,
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Guard_NPC_01",
+        "section": "characters",
+        "size": null,
+        "sounds": true,
+        "stats": [],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": true
+      },
+      {
+        "change": "changed",
+        "class": null,
+        "detail": "SYN_Kestrel_Ember_Livery",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000007",
+        "kind": "Paints",
+        "kind_label": "Paints",
+        "label": "Kestrel Ember Livery",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Kestrel_Ember_Livery",
+        "section": "ships",
+        "size": 1,
+        "sounds": false,
+        "stats": [],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": "changed",
+        "class": "Competition",
+        "detail": "SYN_Leap_Quantum_Drive",
+        "grade": "B",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000013",
+        "kind": "QuantumDrive",
+        "kind_label": "Quantum drives",
+        "label": "Leap Quantum Drive",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Leap_Quantum_Drive",
+        "section": "components",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 29.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 975.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": "changed",
+        "class": null,
+        "detail": "SYN_Mend_Pen",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000025",
+        "kind": "FPS_Consumable",
+        "kind_label": "Medical & tools",
+        "label": "Mend Pen",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Mend_Pen",
+        "section": "consumables",
+        "size": 1,
+        "sounds": true,
+        "stats": [],
+        "sub_type": "Medical",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": "changed",
+        "class": null,
+        "detail": null,
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-00000000002e",
+        "kind": "ContractGenerator",
+        "kind_label": null,
+        "label": "SYN_Delivery_Contracts",
+        "main": true,
+        "maker_label": null,
+        "manufacturer": null,
+        "model": false,
+        "name": "ContractGenerator.SYN_Delivery_Contracts",
+        "section": "missions",
+        "size": null,
+        "sounds": false,
+        "stats": [],
+        "sub_type": null,
+        "tag": null,
+        "type": "ContractGenerator",
+        "variant": false
+      }
+    ],
+    "matched": 16,
+    "offset": 0,
+    "title": "",
+    "total": 16,
+    "understood": [],
+    "words": []
+  },
+  "dev_list_filters": {
+    "facets": {
+      "changes": [],
+      "classes": [
+        {
+          "count": 2,
+          "label": "Military",
+          "value": "Military"
+        },
+        {
+          "count": 1,
+          "label": "Competition",
+          "value": "Competition"
+        },
+        {
+          "count": 1,
+          "label": "Industrial",
+          "value": "Industrial"
+        }
+      ],
+      "grades": [
+        {
+          "count": 1,
+          "label": "Grade A",
+          "value": "A"
+        },
+        {
+          "count": 2,
+          "label": "Grade B",
+          "value": "B"
+        },
+        {
+          "count": 1,
+          "label": "Grade C",
+          "value": "C"
+        }
+      ],
+      "kinds": [
+        {
+          "count": 1,
+          "label": "Coolers",
+          "value": "Cooler"
+        },
+        {
+          "count": 1,
+          "label": "Power plants",
+          "value": "PowerPlant"
+        },
+        {
+          "count": 1,
+          "label": "Quantum drives",
+          "value": "QuantumDrive"
+        },
+        {
+          "count": 1,
+          "label": "Shield generators",
+          "value": "Shield"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 3,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        },
+        {
+          "count": 1,
+          "label": "Beta Works (SYNB)",
+          "value": "SYNB"
+        }
+      ],
+      "model": 4,
+      "player": 4,
+      "sections": [
+        {
+          "count": 3,
+          "label": "Ships & vehicles",
+          "value": "ships"
+        },
+        {
+          "count": 2,
+          "label": "Ship weapons",
+          "value": "ship-weapons"
+        },
+        {
+          "count": 4,
+          "label": "Ship components",
+          "value": "components"
+        },
+        {
+          "count": 1,
+          "label": "Missiles & torpedoes",
+          "value": "missiles"
+        },
+        {
+          "count": 2,
+          "label": "FPS weapons",
+          "value": "fps-weapons"
+        },
+        {
+          "count": 3,
+          "label": "Armor & clothing",
+          "value": "armor"
+        },
+        {
+          "count": 2,
+          "label": "Attachments",
+          "value": "attachments"
+        },
+        {
+          "count": 3,
+          "label": "Consumables & medical",
+          "value": "consumables"
+        },
+        {
+          "count": 2,
+          "label": "Mining & salvage",
+          "value": "mining"
+        },
+        {
+          "count": 1,
+          "label": "Commodities & resources",
+          "value": "commodities"
+        },
+        {
+          "count": 1,
+          "label": "Shops",
+          "value": "shops"
+        },
+        {
+          "count": 1,
+          "label": "Characters & NPCs",
+          "value": "characters"
+        },
+        {
+          "count": 2,
+          "label": "Props & other items",
+          "value": "items"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 4,
+          "label": "S1",
+          "value": "1"
+        },
+        {
+          "count": 3,
+          "label": "S2",
+          "value": "2"
+        },
+        {
+          "count": 1,
+          "label": "S3",
+          "value": "3"
+        }
+      ],
+      "sounds": 3,
+      "sub_types": [
+        {
+          "count": 3,
+          "label": "UNDEFINED",
+          "value": "UNDEFINED"
+        },
+        {
+          "count": 1,
+          "label": "Power",
+          "value": "Power"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": null,
+        "class": "Military",
+        "detail": "SYN_Frost_Cooler",
+        "grade": "C",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-00000000000d",
+        "kind": "Cooler",
+        "kind_label": "Coolers",
+        "label": "Frost Cooler",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Frost_Cooler",
+        "section": "components",
+        "size": 1,
+        "sounds": false,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 23.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 825.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": "Competition",
+        "detail": "SYN_Leap_Quantum_Drive",
+        "grade": "B",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000013",
+        "kind": "QuantumDrive",
+        "kind_label": "Quantum drives",
+        "label": "Leap Quantum Drive",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Leap_Quantum_Drive",
+        "section": "components",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 29.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 975.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": "Industrial",
+        "detail": "SYN_Spark_Power_Plant",
+        "grade": "B",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-00000000000f",
+        "kind": "PowerPlant",
+        "kind_label": "Power plants",
+        "label": "Spark Power Plant",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Spark_Power_Plant",
+        "section": "components",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 25.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 875.0
+          }
+        ],
+        "sub_type": "Power",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": "Military",
+        "detail": "SYN_Aegis_Shell_Shield",
+        "grade": "A",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000011",
+        "kind": "Shield",
+        "kind_label": "Shield generators",
+        "label": "Aegis Shell Shield",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Aegis_Shell_Shield",
+        "section": "components",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 27.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 925.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      }
+    ],
+    "matched": 4,
+    "offset": 0,
+    "title": "",
+    "total": 4,
+    "understood": [],
+    "words": []
+  },
+  "dev_list_grouped": {
+    "facets": {
+      "changes": [],
+      "classes": [],
+      "grades": [],
+      "kinds": [
+        {
+          "count": 2,
+          "label": "Guns",
+          "value": "WeaponGun"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 2,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        }
+      ],
+      "model": 2,
+      "player": 2,
+      "sections": [
+        {
+          "count": 2,
+          "label": "Ship weapons",
+          "value": "ship-weapons"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 1,
+          "label": "S1",
+          "value": "1"
+        },
+        {
+          "count": 1,
+          "label": "S2",
+          "value": "2"
+        }
+      ],
+      "sounds": 2,
+      "sub_types": [
+        {
+          "count": 2,
+          "label": "Gun",
+          "value": "Gun"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [
+      {
+        "collapsed": false,
+        "count": 2,
+        "key": "SYNA",
+        "label": "Alpha Synthetics (SYNA)"
+      }
+    ],
+    "items": [
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Ember_Repeater_S1",
+        "grade": null,
+        "group": "SYNA",
+        "guid": "54000000-0000-4000-8000-000000000008",
+        "kind": "WeaponGun",
+        "kind_label": "Guns",
+        "label": "Ember Repeater S1",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Ember_Repeater_S1",
+        "section": "ship-weapons",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "dps",
+            "label": "DPS",
+            "unit": null,
+            "value": 212.0
+          },
+          {
+            "key": "range",
+            "label": "Range",
+            "unit": "m",
+            "value": 1900.0
+          }
+        ],
+        "sub_type": "Gun",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Ember_Repeater_S2",
+        "grade": null,
+        "group": "SYNA",
+        "guid": "54000000-0000-4000-8000-000000000009",
+        "kind": "WeaponGun",
+        "kind_label": "Guns",
+        "label": "Ember Repeater S2",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Ember_Repeater_S2",
+        "section": "ship-weapons",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "dps",
+            "label": "DPS",
+            "unit": null,
+            "value": 223.5
+          },
+          {
+            "key": "range",
+            "label": "Range",
+            "unit": "m",
+            "value": 1950.0
+          }
+        ],
+        "sub_type": "Gun",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      }
+    ],
+    "matched": 2,
+    "offset": 0,
+    "title": "",
+    "total": 2,
+    "understood": [],
+    "words": [
+      "repeater"
+    ]
+  },
+  "dev_list_node": {
+    "facets": {
+      "changes": [],
+      "classes": [],
+      "grades": [],
+      "kinds": [
+        {
+          "count": 7,
+          "label": "Vehicles",
+          "value": "NOITEM_Vehicle"
+        },
+        {
+          "count": 1,
+          "label": "Paints",
+          "value": "Paints"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 4,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        },
+        {
+          "count": 3,
+          "label": "Beta Works (SYNB)",
+          "value": "SYNB"
+        },
+        {
+          "count": 1,
+          "label": "Gamma Test Yards (SYNC)",
+          "value": "SYNC"
+        }
+      ],
+      "model": 7,
+      "player": 6,
+      "sections": [
+        {
+          "count": 8,
+          "label": "Ships & vehicles",
+          "value": "ships"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 3,
+          "label": "S1",
+          "value": "1"
+        },
+        {
+          "count": 2,
+          "label": "S2",
+          "value": "2"
+        },
+        {
+          "count": 2,
+          "label": "S3",
+          "value": "3"
+        },
+        {
+          "count": 1,
+          "label": "S4",
+          "value": "4"
+        }
+      ],
+      "sounds": 6,
+      "sub_types": [
+        {
+          "count": 6,
+          "label": "Spaceships",
+          "value": "Vehicle_Spaceship"
+        },
+        {
+          "count": 1,
+          "label": "Ground vehicles",
+          "value": "Vehicle_GroundVehicle"
+        },
+        {
+          "count": 1,
+          "label": "UNDEFINED",
+          "value": "UNDEFINED"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Sparrow",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000000",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Sparrow",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Sparrow",
+        "section": "ships",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 16.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 210.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Beta_Rover",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000006",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Beta Rover",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Beta_Rover",
+        "section": "ships",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 16.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 210.0
+          }
+        ],
+        "sub_type": "Vehicle_GroundVehicle",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Kestrel_Ember_Livery",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000007",
+        "kind": "Paints",
+        "kind_label": "Paints",
+        "label": "Kestrel Ember Livery",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Kestrel_Ember_Livery",
+        "section": "ships",
+        "size": 1,
+        "sounds": false,
+        "stats": [],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000001",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel_PU_AI_CIV",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000004",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel PU AI CIV",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel_PU_AI_CIV",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": true
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Beta_Hauler",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000002",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Beta Hauler",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Beta_Hauler",
+        "section": "ships",
+        "size": 3,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 48.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 150.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Beta_Hauler_Template",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000005",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Beta Hauler Template",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": false,
+        "name": "EntityClassDefinition.SYN_Beta_Hauler_Template",
+        "section": "ships",
+        "size": 3,
+        "sounds": false,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 48.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 150.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": true
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Gamma_Carrier",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000003",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Gamma Carrier",
+        "main": true,
+        "maker_label": "Gamma Test Yards",
+        "manufacturer": "SYNC",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Gamma_Carrier",
+        "section": "ships",
+        "size": 4,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 4.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 4.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 64.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 120.0
+          }
+        ],
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      }
+    ],
+    "matched": 8,
+    "offset": 0,
+    "title": "Ships & vehicles",
+    "total": 8,
+    "understood": [],
+    "words": []
+  },
+  "dev_list_query": {
+    "facets": {
+      "changes": [],
+      "classes": [
+        {
+          "count": 1,
+          "label": "Military",
+          "value": "Military"
+        }
+      ],
+      "grades": [
+        {
+          "count": 1,
+          "label": "Grade C",
+          "value": "C"
+        }
+      ],
+      "kinds": [
+        {
+          "count": 1,
+          "label": "Coolers",
+          "value": "Cooler"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 1,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        }
+      ],
+      "model": 1,
+      "player": 1,
+      "sections": [
+        {
+          "count": 1,
+          "label": "Ship components",
+          "value": "components"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 1,
+          "label": "S1",
+          "value": "1"
+        }
+      ],
+      "sounds": 0,
+      "sub_types": [
+        {
+          "count": 1,
+          "label": "UNDEFINED",
+          "value": "UNDEFINED"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": null,
+        "class": "Military",
+        "detail": "SYN_Frost_Cooler",
+        "grade": "C",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-00000000000d",
+        "kind": "Cooler",
+        "kind_label": "Coolers",
+        "label": "Frost Cooler",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Frost_Cooler",
+        "section": "components",
+        "size": 1,
+        "sounds": false,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 23.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 825.0
+          }
+        ],
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      }
+    ],
+    "matched": 1,
+    "offset": 0,
+    "title": "",
+    "total": 1,
+    "understood": [
+      "type:cooler",
+      "maker:alpha"
+    ],
+    "words": [
+      "frost"
+    ]
+  },
   "dev_open": {
     "build": "4.10.0-mock",
     "channel": "LIVE",
+    "compared": null,
     "error": null,
-    "main": 241,
+    "main": 298,
     "memory": 432013312,
-    "records": 300,
+    "records": 357,
+    "sections": {
+      "build_ms": 210,
+      "bytes": 11534336,
+      "entities": 46,
+      "models": 44,
+      "scan_ms": 95,
+      "sounds": 26,
+      "verified": true
+    },
     "start_ms": 840,
     "started": "2026-11-14T21:30:05Z",
     "state": "ready",
-    "types": 3
+    "types": 14
   },
+  "dev_owner": [
+    {
+      "guid": "54000000-0000-4000-8000-000000000001",
+      "main": true,
+      "name": "EntityClassDefinition.SYN_Alpha_Kestrel",
+      "path": "libs/foundry/records/entities/spaceships/syn_alpha_kestrel.xml",
+      "type": "EntityClassDefinition"
+    }
+  ],
   "dev_record": {
     "header": {
       "bytes": 830,
@@ -2222,14 +4700,45 @@
   "dev_status": {
     "build": "4.10.0-mock",
     "channel": "LIVE",
+    "compared": null,
     "error": null,
     "main": 0,
     "memory": null,
     "records": 0,
+    "sections": null,
     "start_ms": null,
     "started": null,
     "state": "stopped",
     "types": 0
+  },
+  "dev_status_compared": {
+    "build": "4.10.0-mock",
+    "channel": "LIVE",
+    "compared": {
+      "added": 8,
+      "changed": 16,
+      "marked": 24,
+      "ms": 12,
+      "other": "PTU",
+      "removed": 2
+    },
+    "error": null,
+    "main": 298,
+    "memory": 432013312,
+    "records": 357,
+    "sections": {
+      "build_ms": 210,
+      "bytes": 11534336,
+      "entities": 46,
+      "models": 44,
+      "scan_ms": 95,
+      "sounds": 26,
+      "verified": true
+    },
+    "start_ms": 840,
+    "started": "2026-11-14T21:30:05Z",
+    "state": "ready",
+    "types": 14
   },
   "dev_table": {
     "columns": [
@@ -3273,6 +5782,83 @@
   "dev_tree": {
     "nodes": [
       {
+        "count": 1,
+        "id": "t:AmmoParams",
+        "kind": "type",
+        "label": "AmmoParams",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:BuildingBlocks_Canvas",
+        "kind": "type",
+        "label": "BuildingBlocks_Canvas",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:ContractGenerator",
+        "kind": "type",
+        "label": "ContractGenerator",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:CraftingBlueprintRecord",
+        "kind": "type",
+        "label": "CraftingBlueprintRecord",
+        "main": false
+      },
+      {
+        "count": 46,
+        "id": "t:EntityClassDefinition",
+        "kind": "type",
+        "label": "EntityClassDefinition",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:FactionReputation",
+        "kind": "type",
+        "label": "FactionReputation",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:LoadoutKit",
+        "kind": "type",
+        "label": "LoadoutKit",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:MissionBrokerEntry",
+        "kind": "type",
+        "label": "MissionBrokerEntry",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:SCItemManufacturer",
+        "kind": "type",
+        "label": "SCItemManufacturer",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:ShopFranchise",
+        "kind": "type",
+        "label": "ShopFranchise",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "t:StarMapObject",
+        "kind": "type",
+        "label": "StarMapObject",
+        "main": false
+      },
+      {
         "count": 200,
         "id": "t:SynComponent",
         "kind": "type",
@@ -3295,42 +5881,209 @@
       }
     ],
     "offset": 0,
-    "total": 3
+    "total": 14
   },
   "dev_tree_folder": {
     "nodes": [
+      {
+        "count": 0,
+        "id": "r:54000000-0000-4000-8000-00000000000d",
+        "kind": "record",
+        "label": "EntityClassDefinition.SYN_Frost_Cooler",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:54000000-0000-4000-8000-00000000000e",
+        "kind": "record",
+        "label": "EntityClassDefinition.SYN_Glacier_Cooler",
+        "main": true
+      },
       {
         "count": 0,
         "id": "r:52000000-0000-4000-8000-000000000000",
         "kind": "record",
         "label": "SYN_cooler_000",
         "main": true
-      },
-      {
-        "count": 0,
-        "id": "r:52000000-0000-4000-8000-000000000004",
-        "kind": "record",
-        "label": "SYN_cooler_004",
-        "main": true
-      },
-      {
-        "count": 0,
-        "id": "r:52000000-0000-4000-8000-000000000008",
-        "kind": "record",
-        "label": "SYN_cooler_008",
-        "main": true
       }
     ],
     "offset": 0,
-    "total": 50
+    "total": 52
+  },
+  "dev_tree_models": {
+    "nodes": [
+      {
+        "count": 7,
+        "id": "m:models:[\"ships\"]",
+        "kind": "section",
+        "label": "Ships & vehicles",
+        "main": false
+      },
+      {
+        "count": 5,
+        "id": "m:models:[\"ship-weapons\"]",
+        "kind": "section",
+        "label": "Ship weapons",
+        "main": false
+      },
+      {
+        "count": 8,
+        "id": "m:models:[\"components\"]",
+        "kind": "section",
+        "label": "Ship components",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "m:models:[\"missiles\"]",
+        "kind": "section",
+        "label": "Missiles & torpedoes",
+        "main": false
+      },
+      {
+        "count": 4,
+        "id": "m:models:[\"fps-weapons\"]",
+        "kind": "section",
+        "label": "FPS weapons",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "m:models:[\"armor\"]",
+        "kind": "section",
+        "label": "Armor & clothing",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "m:models:[\"attachments\"]",
+        "kind": "section",
+        "label": "Attachments",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "m:models:[\"consumables\"]",
+        "kind": "section",
+        "label": "Consumables & medical",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "m:models:[\"mining\"]",
+        "kind": "section",
+        "label": "Mining & salvage",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "m:models:[\"commodities\"]",
+        "kind": "section",
+        "label": "Commodities & resources",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "m:models:[\"shops\"]",
+        "kind": "section",
+        "label": "Shops",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "m:models:[\"characters\"]",
+        "kind": "section",
+        "label": "Characters & NPCs",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "m:models:[\"items\"]",
+        "kind": "section",
+        "label": "Props & other items",
+        "main": false
+      }
+    ],
+    "offset": 0,
+    "total": 13
   },
   "dev_tree_path": {
     "nodes": [
       {
-        "count": 240,
+        "count": 1,
+        "id": "p:actor/",
+        "kind": "folder",
+        "label": "actor",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:ammoparams/",
+        "kind": "folder",
+        "label": "ammoparams",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:contracts/",
+        "kind": "folder",
+        "label": "contracts",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:crafting/",
+        "kind": "folder",
+        "label": "crafting",
+        "main": false
+      },
+      {
+        "count": 285,
         "id": "p:entities/",
         "kind": "folder",
         "label": "entities",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:franchises/",
+        "kind": "folder",
+        "label": "franchises",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:loadoutkits/",
+        "kind": "folder",
+        "label": "loadoutkits",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:missionbroker/",
+        "kind": "folder",
+        "label": "missionbroker",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:reputation/",
+        "kind": "folder",
+        "label": "reputation",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:scitemmanufacturer/",
+        "kind": "folder",
+        "label": "scitemmanufacturer",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "p:starmap/",
+        "kind": "folder",
+        "label": "starmap",
         "main": false
       },
       {
@@ -3339,10 +6092,197 @@
         "kind": "folder",
         "label": "tagdatabase",
         "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:ui/",
+        "kind": "folder",
+        "label": "ui",
+        "main": false
+      }
+    ],
+    "offset": 0,
+    "total": 13
+  },
+  "dev_tree_section": {
+    "nodes": [
+      {
+        "count": 1,
+        "id": "s:[\"ships\",\"Paints\"]",
+        "kind": "folder",
+        "label": "Paints",
+        "main": false
+      },
+      {
+        "count": 7,
+        "id": "s:[\"ships\",\"NOITEM_Vehicle\"]",
+        "kind": "folder",
+        "label": "Vehicles",
+        "main": false
       }
     ],
     "offset": 0,
     "total": 2
+  },
+  "dev_tree_sections": {
+    "nodes": [
+      {
+        "count": 44,
+        "id": "m:models:[]",
+        "kind": "section",
+        "label": "Models",
+        "main": false
+      },
+      {
+        "count": 26,
+        "id": "m:sounds:[]",
+        "kind": "section",
+        "label": "Sounds",
+        "main": false
+      },
+      {
+        "count": 8,
+        "id": "s:[\"ships\"]",
+        "kind": "section",
+        "label": "Ships & vehicles",
+        "main": false
+      },
+      {
+        "count": 6,
+        "id": "s:[\"ship-weapons\"]",
+        "kind": "section",
+        "label": "Ship weapons",
+        "main": false
+      },
+      {
+        "count": 9,
+        "id": "s:[\"components\"]",
+        "kind": "section",
+        "label": "Ship components",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "s:[\"missiles\"]",
+        "kind": "section",
+        "label": "Missiles & torpedoes",
+        "main": false
+      },
+      {
+        "count": 4,
+        "id": "s:[\"fps-weapons\"]",
+        "kind": "section",
+        "label": "FPS weapons",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "s:[\"armor\"]",
+        "kind": "section",
+        "label": "Armor & clothing",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "s:[\"attachments\"]",
+        "kind": "section",
+        "label": "Attachments",
+        "main": false
+      },
+      {
+        "count": 3,
+        "id": "s:[\"consumables\"]",
+        "kind": "section",
+        "label": "Consumables & medical",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "s:[\"mining\"]",
+        "kind": "section",
+        "label": "Mining & salvage",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "s:[\"commodities\"]",
+        "kind": "section",
+        "label": "Commodities & resources",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "s:[\"missions\"]",
+        "kind": "section",
+        "label": "Missions & contracts",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "s:[\"locations\"]",
+        "kind": "section",
+        "label": "Locations & star map",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "s:[\"factions\"]",
+        "kind": "section",
+        "label": "Factions & reputation",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "s:[\"blueprints\"]",
+        "kind": "section",
+        "label": "Blueprints & crafting",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "s:[\"loadouts\"]",
+        "kind": "section",
+        "label": "Loadouts & loot",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "s:[\"shops\"]",
+        "kind": "section",
+        "label": "Shops",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "s:[\"characters\"]",
+        "kind": "section",
+        "label": "Characters & NPCs",
+        "main": false
+      },
+      {
+        "count": 2,
+        "id": "s:[\"items\"]",
+        "kind": "section",
+        "label": "Props & other items",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "s:[\"audio-ui\"]",
+        "kind": "section",
+        "label": "Audio, UI & dialogue",
+        "main": false
+      },
+      {
+        "count": 241,
+        "id": "s:[\"other\"]",
+        "kind": "section",
+        "label": "Other",
+        "main": false
+      }
+    ],
+    "offset": 0,
+    "total": 22
   },
   "dev_tree_type": {
     "nodes": [
@@ -3386,6 +6326,61 @@
     "total": 200
   },
   "dev_types": [
+    {
+      "main": 1,
+      "name": "AmmoParams",
+      "records": 1
+    },
+    {
+      "main": 1,
+      "name": "BuildingBlocks_Canvas",
+      "records": 1
+    },
+    {
+      "main": 1,
+      "name": "ContractGenerator",
+      "records": 1
+    },
+    {
+      "main": 1,
+      "name": "CraftingBlueprintRecord",
+      "records": 1
+    },
+    {
+      "main": 46,
+      "name": "EntityClassDefinition",
+      "records": 46
+    },
+    {
+      "main": 1,
+      "name": "FactionReputation",
+      "records": 1
+    },
+    {
+      "main": 1,
+      "name": "LoadoutKit",
+      "records": 1
+    },
+    {
+      "main": 1,
+      "name": "MissionBrokerEntry",
+      "records": 1
+    },
+    {
+      "main": 1,
+      "name": "SCItemManufacturer",
+      "records": 1
+    },
+    {
+      "main": 1,
+      "name": "ShopFranchise",
+      "records": 1
+    },
+    {
+      "main": 2,
+      "name": "StarMapObject",
+      "records": 2
+    },
     {
       "main": 200,
       "name": "SynComponent",

@@ -327,6 +327,22 @@ pub fn parse_query(q: &str) -> ParsedQuery {
     p
 }
 
+/// How the section index was built (7.17), reported in `status`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SectionStats {
+    /// Facet scan of the entities plus the index build, milliseconds.
+    pub build_ms: u64,
+    pub scan_ms: u64,
+    /// Bytes held by the index, the owner map and the media name sets, roughly.
+    pub bytes: u64,
+    pub entities: u32,
+    pub models: u32,
+    pub sounds: u32,
+    /// The archive's names were checked (false for a bare `--dcb`: then "has model" means a
+    /// geometry file is named and "has sounds" an audio trigger is set).
+    pub verified: bool,
+}
+
 /// Most values listed per facet (the rest are still filterable by search).
 pub const MAX_FACET_VALUES: usize = 60;
 
@@ -365,7 +381,7 @@ struct Node {
 }
 
 /// The section index: one compact row per record (about 22 bytes) plus interned strings.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct SectionIndex {
     recs: Vec<Rec>,
     strings: Vec<String>,
@@ -1201,9 +1217,9 @@ impl SectionIndex {
             }
             // Stable: rows keep their sort order inside a group.
             let mut zipped: Vec<(GroupSortKey, (u8, usize))> = keys.into_iter().zip(hits).collect();
-            zipped.sort_by_cached_key(|a| (a.0.0, a.0.1.to_lowercase()));
+            zipped.sort_by_cached_key(|a| (a.0.0, a.0.1.to_lowercase(), a.0.2.clone()));
             let mut heads: Vec<(String, (u64, String, u32))> = order.into_iter().collect();
-            heads.sort_by_cached_key(|a| (a.1.0, a.1.1.to_lowercase()));
+            heads.sort_by_cached_key(|a| (a.1.0, a.1.1.to_lowercase(), a.0.clone()));
             groups = heads
                 .into_iter()
                 .map(|(key, (_, label, count))| GroupHead {
@@ -1238,7 +1254,12 @@ impl SectionIndex {
                     }
                 })
                 .collect();
-            v.sort_by(|a, b| b.count.cmp(&a.count).then(a.label.cmp(&b.label)));
+            v.sort_by(|a, b| {
+                b.count
+                    .cmp(&a.count)
+                    .then(a.label.cmp(&b.label))
+                    .then(a.value.cmp(&b.value))
+            });
             v.truncate(MAX_FACET_VALUES);
             v
         };

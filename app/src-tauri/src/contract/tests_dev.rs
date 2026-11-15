@@ -29,6 +29,7 @@ fn dev_mock() -> MockBackend {
 
 fn tree(root: TreeRoot, node: &str, limit: u32) -> DevTreeRequest {
     DevTreeRequest {
+        player_only: false,
         target: live(),
         root,
         node: node.into(),
@@ -238,9 +239,108 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         dataset: dataset.into(),
         table: table.into(),
     };
+    let list = |q: ListQuery| {
+        b.dev_list(DevListRequest {
+            target: live(),
+            query: q,
+        })
+        .unwrap()
+    };
+    let sections = b.dev_tree(tree(TreeRoot::Section, "", 50)).unwrap();
+    let ships_id = sections
+        .nodes
+        .iter()
+        .find(|n| n.label == "Ships & vehicles")
+        .unwrap()
+        .id
+        .clone();
+    let ships = b.dev_tree(tree(TreeRoot::Section, &ships_id, 50)).unwrap();
+    let models = b
+        .dev_tree(tree(TreeRoot::Section, "m:models:[]", 50))
+        .unwrap();
+    let list_all = list(ListQuery {
+        limit: 5,
+        main_only: true,
+        ..Default::default()
+    });
+    let list_node = list(ListQuery {
+        node: ships_id.clone(),
+        sort: SortKey::Size,
+        limit: 10,
+        main_only: true,
+        ..Default::default()
+    });
+    let list_query = list(ListQuery {
+        query: "type:cooler maker:alpha frost".into(),
+        limit: 10,
+        main_only: true,
+        ..Default::default()
+    });
+    let list_grouped = list(ListQuery {
+        query: "repeater".into(),
+        group: ListGroup::Manufacturer,
+        collapsed: vec!["SYNB".into()],
+        limit: 10,
+        main_only: true,
+        ..Default::default()
+    });
+    let list_filters = list(ListQuery {
+        filters: Filters {
+            sections: vec!["components".into()],
+            sizes: vec![1],
+            player_only: true,
+            model: true,
+            ..Default::default()
+        },
+        sort: SortKey::Manufacturer,
+        limit: 10,
+        main_only: true,
+        ..Default::default()
+    });
+    let owner = b
+        .dev_owner(DevOwnerRequest {
+            target: live(),
+            path: mock_dev::catalogue_geometry(1).unwrap(),
+        })
+        .unwrap();
+    let compare = b
+        .dev_compare(DevCompareRequest {
+            target: live(),
+            other: Some("PTU".into()),
+        })
+        .unwrap();
+    let list_changed = list(ListQuery {
+        filters: Filters {
+            changes: vec!["changed".into()],
+            ..Default::default()
+        },
+        limit: 10,
+        main_only: true,
+        ..Default::default()
+    });
+    let compared_status = b.dev_status(live()).unwrap();
+    let compare_clear = b
+        .dev_compare(DevCompareRequest {
+            target: live(),
+            other: None,
+        })
+        .unwrap();
     vec![
         ("dev_status", json!(stopped)),
         ("dev_open", json!(open)),
+        ("dev_tree_sections", json!(sections)),
+        ("dev_tree_section", json!(ships)),
+        ("dev_tree_models", json!(models)),
+        ("dev_list", json!(list_all)),
+        ("dev_list_node", json!(list_node)),
+        ("dev_list_query", json!(list_query)),
+        ("dev_list_grouped", json!(list_grouped)),
+        ("dev_list_filters", json!(list_filters)),
+        ("dev_owner", json!(owner)),
+        ("dev_compare", json!(compare)),
+        ("dev_list_changed", json!(list_changed)),
+        ("dev_status_compared", json!(compared_status)),
+        ("dev_compare_clear", json!(compare_clear)),
         ("dev_types", json!(b.dev_types(live()).unwrap())),
         (
             "dev_tree",
@@ -420,6 +520,27 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
         ("dev_types", j(b.dev_types(live()))),
         ("dev_tree", j(b.dev_tree(t))),
         (
+            "dev_list",
+            j(b.dev_list(DevListRequest {
+                target: live(),
+                query: ListQuery::default(),
+            })),
+        ),
+        (
+            "dev_owner",
+            j(b.dev_owner(DevOwnerRequest {
+                target: live(),
+                path: "x.cga".into(),
+            })),
+        ),
+        (
+            "dev_compare",
+            j(b.dev_compare(DevCompareRequest {
+                target: live(),
+                other: None,
+            })),
+        ),
+        (
             "dev_search",
             j(b.dev_search(DevSearchRequest {
                 target: live(),
@@ -560,11 +681,12 @@ fn dev_disabled_crosses_ipc_as_its_own_code() {
 }
 
 #[test]
-fn the_mock_explorer_has_300_records_and_a_huge_one_is_cut() {
+fn the_mock_explorer_has_300_records_a_catalogue_and_a_huge_one_is_cut() {
     let b = dev_mock();
     let c = mock_dev::core();
-    assert_eq!(c.index.len(), 300);
-    assert_eq!(c.index.types().len(), 3);
+    assert_eq!(c.index.len(), 300 + mock_dev::CATALOGUE.len());
+    // The three synthetic types, EntityClassDefinition and the catalogue's other types.
+    assert_eq!(c.index.types().len(), 14);
     let huge = b
         .dev_record(DevRecordRequest {
             target: live(),
@@ -677,11 +799,34 @@ fn dev_unions_in_dev_ts_list_every_variant() {
                 WorkerState::Failed,
             ]),
         ),
-        ("TreeRoot", names(&[TreeRoot::Type, TreeRoot::Path])),
+        (
+            "TreeRoot",
+            names(&[TreeRoot::Type, TreeRoot::Path, TreeRoot::Section]),
+        ),
         (
             "NodeKind",
-            names(&[NodeKind::Type, NodeKind::Folder, NodeKind::Record]),
+            names(&[
+                NodeKind::Type,
+                NodeKind::Folder,
+                NodeKind::Record,
+                NodeKind::Section,
+            ]),
         ),
+        (
+            "SortKey",
+            names(&[SortKey::Name, SortKey::Size, SortKey::Manufacturer]),
+        ),
+        (
+            "ListGroup",
+            names(&[
+                ListGroup::None,
+                ListGroup::Section,
+                ListGroup::Kind,
+                ListGroup::Manufacturer,
+                ListGroup::Size,
+            ]),
+        ),
+        ("Change", names(&[Change::Added, Change::Changed])),
         (
             "ColType",
             names(&[

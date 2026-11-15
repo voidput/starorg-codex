@@ -142,6 +142,36 @@ pub(super) fn asset_samples() -> Vec<(&'static str, Value)> {
         "asset_sounds_none",
         json!(b.asset_sounds(rec(tag_guid(2))).unwrap()),
     );
+    let found = b
+        .asset_sound_search(AssetSoundSearchRequest {
+            target: live(),
+            query: "ship_001 engine".into(),
+            limit: 10,
+        })
+        .unwrap();
+    assert_eq!(found.hits[0].name, "Play_SYN_Ship_001_Engine_Loop");
+    put("asset_sound_search", json!(found));
+    put(
+        "asset_sound_search_words",
+        json!(
+            b.asset_sound_search(AssetSoundSearchRequest {
+                target: live(),
+                query: "door".into(),
+                limit: 5,
+            })
+            .unwrap()
+        ),
+    );
+    put(
+        "asset_trigger",
+        json!(
+            b.asset_trigger(AssetTriggerRequest {
+                target: live(),
+                name: "Play_SYN_Ship_001_Engine_Loop".into(),
+            })
+            .unwrap()
+        ),
+    );
     let first = ship.triggers[0].sounds[0].sound.clone();
     put(
         "asset_sound",
@@ -302,6 +332,23 @@ fn every_asset_command_but_the_cache_refuses_while_developer_mode_is_off() {
             .map(to)),
         ),
         ("asset_sounds", j(b.asset_sounds(rec(ship_guid(1))).map(to))),
+        (
+            "asset_sound_search",
+            j(b.asset_sound_search(AssetSoundSearchRequest {
+                target: live(),
+                query: "x".into(),
+                limit: 5,
+            })
+            .map(to)),
+        ),
+        (
+            "asset_trigger",
+            j(b.asset_trigger(AssetTriggerRequest {
+                target: live(),
+                name: "x".into(),
+            })
+            .map(to)),
+        ),
         (
             "asset_sound",
             j(b.asset_sound(AssetSoundRequest {

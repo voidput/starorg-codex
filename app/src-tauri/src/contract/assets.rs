@@ -17,7 +17,9 @@ use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
 pub use super::dev::WorkerState;
-pub use starorg_data::assets::audio::{RecordSounds, SoundInfo, SoundRef, SourceKind, TriggerInfo};
+pub use starorg_data::assets::audio::{
+    RecordSounds, SoundInfo, SoundRef, SourceKind, TriggerHit, TriggerInfo, TriggerSearch,
+};
 pub use starorg_data::assets::files::{DirPage, FileEntry, FileSearch, PreviewKind};
 pub use starorg_data::assets::model::ModelPreset;
 
@@ -129,6 +131,21 @@ pub struct AssetAudio {
     pub note: Option<String>,
 }
 
+/// The Explorer's Sounds search (7.17): ATL triggers by name, event or bank.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetSoundSearchRequest {
+    pub target: ChannelRef,
+    pub query: String,
+    pub limit: u32,
+}
+
+/// One trigger and the sounds it plays.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AssetTriggerRequest {
+    pub target: ChannelRef,
+    pub name: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct AssetSoundPick {
     pub trigger: String,
@@ -201,6 +218,9 @@ pub trait AssetBackend {
     ) -> CmdResult<AssetExportResult>;
     /// The record's audio triggers (and its loadout's) with their sounds.
     fn asset_sounds(&self, req: AssetRecordRequest) -> CmdResult<RecordSounds>;
+    /// Triggers by name (7.17); starts the asset worker and reads only the audio index.
+    fn asset_sound_search(&self, req: AssetSoundSearchRequest) -> CmdResult<TriggerSearch>;
+    fn asset_trigger(&self, req: AssetTriggerRequest) -> CmdResult<TriggerInfo>;
     /// One sound decoded for playing.
     fn asset_sound(&self, req: AssetSoundRequest) -> CmdResult<AssetAudio>;
     /// Native folder dialog, then the sounds as `.ogg` (and `.wem`).
@@ -266,6 +286,8 @@ asset_commands! {
     asset_search(req: AssetSearchRequest) -> FileSearch;
     asset_preview(req: AssetPathRequest) -> AssetPreview;
     asset_sounds(req: AssetRecordRequest) -> RecordSounds;
+    asset_sound_search(req: AssetSoundSearchRequest) -> TriggerSearch;
+    asset_trigger(req: AssetTriggerRequest) -> TriggerInfo;
     asset_sound(req: AssetSoundRequest) -> AssetAudio;
     asset_cache_status() -> AssetCacheStatus;
     asset_cache_pick() -> AssetCacheStatus;
@@ -289,6 +311,8 @@ pub const ASSET_COMMAND_NAMES: &[&str] = &[
     "asset_preview",
     "asset_extract",
     "asset_sounds",
+    "asset_sound_search",
+    "asset_trigger",
     "asset_sound",
     "asset_export_sounds",
     "asset_export_model",

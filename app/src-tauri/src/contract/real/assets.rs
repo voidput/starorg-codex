@@ -577,6 +577,36 @@ impl AssetBackend for RealBackend {
         r
     }
 
+    fn asset_sound_search(&self, req: AssetSoundSearchRequest) -> CmdResult<TriggerSearch> {
+        let w = self.asset_worker(&req.target)?;
+        // The first one reads the audio index (GameAudio documents and bank names) only.
+        let ready = w
+            .call::<WorkerStatus>(&AssetRequest::Status)
+            .is_ok_and(|s| s.audio);
+        let _x = if ready {
+            None
+        } else {
+            Some(wait_lock(&self.dirs().extract_lock())?)
+        };
+        w.call(&AssetRequest::SoundSearch {
+            query: req.query,
+            limit: req.limit.min(500),
+        })
+    }
+
+    fn asset_trigger(&self, req: AssetTriggerRequest) -> CmdResult<TriggerInfo> {
+        let w = self.asset_worker(&req.target)?;
+        let ready = w
+            .call::<WorkerStatus>(&AssetRequest::Status)
+            .is_ok_and(|s| s.audio);
+        let _x = if ready {
+            None
+        } else {
+            Some(wait_lock(&self.dirs().extract_lock())?)
+        };
+        w.call(&AssetRequest::Trigger { name: req.name })
+    }
+
     fn asset_sound(&self, req: AssetSoundRequest) -> CmdResult<AssetAudio> {
         let (_, key) = self.asset_target(&req.target)?;
         let c = self.asset_cache()?;

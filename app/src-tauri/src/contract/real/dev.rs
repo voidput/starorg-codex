@@ -373,6 +373,9 @@ struct DiffState {
 /// (install, channel, GameData cache key, Strings table identity) of a lookup.
 type LookupKey = (String, String, String, usize);
 
+/// Headline stats of list rows by record GUID (7.17).
+type StatsByGuid = HashMap<String, Vec<Stat>>;
+
 /// File identity for the parse cache: re-read when size or mtime change.
 type FileKey = (PathBuf, u64, u128);
 
@@ -395,6 +398,10 @@ pub struct DevState {
     /// The running type export: (job id, worker, request id).
     export: Mutex<Option<(String, Arc<Worker>, u64)>>,
     lookups: Mutex<Vec<(LookupKey, Arc<MapLookup>)>>,
+    /// Headline stats of the list rows (7.17), per (install, channel, GameData key).
+    stats: Mutex<Option<(LookupKey, Arc<StatsByGuid>)>>,
+    /// The comparison the current worker holds marks for: (worker, result).
+    compared: Mutex<Option<(Weak<Worker>, DevCompare)>>,
 }
 
 impl Default for DevState {
@@ -408,6 +415,8 @@ impl Default for DevState {
             diff: Mutex::new(None),
             export: Mutex::new(None),
             lookups: Mutex::new(Vec::new()),
+            stats: Mutex::new(None),
+            compared: Mutex::new(None),
         }
     }
 }
@@ -641,6 +650,8 @@ impl RealBackend {
             start_ms: None,
             memory: None,
             error: None,
+            sections: None,
+            compared: None,
         };
         let w = lock_or(&self.dev.worker).clone();
         if let Some(w) = w.filter(|w| w.key == key) {
@@ -651,11 +662,10 @@ impl RealBackend {
                 s.types = w.info.types;
                 s.started = Some(w.started.clone());
                 s.start_ms = Some(w.info.start_ms);
-                s.memory = w
-                    .call::<WorkerInfo>(&Request::Status)
-                    .ok()
-                    .and_then(|i| i.rss)
-                    .or(w.info.rss);
+                let now = w.call::<WorkerInfo>(&Request::Status).ok();
+                s.memory = now.as_ref().and_then(|i| i.rss).or(w.info.rss);
+                s.sections = now.and_then(|i| i.sections).or(w.info.sections.clone());
+                s.compared = self.compared_for(&w);
                 return Ok(s);
             }
             let why = lock_or(&w.died).clone();
@@ -673,6 +683,38 @@ impl RealBackend {
             s.error = Some(e);
         }
         Ok(s)
+    }
+
+    /// The comparison the worker `w` holds marks for.
+    fn compared_for(&self, w: &Arc<Worker>) -> Option<DevCompare> {
+        lock_or(&self.dev.compared)
+            .as_ref()
+            .filter(|(x, _)| x.upgrade().is_some_and(|x| Arc::ptr_eq(&x, w)))
+            .map(|x| x.1.clone())
+    }
+
+    /// Headline stats by record GUID of the channel's build (7.17); empty while its
+    /// GameData was not read (nothing is extracted for this).
+    fn list_stats(&self, r: &ChannelRef) -> Arc<StatsByGuid> {
+        let Some((f, ch)) = self
+            .resolve(r)
+            .ok()
+            .and_then(|f| f.channel(&r.channel).ok().cloned().map(|c| (f, c)))
+        else {
+            return Arc::default();
+        };
+        let Ok(data) = self.loaded(&f, &ch, false) else {
+            return Arc::default();
+        };
+        let key: LookupKey = (f.ui_id(), ch.name.clone(), data.key.clone(), 0);
+        if let Some((k, m)) = lock_or(&self.dev.stats).as_ref()
+            && *k == key
+        {
+            return m.clone();
+        }
+        let m = Arc::new(starorg_core::dev::sections::stats::by_guid(&data.game_data));
+        *lock_or(&self.dev.stats) = Some((key, m.clone()));
+        m
     }
 
     /// Cancel the running type export, when `job` is it.
@@ -952,6 +994,41 @@ impl RealBackend {
     }
 }
 
+/// Marks of a GameData diff (A = other build, B = this one) by record GUID: added and changed
+/// rows of B whose `id` (or `item.id`) is a GUID; and how many rows exist only in A.
+pub fn compare_marks(
+    tables: &[TableDiff],
+    b: &[(String, Arc<Dataset>)],
+) -> (Vec<(String, Change)>, u32) {
+    let mut marks = Vec::new();
+    let mut removed = 0;
+    for t in tables {
+        let rows = b
+            .iter()
+            .find(|x| x.0 == t.summary.dataset)
+            .and_then(|x| x.1.table(&t.summary.table));
+        for r in &t.records {
+            let change = match r.state {
+                RecordState::Added => Change::Added,
+                RecordState::Changed => Change::Changed,
+                RecordState::Removed => {
+                    removed += 1;
+                    continue;
+                }
+            };
+            let row = rows.and_then(|tb| tb.rows.get(r.b? as usize));
+            let id = row
+                .and_then(|v| v.get("id").or_else(|| v.pointer("/item/id")))
+                .and_then(Value::as_str)
+                .filter(|g| starorg_core::dev::explorer::is_guid(g));
+            if let Some(g) = id {
+                marks.push((g.to_lowercase(), change));
+            }
+        }
+    }
+    (marks, removed)
+}
+
 fn dump_or_missing(source: &str) -> AppError {
     if source.starts_with("dump:") {
         dump_refusal(false)
@@ -1006,7 +1083,60 @@ impl DevBackend for RealBackend {
             offset: req.offset,
             limit: req.limit.min(MAX_PAGE as u32),
             main_only: req.main_only,
+            player_only: req.player_only,
         })
+    }
+
+    fn dev_list(&self, req: DevListRequest) -> CmdResult<ListPage> {
+        let w = self.worker(&req.target, None)?;
+        let mut q = req.query;
+        q.limit = q.limit.min(MAX_PAGE as u32);
+        let mut page: ListPage = w.call(&Request::List(Box::new(q)))?;
+        let stats = self.list_stats(&req.target);
+        for it in &mut page.items {
+            if let Some(s) = stats.get(&it.guid) {
+                it.stats = s.clone();
+            }
+        }
+        Ok(page)
+    }
+
+    fn dev_owner(&self, req: DevOwnerRequest) -> CmdResult<Vec<SearchHit>> {
+        self.worker(&req.target, None)?
+            .call(&Request::Owner { path: req.path })
+    }
+
+    fn dev_compare(&self, req: DevCompareRequest) -> CmdResult<Option<DevCompare>> {
+        let w = self.worker(&req.target, None)?;
+        let Some(other) = req.other.filter(|o| *o != req.target.channel) else {
+            w.call::<usize>(&Request::Marks { marks: vec![] })?;
+            *lock_or(&self.dev.compared) = None;
+            return Ok(None);
+        };
+        let t0 = Instant::now();
+        // The Diff screen's machinery: A = the other build, B = this one, so "added" are
+        // records only here.
+        let a = self.source_datasets(&req.target, &format!("build:{other}"))?;
+        let b = self.source_datasets(&req.target, &format!("build:{}", req.target.channel))?;
+        let ra: Vec<(String, &Dataset)> = a.iter().map(|x| (x.0.clone(), &*x.1)).collect();
+        let rb: Vec<(String, &Dataset)> = b.iter().map(|x| (x.0.clone(), &*x.1)).collect();
+        let tables = diff::diff_sources(&ra, &rb, &|_, _| {});
+        let (marks, removed) = compare_marks(&tables, &b);
+        let (added, changed) = marks.iter().fold((0, 0), |(a, c), m| match m.1 {
+            Change::Added => (a + 1, c),
+            Change::Changed => (a, c + 1),
+        });
+        let marked = w.call::<usize>(&Request::Marks { marks })? as u32;
+        let out = DevCompare {
+            other,
+            added,
+            changed,
+            removed,
+            marked,
+            ms: t0.elapsed().as_millis() as u64,
+        };
+        *lock_or(&self.dev.compared) = Some((Arc::downgrade(&w), out.clone()));
+        Ok(Some(out))
     }
 
     fn dev_search(&self, req: DevSearchRequest) -> CmdResult<SearchPage> {

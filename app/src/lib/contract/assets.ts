@@ -112,6 +112,30 @@ export interface SoundInfo extends SoundRef {
   detail: string;
 }
 
+/** One ATL trigger found by name (7.17). */
+export interface TriggerHit {
+  name: string;
+  event: string;
+  bank: string;
+  duration_type: string | null;
+}
+
+export interface TriggerSearch {
+  hits: TriggerHit[];
+  total: number;
+}
+
+export interface AssetSoundSearchRequest {
+  target: ChannelRef;
+  query: string;
+  limit: number;
+}
+
+export interface AssetTriggerRequest {
+  target: ChannelRef;
+  name: string;
+}
+
 export interface TriggerInfo {
   name: string;
   property: string;
@@ -210,6 +234,8 @@ export interface AssetCommandMap {
   asset_preview: [{ req: AssetPathRequest }, AssetPreview];
   asset_extract: [{ req: AssetExtractRequest }, AssetExportResult];
   asset_sounds: [{ req: AssetRecordRequest }, RecordSounds];
+  asset_sound_search: [{ req: AssetSoundSearchRequest }, TriggerSearch];
+  asset_trigger: [{ req: AssetTriggerRequest }, TriggerInfo];
   asset_sound: [{ req: AssetSoundRequest }, AssetAudio];
   asset_export_sounds: [{ req: AssetExportSoundsRequest }, AssetExportResult];
   asset_export_model: [{ req: AssetExportModelRequest }, AssetExportResult];
@@ -229,6 +255,8 @@ export const ASSET_COMMANDS = [
   'asset_preview',
   'asset_extract',
   'asset_sounds',
+  'asset_sound_search',
+  'asset_trigger',
   'asset_sound',
   'asset_export_sounds',
   'asset_export_model',
@@ -250,6 +278,9 @@ export const assetApi = {
   /** Native folder dialog (Rust side). */
   extract: (req: AssetExtractRequest) => call('asset_extract', { req }),
   sounds: (req: AssetRecordRequest) => call('asset_sounds', { req }),
+  /** Triggers by name, event or bank (starts the asset worker; reads the audio index only). */
+  soundSearch: (req: AssetSoundSearchRequest) => call('asset_sound_search', { req }),
+  trigger: (req: AssetTriggerRequest) => call('asset_trigger', { req }),
   sound: (req: AssetSoundRequest) => call('asset_sound', { req }),
   /** Native folder dialog (Rust side). */
   exportSounds: (req: AssetExportSoundsRequest) => call('asset_export_sounds', { req }),

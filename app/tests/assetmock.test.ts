@@ -72,6 +72,9 @@ test('every asset sample of the Rust mock comes back equal from the TS mock', as
   got.asset_sounds = sounds;
   got.asset_sounds_item = await h.asset_sounds({ req: { target: live, what: comp(4) } });
   got.asset_sounds_none = await h.asset_sounds({ req: { target: live, what: tag(2) } });
+  got.asset_sound_search = await h.asset_sound_search({ req: { target: live, query: 'ship_001 engine', limit: 10 } });
+  got.asset_sound_search_words = await h.asset_sound_search({ req: { target: live, query: 'door', limit: 5 } });
+  got.asset_trigger = await h.asset_trigger({ req: { target: live, name: 'Play_SYN_Ship_001_Engine_Loop' } });
   const s0 = sounds.triggers[0]!.sounds[0]!;
   const first = { media_id: s0.media_id, source: s0.source, bank: s0.bank, media_path: s0.media_path };
   got.asset_sound = await h.asset_sound({ req: { target: live, sound: first } });

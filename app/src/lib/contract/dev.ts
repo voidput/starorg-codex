@@ -19,10 +19,158 @@ export interface DevStatus {
   start_ms: number | null;
   memory: number | null;
   error: string | null;
+  /** The section index (7.17). */
+  sections: SectionStats | null;
+  /** The channel the explorer is compared with (7.17). */
+  compared: DevCompare | null;
 }
 
-export type TreeRoot = 'type' | 'path';
-export type NodeKind = 'type' | 'folder' | 'record';
+export type TreeRoot = 'type' | 'path' | 'section';
+export type NodeKind = 'type' | 'folder' | 'record' | 'section';
+
+/** How the section index was built (7.17). */
+export interface SectionStats {
+  build_ms: number;
+  scan_ms: number;
+  bytes: number;
+  entities: number;
+  models: number;
+  sounds: number;
+  /** Checked against the archive's files (false for a bare DCB). */
+  verified: boolean;
+}
+
+export type SortKey = 'name' | 'size' | 'manufacturer';
+export type ListGroup = 'none' | 'section' | 'kind' | 'manufacturer' | 'size';
+export type Change = 'added' | 'changed';
+
+/** Filters of the item finder (7.17): OR within a facet, AND across facets. */
+export interface Filters {
+  sections: string[];
+  kinds: string[];
+  sub_types: string[];
+  sizes: number[];
+  manufacturers: string[];
+  grades: string[];
+  classes: string[];
+  tags: string[];
+  model: boolean;
+  sounds: boolean;
+  player_only: boolean;
+  changes: string[];
+}
+
+export interface ListQuery {
+  /** A Sections-view node id, or `''` for every record. */
+  node: string;
+  /** Words and prefixes: `type:` `maker:` `size:` `tag:` `section:` `grade:` `class:` `has:model` `has:sounds`. */
+  query: string;
+  filters: Filters;
+  sort: SortKey;
+  group: ListGroup;
+  collapsed: string[];
+  offset: number;
+  limit: number;
+  main_only: boolean;
+}
+
+export interface Stat {
+  key: string;
+  label: string;
+  value: number;
+  unit: string | null;
+}
+
+export interface ListItem {
+  guid: string;
+  name: string;
+  label: string;
+  detail: string | null;
+  type: string;
+  section: string;
+  kind: string | null;
+  kind_label: string | null;
+  sub_type: string | null;
+  size: number | null;
+  manufacturer: string | null;
+  maker_label: string | null;
+  grade: string | null;
+  class: string | null;
+  tag: string | null;
+  model: boolean;
+  sounds: boolean;
+  variant: boolean;
+  main: boolean;
+  group: string | null;
+  change: string | null;
+  stats: Stat[];
+}
+
+export interface FacetValue {
+  value: string;
+  label: string;
+  count: number;
+}
+
+export interface FacetCounts {
+  sections: FacetValue[];
+  kinds: FacetValue[];
+  sub_types: FacetValue[];
+  sizes: FacetValue[];
+  manufacturers: FacetValue[];
+  grades: FacetValue[];
+  classes: FacetValue[];
+  tags: FacetValue[];
+  model: number;
+  sounds: number;
+  player: number;
+  changes: FacetValue[];
+}
+
+export interface GroupHead {
+  key: string;
+  label: string;
+  count: number;
+  collapsed: boolean;
+}
+
+export interface ListPage {
+  items: ListItem[];
+  offset: number;
+  total: number;
+  matched: number;
+  facets: FacetCounts;
+  groups: GroupHead[];
+  title: string;
+  understood: string[];
+  words: string[];
+}
+
+export interface DevListRequest {
+  target: ChannelRef;
+  query: ListQuery;
+}
+
+export interface DevOwnerRequest {
+  target: ChannelRef;
+  path: string;
+}
+
+export interface DevCompareRequest {
+  target: ChannelRef;
+  other: string | null;
+}
+
+export interface DevCompare {
+  other: string;
+  added: number;
+  changed: number;
+  removed: number;
+  marked: number;
+  ms: number;
+}
+
+export const NO_FILTERS: Filters = { sections: [], kinds: [], sub_types: [], sizes: [], manufacturers: [], grades: [], classes: [], tags: [], model: false, sounds: false, player_only: false, changes: [] };
 
 export interface TreeNode {
   id: string;
@@ -102,6 +250,8 @@ export interface DevTreeRequest {
   offset: number;
   limit: number;
   main_only: boolean;
+  /** Sections view: hide AI, NPC, test and template variants. */
+  player_only?: boolean;
 }
 
 export interface DevSearchRequest {
@@ -471,6 +621,9 @@ export interface DevCommandMap {
   dev_close: [{ req: ChannelRef }, DevStatus];
   dev_types: [{ req: ChannelRef }, TypeCount[]];
   dev_tree: [{ req: DevTreeRequest }, TreePage];
+  dev_list: [{ req: DevListRequest }, ListPage];
+  dev_owner: [{ req: DevOwnerRequest }, SearchHit[]];
+  dev_compare: [{ req: DevCompareRequest }, DevCompare | null];
   dev_search: [{ req: DevSearchRequest }, SearchPage];
   dev_record: [{ req: DevRecordRequest }, RecordView];
   dev_export_record: [{ req: DevExportRecordRequest }, DevExportResult];
@@ -498,6 +651,9 @@ export const DEV_COMMANDS = [
   'dev_close',
   'dev_types',
   'dev_tree',
+  'dev_list',
+  'dev_owner',
+  'dev_compare',
   'dev_search',
   'dev_record',
   'dev_export_record',
@@ -524,6 +680,9 @@ export const devApi = {
   close: (req: ChannelRef) => call('dev_close', { req }),
   types: (req: ChannelRef) => call('dev_types', { req }),
   tree: (req: DevTreeRequest) => call('dev_tree', { req }),
+  list: (req: DevListRequest) => call('dev_list', { req }),
+  owner: (req: DevOwnerRequest) => call('dev_owner', { req }),
+  compare: (req: DevCompareRequest) => call('dev_compare', { req }),
   search: (req: DevSearchRequest) => call('dev_search', { req }),
   record: (req: DevRecordRequest) => call('dev_record', { req }),
   /** Native save dialog (Rust side); `cancelled` when closed. */

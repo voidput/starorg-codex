@@ -19,6 +19,20 @@ pub enum Level {
     Folder,
 }
 
+impl Level {
+    /// Stable name (the TS mock reads the table by these).
+    pub fn id(self) -> &'static str {
+        match self {
+            Level::Kind => "kind",
+            Level::SubType => "sub-type",
+            Level::Size => "size",
+            Level::Manufacturer => "manufacturer",
+            Level::Type => "type",
+            Level::Folder => "folder",
+        }
+    }
+}
+
 /// Folder segments a [`Level::Folder`] key keeps.
 pub const FOLDER_DEPTH: usize = 3;
 

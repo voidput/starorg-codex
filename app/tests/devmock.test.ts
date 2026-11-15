@@ -5,6 +5,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createDevMock, type DevMockCtx, type DevMockData } from '../src/lib/contract/mock-dev.ts';
+import type { Filters, ListQuery } from '../src/lib/contract/dev.ts';
+
+const NO_FILTERS: Filters = { sections: [], kinds: [], sub_types: [], sizes: [], manufacturers: [], grades: [], classes: [], tags: [], model: false, sounds: false, player_only: false, changes: [] };
+const LIST: ListQuery = { node: '', query: '', filters: NO_FILTERS, sort: 'name', group: 'none', collapsed: [], offset: 0, limit: 5, main_only: true };
 
 const read = (f: string) => JSON.parse(readFileSync(new URL(`../src/lib/contract/${f}`, import.meta.url), 'utf8'));
 const samples = read('samples.gen.json');
@@ -105,6 +109,23 @@ test('every dev sample of the Rust mock comes back equal from the TS mock', asyn
   got.dev_rows_readable = await h.dev_rows({ req: { ...rows('build:LIVE', 'gamedata.json', 'components'), search: 'alpha synth', limit: 3 } });
   got.dev_diff_records_query = await h.dev_diff_records({ req: { ...recs('gamedata.json', 'components'), query: 'sample cooler 4' } });
   got.dev_diff_record_ship = await h.dev_diff_record({ req: { target: live, dataset: 'gamedata.json', table: 'ships', id: 'SYN_Ship_003', identity: null } });
+  // Sections and the item finder (7.17), as in tests_dev.rs.
+  const sec = (node: string) => ({ req: { target: live, root: 'section' as const, node, offset: 0, limit: 50, main_only: true, player_only: false } });
+  const list = (q: Partial<ListQuery>) => h.dev_list({ req: { target: live, query: { ...LIST, ...q } } });
+  got.dev_tree_sections = await h.dev_tree(sec(''));
+  const shipsId = (got.dev_tree_sections as { nodes: { id: string; label: string }[] }).nodes.find((n) => n.label === 'Ships & vehicles')!.id;
+  got.dev_tree_section = await h.dev_tree(sec(shipsId));
+  got.dev_tree_models = await h.dev_tree(sec('m:models:[]'));
+  got.dev_list = await list({ limit: 5 });
+  got.dev_list_node = await list({ node: shipsId, sort: 'size', limit: 10 });
+  got.dev_list_query = await list({ query: 'type:cooler maker:alpha frost', limit: 10 });
+  got.dev_list_grouped = await list({ query: 'repeater', group: 'manufacturer', collapsed: ['SYNB'], limit: 10 });
+  got.dev_list_filters = await list({ filters: { ...NO_FILTERS, sections: ['components'], sizes: [1], player_only: true, model: true }, sort: 'manufacturer', limit: 10 });
+  got.dev_owner = await h.dev_owner({ req: { target: live, path: data.catalogue.geometry[1]![0] } });
+  got.dev_compare = await h.dev_compare({ req: { target: live, other: 'PTU' } });
+  got.dev_list_changed = await list({ filters: { ...NO_FILTERS, changes: ['changed'] }, limit: 10 });
+  got.dev_status_compared = await h.dev_status({ req: live });
+  got.dev_compare_clear = await h.dev_compare({ req: { target: live, other: null } });
   got.dev_close = await h.dev_close({ req: live });
   for (const [k, v] of Object.entries(got)) assert.deepStrictEqual(JSON.parse(JSON.stringify(v)), samples[k], k);
 });

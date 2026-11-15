@@ -26,6 +26,7 @@ use starorg_core::dev::explorer::{MAX_PAGE, SearchHit, TreeRoot};
 use starorg_core::dev::media::{self, MediaNames};
 use starorg_core::dev::readable::{self, KnownRecord, LabelKind, Lookup, Readable};
 use starorg_core::dev::record::{self, RecordHeader, RecordView};
+pub use starorg_core::dev::sections::SectionStats;
 use starorg_core::dev::sections::{self, Facts, ListPage, ListQuery, SectionIndex};
 use starorg_core::ini::StockIni;
 use std::cell::{Cell, RefCell};
@@ -486,22 +487,6 @@ pub struct Session<'d, 'a> {
     /// record" in Files.
     owners: HashMap<u64, Vec<u32>, media::HashBuild>,
     pub section_stats: Option<SectionStats>,
-}
-
-/// How the section index was built (7.17), reported in `status`.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct SectionStats {
-    /// Facet scan of the entities plus the index build, milliseconds.
-    pub build_ms: u64,
-    pub scan_ms: u64,
-    /// Bytes held by the index, the owner map and the media name sets, roughly.
-    pub bytes: u64,
-    pub entities: u32,
-    pub models: u32,
-    pub sounds: u32,
-    /// The archive's names were checked (false for a bare `--dcb`: then "has model" means a
-    /// geometry file is named and "has sounds" an audio trigger is set).
-    pub verified: bool,
 }
 
 /// Display keys (or tag names) by record, read lazily (7.14).

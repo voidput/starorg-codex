@@ -79,7 +79,8 @@ test('history keeps 50 entries and drops forward on a new visit', () => {
 
 test('explorer tree rows, keys, "show more" and typeahead', () => {
   const loaded = new Map<string, Loaded>([
-    ['', { nodes: samples.dev_tree.nodes, total: samples.dev_tree.total }],
+    // The three synthetic types (the mock's item catalogue adds more around them).
+    ['', { nodes: samples.dev_tree.nodes.filter((n: { id: string }) => n.id.startsWith('t:Syn')), total: 3 }],
     ['t:SynComponent', { nodes: samples.dev_tree_type.nodes, total: samples.dev_tree_type.total }],
   ]);
   let rows = treeRows(loaded, new Set());

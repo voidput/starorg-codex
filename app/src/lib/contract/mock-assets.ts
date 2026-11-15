@@ -39,6 +39,8 @@ export interface AssetHandlers {
   asset_preview: H<{ req: A.AssetPathRequest }, A.AssetPreview>;
   asset_extract: H<{ req: A.AssetExtractRequest }, A.AssetExportResult>;
   asset_sounds: H<{ req: A.AssetRecordRequest }, A.RecordSounds>;
+  asset_sound_search: H<{ req: A.AssetSoundSearchRequest }, A.TriggerSearch>;
+  asset_trigger: H<{ req: A.AssetTriggerRequest }, A.TriggerInfo>;
   asset_sound: H<{ req: A.AssetSoundRequest }, A.AssetAudio>;
   asset_export_sounds: H<{ req: A.AssetExportSoundsRequest }, A.AssetExportResult>;
   asset_export_model: H<{ req: A.AssetExportModelRequest }, A.AssetExportResult>;
@@ -47,6 +49,26 @@ export interface AssetHandlers {
   asset_cache_reset: H<Record<string, never>, A.AssetCacheStatus>;
   asset_cache_clear: H<Record<string, never>, A.AssetCacheStatus>;
   asset_cache_move: H<Record<string, never>, A.AssetCacheStatus>;
+}
+
+/** The trigger search (7.17), as `search_triggers` in mock_assets.rs. */
+export function searchTriggers(all: A.TriggerInfo[], query: string, limit: number): A.TriggerSearch {
+  const words = query.split(/\s+/).filter(Boolean).map((w) => w.toLowerCase());
+  if (words.length === 0) return { hits: [], total: 0 };
+  const joined = words.join('_');
+  const hits: [number, A.TriggerInfo][] = [];
+  for (const t of all) {
+    const n = t.name.toLowerCase();
+    const other = `${t.event ?? ''} ${t.bank ?? ''}`.toLowerCase();
+    if (!words.every((w) => n.includes(w) || other.includes(w))) continue;
+    const rank = n.startsWith(joined) || n.includes(`_${joined}`) ? 0 : words.every((w) => n.includes(w)) ? 1 : 2;
+    hits.push([rank, t]);
+  }
+  hits.sort((a, b) => a[0] - b[0] || a[1].name.length - b[1].name.length || (a[1].name < b[1].name ? -1 : a[1].name > b[1].name ? 1 : 0));
+  return {
+    hits: hits.slice(0, Math.min(limit, 500)).map(([, t]) => ({ name: t.name, event: t.event ?? '', bank: t.bank ?? '', duration_type: t.duration_type })),
+    total: hits.length,
+  };
 }
 
 export const norm = (p: string) => p.trim().replace(/\//g, '\\').replace(/^\\+|\\+$/g, '');
@@ -72,6 +94,12 @@ export const modelFileName = (name: string, o: { preset: A.ModelPreset; lod: num
 export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handlers: AssetHandlers } {
   const files = data.files;
   const sounds = new Map(data.sounds);
+  /** Every trigger the mock knows, first record first (as the Rust mock). */
+  const allTriggers = (): A.TriggerInfo[] => {
+    const out: A.TriggerInfo[] = [];
+    for (const [, s] of data.sounds) for (const t of s.triggers) if (!out.some((x) => x.name === t.name)) out.push(t);
+    return out;
+  };
   let open: string | null = null;
   let datacore = false;
   let audio = false;
@@ -242,6 +270,17 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
       if (s) return structuredClone(s);
       const r = ctx.findRecord(req.what) ?? ctx.fail('not-found', `no record ${JSON.stringify(req.what)}`);
       return { record: r.guid, name: r.name, triggers: [], sounds: 0, playable: 0, loadout: 0 };
+    },
+    asset_sound_search: ({ req }) => {
+      openW(req.target);
+      audio = true;
+      return searchTriggers(allTriggers(), req.query, req.limit);
+    },
+    asset_trigger: ({ req }) => {
+      openW(req.target);
+      audio = true;
+      const t = allTriggers().find((x) => x.name === req.name);
+      return t ? { ...structuredClone(t), property: '', from: '' } : { name: req.name, property: '', from: '', bank: null, event: null, duration_type: null, sounds: [] };
     },
     asset_sound: ({ req }) => {
       on(req.target);

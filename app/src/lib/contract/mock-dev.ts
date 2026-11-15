@@ -21,6 +21,10 @@ export interface DevMockData {
   makers: Record<string, string>;
   enhanced: Record<string, string>;
   folder: { label: string; path: string; files: { file: string; value: Json }[] };
+  /** The section index's input (7.17): facts per entry, the table's result per entry. */
+  facts: (Facts | null)[];
+  sections: SectionsData;
+  catalogue: { stats: Record<string, D.Stat[]>; marks: [string, D.Change][]; geometry: [string, string][] };
 }
 
 export interface DevMockCtx {
@@ -1337,6 +1341,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
   });
   let open: string | null = null;
   let folder = false;
+  let compared: D.DevCompare | null = null;
   let diff: { summary: D.DevDiffSummary; tables: TableDiff[]; a: [string, Dataset][]; b: [string, Dataset][] } | null = null;
   const key = (r: T.ChannelRef) => `${r.install}/${r.channel}`;
   const stockOf = (k: string): string | null => {
@@ -1348,6 +1353,14 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     return ctx.stockText(k);
   };
   const lookup = mapLookup(data.known, stockOf, (k) => data.enhanced[k.toLowerCase()] ?? null, true);
+  const makerName = (code: string) => Object.entries(data.makers).find(([c]) => c.toLowerCase() === code.toLowerCase())?.[1] ?? null;
+  const sections = new Sections(data.entries, data.facts, data.sections, makerName);
+  const marked = new Sections(data.entries, data.facts, data.sections, makerName);
+  marked.setChanges(data.catalogue.marks.flatMap(([g, c]) => {
+    const i = index.byGuid(g);
+    return i === null ? [] : [[i, c] as [number, D.Change]];
+  }));
+  const facts = data.facts.filter((f): f is Facts => f !== null);
   const toDataset = (file: string, v: Json) => infer(file, stringify(v).length, v);
 
   const on = (r: T.ChannelRef) => {
@@ -1372,6 +1385,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       start_ms: isOpen ? 840 : null,
       memory: isOpen ? 412 * 1024 * 1024 : null,
       error: null,
+      sections: isOpen ? { build_ms: 210, scan_ms: 95, bytes: 11 * 1024 * 1024, entities: facts.length, models: facts.filter((f) => f.model).length, sounds: facts.filter((f) => f.sounds).length, verified: true } : null,
+      compared: isOpen ? compared : null,
     };
   };
   const summaryOf = (file: string, d: Dataset): D.DevDatasetSummary => ({ file, bytes: d.info.bytes, tables: d.tables.length, rows: d.tables.reduce((n, t) => n + t.rows.length, 0) });
@@ -1439,7 +1454,55 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       return status(req);
     },
     dev_types: ({ req }) => explorer(req).types(),
-    dev_tree: ({ req }) => explorer(req.target).tree(req.root, req.node, req.offset, Math.min(req.limit, MAX_PAGE), req.main_only),
+    dev_tree: ({ req }) => {
+      const ix = explorer(req.target);
+      if (req.root === 'section') return sections.tree(req.node, req.offset, Math.min(req.limit, MAX_PAGE), req.main_only, req.player_only ?? false);
+      return ix.tree(req.root, req.node, req.offset, Math.min(req.limit, MAX_PAGE), req.main_only);
+    },
+    dev_list: ({ req }) => {
+      explorer(req.target);
+      const q = { ...req.query, limit: Math.min(req.query.limit, MAX_PAGE) };
+      const page = (compared ? marked : sections).list(q);
+      const l = strict(lookup);
+      for (const it of page.items) {
+        if (it.detail === null) {
+          const r = l.byGuid(it.guid);
+          if (r) {
+            const rd = recordLabel(l, r);
+            if (rd.detail !== null) {
+              it.detail = rd.detail;
+              it.label = rd.text;
+            }
+          }
+        }
+        const st = data.catalogue.stats[it.guid];
+        if (st) it.stats = structuredClone(st);
+      }
+      return page;
+    },
+    dev_owner: ({ req }) => {
+      const ix = explorer(req.target);
+      const want = req.path.replace(/\//g, '\\').toLowerCase();
+      return data.catalogue.geometry
+        .filter(([g]) => g.toLowerCase() === want)
+        .flatMap(([, guid]) => {
+          const i = ix.byGuid(guid);
+          const e = i === null ? undefined : ix.entries[i];
+          return e ? [{ guid: e.guid, name: e.name, type: e.type, path: e.path, main: e.main }] : [];
+        });
+    },
+    dev_compare: ({ req }) => {
+      explorer(req.target);
+      const other = req.other;
+      if (other === null || other === req.target.channel || !ctx.hasChannel({ install: req.target.install, channel: other })) {
+        compared = null;
+        return null;
+      }
+      const marks = data.catalogue.marks;
+      const added = marks.filter((m) => m[1] === 'added').length;
+      compared = { other, added, changed: marks.length - added, removed: 2, marked: marks.length, ms: 12 };
+      return { ...compared };
+    },
     dev_search: ({ req }) => explorer(req.target).search(req.query, req.limit),
     dev_record: ({ req }) => {
       const ix = explorer(req.target);
@@ -1552,3 +1615,551 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
   };
   return { handlers, index, addFolder: () => (folder = true) };
 }
+
+// ---------------------------------------------------------------------------------------
+// Explorer sections and the item finder (7.17): a port of `starorg_core::dev::sections`. The
+// section table stays in Rust: the generated file carries each record's section and variant
+// flag, the section definitions and the value labels.
+// ---------------------------------------------------------------------------------------
+
+export type SectionLevel = 'kind' | 'sub-type' | 'size' | 'manufacturer' | 'type' | 'folder';
+
+export interface SectionDef {
+  id: string;
+  label: string;
+  levels: SectionLevel[];
+}
+
+export interface Facts {
+  item_type: string | null;
+  sub_type: string | null;
+  size: number | null;
+  manufacturer: string | null;
+  display: string | null;
+  grade: string | null;
+  class: string | null;
+  model: boolean;
+  sounds: boolean;
+}
+
+export interface SectionsData {
+  defs: SectionDef[];
+  labels: [string, string][];
+  /** Per index entry: [section id, variant]. */
+  records: [string, boolean][];
+}
+
+interface SectionEntry {
+  guid: string;
+  name: string;
+  type: string;
+  path: string;
+  main: boolean;
+  tag: string | null;
+}
+
+const MAX_FACET_VALUES = 60;
+const FOLDER_DEPTH = 3;
+const relative = (p: string) => {
+  const t = p.replace(/^[/\\]+/, '');
+  return t.slice(0, RECORDS_ROOT.length).toLowerCase() === RECORDS_ROOT ? t.slice(RECORDS_ROOT.length) : t;
+};
+const folderOf = (rel: string) => rel.split('/').slice(0, -1).slice(0, FOLDER_DEPTH).join('/');
+const wordsOf = (t: string) => t.split(/[^\p{L}\p{N}]+/u).filter(Boolean);
+
+interface Rec {
+  section: number;
+  size: number | null;
+  model: boolean;
+  sounds: boolean;
+  variant: boolean;
+  kind: string | null;
+  sub: string | null;
+  maker: string | null;
+  folder: string | null;
+  grade: string | null;
+  class: string | null;
+  tag: string | null;
+}
+
+type Media = 'models' | 'sounds' | null;
+interface Node {
+  media: Media;
+  section: number | null;
+  keys: (string | null)[];
+}
+
+export interface ParsedQuery {
+  words: string[];
+  types: string[];
+  makers: string[];
+  sizes: [number, number][];
+  tags: string[];
+  sections: string[];
+  grades: string[];
+  classes: string[];
+  model: boolean;
+  sounds: boolean;
+  understood: string[];
+}
+
+/** As `parse_query` in core. */
+export function parseQuery(q: string): ParsedQuery {
+  const p: ParsedQuery = { words: [], types: [], makers: [], sizes: [], tags: [], sections: [], grades: [], classes: [], model: false, sounds: false, understood: [] };
+  for (const t of q.split(/\s+/).filter(Boolean)) {
+    const at = t.indexOf(':');
+    if (at < 0) {
+      p.words.push(t.toLowerCase());
+      continue;
+    }
+    const k = t.slice(0, at).toLowerCase();
+    const v = t.slice(at + 1).trim().toLowerCase();
+    let took = false;
+    if (v !== '') {
+      if (k === 'type' || k === 'kind') (p.types.push(v), (took = true));
+      else if (k === 'maker' || k === 'mfr' || k === 'manufacturer') (p.makers.push(v), (took = true));
+      else if (k === 'size' || k === 's') {
+        // As Rust: split at the first `-`, both sides whole numbers.
+        const int = (x: string) => (/^[+-]?\d+$/.test(x) ? Number(x) : null);
+        const d = v.indexOf('-');
+        const r = d >= 0 ? [int(v.slice(0, d)), int(v.slice(d + 1))] : [int(v), int(v)];
+        if (r[0] !== null && r[1] !== null) {
+          p.sizes.push([r[0]!, r[1]!]);
+          took = true;
+        }
+      } else if (k === 'tag') (p.tags.push(v), (took = true));
+      else if (k === 'section' || k === 'in') (p.sections.push(v), (took = true));
+      else if (k === 'grade') (p.grades.push(v), (took = true));
+      else if (k === 'class') (p.classes.push(v), (took = true));
+      else if (k === 'has' && (v === 'model' || v === 'models')) (p.model = true), (took = true);
+      else if (k === 'has' && (v === 'sound' || v === 'sounds')) (p.sounds = true), (took = true);
+    }
+    if (took) p.understood.push(t);
+    else p.words.push(t.toLowerCase());
+  }
+  return p;
+}
+
+export class Sections {
+  private recs: Rec[];
+  private display = new Map<number, string>();
+  private makers = new Map<string, string>();
+  private bySection: number[][];
+  private namePos: number[];
+  private changes = new Map<number, D.Change>();
+  private sectionAt = new Map<string, number>();
+  private labels: Map<string, string>;
+  private entries: SectionEntry[];
+  private data: SectionsData;
+
+  constructor(entries: SectionEntry[], facts: (Facts | null)[], data: SectionsData, makerName: (code: string) => string | null) {
+    this.entries = entries;
+    this.data = data;
+    data.defs.forEach((d, i) => this.sectionAt.set(d.id, i));
+    this.labels = new Map(data.labels.map(([k, v]) => [k.toLowerCase(), v]));
+    this.recs = entries.map((e, i) => {
+      const f = facts[i] ?? null;
+      const rel = relative(e.path).replace(/\\/g, '/').toLowerCase();
+      const item = f?.item_type ? f.item_type : null;
+      const maker = f?.manufacturer ?? null;
+      if (maker !== null && !this.makers.has(maker)) this.makers.set(maker, makerName(maker) ?? maker);
+      if (f?.display) this.display.set(i, f.display);
+      const size = f?.size ?? null;
+      const [sec, variant] = data.records[i]!;
+      return {
+        section: this.sectionAt.get(sec)!,
+        size: size !== null && size >= 0 && size < 255 ? size : null,
+        model: !!f?.model,
+        sounds: !!f?.sounds,
+        variant,
+        kind: item ?? e.type,
+        sub: f?.sub_type || null,
+        maker: maker || null,
+        folder: folderOf(rel) || null,
+        grade: f?.grade || null,
+        class: f?.class || null,
+        tag: e.tag || null,
+      };
+    });
+    const order = entries.map((_, i) => i);
+    const keys = order.map((i) => this.label(i).toLowerCase());
+    order.sort((a, b) => cmp(keys[a]!, keys[b]!) || a - b);
+    this.namePos = new Array<number>(entries.length).fill(0);
+    this.bySection = data.defs.map(() => []);
+    order.forEach((i, pos) => {
+      this.namePos[i] = pos;
+      this.bySection[this.recs[i]!.section]!.push(i);
+    });
+  }
+
+  setChanges(marks: [number, D.Change][]): void {
+    this.changes = new Map(marks.filter(([i]) => i < this.recs.length));
+  }
+
+  private valueLabel = (k: string) => this.labels.get(k.toLowerCase()) ?? null;
+  private kindLabel = (k: string) => this.valueLabel(k) ?? k;
+  label(i: number): string {
+    return this.display.get(i) ?? shortName(this.entries[i]?.name ?? '');
+  }
+  makerLabel(code: string): string {
+    const n = this.makers.get(code);
+    return n !== undefined && n !== code ? `${n} (${code})` : code;
+  }
+
+  private key(i: number, level: SectionLevel): string | null {
+    const r = this.recs[i]!;
+    switch (level) {
+      case 'kind':
+        return r.kind;
+      case 'sub-type':
+        return r.sub !== null && r.sub.toUpperCase() !== 'UNDEFINED' ? r.sub : null;
+      case 'size':
+        return r.size === null ? null : String(r.size);
+      case 'manufacturer':
+        return r.maker;
+      case 'type':
+        return this.entries[i]!.type;
+      case 'folder':
+        return r.folder;
+    }
+  }
+
+  private keyLabel(level: SectionLevel, key: string | null): string {
+    if (level === 'size') return key === null ? 'No size' : `Size ${key}`;
+    if (level === 'manufacturer') return key === null ? 'No manufacturer' : this.makerLabel(key);
+    if (level === 'sub-type' && key === null) return 'No sub-type';
+    if (level === 'folder' && key !== null) return key;
+    return key === null ? 'None' : this.kindLabel(key);
+  }
+
+  private parse(id: string): Node | null {
+    let media: Media = null;
+    let rest: string;
+    if (id.startsWith('m:models:')) [media, rest] = ['models', id.slice(9)];
+    else if (id.startsWith('m:sounds:')) [media, rest] = ['sounds', id.slice(9)];
+    else if (id.startsWith('s:')) rest = id.slice(2);
+    else if (id === '') return { media: null, section: null, keys: [] };
+    else return null;
+    let path: unknown;
+    try {
+      path = JSON.parse(rest);
+    } catch {
+      return null;
+    }
+    if (!Array.isArray(path) || !path.every((x) => x === null || typeof x === 'string')) return null;
+    const keys = path as (string | null)[];
+    if (keys.length === 0) return media ? { media, section: null, keys: [] } : null;
+    const first = keys[0];
+    if (first === null || first === undefined) return null;
+    const section = this.sectionAt.get(first);
+    return section === undefined ? null : { media, section, keys: keys.slice(1) };
+  }
+
+  private idOf(media: Media, section: number | null, keys: (string | null)[]): string {
+    const path = [...(section === null ? [] : [this.data.defs[section]!.id]), ...keys];
+    const json = JSON.stringify(path);
+    return media === 'models' ? `m:models:${json}` : media === 'sounds' ? `m:sounds:${json}` : `s:${json}`;
+  }
+
+  private mediaOk(i: number, m: Media): boolean {
+    return m === null || (m === 'models' ? this.recs[i]!.model : this.recs[i]!.sounds);
+  }
+
+  private members(n: Node): number[] {
+    const secs = n.section === null ? this.data.defs.map((_, s) => s) : [n.section];
+    const out: number[] = [];
+    for (const s of secs)
+      for (const i of this.bySection[s]!) {
+        if (!this.mediaOk(i, n.media)) continue;
+        if (n.section !== null) {
+          const levels = this.data.defs[n.section]!.levels;
+          if (!n.keys.every((k, j) => j >= levels.length || this.key(i, levels[j]!) === k)) continue;
+        }
+        out.push(i);
+      }
+    return out;
+  }
+
+  private title(n: Node): string {
+    const parts: string[] = [];
+    if (n.media === 'models') parts.push('Models');
+    if (n.media === 'sounds') parts.push('Sounds');
+    if (n.section !== null) {
+      const d = this.data.defs[n.section]!;
+      parts.push(d.label);
+      n.keys.forEach((k, j) => {
+        if (k !== null && j < d.levels.length) parts.push(this.keyLabel(d.levels[j]!, k));
+      });
+    }
+    return parts.join(' › ');
+  }
+
+  tree(node: string, offset: number, limit: number, mainOnly: boolean, playerOnly: boolean): D.TreePage {
+    const all = this.children(node, mainOnly, playerOnly);
+    return { nodes: all.slice(offset, offset + Math.min(limit, MAX_PAGE)), offset, total: all.length };
+  }
+
+  private children(node: string, mainOnly: boolean, playerOnly: boolean): D.TreeNode[] {
+    const n = this.parse(node);
+    if (!n) return [];
+    const ok = (i: number) => (!mainOnly || this.entries[i]!.main) && (!playerOnly || !this.recs[i]!.variant);
+    const group = (id: string, label: string, count: number, kind: D.NodeKind): D.TreeNode => ({ id, label, kind, count, main: false });
+    if (n.section === null) {
+      const out: D.TreeNode[] = [];
+      if (n.media === null)
+        for (const [m, label] of [
+          ['models', 'Models'],
+          ['sounds', 'Sounds'],
+        ] as const) {
+          const c = this.recs.filter((_, i) => this.mediaOk(i, m) && ok(i)).length;
+          if (c > 0) out.push(group(this.idOf(m, null, []), label, c, 'section'));
+        }
+      this.data.defs.forEach((d, s) => {
+        const c = this.bySection[s]!.filter((i) => this.mediaOk(i, n.media) && ok(i)).length;
+        if (c > 0) out.push(group(this.idOf(n.media, s, []), d.label, c, 'section'));
+      });
+      return out;
+    }
+    const s = n.section;
+    const levels = this.data.defs[s]!.levels;
+    const members = this.members(n).filter(ok);
+    const keys = [...n.keys];
+    while (keys.length < levels.length && members.every((i) => this.key(i, levels[keys.length]!) === null)) keys.push(null);
+    if (keys.length >= levels.length) {
+      return members.map((i) => {
+        const e = this.entries[i]!;
+        return { id: `r:${e.guid}`, label: this.label(i), kind: 'record', count: 0, main: e.main };
+      });
+    }
+    const level = levels[keys.length]!;
+    const groups: [string | null, number][] = [];
+    const at = new Map<string | null, number>();
+    for (const i of members) {
+      const k = this.key(i, level);
+      const g = at.get(k);
+      if (g !== undefined) groups[g]![1]++;
+      else {
+        at.set(k, groups.length);
+        groups.push([k, 1]);
+      }
+    }
+    const nodes = groups.map(([k, c]) => [k, this.keyLabel(level, k), c] as const);
+    nodes.sort((a, b) => {
+      if (a[0] === null && b[0] !== null) return 1;
+      if (a[0] !== null && b[0] === null) return -1;
+      if (level === 'size' && a[0] !== null && b[0] !== null) return (Number(a[0]) || 0) - (Number(b[0]) || 0);
+      return cmp(a[1].toLowerCase(), b[1].toLowerCase());
+    });
+    return nodes.map(([k, label, c]) => group(this.idOf(n.media, s, [...keys, k]), label, c, 'folder'));
+  }
+
+  private rank(i: number, words: string[], joined: string): number | null {
+    if (words.length === 0) return 0;
+    const e = this.entries[i]!;
+    const r = this.recs[i]!;
+    const label = this.label(i).toLowerCase();
+    const short = shortName(e.name).toLowerCase();
+    const single = !joined.includes(' ');
+    for (const [base, text] of [
+      [0, label],
+      [5, short],
+    ] as const) {
+      if (text === joined) return base;
+      const w = wordsOf(text);
+      if (single && w.some((x) => x === joined)) return base + 1;
+      if (text.startsWith(joined)) return base + 2;
+      if (w.some((x) => x.startsWith(joined))) return base + 3;
+      if (text.includes(joined)) return base + 4;
+    }
+    if (words.every((w) => label.includes(w) || short.includes(w))) return 10;
+    let ot = e.type.toLowerCase();
+    for (const x of [r.kind, r.sub, r.tag, r.class]) if (x !== null) ot += ` ${x.toLowerCase()}`;
+    if (r.maker !== null) ot += ` ${this.makerLabel(r.maker).toLowerCase()}`;
+    const kl = r.kind === null ? null : this.valueLabel(r.kind);
+    if (kl !== null) ot += ` ${kl.toLowerCase()}`;
+    if (words.every((w) => label.includes(w) || short.includes(w) || ot.includes(w))) return 11;
+    const compact = words.join('');
+    if (compact.length >= 3 && (subsequence(compact, label) || subsequence(compact, short))) return 12;
+    return null;
+  }
+
+  private groupKey(i: number, g: D.ListGroup): [string, string, number] {
+    const r = this.recs[i]!;
+    if (g === 'section') return [this.data.defs[r.section]!.id, this.data.defs[r.section]!.label, r.section];
+    if (g === 'kind') return r.kind === null ? ['', 'None', 1] : [r.kind, this.kindLabel(r.kind), 0];
+    if (g === 'manufacturer') return r.maker === null ? ['', 'No manufacturer', 1] : [r.maker, this.makerLabel(r.maker), 0];
+    return r.size === null ? ['', 'No size', Number.MAX_SAFE_INTEGER] : [String(r.size), `Size ${r.size}`, r.size];
+  }
+
+  list(q: D.ListQuery): D.ListPage {
+    const pq = parseQuery(q.query);
+    const n = this.parse(q.node);
+    const empty: D.ListPage = { items: [], offset: q.offset, total: 0, matched: 0, facets: { sections: [], kinds: [], sub_types: [], sizes: [], manufacturers: [], grades: [], classes: [], tags: [], model: 0, sounds: 0, player: 0, changes: [] }, groups: [], title: '', understood: pq.understood, words: pq.words };
+    if (!n) return empty;
+    const joined = pq.words.join(' ');
+    const f = q.filters;
+    const low = (v: string[]) => v.map((x) => x.toLowerCase());
+    const [fSec, fKind, fSub, fMaker, fGrade, fClass, fTag, fChange] = [f.sections, f.kinds, f.sub_types, f.manufacturers, f.grades, f.classes, f.tags, f.changes].map(low) as string[][];
+    const any = (list: string[], v: string | null) => list.length === 0 || (v !== null && list.includes(v.toLowerCase()));
+    const has = (list: string[], v: string | null) => list.length === 0 || (v !== null && list.every((x) => v.toLowerCase().includes(x)));
+    const counts: Map<string, number>[] = Array.from({ length: 8 }, () => new Map());
+    const flags = [0, 0, 0];
+    const changeCounts = new Map<D.Change, number>();
+    let hits: [number, number][] = [];
+    for (const i of this.members(n)) {
+      const e = this.entries[i]!;
+      if (q.main_only && !e.main) continue;
+      const r = this.recs[i]!;
+      const lk = r.kind?.toLowerCase() ?? null;
+      const kl = r.kind === null ? null : this.valueLabel(r.kind);
+      if (!pq.types.every((t) => (lk !== null && lk.includes(t)) || e.type.toLowerCase().includes(t) || (kl !== null && kl.toLowerCase().includes(t)))) continue;
+      if (pq.makers.length > 0) {
+        if (r.maker === null) continue;
+        const ml = this.makerLabel(r.maker).toLowerCase();
+        if (!pq.makers.every((x) => ml.includes(x))) continue;
+      }
+      if (pq.sizes.length > 0 && !(r.size !== null && pq.sizes.some(([a, b]) => r.size! >= a && r.size! <= b))) continue;
+      const sec = this.data.defs[r.section]!;
+      if (pq.sections.length > 0 && !pq.sections.some((x) => sec.id.startsWith(x) || sec.label.toLowerCase().includes(x))) continue;
+      if (!has(pq.tags, r.tag) || !has(pq.grades, r.grade) || !has(pq.classes, r.class) || (pq.model && !r.model) || (pq.sounds && !r.sounds)) continue;
+      const rank = this.rank(i, pq.words, joined);
+      if (rank === null) continue;
+      const ch = this.changes.get(i) ?? null;
+      const fails = [
+        !any(fSec!, sec.id),
+        !any(fKind!, r.kind),
+        !any(fSub!, r.sub),
+        f.sizes.length > 0 && !(r.size !== null && f.sizes.includes(r.size)),
+        !any(fMaker!, r.maker),
+        !any(fGrade!, r.grade),
+        !any(fClass!, r.class),
+        !any(fTag!, r.tag),
+        f.model && !r.model,
+        f.sounds && !r.sounds,
+        f.player_only && r.variant,
+        fChange!.length > 0 && !(ch !== null && fChange!.includes(ch)),
+      ];
+      const nFail = fails.filter(Boolean).length;
+      if (nFail > 1) continue;
+      const ok = (own: number) => fails.every((x, k) => k === own || !x);
+      const vals = [sec.id, r.kind, r.sub, r.size === null ? null : String(r.size), r.maker, r.grade, r.class, r.tag];
+      vals.forEach((v, d) => {
+        if (ok(d) && v !== null) counts[d]!.set(v, (counts[d]!.get(v) ?? 0) + 1);
+      });
+      if (ok(8) && r.model) flags[0]!++;
+      if (ok(9) && r.sounds) flags[1]!++;
+      if (ok(10) && !r.variant) flags[2]!++;
+      if (ok(11) && ch !== null) changeCounts.set(ch, (changeCounts.get(ch) ?? 0) + 1);
+      if (nFail === 0) hits.push([rank, i]);
+    }
+    const sizeOf = (i: number) => this.recs[i]!.size ?? Number.MAX_SAFE_INTEGER;
+    const makerOf = (i: number) => {
+      const m = this.recs[i]!.maker;
+      return m === null ? '\u{10ffff}' : this.makerLabel(m).toLowerCase();
+    };
+    const by = (...ks: ((h: [number, number]) => number | string | boolean)[]) => (a: [number, number], b: [number, number]) => {
+      for (const k of ks) {
+        const x = k(a);
+        const y = k(b);
+        if (x === y) continue;
+        if (typeof x === 'string' && typeof y === 'string') return cmp(x, y);
+        return Number(x) - Number(y);
+      }
+      return 0;
+    };
+    const pos = (h: [number, number]) => this.namePos[h[1]]!;
+    if (q.sort === 'name' && pq.words.length > 0) hits.sort(by((h) => h[0], (h) => this.recs[h[1]]!.variant, (h) => !this.display.has(h[1]), (h) => utf8Len(this.label(h[1])), pos));
+    else if (q.sort === 'name') hits.sort(by((h) => h[0], pos));
+    else if (q.sort === 'size') hits.sort(by((h) => sizeOf(h[1]), (h) => h[0], pos));
+    else hits.sort(by((h) => makerOf(h[1]), (h) => h[0], pos));
+    let groups: D.GroupHead[] = [];
+    let keyed: (string | null)[] = [];
+    if (q.group !== 'none') {
+      const order = new Map<string, [number, string, number]>();
+      const keys = hits.map((h) => this.groupKey(h[1], q.group));
+      for (const [k, l, o] of keys) {
+        const g = order.get(k);
+        if (g) g[2]++;
+        else order.set(k, [o, l, 1]);
+      }
+      const zipped = keys.map((k, j) => [k, hits[j]!] as const);
+      const gcmp = (a: [number, string, string], b: [number, string, string]) => a[0] - b[0] || cmp(a[1].toLowerCase(), b[1].toLowerCase()) || cmp(a[2], b[2]);
+      zipped.sort((a, b) => gcmp([a[0][2], a[0][1], a[0][0]], [b[0][2], b[0][1], b[0][0]]));
+      groups = [...order.entries()]
+        .sort((a, b) => gcmp([a[1][0], a[1][1], a[0]], [b[1][0], b[1][1], b[0]]))
+        .map(([key, [, label, count]]) => ({ key, label, count, collapsed: q.collapsed.includes(key) }));
+      hits = [];
+      keyed = [];
+      for (const [[k], h] of zipped)
+        if (!q.collapsed.includes(k)) {
+          keyed.push(k);
+          hits.push(h);
+        }
+    }
+    const matched = Math.max(
+      groups.reduce((a, g) => a + g.count, 0),
+      hits.length,
+    );
+    const facet = (d: number, label: (v: string) => string): D.FacetValue[] =>
+      [...counts[d]!.entries()]
+        .map(([value, count]) => ({ value, label: label(value), count }))
+        .sort((a, b) => b.count - a.count || cmp(a.label, b.label) || cmp(a.value, b.value))
+        .slice(0, MAX_FACET_VALUES);
+    const sections = [...counts[0]!.entries()].map(([value, count]) => ({ value, label: this.data.defs[this.sectionAt.get(value)!]!.label, count })).sort((a, b) => this.sectionAt.get(a.value)! - this.sectionAt.get(b.value)!);
+    const sizes = [...counts[3]!.entries()].map(([value, count]) => ({ value, label: `S${value}`, count })).sort((a, b) => Number(a.value) - Number(b.value));
+    const grades = facet(5, (g) => `Grade ${g}`).sort((a, b) => cmp(a.value, b.value));
+    const facets: D.FacetCounts = {
+      sections,
+      kinds: facet(1, this.kindLabel),
+      sub_types: facet(2, this.kindLabel),
+      sizes,
+      manufacturers: facet(4, (c) => this.makerLabel(c)),
+      grades,
+      classes: facet(6, (c) => c),
+      tags: facet(7, (t) => t),
+      model: flags[0]!,
+      sounds: flags[1]!,
+      player: flags[2]!,
+      changes:
+        this.changes.size === 0
+          ? []
+          : (['added', 'changed'] as const).map((c) => ({ value: c, label: c === 'added' ? 'Added' : 'Changed', count: changeCounts.get(c) ?? 0 })),
+    };
+    const items = hits.slice(q.offset, q.offset + Math.min(q.limit, MAX_PAGE)).map(([, i], k) => ({ ...this.item(i), group: keyed[q.offset + k] ?? null }));
+    return { items, offset: q.offset, total: hits.length, matched, facets, groups, title: this.title(n), understood: pq.understood, words: pq.words };
+  }
+
+  item(i: number): D.ListItem {
+    const e = this.entries[i]!;
+    const r = this.recs[i]!;
+    const display = this.display.get(i);
+    const mk = r.maker === null ? undefined : this.makers.get(r.maker);
+    return {
+      guid: e.guid,
+      name: e.name,
+      label: this.label(i),
+      detail: display === undefined ? null : shortName(e.name),
+      type: e.type,
+      section: this.data.defs[r.section]!.id,
+      kind: r.kind,
+      kind_label: r.kind === null ? null : this.valueLabel(r.kind),
+      sub_type: r.sub !== null && r.sub.toUpperCase() !== 'UNDEFINED' ? r.sub : null,
+      size: r.size,
+      manufacturer: r.maker,
+      maker_label: mk !== undefined && mk !== r.maker ? mk : null,
+      grade: r.grade,
+      class: r.class,
+      tag: r.tag,
+      model: r.model,
+      sounds: r.sounds,
+      variant: r.variant,
+      main: e.main,
+      group: null,
+      change: this.changes.get(i) ?? null,
+      stats: [],
+    };
+  }
+}
+
+/** Rust's `str::len` (UTF-8 bytes), for the same tie-break. */
+const utf8Len = (s: string) => new TextEncoder().encode(s).length;

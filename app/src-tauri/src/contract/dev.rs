@@ -26,6 +26,10 @@ pub use starorg_core::dev::group::{
 };
 pub use starorg_core::dev::readable::{LabelKind, Readable};
 pub use starorg_core::dev::record::{LocText, RecordHeader, RecordView};
+pub use starorg_core::dev::sections::{
+    Change, FacetCounts, FacetValue, Filters, GroupHead, ListGroup, ListItem, ListPage, ListQuery,
+    SectionStats, SortKey, Stat,
+};
 
 /// Records above this count get a size warning in the export dialog (7.4).
 pub const EXPORT_WARN_RECORDS: u32 = 5_000;
@@ -55,6 +59,12 @@ pub struct DevStatus {
     /// Worker resident memory, bytes, where the OS reports it.
     pub memory: Option<u64>,
     pub error: Option<String>,
+    /// The section index (7.17): build time, size, entities with models and sounds.
+    #[serde(default)]
+    pub sections: Option<SectionStats>,
+    /// The channel the explorer is compared with (7.17), when one is.
+    #[serde(default)]
+    pub compared: Option<DevCompare>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -66,6 +76,47 @@ pub struct DevTreeRequest {
     pub offset: u32,
     pub limit: u32,
     pub main_only: bool,
+    /// Sections view: hide AI, NPC, test and template variants (7.17).
+    #[serde(default)]
+    pub player_only: bool,
+}
+
+/// The item finder's list (7.17): a node of the Sections view (or every record), search
+/// with field prefixes, filters, sort and grouping. Rows carry headline stats from the
+/// build's GameData.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevListRequest {
+    pub target: ChannelRef,
+    pub query: ListQuery,
+}
+
+/// "Open owning record" for a geometry file of the Files browser (7.17).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevOwnerRequest {
+    pub target: ChannelRef,
+    /// Archive path (`Data\Objects\...\x.cga`).
+    pub path: String,
+}
+
+/// Compare the explorer's channel with another channel's build (7.17): GameData tables
+/// diffed as the Diff screen does; records added or changed get badges and a filter.
+/// `other: None` clears the comparison.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevCompareRequest {
+    pub target: ChannelRef,
+    pub other: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevCompare {
+    pub other: String,
+    pub added: u32,
+    pub changed: u32,
+    /// Only in the other channel (no record here to show).
+    pub removed: u32,
+    /// Marked records the explorer found by GUID.
+    pub marked: u32,
+    pub ms: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -330,6 +381,12 @@ pub trait DevBackend {
     fn dev_close(&self, req: ChannelRef) -> CmdResult<DevStatus>;
     fn dev_types(&self, req: ChannelRef) -> CmdResult<Vec<TypeCount>>;
     fn dev_tree(&self, req: DevTreeRequest) -> CmdResult<TreePage>;
+    /// The item finder's list (7.17).
+    fn dev_list(&self, req: DevListRequest) -> CmdResult<ListPage>;
+    /// Entities whose geometry is an archive file (7.17).
+    fn dev_owner(&self, req: DevOwnerRequest) -> CmdResult<Vec<SearchHit>>;
+    /// Compare with another channel (or clear it) (7.17).
+    fn dev_compare(&self, req: DevCompareRequest) -> CmdResult<Option<DevCompare>>;
     fn dev_search(&self, req: DevSearchRequest) -> CmdResult<SearchPage>;
     fn dev_record(&self, req: DevRecordRequest) -> CmdResult<RecordView>;
     /// Native save dialog, then pretty JSON in StarBreaker's form.
@@ -424,6 +481,9 @@ dev_commands! {
     dev_close(req: ChannelRef) -> DevStatus;
     dev_types(req: ChannelRef) -> Vec<TypeCount>;
     dev_tree(req: DevTreeRequest) -> TreePage;
+    dev_list(req: DevListRequest) -> ListPage;
+    dev_owner(req: DevOwnerRequest) -> Vec<SearchHit>;
+    dev_compare(req: DevCompareRequest) -> Option<DevCompare>;
     dev_search(req: DevSearchRequest) -> SearchPage;
     dev_record(req: DevRecordRequest) -> RecordView;
     dev_export_record(req: DevExportRecordRequest) -> DevExportResult;

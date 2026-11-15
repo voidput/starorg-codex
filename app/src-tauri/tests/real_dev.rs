@@ -191,6 +191,7 @@ fn the_worker_starts_answers_exports_and_stops() {
     let types = f
         .backend
         .dev_tree(DevTreeRequest {
+            player_only: false,
             target: live.clone(),
             root: TreeRoot::Type,
             node: String::new(),
@@ -203,6 +204,7 @@ fn the_worker_starts_answers_exports_and_stops() {
     let items = f
         .backend
         .dev_tree(DevTreeRequest {
+            player_only: false,
             target: live.clone(),
             root: TreeRoot::Type,
             node: format!("t:{}", synthetic::ITEM_TYPE),
@@ -437,4 +439,64 @@ fn folder_datasets_rows_and_diff() {
         f.backend.dev_diff_summary(live).unwrap_err().code,
         ErrorCode::NotFound
     );
+}
+
+#[test]
+fn the_worker_serves_sections_list_owner_and_compare() {
+    use starorg_strings_app::contract::dev::{
+        DevCompareRequest, DevListRequest, DevOwnerRequest, ListGroup, ListQuery,
+    };
+    let f = fake(false);
+    f.dev_mode(true);
+    let live = f.live();
+    let s = f.backend.dev_open(live.clone(), &noop).unwrap();
+    // `--dcb` input: built at start, nothing checked against an archive.
+    let st = s.sections.expect("section stats");
+    assert!(!st.verified);
+    let root = f
+        .backend
+        .dev_tree(DevTreeRequest {
+            player_only: true,
+            target: live.clone(),
+            root: TreeRoot::Section,
+            node: String::new(),
+            offset: 0,
+            limit: 500,
+            main_only: true,
+        })
+        .unwrap();
+    assert!(root.nodes.iter().any(|n| n.label == "Other"));
+    let page = f
+        .backend
+        .dev_list(DevListRequest {
+            target: live.clone(),
+            query: ListQuery {
+                query: "syn_item_00".into(),
+                group: ListGroup::Section,
+                limit: 5,
+                ..Default::default()
+            },
+        })
+        .unwrap();
+    assert_eq!(page.items.len(), 5);
+    assert_eq!(page.groups.len(), 1);
+    assert!(page.total >= 10);
+    let owners = f
+        .backend
+        .dev_owner(DevOwnerRequest {
+            target: live.clone(),
+            path: r"Data\Objects\none.cga".into(),
+        })
+        .unwrap();
+    assert!(owners.is_empty());
+    // Comparing with itself clears.
+    let c = f
+        .backend
+        .dev_compare(DevCompareRequest {
+            target: live.clone(),
+            other: Some("LIVE".into()),
+        })
+        .unwrap();
+    assert!(c.is_none());
+    assert!(f.backend.dev_status(live).unwrap().compared.is_none());
 }

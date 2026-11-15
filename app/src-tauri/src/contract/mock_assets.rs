@@ -102,6 +102,77 @@ fn sound(id: u32, playable: bool, bank: &str) -> SoundInfo {
     }
 }
 
+/// Every trigger the mock knows (ships' and coolers'), for the Sounds search (7.17).
+pub fn all_triggers() -> Vec<TriggerInfo> {
+    let mut out: Vec<TriggerInfo> = Vec::new();
+    let names = (0..SHIPS)
+        .map(ship_guid)
+        .chain((0..COMPONENTS).filter(|n| n % 4 == 0).map(component_guid));
+    for g in names {
+        for t in record_sounds(&g).map(|s| s.triggers).unwrap_or_default() {
+            if !out.iter().any(|x| x.name == t.name) {
+                out.push(t);
+            }
+        }
+    }
+    out
+}
+
+/// The trigger search over [`all_triggers`]: every word in the name, event or bank; name
+/// starts first, then shorter names.
+pub fn search_triggers(query: &str, limit: usize) -> TriggerSearch {
+    let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+    if words.is_empty() {
+        return TriggerSearch::default();
+    }
+    let joined = words.join("_");
+    let mut hits: Vec<(u8, TriggerInfo)> = all_triggers()
+        .into_iter()
+        .filter_map(|t| {
+            let n = t.name.to_lowercase();
+            let other = format!(
+                "{} {}",
+                t.event.clone().unwrap_or_default(),
+                t.bank.clone().unwrap_or_default()
+            )
+            .to_lowercase();
+            if !words
+                .iter()
+                .all(|w| n.contains(w.as_str()) || other.contains(w.as_str()))
+            {
+                return None;
+            }
+            let rank = if n.starts_with(&joined) || n.contains(&format!("_{joined}")) {
+                0
+            } else if words.iter().all(|w| n.contains(w.as_str())) {
+                1
+            } else {
+                2
+            };
+            Some((rank, t))
+        })
+        .collect();
+    let total = hits.len() as u32;
+    hits.sort_by(|a, b| {
+        a.0.cmp(&b.0)
+            .then(a.1.name.len().cmp(&b.1.name.len()))
+            .then(a.1.name.cmp(&b.1.name))
+    });
+    TriggerSearch {
+        hits: hits
+            .into_iter()
+            .take(limit.min(500))
+            .map(|(_, t)| TriggerHit {
+                event: t.event.unwrap_or_default(),
+                bank: t.bank.unwrap_or_default(),
+                duration_type: t.duration_type,
+                name: t.name,
+            })
+            .collect(),
+        total,
+    }
+}
+
 /// The sounds of a mock record: ships have an engine loop, a thruster and a door; coolers a
 /// hum; everything else none.
 pub fn record_sounds(what: &str) -> Option<RecordSounds> {
@@ -558,6 +629,34 @@ impl AssetBackend for MockBackend {
         }
         record_sounds(&req.what)
             .ok_or_else(|| AppError::new(ErrorCode::NotFound, format!("no record {:?}", req.what)))
+    }
+
+    fn asset_sound_search(&self, req: AssetSoundSearchRequest) -> CmdResult<TriggerSearch> {
+        self.assets_open(&req.target)?;
+        self.asset_state().audio = true;
+        Ok(search_triggers(&req.query, req.limit as usize))
+    }
+
+    fn asset_trigger(&self, req: AssetTriggerRequest) -> CmdResult<TriggerInfo> {
+        self.assets_open(&req.target)?;
+        self.asset_state().audio = true;
+        Ok(all_triggers()
+            .into_iter()
+            .find(|t| t.name == req.name)
+            .map(|mut t| {
+                t.property = String::new();
+                t.from = String::new();
+                t
+            })
+            .unwrap_or(TriggerInfo {
+                name: req.name,
+                property: String::new(),
+                from: String::new(),
+                bank: None,
+                event: None,
+                duration_type: None,
+                sounds: vec![],
+            }))
     }
 
     fn asset_sound(&self, req: AssetSoundRequest) -> CmdResult<AssetAudio> {
