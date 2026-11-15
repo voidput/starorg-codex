@@ -1,0 +1,22 @@
+name: Feature request
+description: Suggest an enhancement or a new kind of in-game text.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: What you are trying to do in the game or the app, and what gets in the way.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you would like
+      description: Example text in game, a sketch of the setting, or how the CLI should behave.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered

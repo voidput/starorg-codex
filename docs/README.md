@@ -18,3 +18,4 @@ updated: 2026-11-15
 - [Microsoft Store listing draft](store-listing.md)
 - [Privacy policy](privacy.md)
 - [Local MCP server (experimental)](mcp.md)
+- Repo: [README](../README.md) · [Contributing](../CONTRIBUTING.md) · [Code of Conduct](../CODE_OF_CONDUCT.md) · [Security policy](../SECURITY.md) · [License (MIT)](../LICENSE) · [Third-party notices](../THIRD_PARTY_NOTICES.md)
