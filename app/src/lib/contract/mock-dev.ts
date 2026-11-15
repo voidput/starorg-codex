@@ -2043,8 +2043,9 @@ export class Sections {
       if (nFail > 1) continue;
       const ok = (own: number) => fails.every((x, k) => k === own || !x);
       const vals = [sec.id, r.kind, r.sub, r.size === null ? null : String(r.size), r.maker, r.grade, r.class, r.tag];
+      const undefinedSub = r.sub !== null && r.sub.toUpperCase() === 'UNDEFINED';
       vals.forEach((v, d) => {
-        if (ok(d) && v !== null) counts[d]!.set(v, (counts[d]!.get(v) ?? 0) + 1);
+        if (ok(d) && v !== null && !(d === 2 && undefinedSub)) counts[d]!.set(v, (counts[d]!.get(v) ?? 0) + 1);
       });
       if (ok(8) && r.model) flags[0]!++;
       if (ok(9) && r.sounds) flags[1]!++;
@@ -2144,6 +2145,7 @@ export class Sections {
       kind: r.kind,
       kind_label: r.kind === null ? null : this.valueLabel(r.kind),
       sub_type: r.sub !== null && r.sub.toUpperCase() !== 'UNDEFINED' ? r.sub : null,
+      sub_label: r.sub === null ? null : this.valueLabel(r.sub),
       size: r.size,
       manufacturer: r.maker,
       maker_label: mk !== undefined && mk !== r.maker ? mk : null,

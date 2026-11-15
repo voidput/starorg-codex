@@ -12,7 +12,7 @@ const only = process.argv[2] ? new RegExp(process.argv[2]) : null;
 require('fs').mkdirSync(OUT, { recursive: true });
 
 const openShip = async (p, name) => {
-  await p.getByText(/300 records/).waitFor();
+  await p.getByText(/357 records/).waitFor();
   await p.getByRole('searchbox', { name: /Find records/ }).fill(name);
   await p.getByRole('option', { name: new RegExp(name) }).first().click();
   await p.getByRole('heading', { name }).waitFor();
@@ -62,6 +62,7 @@ const shots = [
   // Lazy loading: the Dev screens open without a single asset_* call.
   {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+    await ctx.addInitScript(() => localStorage.setItem('starorg.dev.finder.mode', '"raw"')); // the Raw explorer (7.4); Items/Assets: render-finder.cjs
     const page = await ctx.newPage();
     await page.goto(`${BASE}?state=ready&screen=explorer&delay=0&dev=1`);
     await page.waitForSelector('#page-title');
@@ -75,6 +76,7 @@ const shots = [
   for (const [w, h] of sizes) {
     for (const theme of ['dark', 'light']) {
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: theme, reducedMotion: 'reduce' });
+      await ctx.addInitScript(() => localStorage.setItem('starorg.dev.finder.mode', '"raw"')); // the Raw explorer (7.4); Items/Assets: render-finder.cjs
       for (const [name, screen, prep] of shots) {
         if (only && !only.test(name)) continue;
         const page = await ctx.newPage();

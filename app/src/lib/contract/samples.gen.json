@@ -1889,11 +1889,6 @@
       "sounds": 26,
       "sub_types": [
         {
-          "count": 16,
-          "label": "UNDEFINED",
-          "value": "UNDEFINED"
-        },
-        {
           "count": 6,
           "label": "Spaceships",
           "value": "Vehicle_Spaceship"
@@ -2025,6 +2020,7 @@
             "value": 925.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2074,6 +2070,7 @@
             "value": 180.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2123,6 +2120,7 @@
             "value": 180.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2172,6 +2170,7 @@
             "value": 210.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2209,6 +2208,7 @@
             "value": 950.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2438,11 +2438,6 @@
       "sounds": 8,
       "sub_types": [
         {
-          "count": 4,
-          "label": "UNDEFINED",
-          "value": "UNDEFINED"
-        },
-        {
           "count": 2,
           "label": "Spaceships",
           "value": "Vehicle_Spaceship"
@@ -2526,6 +2521,7 @@
             "value": 180.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2575,6 +2571,7 @@
             "value": 180.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2599,6 +2596,7 @@
         "size": 1,
         "sounds": false,
         "stats": [],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2636,6 +2634,7 @@
             "value": 900.0
           }
         ],
+        "sub_label": null,
         "sub_type": "Power",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2673,6 +2672,7 @@
             "value": 825.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2697,6 +2697,7 @@
         "size": null,
         "sounds": true,
         "stats": [],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2721,6 +2722,7 @@
         "size": 1,
         "sounds": false,
         "stats": [],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2758,6 +2760,7 @@
             "value": 975.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2782,6 +2785,7 @@
         "size": 1,
         "sounds": true,
         "stats": [],
+        "sub_label": null,
         "sub_type": "Medical",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -2790,13 +2794,13 @@
       {
         "change": "changed",
         "class": null,
-        "detail": null,
+        "detail": "SYN_Delivery_Contracts",
         "grade": null,
         "group": null,
         "guid": "54000000-0000-4000-8000-00000000002e",
         "kind": "ContractGenerator",
         "kind_label": null,
-        "label": "SYN_Delivery_Contracts",
+        "label": "Delivery Contracts",
         "main": true,
         "maker_label": null,
         "manufacturer": null,
@@ -2806,6 +2810,7 @@
         "size": null,
         "sounds": false,
         "stats": [],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "ContractGenerator",
@@ -2979,11 +2984,6 @@
       "sounds": 3,
       "sub_types": [
         {
-          "count": 3,
-          "label": "UNDEFINED",
-          "value": "UNDEFINED"
-        },
-        {
           "count": 1,
           "label": "Power",
           "value": "Power"
@@ -3025,6 +3025,7 @@
             "value": 825.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3062,6 +3063,7 @@
             "value": 975.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3099,6 +3101,7 @@
             "value": 875.0
           }
         ],
+        "sub_label": null,
         "sub_type": "Power",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3136,6 +3139,7 @@
             "value": 925.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3240,6 +3244,7 @@
             "value": 1900.0
           }
         ],
+        "sub_label": null,
         "sub_type": "Gun",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3277,6 +3282,7 @@
             "value": 1950.0
           }
         ],
+        "sub_label": null,
         "sub_type": "Gun",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3368,11 +3374,6 @@
           "count": 1,
           "label": "Ground vehicles",
           "value": "Vehicle_GroundVehicle"
-        },
-        {
-          "count": 1,
-          "label": "UNDEFINED",
-          "value": "UNDEFINED"
         }
       ],
       "tags": []
@@ -3423,6 +3424,7 @@
             "value": 210.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3472,6 +3474,7 @@
             "value": 210.0
           }
         ],
+        "sub_label": "Ground vehicles",
         "sub_type": "Vehicle_GroundVehicle",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3496,6 +3499,7 @@
         "size": 1,
         "sounds": false,
         "stats": [],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3545,6 +3549,7 @@
             "value": 180.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3594,6 +3599,7 @@
             "value": 180.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3643,6 +3649,7 @@
             "value": 150.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3692,6 +3699,7 @@
             "value": 150.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3741,6 +3749,7 @@
             "value": 120.0
           }
         ],
+        "sub_label": "Spaceships",
         "sub_type": "Vehicle_Spaceship",
         "tag": null,
         "type": "EntityClassDefinition",
@@ -3802,13 +3811,7 @@
         }
       ],
       "sounds": 0,
-      "sub_types": [
-        {
-          "count": 1,
-          "label": "UNDEFINED",
-          "value": "UNDEFINED"
-        }
-      ],
+      "sub_types": [],
       "tags": []
     },
     "groups": [],
@@ -3845,6 +3848,7 @@
             "value": 825.0
           }
         ],
+        "sub_label": null,
         "sub_type": null,
         "tag": null,
         "type": "EntityClassDefinition",

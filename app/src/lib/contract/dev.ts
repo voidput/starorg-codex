@@ -91,6 +91,7 @@ export interface ListItem {
   kind: string | null;
   kind_label: string | null;
   sub_type: string | null;
+  sub_label: string | null;
   size: number | null;
   manufacturer: string | null;
   maker_label: string | null;
@@ -169,8 +170,6 @@ export interface DevCompare {
   marked: number;
   ms: number;
 }
-
-export const NO_FILTERS: Filters = { sections: [], kinds: [], sub_types: [], sizes: [], manufacturers: [], grades: [], classes: [], tags: [], model: false, sounds: false, player_only: false, changes: [] };
 
 export interface TreeNode {
   id: string;

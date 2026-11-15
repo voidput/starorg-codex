@@ -11,7 +11,7 @@ require('fs').mkdirSync(OUT, { recursive: true });
 const tree = (p) => p.getByRole('tree', { name: /DataCore/ });
 /** Below 1,100 px the tree is a drawer: open it first. */
 const openTree = async (p) => {
-  await p.getByText(/300 records/).waitFor();
+  await p.getByText(/357 records/).waitFor();
   const b = p.getByRole('button', { name: 'Tree', exact: true });
   if ((await b.count()) && (await b.getAttribute('aria-expanded')) === 'false') await b.click();
   await tree(p).waitFor();
@@ -32,14 +32,14 @@ const shots = [
   }],
   ['explorer-record', 'explorer', async (p) => openShip(p, 'SYN_Ship_002')],
   ['explorer-search', 'explorer', async (p) => {
-    await p.getByText(/300 records/).waitFor();
+    await p.getByText(/357 records/).waitFor();
     await p.getByRole('searchbox', { name: /Find records/ }).fill('cooler 01');
     await p.getByText(/^2 of 2$/).waitFor();
     await p.getByRole('option', { name: /SYN_cooler_012/ }).click();
     await p.getByRole('heading', { name: 'SYN_cooler_012' }).waitFor();
   }],
   ['explorer-huge', 'explorer', async (p) => {
-    await p.getByText(/300 records/).waitFor();
+    await p.getByText(/357 records/).waitFor();
     await p.getByRole('searchbox', { name: /Find records/ }).fill('SYN_Ship_039');
     await p.getByRole('option', { name: /SYN_Ship_039/ }).click();
     await p.getByRole('heading', { name: 'SYN_Ship_039' }).waitFor();
@@ -111,6 +111,7 @@ const shots = [
   for (const [w, h] of sizes) {
     for (const theme of ['dark', 'light']) {
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, colorScheme: theme, reducedMotion: 'reduce' });
+      await ctx.addInitScript(() => localStorage.setItem('starorg.dev.finder.mode', '"raw"')); // the Raw explorer (7.4); Items/Assets: render-finder.cjs
       for (const [name, screen, prep, extra = '', devMode = '1'] of shots) {
         if (only && !only.test(name)) continue;
         const page = await ctx.newPage();

@@ -8,7 +8,7 @@ const BASE = process.env.BASE_URL || 'http://127.0.0.1:4317/';
 require('fs').mkdirSync(OUT, { recursive: true });
 
 const openShip = async (p, name) => {
-  await p.getByText(/300 records/).waitFor();
+  await p.getByText(/357 records/).waitFor();
   await p.getByRole('searchbox', { name: /Find records/ }).fill(name);
   await p.getByRole('option', { name: new RegExp(name) }).click();
   await p.getByRole('heading', { name }).waitFor();
@@ -60,6 +60,7 @@ const shots = [
   const overflow = [];
   for (const theme of ['dark', 'light']) {
     const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 }, colorScheme: theme, reducedMotion: 'reduce' });
+    await ctx.addInitScript(() => localStorage.setItem('starorg.dev.finder.mode', '"raw"')); // the Raw explorer (7.4); Items/Assets: render-finder.cjs
     for (const ids of [false, true]) {
       for (const [name, screen, prep] of shots) {
         const page = await ctx.newPage();

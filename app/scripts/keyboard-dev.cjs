@@ -10,6 +10,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+  await page.addInitScript(() => localStorage.setItem('starorg.dev.finder.mode', '"raw"')); // the Raw explorer's keys
   page.setDefaultTimeout(8000);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -36,13 +37,17 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.keyboard.press('Alt+0');
   check('dev on: Alt+0 opens Settings', (await page.locator('#page-title').textContent()).includes('Settings'));
   await page.keyboard.press('Alt+9');
-  await page.getByText(/300 records/).waitFor();
+  await page.getByText(/357 records/).waitFor();
   check('dev on: Alt+9 opens Explorer', (await page.locator('#page-title').textContent()).includes('Explorer'));
 
   // Tree keys.
   const tree = page.getByRole('tree', { name: /DataCore/ });
   await tree.focus();
-  check('tree starts on the first type', /^SynComponent/.test((await active()).cur ?? ''), JSON.stringify(await active()));
+  check('tree starts on the first type', /^AmmoParams/.test((await active()).cur ?? ''), JSON.stringify(await active()));
+  // The mock's item catalogue adds types before the synthetic ones: typeahead to SynComponent.
+  for (const k of 'sync') await page.keyboard.press(k);
+  check('typeahead finds SynComponent', /^SynComponent/.test((await active()).cur ?? ''), JSON.stringify(await active()));
+  await page.waitForTimeout(800);
   await page.keyboard.press('ArrowDown');
   check('ArrowDown moves to SynShip', /^SynShip/.test((await active()).cur ?? ''));
   await page.keyboard.press('ArrowRight');
@@ -155,6 +160,55 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.keyboard.press('Enter');
   await page.getByRole('columnheader', { name: 'Δ' }).waitFor();
   check('diff: Enter shows the field diff of record 2', ((await page.locator('[aria-label="Field changes"] h2').textContent()) ?? '').includes('SYN_shield_009'));
+
+  // Item finder (7.17): Items mode, tree -> list -> record with F6, list keys, folding a group
+  // with Enter, and Alt+Left bringing back the filters of the record it came from.
+  await page.goto(`${BASE}&screen=explorer&dev=1`);
+  await page.getByText(/357 records/).waitFor();
+  await page.getByRole('radio', { name: 'Items' }).click();
+  const items = page.getByRole('listbox', { name: 'Items' });
+  await items.getByRole('option').first().waitFor();
+  const stree = page.getByRole('tree', { name: 'Sections' });
+  await stree.focus();
+  check('finder: tree starts on Models', /^Models/.test((await active()).cur ?? ''), JSON.stringify(await active()));
+  for (const k of 'ships') await page.keyboard.press(k);
+  check('finder: typeahead finds Ships & vehicles', /^Ships & vehicles/.test((await active()).cur ?? ''), JSON.stringify(await active()));
+  await page.keyboard.press('Enter');
+  await page.getByText(/^8 of 8$/).waitFor();
+  check('finder: Enter lists the section', true);
+  await page.keyboard.press('F6');
+  check('finder F6: tree -> list', (await active()).pane === 'list', JSON.stringify(await active()));
+  await page.keyboard.press('ArrowDown');
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => /SYN_Alpha_Kestrel_PU_AI_CIV/.test(document.querySelector('[data-pane=detail] h2')?.title ?? ''));
+  check('finder: ArrowDown + Enter opens the second item', /Alpha_Kestrel_PU_AI/.test((await heading()) ?? ''));
+  await page.keyboard.press('F6');
+  check('finder F6: list -> record', (await active()).pane === 'detail');
+  // Group by size; Enter on a header folds it.
+  await page.getByRole('combobox', { name: /Group/ }).selectOption('size');
+  await items.getByRole('option', { name: /^Size 1, \d+ records, open/ }).waitFor();
+  await items.focus();
+  await page.keyboard.press('Home');
+  await page.keyboard.press('Enter');
+  await items.getByRole('option', { name: /^Size 1, \d+ records, folded/ }).waitFor();
+  check('finder: Enter folds a group', true);
+  // Filters, then a record, then another filter: Alt+Left restores the first.
+  await page.getByRole('button', { name: /^Player-usable/ }).click();
+  await page.getByRole('button', { name: /Remove filter Player-usable only/ }).waitFor();
+  // Ships & vehicles less its AI and template variants.
+  await page.getByText(/^6 of 6$/).waitFor();
+  await items.getByRole('option').filter({ hasText: 'Alpha Kestrel' }).first().click();
+  await page.waitForFunction(() => /SYN_Alpha_Kestrel$/.test(document.querySelector('[data-pane=detail] h2')?.title ?? ''));
+  await page.getByRole('button', { name: /Remove filter Player-usable only/ }).click();
+  await page.getByText(/^8 of 8$/).waitFor();
+  await items.getByRole('option').filter({ hasText: 'Beta Rover' }).first().click();
+  await page.waitForFunction(() => /SYN_Beta_Rover/.test(document.querySelector('[data-pane=detail] h2')?.title ?? ''));
+  check('finder: filter cleared before the second record', (await page.getByRole('button', { name: /Remove filter Player-usable only/ }).count()) === 0);
+  await page.keyboard.press('Alt+ArrowLeft');
+  await page.waitForFunction(() => /SYN_Alpha_Kestrel$/.test(document.querySelector('[data-pane=detail] h2')?.title ?? ''));
+  await page.getByRole('button', { name: /Remove filter Player-usable only/ }).waitFor();
+  check('finder: Alt+Left brings back the record and its filters', true);
+  check('finder: Alt+Left keeps the grouping', (await page.getByRole('combobox', { name: /Group/ }).inputValue()) === 'size');
 
   await browser.close();
   console.log(results.join('\n'));

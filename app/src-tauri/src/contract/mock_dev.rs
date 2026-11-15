@@ -878,13 +878,19 @@ pub fn catalogue_stats() -> HashMap<String, Vec<Stat>> {
         .collect()
 }
 
-/// Archive files the catalogue's models are (for "Open owning record").
+/// Archive files the catalogue's models are (for "Open owning record"). The first ships use
+/// the mock archive's own `syn_ship_00n.skin` files, so Files can open them.
 pub fn catalogue_geometry(n: usize) -> Option<String> {
-    (CATALOGUE[n].0 == E && CATALOGUE[n].9).then(|| {
-        format!(
-            "Data\\Objects\\syn\\{}.cga",
-            catalogue_name(n).to_lowercase()
-        )
+    let r = CATALOGUE.get(n)?;
+    (r.0 == E && r.9).then(|| {
+        if n < 6 {
+            format!("Data\\Objects\\Spaceships\\Ships\\SYN\\syn_ship_{n:03}\\syn_ship_{n:03}.skin")
+        } else {
+            format!(
+                "Data\\Objects\\syn\\{}.cga",
+                catalogue_name(n).to_lowercase()
+            )
+        }
     })
 }
 
@@ -1088,10 +1094,13 @@ pub fn known() -> Vec<KnownRecord> {
         .map(|(e, v)| {
             let tag = e.struct_type == "SynTag";
             let field = match e.struct_type.as_str() {
-                "SynTag" => "Label",
+                "SynTag" => "/Label",
                 // Ships carry a plain display name; their key is a description.
-                "SynShip" => "DisplayName",
-                _ => "Name",
+                "SynShip" => "/DisplayName",
+                "SynComponent" => "/Name",
+                // The item catalogue (7.17): the entity's own name, else `displayName`.
+                E => "/Components/0/AttachDef/Localization/Name",
+                _ => "/displayName",
             };
             KnownRecord {
                 guid: Some(e.guid.clone()),
@@ -1101,7 +1110,10 @@ pub fn known() -> Vec<KnownRecord> {
                 } else {
                     LabelKind::Record
                 },
-                display: v["_RecordValue_"][field].as_str().map(str::to_string),
+                display: v["_RecordValue_"]
+                    .pointer(field)
+                    .and_then(Value::as_str)
+                    .map(str::to_string),
             }
         })
         .collect()

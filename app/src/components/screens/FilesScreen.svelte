@@ -6,6 +6,8 @@
    * button. Extract copies the selected file or the current folder to a folder you pick
    * (optionally textures as PNG and CryXML as XML); never into the game folder. The asset
    * worker starts when this screen first lists a folder and stops after 5 idle minutes.
+   * A geometry file (.cga/.cgf/.skin/.chr/.cdf) offers "Open owning record" (7.17): the
+   * explorer's index knows which entities name it.
    */
   import { untrack } from 'svelte';
   import Folder from '@lucide/svelte/icons/folder';
@@ -26,6 +28,9 @@
   import { assetApi, bytesText, PERSONAL_USE, soundId, type AssetPreview, type AssetStatus, type FileEntry } from '@/lib/contract/assets';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { app } from '@/lib/stores/app.svelte';
+  import { dev } from '@/lib/stores/dev.svelte';
+  import { devApi, type SearchHit } from '@/lib/contract/dev';
+  import Link from '@lucide/svelte/icons/link';
   import { player } from '@/lib/stores/assets.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { int } from '@/lib/format';
@@ -50,6 +55,29 @@
   let previewing = $state(false);
   let previewError = $state<ContractError | null>(null);
   let convert = $state(true);
+  // "Open owning record" (7.17).
+  const GEOMETRY = /\.(cga|cgf|skin|chr|cdf)$/i;
+  let owners = $state<SearchHit[] | null>(null);
+  let owning = $state(false);
+  $effect(() => {
+    void selected?.path;
+    owners = null;
+  });
+  async function findOwners(path: string) {
+    if (!target) return;
+    owning = true;
+    try {
+      const hits = await devApi.owner({ target: $state.snapshot(target), path });
+      if (hits.length === 1) openOwner(hits[0]!.guid);
+      else if (hits.length === 0) toast('info', 'No record names this file', 'Only entity geometry that the explorer indexes has an owner.');
+      else owners = hits;
+    } catch (e) {
+      toast('error', 'Could not look up the owner', toContractError(e).message);
+    } finally {
+      owning = false;
+    }
+  }
+  const openOwner = (guid: string) => dev.openRecord(guid, () => app.go('explorer'));
   let extracting = $state(false);
   let status = $state<AssetStatus | null>(null);
 
@@ -234,8 +262,17 @@
         <div class="grid gap-1 border-b px-3 py-2">
           <div class="flex flex-wrap items-center gap-2">
             <h2 class="mono min-w-0 flex-1 truncate text-[13px] font-semibold" title={selected.path}>{selected.name}</h2>
+            {#if GEOMETRY.test(selected.name)}
+              <Button variant="outline" size="xs" disabled={owning} title="The entity records whose model is this file" onclick={() => selected && void findOwners(selected.path)}><Link aria-hidden="true" /> Open owning record</Button>
+            {/if}
             <Button variant="outline" size="xs" disabled={extracting} onclick={() => selected && void extract([selected.path], selected.name)}><Download aria-hidden="true" /> Extract…</Button>
           </div>
+          {#if owners}
+            <div class="flex flex-wrap items-center gap-1 text-[11.5px]" aria-label="Owning records">
+              <span class="text-muted-foreground">{owners.length} records use it:</span>
+              {#each owners as o (o.guid)}<Button variant="link" size="xs" class="h-auto p-0" onclick={() => openOwner(o.guid)}>{o.name.replace(/^[^.]*\./, '')}</Button>{/each}
+            </div>
+          {/if}
           <p class="text-muted-foreground mono truncate text-[11.5px]" title={selected.path}>{selected.path}</p>
           <p class="text-muted-foreground text-[11.5px]">{bytesText(selected.size)} · {bytesText(selected.packed)} in the archive{preview?.width ? ` · ${preview.width} x ${preview.height}` : ''}{preview?.cached ? ' · from the cache' : ''}</p>
         </div>

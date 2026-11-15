@@ -31,6 +31,11 @@
   import JsonTree from '@/components/dev/JsonTree.svelte';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
   import AssetPanel from '@/components/assets/AssetPanel.svelte';
+  import TriggerPanel from '@/components/assets/TriggerPanel.svelte';
+  import ItemFinder from '@/components/dev/ItemFinder.svelte';
+  import CircleHelp from '@lucide/svelte/icons/circle-help';
+  import GitCompare from '@lucide/svelte/icons/git-compare';
+  import * as F from '@/lib/finder';
   import { devApi, EXPORT_WARN_RECORDS, type RecordView, type SearchHit, type TreeNode, type TreeRoot } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { guidOf, treeKey, treeRows, typeahead, bytes, type Loaded } from '@/lib/devnav';
@@ -50,6 +55,39 @@
   const tkey = $derived(app.targetKey);
   let root = $state<TreeRoot>('type');
   let mainOnly = $state(true);
+
+  // --- Mode and the item finder's view (7.17) ----------------------------------------------
+  const store = F.storage();
+  let view = $state<F.FinderView>({ ...F.DEFAULT_VIEW, mode: F.loadMode(store) });
+  let finderQuery = $state('');
+  let trigger = $state<string | null>(null);
+  let help = $state(false);
+  function setMode(m: F.Mode) {
+    F.saveMode(store, m);
+    const media = view.node.startsWith('m:');
+    view = { ...view, mode: m, node: m === 'assets' && !media ? 'm:models:[]' : m === 'items' && media ? '' : view.node, collapsed: [] };
+    if (m !== 'assets') trigger = null;
+  }
+  const finding = $derived(view.mode !== 'raw');
+  // Compare with another channel (7.17): GameData diffed in the backend, marks in the worker.
+  let compareWith = $state('');
+  let comparing = $state(false);
+  const compared = $derived(dev.status?.compared ?? null);
+  const others = $derived(app.channels.map((c) => c.channel).filter((c) => c !== target?.channel));
+  async function compare(other: string) {
+    if (!target) return;
+    comparing = true;
+    try {
+      const r = await devApi.compare({ target: $state.snapshot(target), other: other || null });
+      if (r) toast('success', `Compared with ${r.other}`, `${int(r.added)} added, ${int(r.changed)} changed, ${int(r.removed)} only in ${r.other} (${r.ms} ms)`);
+      await dev.ensure($state.snapshot(target), false);
+    } catch (e) {
+      compareWith = '';
+      toast('error', 'Could not compare', toContractError(e).message);
+    } finally {
+      comparing = false;
+    }
+  }
 
   // --- Worker --------------------------------------------------------------------------
   let ready = $state(false);
@@ -285,20 +323,32 @@
     }
   }
   async function openRecord(what: string) {
+    trigger = null;
     if (await show(what)) {
-      dev.history.visit(rec!.header.guid);
+      // The finder's view rides along, so Back/Forward brings the list and filters back.
+      dev.history.visit(F.encodeEntry(rec!.header.guid, finding ? $state.snapshot(view) : null));
       dev.histRev++;
     }
+  }
+  async function restore(entry: string | null) {
+    if (!entry) return;
+    const e = F.decodeEntry(entry);
+    if (e.view) {
+      view = e.view;
+      finderQuery = e.view.query;
+    }
+    trigger = null;
+    await show(e.guid);
   }
   async function back() {
     const g = dev.history.goBack();
     dev.histRev++;
-    if (g) await show(g);
+    await restore(g);
   }
   async function forward() {
     const g = dev.history.goForward();
     dev.histRev++;
-    if (g) await show(g);
+    await restore(g);
   }
   const canBack = $derived((void dev.histRev, dev.history.canBack));
   const canForward = $derived((void dev.histRev, dev.history.canForward));
@@ -371,7 +421,8 @@
     untrack(() => {
       if (!r) return;
       if (dev.pendingSearch !== null) {
-        search = dev.pendingSearch;
+        if (finding) finderQuery = dev.pendingSearch;
+        else search = dev.pendingSearch;
         dev.pendingSearch = null;
         void tick().then(() => searchEl?.focus());
       }
@@ -545,15 +596,30 @@
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div bind:this={rootEl} class="flex h-full min-h-[420px] flex-col gap-3" onkeydown={onKey} onmouseup={onMouse}>
     <div class="flex flex-wrap items-center gap-2">
-      {#if narrow}
+      {#if narrow && !finding}
         <Button variant="outline" size="sm" aria-expanded={drawer} aria-controls="dev-drawer" onclick={() => (drawer = !drawer)}><ListTree aria-hidden="true" /> Tree</Button>
       {/if}
+      <Segmented size="sm" ariaLabel="Explorer mode" value={view.mode} onchange={setMode} options={[{ id: 'items', label: 'Items', hint: 'Find items and ships by section, with filters and stats' }, { id: 'assets', label: 'Assets', hint: 'Entities with models or sounds; search sound events' }, { id: 'raw', label: 'Raw', hint: 'DataCore by type or path, as stored' }] as { id: F.Mode; label: string; hint: string }[]} />
       <Button variant="ghost" size="icon-sm" aria-label="Back (Alt+Left)" title="Back (Alt+Left)" disabled={!canBack} onclick={() => void back()}><ArrowLeft aria-hidden="true" /></Button>
       <Button variant="ghost" size="icon-sm" aria-label="Forward (Alt+Right)" title="Forward (Alt+Right)" disabled={!canForward} onclick={() => void forward()}><ArrowRight aria-hidden="true" /></Button>
-      <div class="relative max-w-md min-w-56 flex-1" role="search" aria-label="Find records">
+      <div class="relative max-w-md min-w-48 flex-1" role="search" aria-label="Find records">
         <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
-        <Input bind:ref={searchEl} type="search" aria-label="Find records by name, path or GUID" placeholder="Name, path or GUID" class="h-8 pl-8" bind:value={search} onkeydown={onSearchKey} disabled={!ready} />
+        {#if finding}
+          <Input bind:ref={searchEl} type="search" list="finder-recent" aria-label={view.mode === 'assets' && view.sounds ? 'Find sound events by name' : 'Find items: words and prefixes like type:, maker:, size:'} placeholder={view.mode === 'assets' && view.sounds ? 'Sound event: gladius, quantum, explosion…' : 'Name, or type:cooler maker:aegis size:1…'} class="h-8 pl-8" bind:value={finderQuery} onkeydown={onSearchKey} disabled={!ready} />
+        {:else}
+          <Input bind:ref={searchEl} type="search" aria-label="Find records by name, path or GUID" placeholder="Name, path or GUID" class="h-8 pl-8" bind:value={search} onkeydown={onSearchKey} disabled={!ready} />
+        {/if}
       </div>
+      {#if finding}
+        <Button variant="ghost" size="icon-sm" aria-label="Search help" title="Search help" aria-expanded={help} aria-controls="finder-help" onclick={() => (help = !help)}><CircleHelp aria-hidden="true" /></Button>
+      {/if}
+      <label class="text-muted-foreground flex items-center gap-1 text-[11.5px]" title="Mark what changed against another channel's build (its game data must have been read)">
+        <GitCompare class="size-3.5" aria-hidden="true" />
+        <select class="border-input bg-background text-foreground h-7 rounded-md border px-1 text-[11.5px]" aria-label="Compare with channel" disabled={!ready || comparing || others.length === 0} bind:value={compareWith} onchange={() => void compare(compareWith)}>
+          <option value="">{compared ? 'No comparison' : 'Compare with…'}</option>
+          {#each others as c (c)}<option value={c}>vs {c}</option>{/each}
+        </select>
+      </label>
       <span class="flex-1"></span>
       {#if app.job?.kind === 'dev'}
         <JobProgress job={app.job} compact />
@@ -562,6 +628,14 @@
       {/if}
     </div>
 
+    {#if help && finding}
+      <div id="finder-help" class="bg-card grid gap-1 rounded-lg border px-3 py-2 text-[12px]">
+        <p>Words match the readable name, the record name, type, manufacturer and tag; close misses still match (<span class="mono">glds</span> finds Gladius). Recent searches appear as you type. Prefixes narrow the search:</p>
+        <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-0.5">
+          {#each F.PREFIXES as [k, v] (k)}<dt class="mono text-primary">{k}</dt><dd class="text-muted-foreground">{v}</dd>{/each}
+        </dl>
+      </div>
+    {/if}
     {#if failed}
       <div class="border-destructive/50 bg-destructive/5 flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3" role="alert">
         <TriangleAlert class="text-destructive size-4" aria-hidden="true" />
@@ -578,6 +652,12 @@
     {/if}
 
     <div class="relative flex min-h-0 flex-1 gap-0">
+      {#if finding && target}
+        <div class="flex min-h-0 min-w-0 flex-[2] basis-0">
+          <ItemFinder {target} {ready} {narrow} {compared} bind:view bind:query={finderQuery} selected={rec?.header.guid ?? null} selectedTrigger={trigger} onopen={(g) => void openRecord(g)} onopentrigger={(n) => (trigger = n)} />
+        </div>
+        <div class="w-2 shrink-0"></div>
+      {:else}
       {#if !narrow}
         <aside data-pane="tree" class="bg-card flex shrink-0 flex-col overflow-hidden rounded-lg border" style="width: {treeW}px" aria-label="Record tree">
           {@render treePane()}
@@ -659,9 +739,12 @@
       {:else}
         <div class="w-2 shrink-0"></div>
       {/if}
+      {/if}
 
-      <section data-pane="detail" class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Record">
-        {#if recError}
+      <section data-pane="detail" class={cn('bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border', finding && 'min-w-[300px] basis-0')} aria-label="Record">
+        {#if trigger && target}
+          <TriggerPanel {target} name={trigger} />
+        {:else if recError}
           <div class="p-3"><ErrorState title="Could not open the record" error={recError} /></div>
         {:else if rec}
           {@const h = rec.header}
