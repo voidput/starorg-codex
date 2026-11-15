@@ -40,11 +40,14 @@ cargo test --release --locked -p starorg-cli --test worker    # release profile,
 (cd app/src-tauri && cargo clippy --all-targets --locked -- -D warnings && cargo test --locked)
 (cd app/src-tauri && cargo clippy --all-targets --locked --features store -- -D warnings \
   && cargo test --locked --features store --lib update)       # Microsoft Store flavour
-cargo deny check --workspace
+cargo deny --workspace check
 scripts/gen-notices.sh --check   # warning only in CI; needs cargo-about and npm ci in app/
 
 cd app && npm ci && npm run check && npm test && npm run build
 ```
+
+`npm run build` is not in ci.yml's `ui` job, but it is on the PR checklist and the release
+build needs it.
 
 - Contract changed (`app/src-tauri/src/contract/`)? Run
   `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app`, then `git status --short`: commit

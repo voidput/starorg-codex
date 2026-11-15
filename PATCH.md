@@ -104,9 +104,10 @@ its id is listed as `error in <file>: file name <file> does not match id <id>`. 
 for the full list with `errors`.
 
 To see outcomes against a real build, copy the file into your real patch folder and run
-`starorg-codex patches --channel LIVE` (it reads only a cached extraction, so run `apply` once
-first) or `starorg-codex apply --channel LIVE --dry-run`, or open the Patches screen. None of
-these writes to the game.
+`starorg-codex patches --channel LIVE` or `starorg-codex apply --channel LIVE --dry-run`, or
+open the Patches screen. `patches` reads only a cached extraction, which an earlier real
+`apply` leaves behind (a real `apply` does write `global.ini` into the game install).
+`patches` and `apply --dry-run` do not write to the game.
 
 ### Guard it
 
