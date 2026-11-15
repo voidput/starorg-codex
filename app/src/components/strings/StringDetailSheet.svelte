@@ -21,6 +21,7 @@
   import type { ChannelRef, Layer, StringDetail, StringRow } from '@/lib/contract/types';
   import { CATEGORY_LABEL, SOURCE_LABEL, SOURCE_TONE } from '@/lib/format';
   import { checkOverride } from '@/lib/validate';
+  import { ownerContext, ownerLabel } from '@/lib/strowner';
   import { ruleText } from '@/lib/messages';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import { type ContractError } from '@/lib/contract/client';
@@ -130,6 +131,18 @@
   {:else}
     {@const d = detail}
     <div class="grid gap-5">
+      <section aria-labelledby="sd-owner" class="grid gap-1.5">
+        <h3 id="sd-owner" class="eyebrow text-muted-foreground">{d.owners.length > 1 ? `Used by ${d.owners.length} records` : 'What this is'}</h3>
+        <ul class="grid gap-1">
+          {#each d.owners.length ? d.owners : [d.row.owner] as o, i (i)}
+            <li class="leading-snug">
+              <span class={cn(o?.kind === 'key' && 'text-muted-foreground')}>{ownerLabel(o, d.row.key)}</span>
+              {#if ownerContext(o)}<span class="text-muted-foreground text-[12px]"> — {ownerContext(o)}</span>{/if}
+            </li>
+          {/each}
+        </ul>
+        {#if !d.owners.length}<p class="text-muted-foreground text-[12px]">No record uses this key; this is the key made readable.</p>{/if}
+      </section>
       <section aria-labelledby="sd-result" class="grid gap-1.5">
         <div class="flex items-center gap-2">
           <h3 id="sd-result" class="eyebrow text-muted-foreground">In game</h3>

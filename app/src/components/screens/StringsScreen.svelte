@@ -13,6 +13,11 @@
    * removable chip per selected group, manufacturer and size. Selection, open nodes and
    * group-by are remembered per channel in this webview's local storage. F6 / Shift+F6 move
    * between the tree, the filter bar and the grid.
+   *
+   * Owners: the first column says what a key is in words ("Bracer · description", from the
+   * cached GameData, no Developer mode), with the raw key under it while "Show keys" is on
+   * (remembered in local storage). A shared key reads "N records · field" and opens a list of
+   * its owners. Ctrl+C on a row, or its copy button, copies the key.
    */
   import Search from '@lucide/svelte/icons/search';
   import Check from '@lucide/svelte/icons/check';
@@ -21,6 +26,7 @@
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
+  import Copy from '@lucide/svelte/icons/copy';
   import { Button } from '@/components/ui/button';
   import GroupTree from '@/components/strings/GroupTree.svelte';
   import { tick, untrack } from 'svelte';
@@ -32,7 +38,9 @@
   import ErrorState from '@/components/common/ErrorState.svelte';
   import StringDetailSheet from '@/components/strings/StringDetailSheet.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
-  import type { FacetCount, GroupBy, GroupNode, GroupState, StringRow, StringSort, StringSource } from '@/lib/contract/types';
+  import type { FacetCount, GroupBy, GroupNode, GroupState, KeyOwner, StringRow, StringSort, StringSource } from '@/lib/contract/types';
+  import { ownerContext, ownerLabel, sharedLabel } from '@/lib/strowner';
+  import { toast } from '@/lib/stores/toast.svelte';
   import { CATEGORY_LABEL, int, SOURCE_LABEL, SOURCE_TONE } from '@/lib/format';
   import { chips as groupChips, parsePrefs, sizeId, sizeOf, type GroupPrefs } from '@/lib/grouptree';
   import { app } from '@/lib/stores/app.svelte';
@@ -89,6 +97,23 @@
   let prefs = $state<GroupPrefs>(parsePrefs(null));
   let prefsFor = '';
   let railed = $state(readRail());
+  const SHOW_KEYS = 'starorg.strings.show-keys';
+  let showKeys = $state(readShowKeys());
+  function readShowKeys(): boolean {
+    try {
+      return localStorage.getItem(SHOW_KEYS) !== '0';
+    } catch {
+      return true;
+    }
+  }
+  $effect(() => {
+    const v = showKeys ? '1' : '0';
+    try {
+      localStorage.setItem(SHOW_KEYS, v);
+    } catch {
+      /* ignore */
+    }
+  });
   function readRail(): boolean {
     try {
       return localStorage.getItem(RAIL) === '1';
@@ -222,10 +247,10 @@
   const colCount = $derived(3 + Number(showOriginal) + Number(showGroup));
   const cols = $derived(
     showGroup
-      ? 'grid grid-cols-[minmax(200px,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_96px_128px]'
+      ? 'grid grid-cols-[minmax(200px,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_96px_128px]'
       : showOriginal
-        ? 'grid grid-cols-[minmax(180px,1.1fr)_minmax(0,1fr)_minmax(0,1fr)_92px]'
-        : 'grid grid-cols-[minmax(160px,1.2fr)_minmax(0,1.4fr)_92px]',
+        ? 'grid grid-cols-[minmax(180px,1.3fr)_minmax(0,1fr)_minmax(0,1fr)_92px]'
+        : 'grid grid-cols-[minmax(170px,1.4fr)_minmax(0,1.2fr)_92px]',
   );
   /** The row in the tab order: the active one while it is in the DOM, else the first visible one. */
   const firstShown = $derived(Math.min(Math.max(0, (total ?? 1) - 1), Math.floor(scrollTop / ROW)));
@@ -253,6 +278,12 @@
     if (e.key in map) {
       e.preventDefault();
       void focusRow(map[e.key]!);
+    } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c' && !window.getSelection()?.toString()) {
+      const r = rowAt(active);
+      if (r) {
+        e.preventDefault();
+        void copyKey(r.key);
+      }
     } else if (e.key === 'Enter' || e.key === ' ') {
       const r = rowAt(active);
       if (r) {
@@ -266,6 +297,65 @@
     openKey = key;
     sheet = true;
   }
+
+  async function copyKey(key: string) {
+    try {
+      await navigator.clipboard.writeText(key);
+      toast('success', 'Copied the key', key);
+    } catch {
+      toast('error', 'The clipboard is not available here');
+    }
+  }
+
+  // Owners of a shared key, in a popover beside its cell.
+  let ownersPop = $state<{ key: string; top: number; left: number; list: KeyOwner[] | null; failed: boolean } | null>(null);
+  let ownersEl = $state<HTMLElement | null>(null);
+  let ownersFrom: HTMLElement | null = null;
+  async function openOwners(e: MouseEvent, r: StringRow) {
+    e.stopPropagation();
+    if (!target) return;
+    if (ownersPop?.key === r.key) {
+      ownersPop = null;
+      return;
+    }
+    ownersFrom = e.currentTarget as HTMLElement;
+    const b = ownersFrom.getBoundingClientRect();
+    const left = Math.max(8, Math.min(b.left, innerWidth - 328));
+    const top = b.bottom + 4 + 260 > innerHeight ? Math.max(8, b.top - 264) : b.bottom + 4;
+    ownersPop = { key: r.key, top, left, list: null, failed: false };
+    const key = r.key;
+    try {
+      const d = await api.stringDetail({ target: $state.snapshot(target), key });
+      if (ownersPop?.key === key) ownersPop.list = d.owners;
+    } catch {
+      if (ownersPop?.key === key) ownersPop.failed = true;
+    }
+    await tick();
+    ownersEl?.focus();
+  }
+  function closeOwners(refocus = false) {
+    ownersPop = null;
+    if (refocus) ownersFrom?.focus();
+  }
+  $effect(() => {
+    if (!ownersPop) return;
+    const away = (e: PointerEvent) => {
+      if (ownersEl && !ownersEl.contains(e.target as Node) && !(e.target as HTMLElement).closest?.('[data-owners]')) closeOwners();
+    };
+    const off = () => closeOwners();
+    window.addEventListener('pointerdown', away, true);
+    window.addEventListener('resize', off);
+    scroller?.addEventListener('scroll', off, { passive: true });
+    return () => {
+      window.removeEventListener('pointerdown', away, true);
+      window.removeEventListener('resize', off);
+      scroller?.removeEventListener('scroll', off);
+    };
+  });
+  $effect(() => {
+    void qkey;
+    untrack(() => (ownersPop = null));
+  });
 
   function toggleSource(s: StringSource) {
     sources = sources.includes(s) ? sources.filter((x) => x !== s) : [...sources, s];
@@ -281,6 +371,7 @@
   const facetCount = (id: string) => sourceFacets.find((f) => f.id === id)?.count ?? 0;
   const sorts = $derived<{ id: StringSort; label: string }[]>([
     ...(groupBy === 'none' ? [] : [{ id: 'group' as const, label: 'Group' }]),
+    { id: 'owner', label: 'Owner A–Z' },
     { id: 'key', label: 'Key A–Z' },
     { id: 'key-desc', label: 'Key Z–A' },
     { id: 'category', label: 'Generator' },
@@ -445,7 +536,7 @@
   <div class="flex flex-wrap items-center gap-x-3 gap-y-2" role="search" aria-label="Filter strings">
     <div class="relative w-full max-w-sm min-w-56 flex-1">
       <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
-      <Input type="search" aria-label="Search keys and text" placeholder="Search keys and text" class="h-8 pl-8" bind:value={search} />
+      <Input type="search" aria-label="Search keys, owners and text" placeholder="Search keys, owners and text" class="h-8 pl-8" bind:value={search} />
     </div>
     <SelectField ariaLabel="Group by" options={groupBys} value={groupBy} onchange={(v) => (prefs.groupBy = v)} class="min-w-44" />
     {#if narrow && groupBy !== 'none'}
@@ -517,6 +608,7 @@
       </div>
     {/if}
     <span class="flex-1"></span>
+    <SwitchRow id="show-keys" size="sm" label="Show keys" checked={showKeys} onchange={(v) => (showKeys = v)} class="py-0" />
     <span class="text-muted-foreground text-[12px]" aria-live="polite">
       {total === null ? 'Loading…' : `${int(total)} of ${int(all)} keys`}
     </span>
@@ -537,7 +629,7 @@
     >
       <div role="rowgroup" class="border-b">
         <div role="row" aria-rowindex={1} class={cn(cols, 'text-muted-foreground h-8 items-center gap-3 px-3 text-[12px] font-medium')}>
-          <span role="columnheader">Key</span>
+          <span role="columnheader">String</span>
           {#if showOriginal}<span role="columnheader">Original</span>{/if}
           <span role="columnheader">Result</span>
           <span role="columnheader">Source</span>
@@ -563,7 +655,7 @@
                 tabindex={tabRow === v.i ? 0 : -1}
                 class={cn(
                   cols,
-                  'hover:bg-accent/60 focus-visible:ring-ring/60 absolute right-0 left-0 cursor-pointer items-center gap-3 border-b border-border/60 px-3 outline-none focus-visible:ring-2 focus-visible:ring-inset',
+                  'group hover:bg-accent/60 focus-visible:ring-ring/60 absolute right-0 left-0 cursor-pointer items-center gap-3 border-b border-border/60 px-3 outline-none focus-visible:ring-2 focus-visible:ring-inset',
                   active === v.i && 'bg-accent/70',
                 )}
                 style="top: {v.i * ROW}px; height: {ROW}px"
@@ -574,7 +666,39 @@
                 onfocus={() => (active = v.i)}
               >
                 {#if r}
-                  <span role="gridcell" class="mono truncate text-[12px]" title={r.key}>{r.key}</span>
+                  {@const ctx = ownerContext(r.owner)}
+                  {@const fallback = !r.owner || r.owner.kind === 'key'}
+                  <span role="gridcell" class="flex min-w-0 items-center gap-1" title={[ownerLabel(r.owner, r.key), ctx, r.key].filter(Boolean).join('\n')}>
+                    <span class="grid min-w-0 flex-1 leading-tight">
+                      {#if r.owners > 1}
+                        <button
+                          type="button"
+                          tabindex="-1"
+                          data-owners={r.key}
+                          aria-haspopup="dialog"
+                          aria-expanded={ownersPop?.key === r.key}
+                          class="decoration-muted-foreground/60 hover:text-primary w-fit max-w-full truncate text-left text-[12.5px] underline decoration-dotted underline-offset-2 outline-none"
+                          onclick={(e) => void openOwners(e, r)}
+                        >{sharedLabel(r.owners, r.owner)}</button>
+                      {:else}
+                        <span class={cn('truncate text-[12.5px]', fallback && 'text-muted-foreground')}>{ownerLabel(r.owner, r.key)}</span>
+                      {/if}
+                      {#if showKeys}<span class="mono text-muted-foreground truncate text-[10.5px]">{r.key}</span>{/if}
+                    </span>
+                    <button
+                      type="button"
+                      tabindex="-1"
+                      aria-label="Copy key {r.key}"
+                      title="Copy key"
+                      class="text-muted-foreground hover:text-foreground grid size-6 shrink-0 place-items-center rounded opacity-0 outline-none group-hover:opacity-100 group-focus:opacity-100 focus-visible:opacity-100"
+                      onclick={(e) => {
+                        e.stopPropagation();
+                        void copyKey(r.key);
+                      }}
+                    >
+                      <Copy class="size-3.5" aria-hidden="true" />
+                    </button>
+                  </span>
                   {#if showOriginal}<span role="gridcell" class="text-muted-foreground truncate">{r.original}</span>{/if}
                   <span role="gridcell" class="truncate">{r.result}</span>
                   <span role="gridcell"><ToneBadge tone={SOURCE_TONE[r.source]} label={SOURCE_LABEL[r.source]} icon={null} /></span>
@@ -588,10 +712,46 @@
         {/if}
       </div>
     </div>
-    <p class="text-muted-foreground text-[11.5px]">Arrow keys move, Enter opens a key. Edits are saved per channel and written on the next apply.</p>
+    <p class="text-muted-foreground text-[11.5px]">Arrow keys move, Enter opens a key, Ctrl+C copies its key. Edits are saved per channel and written on the next apply.</p>
   {/if}
 </div>
 
 </div>
+
+{#if ownersPop}
+  {@const p = ownersPop}
+  <div
+    bind:this={ownersEl}
+    role="dialog"
+    aria-label="Records that use {p.key}"
+    tabindex="-1"
+    class="bg-popover text-popover-foreground fixed z-40 flex max-h-64 w-80 flex-col rounded-lg border shadow-lg outline-none"
+    style="top: {p.top}px; left: {p.left}px"
+    onkeydown={(e) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        closeOwners(true);
+      }
+    }}
+  >
+    <div class="text-muted-foreground border-b px-3 py-1.5 text-[11.5px]">
+      Used by {p.list ? int(p.list.length) : '…'} records <span class="mono">{p.key}</span>
+    </div>
+    {#if p.failed}
+      <p class="text-muted-foreground px-3 py-2 text-[12px]">Could not read the owners.</p>
+    {:else if !p.list}
+      <div class="grid gap-1 p-2"><Skeleton class="h-4 w-3/4" /><Skeleton class="h-4 w-2/3" /></div>
+    {:else}
+      <ul class="min-h-0 flex-1 overflow-y-auto py-1">
+        {#each p.list as o, i (i)}
+          <li class="px-3 py-1">
+            <span class="block truncate text-[12.5px]">{ownerLabel(o, p.key)}</span>
+            {#if ownerContext(o)}<span class="text-muted-foreground block truncate text-[11px]">{ownerContext(o)}</span>{/if}
+          </li>
+        {/each}
+      </ul>
+    {/if}
+  </div>
+{/if}
 
 <StringDetailSheet bind:open={sheet} target={target} rowKey={openKey} onchanged={patchRow} />
