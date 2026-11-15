@@ -178,9 +178,14 @@
   #app {
     height: 100%;
   }
+  /* clip, not hidden: a hidden box can still be scrolled by scrollIntoView()/focus(), which
+     shifted the whole window up (header gone, empty strip under the footer). Only <main> scrolls. */
+  html,
+  body {
+    overflow: clip;
+  }
   body {
     @apply bg-background text-foreground font-sans text-[13px] leading-[1.45] antialiased;
-    overflow: hidden;
   }
   @media (prefers-reduced-motion: reduce) {
     *,

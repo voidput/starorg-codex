@@ -35,8 +35,12 @@
   ];
   function jump(id: string) {
     const el = document.getElementById(id);
-    el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    el?.querySelector<HTMLElement>('[data-slot=card-title]')?.focus();
+    const main = document.getElementById('main');
+    if (!el || !main) return;
+    // Scroll <main> only: scrollIntoView() would also scroll the window frame.
+    const top = main.scrollTop + el.getBoundingClientRect().top - main.getBoundingClientRect().top - 12;
+    main.scrollTo({ top, behavior: 'smooth' });
+    el.querySelector<HTMLElement>('[data-slot=card-title]')?.focus({ preventScroll: true });
   }
 
   const accents: Accent[] = ['cyan', 'green', 'amber', 'orange', 'rose', 'violet'];
