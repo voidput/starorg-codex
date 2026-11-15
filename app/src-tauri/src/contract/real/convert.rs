@@ -475,24 +475,30 @@ pub fn profile_of(file: &state::Profile) -> CmdResult<Profile> {
 }
 
 /// Write `p` into a `profile.toml` table, keeping keys we do not know. A profile equal to
-/// a preset is stored as just `preset = "..."`; anything else as the preset plus a full
-/// `[enhance]` table. Refused (and nothing changed) when the core would not read it back.
+/// a preset is stored as just `preset = "..."`; anything else as the preset plus an
+/// `[enhance]` table of only the settings that differ from it, so a default a later build
+/// changes still reaches the settings the user left alone. The table is then
+/// [`state::PROFILE_SCHEMA`]. Refused (and nothing changed) when the core would not read it
+/// back.
 pub fn store_profile(file: &mut state::Profile, p: &Profile) -> CmdResult<()> {
     let core = profile_from(p);
-    let t = &mut file.table;
-    t.entry("schema").or_insert(toml::Value::Integer(1));
+    let mut t = file.table.clone();
+    t.insert("schema".into(), toml::Value::Integer(state::PROFILE_SCHEMA));
     match detect_preset(&core) {
         Some(pre) => {
             t.insert("preset".into(), preset_name(pre).into());
             t.remove("enhance");
         }
         None => {
-            t.insert(
-                "preset".into(),
-                preset_name(p.preset.unwrap_or(Preset::Recommended)).into(),
-            );
-            let v = toml::Value::try_from(&core).map_err(internal)?;
-            t.insert("enhance".into(), v);
+            let name = preset_name(p.preset.unwrap_or(Preset::Recommended));
+            t.insert("preset".into(), name.into());
+            let base = ep::Profile::preset(name).map_err(internal)?;
+            let over = core.sparse_over(&base).map_err(internal)?;
+            if over.is_empty() {
+                t.remove("enhance");
+            } else {
+                t.insert("enhance".into(), toml::Value::Table(over));
+            }
         }
     }
     let mut patches = t
@@ -511,12 +517,14 @@ pub fn store_profile(file: &mut state::Profile, p: &Profile) -> CmdResult<()> {
     );
     t.insert("patches".into(), toml::Value::Table(patches));
     // The core must read back exactly what was asked for (header rules, EM numbers).
-    let back = file
+    let next = state::Profile { table: t };
+    let back = next
         .enhance()
         .map_err(|e| err(ErrorCode::Invalid, e.to_string()))?;
     if back != core {
         return Err(internal("profile did not round-trip through profile.toml"));
     }
+    *file = next;
     Ok(())
 }
 
@@ -537,6 +545,51 @@ pub fn builtin_patch_ids(set: &patch::PatchSet) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn store_profile_writes_only_changes() {
+        let mut file = state::Profile::preset("recommended").unwrap();
+        file.table.insert("future".into(), toml::Value::Integer(1));
+        // Defaults: just the preset.
+        let p = profile_to(&ep::Profile::default(), vec!["x".into()]).unwrap();
+        store_profile(&mut file, &p).unwrap();
+        assert!(!file.table.contains_key("enhance"));
+        assert_eq!(file.schema(), state::PROFILE_SCHEMA);
+        assert_eq!(file.disabled_patches(), vec!["x".to_string()]);
+        assert_eq!(file.table["future"].as_integer(), Some(1));
+        // A few changes: only they are written, and they read back.
+        let mut q = p.clone();
+        q.preset = None;
+        q.branding = true;
+        q.mission.owned_em = 0;
+        q.mission.title_owned = true;
+        store_profile(&mut file, &q).unwrap();
+        let enh = file.table["enhance"].as_table().unwrap();
+        assert_eq!(enh.keys().collect::<Vec<_>>(), ["branding", "mission"]);
+        assert_eq!(
+            enh["mission"]
+                .as_table()
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            ["owned_em", "title_owned"]
+        );
+        assert_eq!(profile_of(&file).unwrap(), q);
+        // A deliberate owned_em = 0 survives the (already done) migration.
+        let mut again = file.clone();
+        assert!(again.migrate().is_none());
+        assert_eq!(profile_of(&again).unwrap().mission.owned_em, 0);
+        // Saved over a schema-1 file: becomes schema 2 and sparse.
+        let mut old = state::Profile {
+            table: toml::from_str(
+                "schema = 1\npreset = \"recommended\"\n[enhance]\nships = true\n[enhance.mission]\nowned_em = 0\n",
+            )
+            .unwrap(),
+        };
+        store_profile(&mut old, &q).unwrap();
+        assert_eq!(old.schema(), state::PROFILE_SCHEMA);
+        assert_eq!(old.table["enhance"], file.table["enhance"]);
+    }
 
     #[test]
     fn colour_settings_round_trip() {

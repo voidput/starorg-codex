@@ -58,7 +58,7 @@ use starorg_core::source::{Budget, GameSource, local::LocalExtraction};
 use starorg_core::state::{self, ChannelState};
 use starorg_core::usercfg;
 use starorg_core::validate;
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use table::Table;
@@ -243,6 +243,8 @@ struct Mem {
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
     /// without a second picker.
     last_fleet: Option<(String, Vec<u8>)>,
+    /// Channel data dirs whose `profile.toml` migration failed: warned about once.
+    profile_migrate_failed: HashSet<PathBuf>,
 }
 
 pub struct RealBackend {
@@ -661,7 +663,44 @@ impl RealBackend {
         }
     }
 
+    /// Rewrite a schema-1 `profile.toml` once ([`state::migrate_profile_file`]), saying so
+    /// in Activity when it changed a setting. Readers already see the migrated settings,
+    /// so a failure here only leaves the file as it was.
+    fn migrate_profile(&self, f: &Found, ch: &Channel) {
+        let data = self.data_dir(f, ch);
+        match state::migrate_profile_file(&data) {
+            Ok(Some(dropped)) if !dropped.is_empty() => {
+                let keys: Vec<&str> = dropped
+                    .iter()
+                    .map(|k| k.rsplit('.').next().unwrap_or(k))
+                    .collect();
+                self.log(
+                    LogLevel::Info,
+                    None,
+                    Some(&ch.name),
+                    &format!(
+                        "Profile updated: {} now follow the current defaults (they were saved at the old ones; a backup is in {})",
+                        keys.join(", "),
+                        state::PROFILE_SCHEMA1_BAK
+                    ),
+                );
+            }
+            Ok(_) => {}
+            Err(e) => {
+                if self.mem().profile_migrate_failed.insert(data) {
+                    self.log(
+                        LogLevel::Warn,
+                        None,
+                        Some(&ch.name),
+                        &format!("profile.toml could not be updated to the new format: {e}"),
+                    );
+                }
+            }
+        }
+    }
+
     fn summary(&self, f: &Found, ch: &Channel) -> ChannelSummary {
+        self.migrate_profile(f, ch);
         let t = Target::new(&f.install, f.id.clone(), ch);
         let st = apply::current_inputs(self.ctx(), &t, None, None)
             .and_then(|inp| apply::status(self.ctx(), &t, &inp));
@@ -873,6 +912,7 @@ impl RealBackend {
     }
 
     fn profile_file(&self, f: &Found, ch: &Channel) -> CmdResult<state::Profile> {
+        self.migrate_profile(f, ch);
         state::Profile::load_file(&state::Profile::path(&self.data_dir(f, ch))).map_err(io)
     }
 

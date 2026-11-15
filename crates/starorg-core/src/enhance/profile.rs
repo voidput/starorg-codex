@@ -379,6 +379,43 @@ impl Profile {
     }
 }
 
+impl Profile {
+    /// The `[enhance]` table that turns `base` (the preset) into `self`: only the fields
+    /// that differ, so a default a later build changes reaches every setting left alone.
+    /// Data maps (`styles`) and lists are written whole when they differ. Reading it back
+    /// over `base` ([`Self::from_toml`]) gives `self`, except that a `styles` entry only
+    /// `base` has cannot be removed (callers check the round trip).
+    pub fn sparse_over(&self, base: &Profile) -> Result<toml::Table, ProfileError> {
+        let cur = toml::Value::try_from(self).map_err(|e| ProfileError::Toml(e.to_string()))?;
+        let def = toml::Value::try_from(base).map_err(|e| ProfileError::Toml(e.to_string()))?;
+        Ok(match diff(&cur, &def, "") {
+            Some(toml::Value::Table(t)) => t,
+            _ => toml::Table::new(),
+        })
+    }
+}
+
+/// `cur` minus what equals `def`; `None` when nothing differs.
+fn diff(cur: &toml::Value, def: &toml::Value, path: &str) -> Option<toml::Value> {
+    match (cur, def) {
+        (toml::Value::Table(c), toml::Value::Table(d)) if !path.ends_with(".styles") => {
+            let mut out = toml::Table::new();
+            for (k, v) in c {
+                let p = format!("{path}.{k}");
+                let changed = match d.get(k) {
+                    Some(dv) => diff(v, dv, &p),
+                    None => Some(v.clone()),
+                };
+                if let Some(x) = changed {
+                    out.insert(k.clone(), x);
+                }
+            }
+            (!out.is_empty()).then_some(toml::Value::Table(out))
+        }
+        _ => (cur != def).then(|| cur.clone()),
+    }
+}
+
 /// `over` without the keys `base` (a serialised profile) has no field for, which are
 /// listed in `unknown`. Tables whose keys are data, not fields (`styles`), pass whole.
 fn known_only(
@@ -549,6 +586,45 @@ mod tests {
             Profile::from_toml("[enhance]\nno_such = 1\n").unwrap(),
             Profile::default()
         );
+    }
+
+    #[test]
+    fn sparse_over_holds_only_differences() {
+        let d = Profile::default();
+        assert!(d.sparse_over(&d).unwrap().is_empty());
+        let mut p = Profile {
+            branding: true,
+            ..Profile::default()
+        };
+        p.mission.owned_em = 0;
+        p.mission.title_owned = true;
+        p.tags
+            .ship_weapons
+            .styles
+            .insert("size".into(), "long".into());
+        p.lines_off.insert("ships.boost".into());
+        let over = p.sparse_over(&d).unwrap();
+        let text = toml::to_string(&toml::Table::from_iter([(
+            "enhance".to_string(),
+            toml::Value::Table(over.clone()),
+        )]))
+        .unwrap();
+        assert_eq!(
+            over.keys().collect::<Vec<_>>(),
+            ["branding", "lines_off", "mission", "tags"]
+        );
+        let m = over["mission"].as_table().unwrap();
+        assert_eq!(m.keys().collect::<Vec<_>>(), ["owned_em", "title_owned"]);
+        // A styles map that differs is written whole.
+        let styles = over["tags"]["ship_weapons"]["styles"].as_table().unwrap();
+        assert_eq!(styles.len(), 2);
+        assert_eq!(Profile::from_toml(&text).unwrap(), p);
+        // Against another preset: only what differs from that preset.
+        let min = Profile::minimal();
+        let mut q = Profile::minimal();
+        q.missions = true;
+        let over = q.sparse_over(&min).unwrap();
+        assert_eq!(over.keys().collect::<Vec<_>>(), ["missions"]);
     }
 
     #[test]

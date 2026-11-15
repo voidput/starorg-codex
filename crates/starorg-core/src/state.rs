@@ -58,6 +58,65 @@ impl ChannelState {
 /// Presets shipped (spec 4.7).
 pub const PRESETS: &[&str] = &["recommended", "minimal", "everything"];
 
+/// `schema` of the `profile.toml` this build writes.
+///
+/// - 1: builds up to the `[Owned]` colour change wrote every `[enhance]` key out, so a
+///   setting saved at its default stayed pinned when a later build changed that default.
+/// - 2: `[enhance]` holds only the settings that differ from the preset, so new defaults
+///   reach everyone who did not change that setting. A schema-1 file is read (and, by the
+///   app, rewritten once) as [`Profile::migrate`] says.
+pub const PROFILE_SCHEMA: i64 = 2;
+
+/// The backup [`migrate_profile_file`] keeps of a schema-1 file it changes.
+pub const PROFILE_SCHEMA1_BAK: &str = "profile.toml.bak-schema1";
+
+/// A schema-1 `[enhance]` value: the default it had when it was written out.
+#[derive(Clone, Copy)]
+enum Was {
+    Bool(bool),
+    Int(i64),
+}
+
+/// The colour/marker settings (added after 0.2.0, plus the two EM settings 0.2.0 already
+/// had) with their schema-1 defaults. A schema-1 file holding one of these at that value
+/// most likely never chose it (the whole table was written on every save), so the
+/// migration drops it and the current default applies. `owned_em` is the one whose
+/// default changed (0 to 4); dropping the others leaves the effective value as it was.
+const SCHEMA1_DEFAULTS: &[(&[&str], Was)] = &[
+    (&["mission", "header_em"], Was::Int(3)),
+    (&["mission", "label_em"], Was::Int(4)),
+    (&["mission", "title_bp_em"], Was::Int(4)),
+    (&["mission", "title_rep_em"], Was::Int(4)),
+    (&["mission", "title_owned"], Was::Bool(false)),
+    (&["mission", "owned_em"], Was::Int(0)),
+    (&["mission", "owned_line"], Was::Bool(false)),
+    (&["mission", "missing_marker"], Was::Bool(false)),
+    (&["mission", "missing_em"], Was::Int(0)),
+    (&["mission", "variant_em"], Was::Int(4)),
+    (&["mission", "reward_em"], Was::Int(0)),
+    (&["colour_test"], Was::Bool(false)),
+];
+
+/// The table at `path` under `t`, if every step is a table.
+fn table_at<'a>(t: &'a mut toml::Table, path: &[&str]) -> Option<&'a mut toml::Table> {
+    match path.split_first() {
+        None => Some(t),
+        Some((p, rest)) => match t.get_mut(*p) {
+            Some(toml::Value::Table(sub)) => table_at(sub, rest),
+            _ => None,
+        },
+    }
+}
+
+impl Was {
+    fn is(self, v: &toml::Value) -> bool {
+        match self {
+            Was::Bool(b) => v.as_bool() == Some(b),
+            Was::Int(n) => v.as_integer() == Some(n),
+        }
+    }
+}
+
 /// `profile.toml`, kept as a TOML table so unknown keys survive a write by an older version.
 /// M1 reads only `preset` and `patches.disabled`; the category settings arrive with the
 /// generators in M2.
@@ -72,7 +131,7 @@ impl Profile {
             return None;
         }
         let mut table = toml::Table::new();
-        table.insert("schema".into(), toml::Value::Integer(1));
+        table.insert("schema".into(), toml::Value::Integer(PROFILE_SCHEMA));
         table.insert("preset".into(), toml::Value::String(name.into()));
         let mut patches = toml::Table::new();
         patches.insert("disabled".into(), toml::Value::Array(Vec::new()));
@@ -95,8 +154,54 @@ impl Profile {
         fsutil::write_atomic(&Self::path(channel_dir), s.as_bytes())
     }
 
-    /// The generator settings: `preset` plus the optional `[enhance]` table (spec 4.7).
-    /// Other tables (`patches`, unknown keys) are not the generators' business.
+    /// The file's `schema` (1 when missing: files before 0.2 had it, but be lenient).
+    pub fn schema(&self) -> i64 {
+        self.table
+            .get("schema")
+            .and_then(toml::Value::as_integer)
+            .unwrap_or(1)
+    }
+
+    /// Bring a schema-1 table to [`PROFILE_SCHEMA`]: each [`SCHEMA1_DEFAULTS`] key saved at
+    /// its schema-1 default is dropped (tables it empties go too) and `schema` is set.
+    /// Everything else stays as it was. `None` when already current (nothing changed);
+    /// otherwise the dropped keys, as `enhance.mission.owned_em`. Idempotent: a migrated
+    /// table is schema 2, so a later deliberate `owned_em = 0` is never dropped.
+    pub fn migrate(&mut self) -> Option<Vec<String>> {
+        if self.schema() >= PROFILE_SCHEMA {
+            return None;
+        }
+        let mut dropped = Vec::new();
+        if let Some(toml::Value::Table(enh)) = self.table.get_mut("enhance") {
+            for (path, was) in SCHEMA1_DEFAULTS {
+                let (key, parents) = path.split_last().expect("non-empty path");
+                if let Some(t) = table_at(enh, parents)
+                    && t.get(*key).is_some_and(|v| was.is(v))
+                {
+                    t.remove(*key);
+                    dropped.push(format!("enhance.{}", path.join(".")));
+                }
+            }
+            if enh
+                .get("mission")
+                .and_then(toml::Value::as_table)
+                .is_some_and(toml::Table::is_empty)
+            {
+                enh.remove("mission");
+            }
+            if enh.is_empty() {
+                self.table.remove("enhance");
+            }
+        }
+        self.table
+            .insert("schema".into(), toml::Value::Integer(PROFILE_SCHEMA));
+        Some(dropped)
+    }
+
+    /// The generator settings: `preset` plus the optional `[enhance]` table (spec 4.7),
+    /// read as [`Self::migrate`] would leave them, so a schema-1 file means the same in
+    /// every reader whether or not it has been rewritten yet. Other tables (`patches`,
+    /// unknown keys) are not the generators' business.
     pub fn enhance(&self) -> Result<crate::enhance::profile::Profile, String> {
         self.enhance_checked().map(|(p, _)| p)
     }
@@ -105,9 +210,18 @@ impl Profile {
     pub fn enhance_checked(
         &self,
     ) -> Result<(crate::enhance::profile::Profile, Vec<String>), String> {
+        let mut cur = Profile {
+            table: toml::Table::new(),
+        };
+        for k in ["schema", "preset", "enhance"] {
+            if let Some(v) = self.table.get(k) {
+                cur.table.insert(k.into(), v.clone());
+            }
+        }
+        cur.migrate();
         let mut t = toml::Table::new();
         for k in ["preset", "enhance"] {
-            if let Some(v) = self.table.get(k) {
+            if let Some(v) = cur.table.get(k) {
                 t.insert(k.into(), v.clone());
             }
         }
@@ -147,6 +261,27 @@ impl Profile {
         let s = toml::to_string(&self.table).unwrap_or_default();
         fsutil::sha256_hex(s.as_bytes())
     }
+}
+
+/// Rewrite a channel's schema-1 `profile.toml` as [`Profile::migrate`] says, once. When a
+/// setting is dropped the old file is first copied to [`PROFILE_SCHEMA1_BAK`] (an existing
+/// backup is kept). `None` when there is no file or it is already current; otherwise the
+/// dropped keys (empty when only `schema` changed).
+pub fn migrate_profile_file(channel_dir: &Path) -> std::io::Result<Option<Vec<String>>> {
+    let path = Profile::path(channel_dir);
+    if !path.is_file() {
+        return Ok(None);
+    }
+    let mut p = Profile::load_file(&path)?;
+    let Some(dropped) = p.migrate() else {
+        return Ok(None);
+    };
+    let bak = channel_dir.join(PROFILE_SCHEMA1_BAK);
+    if !dropped.is_empty() && !bak.exists() {
+        std::fs::copy(&path, &bak)?;
+    }
+    p.save(channel_dir)?;
+    Ok(Some(dropped))
 }
 
 /// One line of `overrides.ini`.
@@ -264,6 +399,148 @@ mod tests {
         let bad2 = parse("[enhance.mission]\nheader_em = 8\n");
         assert!(bad1.hash().starts_with("invalid:"));
         assert_ne!(bad1.hash(), bad2.hash());
+    }
+
+    /// A schema-1 file as the app wrote it before schema 2: every key, `owned_em` at the
+    /// old default 0, plus two real choices.
+    const SCHEMA1: &str = "preset = \"recommended\"\nschema = 1\n[enhance]\nbranding = true\ncolour_test = false\nships = true\n[enhance.mission]\nheader_em = 3\nlabel_em = 4\nmax_list = 25\nmissing_em = 0\nmissing_marker = false\nowned_em = 0\nowned_line = false\nreward_em = 0\ntitle_bp_em = 4\ntitle_owned = true\ntitle_rep_em = 2\nvariant_em = 4\n[patches]\ndisabled = [\"p1\"]\n";
+
+    fn parse(s: &str) -> Profile {
+        Profile {
+            table: toml::from_str(s).unwrap(),
+        }
+    }
+
+    #[test]
+    fn schema1_migration_drops_old_defaults_only() {
+        let mut p = parse(SCHEMA1);
+        let before = p.enhance().unwrap();
+        let dropped = p.migrate().unwrap();
+        assert_eq!(
+            dropped,
+            [
+                "header_em",
+                "label_em",
+                "title_bp_em",
+                "owned_em",
+                "owned_line",
+                "missing_marker",
+                "missing_em",
+                "variant_em",
+                "reward_em",
+                "colour_test",
+            ]
+            .iter()
+            .map(|k| if *k == "colour_test" {
+                format!("enhance.{k}")
+            } else {
+                format!("enhance.mission.{k}")
+            })
+            .collect::<Vec<_>>()
+        );
+        assert_eq!(p.schema(), PROFILE_SCHEMA);
+        let m = p.table["enhance"]["mission"].as_table().unwrap();
+        // Real choices (and keys outside the colour set) stay exactly as saved.
+        assert_eq!(m["title_owned"].as_bool(), Some(true));
+        assert_eq!(m["title_rep_em"].as_integer(), Some(2));
+        assert_eq!(m["max_list"].as_integer(), Some(25));
+        assert!(!m.contains_key("title_bp_em") && !m.contains_key("owned_em"));
+        assert_eq!(p.table["enhance"]["branding"].as_bool(), Some(true));
+        assert_eq!(p.table["enhance"]["ships"].as_bool(), Some(true));
+        assert_eq!(p.disabled_patches(), vec!["p1".to_string()]);
+        // Readers already saw the migrated settings: owned_em follows the new default.
+        let after = p.enhance().unwrap();
+        assert_eq!(after, before);
+        assert_eq!(after.mission.owned_em, 4);
+        assert!(after.mission.title_owned && after.branding);
+        assert_eq!(after.mission.title_rep_em, 2);
+        // Idempotent: a second run changes nothing.
+        let once = p.clone();
+        assert!(p.migrate().is_none());
+        assert_eq!(p, once);
+    }
+
+    #[test]
+    fn schema2_keeps_a_deliberate_old_default() {
+        // Saved by this build: owned_em = 0 is a choice (sparse files only hold choices).
+        let mut p = parse("schema = 2\n[enhance.mission]\nowned_em = 0\n");
+        assert!(p.migrate().is_none());
+        assert_eq!(p.enhance().unwrap().mission.owned_em, 0);
+        // A schema-1 file with a non-default owned_em keeps it.
+        let mut q = parse("schema = 1\n[enhance.mission]\nowned_em = 2\n");
+        assert_eq!(q.migrate().unwrap(), Vec::<String>::new());
+        assert_eq!(q.enhance().unwrap().mission.owned_em, 2);
+        // Emptied tables go; no schema key counts as 1.
+        let mut r = parse("[enhance.mission]\nowned_em = 0\n");
+        assert_eq!(r.migrate().unwrap(), vec!["enhance.mission.owned_em"]);
+        assert!(!r.table.contains_key("enhance"));
+        assert_eq!(r.enhance().unwrap(), Default::default());
+    }
+
+    #[test]
+    fn migration_leaves_the_hash_of_unchanged_settings_alone() {
+        let mut p = parse(SCHEMA1);
+        let read = p.hash();
+        p.migrate();
+        assert_eq!(p.hash(), read);
+        // The same choices written sparse by hand hash the same: only branding,
+        // title_owned and title_rep_em differ from the defaults.
+        let sparse = parse(
+            "schema = 2\n[enhance]\nbranding = true\n[enhance.mission]\ntitle_owned = true\ntitle_rep_em = 2\n",
+        );
+        assert_eq!(sparse.hash(), read);
+        // Before the in-memory migration this file would have hashed with owned_em = 0.
+        let mut pinned = parse(SCHEMA1);
+        pinned
+            .table
+            .insert("schema".into(), toml::Value::Integer(PROFILE_SCHEMA));
+        assert_ne!(pinned.hash(), read);
+    }
+
+    #[test]
+    fn profile_file_migrates_once_with_a_backup() {
+        let t = tempfile::tempdir().unwrap();
+        let path = Profile::path(t.path());
+        let bak = t.path().join(PROFILE_SCHEMA1_BAK);
+        // No file: nothing to do.
+        assert!(migrate_profile_file(t.path()).unwrap().is_none());
+        std::fs::write(&path, SCHEMA1).unwrap();
+        let hash = Profile::load_file(&path).unwrap().hash();
+        let dropped = migrate_profile_file(t.path()).unwrap().unwrap();
+        assert!(dropped.contains(&"enhance.mission.owned_em".to_string()));
+        assert_eq!(std::fs::read_to_string(&bak).unwrap(), SCHEMA1);
+        let text = std::fs::read_to_string(&path).unwrap();
+        assert!(text.contains("schema = 2") && !text.contains("owned_em"));
+        let now = Profile::load_file(&path).unwrap();
+        assert_eq!(now.hash(), hash);
+        assert_eq!(now.enhance().unwrap().mission.owned_em, 4);
+        // Second run: nothing, and the backup still holds the original.
+        assert!(migrate_profile_file(t.path()).unwrap().is_none());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), text);
+        assert_eq!(std::fs::read_to_string(&bak).unwrap(), SCHEMA1);
+        // A schema-1 preset-only file is marked current without a backup.
+        let u = tempfile::tempdir().unwrap();
+        std::fs::write(
+            Profile::path(u.path()),
+            "preset = \"minimal\"\nschema = 1\n",
+        )
+        .unwrap();
+        assert_eq!(
+            migrate_profile_file(u.path()).unwrap(),
+            Some(Vec::<String>::new())
+        );
+        assert!(!u.path().join(PROFILE_SCHEMA1_BAK).exists());
+        assert_eq!(
+            Profile::load_file(&Profile::path(u.path()))
+                .unwrap()
+                .schema(),
+            PROFILE_SCHEMA
+        );
+        // New profiles start current.
+        assert_eq!(
+            Profile::preset("recommended").unwrap().schema(),
+            PROFILE_SCHEMA
+        );
     }
 
     #[test]
