@@ -10,6 +10,7 @@ use starorg_core::enhance::{
     owned::{NoneOwned, OwnedBlueprints, OwnedList},
     profile::Profile,
 };
+use starorg_core::fleet::store::ShipNames;
 use starorg_core::ini::StockIni;
 use starorg_core::source::local::LocalExtraction;
 use starorg_core::source::{Budget, GameSource, SourceError};
@@ -219,6 +220,7 @@ pub struct BuildArgs<'a> {
     pub owned_blueprints: Option<PathBuf>,
     pub coverage_out: Option<PathBuf>,
     pub edits_out: Option<PathBuf>,
+    pub ship_names: Option<PathBuf>,
 }
 
 fn load_profile(a: &BuildArgs) -> Result<(Profile, String), String> {
@@ -235,6 +237,21 @@ fn load_profile(a: &BuildArgs) -> Result<(Profile, String), String> {
     Profile::preset(name)
         .map(|p| (p, name.to_string()))
         .map_err(|e| e.to_string())
+}
+
+/// `--ship-names FILE`: validated settings, `None` when not given, off or invalid.
+fn load_ship_names(a: &BuildArgs) -> Result<Option<ShipNames>, String> {
+    let Some(path) = &a.ship_names else {
+        return Ok(None);
+    };
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let s = ShipNames::parse(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    let (s, _, invalid) = s.validated();
+    if invalid {
+        return Err(format!("{}: invalid ship-names table", path.display()));
+    }
+    Ok(s.enabled.then_some(s))
 }
 
 fn load_owned(a: &BuildArgs) -> Result<Option<OwnedList>, String> {
@@ -261,6 +278,10 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     };
     let owned = match load_owned(a) {
         Ok(o) => o,
+        Err(e) => return fail(g, exit::USAGE, "usage", &e),
+    };
+    let ship_names = match load_ship_names(a) {
+        Ok(s) => s,
         Err(e) => return fail(g, exit::USAGE, "usage", &e),
     };
     let d = run_discovery(g);
@@ -343,7 +364,13 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         Some(o) => o,
         None => &NoneOwned,
     };
-    let generated = enhance::generate(&loaded.game_data, &stock, &profile, owned_dyn);
+    let generated = enhance::generate_with(
+        &loaded.game_data,
+        &stock,
+        &profile,
+        owned_dyn,
+        ship_names.as_ref(),
+    );
     let bytes = match enhance::render(&stock, &generated) {
         Ok(b) => b,
         Err(e) => {
