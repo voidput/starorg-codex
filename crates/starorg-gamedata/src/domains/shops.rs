@@ -6,13 +6,12 @@
 //! curves), the supply/demand thresholds behind kiosk labels, the auto-loading fee per box
 //! size, licence-tier price modifiers and the tutorial cap.
 //!
-//! The TypeScript imports two one-liners from other domains: `boxSizes` (cargo.ts) and
-//! `entityName` (wikelo.ts). Those ports live on other branches, so they are ported here
-//! privately ([`box_sizes`], [`entity_name`]); once `cargo` and `wikelo` are on the same
-//! branch these can call `cargo::box_sizes` instead.
+//! The TypeScript imports two one-liners from other domains: `boxSizes` (cargo.ts,
+//! re-exported here as [`box_sizes`]) and `entityName` (wikelo.ts, [`entity_name`] over
+//! [`crate::helpers_gameplay::file_ref_stem`]).
 
 use crate::domain::{Domain, DomainError, ParseContext, field};
-use crate::helpers_world::last_segment;
+use crate::helpers_gameplay::file_ref_stem;
 use crate::output::js_key_order;
 use crate::records::{GameRecord, num, str_};
 use serde::Serialize;
@@ -22,55 +21,11 @@ pub static DOMAIN: Shops = Shops;
 
 pub struct Shops;
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
-pub struct BoxSizeValue {
-    pub scu: f64,
-    pub value: f64,
-}
-
-/// cargo.ts `BOX_SIZES`, smallest first.
-const BOX_SIZES: [(&str, f64); 10] = [
-    ("one_eighthSCU", 0.125),
-    ("one_quarterSCU", 0.25),
-    ("one_halfSCU", 0.5),
-    ("oneSCU", 1.0),
-    ("twoSCU", 2.0),
-    ("fourSCU", 4.0),
-    ("eightSCU", 8.0),
-    ("sixteenSCU", 16.0),
-    ("twentyFourSCU", 24.0),
-    ("thirtyTwoSCU", 32.0),
-];
-
-/// cargo.ts `boxSizes`: `{ twoSCU: 55, oneSCU: 30 }` -> `[{scu: 1, value: 30}, {scu: 2,
-/// value: 55}]`.
-pub fn box_sizes(value: Option<&Value>) -> Option<Vec<BoxSizeValue>> {
-    let v = value.filter(|v| v.is_object() || v.is_array())?;
-    let mut out: Vec<BoxSizeValue> = BOX_SIZES
-        .iter()
-        .filter_map(|(key, scu)| {
-            num(v.get(*key)).map(|n| BoxSizeValue {
-                scu: *scu,
-                value: n,
-            })
-        })
-        .collect();
-    out.sort_by(|a, b| a.scu.total_cmp(&b.scu));
-    (!out.is_empty()).then_some(out)
-}
+pub use crate::domains::cargo::{BoxSizeValue, box_sizes};
 
 /// wikelo.ts `entityName`: last path segment minus `.json` (which can leave `""`).
 pub fn entity_name(value: Option<&Value>) -> Option<String> {
-    let path = str_(value)?;
-    let file = last_segment(path);
-    if file.is_empty() {
-        return None;
-    }
-    let cut = file.len().saturating_sub(5);
-    Some(match file.get(cut..) {
-        Some(ext) if file.len() >= 5 && ext.eq_ignore_ascii_case(".json") => file[..cut].to_string(),
-        _ => file.to_string(),
-    })
+    file_ref_stem(value).map(str::to_owned)
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]

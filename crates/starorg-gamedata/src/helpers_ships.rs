@@ -9,31 +9,7 @@ pub mod weapons;
 
 use serde_json::{Map, Value};
 
-/// `Math.round`: nearest integer, ties toward +infinity (`Math.round(-2.5) == -2`).
-pub fn js_round(x: f64) -> f64 {
-    if !x.is_finite() {
-        return x;
-    }
-    let f = x.floor();
-    // `x - floor(x)` is exact for every double.
-    if x - f >= 0.5 { f + 1.0 } else { f }
-}
-
-/// `Math.round(x * factor) / factor`, the TypeScript's fixed-decimals idiom.
-pub fn round_to(x: f64, factor: f64) -> f64 {
-    js_round(x * factor) / factor
-}
-
-/// JavaScript truthiness of a number: non-zero and not NaN.
-pub fn truthy(x: Option<f64>) -> bool {
-    x.is_some_and(|v| v != 0.0 && !v.is_nan())
-}
-
-/// A finite number as a JSON value, integral values as integers (as `JSON.stringify`
-/// prints them, and so the comparison harness sees the same shape).
-pub fn number(x: f64) -> Value {
-    serde_json::Number::from_f64(x).map_or(Value::Null, Value::Number)
-}
+pub use crate::js::{js_round, number, round_to, truthy};
 
 /// `Object.values(obj)` of a JSON object as numbers (non-numbers skipped).
 pub fn numbers_of(map: &serde_json::Map<String, Value>) -> impl Iterator<Item = f64> + '_ {
@@ -42,15 +18,7 @@ pub fn numbers_of(map: &serde_json::Map<String, Value>) -> impl Iterator<Item = 
 
 /// `entityName` from `wikelo.ts` (used by `cargo.ts`): the file stem of a `file://` entity
 /// path, `.json` removed case-insensitively; `None` for a non-string or empty path.
-pub fn entity_name(value: Option<&Value>) -> Option<&str> {
-    let path = crate::records::str_(value)?;
-    let file = path.rsplit('/').next().filter(|f| !f.is_empty())?;
-    let cut = file.len().saturating_sub(5);
-    Some(match file.get(cut..) {
-        Some(ext) if file.len() >= 5 && ext.eq_ignore_ascii_case(".json") => &file[..cut],
-        _ => file,
-    })
-}
+pub use crate::helpers_gameplay::file_ref_stem as entity_name;
 
 /// `src/tags.ts`, for `loot.ts`: `Tag.<guid>` record name -> path below the root
 /// (`Rarity/Common`). Here rather than in the `tags` slot so a parallel port of that slot

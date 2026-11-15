@@ -28,6 +28,7 @@ pub mod helpers_gameplay;
 pub mod helpers_items;
 pub mod helpers_ships;
 pub mod helpers_world;
+pub mod js;
 pub mod localization;
 pub mod output;
 pub mod pipeline;

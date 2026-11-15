@@ -107,14 +107,7 @@ pub fn js_to_number(s: &str) -> f64 {
     t.parse::<f64>().unwrap_or(f64::NAN)
 }
 
-/// `Math.round`: the nearest integer, halves toward +infinity.
-pub fn js_round(x: f64) -> f64 {
-    if !x.is_finite() {
-        return x;
-    }
-    let floor = x.floor();
-    if x - floor >= 0.5 { floor + 1.0 } else { floor }
-}
+pub use crate::js::js_round;
 
 /// `Math.hypot` as V8 computes it: scaled by the largest magnitude, Kahan-summed.
 pub fn js_hypot(values: &[f64]) -> f64 {

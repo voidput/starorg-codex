@@ -5,29 +5,7 @@
 //! Kept in one batch file so this port does not collide with other batches; a later step
 //! can move [`item_common`] and [`tags`] into the registry's helper slots.
 
-use serde_json::Value;
-
-/// JavaScript `Math.round`: halves round towards +infinity (`-2.5` -> `-2`), unlike
-/// [`f64::round`].
-pub fn js_round(x: f64) -> f64 {
-    let f = x.floor();
-    if x - f >= 0.5 { f + 1.0 } else { f }
-}
-
-/// `Math.round(x * factor) / factor`.
-pub fn round_to(x: f64, factor: f64) -> f64 {
-    js_round(x * factor) / factor
-}
-
-/// JavaScript truthiness of an optional number: defined, non-zero, not NaN.
-pub fn truthy(x: Option<f64>) -> bool {
-    x.is_some_and(|v| v != 0.0 && !v.is_nan())
-}
-
-/// A number as a JSON value (`null` for a non-finite one, as `JSON.stringify` writes it).
-pub fn number(x: f64) -> Value {
-    serde_json::Number::from_f64(x).map_or(Value::Null, Value::Number)
-}
+pub use crate::js::{js_round, number, round_to, truthy};
 
 const NBSP: char = '\u{a0}';
 
@@ -508,7 +486,7 @@ mod tests {
     use super::tags::build_tag_index;
     use super::*;
     use crate::records::{GameRecord, normalize_record};
-    use serde_json::json;
+    use serde_json::{Value, json};
 
     fn item(components: Value) -> GameRecord {
         normalize_record(
