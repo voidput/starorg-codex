@@ -17,7 +17,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   const count = async () => Number((await page.locator('#bp-count').textContent()) ?? -1);
   await page.goto(BASE);
   await page.getByRole('search', { name: 'Find blueprints' }).waitFor();
-  check('starts on Owned (LIVE: 8)', (await count()) === 8, String(await count()));
+  check('starts on Owned (LIVE: 10)', (await count()) === 10, String(await count()));
 
   await page.locator('body').click({ position: { x: 5, y: 790 } });
   await page.keyboard.press('/');
@@ -25,20 +25,20 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await page.keyboard.type('rifle');
   check('search narrows', (await count()) === 1, String(await count()));
   await page.keyboard.press('Escape');
-  check('Escape clears the search', (await page.getByRole('searchbox', { name: 'Search blueprints' }).inputValue()) === '' && (await count()) === 8);
+  check('Escape clears the search', (await page.getByRole('searchbox', { name: 'Search blueprints' }).inputValue()) === '' && (await count()) === 10);
 
   const armor = page.locator('[aria-labelledby="bp-f-kind"]').getByRole('button', { name: /^Armor/ });
   await armor.focus();
   await page.keyboard.press('Space');
-  check('Space toggles a chip', (await armor.getAttribute('aria-pressed')) === 'true' && (await count()) === 3, String(await count()));
+  check('Space toggles a chip', (await armor.getAttribute('aria-pressed')) === 'true' && (await count()) === 4, String(await count()));
   await page.keyboard.press('Enter');
-  check('Enter toggles it back', (await armor.getAttribute('aria-pressed')) === 'false' && (await count()) === 8);
+  check('Enter toggles it back', (await armor.getAttribute('aria-pressed')) === 'false' && (await count()) === 10);
 
   const owned = page.getByRole('radio', { name: /^Owned/ });
   await owned.focus();
   await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Space');
-  check('arrow keys reach Missing', (await page.getByRole('radio', { name: /^Missing/ }).getAttribute('aria-checked')) === 'true' && (await count()) === 29, String(await count()));
+  check('arrow keys reach Missing', (await page.getByRole('radio', { name: /^Missing/ }).getAttribute('aria-checked')) === 'true' && (await count()) === 30, String(await count()));
 
   const size = page.getByRole('columnheader', { name: /^Size/ });
   await size.getByRole('button').focus();
@@ -49,7 +49,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
 
   await page.reload();
   await page.getByRole('search', { name: 'Find blueprints' }).waitFor();
-  check('prefs remembered after reload', (await page.getByRole('columnheader', { name: /^Size/ }).getAttribute('aria-sort')) === 'descending' && (await count()) === 29);
+  check('prefs remembered after reload', (await page.getByRole('columnheader', { name: /^Size/ }).getAttribute('aria-sort')) === 'descending' && (await count()) === 30);
 
   await page.getByRole('radio', { name: /^HOTFIX/ }).first().click();
   await page.getByRole('search', { name: 'Find blueprints' }).waitFor();
@@ -60,7 +60,7 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   const clear = page.getByRole('button', { name: 'Clear filters' }).first();
   await clear.focus();
   await page.keyboard.press('Enter');
-  check('Clear filters back to Owned, 8', (await count()) === 8 && (await page.getByRole('columnheader', { name: /^Size/ }).getAttribute('aria-sort')) === 'descending', String(await count()));
+  check('Clear filters back to Owned, 10', (await count()) === 10 && (await page.getByRole('columnheader', { name: /^Size/ }).getAttribute('aria-sort')) === 'descending', String(await count()));
 
   await browser.close();
   if (errors.length) console.log(`errors:\n${errors.join('\n')}`);

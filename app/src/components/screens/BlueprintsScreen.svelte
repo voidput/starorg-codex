@@ -107,7 +107,20 @@
 {:else}
   {@const v = view}
   <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-    <Card.Root class="min-w-0 self-start">
+    <Card.Root class="min-w-0 xl:col-span-2">
+      <Card.Header>
+        <Card.Title>Blueprints</Card.Title>
+        <Card.Description>Every blueprint of the build and who owns it. Kept per character and per channel; PTU progress is not LIVE progress.</Card.Description>
+        <Card.Action>
+          <Button variant="outline" size="sm" onclick={() => (importing = true)}><FileInput aria-hidden="true" /> Import from Smart Citizen</Button>
+        </Card.Action>
+      </Card.Header>
+      <Card.Content>
+        <BlueprintFinder target={app.target} channels={channelNames} rev={key} bind:picked />
+      </Card.Content>
+    </Card.Root>
+
+    <Card.Root class="min-w-0">
       <Card.Header>
         <Card.Title class="flex items-center gap-2">Character for [Owned] tags <ChannelBadge channel={v.channel} /></Card.Title>
         <Card.Description>Which character's blueprints are marked as owned on {v.channel}. Characters come from the game logs (last scan {fmtDateTime(v.last_scan)}).</Card.Description>
@@ -134,7 +147,7 @@
     </Card.Root>
 
 
-    <Card.Root class="self-start">
+    <Card.Root>
       <Card.Header>
         <Card.Title>StarOrg Tools</Card.Title>
         <Card.Description>Pull your guild's owned list into one character; push the characters you ticked in Settings as one list.</Card.Description>
@@ -179,18 +192,6 @@
       </Card.Content>
     </Card.Root>
 
-    <Card.Root class="min-w-0 xl:col-span-2">
-      <Card.Header>
-        <Card.Title>Blueprints</Card.Title>
-        <Card.Description>Every blueprint of the build and who owns it. Kept per character and per channel; PTU progress is not LIVE progress.</Card.Description>
-        <Card.Action>
-          <Button variant="outline" size="sm" onclick={() => (importing = true)}><FileInput aria-hidden="true" /> Import from Smart Citizen</Button>
-        </Card.Action>
-      </Card.Header>
-      <Card.Content>
-        <BlueprintFinder target={app.target} channels={channelNames} rev={key} bind:picked />
-      </Card.Content>
-    </Card.Root>
   </div>
   <ImportDialog bind:open={importing} target={app.target} characters={v.characters} initial={picked ?? v.active.resolved} ondone={() => tick++} />
 {/if}

@@ -38,6 +38,12 @@ const shots = [
     await p.getByRole('button', { name: /^Size/ }).click();
     await p.getByRole('button', { name: /^Size/ }).click();
   }, ''],
+  ['bp-ambiguous', 'blueprints', async (p) => {
+    await ready(p);
+    await p.getByRole('radio', { name: /^All \d/ }).click();
+    await p.keyboard.press('/');
+    await p.keyboard.type('visor');
+  }, ''],
   ['home-channels', 'home', async (p) => p.getByText('Other channels').waitFor(), ''],
 ];
 
@@ -64,6 +70,8 @@ const shots = [
         } catch (e) {
           errors.push(`${tag}: prep failed: ${e.message.split('\n')[0]}`);
         }
+        // Since "dark is the default theme" the mock's saved appearance wins over ?theme=; pin it.
+        await page.evaluate((t) => document.documentElement.setAttribute('data-theme', t), theme);
         await page.waitForTimeout(350);
         const o = await page.evaluate(() => {
           const m = document.getElementById('main');

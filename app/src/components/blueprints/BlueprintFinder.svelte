@@ -37,6 +37,7 @@
     query,
     sourceText,
     toggle,
+    UNATTRIBUTED,
     type FacetId,
     type FinderPrefs,
     type OwnedFilter,
@@ -112,10 +113,17 @@
   const v = $derived(data ? query(data, prefs, { channels: inView, characterName: charName }) : null);
   const notRead = $derived((data?.channels ?? []).filter((c) => c.catalog === null && inView.includes(c.channel)).map((c) => c.channel));
   const catalogSize = $derived((data?.channels ?? []).find((c) => c.channel === target.channel)?.catalog ?? null);
-  const nActive = $derived(activeFilters(prefs));
+  const nActive = $derived(activeFilters(prefs, scopeAll));
+  // Only a character of this channel can take an import (not a PTU-only one, not "unattributed").
   $effect(() => {
-    picked = prefs.character[0] ?? null;
+    picked = prefs.character.find((c) => data?.characters.some((x) => x.id === c && x.id !== UNATTRIBUTED && x.channels.includes(target.channel))) ?? null;
   });
+  const skipped = $derived((data?.channels ?? []).filter((c) => inView.includes(c.channel)).reduce((n, c) => n + c.skipped, 0));
+  const nameOfKey = (k: string) => data?.rows.find((x) => x.key === k);
+  const candText = (k: string) => {
+    const c = nameOfKey(k);
+    return c ? [c.name, c.type_label, c.class ?? (c.size !== null ? `S${c.size}` : null), c.record].filter(Boolean).join(' · ') : k;
+  };
 
   const PAGE = 200;
   let limit = $state(PAGE);
@@ -150,12 +158,12 @@
   const chips = (f: FacetId) => (v?.facets[f] ?? []).filter((x) => x.count > 0 || x.on);
   const facetShown = (f: FacetId) => (f === 'channel' && !scopeAll ? false : f === 'type' ? chips('type').length > 1 : chips(f).length > 0);
 
-  /** Owners in view, per character: [character, channels, sources, acquired, favourite, ambiguous]. */
-  function owners(r: BlueprintRow) {
+  /** Owners in view (or "maybe" owners), per character, with whether they are picked. */
+  function owners(r: BlueprintRow, list: BlueprintOwner[] = r.owners) {
     const pickedCh = new Set(prefs.channel.filter((c) => inView.includes(c)));
     const chs = pickedCh.size ? pickedCh : new Set(inView);
     const m = new Map<string, BlueprintOwner[]>();
-    for (const o of r.owners) if (chs.has(o.channel)) m.set(o.character, [...(m.get(o.character) ?? []), o]);
+    for (const o of list) if (chs.has(o.channel)) m.set(o.character, [...(m.get(o.character) ?? []), o]);
     return [...m].map(([id, list]) => ({
       id,
       name: charName(id),
@@ -268,7 +276,7 @@
 
   {#if showFacets && v}
     <div id="bp-facets" class="bg-muted/30 grid gap-2 rounded-md border p-2.5">
-      <p class="text-muted-foreground text-[11.5px]">Owned and Missing count the picked characters (all of them when none is picked){scopeAll ? ', on every channel; each channel keeps its own sets' : ` on ${target.channel}`}. Numbers show what a filter would give.</p>
+      <p class="text-muted-foreground text-[11.5px]">Owned and Missing count the picked characters (all of them when none is picked){scopeAll ? ', on every channel; each channel keeps its own sets' : ` on ${target.channel}`}. A character's number is how many blueprints it owns (lacks, with Missing); other numbers show what a filter would give.</p>
       {#each FACETS.filter(facetShown) as f (f)}
         {@const list = chips(f)}
         {@const open = more[f] || list.length <= FACET_MAX + 1}
@@ -305,6 +313,12 @@
 
   </div>
 
+  {#if skipped}
+    <p class="text-muted-foreground flex items-start gap-1.5 text-[12px]" role="note">
+      <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <span>{skipped} blueprint file{skipped === 1 ? '' : 's'} could not be read and {skipped === 1 ? 'is' : 'are'} not shown; see Activity.</span>
+    </p>
+  {/if}
   {#if notRead.length}
     <p class="text-muted-foreground flex items-start gap-1.5 text-[12px]" role="note">
       <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
@@ -318,7 +332,9 @@
     <p class="text-muted-foreground py-6 text-center">{failed}</p>
   {:else if v}
     <div class="flex flex-wrap items-baseline gap-x-3 text-[12px]" aria-live="polite">
-      <span><span id="bp-count" class="text-foreground font-medium">{v.rows.length}</span> <span class="text-muted-foreground">of {v.total} blueprints{catalogSize !== null && !scopeAll ? ` in ${target.channel}'s build` : ''}</span></span>
+      <span><span id="bp-count" class="text-foreground font-medium">{v.rows.length}</span> <span class="text-muted-foreground">shown of {v.total}</span></span>
+      {#if catalogSize !== null && !scopeAll}<span class="text-muted-foreground">{target.channel}'s build has {catalogSize} blueprints</span>{/if}
+      {#if prefs.owned === 'missing' && v.maybe}<span class="text-muted-foreground">{v.maybe} maybe owned (an owned name several blueprints have)</span>{/if}
     </div>
     {#if !v.rows.length}
       <div class="text-muted-foreground grid justify-items-center gap-2 py-6 text-center">
@@ -352,16 +368,24 @@
               {:else}
                 {@const r = s.row}
                 {@const own = owners(r)}
+                {@const mine = own.filter((o) => o.picked)}
+                {@const maybe = owners(r, r.maybe).filter((o) => o.picked && !own.some((x) => x.id === o.id))}
                 <tr>
                   <td class="py-1.5 pr-3">
                     <div class="flex flex-wrap items-center gap-1.5">
                       {#if own.some((o) => o.favorite)}<Star class="text-accent-2 size-3.5" aria-label="Favourite" />{/if}
                       <span>{r.name}</span>
-                      {#if own.length && own.every((o) => o.ambiguous)}<ToneBadge tone="warning" label="Ambiguous" hint="An import matched more than one blueprint; marks none" />{/if}
-                      {#if r.record === null && !own.every((o) => o.ambiguous)}<ToneBadge tone="muted" label="Not in build" hint="No blueprint of the read builds has this name" />{/if}
+                      {#if r.record === null && r.candidates.length}<ToneBadge tone="warning" label="Ambiguous" hint={`This name could be ${r.candidates.length} blueprints; none is marked owned`} />{/if}
+                      {#if r.record === null && !r.candidates.length}<ToneBadge tone="muted" label="Not in build" hint="No blueprint of the read builds has this name" />{/if}
+                      {#if maybe.length}<ToneBadge tone="info" label="Maybe owned" hint="An owned name could be this blueprint or another one" />{/if}
                       {#each onlyIn(r) as c (c)}<ChannelBadge channel={c} variant="badge" title={`Only in ${c}'s build`} />{/each}
                     </div>
                     {#if r.record}<div class="mono text-muted-foreground truncate text-[10.5px]" title={r.record}>{r.record}</div>{/if}
+                    {#if r.record === null && r.candidates.length}
+                      <ul class="text-muted-foreground mt-0.5 grid text-[11px]" aria-label="Could be">
+                        {#each r.candidates as k (k)}<li>Could be: {candText(k)}</li>{/each}
+                      </ul>
+                    {/if}
                   </td>
                   <td class="py-1.5 pr-3 text-[12px]">
                     <div>{kindLabel(r.kind)}</div>
@@ -379,10 +403,17 @@
                           </li>
                         {/each}
                       </ul>
-                    {:else}<span class="text-muted-foreground">Not owned</span>{/if}
+                    {:else if !maybe.length}<span class="text-muted-foreground">Not owned</span>{/if}
+                    {#if maybe.length}
+                      <ul class="text-muted-foreground grid gap-0.5" aria-label="Maybe owned by">
+                        {#each maybe as o (o.id)}
+                          <li class="flex flex-wrap items-center gap-1"><span>Maybe {o.name}</span>{#if scopeAll}{#each o.channels as c (c)}<ChannelBadge channel={c} />{/each}{/if}</li>
+                        {/each}
+                      </ul>
+                    {/if}
                   </td>
-                  <td class="text-muted-foreground py-1.5 pr-3 text-[12px] max-xl:hidden">{[...new Set(own.flatMap((o) => o.sources).map(sourceText))].join(', ') || '—'}</td>
-                  <td class="mono text-muted-foreground py-1.5 text-[12px] whitespace-nowrap">{fmtDate(acquired(r.owners.filter((o) => own.some((x) => x.id === o.character && x.channels.includes(o.channel)))))}</td>
+                  <td class="text-muted-foreground py-1.5 pr-3 text-[12px] max-xl:hidden">{[...new Set(mine.flatMap((o) => o.sources).map(sourceText))].join(', ') || '—'}</td>
+                  <td class="mono text-muted-foreground py-1.5 text-[12px] whitespace-nowrap">{fmtDate(acquired(r.owners.filter((o) => mine.some((x) => x.id === o.character && x.channels.includes(o.channel)))))}</td>
                 </tr>
               {/if}
             {/each}

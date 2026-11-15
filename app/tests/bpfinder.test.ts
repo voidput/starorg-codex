@@ -41,13 +41,18 @@ test('ownership is per channel: PTU owners never show on LIVE', () => {
 
 test('All / Owned / Missing over the full catalogue, with counts', () => {
   const v = view(P({ owned: 'all' }));
-  assert.equal(v.total, 37);
-  assert.equal(v.rows.length, 37);
-  assert.deepEqual(v.owned, { all: 37, owned: 8, missing: 29 });
-  assert.equal(view(P({ owned: 'missing' })).rows.length, 29);
+  // 39 blueprints + one name row (Alt_B's log name two blueprints have).
+  assert.equal(v.total, 40);
+  assert.equal(v.rows.length, 40);
+  assert.deepEqual(v.owned, { all: 40, owned: 10, missing: 30 });
+  const missing = view(P({ owned: 'missing' }));
+  assert.equal(missing.rows.length, 30);
+  // The two blueprints that name could be are "maybe owned", not plainly missing.
+  assert.equal(missing.maybe, 2);
+  assert.ok(missing.rows.filter((r) => r.maybe.length).every((r) => r.name === 'Sample Visor'));
   // The facet numbers follow the owned toggle.
-  assert.equal(count(view(P({ owned: 'all' })), 'kind', 'armor'), 10);
-  assert.equal(count(view(P({ owned: 'owned' })), 'kind', 'armor'), 3);
+  assert.equal(count(view(P({ owned: 'all' })), 'kind', 'armor'), 13);
+  assert.equal(count(view(P({ owned: 'owned' })), 'kind', 'armor'), 4);
 });
 
 test('facet counts apply every other filter but their own', () => {
@@ -64,29 +69,30 @@ test('facet counts apply every other filter but their own', () => {
   const two = view(P({ owned: 'all', kind: ['ship-component'], size: ['s1', 's3'] }));
   assert.deepEqual(names(two.rows), ['Sample Mining Laser S1', 'Sample Power Plant S1', 'Sample Shield S1', 'Synthetic Cooler S1', 'Synthetic Cooler S3', 'Test Radar S1']);
   // Armor weights are sizes too.
-  assert.equal(view(P({ owned: 'all', size: ['heavy'] })).rows.length, 4);
+  assert.equal(view(P({ owned: 'all', size: ['heavy'] })).rows.length, 5);
 });
 
 test('character filter: owned by, or missing for, the picked characters', () => {
   const alt = '1000000000002';
   const owned = view(P({ character: [alt] }));
-  assert.deepEqual(names(owned.rows), ['Sample Shield S1', 'Sample Undersuit', 'Synthetic Rifle Mk1']);
+  assert.deepEqual(names(owned.rows), ['Sample Shield S1', 'Sample Undersuit', 'Sample Visor', 'Synthetic Rifle Mk1']);
   const v = view(P());
   assert.equal(count(v, 'character', '1000000000001'), 6);
-  assert.equal(count(v, 'character', alt), 3);
+  assert.equal(count(v, 'character', alt), 4);
+  assert.equal(count(v, 'character', 'unattributed'), 1);
   assert.equal(count(v, 'character', '1000000000003'), 0);
   const missing = view(P({ owned: 'missing', character: [alt] }));
-  assert.equal(missing.rows.length, 37 - 3);
-  assert.equal(count(missing, 'character', '1000000000003'), 37, 'Alt_C has nothing on LIVE');
+  assert.equal(missing.rows.length, 40 - 4);
+  assert.equal(count(missing, 'character', '1000000000003'), 40, 'Alt_C has nothing on LIVE');
   // With "All", picking a character keeps every row; the toggle counts follow the pick.
   const all = view(P({ owned: 'all', character: [alt] }));
-  assert.equal(all.rows.length, 37);
-  assert.deepEqual(all.owned, { all: 37, owned: 3, missing: 34 });
+  assert.equal(all.rows.length, 40);
+  assert.deepEqual(all.owned, { all: 40, owned: 4, missing: 36 });
 });
 
 test('source facet groups StarOrg orgs and follows the character filter', () => {
   const v = view(P());
-  assert.deepEqual(v.facets.source.map((s) => [s.id, s.count]), [['log', 5], ['smart-citizen', 2], ['starorg', 1]]);
+  assert.deepEqual(v.facets.source.map((s) => [s.id, s.count]), [['log', 7], ['smart-citizen', 2], ['starorg', 1]]);
   assert.deepEqual(names(view(P({ source: ['smart-citizen'] })).rows), ['Sample Shield S1', 'Synthetic Cooler S2']);
   assert.deepEqual(names(view(P({ source: ['smart-citizen'], character: ['1000000000001'] })).rows), ['Synthetic Cooler S2']);
 });
@@ -98,7 +104,7 @@ test('channel facet narrows "All channels" to where a blueprint is (owned)', () 
   const owned = view(P({ channel: ['HOTFIX'] }), ALL);
   assert.deepEqual(names(owned.rows), ['Synthetic Rifle Mk1']);
   const all = view(P(), ALL);
-  assert.deepEqual(all.facets.channel.map((c) => [c.id, c.count]), [['LIVE', 8], ['HOTFIX', 1], ['PTU', 4]]);
+  assert.deepEqual(all.facets.channel.map((c) => [c.id, c.count]), [['LIVE', 10], ['HOTFIX', 1], ['PTU', 4]]);
 });
 
 test('search: words over name, record, type and maker; fuzzy letters in order', () => {
@@ -107,6 +113,9 @@ test('search: words over name, record, type and maker; fuzzy letters in order', 
   assert.ok(names(view(P({ owned: 'all', search: 'BP_CRAFT_SYN_Sample_Crate' })).rows).includes('Sample Crate'));
   const fuzzy = view(P({ owned: 'all', search: 'scnn' }));
   assert.deepEqual(names(fuzzy.rows), ['Synthetic Cannon S3']);
+  // Letters in order only when nothing matches as text, and only for 4+ letters.
+  assert.ok(names(view(P({ owned: 'all', search: 'cool' })).rows).every((n) => n.includes('Cooler')));
+  assert.equal(view(P({ owned: 'all', search: 'scn' })).rows.length, 0);
   // Word hits rank before fuzzy ones.
   const row = sample.rows.find((r) => r.name === 'Synthetic Cannon S3')!;
   assert.equal(matchScore(row, [fold('cannon')]), 2);
@@ -127,7 +136,7 @@ test('sorts: name, category, maker, size/grade, acquired, source, owners; unknow
   const size = view(P({ owned: 'all', sort: 'size' })).rows;
   assert.deepEqual([size[0]!.size, size[0]!.grade], [1, 'A']);
   assert.equal(size.at(-1)!.size, null);
-  assert.deepEqual(first({ sort: 'acquired' }, 2), ['Synthetic Cooler S2', 'Sample Shield S1']);
+  assert.deepEqual(first({ sort: 'acquired' }, 2), ['Test Scattergun S1', 'Synthetic Cooler S2']);
   assert.deepEqual(first({ sort: 'acquired', desc: true }, 1), ['Synthetic Rifle Mk1']);
   assert.equal(first({ sort: 'acquired' }, 9).length, 9);
   assert.deepEqual(first({ owned: 'owned', sort: 'source', desc: true }, 1), ['Synthetic Cannon S3']);
@@ -136,11 +145,11 @@ test('sorts: name, category, maker, size/grade, acquired, source, owners; unknow
 
 test('group by category, maker or character (a row per owning character, plus Not owned)', () => {
   const k = view(P({ owned: 'all', group: 'kind' })).groups!;
-  assert.deepEqual(k.map((g) => [g.label, g.rows.length]), [['Ship component', 10], ['Ship weapon', 5], ['FPS weapon', 9], ['Armor', 10], ['FPS ammo', 2], ['Mission item', 1]]);
+  assert.deepEqual(k.map((g) => [g.label, g.rows.length]), [['Ship component', 10], ['Ship weapon', 5], ['FPS weapon', 9], ['Armor', 13], ['FPS ammo', 2], ['Mission item', 1]]);
   const m = view(P({ owned: 'all', group: 'manufacturer' })).groups!;
   assert.equal(m.at(-1)!.label, 'Unknown maker');
   const c = view(P({ owned: 'all', group: 'character' })).groups!;
-  assert.deepEqual(c.map((g) => [g.label, g.rows.length]), [['Alt_B', 3], ['Pilot_A', 6], ['Not owned', 29]]);
+  assert.deepEqual(c.map((g) => [g.label, g.rows.length]), [['Alt_B', 4], ['Pilot_A', 6], ['unattributed', 1], ['Not owned', 30]]);
 });
 
 test('prefs: stored, validated, cleared', () => {
@@ -149,6 +158,9 @@ test('prefs: stored, validated, cleared', () => {
   const p = parsePrefs(JSON.stringify({ scope: 'all', sort: 'size', desc: true, owned: 'missing', kind: ['armor', 3], group: 'nope', search: 'x' }));
   assert.deepEqual([p.scope, p.sort, p.desc, p.owned, p.kind, p.group, p.search], ['all', 'size', true, 'missing', ['armor'], 'none', 'x']);
   assert.equal(activeFilters(p), 3);
+  // Channel picks count only in the All channels view.
+  assert.equal(activeFilters({ ...p, channel: ['PTU'] }, false), 3);
+  assert.equal(activeFilters({ ...p, channel: ['PTU'] }, true), 4);
   const c = clearFilters(toggle(p, 'size', 's2'));
   assert.equal(activeFilters(c), 0);
   assert.deepEqual([c.scope, c.sort, c.desc], ['all', 'size', true], 'sort and scope stay');

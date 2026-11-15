@@ -16,6 +16,9 @@ export type GroupKey = 'none' | 'kind' | 'manufacturer' | 'character';
 export type Scope = 'channel' | 'all';
 export type FacetId = 'kind' | 'type' | 'manufacturer' | 'size' | 'source' | 'character' | 'channel';
 
+/** Owner id of the unattributed set (core `finder::UNATTRIBUTED`; also in mock-finder.ts). */
+export const UNATTRIBUTED = 'unattributed';
+
 export const FACETS: FacetId[] = ['kind', 'type', 'manufacturer', 'size', 'source', 'character', 'channel'];
 
 export interface FinderPrefs {
@@ -148,8 +151,9 @@ export function parsePrefs(raw: string | null): FinderPrefs {
 }
 
 /** Number of active filters (search, owned toggle and every facet value). */
-export function activeFilters(p: FinderPrefs): number {
-  return (p.search.trim() ? 1 : 0) + (p.owned !== DEFAULT_PREFS.owned ? 1 : 0) + FACETS.reduce((n, f) => n + p[f].length, 0);
+/** Channel picks only count in the All channels view (the one-channel view ignores them). */
+export function activeFilters(p: FinderPrefs, allChannels = true): number {
+  return (p.search.trim() ? 1 : 0) + (p.owned !== DEFAULT_PREFS.owned ? 1 : 0) + FACETS.reduce((n, f) => n + (f === 'channel' && !allChannels ? 0 : p[f].length), 0);
 }
 
 /** Every filter back to its default; sort, group and scope stay. */
@@ -180,8 +184,9 @@ function subsequence(needle: string, hay: string): boolean {
 }
 
 /**
- * 2 = every word found as text (name, record, type, maker), 1 = fuzzy (a word of 3+ letters
+ * 2 = every word found as text (name, record, type, maker), 1 = fuzzy (a word of 4+ letters
  * found in order in the name, gaps allowed: `scnn` finds "Synthetic Cannon"), 0 = no match.
+ * `query` keeps fuzzy hits only when no row matches as text.
  */
 export function matchScore(r: BlueprintRow, words: string[]): number {
   if (!words.length) return 2;
@@ -190,7 +195,7 @@ export function matchScore(r: BlueprintRow, words: string[]): number {
   let score = 2;
   for (const w of words) {
     if (hay.includes(w)) continue;
-    if (w.length >= 3 && subsequence(w.replace(/ /g, ''), compact)) score = 1;
+    if (w.length >= 4 && subsequence(w, compact)) score = 1;
     else return 0;
   }
   return score;
@@ -218,6 +223,8 @@ export interface FinderView {
   groups: Group[] | null;
   facets: Record<FacetId, FacetValue[]>;
   owned: Record<OwnedFilter, number>;
+  /** Of the "missing" ones: maybe owned (an ambiguous owned name could be this blueprint). */
+  maybe: number;
   /** Rows in view before any filter. */
   total: number;
 }
@@ -241,8 +248,8 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
   const words = fold(p.search).split(' ').filter(Boolean);
   const rows = (Array.isArray(data.rows) ? data.rows : []).filter((r) => r.channels.some((c) => inView.has(c)) || r.owners.some((o) => inView.has(o.channel)));
 
-  type Eval = { r: BlueprintRow; score: number; own: BlueprintOwner[]; byChars: BlueprintOwner[]; pass: Record<FacetId, boolean>; ownedOk: boolean; ownedAny: boolean };
-  const evals: Eval[] = [];
+  type Eval = { r: BlueprintRow; score: number; own: BlueprintOwner[]; byChars: BlueprintOwner[]; pass: Record<FacetId, boolean>; ownedOk: boolean; ownedAny: boolean; maybe: boolean };
+  let evals: Eval[] = [];
   for (const r of rows) {
     const score = matchScore(r, words);
     if (!score) continue;
@@ -262,8 +269,11 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
       channel: !picked.size || inChan,
     };
     const ownedOk = p.owned === 'all' || (p.owned === 'owned' ? ownedAny : !ownedAny);
-    evals.push({ r, score, own, byChars, pass, ownedOk, ownedAny });
+    const maybe = !ownedAny && r.maybe.some((o) => chans.has(o.channel) && (!chars.size || chars.has(o.character)));
+    evals.push({ r, score, own, byChars, pass, ownedOk, ownedAny, maybe });
   }
+  // Letters-in-order matches only when nothing matches as text.
+  if (evals.some((e) => e.score === 2)) evals = evals.filter((e) => e.score === 2);
   const passAll = (e: Eval, except?: FacetId) => FACETS.every((f) => f === except || e.pass[f]);
 
   // Facet counts: every other filter applies (the owned toggle too).
@@ -303,11 +313,13 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
     }
   }
   const owned: Record<OwnedFilter, number> = { all: 0, owned: 0, missing: 0 };
+  let maybeN = 0;
   for (const e of evals) {
     if (!passAll(e)) continue;
     owned.all++;
     if (e.ownedAny) owned.owned++;
     else owned.missing++;
+    if (e.maybe) maybeN++;
   }
 
   const labels: Record<FacetId, (id: string) => string> = {
@@ -338,7 +350,7 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
 
   const hits = evals.filter((e) => e.ownedOk && passAll(e));
   const sorted = sortRows(hits, p, words.length > 0);
-  return { rows: sorted.map((e) => e.r), groups: groupRows(sorted, p, ctx), facets, owned, total: rows.length };
+  return { rows: sorted.map((e) => e.r), groups: groupRows(sorted, p, ctx), facets, owned, maybe: maybeN, total: rows.length };
 }
 
 const cmp = (a: string, b: string) => a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true });
