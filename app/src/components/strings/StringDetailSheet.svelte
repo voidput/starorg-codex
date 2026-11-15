@@ -113,9 +113,16 @@
       toast('error', 'Reset failed', toContractError(e).message);
     }
   }
+  /** "Ship components › Coolers · Aegis · Size 2" (group, then the facets the key has). */
+  function groupLine(d: StringDetail): string {
+    const parts = [d.row.group_label || (CATEGORY_LABEL[d.row.category] ?? d.row.category)];
+    if (d.row.manufacturer) parts.push(d.row.manufacturer);
+    if (d.row.size !== null) parts.push(`Size ${d.row.size}`);
+    return parts.join(' · ');
+  }
 </script>
 
-<Sheet bind:open title={rowKey ?? ''} description={detail ? (CATEGORY_LABEL[detail.row.category] ?? detail.row.category) : null} {beforeClose}>
+<Sheet bind:open title={rowKey ?? ''} description={detail ? groupLine(detail) : null} {beforeClose}>
   {#if loadError}
     <ErrorState title={`Could not open ${rowKey ?? 'this key'}`} error={loadError} onretry={() => retry++} />
   {:else if !detail}
@@ -129,6 +136,9 @@
           <ToneBadge tone={SOURCE_TONE[d.row.source]} label={SOURCE_LABEL[d.row.source]} />
         </div>
         <InGamePreview text={d.row.result} />
+        {#if d.also_used_by.length}
+          <p class="text-muted-foreground text-[12px]">Also used by: {d.also_used_by.join(', ')}</p>
+        {/if}
       </section>
       <section aria-labelledby="sd-diff" class="grid gap-1.5">
         <h3 id="sd-diff" class="eyebrow text-muted-foreground">Changes from stock</h3>

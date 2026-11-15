@@ -756,7 +756,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     read_string_groups: async ({ req }): Promise<T.GroupState> => {
       const c = chan(req);
-      await sleep(900);
+      await sleep(groupsRead === 'slow' ? 20_000 : 900);
+      if (groupsRead === 'busy') fail('busy', 'another extraction is running');
       c.exactGroups = true;
       return 'exact';
     },
@@ -1007,6 +1008,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     if (params.get('log') === 'empty') log.length = 0;
     sync();
   }
+
+  // Strings groups: `?groups=approximate` starts every channel approximate; `&groupsread=busy`
+  // makes the read fail as while another extraction runs; `&groupsread=slow` holds it 20 s.
+  const groupsMode = params.get('groups');
+  const groupsRead = params.get('groupsread');
+  if (groupsMode === 'approximate') for (const c of chans.values()) c.exactGroups = false;
 
   // Render states (any start state).
   const each = (key: string, f: (c: Chan) => void) => {
