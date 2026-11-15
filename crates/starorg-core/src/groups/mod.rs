@@ -16,6 +16,7 @@
 //! Pure and deterministic; [`assign`] runs once per cache entry (about 91,000 keys) and the
 //! result lives next to the Strings table. Group labels are English only (Q-G7).
 
+pub mod owners;
 pub mod rules;
 
 use crate::ini::{StockIni, fold_key};
