@@ -4,16 +4,50 @@ Rust port of [sc-gamedata](https://github.com/voidput/sc-gamedata-extractor): St
 read from `Data.p4k` and written as the same `game-<domain>.json` datasets the published
 dumps carry, field for field and byte for byte. Dev-only for now: nothing in the shipped
 CLI or app depends on it, and `starorg-data`'s `GameData` (apply/enhance) is unchanged. A
-later step moves `GameData` onto this crate.
+later step moves `GameData` onto this crate (see "Known limits" first).
 
-Status (LIVE 4.10.200.58746): `game-manufacturers` and `game-strings-english` are
-byte-identical to the golden dumps (apart from the `_extracted` timestamp). Every other
-domain has a slot in `src/domains/mod.rs`, waiting for its port.
+## Status
 
-Not ported, on purpose: `uex-item-prices.json` / `uex-terminals.json` (third-party UEX
-API data, not game files), the community overlay downloads (`sources/overlays.ts`, network),
-and the CLI-side query tools (`finder.ts`/fzf, `notes`, `diff`, `engagement`,
-`deflection`, `search-index`, which derive from datasets rather than game files).
+Against LIVE 4.10.200.58746 and sc-gamedata's `data/` dumps of that build: all 26 record
+domains, the string table and the derived `game-search-index` are ported (28 datasets).
+24 are byte-identical to the golden files apart from the `_extracted` timestamp line.
+
+The other four differ because the **golden** dumps are stale, not the port: sc-gamedata
+parsed an `extracted-data/` folder that still held 65 record files from an older
+extraction (dated 2026-11-01), and 56 of their records no longer exist under those names
+in this build's DataCore. Ours is the LIVE data.
+
+| Dataset | Paths | Why |
+|---|---|---|
+| `game-ships` | 71 | 54 pre-rename vehicles (`AEGS_Hammerhead*`, `RSI_Constellation_Andromeda/Aquila/Phoenix/Taurus*`, Aurora Mk I variants, ...) are in the golden only; LIVE has their `*_GS` replacements, which both sides carry. Golden minus those 54 equals ours, in order. |
+| `game-fps-weapons` | 4 | `vncl_melee_01_tint03` is not in LIVE (only base, tint01, tint02, store01). |
+| `game-item-tags` | 4 | the same melee tint, and `Carryable_2H_FL_05x05x05_CarraybleLootableItem_luminalia_box` (its GUID is in LIVE under a new name, which both sides have). |
+| `game-search-index` | 25,187 | derived from the two above: exactly those 2 items and 54 ships are missing from ours, and the positional rows shift after them. Built from the golden item-tags and ships, ours is byte-identical to the golden index, and sc-gamedata's own code fed our item-tags and ships writes the file we write. |
+
+`tests/live.rs` allows exactly these three record datasets to differ.
+
+Not ported:
+
+- `uex-item-prices.json` / `uex-terminals.json`: third-party UEX API data, not game files.
+- The HTTP download itself in `sources/overlays.ts`. The registry, validation, the
+  user `overlay-sources.json`, file naming, installed-pack lookup and loading are in
+  `overlays`; `fetch_source` takes the download as a function (the TypeScript takes
+  `fetchImpl`), so this crate and the CLI's default build carry no HTTP client.
+- The CLI-side query and report tools (`finder.ts`/fzf ranking, `query/obtain`, `where`,
+  `shops`, `notes`, `diff`, `changes`, `engagement`, `deflection`), which read datasets
+  rather than game files. Their TypeScript tests (about 130 cases) are not ported either.
+
+## Known limits
+
+- **Peak memory about 10 GB** for a full extract (item-tags 8.7 GB, ships 4.1 GB, armor
+  3.0 GB; DataCore alone 0.9 GB). Every record a domain is handed is held as a
+  `serde_json::Value` tree at once, and item-tags is handed all 24,914 `entities/scitem`
+  records (1.5 GB as pretty JSON). Not allocator fragmentation: `MALLOC_ARENA_MAX=2` and
+  4 rayon threads give the same peak. Fine for this dev binary; it **must be cut before**
+  `GameData`, the CLI or the app move onto this crate (the game may be running alongside),
+  e.g. by loading records lazily or keeping only the fields domains read.
+- The golden dumps are a moving target: sc-gamedata is being worked on, and the identity
+  above holds for its `data/` as of 2026-11-15.
 
 ## Layout
 
@@ -21,13 +55,15 @@ and the CLI-side query tools (`finder.ts`/fzf, `notes`, `diff`, `engagement`,
 |---|---|---|
 | `records` | `records.ts` | `GameRecord`, `RecordSet` (by type / name / record path / GUID, `follow` for both reference shapes), `at`, `num`, `str_`, `ref_*` |
 | `entity` | `entity.ts` | components of `EntityClassDefinition` |
-| `localization` | `localization.ts` | `global.ini` parsing, `localize`, overlays, `redaction` (publish-dump rules, off by default) |
+| `localization` | `localization.ts` | `global.ini` parsing, `localize`, `apply_overlay`/`diff_strings`, `redaction` (publish-dump rules, off by default) |
+| `overlays` | `sources/overlays.ts`, `loadOverlay` | community pack registry, `overlay-sources.json`, `fetch_source` (caller supplies HTTP), installed pack, loading a pack |
+| `search_index` | `search-index.ts`, `query/search-index.ts`, `query/fuzzy.ts` (`buildEntries`) | `game-search-index.json` from item-tags + ships |
 | `cryxml` | `cryxml.ts` | CryXmlB documents |
 | `glob`, `collate` | `glob.ts`, `Intl.Collator` | filter globs; `locale_compare` / `compare_names` orders |
 | `output` | `JSON.stringify(_, null, 2)` | exact writer and the `_source`/`_extracted`/`_build` header |
 | `domain`, `domains/` | `domains/types.ts`, `pipeline.ts` `DOMAINS` | `Domain` trait, `ParseContext`, the registry |
 | `pipeline` | `pipeline.ts` (parse half) | extraction scoping, running a domain |
-| `compare` | (new) | semantic diff against golden dumps |
+| `compare` | (new) | byte compare against golden dumps, with a path diff on a difference |
 | `source` | `starbreaker.ts` | the archive through `starorg-data`'s StarBreaker adapter (read only) |
 | `strings` | `writeStrings` | `game-strings-english.json` |
 
@@ -44,20 +80,30 @@ GOLDEN_DIR=/path/to/dumps scripts/compare-gamedata.sh --channel PTU --p4k /path/
 ```
 
 The script builds `gamedata-port` (into `.tmp/target-port`), extracts to
-`.tmp/gamedata/<channel>/` and diffs against `$GOLDEN_DIR` (default
+`.tmp/gamedata/<channel>/` and compares with `$GOLDEN_DIR` (default
 `~/git/sc-gamedata/data`, build 4.10.200.58746 = LIVE). It reads the game and the golden
-directory only. Exit status 1 on any difference. The harness directly:
+directory only. Exit status 1 on any difference or missing dataset. The harness directly:
 
 ```sh
 gamedata-port extract --channel LIVE --out .tmp/gamedata/LIVE [--domain X]...
 gamedata-port compare .tmp/gamedata/LIVE ~/git/sc-gamedata/data [--domain X]...
+gamedata-port search-index .tmp/gamedata/LIVE   # rebuild the index from item-tags + ships
 gamedata-port list
 ```
 
-`compare` ignores the top-level `_extracted`, compares numbers within 1e-6 relative,
-matches array elements by the first of `id`, `recordName`, `guid`, `key`, `code`,
-`className`, `ref`, `name` that identifies every element on both sides (else by position),
-and reports per dataset `identical` or `N differing paths` with the first 20.
+`extract` writes `game-search-index.json` after the domains whenever item-tags and ships
+are both in `--out` (`--domain search-index` selects those two), and removes a stale one
+otherwise, as sc-gamedata does.
+
+`compare` is a byte compare: a dataset is `identical` only when its text equals the
+golden file's after removing the one top-level `"_extracted": ...` line. With no
+`--domain` it covers every `game-*.json` on either side, so a dataset only the golden
+directory has is reported as `not produced`. On a difference it prints `N differing paths`
+and the first 20: numbers compared exactly as parsed (`1` vs `1.0` differs), array
+elements matched by the first of `id`, `recordName`, `guid`, `key`, `code`, `className`,
+`ref`, `name` that identifies every element on both sides (else by position), key order
+checked; when the values are equal and only the text differs (number formatting, escapes,
+duplicate keys) it names the first differing line.
 
 ## Porting guide
 
@@ -115,6 +161,7 @@ Porting order, from the TypeScript imports: independent (`ammo`, `commodities`,
 
 The code is a port of sc-gamedata's TypeScript sources (`src/records.ts`, `entity.ts`,
 `localization.ts`, `cryxml.ts`, `glob.ts`, `pipeline.ts`, `domains/*.ts`,
+`sources/overlays.ts`, `search-index.ts`, `query/search-index.ts`, `query/fuzzy.ts`,
 `scripts/publish-dump.mjs` redaction), by the same author, who releases this port under
 this repository's MIT licence. sc-gamedata itself is Apache-2.0; its NOTICE attribution
 carries over:
