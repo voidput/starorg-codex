@@ -78,7 +78,7 @@ registry! {
 
     // shops, // shops.ts
 
-    // starmap, // starmap.ts
+    starmap, // starmap.ts
 
     // weapons, // weapons.ts
 
