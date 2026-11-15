@@ -87,6 +87,9 @@ pub struct Ctx {
     /// Test hook: sleep this long before the `user.cfg` step (to let another channel change
     /// a shared `user.cfg` in between).
     pub pause_before_cfg: Option<Duration>,
+    /// Test hook: before the `user.cfg` step, create `<path>.reached`, then wait (up to 120 s)
+    /// until `<path>` exists. Deterministic version of `pause_before_cfg` for slow CI runners.
+    pub pause_before_cfg_until: Option<std::path::PathBuf>,
 }
 
 impl Ctx {
@@ -100,6 +103,7 @@ impl Ctx {
             use_cache: true,
             pause_after_write: None,
             pause_before_cfg: None,
+            pause_before_cfg_until: None,
         }
     }
 }
@@ -1170,6 +1174,19 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             p.as_millis()
         );
         std::thread::sleep(p);
+    }
+    if let Some(go) = &ctx.pause_before_cfg_until {
+        let mut reached = go.clone().into_os_string();
+        reached.push(".reached");
+        let _ = std::fs::write(&reached, b"");
+        eprintln!(
+            "starorg-strings: test pause before user.cfg until {}",
+            go.display()
+        );
+        let deadline = std::time::Instant::now() + Duration::from_secs(120);
+        while !go.exists() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(20));
+        }
     }
 
     // 9. user.cfg, before global.ini. The file may be shared with another channel whose run

@@ -59,6 +59,7 @@ pub(crate) fn ctx(g: &GlobalOpts) -> Result<Ctx, ExitCode> {
     c.use_cache = !g.no_cache && g.test_stock_ini().is_none();
     c.pause_after_write = g.test_pause_after_write_ms().map(Duration::from_millis);
     c.pause_before_cfg = g.test_pause_before_cfg_ms().map(Duration::from_millis);
+    c.pause_before_cfg_until = g.test_pause_before_cfg_until().map(|p| p.to_path_buf());
     Ok(c)
 }
 

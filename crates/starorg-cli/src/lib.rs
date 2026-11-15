@@ -72,6 +72,10 @@ pub struct GlobalOpts {
     #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "MS")]
     pub test_pause_before_cfg_ms: Option<u64>,
+    /// Test hook: before the user.cfg step, create `<PATH>.reached` and wait until PATH exists.
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, global = true, hide = true, value_name = "PATH")]
+    pub test_pause_before_cfg_until: Option<std::path::PathBuf>,
 }
 
 impl GlobalOpts {
@@ -87,6 +91,14 @@ impl GlobalOpts {
     pub fn test_gamedata(&self) -> Option<&std::path::Path> {
         #[cfg(feature = "test-hooks")]
         return self.test_gamedata.as_deref();
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
+
+    /// `--test-pause-before-cfg-until` (only in builds with the `test-hooks` feature).
+    pub fn test_pause_before_cfg_until(&self) -> Option<&std::path::Path> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_pause_before_cfg_until.as_deref();
         #[cfg(not(feature = "test-hooks"))]
         None
     }
