@@ -2092,12 +2092,20 @@ Dynamics). The raw key stays under it (muted, mono) while **Show keys** is on.
      missiles, ships and ground vehicles (name, description, career, role), contracts
      (title, description), reputation standings. Owner name = the record's stock display
      text (record name when that is a placeholder); manufacturer label from
-     `manufacturer_Name<code>`. Owners with the same name, kind and maker collapse (AI copies);
-     templates and `LOC_*` filler keys own nothing. Namesake record first, then kind, name.
+     `manufacturer_Name<code>` (not for `NONE`/"Unknown"). One record is one owner: a ship
+     weapon or missile also listed among the components keeps its specific kind. Per key, one
+     entry per record (its first field), and records that read the same (same name, same or
+     compatible kind, same or missing maker) collapse into one (AI copies, makerless copies);
+     templates and `LOC_*` filler keys own nothing. Namesake record first, then a specific kind
+     over "component", then one with a maker.
   2. Key shapes, no record: `item_Name*`/`vehicle_Name*` name themselves and give their
      `Desc`/`ShortName` siblings the name (namesake stem); `manufacturer_Name|Desc<code>`;
      `X_desc` / `X_desc_N` take the text of `X`, `X_name`, `X_title` / `X_title_N`, which in turn
-     name themselves. A name is one line, at most 120 bytes, not a placeholder.
+     name themselves. A variant with no name of its own (`_grey_red01`, `_mag`) takes its base
+     item's name and the suffix: `S71 Rifle (mag)`; variants the game names (`_store01` ->
+     `S71 "Infrared" Rifle`) read as their own item. `item_NameX_short` is the short-name field.
+     A name is one line (literal `\n` trimmed at the ends), at most 120 bytes, not a
+     placeholder (`<-=MISSING=->`, `PH`, `PH - ...`); game variables read `[target name]`.
   3. Nothing: `pretty_key` (`item desc · COOL_AEGS_S01_Bracer`, `hud · law trespass area`).
   Storage is CSR: `u32` offsets per row + `(u32 record, u8 field)` uses + distinct owners.
 - **Lazy, per build, no Developer mode:** `LoadedData` holds a `OnceLock<Arc<OwnerIndex>>`
@@ -2110,24 +2118,35 @@ Dynamics). The raw key stays under it (muted, mono) while **Show keys** is on.
   `OwnerKind` (ship, ground-vehicle, component, ship-weapon, fps-weapon, missile, mission,
   reputation, manufacturer, named, key); `StringDetail.owners` (all, primary first);
   `StringSort::Owner` (owned keys first, name A-Z case-insensitive, field, key). Search also
-  matches the owner's name and manufacturer. Both mocks carry synthetic owners (every 5th ship
+  matches every owner's name and manufacturer (secondary owners through a backend-only,
+  unserialised `StringRow.other_owners`). Both mocks carry synthetic owners (every 5th ship
   weapon shared with a "Turret" copy; `ui_SYN_*` rows fall back); sample
   `query_strings_by_owner`.
 - **UI:** column "String" = `name · field` (fallback muted), key line under it (Show keys,
   local storage `starorg.strings.show-keys`, default on). A shared key reads
   "N records · field" and opens a popover listing every owner with kind and maker (Esc closes,
-  focus returns); the detail sheet starts with "What this is" / "Used by N records". Copy
-  button on row hover/focus, Ctrl+C on the active row. Sort "Owner A–Z". **Group tree:** the
+  focus returns); **O** on the active row opens it from the keyboard, Esc or Tab closes it and
+  focus goes back to the row (keys on a row's buttons never reach the grid, so Enter there does
+  not open the detail). The detail sheet starts with "What this is" / "Used by N records" (8
+  shown, then "Show all"). The copy button overlays the cell on row hover/focus (it takes no
+  width), Ctrl+C copies on the active row. Sort "Owner A–Z". **Group tree:** the
   existing "Group by type" tree already is the owner category tree (Ships & vehicles, Ship
   components, Ship weapons, Missions & contracts, Locations, Interface, Other, …): rule 1 of
   8.2 uses the same GameData links, so a key's owner and its group agree.
-- **Measured on LIVE 4.10.200.58746** (release, read only; cache entry from the LIVE install):
-  index build 55 ms, 1.4 MiB heap (14,271 distinct owners); 25,234 of 91,358 keys owned
-  (5,858 by a GameData record, the rest by key shape), 853 shared (`vehicle_focus_combat`: 136
-  ships). Table rows add about 3 MiB (25,234 boxed owners + 12 bytes per row). Real backend:
-  first Strings query 333-596 ms (game data, groups, owners, table; RSS 26 -> 190 MiB, peak
-  209 MiB), warm key sort 30 ms, owner sort 123 ms, search 34-57 ms.
-  Real examples: `vehicle_NameAEGS_Gladius` -> Aegis Gladius · name (Ship · Aegis Dynamics);
+- **Measured on LIVE 4.10.200.58746** (release, read only; app folders copied and pointed to
+  with `XDG_*`): index build 55-67 ms, 1.4 MiB heap (13,960 distinct owners); 25,118 of 91,358
+  keys owned (5,855 by a GameData record, the rest by key shape), 138 shared (primary kinds:
+  57 ship, 41 component, 17 ship weapon, 15 FPS weapon, 5 mission, 3 ground vehicle;
+  `vehicle_focus_combat`: 136 ships). Primary kinds over all owned keys include 510 ship
+  weapon and 183 missile. Table rows add about 3 MiB. Real backend: first Strings query
+  342 ms (game data, groups, owners, table; RSS 26 -> 194 MiB, peak 213 MiB), warm key sort
+  31 ms, owner sort 125 ms, search 34 ms. The CLI `build --channel LIVE` output is
+  byte-identical to main's (sha256 `216d2ab6…aaaebb8d7`).
+  Real examples: `item_NameBEHR_LaserCannon_S1` -> M3A Cannon · name (Ship weapon · Behring);
+  `item_NameGMISL_S03_EM_FSKI_Thunderbolt` -> Thunderbolt III-G Missile · name (Missile ·
+  Talon); `item_DescGMNI_rifle_ballistic_01_grey_red01` -> S71 "Justified" Rifle ·
+  description (FPS weapon · Gemini);
+  `vehicle_NameAEGS_Gladius` -> Aegis Gladius · name (Ship · Aegis Dynamics);
   `manufacturer_DescAEGS` -> Aegis Dynamics · description; `Pyro1_L2_03_desc` -> PYR1 L2-C ·
   description; `item_Desc_fta_medium_helmet_01_04_10` -> Strata Helmet microTech Edition ·
   description; `hud_law_TrespassAreaRevokedAuthorisation` -> hud · law trespass area revoked
