@@ -1,6 +1,7 @@
 # Release: release-please opens the release PR; merging it tags vX.Y.Z and creates the release.
 # On release_created the matrix builds installers and CLI binaries, uploads them with SLSA
-# attestations, then a checksum job uploads SHA256SUMS. Tauri/app steps skip until app/ exists (#8).
+# attestations, then a checksum job uploads SHA256SUMS. With the updater signing secret set,
+# the AppImage and Windows installers also get .sig files and latest.json (docs/updates.md). Tauri/app steps skip until app/ exists (#8).
 # See docs/release.md for the throwaway v0.0.1 dry run.
 name: Release
 on:
@@ -122,21 +123,46 @@ jobs:
         if: steps.app.outputs.present == 'true'
         working-directory: app
         run: npm ci
+      # In-app updates (docs/updates.md): signed updater artifacts (.sig) and latest.json only
+      # when the TAURI_SIGNING_PRIVATE_KEY secret exists AND app/src-tauri/updater-public-key.txt
+      # holds the matching public key. Otherwise the installers build exactly as before,
+      # without updater files, and the app treats every install as "download only".
+      - name: Updater signing
+        if: steps.app.outputs.present == 'true'
+        id: signing
+        shell: bash
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          key=$(tr -d '[:space:]' < app/src-tauri/updater-public-key.txt)
+          if [ "$HAS_KEY" = "true" ] && [[ "$key" == dW50cnVzdGVkIGNvbW1lbnQ6* ]]; then
+            # Merged over tauri.conf.json by `tauri build --config` (path relative to app/).
+            printf '{"bundle":{"createUpdaterArtifacts":true},"plugins":{"updater":{"pubkey":"%s"}}}\n' "$key" \
+              > app/src-tauri/tauri.updater.conf.json
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+            echo "args=--config src-tauri/tauri.updater.conf.json" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "args=" >> "$GITHUB_OUTPUT"
+            echo "::notice::No updater artifacts: add the TAURI_SIGNING_PRIVATE_KEY (+ _PASSWORD) secrets and the public key in app/src-tauri/updater-public-key.txt (docs/updates.md)."
+          fi
       # Windows: NSIS and MSI. Linux: AppImage, deb, rpm. Version comes from the workspace crate.
       - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
         if: steps.app.outputs.present == 'true'
         id: tauri
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
-          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # Empty without the secret; the bundler reads it only with createUpdaterArtifacts.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ steps.signing.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ steps.signing.outputs.enabled == 'true' && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}
         with:
           projectPath: app
           tagName: ${{ needs.release-please.outputs.tag_name }}
           releaseId: ""
-          uploadUpdaterJson: true
+          # latest.json lists the AppImage and NSIS/MSI updaters with their signatures.
+          uploadUpdaterJson: ${{ steps.signing.outputs.enabled == 'true' }}
           updaterJsonPreferNsis: true
-          args: ${{ runner.os == 'Windows' && '--bundles nsis,msi' || '--bundles appimage,deb,rpm' }}
+          args: ${{ runner.os == 'Windows' && '--bundles nsis,msi' || '--bundles appimage,deb,rpm' }} ${{ steps.signing.outputs.args }}
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         if: steps.app.outputs.present == 'true'
         with:
