@@ -1669,7 +1669,6 @@ DEALINGS IN THE SOFTWARE.
 ### MIT License
 
 Used by:
-- sha1 0.10.7
 - sha2 0.10.9
 
 ```text
@@ -3132,6 +3131,7 @@ THE SOFTWARE.
 ### MIT License
 
 Used by:
+- sha1 0.11.0
 - sha2 0.11.1
 
 ```text
