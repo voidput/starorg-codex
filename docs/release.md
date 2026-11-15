@@ -11,12 +11,17 @@ Spec section 12 is the design. This note covers how the files fit and the M0 dry
 ## Files
 
 - `.github/workflows/ci.yml`: fmt, clippy `-D warnings`, `cargo test --workspace --locked` on Ubuntu and Windows,
-  release-mode worker test, `cargo deny`, CLI dependency check (no GTK/HTTP), UI checks.
+  release-mode worker test, `cargo deny`, CLI dependency check (no GTK/HTTP), UI checks, and a
+  `THIRD_PARTY_NOTICES.md` freshness check (warning only).
   Tauri and UI steps switch on once `app/package.json` / `app/src-tauri/Cargo.toml` exist.
 - `.github/workflows/release.yml`: on push to `main`, release-please; on `release_created`, the CLI
-  matrix (musl tar.gz, Windows zip), the Tauri matrix (Windows NSIS+MSI, Linux AppImage+deb+rpm, `latest.json`),
+  matrix (musl tar.gz, Windows zip, each with `LICENSE` and `THIRD_PARTY_NOTICES.md`), the Tauri matrix (Windows NSIS+MSI, Linux AppImage+deb+rpm, `latest.json`),
   SLSA attestations, the `store` job (unsigned `.msix` for Microsoft Store submission, only with
   the `MSIX_*` variables), then a `SHA256SUMS` upload (which no longer waits on a successful store job).
+- `scripts/gen-notices.sh` (`about.toml`, `scripts/notices/`): `THIRD_PARTY_NOTICES.md`, the license
+  texts of every shipped Rust crate (cargo-about) and frontend npm package. The release's `notices`
+  job regenerates it from the release commit, uploads it as a release asset and passes it to the
+  `cli`, `app` and `store` jobs (CLI archives, the app's Footer -> About, installer resources).
 - `.github/actions/windows-signing`: Azure Artifact Signing for the NSIS/MSI installers and the
   Windows CLI exe, only when the `AZURE_*` secrets and variables exist ([windows](windows.md#code-signing)).
 - `app/scripts/msix.ts`: writes `AppxManifest.xml` and stages the Store package

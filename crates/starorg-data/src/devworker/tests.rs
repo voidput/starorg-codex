@@ -396,3 +396,43 @@ fn load_reads_a_dcb_file_and_refuses_a_missing_archive() {
     assert!(DevDatabase::parse(&l.dcb).is_ok());
     assert!(load(&DevInput::P4k(dir.path().join("Data.p4k"))).is_err());
 }
+
+#[test]
+fn records_carry_labels_for_refs_and_loc_keys() {
+    let bytes = synthetic::build(3, 10, 4);
+    let db = DevDatabase::parse(&bytes).unwrap();
+    let mut s = Session::new(&db, Some(INI.to_vec()), info());
+    let v = s.record("SYN_Item_001", "", None).unwrap();
+    // The item's own GUID reads as its display name; the key as its stock text.
+    let own = &v.labels[&synthetic::guid_text(1, 1)];
+    assert_eq!(own.text, "Synthetic Item One");
+    assert_eq!(own.detail.as_deref(), Some("SYN_Item_001"));
+    assert_eq!(
+        v.labels["@item_NameSYN_Item_001"].text,
+        "Synthetic Item One"
+    );
+    // The maker has no `@key`: its short record name.
+    let maker = &v.labels[&synthetic::guid_text(0, 1)];
+    assert_eq!(
+        (maker.text.as_str(), maker.detail.as_ref()),
+        ("SYN_Maker_1", None)
+    );
+    // A key the stock file lacks stays raw.
+    let other = s.record("SYN_Item_002", "", None).unwrap();
+    assert!(!other.labels.contains_key("@item_NameSYN_Item_002"));
+    assert!(s.names_cached() >= 2);
+    // The labels op, as the app asks for dataset cells; unknown GUIDs are null.
+    let r = s
+        .handle(&Request::Labels {
+            values: vec![
+                synthetic::guid_text(1, 1),
+                "@item_NameSYN_Item_001".into(),
+                "aaaaaaaa-0000-4000-8000-0000000000ff".into(),
+            ],
+        })
+        .unwrap();
+    assert_eq!(r[0]["text"], "Synthetic Item One");
+    assert_eq!(r[0]["kind"], "record");
+    assert_eq!(r[1]["kind"], "loc");
+    assert!(r[2].is_null());
+}

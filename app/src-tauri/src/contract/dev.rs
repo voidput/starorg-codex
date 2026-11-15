@@ -21,6 +21,7 @@ pub use starorg_core::dev::diff::{DiffRecord, DiffTable, FieldChange, Presence, 
 pub use starorg_core::dev::explorer::{
     NodeKind, SearchHit, SearchPage, TreeNode, TreePage, TreeRoot, TypeCount,
 };
+pub use starorg_core::dev::readable::{LabelKind, Readable};
 pub use starorg_core::dev::record::{LocText, RecordHeader, RecordView};
 
 /// Records above this count get a size warning in the export dialog (7.4).
@@ -210,6 +211,10 @@ pub struct DevRowDetail {
     pub truncated: bool,
     pub loc: Vec<LocText>,
     pub links: Vec<ExplorerLink>,
+    /// What GUIDs, record names, `@key`s and manufacturer codes in the row read as, by raw
+    /// value (addendum 7.14).
+    #[serde(default)]
+    pub labels: std::collections::BTreeMap<String, Readable>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -237,6 +242,9 @@ pub struct DevDiffRecordsRequest {
     pub field: Option<String>,
     /// Override the identity column (`None` = automatic).
     pub identity: Option<String>,
+    /// Only records whose id or display name contains this (case-insensitive).
+    #[serde(default)]
+    pub query: Option<String>,
     pub offset: u32,
     pub limit: u32,
 }
@@ -265,6 +273,9 @@ pub struct DevDiffRecordRequest {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DevFieldDiff {
     pub id: String,
+    /// The record's display name (addendum 7.14).
+    #[serde(default)]
+    pub label: Option<String>,
     pub state: RecordState,
     pub changes: Vec<FieldChange>,
 }
@@ -418,13 +429,20 @@ pub fn field_counts(records: &[DiffRecord]) -> Vec<ValueCount> {
     v
 }
 
-/// Shared by both backends: filter, page and trim one table's diff records.
+/// Shared by both backends: filter, page and trim one table's diff records. `title` gives a
+/// record's display name (addendum 7.14); the text query matches it and the id.
 pub fn page_records(
     d: &starorg_core::dev::diff::TableDiff,
     req: &DevDiffRecordsRequest,
     identity_options: Vec<String>,
+    title: &dyn Fn(&DiffRecord) -> Option<String>,
 ) -> DevDiffRecords {
-    let hits: Vec<&DiffRecord> = d
+    let needle = req
+        .query
+        .as_deref()
+        .map(|q| q.trim().to_lowercase())
+        .filter(|q| !q.is_empty());
+    let hits: Vec<(&DiffRecord, Option<String>)> = d
         .records
         .iter()
         .filter(|r| req.state.is_none_or(|s| r.state == s))
@@ -436,6 +454,15 @@ pub fn page_records(
                     .any(|p| p == &f || p.starts_with(&format!("{f}/")))
             })
         })
+        .filter_map(|r| match &needle {
+            None => Some((r, None)),
+            Some(n) => {
+                let t = title(r);
+                let hit = r.id.to_lowercase().contains(n)
+                    || t.as_deref().is_some_and(|t| t.to_lowercase().contains(n));
+                hit.then_some((r, t))
+            }
+        })
         .collect();
     let limit = (req.limit as usize).clamp(1, starorg_core::dev::explorer::MAX_PAGE);
     DevDiffRecords {
@@ -444,9 +471,14 @@ pub fn page_records(
             .iter()
             .skip(req.offset as usize)
             .take(limit)
-            .map(|r| {
+            .map(|(r, t)| {
                 let mut r = (*r).clone();
                 r.fields.truncate(20);
+                r.label = if needle.is_some() {
+                    t.clone()
+                } else {
+                    title(&r)
+                };
                 r
             })
             .collect(),
@@ -455,6 +487,38 @@ pub fn page_records(
         fields: field_counts(&d.records),
         identity_options,
     }
+}
+
+/// Shared by both backends: one side's table of a comparison.
+pub fn side_table<'a>(
+    side: &'a [(String, std::sync::Arc<starorg_core::dev::dataset::Dataset>)],
+    dataset: &str,
+    table: &str,
+) -> Option<&'a starorg_core::dev::dataset::Table> {
+    side.iter()
+        .find(|x| x.0 == dataset)
+        .and_then(|x| x.1.table(table))
+}
+
+/// Shared by both backends: the display name of a diff record, from its row on B (else A).
+pub fn record_title(
+    r: &DiffRecord,
+    identity: Option<&str>,
+    a: Option<&starorg_core::dev::dataset::Table>,
+    b: Option<&starorg_core::dev::dataset::Table>,
+    la: &dyn starorg_core::dev::readable::Lookup,
+    lb: &dyn starorg_core::dev::readable::Lookup,
+) -> Option<String> {
+    use starorg_core::dev::readable::row_title;
+    fn row(
+        t: Option<&starorg_core::dev::dataset::Table>,
+        i: Option<u32>,
+    ) -> Option<&serde_json::Value> {
+        t?.rows.get(i? as usize)
+    }
+    row(b, r.b)
+        .and_then(|x| row_title(lb, x, identity))
+        .or_else(|| row(a, r.a).and_then(|x| row_title(la, x, identity)))
 }
 
 /// Explorer links in a dataset row (7.5): GUID-shaped strings found in the index, and

@@ -1,7 +1,7 @@
 ---
 title: Windows test checklist (real install)
 tags: [docs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Windows test checklist (real install)
@@ -38,6 +38,12 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
       Report this as a discovery miss and include the library path.
 - [ ] Step "Choose channels": pick **LIVE** only.
 - [ ] Steps "Game data source" and "Pick enhancements": keep the defaults (Recommended).
+- [ ] Step "Preferences": "Check for updates automatically" and "Connect StarOrg Tools" are
+      **off**; the update hint names `api.github.com` and at most once a day. In the Microsoft
+      Store build there is no update switch, only a line that the Store updates the app.
+      Choosing Dark or Light changes the window at once; keep the defaults.
+- [ ] Step "Review" lists Updates (not in the Store build), Appearance and StarOrg Tools as
+      chosen.
 
 ## 3. Dry run (Review step)
 

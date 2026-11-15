@@ -140,10 +140,34 @@ jobs:
           npm run --if-present check
           npm run --if-present test
 
+  # THIRD_PARTY_NOTICES.md freshness (scripts/gen-notices.sh). A warning, not a failure, so
+  # Dependabot lock bumps stay green; the release regenerates it anyway (release.yml, notices).
+  notices:
+    name: third-party notices
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-about@0.9.3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: npm ci
+        working-directory: app
+        run: npm ci
+      - name: Is THIRD_PARTY_NOTICES.md up to date?
+        run: |
+          scripts/gen-notices.sh --check || echo "::warning::THIRD_PARTY_NOTICES.md is stale: run scripts/gen-notices.sh and commit the result."
+
   # Push runs only (not PRs): Discord ping when any job above fails. No-ops without DISCORD_CI_WEBHOOK.
   notify-failure:
     if: failure() && github.event_name != 'pull_request'
-    needs: [rust, deny, cli-deps, ui]
+    needs: [rust, deny, cli-deps, ui, notices]
     permissions: {}
     uses: ./.github/workflows/notify-failure.yml
     with:

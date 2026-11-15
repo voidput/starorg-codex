@@ -1,7 +1,7 @@
 ---
 title: "Updates: check, install, signing"
 tags: [docs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Updates: check, install, signing
@@ -11,8 +11,10 @@ and 12 (release, updater); this note is the as-built reference and the owner's c
 
 ## What the user sees
 
-- **Settings -> Network -> Check for updates**, off by default. With it off the app requests
-  nothing and keeps whatever it last knew.
+- **Settings -> Network -> Check for updates**, off by default. The setup wizard's
+  **Preferences** step asks the same question (off unless switched on, with the same "what is
+  sent" text); Apply saves it before setup runs and, if it was turned on, runs the first check.
+  With it off the app requests nothing and keeps whatever it last knew.
 - With it on: one check when the app starts, **at most once per 24 hours** (a failed check
   counts too), plus **Check now**. Turning the switch on runs the first check right away.
 - A newer version shows a **banner above every screen**: "StarOrg Codex X.Y.Z is available",
@@ -66,7 +68,7 @@ and 12 (release, updater); this note is the as-built reference and the owner's c
 | Install | Updates |
 |---|---|
 | AppImage, Windows NSIS (and MSI) | In the app: download, verify the minisign signature against our key, install, restart (`tauri-plugin-updater`) |
-| deb, rpm | Download only: "update it with your package manager or from the release page" |
+| deb, rpm | Download only: "update it with your package manager or from the release page" ([linux](linux.md)) |
 | Windows portable zip, built from source, CLI | Download only |
 | Any build whose `updater-public-key.txt` is still the placeholder | Download only |
 | Microsoft Store build (feature `store`) | Store only: no check, no banner, no install; Settings says "Updates come from the Microsoft Store." ([windows](windows.md)) |

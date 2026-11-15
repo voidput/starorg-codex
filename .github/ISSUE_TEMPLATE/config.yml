@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/voidput/starorg-strings/security/advisories/new
+    about: Report security problems privately (see SECURITY.md). Never in a public issue.
+  - name: Security policy
+    url: https://github.com/voidput/starorg-strings/blob/main/SECURITY.md
+    about: What is in scope and which versions get fixes.

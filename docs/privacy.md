@@ -31,7 +31,8 @@ no crash upload and no account of its own.**
 ## Network
 
 With the default settings the app's own code makes **no network request**. Each item below is
-off until you turn it on in Settings -> Network:
+off until you turn it on in Settings -> Network (the setup wizard's Preferences step asks about
+Check for updates and Connect StarOrg Tools, with both off unless you switch them on):
 
 | Setting | What is sent, to whom |
 |---|---|

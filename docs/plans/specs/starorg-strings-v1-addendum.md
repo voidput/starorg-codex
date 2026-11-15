@@ -1123,6 +1123,82 @@ records only by default, Q-D6 Alt+9 for Explorer only, Q-D7 UEX files are just J
   `network-off`, or `not-implemented` with the switch on); backlinks (Q-D2); the
   `starorg-gamedata` domain outputs as a source (that crate is not on main yet).
 
+### 7.14 Readable ids (branch `readable-dev`, 2026-11-15, Refs #15)
+
+Owner request: "the diff and original data parts should be human readable, not just ids".
+The Explorer, Datasets and Diff screens show what an id reads as first and the raw id beside
+it. Raw data and every export stay unchanged.
+
+- **Resolution lives in the backend**, one function for every screen:
+  `starorg-core::dev::readable::label(lookup, raw, key)` returns a `Readable { kind, text,
+  detail, enhanced }`, or `None` (the raw value stays). Kinds:
+  - `record`: a GUID, or a full or short record name. The text is the record's display name
+    (stock text of its name key) with the short name as `detail`. Without a display name the
+    text is the short name.
+  - `loc`: an `@key` (in datasets also a bare stock key) reads as the stock text of the same
+    channel's `global.ini`. `enhanced` holds our Strings text when it differs. Empty stock
+    text (`@LOC_EMPTY`) and placeholders stay raw.
+  - `tag`: a tag GUID reads as the `tagName` of its `Tag` record.
+  - `manufacturer`: a 2 to 6 character code under a `manufacturer` key reads as
+    `manufacturer_Name<CODE>`.
+- **Lookups** (trait `Lookup`):
+  - **dev-worker**: every record of the index by GUID. A record's display key is read lazily
+    from the record itself (`display_of`, own name fields only: the body's
+    `Localization.Name` or top-level `displayName`/`DisplayName`/`locDisplayName`/`Name`/
+    `name`; for an entity its components' `AttachDef.Localization.Name`, then
+    `VehicleComponentParams.vehicleName`, then `SCItemPurchasableParams.displayName`; an
+    `@key`, placeholders skipped; `tagName` for tags). Nested parts never name the record (an
+    interaction's "Enter", a port, a filter): without an own name the short name serves.
+    LIVE check, 120 random entities: 58 named as global.ini, 0 wrong, 62 short names.
+    At most 256 new reads per
+    request, cached per record up to 100,000 entries (the cache starts over when full).
+    `record` replies carry `labels`; the new op `labels {values}` answers single values.
+  - **app**: per channel build, a `MapLookup` from its GameData (items, ships, ammo,
+    blueprints, standings, contracts), its stock text and the cached Strings table for
+    enhanced text. It is built in about 4 ms and the last 3 are kept. Folder sources use the
+    target channel's lookup. Each side of a diff uses its own build's lookup.
+  - **mocks**: the synthetic records (`known`, `makers`, `enhanced` in `mock-dev.gen.json`).
+    The TS mock ports the same functions, and the drift test replays the new samples.
+- **Contract (additive, `#[serde(default)]`)**:
+  - `Row.labels` (one per cell) and `Row.title`.
+  - `RecordView.labels` and `DevRowDetail.labels` (raw value -> `Readable`).
+  - `DiffRecord.label` and `DevFieldDiff.label` (the item's display name).
+  - `FieldChange` gains `path_label` (`[column=value]` segments read), `group`, `unit` (by
+    field name: kg, m/s, dmg/s, m, s, HP, rpm, SCU) and `old_label` / `new_label` (each read
+    on its own side).
+  - `DevDiffRecordsRequest.query`: matches the id or the display name.
+  - Dataset search matches cell text, what cells read as, and row titles.
+- **UI**:
+  - The label is primary. The raw id is secondary (muted, mono, in the tooltip, with a copy
+    button where it fits). An `enh` mark shows when our text differs from stock.
+  - A **Show IDs** switch (Explorer header, Datasets bar, Diff bar) brings raw ids back on all
+    three screens, the Explorer tree's inline stock text included. It is kept per viewer
+    (`localStorage` `starorg.dev.showIds`).
+  - Unresolved GUIDs and `@key`s show raw, marked "unresolved", never blank.
+  - Diff records are titled "Bracer (COOL_AEGS_S01_Bracer_SCItem)" and filter by name or id.
+    Field changes are grouped by item or top-level field and read as names, text and numbers
+    with units.
+  - The record JSON tree shows labels inline. Refs and record GUIDs follow, by click or by
+    Enter.
+- **Measured on real data (read only)**:
+  - **LIVE against PTU GameData** with their stock `global.ini`
+    (`real_builds_read_as_names`, ignored test): 2,292 of 2,293 changed, added or removed
+    records titled, e.g. "Aegis Javelin", "'WEAK' Repeater", "Applicant". The diff takes 53
+    ms. A search for "bracer" finds `Bracer [EntityClassDefinition.COOL_AEGS_S01_Bracer_SCItem]
+    | Aegis Dynamics [AEGS]` in 7 ms.
+  - **dev-worker against the LIVE `Data.p4k`**: the Bracer record reads its GUID as "Bracer",
+    tags as "Cooler", "Size1", "ActionArea", and the manufacturer ref as "Aegis Dynamics"; the
+    Avenger Stalker record carries 97 labels.
+  - **Worker memory**: RSS 521 to 526 MB after two records against 522 to 524 MB without
+    labels, with the same 920 MB peak at load. The labels add about 2 MB and stay inside the
+    ~500 MB dev budget.
+- **Renders**: `app/scripts/render-readable.cjs` (readable and Show IDs, dark and light,
+  1280x800, into `.tmp/renders/readable/`).
+- **Not done**:
+  - A "readable" export variant. It was optional: exports stay raw.
+  - Value chips in the dataset filter list raw values.
+  - The worker answers dataset GUIDs only while it runs (as for links).
+
 ## 8. Strings grouping
 
 Request: "add grouping for different types of items/things in strings". The Strings screen

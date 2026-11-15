@@ -61,6 +61,7 @@ fn records_req(dataset: &str, table: &str) -> DevDiffRecordsRequest {
         state: None,
         field: None,
         identity: None,
+        query: None,
         offset: 0,
         limit: 5,
     }
@@ -132,6 +133,27 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
             dataset: "gamedata.json".into(),
             table: "components".into(),
             id: first,
+            identity: None,
+        })
+        .unwrap();
+    // Readable labels (7.14): a search that only matches what a code reads as, a record
+    // query by display name, a field diff with a unit.
+    let mut readable_rows = rows("build:LIVE", "gamedata.json", "components");
+    readable_rows.search = "alpha synth".into();
+    readable_rows.limit = 3;
+    let readable_rows = b.dev_rows(readable_rows).unwrap();
+    let by_name = b
+        .dev_diff_records(DevDiffRecordsRequest {
+            query: Some("sample cooler 4".into()),
+            ..records_req("gamedata.json", "components")
+        })
+        .unwrap();
+    let ship = b
+        .dev_diff_record(DevDiffRecordRequest {
+            target: live(),
+            dataset: "gamedata.json".into(),
+            table: "ships".into(),
+            id: "SYN_Ship_003".into(),
             identity: None,
         })
         .unwrap();
@@ -286,6 +308,9 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
             ),
         ),
         ("dev_diff_record", json!(field)),
+        ("dev_rows_readable", json!(readable_rows)),
+        ("dev_diff_records_query", json!(by_name)),
+        ("dev_diff_record_ship", json!(ship)),
         ("dev_close", json!(b.dev_close(live()).unwrap())),
     ]
 }
@@ -532,6 +557,7 @@ fn diff_identity_override_and_filters() {
     let by = b
         .dev_diff_records(DevDiffRecordsRequest {
             identity: Some("name".into()),
+            query: None,
             ..records_req("gamedata.json", "components")
         })
         .unwrap();
@@ -596,6 +622,15 @@ fn dev_unions_in_dev_ts_list_every_variant() {
                 RecordState::Added,
                 RecordState::Removed,
                 RecordState::Changed,
+            ]),
+        ),
+        (
+            "LabelKind",
+            names(&[
+                LabelKind::Record,
+                LabelKind::Loc,
+                LabelKind::Tag,
+                LabelKind::Manufacturer,
             ]),
         ),
     ];
