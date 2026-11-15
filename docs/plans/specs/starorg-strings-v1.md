@@ -1837,6 +1837,8 @@ A review of CitizenHex's `smart-citizen-hardenedSEC` for further ideas is still 
 
 ### Where releases live (decide by the end of M0, Q1)
 
+**Decided 2026-11-15: the source repo `voidput/starorg-strings` is public; releases are published there.** The in-app updater, update check, AUR and download links all read its GitHub releases without credentials. The text below records the options as they stood.
+
 The source repo is private. A private repo's release assets need a GitHub login, which breaks
 all of these at once:
 
