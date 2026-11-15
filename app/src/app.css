@@ -38,6 +38,8 @@
   --warning: #ffd166;
   --info: #c084fc;
   --accent-2: #ffb547;
+  /* The game's <EM4> highlight blue, for the in-game preview (not an accent; fixed per theme). */
+  --em4: #62b6ff;
   --border: rgb(148 163 184 / 0.14);
   --input: rgb(148 163 184 / 0.22);
   --sidebar: #050b1a;
@@ -71,6 +73,7 @@
   --warning: #a84d08;
   --info: #7c3aed;
   --accent-2: #925a06;
+  --em4: #0a62ad;
   --border: rgb(15 23 42 / 0.12);
   --input: rgb(15 23 42 / 0.16);
   --sidebar: #f7f9fc;
@@ -151,6 +154,7 @@
   --color-warning: var(--warning);
   --color-info: var(--info);
   --color-accent-2: var(--accent-2);
+  --color-em4: var(--em4);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);

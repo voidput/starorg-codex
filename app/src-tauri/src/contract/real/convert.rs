@@ -404,8 +404,18 @@ pub fn profile_to(core: &ep::Profile, disabled: Vec<String>) -> CmdResult<Profil
             max_list: m.max_list as u32,
             header_em: m.header_em,
             label_em: m.label_em,
+            title_bp_em: m.title_bp_em,
+            title_rep_em: m.title_rep_em,
+            title_owned: m.title_owned,
+            owned_em: m.owned_em,
+            owned_line: m.owned_line,
+            missing_marker: m.missing_marker,
+            missing_em: m.missing_em,
+            variant_em: m.variant_em,
+            reward_em: m.reward_em,
         },
         branding: core.branding,
+        colour_test: core.colour_test,
         patches_disabled: disabled,
     })
 }
@@ -441,8 +451,18 @@ pub fn profile_from(p: &Profile) -> ep::Profile {
             max_list: m.max_list as usize,
             header_em: m.header_em,
             label_em: m.label_em,
+            title_bp_em: m.title_bp_em,
+            title_rep_em: m.title_rep_em,
+            title_owned: m.title_owned,
+            owned_em: m.owned_em,
+            owned_line: m.owned_line,
+            missing_marker: m.missing_marker,
+            missing_em: m.missing_em,
+            variant_em: m.variant_em,
+            reward_em: m.reward_em,
         },
         branding: p.branding,
+        colour_test: p.colour_test,
     }
 }
 
@@ -512,4 +532,24 @@ pub fn builtin_patch_ids(set: &patch::PatchSet) -> Vec<String> {
         .filter(|p| matches!(p.origin, patch::PatchOrigin::Builtin))
         .map(|p| p.file.id.clone())
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn colour_settings_round_trip() {
+        let mut p = profile_to(&ep::Profile::default(), Vec::new()).unwrap();
+        p.colour_test = true;
+        let m = &mut p.mission;
+        (m.title_owned, m.owned_line, m.missing_marker) = (true, true, true);
+        (m.title_bp_em, m.title_rep_em, m.owned_em, m.missing_em) = (0, 3, 1, 2);
+        (m.variant_em, m.reward_em, m.header_em, m.label_em) = (5, 4, 0, 5);
+        let core = profile_from(&p);
+        assert!(core.colour_test && core.mission.missing_marker);
+        assert_eq!(core.mission.missing_em, 2);
+        let back = profile_to(&core, Vec::new()).unwrap();
+        assert_eq!(back, Profile { preset: None, ..p });
+    }
 }

@@ -2642,6 +2642,13 @@
       "label": "Mission title",
       "original": "Synthetic Recovery Contract",
       "result": "Synthetic Recovery Contract <EM4>[BP]</EM4> <EM4>[150 Rep]</EM4>"
+    },
+    {
+      "category": "missions",
+      "key": "mission_DescSYN_Recovery",
+      "label": "Contract description",
+      "original": "Recover the synthetic cargo.",
+      "result": "Recover the synthetic cargo.\\n\\n<EM3>BLUEPRINTS</EM3>\\n- Sample Rifle [Owned]\\n- Sample Pistol\\n\\n<EM3>ITEM REWARDS</EM3>\\n- Sample Scrip ×3\\n\\n<EM3>MISSION DETAILS</EM3>\\n<EM4>Reputation:</EM4> 150"
     }
   ],
   "channel_status": {
@@ -9815,6 +9822,7 @@
   },
   "get_profile": {
     "branding": false,
+    "colour_test": false,
     "components": true,
     "fps_weapons": true,
     "header": "--- STATS ---",
@@ -9828,10 +9836,19 @@
       "item_rewards": true,
       "label_em": 4,
       "max_list": 25,
+      "missing_em": 0,
+      "missing_marker": false,
+      "owned_em": 0,
+      "owned_line": false,
       "owned_marker": true,
+      "reward_em": 0,
       "title_blueprint": true,
+      "title_bp_em": 4,
       "title_em": true,
-      "title_reputation": true
+      "title_owned": false,
+      "title_rep_em": 4,
+      "title_reputation": true,
+      "variant_em": 4
     },
     "missions": true,
     "patches_disabled": [],

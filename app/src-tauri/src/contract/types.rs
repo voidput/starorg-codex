@@ -622,10 +622,28 @@ pub struct MissionSettings {
     pub owned_marker: bool,
     /// Lists longer than this end with `- and N more`.
     pub max_list: u32,
-    /// EM tag for section headers, 3 or 4.
+    /// EM tag for section headers: 0 none, 1-5 (stock uses 3).
     pub header_em: u8,
-    /// EM tag for detail labels, 3 or 4.
+    /// EM tag for detail labels: 0 none, 1-5.
     pub label_em: u8,
+    /// EM tag of `[BP]` / `[BP?]` / `[BP Owned]` while `title_em` is on: 0 none, 1-5.
+    pub title_bp_em: u8,
+    /// EM tag of `[N Rep]` while `title_em` is on: 0 none, 1-5.
+    pub title_rep_em: u8,
+    /// `[BP Owned]` when the character owns every blueprint the contract can award.
+    pub title_owned: bool,
+    /// EM tag around `[Owned]`: 0 none, 1-5.
+    pub owned_em: u8,
+    /// Colour the whole owned line, not only `[Owned]`.
+    pub owned_line: bool,
+    /// `[Missing]` on blueprints the character does not own (needs an owned set).
+    pub missing_marker: bool,
+    /// EM tag around `[Missing]`: 0 none, 1-5.
+    pub missing_em: u8,
+    /// EM tag of variant sub-headers such as `[Easy]`: 0 none, 1-5.
+    pub variant_em: u8,
+    /// EM tag around item names under ITEM REWARDS: 0 none, 1-5.
+    pub reward_em: u8,
 }
 
 /// The channel's `profile.toml` (spec 4.7): M2 `enhance::Profile` field for field, plus the
@@ -649,6 +667,9 @@ pub struct Profile {
     pub tags: TagSettings,
     pub mission: MissionSettings,
     pub branding: bool,
+    /// Colour test: appends `Colour test: EM1 … EM5` (each in its tag) to the Contracts
+    /// Manager's "Please select a contract." prompt. Never in a preset.
+    pub colour_test: bool,
     /// Patch ids switched off. "Fix known text bugs" off = every built-in id listed here.
     pub patches_disabled: Vec<String>,
 }

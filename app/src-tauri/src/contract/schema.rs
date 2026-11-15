@@ -49,8 +49,18 @@ pub fn preset_profile(p: Preset) -> Profile {
             max_list: 25,
             header_em: 3,
             label_em: 4,
+            title_bp_em: 4,
+            title_rep_em: 4,
+            title_owned: false,
+            owned_em: 0,
+            owned_line: false,
+            missing_marker: false,
+            missing_em: 0,
+            variant_em: 4,
+            reward_em: 0,
         },
         branding: all,
+        colour_test: false,
         patches_disabled: Vec::new(),
     }
 }

@@ -33,6 +33,22 @@ const shots = [
     await p.getByRole('tab', { name: /Missions/ }).click();
     await p.getByText('Mission titles').waitFor();
   }],
+  // Colour settings (missions) with [Owned] in EM4 and [Missing] on, scrolled to the Colours card.
+  ['enhancements-colours', 'enhancements', async (p) => {
+    await p.getByRole('tab', { name: /Missions/ }).click();
+    await p.getByText('Mission titles').waitFor();
+    await p.getByRole('switch', { name: /with \[Missing\]/ }).click();
+    await p.getByRole('combobox', { name: '[Owned]: colour' }).click();
+    await p.getByRole('option', { name: 'EM4 · blue' }).click();
+    await p.getByRole('combobox', { name: '[Missing]: colour' }).click();
+    await p.getByRole('option', { name: 'EM2 · not verified' }).click();
+    await p.getByText('Colours', { exact: true }).scrollIntoViewIfNeeded();
+  }],
+  ['enhancements-colour-test', 'enhancements', async (p) => {
+    await p.getByText('Header line').waitFor();
+    await p.getByRole('switch', { name: /colour test line/ }).click();
+    await p.getByText('Our guess, not the game').scrollIntoViewIfNeeded();
+  }],
   ['strings', 'strings', async (p) => p.locator('[data-row="0"]').getByRole('gridcell').first().waitFor()],
   ['strings-filtered', 'strings', async (p) => {
     await p.locator('[data-row="0"]').getByRole('gridcell').first().waitFor();

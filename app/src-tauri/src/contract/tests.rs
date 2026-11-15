@@ -1502,6 +1502,41 @@ fn preview_follows_profile_switches() {
 }
 
 #[test]
+fn preview_shows_marker_colours_and_the_colour_test() {
+    let b = MockBackend::default();
+    let mut p = b.preset_profile(Preset::Recommended).unwrap();
+    let get = |p: &Profile, key: &str| {
+        b.build_preview(PreviewRequest {
+            target: live(),
+            profile: Some(p.clone()),
+            preset: None,
+        })
+        .unwrap()
+        .into_iter()
+        .find(|i| i.key == key)
+    };
+    let desc = get(&p, "mission_DescSYN_Recovery").unwrap();
+    assert!(
+        desc.result
+            .contains("\\n- Sample Rifle [Owned]\\n- Sample Pistol\\n")
+    );
+    assert!(get(&p, "mG_ContractsMgr_Select").is_none());
+    p.mission.owned_em = 4;
+    p.mission.missing_marker = true;
+    p.mission.missing_em = 2;
+    p.colour_test = true;
+    let desc = get(&p, "mission_DescSYN_Recovery").unwrap();
+    assert!(
+        desc.result
+            .contains("- Sample Rifle <EM4>[Owned]</EM4>\\n- Sample Pistol <EM2>[Missing]</EM2>"),
+        "{}",
+        desc.result
+    );
+    let t = get(&p, "mG_ContractsMgr_Select").unwrap();
+    assert!(t.result.ends_with("<EM5>EM5</EM5>"));
+}
+
+#[test]
 fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
     let b = MockBackend::default();
     let pull = || {

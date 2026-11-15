@@ -3064,21 +3064,23 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
         result: tagged,
     });
 
+    let m = &p.mission;
+    let em = |n: u8, t: &str| {
+        if n == 0 {
+            t.to_string()
+        } else {
+            format!("<EM{n}>{t}</EM{n}>")
+        }
+    };
     let title = "Synthetic Recovery Contract";
     let mut tt = title.to_string();
     if p.missions {
-        let wrap = |s: &str| {
-            if p.mission.title_em {
-                format!(" <EM4>{s}</EM4>")
-            } else {
-                format!(" {s}")
-            }
-        };
-        if p.mission.title_blueprint {
-            tt.push_str(&wrap("[BP]"));
+        let wrap = |n: u8, s: &str| format!(" {}", em(if m.title_em { n } else { 0 }, s));
+        if m.title_blueprint {
+            tt.push_str(&wrap(m.title_bp_em, "[BP]"));
         }
-        if p.mission.title_reputation {
-            tt.push_str(&wrap("[150 Rep]"));
+        if m.title_reputation {
+            tt.push_str(&wrap(m.title_rep_em, "[150 Rep]"));
         }
     }
     out.push(PreviewItem {
@@ -3088,5 +3090,61 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
         original: title.into(),
         result: tt,
     });
+
+    // The sample character owns the first blueprint of the list.
+    let prose = "Recover the synthetic cargo.";
+    let mut body = Vec::new();
+    if p.missions && m.blueprints {
+        let mut list = vec![em(m.header_em, "BLUEPRINTS")];
+        for (name, owned) in [("Sample Rifle", true), ("Sample Pistol", false)] {
+            list.push(if owned && m.owned_marker {
+                if m.owned_line && m.owned_em != 0 {
+                    format!("- {}", em(m.owned_em, &format!("{name} [Owned]")))
+                } else {
+                    format!("- {name} {}", em(m.owned_em, "[Owned]"))
+                }
+            } else if !owned && m.missing_marker {
+                format!("- {name} {}", em(m.missing_em, "[Missing]"))
+            } else {
+                format!("- {name}")
+            });
+        }
+        body.push(list.join("\\n"));
+    }
+    if p.missions && m.item_rewards {
+        body.push(format!(
+            "{}\\n- {} ×3",
+            em(m.header_em, "ITEM REWARDS"),
+            em(m.reward_em, "Sample Scrip")
+        ));
+    }
+    if p.missions && m.details {
+        body.push(format!(
+            "{}\\n{} 150",
+            em(m.header_em, "MISSION DETAILS"),
+            em(m.label_em, "Reputation:")
+        ));
+    }
+    out.push(PreviewItem {
+        key: "mission_DescSYN_Recovery".into(),
+        label: "Contract description".into(),
+        category: "missions".into(),
+        original: prose.into(),
+        result: if body.is_empty() {
+            prose.into()
+        } else {
+            format!("{prose}\\n\\n{}", body.join("\\n\\n"))
+        },
+    });
+    if p.colour_test {
+        let prompt = "Please select a contract.";
+        out.push(PreviewItem {
+            key: "mG_ContractsMgr_Select".into(),
+            label: "Colour test".into(),
+            category: "ui".into(),
+            original: prompt.into(),
+            result: format!("{prompt}{}", starorg_core::enhance::COLOUR_TEST_LINE),
+        });
+    }
     out
 }

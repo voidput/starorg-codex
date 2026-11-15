@@ -25,6 +25,7 @@
   import ErrorState from '@/components/common/ErrorState.svelte';
   import TagBuilder from '@/components/enhancements/TagBuilder.svelte';
   import PreviewPanel from '@/components/enhancements/PreviewPanel.svelte';
+  import InGamePreview from '@/components/common/InGamePreview.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { CategoryId, ChannelRef, PatchView, PreviewItem, Preset, Profile, ProfileSchema, TagKind, TagKindSettings } from '@/lib/contract/types';
   import { app } from '@/lib/stores/app.svelte';
@@ -229,11 +230,27 @@
     { id: 'minimal', label: 'Minimal' },
     { id: 'everything', label: 'Everything' },
   ];
-  const em = [
-    { id: 3, label: 'Underline (EM3)' },
-    { id: 4, label: 'Colour (EM4)' },
+  // Colour settings: an EM tag number, 0 = none. EM3/EM4 are the looks stock mobiGlas text uses
+  // (seen in game); EM1, EM2 and EM5 exist in stock, their look is not verified yet.
+  type EmField = 'header_em' | 'label_em' | 'title_bp_em' | 'title_rep_em' | 'owned_em' | 'missing_em' | 'variant_em' | 'reward_em';
+  const emOptions: { id: string; label: string }[] = [
+    { id: '0', label: 'None' },
+    { id: '3', label: 'EM3 · underline' },
+    { id: '4', label: 'EM4 · blue' },
+    { id: '1', label: 'EM1 · not verified' },
+    { id: '2', label: 'EM2 · not verified' },
+    { id: '5', label: 'EM5 · not verified' },
   ];
+  const setEm = (f: EmField, v: string) => edit((p) => (p.mission[f] = Number(v)));
+  const COLOUR_TEST = 'Please select a contract. Colour test: <EM1>EM1</EM1> <EM2>EM2</EM2> <EM3>EM3</EM3> <EM4>EM4</EM4> <EM5>EM5</EM5>';
 </script>
+
+{#snippet emRow(f: EmField, label: string, disabled: boolean)}
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <span class="w-40 text-[12.5px]" id="em-{f}">{label}</span>
+    <SelectField ariaLabel={`${label}: colour`} options={emOptions} value={String(draft?.mission[f] ?? 0)} {disabled} onchange={(v) => setEm(f, v)} class="w-44" />
+  </div>
+{/snippet}
 
 {#if error}
   <ErrorState title="Could not read the enhancement settings" {error} onretry={() => loadSeq++} />
@@ -330,6 +347,25 @@
               <SwitchRow id="branding" label="Add a small StarOrg Codex stamp" hint="One line at the end of the main menu version text. Off by default." checked={d.branding} onchange={(v) => edit((p) => (p.branding = v))} />
             </Card.Content>
           </Card.Root>
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Colour test</Card.Title>
+              <Card.Description>Shows what each text style looks like in the game, so better colours can be picked. For testing; turn it off when done.</Card.Description>
+            </Card.Header>
+            <Card.Content class="grid gap-3">
+              <SwitchRow id="colour-test" label="Add a colour test line" hint="Appends one line to the Contracts Manager's “Please select a contract.” prompt. Turning it off and applying again removes it." checked={d.colour_test} onchange={(v) => edit((p) => (p.colour_test = v))} />
+              <ol class="text-muted-foreground grid list-decimal gap-1 pl-5 text-[12.5px]">
+                <li>Save &amp; apply, then start the game.</li>
+                <li>Open mobiGlas, then Contracts Manager. With no contract selected the detail pane says “Please select a contract.”, followed by <span class="text-foreground">Colour test: EM1 EM2 EM3 EM4 EM5</span>.</li>
+                <li>Note how each word looks: its colour, and whether it is underlined, bold or larger. If you see the tags themselves, such as &lt;EM1&gt;, that pane does not read styles.</li>
+                <li>Report what you saw; EM1, EM2 and EM5 then get real names and colours here.</li>
+              </ol>
+              <div class="grid gap-1">
+                <span class="text-muted-foreground text-[11px] font-medium uppercase">Our guess, not the game</span>
+                <InGamePreview text={COLOUR_TEST} note={false} />
+              </div>
+            </Card.Content>
+          </Card.Root>
         {:else if selected === 'name-tags'}
           <Card.Root>
             <Card.Header><Card.Title>Tag Builder</Card.Title><Card.Description>Short tags in item names, such as [IND-S2-A], built per kind of item.</Card.Description></Card.Header>
@@ -367,7 +403,12 @@
               <Card.Content class="grid gap-1">
                 <SwitchRow id="m-bp" size="sm" disabled={off} label="[BP] when the contract can reward a blueprint" hint="[BP?] when only some of its variants can." checked={d.mission.title_blueprint} onchange={(v) => edit((p) => (p.mission.title_blueprint = v))} />
                 <SwitchRow id="m-rep" size="sm" disabled={off} label="Reputation reward, such as [150 Rep]" checked={d.mission.title_reputation} onchange={(v) => edit((p) => (p.mission.title_reputation = v))} />
-                <SwitchRow id="m-em" size="sm" disabled={off} label="Highlight title tags in colour" hint="Wraps the tags in <EM4> so the game draws them in its highlight colour." checked={d.mission.title_em} onchange={(v) => edit((p) => (p.mission.title_em = v))} />
+                <SwitchRow id="m-bp-owned" size="sm" disabled={off || !d.mission.title_blueprint} label="[BP Owned] when you own every blueprint it can award" hint="In place of [BP] or [BP?]; uses the owned set from Blueprints." checked={d.mission.title_owned} onchange={(v) => edit((p) => (p.mission.title_owned = v))} />
+                <SwitchRow id="m-em" size="sm" disabled={off} label="Highlight title tags" hint="Wraps the tags in an EM tag so the game draws them in that style. Blue (EM4) by default." checked={d.mission.title_em} onchange={(v) => edit((p) => (p.mission.title_em = v))} />
+                <div class="grid gap-2 pt-1 pl-11">
+                  {@render emRow('title_bp_em', 'Blueprint tag', off || !d.mission.title_em || !d.mission.title_blueprint)}
+                  {@render emRow('title_rep_em', 'Reputation tag', off || !d.mission.title_em || !d.mission.title_reputation)}
+                </div>
               </Card.Content>
             </Card.Root>
             <Card.Root>
@@ -382,6 +423,8 @@
                 <SwitchRow id="m-owned" size="sm" disabled={off || !d.mission.blueprints} label="Mark blueprints you own with [Owned]" checked={d.mission.owned_marker} onchange={(v) => edit((p) => (p.mission.owned_marker = v))}>
                   <button type="button" class="text-primary text-[12px] underline-offset-2 hover:underline" onclick={() => app.go('blueprints')}>Choose the character</button>
                 </SwitchRow>
+                <SwitchRow id="m-owned-line" size="sm" class="pl-11" disabled={off || !d.mission.blueprints || !d.mission.owned_marker || d.mission.owned_em === 0} label="Colour the whole line, not only [Owned]" hint={d.mission.owned_em === 0 ? 'Pick an [Owned] colour below first.' : null} checked={d.mission.owned_line} onchange={(v) => edit((p) => (p.mission.owned_line = v))} />
+                <SwitchRow id="m-missing" size="sm" disabled={off || !d.mission.blueprints} label="Mark blueprints you don't own with [Missing]" hint="Only when an owned set is known; without one nothing is marked." checked={d.mission.missing_marker} onchange={(v) => edit((p) => (p.mission.missing_marker = v))} />
                 <div class="mt-1 flex flex-wrap items-center gap-3">
                   <label for="m-max" class="text-[12.5px]">Longest blueprint list</label>
                   <Input
@@ -400,10 +443,20 @@
                   />
                   <span id="m-max-hint" class="text-muted-foreground text-[12px]">Longer lists end with “and N more”.</span>
                 </div>
-                <div class="mt-2 grid gap-2 border-t pt-2">
-                  <div class="flex flex-wrap items-center gap-3"><span class="w-36 text-[12.5px]">Section headers</span><Segmented size="sm" ariaLabel="Section header style" disabled={off} options={em} value={d.mission.header_em} onchange={(v) => edit((p) => (p.mission.header_em = v))} /></div>
-                  <div class="flex flex-wrap items-center gap-3"><span class="w-36 text-[12.5px]">Detail labels</span><Segmented size="sm" ariaLabel="Detail label style" disabled={off} options={em} value={d.mission.label_em} onchange={(v) => edit((p) => (p.mission.label_em = v))} /></div>
-                </div>
+              </Card.Content>
+            </Card.Root>
+            <Card.Root>
+              <Card.Header>
+                <Card.Title>Colours</Card.Title>
+                <Card.Description>EM3 (underline) and EM4 (blue) are what the game uses in contracts. EM1, EM2 and EM5 exist but their look is not verified: try them with the Colour test under General.</Card.Description>
+              </Card.Header>
+              <Card.Content class="grid gap-2 @min-[640px]:grid-cols-2">
+                {@render emRow('header_em', 'Section headers', off)}
+                {@render emRow('label_em', 'Detail labels', off || !d.mission.details)}
+                {@render emRow('owned_em', '[Owned]', off || !d.mission.blueprints || !d.mission.owned_marker)}
+                {@render emRow('missing_em', '[Missing]', off || !d.mission.blueprints || !d.mission.missing_marker)}
+                {@render emRow('variant_em', 'Variant labels, [Easy]', off || !d.mission.blueprints)}
+                {@render emRow('reward_em', 'Item reward names', off || !d.mission.item_rewards)}
               </Card.Content>
             </Card.Root>
           {/if}

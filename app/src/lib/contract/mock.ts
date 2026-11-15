@@ -173,8 +173,18 @@ function presetProfile(p: T.Preset): T.Profile {
       max_list: 25,
       header_em: 3,
       label_em: 4,
+      title_bp_em: 4,
+      title_rep_em: 4,
+      title_owned: false,
+      owned_em: 0,
+      owned_line: false,
+      missing_marker: false,
+      missing_em: 0,
+      variant_em: 4,
+      reward_em: 0,
     },
     branding: all,
+    colour_test: false,
     patches_disabled: [],
   };
 }
@@ -325,19 +335,44 @@ export function preview(p: T.Profile): T.PreviewItem[] {
       tagged = t.placement === 'prefix' ? `${tag} ${name}` : `${name} ${tag}`;
     }
   }
+  const m = p.mission;
+  const em = (n: number, t: string) => (n === 0 ? t : `<EM${n}>${t}</EM${n}>`);
   const title = 'Synthetic Recovery Contract';
   let tt = title;
   if (p.missions) {
-    const wrap = (s: string) => (p.mission.title_em ? ` <EM4>${s}</EM4>` : ` ${s}`);
-    if (p.mission.title_blueprint) tt += wrap('[BP]');
-    if (p.mission.title_reputation) tt += wrap('[150 Rep]');
+    const wrap = (n: number, s: string) => ` ${em(m.title_em ? n : 0, s)}`;
+    if (m.title_blueprint) tt += wrap(m.title_bp_em, '[BP]');
+    if (m.title_reputation) tt += wrap(m.title_rep_em, '[150 Rep]');
   }
-  return [
+  // The sample character owns the first blueprint of the list.
+  const prose = 'Recover the synthetic cargo.';
+  const body: string[] = [];
+  if (p.missions && m.blueprints) {
+    const list = [em(m.header_em, 'BLUEPRINTS')];
+    for (const [bp, owned] of [['Sample Rifle', true], ['Sample Pistol', false]] as const) {
+      if (owned && m.owned_marker) list.push(m.owned_line && m.owned_em !== 0 ? `- ${em(m.owned_em, `${bp} [Owned]`)}` : `- ${bp} ${em(m.owned_em, '[Owned]')}`);
+      else if (!owned && m.missing_marker) list.push(`- ${bp} ${em(m.missing_em, '[Missing]')}`);
+      else list.push(`- ${bp}`);
+    }
+    body.push(list.join('\\n'));
+  }
+  if (p.missions && m.item_rewards) body.push(`${em(m.header_em, 'ITEM REWARDS')}\\n- ${em(m.reward_em, 'Sample Scrip')} ×3`);
+  if (p.missions && m.details) body.push(`${em(m.header_em, 'MISSION DETAILS')}\\n${em(m.label_em, 'Reputation:')} 150`);
+  const out: T.PreviewItem[] = [
     { key: 'vehicle_DescSYN_Fighter', label: 'Ship description', category: 'ships', original: shipProse, result: block(shipProse, lines) },
     { key: 'item_NameSYN_Cooler_S2', label: 'Component name', category: 'components', original: name, result: tagged },
     { key: 'mission_TitleSYN_Recovery', label: 'Mission title', category: 'missions', original: title, result: tt },
+    { key: 'mission_DescSYN_Recovery', label: 'Contract description', category: 'missions', original: prose, result: body.length ? `${prose}\\n\\n${body.join('\\n\\n')}` : prose },
   ];
+  if (p.colour_test) {
+    const prompt = 'Please select a contract.';
+    out.push({ key: 'mG_ContractsMgr_Select', label: 'Colour test', category: 'ui', original: prompt, result: prompt + COLOUR_TEST_LINE });
+  }
+  return out;
 }
+
+/** Same as `enhance::COLOUR_TEST_LINE` in Rust. */
+export const COLOUR_TEST_LINE = ' Colour test: <EM1>EM1</EM1> <EM2>EM2</EM2> <EM3>EM3</EM3> <EM4>EM4</EM4> <EM5>EM5</EM5>';
 
 const CHARACTER_IDS = ['1000000000001', '1000000000002', '1000000000003'];
 const CHARACTER_NAMES = ['Pilot_A', 'Alt_B', 'Alt_C'];

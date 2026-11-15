@@ -28,21 +28,43 @@ pub fn preview(t: &Table) -> Vec<PreviewItem> {
         ("missiles", "Missile"),
         ("missions", "Contract"),
     ];
+    let item = |r: &StringRow, label: &str, cat: &str| PreviewItem {
+        key: r.key.clone(),
+        label: label.into(),
+        category: cat.into(),
+        original: r.original.clone(),
+        result: r.result.clone(),
+    };
+    let changed = |r: &&StringRow| r.source != StringSource::Unmodified;
     let mut out = Vec::new();
     for (cat, label) in WANT {
-        if let Some(r) = t
-            .rows
-            .iter()
-            .find(|r| r.category == *cat && r.source != StringSource::Unmodified)
-        {
-            out.push(PreviewItem {
-                key: r.key.clone(),
-                label: (*label).into(),
-                category: (*cat).into(),
-                original: r.original.clone(),
-                result: r.result.clone(),
-            });
+        if let Some(r) = t.rows.iter().filter(changed).find(|r| r.category == *cat) {
+            out.push(item(r, label, cat));
         }
+    }
+    // A contract with a blueprint list, so the marker colours show; one with an
+    // `[Owned]` line first.
+    let lists = || {
+        t.rows
+            .iter()
+            .filter(changed)
+            .filter(|r| r.category == "missions" && r.result.contains("BLUEPRINTS"))
+    };
+    if let Some(r) = lists()
+        .find(|r| r.result.contains("[Owned]"))
+        .or_else(|| lists().next())
+        && !out.iter().any(|x| x.key == r.key)
+    {
+        out.push(item(r, "Contract description", "missions"));
+    }
+    let test = starorg_core::enhance::profile::COLOUR_TEST_KEY;
+    if let Some(r) = t
+        .rows
+        .iter()
+        .filter(changed)
+        .find(|r| starorg_core::ini::strip_flag_suffix(&r.key).eq_ignore_ascii_case(test))
+    {
+        out.push(item(r, "Colour test", "ui"));
     }
     out
 }

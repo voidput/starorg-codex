@@ -337,8 +337,23 @@ export interface MissionSettings {
   bullet_tags: boolean;
   owned_marker: boolean;
   max_list: number;
+  /** EM tags below: 0 = none, 1-5. Stock mobiGlas text uses 3 (underline) and 4 (blue). */
   header_em: number;
   label_em: number;
+  /** [BP] / [BP?] / [BP Owned] while title_em is on. */
+  title_bp_em: number;
+  title_rep_em: number;
+  /** [BP Owned] when every blueprint the contract can award is owned. */
+  title_owned: boolean;
+  owned_em: number;
+  /** Colour the whole owned line, not only [Owned]. */
+  owned_line: boolean;
+  /** [Missing] on blueprints not owned (needs an owned set). */
+  missing_marker: boolean;
+  missing_em: number;
+  variant_em: number;
+  /** Item names under ITEM REWARDS. */
+  reward_em: number;
 }
 
 export interface Profile {
@@ -357,6 +372,8 @@ export interface Profile {
   tags: TagSettings;
   mission: MissionSettings;
   branding: boolean;
+  /** Appends "Colour test: EM1 … EM5" to the Contracts Manager's "Please select a contract." */
+  colour_test: boolean;
   /** "Fix known text bugs" off = every built-in patch id here. */
   patches_disabled: string[];
 }

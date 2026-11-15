@@ -43,7 +43,7 @@ pub fn category_of(generator: &str) -> &'static str {
         "fps-weapons" => "fps-weapons",
         "missiles" | "missile-tags" => "missiles",
         "mission-titles" | "mission-descriptions" => "missions",
-        "branding" => "ui",
+        "branding" | "colour-test" => "ui",
         "ship-names" => "ships",
         _ => "other",
     }
