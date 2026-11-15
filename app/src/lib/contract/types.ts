@@ -402,7 +402,11 @@ export interface SaveProfileRequest {
 // Strings -------------------------------------------------------------------------------
 
 export type StringSource = 'unmodified' | 'enhanced' | 'patched' | 'edited';
-export type StringSort = 'key' | 'key-desc' | 'category' | 'source';
+export type StringSort = 'key' | 'key-desc' | 'category' | 'source' | 'group';
+/** What the Strings group tree shows (addendum 8.4). */
+export type GroupBy = 'none' | 'type' | 'manufacturer' | 'size';
+/** `approximate`: the loc-reference pass has not run for this build yet. */
+export type GroupState = 'exact' | 'approximate';
 
 export interface StringsQuery {
   target: ChannelRef;
@@ -413,6 +417,13 @@ export interface StringsQuery {
   sort: StringSort;
   offset: number;
   limit: number;
+  /** Group ids; a parent selects its children. Empty = all. */
+  groups?: string[];
+  /** Manufacturer codes; `none` = rows without one. */
+  manufacturers?: string[];
+  /** Sizes 1-12; 0 = rows without one. */
+  sizes?: number[];
+  group_by?: GroupBy;
 }
 
 export interface StringRow {
@@ -421,6 +432,21 @@ export interface StringRow {
   result: string;
   source: StringSource;
   category: string;
+  /** Leaf id of the type hierarchy, e.g. `components/coolers`. */
+  group: string;
+  group_label: string;
+  manufacturer: string | null;
+  size: number | null;
+}
+
+/** A node of the group tree. Type: group id; manufacturer: code or `none`; size: `"1"`..`"12"` or `none`. */
+export interface GroupNode {
+  id: string;
+  parent: string | null;
+  label: string;
+  count: number;
+  enhanced: number;
+  edited: number;
 }
 
 export interface FacetCount {
@@ -435,6 +461,8 @@ export interface StringsPage {
   rows: StringRow[];
   sources: FacetCount[];
   categories: FacetCount[];
+  groups: GroupNode[];
+  group_state: GroupState;
 }
 
 export type Layer = 'stock' | 'generated' | 'patch' | 'override';
@@ -451,6 +479,8 @@ export interface StringDetail {
   row: StringRow;
   provenance: Provenance[];
   override_value: string | null;
+  /** Labels of other groups whose records also use the key. */
+  also_used_by: string[];
 }
 
 export interface KeyRequest {

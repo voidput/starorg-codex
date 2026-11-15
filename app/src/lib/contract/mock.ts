@@ -31,6 +31,7 @@ const SAMPLES = samples as unknown as {
   doctor: T.DoctorReport;
   starorg_status: T.StarOrgStatus;
   import_smart_citizen: T.ImportReport;
+  query_strings: T.StringsPage;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -46,7 +47,56 @@ interface Chan {
   active: T.ActiveCharacter;
   owned: Map<string, T.OwnedBlueprint[]>;
   forgotten: Set<string>;
+  /** LIVE has run the loc-reference pass; other channels start approximate. */
+  exactGroups?: boolean;
 }
+
+/** Synthetic manufacturers, as in the Rust mock (`MOCK_MANUFACTURERS`). */
+const MOCK_MANUFACTURERS: [string, string][] = [
+  ['SYNA', 'Alpha Synthetics'],
+  ['SYNB', 'Beta Works'],
+  ['SYNC', 'Gamma Test Yards'],
+  ['SYND', 'Delta Sample Co'],
+];
+
+/**
+ * Group, manufacturer and size of synthetic row `i`: the table of `mock_group` in the Rust
+ * mock. A Rust test checks these pins:
+ * // pin: components 16 -> components/shields SYNC 1
+ * // pin: items 40 -> armor/helmets SYNB -
+ * // pin: ui 24 -> dialogue/voice - -
+ * // pin: ship-weapons 0 -> ship-weapons/countermeasures SYNA 1
+ */
+export function mockGroup(cat: string, i: number): [string, string | null, number | null] {
+  const k = Math.floor(i / 8);
+  const mfr = MOCK_MANUFACTURERS[k % MOCK_MANUFACTURERS.length]![0];
+  const pick = (v: string[]) => v[k % v.length]!;
+  switch (cat) {
+    case 'ships':
+      return [pick(['ships/ships', 'ships/ships', 'ships/ground', 'ships/paints']), mfr, null];
+    case 'components':
+      return [pick(['components/coolers', 'components/power-plants', 'components/shields', 'components/quantum-drives', 'components/radars', 'components/thrusters']), mfr, (i % 4) + 1];
+    case 'ship-weapons':
+      return [k % 5 === 0 ? 'ship-weapons/countermeasures' : 'ship-weapons/guns', mfr, (i % 6) + 1];
+    case 'missiles':
+      return ['missiles', mfr, (i % 3) + 1];
+    case 'fps-weapons':
+      return [pick(['fps-weapons/weapons', 'fps-weapons/weapons', 'fps-weapons/attachments', 'fps-weapons/gadgets']), mfr, null];
+    case 'missions':
+      return [pick(['missions/contracts', 'missions/text', 'missions/givers']), null, null];
+    case 'items':
+      return [pick(['armor/helmets', 'armor/torso', 'clothing/torso', 'consumables/food', 'items/misc']), k % 5 < 3 ? mfr : null, null];
+    default:
+      return [pick(['interface/hud', 'interface/menus', 'interface/mobiglas', 'dialogue/voice', 'other']), null, null];
+  }
+}
+
+/** The type hierarchy (ids, parents, labels) as the Rust mock wrote it into the samples. */
+const HIERARCHY = () => SAMPLES.query_strings.groups.map((g) => ({ id: g.id, parent: g.parent, label: g.label }));
+const groupLabel = (() => {
+  let m: Map<string, string> | null = null;
+  return (id: string) => (m ??= new Map(HIERARCHY().map((g) => [g.id, g.label]))).get(id) ?? 'Other';
+})();
 
 const fail = (code: T.ErrorCode, message: string, detail: string | null = null): never => {
   throw new ContractError({ code, message, detail });
@@ -170,7 +220,8 @@ function syntheticStrings(): T.StringRow[] {
       else if (cat === 'components' || cat === 'ship-weapons' || cat === 'missiles') result = `[S${(i % 4) + 1}-A] ${original}`;
       else result = `${original}\\n\\n--- STATS ---\\nDamage: 12.5  |  RPM: 600`;
     }
-    rows[i] = { key, original, result, source, category: cat };
+    const [group, manufacturer, size] = mockGroup(cat, i);
+    rows[i] = { key, original, result, source, category: cat, group, group_label: groupLabel(group), manufacturer, size };
   }
   return rows;
 }
@@ -368,7 +419,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       row.result = ov;
       row.source = 'edited';
     }
-    return { row, provenance, override_value: ov };
+    const also_used_by = row.group.startsWith('components/') && row.size === 1 ? ['HUD'] : [];
+    return { row, provenance, override_value: ov, also_used_by };
   };
   const offers = (c: Chan): T.RestoreOffers => {
     const s = c.summary;
@@ -628,32 +680,85 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     copy_profile: ({ req }) => h.save_profile({ req: { target: req.to, profile: chan(req.from).profile } }),
     query_strings: ({ req }) => {
+      // Same rules as the Rust side (`contract/strings_query.rs`).
       const c = chan(req.target);
       const needle = req.search.toLowerCase();
+      const groups = req.groups ?? [];
+      const mfrs = req.manufacturers ?? [];
+      const sizes = req.sizes ?? [];
+      const by: T.GroupBy = req.group_by ?? 'none';
       const srcCounts = new Map<string, number>();
       const catCounts = new Map<string, number>();
+      const tree = new Map<string, { count: number; enhanced: number; edited: number }>();
+      const sizesSeen = new Set<number>();
       let hits: T.StringRow[] = [];
+      const inGroups = (g: string) => !groups.length || groups.some((s) => g === s || g.startsWith(`${s}/`));
       for (const base of table()) {
+        if (base.size !== null) sizesSeen.add(base.size);
         const ov = c.overrides.get(base.key);
         const r = ov === undefined ? base : { ...base, result: ov, source: 'edited' as const };
         if (req.changed_only && r.source === 'unmodified') continue;
         if (needle && !r.key.toLowerCase().includes(needle) && !r.original.toLowerCase().includes(needle) && !r.result.toLowerCase().includes(needle)) continue;
         const srcOk = !req.sources.length || req.sources.includes(r.source);
         const catOk = !req.categories.length || req.categories.includes(r.category);
-        if (catOk) srcCounts.set(r.source, (srcCounts.get(r.source) ?? 0) + 1);
-        if (srcOk) catCounts.set(r.category, (catCounts.get(r.category) ?? 0) + 1);
-        if (srcOk && catOk) hits.push(r);
+        const typeOk = inGroups(r.group);
+        const mfrOk = !mfrs.length || mfrs.some((m) => m === r.manufacturer || (m === 'none' && r.manufacturer === null));
+        const sizeOk = !sizes.length || sizes.includes(r.size ?? 0);
+        const groupsOk = typeOk && mfrOk && sizeOk;
+        if (catOk && groupsOk) srcCounts.set(r.source, (srcCounts.get(r.source) ?? 0) + 1);
+        if (srcOk && groupsOk) catCounts.set(r.category, (catCounts.get(r.category) ?? 0) + 1);
+        const ownOk = by === 'type' ? mfrOk && sizeOk : by === 'manufacturer' ? typeOk && sizeOk : by === 'size' ? typeOk && mfrOk : false;
+        if (srcOk && catOk && ownOk) {
+          const id = by === 'manufacturer' ? (r.manufacturer ?? 'none') : by === 'size' ? (r.size === null ? 'none' : String(r.size)) : r.group;
+          const t = tree.get(id) ?? { count: 0, enhanced: 0, edited: 0 };
+          t.count++;
+          if (r.source === 'enhanced') t.enhanced++;
+          if (r.source === 'edited') t.edited++;
+          tree.set(id, t);
+        }
+        if (srcOk && catOk && groupsOk) hits.push(r);
       }
       const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
+      const hier = HIERARCHY();
+      const pos = new Map(hier.map((g, i) => [g.id, i]));
+      const mfrPos = new Map(MOCK_MANUFACTURERS.map(([code], i) => [code, i]));
+      const rank = (r: T.StringRow) =>
+        by === 'manufacturer' ? (r.manufacturer === null ? Infinity : (mfrPos.get(r.manufacturer) ?? Infinity)) : by === 'size' ? (r.size ?? Infinity) : (pos.get(r.group) ?? Infinity);
       if (req.sort === 'key') hits.sort((a, b) => cmp(a.key, b.key));
       else if (req.sort === 'key-desc') hits.sort((a, b) => cmp(b.key, a.key));
       else if (req.sort === 'category') hits.sort((a, b) => cmp(a.category, b.category) || cmp(a.key, b.key));
+      else if (req.sort === 'group') hits.sort((a, b) => rank(a) - rank(b) || cmp(a.key, b.key));
       else hits.sort((a, b) => cmp(a.source, b.source) || cmp(a.key, b.key));
       const total = hits.length;
       const limit = Math.min(Math.max(req.limit, 1), 1000);
       hits = hits.slice(req.offset, req.offset + limit);
       const fc = (m: Map<string, number>) => [...m].sort((a, b) => cmp(a[0], b[0])).map(([id, count]) => ({ id, count }));
-      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits), sources: fc(srcCounts), categories: fc(catCounts) };
+      const zero = { count: 0, enhanced: 0, edited: 0 };
+      let nodes: T.GroupNode[] = [];
+      if (by === 'type') {
+        nodes = hier.map((g) => {
+          const kids = hier.filter((x) => x.parent === g.id);
+          const t = kids.length
+            ? kids.reduce((a, k) => {
+                const v = tree.get(k.id) ?? zero;
+                return { count: a.count + v.count, enhanced: a.enhanced + v.enhanced, edited: a.edited + v.edited };
+              }, zero)
+            : (tree.get(g.id) ?? zero);
+          return { ...g, ...t };
+        });
+      } else if (by === 'manufacturer') {
+        nodes = [...MOCK_MANUFACTURERS.map(([id, label]) => ({ id, parent: null, label, ...(tree.get(id) ?? zero) })), { id: 'none', parent: null, label: 'No manufacturer', ...(tree.get('none') ?? zero) }];
+      } else if (by === 'size') {
+        nodes = [...[...sizesSeen].sort((a, b) => a - b).map((s) => ({ id: String(s), parent: null, label: `Size ${s}`, ...(tree.get(String(s)) ?? zero) })), { id: 'none', parent: null, label: 'No size', ...(tree.get('none') ?? zero) }];
+      }
+      const group_state: T.GroupState = (c.exactGroups ?? c.summary.channel === 'LIVE') ? 'exact' : 'approximate';
+      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits), sources: fc(srcCounts), categories: fc(catCounts), groups: nodes, group_state };
+    },
+    read_string_groups: async ({ req }): Promise<T.GroupState> => {
+      const c = chan(req);
+      await sleep(900);
+      c.exactGroups = true;
+      return 'exact';
     },
     string_detail: ({ req }) => detail(req.target, req.key),
     set_override: ({ req }) => {

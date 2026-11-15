@@ -15,6 +15,7 @@
 pub mod mock;
 pub mod real;
 pub mod schema;
+pub mod strings_query;
 pub mod types;
 
 use std::sync::Arc;
@@ -62,6 +63,10 @@ pub trait Backend: Send + Sync + 'static {
     fn copy_profile(&self, req: CopyProfileRequest) -> CmdResult<Profile>;
 
     fn query_strings(&self, req: StringsQuery) -> CmdResult<StringsPage>;
+    /// Run the loc-reference pass for the channel's build (an extraction, about 1-3 s plus
+    /// reading Data.p4k) when its groups are approximate; returns the new state. `busy` while
+    /// another extraction runs.
+    fn read_string_groups(&self, req: ChannelRef) -> CmdResult<GroupState>;
     fn string_detail(&self, req: KeyRequest) -> CmdResult<StringDetail>;
     fn set_override(&self, req: OverrideRequest) -> CmdResult<OverrideResult>;
     fn reset_override(&self, req: KeyRequest) -> CmdResult<StringDetail>;
@@ -182,6 +187,7 @@ commands! {
     save_profile(req: SaveProfileRequest) -> Profile;
     copy_profile(req: CopyProfileRequest) -> Profile;
     query_strings(req: StringsQuery) -> StringsPage;
+    read_string_groups(req: ChannelRef) -> GroupState;
     string_detail(req: KeyRequest) -> StringDetail;
     set_override(req: OverrideRequest) -> OverrideResult;
     reset_override(req: KeyRequest) -> StringDetail;
@@ -264,6 +270,7 @@ macro_rules! contract_handler {
             $crate::contract::save_profile,
             $crate::contract::copy_profile,
             $crate::contract::query_strings,
+            $crate::contract::read_string_groups,
             $crate::contract::string_detail,
             $crate::contract::set_override,
             $crate::contract::reset_override,
@@ -329,6 +336,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "save_profile",
     "copy_profile",
     "query_strings",
+    "read_string_groups",
     "string_detail",
     "set_override",
     "reset_override",

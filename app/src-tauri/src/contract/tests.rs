@@ -63,6 +63,10 @@ fn query(search: &str) -> StringsQuery {
         sort: StringSort::Key,
         offset: 0,
         limit: 3,
+        groups: vec![],
+        manufacturers: vec![],
+        sizes: vec![],
+        group_by: GroupBy::Type,
     }
 }
 
@@ -184,6 +188,8 @@ fn samples() -> Value {
         "build_preview": b.build_preview(PreviewRequest { target: live(), profile: None, preset: Some(Preset::Everything) }).unwrap(),
         "get_profile": b.get_profile(live()).unwrap(),
         "query_strings": b.query_strings(query("cooler")).unwrap(),
+        "query_strings_by_size": b.query_strings(StringsQuery { group_by: GroupBy::Size, sizes: vec![2], sort: StringSort::Group, ..query("cooler") }).unwrap(),
+        "read_string_groups": b.read_string_groups(hotfix()).unwrap(),
         "string_detail": b.string_detail(KeyRequest { target: live(), key: "vehicle_DescSYN_Ship_00000".into() }).unwrap(),
         "set_override": ov,
         "set_override_rejected": rejected,
@@ -463,7 +469,21 @@ fn ts_unions_list_every_variant() {
                 StringSort::KeyDesc,
                 StringSort::Category,
                 StringSort::Source,
+                StringSort::Group,
             ]),
+        ),
+        (
+            "GroupBy",
+            names(&[
+                GroupBy::None,
+                GroupBy::Type,
+                GroupBy::Manufacturer,
+                GroupBy::Size,
+            ]),
+        ),
+        (
+            "GroupState",
+            names(&[GroupState::Exact, GroupState::Approximate]),
         ),
         (
             "Layer",
@@ -851,6 +871,118 @@ fn strings_query_filters_and_pages_the_whole_table() {
     assert!(p.rows.iter().all(|r| r.source != StringSource::Unmodified));
     q.offset = p.total - 1;
     assert_eq!(b.query_strings(q).unwrap().rows.len(), 1);
+}
+
+/// Addendum 8.4: one group per row, tree counts follow the facet rule, a parent selects its
+/// children, the flat modes end with "none".
+#[test]
+fn strings_groups_follow_the_facet_rule() {
+    let b = MockBackend::default();
+    set_up(&b);
+    let mut q = query("");
+    q.limit = 1000;
+    let p = b.query_strings(q.clone()).unwrap();
+    assert_eq!(p.group_state, GroupState::Exact);
+    let leaves: u32 = p
+        .groups
+        .iter()
+        .filter(|g| {
+            !p.groups
+                .iter()
+                .any(|c| c.parent.as_deref() == Some(g.id.as_str()))
+        })
+        .map(|g| g.count)
+        .sum();
+    assert_eq!(leaves, p.total, "leaf counts add up to the rows");
+    let node = |p: &StringsPage, id: &str| p.groups.iter().find(|g| g.id == id).cloned().unwrap();
+    let comps = node(&p, "components");
+    assert!(comps.count > 0 && comps.enhanced > 0);
+    assert_eq!(
+        comps.count,
+        p.groups
+            .iter()
+            .filter(|g| g.parent.as_deref() == Some("components"))
+            .map(|g| g.count)
+            .sum::<u32>()
+    );
+    // Zero-count groups stay in the tree (dimmed in the UI).
+    assert_eq!(node(&p, "blueprints").count, 0);
+
+    // Selecting a parent filters to its children; the tree counts do not change.
+    q.groups = vec!["components".into()];
+    let sel = b.query_strings(q.clone()).unwrap();
+    assert_eq!(sel.total, comps.count);
+    assert!(sel.rows.iter().all(|r| r.group.starts_with("components/")));
+    assert_eq!(sel.groups, p.groups);
+    // A leaf and a manufacturer together; the source facet reflects the group filter.
+    q.groups = vec!["components/coolers".into()];
+    q.manufacturers = vec!["SYNA".into()];
+    let both = b.query_strings(q.clone()).unwrap();
+    assert!(both.total > 0);
+    assert!(
+        both.rows
+            .iter()
+            .all(|r| r.group == "components/coolers" && r.manufacturer.as_deref() == Some("SYNA"))
+    );
+    assert_eq!(
+        both.sources.iter().map(|s| s.count).sum::<u32>(),
+        both.total
+    );
+
+    // Manufacturer mode: flat, "none" last; its counts ignore the manufacturer filter only.
+    q.group_by = GroupBy::Manufacturer;
+    let m = b.query_strings(q.clone()).unwrap();
+    assert_eq!(m.groups.last().unwrap().id, "none");
+    assert!(m.groups.iter().all(|g| g.parent.is_none()));
+    let syna = m.groups.iter().find(|g| g.id == "SYNA").unwrap();
+    assert_eq!(syna.count, both.total);
+    assert!(m.groups.iter().any(|g| g.id == "SYNC" && g.count > 0));
+
+    // Size mode and sort by group.
+    q = query("");
+    q.group_by = GroupBy::Size;
+    q.sort = StringSort::Group;
+    q.sizes = vec![0];
+    q.limit = 5;
+    let s = b.query_strings(q).unwrap();
+    assert!(s.rows.iter().all(|r| r.size.is_none()));
+    assert_eq!(s.groups.last().unwrap().id, "none");
+    assert_eq!(s.groups.first().unwrap().id, "1");
+
+    // None: no tree.
+    let mut q = query("");
+    q.group_by = GroupBy::None;
+    assert!(b.query_strings(q).unwrap().groups.is_empty());
+
+    // HOTFIX starts approximate until the pass runs.
+    let mut q = query("");
+    q.target = hotfix();
+    assert_eq!(
+        b.query_strings(q.clone()).unwrap().group_state,
+        GroupState::Approximate
+    );
+    assert_eq!(b.read_string_groups(hotfix()).unwrap(), GroupState::Exact);
+    assert_eq!(b.query_strings(q).unwrap().group_state, GroupState::Exact);
+}
+
+/// The TS mock assigns groups with the same table (`mockGroup` in mock.ts).
+#[test]
+fn mock_groups_match_the_ts_table() {
+    let ts = std::fs::read_to_string(app_src().join("mock.ts")).unwrap();
+    for (cat, i) in [
+        ("components", 16),
+        ("items", 40),
+        ("ui", 24),
+        ("ship-weapons", 0),
+    ] {
+        let (g, m, s) = super::mock::mock_group(cat, i);
+        let line = format!(
+            "// pin: {cat} {i} -> {g} {} {}",
+            m.unwrap_or("-"),
+            s.map(|s| s.to_string()).unwrap_or("-".into())
+        );
+        assert!(ts.contains(&line), "mock.ts lacks `{line}`");
+    }
 }
 
 #[test]

@@ -716,6 +716,47 @@ pub enum StringSort {
     KeyDesc,
     Category,
     Source,
+    /// Group order of the active `group_by` (hierarchy order, manufacturer name, size),
+    /// then key.
+    Group,
+}
+
+/// What the Strings group tree shows (addendum 8.4).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GroupBy {
+    /// No tree (`StringsPage::groups` is empty).
+    #[default]
+    None,
+    /// The two-level type hierarchy.
+    Type,
+    Manufacturer,
+    Size,
+}
+
+/// `exact`: groups come from every record that uses a key. `approximate`: the loc-reference
+/// pass has not run for this build yet (a launch hook read it, or a published dump is in
+/// use); only GameData links and key prefixes were used.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum GroupState {
+    Exact,
+    Approximate,
+}
+
+/// One node of the group tree for the active `group_by`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct GroupNode {
+    /// Type: a group id (`components/coolers`). Manufacturer: the code, or `none`. Size:
+    /// `"1"`..`"12"`, or `none`.
+    pub id: String,
+    /// Type mode only: the parent group id.
+    pub parent: Option<String>,
+    pub label: String,
+    /// Rows matching every filter except the selection of this dimension (facet rule).
+    pub count: u32,
+    pub enhanced: u32,
+    pub edited: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -729,6 +770,17 @@ pub struct StringsQuery {
     pub sort: StringSort,
     pub offset: u32,
     pub limit: u32,
+    /// Group ids; a parent selects its children. Empty = all.
+    #[serde(default)]
+    pub groups: Vec<String>,
+    /// Manufacturer codes; `none` = rows without one. Empty = all.
+    #[serde(default)]
+    pub manufacturers: Vec<String>,
+    /// Sizes 1-12; 0 = rows without one. Empty = all.
+    #[serde(default)]
+    pub sizes: Vec<u32>,
+    #[serde(default)]
+    pub group_by: GroupBy,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -738,6 +790,12 @@ pub struct StringRow {
     pub result: String,
     pub source: StringSource,
     pub category: String,
+    /// Primary group (a leaf id of the type hierarchy, `components/coolers`).
+    pub group: String,
+    pub group_label: String,
+    /// Manufacturer code (`AEGS`), for keys of an item with a named manufacturer.
+    pub manufacturer: Option<String>,
+    pub size: Option<u32>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -756,6 +814,9 @@ pub struct StringsPage {
     pub rows: Vec<StringRow>,
     pub sources: Vec<FacetCount>,
     pub categories: Vec<FacetCount>,
+    /// The tree of `group_by` (empty for `none`), in display order.
+    pub groups: Vec<GroupNode>,
+    pub group_state: GroupState,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -783,6 +844,8 @@ pub struct StringDetail {
     pub row: StringRow,
     pub provenance: Vec<Provenance>,
     pub override_value: Option<String>,
+    /// Labels of other groups whose records also use the key (Q-G3).
+    pub also_used_by: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

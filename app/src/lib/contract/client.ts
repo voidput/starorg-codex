@@ -32,6 +32,7 @@ export interface CommandMap {
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
   copy_profile: [{ req: T.CopyProfileRequest }, T.Profile];
   query_strings: [{ req: T.StringsQuery }, T.StringsPage];
+  read_string_groups: [{ req: T.ChannelRef }, T.GroupState];
   string_detail: [{ req: T.KeyRequest }, T.StringDetail];
   set_override: [{ req: T.OverrideRequest }, T.OverrideResult];
   reset_override: [{ req: T.KeyRequest }, T.StringDetail];
@@ -98,6 +99,7 @@ export const COMMANDS = [
   'save_profile',
   'copy_profile',
   'query_strings',
+  'read_string_groups',
   'string_detail',
   'set_override',
   'reset_override',
@@ -250,6 +252,7 @@ export const api = {
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),
   copyProfile: (req: T.CopyProfileRequest) => call('copy_profile', { req }),
   queryStrings: (req: T.StringsQuery) => call('query_strings', { req }),
+  readStringGroups: (req: T.ChannelRef) => call('read_string_groups', { req }),
   stringDetail: (req: T.KeyRequest) => call('string_detail', { req }),
   setOverride: (req: T.OverrideRequest) => call('set_override', { req }),
   resetOverride: (req: T.KeyRequest) => call('reset_override', { req }),

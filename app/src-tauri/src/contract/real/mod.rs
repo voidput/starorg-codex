@@ -21,6 +21,7 @@ pub use dialogs::{DialogSlot, Dialogs, FileFilter, TauriDialogs};
 
 use super::types::*;
 use super::{Backend, Progress, schema};
+use crate::contract::strings_query;
 use convert::{err, internal, kebab, path_text};
 use serde::{Deserialize, Serialize};
 use starorg_core::appdirs::AppDirs;
@@ -162,6 +163,37 @@ struct LoadedData {
     key: String,
     stock: Arc<StockIni>,
     game_data: Arc<GameData>,
+    /// Strings grouping of this build, computed once per cache entry (addendum 8.2).
+    groups: Arc<starorg_core::groups::GroupIndex>,
+}
+
+impl LoadedData {
+    fn new(key: String, l: starorg_core::source::Loaded) -> Self {
+        let stock = StockIni::parse(l.base_ini);
+        let groups = starorg_core::groups::assign(&stock, &l.game_data, l.keyrefs.as_ref());
+        Self {
+            key,
+            stock: Arc::new(stock),
+            game_data: Arc::new(l.game_data),
+            groups: Arc::new(groups),
+        }
+    }
+
+    fn group_meta(&self) -> strings_query::GroupMeta {
+        strings_query::GroupMeta {
+            state: if self.groups.exact {
+                GroupState::Exact
+            } else {
+                GroupState::Approximate
+            },
+            manufacturers: self
+                .groups
+                .manufacturers
+                .iter()
+                .map(|m| (m.code.clone(), m.label.clone()))
+                .collect(),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -691,11 +723,7 @@ impl RealBackend {
                 ));
             }
         };
-        let d = Arc::new(LoadedData {
-            key,
-            stock: Arc::new(StockIni::parse(l.base_ini)),
-            game_data: Arc::new(l.game_data),
-        });
+        let d = Arc::new(LoadedData::new(key, l));
         // One build per channel in memory.
         self.mem().data.insert(slot, d.clone());
         Ok(d)
@@ -744,6 +772,7 @@ impl RealBackend {
             patches: &patches,
             overrides: &inp.overrides,
             owned: &inp.owned,
+            groups: &d.groups,
         }));
         if profile.is_none() {
             self.mem().tables.insert(slot, (key, tbl.clone()));
@@ -1783,7 +1812,41 @@ impl Backend for RealBackend {
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
         let tbl = self.build_table(&f, ch, None, false)?;
-        Ok(diag::query(&tbl, &req))
+        let meta = self.loaded(&f, ch, false)?.group_meta();
+        Ok(strings_query::run(
+            tbl.rows.iter().map(std::borrow::Cow::Borrowed),
+            tbl.rows.len() as u32,
+            &req,
+            &meta,
+        ))
+    }
+
+    fn read_string_groups(&self, req: ChannelRef) -> CmdResult<GroupState> {
+        let f = self.resolve(&req)?;
+        let ch = f.channel(&req.channel)?;
+        let d = self.loaded(&f, ch, false)?;
+        if d.groups.exact {
+            return Ok(GroupState::Exact);
+        }
+        let t = Target::new(&f.install, f.id.clone(), ch);
+        let src = self.cfg.source.source(self.dirs()).map_err(internal)?;
+        let mut w = Vec::new();
+        let l = apply::reload_channel(self.ctx(), &t, src.as_ref(), &Budget::unlimited(), &mut w)
+            .map_err(|e| {
+            let code = if e.contains("another extraction") {
+                ErrorCode::Busy
+            } else {
+                ErrorCode::Internal
+            };
+            err(code, format!("reading game data: {e}"))
+        })?;
+        let fresh = Arc::new(LoadedData::new(d.key.clone(), l));
+        let state = fresh.group_meta().state;
+        let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
+        let mut m = self.mem();
+        m.data.insert(slot.clone(), fresh);
+        m.tables.remove(&slot);
+        Ok(state)
     }
 
     fn string_detail(&self, req: KeyRequest) -> CmdResult<StringDetail> {

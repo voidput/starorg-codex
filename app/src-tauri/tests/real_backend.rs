@@ -364,10 +364,68 @@ fn setup_plan_apply_status_remove_round_trip() {
             sort: StringSort::Key,
             offset: 0,
             limit: 50,
+            groups: vec![],
+            manufacturers: vec![],
+            sizes: vec![],
+            group_by: GroupBy::Type,
         })
         .unwrap();
     assert_eq!(page.total, 1);
     assert_eq!(page.rows[0].key, "item_NameA");
+    // Groups (addendum 8): the app-started extraction ran the loc-reference pass.
+    assert_eq!(page.group_state, GroupState::Exact);
+    assert_eq!(page.rows[0].group, "items/misc");
+    let rifle = f
+        .backend
+        .query_strings(StringsQuery {
+            target: f.live(),
+            search: String::new(),
+            sources: vec![],
+            categories: vec![],
+            changed_only: false,
+            sort: StringSort::Group,
+            offset: 0,
+            limit: 1000,
+            groups: vec!["fps-weapons".into()],
+            manufacturers: vec![],
+            sizes: vec![2],
+            group_by: GroupBy::Size,
+        })
+        .unwrap();
+    assert_eq!(rifle.total, 1, "{:?}", rifle.rows);
+    let r = &rifle.rows[0];
+    assert_eq!(
+        (r.key.as_str(), r.group.as_str()),
+        ("item_NameRifle", "fps-weapons/weapons")
+    );
+    assert_eq!(r.size, Some(2));
+    // KSAR has no manufacturer_NameKSAR in the fake stock: no manufacturer facet.
+    assert_eq!(r.manufacturer, None);
+    assert!(rifle.groups.iter().any(|g| g.id == "2" && g.count == 1));
+    assert_eq!(rifle.groups.last().unwrap().id, "none");
+    let fmt = f
+        .backend
+        .query_strings(StringsQuery {
+            target: f.live(),
+            search: "fmt_key".into(),
+            sources: vec![],
+            categories: vec![],
+            changed_only: false,
+            sort: StringSort::Key,
+            offset: 0,
+            limit: 5,
+            groups: vec![],
+            manufacturers: vec![],
+            sizes: vec![],
+            group_by: GroupBy::None,
+        })
+        .unwrap();
+    assert_eq!(fmt.rows[0].group, "other");
+    assert!(fmt.groups.is_empty());
+    assert_eq!(
+        f.backend.read_string_groups(f.live()).unwrap(),
+        GroupState::Exact
+    );
 
     // An override is checked with M1's rules, then makes the channel stale.
     let bad = f

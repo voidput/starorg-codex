@@ -7,6 +7,7 @@ use crate::contract::types::*;
 use starorg_core::blueprints::Selection;
 use starorg_core::build::BuildInfo;
 use starorg_core::enhance::{self, Category, profile::Profile as EnhanceProfile};
+use starorg_core::groups::GroupIndex;
 use starorg_core::ini::StockIni;
 use starorg_core::merge::{self, Source};
 use starorg_core::model::GameData;
@@ -29,6 +30,8 @@ pub struct Table {
     pub index: HashMap<String, usize>,
     pub summary: Vec<patch::PatchOutcome>,
     pub counts: ApplyCounts,
+    /// "Also used by" per row (Q-G3), from the group index.
+    pub also: Vec<Vec<String>>,
 }
 
 /// The UI category of a generator (`StringRow::category`).
@@ -69,6 +72,8 @@ pub struct Inputs<'a> {
     pub patches: &'a PatchSet,
     pub overrides: &'a [Override],
     pub owned: &'a Selection,
+    /// Groups of the stock keys, in `stock.entries()` order.
+    pub groups: &'a GroupIndex,
 }
 
 pub fn build(i: &Inputs<'_>) -> Table {
@@ -106,7 +111,8 @@ pub fn build(i: &Inputs<'_>) -> Table {
     let mut rows = Vec::new();
     let mut info = Vec::new();
     let mut index = HashMap::new();
-    for (line, key, stock_value) in i.stock.entries() {
+    let mut also = Vec::new();
+    for (row_no, (line, key, stock_value)) in i.stock.entries().enumerate() {
         let gen_edit = generated.edits.get(&line);
         let generated_v = gen_edit.map(|g| {
             (
@@ -147,13 +153,25 @@ pub fn build(i: &Inputs<'_>) -> Table {
             None => (StringSource::Enhanced, guess_category(key)),
         };
         index.insert(key.to_ascii_lowercase(), rows.len());
+        let g = i.groups.group(row_no);
         rows.push(StringRow {
             key: key.to_string(),
             original: stock_value.to_string(),
             result,
             source: src,
             category: category.to_string(),
+            group: g.id.to_string(),
+            group_label: g.label.to_string(),
+            manufacturer: i.groups.manufacturer(row_no).map(|m| m.code.clone()),
+            size: i.groups.size(row_no).map(u32::from),
         });
+        also.push(
+            i.groups
+                .also_used_by(row_no)
+                .into_iter()
+                .map(str::to_string)
+                .collect(),
+        );
         info.push(RowInfo {
             generated: generated_v,
             source,
@@ -165,6 +183,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
         index,
         summary: patch::summarise(i.patches, &merged.patch_outcomes),
         counts,
+        also,
     }
 }
 
@@ -219,6 +238,7 @@ impl Table {
             row,
             provenance: p,
             override_value,
+            also_used_by: self.also.get(i).cloned().unwrap_or_default(),
         }
     }
 }
