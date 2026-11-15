@@ -22,6 +22,7 @@
   import { characterLabel, fallbackHint, largerHint, newestId } from '@/lib/characters';
   import * as Alert from '@/components/ui/alert';
   import Info from '@lucide/svelte/icons/info';
+  import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import MarkersCard from '@/components/blueprints/MarkersCard.svelte';
   import CollapsibleCard from '@/components/common/CollapsibleCard.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
@@ -115,7 +116,17 @@
   {@const v = view}
   {@const hint = v.active.mode === 'auto' ? (fallbackHint(v.characters, v.active.resolved, v.active.fallback_from) ?? largerHint(v.characters, v.active.resolved, v.active.larger)) : null}
   <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-    <!-- Outside every card: it stays in view when the cards are collapsed. -->
+    <!-- Warnings sit outside every card: they stay in view when the cards are collapsed. -->
+    {#if v.notice}
+      <Alert.Root variant="warning" class="xl:col-span-2">
+        <TriangleAlert aria-hidden="true" />
+        <Alert.Title>Two characters, one name</Alert.Title>
+        <Alert.Description>
+          <p>{v.notice}</p>
+          {#if v.active.mode !== 'union'}<div class="mt-2"><Button variant="outline" size="sm" onclick={() => setMode('union')}>Use Any of my characters</Button></div>{/if}
+        </Alert.Description>
+      </Alert.Root>
+    {/if}
     {#if hint}
       <Alert.Root variant="warning" class="xl:col-span-2">
         <Info aria-hidden="true" />

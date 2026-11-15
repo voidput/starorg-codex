@@ -1648,6 +1648,30 @@ fn preview_shows_marker_colours_and_the_colour_test() {
 }
 
 #[test]
+fn preview_title_shows_bp_owned_when_it_is_on() {
+    let b = MockBackend::default();
+    let mut p = b.preset_profile(Preset::Recommended).unwrap();
+    let title = |p: &Profile| {
+        b.build_preview(PreviewRequest {
+            target: live(),
+            profile: Some(p.clone()),
+            preset: None,
+        })
+        .unwrap()
+        .into_iter()
+        .find(|i| i.key == "mission_TitleSYN_Recovery")
+        .unwrap()
+        .result
+    };
+    p.mission.title_blueprint = true;
+    p.mission.title_owned = false;
+    assert!(title(&p).contains("[BP]"));
+    p.mission.title_owned = true;
+    let t = title(&p);
+    assert!(t.contains("[BP Owned]") && !t.contains("[BP]"), "{t}");
+}
+
+#[test]
 fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
     let b = MockBackend::default();
     let pull = || {

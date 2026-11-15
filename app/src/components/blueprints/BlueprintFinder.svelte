@@ -17,7 +17,8 @@
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import ChevronsDownUp from '@lucide/svelte/icons/chevrons-down-up';
   import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
+  import { getCardCollapse } from '@/components/ui/card/collapse';
   import { Button } from '@/components/ui/button';
   import { Input } from '@/components/ui/input';
   import { Skeleton } from '@/components/ui/skeleton';
@@ -36,6 +37,7 @@
     activeFilters,
     clearFilters,
     kindLabel,
+    hiddenMatches,
     makerLabel,
     pageRows,
     parsePrefs,
@@ -190,11 +192,16 @@
   /** In the All view: the builds a blueprint is in, when that is not all of them. */
   const onlyIn = (r: BlueprintRow) => (scopeAll && r.channels.length && r.channels.length < readChannels.length ? r.channels : []);
 
+  // The finder's card (CollapsibleCard): `/` opens it before focusing the search.
+  const card = getCardCollapse();
   function onKey(e: KeyboardEvent) {
     const t = e.target as HTMLElement | null;
     if (e.key === '/' && !(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable))) {
       e.preventDefault();
-      searchEl?.focus();
+      if (card && !card.open) {
+        card.set(true);
+        void tick().then(() => searchEl?.focus());
+      } else searchEl?.focus();
     }
   }
   const ariaSort = (s: SortKey) => (prefs.sort === s ? (prefs.desc ? 'descending' : 'ascending') : 'none');
@@ -217,23 +224,21 @@
   // Collapsed groups, remembered per channel, scope and group-by (a group id is a category,
   // maker or character id). A collapsed group keeps its header; its rows leave the paging.
   const groupKey = $derived(prefs.group === 'none' ? '' : GROUPS_KEY(target.install, target.channel, scopeAll ? 'all' : 'channel', prefs.group));
-  let collapsed = $state<string[]>([]);
-  let collapsedFor = $state('');
-  $effect(() => {
-    const k = groupKey;
-    if (k === collapsedFor) return;
-    untrack(() => {
-      collapsed = k ? readCollapsed(k) : [];
-      collapsedFor = k;
-    });
-  });
+  // Read while deriving (not in an effect), so the first render already has the stored state.
+  let changed = $state<{ key: string; list: string[] } | null>(null);
+  const collapsed = $derived(changed && changed.key === groupKey ? changed.list : groupKey ? readCollapsed(groupKey) : []);
   const shut = $derived(new Set(collapsed));
   function setCollapsed(list: string[]) {
-    collapsed = list;
-    if (collapsedFor) writeCollapsed(collapsedFor, list);
+    changed = { key: groupKey, list };
+    if (groupKey) writeCollapsed(groupKey, list);
   }
   const toggleGroup = (id: string, open: boolean) => setCollapsed(withCollapsed(collapsed, id, !open));
   const allIds = $derived(v?.groups?.map((g) => g.id) ?? []);
+  // Collapse all merges: groups collapsed outside the current filter stay collapsed.
+  const collapseAll = () => setCollapsed([...collapsed.filter((id) => !allIds.includes(id)), ...allIds]);
+  const expandAll = () => setCollapsed(collapsed.filter((id) => !allIds.includes(id)));
+  const hidden = $derived(v ? hiddenMatches(v, shut) : { count: 0, groups: [] });
+  const narrowed = $derived(!!prefs.search.trim() || nActive > 0);
   const allShut = $derived(allIds.length > 0 && allIds.every((id) => shut.has(id)));
   const nShut = $derived(allIds.filter((id) => shut.has(id)).length);
   const noneShut = $derived(nShut === 0);
@@ -370,14 +375,21 @@
       <span><span id="bp-count" class="text-foreground font-medium">{v.rows.length}</span> <span class="text-muted-foreground">shown of {v.total}</span></span>
       {#if catalogSize !== null && !scopeAll}<span class="text-muted-foreground">{target.channel}'s build has {catalogSize} blueprints</span>{/if}
       {#if prefs.owned === 'missing' && v.maybe}<span class="text-muted-foreground">{v.maybe} maybe owned (an owned name several blueprints have)</span>{/if}
-      {#if v.groups && v.groups.length > 1}
+      {#if v.groups && v.groups.length}
         <span class="ml-auto flex items-center gap-1">
-          <span class="text-muted-foreground">{v.groups.length} groups{nShut ? `, ${nShut} collapsed` : ''}</span>
-          <Button variant="ghost" size="sm" disabled={allShut} onclick={() => setCollapsed([...allIds])}><ChevronsDownUp aria-hidden="true" /> Collapse all</Button>
-          <Button variant="ghost" size="sm" disabled={noneShut} onclick={() => setCollapsed(collapsed.filter((id) => !allIds.includes(id)))}><ChevronsUpDown aria-hidden="true" /> Expand all</Button>
+          <span class="text-muted-foreground">{v.groups.length} group{v.groups.length === 1 ? '' : 's'}{nShut ? `, ${nShut} collapsed` : ''}</span>
+          <Button variant="ghost" size="sm" disabled={allShut} onclick={collapseAll}><ChevronsDownUp aria-hidden="true" /> Collapse all</Button>
+          <Button variant="ghost" size="sm" disabled={noneShut} onclick={expandAll}><ChevronsUpDown aria-hidden="true" /> Expand all</Button>
         </span>
       {/if}
     </div>
+    {#if narrowed && hidden.count}
+      <p class="text-muted-foreground flex flex-wrap items-center gap-x-2 text-[12px]" role="status">
+        <Info class="size-3.5 shrink-0" aria-hidden="true" />
+        <span>{hidden.count} match{hidden.count === 1 ? '' : 'es'} in collapsed groups.</span>
+        <button type="button" class="text-primary underline-offset-2 hover:underline" onclick={() => setCollapsed(collapsed.filter((id) => !hidden.groups.includes(id)))}>Expand {hidden.groups.length === 1 ? 'it' : 'them'}</button>
+      </p>
+    {/if}
     {#if !v.rows.length}
       <div class="text-muted-foreground grid justify-items-center gap-2 py-6 text-center">
         {#if v.total === 0}

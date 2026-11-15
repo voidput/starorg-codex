@@ -472,3 +472,24 @@ export function pageRows(v: Pick<FinderView, 'rows' | 'groups'>, limit: number, 
   }
   return { lines, total };
 }
+
+/**
+ * Matches only in collapsed groups (a row in an expanded group too is in view), and the
+ * collapsed groups that hold them: a search or filter can then say "N matches in collapsed
+ * groups" and expand just those.
+ */
+export function hiddenMatches(v: Pick<FinderView, 'groups'>, collapsed: ReadonlySet<string>): { count: number; groups: string[] } {
+  if (!v.groups) return { count: 0, groups: [] };
+  const seen = new Set<string>();
+  for (const g of v.groups) if (!collapsed.has(g.id)) for (const r of g.rows) seen.add(r.key);
+  const hidden = new Set<string>();
+  const groups: string[] = [];
+  for (const g of v.groups) {
+    if (!collapsed.has(g.id)) continue;
+    const mine = g.rows.filter((r) => !seen.has(r.key));
+    if (!mine.length) continue;
+    groups.push(g.id);
+    for (const r of mine) hidden.add(r.key);
+  }
+  return { count: hidden.size, groups };
+}

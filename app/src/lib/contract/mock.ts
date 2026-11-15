@@ -22,7 +22,8 @@
  * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
  * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
  * not read yet). MCP: `&mcp=on` (the local MCP server running, with sample requests).
- * Blueprints: `&bphint=larger` (auto mode, another character owns far more: the warning).
+ * Blueprints: `&bphint=larger` (auto mode, another character owns far more: the warning),
+ * `&bpnotice=1` (two characters share a name: the notice).
  * Memory limit: `&memory=1.5` (that limit in GB instead of the default).
  */
 import { clampGb, memoryView } from '../memory';
@@ -377,7 +378,8 @@ export function preview(p: T.Profile): T.PreviewItem[] {
   let tt = title;
   if (p.missions) {
     const wrap = (n: number, s: string) => ` ${em(m.title_em ? n : 0, s)}`;
-    if (m.title_blueprint) tt += wrap(m.title_bp_em, '[BP]');
+    // With title_owned the title previews as a contract whose pool is all owned ([BP Owned]).
+    if (m.title_blueprint) tt += wrap(m.title_bp_em, m.title_owned ? '[BP Owned]' : '[BP]');
     if (m.title_reputation) tt += wrap(m.title_rep_em, '[150 Rep]');
   }
   // The sample character owns the first blueprint of the list.
@@ -579,6 +581,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     characters: SAMPLES.list_characters.characters.filter((x) => !c.forgotten.has(x.id)).map((x) => ({ ...x, owned: c.owned.get(x.id)?.length ?? 0 })),
     active: clone(c.active),
     last_import: c.lastImport ?? null,
+    // `&bpnotice=1`: two characters share a name (the real backend's wording).
+    notice: params.get('bpnotice')
+      ? '2 characters are named Pilot_A on different accounts in the game logs, so their blueprints are kept apart. To mark blueprints from all of them, choose Any of my characters; or re-import from Smart Citizen into your current character (the newest).'
+      : (SAMPLES.list_characters.notice ?? null),
   });
   const starorgGuild = (): string => {
     if (!settings.network.starorg) fail('network-off', 'Turn on "Connect StarOrg Tools" under Settings -> Network first.');

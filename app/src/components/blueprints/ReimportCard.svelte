@@ -91,13 +91,7 @@
     <Card.Description>Read the game logs again from the start, or import the Smart Citizen export again. You see what changes before anything is written.</Card.Description>
   </Card.Header>
   <Card.Content class="grid gap-3">
-    {#if view.notice}
-      <Alert.Root variant="warning">
-        <TriangleAlert aria-hidden="true" />
-        <Alert.Title>Two characters, one name</Alert.Title>
-        <Alert.Description>{view.notice}</Alert.Description>
-      </Alert.Root>
-    {/if}
+    <!-- view.notice ("Two characters, one name") is shown by the host above every card. -->
     <div class="flex flex-wrap gap-2">
       <Button variant="outline" size="sm" onclick={() => start('rescan')}><RefreshCw aria-hidden="true" /> Re-scan game logs</Button>
       <Button variant="outline" size="sm" disabled={!chars.length} onclick={() => start('reimport')}><FileInput aria-hidden="true" /> Re-import from Smart Citizen</Button>

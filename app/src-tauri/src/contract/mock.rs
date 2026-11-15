@@ -3237,8 +3237,11 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
     let mut tt = title.to_string();
     if p.missions {
         let wrap = |n: u8, s: &str| format!(" {}", em(if m.title_em { n } else { 0 }, s));
+        // With `title_owned` the title previews as a contract whose pool is all owned, so the
+        // [BP Owned] tag is visible while it is being set up.
         if m.title_blueprint {
-            tt.push_str(&wrap(m.title_bp_em, "[BP]"));
+            let tag = if m.title_owned { "[BP Owned]" } else { "[BP]" };
+            tt.push_str(&wrap(m.title_bp_em, tag));
         }
         if m.title_reputation {
             tt.push_str(&wrap(m.title_rep_em, "[150 Rep]"));
