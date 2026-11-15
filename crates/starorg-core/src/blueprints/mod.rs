@@ -387,6 +387,9 @@ impl crate::enhance::owned::OwnedBlueprints for Selection {
             || (!bp.record.is_empty() && self.ids.contains(&bp.record.to_ascii_lowercase()))
             || (bp.name_unique && !bp.name.is_empty() && self.names.contains(&normalize(bp.name)))
     }
+    fn known(&self) -> bool {
+        !self.ids.is_empty() || !self.names.is_empty()
+    }
 }
 
 #[cfg(test)]

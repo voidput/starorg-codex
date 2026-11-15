@@ -24,6 +24,9 @@ pub struct BlueprintRef<'a> {
 /// The active character's owned blueprints.
 pub trait OwnedBlueprints {
     fn owns(&self, bp: &BlueprintRef<'_>) -> bool;
+    /// An owned set is there at all. `[Missing]` markers need one: with nothing known,
+    /// every blueprint would read as missing.
+    fn known(&self) -> bool;
 }
 
 /// Nobody owns anything: no markers.
@@ -32,6 +35,9 @@ pub struct NoneOwned;
 
 impl OwnedBlueprints for NoneOwned {
     fn owns(&self, _: &BlueprintRef<'_>) -> bool {
+        false
+    }
+    fn known(&self) -> bool {
         false
     }
 }
@@ -115,6 +121,9 @@ impl OwnedBlueprints for OwnedList {
             || self.ids.contains(&bp.record.to_ascii_lowercase())
             || (bp.name_unique && self.names.contains(&normalize_name(bp.name)))
     }
+    fn known(&self) -> bool {
+        !self.is_empty()
+    }
 }
 
 #[cfg(test)]
@@ -140,7 +149,8 @@ mod tests {
             name_unique: true,
         };
         assert!(OwnedList::from_names(["[P-S3] fake rifle \u{2019}Ember\u{2019}"]).owns(&bp));
-        assert!(!NoneOwned.owns(&bp));
+        assert!(!NoneOwned.owns(&bp) && !NoneOwned.known());
+        assert!(OwnedList::from_names(["x"]).known() && !OwnedList::default().known());
         let j = OwnedList::from_json(
             r#"{"schema":1,"geid":"1","entries":{"x":{"name":"Other","ids":["abc"]}}}"#,
         )

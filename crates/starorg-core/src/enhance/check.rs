@@ -122,6 +122,53 @@ mod tests {
     }
 
     #[test]
+    fn every_colour_tag_we_emit_is_balanced() {
+        use crate::enhance::COLOUR_TEST_LINE;
+        use crate::enhance::profile::{EM_MAX, em};
+        // Each EM number a colour setting may name, around a marker, a line and a label.
+        for n in 0..=EM_MAX {
+            for added in [
+                format!("\\n- Filler rifle {}", em(n, "[Owned]")),
+                format!("\\n- {}", em(n, "[E-S2] Filler rifle [Owned]")),
+                format!(" {}", em(n, "[BP Owned]")),
+                format!("\\n{} 150", em(n, "Reputation:")),
+            ] {
+                assert!(tokens(&added).em_balanced(), "{added}");
+                assert_eq!(check_generated("prose", "prose", "", &added), Ok(()));
+                // CIG's open tail keeps its signature; our closed tags nest inside it.
+                assert_eq!(check_generated("a <EM4>b", "a <EM4>b", "", &added), Ok(()));
+            }
+        }
+        // The colour test line: five closed tags, no nesting, fine on the prompt it targets.
+        let t = tokens(COLOUR_TEST_LINE);
+        assert!(t.em_balanced());
+        for n in 1..=EM_MAX {
+            assert!(COLOUR_TEST_LINE.contains(&format!("<EM{n}>EM{n}</EM{n}>")));
+        }
+        assert_eq!(
+            check_generated(
+                "Please select a contract.",
+                "Please select a contract.",
+                "",
+                COLOUR_TEST_LINE
+            ),
+            Ok(())
+        );
+        // What we never emit is still refused: an open tag, a nested pair, a stray close.
+        for bad in [
+            " <EM5>[Owned]",
+            " <EM2>[E-S2] <EM4>[Owned]</EM4></EM2>",
+            " [Owned]</EM1>",
+        ] {
+            assert_eq!(
+                check_generated("prose", "prose", "", bad),
+                Err(Rule::AddedEmUnbalanced),
+                "{bad}"
+            );
+        }
+    }
+
+    #[test]
     fn whole_file_rules() {
         let mut bytes = BOM.to_vec();
         bytes.extend_from_slice(b"a=1\r\nb,P=2\r\n");

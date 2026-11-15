@@ -277,6 +277,7 @@ k("zeta_wip_desc", "Filler WIP prose.")
 k("zeta_missing_title", "Filler Missing")
 k("Frontend_PU_Version", "Filler version")
 k("ui_unrelated,P", "Unrelated filler")
+k("mG_ContractsMgr_Select,P", "Filler select prompt.")
 
 gd = {"schema": 2, "build": None, "components": comps, "weapons": weapons, "missiles": missiles, "ships": ships,
       "contracts": contracts, "blueprints": blueprints, "blueprintPools": pools, "reputationStandings": standings}

@@ -572,3 +572,163 @@ fn coverage_thresholds_and_baseline() {
         "{fails:?}"
     );
 }
+
+#[test]
+fn colour_settings_on_markers_titles_and_lists() {
+    let (gd, stock) = fixture();
+    let mut p = Profile::default();
+    p.mission.owned_em = 4;
+    p.mission.missing_marker = true;
+    p.mission.missing_em = 2;
+    p.mission.variant_em = 5;
+    p.mission.reward_em = 1;
+    p.mission.header_em = 0;
+    p.mission.label_em = 3;
+    p.mission.title_rep_em = 0;
+    let g = generate(&gd, &stock, &p, &owned());
+    let haul = added(&g, &stock, "zeta_haul_desc");
+    assert!(
+        haul.starts_with(
+            "\\n\\nBLUEPRINTS\\n- Filler pistol <EM2>[Missing]</EM2>\\n- Filler rifle <EM4>[Owned]</EM4>\\n- [MIL-S1-B] Filler Wall <EM2>[Missing]</EM2>\\n\\nITEM REWARDS\\n- <EM1>Filler Scrip</EM1> ×3\\n\\nMISSION DETAILS\\n<EM3>Blueprint reward:</EM3> Guaranteed"
+        ),
+        "{haul}"
+    );
+    let bounty = added(&g, &stock, "zeta_bounty_desc");
+    assert!(bounty.contains("\\n<EM5>[Easy]</EM5>\\n"), "{bounty}");
+    assert_eq!(
+        value(&g, &stock, "zeta_haul_title").as_deref(),
+        Some("Filler Haul <EM4>[BP]</EM4> [150 Rep]")
+    );
+    // Whole owned line in the marker's colour, the marker not wrapped twice.
+    p.mission.owned_line = true;
+    let g = generate(&gd, &stock, &p, &owned());
+    assert!(
+        added(&g, &stock, "zeta_haul_desc").contains("\\n- <EM4>Filler rifle [Owned]</EM4>\\n"),
+        "{}",
+        added(&g, &stock, "zeta_haul_desc")
+    );
+    // No owned set: no [Missing] on every line.
+    let g = generate(&gd, &stock, &p, &NoneOwned);
+    let haul = added(&g, &stock, "zeta_haul_desc");
+    assert!(
+        !haul.contains("[Missing]") && !haul.contains("[Owned]"),
+        "{haul}"
+    );
+    // `[Owned]` off: neither marker colour shows.
+    p.mission.owned_marker = false;
+    let g = generate(&gd, &stock, &p, &owned());
+    assert!(!added(&g, &stock, "zeta_haul_desc").contains("[Owned]"));
+}
+
+#[test]
+fn bp_owned_title_tag() {
+    let (gd, stock) = fixture();
+    let all = OwnedList::from_names(["Filler pistol", "Filler rifle", "Filler Wall"]);
+    // Off by default: owning everything changes nothing in the title.
+    let g = generate(&gd, &stock, &Profile::default(), &all);
+    assert_eq!(
+        value(&g, &stock, "zeta_haul_title").as_deref(),
+        Some("Filler Haul <EM4>[BP]</EM4> <EM4>[150 Rep]</EM4>")
+    );
+    let mut p = Profile::default();
+    p.mission.title_owned = true;
+    let g = generate(&gd, &stock, &p, &all);
+    assert_eq!(
+        value(&g, &stock, "zeta_haul_title").as_deref(),
+        Some("Filler Haul <EM4>[BP Owned]</EM4> <EM4>[150 Rep]</EM4>")
+    );
+    // Something still to get: the usual tag.
+    let g = generate(&gd, &stock, &p, &owned());
+    assert_eq!(
+        value(&g, &stock, "zeta_haul_title").as_deref(),
+        Some("Filler Haul <EM4>[BP]</EM4> <EM4>[150 Rep]</EM4>")
+    );
+    let g = generate(&gd, &stock, &p, &NoneOwned);
+    assert!(
+        value(&g, &stock, "zeta_bounty_title")
+            .unwrap()
+            .contains("[BP?]")
+    );
+    // Its colour is the blueprint tag's; plain when title colours are off.
+    p.mission.title_bp_em = 2;
+    let g = generate(&gd, &stock, &p, &all);
+    assert!(
+        value(&g, &stock, "zeta_haul_title")
+            .unwrap()
+            .contains(" <EM2>[BP Owned]</EM2> ")
+    );
+    p.mission.title_em = false;
+    let g = generate(&gd, &stock, &p, &all);
+    assert_eq!(
+        value(&g, &stock, "zeta_haul_title").as_deref(),
+        Some("Filler Haul [BP Owned] [150 Rep]")
+    );
+}
+
+#[test]
+fn colour_test_line() {
+    let (g, stock) = run(&Profile::default());
+    assert_eq!(value(&g, &stock, "mG_ContractsMgr_Select"), None);
+    assert_eq!(g.count(Category::ColourTest), 0);
+    let p = Profile {
+        colour_test: true,
+        ..Profile::default()
+    };
+    let (g, stock) = run(&p);
+    assert_eq!(
+        value(&g, &stock, "mG_ContractsMgr_Select").as_deref(),
+        Some(
+            "Filler select prompt. Colour test: <EM1>EM1</EM1> <EM2>EM2</EM2> <EM3>EM3</EM3> <EM4>EM4</EM4> <EM5>EM5</EM5>"
+        )
+    );
+    assert_eq!(g.count(Category::ColourTest), 1);
+    // One string only, and the rest of the output is as without it.
+    let (plain, _) = run(&Profile::default());
+    assert_eq!(g.edits.len(), plain.edits.len() + 1);
+    let bytes = render(&stock, &g).unwrap();
+    assert_eq!(check_file(&stock, &bytes), Ok(()));
+}
+
+#[test]
+fn every_colour_setting_writes_valid_markup() {
+    use starorg_core::enhance::check::tokens;
+    let (gd, stock) = fixture();
+    let all = OwnedList::from_names(["Filler pistol", "Filler rifle", "Filler Wall"]);
+    for n in 0..=5u8 {
+        for line in [false, true] {
+            let mut p = Profile::everything();
+            p.colour_test = true;
+            let m = &mut p.mission;
+            m.title_owned = true;
+            m.owned_line = line;
+            m.missing_marker = true;
+            for e in [
+                &mut m.header_em,
+                &mut m.label_em,
+                &mut m.title_bp_em,
+                &mut m.title_rep_em,
+                &mut m.owned_em,
+                &mut m.missing_em,
+                &mut m.variant_em,
+                &mut m.reward_em,
+            ] {
+                *e = n;
+            }
+            for owned in [
+                &all as &dyn starorg_core::enhance::owned::OwnedBlueprints,
+                &owned(),
+            ] {
+                let g = generate(&gd, &stock, &p, owned);
+                for e in g.edits.values() {
+                    let part = e.generated_part();
+                    assert!(tokens(&part).em_balanced(), "{n}: {part}");
+                }
+                for (c, cov) in &g.coverage.categories {
+                    assert_eq!(cov.left_for(Reason::DroppedByValidation), 0, "{n} {c:?}");
+                }
+                let bytes = render(&stock, &g).unwrap();
+                assert_eq!(check_file(&stock, &bytes), Ok(()));
+            }
+        }
+    }
+}

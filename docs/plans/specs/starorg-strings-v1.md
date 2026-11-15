@@ -1131,7 +1131,7 @@ Sections are joined with `\n\n`, in this order. A section with no content is lef
 - **Type.** `Chain` (the contract has linked or prerequisite contracts), `Once only`
   (`onceOnly`), each when every contract of the group has it. Left out when neither applies.
 - Contracts flagged `notForRelease` or `workInProgress` are not used.
-- Section header text and the emphasis tag (EM3 or EM4) are profile settings.
+- Section header text and every emphasis tag are profile settings (section 6.6).
 
 Hauling routes, spawn counts, difficulty breakdown, ace-pilot detection and engagement type
 are out of v1 (open question Q6).
@@ -1146,6 +1146,49 @@ generator knowing where the set came from (M2). A marked bullet reads
 `- <tag> <Item Name> [Owned]`. `build --owned-blueprints FILE` reads an owned-set JSON (M1's
 `{"entries": {...}}` shape) or a JSON list of names; names are matched after stripping
 leading `[...]` tag groups and folding quotes, whitespace and case.
+
+### 6.6 Colour settings and the colour test
+
+Every emphasis the mission generator writes is a profile setting under `[enhance.mission]`
+holding an EM tag number: `0` (no tag) or `1`–`5`. Stock mobiGlas text uses `<EM3>`
+(underlined section headers) and `<EM4>` (the blue highlight); `<EM1>`, `<EM2>` and `<EM5>`
+exist in stock but their look is **not verified in game**, so no default uses them.
+
+| Setting | Wraps | Default |
+|---|---|---|
+| `header_em` | `BLUEPRINTS`, `ITEM REWARDS`, `MISSION DETAILS` | 3 |
+| `label_em` | `Blueprint reward:`, `Reputation:`, … | 4 |
+| `title_bp_em` | `[BP]` / `[BP?]` / `[BP Owned]` (while `title_em` is on) | 4 |
+| `title_rep_em` | `[N Rep]` (while `title_em` is on) | 4 |
+| `variant_em` | Variant sub-headers such as `[Easy]` | 4 |
+| `owned_em` | `[Owned]`, or the whole owned line with `owned_line = true` | 0 |
+| `missing_em` | `[Missing]` | 0 |
+| `reward_em` | Item names under ITEM REWARDS | 0 |
+
+Marker scheme (short, ASCII only: the game font has no check mark in stock text):
+
+- Title: `[BP]` every variant awards a pool at 100 %; `[BP?]` only some variants or a chance;
+  `[BP Owned]` (opt-in `title_owned`) the character owns every blueprint the title's contracts
+  can award, so there is nothing left to get. `[N Rep]` as before.
+- Bullets: `- [tag] Name [Owned]` (`owned_marker`, default on); `- [tag] Name [Missing]`
+  (opt-in `missing_marker`, only when an owned set is known, so an empty set never marks
+  every line). With `owned_line` and an `owned_em`, the whole owned bullet after `- ` is in
+  that tag and the marker is not wrapped again.
+
+Every tag is opened and closed on the same line and never nested; the section 7.3 checks
+still run on every generated value, and the defaults write exactly what earlier builds wrote.
+
+Not coloured, on purpose: stat block headers and item name tags. Those strings also show
+outside mobiGlas (kiosks, HUD, inventory) where EM tags are not confirmed to render.
+
+**Colour test** (`colour_test`, off, in no preset): appends
+` Colour test: <EM1>EM1</EM1> <EM2>EM2</EM2> <EM3>EM3</EM3> <EM4>EM4</EM4> <EM5>EM5</EM5>`
+to `mG_ContractsMgr_Select` ("Please select a contract."). That prompt shows every time the
+mobiGlas Contracts Manager opens with nothing selected, sits in the pane where contract text
+and its markup are drawn, and nobody needs to read it, so a test line there is easy to find
+and harmless. The next apply without the setting writes the stock text back. Its coverage
+category is `colour-test`. The app's Enhancements → General → Colour test says what to look
+for; the reported looks then set better names and defaults for EM1, EM2 and EM5.
 
 ---
 

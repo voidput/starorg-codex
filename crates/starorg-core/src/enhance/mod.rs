@@ -43,10 +43,12 @@ pub enum Category {
     Branding,
     /// Sort prefixes and renames on ship name keys (addendum §6.5). Opt-in, no preset.
     ShipNames,
+    /// The colour test line (`Profile::colour_test`). Opt-in, no preset.
+    ColourTest,
 }
 
 impl Category {
-    pub const ALL: [Category; 12] = [
+    pub const ALL: [Category; 13] = [
         Self::Ships,
         Self::Components,
         Self::ShipWeapons,
@@ -59,6 +61,7 @@ impl Category {
         Self::MissionDescriptions,
         Self::Branding,
         Self::ShipNames,
+        Self::ColourTest,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -75,6 +78,7 @@ impl Category {
             Self::MissionDescriptions => "mission-descriptions",
             Self::Branding => "branding",
             Self::ShipNames => "ship-names",
+            Self::ColourTest => "colour-test",
         }
     }
 }
@@ -765,6 +769,15 @@ pub fn generate_with(
         );
     }
 
+    if p.colour_test {
+        en.offer(
+            Category::ColourTest,
+            profile::COLOUR_TEST_KEY,
+            None,
+            &Payload::Append(COLOUR_TEST_LINE.into()),
+        );
+    }
+
     if let Some(s) = ship_names {
         let cat = crate::fleet::Catalog::build(gd, stock);
         let plan = crate::fleet::names::plan(s, &cat);
@@ -783,6 +796,11 @@ pub fn generate_with(
     }
     en.out
 }
+
+/// What the colour test appends: each EM tag around its own name, so the game shows each
+/// tag's style on the word that names it.
+pub const COLOUR_TEST_LINE: &str =
+    " Colour test: <EM1>EM1</EM1> <EM2>EM2</EM2> <EM3>EM3</EM3> <EM4>EM4</EM4> <EM5>EM5</EM5>";
 
 /// Render the generated edits and run the whole-file checks.
 pub fn render(stock: &StockIni, g: &Generated) -> Result<Vec<u8>, check::FileError> {

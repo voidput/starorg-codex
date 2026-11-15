@@ -28,6 +28,30 @@ pub struct Profile {
     pub mission: Mission,
     /// Spec 5.7, off by default.
     pub branding: bool,
+    /// Colour test (developer aid, off by default): one sample line `EM1 … EM5`, each in its
+    /// own tag, after [`COLOUR_TEST_KEY`] so the in-game look of every tag can be checked.
+    /// Not in any preset; the next apply without it puts the stock text back.
+    pub colour_test: bool,
+}
+
+/// The one string the colour test writes to: the Contracts Manager's "Please select a
+/// contract." prompt. It shows every time the mobiGlas Contracts Manager opens with nothing
+/// selected, sits in the pane where contract text (and its EM markup) is drawn, and is a
+/// prompt nobody needs to read, so a test line there harms nothing.
+pub const COLOUR_TEST_KEY: &str = "mG_ContractsMgr_Select";
+
+/// EM tag numbers a colour setting may name; 0 means no tag. EM3 (underlined) and EM4 (the
+/// blue highlight) are what stock uses in mobiGlas text; 1, 2 and 5 exist in stock but their
+/// look is not verified in game yet.
+pub const EM_MAX: u8 = 5;
+
+/// `text` in tag `n`, or plain when `n` is 0.
+pub fn em(n: u8, text: &str) -> String {
+    if n == 0 {
+        text.to_string()
+    } else {
+        format!("<EM{n}>{text}</EM{n}>")
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -79,10 +103,31 @@ pub struct Mission {
     pub owned_marker: bool,
     /// Lists longer than this are cut with `- and N more`.
     pub max_list: usize,
-    /// EM tag number for section headers (3 or 4).
+    /// EM tag for section headers (0 = none, 1-5; stock uses 3).
     pub header_em: u8,
-    /// EM tag number for detail labels (3 or 4).
+    /// EM tag for detail labels (0 = none, 1-5).
     pub label_em: u8,
+    /// EM tag of the blueprint title tag (`[BP]`, `[BP?]`, `[BP Owned]`) when `title_em`
+    /// is on (0 = none, 1-5).
+    pub title_bp_em: u8,
+    /// EM tag of the `[N Rep]` title tag when `title_em` is on (0 = none, 1-5).
+    pub title_rep_em: u8,
+    /// `[BP Owned]` in place of `[BP]`/`[BP?]` when the active character owns every
+    /// blueprint the contract can award.
+    pub title_owned: bool,
+    /// EM tag around `[Owned]` on owned bullets (0 = none, 1-5).
+    pub owned_em: u8,
+    /// Colour the whole owned bullet (tag, name and `[Owned]`) instead of only the marker.
+    pub owned_line: bool,
+    /// `[Missing]` on bullets the active character does not own; only when an owned set
+    /// is known (an empty set would mark every line).
+    pub missing_marker: bool,
+    /// EM tag around `[Missing]` (0 = none, 1-5).
+    pub missing_em: u8,
+    /// EM tag of the variant sub-headers in a blueprint list (`[Easy]`, `[Variant 2]`).
+    pub variant_em: u8,
+    /// EM tag around item names in the ITEM REWARDS list (0 = none, 1-5).
+    pub reward_em: u8,
 }
 
 impl Default for TagStyle {
@@ -143,6 +188,15 @@ impl Default for Mission {
             max_list: 25,
             header_em: 3,
             label_em: 4,
+            title_bp_em: 4,
+            title_rep_em: 4,
+            title_owned: false,
+            owned_em: 0,
+            owned_line: false,
+            missing_marker: false,
+            missing_em: 0,
+            variant_em: 4,
+            reward_em: 0,
         }
     }
 }
@@ -163,6 +217,7 @@ impl Default for Profile {
             tags: Tags::default(),
             mission: Mission::default(),
             branding: false,
+            colour_test: false,
         }
     }
 }
@@ -276,10 +331,20 @@ impl Profile {
                 )));
             }
         }
-        for n in [self.mission.header_em, self.mission.label_em] {
-            if !(3..=4).contains(&n) {
+        let m = &self.mission;
+        for n in [
+            m.header_em,
+            m.label_em,
+            m.title_bp_em,
+            m.title_rep_em,
+            m.owned_em,
+            m.missing_em,
+            m.variant_em,
+            m.reward_em,
+        ] {
+            if n > EM_MAX {
                 return Err(ProfileError::Invalid(format!(
-                    "EM tag {n}: only 3 and 4 are emitted"
+                    "EM tag {n}: use 0 (none) or 1 to {EM_MAX}"
                 )));
             }
         }
@@ -387,10 +452,51 @@ mod tests {
     }
 
     #[test]
+    fn colour_settings_read_and_default_to_known_styles() {
+        let d = Profile::default();
+        let m = &d.mission;
+        // Defaults name only EM3/EM4 or no tag: the styles stock uses in mobiGlas.
+        for n in [
+            m.header_em,
+            m.label_em,
+            m.title_bp_em,
+            m.title_rep_em,
+            m.owned_em,
+            m.missing_em,
+            m.variant_em,
+            m.reward_em,
+        ] {
+            assert!([0, 3, 4].contains(&n), "{n}");
+        }
+        assert!(!m.title_owned && !m.owned_line && !m.missing_marker && !d.colour_test);
+        for preset in PRESETS {
+            assert!(!Profile::preset(preset).unwrap().colour_test, "{preset}");
+        }
+        let p = Profile::from_toml(
+            "[enhance]\ncolour_test = true\n[enhance.mission]\nowned_em = 2\nheader_em = 0\nmissing_marker = true\nmissing_em = 5\n",
+        )
+        .unwrap();
+        assert!(p.colour_test && p.mission.missing_marker);
+        assert_eq!(
+            (
+                p.mission.owned_em,
+                p.mission.header_em,
+                p.mission.missing_em
+            ),
+            (2, 0, 5)
+        );
+        assert_ne!(p.hash(), d.hash());
+        assert_eq!(em(0, "x"), "x");
+        assert_eq!(em(5, "x"), "<EM5>x</EM5>");
+    }
+
+    #[test]
     fn bad_values_are_refused() {
         assert!(Profile::from_toml("[enhance.tags.missiles]\nseparator = \"%\"\n").is_err());
         assert!(Profile::from_toml("[enhance]\nheader = \"<EM4>x\"\n").is_err());
-        assert!(Profile::from_toml("[enhance.mission]\nheader_em = 1\n").is_err());
+        assert!(Profile::from_toml("[enhance.mission]\nheader_em = 6\n").is_err());
+        assert!(Profile::from_toml("[enhance.mission]\nowned_em = 9\n").is_err());
+        assert!(Profile::from_toml("[enhance.mission]\nreward_em = -1\n").is_err());
         assert!(Profile::from_toml("[enhance]\nno_such = 1\n").is_err());
         assert!(Profile::from_toml("preset = \"x\"").is_err());
     }

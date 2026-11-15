@@ -3,6 +3,7 @@
 
 use super::format::{int, pct};
 use super::owned::{BlueprintRef, OwnedBlueprints};
+use super::profile::{Mission, em};
 use super::{Category, Engine, Payload, items, stock_name, tags};
 use crate::ini::fold_key;
 use crate::model::{Blueprint, Contract, GameData, loc_key};
@@ -27,22 +28,29 @@ fn chance(c: &Contract) -> Option<f64> {
         .reduce(f64::max)
 }
 
-/// Title tags over a title's contract group (spec 6.3).
-pub fn title_tags(group: &[&Contract], em: bool, bp: bool, rep: bool) -> Option<String> {
-    let wrap = |t: String| {
-        if em {
-            format!(" <EM4>[{t}]</EM4>")
-        } else {
-            format!(" [{t}]")
-        }
+/// Title tags over a title's contract group (spec 6.3). `all_owned`: the active character
+/// owns every blueprint the group can award (`[BP Owned]` when `title_owned` is on).
+pub fn title_tags(group: &[&Contract], m: &Mission, all_owned: bool) -> Option<String> {
+    let wrap = |n: u8, t: String| {
+        let n = if m.title_em { n } else { 0 };
+        format!(" {}", em(n, &format!("[{t}]")))
     };
     let mut out = String::new();
-    if bp && group.iter().any(|c| !c.blueprint_rewards.is_empty()) {
+    if m.title_blueprint && group.iter().any(|c| !c.blueprint_rewards.is_empty()) {
         let sure = group.iter().all(|c| chance(c).is_some_and(|x| x >= 1.0));
-        out.push_str(&wrap(if sure { "BP".into() } else { "BP?".into() }));
+        let t = if m.title_owned && all_owned {
+            "BP Owned"
+        } else if sure {
+            "BP"
+        } else {
+            "BP?"
+        };
+        out.push_str(&wrap(m.title_bp_em, t.into()));
     }
-    if rep && let Some(r) = range(group.iter().filter_map(|c| c.reputation_gain())) {
-        out.push_str(&wrap(format!("{r} Rep")));
+    if m.title_reputation
+        && let Some(r) = range(group.iter().filter_map(|c| c.reputation_gain()))
+    {
+        out.push_str(&wrap(m.title_rep_em, format!("{r} Rep")));
     }
     (!out.is_empty()).then_some(out)
 }
@@ -52,21 +60,32 @@ pub fn title_tags(group: &[&Contract], em: bool, bp: bool, rep: bool) -> Option<
 pub struct Bullet {
     pub name: String,
     pub tag: Option<String>,
+    /// The active character owns it (always false without an owned set).
     pub owned: bool,
 }
 
 impl Bullet {
-    fn render(&self) -> String {
-        let mut s = String::from("- ");
+    /// `- [tag] Name`, then `[Owned]` (owned, `owned_marker`) or `[Missing]` (not owned,
+    /// `missing_marker`, an owned set known), each in its colour setting. Every tag added
+    /// here is closed on the same line and nothing nests.
+    fn render(&self, m: &Mission, known: bool) -> String {
+        let mut base = String::new();
         if let Some(t) = &self.tag {
-            s.push_str(t);
-            s.push(' ');
+            base.push_str(t);
+            base.push(' ');
         }
-        s.push_str(&self.name);
-        if self.owned {
-            s.push_str(" [Owned]");
+        base.push_str(&self.name);
+        if self.owned && m.owned_marker {
+            if m.owned_line && m.owned_em != 0 {
+                format!("- {}", em(m.owned_em, &format!("{base} [Owned]")))
+            } else {
+                format!("- {base} {}", em(m.owned_em, "[Owned]"))
+            }
+        } else if !self.owned && known && m.missing_marker {
+            format!("- {base} {}", em(m.missing_em, "[Missing]"))
+        } else {
+            format!("- {base}")
         }
-        s
     }
 }
 
@@ -165,7 +184,9 @@ impl<'a> Lookup<'a> {
         }
     }
 
-    fn bullets(&self, pool: &str, marker: bool) -> Vec<Bullet> {
+    /// The bullets of a pool. `track`: look up ownership (only when a setting shows it, so
+    /// pools that differ only in what is owned still merge when nothing shows it).
+    fn bullets(&self, pool: &str, track: bool) -> Vec<Bullet> {
         let mut seen = BTreeSet::new();
         let mut out = Vec::new();
         for b in self
@@ -182,7 +203,7 @@ impl<'a> Lookup<'a> {
                 .as_ref()
                 .and_then(|p| self.item_tags.get(&p.to_ascii_lowercase()))
                 .cloned();
-            let owned = marker
+            let owned = track
                 && self.owned.owns(&BlueprintRef {
                     id: &b.id,
                     record: b.short_name(),
@@ -230,8 +251,9 @@ pub fn description_body(
     p: &super::profile::Profile,
 ) -> Option<String> {
     let m = &p.mission;
-    let h = |t: &str| format!("<EM{n}>{t}</EM{n}>", n = m.header_em);
-    let label = |t: &str| format!("<EM{n}>{t}:</EM{n}>", n = m.label_em);
+    let h = |t: &str| em(m.header_em, t);
+    let label = |t: &str| em(m.label_em, &format!("{t}:"));
+    let known = lk.owned.known();
     let mut sections: Vec<String> = Vec::new();
 
     if m.blueprints {
@@ -239,7 +261,7 @@ pub fn description_body(
         let mut pools: Vec<(Vec<Bullet>, Vec<&Contract>)> = Vec::new();
         for c in group {
             for r in &c.blueprint_rewards {
-                let b = lk.bullets(&r.pool, m.owned_marker);
+                let b = lk.bullets(&r.pool, tracks_owned(m));
                 if b.is_empty() {
                     continue;
                 }
@@ -254,7 +276,11 @@ pub fn description_body(
             }
         }
         let cut = |list: &[Bullet]| -> Vec<String> {
-            let mut v: Vec<String> = list.iter().take(m.max_list).map(Bullet::render).collect();
+            let mut v: Vec<String> = list
+                .iter()
+                .take(m.max_list)
+                .map(|b| b.render(m, known))
+                .collect();
             if list.len() > m.max_list {
                 v.push(format!("- and {} more", list.len() - m.max_list));
             }
@@ -287,7 +313,7 @@ pub fn description_body(
                 } else {
                     format!("Variant {}", i + 1)
                 };
-                body.push(format!("<EM4>[{l}]</EM4>"));
+                body.push(em(m.variant_em, &format!("[{l}]")));
                 body.extend(cut(list));
             }
             sections.push(body.join("\\n"));
@@ -313,6 +339,7 @@ pub fn description_body(
                 .into_values()
                 .map(|(name, amounts)| {
                     let hi = amounts.iter().copied().fold(0.0, f64::max);
+                    let name = em(m.reward_em, &name);
                     if hi > 1.0 {
                         format!("- {name} ×{}", range(amounts).unwrap_or_default())
                     } else {
@@ -389,6 +416,29 @@ pub fn description_body(
     (!sections.is_empty()).then(|| sections.join("\\n\\n"))
 }
 
+/// A setting shows ownership, so bullets need it looked up.
+fn tracks_owned(m: &Mission) -> bool {
+    m.owned_marker || m.missing_marker || m.title_owned
+}
+
+impl Lookup<'_> {
+    /// Every blueprint the group's pools can award is owned (and there is at least one).
+    fn all_owned(&self, group: &[&Contract]) -> bool {
+        let mut any = false;
+        for c in group {
+            for r in &c.blueprint_rewards {
+                for b in self.bullets(&r.pool, true) {
+                    if !b.owned {
+                        return false;
+                    }
+                    any = true;
+                }
+            }
+        }
+        any
+    }
+}
+
 fn usable(c: &Contract) -> bool {
     !c.not_for_release && !c.work_in_progress
 }
@@ -424,9 +474,11 @@ pub fn generate(en: &mut Engine, gd: &GameData, owned: &dyn OwnedBlueprints) {
     let contracts: Vec<&Contract> = gd.contracts.iter().filter(|c| usable(c)).collect();
     let titles = groups(&contracts, |c| c.title_key.as_ref());
     let m = &p.mission;
+    let lk = Lookup::new(gd, en.stock, p, owned);
     if m.title_blueprint || m.title_reputation {
         for (key, group) in titles.values() {
-            if let Some(t) = title_tags(group, m.title_em, m.title_blueprint, m.title_reputation) {
+            let all_owned = m.title_blueprint && m.title_owned && lk.all_owned(group);
+            if let Some(t) = title_tags(group, m, all_owned) {
                 en.offer(
                     Category::MissionTitles,
                     key,
@@ -436,7 +488,6 @@ pub fn generate(en: &mut Engine, gd: &GameData, owned: &dyn OwnedBlueprints) {
             }
         }
     }
-    let lk = Lookup::new(gd, en.stock, p, owned);
     for (folded, (key, group)) in groups(&contracts, |c| c.description_key.as_ref()) {
         // A key used as a title never receives a description body (spec 6.2).
         if titles.contains_key(&folded) {
