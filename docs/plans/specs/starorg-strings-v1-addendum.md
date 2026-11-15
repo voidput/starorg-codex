@@ -2391,3 +2391,43 @@ byte-identical.
   `applied`; an older output version is `Stale (enhancer update)` and `--if-stale` re-applies;
   a 0.1.0 manifest (no `output_version`, text-hash profile) is `applied`, and a real settings
   change against it is `Stale (profile)`.
+
+## 12. Collapsible blueprint sections and Blueprint markers (branch `blueprints-collapse`, 2026-11-15)
+
+User report: the Blueprints screen is long (the finder, then the [Owned]-tags and StarOrg cards),
+and the blueprint colour and marker options could not be found (they sat in Enhancements →
+Missions among the contract options). No contract change: the profile fields exist.
+
+- **Collapsible cards.** `CollapsibleCard` is a drop-in for `Card.Root`: the card title becomes
+  the disclosure button inside its heading (ARIA accordion pattern; Enter/Space toggle, Left
+  collapses, Right expands, `aria-expanded` / `aria-controls`), the description and content hide
+  while collapsed and the card no longer stretches to its grid row. A `card/collapse.ts` context
+  drives `Card.Title` / `Card.Description` / `Card.Content`; without it the card parts render as
+  before. `bare` wraps a component that renders its own card (e.g. a "Fix owned blueprints"
+  card). State: `starorg.cards.collapsed.v1` in localStorage (a list of card keys,
+  `blueprints.finder|character|starorg|markers`), validated on read, re-read before each write.
+- **Collapsible finder groups.** With Group by set, each group header is a button with the
+  group's count (Enter/Space, Left/Right, Up/Down/Home/End move between headers), plus
+  "Collapse all" / "Expand all" and "N groups, M collapsed" in the count line. Remembered per
+  install/channel, scope and group-by (`starorg.blueprints.groups.v1:<install>/<channel>/<scope>/<group>`).
+  Paging (`bpfinder.pageRows`): a collapsed group keeps its header and its rows neither count
+  toward the 200 nor toward "Show N more (M left)"; once a row is cut off, later groups wait for
+  Show more.
+- **Enhancements → Blueprints.** A tab right after Missions holds every blueprint option:
+  [Owned] / [Missing] markers with their colours and "whole line" (plus "Choose the character"),
+  the blueprint list (on/off, name tags on its lines, variant label colour, longest list), and
+  the title tags [BP] / [BP Owned] with their colour. Missions keeps the contract-only options
+  (reputation tag, "Highlight title tags", item rewards, details, section header / label /
+  reward colours) and a note that links to the new tab; nothing is listed twice. With contracts
+  off, the tab says so with "Turn on contracts". The in-game preview on this tab puts a
+  contract with a blueprint list ([Owned] / [Missing]) first (`bpmarkers.previewOrder`).
+- **Markers in game** (Blueprints screen): the saved profile's state in one list, e.g.
+  `[Owned] blue · [Missing] off · [BP Owned] off` (`bpmarkers.markerSummary`; says "contracts
+  off" / "no blueprint list" when that is why), and "Edit blueprint markers", which opens
+  Enhancements on the Blueprints tab (`app.enhancementsTab`, read once by the screen).
+- **Tests.** `tests/collapse.test.ts` (stored lists, persistence per key, blocked storage,
+  arrow keys, paging with collapsed groups on synthetic and the sample finder, marker summary,
+  preview order); `scripts/keyboard-blueprints.cjs` (groups and cards by keyboard, kept after a
+  reload, Collapse/Expand all, the jump to Enhancements → Blueprints, no blueprint switch left
+  under Missions); `scripts/render-blueprints.cjs` shots `bp-groups-collapsed`,
+  `bp-cards-collapsed`, `enh-blueprints`, `enh-missions`.
