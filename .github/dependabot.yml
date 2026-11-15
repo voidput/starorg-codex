@@ -1,0 +1,35 @@
+# Weekly dependency bumps. Minor/patch are grouped into one PR per ecosystem so CI and Security run once per batch.
+# Tauri crates and @tauri-apps npm packages bump together: the Rust crate and the JS API must stay in lockstep.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      tauri:
+        patterns: ['tauri', 'tauri-*']
+      minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      tauri:
+        patterns: ['@tauri-apps/*']
+      minor-and-patch:
+        update-types: [minor, patch]
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']
+    open-pull-requests-limit: 5

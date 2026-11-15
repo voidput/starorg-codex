@@ -1,0 +1,85 @@
+# Reusable failure notifier: posts a red Discord embed when a pipeline fails. CI and Security end with a
+# `notify-failure` job that calls this on push/schedule runs. No-ops when the webhook secret is unset (forks, or
+# DISCORD_CI_WEBHOOK not configured). GitHub-hosted runner only: this is a public repo. docs/ci.md.
+name: Notify CI Failure
+
+on:
+  workflow_call:
+    inputs:
+      workflow:
+        description: "Human-readable name of the workflow that failed"
+        required: true
+        type: string
+    secrets:
+      webhook:
+        description: "Discord webhook URL. The step no-ops when unset."
+        required: false
+
+# Only talks to Discord; needs no repo access. A called workflow never holds more than its caller grants.
+permissions: {}
+
+jobs:
+  notify:
+    name: Post failure to Discord
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Post failure to Discord
+        env:
+          WEBHOOK_URL: ${{ secrets.webhook }}
+          WORKFLOW: ${{ inputs.workflow }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_URL: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+
+          webhook_url = os.environ.get("WEBHOOK_URL")
+          if not webhook_url:
+              print("No Discord webhook configured; skipping notification.")
+              raise SystemExit(0)
+
+          sha = os.environ["SHA"]
+          run_url = os.environ["RUN_URL"]
+          payload = {
+              "content": "",
+              "embeds": [
+                  {
+                      "title": f"CI failed - {os.environ['WORKFLOW']}",
+                      "url": run_url,
+                      "description": f"[View the failing run]({run_url})",
+                      "color": 15548997,  # Discord red
+                      "fields": [
+                          {"name": "Repository", "value": os.environ["REPO"], "inline": True},
+                          {"name": "Branch", "value": os.environ["BRANCH"], "inline": True},
+                          {"name": "Trigger", "value": os.environ["EVENT"], "inline": True},
+                          {
+                              "name": "Commit",
+                              "value": f"[`{sha[:7]}`]({os.environ['COMMIT_URL']})",
+                              "inline": True,
+                          },
+                      ],
+                  }
+              ],
+          }
+          data = json.dumps(payload).encode("utf-8")
+          req = urllib.request.Request(
+              webhook_url,
+              data=data,
+              headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
+          )
+          # Deliberately unguarded: a webhook that rejects us is a real config problem.
+          urllib.request.urlopen(req)
+          print("Failure notification sent.")
+          PY
