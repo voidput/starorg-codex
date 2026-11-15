@@ -138,7 +138,7 @@ entries tagged `source: starorg:<guild>`. **Push (optional):** blueprints found 
 StarOrg with `source: log` and the log line time as `acquired_at`. Never push removals
 automatically.
 
-**Alts (open question Q21):** StarOrg ownership is per StarOrg user (Discord account) inside a
+**Alts (open question Q22):** StarOrg ownership is per StarOrg user (Discord account) inside a
 guild, not per in-game character. Options: (a) link one character per StarOrg account
 (default: the main), alts stay local; (b) push the union of chosen characters; (c) StarOrg adds
 an optional character/RSI-handle dimension (RSI+ already syncs hangars per RSI handle).
