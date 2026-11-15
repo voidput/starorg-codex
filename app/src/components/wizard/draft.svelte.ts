@@ -2,6 +2,7 @@
  * Setup wizard state. Steps derive from the draft (spec 9.4: "steps derive from state, so an
  * interrupted setup resumes"); the draft is kept in localStorage per viewer until setup succeeds.
  */
+import { ACK_LABEL, ackKey, foreignOf, type ForeignChannel } from '../../lib/foreign.ts';
 import type { ChannelSummary, DataSource, InstallSummary, Preset, Settings, SetupRequest, Theme } from '@/lib/contract/types';
 
 export type StepId = 'install' | 'channels' | 'source' | 'enhancements' | 'prefs' | 'review' | 'apply';
@@ -32,12 +33,14 @@ export interface Draft {
   prefs: Prefs | null;
   /** Furthest step reached, for the rail and resume. */
   reached: number;
+  /** `ackKey` of the other tools' files the user agreed to back up and replace (Review). */
+  replace_ack: string | null;
 }
 
 const KEY = 'starorg:setup-draft';
 
 export function emptyDraft(): Draft {
-  return { install: null, channels: {}, data_source: 'local', preset: 'recommended', fix_known_bugs: true, prefs: null, reached: 0 };
+  return { install: null, channels: {}, data_source: 'local', preset: 'recommended', fix_known_bugs: true, prefs: null, reached: 0, replace_ack: null };
 }
 
 export function loadDraft(): Draft | null {
@@ -88,9 +91,19 @@ export function blocker(step: StepId, d: Draft, install: InstallSummary | null):
       const open = picked.find((c) => c.language === 'other' && d.channels[c.channel]?.switch_language !== true);
       return open ? `Answer the language question for ${open.channel}.` : null;
     }
+    case 'review': {
+      if (!install) return 'Choose an install first.';
+      const fs = foreignPicked(d, install);
+      return fs.length && d.replace_ack !== ackKey(fs) ? `Tick "${ACK_LABEL}" to let setup replace ${fs.map((f) => `${f.channel}'s`).join(' and ')} file.` : null;
+    }
     default:
       return null;
   }
+}
+
+/** Ticked channels that hold another tool's file: setup backs it up and replaces it. */
+export function foreignPicked(d: Draft, install: InstallSummary): ForeignChannel[] {
+  return install.channels.filter((c) => d.channels[c.channel]?.consent).flatMap((c) => foreignOf(c) ?? []);
 }
 
 export function request(d: Draft, install: InstallSummary): SetupRequest {

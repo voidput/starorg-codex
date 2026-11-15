@@ -1,7 +1,8 @@
 <script lang="ts">
   /** The consent step (spec 9.4 step 2): nothing writes into a channel that is not ticked here. */
   import Languages from '@lucide/svelte/icons/languages';
-  import Info from '@lucide/svelte/icons/info';
+  import ShieldAlert from '@lucide/svelte/icons/shield-alert';
+  import { foreignBefore, foreignOf } from '@/lib/foreign';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import { Checkbox } from '@/components/ui/checkbox';
   import * as Alert from '@/components/ui/alert';
@@ -23,6 +24,7 @@
   {#each install.channels as c (c.channel)}
     {@const choice = draft.channels[c.channel]!}
     {@const id = `ch-${c.channel}`}
+    {@const f = foreignOf(c)}
     <div class={cn('bg-card/80 grid gap-2 rounded-lg border p-3', choice.consent && 'border-primary/60')}>
       <div class="flex flex-wrap items-center gap-3">
         <Checkbox {id} checked={choice.consent} disabled={!!c.build_error} onCheckedChange={(v) => (choice.consent = v === true)} aria-describedby="{id}-desc" />
@@ -35,11 +37,15 @@
         {/if}
         <ApplyStatusPill channel={c} />
       </div>
-      {#if choice.consent && c.foreign_tool}
-        <Alert.Root>
-          <Info aria-hidden="true" />
-          <Alert.Title>{c.foreign_tool}'s text file is in place</Alert.Title>
-          <Alert.Description>It is backed up first (kept for good, never rotated out) and then replaced. Do not run two tools on one channel.</Alert.Description>
+      {#if f}
+        {@const t = foreignBefore(f)}
+        <Alert.Root variant={choice.consent ? 'warning' : 'default'}>
+          <ShieldAlert aria-hidden="true" />
+          <Alert.Title>{t.title}</Alert.Title>
+          <Alert.Description>
+            <p>{t.body}</p>
+            <p>{t.stop}</p>
+          </Alert.Description>
         </Alert.Root>
       {/if}
       {#if choice.consent && c.language === 'other'}

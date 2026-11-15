@@ -193,6 +193,13 @@
     }
   }
 
+  /** From the Apply result: close setup and show that channel's Backups (restore the other tool's file). */
+  function openBackups(channel: string) {
+    finish();
+    app.selectChannel(channel);
+    app.go('backups');
+  }
+
   function requestClose() {
     if (phase === 'running') return;
     if (dirty) guard = true;
@@ -244,7 +251,7 @@
 
 <div class="bg-background tactical-grid fixed inset-0 z-40 flex items-stretch justify-center overflow-y-auto p-4 sm:p-6" role="presentation">
   <div
-    class="glass chamfer-md chamfer-edge shadow-glow-md border-primary/30 relative [--chamfer-edge:color-mix(in_oklab,var(--primary)_30%,transparent)] my-auto flex h-full max-h-[760px] w-full max-w-5xl flex-col border"
+    class="glass chamfer-md chamfer-edge shadow-glow-md border-primary/30 relative [--chamfer-edge:color-mix(in_oklab,var(--primary)_30%,transparent)] my-auto flex h-full max-h-[min(1200px,100%)] w-full max-w-[min(1440px,100%)] flex-col border"
     role="dialog"
     aria-modal="true"
     aria-labelledby="wizard-title"
@@ -265,11 +272,11 @@
           {@const isNow = i === step}
           {@const isDone = i < step || phase === 'done'}
           {@const can = reachable(i) && !isNow}
-          <li class="flex min-w-0 flex-1 items-center gap-1">
+          <li class="flex min-w-0 flex-1 items-center gap-1 last:flex-none">
             <button
               type="button"
               class={cn(
-                'focus-visible:ring-ring/70 flex min-w-0 items-center gap-2 rounded-md px-1 py-1 text-left outline-none focus-visible:ring-2',
+                'focus-visible:ring-ring/70 flex min-w-0 shrink-0 items-center gap-2 rounded-md px-1 py-1 text-left outline-none focus-visible:ring-2 lg:shrink',
                 can ? 'hover:bg-accent/60 cursor-pointer' : 'cursor-default',
               )}
               aria-current={isNow ? 'step' : undefined}
@@ -285,17 +292,17 @@
               >
                 {#if isDone && !isNow}<Check class="size-3.5" />{:else}{i + 1}{/if}
               </span>
-              <span class={cn('hidden truncate text-[12.5px] md:inline', isNow ? 'font-semibold' : 'text-muted-foreground')}>{s.short}</span>
+              <span class={cn('text-[12.5px] whitespace-nowrap', isNow ? 'hidden font-semibold sm:inline' : 'text-muted-foreground hidden lg:inline')}>{s.short}</span>
               <span class="sr-only">Step {i + 1} of {STEPS.length}: {s.title}{isDone && !isNow ? ', done' : ''}</span>
             </button>
-            {#if i < STEPS.length - 1}<span class={cn('h-px min-w-3 flex-1', i < step ? 'bg-success/50' : 'bg-border')} aria-hidden="true"></span>{/if}
+            {#if i < STEPS.length - 1}<span class={cn('h-px min-w-2 flex-1', i < step ? 'bg-success/50' : 'bg-border')} aria-hidden="true"></span>{/if}
           </li>
         {/each}
       </ol>
     </nav>
 
     <div class="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-      <div class="mx-auto grid max-w-4xl gap-4">
+      <div class="mx-auto grid max-w-6xl gap-4">
         <div>
           <div class="eyebrow text-muted-foreground">Step {step + 1} of {STEPS.length}</div>
           <h2 id="wizard-step-title" bind:this={heading} tabindex="-1" class="text-[18px] font-semibold outline-none">{phase === 'done' ? 'Done' : cur.title}</h2>
@@ -307,19 +314,19 @@
         {:else if cur.id === 'source'}
           <StepSource {draft} />
         {:else if cur.id === 'enhancements'}
-          <StepEnhancements {draft} target={firstTarget} />
+          <StepEnhancements {draft} target={firstTarget} {install} />
         {:else if cur.id === 'prefs' && draft.prefs}
           <StepPrefs prefs={draft.prefs} />
         {:else if cur.id === 'review' && install}
           <StepReview {draft} {install} onedit={(s) => go(STEPS.findIndex((x) => x.id === s))} />
         {:else if cur.id === 'apply'}
-          <StepApply channels={applyChannels} {phase} {jobs} {reports} error={runError} onretry={run} />
+          <StepApply channels={applyChannels} {phase} {jobs} {reports} error={runError} onretry={run} onbackups={openBackups} />
         {/if}
       </div>
     </div>
 
     <footer class="flex flex-wrap items-center gap-3 border-t px-6 py-3">
-      {#if showBlock && block}
+      {#if (showBlock || cur.id === 'review') && block}
         <p id="wizard-block" class="text-warning flex items-center gap-1.5" role="alert"><TriangleAlert class="size-4" aria-hidden="true" /> {block}</p>
       {/if}
       <span class="flex-1"></span>
@@ -327,7 +334,7 @@
         <Button variant="outline" onclick={() => go(step - 1)} disabled={step === 0}><ArrowLeft aria-hidden="true" /> Back</Button>
       {/if}
       {#if cur.id === 'review'}
-        <ApplyButton label="Set up and apply" onclick={run} disabled={!install} />
+        <ApplyButton label="Set up and apply" onclick={run} disabled={!install || !!block} />
       {:else if cur.id === 'apply'}
         {#if phase === 'failed'}
           <Button variant="outline" onclick={() => { phase = 'idle'; go(STEPS.length - 2); }}><ArrowLeft aria-hidden="true" /> Back to review</Button>

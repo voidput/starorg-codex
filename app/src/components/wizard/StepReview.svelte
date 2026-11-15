@@ -3,7 +3,6 @@
   import Pencil from '@lucide/svelte/icons/pencil';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import { Button } from '@/components/ui/button';
-  import { Skeleton } from '@/components/ui/skeleton';
   import * as Alert from '@/components/ui/alert';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
@@ -11,28 +10,30 @@
   import { int } from '@/lib/format';
   import { updates } from '@/lib/stores/update.svelte';
   import { storeManaged } from '@/lib/update';
-  import { prefsSummary, request, type Draft, type StepId } from './draft.svelte';
+  import ShieldAlert from '@lucide/svelte/icons/shield-alert';
+  import { Checkbox } from '@/components/ui/checkbox';
+  import WorkingState from '@/components/common/WorkingState.svelte';
+  import { latest, type Load } from '@/lib/loadstate';
+  import { ACK_LABEL, ackKey, foreignBefore } from '@/lib/foreign';
+  import { foreignPicked, prefsSummary, request, type Draft, type StepId } from './draft.svelte';
 
   let { draft, install, onedit }: { draft: Draft; install: InstallSummary; onedit: (s: StepId) => void } = $props();
 
-  let plan = $state<SetupPlan | null>(null);
-  let error = $state<ContractError | null>(null);
+  let load = $state<Load<SetupPlan, ContractError>>({ state: 'idle' });
   const reqJson = $derived(JSON.stringify(request(draft, install)));
-
-  async function load(json: string) {
-    error = null;
-    try {
-      plan = await api.planSetup(JSON.parse(json));
-    } catch (e) {
-      error = toContractError(e);
-    }
-  }
+  // One runner per mount: a slower, older answer never replaces the newer one.
+  const runner = latest<SetupPlan, ContractError>((x) => (load = x), toContractError);
+  const reload = (json: string) => runner.run(() => api.planSetup(JSON.parse(json)));
   $effect(() => {
-    void load(reqJson);
+    void reload(reqJson);
   });
+  $effect(() => () => runner.stop());
 
   const picked = $derived(install.channels.filter((c) => draft.channels[c.channel]?.consent));
   const prefRows = $derived(draft.prefs ? prefsSummary(draft.prefs, storeManaged(updates.status)) : []);
+  const foreign = $derived(foreignPicked(draft, install));
+  const fkey = $derived(ackKey(foreign));
+  const reading = $derived(picked.map((c) => c.channel).join(' and ') || 'the chosen channels');
   const presetName = $derived({ recommended: 'Recommended', minimal: 'Minimal', everything: 'Everything' }[draft.preset]);
   import PathText from '@/components/common/PathText.svelte';
 </script>
@@ -69,18 +70,47 @@
     <div class="grid grid-cols-[9rem_1fr_auto] items-start gap-3 px-3 py-2">
       <dt class="text-muted-foreground">{row.label}</dt>
       <dd>{row.value}</dd>
-      {#if i === 0}{@render edit('prefs', 'preferences')}{:else}<span></span>{/if}
+      {@render edit('prefs', row.label.toLowerCase())}
     </div>
   {/each}
 </dl>
 
+{#if foreign.length}
+  <section aria-labelledby="foreign-title" class="border-warning/50 bg-warning/10 grid gap-2 rounded-lg border p-3" data-testid="foreign-review">
+    <h3 id="foreign-title" class="flex items-center gap-2 font-semibold"><ShieldAlert class="text-warning size-4" aria-hidden="true" /> Another tool's text is in place</h3>
+    {#each foreign as f (f.channel)}
+      {@const t = foreignBefore(f)}
+      <div class="grid gap-0.5">
+        <p class="font-medium">{t.title}</p>
+        <p class="text-muted-foreground">{t.body}</p>
+        <p class="text-muted-foreground">{t.stop}</p>
+      </div>
+    {/each}
+    <div class="flex items-center gap-2">
+      <Checkbox id="replace-ack" checked={draft.replace_ack === fkey} onCheckedChange={(v) => (draft.replace_ack = v === true ? fkey : null)} />
+      <label for="replace-ack" class="cursor-pointer font-medium">{ACK_LABEL}</label>
+      <span class="text-muted-foreground text-[12px]">— needed before “Set up and apply”</span>
+    </div>
+  </section>
+{/if}
+
 <section aria-labelledby="writes-title" class="grid gap-2">
   <h3 id="writes-title" class="eyebrow text-muted-foreground">What will be written</h3>
-  {#if error}
-    <ErrorState title="Could not prepare the review" {error} onretry={() => load(reqJson)} />
-  {:else if !plan}
-    <Skeleton class="h-32" />
+  {#if load.state === 'error'}
+    <ErrorState title="Could not prepare the review" error={load.error} onretry={() => reload(reqJson)} />
+  {:else if load.state !== 'ok'}
+    <WorkingState
+      label="Preparing the review"
+      title="Reading game data for {reading}…"
+      detail="A dry run: StarOrg Codex reads each channel's text and game data from its Data.p4k and counts what would change. Nothing is written yet."
+      slow="The first read of a large Data.p4k can take a few minutes on a hard drive, or while the RSI Launcher is verifying or downloading. Later runs use the saved data and take seconds."
+      since={load.state === 'loading' ? load.since : Date.now()}
+    />
   {:else}
+    {@const plan = load.value}
+    {#if !plan.channels.length && !plan.warnings.length}
+      <p class="text-muted-foreground bg-card/80 rounded-lg border p-3">Nothing will be written: no channel is chosen.</p>
+    {/if}
     {#each plan.warnings as w (w.kind + w.detail)}
       <Alert.Root variant="warning"><TriangleAlert aria-hidden="true" /><Alert.Description>{w.detail}</Alert.Description></Alert.Root>
     {/each}

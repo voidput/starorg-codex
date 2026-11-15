@@ -11,7 +11,9 @@
  * States for renders (channel names): `&running=LIVE` (game running), `&interrupted=LIVE`,
  * `&foreign=LIVE` (another tool's file in place), `&builderr=LIVE`, `&channels=5`,
  * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
- * `&accent=<accent>`, `&palette=black`. Updates: `&update=available|failed|skipped`
+ * `&accent=<accent>`, `&palette=black`. Slow and failing calls: `&slow=<cmd>:<ms>,...`,
+ * `&failonce=<cmd>,...` (fails the first call, then works: Retry), `&preview=nodata` (no game data
+ * read until plan_setup, as the real backend before setup). Launch hooks: `&hooks=windows|nolug`. Updates: `&update=available|failed|skipped`
  * (mock-update.ts).
  * Developer mode: `&dev=1` turns it on (Settings > Advanced) with the sample dataset folder
  * added; `&dev=open` also opens LIVE's explorer (mock-dev.ts).
@@ -385,6 +387,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   const startReady = opts.ready ?? params.get('state') === 'ready';
 
   const installs: T.InstallSummary[] = clone(SAMPLES.overview_first_run.installs);
+  /** `&preview=nodata`: channels whose game data was read (plan_setup); build_preview is empty for the rest. */
+  const previewNoData = params.get('preview') === 'nodata';
+  const dataRead = new Set<string>();
   const chans = new Map<string, Chan>();
   const id = (r: T.ChannelRef) => `${r.install}/${r.channel}`;
   for (const inst of installs) {
@@ -414,6 +419,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     Object.assign(starorg, { ...clone(SAMPLES.set_starorg_guild), sync_characters: starorg.sync_characters, push_count: starorg.push_count, last_sync: starorg.last_sync });
   const syncOff = (what: string) => fail('invalid', `${what} is off under Settings -> StarOrg Tools -> What to sync.`);
   let hooks: T.HooksStatus = clone(SAMPLES.hooks_status);
+  // `&hooks=windows`: no launch hooks (Windows); `&hooks=nolug`: Linux without the LUG Helper.
+  if (params.get('hooks') === 'windows') hooks = { supported: false, cli_on_path: false, scripts: [] };
+  if (params.get('hooks') === 'nolug') hooks = { ...hooks, scripts: hooks.scripts.map((x) => ({ ...x, path: null, is_link: false, status: { state: 'missing' } })) };
   let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
   // The mock's machine: 32 GB, 18.4 GB free (the samples). `?memory=1.5` starts at that limit.
   let memory: T.MemoryStatus = memoryView(SAMPLES.memory_status, Number(params.get('memory')) || null);
@@ -700,6 +708,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const channels: T.PlannedChannel[] = [];
       const p = setupProfile(req);
       for (const c of req.channels.filter((x) => x.consent)) {
+        dataRead.add(`${req.install}/${c.channel}`);
         const s = chan({ install: req.install, channel: c.channel }).summary;
         if (s.language === 'other' && !c.switch_language) {
           warnings.push({ kind: 'language', detail: `${c.channel}: the game language is not English; it will be skipped` });
@@ -779,6 +788,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         if (!req.dry_run) c.summary.interrupted_apply = false;
       }
       r.patches = c.patches.map((x) => ({ id: x.id, state: x.enabled && !c.profile.patches_disabled.includes(x.id) ? x.state : 'disabled' }));
+      if (c.summary.foreign_file) r.warnings.push({ kind: 'foreign-file', detail: `replacing a global.ini from ${c.summary.foreign_tool ?? 'another tool'} (kept as a backup); do not run two tools on one channel` });
       if (c.patches.some((x) => x.enabled && x.state === 'target-changed')) r.warnings.push({ kind: 'patch-target-changed', detail: 'syn-moved-key: the target text changed in this build' });
       const inst = installs.find((i) => i.id === req.target.install)!;
       r.target = `${inst.root}/${name}/Data/Localization/english/global.ini`;
@@ -867,7 +877,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       cancelled.add(job);
       return null;
     },
-    build_preview: ({ req }) => preview(req.profile ?? (req.preset ? presetProfile(req.preset) : chan(req.target).profile)),
+    // Like the real backend: no game data read for the channel yet -> an empty list.
+    build_preview: ({ req }) => (previewNoData && !dataRead.has(id(req.target)) ? [] : preview(req.profile ?? (req.preset ? presetProfile(req.preset) : chan(req.target).profile))),
     profile_schema: () => clone(SAMPLES.profile_schema),
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),
@@ -1406,6 +1417,15 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   }
   if (params.get('installs') === '0') installs.length = 0;
   const failing = new Set((params.get('fail') ?? '').split(',').filter(Boolean));
+  const failOnce = new Set((params.get('failonce') ?? '').split(',').filter(Boolean));
+  // `&slow=plan_setup:20000,build_preview:3000`: hold these commands (a first Data.p4k read).
+  const slow = new Map(
+    (params.get('slow') ?? '')
+      .split(',')
+      .filter(Boolean)
+      .map((x) => x.split(':') as [string, string])
+      .map(([k, v]) => [k, Number(v ?? 20000)] as const),
+  );
   if (params.get('dev')) {
     settings.advanced = { developer_mode: true };
     dev.addFolder();
@@ -1417,6 +1437,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     async call<K extends Command>(cmd: K, args: Args<K>): Promise<Result<K>> {
       // Answer asynchronously like IPC does, so the UI's loading states are exercised.
       await sleep(0);
+      const hold = slow.get(cmd);
+      if (hold) await sleep(hold);
+      if (failOnce.delete(cmd)) fail('internal', `Could not read the game data (${cmd}).`, 'Data.p4k: The process cannot access the file because it is being used by another process. (os error 32)');
       if (failing.has(cmd)) fail('internal', `Could not read the game folder (${cmd}).`, 'EACCES: permission denied, open .../StarCitizen/LIVE/Data.p4k');
       const fn = h[cmd] as Handler<K>;
       return fn(args);

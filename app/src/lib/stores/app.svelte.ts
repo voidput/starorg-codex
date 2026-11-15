@@ -7,6 +7,7 @@
  * into words by `describeOutcome` instead of being toasted as success.
  */
 import { api, ContractError, toContractError } from '@/lib/contract/client';
+import { foreignOf, type ForeignChannel } from '@/lib/foreign';
 import type * as T from '@/lib/contract/types';
 import { applyAppearance } from '@/lib/theme';
 import { toast } from './toast.svelte';
@@ -155,8 +156,14 @@ class AppState {
   /** Header / palette Apply: asks first when the open screen has unsaved edits. */
   requestApply(): void {
     if (this.blocked || !this.channel?.set_up) return;
-    this.guarded('apply', `apply to ${this.channel.channel}`, () => void this.apply());
+    const f = foreignOf(this.channel);
+    // Another tool's file is in place: ask before it is backed up and replaced.
+    const go = f ? () => (this.replaceAsk = f) : () => void this.apply();
+    this.guarded('apply', `apply to ${this.channel.channel}`, go);
   }
+
+  /** The channel whose other-tool file an apply would replace, while the confirm is open. */
+  replaceAsk = $state.raw<ForeignChannel | null>(null);
 
   /** Stop the running job, when it can be stopped. */
   async cancel(): Promise<void> {

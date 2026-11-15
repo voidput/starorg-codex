@@ -28,6 +28,7 @@
   import RotateCw from '@lucide/svelte/icons/rotate-cw';
   import Replace from '@lucide/svelte/icons/replace';
   import Eraser from '@lucide/svelte/icons/eraser';
+  import { foreignBeforeApply, foreignOf } from '@/lib/foreign';
   import { buildLabel, fmtDateTime, fmtMs, int, sameBuild, statusView } from '@/lib/format';
 
   const ch = $derived(app.channel);
@@ -47,13 +48,16 @@
   </FullEmpty>
 {:else if ch}
   {@const s = statusView(ch.status, ch.set_up)}
+  {@const fc = foreignOf(ch)}
   <div class="flex flex-col gap-4">
-    {#if ch.status.state === 'changed-by-another-tool'}
-      <Alert.Root variant="warning">
+    {#if fc}
+      {@const t = foreignBeforeApply(fc)}
+      <Alert.Root variant="warning" data-testid="foreign-home">
         <TriangleAlert aria-hidden="true" />
-        <Alert.Title>{ch.foreign_tool ?? 'Another tool'} changed the text on {ch.channel}</Alert.Title>
+        <Alert.Title>{t.title}</Alert.Title>
         <Alert.Description>
-          Applying replaces {ch.foreign_tool ? `${ch.foreign_tool}'s` : 'its'} file with ours (a backup is kept). Do not run two text tools on one channel: each undoes the other at every launch.
+          <p>{t.body}</p>
+          <p>{t.stop}</p>
         </Alert.Description>
       </Alert.Root>
     {/if}

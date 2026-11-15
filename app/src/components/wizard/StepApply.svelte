@@ -12,7 +12,11 @@
   import * as Alert from '@/components/ui/alert';
   import { Progress } from '@/components/ui/progress';
   import ErrorState from '@/components/common/ErrorState.svelte';
-  import type { ApplyReport, JobProgress } from '@/lib/contract/types';
+  import type { ApplyReport, HooksStatus, JobProgress } from '@/lib/contract/types';
+  import Archive from '@lucide/svelte/icons/archive';
+  import History from '@lucide/svelte/icons/history';
+  import { api } from '@/lib/contract/client';
+  import { foreignAfter, isForeignWarning, toolFromWarning } from '@/lib/foreign';
   import type { ContractError } from '@/lib/contract/client';
   import { int } from '@/lib/format';
   import { cn } from '@/lib/utils';
@@ -29,6 +33,7 @@
     reports,
     error,
     onretry,
+    onbackups,
   }: {
     channels: string[];
     phase: 'idle' | 'running' | 'done' | 'failed';
@@ -36,7 +41,25 @@
     reports: ApplyReport[];
     error: ContractError | null;
     onretry: () => void;
+    /** Close setup and open Backups of this channel. */
+    onbackups: (channel: string) => void;
   } = $props();
+
+  // Launch hooks only exist with the LUG Helper on Linux; elsewhere the card says what does.
+  let hooks = $state<HooksStatus | null>(null);
+  let hooksRead = $state(false);
+  $effect(() => {
+    if (phase !== 'done' || hooksRead) return;
+    hooksRead = true;
+    api
+      .hooksStatus()
+      .then((h) => (hooks = h))
+      .catch(() => (hooks = null));
+  });
+  const lug = $derived(!!hooks?.supported && hooks.scripts.some((s) => s.path !== null));
+  const foreignOfReport = (rep: ApplyReport) =>
+    rep.warnings.filter(isForeignWarning).map((w) => foreignAfter({ channel: rep.channel, tool: toolFromWarning(w) }));
+  const otherWarnings = (rep: ApplyReport) => rep.warnings.filter((w) => !isForeignWarning(w));
 
   const STEPS = ['Checking the game is not running', 'Reading game data', 'Building text', 'Validating', 'Backing up and writing'];
   const reportOf = (ch: string) => reports.find((r) => r.channel === ch);
@@ -91,11 +114,27 @@
           </Alert.Root>
         {:else if rep}
           {#if rep.recovered}<p class="text-muted-foreground text-[12px]">{rep.recovered}</p>{/if}
-          {#if rep.warnings.length}
+          {#each foreignOfReport(rep) as f (f.title)}
+            <Alert.Root variant="warning" data-testid="foreign-after">
+              <TriangleAlert aria-hidden="true" />
+              <Alert.Title>{f.title}</Alert.Title>
+              <Alert.Description>
+                <p>{f.body}</p>
+                {#if phase === 'done'}
+                  <div class="mt-2 flex flex-wrap gap-2">
+                    <Button variant="outline" size="xs" onclick={() => onbackups(rep.channel)}><Archive aria-hidden="true" /> Open backups</Button>
+                    <Button variant="outline" size="xs" onclick={() => onbackups(rep.channel)}><History aria-hidden="true" /> Restore the original</Button>
+                  </div>
+                {/if}
+              </Alert.Description>
+            </Alert.Root>
+          {/each}
+          {@const rest = otherWarnings(rep)}
+          {#if rest.length}
             <Alert.Root variant="warning">
               <TriangleAlert aria-hidden="true" />
-              <Alert.Title>{rep.warnings.length} warning{rep.warnings.length === 1 ? '' : 's'}</Alert.Title>
-              <Alert.Description>{#each rep.warnings as w (w.detail)}<div>{w.detail}</div>{/each}</Alert.Description>
+              <Alert.Title>{rest.length} warning{rest.length === 1 ? '' : 's'}</Alert.Title>
+              <Alert.Description>{#each rest as w (w.detail)}<div>{w.detail}</div>{/each}</Alert.Description>
             </Alert.Root>
           {/if}
           <dl class="text-muted-foreground grid grid-cols-[7rem_1fr] gap-x-3 text-[12px]">
@@ -115,10 +154,17 @@
 {#if phase === 'done'}
   <section aria-labelledby="automate-title" class="bg-card/80 grid gap-2 rounded-lg border p-3">
     <h3 id="automate-title" class="font-semibold">Keep it current automatically</h3>
-    <p class="text-muted-foreground">
-      After a game patch the text needs one re-apply. Add this to your LUG Helper pre-launch and post-exit scripts (or let Settings → Command line install the hooks):
-    </p>
-    <pre class="bg-background mono overflow-x-auto rounded-md border p-2"><code>{snippet}</code></pre>
-    <p class="text-muted-foreground text-[12px]">It does nothing when everything is up to date, never blocks the launch for more than 60 seconds, and only touches the channels you set up here.</p>
+    {#if lug}
+      <p class="text-muted-foreground">
+        After a game patch the text needs one re-apply. Add this to your LUG Helper pre-launch and post-exit scripts (or let Settings → Command line install the hooks):
+      </p>
+      <pre class="bg-background mono overflow-x-auto rounded-md border p-2"><code>{snippet}</code></pre>
+      <p class="text-muted-foreground text-[12px]">It does nothing when everything is up to date, never blocks the launch for more than 60 seconds, and only touches the channels you set up here.</p>
+    {:else}
+      <p class="text-muted-foreground" data-testid="automate-app">
+        After a game patch the text needs one re-apply. Each time StarOrg Codex opens it checks every channel you set up against the game's build; when the game was updated,
+        Home says so and offers <span class="text-foreground font-medium">Re-apply for the new build</span>. So after a patch: open StarOrg Codex and press Re-apply.
+      </p>
+    {/if}
   </section>
 {/if}

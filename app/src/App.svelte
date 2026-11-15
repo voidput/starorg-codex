@@ -23,6 +23,7 @@
   import ActivityScreen from '@/components/screens/ActivityScreen.svelte';
   import SetupWizard from '@/components/wizard/SetupWizard.svelte';
   import UnsavedDialog from '@/components/common/UnsavedDialog.svelte';
+  import ReplaceDialog from '@/components/common/ReplaceDialog.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import { Button } from '@/components/ui/button';
   import Wand from '@lucide/svelte/icons/wand-sparkles';
@@ -146,5 +147,6 @@
   {/if}
   {#if !app.wizard}<CommandPalette bind:open={palette} go={(s) => go(s)} />{/if}
   <UnsavedDialog />
+  <ReplaceDialog />
   <Toaster />
 </Tooltip.Provider>

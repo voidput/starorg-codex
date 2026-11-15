@@ -4,11 +4,16 @@
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import InGamePreview from '@/components/common/InGamePreview.svelte';
   import RadioCard from './RadioCard.svelte';
-  import { api, toContractError } from '@/lib/contract/client';
-  import type { ChannelRef, PreviewItem, Preset } from '@/lib/contract/types';
-  import type { Draft } from './draft.svelte';
+  import Database from '@lucide/svelte/icons/database';
+  import { Button } from '@/components/ui/button';
+  import ErrorState from '@/components/common/ErrorState.svelte';
+  import WorkingState from '@/components/common/WorkingState.svelte';
+  import { api, ContractError, toContractError } from '@/lib/contract/client';
+  import type { ChannelRef, InstallSummary, PreviewItem, Preset } from '@/lib/contract/types';
+  import { latest, previewView, type Load } from '@/lib/loadstate';
+  import { request, type Draft } from './draft.svelte';
 
-  let { draft, target }: { draft: Draft; target: ChannelRef | null } = $props();
+  let { draft, target, install = null }: { draft: Draft; target: ChannelRef | null; install?: InstallSummary | null } = $props();
 
   const presets: { id: Preset; title: string; text: string }[] = [
     { id: 'recommended', title: 'Recommended', text: 'Stat blocks for ships, components and weapons, name tags, mission rewards and the text fixes.' },
@@ -16,24 +21,41 @@
     { id: 'everything', title: 'Everything', text: 'All of Recommended, plus owned-blueprint markers in mission text.' },
   ];
 
-  let items = $state<PreviewItem[] | null>(null);
-  let err = $state<string | null>(null);
+  let load = $state<Load<PreviewItem[], ContractError>>({ state: 'idle' });
+  let reading = $state<Load<null, ContractError>>({ state: 'idle' });
+  /** Bumped after game data was read, to ask for the preview again. */
+  let again = $state(0);
+  const view = $derived(previewView(load));
+  /** Game data is known to be read: an empty preview then means "no sample for this preset". */
+  const hasData = $derived(
+    reading.state === 'ok' || (!!install?.saved && install.channels.find((c) => c.channel === target?.channel)?.cache === 'fresh'),
+  );
   // Primitive deps only (preset string, install/channel strings).
   const preset = $derived(draft.preset);
-  const install = $derived(target?.install ?? null);
+  const installId = $derived(target?.install ?? null);
   const channel = $derived(target?.channel ?? null);
   $effect(() => {
-    if (!install || !channel) return;
-    let live = true;
-    err = null;
-    api
-      .buildPreview({ target: { install, channel }, profile: null, preset })
-      .then((r) => live && (items = r))
-      .catch((e) => live && (err = toContractError(e).message));
-    return () => {
-      live = false;
-    };
+    void again;
+    if (!installId || !channel) return;
+    const l = latest<PreviewItem[], ContractError>((x) => (load = x), toContractError);
+    void l.run(() => api.buildPreview({ target: { install: installId, channel }, profile: null, preset }));
+    return () => l.stop();
   });
+
+  /** Read the channel's game data now (the same dry run Review does), then ask again. */
+  async function readNow() {
+    if (!install || !channel) return;
+    const req = request(draft, install);
+    // Only this channel: the others are read at Review.
+    req.channels = req.channels.map((c) => ({ ...c, consent: c.channel === channel && c.consent }));
+    await latest<null, ContractError>((x) => (reading = x), toContractError).run(async () => {
+      const plan = await api.planSetup(req);
+      const w = plan.warnings.find((x) => x.kind === 'game-data');
+      if (w) throw new ContractError({ code: 'internal', message: w.detail, detail: null });
+      return null;
+    });
+    if (reading.state === 'ok') again++;
+  }
 </script>
 
 <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)]">
@@ -59,12 +81,35 @@
   <section aria-labelledby="preview-title" class="grid content-start gap-2">
     <h3 id="preview-title" class="eyebrow text-muted-foreground">In-game preview{target ? ` · ${target.channel}` : ''}</h3>
     <div aria-live="polite" class="grid gap-3">
-      {#if err}
-        <p class="text-destructive" role="alert">Preview failed: {err}</p>
-      {:else if !items}
+      {#if !target}
+        <p class="text-muted-foreground bg-card/80 rounded-lg border p-3">Choose a channel first; the preview shows its text.</p>
+      {:else if reading.state === 'loading'}
+        <WorkingState
+          label="Reading game data"
+          title="Reading {target.channel}'s game data from Data.p4k…"
+          detail="Nothing is written to the game. The data is kept, so Review and later applies are quick."
+          slow="The first read of a large Data.p4k can take a few minutes on a hard drive, or while the RSI Launcher is verifying or downloading. Leave it running."
+          since={reading.since}
+        />
+      {:else if reading.state === 'error'}
+        <ErrorState title="Could not read {target.channel}'s game data" error={reading.error} onretry={readNow} />
+      {:else if view === 'error' && load.state === 'error'}
+        <ErrorState title="Preview failed" error={load.error} onretry={() => again++} />
+      {:else if view === 'loading'}
         <Skeleton class="h-28" /><Skeleton class="h-14" />
-      {:else}
-        {#each items as it (it.key)}
+      {:else if view === 'nodata' && hasData}
+        <p class="text-muted-foreground bg-card/80 rounded-lg border p-3">This preset changes none of the sample texts (ship, component, weapon, missile and contract descriptions); the preview has nothing to show.</p>
+      {:else if view === 'nodata'}
+        <div class="bg-card/80 grid gap-2 rounded-lg border p-3" data-testid="preview-nodata">
+          <p class="flex items-center gap-2 font-medium"><Database class="text-muted-foreground size-4" aria-hidden="true" /> No preview yet</p>
+          <p class="text-muted-foreground">
+            The preview is built from {target.channel}'s own game text, and StarOrg Codex has not read it on this computer yet. Reading it takes a few
+            seconds to a few minutes the first time (Data.p4k is large) and writes nothing to the game. Otherwise it is read at Review.
+          </p>
+          <div><Button variant="outline" size="sm" onclick={readNow} disabled={!install}><Database aria-hidden="true" /> Read game data now</Button></div>
+        </div>
+      {:else if load.state === 'ok'}
+        {#each load.value as it (it.key)}
           <div class="grid gap-1">
             <div class="text-[12px] font-semibold">{it.label}</div>
             <InGamePreview text={it.result} />
