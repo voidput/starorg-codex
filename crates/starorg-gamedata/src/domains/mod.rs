@@ -70,7 +70,7 @@ registry! {
 
     // refining, // refining.ts
 
-    // reputation, // reputation.ts
+    reputation, // reputation.ts
 
     // salvage, // salvage.ts
 
