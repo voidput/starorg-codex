@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * Enhancements (spec 9.4): a list (General, the generator categories, Name tags), the switches of
-   * M2's profile with labels from `profile_schema`, the Tag Builder, mission options and a live
+   * M2's profile with labels from `profile_schema`, the Tag Builder, mission options, the
+   * blueprint markers (their own tab: [Owned] / [Missing] / [BP Owned] and their colours) and a live
    * preview. Settings are per channel; Save writes profile.toml, Save & apply also applies.
    *
    * The draft survives refreshes (the load effect is keyed on the install/channel string only).
@@ -33,7 +34,7 @@
   import { cn } from '@/lib/utils';
   import { LINKS, openLink } from '@/lib/links';
 
-  type Tab = 'general' | CategoryId | 'name-tags';
+  type Tab = 'general' | CategoryId | 'blueprints' | 'name-tags';
 
   let schema = $state<ProfileSchema | null>(null);
   let saved = $state<string>('');
@@ -42,7 +43,13 @@
   let error = $state<ContractError | null>(null);
   let preview = $state<PreviewItem[] | null>(null);
   let previewing = $state(false);
-  let selected = $state<Tab>('general');
+  // A jump from another screen (Blueprints → "Edit blueprint markers") picks the tab once.
+  const asked = () => {
+    const t = app.enhancementsTab;
+    app.enhancementsTab = null;
+    return (t === 'general' || t === 'blueprints' || t === 'name-tags' ? t : 'general') as Tab;
+  };
+  let selected = $state<Tab>(untrack(asked));
   let saving = $state(false);
   let loadSeq = $state(0);
 
@@ -210,12 +217,20 @@
     const d = draft;
     return [
       { id: 'general' as Tab, label: 'General', on: null },
-      ...schema.categories.map((c) => ({ id: c.id as Tab, label: c.label, on: isOn(d, c.id) })),
+      ...schema.categories.flatMap((c) => {
+        const tab = { id: c.id as Tab, label: c.label, on: isOn(d, c.id) };
+        // Blueprint markers sit right after Missions: they are part of the contract texts.
+        return c.id === 'missions' ? [tab, { id: 'blueprints' as Tab, label: 'Blueprints', on: d.missions && (d.mission.blueprints || d.mission.title_blueprint) }] : [tab];
+      }),
       { id: 'name-tags' as Tab, label: 'Name tags', on: d.tags.components.enabled || d.tags.ship_weapons.enabled || d.tags.missiles.enabled },
     ];
   });
   const cat = $derived(schema?.categories.find((c) => c.id === selected) ?? null);
   const previewFocus = $derived(selected === 'name-tags' || selected === 'general' ? 'components' : selected);
+  const jumpTab = (t: Tab) => {
+    selected = t;
+    document.getElementById(`cat-tab-${t}`)?.focus();
+  };
 
   function tabKey(e: KeyboardEvent, i: number) {
     const n = tabs.length;
@@ -403,15 +418,16 @@
           </Card.Root>
           {#if cat.id === 'missions'}
             {@const off = !d.missions}
+            <div class="bg-muted/40 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md border p-3 text-[12.5px]" role="note">
+              <span>[BP], [BP Owned], [Owned], [Missing] and the blueprint list are under <span class="font-medium">Blueprints</span>.</span>
+              <button type="button" class="text-primary text-[12px] underline-offset-2 hover:underline" onclick={() => jumpTab('blueprints')}>Open blueprint markers</button>
+            </div>
             <Card.Root>
               <Card.Header><Card.Title>Mission titles</Card.Title><Card.Description>Tags after a contract's title in the mobiGlas list.</Card.Description></Card.Header>
               <Card.Content class="grid gap-1">
-                <SwitchRow id="m-bp" size="sm" disabled={off} label="[BP] when the contract can reward a blueprint" hint="[BP?] when only some of its variants can." checked={d.mission.title_blueprint} onchange={(v) => edit((p) => (p.mission.title_blueprint = v))} />
                 <SwitchRow id="m-rep" size="sm" disabled={off} label="Reputation reward, such as [150 Rep]" checked={d.mission.title_reputation} onchange={(v) => edit((p) => (p.mission.title_reputation = v))} />
-                <SwitchRow id="m-bp-owned" size="sm" disabled={off || !d.mission.title_blueprint} label="[BP Owned] when you own every blueprint it can award" hint="In place of [BP] or [BP?]; uses the owned set from Blueprints." checked={d.mission.title_owned} onchange={(v) => edit((p) => (p.mission.title_owned = v))} />
-                <SwitchRow id="m-em" size="sm" disabled={off} label="Highlight title tags" hint="Wraps the tags in an EM tag so the game draws them in that style. Blue (EM4) by default." checked={d.mission.title_em} onchange={(v) => edit((p) => (p.mission.title_em = v))} />
+                <SwitchRow id="m-em" size="sm" disabled={off} label="Highlight title tags" hint="Wraps the tags (reputation and blueprint) in an EM tag so the game draws them in that style. Blue (EM4) by default." checked={d.mission.title_em} onchange={(v) => edit((p) => (p.mission.title_em = v))} />
                 <div class="grid gap-2 pt-1 pl-11">
-                  {@render emRow('title_bp_em', 'Blueprint tag', off || !d.mission.title_em || !d.mission.title_blueprint)}
                   {@render emRow('title_rep_em', 'Reputation tag', off || !d.mission.title_em || !d.mission.title_reputation)}
                 </div>
               </Card.Content>
@@ -420,25 +436,67 @@
               <Card.Header><Card.Title>Mission descriptions</Card.Title><Card.Description>Sections added below the contract text.</Card.Description></Card.Header>
               <Card.Content class="grid gap-1">
                 <div class="grid gap-0.5 @min-[560px]:grid-cols-2" role="group" aria-label="Description sections">
-                  <SwitchRow id="m-sec-bp" size="sm" disabled={off} label="Blueprint pool" checked={d.mission.blueprints} onchange={(v) => edit((p) => (p.mission.blueprints = v))} />
                   <SwitchRow id="m-sec-items" size="sm" disabled={off} label="Item rewards" checked={d.mission.item_rewards} onchange={(v) => edit((p) => (p.mission.item_rewards = v))} />
                   <SwitchRow id="m-sec-details" size="sm" disabled={off} label="Mission details" checked={d.mission.details} onchange={(v) => edit((p) => (p.mission.details = v))} />
-                  <SwitchRow id="m-bullets" size="sm" disabled={off || !d.mission.blueprints} label="Name tags on blueprint lines" checked={d.mission.bullet_tags} onchange={(v) => edit((p) => (p.mission.bullet_tags = v))} />
                 </div>
-                <SwitchRow id="m-owned" size="sm" disabled={off || !d.mission.blueprints} label="Mark blueprints you own with [Owned]" checked={d.mission.owned_marker} onchange={(v) => edit((p) => (p.mission.owned_marker = v))}>
-                  <button type="button" class="text-primary text-[12px] underline-offset-2 hover:underline" onclick={() => app.go('blueprints')}>Choose the character</button>
-                </SwitchRow>
-                <SwitchRow id="m-owned-line" size="sm" class="pl-11" disabled={off || !d.mission.blueprints || !d.mission.owned_marker || d.mission.owned_em === 0} label="Colour the whole line, not only [Owned]" hint={d.mission.owned_em === 0 ? 'Pick an [Owned] colour below first.' : null} checked={d.mission.owned_line} onchange={(v) => edit((p) => (p.mission.owned_line = v))} />
-                <SwitchRow id="m-missing" size="sm" disabled={off || !d.mission.blueprints} label="Mark blueprints you don't own with [Missing]" hint="Only when an owned set is known; without one nothing is marked." checked={d.mission.missing_marker} onchange={(v) => edit((p) => (p.mission.missing_marker = v))} />
-                <div class="mt-1 flex flex-wrap items-center gap-3">
-                  <label for="m-max" class="text-[12.5px]">Longest blueprint list</label>
+              </Card.Content>
+            </Card.Root>
+            <Card.Root>
+              <Card.Header>
+                <Card.Title>Colours</Card.Title>
+                <Card.Description>EM3 (underline) and EM4 (blue) are what the game uses in contracts. EM1, EM2 and EM5 exist but their look is not verified: try them with the Colour test under General. Blueprint colours are under Blueprints.</Card.Description>
+              </Card.Header>
+              <Card.Content class="grid gap-2 @min-[640px]:grid-cols-2">
+                {@render emRow('header_em', 'Section headers', off)}
+                {@render emRow('label_em', 'Detail labels', off || !d.mission.details)}
+                {@render emRow('reward_em', 'Item reward names', off || !d.mission.item_rewards)}
+              </Card.Content>
+            </Card.Root>
+          {/if}
+        {:else if selected === 'blueprints'}
+          {@const off = !d.missions}
+          {@const pool = !off && d.mission.blueprints}
+          {#if off}
+            <div class="bg-muted/40 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border p-3 text-[12.5px]" role="status">
+              <span>Blueprint markers are part of the contract texts, and contracts are off for {app.target?.channel ?? 'this channel'}.</span>
+              <Button variant="outline" size="sm" onclick={() => edit((p) => (p.missions = true))}>Turn on contracts</Button>
+            </div>
+          {/if}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>[Owned] and [Missing]</Card.Title>
+              <Card.Description>Marks on the blueprint lines of a contract, from the owned set of the character picked under Blueprints.</Card.Description>
+              <Card.Action><Button variant="outline" size="sm" onclick={() => app.go('blueprints')}>Choose the character</Button></Card.Action>
+            </Card.Header>
+            <Card.Content class="grid gap-1">
+              <SwitchRow id="m-owned" size="sm" disabled={!pool} label="Mark blueprints you own with [Owned]" checked={d.mission.owned_marker} onchange={(v) => edit((p) => (p.mission.owned_marker = v))} />
+              <div class="grid gap-1 pb-1 pl-11">
+                {@render emRow('owned_em', '[Owned] colour', !pool || !d.mission.owned_marker)}
+                <SwitchRow id="m-owned-line" size="sm" disabled={!pool || !d.mission.owned_marker || d.mission.owned_em === 0} label="Colour the whole line, not only [Owned]" hint={d.mission.owned_em === 0 ? 'Pick an [Owned] colour first.' : null} checked={d.mission.owned_line} onchange={(v) => edit((p) => (p.mission.owned_line = v))} />
+              </div>
+              <SwitchRow id="m-missing" size="sm" disabled={!pool} label="Mark blueprints you don't own with [Missing]" hint="Only when an owned set is known; without one nothing is marked." checked={d.mission.missing_marker} onchange={(v) => edit((p) => (p.mission.missing_marker = v))} />
+              <div class="grid gap-1 pl-11">
+                {@render emRow('missing_em', '[Missing] colour', !pool || !d.mission.missing_marker)}
+              </div>
+              {#if !off && !d.mission.blueprints}<p class="text-muted-foreground pt-1 text-[12px]">Turn on the blueprint list below first: the marks go on its lines.</p>{/if}
+            </Card.Content>
+          </Card.Root>
+          <Card.Root>
+            <Card.Header><Card.Title>Blueprint list</Card.Title><Card.Description>The BLUEPRINTS section below a contract's text: what it can reward.</Card.Description></Card.Header>
+            <Card.Content class="grid gap-1">
+              <SwitchRow id="m-sec-bp" size="sm" disabled={off} label="Add the blueprint list to contracts" checked={d.mission.blueprints} onchange={(v) => edit((p) => (p.mission.blueprints = v))} />
+              <SwitchRow id="m-bullets" size="sm" disabled={!pool} label="Name tags on blueprint lines" hint="The Tag Builder's tags, such as [IND-S2-A]." checked={d.mission.bullet_tags} onchange={(v) => edit((p) => (p.mission.bullet_tags = v))} />
+              <div class="grid gap-2 pt-1">
+                {@render emRow('variant_em', 'Variant labels, [Easy]', !pool)}
+                <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <label for="m-max" class="w-40 text-[12.5px]">Longest blueprint list</label>
                   <Input
                     id="m-max"
                     type="number"
                     min="1"
                     max="200"
                     class="mono h-8 w-20"
-                    disabled={off}
+                    disabled={!pool}
                     value={String(d.mission.max_list)}
                     aria-describedby="m-max-hint"
                     oninput={(e) => {
@@ -448,23 +506,26 @@
                   />
                   <span id="m-max-hint" class="text-muted-foreground text-[12px]">Longer lists end with “and N more”.</span>
                 </div>
-              </Card.Content>
-            </Card.Root>
-            <Card.Root>
-              <Card.Header>
-                <Card.Title>Colours</Card.Title>
-                <Card.Description>EM3 (underline) and EM4 (blue) are what the game uses in contracts. EM1, EM2 and EM5 exist but their look is not verified: try them with the Colour test under General.</Card.Description>
-              </Card.Header>
-              <Card.Content class="grid gap-2 @min-[640px]:grid-cols-2">
-                {@render emRow('header_em', 'Section headers', off)}
-                {@render emRow('label_em', 'Detail labels', off || !d.mission.details)}
-                {@render emRow('owned_em', '[Owned]', off || !d.mission.blueprints || !d.mission.owned_marker)}
-                {@render emRow('missing_em', '[Missing]', off || !d.mission.blueprints || !d.mission.missing_marker)}
-                {@render emRow('variant_em', 'Variant labels, [Easy]', off || !d.mission.blueprints)}
-                {@render emRow('reward_em', 'Item reward names', off || !d.mission.item_rewards)}
-              </Card.Content>
-            </Card.Root>
-          {/if}
+              </div>
+              <p class="text-muted-foreground pt-1 text-[12px]">The BLUEPRINTS header uses the section header colour under Missions.</p>
+            </Card.Content>
+          </Card.Root>
+          <Card.Root>
+            <Card.Header><Card.Title>In contract titles</Card.Title><Card.Description>Tags after a contract's title in the mobiGlas list.</Card.Description></Card.Header>
+            <Card.Content class="grid gap-1">
+              <SwitchRow id="m-bp" size="sm" disabled={off} label="[BP] when the contract can reward a blueprint" hint="[BP?] when only some of its variants can." checked={d.mission.title_blueprint} onchange={(v) => edit((p) => (p.mission.title_blueprint = v))} />
+              <SwitchRow id="m-bp-owned" size="sm" disabled={off || !d.mission.title_blueprint} label="[BP Owned] when you own every blueprint it can award" hint="In place of [BP] or [BP?]; uses the owned set from Blueprints." checked={d.mission.title_owned} onchange={(v) => edit((p) => (p.mission.title_owned = v))} />
+              <div class="grid gap-1 pt-1 pl-11">
+                {@render emRow('title_bp_em', '[BP] / [BP Owned] colour', off || !d.mission.title_em || !d.mission.title_blueprint)}
+                {#if !off && !d.mission.title_em}
+                  <p class="text-muted-foreground flex flex-wrap items-center gap-x-2 text-[12px]">
+                    Title tags are not highlighted (Missions → Highlight title tags).
+                    <button type="button" class="text-primary underline-offset-2 hover:underline" onclick={() => edit((p) => (p.mission.title_em = true))}>Highlight them</button>
+                  </p>
+                {/if}
+              </div>
+            </Card.Content>
+          </Card.Root>
         {/if}
       </div>
 

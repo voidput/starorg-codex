@@ -1,6 +1,7 @@
 // Headless renders of the Blueprints screen's finder (addendum §7.19): one channel, All channels
 // with channel badges, Missing for one character, grouped by category, a search, and the Home
-// cards and channel picker with the shared channel colours. Mock backend (?state=ready), dark and
+// cards and channel picker with the shared channel colours; collapsed groups and cards, the
+// Markers in game card, and Enhancements → Blueprints (reached from that card). Mock backend (?state=ready), dark and
 // light, SIZES=WxH,... (default 1024x700,1280x800). Never opens a window.
 // Output: $RENDER_DIR/blueprints (default ../../.tmp/renders/blueprints).
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
@@ -43,6 +44,28 @@ const shots = [
     await p.getByRole('radio', { name: /^All \d/ }).click();
     await p.keyboard.press('/');
     await p.keyboard.type('visor');
+  }, ''],
+  ['bp-groups-collapsed', 'blueprints', async (p) => {
+    await ready(p);
+    await p.getByRole('radio', { name: /^All \d/ }).click();
+    await p.getByRole('combobox', { name: 'Group by' }).click();
+    await p.getByRole('option', { name: 'Category' }).click();
+    await p.locator('[data-group-toggle]').first().click();
+    await p.locator('[data-group-toggle]').nth(2).click();
+  }, ''],
+  ['bp-cards-collapsed', 'blueprints', async (p) => {
+    await ready(p);
+    for (const t of ['Blueprints', 'StarOrg Tools']) await p.locator('#main [data-slot=card-toggle]', { hasText: new RegExp(`^\\s*${t}\\s*$`) }).click();
+    await p.getByText('Markers in game').waitFor();
+  }, ''],
+  ['enh-blueprints', 'blueprints', async (p) => {
+    await ready(p);
+    await p.getByRole('button', { name: 'Edit blueprint markers' }).click();
+    await p.getByRole('tab', { name: /^Blueprints/, selected: true }).waitFor();
+  }, ''],
+  ['enh-missions', 'enhancements', async (p) => {
+    await p.getByRole('tab', { name: /^Missions/ }).click();
+    await p.getByText('Open blueprint markers').waitFor();
   }, ''],
   ['home-channels', 'home', async (p) => p.getByText('Other channels').waitFor(), ''],
 ];

@@ -35,14 +35,15 @@ const shots = [
   }],
   // Colour settings (missions) with [Owned] in EM4 and [Missing] on, scrolled to the Colours card.
   ['enhancements-colours', 'enhancements', async (p) => {
-    await p.getByRole('tab', { name: /Missions/ }).click();
-    await p.getByText('Mission titles').waitFor();
+    // Blueprint markers and their colours have their own tab (addendum §12).
+    await p.getByRole('tab', { name: /^Blueprints/ }).click();
+    await p.getByText('[Owned] and [Missing]').waitFor();
     await p.getByRole('switch', { name: /with \[Missing\]/ }).click();
-    await p.getByRole('combobox', { name: '[Owned]: colour' }).click();
+    await p.getByRole('combobox', { name: '[Owned] colour: colour' }).click();
     await p.getByRole('option', { name: 'EM4 · blue' }).click();
-    await p.getByRole('combobox', { name: '[Missing]: colour' }).click();
+    await p.getByRole('combobox', { name: '[Missing] colour: colour' }).click();
     await p.getByRole('option', { name: 'EM2 · look not verified' }).click();
-    await p.getByText('Colours', { exact: true }).scrollIntoViewIfNeeded();
+    await p.getByText('Blueprint list', { exact: true }).scrollIntoViewIfNeeded();
   }],
   ['enhancements-colour-test', 'enhancements', async (p) => {
     await p.getByText('Header line').waitFor();

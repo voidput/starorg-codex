@@ -9,9 +9,10 @@
   import { Skeleton } from '@/components/ui/skeleton';
   import type { PreviewItem } from '@/lib/contract/types';
   import { cn } from '@/lib/utils';
+  import { previewOrder } from '@/lib/bpmarkers';
 
   let { items, loading = false, focus = null, strip = false }: { items: PreviewItem[] | null; loading?: boolean; focus?: string | null; strip?: boolean } = $props();
-  const shown = $derived(Array.isArray(items) ? [...items].sort((a, b) => Number(b.category === focus) - Number(a.category === focus)) : []);
+  const shown = $derived(previewOrder(items, focus));
   let open = $state(true);
   const uid = $props.id();
 </script>

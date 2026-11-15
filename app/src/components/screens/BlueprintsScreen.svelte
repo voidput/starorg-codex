@@ -22,6 +22,7 @@
   import { characterLabel, fallbackHint, largerHint, newestId } from '@/lib/characters';
   import * as Alert from '@/components/ui/alert';
   import Info from '@lucide/svelte/icons/info';
+  import MarkersCard from '@/components/blueprints/MarkersCard.svelte';
   import CollapsibleCard from '@/components/common/CollapsibleCard.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { CharacterMode, CharactersView, StarOrgStatus, SyncReport } from '@/lib/contract/types';
@@ -212,6 +213,7 @@
       </Card.Content>
     </CollapsibleCard>
 
+    <MarkersCard target={app.target} />
   </div>
   <ImportDialog bind:open={importing} target={app.target} characters={v.characters} initial={picked ?? v.active.resolved} ondone={() => tick++} />
 {/if}

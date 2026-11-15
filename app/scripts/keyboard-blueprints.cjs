@@ -1,7 +1,9 @@
 // Headless keyboard check of the Blueprints finder (addendum §7.19): `/` focuses the search,
 // Escape clears it, facet chips toggle with Space/Enter (aria-pressed), the owned toggle moves
 // with arrow keys, column headers sort from the keyboard (aria-sort), Clear filters, and the
-// prefs survive a reload per channel. Mock backend. Never opens a window.
+// prefs survive a reload per channel; group headers and cards collapse by keyboard (Enter/Space,
+// Left/Right, Up/Down between groups) and stay collapsed after a reload; "Edit blueprint markers"
+// opens Enhancements on its Blueprints tab. Mock backend. Never opens a window.
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:4317/') + '?state=ready&delay=0&theme=dark&screen=blueprints';
 const results = [];
@@ -61,6 +63,68 @@ const check = (name, ok, info = '') => results.push(`${ok ? 'PASS' : 'FAIL'} ${n
   await clear.focus();
   await page.keyboard.press('Enter');
   check('Clear filters back to Owned, 10', (await count()) === 10 && (await page.getByRole('columnheader', { name: /^Size/ }).getAttribute('aria-sort')) === 'descending', String(await count()));
+
+  // Groups: collapse by keyboard, remembered per channel + group-by.
+  await page.getByRole('combobox', { name: 'Group by' }).click();
+  await page.getByRole('option', { name: 'Category' }).click();
+  const heads = page.locator('[data-group-toggle]');
+  await heads.first().waitFor();
+  const expanded = async (i) => heads.nth(i).getAttribute('aria-expanded');
+  const rowsNow = async () => page.locator('#main tbody tr:not(.bg-muted\\/40)').count();
+  const before = await rowsNow();
+  await heads.first().focus();
+  await page.keyboard.press('ArrowLeft');
+  check('Left collapses a group', (await expanded(0)) === 'false' && (await rowsNow()) < before, `${before} -> ${await rowsNow()}`);
+  await page.keyboard.press('ArrowLeft');
+  check('Left again keeps it collapsed', (await expanded(0)) === 'false');
+  await page.keyboard.press('ArrowDown');
+  check('Down moves to the next group header', await page.evaluate(() => document.activeElement === document.querySelectorAll('[data-group-toggle]')[1]));
+  await page.keyboard.press('Enter');
+  check('Enter collapses it', (await expanded(1)) === 'false');
+  await page.keyboard.press('Space');
+  check('Space expands it again', (await expanded(1)) === 'true');
+  await page.keyboard.press('ArrowUp');
+  await page.keyboard.press('ArrowRight');
+  check('Up + Right expands the first', (await expanded(0)) === 'true');
+  await page.keyboard.press('ArrowLeft');
+  await page.reload();
+  await heads.first().waitFor();
+  check('collapsed group remembered after reload', (await expanded(0)) === 'false' && (await expanded(1)) === 'true');
+  await page.getByRole('button', { name: 'Collapse all' }).click();
+  const n = await heads.count();
+  const states = async () => Promise.all([...Array(n).keys()].map(expanded));
+  check('Collapse all', (await states()).every((x) => x === 'false') && (await rowsNow()) === 0, `${n} groups`);
+  await page.getByRole('button', { name: 'Expand all' }).click();
+  check('Expand all', (await states()).every((x) => x === 'true'));
+  await page.getByRole('combobox', { name: 'Group by' }).click();
+  await page.getByRole('option', { name: 'Manufacturer' }).click();
+  await heads.first().waitFor();
+  check('another group-by has its own state', (await expanded(0)) === 'true');
+
+  // Cards: the title is the toggle.
+  const starorg = page.locator('#main [data-slot=card-toggle]', { hasText: /^\s*StarOrg Tools\s*$/ });
+  await starorg.focus();
+  await page.keyboard.press('Space');
+  const pullHidden = async () => !(await page.getByRole('button', { name: 'Pull', exact: true }).isVisible());
+  check('Space collapses a card', (await starorg.getAttribute('aria-expanded')) === 'false' && (await pullHidden()));
+  await page.reload();
+  await starorg.waitFor();
+  check('collapsed card remembered after reload', (await starorg.getAttribute('aria-expanded')) === 'false' && (await pullHidden()));
+  await starorg.focus();
+  await page.keyboard.press('ArrowRight');
+  check('Right expands it', (await starorg.getAttribute('aria-expanded')) === 'true' && !(await pullHidden()));
+
+  // Markers in game -> Enhancements -> Blueprints.
+  check('markers card shows the state', /\[Owned\][\s\S]*blue/.test((await page.locator('#bp-markers').textContent()) ?? ''));
+  await page.getByRole('button', { name: 'Edit blueprint markers' }).focus();
+  await page.keyboard.press('Enter');
+  const tab = page.getByRole('tab', { name: /^Blueprints/ });
+  await tab.waitFor();
+  check('Edit blueprint markers opens Enhancements → Blueprints', (await tab.getAttribute('aria-selected')) === 'true' && (await page.getByRole('switch', { name: /^Mark blueprints you own/ }).count()) === 1);
+  check('no [Owned] switch left under Missions', await (async () => {
+    await page.getByRole('tab', { name: /^Missions/ }).click();
+    return (await page.getByRole('switch', { name: /\[Owned\]|\[Missing\]|\[BP/ }).count()) === 0 && (await page.getByText('Open blueprint markers').isVisible());
+  })());
 
   await browser.close();
   if (errors.length) console.log(`errors:\n${errors.join('\n')}`);

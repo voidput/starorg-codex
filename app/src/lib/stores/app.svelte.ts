@@ -64,6 +64,8 @@ class AppState {
   stringsSearch = $state<string | null>(null);
   /** A Settings section (card id, e.g. 'network') the Settings screen scrolls to on its next open. */
   settingsSection = $state<string | null>(null);
+  /** An Enhancements tab (e.g. 'blueprints') the Enhancements screen opens on its next open. */
+  enhancementsTab = $state<string | null>(null);
   pending = $state.raw<Pending | null>(null);
 
   install = $derived(this.overview?.installs.find((i) => i.id === this.installId) ?? this.overview?.installs[0] ?? null);
