@@ -34,7 +34,7 @@ macro_rules! registry {
 registry! {
     ammo, // ammo.ts
 
-    // armor, // armor.ts
+    armor, // armor.ts
 
     // blueprints, // blueprints.ts
 
