@@ -15,7 +15,8 @@ steps, in this order:
 
 **Do step 1 first.** No uninstaller touches the game. If you skip it, the game keeps our
 `global.ini` and the `g_language = english` line in `USER.cfg`, and on Linux the LUG Helper
-scripts keep calling `starorg-codex` at every launch.
+scripts keep our block, which re-applies the text at every launch while `starorg-codex` is
+still installed.
 
 ## 1. Put the game back to stock
 
@@ -70,8 +71,10 @@ backed up. To get that file back instead of stock text, restore its backup:
 
 ### Linux: remove the launch hooks
 
-Only if you installed the LUG Helper launch hooks. Do this **before** removing the CLI, or the
-pre-launch script re-applies the text at the next game start.
+Only if you installed the LUG Helper launch hooks. Do this **while the app or CLI is still
+installed**: you need it to remove the block. Remove keeps the channel set up, so as long as the
+hooks and `starorg-codex` are both present, the pre-launch script re-applies the text at the
+next game start. With the CLI gone the block does nothing, but it stays in the scripts.
 
 - App: **Settings -> Launch hooks -> Remove hooks** (click again to confirm).
 - CLI:
@@ -117,7 +120,7 @@ The app never edits your AI client's settings; you added the entry yourself
 | `StarOrg.Codex_<v>_x64-setup.exe` (NSIS) | **Settings -> Apps -> Installed apps -> StarOrg Codex -> Uninstall**. The uninstaller's *Delete the application data* box removes only the webview storage (`%APPDATA%\tools.starorg.codex`, `%LOCALAPPDATA%\tools.starorg.codex`), not the folders in step 3 |
 | `StarOrg.Codex_<v>_x64_en-US.msi` | **Settings -> Apps -> Installed apps -> StarOrg Codex -> Uninstall** |
 | Microsoft Store | **Settings -> Apps -> Installed apps -> StarOrg Codex -> Uninstall** (or right-click it in Start -> Uninstall). This **also deletes its settings and backups**, see below |
-| CLI zip `starorg-codex-v<v>-windows-x86_64.zip` | Nothing is installed: delete the folder you unpacked (`starorg-codex.exe`, `starorg-strings.exe`, `LICENSE`). If you added that folder to your `PATH`, take it out again (Start -> "Edit environment variables for your account" -> Path) |
+| CLI zip `starorg-codex-v<v>-windows-x86_64.zip` | Nothing is installed: delete the folder you unpacked (`starorg-codex.exe`, `starorg-strings.exe`, `LICENSE`, `THIRD_PARTY_NOTICES.md`). If you added that folder to your `PATH`, take it out again (Start -> "Edit environment variables for your account" -> Path) |
 
 **Microsoft Store:** the Store copy keeps its settings and backups inside its package folder
 (`%LOCALAPPDATA%\Packages\<package>\LocalCache\`), and Windows deletes that folder when you
@@ -191,8 +194,8 @@ as `%APPDATA%\StarOrg Tools` into the File Explorer address bar to open it. Stor
 ### Asset cache in a folder you chose
 
 If you set **Settings -> Advanced -> Asset cache** to your own folder, the cache is in a
-`StarOrg Codex asset cache` subfolder there. **Clear** in that setting empties it; or delete
-that subfolder by hand. Do this before deleting the config folder, which holds the setting.
+`StarOrg Codex asset cache` subfolder there. **Clear** in that setting empties it (the row is
+shown only with Developer mode on); or delete that subfolder by hand. Do this before deleting the config folder, which holds the setting.
 
 ### Old StarOrg Strings folders (before 0.3.0)
 
