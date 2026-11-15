@@ -543,6 +543,33 @@ impl RealBackend {
         });
     }
 
+    /// Labels of `values` from the running explorer (none started for this), added to `out`.
+    fn explorer_labels(
+        &self,
+        target: &ChannelRef,
+        mut values: Vec<String>,
+        out: &mut BTreeMap<String, Readable>,
+    ) {
+        values.truncate(MAX_PAGE);
+        if values.is_empty() {
+            return;
+        }
+        let Some(w) = self.worker_if_ready(target) else {
+            return;
+        };
+        let got: Vec<Option<Readable>> = w
+            .call(&Request::Labels {
+                values: values.clone(),
+            })
+            .unwrap_or_default();
+        out.extend(
+            values
+                .into_iter()
+                .zip(got)
+                .filter_map(|(g, r)| Some((g, r?))),
+        );
+    }
+
     /// The running worker for this target, without starting one.
     fn worker_if_ready(&self, r: &ChannelRef) -> Option<Arc<Worker>> {
         let (_, _, key) = self.dev_channel(r).ok()?;
@@ -1229,33 +1256,20 @@ impl DevBackend for RealBackend {
             Some(l) => readable::labels_in(&*l, row),
             None => readable::labels_in(&NoLookup, row),
         };
-        // GUIDs the build's GameData does not name: ask the explorer, while it runs.
-        if let Some(w) = self.worker_if_ready(&req.target) {
-            let mut open: Vec<String> = Vec::new();
-            fn guids(v: &Value, out: &mut Vec<String>) {
-                match v {
-                    Value::String(s) if starorg_core::dev::explorer::is_guid(s) => {
-                        if !out.contains(s) {
-                            out.push(s.clone())
-                        }
-                    }
-                    Value::Array(a) => a.iter().for_each(|x| guids(x, out)),
-                    Value::Object(m) => m.values().for_each(|x| guids(x, out)),
-                    _ => {}
-                }
-            }
-            guids(row, &mut open);
-            open.retain(|g| !labels.contains_key(g));
-            open.truncate(MAX_PAGE);
-            if !open.is_empty() {
-                let got: Vec<Option<Readable>> = w
-                    .call(&Request::Labels {
-                        values: open.clone(),
-                    })
-                    .unwrap_or_default();
-                labels.extend(open.into_iter().zip(got).filter_map(|(g, r)| Some((g, r?))));
+        // GUIDs and record names the build's GameData does not name: ask the explorer, while
+        // it runs.
+        let mut open: Vec<String> = Vec::new();
+        fn strings(v: &Value, out: &mut Vec<String>) {
+            match v {
+                Value::String(s) if asks_explorer(s) && !out.contains(s) => out.push(s.clone()),
+                Value::Array(a) => a.iter().for_each(|x| strings(x, out)),
+                Value::Object(m) => m.values().for_each(|x| strings(x, out)),
+                _ => {}
             }
         }
+        strings(row, &mut open);
+        open.retain(|g| !labels.contains_key(g));
+        self.explorer_labels(&req.target, open, &mut labels);
         Ok(DevRowDetail {
             row: req.row,
             json,
@@ -1407,6 +1421,30 @@ impl DevBackend for RealBackend {
         let lb: &dyn Lookup = st.lb.as_deref().map_or(&NoLookup, |l| l);
         let mut changes = diff::field_changes(&a, &b);
         diff::annotate_changes(&mut changes, la, lb);
+        diff::name_positions(&mut changes, &a, &b, la, lb);
+        // Values neither build's GameData names (record names, GUIDs): ask the explorer.
+        let mut open: Vec<String> = Vec::new();
+        for c in &changes {
+            for (v, l) in [(&c.old, &c.old_label), (&c.new, &c.new_label)] {
+                if let (Some(Value::String(s)), None) = (v, l)
+                    && asks_explorer(s)
+                    && !open.contains(s)
+                {
+                    open.push(s.clone());
+                }
+            }
+        }
+        let mut found = BTreeMap::new();
+        self.explorer_labels(&req.target, open, &mut found);
+        for c in &mut changes {
+            for (v, l) in [(&c.old, &mut c.old_label), (&c.new, &mut c.new_label)] {
+                if l.is_none()
+                    && let Some(Value::String(s)) = v
+                {
+                    *l = found.get(s).cloned();
+                }
+            }
+        }
         let label = record_title(
             rec,
             td.summary.identity.as_deref(),
@@ -1422,4 +1460,16 @@ impl DevBackend for RealBackend {
             changes,
         })
     }
+}
+
+/// A dataset value worth asking the explorer about: a GUID, or a record-name shape
+/// (`factionreputation_lawful_ftl`, `EntityClassDefinition.AEGS_Gladius`).
+fn asks_explorer(s: &str) -> bool {
+    starorg_core::dev::explorer::is_guid(s)
+        || ((4..=200).contains(&s.len())
+            && (s.contains('_') || s.contains('.'))
+            && !s.starts_with('@')
+            && !s.contains(char::is_whitespace)
+            && !s.contains('/')
+            && s.parse::<f64>().is_err())
 }

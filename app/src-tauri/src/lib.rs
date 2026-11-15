@@ -4,6 +4,7 @@ pub mod commands;
 pub mod contract;
 pub mod gpu;
 pub mod mcp;
+pub mod tokens;
 pub mod update;
 
 #[cfg(test)]
@@ -43,9 +44,22 @@ fn backend() -> (BackendState, contract::real::DialogSlot, update::HostSlot) {
         let mut cfg = contract::real::RealConfig::from_env()
             .unwrap_or_else(|e| panic!("StarOrg Codex cannot start: {e}"));
         cfg.dialogs = slot.clone();
-        let b = contract::real::RealBackend::new(cfg);
+        let b = std::sync::Arc::new(contract::real::RealBackend::new(cfg));
         let host = b.update_host();
-        (BackendState::new(b), slot, host)
+        // "Sync automatically after game exit" (Settings -> StarOrg Tools): a cheap check
+        // every 20 s that does nothing unless that switch, the network switch and a sign-in
+        // are all on.
+        let watch = b.clone();
+        std::thread::Builder::new()
+            .name("starorg-auto-sync".into())
+            .spawn(move || {
+                loop {
+                    std::thread::sleep(std::time::Duration::from_secs(20));
+                    watch.starorg_auto_tick();
+                }
+            })
+            .expect("cannot start the StarOrg sync watcher");
+        (BackendState(b), slot, host)
     }
 }
 

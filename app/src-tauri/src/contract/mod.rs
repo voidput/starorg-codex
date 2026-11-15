@@ -112,13 +112,22 @@ pub trait Backend: dev::DevBackend + Send + Sync + 'static {
     fn fleet_clear(&self, req: ChannelRef) -> CmdResult<FleetView>;
 
     fn starorg_status(&self, channel: String) -> CmdResult<StarOrgStatus>;
+    /// Loopback PKCE sign-in in the system browser; waits for the browser (or
+    /// `starorg_cancel_login`).
     fn starorg_login(&self, channel: String) -> CmdResult<StarOrgStatus>;
+    /// Stops a waiting sign-in; it then fails with `cancelled`.
+    fn starorg_cancel_login(&self) -> CmdResult<()>;
+    /// Revokes the token on the server when the network switch is on, and forgets it here.
     fn starorg_logout(&self, channel: String) -> CmdResult<StarOrgStatus>;
+    /// The org the blueprint routes go through.
+    fn set_starorg_guild(&self, req: StarOrgGuildRequest) -> CmdResult<StarOrgStatus>;
     fn set_sync_characters(&self, req: SyncCharactersRequest) -> CmdResult<StarOrgStatus>;
     /// StarOrg owned set -> one character's set (union). Refused while not connected.
     fn starorg_pull(&self, req: StarOrgPullRequest) -> CmdResult<SyncReport>;
     /// Union of the ticked characters' sets -> StarOrg. Never pushes removals.
     fn starorg_push(&self, channel: String) -> CmdResult<SyncReport>;
+    /// "Sync now": pull, push and fleet, as far as the "What to sync" switches allow.
+    fn starorg_sync(&self, channel: String) -> CmdResult<SyncRun>;
 
     fn hooks_status(&self) -> CmdResult<HooksStatus>;
     fn hooks_install(&self) -> CmdResult<HooksStatus>;
@@ -143,6 +152,10 @@ pub trait Backend: dev::DevBackend + Send + Sync + 'static {
     fn open_release_page(&self) -> CmdResult<()>;
     /// AppImage / NSIS / MSI with a real key: download, verify, install, restart.
     fn install_update(&self) -> CmdResult<UpdateStatus>;
+
+    /// Footer / About links (Support, Buy me a coffee) in the system browser. The webview
+    /// names an allowlisted link; the URL lives in Rust ([`ExternalLink::url`]).
+    fn open_link(&self, link: ExternalLink) -> CmdResult<()>;
 
     // Experimental local MCP server (docs/mcp.md): off at every start, loopback only.
     fn mcp_status(&self) -> CmdResult<McpStatus>;
@@ -234,10 +247,13 @@ commands! {
     fleet_clear(req: ChannelRef) -> FleetView;
     starorg_status(channel: String) -> StarOrgStatus;
     starorg_login(channel: String) -> StarOrgStatus;
+    starorg_cancel_login() -> ();
     starorg_logout(channel: String) -> StarOrgStatus;
+    set_starorg_guild(req: StarOrgGuildRequest) -> StarOrgStatus;
     set_sync_characters(req: SyncCharactersRequest) -> StarOrgStatus;
     starorg_pull(req: StarOrgPullRequest) -> SyncReport;
     starorg_push(channel: String) -> SyncReport;
+    starorg_sync(channel: String) -> SyncRun;
     hooks_status() -> HooksStatus;
     hooks_install() -> HooksStatus;
     hooks_uninstall() -> HooksStatus;
@@ -250,6 +266,7 @@ commands! {
     skip_update(version: String) -> UpdateStatus;
     open_release_page() -> ();
     install_update() -> UpdateStatus;
+    open_link(link: ExternalLink) -> ();
     mcp_status() -> McpStatus;
     set_mcp_enabled(req: McpToggle) -> McpStatus;
 }
@@ -324,10 +341,13 @@ macro_rules! contract_handler {
             $crate::contract::fleet_clear,
             $crate::contract::starorg_status,
             $crate::contract::starorg_login,
+            $crate::contract::starorg_cancel_login,
             $crate::contract::starorg_logout,
+            $crate::contract::set_starorg_guild,
             $crate::contract::set_sync_characters,
             $crate::contract::starorg_pull,
             $crate::contract::starorg_push,
+            $crate::contract::starorg_sync,
             $crate::contract::hooks_status,
             $crate::contract::hooks_install,
             $crate::contract::hooks_uninstall,
@@ -340,6 +360,7 @@ macro_rules! contract_handler {
             $crate::contract::skip_update,
             $crate::contract::open_release_page,
             $crate::contract::install_update,
+            $crate::contract::open_link,
             $crate::contract::dev::dev_status,
             $crate::contract::dev::dev_open,
             $crate::contract::dev::dev_close,
@@ -420,10 +441,13 @@ pub const COMMAND_NAMES: &[&str] = &[
     "fleet_clear",
     "starorg_status",
     "starorg_login",
+    "starorg_cancel_login",
     "starorg_logout",
+    "set_starorg_guild",
     "set_sync_characters",
     "starorg_pull",
     "starorg_push",
+    "starorg_sync",
     "hooks_status",
     "hooks_install",
     "hooks_uninstall",
@@ -436,6 +460,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "skip_update",
     "open_release_page",
     "install_update",
+    "open_link",
     "dev_status",
     "dev_open",
     "dev_close",

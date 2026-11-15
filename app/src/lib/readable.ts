@@ -89,6 +89,19 @@ export function valueText(v: unknown, label: Readable | null | undefined, unit: 
   return { primary: t, secondary: null, raw: true, unresolved: false, enhanced: null, title: t };
 }
 
+/**
+ * Both sides of a field change. When the two read the same but their raw values differ (a
+ * key swapped for another with the same text), the raw values lead so the change shows,
+ * with the shared text as the secondary line.
+ */
+export function changeTexts(c: { old: unknown; new: unknown; old_label: Readable | null; new_label: Readable | null; unit: string | null }, showIds: boolean): [Shown, Shown] {
+  const o = valueText(c.old, c.old_label, c.unit, showIds);
+  const n = valueText(c.new, c.new_label, c.unit, showIds);
+  if (o.raw || n.raw || o.primary !== n.primary || typeof c.old !== 'string' || typeof c.new !== 'string' || c.old === c.new) return [o, n];
+  const same = (s: Shown, raw: string): Shown => ({ ...s, primary: raw, secondary: `same text: ${s.primary}`, raw: true });
+  return [same(o, c.old), same(n, c.new)];
+}
+
 /** Field changes in their groups, in order (a group per item or top-level field). */
 export function groupChanges<T extends { group: string | null }>(changes: T[]): { group: string | null; items: T[] }[] {
   const out: { group: string | null; items: T[] }[] = [];

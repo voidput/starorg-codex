@@ -6,7 +6,8 @@
  *
  * URL switches: `?delay=<ms>` per job step (default 250), `?state=ready` to start with LIVE
  * applied and HOTFIX set up but behind a game update (skips the wizard), with some backups,
- * overrides and hook history; add `&starorg=1` to start signed in to StarOrg Tools.
+ * overrides and hook history; add `&starorg=1` to start signed in to StarOrg Tools
+ * (`&starorgenv=dev` on dev.starorg.tools, `&sync=all` with every "What to sync" switch on).
  * States for renders (channel names): `&running=LIVE` (game running), `&interrupted=LIVE`,
  * `&foreign=LIVE` (another tool's file in place), `&builderr=LIVE`, `&channels=5`,
  * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
@@ -38,6 +39,7 @@ const SAMPLES = samples as unknown as {
   hooks_status: T.HooksStatus;
   doctor: T.DoctorReport;
   starorg_status: T.StarOrgStatus;
+  set_starorg_guild: T.StarOrgStatus;
   import_smart_citizen: T.ImportReport;
   query_strings: T.StringsPage;
   fleet_view: T.FleetView;
@@ -398,8 +400,13 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       });
     }
   }
-  let settings: T.Settings = { ...clone(SAMPLES.get_settings), network: { check_updates: false, published_dumps: false, starorg: false } };
-  const starorg: T.StarOrgStatus = { ...clone(SAMPLES.starorg_status), connected: false, user: null, guild: null, expires: null, sync_characters: [] };
+  const defaultSync = (): T.StarOrgSettings => ({ environment: 'production', import_game_log: true, push_blueprints: false, pull_blueprints: false, pull_fleet: false, auto_sync: false });
+  let settings: T.Settings = { ...clone(SAMPLES.get_settings), network: { check_updates: false, published_dumps: false, starorg: false }, starorg: defaultSync() };
+  const signedOut = { connected: false, user: null, guild: null, guild_id: null, guilds: [] as T.StarOrgGuild[], expires: null, token_store: null };
+  const starorg: T.StarOrgStatus = { ...clone(SAMPLES.starorg_status), ...signedOut, expired: false, sync_characters: [] };
+  const signIn = () =>
+    Object.assign(starorg, { ...clone(SAMPLES.set_starorg_guild), sync_characters: starorg.sync_characters, push_count: starorg.push_count, last_sync: starorg.last_sync });
+  const syncOff = (what: string) => fail('invalid', `${what} is off under Settings -> StarOrg Tools -> What to sync.`);
   let hooks: T.HooksStatus = clone(SAMPLES.hooks_status);
   let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
   const log: T.LogEntry[] = [];
@@ -470,6 +477,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     for (const t of ticked) for (const b of c?.owned.get(t) ?? []) union.add(b.name);
     starorg.push_count = union.size;
     starorg.enabled = settings.network.starorg;
+    starorg.environment = settings.starorg.environment;
+    starorg.host = settings.starorg.environment === 'dev' ? 'dev.starorg.tools' : 'starorg.tools';
     return clone(starorg);
   };
   const charactersView = (c: Chan): T.CharactersView => ({
@@ -1009,8 +1018,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     activity: ({ limit }) => clone(log.slice(-limit).reverse()),
     get_settings: () => clone(settings),
     save_settings: ({ req }) => {
+      // Tokens are per environment: switching signs out (the UI asks first).
+      const envChanged = settings.starorg.environment !== req.starorg.environment;
       settings = clone(req);
-      if (!settings.network.starorg) Object.assign(starorg, { connected: false, user: null, guild: null });
+      if (!settings.network.starorg || envChanged) Object.assign(starorg, signedOut);
       return clone(settings);
     },
     list_characters: ({ req }) => charactersView(chan(req)),
@@ -1039,6 +1050,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     fleet_import: async ({ req }) => {
       chan(req.target);
+      if (req.source.kind === 'star-org') {
+        starorgGuild();
+        if (!settings.starorg.pull_fleet) syncOff('Pull fleet/hangar');
+      }
       if (req.source.kind === 'file') lastFile = true;
       if (req.source.kind === 'last' && !lastFile) fail('not-found', 'Choose the file again: it is no longer in memory.');
       await sleep(Math.min(delay, 400));
@@ -1066,7 +1081,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         }
       }
       const report: T.FleetImportReport = {
-        file: req.source.kind === 'text' ? null : 'synthetic-fleet.json',
+        file: req.source.kind === 'text' ? null : req.source.kind === 'star-org' ? 'StarOrg Tools hangar' : 'synthetic-fleet.json',
         format,
         dry_run: req.dry_run,
         merge: req.merge,
@@ -1140,12 +1155,19 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     starorg_status: ({ channel }) => starorgView(channel),
     starorg_login: ({ channel }) => {
       if (!settings.network.starorg) fail('network-off', 'Turn on "Connect StarOrg Tools" under Settings -> Network first.');
-      Object.assign(starorg, { connected: true, user: 'pilot_a_discord', guild: 'Synthetic Org', expires: '2027-02-12T21:30:05Z' });
+      signIn();
       return starorgView(channel);
     },
+    starorg_cancel_login: () => null,
     starorg_logout: ({ channel }) => {
-      Object.assign(starorg, { connected: false, user: null, guild: null, expires: null });
+      Object.assign(starorg, signedOut);
       return starorgView(channel);
+    },
+    set_starorg_guild: ({ req }) => {
+      const g = starorg.guilds.find((x) => x.id === req.guild);
+      if (!g) fail('invalid', 'Pick one of your orgs on StarOrg Tools.');
+      Object.assign(starorg, { guild: g!.name, guild_id: g!.id });
+      return starorgView(req.channel);
     },
     set_sync_characters: ({ req }) => {
       starorgView(req.channel);
@@ -1155,6 +1177,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     starorg_pull: ({ req }) => {
       const guild = starorgGuild();
+      if (!settings.starorg.pull_blueprints) syncOff('Pull owned blueprints');
       if (!CHARACTER_IDS.includes(req.character)) fail('invalid', 'Pick one of the characters found in the logs.');
       const c = chan({ install: installs[0]!.id, channel: req.channel });
       const set = c.owned.get(req.character) ?? [];
@@ -1174,10 +1197,40 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     starorg_push: ({ channel }) => {
       const guild = starorgGuild();
+      if (!settings.starorg.push_blueprints) syncOff('Push owned blueprints');
       const sent = starorgView(channel).push_count;
       starorg.last_sync = NOW;
       addLog('info', 'sync', channel, `Pushed ${sent} owned blueprints to StarOrg (${guild})`);
       return { direction: 'push', channel, guild, character: null, added: [], already: 0, unmatched: [], sent, time: NOW };
+    },
+    starorg_sync: async ({ channel }) => {
+      starorgGuild();
+      const p = settings.starorg;
+      if (!p.push_blueprints && !p.pull_blueprints && !p.pull_fleet) fail('invalid', 'Nothing to sync: turn on a StarOrg switch under Settings -> StarOrg Tools -> What to sync.');
+      const reports: T.SyncReport[] = [];
+      const skipped: string[] = [];
+      const target = { install: installs[0]!.id, channel };
+      const step = async (name: string, f: () => unknown) => {
+        try {
+          return await f();
+        } catch (e) {
+          skipped.push(`${name}: ${(e as T.AppError).message ?? String(e)}`);
+          return null;
+        }
+      };
+      if (p.pull_blueprints) {
+        const who = chan(target).active.resolved;
+        if (who) {
+          const r = (await step('Pull', () => h.starorg_pull({ req: { channel, character: who } }))) as T.SyncReport | null;
+          if (r) reports.push(r);
+        } else skipped.push('Pull: no character found in the logs yet');
+      }
+      if (p.push_blueprints) {
+        const r = (await step('Push', () => h.starorg_push({ channel }))) as T.SyncReport | null;
+        if (r) reports.push(r);
+      }
+      const fleetR = p.pull_fleet ? ((await step('Fleet', () => h.fleet_import({ req: { target, source: { kind: 'star-org' }, dry_run: false, merge: true } }))) as T.FleetImportReport | null) : null;
+      return { channel, reports, fleet: fleetR, skipped, time: NOW };
     },
     hooks_status: () => clone(hooks),
     hooks_install: () => {
@@ -1222,6 +1275,11 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         addLog('info', 'mcp', null, 'Local MCP server stopped');
       }
       return clone(mcp);
+    },
+    // No system browser in the mock: the activity log records the click.
+    open_link: ({ link }) => {
+      addLog('info', null, null, `Opened the ${link === 'support' ? 'Support' : 'Buy me a coffee'} link`);
+      return null;
     },
     ...createUpdateMock(() => settings, params),
   };
@@ -1275,8 +1333,10 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     nextLog = log.length + 1;
     if (params.get('starorg') === '1') {
       settings.network.starorg = true;
-      Object.assign(starorg, { connected: true, user: 'pilot_a_discord', guild: 'Synthetic Org', expires: '2027-02-12T21:30:05Z' });
+      signIn();
     }
+    if (params.get('starorgenv') === 'dev') settings.starorg.environment = 'dev';
+    if (params.get('sync') === 'all') Object.assign(settings.starorg, { push_blueprints: true, pull_blueprints: true, pull_fleet: true, auto_sync: true });
     if (params.get('log') === 'empty') log.length = 0;
     sync();
   }

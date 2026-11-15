@@ -95,7 +95,8 @@ fn build_core() -> MockCore {
             .collect();
         let mut v = json!({
             "_Type_": "SynShip",
-            "Name": ship_key(n),
+            "DisplayName": format!("Synthetic hull {n}"),
+            "Description": ship_key(n),
             "Crew": n % 4 + 1,
             "Mass": 10_000 + n * 250,
             "Speed": { "Scm": 150 + n, "Max": 900 + n * 7, "Boost": { "Forward": 1.5, "Back": 0.75 } },
@@ -177,8 +178,8 @@ pub const MAKERS: [(&str, &str); 3] = [
     ("SYNC", "Gamma Test Yards"),
 ];
 
-/// The records the mock's labels know (7.14): every synthetic record, ships and components
-/// with their `Name` key, tags with their label.
+/// The records the mock's labels know (7.14): every synthetic record, components with their
+/// `Name` key, ships with their plain `DisplayName`, tags with their label.
 pub fn known() -> Vec<KnownRecord> {
     let c = core();
     c.index
@@ -187,7 +188,12 @@ pub fn known() -> Vec<KnownRecord> {
         .zip(&c.values)
         .map(|(e, v)| {
             let tag = e.struct_type == "SynTag";
-            let field = if tag { "Label" } else { "Name" };
+            let field = match e.struct_type.as_str() {
+                "SynTag" => "Label",
+                // Ships carry a plain display name; their key is a description.
+                "SynShip" => "DisplayName",
+                _ => "Name",
+            };
             KnownRecord {
                 guid: Some(e.guid.clone()),
                 name: e.name.clone(),
@@ -959,8 +965,10 @@ impl DevBackend for MockBackend {
             .unwrap_or_else(|| Value::Object(Default::default()))
         };
         let l = lookup(true);
-        let mut changes = diff::field_changes(&row(a, rec.a), &row(b, rec.b));
+        let (ra, rb) = (row(a, rec.a), row(b, rec.b));
+        let mut changes = diff::field_changes(&ra, &rb);
         diff::annotate_changes(&mut changes, &l, &l);
+        diff::name_positions(&mut changes, &ra, &rb, &l, &l);
         let label = record_title(
             rec,
             td.summary.identity.as_deref(),

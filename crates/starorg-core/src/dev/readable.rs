@@ -337,11 +337,16 @@ pub fn label(l: &dyn Lookup, raw: &str, key: Option<&str>) -> Option<Readable> {
             });
         }
     }
+    // A record by name; one without a display name that only repeats the name stays raw.
     if s.len() >= 4
         && (s.contains('_') || s.contains('.'))
         && let Some(r) = l.by_name(s)
     {
-        return Some(record_label(l, &r));
+        let r = record_label(l, &r);
+        if r.detail.is_some() || r.kind == LabelKind::Tag || !r.text.eq_ignore_ascii_case(s) {
+            return Some(r);
+        }
+        return None;
     }
     if l.bare_keys() && s.contains('_') {
         return loc(l, s);
@@ -473,6 +478,83 @@ pub fn path_label(l: &dyn Lookup, path: &str) -> Option<String> {
         })
         .collect();
     any.then(|| parts.join(" › "))
+}
+
+/// Keys that name an element of a positional list (`/loadout/weapons/3`), in order.
+const ELEMENT_KEYS: [&str; 6] = [
+    "item",
+    "className",
+    "recordName",
+    "entityClassName",
+    "ref",
+    "name",
+];
+
+/// What an element of a list reads as: its first naming key that reads as something (a
+/// record by name or GUID, a loc key), else a plain `name`.
+fn element_name(l: &dyn Lookup, v: &Value) -> Option<String> {
+    let m = v.as_object()?;
+    ELEMENT_KEYS
+        .iter()
+        .find_map(|k| {
+            let s = m.get(*k)?.as_str()?;
+            label(l, s, Some(k)).map(|r| r.text)
+        })
+        .or_else(|| {
+            m.get("name")
+                .and_then(Value::as_str)
+                .filter(|s| shown(s) && !s.starts_with('@'))
+                .map(str::to_string)
+        })
+}
+
+/// [`path_label`] with positional segments (`/loadout/weapons/3/dps`) named from the element
+/// they point at in `row`: `loadout › weapons › Draugar Gatling › dps`. `None` when nothing
+/// in it reads as anything.
+pub fn path_label_in(l: &dyn Lookup, path: &str, row: &Value) -> Option<String> {
+    let mut any = false;
+    let mut at = Some(row);
+    let parts: Vec<String> = path
+        .trim_start_matches('/')
+        .split('/')
+        .map(|seg| {
+            let node = at;
+            at = None;
+            if let Some((c, v)) = keyed(seg) {
+                let v = unescape(v);
+                at = node.and_then(Value::as_array).and_then(|a| {
+                    a.iter()
+                        .find(|x| x.get(c).and_then(scalar_str).as_deref() == Some(v.as_str()))
+                });
+                let (t, hit) = seg_text(l, seg);
+                any |= hit;
+                return t;
+            }
+            let key = unescape(seg);
+            if let Some(Value::Array(a)) = node
+                && let Ok(i) = key.parse::<usize>()
+            {
+                at = a.get(i);
+                if let Some(name) = at.and_then(|x| element_name(l, x)) {
+                    any = true;
+                    return name;
+                }
+                return key;
+            }
+            at = node.and_then(|n| n.get(&key));
+            key
+        })
+        .collect();
+    any.then(|| parts.join(" › "))
+}
+
+fn scalar_str(v: &Value) -> Option<String> {
+    match v {
+        Value::String(s) => Some(s.clone()),
+        Value::Number(n) => Some(n.to_string()),
+        Value::Bool(b) => Some(b.to_string()),
+        _ => None,
+    }
 }
 
 /// The group a field change is shown under: the path up to its first `[column=value]`

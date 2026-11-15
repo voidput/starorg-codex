@@ -155,7 +155,7 @@ const shots = [
     await p.getByText('Default channel').waitFor();
     await p.locator('#starorg').scrollIntoViewIfNeeded();
     await p.evaluate(() => document.getElementById('starorg').scrollIntoView({ block: 'start' }));
-    await p.getByText('Characters to sync').waitFor();
+    await p.getByText('Characters to push').waitFor();
   }, '&starorg=1'],
   // Update check (docs/updates.md; mock-update.ts switches).
   ['home-update-available', 'home', async (p) => p.getByText('StarOrg Codex 0.2.0 is available').waitFor(), '&update=available'],

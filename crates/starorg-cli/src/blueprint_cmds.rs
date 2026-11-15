@@ -78,7 +78,8 @@ pub(crate) fn scan_channel(
     } else {
         Store::default()
     };
-    let rep = logscan::scan(&ch.dir, &data, &mut store, deadline);
+    let on = starorg_core::starorg::SyncPrefs::load(&c.dirs).import_game_log;
+    let rep = logscan::scan_if(on, &ch.dir, &data, &mut store, deadline);
     if save {
         store.save(&data)?;
     }
@@ -97,6 +98,12 @@ fn name_of(chars: &Characters, geid: Option<&str>) -> String {
 
 pub(crate) fn print_scan(g: &GlobalOpts, ch: &str, store: &Store, r: &ScanReport) {
     if g.quiet || g.json {
+        return;
+    }
+    if r.disabled {
+        println!(
+            "{ch}: Game.log import is off (starorg-strings sync set --import-game-log on); no log read"
+        );
         return;
     }
     let mut line = format!(
@@ -489,7 +496,8 @@ fn import_cmd(
     } else {
         Store::default()
     };
-    let scan = logscan::scan(&ch.dir, &data, &mut store, None);
+    let on = starorg_core::starorg::SyncPrefs::load(&c.dirs).import_game_log;
+    let scan = logscan::scan_if(on, &ch.dir, &data, &mut store, None);
     let geid = match store.characters.resolve(who) {
         Ok(gid) => gid,
         Err(e @ blueprints::ResolveError::Ambiguous(..)) => {

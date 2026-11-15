@@ -152,6 +152,9 @@ fn samples() -> Value {
         .unwrap();
     let mut settings = b.get_settings().unwrap();
     settings.network.starorg = true;
+    settings.starorg.push_blueprints = true;
+    settings.starorg.pull_blueprints = true;
+    settings.starorg.pull_fleet = true;
     let settings = b.save_settings(settings).unwrap();
     let (fleet_dry, fleet_import, fleet_match, fleet_saved, fleet_clear, fleet_view) =
         fleet_samples(&b);
@@ -221,6 +224,14 @@ fn samples() -> Value {
     ] {
         v[k] = x;
     }
+    v["starorg_sync"] = json!(b.starorg_sync("LIVE".into()).unwrap());
+    v["set_starorg_guild"] = json!(
+        b.set_starorg_guild(StarOrgGuildRequest {
+            channel: "LIVE".into(),
+            guild: "100000000000000001".into(),
+        })
+        .unwrap()
+    );
     // Outside json! (its recursion limit).
     let (off, available, failed) = update_samples();
     v["update_status"] = json!(off);
@@ -229,6 +240,7 @@ fn samples() -> Value {
     for (k, x) in super::tests_dev::dev_samples() {
         v[k] = x;
     }
+    v["open_link"] = json!(b.open_link(ExternalLink::Support).unwrap());
     let (mcp_off, mcp_on) = mcp_samples();
     v["mcp_status"] = json!(mcp_off);
     v["set_mcp_enabled"] = json!(mcp_on);
@@ -695,6 +707,10 @@ fn ts_unions_list_every_variant() {
             names(&[SyncDirection::Pull, SyncDirection::Push]),
         ),
         (
+            "TokenStoreKind",
+            names(&[TokenStoreKind::Keyring, TokenStoreKind::File]),
+        ),
+        (
             "HookKind",
             names(&[HookKind::Prelaunch, HookKind::Postexit]),
         ),
@@ -785,6 +801,7 @@ fn ts_unions_list_every_variant() {
             text: String::new(),
         },
         FleetSource::Last,
+        FleetSource::StarOrg,
     ]
     .iter()
     .map(|v| {
@@ -1413,6 +1430,17 @@ fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
     b.save_settings(s).unwrap();
     assert_eq!(pull().unwrap_err().code, ErrorCode::NeedsDecision);
     b.starorg_login("LIVE".into()).unwrap();
+    // Each kind needs its "What to sync" switch.
+    assert_eq!(pull().unwrap_err().code, ErrorCode::Invalid);
+    assert_eq!(
+        b.starorg_push("LIVE".into()).unwrap_err().code,
+        ErrorCode::Invalid
+    );
+    let mut s = b.get_settings().unwrap();
+    s.starorg.pull_blueprints = true;
+    s.starorg.push_blueprints = true;
+    b.save_settings(s).unwrap();
+    assert!(b.starorg_status("LIVE".into()).unwrap().connected);
     // Pull writes into the one chosen character (union, never delete).
     let r = pull().unwrap();
     assert_eq!(r.direction, SyncDirection::Pull);
@@ -1440,6 +1468,66 @@ fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
     })
     .unwrap();
     assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 4);
+}
+
+#[test]
+fn starorg_environment_switch_signs_out_and_sync_follows_the_switches() {
+    let b = MockBackend::default();
+    let mut s = b.get_settings().unwrap();
+    assert_eq!(s.starorg, StarOrgSettings::default());
+    assert!(s.starorg.import_game_log && !s.starorg.push_blueprints);
+    s.network.starorg = true;
+    let s = b.save_settings(s).unwrap();
+    let st = b.starorg_login("LIVE".into()).unwrap();
+    assert_eq!(st.host, "starorg.tools");
+    assert_eq!(st.guilds.len(), 2);
+    assert_eq!(st.token_store, Some(TokenStoreKind::Keyring));
+    // Nothing on: "Sync now" refuses, the hangar too.
+    assert_eq!(
+        b.starorg_sync("LIVE".into()).unwrap_err().code,
+        ErrorCode::Invalid
+    );
+    let hangar = FleetImportRequest {
+        target: live(),
+        source: FleetSource::StarOrg,
+        dry_run: true,
+        merge: true,
+    };
+    assert_eq!(
+        b.fleet_import(hangar.clone()).unwrap_err().code,
+        ErrorCode::Invalid
+    );
+    let mut on = s.clone();
+    on.starorg.pull_fleet = true;
+    on.starorg.push_blueprints = true;
+    b.save_settings(on.clone()).unwrap();
+    assert!(b.fleet_import(hangar).unwrap().total > 0);
+    let run = b.starorg_sync("LIVE".into()).unwrap();
+    assert_eq!(run.reports.len(), 1);
+    assert_eq!(run.reports[0].direction, SyncDirection::Push);
+    assert!(run.fleet.is_some() && run.skipped.is_empty());
+    // Another org.
+    let st = b
+        .set_starorg_guild(StarOrgGuildRequest {
+            channel: "LIVE".into(),
+            guild: "100000000000000002".into(),
+        })
+        .unwrap();
+    assert_eq!(st.guild.as_deref(), Some("Other Test Org"));
+    assert!(
+        b.set_starorg_guild(StarOrgGuildRequest {
+            channel: "LIVE".into(),
+            guild: "nope".into(),
+        })
+        .is_err()
+    );
+    // Dev: signed out, other host.
+    on.starorg.environment = StarOrgEnv::Dev;
+    b.save_settings(on).unwrap();
+    let st = b.starorg_status("LIVE".into()).unwrap();
+    assert!(!st.connected && st.user.is_none());
+    assert_eq!(st.host, "dev.starorg.tools");
+    assert_eq!(st.environment, StarOrgEnv::Dev);
 }
 
 #[test]
@@ -1755,6 +1843,48 @@ fn update_check_over_ipc_needs_the_switch_and_takes_a_req() {
     assert_eq!(
         ipc("skip_update", json!({ "version": "0.2.0" })).unwrap()["skipped_version"],
         "0.2.0"
+    );
+}
+
+#[test]
+fn open_link_takes_only_allowlisted_links() {
+    assert_eq!(ExternalLink::Support.url(), "https://discord.gg/GCkYhbFYNq");
+    assert_eq!(
+        ExternalLink::Donate.url(),
+        "https://buymeacoffee.com/zedwil"
+    );
+    // links.ts shows the same URLs (display only; Rust opens them).
+    let ts = std::fs::read_to_string(app_src().join("../links.ts")).unwrap();
+    for l in [ExternalLink::Support, ExternalLink::Donate] {
+        assert!(l.url().starts_with("https://"));
+        assert!(
+            ts.contains(&format!("url: '{}'", l.url())),
+            "{l:?} not in links.ts"
+        );
+    }
+    assert_eq!(
+        ipc("open_link", json!({ "link": "support" })).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        ipc("open_link", json!({ "link": "donate" })).unwrap(),
+        Value::Null
+    );
+    // Never a URL, never an unknown name.
+    for bad in [
+        json!({ "link": "https://example.com" }),
+        json!({ "link": "discord" }),
+        json!({ "url": "https://example.com" }),
+        json!({}),
+    ] {
+        assert!(ipc("open_link", bad.clone()).is_err(), "{bad}");
+    }
+    let b = MockBackend::default();
+    b.open_link(ExternalLink::Donate).unwrap();
+    let log = b.activity(1).unwrap();
+    assert!(
+        log[0].message.contains("buymeacoffee.com/zedwil"),
+        "{log:?}"
     );
 }
 

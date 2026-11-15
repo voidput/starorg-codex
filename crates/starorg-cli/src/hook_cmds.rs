@@ -73,6 +73,16 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
             }
         }
     }
+    // "Sync automatically after game exit": the CLI has no HTTP client, so it leaves the
+    // app a note (starorg_core::starorg::PENDING_FILE); the app syncs when it next looks.
+    let mut sync_pending = false;
+    if kind == Kind::Postexit {
+        let prefs = starorg_core::starorg::SyncPrefs::load(&c.dirs);
+        if prefs.auto_sync && prefs.any_network() {
+            let names: Vec<String> = i.channels.iter().map(|c| c.name.clone()).collect();
+            sync_pending = starorg_core::starorg::mark_pending(&c.dirs, &names).is_ok();
+        }
+    }
     let Ok(src) = source(g, &c) else {
         return soft(g, kind, "cannot find own binary");
     };
@@ -104,7 +114,7 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
         println!(
             "{}",
             json!({ "schema": JSON_SCHEMA, "command": command, "exit_code": code,
-                    "channels": channels, "scans": scans,
+                    "channels": channels, "scans": scans, "sync_pending": sync_pending,
                     "duration_ms": started.elapsed().as_millis() as u64 })
         );
         code

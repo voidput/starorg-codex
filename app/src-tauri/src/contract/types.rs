@@ -1090,6 +1090,40 @@ pub struct Settings {
     /// Missing in older saved settings = all off.
     #[serde(default)]
     pub advanced: AdvancedSettings,
+    /// Settings -> StarOrg Tools: environment and "What to sync". Stored in `config.toml`
+    /// (`[sync]`), so the CLI and the launch hooks follow the same switches.
+    #[serde(default)]
+    pub starorg: StarOrgSettings,
+}
+
+/// StarOrg Tools environment and what to sync (addendum §5). Defaults: production, Game.log
+/// import on (as before), everything that talks to StarOrg Tools off.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StarOrgSettings {
+    pub environment: StarOrgEnv,
+    /// Read Game.log for new blueprints (app, CLI, post-exit hook). Off: no log is read.
+    pub import_game_log: bool,
+    /// Push owned blueprints of the ticked characters to StarOrg Tools.
+    pub push_blueprints: bool,
+    /// Pull owned blueprints from StarOrg Tools into a character.
+    pub pull_blueprints: bool,
+    /// Pull the StarOrg Tools hangar into the fleet (Ships).
+    pub pull_fleet: bool,
+    /// Sync by itself after the game exits; off = only when asked.
+    pub auto_sync: bool,
+}
+
+impl Default for StarOrgSettings {
+    fn default() -> Self {
+        Self {
+            environment: StarOrgEnv::Production,
+            import_game_log: true,
+            push_blueprints: false,
+            pull_blueprints: false,
+            pull_fleet: false,
+            auto_sync: false,
+        }
+    }
 }
 
 /// Settings > Advanced (addendum 7.7).
@@ -1352,8 +1386,13 @@ pub struct FleetView {
 #[serde(tag = "kind", rename_all = "kebab-case")]
 pub enum FleetSource {
     File,
-    Text { text: String },
+    Text {
+        text: String,
+    },
     Last,
+    /// The StarOrg Tools hangar (`GET /api/fleet/hangar`); needs "Pull fleet/hangar" on and
+    /// a sign-in.
+    StarOrg,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1431,20 +1470,68 @@ pub struct SyncCharacter {
     pub owned: u32,
 }
 
+/// One org from the account card (`/api/auth/me` `guilds[]`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StarOrgGuild {
+    /// Discord id of the guild (the blueprint routes' `{guild_id}`).
+    pub id: String,
+    pub name: String,
+    /// The org has StarOrg's industrial feature (blueprint tracking).
+    pub blueprints: bool,
+}
+
+/// Where the sign-in token is kept.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TokenStoreKind {
+    /// Windows Credential Manager / Secret Service.
+    Keyring,
+    /// An owner-only file in the app's config folder (no keyring available).
+    File,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct StarOrgStatus {
     /// The network switch (Settings -> Network). Off: login is refused.
     pub enabled: bool,
     pub connected: bool,
     pub environment: StarOrgEnv,
+    /// `starorg.tools` or `dev.starorg.tools`.
+    pub host: String,
     pub user: Option<String>,
+    /// Name of the org the blueprint routes go through.
     pub guild: Option<String>,
+    pub guild_id: Option<String>,
+    /// The account's orgs (empty until signed in).
+    pub guilds: Vec<StarOrgGuild>,
     pub expires: Option<String>,
+    /// Signed in before, but the token expired or was revoked: sign in again.
+    pub expired: bool,
+    pub token_store: Option<TokenStoreKind>,
     pub last_sync: Option<String>,
     /// Characters whose owned sets are pushed as one union. Pull writes into one character.
     pub sync_characters: Vec<SyncCharacter>,
     /// Size of the union that a push would send.
     pub push_count: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StarOrgGuildRequest {
+    pub channel: String,
+    /// A `StarOrgGuild::id` of the signed-in account.
+    pub guild: String,
+}
+
+/// "Sync now" and the automatic run after the game exits: what the switches allow, in order
+/// pull, push, fleet. A step that fails is listed in `skipped`; the others still run.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncRun {
+    pub channel: String,
+    pub reports: Vec<SyncReport>,
+    pub fleet: Option<FleetImportReport>,
+    /// Steps not run, with the reason.
+    pub skipped: Vec<String>,
+    pub time: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1477,7 +1564,8 @@ pub struct SyncReport {
     /// Pull: names added locally. Push: names the server did not have yet.
     pub added: Vec<String>,
     pub already: u32,
-    /// Pull: StarOrg entries with no blueprint record in this build's game data.
+    /// Pull: StarOrg entries with no blueprint record in this build's game data. Push: local
+    /// names StarOrg Tools has no single blueprint for (unknown or ambiguous; not sent).
     pub unmatched: Vec<String>,
     /// Push: size of the union sent.
     pub sent: u32,
@@ -1664,6 +1752,33 @@ pub struct UpdateStatus {
 pub struct UpdateCheckRequest {
     /// `false`: the start-up check, at most once per 24 h. `true`: "Check now".
     pub force: bool,
+}
+
+/// A link the webview may ask to open. An allowlist: the webview never sends a URL, so it
+/// cannot open anything else (it has no opener/shell permission of its own).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExternalLink {
+    /// The Discord server.
+    Support,
+    /// Buy me a coffee.
+    Donate,
+}
+
+impl ExternalLink {
+    pub const fn url(self) -> &'static str {
+        match self {
+            Self::Support => "https://discord.gg/GCkYhbFYNq",
+            Self::Donate => "https://buymeacoffee.com/zedwil",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Support => "Support",
+            Self::Donate => "Buy me a coffee",
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------------------

@@ -12,10 +12,11 @@ use starorg_core::discovery::{Channel, DiscoveryEnv, DiscoveryRequest};
 use starorg_core::model::{Blueprint, GameData, Ship, ShipLoc};
 use starorg_core::source::{Budget, GameSource, Loaded, Origin, SourceError};
 use starorg_net::releases::Reply;
+use starorg_net::starorg::mock::{MockServer, MockState};
 use starorg_strings_app::contract::Backend;
 use starorg_strings_app::contract::real::UPDATE_JSON;
 use starorg_strings_app::contract::real::{
-    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory,
+    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory, StarOrgDeps,
 };
 use starorg_strings_app::contract::types::*;
 use starorg_strings_app::update::{ReleaseFetch, Updater};
@@ -122,7 +123,12 @@ fn manifest(branch: &str, change: u64, version: &str) -> String {
 const LOGIN: &str = "<2026-03-02T10:00:00.000Z> [Notice] <AccountLoginCharacterStatus_Character> Character: createdAt 1 - updatedAt 2 - geid 300003 - accountId 900 - name Test_Pilot - state STATE_CURRENT [Team_GameServices][Login]\n";
 
 impl Fake {
+    /// StarOrg Tools at a closed loopback port: no test ever reaches the real servers.
     fn new() -> Self {
+        Self::with_starorg("http://127.0.0.1:9")
+    }
+
+    fn with_starorg(starorg_base: &str) -> Self {
         let t = tempfile::tempdir().unwrap();
         let base = std::fs::canonicalize(t.path()).unwrap();
         let prefix = base.join("prefix");
@@ -174,6 +180,10 @@ impl Fake {
         .with_updater(Updater::with_fetch(
             dirs.data.join(UPDATE_JSON),
             Box::new(FakeGitHub::default()),
+        ))
+        .with_starorg(StarOrgDeps::local(
+            starorg_base,
+            Arc::new(starorg_net::starorg::mock::fake_browser),
         ));
         Self {
             _t: t,
@@ -620,17 +630,346 @@ fn smart_citizen_import_dry_run_reports_and_writes_nothing() {
     assert_eq!(chars.active.resolved.as_deref(), Some("300003"));
 }
 
-#[test]
-fn starorg_sync_is_refused_not_faked() {
-    let f = Fake::new();
-    let e = f.backend.starorg_push("LIVE".into()).unwrap_err();
-    assert_eq!(e.code, ErrorCode::NetworkOff);
+fn bp_line(t: &str, name: &str) -> String {
+    format!(
+        "<{t}> [Notice] <SHUDEvent_OnNotification> Added notification \"Received Blueprint: {name}: \" [7] to queue. New queue size: 1 [Team_CoreGameplayFeatures][Missions][Comms]\n"
+    )
+}
+
+/// A StarOrg stand-in whose lookup knows the fake build's rifle by name.
+fn starorg_server() -> MockServer {
+    let mut st = MockState::default();
+    st.lookup
+        .push(serde_json::json!({"id": 10, "k": "bp_fake_rifle", "n": "Fake Rifle Kestrel"}));
+    MockServer::with(st)
+}
+
+fn set_sync(f: &Fake, on: bool, edit: impl FnOnce(&mut StarOrgSettings)) -> Settings {
     let mut s = f.backend.get_settings().unwrap();
-    s.network.starorg = true;
-    f.backend.save_settings(s).unwrap();
+    s.network.starorg = on;
+    edit(&mut s.starorg);
+    f.backend.save_settings(s).unwrap()
+}
+
+/// Test_Pilot received the rifle and one blueprint StarOrg does not know.
+fn starorg_fake(m: &MockServer) -> Fake {
+    let f = Fake::with_starorg(&m.base);
+    std::fs::write(
+        f.lib.join("LIVE/Game.log"),
+        format!(
+            "<2026-03-02T09:59:00.000Z> Log started\n{LOGIN}{}{}",
+            bp_line("2026-03-02T10:05:00.000Z", "Fake Rifle Kestrel"),
+            bp_line("2026-03-02T10:06:00.000Z", "Unknown Test Visor"),
+        ),
+    )
+    .unwrap();
+    f.setup_live();
+    let chars = f.backend.list_characters(f.live()).unwrap();
+    assert_eq!(chars.characters[0].owned, 2);
+    f
+}
+
+#[test]
+fn starorg_needs_the_network_switch_and_sends_nothing_without_it() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert!(!st.enabled && !st.connected);
+    assert_eq!(st.host, "starorg.tools");
+    assert_eq!(st.push_count, 2);
+    for e in [
+        f.backend.starorg_login("LIVE".into()).unwrap_err(),
+        f.backend.starorg_push("LIVE".into()).unwrap_err(),
+        f.backend.starorg_sync("LIVE".into()).unwrap_err(),
+    ] {
+        assert_eq!(e.code, ErrorCode::NetworkOff);
+    }
+    assert!(m.requests().is_empty());
+}
+
+#[test]
+fn starorg_sign_in_pull_push_hangar_and_sign_out_against_a_local_server() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |_| {});
+    let st = f.backend.starorg_login("LIVE".into()).unwrap();
+    assert!(st.connected && !st.expired);
+    assert_eq!(st.user.as_deref(), Some("test_pilot_discord"));
+    assert_eq!(st.guilds.len(), 2);
+    // The first org with blueprint tracking is picked.
+    assert_eq!(st.guild.as_deref(), Some("Synthetic Org"));
+    assert_eq!(st.token_store, Some(TokenStoreKind::Keyring));
+    assert!(st.expires.is_some());
+    // No token in the app's own files.
+    let app_json = std::fs::read_to_string(f.dirs.config.join("app.json")).unwrap();
+    assert!(app_json.contains("test_pilot_discord"));
+    assert!(!app_json.contains("mock-"), "{app_json}");
+
+    // Each kind needs its switch: nothing is sent while it is off.
+    let before = m.requests().len();
+    assert_eq!(
+        f.backend.starorg_push("LIVE".into()).unwrap_err().code,
+        ErrorCode::Invalid
+    );
+    let pull = StarOrgPullRequest {
+        channel: "LIVE".into(),
+        character: "300003".into(),
+    };
+    assert_eq!(
+        f.backend.starorg_pull(pull.clone()).unwrap_err().code,
+        ErrorCode::Invalid
+    );
+    let hangar = FleetImportRequest {
+        target: f.live(),
+        source: FleetSource::StarOrg,
+        dry_run: true,
+        merge: true,
+    };
+    assert_eq!(
+        f.backend.fleet_import(hangar.clone()).unwrap_err().code,
+        ErrorCode::Invalid
+    );
+    assert_eq!(m.requests().len(), before);
+
+    set_sync(&f, true, |s| {
+        s.push_blueprints = true;
+        s.pull_blueprints = true;
+        s.pull_fleet = true;
+    });
+    let r = f.backend.starorg_push("LIVE".into()).unwrap();
+    assert_eq!(r.sent, 1);
+    assert_eq!(r.added, ["Fake Rifle Kestrel"]);
+    assert_eq!(r.unmatched, ["Unknown Test Visor"]);
+    let add = m
+        .requests()
+        .into_iter()
+        .find(|q| q.method == "POST" && q.path.ends_with("/my-blueprints"))
+        .unwrap();
+    assert!(add.path.contains("/guilds/100000000000000001/"));
+    assert!(add.body.contains("\"blueprint_ids\":[10]"), "{}", add.body);
+    assert!(
+        add.body.contains("2026-03-02T10:05:00.000Z"),
+        "{}",
+        add.body
+    );
+    // Character names and ids never leave the computer.
+    assert!(
+        m.requests()
+            .iter()
+            .all(|q| !q.body.contains("Test_Pilot") && !q.body.contains("300003"))
+    );
+
+    let r = f.backend.starorg_pull(pull).unwrap();
+    assert_eq!(r.direction, SyncDirection::Pull);
+    // The server's list: the seeded medical gun and the rifle just pushed.
+    assert_eq!(
+        r.added.len() + r.unmatched.len() + r.already as usize,
+        2,
+        "{r:?}"
+    );
+    assert!(r.already >= 1, "the rifle was already known locally: {r:?}");
+
+    let fleet = f.backend.fleet_import(hangar).unwrap();
+    assert_eq!(fleet.file.as_deref(), Some("StarOrg Tools hangar"));
+    assert_eq!(fleet.total, 3);
+
+    let run = f.backend.starorg_sync("LIVE".into()).unwrap();
+    assert_eq!(run.reports.len(), 2, "{run:?}");
+    assert!(run.fleet.is_some() && run.skipped.is_empty(), "{run:?}");
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert!(st.last_sync.is_some());
+
+    // Another org; one without blueprint tracking is a 404 from the server.
+    f.backend
+        .set_starorg_guild(StarOrgGuildRequest {
+            channel: "LIVE".into(),
+            guild: "100000000000000002".into(),
+        })
+        .unwrap();
+    assert_eq!(
+        f.backend.starorg_push("LIVE".into()).unwrap_err().code,
+        ErrorCode::NotFound
+    );
+
+    // Diagnostics name neither the StarOrg user nor the orgs from the sync log lines.
+    let d = f.backend.export_diagnostics().unwrap();
+    for name in ["test_pilot_discord", "Synthetic Org", "100000000000000001"] {
+        assert!(!d.text.contains(name), "{name} in diagnostics");
+    }
+    assert!(
+        d.text.contains("<org>"),
+        "the sync lines are there, redacted"
+    );
+
+    // Sign out revokes on the server and forgets the token.
+    let st = f.backend.starorg_logout("LIVE".into()).unwrap();
+    assert!(!st.connected && st.user.is_none());
+    assert_eq!(m.state().revoked, 1);
+    assert_eq!(m.valid_tokens(), 0);
+}
+
+#[test]
+fn starorg_switching_environment_signs_out_and_a_revoked_token_asks_again() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |s| s.push_blueprints = true);
+    f.backend.starorg_login("LIVE".into()).unwrap();
+    assert_eq!(m.valid_tokens(), 1);
+    // The server's kill switch: refused with "not enabled", the token stays.
+    m.state().enabled = false;
+    let e = f.backend.starorg_push("LIVE".into()).unwrap_err();
+    assert_eq!(e.code, ErrorCode::NotImplemented, "{e:?}");
+    m.state().enabled = true;
+    assert!(f.backend.starorg_status("LIVE".into()).unwrap().connected);
+
+    let s = set_sync(&f, true, |s| s.environment = StarOrgEnv::Dev);
+    assert_eq!(s.starorg.environment, StarOrgEnv::Dev);
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert_eq!(st.environment, StarOrgEnv::Dev);
+    assert_eq!(st.host, "dev.starorg.tools");
+    assert!(!st.connected && st.user.is_none());
+    assert_eq!(
+        m.state().revoked,
+        1,
+        "the production token was revoked on the way out"
+    );
+    // The environment is in config.toml for the CLI and hooks.
+    let toml = std::fs::read_to_string(f.dirs.config_toml()).unwrap();
+    assert!(toml.contains("environment = \"dev\""), "{toml}");
+
+    // Signed in on dev, then revoked elsewhere ("Sign out everywhere"): sign in again.
+    f.backend.starorg_login("LIVE".into()).unwrap();
+    m.revoke_all();
+    let e = f.backend.starorg_push("LIVE".into()).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid, "{e:?}");
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert!(!st.connected && st.expired, "{st:?}");
+}
+
+#[test]
+fn starorg_sign_out_with_the_switch_off_says_it_did_not_revoke() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |_| {});
+    f.backend.starorg_login("LIVE".into()).unwrap();
+    set_sync(&f, false, |_| {});
+    let before = m.requests().len();
+    let st = f.backend.starorg_logout("LIVE".into()).unwrap();
+    assert!(!st.connected && st.user.is_none());
+    // Nothing sent: the token is gone here but still valid on the server, and the log says so.
+    assert_eq!(m.requests().len(), before);
+    assert_eq!(m.state().revoked, 0);
+    assert_eq!(m.valid_tokens(), 1);
+    let log = f.backend.activity(50).unwrap();
+    assert!(
+        log.iter().any(|e| e.message.contains("not revoked there")),
+        "{log:?}"
+    );
+}
+
+#[test]
+fn starorg_environment_changed_outside_the_app_signs_the_old_one_out() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |_| {});
+    f.backend.starorg_login("LIVE".into()).unwrap();
+    // `starorg-strings sync set --environment dev`: config.toml only, no token touched.
+    let mut cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    cfg.sync.environment = starorg_core::starorg::Environment::Dev;
+    cfg.save(&f.dirs).unwrap();
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert_eq!(st.environment, StarOrgEnv::Dev);
+    assert!(!st.connected);
+    assert_eq!(m.state().revoked, 1, "the production token was revoked");
+    // Switching back finds no stale production sign-in.
+    let mut cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    cfg.sync.environment = starorg_core::starorg::Environment::Production;
+    cfg.save(&f.dirs).unwrap();
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert!(!st.connected && st.user.is_none(), "{st:?}");
+}
+
+#[test]
+fn starorg_a_token_refused_on_the_first_call_is_not_saved_as_signed_in() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |_| {});
+    m.state().dead_tokens = true;
     let e = f.backend.starorg_login("LIVE".into()).unwrap_err();
-    assert_eq!(e.code, ErrorCode::NotImplemented);
-    assert!(!f.backend.starorg_status("LIVE".into()).unwrap().connected);
+    assert_eq!(e.code, ErrorCode::Invalid, "{e:?}");
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert!(!st.connected && st.token_store.is_none(), "{st:?}");
+    let app_json = std::fs::read_to_string(f.dirs.config.join("app.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&app_json).unwrap();
+    assert_ne!(
+        v["starorg"]["production"]["signed_in"],
+        serde_json::json!(true),
+        "{app_json}"
+    );
+}
+
+#[test]
+fn game_log_import_off_reads_no_log() {
+    let f = Fake::new();
+    f.setup_live();
+    let mut s = f.backend.get_settings().unwrap();
+    assert!(s.starorg.import_game_log, "on by default");
+    s.starorg.import_game_log = false;
+    f.backend.save_settings(s).unwrap();
+    let chars = f.backend.list_characters(f.live()).unwrap();
+    assert!(chars.characters.is_empty(), "{chars:?}");
+    let scan = f.dirs.data.join("channels");
+    let has_scan = walk(&scan).iter().any(|p| p.ends_with("scan.json"));
+    assert!(!has_scan, "no scan state written");
+    let mut s = f.backend.get_settings().unwrap();
+    s.starorg.import_game_log = true;
+    f.backend.save_settings(s).unwrap();
+    let chars = f.backend.list_characters(f.live()).unwrap();
+    assert_eq!(chars.characters[0].name, "Test_Pilot");
+}
+
+fn walk(d: &std::path::Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    if let Ok(rd) = std::fs::read_dir(d) {
+        for e in rd.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                out.extend(walk(&p));
+            } else {
+                out.push(p);
+            }
+        }
+    }
+    out
+}
+
+#[test]
+fn starorg_auto_sync_runs_after_exit_and_on_the_hook_note() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |s| s.push_blueprints = true);
+    f.backend.starorg_login("LIVE".into()).unwrap();
+    // Auto off: nothing.
+    assert!(f.backend.auto_tick_with(&|_, _, _| false).is_empty());
+    set_sync(&f, true, |s| {
+        s.push_blueprints = true;
+        s.auto_sync = true;
+    });
+    let before = m.requests().len();
+    assert!(
+        f.backend.auto_tick_with(&|_, _, _| true).is_empty(),
+        "running: wait"
+    );
+    let runs = f.backend.auto_tick_with(&|_, _, _| false);
+    assert_eq!(runs.len(), 1, "running -> stopped syncs once");
+    assert_eq!(runs[0].channel, "LIVE");
+    assert_eq!(runs[0].reports[0].sent, 1);
+    assert!(m.requests().len() > before);
+    assert!(f.backend.auto_tick_with(&|_, _, _| false).is_empty());
+    // The post-exit hook's note.
+    starorg_core::starorg::mark_pending(&f.dirs, &["LIVE".into()]).unwrap();
+    assert_eq!(f.backend.auto_tick_with(&|_, _, _| false).len(), 1);
+    assert!(starorg_core::starorg::read_pending(&f.dirs).is_empty());
 }
 
 #[test]

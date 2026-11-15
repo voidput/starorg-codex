@@ -27,6 +27,9 @@ pub struct Config {
     pub default_channel: Option<String>,
     #[serde(default)]
     pub installs: Vec<InstallEntry>,
+    /// StarOrg Tools environment and what to sync (`[sync]`, [`crate::starorg`]).
+    #[serde(default)]
+    pub sync: crate::starorg::SyncPrefs,
     /// Keys a newer app version wrote; kept on write.
     #[serde(flatten)]
     pub extra: toml::Table,

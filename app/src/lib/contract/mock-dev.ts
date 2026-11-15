@@ -970,15 +970,17 @@ function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_option
       const f = `/${req.field.replace(/^\/+/, '')}`;
       return r.fields.some((p) => p === f || p.startsWith(`${f}/`));
     })
-    .filter((r) => {
-      if (!q) return true;
-      const t = title(r);
-      return r.id.toLowerCase().includes(q) || (t !== null && t.toLowerCase().includes(q));
-    });
+    .map((r) => [r, title(r)] as const)
+    .filter(([r, t]) => !q || r.id.toLowerCase().includes(q) || (t !== null && t.toLowerCase().includes(q)));
+  // Titles several records share get the short id appended (as the Rust page_records).
+  const seen = new Map<string, number>();
+  for (const [, t] of hits) if (t !== null) seen.set(t, (seen.get(t) ?? 0) + 1);
+  const shortOf = (id: string) => (id.includes('.') ? id.slice(id.indexOf('.') + 1) : id);
+  const named = (id: string, t: string | null) => (t !== null && (seen.get(t) ?? 0) > 1 && t !== shortOf(id) ? `${t} (${shortOf(id)})` : t);
   const limit = Math.min(Math.max(req.limit, 1), MAX_PAGE);
   return {
     summary: { ...d.summary },
-    records: hits.slice(req.offset, req.offset + limit).map((r) => ({ ...r, fields: r.fields.slice(0, 20), label: title(r) })),
+    records: hits.slice(req.offset, req.offset + limit).map(([r, t]) => ({ ...r, fields: r.fields.slice(0, 20), label: named(r.id, t) })),
     offset: req.offset,
     total: hits.length,
     fields: fieldCounts(d.records),
@@ -1103,7 +1105,11 @@ export function label(l: Lookup, raw: string, key: string | null): D.Readable | 
   }
   if (s.length >= 4 && (s.includes('_') || s.includes('.'))) {
     const r = l.byName(s);
-    if (r) return recordLabel(l, r);
+    if (r) {
+      // One without a display name that only repeats the name stays raw.
+      const x = recordLabel(l, r);
+      return x.detail !== null || x.kind === 'tag' || x.text.toLowerCase() !== s.toLowerCase() ? x : null;
+    }
   }
   if (l.bare && s.includes('_')) return loc(l, s);
   return null;
@@ -1190,6 +1196,67 @@ export function pathLabel(l: Lookup, path: string): string | null {
       return t;
     });
   return any ? parts.join(' › ') : null;
+}
+
+const ELEMENT_KEYS = ['item', 'className', 'recordName', 'entityClassName', 'ref', 'name'];
+
+/** What a list element reads as (starorg_core::dev::readable::element_name). */
+function elementName(l: Lookup, v: Json | undefined): string | null {
+  if (!isObj(v)) return null;
+  for (const k of ELEMENT_KEYS) {
+    const s = v[k];
+    if (typeof s === 'string') {
+      const r = label(l, s, k);
+      if (r) return r.text;
+    }
+  }
+  const n = v['name'];
+  return typeof n === 'string' && shown(n) && !n.startsWith('@') ? n : null;
+}
+
+const scalarStr = (v: Json | undefined): string | null => (typeof v === 'string' ? v : typeof v === 'number' || typeof v === 'boolean' ? String(v) : null);
+
+/** pathLabel with positional segments named from the element they point at in `row`. */
+export function pathLabelIn(l: Lookup, path: string, row: Json): string | null {
+  let any = false;
+  let at: Json | undefined = row;
+  const parts = path
+    .replace(/^\/+/, '')
+    .split('/')
+    .map((seg) => {
+      const node: Json | undefined = at;
+      at = undefined;
+      const k = keyed(seg);
+      if (k) {
+        const v = unescape(k[1]);
+        at = Array.isArray(node) ? node.find((x) => isObj(x) && scalarStr(x[k[0]]) === v) : undefined;
+        const [t, hit] = segText(l, seg);
+        any ||= hit;
+        return t;
+      }
+      const key = unescape(seg);
+      if (Array.isArray(node) && /^\d+$/.test(key)) {
+        at = node[Number(key)];
+        const name = elementName(l, at);
+        if (name !== null) {
+          any = true;
+          return name;
+        }
+        return key;
+      }
+      at = isObj(node) ? node[key] : undefined;
+      return key;
+    });
+  return any ? parts.join(' › ') : null;
+}
+
+/** Name positional list elements in change paths (starorg_core::dev::diff::name_positions). */
+export function namePositions(changes: D.FieldChange[], a: Json, b: Json, la: Lookup, lb: Lookup): void {
+  for (const c of changes) {
+    if (!c.path.split('/').some((s) => /^\d+$/.test(s))) continue;
+    const named = (c.new !== null && c.new !== undefined ? pathLabelIn(lb, c.path, b) : null) ?? pathLabelIn(la, c.path, a);
+    if (named !== null) c.path_label = named;
+  }
 }
 
 export function groupOf(l: Lookup, path: string): string | null {
@@ -1474,8 +1541,11 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       const td = st.tables.find((t) => t.summary.dataset === req.dataset && t.summary.table === req.table) ?? ctx.fail('not-found', `no table ${req.table}`);
       const rec = td.records.find((r) => r.id === req.id) ?? ctx.fail('not-found', `no record ${req.id}`);
       const row = (side: [string, Dataset][], i: number | null): Json => (i === null ? {} : (side.find((x) => x[0] === req.dataset)?.[1].tables.find((t) => t.name === req.table)?.rows[i] ?? {}));
-      const changes = fieldChanges(row(st.a, rec.a), row(st.b, rec.b));
+      const ra = row(st.a, rec.a);
+      const rb = row(st.b, rec.b);
+      const changes = fieldChanges(ra, rb);
       annotateChanges(changes, lookup, lookup);
+      namePositions(changes, ra, rb, lookup, lookup);
       const find = (side: [string, Dataset][]) => side.find((x) => x[0] === req.dataset)?.[1].tables.find((t) => t.name === req.table);
       return { id: rec.id, label: recordTitle(rec, td.summary.identity, find(st.a), find(st.b), lookup, lookup), state: rec.state, changes };
     },

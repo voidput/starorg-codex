@@ -60,10 +60,13 @@ export interface CommandMap extends DevCommandMap {
   fleet_clear: [{ req: T.ChannelRef }, T.FleetView];
   starorg_status: [{ channel: string }, T.StarOrgStatus];
   starorg_login: [{ channel: string }, T.StarOrgStatus];
+  starorg_cancel_login: [Record<string, never>, null];
   starorg_logout: [{ channel: string }, T.StarOrgStatus];
+  set_starorg_guild: [{ req: T.StarOrgGuildRequest }, T.StarOrgStatus];
   set_sync_characters: [{ req: T.SyncCharactersRequest }, T.StarOrgStatus];
   starorg_pull: [{ req: T.StarOrgPullRequest }, T.SyncReport];
   starorg_push: [{ channel: string }, T.SyncReport];
+  starorg_sync: [{ channel: string }, T.SyncRun];
   hooks_status: [Record<string, never>, T.HooksStatus];
   hooks_install: [Record<string, never>, T.HooksStatus];
   hooks_uninstall: [Record<string, never>, T.HooksStatus];
@@ -76,6 +79,7 @@ export interface CommandMap extends DevCommandMap {
   skip_update: [{ version: string }, T.UpdateStatus];
   open_release_page: [Record<string, never>, null];
   install_update: [Record<string, never>, T.UpdateStatus];
+  open_link: [{ link: T.ExternalLink }, null];
   mcp_status: [Record<string, never>, T.McpStatus];
   set_mcp_enabled: [{ req: T.McpToggle }, T.McpStatus];
 }
@@ -134,10 +138,13 @@ export const COMMANDS = [
   'fleet_clear',
   'starorg_status',
   'starorg_login',
+  'starorg_cancel_login',
   'starorg_logout',
+  'set_starorg_guild',
   'set_sync_characters',
   'starorg_pull',
   'starorg_push',
+  'starorg_sync',
   'hooks_status',
   'hooks_install',
   'hooks_uninstall',
@@ -150,6 +157,7 @@ export const COMMANDS = [
   'skip_update',
   'open_release_page',
   'install_update',
+  'open_link',
   'dev_status',
   'dev_open',
   'dev_close',
@@ -316,11 +324,15 @@ export const api = {
   saveShipNames: (req: T.SaveShipNamesRequest) => call('save_ship_names', { req }),
   fleetClear: (req: T.ChannelRef) => call('fleet_clear', { req }),
   starorgStatus: (channel: string) => call('starorg_status', { channel }),
+  /** Opens the system browser and waits for it (or starorgCancelLogin). */
   starorgLogin: (channel: string) => call('starorg_login', { channel }),
+  starorgCancelLogin: () => call('starorg_cancel_login', none),
   starorgLogout: (channel: string) => call('starorg_logout', { channel }),
+  setStarorgGuild: (req: T.StarOrgGuildRequest) => call('set_starorg_guild', { req }),
   setSyncCharacters: (req: T.SyncCharactersRequest) => call('set_sync_characters', { req }),
   starorgPull: (req: T.StarOrgPullRequest) => call('starorg_pull', { req }),
   starorgPush: (channel: string) => call('starorg_push', { channel }),
+  starorgSync: (channel: string) => call('starorg_sync', { channel }),
   hooksStatus: () => call('hooks_status', none),
   hooksInstall: () => call('hooks_install', none),
   hooksUninstall: () => call('hooks_uninstall', none),
@@ -337,6 +349,8 @@ export const api = {
   /** Opens the release page in the system browser (Rust side, github.com only). */
   openReleasePage: () => call('open_release_page', none),
   installUpdate: () => call('install_update', none),
+  /** Support / Buy me a coffee in the system browser. An allowlist: the URLs live in Rust. */
+  openLink: (link: T.ExternalLink) => call('open_link', { link }),
   /** Experimental local MCP server: off at every start, 127.0.0.1 only. */
   mcpStatus: () => call('mcp_status', none),
   setMcpEnabled: (enabled: boolean) => call('set_mcp_enabled', { req: { enabled } }),

@@ -220,8 +220,8 @@ tracked **per character**, never merged.
 
 ## 5. StarOrg Tools account link (OAuth, like RSI+) — import and sync blueprints
 
-Native "Connect StarOrg Tools" in the app (and `starorg-strings starorg login|logout|status`,
-`starorg-strings blueprints pull|push --character … [--guild …]`). Opt-in, off by default
+Native "Connect StarOrg Tools" in the app (CLI: `starorg-strings sync status|set` only; see
+5.1). Opt-in, off by default
 (network policy §11).
 
 **Auth (needs a StarOrg server change):** RSI+ uses `/api/auth/extension/login` →
@@ -257,6 +257,68 @@ of their characters (default: all known ones); push sends the union of their own
 Pull still writes into one chosen character (never spread across alts). Each pushed entry keeps
 its per-character origin locally so un-ticking a character never removes anything server-side.
 (c) stays a possible StarOrg follow-up.
+
+### 5.1 Implementation (branch `starorg-client`, 2026-11-15, Refs #15)
+
+Server side: SC-ORG-BOT#1659 (commit `d8ed2d3a`), behind `STRINGS_AUTH_ENABLED` (on in dev, off
+in prod until the owner enables it). The client follows its real routes; nothing is invented.
+
+- **Environment** (owner, 2026-11-15: "the option to set dev/prod"): Settings -> StarOrg Tools ->
+  Production (`https://starorg.tools`) / Dev (`https://dev.starorg.tools`). Stored in
+  `config.toml` `[sync] environment`; the CLI sets it with `starorg-strings sync set
+  --environment production|dev`; a bare `sync set` saves `$STARORG_ENV` (it never rides along
+  on other changes). Tokens and account cards are per environment; switching (after a confirm)
+  forgets the old one, revoking it when the network switch is on and the host answers, before
+  the new environment is saved. A change made outside the app (CLI, hand edit) is caught the
+  next time the app looks at StarOrg Tools, which signs the other environment out the same way.
+- **Sign-in** (`starorg_net::starorg`): probe `GET /api/auth/strings/login` (404 = disabled on
+  that server, refused before a browser opens) -> PKCE S256 (86-char verifier, 43-char state) ->
+  listener on `127.0.0.1:<ephemeral>` -> system browser to `/api/auth/strings/login?redirect_uri=
+  http://127.0.0.1:<port>/callback&code_challenge=…&code_challenge_method=S256&state=…` ->
+  `/callback?code=&state=` (other paths 404; a foreign `state` ends the attempt; `error=` =
+  cancelled) -> `POST /api/auth/strings/exchange {code, code_verifier, redirect_uri}` ->
+  `{access_token, expires_in, token_type, aud: "strings", user}`. Then `GET /api/auth/me` for
+  the orgs (`guilds[]`: Discord id, name, features); the first org with `industrial` is picked,
+  changeable. Cancel while waiting (`starorg_cancel_login`); 5-minute timeout.
+- **Token**: OS keyring (`keyring` 3, service `starorg-codex`, user `starorg-tools-<env>`), else
+  `<config>/starorg-tokens/<env>.token` (0600 in a 0700 folder on Unix). No refresh token exists
+  on the server: the 90-day token is dropped at expiry or on a 401, and the status asks to sign
+  in again (`expired`). Sign out = `POST /api/auth/logout` (when the network switch is on) +
+  delete. The keyring is only touched once an account card says a token exists.
+- **What to sync** (owner: "option to import blueprints from logs or not with a toggle and other
+  things"): `[sync]` `import_game_log` (on; gates every log scan in app, CLI `blueprints scan`
+  and `hook postexit` via `logscan::scan_if`), `push_blueprints`, `pull_blueprints`,
+  `pull_fleet`, `auto_sync` (off). Each command refuses while its switch is off; nothing is sent.
+- **Push**: union of ticked characters -> public `GET /api/industrial/blueprint-lookup` (no
+  token) -> each local entry to one server id by record key (`canonical_internal_key`), else by a
+  single normalised name or alias; ambiguous/unknown reported as `unmatched`, not sent -> `POST
+  /api/industrial/crafting/guilds/{guild}/my-blueprints {blueprint_ids, source:
+  "starorg_strings", acquired_at}` in chunks of 2000. Never removals (`…/remove` is not called).
+  `acquired_at` carries receipt times only (log line, or the server's own from a pull; never a
+  Smart Citizen export time) and only well-formed ISO datetimes, since one bad value makes the
+  server refuse the whole chunk. A grant without `aud: "strings"` is refused.
+- **Pull**: `GET …/my-blueprints` -> union into one character with source `starorg:<org>`; names
+  not in this build's game data (when read) are `unmatched` and skipped.
+- **Hangar**: `GET /api/fleet/hangar` -> HangarXPLOR-shaped rows -> the fleet importer
+  (`FleetSource::StarOrg`; dry run in the dialog, merge in Sync now).
+- **Sync now / after exit**: `starorg_sync` runs pull (active character), push and hangar as
+  switched on. With `auto_sync`, a 20 s watcher in the app syncs a set-up channel when its game
+  stops, and the post-exit hook (no HTTP in the CLI) leaves `starorg-sync-pending.txt` for it.
+- **Contract (additive)**: `Settings.starorg: StarOrgSettings`; `StarOrgStatus` + `host`,
+  `guild_id`, `guilds`, `expired`, `token_store`; `StarOrgGuild`, `TokenStoreKind`, `SyncRun`,
+  `StarOrgGuildRequest`; `FleetSource::StarOrg`; commands `starorg_cancel_login`,
+  `set_starorg_guild`, `starorg_sync`. Rust, TS, both mocks, samples.
+- **Tests**: PKCE (RFC 7636 vector, server rules), loopback-only redirect, state mismatch,
+  cancel, timeout; client routes and the disabled/401/404 cases against
+  `starorg_net::starorg::mock::MockServer` (127.0.0.1, random tokens); token stores (0600);
+  real backend: network switch off sends nothing, each switch off sends nothing, sign-in, push,
+  pull, hangar, org change, sign out revokes (and says when it could not), environment switch
+  in the app and from the CLI, a token refused on the first call, revoked token, Game.log off
+  reads no log, auto sync after exit and on the hook note; CLI `sync` and the gates; renders
+  `app/scripts/render-starorg.cjs`.
+- **Not done**: no refresh (server has none); the CLI has no `starorg login|pull|push` (it links
+  no HTTP client by design); RSI-handle/character dimension on StarOrg (Q22 option c) remains a
+  server follow-up; production sign-in waits for `STRINGS_AUTH_ENABLED` in prod.
 
 ## 6. Fleet import and ship ordering
 
@@ -1087,10 +1149,16 @@ it. Raw data and every export stay unchanged.
     `VehicleComponentParams.vehicleName`, then `SCItemPurchasableParams.displayName`; an
     `@key`, placeholders skipped; `tagName` for tags). Nested parts never name the record (an
     interaction's "Enter", a port, a filter): without an own name the short name serves.
-    LIVE check, 120 random entities: 58 named as global.ini, 0 wrong, 62 short names.
+    LIVE check, 120 random entities: 58 named as global.ini, 0 wrong, 62 short names; the
+    verifier's 2,101-record cross-type sample: 0 borrowed names (36 before).
+    Records are also found by full or short name (`find_name_or_short`, binary search over
+    two sorted index vectors, about 1 MB), so `factionreputation_lawful_ftlcourier` reads
+    "FTL Courier"; a nameless record that would only repeat its own name stays raw.
     At most 256 new reads per
     request, cached per record up to 100,000 entries (the cache starts over when full).
     `record` replies carry `labels`; the new op `labels {values}` answers single values.
+    While the explorer runs, the app asks it about dataset-row and diff values (GUIDs and
+    record-name shapes) that the build's GameData does not name.
   - **app**: per channel build, a `MapLookup` from its GameData (items, ships, ammo,
     blueprints, standings, contracts), its stock text and the cached Strings table for
     enhanced text. It is built in about 4 ms and the last 3 are kept. Folder sources use the
@@ -1114,8 +1182,12 @@ it. Raw data and every export stay unchanged.
     (`localStorage` `starorg.dev.showIds`).
   - Unresolved GUIDs and `@key`s show raw, marked "unresolved", never blank.
   - Diff records are titled "Bracer (COOL_AEGS_S01_Bracer_SCItem)" and filter by name or id.
-    Field changes are grouped by item or top-level field and read as names, text and numbers
-    with units.
+    Titles several records of a result share get the short id appended ("Aegis Javelin
+    (AEGS_Javelin_AI_Escort)"). Field changes are grouped by item or top-level field and read
+    as names, text and numbers with units. Positional list segments are named from the
+    element (`loadout › weapons › M9A Cannon › dps`; LIVE vs PTU: 2,018 of 2,064 positional
+    paths named). A key swapped for one with the same text shows both keys, the shared text
+    as the secondary line.
   - The record JSON tree shows labels inline. Refs and record GUIDs follow, by click or by
     Enter.
 - **Measured on real data (read only)**:
@@ -1135,7 +1207,8 @@ it. Raw data and every export stay unchanged.
 - **Not done**:
   - A "readable" export variant. It was optional: exports stay raw.
   - Value chips in the dataset filter list raw values.
-  - The worker answers dataset GUIDs only while it runs (as for links).
+  - The worker answers dataset values only while it runs (as for links). Both diff sides use
+    the target channel's explorer for names GameData lacks.
 
 ### 7.15 Group trees (branch `dataset-tree`, 2026-11-15, Refs #15)
 

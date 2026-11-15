@@ -98,6 +98,10 @@ pub struct ExplorerIndex {
     by_type: BTreeMap<String, Vec<u32>>,
     /// Every record, sorted by (lower-case relative path, name).
     by_path: Vec<u32>,
+    /// Every record by (lower-case name, main first, position): exact-name lookups.
+    by_lname: Vec<u32>,
+    /// The same by lower-case short name (after the `Type.` prefix).
+    by_short: Vec<u32>,
 }
 
 /// `path` below [`RECORDS_ROOT`], without the root, original case.
@@ -126,6 +130,11 @@ pub fn is_guid(s: &str) -> bool {
             .iter()
             .zip([8, 4, 4, 4, 12])
             .all(|(p, n)| p.len() == n && p.chars().all(|c| c.is_ascii_hexdigit()))
+}
+
+/// A record name without its `Type.` prefix.
+fn short_of(name: &str) -> &str {
+    name.split_once('.').map_or(name, |(_, s)| s)
 }
 
 /// `needle` (no spaces) appears in `hay` in order.
@@ -160,6 +169,19 @@ impl ExplorerIndex {
                 .then(lname[a as usize].cmp(&lname[b as usize]))
                 .then(a.cmp(&b))
         });
+        fn ordered<'k>(entries: &[Entry], key: impl Fn(usize) -> &'k str) -> Vec<u32> {
+            let mut v: Vec<u32> = (0..entries.len() as u32).collect();
+            v.sort_by(|&a, &b| {
+                let (a, b) = (a as usize, b as usize);
+                key(a)
+                    .cmp(key(b))
+                    .then(entries[b].main.cmp(&entries[a].main))
+                    .then(a.cmp(&b))
+            });
+            v
+        }
+        let by_lname = ordered(&entries, |i| lname[i].as_str());
+        let by_short = ordered(&entries, |i| short_of(&lname[i]));
         Self {
             entries,
             lname,
@@ -167,6 +189,8 @@ impl ExplorerIndex {
             by_guid,
             by_type,
             by_path,
+            by_lname,
+            by_short,
         }
     }
 
@@ -221,16 +245,30 @@ impl ExplorerIndex {
         if ln.is_empty() {
             return None;
         }
-        let mut hit = None;
-        for (i, n) in self.lname.iter().enumerate() {
-            if *n == ln {
-                if self.entries[i].main {
-                    return Some(i);
-                }
-                hit.get_or_insert(i);
-            }
+        self.first_of(&self.by_lname, &ln, |i| self.lname[i].as_str())
+    }
+
+    /// A record of exactly this name or short name (`AEGS_Gladius` for
+    /// `EntityClassDefinition.AEGS_Gladius`), case-insensitive; full names first, then
+    /// main records.
+    pub fn find_name_or_short(&self, name: &str) -> Option<usize> {
+        let ln = name.trim().to_lowercase();
+        if ln.is_empty() {
+            return None;
         }
-        hit
+        self.first_of(&self.by_lname, &ln, |i| self.lname[i].as_str())
+            .or_else(|| self.first_of(&self.by_short, &ln, |i| short_of(&self.lname[i])))
+    }
+
+    /// The first entry of `order` (sorted by `key`, main first) whose key is `ln`.
+    fn first_of<'s>(
+        &'s self,
+        order: &[u32],
+        ln: &str,
+        key: impl Fn(usize) -> &'s str,
+    ) -> Option<usize> {
+        let at = order.partition_point(|&i| key(i as usize) < ln);
+        order.get(at).map(|&i| i as usize).filter(|&i| key(i) == ln)
     }
 
     pub fn by_guid(&self, guid: &str) -> Option<usize> {
@@ -274,8 +312,7 @@ impl ExplorerIndex {
         {
             return Some(i);
         }
-        let ln = w.to_lowercase();
-        best(&|i| self.lname[i] == ln)
+        self.find_name(w)
     }
 
     fn record_node(&self, i: usize) -> TreeNode {

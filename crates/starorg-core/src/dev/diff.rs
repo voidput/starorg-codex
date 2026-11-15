@@ -203,6 +203,36 @@ pub fn annotate_changes(changes: &mut [FieldChange], a: &dyn Lookup, b: &dyn Loo
     }
 }
 
+/// Name the positional list elements in change paths (`/loadout/weapons/3/dps` reads
+/// `loadout › weapons › Draugar Gatling › dps`) from the rows themselves: B's element (B's
+/// lookup), else A's. Changes whose path has no positional segment keep their label.
+pub fn name_positions(
+    changes: &mut [FieldChange],
+    a: &Value,
+    b: &Value,
+    la: &dyn Lookup,
+    lb: &dyn Lookup,
+) {
+    for c in changes {
+        let positional = c
+            .path
+            .split('/')
+            .any(|s| !s.is_empty() && s.bytes().all(|x| x.is_ascii_digit()));
+        if !positional {
+            continue;
+        }
+        let named = if c.new.is_some() {
+            readable::path_label_in(lb, &c.path, b)
+        } else {
+            None
+        }
+        .or_else(|| readable::path_label_in(la, &c.path, a));
+        if named.is_some() {
+            c.path_label = named;
+        }
+    }
+}
+
 /// Paths that differ (no values).
 fn changed_paths(a: &Value, b: &Value) -> Vec<String> {
     field_changes(a, b).into_iter().map(|c| c.path).collect()

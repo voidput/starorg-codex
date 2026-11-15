@@ -887,3 +887,67 @@ fn group_trees_count_rows_and_filter_rows_and_records() {
         .unwrap();
     assert_eq!(other.total, 0);
 }
+
+/// Records that read the same (AI variants of one ship) get their short id appended, in the
+/// list and when searched; a unique title stays as it is.
+#[test]
+fn diff_records_tell_shared_titles_apart() {
+    use starorg_core::dev::dataset::{Table, TableKind, columns};
+    use starorg_core::dev::diff::diff_table;
+    let rows = |hp: u32| -> Vec<Value> {
+        [
+            "AEGS_Javelin_AI_Escort",
+            "AEGS_Javelin_AI_Boss",
+            "AEGS_Gladius",
+        ]
+        .iter()
+        .map(|n| json!({ "recordName": format!("EntityClassDefinition.{n}"), "hp": hp }))
+        .collect()
+    };
+    let table = |hp| {
+        let rows = rows(hp);
+        Table {
+            name: "ships".into(),
+            kind: TableKind::Main,
+            columns: columns(&rows),
+            rows,
+        }
+    };
+    let (a, b) = (table(1), table(2));
+    let d = diff_table("gamedata.json", "ships", Some(&a), Some(&b), None);
+    let title = |r: &starorg_core::dev::diff::DiffRecord| {
+        Some(
+            if r.id.contains("Javelin") {
+                "Aegis Javelin"
+            } else {
+                "Aegis Gladius"
+            }
+            .to_string(),
+        )
+    };
+    let mut req = records_req("gamedata.json", "ships");
+    req.limit = 10;
+    let page = page_records(&d, &req, vec![], &|_| true, &title);
+    let mut labels: Vec<String> = page
+        .records
+        .iter()
+        .filter_map(|r| r.label.clone())
+        .collect();
+    labels.sort();
+    assert_eq!(
+        labels,
+        [
+            "Aegis Gladius",
+            "Aegis Javelin (AEGS_Javelin_AI_Boss)",
+            "Aegis Javelin (AEGS_Javelin_AI_Escort)"
+        ]
+    );
+    req.query = Some("boss".into());
+    let page = page_records(&d, &req, vec![], &|_| true, &title);
+    assert_eq!(page.records.len(), 1);
+    assert_eq!(
+        page.records[0].label.as_deref(),
+        Some("Aegis Javelin"),
+        "unique within the result"
+    );
+}

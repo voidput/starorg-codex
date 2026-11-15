@@ -44,6 +44,8 @@ interface Samples {
   starorg_status: T.StarOrgStatus;
   starorg_pull: T.SyncReport;
   starorg_push: T.SyncReport;
+  starorg_sync: T.SyncRun;
+  set_starorg_guild: T.StarOrgStatus;
   patch_detail: T.PatchDetail;
   export_diagnostics: T.Diagnostics;
   save_diagnostics: string | null;
@@ -100,6 +102,7 @@ interface Samples {
   dev_close: T.DevStatus;
   mcp_status: T.McpStatus;
   set_mcp_enabled: T.McpStatus;
+  open_link: null;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

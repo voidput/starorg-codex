@@ -474,7 +474,9 @@ pub fn field_counts(records: &[DiffRecord]) -> Vec<ValueCount> {
 }
 
 /// Shared by both backends: filter, page and trim one table's diff records. `title` gives a
-/// record's display name (addendum 7.14); the text query matches it and the id.
+/// record's display name (addendum 7.14); the text query matches it and the id. Titles that
+/// several records of the result share get the record's short id appended ("Aegis Javelin
+/// (AEGS_Javelin_AI_Escort)").
 pub fn page_records(
     d: &starorg_core::dev::diff::TableDiff,
     req: &DevDiffRecordsRequest,
@@ -500,16 +502,19 @@ pub fn page_records(
                     .any(|p| p == &f || p.starts_with(&format!("{f}/")))
             })
         })
-        .filter_map(|r| match &needle {
-            None => Some((r, None)),
+        .map(|r| (r, title(r)))
+        .filter(|(r, t)| match &needle {
+            None => true,
             Some(n) => {
-                let t = title(r);
-                let hit = r.id.to_lowercase().contains(n)
-                    || t.as_deref().is_some_and(|t| t.to_lowercase().contains(n));
-                hit.then_some((r, t))
+                r.id.to_lowercase().contains(n)
+                    || t.as_deref().is_some_and(|t| t.to_lowercase().contains(n))
             }
         })
         .collect();
+    let mut seen: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
+    for t in hits.iter().filter_map(|h| h.1.as_deref()) {
+        *seen.entry(t).or_default() += 1;
+    }
     let limit = (req.limit as usize).clamp(1, starorg_core::dev::explorer::MAX_PAGE);
     DevDiffRecords {
         summary: d.summary.clone(),
@@ -520,11 +525,14 @@ pub fn page_records(
             .map(|(r, t)| {
                 let mut r = (*r).clone();
                 r.fields.truncate(20);
-                r.label = if needle.is_some() {
-                    t.clone()
-                } else {
-                    title(&r)
-                };
+                r.label = t.as_deref().map(|t| {
+                    let short = starorg_core::model::short_name(&r.id);
+                    if seen.get(t).is_some_and(|&n| n > 1) && t != short {
+                        format!("{t} ({short})")
+                    } else {
+                        t.to_string()
+                    }
+                });
                 r
             })
             .collect(),

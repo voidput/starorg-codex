@@ -21,6 +21,7 @@
   import type { ChannelRef, FleetHull, FleetImportReport } from '@/lib/contract/types';
   import { int } from '@/lib/format';
   import { toast } from '@/lib/stores/toast.svelte';
+  import { app } from '@/lib/stores/app.svelte';
 
   let {
     open = $bindable(false),
@@ -28,10 +29,12 @@
     catalog,
     initialMode = 'file',
     ondone,
-  }: { open: boolean; target: ChannelRef; catalog: FleetHull[]; initialMode?: 'file' | 'paste'; ondone: () => void } = $props();
+  }: { open: boolean; target: ChannelRef; catalog: FleetHull[]; initialMode?: 'file' | 'paste' | 'starorg'; ondone: () => void } = $props();
 
   const uid = $props.id();
-  let mode = $state<'file' | 'paste'>('file');
+  let mode = $state<'file' | 'paste' | 'starorg'>('file');
+  /** "From StarOrg Tools" only while the network switch and "Pull fleet/hangar" are on. */
+  const hangarOn = $derived(!!app.settings?.network.starorg && !!app.settings?.starorg.pull_fleet);
   let text = $state('');
   let merge = $state(false);
   let report = $state<FleetImportReport | null>(null);
@@ -50,7 +53,7 @@
   });
 
   const hullName = (id: string) => catalog.find((h) => h.hull === id)?.name.trim() ?? id;
-  const source = () => (mode === 'paste' ? { kind: 'text' as const, text } : { kind: 'file' as const });
+  const source = () => (mode === 'paste' ? { kind: 'text' as const, text } : mode === 'starorg' ? { kind: 'star-org' as const } : { kind: 'file' as const });
 
   async function check() {
     busy = true;
@@ -70,7 +73,7 @@
     busy = true;
     failed = null;
     try {
-      const src = mode === 'paste' ? source() : { kind: 'last' as const };
+      const src = mode === 'file' ? { kind: 'last' as const } : source();
       const r = await api.fleetImport({ target, source: src, dry_run: false, merge });
       for (const [name, hull] of Object.entries(picks)) await api.fleetMatch({ target, name, hull });
       const ships = r.hulls.reduce((n, h) => n + h.count, 0);
@@ -100,7 +103,7 @@
       <div class="grid min-h-0 gap-3 overflow-y-auto">
         <Segmented
           ariaLabel="Import from"
-          options={[{ id: 'file', label: 'A file' }, { id: 'paste', label: 'Paste a list' }]}
+          options={[{ id: 'file', label: 'A file' }, { id: 'paste', label: 'Paste a list' }, ...(hangarOn ? [{ id: 'starorg' as const, label: 'StarOrg Tools hangar' }] : [])]}
           value={mode}
           onchange={(v) => (mode = v)}
         />
@@ -110,6 +113,8 @@
             <p>CSV works, but a ship you named is listed under its name only, so it has to be matched by hand. Prefer JSON.</p>
             <p>Only ship names, counts and the names you gave your ships are kept. Pledge names, prices, dates and insurance are not stored.</p>
           </div>
+        {:else if mode === 'starorg'}
+          <p class="text-muted-foreground text-[12.5px]">Reads your hangar on {app.settings?.starorg.environment === 'dev' ? 'dev.starorg.tools' : 'starorg.tools'} (ship names, counts and the names you gave them) with your sign-in. Nothing is sent but the request.</p>
         {:else}
           <div class="grid gap-1">
             <label for="{uid}-paste" class="text-[12.5px]">One ship per line; "2x Gladius" for two</label>
@@ -202,7 +207,7 @@
       <Button variant="ghost" disabled={busy} onclick={() => (open = false)}>Cancel</Button>
       {#if !report}
         <Button disabled={busy || (mode === 'paste' && !text.trim())} aria-busy={busy} onclick={check}>
-          {#if busy}<LoaderCircle class="animate-spin" aria-hidden="true" />Checking…{:else if mode === 'file'}<FileJson aria-hidden="true" /> Choose file and check{:else}Check list{/if}
+          {#if busy}<LoaderCircle class="animate-spin" aria-hidden="true" />Checking…{:else if mode === 'file'}<FileJson aria-hidden="true" /> Choose file and check{:else if mode === 'starorg'}Read hangar and check{:else}Check list{/if}
         </Button>
       {:else}
         <Button variant="outline" disabled={busy} onclick={() => (report = null)}>Back</Button>

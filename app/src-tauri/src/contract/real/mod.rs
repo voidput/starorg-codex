@@ -9,17 +9,20 @@
 //!   `starorg-strings-app extract-worker ...` (see `main.rs`, spec 3.3).
 //! - The core has no cancellation points inside an apply, so every job reports
 //!   `cancellable: false` and `cancel_job` refuses.
-//! - StarOrg Tools sync is blocked on the server API (SC-ORG-BOT#1659): login, pull and push
-//!   return `network-off` or `not-implemented`, never a fake success.
+//! - StarOrg Tools ([`starorg`]): loopback PKCE sign-in, pull, push and the hangar against
+//!   starorg.tools or dev.starorg.tools (SC-ORG-BOT#1659), only while the network switch and
+//!   the matching "What to sync" switch are on.
 
 mod convert;
 mod dev;
 mod diag;
 pub mod dialogs;
+mod starorg;
 mod table;
 
 pub use dev::{DevSpawner, WorkerSpawner};
 pub use dialogs::{DialogSlot, Dialogs, FileFilter, TauriDialogs};
+pub use starorg::{Browser, StarOrgDeps};
 
 use super::types::*;
 use super::{Backend, Progress, schema};
@@ -119,6 +122,9 @@ struct AppFile {
     /// Developer mode switch and dataset folders (addendum 7).
     #[serde(default)]
     dev: dev::DevFile,
+    /// StarOrg Tools account card per environment (no token; see `starorg`).
+    #[serde(default)]
+    starorg: BTreeMap<String, starorg::Account>,
 }
 
 const APP_JSON: &str = "app.json";
@@ -224,6 +230,8 @@ pub struct RealBackend {
     update: crate::update::Updater,
     dev: dev::DevState,
     mcp: crate::mcp::McpHost,
+    starorg: starorg::StarOrgDeps,
+    starorg_mem: starorg::StarOrgMem,
 }
 
 /// Longest header line accepted (the core has no limit; the line goes into every block).
@@ -326,13 +334,22 @@ const TEXT_FILTER: FileFilter = FileFilter {
 impl RealBackend {
     pub fn new(cfg: RealConfig) -> Self {
         let update = crate::update::Updater::github(cfg.ctx.dirs.data.join(UPDATE_JSON));
+        let starorg = starorg::StarOrgDeps::system(cfg.ctx.dirs.config.join("starorg-tokens"));
         Self {
             cfg,
             mem: Mutex::new(Mem::default()),
             update,
             dev: dev::DevState::default(),
             mcp: crate::mcp::McpHost::default(),
+            starorg,
+            starorg_mem: starorg::StarOrgMem::default(),
         }
+    }
+
+    /// Swap the StarOrg Tools hosts, token store and browser (tests: a loopback mock).
+    pub fn with_starorg(mut self, deps: StarOrgDeps) -> Self {
+        self.starorg = deps;
+        self
     }
 
     /// Swap the update checker (tests: a fake HTTP layer). Keeps the current host slot.
@@ -950,6 +967,7 @@ impl RealBackend {
             advanced: AdvancedSettings {
                 developer_mode: a.dev.developer_mode,
             },
+            starorg: starorg::settings_of(&self.config().sync),
         }
     }
 
@@ -976,7 +994,16 @@ impl RealBackend {
         let Ok(mut store) = Store::load(&data) else {
             return;
         };
-        let r = logscan::scan(&ch.dir, &data, &mut store, None);
+        let r = logscan::scan_if(
+            self.prefs().import_game_log,
+            &ch.dir,
+            &data,
+            &mut store,
+            None,
+        );
+        if r.disabled {
+            return;
+        }
         if let Err(e) = store.save(&data) {
             self.log(
                 LogLevel::Warn,
@@ -1220,57 +1247,6 @@ impl RealBackend {
             return Err(e);
         }
         Ok(self.hooks_view())
-    }
-
-    fn starorg_view(&self, channel: &str) -> CmdResult<StarOrgStatus> {
-        let s = self.settings();
-        let a = self.app_file();
-        let ticked = a.sync.get(channel).cloned();
-        let mut chars = Vec::new();
-        if let Some(f) = self.installs().into_iter().find(|f| f.id.is_some())
-            && let Some(ch) = f.install.channel(channel)
-        {
-            let data = self.data_dir(&f, ch);
-            for (g, c) in blueprints::load_characters(&data)
-                .unwrap_or_default()
-                .characters
-            {
-                chars.push(SyncCharacter {
-                    ticked: ticked.as_ref().is_none_or(|t| t.contains(&g)),
-                    owned: blueprints::load_set(&data, &g)
-                        .map(|s| s.entries.len() as u32)
-                        .unwrap_or(0),
-                    id: g,
-                    name: c.name,
-                });
-            }
-        }
-        Ok(StarOrgStatus {
-            enabled: s.network.starorg,
-            connected: false,
-            environment: StarOrgEnv::Production,
-            user: None,
-            guild: None,
-            expires: None,
-            last_sync: None,
-            sync_characters: chars,
-            push_count: 0,
-        })
-    }
-
-    fn starorg_blocked(&self) -> AppError {
-        if !self.settings().network.starorg {
-            return err(
-                ErrorCode::NetworkOff,
-                "Turn on \"Connect StarOrg Tools\" under Settings -> Network first.",
-            );
-        }
-        let mut e = err(
-            ErrorCode::NotImplemented,
-            "StarOrg Tools sync is not available yet: it waits for the StarOrg server API.",
-        );
-        e.detail = Some("Blocked on SC-ORG-BOT#1659. Nothing was sent or changed.".into());
-        e
     }
 
     // -----------------------------------------------------------------------------------
@@ -2284,8 +2260,16 @@ impl Backend for RealBackend {
             self.dev.stop();
         }
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
-        if cfg.default_channel != req.default_channel {
+        let prefs = starorg::prefs_of(&req.starorg);
+        let old_env = starorg::contract_env(cfg.sync.environment);
+        // Tokens are per environment: switching signs the old one out (the UI asks first),
+        // before the new environment is saved, so a failure leaves the old one chosen.
+        if old_env != req.starorg.environment {
+            self.sign_out(old_env)?;
+        }
+        if cfg.default_channel != req.default_channel || cfg.sync != prefs {
             cfg.default_channel = req.default_channel.clone();
+            cfg.sync = prefs;
             cfg.save(self.dirs()).map_err(io)?;
         }
         Ok(self.settings())
@@ -2388,7 +2372,13 @@ impl Backend for RealBackend {
             } else {
                 Store::default()
             };
-            logscan::scan(&ch.dir, &data, &mut store, None);
+            logscan::scan_if(
+                self.prefs().import_game_log,
+                &ch.dir,
+                &data,
+                &mut store,
+                None,
+            );
             let geid = store
                 .characters
                 .resolve(&req.character)
@@ -2530,6 +2520,10 @@ impl Backend for RealBackend {
                 })?;
                 (Some(n), b)
             }
+            FleetSource::StarOrg => (
+                Some("StarOrg Tools hangar".to_string()),
+                self.starorg_hangar_bytes()?,
+            ),
             FleetSource::File => {
                 let d = self
                     .cfg
@@ -2667,13 +2661,21 @@ impl Backend for RealBackend {
         self.starorg_view(&channel)
     }
 
-    fn starorg_login(&self, _channel: String) -> CmdResult<StarOrgStatus> {
-        Err(self.starorg_blocked())
+    fn starorg_login(&self, channel: String) -> CmdResult<StarOrgStatus> {
+        self.starorg_login_impl(&channel)
+    }
+
+    fn starorg_cancel_login(&self) -> CmdResult<()> {
+        self.starorg_cancel_login_impl();
+        Ok(())
     }
 
     fn starorg_logout(&self, channel: String) -> CmdResult<StarOrgStatus> {
-        // Never signed in: nothing to drop.
-        self.starorg_view(&channel)
+        self.starorg_logout_impl(&channel)
+    }
+
+    fn set_starorg_guild(&self, req: StarOrgGuildRequest) -> CmdResult<StarOrgStatus> {
+        self.set_starorg_guild_impl(&req)
     }
 
     fn set_sync_characters(&self, req: SyncCharactersRequest) -> CmdResult<StarOrgStatus> {
@@ -2683,12 +2685,16 @@ impl Backend for RealBackend {
         self.starorg_view(&req.channel)
     }
 
-    fn starorg_pull(&self, _req: StarOrgPullRequest) -> CmdResult<SyncReport> {
-        Err(self.starorg_blocked())
+    fn starorg_pull(&self, req: StarOrgPullRequest) -> CmdResult<SyncReport> {
+        self.starorg_pull_impl(&req)
     }
 
-    fn starorg_push(&self, _channel: String) -> CmdResult<SyncReport> {
-        Err(self.starorg_blocked())
+    fn starorg_push(&self, channel: String) -> CmdResult<SyncReport> {
+        self.starorg_push_impl(&channel)
+    }
+
+    fn starorg_sync(&self, channel: String) -> CmdResult<SyncRun> {
+        self.starorg_sync_impl(&channel)
     }
 
     fn hooks_status(&self) -> CmdResult<HooksStatus> {
@@ -2761,6 +2767,19 @@ impl Backend for RealBackend {
 
     fn open_release_page(&self) -> CmdResult<()> {
         self.update.open_release_page()
+    }
+
+    fn open_link(&self, link: ExternalLink) -> CmdResult<()> {
+        open::that_detached(link.url()).map_err(|e| {
+            AppError::new(ErrorCode::Internal, format!("cannot open the browser: {e}"))
+        })?;
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!("Opened the {} link in the browser", link.label()),
+        );
+        Ok(())
     }
 
     fn install_update(&self) -> CmdResult<UpdateStatus> {

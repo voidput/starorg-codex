@@ -258,6 +258,10 @@ pub struct ScanReport {
     pub warnings: Vec<String>,
     /// Stopped early because the deadline passed; the rest is read next time.
     pub out_of_time: bool,
+    /// "Import blueprints from Game.log" is off (`[sync] import_game_log`): no log was
+    /// opened.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub disabled: bool,
 }
 
 /// Log files of a channel: `logbackups/*.log` (oldest first), then `Game.log`.
@@ -307,6 +311,25 @@ fn head_hash(f: &mut std::fs::File, len: u64) -> std::io::Result<String> {
         return Ok(String::new());
     }
     Ok(fsutil::sha256_hex(&buf))
+}
+
+/// [`scan`] when the Game.log import is on (`[sync] import_game_log`, read from
+/// `config.toml` by the caller); off, no log file is listed or opened and `store` is left as
+/// it is.
+pub fn scan_if(
+    import_game_log: bool,
+    channel_dir: &Path,
+    channel_data: &Path,
+    store: &mut Store,
+    deadline: Option<Instant>,
+) -> ScanReport {
+    if !import_game_log {
+        return ScanReport {
+            disabled: true,
+            ..ScanReport::default()
+        };
+    }
+    scan(channel_dir, channel_data, store, deadline)
 }
 
 /// Scan one channel's logs into `store`. Stops between files once `deadline` passes.
@@ -528,6 +551,31 @@ mod tests {
         let r = scan(ch, data, &mut s, None);
         s.save(data).unwrap();
         r
+    }
+
+    #[test]
+    fn import_off_reads_no_log() {
+        let (_d, ch, data) = setup();
+        std::fs::write(
+            ch.join("Game.log"),
+            format!("{L1}{}", bp("2026-01-02T03:06:00.000Z", "[L] Arms One")),
+        )
+        .unwrap();
+        let mut s = Store::load(&data).unwrap();
+        let r = scan_if(false, &ch, &data, &mut s, None);
+        assert!(r.disabled);
+        assert_eq!((r.files, r.files_read, r.bytes_read), (0, 0, 0));
+        assert!(s.characters.characters.is_empty() && s.scan.files.is_empty());
+        assert!(
+            serde_json::to_value(&r).unwrap()["disabled"]
+                .as_bool()
+                .unwrap()
+        );
+        // On: the same call reads it.
+        let r = scan_if(true, &ch, &data, &mut s, None);
+        assert!(!r.disabled);
+        assert_eq!((r.files_read, r.new_blueprints.len()), (1, 1));
+        assert!(serde_json::to_value(&r).unwrap().get("disabled").is_none());
     }
 
     #[test]

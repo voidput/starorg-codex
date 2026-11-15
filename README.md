@@ -32,6 +32,14 @@ Every release asset is listed in `SHA256SUMS` and carries a build provenance att
 With the default settings the app makes no network request. What each optional network feature
 sends: [docs/privacy.md](docs/privacy.md).
 
+## Support
+
+- Questions, bugs and ideas: the [Discord server](https://discord.gg/GCkYhbFYNq), or open an
+  [issue](https://github.com/voidput/starorg-strings/issues).
+- If the app saves you time: [Buy me a coffee](https://buymeacoffee.com/zedwil).
+
+Both links are also in the app (footer and Footer -> About); they open your browser.
+
 ## Development
 
 Rust workspace (`crates/`) plus the Tauri 2 + Svelte 5 app (`app/`). See

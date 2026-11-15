@@ -961,6 +961,74 @@ mod readable_labels {
         assert_eq!(c[1].unit.as_deref(), Some("HP"));
         assert_eq!(c[1].old_label, None);
     }
+
+    /// A ship's loadout lists weapons by position (the same item can sit in two places), so
+    /// the path names the element: `loadout › weapons › Bracer › dps`, not `.../1/dps`.
+    #[test]
+    fn positional_paths_name_their_element() {
+        let l = lookup();
+        let row = |dps: f64| {
+            json!({ "recordName": "SYN_Ship", "loadout": { "weapons": [
+                { "item": "UNLISTED_Gun", "dps": 10.0 },
+                { "item": "COOL_SYN_S01_Bracer", "dps": dps },
+                { "name": "Plain Mount", "dps": dps },
+            ] } })
+        };
+        let (a, b) = (row(100.0), row(120.0));
+        let mut c = field_changes(&a, &b);
+        annotate_changes(&mut c, &l, &l);
+        name_positions(&mut c, &a, &b, &l, &l);
+        let at = |p: &str| c.iter().find(|x| x.path == p).unwrap();
+        assert_eq!(
+            at("/loadout/weapons/1/dps").path_label.as_deref(),
+            Some("loadout › weapons › Bracer › dps")
+        );
+        assert_eq!(
+            at("/loadout/weapons/2/dps").path_label.as_deref(),
+            Some("loadout › weapons › Plain Mount › dps")
+        );
+        // Keyed segments keep reading and walking the row.
+        let row = json!({ "ports": [{ "className": "COOL_SYN_S01_Bracer",
+            "modes": [{ "ref": COOLER, "rpm": 1 }] }] });
+        assert_eq!(
+            path_label_in(
+                &l,
+                "/ports/[className=COOL_SYN_S01_Bracer]/modes/0/rpm",
+                &row
+            )
+            .as_deref(),
+            Some("ports › Bracer › modes › Bracer › rpm")
+        );
+        // Nothing to name: no label.
+        assert_eq!(
+            path_label_in(&l, "/a/0/b", &json!({ "a": [{ "b": 1 }] })),
+            None
+        );
+    }
+}
+
+#[test]
+fn names_find_full_then_short_main_first() {
+    let ix = ExplorerIndex::new(vec![
+        e("a1", "Type.Shared_Name", "Type", "x/a.xml", false),
+        e("a2", "Other.Shared_Name", "Other", "x/b.xml", true),
+        e("a3", "Shared_Name", "Bare", "x/c.xml", false),
+        e("a4", "Type.Only_Short", "Type", "x/d.xml", true),
+    ]);
+    // An exact full name wins over short-name matches.
+    assert_eq!(ix.find_name_or_short("shared_name"), Some(2));
+    assert_eq!(ix.find_name("SHARED_NAME"), Some(2));
+    assert_eq!(ix.find_name_or_short("Type.Shared_Name"), Some(0));
+    assert_eq!(ix.find_name_or_short(" only_short "), Some(3));
+    assert_eq!(ix.find_name("only_short"), None);
+    assert_eq!(ix.find_name_or_short("missing"), None);
+    assert_eq!(ix.find_name_or_short(""), None);
+    // Same short name twice, no full match: the main record.
+    let ix = ExplorerIndex::new(vec![
+        e("b1", "A.Dup_X", "A", "x/a.xml", false),
+        e("b2", "B.Dup_X", "B", "x/b.xml", true),
+    ]);
+    assert_eq!(ix.find_name_or_short("dup_x"), Some(1));
 }
 
 /// Real data, read only (addendum 7.14): two builds' GameData (`gamedata.json`) and stock
@@ -1007,6 +1075,7 @@ fn real_builds_read_as_names() {
     eprintln!("diff in {:?}", t.elapsed());
     let mut titled = 0;
     let mut all = 0;
+    let (mut positional, mut named_pos) = (0usize, 0usize);
     for td in tables.iter().filter(|t| t.summary.weight() > 0) {
         let (ta, tb) = (da.table(&td.summary.table), db.table(&td.summary.table));
         let id = td.summary.identity.as_deref();
@@ -1023,6 +1092,34 @@ fn real_builds_read_as_names() {
                 .or_else(|| row(ta, r.a).and_then(|x| readable::row_title(&la, x, id)));
             all += 1;
             titled += usize::from(title.is_some());
+            if r.state == RecordState::Changed {
+                let (a, b) = (
+                    row(ta, r.a).unwrap_or(&Value::Null),
+                    row(tb, r.b).unwrap_or(&Value::Null),
+                );
+                let mut c = field_changes(a, b);
+                annotate_changes(&mut c, &la, &lb);
+                name_positions(&mut c, a, b, &la, &lb);
+                for c in &c {
+                    if c.path
+                        .split('/')
+                        .any(|s| !s.is_empty() && s.bytes().all(|x| x.is_ascii_digit()))
+                    {
+                        positional += 1;
+                        let named = c.path_label.as_deref().is_some_and(|p| {
+                            p.split(" › ")
+                                .zip(c.path.trim_start_matches('/').split('/'))
+                                .any(|(l, s)| s.bytes().all(|x| x.is_ascii_digit()) && l != s)
+                        });
+                        if named {
+                            named_pos += 1;
+                            if named_pos <= 3 {
+                                eprintln!("  positional {} -> {:?}", c.path, c.path_label);
+                            }
+                        }
+                    }
+                }
+            }
             if k < 4 {
                 eprintln!(
                     "  {:?} {} ({})",
@@ -1055,6 +1152,7 @@ fn real_builds_read_as_names() {
         }
     }
     eprintln!("titled {titled} of {all} changed/added/removed records");
+    eprintln!("positional paths named {named_pos} of {positional}");
     assert!(
         all > 0 && titled * 20 >= all * 19,
         "most records read as a name"

@@ -435,4 +435,14 @@ fn records_carry_labels_for_refs_and_loc_keys() {
     assert_eq!(r[0]["kind"], "record");
     assert_eq!(r[1]["kind"], "loc");
     assert!(r[2].is_null());
+    // Record names too (dataset values GameData does not list), case-insensitive; an
+    // unknown name stays raw.
+    let r = s
+        .handle(&Request::Labels {
+            values: vec!["syn_item_001".into(), "SYN_Item_999".into()],
+        })
+        .unwrap();
+    assert_eq!(r[0]["text"], "Synthetic Item One");
+    assert_eq!(r[0]["detail"], "SYN_Item_001");
+    assert!(r[1].is_null());
 }

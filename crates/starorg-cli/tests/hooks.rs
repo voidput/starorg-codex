@@ -469,3 +469,81 @@ fn installed_block_runs_from_the_script() {
     assert!(stdout.contains("user: prelaunch"), "{stdout}");
     assert!(stderr.contains("(non-fatal)"), "{stderr}");
 }
+
+#[test]
+fn game_log_import_off_reads_no_log_in_scan_or_postexit() {
+    let f = Fake::new();
+    write_logs(&f);
+    f.setup("LIVE");
+    let (code, v) = f.json(&["sync", "status"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["environment"], "production");
+    assert_eq!(v["host"], "starorg.tools");
+    assert_eq!(v["sync"]["import_game_log"], true);
+    assert_eq!(v["sync"]["push_blueprints"], false);
+
+    let (code, v) = f.json(&["sync", "set", "--import-game-log", "off"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["sync"]["import_game_log"], false);
+    let (code, v) = f.json(&["blueprints", "scan", "--channel", "LIVE"]);
+    assert_eq!(code, 0, "{v}");
+    let text = v.to_string();
+    assert!(text.contains("\"disabled\":true"), "{v}");
+    let (code, v) = f.json(&["hook", "postexit", "--timeout", "30"]);
+    assert_eq!(code, 0, "{v}");
+    for s in v["scans"].as_array().unwrap() {
+        assert_eq!(s["scan"]["disabled"], true, "{v}");
+        assert_eq!(s["scan"]["files_read"], 0, "{v}");
+    }
+    assert_eq!(v["sync_pending"], false);
+    let bp = f.data_dir("LIVE").join("blueprints");
+    assert!(!bp.join("characters.json").exists() && !bp.join("scan.json").exists());
+
+    // Back on: the same logs are read.
+    f.json(&["sync", "set", "--import-game-log", "on"]);
+    let (_, v) = f.json(&["blueprints", "scan", "--channel", "LIVE"]);
+    assert!(!v.to_string().contains("\"disabled\":true"), "{v}");
+    assert!(bp.join("characters.json").exists());
+}
+
+#[test]
+fn sync_set_takes_starorg_env_and_postexit_leaves_the_app_a_note() {
+    let f = Fake::new();
+    f.setup("LIVE");
+    // An exported STARORG_ENV does not ride along on an unrelated change.
+    let o = f
+        .cmd(&["sync", "set", "--auto", "on", "--push", "on", "--json"])
+        .env("STARORG_ENV", "dev")
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["environment"], "production");
+    assert_eq!(v["sync"]["auto_sync"], true);
+    // A bare `sync set` saves it.
+    let o = f
+        .cmd(&["sync", "set", "--json"])
+        .env("STARORG_ENV", "dev")
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["environment"], "dev");
+    assert_eq!(v["host"], "dev.starorg.tools");
+    assert_eq!(v["sync"]["push_blueprints"], true);
+    let o = f
+        .cmd(&["sync", "set", "--json"])
+        .env("STARORG_ENV", "staging")
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(2), "{o:?}");
+    let (code, v) = f.json(&["hook", "postexit", "--timeout", "30"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["sync_pending"], true);
+    let note = std::fs::read_to_string(
+        f.base
+            .join("home/data/starorg-strings/starorg-sync-pending.txt"),
+    )
+    .unwrap();
+    assert!(note.lines().any(|l| l == "LIVE"), "{note}");
+}

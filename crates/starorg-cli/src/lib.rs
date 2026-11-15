@@ -11,6 +11,7 @@ mod fleet_cmds;
 mod gamedata_cmd;
 mod hook_cmds;
 mod mcp_cmd;
+mod sync_cmds;
 mod version_cmd;
 
 use clap::{Args, Parser, Subcommand};
@@ -261,6 +262,13 @@ pub enum Command {
         #[command(subcommand)]
         cmd: FleetCmd,
     },
+    /// StarOrg Tools environment and what to sync (shared with the app). The CLI itself never
+    /// connects; `--import-game-log off` also stops `blueprints scan` and `hook postexit`
+    /// from reading the logs.
+    Sync {
+        #[command(subcommand)]
+        cmd: SyncCmd,
+    },
     /// Developer tools: DataCore records as JSON, type exports, type counts. Read only.
     Dev {
         #[command(subcommand)]
@@ -294,6 +302,34 @@ pub enum Command {
         /// Test hook: never finish.
         #[arg(long, hide = true, conflicts_with = "test_panic")]
         test_hang: bool,
+    },
+}
+
+#[derive(Debug, Subcommand)]
+pub enum SyncCmd {
+    /// Show the environment and the switches.
+    Status,
+    /// Change the environment or switches; the rest stay as they are.
+    Set {
+        /// production (starorg.tools) or dev (dev.starorg.tools). A bare `sync set` with no
+        /// flags saves $STARORG_ENV instead; any other `sync set` leaves the environment alone.
+        #[arg(long, value_name = "ENV")]
+        environment: Option<String>,
+        /// Read Game.log for new blueprints (app, `blueprints scan`, `hook postexit`).
+        #[arg(long, value_enum, value_name = "on|off")]
+        import_game_log: Option<sync_cmds::OnOff>,
+        /// App: push owned blueprints to StarOrg Tools.
+        #[arg(long, value_enum, value_name = "on|off")]
+        push: Option<sync_cmds::OnOff>,
+        /// App: pull owned blueprints from StarOrg Tools.
+        #[arg(long, value_enum, value_name = "on|off")]
+        pull: Option<sync_cmds::OnOff>,
+        /// App: pull the StarOrg Tools hangar into the fleet.
+        #[arg(long, value_enum, value_name = "on|off")]
+        pull_fleet: Option<sync_cmds::OnOff>,
+        /// App: sync by itself after the game exits (the post-exit hook leaves it a note).
+        #[arg(long, value_enum, value_name = "on|off")]
+        auto: Option<sync_cmds::OnOff>,
     },
 }
 
@@ -605,6 +641,7 @@ where
         Command::Hook { cmd } => hook_cmds::run(&cli.global, cmd),
         Command::Blueprints { cmd } => blueprint_cmds::run(&cli.global, cmd),
         Command::Fleet { cmd } => fleet_cmds::run(&cli.global, cmd),
+        Command::Sync { cmd } => sync_cmds::run(&cli.global, cmd),
         Command::Dev { cmd } => dev_cmds::run(&cli.global, cmd),
         Command::Mcp { channel } => mcp_cmd::run(&cli.global, channel.as_deref()),
         Command::ExtractWorker {

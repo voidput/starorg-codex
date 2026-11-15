@@ -27,8 +27,12 @@
   });
 
   const net = $derived(app.settings?.network ?? null);
+  const so = $derived(app.settings?.starorg ?? null);
+  const host = $derived(so?.environment === 'dev' ? 'dev.starorg.tools' : 'starorg.tools');
+  const anyStarOrg = $derived(!!so && (so.push_blueprints || so.pull_blueprints || so.pull_fleet));
   const store = $derived(storeManaged(updates.status));
-  const rows = $derived([
+  type Row = { name: string; on: boolean; state: string; what: string; sub?: { name: string; on: boolean; what: string }[] };
+  const rows = $derived<Row[]>([
     store
       ? { name: 'Updates', on: false, state: 'Microsoft Store', what: 'The Store installs updates. The app never contacts GitHub.' }
       : {
@@ -38,10 +42,21 @@
           what: 'Asks api.github.com for the release list (at most once a day, or when you press Check now). Sends only the app name and version. Installing an update downloads it from github.com.',
         },
     {
-      name: 'StarOrg Tools',
+      name: `StarOrg Tools (${host})`,
       on: !!net?.starorg,
-      state: net?.starorg ? 'On' : 'Off',
-      what: 'Only after you sign in at starorg.tools in your browser: pulls and pushes the owned blueprints you choose. Nothing is sent before you sign in.',
+      state: net?.starorg ? (so?.auto_sync && anyStarOrg ? 'On, after game exit' : 'On') : 'Off',
+      what: `Only after you sign in at ${host} in your browser (Discord sign-in there). Sign-in: a one-time code and a check value; the token stays on this computer (system keyring, or a private file when there is none) and goes only to ${host}. Sign out revokes it there only while this switch is on. Then only what the switches below allow.`,
+      sub: [
+        { name: 'Push owned blueprints', on: !!net?.starorg && !!so?.push_blueprints, what: `Blueprint ids of the ticked characters and when each was received (when Game.log or StarOrg Tools says so), to ${host}. Never character names, ids or log text; never removals.` },
+        { name: 'Pull owned blueprints', on: !!net?.starorg && !!so?.pull_blueprints, what: `Reads your owned list from ${host}. Sends only the request with your token. Pushing first downloads the public blueprint list (no token).` },
+        { name: 'Pull fleet/hangar', on: !!net?.starorg && !!so?.pull_fleet, what: `Reads your hangar from ${host}. Sends only the request with your token.` },
+      ],
+    },
+    {
+      name: 'Import blueprints from Game.log',
+      on: !!so?.import_game_log,
+      state: so?.import_game_log ? 'On (local)' : 'Off',
+      what: 'Reads the game logs on this computer for received blueprints and your character names. Nothing is sent; off, the logs are not read.',
     },
     {
       name: 'Local MCP server',
@@ -79,11 +94,24 @@
               <ToneBadge tone={r.on ? 'info' : 'muted'} label={r.state} />
             </div>
             <p class="text-muted-foreground mt-1 text-[12.5px]">{r.what}</p>
+            {#if r.sub}
+              <ul class="mt-2 grid gap-1.5 border-l pl-3">
+                {#each r.sub as x (x.name)}
+                  <li>
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[12.5px]">{x.name}</span>
+                      <ToneBadge tone={x.on ? 'info' : 'muted'} label={x.on ? 'On' : 'Off'} />
+                    </div>
+                    <p class="text-muted-foreground text-[12px]">{x.what}</p>
+                  </li>
+                {/each}
+              </ul>
+            {/if}
           </li>
         {/each}
       </ul>
       <p class="text-muted-foreground text-[12.5px]">
-        Like any web request, the GitHub and starorg.tools ones show your IP address to that server. Diagnostics exports
+        Like any web request, the GitHub and StarOrg Tools ones show your IP address to that server. Diagnostics exports
         are files you save and share yourself, with your user name and paths replaced. Full policy:
         <span class="mono">docs/privacy.md</span> in the GitHub repository.
       </p>

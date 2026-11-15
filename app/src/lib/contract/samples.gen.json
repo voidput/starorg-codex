@@ -598,7 +598,7 @@
       }
     ],
     "id": "SYN_Ship_003",
-    "label": "Synthetic hull 24. A test ship description.\\nSecond line.",
+    "label": "Synthetic hull 3",
     "state": "changed"
   },
   "dev_diff_records": {
@@ -957,7 +957,7 @@
   },
   "dev_record": {
     "header": {
-      "bytes": 790,
+      "bytes": 830,
       "guid": "51000000-0000-4000-8000-000000000001",
       "main": true,
       "name": "SYN_Ship_001",
@@ -965,13 +965,13 @@
       "tag": null,
       "type": "SynShip"
     },
-    "json": "{\"_RecordName_\":\"SYN_Ship_001\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000001\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00008\",\"Crew\":2,\"Mass\":10250,\"Speed\":{\"Scm\":151,\"Max\":907,\"Boost\":{\"Forward\":1.5,\"Back\":0.75}},\"Components\":[{\"_ref\":\"52000000-0000-4000-8000-000000000005\",\"name\":\"SYN_shield_005\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/shield/syn_comp_005.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000006\",\"name\":\"SYN_powerplant_006\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/powerplant/syn_comp_006.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000007\",\"name\":\"SYN_quantumdrive_007\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/quantumdrive/syn_comp_007.xml\"}]}}",
+    "json": "{\"_RecordName_\":\"SYN_Ship_001\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000001\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"DisplayName\":\"Synthetic hull 1\",\"Description\":\"@vehicle_DescSYN_Ship_00008\",\"Crew\":2,\"Mass\":10250,\"Speed\":{\"Scm\":151,\"Max\":907,\"Boost\":{\"Forward\":1.5,\"Back\":0.75}},\"Components\":[{\"_ref\":\"52000000-0000-4000-8000-000000000005\",\"name\":\"SYN_shield_005\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/shield/syn_comp_005.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000006\",\"name\":\"SYN_powerplant_006\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/powerplant/syn_comp_006.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000007\",\"name\":\"SYN_quantumdrive_007\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/quantumdrive/syn_comp_007.xml\"}]}}",
     "labels": {
       "51000000-0000-4000-8000-000000000001": {
         "detail": "SYN_Ship_001",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 1"
       },
       "52000000-0000-4000-8000-000000000005": {
         "detail": "SYN_shield_005",
@@ -1001,7 +1001,7 @@
         "detail": "SYN_Ship_001",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 1"
       }
     },
     "loc": [
@@ -1015,7 +1015,7 @@
   },
   "dev_record_cut": {
     "header": {
-      "bytes": 1585195,
+      "bytes": 1585236,
       "guid": "51000000-0000-4000-8000-000000000027",
       "main": true,
       "name": "SYN_Ship_039",
@@ -1023,13 +1023,13 @@
       "tag": null,
       "type": "SynShip"
     },
-    "json": "{\"_RecordName_\":\"SYN_Ship_039\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000027\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00312\",\"Crew\":4,\"Mass\":19750,\"Speed\":{\"_cut\":{\"kind\":\"object\",\"len\":3}},\"Components\":{\"_cut\":{\"kind\":\"array\",\"len\":3}},\"Loadout\":{\"_cut\":{\"kind\":\"array\",\"len\":3400}}}}",
+    "json": "{\"_RecordName_\":\"SYN_Ship_039\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000027\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"DisplayName\":\"Synthetic hull 39\",\"Description\":\"@vehicle_DescSYN_Ship_00312\",\"Crew\":4,\"Mass\":19750,\"Speed\":{\"_cut\":{\"kind\":\"object\",\"len\":3}},\"Components\":{\"_cut\":{\"kind\":\"array\",\"len\":3}},\"Loadout\":{\"_cut\":{\"kind\":\"array\",\"len\":3400}}}}",
     "labels": {
       "51000000-0000-4000-8000-000000000027": {
         "detail": "SYN_Ship_039",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 39"
       },
       "@vehicle_DescSYN_Ship_00312": {
         "detail": null,
@@ -1041,7 +1041,7 @@
         "detail": "SYN_Ship_039",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 39"
       }
     },
     "loc": [
@@ -1069,7 +1069,7 @@
         "detail": "SYN_Ship_004",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 32. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 4"
       }
     },
     "loc": [],
@@ -1083,7 +1083,7 @@
         "detail": "SYN_Ship_001",
         "enhanced": null,
         "kind": "record",
-        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+        "text": "Synthetic hull 1"
       }
     },
     "links": [
@@ -4187,7 +4187,15 @@
       "published_dumps": false,
       "starorg": true
     },
-    "safe_gpu": false
+    "safe_gpu": false,
+    "starorg": {
+      "auto_sync": false,
+      "environment": "production",
+      "import_game_log": true,
+      "pull_blueprints": true,
+      "pull_fleet": true,
+      "push_blueprints": true
+    }
   },
   "hooks_status": {
     "cli_on_path": true,
@@ -4409,6 +4417,7 @@
     "token": null,
     "url": null
   },
+  "open_link": null,
   "overview": {
     "active_install": "inst-7f3a",
     "app_version": "0.1.0",
@@ -6357,6 +6366,52 @@
     "message": "Every <EMn> tag needs its closing </EMn>.",
     "rule": "added-em-unbalanced"
   },
+  "set_starorg_guild": {
+    "connected": true,
+    "enabled": true,
+    "environment": "production",
+    "expired": false,
+    "expires": "2027-02-12T21:30:05Z",
+    "guild": "Synthetic Org",
+    "guild_id": "100000000000000001",
+    "guilds": [
+      {
+        "blueprints": true,
+        "id": "100000000000000001",
+        "name": "Synthetic Org"
+      },
+      {
+        "blueprints": false,
+        "id": "100000000000000002",
+        "name": "Other Test Org"
+      }
+    ],
+    "host": "starorg.tools",
+    "last_sync": "2026-11-14T21:30:05Z",
+    "push_count": 7,
+    "sync_characters": [
+      {
+        "id": "1000000000001",
+        "name": "Pilot_A",
+        "owned": 6,
+        "ticked": true
+      },
+      {
+        "id": "1000000000002",
+        "name": "Alt_B",
+        "owned": 2,
+        "ticked": true
+      },
+      {
+        "id": "1000000000003",
+        "name": "Alt_C",
+        "owned": 0,
+        "ticked": true
+      }
+    ],
+    "token_store": "keyring",
+    "user": "pilot_a_discord"
+  },
   "setup": {
     "install": "inst-7f3a",
     "set_up": [
@@ -6398,8 +6453,23 @@
     "connected": true,
     "enabled": true,
     "environment": "production",
+    "expired": false,
     "expires": "2027-02-12T21:30:05Z",
     "guild": "Synthetic Org",
+    "guild_id": "100000000000000001",
+    "guilds": [
+      {
+        "blueprints": true,
+        "id": "100000000000000001",
+        "name": "Synthetic Org"
+      },
+      {
+        "blueprints": false,
+        "id": "100000000000000002",
+        "name": "Other Test Org"
+      }
+    ],
+    "host": "starorg.tools",
     "last_sync": null,
     "push_count": 5,
     "sync_characters": [
@@ -6422,7 +6492,97 @@
         "ticked": true
       }
     ],
+    "token_store": "keyring",
     "user": "pilot_a_discord"
+  },
+  "starorg_sync": {
+    "channel": "LIVE",
+    "fleet": {
+      "added_to_order": 0,
+      "ambiguous": [
+        {
+          "candidates": [
+            "vehicle_NameKSTL_Talon",
+            "vehicle_NameKSTL_Talon_Mk2"
+          ],
+          "count": 1,
+          "maker": "KSTL",
+          "name": "Talon",
+          "names": []
+        }
+      ],
+      "dry_run": false,
+      "empty_catalog": false,
+      "file": "StarOrg Tools hangar",
+      "format": "xplor-json",
+      "hulls": [
+        {
+          "count": 2,
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": "Kestrel Kite",
+          "names": [
+            "Needle"
+          ],
+          "new": false
+        },
+        {
+          "count": 1,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Orbit Works Lantern",
+          "names": [
+            "Rusty"
+          ],
+          "new": false
+        },
+        {
+          "count": 2,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": "Ridge Freight Hauler",
+          "names": [],
+          "new": false
+        },
+        {
+          "count": 1,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": "Volmar Pike",
+          "names": [],
+          "new": false
+        }
+      ],
+      "merge": true,
+      "not_in_game": 1,
+      "skipped": 1,
+      "total": 9,
+      "unmatched": []
+    },
+    "reports": [
+      {
+        "added": [],
+        "already": 3,
+        "channel": "LIVE",
+        "character": "1000000000001",
+        "direction": "pull",
+        "guild": "Synthetic Org",
+        "sent": 0,
+        "time": "2026-11-14T21:30:05Z",
+        "unmatched": [
+          "Retired Sample Visor"
+        ]
+      },
+      {
+        "added": [],
+        "already": 0,
+        "channel": "LIVE",
+        "character": null,
+        "direction": "push",
+        "guild": "Synthetic Org",
+        "sent": 7,
+        "time": "2026-11-14T21:30:05Z",
+        "unmatched": []
+      }
+    ],
+    "skipped": [],
+    "time": "2026-11-14T21:30:05Z"
   },
   "string_detail": {
     "also_used_by": [],

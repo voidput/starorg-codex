@@ -327,15 +327,21 @@ impl MockBackend {
                 default_channel: None,
                 safe_gpu: false,
                 advanced: AdvancedSettings::default(),
+                starorg: StarOrgSettings::default(),
             },
             log: Vec::new(),
             starorg: StarOrgStatus {
                 enabled: false,
                 connected: false,
                 environment: StarOrgEnv::Production,
+                host: "starorg.tools".into(),
                 user: None,
                 guild: None,
+                guild_id: None,
+                guilds: Vec::new(),
                 expires: None,
+                expired: false,
+                token_store: None,
                 last_sync: None,
                 sync_characters: Vec::new(),
                 push_count: 0,
@@ -910,6 +916,45 @@ fn starorg_view(s: &mut MockState, channel: &str) {
         .collect();
     s.starorg.push_count = union.len() as u32;
     s.starorg.enabled = s.settings.network.starorg;
+    s.starorg.environment = s.settings.starorg.environment;
+    s.starorg.host = match s.starorg.environment {
+        StarOrgEnv::Production => "starorg.tools",
+        StarOrgEnv::Dev => "dev.starorg.tools",
+    }
+    .into();
+}
+
+fn mock_sign_out(s: &mut MockState) {
+    s.starorg.connected = false;
+    s.starorg.user = None;
+    s.starorg.guild = None;
+    s.starorg.guild_id = None;
+    s.starorg.guilds.clear();
+    s.starorg.expires = None;
+    s.starorg.token_store = None;
+}
+
+/// Synthetic orgs of the signed-in mock account.
+fn mock_guilds() -> Vec<StarOrgGuild> {
+    vec![
+        StarOrgGuild {
+            id: "100000000000000001".into(),
+            name: "Synthetic Org".into(),
+            blueprints: true,
+        },
+        StarOrgGuild {
+            id: "100000000000000002".into(),
+            name: "Other Test Org".into(),
+            blueprints: false,
+        },
+    ]
+}
+
+fn sync_off(what: &str) -> AppError {
+    AppError::new(
+        ErrorCode::Invalid,
+        format!("{what} is off under Settings -> StarOrg Tools -> What to sync."),
+    )
 }
 
 /// Synthetic hulls for the Ships screen: invented makers and names, no CIG text.
@@ -2029,11 +2074,11 @@ impl Backend for MockBackend {
 
     fn save_settings(&self, req: Settings) -> CmdResult<Settings> {
         let mut s = self.lock();
+        // Tokens are per environment: switching signs out (the UI asks first).
+        let env_changed = s.settings.starorg.environment != req.starorg.environment;
         s.settings = req;
-        if !s.settings.network.starorg {
-            s.starorg.connected = false;
-            s.starorg.user = None;
-            s.starorg.guild = None;
+        if !s.settings.network.starorg || env_changed {
+            mock_sign_out(&mut s);
         }
         Ok(s.settings.clone())
     }
@@ -2162,6 +2207,16 @@ impl Backend for MockBackend {
                 Some("synthetic-fleet.json".to_string()),
                 MOCK_FLEET_FILE.to_string(),
             ),
+            FleetSource::StarOrg => {
+                self.starorg_guild()?;
+                if !self.lock().settings.starorg.pull_fleet {
+                    return Err(sync_off("Pull fleet/hangar"));
+                }
+                (
+                    Some("StarOrg Tools hangar".to_string()),
+                    MOCK_FLEET_FILE.to_string(),
+                )
+            }
         };
         let parsed = super::fleet::parse(text.as_bytes())?;
         let out = self.with_channel(&req.target, |_, s| {
@@ -2243,20 +2298,39 @@ impl Backend for MockBackend {
             ));
         }
         s.starorg.connected = true;
+        s.starorg.expired = false;
         s.starorg.user = Some("pilot_a_discord".into());
+        s.starorg.guilds = mock_guilds();
         s.starorg.guild = Some("Synthetic Org".into());
+        s.starorg.guild_id = Some("100000000000000001".into());
         s.starorg.expires = Some("2027-02-12T21:30:05Z".into());
+        s.starorg.token_store = Some(TokenStoreKind::Keyring);
         starorg_view(&mut s, &channel);
         Ok(s.starorg.clone())
     }
 
+    fn starorg_cancel_login(&self) -> CmdResult<()> {
+        Ok(())
+    }
+
     fn starorg_logout(&self, channel: String) -> CmdResult<StarOrgStatus> {
         let mut s = self.lock();
-        s.starorg.connected = false;
-        s.starorg.user = None;
-        s.starorg.guild = None;
-        s.starorg.expires = None;
+        mock_sign_out(&mut s);
         starorg_view(&mut s, &channel);
+        Ok(s.starorg.clone())
+    }
+
+    fn set_starorg_guild(&self, req: StarOrgGuildRequest) -> CmdResult<StarOrgStatus> {
+        let mut s = self.lock();
+        let Some(g) = s.starorg.guilds.iter().find(|g| g.id == req.guild).cloned() else {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "Pick one of your orgs on StarOrg Tools.",
+            ));
+        };
+        s.starorg.guild = Some(g.name);
+        s.starorg.guild_id = Some(g.id);
+        starorg_view(&mut s, &req.channel);
         Ok(s.starorg.clone())
     }
 
@@ -2277,6 +2351,9 @@ impl Backend for MockBackend {
 
     fn starorg_pull(&self, req: StarOrgPullRequest) -> CmdResult<SyncReport> {
         let guild = self.starorg_guild()?;
+        if !self.lock().settings.starorg.pull_blueprints {
+            return Err(sync_off("Pull owned blueprints"));
+        }
         let ch = ChannelRef {
             install: INSTALL_ID.into(),
             channel: req.channel.clone(),
@@ -2339,6 +2416,9 @@ impl Backend for MockBackend {
 
     fn starorg_push(&self, channel: String) -> CmdResult<SyncReport> {
         let guild = self.starorg_guild()?;
+        if !self.lock().settings.starorg.push_blueprints {
+            return Err(sync_off("Push owned blueprints"));
+        }
         let mut s = self.lock();
         starorg_view(&mut s, &channel);
         let sent = s.starorg.push_count;
@@ -2359,6 +2439,70 @@ impl Backend for MockBackend {
             already: 0,
             unmatched: Vec::new(),
             sent,
+            time: NOW.into(),
+        })
+    }
+
+    fn starorg_sync(&self, channel: String) -> CmdResult<SyncRun> {
+        self.starorg_guild()?;
+        let p = self.lock().settings.starorg.clone();
+        if !(p.push_blueprints || p.pull_blueprints || p.pull_fleet) {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "Nothing to sync: turn on a StarOrg switch under Settings -> StarOrg Tools -> What to sync.",
+            ));
+        }
+        let mut reports = Vec::new();
+        let mut skipped = Vec::new();
+        if p.pull_blueprints {
+            let who = self
+                .list_characters(ChannelRef {
+                    install: INSTALL_ID.into(),
+                    channel: channel.clone(),
+                })
+                .ok()
+                .and_then(|v| v.active.resolved);
+            match who {
+                Some(c) => match self.starorg_pull(StarOrgPullRequest {
+                    channel: channel.clone(),
+                    character: c,
+                }) {
+                    Ok(r) => reports.push(r),
+                    Err(e) => skipped.push(format!("Pull: {}", e.message)),
+                },
+                None => skipped.push("Pull: no character found in the logs yet".into()),
+            }
+        }
+        if p.push_blueprints {
+            match self.starorg_push(channel.clone()) {
+                Ok(r) => reports.push(r),
+                Err(e) => skipped.push(format!("Push: {}", e.message)),
+            }
+        }
+        let fleet = if p.pull_fleet {
+            match self.fleet_import(FleetImportRequest {
+                target: ChannelRef {
+                    install: INSTALL_ID.into(),
+                    channel: channel.clone(),
+                },
+                source: FleetSource::StarOrg,
+                dry_run: false,
+                merge: true,
+            }) {
+                Ok(r) => Some(r),
+                Err(e) => {
+                    skipped.push(format!("Fleet: {}", e.message));
+                    None
+                }
+            }
+        } else {
+            None
+        };
+        Ok(SyncRun {
+            channel,
+            reports,
+            fleet,
+            skipped,
             time: NOW.into(),
         })
     }
@@ -2538,6 +2682,17 @@ impl Backend for MockBackend {
 
     fn open_release_page(&self) -> CmdResult<()> {
         self.update.open_release_page()
+    }
+
+    // No browser here: the activity log records the click instead.
+    fn open_link(&self, link: ExternalLink) -> CmdResult<()> {
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!("Opened the {} link ({})", link.label(), link.url()),
+        );
+        Ok(())
     }
 
     fn install_update(&self) -> CmdResult<UpdateStatus> {
