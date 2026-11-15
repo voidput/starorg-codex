@@ -87,6 +87,9 @@
     !starorg ? 'Loading…' : !starorg.enabled ? 'StarOrg Tools is off. Turn on “Connect StarOrg Tools” under Settings → Network; until then nothing is sent or received.' : !starorg.connected ? 'Not signed in. Sign in under Settings → StarOrg Tools.' : null,
   );
 
+  const pullOff = $derived(app.settings?.starorg.pull_blueprints ? null : 'Pull is off under Settings → StarOrg Tools → What to sync.');
+  const pushOff = $derived(app.settings?.starorg.push_blueprints ? null : 'Push is off under Settings → StarOrg Tools → What to sync.');
+
   async function pull() {
     if (!app.target || !pullInto) return;
     syncing = true;
@@ -211,28 +214,30 @@
             </div>
           </div>
         {:else if starorg}
-          <p class="text-muted-foreground text-[12px]">Signed in as <span class="text-foreground">{starorg.user}</span> in <span class="text-foreground">{starorg.guild}</span>. Last sync {fmtDateTime(starorg.last_sync)}.</p>
+          <p class="text-muted-foreground text-[12px]">Signed in as <span class="text-foreground">{starorg.user}</span> in <span class="text-foreground">{starorg.guild}</span> on {starorg.host}. Last sync {fmtDateTime(starorg.last_sync)}.</p>
         {/if}
         <div class="grid gap-1.5">
           <span class="text-muted-foreground text-[12px]" id="pull-into">Pull into</span>
           <div class="flex flex-wrap items-center gap-2">
             <SelectField ariaLabel="Pull into character" disabled={!!syncBlocked} options={v.characters.map((c) => ({ id: c.id, label: c.name }))} value={pullInto} onchange={(c) => (pullInto = c)} />
-            <Button size="sm" variant="outline" disabled={!!syncBlocked || syncing || !pullInto} aria-describedby={syncBlocked ? undefined : 'pull-into'} onclick={pull}><Download aria-hidden="true" /> Pull</Button>
+            <Button size="sm" variant="outline" disabled={!!syncBlocked || !!pullOff || syncing || !pullInto} aria-describedby={syncBlocked ? undefined : 'pull-into'} onclick={pull}><Download aria-hidden="true" /> Pull</Button>
           </div>
+          {#if !syncBlocked && pullOff}<span class="text-muted-foreground text-[12px]">{pullOff}</span>{/if}
         </div>
         <div class="grid gap-1.5">
           <span class="text-muted-foreground text-[12px]">Push {starorg?.sync_characters.filter((c) => c.ticked).map((c) => c.name).join(', ') || 'no characters'}</span>
           <div class="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" disabled={!!syncBlocked || syncing || !starorg?.push_count} onclick={push}><Upload aria-hidden="true" /> Push {starorg?.push_count ?? 0} blueprints</Button>
+            <Button size="sm" variant="outline" disabled={!!syncBlocked || !!pushOff || syncing || !starorg?.push_count} onclick={push}><Upload aria-hidden="true" /> Push {starorg?.push_count ?? 0} blueprints</Button>
             <button type="button" class="text-primary text-[12px] underline-offset-2 hover:underline" onclick={() => app.go('settings')}>Change characters</button>
           </div>
+          {#if !syncBlocked && pushOff}<span class="text-muted-foreground text-[12px]">{pushOff}</span>{/if}
         </div>
         {#if lastReport}
           <div class="rounded-md border p-3 text-[12px]" aria-live="polite">
             {#if lastReport.direction === 'pull'}
               Pulled into {name(lastReport.character)}: {lastReport.added.length} added ({lastReport.added.join(', ') || 'none'}), {lastReport.already} already known{lastReport.unmatched.length ? `, ${lastReport.unmatched.length} not in this build (${lastReport.unmatched.join(', ')})` : ''}.
             {:else}
-              Pushed {lastReport.sent} blueprints to {lastReport.guild}.
+              Pushed {lastReport.sent} blueprints to {lastReport.guild}: {lastReport.added.length} new there, {lastReport.already} already listed{lastReport.unmatched.length ? `; ${lastReport.unmatched.length} not known to StarOrg Tools, not sent (${lastReport.unmatched.join(', ')})` : ''}.
             {/if}
           </div>
         {/if}
