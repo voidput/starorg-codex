@@ -174,7 +174,7 @@ pub fn store(
         if dir.exists() {
             std::fs::remove_dir_all(&dir)?;
         }
-        std::fs::rename(&tmp, &dir)?;
+        crate::fsutil::rename_retry(&tmp, &dir)?;
         fsutil::fsync_dir(channel_cache)
     })();
     if result.is_err() {

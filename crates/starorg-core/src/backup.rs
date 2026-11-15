@@ -218,8 +218,9 @@ pub fn create(
             &serde_json::to_vec_pretty(&manifest).map_err(std::io::Error::other)?,
         )?;
         f.sync_all()?;
+        drop(f);
         fsutil::fsync_dir(&tmp)?;
-        std::fs::rename(&tmp, dir.join(&id))?;
+        fsutil::rename_retry(&tmp, &dir.join(&id))?;
         fsutil::fsync_dir(&dir)
     })();
     if let Err(e) = result {

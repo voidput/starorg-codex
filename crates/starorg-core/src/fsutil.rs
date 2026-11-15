@@ -61,6 +61,33 @@ pub fn fsync_dir(dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
+/// `rename`, retrying briefly on Windows when a scanner or indexer holds a just-written
+/// file open (ERROR_ACCESS_DENIED / sharing violation). Elsewhere a plain rename.
+pub fn rename_retry(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        let mut last = None;
+        for i in 0..20u64 {
+            match std::fs::rename(from, to) {
+                Ok(()) => return Ok(()),
+                Err(e)
+                    if e.kind() == std::io::ErrorKind::PermissionDenied
+                        || e.raw_os_error() == Some(32) =>
+                {
+                    last = Some(e);
+                    std::thread::sleep(std::time::Duration::from_millis(25 * (i + 1)));
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Err(last.unwrap_or_else(|| std::io::Error::other("rename failed")))
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::rename(from, to)
+    }
+}
+
 /// Write `bytes` to `tmp`, fsync it, rename it over `target`, fsync the folder. `tmp` must be
 /// in the same folder as `target`. On error the temp file is removed.
 pub fn write_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()> {
@@ -73,7 +100,7 @@ pub fn write_via(tmp: &Path, target: &Path, bytes: &[u8]) -> std::io::Result<()>
             // Keep the permissions of the file we replace.
             let _ = std::fs::set_permissions(tmp, meta.permissions());
         }
-        std::fs::rename(tmp, target)?;
+        rename_retry(tmp, target)?;
         if let Some(dir) = target.parent().filter(|d| !d.as_os_str().is_empty()) {
             fsync_dir(dir)?;
         }

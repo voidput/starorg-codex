@@ -305,7 +305,7 @@ impl DumpCache {
             if dir.exists() {
                 std::fs::remove_dir_all(&dir)?;
             }
-            std::fs::rename(&tmp, &dir)
+            crate::fsutil::rename_retry(&tmp, &dir)
         })();
         if let Err(e) = result {
             let _ = std::fs::remove_dir_all(&tmp);
