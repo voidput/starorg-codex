@@ -275,9 +275,20 @@ fn variant_heuristic() {
     assert!(!v("AEGS_Gladius_PIR"));
     assert!(!v("DRAK_Cutlass_Black"));
     assert!(!v("MISC_Prospector"));
+    // Teach's Ship Shop sells these; shop racks, HUD props and hangar flair are real items.
+    for n in [
+        "DRAK_Golem_Teach",
+        "AEGS_Reclaimer_Teach",
+        "Flair_viVid_Display",
+        "counter_display_shelf_1",
+        "vehicle_display_ship_01",
+        "Radar_Display_Gladius",
+    ] {
+        assert!(!v(n), "{n}");
+    }
     for n in [
         "AEGS_Gladius_PU_Hijacked",
-        "ANVL_Arrow_Teach",
+        "ARMR_Sentinel_Display",
         "RSI_Aurora_Display",
         "SalvageableDebris_AresInferno",
         "Orbital_Sentry_PU_NineTails_Size2",

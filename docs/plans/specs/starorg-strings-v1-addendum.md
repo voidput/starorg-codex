@@ -1453,7 +1453,10 @@ missile racks with missiles, mining/salvage heads and modules with Mining & salv
 name token (split at `_ - . space`, case-insensitive) of `ai npc template test debug dummy
 unmanned placeholder temp tmp shipboarded boarded derelict wreck tutorial ea pir`, or a
 folder named `npc_archetypes featuretests templates template test tests ai npc debug
-placeholder`. Tokens also `hijacked teach display indestructible nointerior gamemaster`;
+placeholder`. Tokens also `hijacked indestructible nointerior gamemaster`, and a trailing
+`Display` after a maker code or `ARMR` (showroom copies such as `RSI_Aurora_Display`; shop racks,
+`Radar_Display_*` props and `Flair_viVid_Display` stay real items). `Teach` is not a token: the
+`*_Teach` ships are "Teach's Special" editions sold at Teach's Ship Shop;
 name prefixes `SalvageableDebris Orbital_Sentry probe_comms EAObjectiveDestructable`. `PIR` is
 not a token: `AEGS_Gladius_PIR` ("Aegis Gladius Pirate") is a player ship (a regression test
 and the real-data test check it). Not for other records: `Template` and `Derelict` are words

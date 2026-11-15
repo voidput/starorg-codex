@@ -397,8 +397,6 @@ pub const VARIANT_TOKENS: &[&str] = &[
     "tutorial",
     "ea",
     "hijacked",
-    "teach",
-    "display",
     "indestructible",
     "nointerior",
     "gamemaster",
@@ -496,11 +494,26 @@ pub fn is_variant(name: &str, rel: &str) -> bool {
     let token = short
         .split(['_', '-', '.', ' '])
         .any(|t| VARIANT_TOKENS.iter().any(|v| t.eq_ignore_ascii_case(v)));
-    token || VARIANT_PREFIXES.iter().any(|p| starts_ci(short, p)) || {
+    token || display_copy(short) || VARIANT_PREFIXES.iter().any(|p| starts_ci(short, p)) || {
         let mut segs: Vec<&str> = rel.split('/').collect();
         segs.pop();
         segs.iter().any(|s| VARIANT_FOLDERS.contains(s))
     }
+}
+
+/// A showroom copy of a ship or armor: `RSI_Aurora_Display`, `ARMR_..._Display`. Only a
+/// trailing `Display` after a manufacturer code (3-4 capitals) or `ARMR` counts: shop racks
+/// (`counter_display_*`), HUD props (`Radar_Display_*`) and hangar flair
+/// (`Flair_viVid_Display`) are real items.
+fn display_copy(short: &str) -> bool {
+    let parts: Vec<&str> = short.split('_').collect();
+    let (Some(first), Some(last)) = (parts.first(), parts.last()) else {
+        return false;
+    };
+    parts.len() >= 2
+        && last.eq_ignore_ascii_case("display")
+        && (first.eq_ignore_ascii_case("ARMR")
+            || ((3..=4).contains(&first.len()) && first.chars().all(|c| c.is_ascii_uppercase())))
 }
 
 pub fn value_label(v: &str) -> Option<&'static str> {
