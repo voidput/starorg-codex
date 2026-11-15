@@ -687,10 +687,12 @@ export interface BlueprintFinderChannel {
   catalog: number | null;
   characters: number;
   owned: number;
+  /** Set files that could not be read or placed: not shown. */
+  skipped: number;
 }
 
 export interface BlueprintFinderCharacter {
-  /** geid: personal data, shown, never uploaded. */
+  /** geid (personal data: shown, never uploaded), or `unattributed`. */
   id: string;
   name: string;
   last_seen: string | null;
@@ -719,7 +721,11 @@ export interface BlueprintRow {
   size: number | null;
   grade: string | null;
   channels: string[];
+  /** Name rows: keys of the blueprints the name could be; empty = in no read build. */
+  candidates: string[];
   owners: BlueprintOwner[];
+  /** Owners of an ambiguous name that could be this blueprint ("maybe owned"). */
+  maybe: BlueprintOwner[];
 }
 
 export interface BlueprintFinder {

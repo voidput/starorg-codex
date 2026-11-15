@@ -2123,13 +2123,9 @@ impl Backend for MockBackend {
             };
             let mut characters = bp::Characters::default();
             let mut sets = Vec::new();
-            for (id, who, seen) in CHARACTERS {
-                if c.forgotten.contains(*id) {
-                    continue;
-                }
-                characters.seen(id, None, who, Some(seen));
-                let mut set = bp::OwnedSet::new(Some(id));
-                for b in c.owned.get(*id).into_iter().flatten() {
+            let to_set = |geid: Option<&str>, list: &[OwnedBlueprint]| {
+                let mut set = bp::OwnedSet::new(geid);
+                for b in list {
                     let mut e = bp::OwnedEntry {
                         name: b.name.clone(),
                         ids: Vec::new(),
@@ -2146,13 +2142,25 @@ impl Backend for MockBackend {
                     }
                     set.entries.insert(bp::normalize(&b.name), e);
                 }
-                sets.push(set);
+                set
+            };
+            for (id, who, seen) in CHARACTERS {
+                if c.forgotten.contains(*id) {
+                    continue;
+                }
+                characters.seen(id, None, who, Some(seen));
+                sets.push(to_set(
+                    Some(id),
+                    c.owned.get(*id).map(Vec::as_slice).unwrap_or_default(),
+                ));
             }
             inputs.push(finder::ChannelInput {
                 channel: name.clone(),
                 catalog: super::mock_finder::catalog(name),
                 characters,
                 sets,
+                unattributed: Some(to_set(None, &super::mock_finder::unattributed(name))),
+                unreadable: 0,
             });
         }
         Ok(super::finder::contract(finder::build(&inputs)))

@@ -1460,15 +1460,15 @@ fn starorg_push_is_the_union_of_ticked_characters() {
     b.save_settings(s).unwrap();
     let st = b.starorg_login("LIVE".into()).unwrap();
     assert!(st.connected);
-    // Pilot_A owns 6, Alt_B owns 3 with one in common: union = 8.
-    assert_eq!(st.push_count, 8);
+    // Pilot_A owns 6, Alt_B owns 4 with one in common: union = 9.
+    assert_eq!(st.push_count, 9);
     let st = b
         .set_sync_characters(SyncCharactersRequest {
             channel: "LIVE".into(),
             ticked: vec!["1000000000002".into()],
         })
         .unwrap();
-    assert_eq!(st.push_count, 3);
+    assert_eq!(st.push_count, 4);
     let st = b
         .set_sync_characters(SyncCharactersRequest {
             channel: "LIVE".into(),
@@ -1538,7 +1538,7 @@ fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
             character: "1000000000002".into(),
         })
         .unwrap();
-    assert_eq!(alt.len(), 5);
+    assert_eq!(alt.len(), 6);
     let main = b
         .owned_blueprints(CharacterRequest {
             target: live(),
@@ -1546,8 +1546,8 @@ fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
         })
         .unwrap();
     assert_eq!(main.len(), 6, "pull never spreads across alts");
-    // Push sends the union of ticked characters: Pilot_A 6 + Alt_B now 5, 1 shared = 10.
-    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 10);
+    // Push sends the union of ticked characters: Pilot_A 6 + Alt_B now 6, 1 shared = 11.
+    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 11);
     b.set_sync_characters(SyncCharactersRequest {
         channel: "LIVE".into(),
         ticked: vec!["1000000000001".into()],
@@ -2034,9 +2034,13 @@ fn blueprint_finder_merges_channels_with_their_own_owners() {
         .collect();
     assert_eq!(
         chans,
-        vec![("LIVE", Some(37)), ("HOTFIX", None), ("PTU", Some(37))]
+        vec![("LIVE", Some(39)), ("HOTFIX", None), ("PTU", Some(39))]
     );
-    assert_eq!(all.characters.len(), 3);
+    assert_eq!(
+        all.characters.len(),
+        4,
+        "three characters and the unattributed set"
+    );
     let row = |f: &BlueprintFinder, n: &str| f.rows.iter().find(|r| r.name == n).cloned().unwrap();
     let rifle = row(&all, "Synthetic Rifle Mk1");
     let mut owners: Vec<(String, String)> = rifle
@@ -2049,6 +2053,31 @@ fn blueprint_finder_merges_channels_with_their_own_owners() {
     assert_eq!(rifle.channels, vec!["LIVE", "PTU"]);
     assert_eq!(row(&all, "PTU Prototype Shield").channels, vec!["PTU"]);
     assert_eq!(row(&all, "Sample Crate").channels, vec!["LIVE"]);
+    // A log name two blueprints have: an ambiguous name row; both are "maybe owned".
+    let visor: Vec<&BlueprintRow> = all
+        .rows
+        .iter()
+        .filter(|r| r.name == "Sample Visor")
+        .collect();
+    assert_eq!(visor.len(), 3);
+    let name_row = visor.iter().find(|r| r.record.is_none()).unwrap();
+    assert_eq!(
+        (name_row.candidates.len(), name_row.owners[0].ambiguous),
+        (2, true)
+    );
+    assert_eq!(name_row.kind, BlueprintKind::Armor);
+    assert!(
+        visor
+            .iter()
+            .filter(|r| r.record.is_some())
+            .all(|r| r.owners.is_empty() && r.maybe.len() == 1)
+    );
+    // The unattributed set shows as its own owner.
+    assert_eq!(all.characters.last().unwrap().id, "unattributed");
+    assert_eq!(
+        row(&all, "Test Scattergun S1").owners[0].character,
+        "unattributed"
+    );
     // One channel: only its owners.
     let live_only = b.blueprint_finder(req(&["live"])).unwrap();
     assert_eq!(live_only.channels.len(), 1);

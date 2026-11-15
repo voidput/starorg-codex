@@ -782,6 +782,14 @@ fn smart_citizen_import_dry_run_reports_and_writes_nothing() {
         .find(|r| r.name == "Fake Rifle Kestrel")
         .unwrap();
     assert_eq!(rifle.record.as_deref(), Some("bp_fake_rifle"));
+    // Reading creates nothing for channels without blueprint data.
+    for c in all.channels.iter().filter(|c| c.channel != "LIVE") {
+        let d = f
+            .dirs
+            .channel_dir(&s.install, &c.channel)
+            .join("blueprints");
+        assert!(!d.exists(), "finder created {}", d.display());
+    }
     assert_eq!(rifle.channels, ["LIVE"]);
     assert_eq!(rifle.owners.len(), 1);
     assert_eq!(

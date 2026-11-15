@@ -1107,15 +1107,40 @@ impl RealBackend {
         if f.id.is_none() {
             return inp;
         }
-        self.scan(f, ch);
         let data = self.data_dir(f, ch);
+        // Reading never creates folders: only a channel that already has blueprint data gets
+        // the incremental log scan (the current channel is scanned by `list_characters`).
+        if blueprints::dir(&data).is_dir() {
+            self.scan(f, ch);
+        }
         inp.characters = blueprints::load_characters(&data).unwrap_or_default();
-        inp.sets = inp
-            .characters
-            .characters
-            .keys()
-            .filter_map(|g| blueprints::load_set(&data, g).ok())
-            .collect();
+        for g in inp.characters.characters.keys() {
+            match blueprints::load_set(&data, g) {
+                Ok(mut set) => {
+                    if set.geid.is_none() {
+                        // Placed by its file name; said once per read (no ids in the log).
+                        self.log(
+                            LogLevel::Warn,
+                            Some(JobKind::Import),
+                            Some(&ch.name),
+                            "a blueprint set file has no character id; read it as its file name says",
+                        );
+                        set.geid = Some(g.clone());
+                    }
+                    inp.sets.push(set);
+                }
+                Err(_) => {
+                    self.log(
+                        LogLevel::Warn,
+                        Some(JobKind::Import),
+                        Some(&ch.name),
+                        "a blueprint set file could not be read; its blueprints are not shown",
+                    );
+                    inp.unreadable += 1;
+                }
+            }
+        }
+        inp.unattributed = blueprints::load_unattributed(&data).ok();
         inp.catalog = self.bp_catalog(f, ch).map(|c| c.as_ref().clone());
         inp
     }

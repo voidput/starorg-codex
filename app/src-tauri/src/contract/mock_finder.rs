@@ -360,6 +360,25 @@ const ITEMS: &[Item] = &[
         None,
         None,
     ),
+    // One name, two blueprints: a log name matches neither for sure.
+    (
+        "Sample Visor",
+        Kind::Armor,
+        Some("Helmet"),
+        Some("Light"),
+        Some("TSTO"),
+        None,
+        None,
+    ),
+    (
+        "Sample Visor",
+        Kind::Armor,
+        Some("Helmet"),
+        Some("Heavy"),
+        Some("TSTO"),
+        None,
+        None,
+    ),
 ];
 
 const MAKERS: &[(&str, &str)] = &[
@@ -377,7 +396,15 @@ fn item(i: usize, x: &Item) -> CatalogItem {
     let (name, kind, ty, class, maker, size, grade) = *x;
     CatalogItem {
         id: format!("00000000-0000-4000-8000-{:012x}", 0xb0 + i),
-        record: format!("BP_CRAFT_SYN_{}", name.replace([' ', '\''], "_")),
+        record: format!(
+            "BP_CRAFT_SYN_{}{}",
+            name.replace([' ', '\''], "_"),
+            if ITEMS[..i].iter().any(|x| x.0 == name) {
+                "_B"
+            } else {
+                ""
+            }
+        ),
         name: name.into(),
         kind,
         type_label: ty.map(str::to_string),
@@ -421,6 +448,14 @@ fn owned(list: &[(&str, &str, &str)]) -> Vec<OwnedBlueprint> {
         .collect()
 }
 
+/// `unattributed.json` of a mock channel: seen before any login line in its log file.
+pub fn unattributed(channel: &str) -> Vec<OwnedBlueprint> {
+    match channel {
+        "LIVE" => owned(&[("Test Scattergun S1", "log", "2026-10-20T18:00:00Z")]),
+        _ => Vec::new(),
+    }
+}
+
 /// Owned sets per character of one channel (geids of `mock::CHARACTERS`). PTU progress is
 /// not LIVE progress: each channel has its own.
 pub fn seed(channel: &str, chars: &[&str; 3]) -> HashMap<String, Vec<OwnedBlueprint>> {
@@ -462,6 +497,7 @@ pub fn seed(channel: &str, chars: &[&str; 3]) -> HashMap<String, Vec<OwnedBluepr
             owned(&[
                 ("Synthetic Rifle Mk1", "log", "2026-11-11T22:30:00Z"),
                 ("Sample Undersuit", "log", "2026-11-09T18:00:00Z"),
+                ("Sample Visor", "log", "2026-11-04T21:10:00Z"),
                 (
                     "Sample Shield S1",
                     "import:smart-citizen",

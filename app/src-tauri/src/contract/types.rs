@@ -1229,13 +1229,16 @@ pub struct BlueprintFinderChannel {
     /// Blueprints in this channel's build; `None` = game data not read yet (apply reads it).
     pub catalog: Option<u32>,
     pub characters: u32,
-    /// Owned entries over every character of the channel.
+    /// Owned entries over every character of the channel (and the unattributed set).
     pub owned: u32,
+    /// Set files that could not be read or placed: not shown (logged).
+    pub skipped: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct BlueprintFinderCharacter {
-    /// geid. Personal data: shown, never uploaded.
+    /// geid (personal data: shown, never uploaded), or `unattributed` for blueprints seen
+    /// before any login line.
     pub id: String,
     pub name: String,
     pub last_seen: Option<String>,
@@ -1252,7 +1255,8 @@ pub struct BlueprintOwner {
     pub sources: Vec<String>,
     pub acquired: Option<String>,
     pub favorite: bool,
-    /// Matched several blueprints on import: listed, never marked.
+    /// The name could be several blueprints (an import that matched several, or a name
+    /// several blueprints have): listed, never marked.
     pub ambiguous: bool,
 }
 
@@ -1273,9 +1277,13 @@ pub struct BlueprintRow {
     pub size: Option<u32>,
     /// A..D (ship components).
     pub grade: Option<String>,
-    /// Channels whose build has the blueprint.
+    /// Channels whose build has the blueprint (name rows: their candidates' channels).
     pub channels: Vec<String>,
+    /// Name rows: keys of the blueprints the name could be; empty = in no read build.
+    pub candidates: Vec<String>,
     pub owners: Vec<BlueprintOwner>,
+    /// Owners of an ambiguous name that could be this blueprint ("maybe owned").
+    pub maybe: Vec<BlueprintOwner>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

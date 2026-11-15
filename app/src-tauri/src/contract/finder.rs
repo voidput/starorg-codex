@@ -18,6 +18,17 @@ pub fn kind(k: Kind) -> BlueprintKind {
     }
 }
 
+fn owner(o: finder::Owner) -> BlueprintOwner {
+    BlueprintOwner {
+        channel: o.channel,
+        character: o.character,
+        sources: o.sources,
+        acquired: o.acquired,
+        favorite: o.favorite,
+        ambiguous: o.ambiguous,
+    }
+}
+
 pub fn contract(f: finder::Finder) -> BlueprintFinder {
     BlueprintFinder {
         channels: f
@@ -28,6 +39,7 @@ pub fn contract(f: finder::Finder) -> BlueprintFinder {
                 catalog: c.catalog,
                 characters: c.characters,
                 owned: c.owned,
+                skipped: c.skipped,
             })
             .collect(),
         characters: f
@@ -55,18 +67,9 @@ pub fn contract(f: finder::Finder) -> BlueprintFinder {
                 size: r.size.map(u32::from),
                 grade: r.grade,
                 channels: r.channels,
-                owners: r
-                    .owners
-                    .into_iter()
-                    .map(|o| BlueprintOwner {
-                        channel: o.channel,
-                        character: o.character,
-                        sources: o.sources,
-                        acquired: o.acquired,
-                        favorite: o.favorite,
-                        ambiguous: o.ambiguous,
-                    })
-                    .collect(),
+                candidates: r.candidates,
+                owners: r.owners.into_iter().map(owner).collect(),
+                maybe: r.maybe.into_iter().map(owner).collect(),
             })
             .collect(),
     }
