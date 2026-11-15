@@ -97,7 +97,8 @@ first in the data folder under `hooks/backups/`. Windows has no launch hooks.
 Only if you used **Settings -> StarOrg Tools**. Press **Sign out** there before you uninstall: it
 deletes the sign-in token from the system keyring (Windows Credential Manager, or the Secret
 Service on Linux) or from its file. Uninstalling does not remove keyring entries; if you
-skipped this, delete the entry for `starorg-codex` in Credential Manager (Windows Credentials)
+skipped this, delete the entries for `starorg-codex` (account `starorg-tools-<env>`, one per server you signed
+in to) in Credential Manager (Windows Credentials)
 or with your keyring app (for example Seahorse) on Linux.
 
 ### Used the local MCP server?
@@ -117,7 +118,7 @@ The app never edits your AI client's settings; you added the entry yourself
 
 | Installed with | Remove it |
 |---|---|
-| `StarOrg.Codex_<v>_x64-setup.exe` (NSIS) | **Settings -> Apps -> Installed apps -> StarOrg Codex -> Uninstall**. The uninstaller's *Delete the application data* box removes only the webview storage (`%APPDATA%\tools.starorg.codex`, `%LOCALAPPDATA%\tools.starorg.codex`), not the folders in step 3 |
+| `StarOrg.Codex_<v>_x64-setup.exe` (NSIS) | **Settings -> Apps -> Installed apps -> StarOrg Codex -> Uninstall** (Windows 10: *Apps & features*). The uninstaller's *Delete the application data* box removes only the webview storage (`%APPDATA%\tools.starorg.codex`, `%LOCALAPPDATA%\tools.starorg.codex`), not the folders in step 3 |
 | `StarOrg.Codex_<v>_x64_en-US.msi` | **Settings -> Apps -> Installed apps -> StarOrg Codex -> Uninstall** |
 | Microsoft Store | **Settings -> Apps -> Installed apps -> StarOrg Codex -> Uninstall** (or right-click it in Start -> Uninstall). This **also deletes its settings and backups**, see below |
 | CLI zip `starorg-codex-v<v>-windows-x86_64.zip` | Nothing is installed: delete the folder you unpacked (`starorg-codex.exe`, `starorg-strings.exe`, `LICENSE`, `THIRD_PARTY_NOTICES.md`). If you added that folder to your `PATH`, take it out again (Start -> "Edit environment variables for your account" -> Path) |
@@ -195,12 +196,14 @@ as `%APPDATA%\StarOrg Tools` into the File Explorer address bar to open it. Stor
 
 If you set **Settings -> Advanced -> Asset cache** to your own folder, the cache is in a
 `StarOrg Codex asset cache` subfolder there. **Clear** in that setting empties it (the row is
-shown only with Developer mode on); or delete that subfolder by hand. Do this before deleting the config folder, which holds the setting.
+shown only with Developer mode on); or delete that subfolder by hand. If you changed the folder before, earlier folders keep their
+`StarOrg Codex asset cache` subfolder too. Do this before deleting the config folder, which holds the setting.
 
 ### Old StarOrg Strings folders (before 0.3.0)
 
-The first start of 0.3 renames these to the folders above. They stay behind only if a new folder
-already existed, or if the move was a copy to another drive (then the old one is kept). Delete
+The first start of 0.3 renames these to the folders above. They stay behind if a new folder
+already existed, if the move was a copy to another drive (then the old one is kept), or if the
+move failed. Delete
 them once you have what you need:
 
 - Linux: `~/.config/starorg-strings/`, `~/.local/share/starorg-strings/`,
