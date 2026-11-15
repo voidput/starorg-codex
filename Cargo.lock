@@ -3696,10 +3696,13 @@ dependencies = [
 name = "starorg-net"
 version = "0.0.1"
 dependencies = [
+ "getrandom 0.3.4",
  "serde",
  "serde_json",
+ "sha2",
  "starorg-core",
  "starorg-data",
+ "starorg-net",
  "tempfile",
  "ureq",
 ]

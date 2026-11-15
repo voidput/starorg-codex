@@ -11,8 +11,13 @@
 //!
 //! Requests carry a generic `User-Agent` and nothing about the user or the install: no
 //! token, no cookie, no install id.
+//!
+//! [`starorg`] is the StarOrg Tools client (sign-in and blueprint/hangar sync), used by the
+//! app only while Settings -> Network -> "Connect StarOrg Tools" is on. It talks to
+//! `starorg.tools` or `dev.starorg.tools` and sends the user's token there and nowhere else.
 
 pub mod releases;
+pub mod starorg;
 
 use serde::Deserialize;
 use starorg_core::source::SourceError;

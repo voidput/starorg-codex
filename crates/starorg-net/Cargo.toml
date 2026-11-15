@@ -1,6 +1,6 @@
 [package]
 name = "starorg-net"
-description = "HTTPS transport for published game data (opt-in network feature)"
+description = "HTTPS transport: published game data and the StarOrg Tools client (opt-in network features)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -16,10 +16,19 @@ serde_json.workspace = true
 # The OS TLS stack and trust store (SChannel on Windows, OpenSSL on Linux); no bundled
 # certificate list.
 ureq = { version = "3", default-features = false, features = ["native-tls-no-default"] }
+# StarOrg Tools sign-in: PKCE S256 and random verifier/state.
+sha2.workspace = true
+getrandom.workspace = true
+
+[features]
+# A local stand-in for StarOrg Tools on 127.0.0.1 (starorg::mock), for tests only: the app
+# and this crate turn it on through dev-dependencies, never in a release build.
+mock-server = []
 
 [lints]
 workspace = true
 
 [dev-dependencies]
+starorg-net = { path = ".", features = ["mock-server"] }
 starorg-data.workspace = true
 tempfile.workspace = true
