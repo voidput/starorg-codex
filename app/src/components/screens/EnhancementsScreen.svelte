@@ -31,6 +31,7 @@
   import { app } from '@/lib/stores/app.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
+  import { LINKS, openLink } from '@/lib/links';
 
   type Tab = 'general' | CategoryId | 'name-tags';
 
@@ -237,9 +238,9 @@
     { id: '0', label: 'None' },
     { id: '3', label: 'EM3 · underline' },
     { id: '4', label: 'EM4 · blue' },
-    { id: '1', label: 'EM1 · not verified' },
-    { id: '2', label: 'EM2 · not verified' },
-    { id: '5', label: 'EM5 · not verified' },
+    { id: '1', label: 'EM1 · look not verified' },
+    { id: '2', label: 'EM2 · look not verified' },
+    { id: '5', label: 'EM5 · look not verified' },
   ];
   const setEm = (f: EmField, v: string) => edit((p) => (p.mission[f] = Number(v)));
   const COLOUR_TEST = 'Please select a contract. Colour test: <EM1>EM1</EM1> <EM2>EM2</EM2> <EM3>EM3</EM3> <EM4>EM4</EM4> <EM5>EM5</EM5>';
@@ -358,7 +359,11 @@
                 <li>Save &amp; apply, then start the game.</li>
                 <li>Open mobiGlas, then Contracts Manager. With no contract selected the detail pane says “Please select a contract.”, followed by <span class="text-foreground">Colour test: EM1 EM2 EM3 EM4 EM5</span>.</li>
                 <li>Note how each word looks: its colour, and whether it is underlined, bold or larger. If you see the tags themselves, such as &lt;EM1&gt;, that pane does not read styles.</li>
-                <li>Report what you saw; EM1, EM2 and EM5 then get real names and colours here.</li>
+                <li>
+                  Report what you saw through
+                  <button type="button" class="text-primary underline-offset-2 hover:underline" title={LINKS.support.title} onclick={() => openLink('support')}>Support on Discord</button>
+                  (also the Support link in the footer); EM1, EM2 and EM5 then get real names and colours here.
+                </li>
               </ol>
               <div class="grid gap-1">
                 <span class="text-muted-foreground text-[11px] font-medium uppercase">Our guess, not the game</span>

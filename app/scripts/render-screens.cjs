@@ -41,7 +41,7 @@ const shots = [
     await p.getByRole('combobox', { name: '[Owned]: colour' }).click();
     await p.getByRole('option', { name: 'EM4 · blue' }).click();
     await p.getByRole('combobox', { name: '[Missing]: colour' }).click();
-    await p.getByRole('option', { name: 'EM2 · not verified' }).click();
+    await p.getByRole('option', { name: 'EM2 · look not verified' }).click();
     await p.getByText('Colours', { exact: true }).scrollIntoViewIfNeeded();
   }],
   ['enhancements-colour-test', 'enhancements', async (p) => {
