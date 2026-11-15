@@ -64,7 +64,7 @@ registry! {
 
     // mining_spawns, // mining-spawns.ts
 
-    // missions, // missions.ts
+    missions, // missions.ts
 
     // quantum, // quantum.ts
 
