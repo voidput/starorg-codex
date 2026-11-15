@@ -541,7 +541,11 @@ fn ts_unions_list_every_variant() {
         ),
         (
             "UpdateInstall",
-            names(&[UpdateInstall::InApp, UpdateInstall::DownloadOnly]),
+            names(&[
+                UpdateInstall::InApp,
+                UpdateInstall::DownloadOnly,
+                UpdateInstall::Store,
+            ]),
         ),
         (
             "UpdateProblem",

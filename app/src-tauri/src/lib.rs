@@ -51,22 +51,24 @@ fn backend() -> (BackendState, contract::real::DialogSlot, update::HostSlot) {
 /// Start the GUI. [`gpu::apply`] must already have run (see `main.rs`).
 pub fn run() {
     let (state, dialogs, update_host) = backend();
-    builder(tauri::Builder::default(), DiscoveryConfig::default(), state)
-        .plugin(tauri_plugin_dialog::init())
-        // Used from Rust only (update::host); the webview has no updater permission. The key
-        // comes from updater-public-key.txt, not from tauri.conf.json.
-        .plugin(
-            tauri_plugin_updater::Builder::new()
-                .pubkey(update::host::UPDATER_PUBKEY.trim())
-                .build(),
-        )
-        .setup(move |app| {
-            dialogs.set(contract::real::TauriDialogs(app.handle().clone()));
-            update_host.set(update::host::TauriUpdateHost(app.handle().clone()));
-            Ok(())
-        })
-        .run(tauri::generate_context!())
-        .expect("error while running StarOrg Strings");
+    let app = builder(tauri::Builder::default(), DiscoveryConfig::default(), state)
+        .plugin(tauri_plugin_dialog::init());
+    // Used from Rust only (update::host); the webview has no updater permission. The key
+    // comes from updater-public-key.txt, not from tauri.conf.json. Not in the Store
+    // flavour: the Store updates that build, and nothing there may replace the app.
+    #[cfg(not(feature = "store"))]
+    let app = app.plugin(
+        tauri_plugin_updater::Builder::new()
+            .pubkey(update::host::UPDATER_PUBKEY.trim())
+            .build(),
+    );
+    app.setup(move |app| {
+        dialogs.set(contract::real::TauriDialogs(app.handle().clone()));
+        update_host.set(update::host::TauriUpdateHost(app.handle().clone()));
+        Ok(())
+    })
+    .run(tauri::generate_context!())
+    .expect("error while running StarOrg Strings");
 }
 
 /// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only]`: the extraction

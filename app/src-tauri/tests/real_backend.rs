@@ -222,12 +222,12 @@ impl Dialogs for SharedPick {
     }
 }
 
-/// Apply refuses to run elevated (spec 11); Windows CI runners are administrators.
+/// Apply refuses to run elevated (spec 11), and GitHub's Windows runners are administrators.
+/// These tests turn on the test-hooks override (starorg-core's `test-hooks` feature, a
+/// dev-dependency only) so the whole apply flow still runs there. Returns `false`: kept as a
+/// function so each apply test states that it depends on the override.
 fn elevated() -> bool {
-    if starorg_core::fsutil::is_elevated() {
-        eprintln!("running elevated: apply refuses by design; test skipped");
-        return true;
-    }
+    starorg_core::fsutil::test_allow_elevated(true);
     false
 }
 

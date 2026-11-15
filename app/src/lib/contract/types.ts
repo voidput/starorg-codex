@@ -750,7 +750,8 @@ export interface UpdatePrefs {
   include_prereleases: boolean;
 }
 
-export type UpdateInstall = 'in-app' | 'download-only';
+/** `store`: the Microsoft Store build; the Store updates it, the app never checks or installs. */
+export type UpdateInstall = 'in-app' | 'download-only' | 'store';
 
 export type UpdateProblem = 'not-visible' | 'rate-limited' | 'offline' | 'bad-response';
 

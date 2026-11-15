@@ -51,9 +51,16 @@ open = { version = "5", features = ["shellexecute-on-windows"] }
 # UI work without a game install. Tests always compile the mock (contract drift checks).
 default = []
 mock-backend = []
+# The Microsoft Store build (docs/windows.md): the Store installs and updates the app, so
+# this flavour never checks GitHub for releases and never installs an update itself; Settings
+# says "Updates come from the Microsoft Store". release.yml builds it for the .msix.
+store = []
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+# The apply-flow tests run on elevated Windows CI runners through this override
+# (fsutil::test_allow_elevated); never part of a release build.
+starorg-core = { workspace = true, features = ["test-hooks"] }
 tempfile.workspace = true
 
 # Not `[lints] workspace = true`: the workspace forbids unsafe code, and this crate needs one
