@@ -1042,7 +1042,9 @@ records only by default, Q-D6 Alt+9 for Explorer only, Q-D7 UEX files are just J
 - **Measured on LIVE 4.10.200.58746** (release, read only, `tests/dev_real.rs`): load 0.64 s,
   parse + index 92 ms, 118,499 records (63,440 main), 604 types; RSS 458 MB after start, peak
   911 MB; path root + type root + a search 12 ms; one record 0.5 ms; all 63,440 main records
-  exported (2,141 MB) in 2.9 s with no failure.
+  exported (2,141 MB) in 2.9 s with no failure. The app's worker (`dev-worker --p4k`, release)
+  is ready in 0.66 s; its steady RSS is 490-520 MB (above the 450 MB of 7.3: allocator
+  leftovers of the archive read), peak 920 MB, so the Settings hint says "about 500 MB".
 - **Contract** as 7.7, plus `dev_close`, `dev_types` and `dev_dataset`. Deviations: the calls with
   progress (`dev_open`, `dev_export_type`, `dev_diff`, `dev_download_dump`) return their result
   when the job ends and stream `job-progress` meanwhile (as `apply`), instead of returning a job

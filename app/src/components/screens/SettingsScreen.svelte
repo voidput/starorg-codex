@@ -182,7 +182,7 @@
         <SwitchRow
           id="dev-mode"
           label="Developer mode"
-          hint="Adds tools to browse the game's data records and compare datasets. Read only. Uses about 400 MB of memory while open."
+          hint="Adds tools to browse the game's data records and compare datasets. Read only. Uses about 500 MB of memory while open."
           checked={s.advanced.developer_mode}
           onchange={(v) => patch((x) => (x.advanced.developer_mode = v))}
         />
