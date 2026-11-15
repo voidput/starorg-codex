@@ -1724,7 +1724,7 @@ export function parseQuery(q: string): ParsedQuery {
         const d = v.indexOf('-');
         const r = d >= 0 ? [int(v.slice(0, d)), int(v.slice(d + 1))] : [int(v), int(v)];
         if (r[0] !== null && r[1] !== null) {
-          p.sizes.push([r[0]!, r[1]!]);
+          p.sizes.push([Math.min(r[0]!, r[1]!), Math.max(r[0]!, r[1]!)]);
           took = true;
         }
       } else if (k === 'tag') (p.tags.push(v), (took = true));
@@ -1953,34 +1953,70 @@ export class Sections {
     return nodes.map(([k, label, c]) => group(this.idOf(n.media, s, [...keys, k]), label, c, 'folder'));
   }
 
-  private rank(i: number, words: string[], joined: string): number | null {
-    if (words.length === 0) return 0;
+  /** As `score` in core: [tier, extra] or null; lower is better. */
+  private score(i: number, words: string[], joined: string, mode: D.Matching): [number, number] | null {
+    if (words.length === 0) return [0, 0];
     const e = this.entries[i]!;
     const r = this.recs[i]!;
     const label = this.label(i).toLowerCase();
     const short = shortName(e.name).toLowerCase();
-    const single = !joined.includes(' ');
-    for (const [base, text] of [
-      [0, label],
-      [5, short],
-    ] as const) {
-      if (text === joined) return base;
-      const w = wordsOf(text);
-      if (single && w.some((x) => x === joined)) return base + 1;
-      if (text.startsWith(joined)) return base + 2;
-      if (w.some((x) => x.startsWith(joined))) return base + 3;
-      if (text.includes(joined)) return base + 4;
+    const lw = wordsOf(label);
+    const sw = wordsOf(short);
+    const left = (toks: string[]) => Math.min(toks.filter((t) => !words.some((w) => t.includes(w))).length, 65535);
+    const other = () => {
+      let t = e.type.toLowerCase();
+      for (const x of [r.kind, r.sub, r.tag, r.class]) if (x !== null) t += ` ${x.toLowerCase()}`;
+      if (r.maker !== null) t += ` ${this.makerLabel(r.maker).toLowerCase()}`;
+      const kl = r.kind === null ? null : this.valueLabel(r.kind);
+      if (kl !== null) t += ` ${kl.toLowerCase()}`;
+      return t;
+    };
+    if (mode === 'exact') {
+      const tiers = (text: string, toks: string[]): [number, number] | null => {
+        if (text === joined) return [0, 0];
+        if (words.every((w) => toks.some((t) => t === w))) return [1, left(toks)];
+        if (words.every((w) => toks.some((t) => t.startsWith(w)))) return [2, left(toks)];
+        return words.every((w) => text.includes(w)) ? [3, left(toks)] : null;
+      };
+      const named = this.display.has(i);
+      if (named) {
+        const x = tiers(label, lw);
+        if (x) return x;
+      }
+      const kind = r.kind === null ? '' : `${(this.valueLabel(r.kind) ?? r.kind).toLowerCase()} ${r.kind.toLowerCase()}`;
+      if (named && kind !== '' && words.every((w) => label.includes(w) || kind.includes(w))) return [4, left(lw)];
+      const y = tiers(short, sw);
+      if (y) return [5 + y[0], y[1]];
+      if (words.every((w) => label.includes(w) || short.includes(w))) return [9, left(lw)];
+      const ot = other();
+      return words.every((w) => label.includes(w) || short.includes(w) || ot.includes(w)) ? [9, Math.min(left(lw) + 1000, 65535)] : null;
     }
-    if (words.every((w) => label.includes(w) || short.includes(w))) return 10;
-    let ot = e.type.toLowerCase();
-    for (const x of [r.kind, r.sub, r.tag, r.class]) if (x !== null) ot += ` ${x.toLowerCase()}`;
-    if (r.maker !== null) ot += ` ${this.makerLabel(r.maker).toLowerCase()}`;
-    const kl = r.kind === null ? null : this.valueLabel(r.kind);
-    if (kl !== null) ot += ` ${kl.toLowerCase()}`;
-    if (words.every((w) => label.includes(w) || short.includes(w) || ot.includes(w))) return 11;
+    if (mode === 'typo') {
+      let cost = 0;
+      let ot: string | null = null;
+      const kind = (r.kind === null ? '' : (this.valueLabel(r.kind) ?? '')).toLowerCase();
+      const kw = wordsOf(kind);
+      for (const w of words) {
+        if (label.includes(w) || short.includes(w) || kind.includes(w)) continue;
+        let d: number | null = null;
+        for (const t of [...lw, ...sw, ...kw]) {
+          const x = typo(w, t);
+          if (x !== null && (d === null || x < d)) d = x;
+        }
+        if (d !== null) cost = Math.min(cost + d, 255);
+        else {
+          ot ??= other();
+          if (!ot.includes(w)) return null;
+        }
+      }
+      return cost > 0 ? [10 + Math.min(cost, 20), left(lw)] : null;
+    }
     const compact = words.join('');
-    if (compact.length >= 3 && (subsequence(compact, label) || subsequence(compact, short))) return 12;
-    return null;
+    if ([...compact].length < 3) return null;
+    const a = abbrevSpan(compact, label);
+    if (a !== null) return [40, a];
+    const b = abbrevSpan(compact, short);
+    return b === null ? null : [41, b];
   }
 
   private groupKey(i: number, g: D.ListGroup): [string, string, number] {
@@ -1994,7 +2030,7 @@ export class Sections {
   list(q: D.ListQuery): D.ListPage {
     const pq = parseQuery(q.query);
     const n = this.parse(q.node);
-    const empty: D.ListPage = { items: [], offset: q.offset, total: 0, matched: 0, facets: { sections: [], kinds: [], sub_types: [], sizes: [], manufacturers: [], grades: [], classes: [], tags: [], model: 0, sounds: 0, player: 0, changes: [] }, groups: [], title: '', understood: pq.understood, words: pq.words };
+    const empty: D.ListPage = { items: [], offset: q.offset, total: 0, matched: 0, facets: { sections: [], kinds: [], sub_types: [], sizes: [], manufacturers: [], grades: [], classes: [], tags: [], model: 0, sounds: 0, player: 0, changes: [] }, groups: [], title: '', understood: pq.understood, words: pq.words, matching: 'exact' };
     if (!n) return empty;
     const joined = pq.words.join(' ');
     const f = q.filters;
@@ -2002,10 +2038,13 @@ export class Sections {
     const [fSec, fKind, fSub, fMaker, fGrade, fClass, fTag, fChange] = [f.sections, f.kinds, f.sub_types, f.manufacturers, f.grades, f.classes, f.tags, f.changes].map(low) as string[][];
     const any = (list: string[], v: string | null) => list.length === 0 || (v !== null && list.includes(v.toLowerCase()));
     const has = (list: string[], v: string | null) => list.length === 0 || (v !== null && list.every((x) => v.toLowerCase().includes(x)));
+    // Close spellings and abbreviations only when nothing matches as typed.
+    const scan = (mode: D.Matching) => {
     const counts: Map<string, number>[] = Array.from({ length: 8 }, () => new Map());
     const flags = [0, 0, 0];
     const changeCounts = new Map<D.Change, number>();
-    let hits: [number, number][] = [];
+    const hits: [number, number, number][] = [];
+    let candidates = 0;
     for (const i of this.members(n)) {
       const e = this.entries[i]!;
       if (q.main_only && !e.main) continue;
@@ -2022,8 +2061,9 @@ export class Sections {
       const sec = this.data.defs[r.section]!;
       if (pq.sections.length > 0 && !pq.sections.some((x) => sec.id.startsWith(x) || sec.label.toLowerCase().includes(x))) continue;
       if (!has(pq.tags, r.tag) || !has(pq.grades, r.grade) || !has(pq.classes, r.class) || (pq.model && !r.model) || (pq.sounds && !r.sounds)) continue;
-      const rank = this.rank(i, pq.words, joined);
+      const rank = this.score(i, pq.words, joined, mode);
       if (rank === null) continue;
+      candidates++;
       const ch = this.changes.get(i) ?? null;
       const fails = [
         !any(fSec!, sec.id),
@@ -2051,14 +2091,27 @@ export class Sections {
       if (ok(9) && r.sounds) flags[1]!++;
       if (ok(10) && !r.variant) flags[2]!++;
       if (ok(11) && ch !== null) changeCounts.set(ch, (changeCounts.get(ch) ?? 0) + 1);
-      if (nFail === 0) hits.push([rank, i]);
+      if (nFail === 0) hits.push([rank[0], rank[1], i]);
     }
+    return { counts, flags, changeCounts, hits, candidates };
+    };
+    const modes: D.Matching[] = pq.words.length === 0 ? ['exact'] : ['exact', 'typo', 'abbreviation'];
+    let matching: D.Matching = 'exact';
+    let res = scan('exact');
+    for (const mode of modes) {
+      res = mode === 'exact' ? res : scan(mode);
+      matching = mode;
+      if (res.candidates > 0) break;
+    }
+    const { counts, flags, changeCounts } = res;
+    let hits = res.hits;
     const sizeOf = (i: number) => this.recs[i]!.size ?? Number.MAX_SAFE_INTEGER;
     const makerOf = (i: number) => {
       const m = this.recs[i]!.maker;
       return m === null ? '\u{10ffff}' : this.makerLabel(m).toLowerCase();
     };
-    const by = (...ks: ((h: [number, number]) => number | string | boolean)[]) => (a: [number, number], b: [number, number]) => {
+    type Hit = [number, number, number];
+    const by = (...ks: ((h: Hit) => number | string | boolean)[]) => (a: Hit, b: Hit) => {
       for (const k of ks) {
         const x = k(a);
         const y = k(b);
@@ -2068,16 +2121,27 @@ export class Sections {
       }
       return 0;
     };
-    const pos = (h: [number, number]) => this.namePos[h[1]]!;
-    if (q.sort === 'name' && pq.words.length > 0) hits.sort(by((h) => h[0], (h) => this.recs[h[1]]!.variant, (h) => !this.display.has(h[1]), (h) => utf8Len(this.label(h[1])), pos));
-    else if (q.sort === 'name') hits.sort(by((h) => h[0], pos));
-    else if (q.sort === 'size') hits.sort(by((h) => sizeOf(h[1]), (h) => h[0], pos));
-    else hits.sort(by((h) => makerOf(h[1]), (h) => h[0], pos));
+    const pos = (h: Hit) => this.namePos[h[2]]!;
+    if (q.sort === 'name' && pq.words.length > 0)
+      hits.sort(
+        by(
+          (h) => h[0],
+          (h) => (matching === 'abbreviation' ? h[1] : 0),
+          (h) => this.recs[h[2]]!.variant,
+          (h) => !this.display.has(h[2]),
+          (h) => this.recs[h[2]]!.section,
+          (h) => h[1],
+          pos,
+        ),
+      );
+    else if (q.sort === 'name') hits.sort(by((h) => h[0], (h) => h[1], pos));
+    else if (q.sort === 'size') hits.sort(by((h) => sizeOf(h[2]), (h) => h[0], (h) => h[1], pos));
+    else hits.sort(by((h) => makerOf(h[2]), (h) => h[0], (h) => h[1], pos));
     let groups: D.GroupHead[] = [];
     let keyed: (string | null)[] = [];
     if (q.group !== 'none') {
       const order = new Map<string, [number, string, number]>();
-      const keys = hits.map((h) => this.groupKey(h[1], q.group));
+      const keys = hits.map((h) => this.groupKey(h[2], q.group));
       for (const [k, l, o] of keys) {
         const g = order.get(k);
         if (g) g[2]++;
@@ -2101,23 +2165,28 @@ export class Sections {
       groups.reduce((a, g) => a + g.count, 0),
       hits.length,
     );
-    const facet = (d: number, label: (v: string) => string): D.FacetValue[] =>
-      [...counts[d]!.entries()]
-        .map(([value, count]) => ({ value, label: label(value), count }))
-        .sort((a, b) => b.count - a.count || cmp(a.label, b.label) || cmp(a.value, b.value))
-        .slice(0, MAX_FACET_VALUES);
+    const facet = (d: number, label: (v: string) => string, picked: string[]): D.FacetValue[] => {
+      const all = [...counts[d]!.entries()].map(([value, count]) => ({ value, label: label(value), count })).sort((a, b) => b.count - a.count || cmp(a.label, b.label) || cmp(a.value, b.value));
+      const v = all.slice(0, MAX_FACET_VALUES);
+      const rest = all.slice(MAX_FACET_VALUES);
+      for (const p of picked) {
+        if (v.some((x) => x.value.toLowerCase() === p.toLowerCase())) continue;
+        v.push(rest.find((x) => x.value.toLowerCase() === p.toLowerCase()) ?? { value: p, label: label(p), count: 0 });
+      }
+      return v;
+    };
     const sections = [...counts[0]!.entries()].map(([value, count]) => ({ value, label: this.data.defs[this.sectionAt.get(value)!]!.label, count })).sort((a, b) => this.sectionAt.get(a.value)! - this.sectionAt.get(b.value)!);
     const sizes = [...counts[3]!.entries()].map(([value, count]) => ({ value, label: `S${value}`, count })).sort((a, b) => Number(a.value) - Number(b.value));
-    const grades = facet(5, (g) => `Grade ${g}`).sort((a, b) => cmp(a.value, b.value));
+    const grades = facet(5, (g) => `Grade ${g}`, f.grades).sort((a, b) => cmp(a.value, b.value));
     const facets: D.FacetCounts = {
       sections,
-      kinds: facet(1, this.kindLabel),
-      sub_types: facet(2, this.kindLabel),
+      kinds: facet(1, this.kindLabel, f.kinds),
+      sub_types: facet(2, this.kindLabel, f.sub_types),
       sizes,
-      manufacturers: facet(4, (c) => this.makerLabel(c)),
+      manufacturers: facet(4, (c) => this.makerLabel(c), f.manufacturers),
       grades,
-      classes: facet(6, (c) => c),
-      tags: facet(7, (t) => t),
+      classes: facet(6, (c) => c, f.classes),
+      tags: facet(7, (t) => t, f.tags),
       model: flags[0]!,
       sounds: flags[1]!,
       player: flags[2]!,
@@ -2126,8 +2195,8 @@ export class Sections {
           ? []
           : (['added', 'changed'] as const).map((c) => ({ value: c, label: c === 'added' ? 'Added' : 'Changed', count: changeCounts.get(c) ?? 0 })),
     };
-    const items = hits.slice(q.offset, q.offset + Math.min(q.limit, MAX_PAGE)).map(([, i], k) => ({ ...this.item(i), group: keyed[q.offset + k] ?? null }));
-    return { items, offset: q.offset, total: hits.length, matched, facets, groups, title: this.title(n), understood: pq.understood, words: pq.words };
+    const items = hits.slice(q.offset, q.offset + Math.min(q.limit, MAX_PAGE)).map(([, , i], k) => ({ ...this.item(i), group: keyed[q.offset + k] ?? null }));
+    return { items, offset: q.offset, total: hits.length, matched, facets, groups, title: this.title(n), understood: pq.understood, words: pq.words, matching };
   }
 
   item(i: number): D.ListItem {
@@ -2163,5 +2232,67 @@ export class Sections {
   }
 }
 
-/** Rust's `str::len` (UTF-8 bytes), for the same tie-break. */
+/** Rust's `str::len` (UTF-8 bytes). */
 const utf8Len = (s: string) => new TextEncoder().encode(s).length;
+const isAlnum = (c: string) => /[\p{L}\p{N}]/u.test(c);
+
+/** Edits allowed for a word of `n` letters, as core. */
+const allowedEdits = (n: number) => (n <= 4 ? 0 : n <= 8 ? 1 : 2);
+
+/** Optimal string alignment distance over code points, or null once over `max`. */
+export function osa(a: string[], b: string[], max: number): number | null {
+  if (Math.abs(a.length - b.length) > max) return null;
+  const m = b.length;
+  let prev2 = new Array<number>(m + 1).fill(0);
+  let prev = Array.from({ length: m + 1 }, (_, j) => j);
+  let cur = new Array<number>(m + 1).fill(0);
+  for (let i = 1; i <= a.length; i++) {
+    cur[0] = i;
+    let low = i;
+    for (let j = 1; j <= m; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      let v = Math.min(prev[j]! + 1, cur[j - 1]! + 1, prev[j - 1]! + cost);
+      if (i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, prev2[j - 2]! + 1);
+      cur[j] = v;
+      low = Math.min(low, v);
+    }
+    if (low > max) return null;
+    [prev2, prev, cur] = [prev, cur, prev2];
+  }
+  return prev[m]! <= max ? prev[m]! : null;
+}
+
+function typo(w: string, t: string): number | null {
+  const wc = Array.from(w);
+  const tc = Array.from(t);
+  const k = allowedEdits(wc.length);
+  if (k === 0 || utf8Len(t) + k < utf8Len(w)) return null;
+  const whole = osa(wc, tc, k);
+  const part = tc.length > wc.length ? osa(wc, tc.slice(0, wc.length), k) : null;
+  const ds = [whole, part].filter((x): x is number => x !== null);
+  return ds.length ? Math.min(...ds) : null;
+}
+
+function abbrevSpan(needle: string, hay: string): number | null {
+  const n = Array.from(needle);
+  const h = Array.from(hay);
+  const limit = n.length * 3;
+  let best: number | null = null;
+  for (let start = 0; start < h.length; start++) {
+    const wordStart = start === 0 || !isAlnum(h[start - 1]!);
+    if (!wordStart || h[start] !== n[0]) continue;
+    let k = 1;
+    let at = start;
+    for (let j = start + 1; j < h.length && k < n.length; j++) {
+      if (h[j] === n[k]) {
+        k++;
+        at = j;
+      }
+    }
+    if (k === n.length) {
+      const span = at - start + 1;
+      if (span <= limit && (best === null || span < best)) best = span;
+    }
+  }
+  return best;
+}

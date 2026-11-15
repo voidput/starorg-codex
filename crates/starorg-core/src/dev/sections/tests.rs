@@ -196,6 +196,41 @@ fn section_rules_table_examples() {
     assert_eq!(r("AmmoParams", "ammoparams/fps/x.xml"), "fps-weapons");
     assert_eq!(r("ShopFranchise", "franchises/x.xml"), "shops");
     assert_eq!(r("Tag", "tagdatabase/x.xml"), "other");
+    // Animation and recoil records are not FPS weapons.
+    assert_eq!(
+        r("WeaponProceduralClip", "weaponproceduralclip/x.xml"),
+        "other"
+    );
+    // Human-made props without a type are items, not characters.
+    assert_eq!(
+        SECTIONS[rules::section_of(E, "entities/scitem/human/food/x.xml", None, true)].id,
+        "items"
+    );
+    // Named families and ship weapon parts.
+    let x = |short: &str, item: &str, sub: &str| {
+        SECTIONS[rules::section_of_subject(&rules::Subject {
+            struct_type: E,
+            rel: "entities/x.xml",
+            short,
+            item_type: Some(item),
+            sub_type: Some(sub),
+            entity: true,
+        })]
+        .id
+    };
+    assert_eq!(x("GPI_Destructible_Barrel", "WeaponGun", "Gun"), "items");
+    assert_eq!(
+        x(
+            "BEHR_Gun_FiringMechanism",
+            "WeaponAttachment",
+            "FiringMechanism"
+        ),
+        "ship-weapons"
+    );
+    assert_eq!(
+        x("Scope_4x", "WeaponAttachment", "IronSight"),
+        "attachments"
+    );
     // A struct rule never applies to an entity (EntityClassDefinition is no "Entity*" rule).
     assert_eq!(
         SECTIONS[rules::section_of(E, "mission/x.xml", None, true)].id,
@@ -234,6 +269,26 @@ fn variant_heuristic() {
         "EntityClassDefinition.cds_legacy_armor_heavy_arms",
         "entities/x.xml"
     ));
+    // Real-like names: the Pirate Gladius is a player ship; wrecks, sentries, probes,
+    // hijacked and display copies are not.
+    let v = |n: &str| rules::is_variant(&format!("EntityClassDefinition.{n}"), "entities/x.xml");
+    assert!(!v("AEGS_Gladius_PIR"));
+    assert!(!v("DRAK_Cutlass_Black"));
+    assert!(!v("MISC_Prospector"));
+    for n in [
+        "AEGS_Gladius_PU_Hijacked",
+        "ANVL_Arrow_Teach",
+        "RSI_Aurora_Display",
+        "SalvageableDebris_AresInferno",
+        "Orbital_Sentry_PU_NineTails_Size2",
+        "probe_comms_01",
+        "EAObjectiveDestructable_MiningLaser",
+        "Door_Indestructible",
+        "MISC_Freelancer_NoInterior",
+        "AEGS_Idris_GameMaster",
+    ] {
+        assert!(v(n), "{n}");
+    }
 }
 
 #[test]
@@ -464,6 +519,7 @@ fn query_prefixes() {
     assert_eq!(p.words, ["foo", "bar:", "x:y"]);
     assert_eq!(p.understood.len(), 10);
     assert_eq!(parse_query("size:big").words, ["size:big"]);
+    assert_eq!(parse_query("size:5-1").sizes, [(1, 5)]);
 }
 
 #[test]
@@ -486,12 +542,23 @@ fn search_is_fuzzy_ranked_and_prefixed() {
             },
         )
     };
-    // Readable name prefix before a short-name hit.
+    // Both name prefixes match; the ship section comes before components.
     let r = all("gla");
-    assert_eq!(r.items[0].label, "Glacier");
-    assert!(r.items.iter().any(|i| i.label == "Gladius"));
-    // Subsequence fallback.
-    assert!(all("glcr").items.iter().any(|i| i.label == "Glacier"));
+    assert_eq!(r.matching, Matching::Exact);
+    assert_eq!(r.items[0].label, "Gladius");
+    assert!(r.items.iter().any(|i| i.label == "Glacier"));
+    // Nothing exact: close spellings, then abbreviations, and say so.
+    let r = all("glaceir");
+    assert_eq!(
+        (r.matching, r.items[0].label.as_str()),
+        (Matching::Typo, "Glacier")
+    );
+    let r = all("glcr");
+    assert_eq!(
+        (r.matching, r.items[0].label.as_str()),
+        (Matching::Abbreviation, "Glacier")
+    );
+    assert_eq!(all("zzzz").total, 0);
     // Manufacturer name and kind label are searchable words.
     assert!(
         all("aegis")
@@ -677,4 +744,131 @@ fn compare_marks_come_from_the_dataset_diff_by_guid() {
     marks.sort_by(|x, y| x.0.cmp(&y.0));
     assert_eq!(marks, [(g(2), Change::Changed), (g(4), Change::Added)]);
     assert_eq!(removed, 1);
+}
+
+#[test]
+fn search_ranks_base_items_and_tolerates_typos() {
+    let rows: Vec<(Entry, Option<Facts>)> = vec![
+        (
+            entry(1, "Plush_Cutlass", E, "entities/scitem/prop/plush.xml"),
+            ent("Misc", "UNDEFINED", 1, "", "Cutlass Black Plushie"),
+        ),
+        (
+            entry(
+                2,
+                "DRAK_Cutlass_Black_PYAM",
+                E,
+                "entities/spaceships/c2.xml",
+            ),
+            ent(
+                "NOITEM_Vehicle",
+                "Vehicle_Spaceship",
+                2,
+                "DRAK",
+                "Cutlass Black PYAM Exec",
+            ),
+        ),
+        (
+            entry(3, "DRAK_Cutlass_Black", E, "entities/spaceships/c1.xml"),
+            ent(
+                "NOITEM_Vehicle",
+                "Vehicle_Spaceship",
+                2,
+                "DRAK",
+                "Drake Cutlass Black",
+            ),
+        ),
+        (
+            entry(4, "QDRV_A", E, "entities/scitem/ships/qd/a.xml"),
+            ent("QuantumDrive", "UNDEFINED", 1, "", "Atlas Quantum Drive"),
+        ),
+        (
+            entry(5, "QuantumDriveSpooling01", "AudioFoo", "audio/qd.xml"),
+            None,
+        ),
+        (
+            entry(6, "Molecule_Stuff", E, "entities/scitem/prop/m.xml"),
+            ent("Misc", "UNDEFINED", 1, "", "Molecule Lamp"),
+        ),
+    ];
+    let (entries, facts): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
+    let ix = ExplorerIndex::new(entries);
+    let facts: Vec<(u32, Facts)> = facts
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, f)| f.map(|f| (i as u32, f)))
+        .collect();
+    let si = SectionIndex::new(&ix, &facts, &|_| None);
+    let all = |q: &str| {
+        si.list(
+            &ix,
+            &ListQuery {
+                query: q.into(),
+                limit: 500,
+                ..Default::default()
+            },
+        )
+    };
+    let labels = |p: &ListPage| p.items.iter().map(|i| i.label.clone()).collect::<Vec<_>>();
+    // The base ship first: whole words, ships before props, fewer words left over.
+    let r = all("cutlass black");
+    assert_eq!(
+        labels(&r),
+        [
+            "Drake Cutlass Black",
+            "Cutlass Black PYAM Exec",
+            "Cutlass Black Plushie"
+        ]
+    );
+    // Real drives before the audio record that only shares the name.
+    let r = all("quantum drive");
+    assert_eq!(r.items[0].label, "Atlas Quantum Drive");
+    // Swapped letters: one edit; the typo hits are the only hits, counted alone.
+    let r = all("qauntum drive");
+    assert_eq!(r.matching, Matching::Typo);
+    assert_eq!(r.items[0].label, "Atlas Quantum Drive");
+    assert_eq!(
+        r.facets.sections.iter().map(|v| v.count).sum::<u32>(),
+        r.total
+    );
+    // An exact hit keeps abbreviations out: `mole` matches Molecule only, nothing fuzzy.
+    let r = all("mole");
+    assert_eq!((r.matching, r.total), (Matching::Exact, 1));
+    // Short words get no typo tolerance.
+    assert_eq!(all("atl").matching, Matching::Exact);
+    assert_eq!(all("xtl").total, 0);
+    assert_eq!(all("lmap").total, 0);
+}
+
+#[test]
+fn edit_distance_counts_a_swap_as_one() {
+    assert_eq!(edit_distance("galdius", "gladius", 2), Some(1));
+    assert_eq!(edit_distance("qauntum", "quantum", 1), Some(1));
+    assert_eq!(edit_distance("kitten", "sitting", 2), None);
+    assert_eq!(edit_distance("kitten", "sitting", 3), Some(3));
+    assert_eq!(edit_distance("same", "same", 0), Some(0));
+}
+
+#[test]
+fn a_picked_facet_value_stays_listed() {
+    let (ix, si) = fixture();
+    let f = Filters {
+        manufacturers: vec!["NOPE".into()],
+        ..Default::default()
+    };
+    let r = si.list(
+        &ix,
+        &ListQuery {
+            filters: f,
+            limit: 500,
+            ..Default::default()
+        },
+    );
+    let v = r
+        .facets
+        .manufacturers
+        .iter()
+        .find(|v| v.value == "NOPE")
+        .expect("listed");
+    assert_eq!(v.count, 0);
 }

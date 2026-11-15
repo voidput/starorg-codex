@@ -238,6 +238,19 @@ pub struct ListPage {
     pub understood: Vec<String>,
     /// Words of the query used for matching (lower case), for highlighting.
     pub words: Vec<String>,
+    /// How the words matched: as typed, or (only when nothing did) close spellings or an
+    /// abbreviation.
+    #[serde(default)]
+    pub matching: Matching,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[serde(rename_all = "kebab-case")]
+pub enum Matching {
+    #[default]
+    Exact,
+    Typo,
+    Abbreviation,
 }
 
 /// A search query split into words and field filters.
@@ -282,13 +295,14 @@ pub fn parse_query(q: &str) -> ParsedQuery {
                 true
             }
             "size" | "s" => {
-                let r = match v.split_once('-') {
+                let r: Option<(i64, i64)> = match v.split_once('-') {
                     Some((a, b)) => a.parse().ok().zip(b.parse().ok()),
                     None => v.parse().ok().map(|n| (n, n)),
                 };
                 match r {
-                    Some(r) => {
-                        p.sizes.push(r);
+                    Some((a, b)) => {
+                        // `size:5-1` reads as 1-5.
+                        p.sizes.push((a.min(b), a.max(b)));
                         true
                     }
                     None => false,
@@ -458,7 +472,14 @@ impl SectionIndex {
                 let item = f
                     .and_then(|f| f.item_type.as_deref())
                     .filter(|s| !s.is_empty());
-                let section = rules::section_of(&e.struct_type, &rel, item, entity) as u8;
+                let section = rules::section_of_subject(&rules::Subject {
+                    struct_type: &e.struct_type,
+                    rel: &rel,
+                    short: short_of(&e.name),
+                    item_type: item,
+                    sub_type: f.and_then(|f| f.sub_type.as_deref()),
+                    entity,
+                }) as u8;
                 let mut flags = 0;
                 if entity && rules::is_variant(&e.name, &rel) {
                     flags |= F_VARIANT;
@@ -916,91 +937,176 @@ impl SectionIndex {
         rules::value_label(k).map_or_else(|| k.to_string(), str::to_string)
     }
 
-    /// How well entry `i` matches the words: `None` = no match, lower is better. Every word
-    /// must appear in the readable name, short name, type, manufacturer or tag; failing
-    /// that, the words run together must be an in-order subsequence of the readable or
-    /// short name (fuzzy: `glds` finds Gladius).
-    fn rank(&self, ix: &ExplorerIndex, i: usize, words: &[String], joined: &str) -> Option<u8> {
+    /// How entry `i` matches the words in `mode`: `None` = no match, else (tier, extra);
+    /// lower is better. `extra` is how many words of the matched name the search left over
+    /// (or the span of an abbreviation), so "Drake Cutlass Black" beats "Cutlass Black PYAM
+    /// Exec" for `cutlass black`.
+    ///
+    /// - Exact: every word appears somewhere (readable name, short name, type, sub-type,
+    ///   manufacturer, class, tag). Tiers: the readable name is the query; every word is a
+    ///   whole word of it; a word start; anywhere in it; the same three on the short name;
+    ///   words spread over both names; words also in the other fields.
+    /// - Typo (only when nothing matches exactly): a word of 5+ letters may be one edit away
+    ///   from a word of a name or of the item type (two for 9+ letters; a swap of two letters
+    ///   is one edit), so `galdius` finds Gladius and `qauntum drive` quantum drives.
+    /// - Abbreviation (only when neither matches): the words run together are an in-order
+    ///   subsequence of a name, starting at a word start and spanning at most three times
+    ///   their length (`glds` finds Gladius); tighter spans first.
+    fn score(
+        &self,
+        ix: &ExplorerIndex,
+        i: usize,
+        words: &[String],
+        joined: &str,
+        mode: Matching,
+    ) -> Option<(u8, u16)> {
         if words.is_empty() {
-            return Some(0);
+            return Some((0, 0));
         }
         let e = &ix.entries()[i];
         let r = &self.recs[i];
         let label = self.label(ix, i).to_lowercase();
         let short = short_of(&e.name).to_lowercase();
-        let words_of = |t: &str| -> Vec<String> {
-            t.split(|c: char| !c.is_alphanumeric())
-                .filter(|w| !w.is_empty())
-                .map(str::to_string)
-                .collect()
+        let lw = name_words(&label);
+        let sw = name_words(&short);
+        let left = |toks: &[&str]| {
+            toks.iter()
+                .filter(|t| !words.iter().any(|w| t.contains(w.as_str())))
+                .count()
+                .min(u16::MAX as usize) as u16
         };
-        let single = !joined.contains(' ');
-        // Readable name first, then the short name: exact, a whole word, a prefix, a word
-        // prefix, anywhere.
-        for (base, text) in [(0u8, &label), (5u8, &short)] {
-            if *text == joined {
-                return Some(base);
+        let other = || {
+            let mut t = e.struct_type.to_lowercase();
+            for x in [
+                self.s(r.kind),
+                self.s(r.sub),
+                self.s(r.tag),
+                self.s(r.class),
+            ]
+            .into_iter()
+            .flatten()
+            {
+                t.push(' ');
+                t.push_str(&x.to_lowercase());
             }
-            let w = words_of(text);
-            if single && w.iter().any(|x| x == joined) {
-                return Some(base + 1);
+            if let Some(m) = self.s(r.maker) {
+                t.push(' ');
+                t.push_str(&self.maker_label(m).to_lowercase());
             }
-            if text.starts_with(joined) {
-                return Some(base + 2);
+            if let Some(k) = self.s(r.kind).and_then(rules::value_label) {
+                t.push(' ');
+                t.push_str(&k.to_lowercase());
             }
-            if w.iter().any(|x| x.starts_with(joined)) {
-                return Some(base + 3);
-            }
-            if text.contains(joined) {
-                return Some(base + 4);
-            }
-        }
-        let mut other: Option<String> = None;
-        let mut other_text = || {
-            other
-                .get_or_insert_with(|| {
-                    let mut t = e.struct_type.to_lowercase();
-                    for x in [
-                        self.s(r.kind),
-                        self.s(r.sub),
-                        self.s(r.tag),
-                        self.s(r.class),
-                    ]
-                    .into_iter()
-                    .flatten()
+            t
+        };
+        match mode {
+            Matching::Exact => {
+                let tiers = |text: &str, toks: &[&str]| {
+                    if text == joined {
+                        return Some((0u8, 0u16));
+                    }
+                    if words.iter().all(|w| toks.iter().any(|t| t == w)) {
+                        return Some((1, left(toks)));
+                    }
+                    if words
+                        .iter()
+                        .all(|w| toks.iter().any(|t| t.starts_with(w.as_str())))
                     {
-                        t.push(' ');
-                        t.push_str(&x.to_lowercase());
+                        return Some((2, left(toks)));
                     }
-                    if let Some(m) = self.s(r.maker) {
-                        t.push(' ');
-                        t.push_str(&self.maker_label(m).to_lowercase());
+                    words
+                        .iter()
+                        .all(|w| text.contains(w.as_str()))
+                        .then(|| (3, left(toks)))
+                };
+                // A record without a display name reads as its short name: it gets the short
+                // name's tiers, after every named record's.
+                let named = self.display.contains_key(&(i as u32));
+                if named && let Some(x) = tiers(&label, &lw) {
+                    return Some(x);
+                }
+                // The readable name with the item type read out ("Atlas" + "Quantum drives"
+                // for `quantum drive`) before records that only share the short name.
+                let kind = self
+                    .s(r.kind)
+                    .map(|k| {
+                        let l = rules::value_label(k).unwrap_or(k);
+                        format!("{} {}", l.to_lowercase(), k.to_lowercase())
+                    })
+                    .unwrap_or_default();
+                if named
+                    && !kind.is_empty()
+                    && words
+                        .iter()
+                        .all(|w| label.contains(w.as_str()) || kind.contains(w.as_str()))
+                {
+                    return Some((4, left(&lw)));
+                }
+                if let Some((t, x)) = tiers(&short, &sw) {
+                    return Some((5 + t, x));
+                }
+                if words
+                    .iter()
+                    .all(|w| label.contains(w.as_str()) || short.contains(w.as_str()))
+                {
+                    return Some((9, left(&lw)));
+                }
+                let ot = other();
+                words
+                    .iter()
+                    .all(|w| {
+                        label.contains(w.as_str())
+                            || short.contains(w.as_str())
+                            || ot.contains(w.as_str())
+                    })
+                    .then(|| (9, left(&lw).saturating_add(1000)))
+            }
+            Matching::Typo => {
+                let mut cost = 0u8;
+                let mut ot: Option<String> = None;
+                // The item type read out counts as name words ("quantum drives").
+                let kind = self
+                    .s(r.kind)
+                    .and_then(rules::value_label)
+                    .unwrap_or_default()
+                    .to_lowercase();
+                let kw = name_words(&kind);
+                for w in words {
+                    if label.contains(w.as_str())
+                        || short.contains(w.as_str())
+                        || kind.contains(w.as_str())
+                    {
+                        continue;
                     }
-                    if let Some(k) = self.s(r.kind).and_then(rules::value_label) {
-                        t.push(' ');
-                        t.push_str(&k.to_lowercase());
+                    let d = lw
+                        .iter()
+                        .chain(&sw)
+                        .chain(&kw)
+                        .filter_map(|t| typo(w, t))
+                        .min();
+                    match d {
+                        Some(d) => cost = cost.saturating_add(d),
+                        None => {
+                            let o = ot.get_or_insert_with(other);
+                            if !o.contains(w.as_str()) {
+                                return None;
+                            }
+                        }
                     }
-                    t
-                })
-                .clone()
-        };
-        if words
-            .iter()
-            .all(|w| label.contains(w.as_str()) || short.contains(w.as_str()))
-        {
-            return Some(10);
+                }
+                (cost > 0).then(|| (10 + cost.min(20), left(&lw)))
+            }
+            Matching::Abbreviation => {
+                let compact: String = words.concat();
+                if compact.chars().count() < 3 {
+                    return None;
+                }
+                // In the readable name before in the short name, tighter spans first.
+                abbrev_span(&compact, &label)
+                    .map(|span| (40, span))
+                    .or_else(|| abbrev_span(&compact, &short).map(|span| (41, span)))
+            }
         }
-        let ot = other_text();
-        if words.iter().all(|w| {
-            label.contains(w.as_str()) || short.contains(w.as_str()) || ot.contains(w.as_str())
-        }) {
-            return Some(11);
-        }
-        let compact: String = words.concat();
-        if compact.len() >= 3 && (subsequence(&compact, &label) || subsequence(&compact, &short)) {
-            return Some(12);
-        }
-        None
     }
 
     fn group_key(&self, i: usize, g: ListGroup) -> Option<(String, String, u64)> {
@@ -1044,6 +1150,7 @@ impl SectionIndex {
             title,
             understood: pq.understood.clone(),
             words: pq.words.clone(),
+            matching: Matching::Exact,
         };
         let Some(n) = Self::parse(&q.node).filter(|_| self.covers(ix)) else {
             return empty(String::new());
@@ -1067,129 +1174,155 @@ impl SectionIndex {
         // 6 class, 7 tag, 8 model, 9 sounds, 10 player, 11 change.
         const DIMS: usize = 12;
         let f_change = low(&f.changes);
-        let mut change_counts: HashMap<Change, u32> = HashMap::new();
-        let mut counts: Vec<HashMap<u32, u32>> = vec![HashMap::new(); 8];
-        let mut flags = [0u32; 3];
-        let mut hits: Vec<(u8, usize)> = Vec::new();
-        for i in self.members(ix, &n) {
-            let e = &ix.entries()[i];
-            if q.main_only && !e.main {
-                continue;
-            }
-            let r = &self.recs[i];
-            // The query's own field prefixes are hard filters (not facets).
-            let lk = self.s(r.kind).map(str::to_lowercase);
-            if !pq.types.iter().all(|t| {
-                lk.as_deref().is_some_and(|k| k.contains(t.as_str()))
-                    || e.struct_type.to_lowercase().contains(t.as_str())
-                    || self
-                        .s(r.kind)
-                        .and_then(rules::value_label)
-                        .is_some_and(|l| l.to_lowercase().contains(t.as_str()))
-            }) {
-                continue;
-            }
-            if !pq.makers.is_empty() {
-                let Some(m) = self.s(r.maker) else { continue };
-                let ml = self.maker_label(m).to_lowercase();
-                if !pq.makers.iter().all(|x| ml.contains(x.as_str())) {
+        // Close spellings and abbreviations only when nothing matches as typed, so their
+        // looser hits never mix with real ones (or into the counts).
+        let scan = |mode: Matching| {
+            let mut change_counts: HashMap<Change, u32> = HashMap::new();
+            let mut counts: Vec<HashMap<u32, u32>> = vec![HashMap::new(); 8];
+            let mut flags = [0u32; 3];
+            let mut hits: Vec<((u8, u16), usize)> = Vec::new();
+            let mut candidates = 0u32;
+            for i in self.members(ix, &n) {
+                let e = &ix.entries()[i];
+                if q.main_only && !e.main {
                     continue;
                 }
-            }
-            if !pq.sizes.is_empty()
-                && !(r.size != NO_SIZE
-                    && pq
-                        .sizes
-                        .iter()
-                        .any(|(a, b)| (*a..=*b).contains(&i64::from(r.size))))
-            {
-                continue;
-            }
-            let has = |list: &[String], v: Option<&str>| {
-                list.is_empty()
-                    || v.is_some_and(|v| {
-                        let v = v.to_lowercase();
-                        list.iter().all(|x| v.contains(x.as_str()))
+                let r = &self.recs[i];
+                // The query's own field prefixes are hard filters (not facets).
+                let lk = self.s(r.kind).map(str::to_lowercase);
+                if !pq.types.iter().all(|t| {
+                    lk.as_deref().is_some_and(|k| k.contains(t.as_str()))
+                        || e.struct_type.to_lowercase().contains(t.as_str())
+                        || self
+                            .s(r.kind)
+                            .and_then(rules::value_label)
+                            .is_some_and(|l| l.to_lowercase().contains(t.as_str()))
+                }) {
+                    continue;
+                }
+                if !pq.makers.is_empty() {
+                    let Some(m) = self.s(r.maker) else { continue };
+                    let ml = self.maker_label(m).to_lowercase();
+                    if !pq.makers.iter().all(|x| ml.contains(x.as_str())) {
+                        continue;
+                    }
+                }
+                if !pq.sizes.is_empty()
+                    && !(r.size != NO_SIZE
+                        && pq
+                            .sizes
+                            .iter()
+                            .any(|(a, b)| (*a..=*b).contains(&i64::from(r.size))))
+                {
+                    continue;
+                }
+                let has = |list: &[String], v: Option<&str>| {
+                    list.is_empty()
+                        || v.is_some_and(|v| {
+                            let v = v.to_lowercase();
+                            list.iter().all(|x| v.contains(x.as_str()))
+                        })
+                };
+                let sec = &SECTIONS[r.section as usize];
+                if !pq.sections.is_empty()
+                    && !pq.sections.iter().any(|x| {
+                        sec.id.starts_with(x.as_str())
+                            || sec.label.to_lowercase().contains(x.as_str())
                     })
-            };
-            let sec = &SECTIONS[r.section as usize];
-            if !pq.sections.is_empty()
-                && !pq.sections.iter().any(|x| {
-                    sec.id.starts_with(x.as_str()) || sec.label.to_lowercase().contains(x.as_str())
-                })
-            {
-                continue;
-            }
-            if !has(&pq.tags, self.s(r.tag))
-                || !has(&pq.grades, self.s(r.grade))
-                || !has(&pq.classes, self.s(r.class))
-                || (pq.model && r.flags & F_MODEL == 0)
-                || (pq.sounds && r.flags & F_SOUNDS == 0)
-            {
-                continue;
-            }
-            let Some(rank) = self.rank(ix, i, &pq.words, &joined) else {
-                continue;
-            };
-            let fails: [bool; DIMS] = [
-                !any(&f_sec, Some(sec.id)),
-                !any(&f_kind, self.s(r.kind)),
-                !any(&f_sub, self.s(r.sub)),
-                !f.sizes.is_empty() && !(r.size != NO_SIZE && f.sizes.contains(&i64::from(r.size))),
-                !any(&f_maker, self.s(r.maker)),
-                !any(&f_grade, self.s(r.grade)),
-                !any(&f_class, self.s(r.class)),
-                !any(&f_tag, self.s(r.tag)),
-                f.model && r.flags & F_MODEL == 0,
-                f.sounds && r.flags & F_SOUNDS == 0,
-                f.player_only && r.flags & F_VARIANT != 0,
-                !f_change.is_empty()
-                    && !self
-                        .change(i)
-                        .is_some_and(|c| f_change.iter().any(|x| x == c.id())),
-            ];
-            let n_fail = fails.iter().filter(|x| **x).count();
-            if n_fail > 1 {
-                continue;
-            }
-            let ok = |own: usize| fails.iter().enumerate().all(|(k, x)| k == own || !x);
-            let vals = [
-                u32::from(r.section),
-                r.kind,
-                r.sub,
-                u32::from(r.size),
-                r.maker,
-                r.grade,
-                r.class,
-                r.tag,
-            ];
-            // `UNDEFINED` is no sub-type to filter by.
-            let undefined = self
-                .s(r.sub)
-                .is_some_and(|x| x.eq_ignore_ascii_case("UNDEFINED"));
-            for (d, v) in vals.iter().enumerate() {
-                let none = if d == 3 { u32::from(NO_SIZE) } else { NONE };
-                if ok(d) && *v != none && !(d == 2 && undefined) {
-                    *counts[d].entry(*v).or_default() += 1;
+                {
+                    continue;
+                }
+                if !has(&pq.tags, self.s(r.tag))
+                    || !has(&pq.grades, self.s(r.grade))
+                    || !has(&pq.classes, self.s(r.class))
+                    || (pq.model && r.flags & F_MODEL == 0)
+                    || (pq.sounds && r.flags & F_SOUNDS == 0)
+                {
+                    continue;
+                }
+                let Some(rank) = self.score(ix, i, &pq.words, &joined, mode) else {
+                    continue;
+                };
+                candidates += 1;
+                let fails: [bool; DIMS] = [
+                    !any(&f_sec, Some(sec.id)),
+                    !any(&f_kind, self.s(r.kind)),
+                    !any(&f_sub, self.s(r.sub)),
+                    !f.sizes.is_empty()
+                        && !(r.size != NO_SIZE && f.sizes.contains(&i64::from(r.size))),
+                    !any(&f_maker, self.s(r.maker)),
+                    !any(&f_grade, self.s(r.grade)),
+                    !any(&f_class, self.s(r.class)),
+                    !any(&f_tag, self.s(r.tag)),
+                    f.model && r.flags & F_MODEL == 0,
+                    f.sounds && r.flags & F_SOUNDS == 0,
+                    f.player_only && r.flags & F_VARIANT != 0,
+                    !f_change.is_empty()
+                        && !self
+                            .change(i)
+                            .is_some_and(|c| f_change.iter().any(|x| x == c.id())),
+                ];
+                let n_fail = fails.iter().filter(|x| **x).count();
+                if n_fail > 1 {
+                    continue;
+                }
+                let ok = |own: usize| fails.iter().enumerate().all(|(k, x)| k == own || !x);
+                let vals = [
+                    u32::from(r.section),
+                    r.kind,
+                    r.sub,
+                    u32::from(r.size),
+                    r.maker,
+                    r.grade,
+                    r.class,
+                    r.tag,
+                ];
+                // `UNDEFINED` is no sub-type to filter by.
+                let undefined = self
+                    .s(r.sub)
+                    .is_some_and(|x| x.eq_ignore_ascii_case("UNDEFINED"));
+                for (d, v) in vals.iter().enumerate() {
+                    let none = if d == 3 { u32::from(NO_SIZE) } else { NONE };
+                    if ok(d) && *v != none && !(d == 2 && undefined) {
+                        *counts[d].entry(*v).or_default() += 1;
+                    }
+                }
+                for (k, bit) in [F_MODEL, F_SOUNDS].iter().enumerate() {
+                    if ok(8 + k) && r.flags & bit != 0 {
+                        flags[k] += 1;
+                    }
+                }
+                if ok(10) && r.flags & F_VARIANT == 0 {
+                    flags[2] += 1;
+                }
+                if ok(11)
+                    && let Some(c) = self.change(i)
+                {
+                    *change_counts.entry(c).or_default() += 1;
+                }
+                if n_fail == 0 {
+                    hits.push((rank, i));
                 }
             }
-            for (k, bit) in [F_MODEL, F_SOUNDS].iter().enumerate() {
-                if ok(8 + k) && r.flags & bit != 0 {
-                    flags[k] += 1;
-                }
-            }
-            if ok(10) && r.flags & F_VARIANT == 0 {
-                flags[2] += 1;
-            }
-            if ok(11)
-                && let Some(c) = self.change(i)
-            {
-                *change_counts.entry(c).or_default() += 1;
-            }
-            if n_fail == 0 {
-                hits.push((rank, i));
+            (hits, counts, flags, change_counts, candidates)
+        };
+        let modes: &[Matching] = if pq.words.is_empty() {
+            &[Matching::Exact]
+        } else {
+            &[Matching::Exact, Matching::Typo, Matching::Abbreviation]
+        };
+        let mut matching = Matching::Exact;
+        let mut found = None;
+        for &mode in modes {
+            let x = scan(mode);
+            matching = mode;
+            let any = x.4 > 0;
+            found = Some(x);
+            if any {
+                break;
             }
         }
+        let (mut hits, counts, flags, change_counts, _) = found.expect("one mode");
         let size_of = |i: usize| {
             let s = self.recs[i].size;
             if s == NO_SIZE { i64::MAX } else { i64::from(s) }
@@ -1202,16 +1335,19 @@ impl SectionIndex {
         };
         // Members come in readable-name order already; the sorts are stable.
         match q.sort {
-            // A search ranks first, then player items over variants, named records over raw
-            // ones, shorter names ("Aegis Gladius" before its paints).
+            // A search ranks by match tier, then player items over variants, named records
+            // over raw ones, the item sections in table order (ships before props), fewer
+            // words left over, then name order.
             SortKey::Name if !pq.words.is_empty() => hits.sort_by_key(|h| {
-                let variant = self.recs[h.1].flags & F_VARIANT != 0;
+                let r = &self.recs[h.1];
+                let variant = r.flags & F_VARIANT != 0;
                 let unnamed = !self.display.contains_key(&(h.1 as u32));
                 (
-                    h.0,
+                    h.0.0,
                     variant,
                     unnamed,
-                    self.label(ix, h.1).len(),
+                    r.section,
+                    h.0.1,
                     self.name_pos[h.1],
                 )
             }),
@@ -1239,7 +1375,7 @@ impl SectionIndex {
                     .or_insert((*o, l.clone(), 1));
             }
             // Stable: rows keep their sort order inside a group.
-            let mut zipped: Vec<(GroupSortKey, (u8, usize))> = keys.into_iter().zip(hits).collect();
+            let mut zipped: Vec<(GroupSortKey, Hit)> = keys.into_iter().zip(hits).collect();
             zipped.sort_by_cached_key(|a| (a.0.0, a.0.1.to_lowercase(), a.0.2.clone()));
             let mut heads: Vec<(String, (u64, String, u32))> = order.into_iter().collect();
             heads.sort_by_cached_key(|a| (a.1.0, a.1.1.to_lowercase(), a.0.clone()));
@@ -1265,7 +1401,9 @@ impl SectionIndex {
             .map(|g| g.count)
             .sum::<u32>()
             .max(hits.len() as u32);
-        let facet = |d: usize, label: &dyn Fn(&str) -> String| {
+        // At most MAX_FACET_VALUES values, but a picked value always stays visible (with
+        // its count, 0 when nothing has it now).
+        let facet = |d: usize, label: &dyn Fn(&str) -> String, picked: &[String]| {
             let mut v: Vec<FacetValue> = counts[d]
                 .iter()
                 .map(|(&k, &c)| {
@@ -1283,7 +1421,20 @@ impl SectionIndex {
                     .then(a.label.cmp(&b.label))
                     .then(a.value.cmp(&b.value))
             });
-            v.truncate(MAX_FACET_VALUES);
+            let rest = v.split_off(v.len().min(MAX_FACET_VALUES));
+            for p in picked {
+                if v.iter().any(|x| x.value.eq_ignore_ascii_case(p)) {
+                    continue;
+                }
+                match rest.iter().find(|x| x.value.eq_ignore_ascii_case(p)) {
+                    Some(x) => v.push(x.clone()),
+                    None => v.push(FacetValue {
+                        label: label(p),
+                        value: p.clone(),
+                        count: 0,
+                    }),
+                }
+            }
             v
         };
         let mut sections: Vec<FacetValue> = counts[0]
@@ -1304,17 +1455,17 @@ impl SectionIndex {
             })
             .collect();
         sizes.sort_by_key(|v| v.value.parse::<i64>().unwrap_or(0));
-        let mut grades = facet(5, &|g| format!("Grade {g}"));
+        let mut grades = facet(5, &|g| format!("Grade {g}"), &f.grades);
         grades.sort_by(|a, b| a.value.cmp(&b.value));
         let facets = FacetCounts {
             sections,
-            kinds: facet(1, &|k| self.kind_label(k)),
-            sub_types: facet(2, &|k| self.kind_label(k)),
+            kinds: facet(1, &|k| self.kind_label(k), &f.kinds),
+            sub_types: facet(2, &|k| self.kind_label(k), &f.sub_types),
             sizes,
-            manufacturers: facet(4, &|c| self.maker_label(c)),
+            manufacturers: facet(4, &|c| self.maker_label(c), &f.manufacturers),
             grades,
-            classes: facet(6, &|c| c.to_string()),
-            tags: facet(7, &|t| t.to_string()),
+            classes: facet(6, &|c| c.to_string(), &f.classes),
+            tags: facet(7, &|t| t.to_string(), &f.tags),
             model: flags[0],
             sounds: flags[1],
             player: flags[2],
@@ -1355,6 +1506,7 @@ impl SectionIndex {
             title: self.title(&n),
             understood: pq.understood,
             words: pq.words,
+            matching,
         }
     }
 
@@ -1439,14 +1591,124 @@ pub fn compare_marks(
     (marks, removed)
 }
 
+/// The words of a lower-case name (letters and digits).
+fn name_words(t: &str) -> Vec<&str> {
+    t.split(|c: char| !c.is_alphanumeric())
+        .filter(|w| !w.is_empty())
+        .collect()
+}
+
+/// Edits allowed for a word of `n` letters: none up to 4 (short words have too many
+/// neighbours), one up to 8, two from 9.
+fn allowed_edits(n: usize) -> usize {
+    match n {
+        0..=4 => 0,
+        5..=8 => 1,
+        _ => 2,
+    }
+}
+
+/// Optimal string alignment distance (insert, delete, substitute, swap neighbours), or
+/// `None` once it exceeds `max`.
+pub fn edit_distance(a: &str, b: &str, max: usize) -> Option<usize> {
+    let a: Vec<char> = a.chars().collect();
+    let b: Vec<char> = b.chars().collect();
+    osa(&a, &b, max)
+}
+
+/// [`edit_distance`] over slices, three rolling rows, stopping early once a whole row
+/// exceeds `max`.
+fn osa<T: PartialEq>(a: &[T], b: &[T], max: usize) -> Option<usize> {
+    if a.len().abs_diff(b.len()) > max {
+        return None;
+    }
+    let m = b.len();
+    let mut prev2: Vec<usize> = vec![0; m + 1];
+    let mut prev: Vec<usize> = (0..=m).collect();
+    let mut cur: Vec<usize> = vec![0; m + 1];
+    for i in 1..=a.len() {
+        cur[0] = i;
+        let mut low = cur[0];
+        for j in 1..=m {
+            let cost = usize::from(a[i - 1] != b[j - 1]);
+            let mut v = (prev[j] + 1).min(cur[j - 1] + 1).min(prev[j - 1] + cost);
+            if i > 1 && j > 1 && a[i - 1] == b[j - 2] && a[i - 2] == b[j - 1] {
+                v = v.min(prev2[j - 2] + 1);
+            }
+            cur[j] = v;
+            low = low.min(v);
+        }
+        if low > max {
+            return None;
+        }
+        std::mem::swap(&mut prev2, &mut prev);
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    (prev[m] <= max).then_some(prev[m])
+}
+
+/// Edits from the query word `w` to the name word `t` (or to `t`'s start, for a word typed
+/// part way), when within [`allowed_edits`].
+fn typo(w: &str, t: &str) -> Option<u8> {
+    let (wb, tb) = (w.as_bytes(), t.as_bytes());
+    let k = allowed_edits(w.chars().count());
+    if k == 0 || tb.len() + k < wb.len() {
+        return None;
+    }
+    if w.is_ascii() && t.is_ascii() {
+        let whole = osa(wb, tb, k);
+        let part = (tb.len() > wb.len())
+            .then(|| osa(wb, &tb[..wb.len()], k))
+            .flatten();
+        return whole.into_iter().chain(part).min().map(|d| d as u8);
+    }
+    let wc: Vec<char> = w.chars().collect();
+    let tc: Vec<char> = t.chars().collect();
+    let whole = osa(&wc, &tc, k);
+    let part = (tc.len() > wc.len())
+        .then(|| osa(&wc, &tc[..wc.len()], k))
+        .flatten();
+    whole.into_iter().chain(part).min().map(|d| d as u8)
+}
+
+/// The shortest span of `hay` holding `needle` in order, starting at a word start, at most
+/// three times `needle`'s length.
+fn abbrev_span(needle: &str, hay: &str) -> Option<u16> {
+    let n: Vec<char> = needle.chars().collect();
+    let h: Vec<char> = hay.chars().collect();
+    let limit = n.len() * 3;
+    let mut best: Option<usize> = None;
+    for start in 0..h.len() {
+        let word_start = start == 0 || !h[start - 1].is_alphanumeric();
+        if !word_start || h[start] != n[0] {
+            continue;
+        }
+        let mut k = 1;
+        let mut at = start;
+        for (j, c) in h.iter().enumerate().skip(start + 1) {
+            if k == n.len() {
+                break;
+            }
+            if *c == n[k] {
+                k += 1;
+                at = j;
+            }
+        }
+        if k == n.len() {
+            let span = at - start + 1;
+            if span <= limit && best.is_none_or(|b| span < b) {
+                best = Some(span);
+            }
+        }
+    }
+    best.map(|b| b as u16)
+}
+
+/// A list hit: ((tier, extra), entry).
+type Hit = ((u8, u16), usize);
+
 /// A row's group: (order, label, key).
 type GroupSortKey = (u64, String, String);
-
-/// `needle` appears in `hay` in order.
-fn subsequence(needle: &str, hay: &str) -> bool {
-    let mut it = hay.chars();
-    needle.chars().all(|c| it.any(|h| h == c))
-}
 
 #[cfg(test)]
 mod tests;

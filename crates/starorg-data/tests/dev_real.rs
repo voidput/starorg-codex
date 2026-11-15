@@ -258,6 +258,14 @@ fn live_sections_index_counts_and_cost() {
             it.label, it.detail, it.section, it.model, it.sounds, it.grade, it.class
         );
     }
+    // The Pirate Gladius is a player ship (`_PIR` is no variant token).
+    let pir = s.list(&q("gladius pirate", Filters::default(), ListGroup::None));
+    let p0 = pir
+        .items
+        .iter()
+        .find(|i| i.name == "EntityClassDefinition.AEGS_Gladius_PIR")
+        .expect("Gladius Pirate");
+    assert!(!p0.variant, "{p0:?}");
     let cool = s.list(&q("bracer", Filters::default(), ListGroup::None));
     println!("  bracer: {:?}", cool.items.first());
     let ship = gl
@@ -269,6 +277,40 @@ fn live_sections_index_counts_and_cost() {
     assert_eq!(gl.items[0].name, ship.name, "the ship ranks first");
     let gun = s.list(&q("type:weapongun", Filters::default(), ListGroup::None));
     assert!(gun.items.iter().filter(|i| i.sounds).count() > 50);
+    // Search quality on real names: total, the first hits and their sections.
+    for query in [
+        "bracer",
+        "mole",
+        "ATLS",
+        "arrow",
+        "panther",
+        "medpen",
+        "glds",
+        "galdius",
+        "cutlass black",
+        "quantum drive",
+        "qauntum drive",
+    ] {
+        let t = Instant::now();
+        let p = s.list(&q(query, Filters::default(), ListGroup::None));
+        let top: Vec<String> = p
+            .items
+            .iter()
+            .take(5)
+            .map(|i| format!("{} [{}]", i.label, i.section))
+            .collect();
+        println!(
+            "search {query:?}: {} rows ({:?}) in {:?}; sections {:?}; top {top:?}",
+            p.total,
+            p.matching,
+            t.elapsed(),
+            p.facets
+                .sections
+                .iter()
+                .map(|v| (v.value.as_str(), v.count))
+                .collect::<Vec<_>>()
+        );
+    }
     // "Changed vs <channel>" (optional): GameData of the other build (A) and of this one (B)
     // as the app reads them, `STARORG_GD_A` / `STARORG_GD_B` (JSON files).
     if let (Some(a), Some(b)) = (

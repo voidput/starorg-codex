@@ -95,6 +95,10 @@ pub enum Match {
     StructPrefix(&'static str),
     /// Path prefix below the records root.
     Path(&'static str),
+    /// Entity `AttachDef.Type` and `SubType`, exact.
+    ItemSub(&'static str, &'static str),
+    /// Short record name prefix (case-insensitive): named families that the type misfiles.
+    NamePrefix(&'static str),
 }
 
 use Match::*;
@@ -102,6 +106,9 @@ use Match::*;
 /// The rules, first hit wins. Entity item types first, then entity folders (entities
 /// without a type), then struct types, then folders.
 pub const RULES: &[(Match, &str)] = &[
+    // --- Named families the type misfiles ----------------------------------------------
+    // Destructible props built on the gun item type (`GPI_Destructible_*`).
+    (NamePrefix("GPI_Destructible"), "items"),
     // --- Entities by AttachDef.Type ---------------------------------------------------
     (Item("NOITEM_Vehicle"), "ships"),
     (Item("Paints"), "ships"),
@@ -184,6 +191,13 @@ pub const RULES: &[(Match, &str)] = &[
     (Item("Gadget"), "fps-weapons"),
     (Item("Grenade"), "fps-weapons"),
     (Item("FPS_Deployable"), "fps-weapons"),
+    // Ship weapon parts (crafting modules) share the FPS attachment type.
+    (
+        ItemSub("WeaponAttachment", "FiringMechanism"),
+        "ship-weapons",
+    ),
+    (ItemSub("WeaponAttachment", "PowerArray"), "ship-weapons"),
+    (ItemSub("WeaponAttachment", "Ventilation"), "ship-weapons"),
     (Item("WeaponAttachment"), "attachments"),
     (ItemPrefix("Char_Armor_"), "armor"),
     (ItemPrefix("Char_Clothing_"), "armor"),
@@ -205,7 +219,6 @@ pub const RULES: &[(Match, &str)] = &[
     // --- Entities without a type, by folder ------------------------------------------------
     (Path("entities/commodities/"), "commodities"),
     (Path("entities/scitem/shopdisplays/"), "shops"),
-    (Path("entities/scitem/human/"), "characters"),
     (Path("actor/"), "characters"),
     // --- Other records, by struct type -----------------------------------------------------
     (Struct("SCItemManufacturer"), "factions"),
@@ -284,7 +297,6 @@ pub const RULES: &[(Match, &str)] = &[
     (StructPrefix("ProceduralPlanetAudio"), "audio-ui"),
     (StructPrefix("RaSTaR"), "audio-ui"),
     (StructPrefix("PlayerChoiceMenu"), "audio-ui"),
-    (StructPrefix("WeaponProcedural"), "fps-weapons"),
     // --- Other records, by folder ---------------------------------------------------------
     (Path("ammoparams/vehicle/"), "ship-weapons"),
     (Path("ammoparams/fps/"), "fps-weapons"),
@@ -384,7 +396,21 @@ pub const VARIANT_TOKENS: &[&str] = &[
     "wreck",
     "tutorial",
     "ea",
-    "pir",
+    "hijacked",
+    "teach",
+    "display",
+    "indestructible",
+    "nointerior",
+    "gamemaster",
+];
+
+/// Short-name prefixes (case-insensitive) of non-player entity families: wreck pieces,
+/// security sentries, probes, Arena Commander objectives.
+pub const VARIANT_PREFIXES: &[&str] = &[
+    "SalvageableDebris",
+    "Orbital_Sentry",
+    "probe_comms",
+    "EAObjectiveDestructable",
 ];
 
 /// Folder names (any segment of the entity's path) that only hold such variants.
@@ -405,10 +431,33 @@ pub fn section_index(id: &str) -> Option<usize> {
     SECTIONS.iter().position(|s| s.id == id)
 }
 
-/// The section of a record. `item_type` is the entity's `AttachDef.Type` (entities only);
-/// `rel` its lower-case path below the records root.
-pub fn section_of(struct_type: &str, rel: &str, item_type: Option<&str>, entity: bool) -> usize {
+/// What a record is matched on.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Subject<'a> {
+    pub struct_type: &'a str,
+    /// Lower-case path below the records root.
+    pub rel: &'a str,
+    /// Short record name (after `Type.`).
+    pub short: &'a str,
+    /// Entity `AttachDef.Type` and `SubType` (entities only).
+    pub item_type: Option<&'a str>,
+    pub sub_type: Option<&'a str>,
+    pub entity: bool,
+}
+
+fn starts_ci(s: &str, p: &str) -> bool {
+    s.len() >= p.len() && s.as_bytes()[..p.len()].eq_ignore_ascii_case(p.as_bytes())
+}
+
+/// The section of a record.
+pub fn section_of_subject(x: &Subject) -> usize {
+    let (struct_type, rel, item_type, entity) = (x.struct_type, x.rel, x.item_type, x.entity);
     let hit = RULES.iter().find(|(m, _)| match *m {
+        ItemSub(t, st) => {
+            item_type.is_some_and(|v| v.eq_ignore_ascii_case(t))
+                && x.sub_type.is_some_and(|v| v.eq_ignore_ascii_case(st))
+        }
+        NamePrefix(p) => entity && starts_ci(x.short, p),
         Item(t) => item_type.is_some_and(|x| x.eq_ignore_ascii_case(t)),
         ItemPrefix(p) => {
             item_type.is_some_and(|x| x.len() >= p.len() && x[..p.len()].eq_ignore_ascii_case(p))
@@ -429,13 +478,25 @@ pub fn section_of(struct_type: &str, rel: &str, item_type: Option<&str>, entity:
     section_index(id).unwrap_or(SECTIONS.len() - 1)
 }
 
-/// An AI, NPC, test or template variant, by name token or folder (entities only).
+/// The section of a record by type and path only (no name, no sub-type).
+pub fn section_of(struct_type: &str, rel: &str, item_type: Option<&str>, entity: bool) -> usize {
+    section_of_subject(&Subject {
+        struct_type,
+        rel,
+        item_type,
+        entity,
+        ..Default::default()
+    })
+}
+
+/// An AI, NPC, test or template variant, by name token, name prefix or folder (entities
+/// only).
 pub fn is_variant(name: &str, rel: &str) -> bool {
     let short = name.split_once('.').map_or(name, |(_, s)| s);
     let token = short
         .split(['_', '-', '.', ' '])
         .any(|t| VARIANT_TOKENS.iter().any(|v| t.eq_ignore_ascii_case(v)));
-    token || {
+    token || VARIANT_PREFIXES.iter().any(|p| starts_ci(short, p)) || {
         let mut segs: Vec<&str> = rel.split('/').collect();
         segs.pop();
         segs.iter().any(|s| VARIANT_FOLDERS.contains(s))

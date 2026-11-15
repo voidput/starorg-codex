@@ -387,7 +387,7 @@ impl Server {
             AssetRequest::SoundSearch { query, limit } => {
                 to_value(a.audio()?.search_triggers(query, *limit as usize))
             }
-            AssetRequest::Trigger { name } => to_value(a.audio()?.trigger(a, name)),
+            AssetRequest::Trigger { name } => to_value(a.audio()?.trigger(a, name)?),
             AssetRequest::Sound {
                 sound,
                 out_ogg,

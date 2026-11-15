@@ -74,6 +74,8 @@ interface Samples {
   dev_list_node: T.ListPage;
   dev_list_query: T.ListPage;
   dev_list_grouped: T.ListPage;
+  dev_list_typo: T.ListPage;
+  dev_list_abbrev: T.ListPage;
   dev_list_filters: T.ListPage;
   dev_list_changed: T.ListPage;
   dev_owner: T.SearchHit[];

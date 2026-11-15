@@ -204,10 +204,14 @@ impl AudioIndex {
         }
     }
 
-    /// One trigger with the sounds it plays.
-    pub fn trigger(&self, a: &AssetArchive, name: &str) -> TriggerInfo {
+    /// One trigger with the sounds it plays; `not-found` when the ATL has no such trigger
+    /// and no external source of that name exists.
+    pub fn trigger(&self, a: &AssetArchive, name: &str) -> AssetResult<TriggerInfo> {
         let (atl, sounds) = self.resolve(a, name);
-        TriggerInfo {
+        if atl.is_none() && sounds.is_empty() {
+            return Err(AssetError::not_found(format!("no sound event {name:?}")));
+        }
+        Ok(TriggerInfo {
             name: name.to_string(),
             property: String::new(),
             from: String::new(),
@@ -217,7 +221,7 @@ impl AudioIndex {
                 .map(|x| x.duration_type.clone())
                 .filter(|d| !d.is_empty()),
             sounds,
-        }
+        })
     }
 
     fn bank_path(&self, bank: &str) -> String {

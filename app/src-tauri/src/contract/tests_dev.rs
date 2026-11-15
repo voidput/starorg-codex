@@ -276,6 +276,19 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         main_only: true,
         ..Default::default()
     });
+    let list_typo = list(ListQuery {
+        query: "kestral".into(),
+        limit: 10,
+        main_only: true,
+        ..Default::default()
+    });
+    assert_eq!(list_typo.matching, Matching::Typo);
+    let list_abbrev = list(ListQuery {
+        query: "glcr".into(),
+        limit: 10,
+        main_only: true,
+        ..Default::default()
+    });
     let list_grouped = list(ListQuery {
         query: "repeater".into(),
         group: ListGroup::Manufacturer,
@@ -335,6 +348,8 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         ("dev_list_node", json!(list_node)),
         ("dev_list_query", json!(list_query)),
         ("dev_list_grouped", json!(list_grouped)),
+        ("dev_list_typo", json!(list_typo)),
+        ("dev_list_abbrev", json!(list_abbrev)),
         ("dev_list_filters", json!(list_filters)),
         ("dev_owner", json!(owner)),
         ("dev_compare", json!(compare)),
@@ -827,6 +842,10 @@ fn dev_unions_in_dev_ts_list_every_variant() {
             ]),
         ),
         ("Change", names(&[Change::Added, Change::Changed])),
+        (
+            "Matching",
+            names(&[Matching::Exact, Matching::Typo, Matching::Abbreviation]),
+        ),
         (
             "ColType",
             names(&[

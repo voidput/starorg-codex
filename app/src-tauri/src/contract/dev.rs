@@ -28,7 +28,7 @@ pub use starorg_core::dev::readable::{LabelKind, Readable};
 pub use starorg_core::dev::record::{LocText, RecordHeader, RecordView};
 pub use starorg_core::dev::sections::{
     Change, FacetCounts, FacetValue, Filters, GroupHead, ListGroup, ListItem, ListPage, ListQuery,
-    SectionStats, SortKey, Stat,
+    Matching, SectionStats, SortKey, Stat,
 };
 
 /// Records above this count get a size warning in the export dialog (7.4).

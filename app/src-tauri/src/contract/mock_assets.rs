@@ -640,7 +640,7 @@ impl AssetBackend for MockBackend {
     fn asset_trigger(&self, req: AssetTriggerRequest) -> CmdResult<TriggerInfo> {
         self.assets_open(&req.target)?;
         self.asset_state().audio = true;
-        Ok(all_triggers()
+        all_triggers()
             .into_iter()
             .find(|t| t.name == req.name)
             .map(|mut t| {
@@ -648,15 +648,12 @@ impl AssetBackend for MockBackend {
                 t.from = String::new();
                 t
             })
-            .unwrap_or(TriggerInfo {
-                name: req.name,
-                property: String::new(),
-                from: String::new(),
-                bank: None,
-                event: None,
-                duration_type: None,
-                sounds: vec![],
-            }))
+            .ok_or_else(|| {
+                AppError::new(
+                    ErrorCode::NotFound,
+                    format!("no sound event {:?}", req.name),
+                )
+            })
     }
 
     fn asset_sound(&self, req: AssetSoundRequest) -> CmdResult<AssetAudio> {

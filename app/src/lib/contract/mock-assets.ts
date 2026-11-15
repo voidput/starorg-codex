@@ -280,7 +280,7 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
       openW(req.target);
       audio = true;
       const t = allTriggers().find((x) => x.name === req.name);
-      return t ? { ...structuredClone(t), property: '', from: '' } : { name: req.name, property: '', from: '', bank: null, event: null, duration_type: null, sounds: [] };
+      return t ? { ...structuredClone(t), property: '', from: '' } : ctx.fail('not-found', `no sound event ${JSON.stringify(req.name)}`);
     },
     asset_sound: ({ req }) => {
       on(req.target);

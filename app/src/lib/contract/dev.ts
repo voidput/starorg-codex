@@ -43,6 +43,8 @@ export interface SectionStats {
 export type SortKey = 'name' | 'size' | 'manufacturer';
 export type ListGroup = 'none' | 'section' | 'kind' | 'manufacturer' | 'size';
 export type Change = 'added' | 'changed';
+/** How the search words matched: as typed, or (only when nothing did) close spellings or an abbreviation. */
+export type Matching = 'exact' | 'typo' | 'abbreviation';
 
 /** Filters of the item finder (7.17): OR within a facet, AND across facets. */
 export interface Filters {
@@ -145,6 +147,7 @@ export interface ListPage {
   title: string;
   understood: string[];
   words: string[];
+  matching: Matching;
 }
 
 export interface DevListRequest {

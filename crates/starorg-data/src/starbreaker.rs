@@ -881,11 +881,10 @@ pub struct RawFacets {
 /// more resident after the explorer's scans; a few threads that end with the pool keep it
 /// near the old steady size.
 pub fn small_pool<T: Send>(f: impl FnOnce() -> T + Send) -> T {
-    let n = std::env::var("XX_POOL")
-        .ok()
-        .and_then(|v| v.parse().ok())
-        .unwrap_or(POOL_THREADS);
-    match rayon::ThreadPoolBuilder::new().num_threads(n).build() {
+    match rayon::ThreadPoolBuilder::new()
+        .num_threads(POOL_THREADS)
+        .build()
+    {
         Ok(pool) => pool.install(f),
         Err(_) => f(),
     }

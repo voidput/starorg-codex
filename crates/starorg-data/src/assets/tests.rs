@@ -343,8 +343,7 @@ fn sound_search_finds_triggers_by_name_event_and_words() {
     );
     assert_eq!(idx.search_triggers("syn", 50).total, 2);
     assert_eq!(idx.search_triggers("", 50).total, 0);
-    let t = idx.trigger(&a, "Play_SYN_Engine_Loop");
+    let t = idx.trigger(&a, "Play_SYN_Engine_Loop").unwrap();
     assert_eq!(t.event.as_deref(), Some("Play_SYN_Engine_Loop"));
-    let none = idx.trigger(&a, "Nope");
-    assert!(none.event.is_none() && none.sounds.is_empty());
+    assert_eq!(idx.trigger(&a, "Nope").unwrap_err().code, "not-found");
 }

@@ -1761,7 +1761,7 @@
         }
       ],
       "model": 44,
-      "player": 294,
+      "player": 293,
       "sections": [
         {
           "count": 8,
@@ -2216,11 +2216,114 @@
       }
     ],
     "matched": 298,
+    "matching": "exact",
     "offset": 0,
     "title": "",
     "total": 298,
     "understood": [],
     "words": []
+  },
+  "dev_list_abbrev": {
+    "facets": {
+      "changes": [],
+      "classes": [
+        {
+          "count": 1,
+          "label": "Civilian",
+          "value": "Civilian"
+        }
+      ],
+      "grades": [
+        {
+          "count": 1,
+          "label": "Grade A",
+          "value": "A"
+        }
+      ],
+      "kinds": [
+        {
+          "count": 1,
+          "label": "Coolers",
+          "value": "Cooler"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 1,
+          "label": "Beta Works (SYNB)",
+          "value": "SYNB"
+        }
+      ],
+      "model": 1,
+      "player": 1,
+      "sections": [
+        {
+          "count": 1,
+          "label": "Ship components",
+          "value": "components"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 1,
+          "label": "S2",
+          "value": "2"
+        }
+      ],
+      "sounds": 0,
+      "sub_types": [],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": null,
+        "class": "Civilian",
+        "detail": "SYN_Glacier_Cooler",
+        "grade": "A",
+        "group": null,
+        "guid": "54000000-0000-4000-8000-00000000000e",
+        "kind": "Cooler",
+        "kind_label": "Coolers",
+        "label": "Glacier Cooler",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Glacier_Cooler",
+        "section": "components",
+        "size": 2,
+        "sounds": false,
+        "stats": [
+          {
+            "key": "power",
+            "label": "Power",
+            "unit": null,
+            "value": 24.0
+          },
+          {
+            "key": "health",
+            "label": "Health",
+            "unit": "HP",
+            "value": 850.0
+          }
+        ],
+        "sub_label": null,
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      }
+    ],
+    "matched": 1,
+    "matching": "abbreviation",
+    "offset": 0,
+    "title": "",
+    "total": 1,
+    "understood": [],
+    "words": [
+      "glcr"
+    ]
   },
   "dev_list_changed": {
     "facets": {
@@ -2818,6 +2921,7 @@
       }
     ],
     "matched": 16,
+    "matching": "exact",
     "offset": 0,
     "title": "",
     "total": 16,
@@ -2947,11 +3051,6 @@
           "count": 1,
           "label": "Commodities & resources",
           "value": "commodities"
-        },
-        {
-          "count": 1,
-          "label": "Shops",
-          "value": "shops"
         },
         {
           "count": 1,
@@ -3147,6 +3246,7 @@
       }
     ],
     "matched": 4,
+    "matching": "exact",
     "offset": 0,
     "title": "",
     "total": 4,
@@ -3290,6 +3390,7 @@
       }
     ],
     "matched": 2,
+    "matching": "exact",
     "offset": 0,
     "title": "",
     "total": 2,
@@ -3757,6 +3858,7 @@
       }
     ],
     "matched": 8,
+    "matching": "exact",
     "offset": 0,
     "title": "Ships & vehicles",
     "total": 8,
@@ -3856,6 +3958,7 @@
       }
     ],
     "matched": 1,
+    "matching": "exact",
     "offset": 0,
     "title": "",
     "total": 1,
@@ -3865,6 +3968,199 @@
     ],
     "words": [
       "frost"
+    ]
+  },
+  "dev_list_typo": {
+    "facets": {
+      "changes": [],
+      "classes": [],
+      "grades": [],
+      "kinds": [
+        {
+          "count": 2,
+          "label": "Vehicles",
+          "value": "NOITEM_Vehicle"
+        },
+        {
+          "count": 1,
+          "label": "Paints",
+          "value": "Paints"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 3,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        }
+      ],
+      "model": 3,
+      "player": 2,
+      "sections": [
+        {
+          "count": 3,
+          "label": "Ships & vehicles",
+          "value": "ships"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 1,
+          "label": "S1",
+          "value": "1"
+        },
+        {
+          "count": 2,
+          "label": "S2",
+          "value": "2"
+        }
+      ],
+      "sounds": 2,
+      "sub_types": [
+        {
+          "count": 2,
+          "label": "Spaceships",
+          "value": "Vehicle_Spaceship"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000001",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_label": "Spaceships",
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Kestrel_Ember_Livery",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000007",
+        "kind": "Paints",
+        "kind_label": "Paints",
+        "label": "Kestrel Ember Livery",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Kestrel_Ember_Livery",
+        "section": "ships",
+        "size": 1,
+        "sounds": false,
+        "stats": [],
+        "sub_label": null,
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel_PU_AI_CIV",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000004",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel PU AI CIV",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel_PU_AI_CIV",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_label": "Spaceships",
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": true
+      }
+    ],
+    "matched": 3,
+    "matching": "typo",
+    "offset": 0,
+    "title": "",
+    "total": 3,
+    "understood": [],
+    "words": [
+      "kestral"
     ]
   },
   "dev_open": {

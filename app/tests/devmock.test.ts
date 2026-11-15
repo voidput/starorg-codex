@@ -119,6 +119,8 @@ test('every dev sample of the Rust mock comes back equal from the TS mock', asyn
   got.dev_list = await list({ limit: 5 });
   got.dev_list_node = await list({ node: shipsId, sort: 'size', limit: 10 });
   got.dev_list_query = await list({ query: 'type:cooler maker:alpha frost', limit: 10 });
+  got.dev_list_typo = await list({ query: 'kestral', limit: 10 });
+  got.dev_list_abbrev = await list({ query: 'glcr', limit: 10 });
   got.dev_list_grouped = await list({ query: 'repeater', group: 'manufacturer', collapsed: ['SYNB'], limit: 10 });
   got.dev_list_filters = await list({ filters: { ...NO_FILTERS, sections: ['components'], sizes: [1], player_only: true, model: true }, sort: 'manufacturer', limit: 10 });
   got.dev_owner = await h.dev_owner({ req: { target: live, path: data.catalogue.geometry[1]![0] } });
