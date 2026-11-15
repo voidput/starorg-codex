@@ -1,5 +1,75 @@
 # Changelog
 
+## [0.3.0](https://github.com/voidput/starorg-codex/compare/v0.2.0...v0.3.0) (2026-11-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* the CLI is starorg-codex (starorg-strings stays an alias for 0.3.x only), the app binary is starorg-codex-app, release files are starorg-codex-v<v>-<target>, the app folders and identifier are renamed (moved automatically on first start), and hook blocks use new markers.
+
+### Features
+
+* **app:** blueprint finder with search, facets, sort, groups and channel colours ([ef424b4](https://github.com/voidput/starorg-codex/commit/ef424b48b571ac3eb42e5c20d8bd75bdccf0c978))
+* **app:** clearer whose-blueprints hints; re-import and pull target the newest ([7e1f092](https://github.com/voidput/starorg-codex/commit/7e1f0928d4b1c58c3203c109ede44351cf9c03eb))
+* **app:** collapsible Blueprints cards and finder groups ([87e74ad](https://github.com/voidput/starorg-codex/commit/87e74ad169d1001fd78aec81223e9b8ff6f9a86e))
+* **app:** colour pickers, colour test and EM styles in the preview ([56094e6](https://github.com/voidput/starorg-codex/commit/56094e6d776b4bc32708743c47909d547f088730))
+* **app:** dark is the default theme ([dd4c886](https://github.com/voidput/starorg-codex/commit/dd4c8863715c42c92edf8abc1cb6342eb93e52f5))
+* **app:** Enhancements Blueprints tab and Markers in game card ([e2a3c08](https://github.com/voidput/starorg-codex/commit/e2a3c08cd0a16056038795e58d0d934a9d5bb8d9))
+* **app:** Fix owned blueprints card with re-scan and re-import ([c1e9b3e](https://github.com/voidput/starorg-codex/commit/c1e9b3ea89d12d7eeb7cf60ff2d40d4a19315fcb))
+* **app:** memory limit and dev CLI lines only with Developer mode on ([44db47a](https://github.com/voidput/starorg-codex/commit/44db47ab79ca6cff966ac669c375d43dcbe7f5fc))
+* **app:** memory warning before Developer mode and MCP, limit slider ([4affae4](https://github.com/voidput/starorg-codex/commit/4affae488c0daf83faa76e5732d5b18a9e753478))
+* **app:** owner fallback hint, same-name labels, picker fallback for re-import ([46c9be5](https://github.com/voidput/starorg-codex/commit/46c9be56d3326d21cc05b407f95969224fdc83a9))
+* **app:** rescan_logs and Smart Citizen re-import in the contract; repair on first load ([58df117](https://github.com/voidput/starorg-codex/commit/58df117eaff495a9a930c6eb6021cac5abc1f9cf))
+* **app:** Strings shows what each key is, with Show keys and shared owners ([be5e77c](https://github.com/voidput/starorg-codex/commit/be5e77c546a0309e527085af4e4ee37ab86823c1))
+* **blueprints:** finder catalogue and per-channel ownership merge ([6b5b7fa](https://github.com/voidput/starorg-codex/commit/6b5b7fab89b29c382c7b583dbfe272f5c00ac04c))
+* **cli:** blueprints rescan and reimport; scan reports merges and the repair ([29ce2c7](https://github.com/voidput/starorg-codex/commit/29ce2c75a0a83fc147274169aee03b574d8d2c5f))
+* **contract:** blueprint_finder command with both mocks and samples ([185c0ed](https://github.com/voidput/starorg-codex/commit/185c0ed46cdef26267ccc64c625a68ccf7db1c52))
+* **contract:** readable owners on Strings rows, owner search and sort ([5768746](https://github.com/voidput/starorg-codex/commit/57687466ad460ae30c632b8294bd2cc1647c6cf7))
+* **core:** move the pre-0.3.0 app folders to the starorg-codex names ([56133c6](https://github.com/voidput/starorg-codex/commit/56133c62613810e35c535c286af0b19e0b46b73a))
+* **dev-contract:** item finder list, sections tree, owner, compare and sound search commands ([2164ece](https://github.com/voidput/starorg-codex/commit/2164ece1a9e08c4ac296ce9e2e1529205a51441a))
+* **dev-sections:** explorer sections, quick filters and media index in the dev worker ([b441e1b](https://github.com/voidput/starorg-codex/commit/b441e1be3a01759cafaa44503e2a71b6ddf73d06))
+* **dev-sections:** readable sub-type labels; UNDEFINED is no sub-type facet ([90000d3](https://github.com/voidput/starorg-codex/commit/90000d3f3b2eaf477d53eaf6f9ae7e34a44338de))
+* **enhance:** [Owned] is coloured by default (EM4, the game's blue) ([e702c63](https://github.com/voidput/starorg-codex/commit/e702c630c45e1a533347f4571c73568b972d233c))
+* **enhance:** colour settings for mission markers and a colour test line ([996a31c](https://github.com/voidput/starorg-codex/commit/996a31cf4972d20c50b42deec9315ae318dd9fff))
+* **explorer:** item finder with sections, facets, grouping, compare and sound search ([2ff0cdb](https://github.com/voidput/starorg-codex/commit/2ff0cdba0f8001a4f985caee27d3c67bcf6b9d2f))
+* **memlimit:** memory limit for the Developer mode and MCP workers ([2ea65b8](https://github.com/voidput/starorg-codex/commit/2ea65b85918fcd286467c49af6fc02062da8ef69))
+* rename starorg-strings to starorg-codex in binaries, packages and URLs ([3d98c30](https://github.com/voidput/starorg-codex/commit/3d98c3063def3371f875ea164d2e8ce716d7a2b2))
+* **strings-owners:** key owner index from cached GameData and key shapes ([1c0cd33](https://github.com/voidput/starorg-codex/commit/1c0cd331a664d92ac494a88e7161f699d9bea17d))
+
+
+### Bug Fixes
+
+* **app:** allow blob: media in the CSP so sounds play ([700be6d](https://github.com/voidput/starorg-codex/commit/700be6d69d2d8e4ba94cad109d70e292e62af14f))
+* **app:** an apply with warnings says what the warning is in Activity ([15fff45](https://github.com/voidput/starorg-codex/commit/15fff45017d9219a6cfdad6c0f4f310cb1d6bb98))
+* **app:** blueprint warnings stay in view; finder collapse follow-ups ([aa12b0c](https://github.com/voidput/starorg-codex/commit/aa12b0c9b5e821dafbc815060a3fcd06b861106b))
+* **app:** colour labels say the look is not verified; report via Support ([0337b32](https://github.com/voidput/starorg-codex/commit/0337b3245b25a45c6abaa95e8aeeb7fa38bf5937))
+* **app:** draw display-font digits with Inter ([513670f](https://github.com/voidput/starorg-codex/commit/513670f9cd0f39ac576d441fb4ca50617f7d1122))
+* **app:** finder shows ambiguous and maybe-owned rows, sits first on the screen ([a0fa4f3](https://github.com/voidput/starorg-codex/commit/a0fa4f340dbe3c92e936d1e7535398e44691dcfb))
+* **app:** never point at Smart Citizen's folder; the picker opens in Downloads ([2f08c16](https://github.com/voidput/starorg-codex/commit/2f08c16df960e3b6ed335de55637709c0536fee3))
+* **blueprints:** ambiguous names list candidates, unattributed set, record-name types ([c494dc4](https://github.com/voidput/starorg-codex/commit/c494dc45631c4fe32a560c7410cb29fd77eb9f46))
+* **blueprints:** an unreadable set never fails auto, status or apply ([443562f](https://github.com/voidput/starorg-codex/commit/443562f158b20df755a1872b7987d49aa082367e))
+* **blueprints:** auto falls back to an owner, settings follow merges, safer rescan ([3c08ff8](https://github.com/voidput/starorg-codex/commit/3c08ff83ba48aeba6dca0bb5114347f686fcd3f3))
+* **blueprints:** one character per reset account, and a one-time store repair ([f66acb1](https://github.com/voidput/starorg-codex/commit/f66acb13ee5d0f50fc665f57ab0bfe99d2d7482d))
+* **contract:** finder candidates, maybe owners and skipped sets; reading creates nothing ([21848ea](https://github.com/voidput/starorg-codex/commit/21848ea862fc10760a90cd2fc834c4d027289027))
+* **dev-sections:** search passes, variant and section rules from review ([43c3059](https://github.com/voidput/starorg-codex/commit/43c3059377cbdf090cc222cc06cf5f56b5b8b516))
+* **dev-sections:** Teach's Special ships and real display items are not variants ([eab7373](https://github.com/voidput/starorg-codex/commit/eab7373fbc7f6455d0a9b21d051a3c836bf643fe))
+* **enhance:** bump OUTPUT_VERSION to 3 for per-blueprint ownership ([b0ed339](https://github.com/voidput/starorg-codex/commit/b0ed3397d1d033ae0573bbe65155ad127e217ddc))
+* **enhance:** same-named blueprints never give a false [BP Owned] or marker ([f7260f0](https://github.com/voidput/starorg-codex/commit/f7260f0b9956f14062287901100d2984f588598b))
+* **explorer:** matching notice, recent searches on confirm, sound cap, narrow layout ([2e1f428](https://github.com/voidput/starorg-codex/commit/2e1f42859464fc6fe957c838f7c991bad81618ab))
+* **memlimit:** guard and fits use the watchdog's stop point; review fixes ([dcd3cca](https://github.com/voidput/starorg-codex/commit/dcd3cca50c3de0d8926189970be1309d541b5de8))
+* **profile:** migrate old profile.toml files to only the changed settings ([5cb60df](https://github.com/voidput/starorg-codex/commit/5cb60df49494a9284339ad8aea1a67c93af38afd))
+* **profile:** save a Medium tag style the preset sets otherwise ([80abb6a](https://github.com/voidput/starorg-codex/commit/80abb6a45b08529445e8c46ba003b832e4ef3613))
+* **profile:** save only changed settings so new defaults reach everyone ([00fe713](https://github.com/voidput/starorg-codex/commit/00fe713c941da1ec75166ec7325848be29d90356))
+* **sounds:** convert every WEM codec and say why a sound does not play ([046592d](https://github.com/voidput/starorg-codex/commit/046592d657f4f387b9837079fbebafe7f108c0c5))
+* **strings-owners:** one owner per record, cleaner names, variant base names ([8377bcc](https://github.com/voidput/starorg-codex/commit/8377bcc2898dff6639da14977593e462deb458a4))
+* **wizard:** explain the empty preview, show Review progress, warn before replacing another tool's file ([a900f3d](https://github.com/voidput/starorg-codex/commit/a900f3d4583d95d3073fbe81b32290ff80117abb))
+* **wizard:** one game-data read at a time; Review blocks on unread data ([671ef1c](https://github.com/voidput/starorg-codex/commit/671ef1c01c3d01166aa7c986f0cc45c4eb2c6c25))
+
+
+### Performance Improvements
+
+* **dev-sections:** keep the dev worker near its old memory ([ce62317](https://github.com/voidput/starorg-codex/commit/ce623175f9af1b2e47ed5b541a7fb7c6345dbcf7))
+
 ## [0.2.0](https://github.com/voidput/starorg-strings/compare/v0.1.0...v0.2.0) (2026-11-15)
 
 
