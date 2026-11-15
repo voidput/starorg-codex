@@ -7,6 +7,7 @@ updated: 2026-11-14
 # StarOrg Strings docs
 
 - [Release process](release.md)
+- [Updates: check, install, signing](updates.md)
 - [v1 spec](plans/specs/starorg-strings-v1.md)
 - [v1 addendum: dumps + LUG hooks](plans/specs/starorg-strings-v1-addendum.md)
 - Decisions: [Tauri + Svelte UI](decisions/tauri-svelte-ui.md) · [StarBreaker as a library](decisions/starbreaker-as-library.md) · [Own patch format](decisions/own-patch-format.md)

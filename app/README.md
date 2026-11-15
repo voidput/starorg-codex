@@ -34,8 +34,10 @@ cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock run
   no dialog permission and never sends a path. The core has no cancellation points inside an
   apply, so jobs report `cancellable: false`. StarOrg login/pull/push return `network-off`
   (switch off) or `not-implemented` (server API pending, SC-ORG-BOT#1659); nothing is faked.
-  Not built yet, so shown disabled in Settings and always stored off: "Check for updates" and
-  "Use published game data" (no HTTP client in the app). Also not read yet: `safe_gpu`, and
+  "Check for updates" is built (`src/update/`, [docs/updates.md](../docs/updates.md)): the
+  GitHub releases list through `starorg-net`, the banner, skip, in-app install via
+  `tauri-plugin-updater` from Rust (AppImage/NSIS/MSI with a real key). Not built yet, so shown
+  disabled in Settings and always stored off: "Use published game data". Also not read yet: `safe_gpu`, and
   `discover_installs(deep)` (same scan either way). Running setup again keeps a set-up
   channel's profile and setup time; only new channels get the chosen preset.
   `cargo test -p starorg-strings-app --test real_backend` runs it against a synthetic install
@@ -56,7 +58,8 @@ cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock run
   setup wizard at a step, `?state=ready` starts with LIVE applied, HOTFIX behind a game update,
   backups, two overrides and launch-hook history (`&starorg=1` also signs in to StarOrg Tools),
   `?theme=dark|light`, `?delay=<ms>` per mock job step,
-  `?screen=<home|enhancements|strings|patches|blueprints|backups|activity|settings>`. States for
+  `?screen=<home|enhancements|strings|patches|blueprints|backups|activity|settings>`,
+  `?update=available|failed|skipped` (update banner / Settings states, `&notes=1` opens the notes). States for
   renders take channel names: `&running=LIVE`, `&interrupted=LIVE`, `&foreign=LIVE`,
   `&builderr=LIVE`, `&nobackups=LIVE`; also `&channels=5`, `&installs=0`, `&fail=overview`,
   `&log=empty`, `&accent=amber&palette=black`.
