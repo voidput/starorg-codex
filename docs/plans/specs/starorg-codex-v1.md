@@ -508,6 +508,7 @@ from_part = "generated"                 # generated (default) | stock | final
 separator = "\\n\\n<EM3>ALSO APPLIES TO: P2M4</EM3>\\n\\n"
 requires = "p2m4-own-desc"              # optional link to a data entry in this file
 expect_sha256 = ""                      # optional guard on the stock value of `key`
+optional = false                        # true: `key` missing from stock is not-needed, no warning
 ```
 
 The names in angle brackets are confirmed against DataCore in the M2 data mapping and
@@ -544,6 +545,10 @@ use the game version from `Branch`, and the change number for exact builds.
   enabled patches that write the same key are a `conflict`.
 - **Guards never contain CIG's text.** A guard on prose is `expect_sha256` (of the stock
   value). There is no plain-text `expect` on loc entries, so patch files hold no game prose.
+- `optional = true` marks a key that belongs to content a build may not have (a hint on one
+  mission's item): when the key is not in stock the entry is `not-needed` ("not in this
+  build") instead of `missing`, so a build without that content applies without a warning.
+  A changed stock value is still `target-changed`.
 
 **Outcome per entry.** The engine never fails the build because of a patch.
 
@@ -577,6 +582,7 @@ been retired for two consecutive game minor versions are removed from the repo.
 |---|---|---|
 | `hockrow-p2m4-desc` | Hockrow facility-delve contract P2M4 points its Description at the P2M1 key | Data patch points P2M4 at its own description key. Loc patch appends P2M4's **generated** mission info to the P2M1 text, because the game still shows P2M1's text for P2M4 |
 | `hockrow-recoveritem-desc` | `hockrowagency_recoveritem` hard variant uses its title key as Description | Data patch points Description at the matching `desc` key, so no mission body is written into a title |
+| `quest-items` | Not a bug: the game never says what the Vanduul-Tech Smugglers (Nyx) items are for, and no shipped record links them to the mission | Loc-only, every entry `append` + `expect_sha256` + `optional`: one hint line each on the QV Airlock Access Card, Decryption Key and Passcode Disk descriptions, and ` (QV)` on the Decryption Key's name. Its own switch under Enhancements > Quest items, not "Fix known CIG text bugs" (addendum §12) |
 
 **Record names (M2a, confirmed 2026-11-14 on LIVE 4.10.200.58746, HOTFIX and PTU 5.0.201).**
 Files in `crates/starorg-core/patches/`, embedded with `include_str!`.

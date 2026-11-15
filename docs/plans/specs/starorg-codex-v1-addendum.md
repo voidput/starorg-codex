@@ -2353,7 +2353,7 @@ byte-identical.
   `app/src/lib/messages.ts`): `build`, `game data`, `profile`, `patches`, `overrides`,
   `owned blueprints`, `ship names`, `enhancer update`; plus `not the last recorded output`
   for an older output of ours. `app version` is gone.
-- **Output version.** `starorg_core::OUTPUT_VERSION` (`u32`, now 3) is recorded in
+- **Output version.** `starorg_core::OUTPUT_VERSION` (`u32`, now 5) is recorded in
   `applied.json` as `output_version`; a different recorded value is `Stale (enhancer update)`.
   Bump it **only when the generated text changes for the same inputs**: a new or changed
   enhancement, a changed default of a setting, a text or merge fix. `app_version` is still
@@ -2361,7 +2361,7 @@ byte-identical.
   `LOC_*` sentinel keys or `<= ... =>` placeholder text (a radar's stats showed on PTU
   contract headers through `LOC_PLACEHOLDER`); 3 = same-named blueprints: ownership per
   blueprint, no false `[Owned]`/`[BP Owned]` (a merged list line is `[Owned]` only when all
-  its blueprints are owned).
+  its blueprints are owned); 4 = `[Owned]` coloured by default; 5 = quest item hints (§13).
 - **Old manifests** (0.1.0, no `output_version`) read as version 1, the version 0.1.0
   generated: no prompt on upgrade, and the first real bump still reaches them. (Treating a
   missing field as "always current" would hide that first bump.)
@@ -2444,3 +2444,70 @@ Missions among the contract options). No contract change: the profile fields exi
   selectors fixed on the way: the Strings search label ("Search keys, owners and text"), the
   Home foreign-file warning (`data-testid="foreign-home"`) and the two "Import from Smart
   Citizen" buttons on the Blueprints screen.
+
+## 13. Quest item hints (branch `quest-item-hints`, 2026-11-15)
+
+**Request.** Quest items should say what they are for, starting with the Nyx chain
+Vanduul-Tech Smugglers (`Kaboos_*` keys). Read only on the game; checked on LIVE 4.10.200.58746.
+
+**What the data has (LIVE, read only).** No DataCore record links a contract to the Kaboos items:
+their objectives are in `Libs/Subsumption/.../Kaboos_MissionModule.xml`, which is not shipped.
+Real mission-to-item references exist in two places only:
+
+- `MissionBrokerEntry` spawn descriptions: `properties[].value.spawnDescriptions[].options[]
+  .autoSpawnSettings.inventoryItems[].entityClass` (an item put on an NPC or in a container);
+- contract hauling orders: `haulingOrderContent[].entityClass` anywhere in a contract
+  (`paramOverrides.propertyOverrides`, `subContracts`).
+
+A key that merely looks like a mission's (`Kaboos_*` next to a `Kaboos` title) is never used.
+
+**Two parts, two switches** (Enhancements > Quest items; both on in Recommended and Everything).
+
+1. **`quest_hints` (generator, category `quest-hints`).** Extraction pass 5 collects every
+   entity those references name (`GameData.quest_items`, schema 3; `missionbroker/` joined the
+   loaded record paths): loc keys, `AttachDef` type, each use (source, mission, title key,
+   systems from `ContractPrerequisite_Locality` / `locationMissionAvailable`, unreleased), and
+   the entities of its folder that share its description key. `enhance::quest` appends
+   `Used in: <title> · <system>` (several titles: a `- ` list, at most 3 plus `and N more`;
+   label in the mission label colour) and leaves an item alone when it is a general good (type
+   not one of `RemovableChip`, `FPS_Consumable`, `Cargo`, `Misc`, `InventoryContainer`, or
+   sub-type `Harvestable`/`Trophy`), its name is a placeholder, its description key is shared
+   with a non-variant entity (variants: `_debug`, `_1_a`/`_2_a`), or no use survives (unreleased,
+   Wikelo's `TheCollector` trades, titles that are runtime `~mission(...)` tokens or not plain
+   text). Titles are read from stock, never from our output; EM tags in them are dropped.
+   LIVE result: 6 items, all real references: `none_consumable_hackingchip_01` and
+   `..._DataHeist_ID` (Overdrive Initiative: INTEL RAID; the Data Heist contracts' own titles
+   are runtime tokens), `Carryable_2H_FL_MissionItem_prototype_ship_component_2_a` (Orison Relief
+   fabrication orders, Stanton; its key is named after the `_1_a` variant),
+   `Carryable_1H_CY_vial_specimen_1_asd_a`, and the two Vanduul corpse crates (Nyx). Skipped on
+   LIVE among others: 19 datapads sharing `item_DescCommon_Datapad`, cryopods with `LOC_EMPTY`,
+   every Wikelo turn-in, ores and trophies.
+2. **`quest-items` (built-in loc patch, listed under Patches).** Hand-written facts from playing
+   the mission (also matching a community guide; our own wording): one appended line each on
+   `Kaboos_AccessItem_desc` (found on a lieutenant at the derelicts near the Auxiliary Station;
+   opens its airlock), `Kaboos_DecryptioKeycard1_desc` (each of the 5 lieutenants carries one;
+   use only one, after all the data is collected, at the Security office terminal) and
+   `Kaboos_DecryptionKeycard2_desc` (encode at the 3 server racks, any order, to open the
+   warehouse loot room), plus ` (QV)` on `Kaboos_DecryptioKeycard1` (used by that one entity
+   only; `NYX_DecryptionKey` is another "Decryption Key"). The Passcode Disk key is shared by
+   `CriptoKey_Prelude` and `CriptoKey_Generic`, so its line starts "In Vanduul-Tech Smugglers
+   (Nyx):" and its name gets no suffix. Every entry is `append` with `expect_sha256` of the
+   stock text (same on LIVE, HOTFIX and PTU) and the new `optional = true`: a build without the
+   keys is `not-needed` with no warning; a changed text is `target-changed` and skipped. Its
+   switch is separate from "Fix known CIG text bugs" in Enhancements (the setup wizard's
+   "Fix known CIG text bugs" off still turns off every built-in patch, this one included).
+
+`OUTPUT_VERSION` 5. The in-game preview gains a "Quest item" sample (an automatic hint) and,
+from the real backend, the Decryption Key's patched description; the Quest items tab focuses
+them.
+
+**Tests.** `model::quest` (systems), `enhance::quest` (families, hint text, general goods and
+shared keys), enhance golden + `quest_hints_on_and_off` (two hints, three items skipped, off
+removes exactly them, no `LOC_*` key), `patch` `quest_items_pack_applies_and_skips_changed_text`
+(applies on the LIVE texts, a changed text is `target-changed`, a build without the keys is
+quietly `not-needed`), data `quest_items_from_spawns_and_hauling_orders` (fixture MBE + hauling
+contract, shared key with a `_debug` variant and with an unrelated datapad).
+
+**Open.** More hand-written packs as mission facts come in. Data Heist items name only the one
+broker mission with a plain title. Loot-table and shop sources ("where to find") stay with the
+MCP server.
