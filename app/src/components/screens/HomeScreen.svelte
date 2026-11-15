@@ -30,6 +30,7 @@
   import Eraser from '@lucide/svelte/icons/eraser';
   import { foreignBeforeApply, foreignOf } from '@/lib/foreign';
   import { buildLabel, fmtDateTime, fmtMs, int, sameBuild, statusView } from '@/lib/format';
+  import ChannelBadge from '@/components/common/ChannelBadge.svelte';
 
   const ch = $derived(app.channel);
   const others = $derived(app.channels.filter((c) => c.channel !== ch?.channel));
@@ -88,7 +89,7 @@
       <div class="flex flex-wrap items-start justify-between gap-3 border-b px-5 py-4">
         <div>
           <div class="eyebrow text-muted-foreground">Channel status</div>
-          <h2 id="status-title" class="text-[16px] font-semibold">{ch.channel}</h2>
+          <h2 id="status-title" class="flex items-center gap-2 text-[16px] font-semibold"><ChannelBadge channel={ch.channel} variant="swatch" />{ch.channel}</h2>
           <p class="text-muted-foreground">{s.hint}</p>
         </div>
         <ApplyStatusPill channel={ch} />
@@ -174,7 +175,7 @@
         <ul class="bg-card divide-y rounded-lg border">
           {#each others as o (o.channel)}
             <li class="flex items-center gap-3 px-4 py-2">
-              <span class="w-20 font-semibold">{o.channel}</span>
+              <span class="flex w-24 items-center gap-2 font-semibold"><ChannelBadge channel={o.channel} variant="swatch" />{o.channel}</span>
               <span class="mono text-muted-foreground min-w-0 flex-1 truncate">{buildLabel(o.build)}</span>
               <span class="text-muted-foreground hidden text-[12px] lg:inline">{o.last_apply ? `Applied ${fmtDateTime(o.last_apply.time)}` : 'Never applied'}</span>
               <ApplyStatusPill channel={o} />

@@ -3,12 +3,14 @@
    * Channel switcher (spec 9.3): segmented radio group up to four channels, otherwise a select.
    * Each option has a status mark whose shape differs per state (filled = applied, half = needs a
    * re-apply, diamond = another tool's file, ring = not applied / not set up), a tooltip with the
-   * status in words, and the status in text for screen readers (never colour alone, spec 9.6).
+   * status in words, and the status in text for screen readers (never colour alone, spec 9.6). A short
+   * bar in the channel's own colour (lib/channels.ts, addendum §7.19) sits next to each name.
    */
   import * as Select from '@/components/ui/select';
   import type { ChannelSummary } from '@/lib/contract/types';
   import { statusView, type StatusTone } from '@/lib/format';
   import { cn } from '@/lib/utils';
+  import ChannelBadge from '@/components/common/ChannelBadge.svelte';
 
   let { channels, value, onchange }: { channels: ChannelSummary[]; value: string | null; onchange: (ch: string) => void } = $props();
 
@@ -52,6 +54,7 @@
         onkeydown={(e) => key(e, i)}
       >
         <span class={cn('flex size-3.5 items-center justify-center rounded-full', on && 'bg-background')} aria-hidden="true"><span class={cn('size-2', dot[s.tone])}></span></span>
+        <ChannelBadge channel={c.channel} variant="swatch" />
         {c.channel}
         <span class="sr-only">, {s.label}</span>
       </button>
@@ -65,6 +68,7 @@
         {@const s = statusView(c.status, c.set_up)}
         <Select.Item value={c.channel} label={c.channel}>
           <span class={cn('size-2', dot[s.tone])} aria-hidden="true"></span>
+          <ChannelBadge channel={c.channel} variant="swatch" />
           {c.channel}
           <span class="text-muted-foreground ml-auto text-xs">{s.label}</span>
         </Select.Item>

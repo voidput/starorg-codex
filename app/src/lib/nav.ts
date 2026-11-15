@@ -28,7 +28,7 @@ export const NAV: NavGroup[] = [
       { id: 'enhancements', label: 'Enhancements', description: 'Stats and tags added to item names and descriptions', key: '2' },
       { id: 'strings', label: 'Strings', description: 'Every text key, its original and its result', key: '3' },
       { id: 'patches', label: 'Patches', description: 'Fixes for known text bugs', key: '4' },
-      { id: 'blueprints', label: 'Blueprints', description: 'Owned blueprints per character, imports and StarOrg sync', key: '5' },
+      { id: 'blueprints', label: 'Blueprints', description: 'Every blueprint, who owns it per character and channel, imports and StarOrg sync', key: '5' },
       { id: 'ships', label: 'Ships', description: 'Your fleet: order and rename ships in game lists', key: '6' },
     ],
   },
