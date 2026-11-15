@@ -10,6 +10,7 @@ use starorg_core::enhance::{
     owned::{NoneOwned, OwnedBlueprints, OwnedList},
     profile::Profile,
 };
+use starorg_core::fleet::store::ShipNames;
 use starorg_core::ini::StockIni;
 use starorg_core::source::local::LocalExtraction;
 use starorg_core::source::{Budget, GameSource, SourceError};
@@ -201,6 +202,7 @@ pub struct BuildArgs<'a> {
     pub owned_blueprints: Option<PathBuf>,
     pub coverage_out: Option<PathBuf>,
     pub edits_out: Option<PathBuf>,
+    pub ship_names: Option<PathBuf>,
 }
 
 fn load_profile(a: &BuildArgs) -> Result<(Profile, String), String> {
@@ -217,6 +219,29 @@ fn load_profile(a: &BuildArgs) -> Result<(Profile, String), String> {
     Profile::preset(name)
         .map(|p| (p, name.to_string()))
         .map_err(|e| e.to_string())
+}
+
+/// `--ship-names FILE`: validated settings (`None` when not given or off) and the
+/// validation warnings (dropped entries), reported with the build's own warnings.
+type LoadedShipNames = (Option<ShipNames>, Vec<starorg_core::source::Warning>);
+
+fn load_ship_names(a: &BuildArgs) -> Result<LoadedShipNames, String> {
+    let Some(path) = &a.ship_names else {
+        return Ok((None, Vec::new()));
+    };
+    let text = std::fs::read_to_string(path)
+        .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
+    let s = ShipNames::parse(&text).map_err(|e| format!("{}: {e}", path.display()))?;
+    let (s, warnings, invalid) = s.validated();
+    if invalid {
+        let why: Vec<&str> = warnings.iter().map(|w| w.detail.as_str()).collect();
+        return Err(format!(
+            "{}: invalid ship-names table ({})",
+            path.display(),
+            why.join("; ")
+        ));
+    }
+    Ok((s.enabled.then_some(s), warnings))
 }
 
 fn load_owned(a: &BuildArgs) -> Result<Option<OwnedList>, String> {
@@ -243,6 +268,10 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     };
     let owned = match load_owned(a) {
         Ok(o) => o,
+        Err(e) => return fail(g, exit::USAGE, "usage", &e),
+    };
+    let (ship_names, ship_name_warnings) = match load_ship_names(a) {
+        Ok(s) => s,
         Err(e) => return fail(g, exit::USAGE, "usage", &e),
     };
     let d = run_discovery(g);
@@ -325,7 +354,13 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         Some(o) => o,
         None => &NoneOwned,
     };
-    let generated = enhance::generate(&loaded.game_data, &stock, &profile, owned_dyn);
+    let generated = enhance::generate_with(
+        &loaded.game_data,
+        &stock,
+        &profile,
+        owned_dyn,
+        ship_names.as_ref(),
+    );
     let bytes = match enhance::render(&stock, &generated) {
         Ok(b) => b,
         Err(e) => {
@@ -372,6 +407,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     }
 
     let mut warnings = loaded.warnings.clone();
+    warnings.extend(ship_name_warnings);
     warnings.extend(generated.warnings.iter().cloned());
     let dropped = warnings.iter().filter(|w| w.kind == "dropped-edit").count();
     let code = if warnings.is_empty() {
@@ -485,5 +521,36 @@ mod tests {
             .map(|e| e.unwrap().file_name())
             .collect();
         assert_eq!(names, vec!["x.ini"]);
+    }
+
+    #[test]
+    fn ship_names_file_keeps_its_validation_warnings() {
+        let t = tempfile::tempdir().unwrap();
+        let p = t.path().join("names.toml");
+        std::fs::write(
+            &p,
+            "enabled = true\nstyle = \"numeric\"\n\n[[ship]]\nhull = \"vehicle_NameSYN_Alpha\"\n\n[[ship]]\nhull = \"vehicle_NameSYN_Bravo\"\nname = \"Yacht 100% <b>\"\n",
+        )
+        .unwrap();
+        let out = t.path().join("x.ini");
+        let a = BuildArgs {
+            channel: "LIVE",
+            out: &out,
+            timeout: None,
+            preset: None,
+            profile: None,
+            no_enhancements: false,
+            owned_blueprints: None,
+            coverage_out: None,
+            edits_out: None,
+            ship_names: Some(p),
+        };
+        let (s, w) = load_ship_names(&a).unwrap();
+        assert!(s.is_some());
+        assert!(
+            w.iter()
+                .any(|w| w.kind == "ship-names" && w.detail.contains('%')),
+            "{w:?}"
+        );
     }
 }

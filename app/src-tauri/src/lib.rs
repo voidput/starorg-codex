@@ -71,7 +71,7 @@ pub fn run() {
     .expect("error while running StarOrg Strings");
 }
 
-/// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only]`: the extraction
+/// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only] [--keyrefs]`: the extraction
 /// worker the real backend starts (spec 3.3), the same protocol as the CLI's hidden
 /// subcommand. Returns the exit code, or `None` when the arguments are not a worker call.
 pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
@@ -82,12 +82,14 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
     let mut p4k: Option<PathBuf> = None;
     let mut out: Option<PathBuf> = None;
     let mut ini_only = false;
+    let mut keyrefs = false;
     let mut it = args[2..].iter();
     while let Some(a) = it.next() {
         match a.to_str() {
             Some("--p4k") => p4k = it.next().map(PathBuf::from),
             Some("--out") => out = it.next().map(PathBuf::from),
             Some("--ini-only") => ini_only = true,
+            Some("--keyrefs") => keyrefs = true,
             _ => {
                 eprintln!("extract-worker: unknown argument {}", a.to_string_lossy());
                 return Some(2);
@@ -116,10 +118,13 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
         );
         return Some(2);
     }
-    Some(starorg_data::worker::run_with(
+    Some(starorg_data::worker::run_opts(
         &p4k,
         &out,
         starorg_data::worker::TestHook::None,
-        ini_only,
+        starorg_data::extract::Options {
+            ini_only,
+            keyrefs: keyrefs && !ini_only,
+        },
     ))
 }

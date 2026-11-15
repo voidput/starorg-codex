@@ -184,6 +184,10 @@ pub struct Applied {
     /// Hash of the owned-blueprint names used (empty when none; older records lack it).
     #[serde(default)]
     pub owned_hash: String,
+    /// Hash of the effective ship-name settings (addendum §6.4); empty when off. Older
+    /// records lack it and read as empty, so nobody goes stale on upgrade.
+    #[serde(default)]
+    pub ship_names_hash: String,
     pub app_version: String,
     pub output_sha256: String,
     pub time: String,
@@ -230,6 +234,9 @@ pub struct Inputs {
     pub owned_choice: Option<String>,
     /// The channel's `active_character` setting.
     pub owned_setting: Option<String>,
+    /// Ship-name settings after the channel scope is resolved (addendum §6.4).
+    pub ship_names: crate::fleet::store::Effective,
+    pub ship_names_hash: String,
 }
 
 /// Read the current inputs of a channel. `profile_file` replaces `profile.toml`; `character`
@@ -262,7 +269,10 @@ pub fn current_inputs(
     };
     let choice = one_off.clone().or_else(|| setting.clone());
     let owned = blueprints::select(&data, choice.as_deref())?;
+    let ship_names = crate::fleet::store::effective(&ctx.dirs, &profile);
     Ok(Inputs {
+        ship_names_hash: ship_names.hash(),
+        ship_names,
         owned,
         owned_choice: one_off,
         owned_setting: setting,
@@ -402,6 +412,9 @@ fn stale_reasons(a: &Applied, inp: &Inputs, ctx: &Ctx) -> Vec<String> {
     }
     if inp.owned.hash != a.owned_hash {
         r.push("owned blueprints".into());
+    }
+    if inp.ship_names_hash != a.ship_names_hash {
+        r.push("ship names".into());
     }
     if ctx.app_version != a.app_version {
         r.push("app version".into());
@@ -573,6 +586,7 @@ fn counts_json(c: &Counts, g: &crate::enhance::Generated) -> serde_json::Value {
         "fps_weapons": n(&[C::FpsWeapons]),
         "missiles": n(&[C::Missiles, C::MissileTags]),
         "missions": n(&[C::MissionTitles, C::MissionDescriptions]),
+        "ship_names": n(&[C::ShipNames]),
         "generated": c.generated,
         "loc_patches": c.loc_patches,
         "overrides": c.overrides, "dropped": c.dropped,
@@ -809,9 +823,11 @@ fn load_stock(
     source: &dyn GameSource,
     budget: &Budget,
     warnings: &mut Vec<Warning>,
+    fresh: bool,
 ) -> Result<crate::source::Loaded, LoadErr> {
     let cache_dir = ctx.dirs.channel_cache(t.id(), &t.channel.name);
     if ctx.use_cache
+        && !fresh
         && let Some(inp) = inputs
     {
         match cache::load(&cache_dir, inp, ctx.min_stock_keys) {
@@ -861,7 +877,26 @@ pub fn load_channel(
         .fingerprint()
         .ok()
         .map(|fp| KeyInputs::local(&fp, &ctx.starbreaker_commit));
-    load_stock(ctx, t, key_inputs.as_ref(), source, budget, warnings).map_err(|e| match e {
+    load_stock(ctx, t, key_inputs.as_ref(), source, budget, warnings, false).map_err(|e| match e {
+        LoadErr::Skip(w) | LoadErr::Fail(w) => w,
+    })
+}
+
+/// [`load_channel`] that ignores a cached entry: extracts again and replaces the entry. The
+/// app uses it to add the loc-reference pass to an entry a launch hook wrote (addendum 8.2).
+pub fn reload_channel(
+    ctx: &Ctx,
+    t: &Target<'_>,
+    source: &dyn GameSource,
+    budget: &Budget,
+    warnings: &mut Vec<Warning>,
+) -> Result<crate::source::Loaded, String> {
+    let key_inputs = t
+        .channel
+        .fingerprint()
+        .ok()
+        .map(|fp| KeyInputs::local(&fp, &ctx.starbreaker_commit));
+    load_stock(ctx, t, key_inputs.as_ref(), source, budget, warnings, true).map_err(|e| match e {
         LoadErr::Skip(w) | LoadErr::Fail(w) => w,
     })
 }
@@ -985,6 +1020,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         source,
         &opts.budget,
         &mut r.warnings,
+        false,
     ) {
         Ok(l) => l,
         Err(LoadErr::Skip(why)) => {
@@ -1011,11 +1047,14 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     };
     // Data patches are an overlay for the generators; merge evaluates them on the original.
     let patched = patch::data_overlay(&inputs.patches, &loaded.game_data, t.build());
-    let generated = crate::enhance::generate(
+    r.warnings
+        .extend(inputs.ship_names.warnings.iter().cloned());
+    let generated = crate::enhance::generate_with(
         patched.as_ref().unwrap_or(&loaded.game_data),
         &stock,
         &enhance_profile,
         &inputs.owned,
+        inputs.ship_names.active(),
     );
     r.warnings.extend(generated.warnings.iter().cloned());
     let gen_edits: Vec<merge::GenEdit> =
@@ -1209,6 +1248,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         cache_key: key_inputs.as_ref().map(KeyInputs::key).unwrap_or_default(),
         profile_hash: inputs.profile_hash.clone(),
         owned_hash: inputs.owned.hash.clone(),
+        ship_names_hash: inputs.ship_names_hash.clone(),
         patch_set_hash: inputs.patches.hash(),
         overrides_hash: inputs.overrides_hash.clone(),
         app_version: ctx.app_version.clone(),

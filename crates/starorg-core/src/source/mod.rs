@@ -77,6 +77,8 @@ pub struct Loaded {
     /// Stock `Data\Localization\english\global.ini`, byte for byte (BOM, CRLF).
     pub base_ini: Vec<u8>,
     pub game_data: GameData,
+    /// Loc-reference pass for Strings grouping; only app-started local extractions have it.
+    pub keyrefs: Option<crate::groups::KeyRefs>,
     pub origin: Origin,
     pub warnings: Vec<Warning>,
 }

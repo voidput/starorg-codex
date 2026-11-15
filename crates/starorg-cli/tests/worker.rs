@@ -29,6 +29,7 @@ fn source(root: &Path, extra: &[&str]) -> LocalExtraction {
         worker: PathBuf::from(BIN),
         work_root: Some(root.join("work")),
         ini_only: false,
+        keyrefs: false,
         extra_args: extra.iter().map(|s| s.to_string()).collect(),
     }
 }

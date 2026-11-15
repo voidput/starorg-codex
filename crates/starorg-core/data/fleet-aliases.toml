@@ -1,0 +1,20 @@
+# Store names that differ from the game's name for the same hull (addendum §6.3, tier 2).
+# Key: the store name (normalised when read: case, punctuation and spacing do not matter).
+# Value: the hull id, i.e. the vehicle_Name* key as stock spells it. An alias whose target is
+# not in the build is ignored. Hand-kept; checked by the ignored real-data test.
+[aliases]
+"Ursa Rover Fortuna" = "vehicle_NameRSI_Ursa_Rover_Emerald"
+"Ursa Rover" = "vehicle_NameRSI_Ursa_Rover"
+"Cutlass Black Best In Show Edition 2949" = "vehicle_NameDRAK_Cutlass_Black_ShipShowdown"
+"600i Explorer" = "vehicle_NameORIG_600i"
+"Dragonfly Black" = "vehicle_NameDRAK_Dragonfly"
+"F7C-M Super Hornet Heartseeker Mk I" = "vehicle_NameANVL_Hornet_F7CM_Heartseeker"
+"C8R Pisces" = "vehicle_NameANVL_C8R_Pisces_Rescue"
+"Carrack w/C8X" = "vehicle_nameANVL_Carrack"
+"Carrack Expedition w/C8X" = "vehicle_nameANVL_Carrack_Expedition"
+# Paint editions, not separate hulls in the game:
+"MOLE Carbon" = "vehicle_NameARGO_Mole"
+"MOLE Talus" = "vehicle_NameARGO_Mole"
+"Argo MOLE Carbon Edition" = "vehicle_NameARGO_Mole"
+"Argo MOLE Talus Edition" = "vehicle_NameARGO_Mole"
+"Mustang Alpha Vindicator" = "vehicle_NameCNOU_Mustang_Alpha"

@@ -27,7 +27,9 @@
   const current = $derived(options.find((o) => o.id === value));
 </script>
 
-<Select.Root type="single" value={value ?? undefined} {disabled} onValueChange={(v) => v && onchange(v as V)}>
+<!-- Controlled: the shown value is always `value`, so a pick the parent turns down (or asks
+     about first) can be picked again. -->
+<Select.Root type="single" bind:value={() => value ?? '', (v) => { if (v && v !== value) onchange(v as V); }} {disabled}>
   <Select.Trigger {id} {size} aria-label={ariaLabel} class={cn('min-w-28', className)}>
     <span class={cn('truncate', !current && 'text-muted-foreground')}>{current?.label ?? placeholder}</span>
   </Select.Trigger>

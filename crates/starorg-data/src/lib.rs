@@ -9,5 +9,6 @@
 pub mod eocd;
 pub mod extract;
 pub mod gamedata;
+pub mod keyrefs;
 pub mod starbreaker;
 pub mod worker;

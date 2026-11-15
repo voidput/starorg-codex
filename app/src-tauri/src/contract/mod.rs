@@ -11,10 +11,12 @@
 //! Command names are snake_case and take one argument named `req` (or none), so the TS client
 //! is a straight `invoke(name, { req })`.
 
+pub mod fleet;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock;
 pub mod real;
 pub mod schema;
+pub mod strings_query;
 pub mod types;
 
 use std::sync::Arc;
@@ -62,6 +64,10 @@ pub trait Backend: Send + Sync + 'static {
     fn copy_profile(&self, req: CopyProfileRequest) -> CmdResult<Profile>;
 
     fn query_strings(&self, req: StringsQuery) -> CmdResult<StringsPage>;
+    /// Run the loc-reference pass for the channel's build (an extraction, about 1-3 s plus
+    /// reading Data.p4k) when its groups are approximate; returns the new state. `busy` while
+    /// another extraction runs.
+    fn read_string_groups(&self, req: ChannelRef) -> CmdResult<GroupState>;
     fn string_detail(&self, req: KeyRequest) -> CmdResult<StringDetail>;
     fn set_override(&self, req: OverrideRequest) -> CmdResult<OverrideResult>;
     fn reset_override(&self, req: KeyRequest) -> CmdResult<StringDetail>;
@@ -90,6 +96,16 @@ pub trait Backend: Send + Sync + 'static {
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport>;
     /// Deletes one character's owned set (`<geid>.json`) and its entry in the character list.
     fn forget_character(&self, req: CharacterRequest) -> CmdResult<CharactersView>;
+
+    /// Catalogue, fleet and ship-name settings of one channel (addendum §6).
+    fn fleet_view(&self, req: FleetViewRequest) -> CmdResult<FleetView>;
+    /// Dry run first; a real import replaces the fleet (or merges) and appends new hulls to
+    /// the shared order list.
+    fn fleet_import(&self, req: FleetImportRequest) -> CmdResult<FleetImportReport>;
+    fn fleet_match(&self, req: FleetMatchRequest) -> CmdResult<FleetView>;
+    fn save_ship_names(&self, req: SaveShipNamesRequest) -> CmdResult<FleetView>;
+    /// Forget the imported fleet; hand matches and the order list stay.
+    fn fleet_clear(&self, req: ChannelRef) -> CmdResult<FleetView>;
 
     fn starorg_status(&self, channel: String) -> CmdResult<StarOrgStatus>;
     fn starorg_login(&self, channel: String) -> CmdResult<StarOrgStatus>;
@@ -182,6 +198,7 @@ commands! {
     save_profile(req: SaveProfileRequest) -> Profile;
     copy_profile(req: CopyProfileRequest) -> Profile;
     query_strings(req: StringsQuery) -> StringsPage;
+    read_string_groups(req: ChannelRef) -> GroupState;
     string_detail(req: KeyRequest) -> StringDetail;
     set_override(req: OverrideRequest) -> OverrideResult;
     reset_override(req: KeyRequest) -> StringDetail;
@@ -201,6 +218,11 @@ commands! {
     owned_blueprints(req: CharacterRequest) -> Vec<OwnedBlueprint>;
     import_smart_citizen(req: ImportRequest) -> ImportReport;
     forget_character(req: CharacterRequest) -> CharactersView;
+    fleet_view(req: FleetViewRequest) -> FleetView;
+    fleet_import(req: FleetImportRequest) -> FleetImportReport;
+    fleet_match(req: FleetMatchRequest) -> FleetView;
+    save_ship_names(req: SaveShipNamesRequest) -> FleetView;
+    fleet_clear(req: ChannelRef) -> FleetView;
     starorg_status(channel: String) -> StarOrgStatus;
     starorg_login(channel: String) -> StarOrgStatus;
     starorg_logout(channel: String) -> StarOrgStatus;
@@ -264,6 +286,7 @@ macro_rules! contract_handler {
             $crate::contract::save_profile,
             $crate::contract::copy_profile,
             $crate::contract::query_strings,
+            $crate::contract::read_string_groups,
             $crate::contract::string_detail,
             $crate::contract::set_override,
             $crate::contract::reset_override,
@@ -283,6 +306,11 @@ macro_rules! contract_handler {
             $crate::contract::owned_blueprints,
             $crate::contract::import_smart_citizen,
             $crate::contract::forget_character,
+            $crate::contract::fleet_view,
+            $crate::contract::fleet_import,
+            $crate::contract::fleet_match,
+            $crate::contract::save_ship_names,
+            $crate::contract::fleet_clear,
             $crate::contract::starorg_status,
             $crate::contract::starorg_login,
             $crate::contract::starorg_logout,
@@ -329,6 +357,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "save_profile",
     "copy_profile",
     "query_strings",
+    "read_string_groups",
     "string_detail",
     "set_override",
     "reset_override",
@@ -348,6 +377,11 @@ pub const COMMAND_NAMES: &[&str] = &[
     "owned_blueprints",
     "import_smart_citizen",
     "forget_character",
+    "fleet_view",
+    "fleet_import",
+    "fleet_match",
+    "save_ship_names",
+    "fleet_clear",
     "starorg_status",
     "starorg_login",
     "starorg_logout",

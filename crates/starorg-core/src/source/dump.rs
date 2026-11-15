@@ -625,6 +625,7 @@ impl GameSource for PublishedDump {
         Ok(Loaded {
             base_ini: text.base_ini,
             game_data,
+            keyrefs: None,
             origin: Origin::PublishedDump {
                 dataset: format!("{}@{} ({})", DUMPS_REPO, files.meta.tag, files.meta.commit),
             },
@@ -917,6 +918,7 @@ mod tests {
             Ok(Loaded {
                 base_ini: b"\xEF\xBB\xBFk=v\r\n".to_vec(),
                 game_data: GameData::default(),
+                keyrefs: None,
                 origin: Origin::LocalExtraction {
                     starbreaker_commit: "x".into(),
                 },

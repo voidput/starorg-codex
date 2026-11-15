@@ -25,13 +25,19 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 /// Test source: a stock file on disk instead of an extraction (hidden `--test-stock-ini`).
-struct FileSource(PathBuf);
+struct FileSource(PathBuf, Option<PathBuf>);
 
 impl GameSource for FileSource {
     fn load(&self, _: &Channel, _: &Budget) -> Result<Loaded, SourceError> {
+        let game_data = match &self.1 {
+            Some(p) => serde_json::from_slice(&std::fs::read(p)?)
+                .map_err(|e| std::io::Error::other(format!("{}: {e}", p.display())))?,
+            None => GameData::default(),
+        };
         Ok(Loaded {
             base_ini: std::fs::read(&self.0)?,
-            game_data: GameData::default(),
+            game_data,
+            keyrefs: None,
             origin: Origin::LocalExtraction {
                 starbreaker_commit: "test-stock-ini".into(),
             },
@@ -58,7 +64,10 @@ pub(crate) fn ctx(g: &GlobalOpts) -> Result<Ctx, ExitCode> {
 
 pub(crate) fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, ExitCode> {
     if let Some(p) = g.test_stock_ini() {
-        return Ok(Box::new(FileSource(p.to_path_buf())));
+        return Ok(Box::new(FileSource(
+            p.to_path_buf(),
+            g.test_gamedata().map(Path::to_path_buf),
+        )));
     }
     let exe = std::env::current_exe().map_err(|e| {
         fail(
