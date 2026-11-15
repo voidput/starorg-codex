@@ -1065,3 +1065,65 @@ fn update_check_asks_only_with_the_switch_on_and_keeps_its_state() {
             .any(|e| e.message == "Update check: 999.0.0 is available")
     );
 }
+
+/// Settings -> Experimental -> Local MCP server, on the real backend: off at start, then a
+/// loopback server for the fake install's channels that needs its token, then off again.
+#[test]
+fn local_mcp_server_is_off_until_switched_on_and_needs_its_token() {
+    use std::io::{Read, Write};
+    let f = Fake::new();
+    let off = f.backend.mcp_status().unwrap();
+    assert!(!off.running && off.url.is_none() && off.token.is_none());
+
+    let on = f
+        .backend
+        .set_mcp_enabled(McpToggle { enabled: true })
+        .unwrap();
+    assert!(on.running, "{:?}", on.error);
+    assert_eq!(on.channels, ["LIVE", "PTU"]);
+    let url = on.url.clone().unwrap();
+    let token = on.token.clone().unwrap();
+    let addr = url
+        .trim_start_matches("http://")
+        .trim_end_matches("/mcp")
+        .to_string();
+    assert!(addr.starts_with("127.0.0.1:"));
+    let ask = |auth: Option<&str>| -> (u16, String) {
+        let mut s = std::net::TcpStream::connect(&addr).unwrap();
+        let body = r#"{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"status","arguments":{}}}"#;
+        let a = auth
+            .map(|t| format!("Authorization: Bearer {t}\r\n"))
+            .unwrap_or_default();
+        write!(
+            s,
+            "POST /mcp HTTP/1.1\r\n{a}Content-Type: application/json\r\nContent-Length: {}\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+        let mut out = String::new();
+        s.read_to_string(&mut out).unwrap();
+        let status = out.split_whitespace().nth(1).unwrap().parse().unwrap();
+        (status, out)
+    };
+    assert_eq!(ask(None).0, 401);
+    let (status, out) = ask(Some(&token));
+    assert_eq!(status, 200);
+    assert!(out.contains("LIVE") && out.contains("PTU"));
+    // No dataset was extracted to answer `status`.
+    assert!(!f.dirs.cache.join("mcp").join("LIVE").exists());
+    let st = f.backend.mcp_status().unwrap();
+    assert_eq!(st.requests.len(), 2);
+    assert!(
+        f.backend
+            .activity(10)
+            .unwrap()
+            .iter()
+            .any(|e| e.job == Some(JobKind::Mcp))
+    );
+    let off = f
+        .backend
+        .set_mcp_enabled(McpToggle { enabled: false })
+        .unwrap();
+    assert!(!off.running);
+    assert!(std::net::TcpStream::connect(&addr).is_err());
+}

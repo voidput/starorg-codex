@@ -3714,6 +3714,7 @@ dependencies = [
  "serde_json",
  "starorg-core",
  "starorg-data",
+ "starorg-mcp",
  "starorg-net",
  "tauri",
  "tauri-build",

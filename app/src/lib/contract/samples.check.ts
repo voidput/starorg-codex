@@ -88,6 +88,8 @@ interface Samples {
   dev_diff_records_added: T.DevDiffRecords;
   dev_diff_record: T.DevFieldDiff;
   dev_close: T.DevStatus;
+  mcp_status: T.McpStatus;
+  set_mcp_enabled: T.McpStatus;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

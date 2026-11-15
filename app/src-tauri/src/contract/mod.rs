@@ -143,6 +143,11 @@ pub trait Backend: dev::DevBackend + Send + Sync + 'static {
     fn open_release_page(&self) -> CmdResult<()>;
     /// AppImage / NSIS / MSI with a real key: download, verify, install, restart.
     fn install_update(&self) -> CmdResult<UpdateStatus>;
+
+    // Experimental local MCP server (docs/mcp.md): off at every start, loopback only.
+    fn mcp_status(&self) -> CmdResult<McpStatus>;
+    /// Start (`enabled: true`) or stop the server; returns its state.
+    fn set_mcp_enabled(&self, req: McpToggle) -> CmdResult<McpStatus>;
 }
 
 /// Managed state: the selected backend.
@@ -245,6 +250,8 @@ commands! {
     skip_update(version: String) -> UpdateStatus;
     open_release_page() -> ();
     install_update() -> UpdateStatus;
+    mcp_status() -> McpStatus;
+    set_mcp_enabled(req: McpToggle) -> McpStatus;
 }
 
 /// Apply streams [`JOB_EVENT`] events while it runs.
@@ -354,6 +361,8 @@ macro_rules! contract_handler {
             $crate::contract::dev::dev_diff_summary,
             $crate::contract::dev::dev_diff_records,
             $crate::contract::dev::dev_diff_record,
+            $crate::contract::mcp_status,
+            $crate::contract::set_mcp_enabled,
         ]
     };
 }
@@ -446,6 +455,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "dev_diff_summary",
     "dev_diff_records",
     "dev_diff_record",
+    "mcp_status",
+    "set_mcp_enabled",
 ];
 
 #[cfg(test)]

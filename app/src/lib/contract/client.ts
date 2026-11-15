@@ -76,6 +76,8 @@ export interface CommandMap extends DevCommandMap {
   skip_update: [{ version: string }, T.UpdateStatus];
   open_release_page: [Record<string, never>, null];
   install_update: [Record<string, never>, T.UpdateStatus];
+  mcp_status: [Record<string, never>, T.McpStatus];
+  set_mcp_enabled: [{ req: T.McpToggle }, T.McpStatus];
 }
 
 export type Command = keyof CommandMap;
@@ -169,6 +171,8 @@ export const COMMANDS = [
   'dev_diff_summary',
   'dev_diff_records',
   'dev_diff_record',
+  'mcp_status',
+  'set_mcp_enabled',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -331,5 +335,8 @@ export const api = {
   /** Opens the release page in the system browser (Rust side, github.com only). */
   openReleasePage: () => call('open_release_page', none),
   installUpdate: () => call('install_update', none),
+  /** Experimental local MCP server: off at every start, 127.0.0.1 only. */
+  mcpStatus: () => call('mcp_status', none),
+  setMcpEnabled: (enabled: boolean) => call('set_mcp_enabled', { req: { enabled } }),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
 };

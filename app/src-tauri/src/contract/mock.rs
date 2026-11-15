@@ -105,6 +105,7 @@ pub struct MockBackend {
     update: crate::update::Updater,
     /// Developer mode state (mock_dev.rs).
     dev: Mutex<super::mock_dev::DevMock>,
+    mcp: crate::mcp::McpHost,
 }
 
 impl Default for MockBackend {
@@ -371,6 +372,7 @@ impl MockBackend {
             delay,
             update: crate::update::mock::updater(),
             dev: Mutex::new(Default::default()),
+            mcp: crate::mcp::McpHost::default(),
         };
         me.log(
             LogLevel::Info,
@@ -2016,6 +2018,7 @@ impl Backend for MockBackend {
     }
 
     fn activity(&self, limit: u32) -> CmdResult<Vec<LogEntry>> {
+        self.mcp_to_log();
         let s = self.lock();
         Ok(s.log.iter().rev().take(limit as usize).cloned().collect())
     }
@@ -2540,9 +2543,54 @@ impl Backend for MockBackend {
     fn install_update(&self) -> CmdResult<UpdateStatus> {
         self.update.install(self.updates_on())
     }
+
+    fn mcp_status(&self) -> CmdResult<McpStatus> {
+        self.mcp_to_log();
+        Ok(self.mcp.status())
+    }
+
+    /// A real loopback server with no game data: every data tool answers with an error.
+    fn set_mcp_enabled(&self, req: McpToggle) -> CmdResult<McpStatus> {
+        let st = if req.enabled {
+            self.mcp.enable(|| {
+                Ok(starorg_mcp::store::StoreConfig {
+                    channels: vec![],
+                    default_channel: None,
+                    cache_dir: std::env::temp_dir().join("starorg-strings-mock-mcp"),
+                    uex_dir: None,
+                    our_outputs: vec![],
+                    extractor: std::sync::Arc::new(NoGameData),
+                })
+            })
+        } else {
+            self.mcp.disable()
+        };
+        self.mcp_to_log();
+        Ok(st)
+    }
+}
+
+/// The mock has no archive to extract from.
+struct NoGameData;
+
+impl starorg_mcp::worker::Extractor for NoGameData {
+    fn extract(
+        &self,
+        _: &std::path::Path,
+        dataset: &str,
+        _: &std::path::Path,
+    ) -> Result<starorg_mcp::worker::Measurement, String> {
+        Err(format!("{dataset}: the mock backend has no game data"))
+    }
 }
 
 impl MockBackend {
+    fn mcp_to_log(&self) {
+        for (level, msg) in self.mcp.take_log() {
+            self.log(level, Some(JobKind::Mcp), None, &msg);
+        }
+    }
+
     fn updates_on(&self) -> bool {
         self.lock().settings.network.check_updates
     }

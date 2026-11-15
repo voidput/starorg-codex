@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * Settings (spec 9.4): Game, Appearance, Network (all off by default, spec 11), StarOrg Tools,
-   * Launch hooks (Linux), Diagnostics, Advanced (Developer mode, addendum 7.8), Command line.
-   * A section index on top jumps by anchor.
+   * Launch hooks (Linux), Diagnostics, Advanced (Developer mode, addendum 7.8), Experimental
+   * (local MCP server), Command line. A section index on top jumps by anchor.
    */
   import Wand from '@lucide/svelte/icons/wand-sparkles';
   import * as Card from '@/components/ui/card';
@@ -19,6 +19,7 @@
   import HooksCard from '@/components/settings/HooksCard.svelte';
   import DoctorCard from '@/components/settings/DoctorCard.svelte';
   import UpdatesSection from '@/components/settings/UpdatesSection.svelte';
+  import McpCard from '@/components/settings/McpCard.svelte';
   import { statusView } from '@/lib/format';
 
   const sections = [
@@ -29,6 +30,7 @@
     { id: 'hooks', label: 'Launch hooks' },
     { id: 'diagnostics', label: 'Diagnostics' },
     { id: 'advanced', label: 'Advanced' },
+    { id: 'experimental', label: 'Experimental' },
     { id: 'cli', label: 'Command line' },
   ];
   function jump(id: string) {
@@ -191,6 +193,7 @@
         {/if}
       </Card.Content>
     </Card.Root>
+    <McpCard />
     <Card.Root id="cli">
       <Card.Header>
         <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Command line</Card.Title>
@@ -204,7 +207,8 @@ starorg-strings remove --channel LIVE
 starorg-strings blueprints import owned-blueprints.json --character Pilot_A --dry-run
 starorg-strings dev types --channel LIVE
 starorg-strings dev record &lt;guid|path|name&gt; --channel LIVE
-starorg-strings doctor</pre>
+starorg-strings doctor
+starorg-strings mcp            # experimental: MCP server on stdio</pre>
         <p class="text-muted-foreground text-[12px]">Exit codes: 0 done, 5 applied with warnings, other values an error named in the output. Before uninstalling, run <span class="mono">starorg-strings remove --all</span> to put stock text back.</p>
       </Card.Content>
     </Card.Root>

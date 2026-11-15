@@ -223,6 +223,7 @@ pub struct RealBackend {
     mem: Mutex<Mem>,
     update: crate::update::Updater,
     dev: dev::DevState,
+    mcp: crate::mcp::McpHost,
 }
 
 /// Longest header line accepted (the core has no limit; the line goes into every block).
@@ -330,6 +331,7 @@ impl RealBackend {
             mem: Mutex::new(Mem::default()),
             update,
             dev: dev::DevState::default(),
+            mcp: crate::mcp::McpHost::default(),
         }
     }
 
@@ -2256,6 +2258,7 @@ impl Backend for RealBackend {
     }
 
     fn activity(&self, limit: u32) -> CmdResult<Vec<LogEntry>> {
+        self.mcp_to_log();
         let m = self.mem();
         Ok(m.log.iter().rev().take(limit as usize).cloned().collect())
     }
@@ -2763,6 +2766,40 @@ impl Backend for RealBackend {
     fn install_update(&self) -> CmdResult<UpdateStatus> {
         self.log(LogLevel::Info, None, None, "Installing an update");
         self.update.install(self.updates_on())
+    }
+
+    fn mcp_status(&self) -> CmdResult<McpStatus> {
+        self.mcp_to_log();
+        Ok(self.mcp.status())
+    }
+
+    /// The first install the app shows; datasets are extracted by this binary started as
+    /// `mcp-extract-worker` (`crate::worker_main`), into the app cache folder.
+    fn set_mcp_enabled(&self, req: McpToggle) -> CmdResult<McpStatus> {
+        let st = if req.enabled {
+            self.mcp.enable(|| {
+                let exe =
+                    std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
+                let installs = self.installs();
+                Ok(starorg_mcp::config_for(
+                    installs.first().map(|f| &f.install),
+                    self.dirs(),
+                    Arc::new(starorg_mcp::worker::ProcessExtractor::new(exe)),
+                ))
+            })
+        } else {
+            self.mcp.disable()
+        };
+        self.mcp_to_log();
+        Ok(st)
+    }
+}
+
+impl RealBackend {
+    fn mcp_to_log(&self) {
+        for (level, msg) in self.mcp.take_log() {
+            self.log(level, Some(JobKind::Mcp), None, &msg);
+        }
     }
 }
 

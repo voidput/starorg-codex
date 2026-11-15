@@ -3,6 +3,7 @@
 pub mod commands;
 pub mod contract;
 pub mod gpu;
+pub mod mcp;
 pub mod update;
 
 #[cfg(test)]
@@ -67,8 +68,18 @@ pub fn run() {
         update_host.set(update::host::TauriUpdateHost(app.handle().clone()));
         Ok(())
     })
-    .run(tauri::generate_context!())
-    .expect("error while running StarOrg Strings");
+    .build(tauri::generate_context!())
+    .expect("error while building StarOrg Strings")
+    .run(|app, event| {
+        // The local MCP server stops with the app (docs/mcp.md).
+        if let tauri::RunEvent::Exit = event {
+            use tauri::Manager;
+            let _ = app
+                .state::<BackendState>()
+                .0
+                .set_mcp_enabled(contract::types::McpToggle { enabled: false });
+        }
+    });
 }
 
 /// `starorg-strings-app extract-worker --p4k <P> --out <DIR> [--ini-only] [--keyrefs]`: the extraction
@@ -86,6 +97,10 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
                 2
             }
         });
+    }
+    // The local MCP server's extraction worker: one dataset per process (docs/mcp.md).
+    if let Some(code) = starorg_mcp::worker::worker_main(args) {
+        return Some(code);
     }
     if args.get(1).map(|a| a.as_os_str()) != Some("extract-worker".as_ref()) {
         return None;

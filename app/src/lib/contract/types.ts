@@ -97,7 +97,7 @@ export interface ChannelRef {
 
 // Jobs ----------------------------------------------------------------------------------
 
-export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook' | 'dev';
+export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook' | 'dev' | 'mcp';
 export type JobPhase = 'running' | 'done' | 'failed' | 'cancelled';
 
 export interface JobProgress {
@@ -977,3 +977,35 @@ export interface UpdateCheckRequest {
 
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';
+// Experimental: local MCP server (docs/mcp.md) --------------------------------------------
+
+/** One HTTP request the local MCP server answered. */
+export interface McpRequest {
+  time: string;
+  method: string | null;
+  tool: string | null;
+  /** 401 = no or wrong token. */
+  status: number;
+  ok: boolean;
+  millis: number;
+}
+
+/** Settings -> Experimental -> "Local MCP server". Off at every start of the app. */
+export interface McpStatus {
+  running: boolean;
+  url: string | null;
+  /** Bearer token of this run (new at every start). */
+  token: string | null;
+  started: string | null;
+  error: string | null;
+  channels: string[];
+  claude_code: string | null;
+  claude_desktop: string | null;
+  stdio: string;
+  /** Newest first, at most 100. */
+  requests: McpRequest[];
+}
+
+export interface McpToggle {
+  enabled: boolean;
+}

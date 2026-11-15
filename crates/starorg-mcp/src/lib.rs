@@ -56,11 +56,16 @@ pub fn config_from_env(
     extractor: Arc<dyn worker::Extractor>,
 ) -> StoreConfig {
     let found = discover(req, &DiscoveryEnv::from_process());
-    let channels = found
-        .installs
-        .first()
-        .map(|i| channels_of(i, dirs))
-        .unwrap_or_default();
+    config_for(found.installs.first(), dirs, extractor)
+}
+
+/// Server configuration for one install (the app passes the install it shows).
+pub fn config_for(
+    install: Option<&Install>,
+    dirs: &AppDirs,
+    extractor: Arc<dyn worker::Extractor>,
+) -> StoreConfig {
+    let channels = install.map(|i| channels_of(i, dirs)).unwrap_or_default();
     let cfg = Config::load(dirs).unwrap_or_default();
     let outputs = Outputs::load(dirs).unwrap_or_default();
     let cache_dir = dirs.cache.join("mcp");
@@ -72,6 +77,11 @@ pub fn config_from_env(
         our_outputs: outputs.entries.into_iter().map(|e| e.sha256).collect(),
         extractor,
     }
+}
+
+/// `new Date().toISOString()`, for logs.
+pub fn iso_now() -> String {
+    starorg_gamedata::output::iso_now()
 }
 
 /// A server over a store.

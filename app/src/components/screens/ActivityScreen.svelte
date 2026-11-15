@@ -12,6 +12,7 @@
   import SelectField from '@/components/common/SelectField.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import DiagnosticsDialog from '@/components/activity/DiagnosticsDialog.svelte';
+  import McpPanel from '@/components/activity/McpPanel.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { JobKind, LogEntry, LogLevel } from '@/lib/contract/types';
   import { fmtDateTime, JOB_LABEL } from '@/lib/format';
@@ -77,6 +78,7 @@
     <Button variant="outline" size="sm" disabled={!shown.length} onclick={copy}><Copy aria-hidden="true" /> Copy</Button>
     <Button variant="outline" size="sm" onclick={() => (diag = true)}><FileDown aria-hidden="true" /> Export diagnostics</Button>
   </div>
+  <McpPanel {tick} />
   {#if error}
     <ErrorState title="Could not read the log" {error} onretry={() => tick++} />
   {:else if !entries}

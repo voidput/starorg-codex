@@ -208,6 +208,8 @@ pub enum JobKind {
     Hook,
     /// Developer mode: worker start, record export, dataset diff (addendum 7).
     Dev,
+    /// The experimental local MCP server (started, stopped, a dataset extracted for it).
+    Mcp,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1662,4 +1664,50 @@ pub struct UpdateStatus {
 pub struct UpdateCheckRequest {
     /// `false`: the start-up check, at most once per 24 h. `true`: "Check now".
     pub force: bool,
+}
+
+// ---------------------------------------------------------------------------------------
+// Experimental: local MCP server (docs/mcp.md)
+// ---------------------------------------------------------------------------------------
+
+/// One HTTP request the local MCP server answered.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpRequest {
+    pub time: String,
+    /// JSON-RPC method (`initialize`, `tools/call`, ...), when the body had one.
+    pub method: Option<String>,
+    /// `tools/call`: the tool.
+    pub tool: Option<String>,
+    /// HTTP status (401 = no or wrong token).
+    pub status: u16,
+    pub ok: bool,
+    pub millis: u64,
+}
+
+/// Settings -> Experimental -> "Local MCP server". Off at every start of the app.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpStatus {
+    pub running: bool,
+    /// `http://127.0.0.1:<port>/mcp` while running.
+    pub url: Option<String>,
+    /// Bearer token of this run (new at every start). Shown to the user, never logged.
+    pub token: Option<String>,
+    pub started: Option<String>,
+    /// Why the last start failed.
+    pub error: Option<String>,
+    /// Channels the tools answer for.
+    pub channels: Vec<String>,
+    /// `claude mcp add ...` for Claude Code, while running.
+    pub claude_code: Option<String>,
+    /// `claude_desktop_config.json` entry (through `mcp-remote`), while running.
+    pub claude_desktop: Option<String>,
+    /// The same tools over stdio from the CLI: `starorg-strings mcp`.
+    pub stdio: String,
+    /// Newest first, at most 100.
+    pub requests: Vec<McpRequest>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct McpToggle {
+    pub enabled: bool,
 }

@@ -141,10 +141,7 @@ fn accept_loop(listener: TcpListener, shared: Arc<Shared>, stop: Arc<AtomicBool>
                         let _ = stream.set_nonblocking(false);
                         let _ = stream.set_read_timeout(Some(Duration::from_secs(30)));
                         let _ = stream.set_write_timeout(Some(Duration::from_secs(30)));
-                        let log = connection(&stream, &s);
-                        if let (Some(cb), Some(l)) = (&s.on_request, log) {
-                            cb(l);
-                        }
+                        connection(&stream, &s);
                         s.open.fetch_sub(1, Ordering::SeqCst);
                     });
                 if spawned.is_err() {
@@ -305,10 +302,14 @@ fn connection(stream: &TcpStream, s: &Shared) -> Option<RequestLog> {
         ok: false,
         millis: 0,
     };
+    // Logged before the answer goes out, so a client that has its answer sees it logged.
     let finish = |mut log: RequestLog, status: u16, headers: &[(&str, String)], body: &[u8]| {
-        let _ = respond(stream, status, headers, body);
         log.status = status;
         log.millis = started.elapsed().as_millis() as u64;
+        if let Some(cb) = &s.on_request {
+            cb(log.clone());
+        }
+        let _ = respond(stream, status, headers, body);
         Some(log)
     };
     let text = |m: &str| m.as_bytes().to_vec();

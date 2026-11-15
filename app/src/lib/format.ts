@@ -115,6 +115,7 @@ export const JOB_LABEL: Record<JobKind, string> = {
   sync: 'StarOrg sync',
   dev: 'Developer',
   hook: 'Launch hook',
+  mcp: 'MCP server',
 };
 
 export const BACKUP_REASON: Record<BackupReason, string> = {

@@ -229,7 +229,74 @@ fn samples() -> Value {
     for (k, x) in super::tests_dev::dev_samples() {
         v[k] = x;
     }
+    let (mcp_off, mcp_on) = mcp_samples();
+    v["mcp_status"] = json!(mcp_off);
+    v["set_mcp_enabled"] = json!(mcp_on);
     v
+}
+
+/// Off as every start leaves it, and a running status with fixed values (a real run has a
+/// random port and token).
+fn mcp_samples() -> (McpStatus, McpStatus) {
+    let b = MockBackend::default();
+    let off = b.mcp_status().unwrap();
+    let url = "http://127.0.0.1:41237/mcp";
+    let token = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    let on = McpStatus {
+        running: true,
+        url: Some(url.into()),
+        token: Some(token.into()),
+        started: Some("2026-11-14T21:30:05.000Z".into()),
+        error: None,
+        channels: vec!["LIVE".into(), "PTU".into()],
+        claude_code: Some(crate::mcp::claude_code_config(url, token)),
+        claude_desktop: Some(crate::mcp::claude_desktop_config(url, token)),
+        stdio: crate::mcp::STDIO_COMMAND.into(),
+        requests: vec![
+            McpRequest {
+                time: "2026-11-14T21:31:02.114Z".into(),
+                method: Some("tools/call".into()),
+                tool: Some("how_to_obtain".into()),
+                status: 200,
+                ok: true,
+                millis: 412,
+            },
+            McpRequest {
+                time: "2026-11-14T21:30:40.020Z".into(),
+                method: None,
+                tool: None,
+                status: 401,
+                ok: false,
+                millis: 0,
+            },
+        ],
+    };
+    (off, on)
+}
+
+#[test]
+fn mcp_server_is_off_by_default_and_runs_on_loopback() {
+    let b = MockBackend::default();
+    let off = b.mcp_status().unwrap();
+    assert!(!off.running && off.url.is_none() && off.token.is_none());
+    assert_eq!(off.stdio, "starorg-strings mcp");
+    let on = b.set_mcp_enabled(McpToggle { enabled: true }).unwrap();
+    assert!(on.running, "{:?}", on.error);
+    assert!(on.url.as_deref().unwrap().starts_with("http://127.0.0.1:"));
+    assert!(
+        b.activity(5)
+            .unwrap()
+            .iter()
+            .any(|e| e.job == Some(JobKind::Mcp) && e.message.contains("started"))
+    );
+    let off = b.set_mcp_enabled(McpToggle { enabled: false }).unwrap();
+    assert!(!off.running);
+    assert!(
+        b.activity(5)
+            .unwrap()
+            .iter()
+            .any(|e| e.job == Some(JobKind::Mcp) && e.message.contains("stopped"))
+    );
 }
 
 /// Import the mock fleet file (dry run, then for real), settle one row, turn ship names on
@@ -432,6 +499,7 @@ fn ts_unions_list_every_variant() {
                 JobKind::Sync,
                 JobKind::Hook,
                 JobKind::Dev,
+                JobKind::Mcp,
             ]),
         ),
         (

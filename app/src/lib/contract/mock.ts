@@ -16,7 +16,7 @@
  * added; `&dev=open` also opens LIVE's explorer (mock-dev.ts).
  * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
  * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
- * not read yet).
+ * not read yet). MCP: `&mcp=on` (the local MCP server running, with sample requests).
  */
 import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
 import type { Args, Command, Result, Transport } from './client';
@@ -43,6 +43,8 @@ const SAMPLES = samples as unknown as {
   fleet_view: T.FleetView;
   fleet_import: T.FleetImportReport;
   save_ship_names: T.FleetView;
+  mcp_status: T.McpStatus;
+  set_mcp_enabled: T.McpStatus;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -399,6 +401,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   let settings: T.Settings = { ...clone(SAMPLES.get_settings), network: { check_updates: false, published_dumps: false, starorg: false } };
   const starorg: T.StarOrgStatus = { ...clone(SAMPLES.starorg_status), connected: false, user: null, guild: null, expires: null, sync_characters: [] };
   let hooks: T.HooksStatus = clone(SAMPLES.hooks_status);
+  let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
   const log: T.LogEntry[] = [];
   let nextLog = 1;
   let nextJob = 1;
@@ -1206,6 +1209,19 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     save_diagnostics: () => {
       addLog('info', null, null, 'Saved diagnostics');
       return '~/starorg-strings-diagnostics-20261114-213005.txt';
+    },
+    // Experimental local MCP server. The browser cannot listen on a port: "on" shows the
+    // sample status of a running server (fixed URL and token). `?mcp=on` starts it on.
+    mcp_status: () => clone(mcp),
+    set_mcp_enabled: ({ req }) => {
+      if (req.enabled && !mcp.running) {
+        mcp = { ...clone(SAMPLES.set_mcp_enabled), requests: [] };
+        addLog('info', 'mcp', null, `Local MCP server started on ${mcp.url} (this computer only)`);
+      } else if (!req.enabled && mcp.running) {
+        mcp = clone(SAMPLES.mcp_status);
+        addLog('info', 'mcp', null, 'Local MCP server stopped');
+      }
+      return clone(mcp);
     },
     ...createUpdateMock(() => settings, params),
   };

@@ -29,6 +29,9 @@ thiserror.workspace = true
 tauri = { version = "2", features = [] }
 starorg-data.workspace = true
 toml.workspace = true
+# Experimental local MCP server (Settings -> Experimental; docs/mcp.md): the loopback
+# streamable-HTTP transport, a std::net server with no HTTP crate of its own.
+starorg-mcp = { workspace = true, features = ["http"] }
 # Native folder/file/save dialogs, called from Rust only (no dialog permission for the
 # webview; see capabilities/default.json).
 tauri-plugin-dialog = "2"

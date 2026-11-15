@@ -3219,6 +3219,18 @@
       "title": "Sample label fix"
     }
   ],
+  "mcp_status": {
+    "channels": [],
+    "claude_code": null,
+    "claude_desktop": null,
+    "error": null,
+    "requests": [],
+    "running": false,
+    "started": null,
+    "stdio": "starorg-strings mcp",
+    "token": null,
+    "url": null
+  },
   "overview": {
     "active_install": "inst-7f3a",
     "app_version": "0.1.0",
@@ -5062,6 +5074,38 @@
       "symbol": "*"
     },
     "warnings": []
+  },
+  "set_mcp_enabled": {
+    "channels": [
+      "LIVE",
+      "PTU"
+    ],
+    "claude_code": "claude mcp add --transport http starorg-strings http://127.0.0.1:41237/mcp --header \"Authorization: Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"",
+    "claude_desktop": "{\n  \"mcpServers\": {\n    \"starorg-strings\": {\n      \"command\": \"npx\",\n      \"args\": [\n        \"-y\",\n        \"mcp-remote\",\n        \"http://127.0.0.1:41237/mcp\",\n        \"--header\",\n        \"Authorization:${STARORG_MCP_AUTH}\"\n      ],\n      \"env\": {\n        \"STARORG_MCP_AUTH\": \"Bearer 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef\"\n      }\n    }\n  }\n}",
+    "error": null,
+    "requests": [
+      {
+        "method": "tools/call",
+        "millis": 412,
+        "ok": true,
+        "status": 200,
+        "time": "2026-11-14T21:31:02.114Z",
+        "tool": "how_to_obtain"
+      },
+      {
+        "method": null,
+        "millis": 0,
+        "ok": false,
+        "status": 401,
+        "time": "2026-11-14T21:30:40.020Z",
+        "tool": null
+      }
+    ],
+    "running": true,
+    "started": "2026-11-14T21:30:05.000Z",
+    "stdio": "starorg-strings mcp",
+    "token": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "url": "http://127.0.0.1:41237/mcp"
   },
   "set_override": {
     "accepted": true,
