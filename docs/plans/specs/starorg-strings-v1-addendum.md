@@ -1739,43 +1739,75 @@ through the stock `global.ini`, as `GameDataCatalog`), classified without new ex
   strings grouping (§8, loc-reference pass) when that build has it; a maker needs a stock
   `manufacturer_Name<code>` text to show its name (else the code).
 
-LIVE 4.10.200.58746 (owner's cache, read only): 1,634 blueprints, 1,630 named (54 ms); 1,078
-FPS armor (Helmet 224, Torso 220, Arms 217, Legs 217, Undersuit 30, Backpack 29; weight on
-878), 176 FPS weapons (Pistol 36, Rifle 33, Sniper rifle 31, SMG 30, Shotgun 24, LMG 16), 37
-FPS ammo, 377 ship components (Power plant 75, Cooler 73, Shield 62, Radar 58, Quantum drive
-57, Mining laser 17, Tractor beam 12, Refuelling nozzle 8, Salvage head 5), 103 ship weapons
-(Laser cannon 26, Laser repeater 17, Ballistic cannon 14, ...), 4 mission items; maker on
-1,584 (named 1,568), size on 652, grade on 354. The owner's 531 owned entries became 271 rows:
-269 matched to a blueprint, 2 name rows (the two ambiguous imports, §4).
+LIVE 4.10.200.58746 (owner's cache, read only): 1,634 blueprints, 1,630 named (54 ms) =
+937 FPS armor (Helmet 224, Torso 220, Arms 217, Legs 217, Undersuit 30, Backpack 29; weight on
+878) + 176 FPS weapons (Pistol 36, Rifle 33, Sniper rifle 31, SMG 30, Shotgun 24, LMG 16,
+Crossbow 4, HMG 2) + 37 FPS ammo + 377 ship components (Power plant 75, Cooler 73, Shield 62,
+Radar 58, Quantum drive 57, Mining laser 17, Tractor beam 12, Refuelling nozzle 8, Salvage head
+5, Ore pod 5, Mining module 5) + 99 ship weapons (Laser cannon 26, Laser repeater 17, Ballistic
+cannon 14, Neutron cannon/repeater 6, Tachyon cannon 3, ...) + 4 mission items; maker on 1,584
+(named 1,568), size on 652, grade on 354. Words in the record name (`_hmg_`, `crossbow`,
+`shipmining_pod`, `mining_modules`, `tachyoncannon`, ...) name what `$templates` paths and bare
+`vehiclegear/` do not; every ship and FPS blueprint now has a type (mission items have none). The owner's 531 owned entries became
+271 rows: 269 matched to one blueprint and 2 ambiguous name rows (each one ambiguous import plus
+one StarOrg pull of the same name), each listing its 2 candidates; those 4 blueprints show
+"maybe owned".
 
 **Merge.** `finder::build(channels)` keys rows by blueprint id (lower case) over the channels'
 builds; an owned entry joins its row by matched id, else by a name only one blueprint has (in
-its channel's build, else in any read build), else gets a `name:<normalised>` row ("Not in
-build"); an ambiguous import always stays its own row and marks nothing (as on apply). Each
-owner keeps `channel` + `character` + sources + earliest time; two entries of one set on one
-blueprint merge into one owner. A channel whose build was not read has no catalogue: only what
-is owned there is listed, with a note.
+its channel's build, else in any read build). Otherwise it gets a `name:<normalised>` row:
+- **Ambiguous** when the name could be several blueprints: an import marked ambiguous (its
+  candidate ids, else every blueprint of that name), or an entry without ids (log, StarOrg pull)
+  whose name several blueprints have. The row lists the `candidates`, takes what they all agree
+  on (kind, type, maker, size ...), and each candidate row gets the owner under `maybe`
+  ("maybe owned"); nothing is marked owned, as on apply (§4 verification fixes).
+- **Not in build** only when no read build has a blueprint of that name.
+
+Each owner keeps `channel` + `character` + sources + earliest time; two entries of one set on one
+blueprint merge into one owner. `unattributed.json` (blueprints seen before any login line) is
+read as the pseudo-character `unattributed` ("Unattributed", last in the list). A set file that
+cannot be read is logged (Activity, no ids) and counted in `skipped` (shown as a note); a set
+whose file lacks its geid is read as its file name says and logged. A channel whose build was
+not read has no catalogue: only what is owned there is listed, with a note. Reading creates
+nothing: the incremental log scan runs only for channels that already have a `blueprints/`
+folder (the current channel is scanned by `list_characters`), so "All channels" no longer makes
+empty folders or `scan.json` files for PTU/HOTFIX.
+
+TODO (after `blueprints-windows-fix` lands): `Characters.aliases` / `repair::consolidate` should
+canonicalise geids in the All-channels character merge (marked `TODO(aliases)` in `finder.rs`).
 
 **Contract (additive).** `blueprint_finder(BlueprintFinderRequest { install, channels })`
 (empty = every channel) -> `BlueprintFinder { channels[] (catalog count or null, characters,
-owned), characters[] (id, latest name, channels known), rows[] (key, name, record, kind, type,
-class, manufacturer + name, size, grade, channels, owners[]) }`; `BlueprintKind` union. Real
+owned, skipped), characters[] (id, latest name, channels known), rows[] (key, name, record,
+kind, type, class, manufacturer + name, size, grade, channels, candidates, owners[], maybe[]) }`; `BlueprintKind` union. Real
 backend: cached game data only (never extracts); a build already in memory is reused, else the
 cache entry is read, the catalogue (a few hundred KB) kept per build key and the game data
-dropped, so "All channels" never holds every build. Rust mock: `mock_finder.rs` (37 synthetic
-blueprints over LIVE and PTU, one only in each, HOTFIX not read; three characters with
-different sets per channel); the TS mock re-merges the same way (`mock-finder.ts`) and
-`tests/bpfinder.test.ts` replays it against both samples. `owned_blueprints` stays.
+dropped, so "All channels" never holds every build. Rust mock: `mock_finder.rs` (39 synthetic
+blueprints over LIVE and PTU, one only in each, two sharing the name "Sample Visor"; HOTFIX not
+read; three characters with different sets per channel, one log name that is ambiguous, one
+unattributed entry); the TS mock runs the same steps (`mock-finder.ts`: ids, ambiguity,
+candidates, maybe, unattributed) and `tests/bpfinder.test.ts` replays it against both samples. `owned_blueprints` stays.
 
-**UI (Blueprints screen).** The "Owned blueprints" card is now **Blueprints**, full width
-below the [Owned]-tags and StarOrg cards:
+**UI (Blueprints screen).** The "Owned blueprints" card is now **Blueprints**, first and full
+width (above the fold at 1024x700), with the [Owned]-tags and StarOrg cards side by side below:
 - Scope: the current channel or **All channels** (rows side by side, every owner with its
   channel badge, "only in PTU" badge on blueprints one build lacks, a Channel facet).
 - **All / Owned / Missing** with counts over the build's full catalogue. Owned / Missing mean
   owned or not by the picked characters (any character when none is picked) on the channels
-  in view; picking characters with All keeps every row.
-- Search: words over name, record, type and maker; a 3+ letter word also matches as letters
-  in order in the name (`scnn` -> Synthetic Cannon); word hits sort before such fuzzy hits.
+  in view; picking characters with All keeps every row. Missing says how many of its rows are
+  "maybe owned" (an ambiguous owned name could be them); those rows say so in Owned by.
+- Ambiguous name rows show "Ambiguous" and "Could be: <name · type · weight/size · record>"
+  per candidate; "Not in build" only when there is no candidate.
+- Search: words over name, record, type and maker; only when no row matches as text, a 4+
+  letter word also matches as letters in order in the name (`scnn` -> Synthetic Cannon).
+- Count line: "N shown of M" (M includes name rows) and, separately, "LIVE's build has K
+  blueprints".
+- Source and Since show the picked characters only (others stay greyed in Owned by); sorting by
+  them uses the same owners. Character numbers are how many blueprints each owns (lacks, with
+  Missing), as the help line says.
+- The import dialog starts on the first picked character only when it is known on the current
+  channel (never a PTU-only character from the All view, never "Unattributed").
+- Filters (n) does not count channel picks in the one-channel view (they do not apply there).
 - Facet chips with counts: Category, Type, Manufacturer, Size (S0-S12 and armor weight),
   Source (Game log / Smart Citizen / StarOrg), Character (channel dots in All view), Channel.
   Each facet's counts apply every other filter; long facets show 8 and "+N more".
@@ -1806,6 +1838,9 @@ other channels without one, same rows from memory); TS: TS mock = Rust samples, 
 counts, facet counts, character, source and channel semantics, search, every sort, groups,
 prefs; channel colour contrast. Renders `app/scripts/render-blueprints.cjs` (1024x700,
 1280x800, dark and light), keyboard `app/scripts/keyboard-blueprints.cjs`.
+
+Renders: since main's "dark is the default theme" the mock's saved appearance wins over
+`?theme=`, so `render-blueprints.cjs` pins `data-theme` before each shot.
 
 **Not done.** No CLI view (`blueprints list` is unchanged); the finder does not read builds
 that were never extracted (Apply or a dry run does); no favourite toggle or ownership edits
