@@ -44,6 +44,20 @@ privacy statement covers what GitHub logs.
 
 The Microsoft Store version never checks GitHub: the Store installs its updates.
 
+## Local MCP server (experimental, off by default)
+
+Settings -> Experimental -> Local MCP server, and the command `starorg-strings mcp`, let an AI
+assistant on your computer ask read-only questions about your game data ([details](mcp.md)).
+
+- It makes no network request. The app's server listens on `127.0.0.1` only (other computers
+  cannot reach it) and needs a token that is made fresh each time it starts. It is off at every
+  start of the app.
+- Answers can include your owned blueprints and character names. They go only to the local
+  client you connected. If that client is an assistant that runs in the cloud, it sends the
+  answers to its provider as part of your conversation, under that provider's privacy terms.
+- It writes only its cache in the app's cache folder. Shop prices are used only if you put UEX
+  price files there yourself; the app never downloads them.
+
 ## Things outside the app
 
 - **Windows:** the window is drawn by Microsoft Edge WebView2, which Microsoft updates and which

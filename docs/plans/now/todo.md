@@ -41,7 +41,7 @@ Fleet import and ship ordering — addendum §6 (branch `fleet-order`, local onl
 - [ ] In-game checks (spec §13, Fleet rows): list sort (Q23), long vs short name (Q25), where the prefix shows, symbols ([#15](https://github.com/voidput/starorg-strings/issues/15))
 - [ ] Owner: try an RSI+ export (`fleet import --dry-run`) and report store names that need aliases ([#15](https://github.com/voidput/starorg-strings/issues/15))
 
-Developer mode — addendum §7 (branch `devmode-build`, local only, not pushed)
+Developer mode — addendum §7
 
 - [x] Core explorer index, record replies, dataset shapes, rows and diff; `dev-worker` protocol and streamed exports ([#15](https://github.com/voidput/starorg-strings/issues/15)) — [[specs/starorg-strings-v1-addendum]]
 - [x] App contract (21 `dev_*` commands, `dev-disabled`), real worker client, mocks, Explorer / Datasets / Diff screens, renders and keyboard check ([#15](https://github.com/voidput/starorg-strings/issues/15))
@@ -50,3 +50,10 @@ Developer mode — addendum §7 (branch `devmode-build`, local only, not pushed)
 - [ ] Published dumps as a dataset source (follow-up; needs the "Use published game data" switch built) ([#15](https://github.com/voidput/starorg-strings/issues/15))
 - [ ] Backlinks ("Referenced by", Q-D2) and the `starorg-gamedata` domain outputs as a source once that crate is on main ([#15](https://github.com/voidput/starorg-strings/issues/15))
 - [ ] Owner: open Explorer on LIVE in the real app and try a type export ([#15](https://github.com/voidput/starorg-strings/issues/15))
+
+Local MCP server (experimental) — addendum §10
+
+- [x] Query layer port (fuzzy, obtain, where, shops) with golden compare against sc-gamedata ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] `starorg-mcp` crate, `starorg-strings mcp` (stdio), app Settings -> Experimental (loopback HTTP), Activity ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [x] Extraction memory: prune item-sources, item-tags, blueprints, armor; worker per dataset ([#15](https://github.com/voidput/starorg-strings/issues/15))
+- [ ] Owner: connect Claude Code / Claude Desktop to the app's server on a real install and try the tools ([#15](https://github.com/voidput/starorg-strings/issues/15))

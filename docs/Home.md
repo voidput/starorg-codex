@@ -1,7 +1,7 @@
 ---
 title: StarOrg Strings
 tags: [docs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # StarOrg Strings
@@ -14,8 +14,9 @@ updated: 2026-11-14
 - [[windows-test-checklist|Windows real-install test checklist]] ([plain](windows-test-checklist.md))
 - [[store-listing|Microsoft Store listing draft]] ([plain](store-listing.md))
 - [[privacy|Privacy policy]] ([plain](privacy.md))
+- [[mcp|Local MCP server (experimental)]] ([plain](mcp.md))
 - [[plans/specs/starorg-strings-v1|v1 spec]] ([plain](plans/specs/starorg-strings-v1.md))
-- [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps, LUG hooks, dev mode, strings grouping]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
+- [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps, LUG hooks, dev mode, strings grouping, gamedata port, local MCP server]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
 
 ## Decisions
 - [[decisions/tauri-svelte-ui|Tauri + Svelte UI]] ([plain](decisions/tauri-svelte-ui.md))

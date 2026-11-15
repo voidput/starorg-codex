@@ -1317,8 +1317,76 @@ same datasets itself instead of only downloading them.
   datasets reported. Porting rules: `crates/starorg-gamedata/README.md`.
 - **Out of scope:** `uex-item-prices.json` and `uex-terminals.json` (third-party UEX API
   data, not game files) and sc-gamedata's dataset query/report tools (`find`, `obtain`,
-  `where`, `shops`, `notes`, `diff`, `changes`, `engagement`, `deflection`).
-- **Next:** cut the full-extract peak memory (about 10 GB now: every scoped record is
-  held as a `serde_json::Value`), required before `GameData`, the CLI or the app use the
+  `where`, `shops`, `notes`, `diff`, `changes`, `engagement`, `deflection`). The query layer
+  of `find`/`obtain`/`where`/`shops` was ported later for the local MCP server (§10).
+- **Next:** cut the full-extract peak memory (about 10 GB at the port; 7.3 GB after the
+  record pruning of §10: every scoped record is held as a `serde_json::Value`), required before `GameData`, the CLI or the app use the
   crate; then move `starorg-data`'s `GameData` onto it and drop the duplicated accessors
   (also the two `item_common` and `tags` copies left by the parallel ports).
+
+## 10. Experimental local MCP server (branch `local-mcp`, Refs #15)
+
+Read-only game-data tools for an AI assistant on the same computer, over the Model Context
+Protocol. User-facing docs, measurements and client setup: [docs/mcp.md](../../mcp.md).
+
+### 10.1 Design (approved)
+
+- **Query layer:** sc-gamedata's `src/query/{fuzzy,search-index,obtain,where,shops}.ts` ported as
+  `starorg_gamedata::query` with their tests. `scripts/compare-query.sh` answers the same
+  query file with sc-gamedata's compiled `dist/query` (node, read only) and with
+  `gamedata-port query`, then compares the JSON: 514 of 514 identical on LIVE 4.10.200.58746.
+- **Server:** new crate `starorg-mcp`, a minimal JSON-RPC 2.0 / MCP implementation (no SDK:
+  the official Rust SDK pulls an async runtime and, for HTTP, a web framework; one local client
+  answered in order does not need them). Ten read-only tools: `search`, `item`,
+  `where_to_buy`, `where_found`, `how_to_obtain` (`owned_by` a character, `active` or `any`,
+  from the owned-blueprint store), `mission`, `compare`, `string` (stock and the text applied
+  to the channel), `diff` (two channels, or a cached older build), `status`. `channel`
+  parameter (default: the app's default channel, else LIVE); results compact and paginated.
+- **Transports:** `starorg-strings mcp [--channel]` over stdio in the CLI (the CLI links the
+  crate without its `http` feature; ci.yml's cli-deps check still passes). In the app,
+  Settings -> Experimental -> "Local MCP server": streamable HTTP on `127.0.0.1` (free port),
+  bearer token random per start, off at every start (the switch is not saved), stopped when
+  switched off and on `RunEvent::Exit`; copy-config buttons for Claude Code and Claude Desktop
+  (via `mcp-remote`); status and the last 100 requests in Activity, starts, stops and
+  extractions in the log as job kind `mcp`.
+- **Data and memory:** a tool loads only the datasets it needs, lazily. Each is extracted once
+  per build by a short-lived worker process (`mcp-extract-worker`, one dataset per process,
+  which records its own peak RSS) into `<cache>/mcp/<CHANNEL>/<build>-<fingerprint>/`, then
+  served from that JSON; three builds per channel kept. Server peak 325 MB answering all ten
+  tools with LIVE and PTU loaded (target < 1.5 GB). Workers: ships 3.9 GB, ship-components
+  2.2 GB, every other dataset 0.85 to 1.4 GB.
+- **Cheap memory cuts in the extraction:** `Domain::prune` drops the parts of a scoped record a
+  domain never reads as it loads. item-sources 9.0 -> 1.4 GB, item-tags 8.7 -> 1.2 GB,
+  blueprints 6.5 -> 1.3 GB, armor 3.0 -> 0.9 GB; a full extract 10 -> 7.3 GB.
+  `scripts/compare-gamedata.sh` unchanged (24 of 28 identical, the same four stale-golden
+  datasets) and the pruned outputs byte-identical to the unpruned ones. ships (loadouts and
+  ports read deep) and ship-components are not pruned.
+- **Contract (additive):** `mcp_status`, `set_mcp_enabled`; `McpStatus`, `McpRequest`,
+  `McpToggle`; `JobKind::Mcp`. Rust, TS, both mocks, samples, drift tests.
+
+### 10.2 Privacy and safety
+
+- No network: nothing in the server opens a connection; the HTTP server binds loopback only,
+  requires the token (constant-time compare), refuses non-localhost `Origin`s, caps bodies at
+  1 MiB. Shop prices only from UEX files the user put in `<cache>/mcp/uex/`.
+- Read-only: no tool writes game files, settings or the owned-blueprint store; the worker
+  refuses an output folder inside the channel folder or Wine prefix.
+- Owned blueprints, character names and fleet are answered only to the connected local client;
+  geids are never shown. docs/privacy.md says that a cloud-hosted assistant sends tool answers
+  to its provider.
+
+### 10.3 Tests
+
+Tool schemas (object, no extra properties, required fields defined, channel enum, read-only
+annotations); every tool on synthetic datasets with a fake extractor (lazy extraction once per
+build, cache reuse, failures as tool errors); the stdio round trip in-process and through the
+CLI binary; HTTP: token required (401), loopback bind, origin, session, protocol-version and
+404/405 cases, stop closes the port; app: off by default, start/stop on the mock and the real
+backend, Activity entries; the worker's refusal to write into the game.
+
+### 10.4 Not done / open
+
+- Windows: the worker's peak RSS is not measured (`None`; the call needs `unsafe`).
+- `ships` and `ship-components` extraction are not pruned (3.9 / 2.2 GB peak, once per build).
+- `item` details cover the common item types; other types answer with item-tags only.
+- `mission` titles of broker missions are the game's unresolved `~mission(...)` tokens.
