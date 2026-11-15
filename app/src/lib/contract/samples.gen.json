@@ -10051,6 +10051,7 @@
   "list_characters": {
     "active": {
       "character": null,
+      "fallback_from": null,
       "mode": "auto",
       "resolved": "1000000000001"
     },
@@ -12605,7 +12606,9 @@
     "dry_run": true,
     "files_read": 3,
     "merged": 0,
-    "replace": false
+    "replace": false,
+    "replace_refused": null,
+    "warnings": []
   },
   "save_diagnostics": "~/starorg-strings-diagnostics-20261114-213005.txt",
   "save_ship_names": {

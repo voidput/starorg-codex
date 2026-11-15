@@ -77,7 +77,8 @@ previous page as `cursor`. Answers are compact JSON.
 | `status` | channels, cached builds and datasets, what extracting each cost, server memory | nothing |
 
 `owned_by` is a character name, `active` (the channel's character setting; default the newest
-session's character) or `any`. The answer names the characters, never their ids; `any` lists
+session's character, or the most recent one that owns something when that one owns nothing) or
+`any`. The answer names the characters, never their ids; `any` lists
 every character name in the owned-blueprint store.
 
 ### Names, typos and ship weapons

@@ -1243,8 +1243,12 @@ pub struct ActiveCharacter {
     pub mode: CharacterMode,
     /// Manual pick (mode = manual).
     pub character: Option<String>,
-    /// Who `auto` resolves to right now.
+    /// Who `auto` resolves to right now: the newest session's character, or, when that one
+    /// owns nothing and another does, the most recently seen one that owns something.
     pub resolved: Option<String>,
+    /// `auto` passed over the newest character (it owns nothing): its geid, for a hint.
+    #[serde(default)]
+    pub fallback_from: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1459,6 +1463,12 @@ pub struct RescanReport {
     pub files_read: u32,
     /// Characters merged into another (same account and name, new geid).
     pub merged: u32,
+    /// A log skipped (too large) or not readable, and similar: shown with the report.
+    #[serde(default)]
+    pub warnings: Vec<String>,
+    /// `replace` with a log that could not be read: the confirm is refused with this reason.
+    #[serde(default)]
+    pub replace_refused: Option<String>,
     pub characters: Vec<CharacterChange>,
 }
 

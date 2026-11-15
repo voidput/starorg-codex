@@ -131,6 +131,20 @@ tracked **per character**, never merged.
   `--dry-run` prints the report and writes nothing.
 - Test data: synthetic export with fake names in the repo; the owner's real file is used
   only in an ignored local test (personal data, never committed).
+- Re-import (v0.2.1): `blueprints reimport [file] --character <name|geid> [--replace]
+  [--dry-run]` reads the last export imported on the channel (`blueprints/import.json`) unless
+  a file is given; `--replace` (also on `import`) drops what an earlier Smart Citizen import
+  added and this export no longer has. Log and StarOrg entries are never removed. The app's
+  Fix owned blueprints card does the same; a moved file opens the picker. The export may be
+  UTF-8 with or without BOM, or UTF-16 with BOM.
+- Re-scan (v0.2.1): `blueprints rescan [--channel] [--dry-run] [--replace]` re-reads every log
+  from the start: the `log` source is rebuilt, other sources stay; `--replace` starts every set
+  empty and is refused when a log cannot be read. A log that cannot be read keeps what it gave.
+- Characters (v0.2.1): a reset or wipe gives a character a new geid. Same `accountId` and same
+  name merge into the newest (old geid kept as an alias for logs and settings; store backed up
+  to `blueprints/backups/<time>-<reason>/` first; a one-time repair does the same for stores of
+  older versions). Same name without that proof stays apart with a notice; `auto` then uses the
+  most recent character that owns something when the newest owns nothing, and says so.
 
 ## 2-4. Implementation notes (M1, branch `m1-apply`)
 

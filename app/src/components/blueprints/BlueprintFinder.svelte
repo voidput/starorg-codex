@@ -6,6 +6,7 @@
    * channel (localStorage, validated on read). Ownership stays per channel and per character: the
    * "All channels" view only puts the rows side by side, each owner with its channel badge.
    */
+  import { characterLabel } from '@/lib/characters';
   import Search from '@lucide/svelte/icons/search';
   import Star from '@lucide/svelte/icons/star';
   import ArrowUp from '@lucide/svelte/icons/arrow-up';
@@ -109,7 +110,11 @@
   });
 
   const inView = $derived(scopeAll ? channels : [target.channel]);
-  const charName = (id: string) => data?.characters.find((c) => c.id === id)?.name ?? '—';
+  // Two characters with one name (a reset the logs cannot tie together) show newest / last seen.
+  const charName = (id: string) => {
+    const c = data?.characters.find((x) => x.id === id);
+    return c ? characterLabel(c, data?.characters ?? []) : '—';
+  };
   const v = $derived(data ? query(data, prefs, { channels: inView, characterName: charName }) : null);
   const notRead = $derived((data?.channels ?? []).filter((c) => c.catalog === null && inView.includes(c.channel)).map((c) => c.channel));
   const catalogSize = $derived((data?.channels ?? []).find((c) => c.channel === target.channel)?.catalog ?? null);

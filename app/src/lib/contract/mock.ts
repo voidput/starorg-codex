@@ -478,7 +478,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         profile: presetProfile('recommended'),
         overrides: new Map(),
         patches: clone(SAMPLES.list_patches.filter((x) => x.origin === 'built-in')),
-        active: { mode: 'auto', character: null, resolved: chars[0]!.id },
+        active: { mode: 'auto', character: null, resolved: chars[0]!.id, fallback_from: null },
         owned,
         forgotten: new Set(),
       });
@@ -1294,7 +1294,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       c.owned.delete(req.character);
       c.forgotten.add(req.character);
       if (c.active.character === req.character || c.active.resolved === req.character) {
-        c.active = { mode: 'auto', character: null, resolved: CHARACTER_IDS.find((x) => !c.forgotten.has(x)) ?? null };
+        c.active = { mode: 'auto', character: null, resolved: CHARACTER_IDS.find((x) => !c.forgotten.has(x)) ?? null, fallback_from: null };
       }
       return charactersView(c);
     },

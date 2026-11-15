@@ -14,6 +14,10 @@
   import type { ChannelRef, CharacterView, ImportReport } from '@/lib/contract/types';
   import { fmtDateTime, int } from '@/lib/format';
   import { toast } from '@/lib/stores/toast.svelte';
+  import { onWindows, smartCitizenDir } from '@/lib/platform';
+  import { characterLabel } from '@/lib/characters';
+
+  const exportDir = smartCitizenDir(onWindows);
 
   let {
     open = $bindable(false),
@@ -55,8 +59,8 @@
     if (!character || !report) return;
     busy = true;
     try {
-      // The file the check just read: no second picker.
-      const r = await api.importSmartCitizen({ target, character, dry_run: false, reuse_last: true });
+      // The picker opens again: a dry run remembers nothing (pick the same file).
+      const r = await api.importSmartCitizen({ target, character, dry_run: false });
       toast('success', `Imported ${r.imported.length} blueprints for ${name(character)}`, `${r.known.length} were already known. Re-apply to update [Owned] tags.`);
       open = false;
       ondone(character);
@@ -80,9 +84,9 @@
       <div class="grid gap-3">
         <div class="grid gap-1">
           <span class="text-muted-foreground text-[12px]" id="imp-char">Add to character</span>
-          <SelectField ariaLabel="Add to character" options={characters.map((c) => ({ id: c.id, label: `${c.name} (${c.owned} owned)` }))} value={character} onchange={(v) => (character = v)} class="max-w-72" />
+          <SelectField ariaLabel="Add to character" options={characters.map((c) => ({ id: c.id, label: `${characterLabel(c, characters)} (${c.owned} owned)` }))} value={character} onchange={(v) => (character = v)} class="max-w-72" />
         </div>
-        <p class="text-muted-foreground text-[12px]">Next you pick the file. It is usually in your Wine prefix under drive_c/users/&lt;you&gt;/SmartCitizen/.</p>
+        <p class="text-muted-foreground text-[12px]">Next you pick the file, then again to confirm. Smart Citizen saves it as owned-blueprints.json in <span class="mono">{exportDir}</span>.</p>
       </div>
     {:else}
       {@const r = report}

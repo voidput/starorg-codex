@@ -104,6 +104,7 @@ The same as on Linux (spec 7, [linux](linux.md)), with these Windows parts:
 | SmartScreen blocks the installer | More info -> Run anyway (unsigned builds), or use the Store version |
 | The window stays blank | Install or repair the WebView2 runtime from Microsoft, then restart the app |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
+| Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints\backups\`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-strings blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
 
 Diagnostics (Activity -> Diagnostics) exports a report with user names and home paths replaced.
 Attach it to a bug report.

@@ -19,6 +19,7 @@
   import { api, toContractError } from '@/lib/contract/client';
   import type { ChannelRef, CharactersView, ImportReport, RescanReport } from '@/lib/contract/types';
   import { toast } from '@/lib/stores/toast.svelte';
+  import { characterLabel } from '@/lib/characters';
 
   let { target, view, shown, ondone }: { target: ChannelRef; view: CharactersView; shown: string | null; ondone: () => void } = $props();
 
@@ -51,7 +52,7 @@
     failed = null;
     try {
       if (mode === 'rescan') rescan = await api.rescanLogs({ target, dry_run: true, replace });
-      else if (character) reimport = await api.importSmartCitizen({ target, character, dry_run: true, reuse_last: !!view.last_import, replace });
+      else if (character) reimport = await api.importSmartCitizen({ target, character, dry_run: true, reuse_last: true, replace });
     } catch (e) {
       failed = toContractError(e).message;
     } finally {
@@ -112,7 +113,7 @@
         {#if mode === 'rescan'}
           Reads Game.log and every log backup of {target.channel} from the start and rebuilds the blueprints found there. Entries from Smart Citizen or StarOrg Tools stay unless you tick Replace.
         {:else}
-          {view.last_import ? `Reads ${view.last_import} again` : 'Pick the export'} and adds it to one character. Blueprints from the game logs or StarOrg Tools are never removed.
+          {view.last_import ? `Reads ${view.last_import} again (the picker opens if it moved)` : 'Pick the export'} and adds it to one character. Blueprints from the game logs or StarOrg Tools are never removed.
         {/if}
       </Dialog.Description>
     </Dialog.Header>
@@ -121,7 +122,7 @@
         {#if mode === 'reimport'}
           <div class="grid gap-1">
             <span class="text-muted-foreground text-[12px]">Character</span>
-            <SelectField ariaLabel="Re-import into character" options={chars.map((c) => ({ id: c.id, label: `${c.name} (${c.owned} owned)` }))} value={character} onchange={(v) => (character = v)} class="max-w-72" />
+            <SelectField ariaLabel="Re-import into character" options={chars.map((c) => ({ id: c.id, label: `${characterLabel(c, chars)} (${c.owned} owned)` }))} value={character} onchange={(v) => (character = v)} class="max-w-72" />
           </div>
         {/if}
         <div class="flex items-start gap-2">
@@ -136,6 +137,14 @@
       </div>
     {:else if mode === 'rescan' && rescan}
       <section aria-label="Dry-run report" class="-mr-2 grid min-h-0 flex-1 content-start gap-2 overflow-y-auto pr-2 text-[12px]">
+        {#if rescan.warnings.length}
+          <Alert.Root variant="warning">
+            <TriangleAlert aria-hidden="true" />
+            <Alert.Title>Not every log was read</Alert.Title>
+            <Alert.Description><ul class="list-inside list-disc">{#each rescan.warnings as w (w)}<li class="mono">{w}</li>{/each}</ul></Alert.Description>
+          </Alert.Root>
+        {/if}
+        {#if rescan.replace_refused}<p role="alert" class="text-destructive">{rescan.replace_refused}</p>{/if}
         <p>{rescan.files_read} log files read{rescan.merged ? `; ${rescan.merged} reset character${rescan.merged === 1 ? '' : 's'} merged into the newest one` : ''}.</p>
         {#each rescan.characters as c (c.id ?? '')}
           <div class="rounded-md border p-2">
@@ -161,7 +170,7 @@
         <Button disabled={busy || (mode === 'reimport' && !character)} onclick={preview}>Check what changes</Button>
       {:else}
         <Button variant="outline" disabled={busy} onclick={() => ((rescan = null), (reimport = null))}>Back</Button>
-        <Button disabled={busy || (mode === 'reimport' && !!reimport?.empty_catalog)} onclick={confirm}>Confirm</Button>
+        <Button disabled={busy || (mode === 'reimport' && !!reimport?.empty_catalog) || (mode === 'rescan' && !!rescan?.replace_refused)} onclick={confirm}>Confirm</Button>
       {/if}
     </Dialog.Footer>
   </Dialog.Content>

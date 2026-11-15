@@ -265,6 +265,7 @@ is not on your `PATH` it prints the exact line to add for your shell (bash, zsh,
 | "the game is running for LIVE" | Quit the game fully (also check for a leftover `StarCitizen.exe` with `pgrep -af StarCitizen`), then apply again |
 | A duplicate-case error (`data` and `Data`) | Two folders differ only in case inside the game folder; Wine may use either. Merge them by hand, then apply again. `starorg-strings doctor` reports casing problems |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
+| Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints/backups/`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-strings blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
 
 Diagnostics (Activity -> Diagnostics) exports a report with user names and home paths replaced.
 Attach it to a bug report, together with the output of `starorg-strings doctor`.

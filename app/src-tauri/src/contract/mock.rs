@@ -242,6 +242,7 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
             mode: CharacterMode::Auto,
             character: None,
             resolved: Some(CHARACTERS[0].0.into()),
+            fallback_from: None,
         },
         exact_groups,
         owned: owned_sets,
@@ -2368,6 +2369,8 @@ impl Backend for MockBackend {
                 replace: req.replace,
                 files_read: 3,
                 merged: 0,
+                warnings: Vec::new(),
+                replace_refused: None,
                 characters,
             })
         })
@@ -2393,6 +2396,7 @@ impl Backend for MockBackend {
                         .iter()
                         .map(|(id, _, _)| id.to_string())
                         .find(|id| !c.forgotten.contains(id)),
+                    fallback_from: None,
                 };
             }
             Ok(characters_view(c))

@@ -19,6 +19,7 @@
   import ImportDialog from '@/components/blueprints/ImportDialog.svelte';
   import BlueprintFinder from '@/components/blueprints/BlueprintFinder.svelte';
   import ReimportCard from '@/components/blueprints/ReimportCard.svelte';
+  import { characterLabel, fallbackHint } from '@/lib/characters';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { CharacterMode, CharactersView, StarOrgStatus, SyncReport } from '@/lib/contract/types';
   import { fmtDateTime } from '@/lib/format';
@@ -130,7 +131,7 @@
         <Segmented
           ariaLabel="Character mode"
           options={[
-            { id: 'auto', label: 'Newest session', hint: 'The character of the newest session in this channel\'s logs' },
+            { id: 'auto', label: 'Newest session', hint: 'The character of the newest session in this channel\'s logs (or, if it owns none yet, the latest one that does)' },
             { id: 'manual', label: 'One character' },
             { id: 'union', label: 'Any of my characters' },
           ]}
@@ -138,10 +139,11 @@
           onchange={(m) => setMode(m as CharacterMode)}
         />
         {#if v.active.mode === 'manual'}
-          <SelectField ariaLabel="Character" options={v.characters.map((c) => ({ id: c.id, label: c.name }))} value={v.active.character} onchange={(c) => setMode('manual', c)} class="max-w-60" />
+          <SelectField ariaLabel="Character" options={v.characters.map((c) => ({ id: c.id, label: characterLabel(c, v.characters) }))} value={v.active.character} onchange={(c) => setMode('manual', c)} class="max-w-60" />
         {/if}
         <p class="text-muted-foreground text-[12px]" aria-live="polite">
           {#if v.active.mode === 'union'}Owned by any of {v.characters.length} characters counts.{:else}Now using <span class="text-foreground font-medium">{name(v.active.resolved)}</span>.{/if}
+          {#if v.active.mode === 'auto' && fallbackHint(v.characters, v.active.resolved, v.active.fallback_from)}{fallbackHint(v.characters, v.active.resolved, v.active.fallback_from)}{/if}
           {#if v.unattributed}{v.unattributed} blueprint{v.unattributed === 1 ? ' was' : 's were'} seen before any login in a log file and belong to no character.{/if}
         </p>
       </Card.Content>
@@ -170,7 +172,7 @@
         <div class="grid gap-1.5">
           <span class="text-muted-foreground text-[12px]" id="pull-into">Pull into</span>
           <div class="flex flex-wrap items-center gap-2">
-            <SelectField ariaLabel="Pull into character" disabled={!!syncBlocked} options={v.characters.map((c) => ({ id: c.id, label: c.name }))} value={pullInto} onchange={(c) => (pullInto = c)} />
+            <SelectField ariaLabel="Pull into character" disabled={!!syncBlocked} options={v.characters.map((c) => ({ id: c.id, label: characterLabel(c, v.characters) }))} value={pullInto} onchange={(c) => (pullInto = c)} />
             <Button size="sm" variant="outline" disabled={!!syncBlocked || !!pullOff || syncing || !pullInto} aria-describedby={syncBlocked ? undefined : 'pull-into'} onclick={pull}><Download aria-hidden="true" /> Pull</Button>
           </div>
           {#if !syncBlocked && pullOff}<span class="text-muted-foreground text-[12px]">{pullOff}</span>{/if}

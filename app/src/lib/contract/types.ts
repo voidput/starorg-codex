@@ -678,7 +678,11 @@ export interface CharacterView {
 export interface ActiveCharacter {
   mode: CharacterMode;
   character: string | null;
+  /** Who auto resolves to: the newest session's character, or the most recent one that owns
+   * something when the newest owns nothing. */
   resolved: string | null;
+  /** Auto passed over the newest character (it owns nothing): its id, for a hint. */
+  fallback_from: string | null;
 }
 
 export interface CharactersView {
@@ -832,6 +836,10 @@ export interface RescanReport {
   files_read: number;
   /** Characters merged into another (same account and name, new geid). */
   merged: number;
+  /** A log skipped (too large) or not readable, and similar. */
+  warnings: string[];
+  /** Replace with a log that could not be read: the confirm is refused with this reason. */
+  replace_refused: string | null;
   characters: CharacterChange[];
 }
 

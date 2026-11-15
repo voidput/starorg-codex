@@ -213,6 +213,8 @@ starorg-strings apply --channel LIVE
 starorg-strings apply --all --if-stale --timeout 20
 starorg-strings remove --channel LIVE
 starorg-strings blueprints import owned-blueprints.json --character Pilot_A --dry-run
+starorg-strings blueprints reimport --character Pilot_A --replace --dry-run
+starorg-strings blueprints rescan --channel LIVE --dry-run
 {#if s.advanced.developer_mode}starorg-strings dev types --channel LIVE
 starorg-strings dev record &lt;guid|path|name&gt; --channel LIVE
 starorg-strings dev extract "Data/Libs/Config/*.xml" --out DIR --convert

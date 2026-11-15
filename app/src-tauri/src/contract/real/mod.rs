@@ -243,9 +243,6 @@ struct Mem {
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
     /// without a second picker.
     last_fleet: Option<(String, Vec<u8>)>,
-    /// The Smart Citizen export picked for the last dry run (channel data folder, file): the
-    /// confirm step reads the same file without a second picker.
-    last_export: Option<(PathBuf, PathBuf)>,
 }
 
 pub struct RealBackend {
@@ -1226,8 +1223,8 @@ impl RealBackend {
         }
     }
 
-    /// `reuse_last`: the file the dry run of this channel just read, else the last export
-    /// imported here. `None` opens the picker.
+    /// `reuse_last`: the export the last real import on this channel read (`import.json`).
+    /// `None` opens the picker: not asked for, never imported, or the file is gone.
     fn reuse_export(&self, req: &ImportRequest) -> CmdResult<Option<PathBuf>> {
         if !req.reuse_last {
             return Ok(None);
@@ -1235,20 +1232,10 @@ impl RealBackend {
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
         let data = self.data_dir(&f, ch);
-        if let Some((d, p)) = &self.mem().last_export
-            && *d == data
-        {
-            return Ok(Some(p.clone()));
-        }
-        bp_import::last_import(&data)
+        // The file the last real import read; gone (moved, renamed) means the picker.
+        Ok(bp_import::last_import(&data)
             .smart_citizen
-            .map(Some)
-            .ok_or_else(|| {
-                err(
-                    ErrorCode::NotFound,
-                    "no earlier Smart Citizen import on this channel",
-                )
-            })
+            .filter(|p| p.is_file()))
     }
 
     fn characters_view(&self, f: &Found, ch: &Channel) -> CmdResult<CharactersView> {
@@ -1261,6 +1248,7 @@ impl RealBackend {
                     mode: CharacterMode::Auto,
                     character: None,
                     resolved: None,
+                    fallback_from: None,
                 },
                 unattributed: 0,
                 last_scan: None,
@@ -1269,31 +1257,38 @@ impl RealBackend {
             });
         }
         let chars = blueprints::load_characters(&data).map_err(io)?;
-        let mut by_name: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+        let mut by_name: BTreeMap<String, Vec<&blueprints::Character>> = BTreeMap::new();
         for c in chars.characters.values() {
             by_name
                 .entry(blueprints::normalize(&c.name))
                 .or_default()
-                .push(c.name.as_str());
+                .push(c);
         }
-        let notice = by_name
-            .values()
-            .find(|v| v.len() > 1)
-            .map(|v| {
-                format!(
-                    "{} characters are named {} but belong to different accounts, so they are kept apart. Pick the one you play under One character.",
-                    v.len(),
-                    v[0]
-                )
-            });
+        let notice = by_name.values().find(|v| v.len() > 1).map(|v| {
+            let accounts: std::collections::BTreeSet<&str> =
+                v.iter().filter_map(|c| c.account_id.as_deref()).collect();
+            let why = if accounts.len() == v.len() {
+                "on different accounts in the game logs"
+            } else {
+                "but the game logs do not show they are the same character"
+            };
+            format!(
+                "{} characters are named {} {why}, so their blueprints are kept apart. To mark blueprints from all of them, choose Any of my characters; or re-import from Smart Citizen into your current character (the newest).",
+                v.len(),
+                v[0].name
+            )
+        });
         let setting = ChannelState::load(&data)
             .ok()
             .and_then(|s| s.active_character);
+        // A setting written before a merge names the old geid: show the kept one.
         let (mode, character) = match setting.as_deref() {
             None => (CharacterMode::Auto, None),
             Some("any") => (CharacterMode::Union, None),
-            Some(g) => (CharacterMode::Manual, Some(g.to_string())),
+            Some(g) => (CharacterMode::Manual, Some(chars.canonical(g))),
         };
+        let (resolved, fallback_from) =
+            blueprints::auto_character(&data, &chars).unwrap_or((None, None));
         Ok(CharactersView {
             channel: ch.name.clone(),
             characters: chars
@@ -1311,7 +1306,8 @@ impl RealBackend {
             active: ActiveCharacter {
                 mode,
                 character,
-                resolved: chars.newest().map(str::to_string),
+                resolved,
+                fallback_from,
             },
             unattributed: blueprints::load_unattributed(&data)
                 .map(|s| s.entries.len() as u32)
@@ -2678,9 +2674,7 @@ impl Backend for RealBackend {
             let set = store.set_mut(&data, &geid).map_err(io)?;
             let rep =
                 bp_import::merge_with(&export, &catalog as &dyn BlueprintCatalog, set, req.replace);
-            if req.dry_run {
-                self.mem().last_export = Some((data.clone(), file.clone()));
-            } else if !rep.empty_catalog {
+            if !req.dry_run && !rep.empty_catalog {
                 store.save(&data).map_err(io)?;
                 self.after_merge(&ch.name, &store);
                 let abs = fsutil::canonicalize(&file).unwrap_or_else(|_| file.clone());
@@ -2769,6 +2763,12 @@ impl Backend for RealBackend {
         };
         let rep = bp_repair::rebuild_from_logs(&ch.dir, &data, &mut store, req.replace, None)
             .map_err(io)?;
+        let refused = rep.replace_refusal();
+        if !req.dry_run
+            && let Some(why) = &refused
+        {
+            return Err(err(ErrorCode::Invalid, why.clone()));
+        }
         if !req.dry_run && f.id.is_some() {
             store.save(&data).map_err(io)?;
             self.after_merge(&ch.name, &store);
@@ -2796,6 +2796,8 @@ impl Backend for RealBackend {
             replace: req.replace,
             files_read: rep.scan.files_read as u32,
             merged: rep.scan.merged.len() as u32,
+            warnings: rep.scan.warnings.clone(),
+            replace_refused: refused,
             characters: rep
                 .characters
                 .into_iter()

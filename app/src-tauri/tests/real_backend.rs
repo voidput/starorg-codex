@@ -890,10 +890,12 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         "{}",
         line.message
     );
-    assert!(matches!(
+    // Auto already fell back to the old geid (it owned the import), so the apply above
+    // marked it; the merge keeps the same set: nothing to re-apply.
+    assert_eq!(
         f.backend.channel_status(f.live()).unwrap().status,
-        ApplyState::Stale { ref reasons } if reasons.iter().any(|r| r == "owned blueprints")
-    ));
+        ApplyState::Applied
+    );
 
     // Once: a second load changes nothing more.
     f.backend.list_characters(f.live()).unwrap();
@@ -907,7 +909,8 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         1
     );
 
-    // Import picks the file once; the confirm and a later re-import read it again.
+    // reuse_last reads the file the last real import read (import.json); before any import,
+    // or when that file is gone, it opens the picker.
     let req = |dry_run, reuse_last, replace| ImportRequest {
         target: f.live(),
         character: "100001".into(),
@@ -919,17 +922,26 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         .backend
         .import_smart_citizen(req(true, true, false))
         .unwrap_err();
-    assert_eq!(e.code, ErrorCode::NotFound, "nothing imported yet");
+    assert_eq!(
+        e.code,
+        ErrorCode::Cancelled,
+        "nothing imported yet: the picker, cancelled"
+    );
     *f.pick.lock().unwrap() = Some(export.clone());
     let r = f
         .backend
-        .import_smart_citizen(req(true, false, false))
+        .import_smart_citizen(req(true, true, false))
         .unwrap();
     assert_eq!(r.known, ["[L] Fake Rifle Kestrel"], "{r:?}");
-    *f.pick.lock().unwrap() = None;
+    // A dry run remembers nothing; the real import does.
+    assert_eq!(
+        f.backend.list_characters(f.live()).unwrap().last_import,
+        None
+    );
     f.backend
-        .import_smart_citizen(req(false, true, false))
+        .import_smart_citizen(req(false, false, false))
         .unwrap();
+    *f.pick.lock().unwrap() = None;
     assert_eq!(
         f.backend
             .list_characters(f.live())
@@ -949,6 +961,25 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         .import_smart_citizen(req(false, true, true))
         .unwrap();
     assert_eq!(r.removed.len(), 1);
+    // The owned set changed: the channel offers a re-apply.
+    assert!(matches!(
+        f.backend.channel_status(f.live()).unwrap().status,
+        ApplyState::Stale { ref reasons } if reasons.iter().any(|r| r == "owned blueprints")
+    ));
+    // The remembered file moved away: the picker again (here: cancelled).
+    let moved = f.base.join("moved.json");
+    std::fs::rename(&export, &moved).unwrap();
+    let e = f
+        .backend
+        .import_smart_citizen(req(true, true, false))
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Cancelled);
+    *f.pick.lock().unwrap() = Some(moved.clone());
+    let r = f
+        .backend
+        .import_smart_citizen(req(true, true, false))
+        .unwrap();
+    assert_eq!(r.file, "moved.json");
     assert_eq!(
         f.backend.list_characters(f.live()).unwrap().characters[0].owned,
         0
@@ -968,6 +999,84 @@ fn an_old_store_with_a_reset_character_is_repaired_once() {
         r.characters
             .iter()
             .all(|c| c.added.is_empty() && c.removed.is_empty())
+    );
+}
+
+/// A reset that also changed the account (nothing proves one character): no merge, but
+/// auto uses the character that owns something and says so; a setting naming a merged geid
+/// shows the kept one.
+#[test]
+fn auto_falls_back_and_settings_follow_merges() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let s = f.setup_live();
+    let data = f.dirs.channel_dir(&s.install, "LIVE");
+    let bp = data.join("blueprints");
+    std::fs::create_dir_all(&bp).unwrap();
+    std::fs::write(
+        bp.join("characters.json"),
+        r#"{"repair": 1, "characters": {
+            "100001": {"account_id": "800", "name": "Test_Pilot", "last_seen": "2026-01-01T00:00:00.000Z"}}}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        bp.join("100001.json"),
+        r#"{"schema": 1, "geid": "100001", "entries": {"fake rifle kestrel": {"name": "Fake Rifle Kestrel",
+            "sources": [{"kind": "import:smart-citizen", "time": "2026-01-05T00:00:00Z"}]}}}"#,
+    )
+    .unwrap();
+    // The log's login (geid 300003, account 900) is the newest session and owns nothing.
+    let v = f.backend.list_characters(f.live()).unwrap();
+    assert_eq!(v.characters.len(), 2, "{v:?}");
+    assert_eq!(v.active.resolved.as_deref(), Some("100001"));
+    assert_eq!(v.active.fallback_from.as_deref(), Some("300003"));
+    let n = v.notice.unwrap();
+    assert!(
+        n.contains("on different accounts") && n.contains("Any of my characters"),
+        "{n}"
+    );
+    let (r, _) = f.apply(false);
+    assert_eq!(r.result, ApplyResult::Applied, "{r:?}");
+    assert_eq!(
+        f.backend.channel_status(f.live()).unwrap().status,
+        ApplyState::Applied
+    );
+
+    // Without account ids the notice does not claim different accounts.
+    std::fs::write(
+        bp.join("characters.json"),
+        r#"{"repair": 1, "characters": {
+            "100001": {"name": "Test_Pilot", "last_seen": "2026-01-01T00:00:00.000Z"},
+            "300003": {"account_id": "900", "name": "Test_Pilot", "last_seen": "2026-03-02T10:00:00.000Z"}}}"#,
+    )
+    .unwrap();
+    let n = f.backend.list_characters(f.live()).unwrap().notice.unwrap();
+    assert!(
+        !n.contains("different accounts") && n.contains("do not show"),
+        "{n}"
+    );
+
+    // A manual pick of a merged geid shows (and is saved as) the kept one.
+    std::fs::write(
+        bp.join("characters.json"),
+        r#"{"repair": 1, "aliases": {"100001": "300003"}, "characters": {
+            "300003": {"account_id": "900", "name": "Test_Pilot", "last_seen": "2026-03-02T10:00:00.000Z"}}}"#,
+    )
+    .unwrap();
+    let mut st = starorg_core::state::ChannelState::load(&data).unwrap();
+    st.active_character = Some("100001".into());
+    st.save(&data).unwrap();
+    let v = f.backend.list_characters(f.live()).unwrap();
+    assert_eq!(v.active.mode, CharacterMode::Manual);
+    assert_eq!(v.active.character.as_deref(), Some("300003"));
+    assert_eq!(
+        starorg_core::state::ChannelState::load(&data)
+            .unwrap()
+            .active_character
+            .as_deref(),
+        Some("300003")
     );
 }
 
