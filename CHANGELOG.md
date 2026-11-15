@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.0](https://github.com/voidput/starorg-strings/compare/v0.1.0...v0.2.0) (2026-11-15)
+
+
+### Features
+
+* **app:** Developer mode assets contract and backends ([eaf336a](https://github.com/voidput/starorg-strings/commit/eaf336a7bc4a8efaecdfc3411b04b01a3383a57c))
+* **app:** Files browser, record sounds and model export, asset cache settings ([3f25f6b](https://github.com/voidput/starorg-strings/commit/3f25f6b9f76f2faf95c5a9ac91470e81ce381045))
+* **cli:** dev extract, dev export-model, dev export-sounds ([66a8764](https://github.com/voidput/starorg-strings/commit/66a8764b1621e497dc623ade08864f24a70d5440))
+* **core:** bounded, build-keyed asset cache for Developer mode ([3e4b57e](https://github.com/voidput/starorg-strings/commit/3e4b57e139037f56d9bee94f95609f33506c988e))
+* **data:** asset worker for game files, sounds and models ([0c4a28b](https://github.com/voidput/starorg-strings/commit/0c4a28b991fc0ad30ef3a00576bb90bd967bcd08))
+
+
+### Bug Fixes
+
+* **core:** stop marking channels stale on app updates alone ([a8369db](https://github.com/voidput/starorg-strings/commit/a8369db59ff1d8ea6dbf557193a8aa051e89c914))
+* **data:** keep a sound as WEM when ww2ogg cannot rebuild it ([ccd2c4e](https://github.com/voidput/starorg-strings/commit/ccd2c4ee2a4d6309ef62d7ef3c16492b9dce980e))
+* **dev-assets:** cache never touches foreign files, checks at every use ([7cf4bb4](https://github.com/voidput/starorg-strings/commit/7cf4bb4552a3ee9d4006e10c449e2c4161cd9bdf))
+* **enhance:** never write into shared LOC_* sentinel keys or placeholder text ([86592cd](https://github.com/voidput/starorg-strings/commit/86592cd610ee1fc4ad24046bf5d43eafdbcd4e11))
+
 ## [0.1.0](https://github.com/voidput/starorg-strings/compare/v0.0.2...v0.1.0) (2026-11-15)
 
 
