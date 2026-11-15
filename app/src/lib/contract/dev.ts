@@ -202,6 +202,82 @@ export interface TableInfo {
   columns: Column[];
   identity: string | null;
   default_columns: string[];
+  /** Group-bys offered for the tree (addendum 7.13), the default first; empty = no tree. */
+  group_presets: GroupPreset[];
+}
+
+/** One level of a group-by: a column's value, or (`folders`, last only) a path's folders. */
+export interface GroupLevel {
+  column: string;
+  folders: boolean;
+}
+
+export interface GroupPreset {
+  /** `chain`, `col:<column>` or `folders:<column>`. */
+  id: string;
+  label: string;
+  levels: GroupLevel[];
+}
+
+/** Rows of one tree node; the id is the JSON array of keys from the root. */
+export interface GroupPick {
+  by: GroupLevel[];
+  node: string;
+}
+
+export interface DiffCounts {
+  added: number;
+  removed: number;
+  changed: number;
+}
+
+/** One visible node of a group tree. */
+export interface DataGroup {
+  id: string;
+  parent: string | null;
+  label: string;
+  /** 1 = top level. */
+  depth: number;
+  /** Rows in the node matching the search and filters. */
+  count: number;
+  /** Child nodes (0 = leaf). */
+  children: number;
+  /** Children not listed (open nodes only). */
+  more: number;
+  /** Diff trees only. */
+  diff: DiffCounts | null;
+}
+
+export interface GroupPage {
+  nodes: DataGroup[];
+  total: number;
+  all: number;
+}
+
+export interface DevGroupsRequest {
+  target: ChannelRef;
+  source: string;
+  dataset: string;
+  table: string;
+  by: GroupLevel[];
+  open: string[];
+  columns: string[];
+  search: string;
+  filters: RowFilter[];
+}
+
+/** How the Diff tree groups below dataset and table. */
+export type DiffGroupBy = 'tables' | 'auto' | 'folders';
+
+export interface DiffGroupPick {
+  by: DiffGroupBy;
+  node: string;
+}
+
+export interface DevDiffGroupsRequest {
+  target: ChannelRef;
+  by: DiffGroupBy;
+  open: string[];
 }
 
 export interface RowFilter {
@@ -228,6 +304,8 @@ export interface DevRowsRequest {
   sort: RowSort | null;
   offset: number;
   limit: number;
+  /** Only the rows of this tree node. */
+  group: GroupPick | null;
 }
 
 export interface Row {
@@ -317,6 +395,8 @@ export interface DevDiffRecordsRequest {
   identity: string | null;
   offset: number;
   limit: number;
+  /** Only records in this Diff tree node. */
+  group: DiffGroupPick | null;
 }
 
 export interface DevDiffRecords {
@@ -370,9 +450,11 @@ export interface DevCommandMap {
   dev_table: [{ req: DevTableRef }, TableInfo];
   dev_rows: [{ req: DevRowsRequest }, RowsPage];
   dev_row: [{ req: DevRowRequest }, DevRowDetail];
+  dev_groups: [{ req: DevGroupsRequest }, GroupPage];
   dev_diff: [{ req: DevDiffRequest }, DevDiffSummary];
   dev_diff_summary: [{ req: ChannelRef }, DevDiffSummary];
   dev_diff_records: [{ req: DevDiffRecordsRequest }, DevDiffRecords];
+  dev_diff_groups: [{ req: DevDiffGroupsRequest }, GroupPage];
   dev_diff_record: [{ req: DevDiffRecordRequest }, DevFieldDiff];
 }
 
@@ -395,9 +477,11 @@ export const DEV_COMMANDS = [
   'dev_table',
   'dev_rows',
   'dev_row',
+  'dev_groups',
   'dev_diff',
   'dev_diff_summary',
   'dev_diff_records',
+  'dev_diff_groups',
   'dev_diff_record',
 ] as const satisfies readonly (keyof DevCommandMap)[];
 
@@ -421,8 +505,10 @@ export const devApi = {
   table: (req: DevTableRef) => call('dev_table', { req }),
   rows: (req: DevRowsRequest) => call('dev_rows', { req }),
   row: (req: DevRowRequest) => call('dev_row', { req }),
+  groups: (req: DevGroupsRequest) => call('dev_groups', { req }),
   diff: (req: DevDiffRequest) => call('dev_diff', { req }),
   diffSummary: (req: ChannelRef) => call('dev_diff_summary', { req }),
   diffRecords: (req: DevDiffRecordsRequest) => call('dev_diff_records', { req }),
+  diffGroups: (req: DevDiffGroupsRequest) => call('dev_diff_groups', { req }),
   diffRecord: (req: DevDiffRecordRequest) => call('dev_diff_record', { req }),
 };

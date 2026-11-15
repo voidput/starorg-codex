@@ -52,8 +52,8 @@ function mock(devOn = true) {
 
 const live = { install: 'inst-7f3a', channel: 'LIVE' };
 const tree = (root: 'type' | 'path', node: string, limit: number) => ({ req: { target: live, root, node, offset: 0, limit, main_only: true } });
-const rows = (source: string, dataset: string, table: string) => ({ target: live, source, dataset, table, columns: [] as string[], search: '', filters: [] as never[], sort: null, offset: 0, limit: 5 });
-const recs = (dataset: string, table: string) => ({ target: live, dataset, table, state: null, field: null, identity: null, offset: 0, limit: 5 });
+const rows = (source: string, dataset: string, table: string) => ({ target: live, source, dataset, table, columns: [] as string[], search: '', filters: [] as never[], sort: null, offset: 0, limit: 5, group: null });
+const recs = (dataset: string, table: string) => ({ target: live, dataset, table, state: null, field: null, identity: null, offset: 0, limit: 5, group: null });
 const f = (column: string, part: object) => ({ column, values: [], min: null, max: null, has: null, ...part });
 
 test('every dev sample of the Rust mock comes back equal from the TS mock', async () => {
@@ -91,6 +91,15 @@ test('every dev sample of the Rust mock comes back equal from the TS mock', asyn
   got.dev_diff_summary = await h.dev_diff_summary({ req: live });
   got.dev_diff_records = await h.dev_diff_records({ req: recs('gamedata.json', 'components') });
   got.dev_diff_records_added = await h.dev_diff_records({ req: { ...recs('gamedata.json', 'components'), state: 'added' } });
+  const chain = ['type', 'subType', 'size'].map((column) => ({ column, folders: false }));
+  const groups = (extra: object) => ({ req: { target: live, source: 'build:LIVE', dataset: 'gamedata.json', table: 'weapons', by: chain, open: [] as string[], columns: [] as string[], search: '', filters: [] as never[], ...extra } });
+  got.dev_table_weapons = await h.dev_table({ req: { target: live, source: 'build:LIVE', dataset: 'gamedata.json', table: 'weapons' } });
+  got.dev_groups = await h.dev_groups(groups({}));
+  got.dev_groups_open = await h.dev_groups(groups({ open: ['["WeaponGun"]', '["WeaponGun","Gun"]'], search: 'repeater' }));
+  got.dev_rows_group = await h.dev_rows({ req: { ...rows('build:LIVE', 'gamedata.json', 'weapons'), limit: 10, group: { by: chain, node: '["WeaponGun","Gun"]' } } });
+  got.dev_diff_groups = await h.dev_diff_groups({ req: { target: live, by: 'auto', open: [] } });
+  got.dev_diff_groups_open = await h.dev_diff_groups({ req: { target: live, by: 'auto', open: ['["gamedata.json","weapons"]'] } });
+  got.dev_diff_records_group = await h.dev_diff_records({ req: { ...recs('gamedata.json', 'weapons'), group: { by: 'auto', node: '["gamedata.json","weapons","WeaponMining"]' } } });
   const first = (got.dev_diff_records as { records: { id: string }[] }).records[0]!.id;
   got.dev_diff_record = await h.dev_diff_record({ req: { target: live, dataset: 'gamedata.json', table: 'components', id: first, identity: null } });
   got.dev_close = await h.dev_close({ req: live });
@@ -126,4 +135,24 @@ test('open and diff report progress as dev jobs', async () => {
   await m.handlers.dev_open({ req: live });
   const kinds = (events as { kind: string; phase: string }[]).map((e) => `${e.kind}:${e.phase}`);
   assert.deepEqual(kinds, ['dev:running', 'dev:running', 'dev:done']);
+});
+
+test('group trees: picking a node filters rows to its count; folder chains are joined', async () => {
+  const { m } = mock();
+  const h = m.handlers;
+  const t = await h.dev_table({ req: { target: live, source: 'build:LIVE', dataset: 'gamedata.json', table: 'weapons' } });
+  const folders = t.group_presets.find((p) => p.id === 'folders:path')!;
+  const base = { target: live, source: 'build:LIVE', dataset: 'gamedata.json', table: 'weapons', columns: [] as string[], search: '', filters: [] as never[] };
+  const g = await h.dev_groups({ req: { ...base, by: folders.levels, open: ['["entities","scitem","ships","weapons"]'] } });
+  assert.deepEqual(
+    g.nodes.map((n) => [n.label, n.depth, n.count]),
+    [
+      ['entities/scitem/ships/weapons', 1, 10],
+      ['mining', 2, 2],
+    ],
+  );
+  for (const n of g.nodes) {
+    const r = await h.dev_rows({ req: { ...rows('build:LIVE', 'gamedata.json', 'weapons'), limit: 50, group: { by: folders.levels, node: n.id } } });
+    assert.equal(r.total, n.count, n.label);
+  }
 });

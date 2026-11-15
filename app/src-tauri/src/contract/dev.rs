@@ -21,6 +21,9 @@ pub use starorg_core::dev::diff::{DiffRecord, DiffTable, FieldChange, Presence, 
 pub use starorg_core::dev::explorer::{
     NodeKind, SearchHit, SearchPage, TreeNode, TreePage, TreeRoot, TypeCount,
 };
+pub use starorg_core::dev::group::{
+    DataGroup, DiffCounts, DiffGroupBy, GroupLevel, GroupPage, GroupPick, GroupPreset,
+};
 pub use starorg_core::dev::record::{LocText, RecordHeader, RecordView};
 
 /// Records above this count get a size warning in the export dialog (7.4).
@@ -182,6 +185,40 @@ pub struct DevRowsRequest {
     pub sort: Option<RowSort>,
     pub offset: u32,
     pub limit: u32,
+    /// Only the rows of this group tree node (addendum 7.13).
+    #[serde(default)]
+    pub group: Option<GroupPick>,
+}
+
+/// The Datasets group tree (addendum 7.13): the visible nodes for a group-by, with counts
+/// that follow the same search and filters as the rows.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct DevGroupsRequest {
+    pub target: ChannelRef,
+    pub source: String,
+    pub dataset: String,
+    pub table: String,
+    pub by: Vec<GroupLevel>,
+    /// Node ids whose children are listed.
+    pub open: Vec<String>,
+    pub columns: Vec<String>,
+    pub search: String,
+    pub filters: Vec<RowFilter>,
+}
+
+/// A Diff tree node to filter records by.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffGroupPick {
+    pub by: DiffGroupBy,
+    pub node: String,
+}
+
+/// The Diff group tree over the last comparison (addendum 7.13).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevDiffGroupsRequest {
+    pub target: ChannelRef,
+    pub by: DiffGroupBy,
+    pub open: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -239,6 +276,9 @@ pub struct DevDiffRecordsRequest {
     pub identity: Option<String>,
     pub offset: u32,
     pub limit: u32,
+    /// Only records in this Diff tree node (its dataset and table must be these).
+    #[serde(default)]
+    pub group: Option<DiffGroupPick>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -303,9 +343,11 @@ pub trait DevBackend {
     fn dev_table(&self, req: DevTableRef) -> CmdResult<TableInfo>;
     fn dev_rows(&self, req: DevRowsRequest) -> CmdResult<RowsPage>;
     fn dev_row(&self, req: DevRowRequest) -> CmdResult<DevRowDetail>;
+    fn dev_groups(&self, req: DevGroupsRequest) -> CmdResult<GroupPage>;
     fn dev_diff(&self, req: DevDiffRequest, progress: Progress<'_>) -> CmdResult<DevDiffSummary>;
     fn dev_diff_summary(&self, req: ChannelRef) -> CmdResult<DevDiffSummary>;
     fn dev_diff_records(&self, req: DevDiffRecordsRequest) -> CmdResult<DevDiffRecords>;
+    fn dev_diff_groups(&self, req: DevDiffGroupsRequest) -> CmdResult<GroupPage>;
     fn dev_diff_record(&self, req: DevDiffRecordRequest) -> CmdResult<DevFieldDiff>;
 }
 
@@ -381,8 +423,10 @@ dev_commands! {
     dev_table(req: DevTableRef) -> TableInfo;
     dev_rows(req: DevRowsRequest) -> RowsPage;
     dev_row(req: DevRowRequest) -> DevRowDetail;
+    dev_groups(req: DevGroupsRequest) -> GroupPage;
     dev_diff_summary(req: ChannelRef) -> DevDiffSummary;
     dev_diff_records(req: DevDiffRecordsRequest) -> DevDiffRecords;
+    dev_diff_groups(req: DevDiffGroupsRequest) -> GroupPage;
     dev_diff_record(req: DevDiffRecordRequest) -> DevFieldDiff;
 }
 
@@ -423,11 +467,13 @@ pub fn page_records(
     d: &starorg_core::dev::diff::TableDiff,
     req: &DevDiffRecordsRequest,
     identity_options: Vec<String>,
+    in_group: &dyn Fn(&DiffRecord) -> bool,
 ) -> DevDiffRecords {
     let hits: Vec<&DiffRecord> = d
         .records
         .iter()
         .filter(|r| req.state.is_none_or(|s| r.state == s))
+        .filter(|r| in_group(r))
         .filter(|r| {
             req.field.as_deref().is_none_or(|f| {
                 let f = format!("/{}", f.trim_start_matches('/'));
@@ -454,6 +500,61 @@ pub fn page_records(
         total: hits.len() as u32,
         fields: field_counts(&d.records),
         identity_options,
+    }
+}
+
+/// One side of a comparison: datasets by file name.
+pub type DiffSideSets = [(String, std::sync::Arc<starorg_core::dev::dataset::Dataset>)];
+
+fn side_table<'a>(
+    side: &'a DiffSideSets,
+    dataset: &str,
+    table: &str,
+) -> Option<&'a starorg_core::dev::dataset::Table> {
+    side.iter()
+        .find(|x| x.0 == dataset)
+        .and_then(|x| x.1.table(table))
+}
+
+/// Shared by both backends: the Diff tree of a comparison (addendum 7.13).
+pub fn diff_tree(
+    tables: &[starorg_core::dev::diff::TableDiff],
+    a: &DiffSideSets,
+    b: &DiffSideSets,
+    req: &DevDiffGroupsRequest,
+    label: starorg_core::dev::group::LabelFn<'_>,
+) -> GroupPage {
+    use starorg_core::dev::group::{DiffSide, diff_groups};
+    let sides: Vec<DiffSide<'_>> = tables
+        .iter()
+        .map(|d| DiffSide {
+            diff: d,
+            a: side_table(a, &d.summary.dataset, &d.summary.table),
+            b: side_table(b, &d.summary.dataset, &d.summary.table),
+        })
+        .collect();
+    diff_groups(&sides, req.by, &req.open, label)
+}
+
+/// Shared by both backends: whether a record is in the picked Diff tree node. A node of
+/// another dataset or table holds none of this table's records; a dataset node holds all.
+pub fn diff_group_filter<'a>(
+    req: &'a DevDiffRecordsRequest,
+    a: &'a DiffSideSets,
+    b: &'a DiffSideSets,
+) -> impl Fn(&DiffRecord) -> bool + 'a {
+    use starorg_core::dev::group::{diff_levels, diff_node, record_in};
+    let ta = side_table(a, &req.dataset, &req.table);
+    let tb = side_table(b, &req.dataset, &req.table);
+    let pick = req.group.as_ref().and_then(|g| {
+        let (ds, table, rest) = diff_node(&g.node)?;
+        let ok = ds == req.dataset && table.as_deref().is_none_or(|t| t == req.table);
+        Some((ok, diff_levels(g.by, ta, tb), rest))
+    });
+    move |r: &DiffRecord| match &pick {
+        None => true,
+        Some((false, _, _)) => false,
+        Some((true, levels, rest)) => record_in(r, ta, tb, levels, rest),
     }
 }
 

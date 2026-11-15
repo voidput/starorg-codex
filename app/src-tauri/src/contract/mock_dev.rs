@@ -216,13 +216,26 @@ pub fn build_value(channel: &str) -> Value {
             })
         })
         .collect();
+    // Weapons look like the real GameData table: type > subType > size, maker, path. PTU
+    // drops one, adds one and changes two.
     let weapons: Vec<Value> = (0..10u32)
+        .filter(|n| !(ptu && *n == 7))
+        .chain(ptu.then_some(10))
         .map(|n| {
+            let mining = n % 5 == 4;
             json!({
                 "name": format!("Test Repeater {n}"),
                 "className": format!("SYN_Laser_S{}_{n:02}", n % 6 + 1),
-                "size": n % 6 + 1,
-                "dps": 100.25 + f64::from(n) * 12.5 + if ptu && n == 0 { 10.0 } else { 0.0 },
+                "path": format!(
+                    "entities/scitem/ships/weapons/{}syn_laser_s{}_{n:02}",
+                    if mining { "mining/" } else { "" },
+                    n % 6 + 1
+                ),
+                "type": if mining { "WeaponMining" } else { "WeaponGun" },
+                "subType": if n % 3 == 2 { "Rocket" } else { "Gun" },
+                "size": n % 3 + 1,
+                "manufacturer": (["SYNA", "SYNB"][(n % 2) as usize]),
+                "dps": 100.25 + f64::from(n) * 12.5 + if ptu && (n == 0 || n == 4) { 10.0 } else { 0.0 },
                 "ammo": { "speed": 1800 + n * 10, "range": 2000 },
             })
         })
@@ -690,8 +703,27 @@ impl DevBackend for MockBackend {
                 sort: req.sort,
                 offset: req.offset,
                 limit: req.limit,
+                group: req.group,
             },
             MAX_PAGE,
+        ))
+    }
+
+    fn dev_groups(&self, req: DevGroupsRequest) -> CmdResult<GroupPage> {
+        let d = self.dataset_of(&req.target, &req.source, &req.dataset)?;
+        let t = d
+            .table(&req.table)
+            .ok_or_else(|| not_found(format!("no table {}", req.table)))?;
+        Ok(starorg_core::dev::group::group_rows(
+            t,
+            &starorg_core::dev::group::GroupQuery {
+                by: req.by,
+                open: req.open,
+                columns: req.columns,
+                search: req.search,
+                filters: req.filters,
+            },
+            &starorg_core::dev::group::no_labels,
         ))
     }
 
@@ -787,10 +819,28 @@ impl DevBackend for MockBackend {
                 req.identity.as_deref(),
             );
         }
+        let in_group = diff_group_filter(&req, a, b);
         Ok(page_records(
             &tables[pos],
             &req,
             identity_options(ta.as_ref(), tb.as_ref()),
+            &in_group,
+        ))
+    }
+
+    fn dev_diff_groups(&self, req: DevDiffGroupsRequest) -> CmdResult<GroupPage> {
+        self.dev_on(&req.target)?;
+        let g = self.dev_state();
+        let (_, tables, a, b) = g
+            .diff
+            .as_ref()
+            .ok_or_else(|| not_found("No comparison yet: pick A and B."))?;
+        Ok(diff_tree(
+            tables,
+            a,
+            b,
+            &req,
+            &starorg_core::dev::group::no_labels,
         ))
     }
 

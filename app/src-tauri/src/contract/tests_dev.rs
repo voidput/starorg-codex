@@ -50,6 +50,7 @@ fn rows(source: &str, dataset: &str, table: &str) -> DevRowsRequest {
         sort: None,
         offset: 0,
         limit: 5,
+        group: None,
     }
 }
 
@@ -63,7 +64,32 @@ fn records_req(dataset: &str, table: &str) -> DevDiffRecordsRequest {
         identity: None,
         offset: 0,
         limit: 5,
+        group: None,
     }
+}
+
+fn groups_req(source: &str, dataset: &str, table: &str, by: &[&str]) -> DevGroupsRequest {
+    DevGroupsRequest {
+        target: live(),
+        source: source.into(),
+        dataset: dataset.into(),
+        table: table.into(),
+        by: by
+            .iter()
+            .map(|c| GroupLevel {
+                column: c.to_string(),
+                folders: false,
+            })
+            .collect(),
+        open: vec![],
+        columns: vec![],
+        search: String::new(),
+        filters: vec![],
+    }
+}
+
+fn weapon_chain() -> [&'static str; 3] {
+    ["type", "subType", "size"]
 }
 
 /// One sample per dev command (keys are command names plus a variant), for samples.gen.json.
@@ -125,6 +151,55 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
     let recs = b
         .dev_diff_records(records_req("gamedata.json", "components"))
         .unwrap();
+    let diff_groups = b
+        .dev_diff_groups(DevDiffGroupsRequest {
+            target: live(),
+            by: DiffGroupBy::Auto,
+            open: vec![],
+        })
+        .unwrap();
+    let diff_groups_open = b
+        .dev_diff_groups(DevDiffGroupsRequest {
+            target: live(),
+            by: DiffGroupBy::Auto,
+            open: vec![r#"["gamedata.json","weapons"]"#.into()],
+        })
+        .unwrap();
+    let recs_group = b
+        .dev_diff_records(DevDiffRecordsRequest {
+            group: Some(DiffGroupPick {
+                by: DiffGroupBy::Auto,
+                node: r#"["gamedata.json","weapons","WeaponMining"]"#.into(),
+            }),
+            ..records_req("gamedata.json", "weapons")
+        })
+        .unwrap();
+    let table_weapons = b
+        .dev_table(DevTableRef {
+            target: live(),
+            source: "build:LIVE".into(),
+            dataset: "gamedata.json".into(),
+            table: "weapons".into(),
+        })
+        .unwrap();
+    let groups = b
+        .dev_groups(groups_req(
+            "build:LIVE",
+            "gamedata.json",
+            "weapons",
+            &weapon_chain(),
+        ))
+        .unwrap();
+    let mut open_req = groups_req("build:LIVE", "gamedata.json", "weapons", &weapon_chain());
+    open_req.open = vec![r#"["WeaponGun"]"#.into(), r#"["WeaponGun","Gun"]"#.into()];
+    open_req.search = "repeater".into();
+    let groups_open = b.dev_groups(open_req).unwrap();
+    let mut rows_group = rows("build:LIVE", "gamedata.json", "weapons");
+    rows_group.group = Some(GroupPick {
+        by: groups_req("", "", "", &weapon_chain()).by,
+        node: r#"["WeaponGun","Gun"]"#.into(),
+    });
+    rows_group.limit = 10;
     let first = recs.records[0].id.clone();
     let field = b
         .dev_diff_record(DevDiffRecordRequest {
@@ -243,6 +318,10 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         ),
         ("dev_rows", json!(b.dev_rows(sorted_rows).unwrap())),
         ("dev_rows_filtered", json!(b.dev_rows(filtered).unwrap())),
+        ("dev_rows_group", json!(b.dev_rows(rows_group).unwrap())),
+        ("dev_table_weapons", json!(table_weapons)),
+        ("dev_groups", json!(groups)),
+        ("dev_groups_open", json!(groups_open)),
         (
             "dev_row",
             json!(
@@ -285,6 +364,9 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
                 .unwrap()
             ),
         ),
+        ("dev_diff_records_group", json!(recs_group)),
+        ("dev_diff_groups", json!(diff_groups)),
+        ("dev_diff_groups_open", json!(diff_groups_open)),
         ("dev_diff_record", json!(field)),
         ("dev_close", json!(b.dev_close(live()).unwrap())),
     ]
@@ -381,6 +463,15 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
             })),
         ),
         (
+            "dev_groups",
+            j(b.dev_groups(groups_req(
+                "build:LIVE",
+                "gamedata.json",
+                "components",
+                &["kind"],
+            ))),
+        ),
+        (
             "dev_diff",
             j(b.dev_diff(
                 DevDiffRequest {
@@ -395,6 +486,14 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
         (
             "dev_diff_records",
             j(b.dev_diff_records(records_req("gamedata.json", "components"))),
+        ),
+        (
+            "dev_diff_groups",
+            j(b.dev_diff_groups(DevDiffGroupsRequest {
+                target: live(),
+                by: DiffGroupBy::Tables,
+                open: vec![],
+            })),
         ),
         (
             "dev_diff_record",
@@ -591,6 +690,10 @@ fn dev_unions_in_dev_ts_list_every_variant() {
             names(&[Presence::Both, Presence::OnlyA, Presence::OnlyB]),
         ),
         (
+            "DiffGroupBy",
+            names(&[DiffGroupBy::Tables, DiffGroupBy::Auto, DiffGroupBy::Folders]),
+        ),
+        (
             "RecordState",
             names(&[
                 RecordState::Added,
@@ -648,4 +751,83 @@ fn links_and_loc_in_rows() {
     let loc = row_loc(&row, &|k| b.stock_text(k));
     let keys: Vec<&str> = loc.iter().map(|l| l.key.as_str()).collect();
     assert_eq!(keys, ["@ui_SYN_Label_00007", "ui_SYN_Label_00015"]);
+}
+
+#[test]
+fn group_trees_count_rows_and_filter_rows_and_records() {
+    let b = dev_mock();
+    let t = b
+        .dev_table(DevTableRef {
+            target: live(),
+            source: "build:LIVE".into(),
+            dataset: "gamedata.json".into(),
+            table: "weapons".into(),
+        })
+        .unwrap();
+    assert_eq!(t.group_presets[0].label, "type › subType › size");
+    let g = b
+        .dev_groups(groups_req(
+            "build:LIVE",
+            "gamedata.json",
+            "weapons",
+            &weapon_chain(),
+        ))
+        .unwrap();
+    let top: Vec<(&str, u32)> = g
+        .nodes
+        .iter()
+        .map(|n| (n.label.as_str(), n.count))
+        .collect();
+    assert_eq!(top, [("WeaponGun", 8), ("WeaponMining", 2)]);
+    assert_eq!(g.total, 10);
+    // Picking a node filters the rows to the same count.
+    let mut r = rows("build:LIVE", "gamedata.json", "weapons");
+    r.group = Some(GroupPick {
+        by: groups_req("", "", "", &weapon_chain()).by,
+        node: g.nodes[1].id.clone(),
+    });
+    assert_eq!(b.dev_rows(r).unwrap().total, 2);
+    // Diff tree: tables at the top (one dataset), records counted by state.
+    b.dev_diff(
+        DevDiffRequest {
+            target: live(),
+            a: "build:LIVE".into(),
+            b: "build:PTU".into(),
+        },
+        &noop,
+    )
+    .unwrap();
+    let d = b
+        .dev_diff_groups(DevDiffGroupsRequest {
+            target: live(),
+            by: DiffGroupBy::Auto,
+            open: vec![r#"["gamedata.json","weapons"]"#.into()],
+        })
+        .unwrap();
+    let w = d.nodes.iter().find(|n| n.label == "weapons").unwrap();
+    let c = w.diff.unwrap();
+    assert_eq!((c.added, c.removed, c.changed), (1, 1, 2));
+    let mining = d.nodes.iter().find(|n| n.label == "WeaponMining").unwrap();
+    let recs = b
+        .dev_diff_records(DevDiffRecordsRequest {
+            group: Some(DiffGroupPick {
+                by: DiffGroupBy::Auto,
+                node: mining.id.clone(),
+            }),
+            limit: 100,
+            ..records_req("gamedata.json", "weapons")
+        })
+        .unwrap();
+    assert_eq!(recs.total, mining.count);
+    // A node of another table holds none of this one's records.
+    let other = b
+        .dev_diff_records(DevDiffRecordsRequest {
+            group: Some(DiffGroupPick {
+                by: DiffGroupBy::Auto,
+                node: r#"["gamedata.json","ships"]"#.into(),
+            }),
+            ..records_req("gamedata.json", "weapons")
+        })
+        .unwrap();
+    assert_eq!(other.total, 0);
 }

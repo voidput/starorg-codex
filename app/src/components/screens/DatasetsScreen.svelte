@@ -196,6 +196,7 @@
         sort: sort ? { ...sort } : null,
         offset: p * PAGE,
         limit: PAGE,
+        group: null,
       });
       if (g !== gen) return;
       pages[p] = r.rows;

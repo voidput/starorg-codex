@@ -361,6 +361,7 @@ fn folder_datasets_rows_and_diff() {
             sort: None,
             offset: 0,
             limit: 50,
+            group: None,
         })
         .unwrap();
     assert_eq!(page.total, 1);
@@ -388,8 +389,22 @@ fn folder_datasets_rows_and_diff() {
             identity: None,
             offset: 0,
             limit: 10,
+            group: None,
         })
         .unwrap();
+    // The Diff tree (addendum 7.13): one dataset, so the table is the top node.
+    let tree = f
+        .backend
+        .dev_diff_groups(DevDiffGroupsRequest {
+            target: live.clone(),
+            by: DiffGroupBy::Auto,
+            open: vec![],
+        })
+        .unwrap();
+    let top = &tree.nodes[0];
+    assert_eq!(top.label, "shipWeapons");
+    let c = top.diff.unwrap();
+    assert_eq!((c.added, c.removed, c.changed), (1, 1, 1));
     let fd = f
         .backend
         .dev_diff_record(DevDiffRecordRequest {

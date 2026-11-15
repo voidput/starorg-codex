@@ -1084,8 +1084,27 @@ impl DevBackend for RealBackend {
                 sort: req.sort,
                 offset: req.offset,
                 limit: req.limit,
+                group: req.group,
             },
             MAX_PAGE,
+        ))
+    }
+
+    fn dev_groups(&self, req: DevGroupsRequest) -> CmdResult<GroupPage> {
+        let d = self.dataset(&req.target, &req.source, &req.dataset)?;
+        let t = d
+            .table(&req.table)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("no table {}", req.table)))?;
+        Ok(starorg_core::dev::group::group_rows(
+            t,
+            &starorg_core::dev::group::GroupQuery {
+                by: req.by,
+                open: req.open,
+                columns: req.columns,
+                search: req.search,
+                filters: req.filters,
+            },
+            &starorg_core::dev::group::no_labels,
         ))
     }
 
@@ -1215,10 +1234,27 @@ impl DevBackend for RealBackend {
                 req.identity.as_deref(),
             );
         }
+        let in_group = diff_group_filter(&req, &st.a, &st.b);
         Ok(page_records(
             &st.tables[pos],
             &req,
             identity_options(ta.as_ref(), tb.as_ref()),
+            &in_group,
+        ))
+    }
+
+    fn dev_diff_groups(&self, req: DevDiffGroupsRequest) -> CmdResult<GroupPage> {
+        self.dev_on()?;
+        let g = lock_or(&self.dev.diff);
+        let st = g
+            .as_ref()
+            .ok_or_else(|| err(ErrorCode::NotFound, "No comparison yet: pick A and B."))?;
+        Ok(diff_tree(
+            &st.tables,
+            &st.a,
+            &st.b,
+            &req,
+            &starorg_core::dev::group::no_labels,
         ))
     }
 

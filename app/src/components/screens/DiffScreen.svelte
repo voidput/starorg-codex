@@ -94,6 +94,7 @@
         identity,
         offset,
         limit: PAGE,
+        group: null,
       });
       if (seq !== recSeq) return;
       records = more && records ? { ...page, records: [...records.records, ...page.records] } : page;

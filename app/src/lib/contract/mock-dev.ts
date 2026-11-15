@@ -465,7 +465,7 @@ function uniqueIn(rows: Obj[], col: string): boolean {
 const identityColumn = (rows: Obj[]) => IDENTITY.find((c) => uniqueIn(rows, c)) ?? null;
 
 function tableInfo(t: Table): D.TableInfo {
-  return { name: t.name, kind: t.kind, rows: t.rows.length, columns: t.columns, identity: identityColumn(t.rows), default_columns: defaultColumns(t.columns) };
+  return { name: t.name, kind: t.kind, rows: t.rows.length, columns: t.columns, identity: identityColumn(t.rows), default_columns: defaultColumns(t.columns), group_presets: presets(t) };
 }
 
 function filterOk(row: Obj, f: D.RowFilter): boolean {
@@ -493,22 +493,24 @@ function cmpCells(a: Json | undefined, b: Json | undefined): number {
   return cmp((scalarText(x) ?? '').toLowerCase(), (scalarText(y) ?? '').toLowerCase());
 }
 
+export function rowMatches(r: Obj, cols: string[], needle: string, filters: D.RowFilter[]): boolean {
+  if (!filters.every((f) => filterOk(r, f))) return false;
+  return (
+    !needle ||
+    cols.some((c) => {
+      const s = scalarText(r[c]);
+      return s !== null && s.toLowerCase().includes(needle);
+    })
+  );
+}
+
 export function queryRows(t: Table, q: Omit<D.DevRowsRequest, 'target' | 'source' | 'dataset' | 'table'>): D.RowsPage {
   const cols = q.columns.length ? q.columns : defaultColumns(t.columns);
   const needle = q.search.trim().toLowerCase();
+  const g = q.group ?? null;
   let hits = t.rows
     .map((_, i) => i)
-    .filter((i) => {
-      const r = t.rows[i]!;
-      if (!q.filters.every((f) => filterOk(r, f))) return false;
-      return (
-        !needle ||
-        cols.some((c) => {
-          const s = scalarText(r[c]);
-          return s !== null && s.toLowerCase().includes(needle);
-        })
-      );
-    });
+    .filter((i) => rowMatches(t.rows[i]!, cols, needle, q.filters) && (g === null || rowIn(t.rows[i]!, g)));
   if (q.sort) {
     const s = q.sort;
     hits = hits.sort((a, b) => {
@@ -523,6 +525,260 @@ export function queryRows(t: Table, q: Omit<D.DevRowsRequest, 'target' | 'source
     offset: q.offset,
     total: hits.length,
     all: t.rows.length,
+  };
+}
+
+// ------------------------------------------------------------------------------------------
+// Group trees (starorg_core::dev::group)
+// ------------------------------------------------------------------------------------------
+
+const MAX_CHILDREN = 500;
+const MAX_GROUP_VALUES = 200;
+const MAX_PRESETS = 12;
+const CHAIN = [['type', 'category', 'kind', 'classification', 'itemType'], ['subType', 'subCategory', 'subKind', 'subtype'], ['size']];
+const col = (c: string): D.GroupLevel => ({ column: c, folders: false });
+
+function groupable(t: Table, column: string): boolean {
+  const c = t.columns.find((x) => x.name === column);
+  if (!c || !scalarKind(c.kind)) return false;
+  const seen = new Set<string>();
+  let filled = 0;
+  for (const r of t.rows) {
+    const v = r[column];
+    const s = v === null || v === undefined ? null : scalarText(v);
+    if (s === null) continue;
+    filled++;
+    if (seen.size <= MAX_GROUP_VALUES) seen.add(s);
+  }
+  return seen.size >= 2 && seen.size <= MAX_GROUP_VALUES && seen.size < filled && filled * 2 >= t.rows.length;
+}
+
+function pathLike(t: Table, column: string): boolean {
+  const lower = column.toLowerCase();
+  const named = ['path', 'file', 'filepath', 'filename', 'folder'].includes(lower) || lower.endsWith('path');
+  if (!named || t.columns.find((c) => c.name === column)?.kind !== 'text') return false;
+  let withSlash = 0;
+  let filled = 0;
+  for (const r of t.rows) {
+    const v = r[column];
+    if (typeof v !== 'string') continue;
+    filled++;
+    if (/[/\\]/.test(v)) withSlash++;
+  }
+  return filled > 0 && withSlash * 2 >= filled;
+}
+
+export function presets(t: Table): D.GroupPreset[] {
+  if (t.kind === 'tree' || t.rows.length < 2) return [];
+  const out: D.GroupPreset[] = [];
+  const chain: [number, string][] = [];
+  CHAIN.forEach((names, tier) => {
+    const c = names.find((n) => groupable(t, n));
+    if (c !== undefined) chain.push([tier, c]);
+  });
+  if (chain.length >= 2 || chain[0]?.[0] === 0) out.push({ id: 'chain', label: chain.map((c) => c[1]).join(' › '), levels: chain.map((c) => col(c[1])) });
+  const singles = t.columns.filter((c) => c.name.toLowerCase().includes('manufacturer') && groupable(t, c.name)).map((c) => c.name);
+  for (const c of singles) out.push({ id: `col:${c}`, label: c, levels: [col(c)] });
+  for (const c of t.columns) if (pathLike(t, c.name)) out.push({ id: `folders:${c.name}`, label: `${c.name} folders`, levels: [{ column: c.name, folders: true }] });
+  for (const c of t.columns) {
+    if (out.length >= MAX_PRESETS) break;
+    if (!singles.includes(c.name) && groupable(t, c.name)) out.push({ id: `col:${c.name}`, label: c.name, levels: [col(c.name)] });
+  }
+  return out.slice(0, MAX_PRESETS);
+}
+
+type SegKind = 'fixed' | 'folder' | 'number' | 'text';
+interface Seg {
+  key: string | null;
+  column: string;
+  kind: SegKind;
+}
+
+function segments(row: Obj, by: D.GroupLevel[]): Seg[] {
+  const out: Seg[] = [];
+  for (const l of by) {
+    const raw = row[l.column];
+    const v = raw === null || raw === undefined ? undefined : raw;
+    const t = v === undefined ? null : scalarText(v);
+    const text = t ? t : null;
+    if (l.folders) {
+      if (text === null) out.push({ key: null, column: l.column, kind: 'folder' });
+      else {
+        const parts = text.split(/[/\\]/).filter((p) => p !== '');
+        parts.pop();
+        for (const p of parts) out.push({ key: p, column: l.column, kind: 'folder' });
+      }
+      break;
+    }
+    out.push({ key: text, column: l.column, kind: typeof v === 'number' || typeof v === 'boolean' ? 'number' : 'text' });
+  }
+  return out;
+}
+
+export const rowPath = (row: Obj, by: D.GroupLevel[]) => segments(row, by).map((s) => s.key);
+
+export function nodePath(id: string): (string | null)[] | null {
+  try {
+    const v = JSON.parse(id) as unknown;
+    return Array.isArray(v) && v.every((x) => x === null || typeof x === 'string') ? (v as (string | null)[]) : null;
+  } catch {
+    return null;
+  }
+}
+
+const inNode = (path: (string | null)[], node: (string | null)[]) => path.length >= node.length && node.every((k, i) => path[i] === k);
+
+export function rowIn(row: Obj, pick: D.GroupPick): boolean {
+  const node = nodePath(pick.node);
+  return node === null || inNode(rowPath(row, pick.by), node);
+}
+
+function segLabel(s: Seg): string {
+  if (s.key === null) return `No ${s.column}`;
+  if (s.kind === 'number') return `${s.column.charAt(0).toUpperCase()}${s.column.slice(1)} ${s.key}`;
+  return s.key;
+}
+
+const plainNumber = (s: string) => (/^-?\d+(\.\d+)?$/.test(s) ? Number(s) : null);
+
+interface GNode {
+  keys: (string | null)[];
+  label: string;
+  kind: SegKind;
+  kids: GNode[];
+  index: Map<string | null, GNode>;
+  count: number;
+  ends: number;
+  diff: D.DiffCounts;
+}
+const gnode = (keys: (string | null)[], label: string, kind: SegKind): GNode => ({ keys, label, kind, kids: [], index: new Map(), count: 0, ends: 0, diff: { added: 0, removed: 0, changed: 0 } });
+
+function treeAdd(root: GNode, segs: Seg[], hit: boolean, state: D.RecordState | null) {
+  const bump = (n: GNode) => {
+    if (hit) n.count++;
+    if (state) n.diff[state]++;
+  };
+  let at = root;
+  bump(at);
+  for (const s of segs) {
+    let next = at.index.get(s.key);
+    if (!next) {
+      next = gnode([s.key], segLabel(s), s.kind);
+      at.index.set(s.key, next);
+      at.kids.push(next);
+    }
+    at = next;
+    bump(at);
+  }
+  at.ends++;
+}
+
+function treeFinish(n: GNode) {
+  for (;;) {
+    const k = n.kids[0];
+    if (n.kind !== 'folder' || n.kids.length !== 1 || n.ends !== 0 || n.keys[0] === null || !k || k.kind !== 'folder' || k.keys[0] === null) break;
+    n.keys = [...n.keys, ...k.keys];
+    n.label = `${n.label}/${k.label}`;
+    n.kids = k.kids;
+    n.index = k.index;
+    n.ends = k.ends;
+  }
+  n.kids.sort((a, b) => {
+    const ka = a.keys.at(-1) ?? null;
+    const kb = b.keys.at(-1) ?? null;
+    if (ka === null && kb === null) return 0;
+    if (ka === null) return 1;
+    if (kb === null) return -1;
+    const na = plainNumber(ka);
+    const nb = plainNumber(kb);
+    if (na !== null && nb !== null && na !== nb) return na < nb ? -1 : 1;
+    return cmp(a.label.toLowerCase(), b.label.toLowerCase()) || cmp(a.label, b.label) || cmp(ka, kb);
+  });
+  for (const k of n.kids) treeFinish(k);
+}
+
+function treeEmit(root: GNode, open: Set<string>, skipSingle: boolean, diff: boolean): D.DataGroup[] {
+  const out: D.DataGroup[] = [];
+  const walk = (n: GNode, path: (string | null)[], parent: string | null, depth: number) => {
+    for (const k of n.kids.slice(0, MAX_CHILDREN)) {
+      const p = [...path, ...k.keys];
+      const id = JSON.stringify(p);
+      const isOpen = open.has(id);
+      out.push({ id, parent, label: k.label, depth, count: k.count, children: k.kids.length, more: isOpen ? Math.max(0, k.kids.length - MAX_CHILDREN) : 0, diff: diff ? { ...k.diff } : null });
+      if (isOpen && k.kids.length) walk(k, p, id, depth + 1);
+    }
+  };
+  const only = root.kids.length === 1 && skipSingle ? root.kids[0]! : null;
+  if (only) walk(only, [...only.keys], null, 1);
+  else walk(root, [], null, 1);
+  return out;
+}
+
+export function groupRows(t: Table, q: Omit<D.DevGroupsRequest, 'target' | 'source' | 'dataset' | 'table'>): D.GroupPage {
+  const cols = q.columns.length ? q.columns : defaultColumns(t.columns);
+  const needle = q.search.trim().toLowerCase();
+  const root = gnode([], '', 'fixed');
+  let total = 0;
+  for (const r of t.rows) {
+    const hit = rowMatches(r, cols, needle, q.filters);
+    if (hit) total++;
+    if (q.by.length) treeAdd(root, segments(r, q.by), hit, null);
+  }
+  treeFinish(root);
+  return { nodes: treeEmit(root, new Set(q.open), false, false), total, all: t.rows.length };
+}
+
+export function diffLevels(by: D.DiffGroupBy, a: Table | undefined, b: Table | undefined): D.GroupLevel[] {
+  const t = b && b.rows.length ? b : a;
+  if (!t || by === 'tables') return [];
+  const p = presets(t);
+  return (by === 'auto' ? p[0] : p.find((x) => x.id.startsWith('folders:')))?.levels ?? [];
+}
+
+function diffRow(r: D.DiffRecord, a: Table | undefined, b: Table | undefined): Obj | undefined {
+  return (r.b !== null ? b?.rows[r.b] : undefined) ?? (r.a !== null ? a?.rows[r.a] : undefined);
+}
+
+const sideTable = (side: [string, Dataset][], dataset: string, table: string) => side.find((x) => x[0] === dataset)?.[1].tables.find((t) => t.name === table);
+
+export function diffTree(tables: TableDiff[], a: [string, Dataset][], b: [string, Dataset][], req: D.DevDiffGroupsRequest): D.GroupPage {
+  const root = gnode([], '', 'fixed');
+  let all = 0;
+  for (const d of tables) {
+    if (!d.records.length) continue;
+    const ta = sideTable(a, d.summary.dataset, d.summary.table);
+    const tb = sideTable(b, d.summary.dataset, d.summary.table);
+    const levels = diffLevels(req.by, ta, tb);
+    const head: Seg[] = [
+      { key: d.summary.dataset, column: 'dataset', kind: 'fixed' },
+      { key: d.summary.table, column: 'table', kind: 'fixed' },
+    ];
+    for (const r of d.records) {
+      all++;
+      const row = diffRow(r, ta, tb);
+      treeAdd(root, row ? [...head, ...segments(row, levels)] : head, true, r.state);
+    }
+  }
+  treeFinish(root);
+  return { nodes: treeEmit(root, new Set(req.open), true, true), total: all, all };
+}
+
+export function diffGroupFilter(req: D.DevDiffRecordsRequest, a: [string, Dataset][], b: [string, Dataset][]): (r: D.DiffRecord) => boolean {
+  const g = req.group ?? null;
+  if (g === null) return () => true;
+  const p = nodePath(g.node);
+  const ds = p?.[0] ?? null;
+  if (p === null || ds === null) return () => true;
+  const table = p[1] ?? null;
+  if (ds !== req.dataset || (table !== null && table !== req.table)) return () => false;
+  const ta = sideTable(a, req.dataset, req.table);
+  const tb = sideTable(b, req.dataset, req.table);
+  const levels = diffLevels(g.by, ta, tb);
+  const rest = p.slice(2);
+  return (r) => {
+    if (!rest.length) return true;
+    const row = diffRow(r, ta, tb);
+    return row !== undefined && inNode(rowPath(row, levels), rest);
   };
 }
 
@@ -668,9 +924,10 @@ export function fieldCounts(records: D.DiffRecord[]): D.ValueCount[] {
   return [...m.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || cmp(a.value, b.value));
 }
 
-function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_options: string[]): D.DevDiffRecords {
+function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_options: string[], inGroup: (r: D.DiffRecord) => boolean): D.DevDiffRecords {
   const hits = d.records
     .filter((r) => req.state === null || r.state === req.state)
+    .filter(inGroup)
     .filter((r) => {
       if (req.field === null) return true;
       const f = `/${req.field.replace(/^\/+/, '')}`;
@@ -896,6 +1153,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     dev_dataset: ({ req }) => structuredClone(datasetOf(req.target, req.source, req.dataset).info),
     dev_table: ({ req }) => tableInfo(tableOf(datasetOf(req.target, req.source, req.dataset), req.table)),
     dev_rows: ({ req }) => queryRows(tableOf(datasetOf(req.target, req.source, req.dataset), req.table), req),
+    dev_groups: ({ req }) => groupRows(tableOf(datasetOf(req.target, req.source, req.dataset), req.table), req),
     dev_row: ({ req }) => {
       const t = tableOf(datasetOf(req.target, req.source, req.dataset), req.table);
       const row = t.rows[req.row] ?? ctx.fail('not-found', `no row ${req.row}`);
@@ -934,7 +1192,12 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       const pos = st.tables.findIndex((t) => t.summary.dataset === req.dataset && t.summary.table === req.table);
       if (pos < 0) ctx.fail('not-found', `no table ${req.table}`);
       if (req.identity !== null && st.tables[pos]!.summary.identity !== req.identity) st.tables[pos] = diffTable(req.dataset, req.table, ta, tb, req.identity);
-      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb));
+      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb), diffGroupFilter(req, st.a, st.b));
+    },
+    dev_diff_groups: ({ req }) => {
+      on(req.target);
+      const st = diff ?? noDiff();
+      return diffTree(st.tables, st.a, st.b, req);
     },
     dev_diff_record: ({ req }) => {
       on(req.target);
