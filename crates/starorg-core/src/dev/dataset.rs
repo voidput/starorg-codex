@@ -101,7 +101,7 @@ pub struct TableInfo {
     /// The column that names a record (diff identity), when one is unique.
     pub identity: Option<String>,
     pub default_columns: Vec<String>,
-    /// Group-bys offered for the tree (addendum 7.13), the default first; empty = no tree.
+    /// Group-bys offered for the tree (addendum 7.15), the default first; empty = no tree.
     #[serde(default)]
     pub group_presets: Vec<super::group::GroupPreset>,
 }
@@ -526,7 +526,7 @@ pub struct RowsQuery {
     pub offset: u32,
     #[serde(default)]
     pub limit: u32,
-    /// Only the rows of this group tree node (addendum 7.13).
+    /// Only the rows of this group tree node (addendum 7.15).
     #[serde(default)]
     pub group: Option<super::group::GroupPick>,
 }

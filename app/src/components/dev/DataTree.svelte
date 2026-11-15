@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * Datasets and Diff group tree (addendum 7.13), with the look and keys of the Strings group
+   * Datasets and Diff group tree (addendum 7.15), with the look and keys of the Strings group
    * tree: `role="tree"`, one tab stop (roving tabindex); Up/Down, Home/End, Right/Left (open,
    * close, child, parent), typeahead; Enter or Space selects the node, Escape or "All"
    * clears. Zero-count nodes are dimmed, not removed. Opening a node asks the backend for its

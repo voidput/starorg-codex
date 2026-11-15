@@ -5,7 +5,7 @@
    * same, largest first; tables on one side marked), the records of the picked table (changed
    * first; filter by state and by changed field; identity column override) and the field diff
    * of the picked record (old ► new, numbers with delta and percent). A group tree on the
-   * left (addendum 7.13) groups the changed records by dataset, table and the table's default
+   * left (addendum 7.15) groups the changed records by dataset, table and the table's default
    * grouping, with added / removed / changed counts; picking a node filters the tables and
    * records. F6 cycles the panes.
    */
@@ -134,7 +134,7 @@
     untrack(() => void loadRecords());
   });
 
-  // --- Group tree (addendum 7.13) -------------------------------------------------------
+  // --- Group tree (addendum 7.15) -------------------------------------------------------
   const DIFF_BY = 'starorg.dev.diff.groupby';
   let diffBy = $state<DiffGroupBy>(pickDiffBy(readPref(DIFF_BY)));
   let dnode = $state<string | null>(null);

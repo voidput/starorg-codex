@@ -1,4 +1,4 @@
-// Headless renders and checks of the Datasets and Diff group trees (addendum 7.13), mock
+// Headless renders and checks of the Datasets and Diff group trees (addendum 7.15), mock
 // backend (`?dev=1`), dark and light, at 1280x800 and 1024x700. Writes PNGs to
 // .tmp/renders/tree/ and fails when a check fails (picking a node filters the grid to the
 // node's count; the Diff tree filters the records) or the page overflows. Never opens a window.

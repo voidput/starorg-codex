@@ -202,7 +202,7 @@ export interface TableInfo {
   columns: Column[];
   identity: string | null;
   default_columns: string[];
-  /** Group-bys offered for the tree (addendum 7.13), the default first; empty = no tree. */
+  /** Group-bys offered for the tree (addendum 7.15), the default first; empty = no tree. */
   group_presets: GroupPreset[];
 }
 

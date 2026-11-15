@@ -1,5 +1,5 @@
 /**
- * Datasets and Diff group trees (addendum 7.13): the visible items, keyboard moves and the
+ * Datasets and Diff group trees (addendum 7.15): the visible items, keyboard moves and the
  * remembered group-by. The backend sends only the visible nodes (roots and the children of
  * open nodes, depth first); this adds the "All" item and the keyboard model of the Strings
  * tree (`grouptree.ts`), single selection. Pure, so `npm test` covers it without a browser.

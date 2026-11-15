@@ -326,3 +326,95 @@ fn real_ptu_extracts() {
     }
     assert!(x.game_data.counts().ships > 0);
 }
+
+/// Addendum 7.13: the real LIVE weapons table grouped by type > subType > size in the
+/// Datasets tree. Counts are checked against a plain count of the rows, children sum to their
+/// parent, and picking a node filters the rows to its count. Read only.
+#[test]
+#[ignore = "needs the real LIVE Data.p4k"]
+fn real_live_weapons_group_by_type_subtype_size() {
+    use starorg_core::dev::dataset::{RowsQuery, infer, query_rows};
+    use starorg_core::dev::group::{
+        GroupPick, GroupQuery, group_rows, no_labels, presets, row_path,
+    };
+    use std::collections::BTreeMap;
+    let Some(x) = real_extract("LIVE") else {
+        return;
+    };
+    let v = serde_json::to_value(&x.game_data).unwrap();
+    let d = infer("gamedata.json", 0, v);
+    let t = d.table("weapons").expect("weapons table");
+    let chain = presets(t).into_iter().next().expect("a default preset");
+    assert_eq!(chain.label, "type › subType › size");
+    let by = chain.levels;
+    // Plain counts by key path prefix.
+    let mut want: BTreeMap<Vec<Option<String>>, u32> = BTreeMap::new();
+    for r in &t.rows {
+        let p = row_path(r, &by);
+        for k in 1..=p.len() {
+            *want.entry(p[..k].to_vec()).or_default() += 1;
+        }
+    }
+    // Open every node: the whole tree in one reply.
+    let open: Vec<String> = want
+        .keys()
+        .map(|k| serde_json::to_string(k).unwrap())
+        .collect();
+    let q = GroupQuery {
+        by: by.clone(),
+        open,
+        ..Default::default()
+    };
+    let page = group_rows(t, &q, &no_labels);
+    assert_eq!(
+        (page.total, page.all),
+        (t.rows.len() as u32, t.rows.len() as u32)
+    );
+    assert_eq!(page.nodes.len(), want.len(), "one node per key path");
+    let mut by_id = BTreeMap::new();
+    for n in &page.nodes {
+        let k: Vec<Option<String>> = serde_json::from_str(&n.id).unwrap();
+        assert_eq!(Some(&n.count), want.get(&k), "{}", n.id);
+        by_id.insert(n.id.clone(), n.count);
+    }
+    for n in &page.nodes {
+        if n.children > 0 {
+            let kids: u32 = page
+                .nodes
+                .iter()
+                .filter(|c| c.parent.as_deref() == Some(n.id.as_str()))
+                .map(|c| c.count)
+                .sum();
+            assert_eq!(kids, n.count, "children of {}", n.id);
+        }
+        let rows = query_rows(
+            t,
+            &RowsQuery {
+                limit: 1,
+                group: Some(GroupPick {
+                    by: by.clone(),
+                    node: n.id.clone(),
+                }),
+                ..Default::default()
+            },
+            1,
+        );
+        assert_eq!(rows.total, n.count, "rows of {}", n.id);
+    }
+    let top: u32 = page
+        .nodes
+        .iter()
+        .filter(|n| n.depth == 1)
+        .map(|n| n.count)
+        .sum();
+    assert_eq!(top, t.rows.len() as u32);
+    for n in page.nodes.iter().filter(|n| n.depth <= 2) {
+        eprintln!(
+            "{}{} {}",
+            "  ".repeat(n.depth as usize - 1),
+            n.label,
+            n.count
+        );
+    }
+    eprintln!("{} weapons, {} nodes", t.rows.len(), page.nodes.len());
+}

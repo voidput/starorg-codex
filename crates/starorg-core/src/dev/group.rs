@@ -1,4 +1,4 @@
-//! Group trees (addendum 7.13): the Datasets screen groups a table's rows by a chain of
+//! Group trees (addendum 7.15): the Datasets screen groups a table's rows by a chain of
 //! columns (`type > subType > size`, `manufacturer`, the folders of a `path`), the Diff
 //! screen groups the changed records by dataset, table and the same chains. Only the
 //! visible nodes are sent (the roots and the children of open nodes), with exact counts;

@@ -392,7 +392,7 @@ fn folder_datasets_rows_and_diff() {
             group: None,
         })
         .unwrap();
-    // The Diff tree (addendum 7.13): one dataset, so the table is the top node.
+    // The Diff tree (addendum 7.15): one dataset, so the table is the top node.
     let tree = f
         .backend
         .dev_diff_groups(DevDiffGroupsRequest {

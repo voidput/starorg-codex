@@ -1,4 +1,4 @@
-// Datasets and Diff group trees (addendum 7.13): items, keyboard model, remembered group-by.
+// Datasets and Diff group trees (addendum 7.15): items, keyboard model, remembered group-by.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ALL, NONE, collapse, dataItemName, dataItems, dataKeyAction, keys, levelsOf, pickDiffBy, pickGroupBy } from '../src/lib/datatree.ts';

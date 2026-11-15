@@ -185,12 +185,12 @@ pub struct DevRowsRequest {
     pub sort: Option<RowSort>,
     pub offset: u32,
     pub limit: u32,
-    /// Only the rows of this group tree node (addendum 7.13).
+    /// Only the rows of this group tree node (addendum 7.15).
     #[serde(default)]
     pub group: Option<GroupPick>,
 }
 
-/// The Datasets group tree (addendum 7.13): the visible nodes for a group-by, with counts
+/// The Datasets group tree (addendum 7.15): the visible nodes for a group-by, with counts
 /// that follow the same search and filters as the rows.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct DevGroupsRequest {
@@ -213,7 +213,7 @@ pub struct DiffGroupPick {
     pub node: String,
 }
 
-/// The Diff group tree over the last comparison (addendum 7.13).
+/// The Diff group tree over the last comparison (addendum 7.15).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevDiffGroupsRequest {
     pub target: ChannelRef,
@@ -516,7 +516,7 @@ fn side_table<'a>(
         .and_then(|x| x.1.table(table))
 }
 
-/// Shared by both backends: the Diff tree of a comparison (addendum 7.13).
+/// Shared by both backends: the Diff tree of a comparison (addendum 7.15).
 pub fn diff_tree(
     tables: &[starorg_core::dev::diff::TableDiff],
     a: &DiffSideSets,

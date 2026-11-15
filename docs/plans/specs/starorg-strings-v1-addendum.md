@@ -1061,6 +1061,37 @@ records only by default, Q-D6 Alt+9 for Explorer only, Q-D7 UEX files are just J
   `network-off`, or `not-implemented` with the switch on); backlinks (Q-D2); the
   `starorg-gamedata` domain outputs as a source (that crate is not on main yet).
 
+### 7.15 Group trees (branch `dataset-tree`, 2026-11-15, Refs #15)
+
+Datasets and Diff get a group tree like the Strings one (§8.5): a flat table of 733 weapons
+reads better as `type > subType > size`.
+
+- **Presets** (`starorg-core::dev::group::presets`, in `TableInfo.group_presets`, default
+  first): the chain of the first groupable column of each tier (`type|category|kind|
+  classification|itemType`, `subType|subCategory|subKind`, `size`); `manufacturer`; the
+  folders of a path-like text column (`path`, `*Path`, `file`); then each other groupable
+  column. Groupable = scalar, filled in at least half the rows, 2-200 distinct values that
+  repeat. Tables without one (JSON trees, unique key/value tables) show no tree.
+- **Nodes**: the id is the JSON array of keys from the root (`["WeaponGun","Gun","3"]`, `null`
+  = no value, labelled "No size"; numbers read "Size 3"; readable labels per §7.14 when the
+  backend has them). Only visible nodes are sent (roots and the children of open nodes, at
+  most 500 per node); counts are exact and follow the search and filters (facet rule: zero
+  counts dim, the structure stays). A folder that only holds one folder is joined (`a/b`).
+- **Contract**: `dev_groups` (Datasets) and `dev_diff_groups` (Diff: dataset, left out when
+  there is one, then table, then the table's default preset, `folders`, or tables only; only
+  records that differ, with added / removed / changed per node); `DevRowsRequest.group` and
+  `DevDiffRecordsRequest.group` filter by a node.
+- **UI**: a collapsible Groups pane between Sources and the grid (Datasets) and left of the
+  tables (Diff), 192-240 px so 1024x700 has no horizontal overflow; the group-by is
+  remembered per table (`dataset|table`, per viewer) and the Diff one globally. Keys as §8.5
+  (single selection); F6 order sources > tree > bar > grid. A removable chip names the picked
+  group.
+- **Tests**: core unit tests (`dev/group_tests.rs`), contract samples + TS-mock replay,
+  `tests/datatree.test.ts`, `scripts/render-tree.cjs` (renders into `.tmp/renders/tree/` and
+  checks that a picked node filters the grid and records to its count), and the ignored
+  real-LIVE test `real_live_weapons_group_by_type_subtype_size` (733 weapons, 50 nodes, every
+  count equal to a plain count and to the rows the node filters).
+
 ## 8. Strings grouping
 
 Request: "add grouping for different types of items/things in strings". The Strings screen

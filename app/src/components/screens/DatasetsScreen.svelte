@@ -6,7 +6,7 @@
    * "has a value"), sort and a column picker remembered per dataset and table; a detail sheet
    * with the row's JSON tree, its loc text and "Open in Explorer" links. Everything is parsed
    * by the backend as data; values are shown as text. Between the sources and the grid, a
-   * group tree (addendum 7.13) groups the table by a preset (type › subType › size,
+   * group tree (addendum 7.15) groups the table by a preset (type › subType › size,
    * manufacturer, path folders, ...; remembered per table): picking a node filters the grid.
    */
   import { tick, untrack } from 'svelte';
@@ -184,7 +184,7 @@
     return `${f.column}: ${parts.join('; ')}`;
   }
 
-  // --- Group tree (addendum 7.13) ----------------------------------------------------------
+  // --- Group tree (addendum 7.15) ----------------------------------------------------------
   const presets = $derived(table?.group_presets ?? []);
   const showTree = $derived(!!table && presets.length > 0);
   let groupId = $state<string>(NONE);
