@@ -1711,6 +1711,106 @@ reports "Stopped: needed more than 1 MB" and opens again after the limit is rais
 CLI `dev` runs in-process, so its cap is `RLIMIT_DATA` + watchdog, never a cgroup; estimates are
 static (the MCP `measurements.json` peaks could refine them per build).
 
+
+### 7.19 Blueprint finder: sort, filter and channel labels (branch `blueprints-finder`, 2026-11-15, local only)
+
+Owner request: "also need sort and filter on blueprints also labels per channel". Not a
+Developer mode feature (the Blueprints screen is always on); numbered here because 7.18 was the
+last free slot. Code: `starorg_core::blueprints::finder` (catalogue + merge), the app's
+`contract/finder.rs` (shared by both backends), `lib/bpfinder.ts` (query), `lib/channels.ts` +
+`ChannelBadge.svelte` (channel colours), `components/blueprints/BlueprintFinder.svelte`.
+
+**Ownership scope (checked before building, unchanged).** Owned sets were already per channel
+*and* per character, never global: `channels/<install-id>/<CHANNEL>/blueprints/<geid>.json`
+(§3). The log scan, the Smart Citizen import and StarOrg pull write into one channel's folder;
+`[Owned]` on apply reads only that channel's selection. The owner's data (read only, counts
+only): LIVE has 2 non-empty sets (271 and 260 entries; 4 characters known), PTU and HOTFIX
+none. Same geid on two channels = the same character with two separate sets. The finder only
+reads; **no storage semantics changed**, nothing is merged or moved between channels.
+
+**Catalogue.** Every named blueprint of the channel's build (`GameData.blueprints` named
+through the stock `global.ini`, as `GameDataCatalog`), classified without new extraction:
+- kind and type from the record path (`crafting/blueprints/crafting/<fpsgear|vehiclegear|
+  missionitems>/<kind>/<type>/...`), category as fallback (`FPSArmours`, `VehicleComponentS2`...);
+- size from the category suffix (`VehicleComponentS2` = 2), else the produced item's size;
+  armor gets its weight (Light / Medium / Heavy) instead;
+- manufacturer, size, grade (A-D, ship components only) from the produced item when `GameData`
+  lists it (components, weapons, missiles); armor and undersuits get maker and slot from the
+  strings grouping (§8, loc-reference pass) when that build has it; a maker needs a stock
+  `manufacturer_Name<code>` text to show its name (else the code).
+
+LIVE 4.10.200.58746 (owner's cache, read only): 1,634 blueprints, 1,630 named (54 ms); 1,078
+FPS armor (Helmet 224, Torso 220, Arms 217, Legs 217, Undersuit 30, Backpack 29; weight on
+878), 176 FPS weapons (Pistol 36, Rifle 33, Sniper rifle 31, SMG 30, Shotgun 24, LMG 16), 37
+FPS ammo, 377 ship components (Power plant 75, Cooler 73, Shield 62, Radar 58, Quantum drive
+57, Mining laser 17, Tractor beam 12, Refuelling nozzle 8, Salvage head 5), 103 ship weapons
+(Laser cannon 26, Laser repeater 17, Ballistic cannon 14, ...), 4 mission items; maker on
+1,584 (named 1,568), size on 652, grade on 354. The owner's 531 owned entries became 271 rows:
+269 matched to a blueprint, 2 name rows (the two ambiguous imports, §4).
+
+**Merge.** `finder::build(channels)` keys rows by blueprint id (lower case) over the channels'
+builds; an owned entry joins its row by matched id, else by a name only one blueprint has (in
+its channel's build, else in any read build), else gets a `name:<normalised>` row ("Not in
+build"); an ambiguous import always stays its own row and marks nothing (as on apply). Each
+owner keeps `channel` + `character` + sources + earliest time; two entries of one set on one
+blueprint merge into one owner. A channel whose build was not read has no catalogue: only what
+is owned there is listed, with a note.
+
+**Contract (additive).** `blueprint_finder(BlueprintFinderRequest { install, channels })`
+(empty = every channel) -> `BlueprintFinder { channels[] (catalog count or null, characters,
+owned), characters[] (id, latest name, channels known), rows[] (key, name, record, kind, type,
+class, manufacturer + name, size, grade, channels, owners[]) }`; `BlueprintKind` union. Real
+backend: cached game data only (never extracts); a build already in memory is reused, else the
+cache entry is read, the catalogue (a few hundred KB) kept per build key and the game data
+dropped, so "All channels" never holds every build. Rust mock: `mock_finder.rs` (37 synthetic
+blueprints over LIVE and PTU, one only in each, HOTFIX not read; three characters with
+different sets per channel); the TS mock re-merges the same way (`mock-finder.ts`) and
+`tests/bpfinder.test.ts` replays it against both samples. `owned_blueprints` stays.
+
+**UI (Blueprints screen).** The "Owned blueprints" card is now **Blueprints**, full width
+below the [Owned]-tags and StarOrg cards:
+- Scope: the current channel or **All channels** (rows side by side, every owner with its
+  channel badge, "only in PTU" badge on blueprints one build lacks, a Channel facet).
+- **All / Owned / Missing** with counts over the build's full catalogue. Owned / Missing mean
+  owned or not by the picked characters (any character when none is picked) on the channels
+  in view; picking characters with All keeps every row.
+- Search: words over name, record, type and maker; a 3+ letter word also matches as letters
+  in order in the name (`scnn` -> Synthetic Cannon); word hits sort before such fuzzy hits.
+- Facet chips with counts: Category, Type, Manufacturer, Size (S0-S12 and armor weight),
+  Source (Game log / Smart Citizen / StarOrg), Character (channel dots in All view), Channel.
+  Each facet's counts apply every other filter; long facets show 8 and "+N more".
+- Sort: name, category, manufacturer, size/grade, acquired, source, owned-by count; asc/desc,
+  by header click (aria-sort) or the select; unknown values last in both directions.
+- Group by none / category / manufacturer / character (one row per owning character plus
+  "Not owned"). 200 rows, then "Show more".
+- Remembered per channel (`starorg.blueprints.finder.v1:<install>/<channel>` in localStorage,
+  validated on read); Clear filters keeps sort, group and scope.
+- Keyboard: `/` focuses the search, Escape clears it, chips are toggle buttons
+  (aria-pressed), headers are buttons; the owned/scope toggles carry no hint tooltip, because
+  `LazyTip` mounting on focus took the focus away from arrow-key users (shared component, not
+  changed here).
+
+**Channel colours.** No shared helper existed; `lib/channels.ts` gives LIVE teal, PTU orange,
+EPTU yellow, HOTFIX pink, TECH-PREVIEW lime, other channels a stable pick from four spares, each
+with a dark and a light value at >= 4.5:1 on card and muted backgrounds of both themes (test).
+`ChannelBadge` (badge / swatch / dot, always with the name or an sr-only name: never colour
+alone) is used in the channel picker, the Home status card and other-channel rows, the
+[Owned]-tags card title and the finder.
+
+**Tests.** Core: classification from paths/items/categories, the strings grouping for armor,
+merge over channels with scoped owners, name / id / ambiguous / unmatched rows, owner merge;
+an ignored test prints counts for a real cache entry and data folder
+(`STARORG_REAL_CACHE`, `STARORG_REAL_DATA`). App: mock finder per channel and after an import,
+unknown channel; real backend after a Smart Citizen import (catalogue from the import's cache,
+other channels without one, same rows from memory); TS: TS mock = Rust samples, owned / missing
+counts, facet counts, character, source and channel semantics, search, every sort, groups,
+prefs; channel colour contrast. Renders `app/scripts/render-blueprints.cjs` (1024x700,
+1280x800, dark and light), keyboard `app/scripts/keyboard-blueprints.cjs`.
+
+**Not done.** No CLI view (`blueprints list` is unchanged); the finder does not read builds
+that were never extracted (Apply or a dry run does); no favourite toggle or ownership edits
+from the finder; tooltips in `Segmented` still steal focus on arrow keys elsewhere.
+
 ## 8. Strings grouping
 
 Request: "add grouping for different types of items/things in strings". The Strings screen
