@@ -75,22 +75,33 @@
   let fieldFilter = $state<string>('');
   let identity = $state<string | null>(null);
   let recError = $state<ContractError | null>(null);
-  async function loadRecords() {
+  let loadingMore = $state(false);
+  // Each new query bumps this, so a page that lands after a filter change is dropped.
+  let recSeq = 0;
+  const PAGE = 500;
+  async function loadRecords(more = false) {
     if (!target || !picked) return;
+    const seq = more ? recSeq : ++recSeq;
+    const offset = more && records ? records.records.length : 0;
+    if (more) loadingMore = true;
     try {
-      records = await devApi.diffRecords({
+      const page = await devApi.diffRecords({
         target: $state.snapshot(target),
         dataset: picked.dataset,
         table: picked.table,
         state: stateFilter === 'all' ? null : stateFilter,
         field: fieldFilter || null,
         identity,
-        offset: 0,
-        limit: 500,
+        offset,
+        limit: PAGE,
       });
+      if (seq !== recSeq) return;
+      records = more && records ? { ...page, records: [...records.records, ...page.records] } : page;
       recError = null;
     } catch (e) {
-      recError = toContractError(e);
+      if (seq === recSeq) recError = toContractError(e);
+    } finally {
+      if (more) loadingMore = false;
     }
   }
   async function pickTable(t: DiffTable) {
@@ -262,7 +273,12 @@
                   </li>
                 {/each}
               </ul>
-              <div class="text-muted-foreground border-t px-3 py-1 text-[11.5px]">{int(records.records.length)} of {int(records.total)}</div>
+              <div class="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-1 text-[11.5px]">
+                <span>{int(records.records.length)} of {int(records.total)}</span>
+                {#if records.records.length < records.total}
+                  <Button size="sm" variant="ghost" class="h-6 px-2 text-[11.5px]" disabled={loadingMore} onclick={() => void loadRecords(true)}>{loadingMore ? 'Loading…' : `Load ${int(Math.min(PAGE, records.total - records.records.length))} more`}</Button>
+                {/if}
+              </div>
             {/if}
           </section>
           <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">

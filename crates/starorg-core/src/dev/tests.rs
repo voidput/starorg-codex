@@ -341,6 +341,44 @@ fn shape_rules_match_the_spec_examples() {
         ["key", "name", "maker", "type", "family", "noise"]
     );
     assert!(si.table("columns").is_none());
+    // Real rows are ragged (widths 4, 5 and 6 against 6 names): still one row per entry,
+    // the short rows just lack the trailing cells.
+    assert_eq!(items.rows.len(), 3);
+    assert_eq!(items.rows[1].as_object().unwrap().len(), 4);
+    assert!(items.rows[1].get("family").is_none());
+    assert_eq!(items.rows[2]["family"], json!(87));
+    let ships = si.table("ships").unwrap();
+    assert_eq!(ships.kind, TableKind::Main);
+    assert_eq!(ships.rows.len(), 3);
+    assert_eq!(ships.rows[0]["type"], json!(92));
+    assert_eq!(ships.rows[2]["noise"], json!(98));
+    // Arrays of arrays without `columns` get columns `0..n` (rows wider than the list too).
+    let aoa = Dataset::parse(
+        "grid.json",
+        br#"{"columns":["a"],"pts":[[1,2],[3]],"top":{"x":1}}"#,
+    )
+    .unwrap();
+    let pts = aoa.table("pts").unwrap();
+    assert_eq!(pts.kind, TableKind::Main);
+    assert_eq!(
+        pts.columns
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "1"]
+    );
+    let bare = Dataset::parse("grid.json", br#"{"pts":[[1,2,3],[4]]}"#).unwrap();
+    assert_eq!(
+        bare.table("pts")
+            .unwrap()
+            .columns
+            .iter()
+            .map(|c| c.name.as_str())
+            .collect::<Vec<_>>(),
+        ["0", "1", "2"]
+    );
+    let top = Dataset::parse("grid.json", br#"[[1,"a"],[2,"b"]]"#).unwrap();
+    assert_eq!(top.table("grid").unwrap().rows[1]["1"], json!("b"));
     // Arrays of scalars are JSON-only.
     assert_eq!(si.table("makers").unwrap().kind, TableKind::Tree);
     // Top-level array files are one table.

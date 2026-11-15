@@ -285,7 +285,9 @@ fn fact_text(v: &Value) -> String {
 ///
 /// - `_`-keys are metadata, `summary` is header facts;
 /// - a top-level array of objects is a table (a top-level array file is one table);
-/// - arrays of arrays with a sibling `columns` list of the same width use those names;
+/// - arrays of arrays are tables: cells take the names of a sibling `columns` list by
+///   position (rows may be shorter than the list, as in `game-search-index`; cells past
+///   its end are named by index), else columns `0..n`;
 /// - an object of scalars is a key/value table: the main table when the file has no array
 ///   tables (`strings`), else an index;
 /// - an object of objects or arrays is an index table;
@@ -298,6 +300,8 @@ pub fn infer(file: &str, bytes: u64, root: Value) -> Dataset {
         Value::Array(a) => {
             let rows = if a.iter().all(Value::is_object) {
                 a
+            } else if is_array_of_arrays(&a) {
+                positional_rows(a, None)
             } else {
                 a.into_iter()
                     .map(|v| {
@@ -317,7 +321,8 @@ pub fn infer(file: &str, bytes: u64, root: Value) -> Dataset {
                     .collect()
             });
             let has_array_tables = m.iter().any(|(k, v)| {
-                !k.starts_with('_') && (is_object_array(v) || arrays_with_columns(v, &names))
+                !k.starts_with('_')
+                    && (is_object_array(v) || v.as_array().is_some_and(|a| is_array_of_arrays(a)))
             });
             let mut deferred = Vec::new();
             for (k, v) in m {
@@ -342,21 +347,15 @@ pub fn infer(file: &str, bytes: u64, root: Value) -> Dataset {
                         unreachable!()
                     };
                     tables.push(table(&k, TableKind::Main, rows));
-                } else if arrays_with_columns(&v, &names) {
-                    let names = names.clone().unwrap_or_default();
+                } else if v.as_array().is_some_and(|a| is_array_of_arrays(a)) {
                     let Value::Array(rows) = v else {
                         unreachable!()
                     };
-                    let rows = rows
-                        .into_iter()
-                        .map(|r| {
-                            let Value::Array(cells) = r else {
-                                return Value::Object(Map::new());
-                            };
-                            Value::Object(names.iter().cloned().zip(cells).collect())
-                        })
-                        .collect();
-                    tables.push(table(&k, TableKind::Main, rows));
+                    tables.push(table(
+                        &k,
+                        TableKind::Main,
+                        positional_rows(rows, names.as_deref()),
+                    ));
                 } else if let Value::Object(o) = &v
                     && !o.is_empty()
                 {
@@ -416,10 +415,28 @@ pub fn infer(file: &str, bytes: u64, root: Value) -> Dataset {
     Dataset { info, tables }
 }
 
-fn arrays_with_columns(v: &Value, names: &Option<Vec<String>>) -> bool {
-    let Some(names) = names else { return false };
-    matches!(v, Value::Array(a) if !a.is_empty()
-        && a.iter().all(|r| r.as_array().is_some_and(|c| c.len() == names.len())))
+fn is_array_of_arrays(a: &[Value]) -> bool {
+    !a.is_empty() && a.iter().all(Value::is_array)
+}
+
+/// Rows of positional cells as objects: cell `i` is named `names[i]` when the list is that
+/// long, else `i`. Ragged rows simply have fewer cells (the missing ones read as absent).
+fn positional_rows(rows: Vec<Value>, names: Option<&[String]>) -> Vec<Value> {
+    let names = names.unwrap_or_default();
+    rows.into_iter()
+        .map(|r| {
+            let Value::Array(cells) = r else {
+                return Value::Object(Map::new());
+            };
+            Value::Object(
+                cells
+                    .into_iter()
+                    .enumerate()
+                    .map(|(i, c)| (names.get(i).cloned().unwrap_or_else(|| i.to_string()), c))
+                    .collect(),
+            )
+        })
+        .collect()
 }
 
 pub fn file_stem(file: &str) -> &str {
