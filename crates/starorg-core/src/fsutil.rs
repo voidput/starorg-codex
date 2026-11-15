@@ -62,24 +62,26 @@ pub fn fsync_dir(dir: &Path) -> std::io::Result<()> {
 }
 
 /// Run a file operation, retrying briefly on Windows while a virus scanner, the search
-/// indexer or a sync client holds the file open (`ERROR_ACCESS_DENIED` 5,
-/// `ERROR_SHARING_VIOLATION` 32, `ERROR_LOCK_VIOLATION` 33): 20 tries over about 5 s.
-/// Elsewhere it runs once. Other errors return at once.
+/// indexer or a sync client holds the file open: sharing and lock violations (32, 33) get 20
+/// tries over about 5 s, access denied (5) only 6 tries over about 0.4 s, because it is also
+/// what a read-only library returns and the caller should show its hint quickly (see
+/// [`lock_retry_budget`]). Elsewhere it runs once. Other errors return at once.
 pub fn retry_locked<T>(mut op: impl FnMut() -> std::io::Result<T>) -> std::io::Result<T> {
     #[cfg(windows)]
     {
-        let mut last = None;
-        for i in 0..20u64 {
+        let mut i = 0u64;
+        loop {
             match op() {
                 Ok(v) => return Ok(v),
-                Err(e) if is_transient_lock(&e) => {
-                    last = Some(e);
-                    std::thread::sleep(std::time::Duration::from_millis(25 * (i + 1)));
-                }
-                Err(e) => return Err(e),
+                Err(e) => match lock_retry_budget(&e) {
+                    Some(budget) if i + 1 < budget => {
+                        i += 1;
+                        std::thread::sleep(std::time::Duration::from_millis(25 * i));
+                    }
+                    _ => return Err(e),
+                },
             }
         }
-        Err(last.unwrap_or_else(|| std::io::Error::other("file stayed locked")))
     }
     #[cfg(not(windows))]
     {
@@ -87,10 +89,22 @@ pub fn retry_locked<T>(mut op: impl FnMut() -> std::io::Result<T>) -> std::io::R
     }
 }
 
-/// Windows error codes that mean "someone else has the file open right now".
+/// Windows error codes that may mean "someone else has the file open right now".
 pub fn is_transient_lock(e: &std::io::Error) -> bool {
-    e.kind() == std::io::ErrorKind::PermissionDenied
-        || matches!(e.raw_os_error(), Some(5 | 32 | 33))
+    lock_retry_budget(e).is_some()
+}
+
+/// How many tries [`retry_locked`] gives an error: 20 for `ERROR_SHARING_VIOLATION` (32) and
+/// `ERROR_LOCK_VIOLATION` (33), which only ever mean another process has the file open; 6 for
+/// access denied (5, or any `PermissionDenied`), which a scanner holding a file causes too but
+/// so does a read-only folder; `None` for everything else (no retry).
+pub fn lock_retry_budget(e: &std::io::Error) -> Option<u64> {
+    match e.raw_os_error() {
+        Some(32 | 33) => Some(20),
+        Some(5) => Some(6),
+        _ if e.kind() == std::io::ErrorKind::PermissionDenied => Some(6),
+        _ => None,
+    }
 }
 
 /// `rename` with [`retry_locked`].
@@ -260,8 +274,11 @@ fn reserved_name(comp: &str) -> bool {
 /// OS).
 pub fn windows_path_within(child: &str, dir: &str) -> bool {
     fn comps(s: &str) -> Vec<String> {
+        // A verbatim path strip_verbatim refuses (260+ characters, ...) still names the same
+        // file as its plain form for this comparison: `\\?\UNC\srv\share` is `\\srv\share`.
         let s = strip_verbatim(s).unwrap_or_else(|| {
-            s.strip_prefix(r"\\?\")
+            s.strip_prefix(r"\\?\UNC\")
+                .or_else(|| s.strip_prefix(r"\\?\"))
                 .map(str::to_string)
                 .unwrap_or_else(|| s.to_string())
         });
@@ -576,6 +593,43 @@ mod tests {
             dir
         ));
         assert!(!windows_path_within(r"C:\x", ""));
+    }
+
+    #[test]
+    fn windows_containment_long_verbatim_unc_matches_plain_image_path() {
+        // 260+ characters: strip_verbatim keeps the prefix, the fallback must still drop `UNC`.
+        let deep = "d".repeat(270);
+        let dir = format!(r"\\?\UNC\nas\games\{deep}\StarCitizen\LIVE");
+        assert_eq!(strip_verbatim(&dir), None);
+        let exe = format!(r"\\nas\games\{deep}\StarCitizen\LIVE\Bin64\StarCitizen.exe");
+        assert!(windows_path_within(&exe, &dir));
+        let long_drive = format!(r"\\?\C:\{deep}\LIVE");
+        assert!(windows_path_within(
+            &format!(r"C:\{deep}\LIVE\Bin64\x.exe"),
+            &long_drive
+        ));
+        assert!(!windows_path_within(
+            &format!(r"\\other\games\{deep}\StarCitizen\LIVE\x.exe"),
+            &dir
+        ));
+    }
+
+    #[test]
+    fn lock_retry_budget_keeps_access_denied_short() {
+        use std::io::{Error, ErrorKind};
+        assert_eq!(lock_retry_budget(&Error::from_raw_os_error(32)), Some(20));
+        assert_eq!(lock_retry_budget(&Error::from_raw_os_error(33)), Some(20));
+        assert_eq!(lock_retry_budget(&Error::from_raw_os_error(5)), Some(6));
+        assert_eq!(
+            lock_retry_budget(&Error::new(ErrorKind::PermissionDenied, "read-only")),
+            Some(6)
+        );
+        assert_eq!(
+            lock_retry_budget(&Error::new(ErrorKind::NotFound, "x")),
+            None
+        );
+        assert!(!is_transient_lock(&Error::new(ErrorKind::NotFound, "x")));
+        assert!(is_transient_lock(&Error::from_raw_os_error(32)));
     }
 
     #[test]

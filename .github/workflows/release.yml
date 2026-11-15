@@ -82,6 +82,15 @@ jobs:
         run: |
           artifact-signing-cli -e "$ENDPOINT" -a "$ACCOUNT" -c "$PROFILE" -d "StarOrg Strings CLI" \
             "target/${{ matrix.target }}/release/starorg-strings.exe"
+      # Fail the release rather than ship an exe whose signature does not check out.
+      - name: Verify the CLI signature
+        if: runner.os == 'Windows' && steps.winsign.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $f = "target\${{ matrix.target }}\release\starorg-strings.exe"
+          $sig = Get-AuthenticodeSignature $f
+          Write-Host "$f : $($sig.Status) $($sig.SignerCertificate.Subject)"
+          if ($sig.Status -ne 'Valid') { throw "Authenticode signature of $f is $($sig.Status): $($sig.StatusMessage)" }
       - name: Package
         shell: bash
         env:
@@ -131,8 +140,9 @@ jobs:
         run: rustup show active-toolchain || rustup toolchain install
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         if: steps.app.outputs.present == 'true'
+        # The Cargo workspace (repo root) builds into ./target, not app/src-tauri/target.
         with:
-          workspaces: app/src-tauri
+          key: app
       - name: Tauri system libraries
         if: steps.app.outputs.present == 'true' && runner.os == 'Linux'
         run: |
@@ -206,6 +216,21 @@ jobs:
           uploadUpdaterJson: ${{ steps.signing.outputs.enabled == 'true' }}
           updaterJsonPreferNsis: true
           args: ${{ runner.os == 'Windows' && '--bundles nsis,msi' || '--bundles appimage,deb,rpm' }} ${{ steps.signing.outputs.args }} ${{ steps.winsign.outputs.enabled == 'true' && '--config src-tauri/tauri.signing.conf.json' || '' }}
+      # Every file Tauri signed (app exe, NSIS installer, MSI) must carry a valid signature.
+      - name: Verify the Windows signatures
+        if: steps.app.outputs.present == 'true' && runner.os == 'Windows' && steps.winsign.outputs.enabled == 'true'
+        shell: pwsh
+        run: |
+          $files = @(Get-Item target\release\starorg-strings-app.exe) +
+            @(Get-ChildItem target\release\bundle -Recurse -Include *.exe, *.msi)
+          if ($files.Count -lt 3) { throw "expected the app exe, the NSIS installer and the MSI, found $($files.Count) files" }
+          $bad = 0
+          foreach ($f in $files) {
+            $sig = Get-AuthenticodeSignature $f.FullName
+            Write-Host "$($f.Name): $($sig.Status) $($sig.SignerCertificate.Subject)"
+            if ($sig.Status -ne 'Valid') { $bad++ }
+          }
+          if ($bad) { throw "$bad file(s) without a valid Authenticode signature" }
       - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         if: steps.app.outputs.present == 'true'
         with:

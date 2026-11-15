@@ -64,6 +64,26 @@ runs:
       if: steps.decide.outputs.enabled == 'true'
       shell: bash
       run: cargo install artifact-signing-cli --version 0.12.0 --locked
+    # artifact-signing-cli 0.12.0 defaults to one hard-coded SDK folder (10.0.26100.0) and Azure
+    # CLI path. Find the newest signtool and az on this runner instead and hand both over through
+    # SIGNTOOL_PATH / AZURE_CLI_PATH, so a runner image with another SDK still signs.
+    - name: Locate signtool and the Azure CLI
+      if: steps.decide.outputs.enabled == 'true'
+      shell: pwsh
+      run: |
+        $kits = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\bin'
+        $signtool = Get-ChildItem -Path $kits -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue |
+          Where-Object { $_.Directory.Name -eq 'x64' -and $_.Directory.Parent.Name -match '^\d+(\.\d+){3}$' } |
+          Sort-Object { [version]$_.Directory.Parent.Name } |
+          Select-Object -Last 1
+        if (-not $signtool) { throw "signtool.exe not found under $kits (Windows SDK)" }
+        $az = Get-Command az.cmd -ErrorAction SilentlyContinue
+        if (-not $az) { $az = Get-Command az -ErrorAction SilentlyContinue }
+        if (-not $az) { throw "Azure CLI (az) not found on PATH" }
+        "SIGNTOOL_PATH=$($signtool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        "AZURE_CLI_PATH=$($az.Source)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+        Write-Host "signtool: $($signtool.FullName)"
+        Write-Host "az: $($az.Source)"
     - name: Tauri signCommand overlay
       if: steps.decide.outputs.enabled == 'true' && inputs.write-tauri-config != ''
       shell: bash
