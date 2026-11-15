@@ -32,8 +32,10 @@ cargo test -p starorg-codex-app        # gpu, contract and IPC tests (mock runti
   (`lib.rs::worker_main`). Native dialogs (install folder, owned-blueprints export, patch import and
   export, diagnostics save) are opened from Rust through `tauri-plugin-dialog`; the webview has
   no dialog permission and never sends a path. The core has no cancellation points inside an
-  apply, so jobs report `cancellable: false`. StarOrg login/pull/push return `network-off`
-  (switch off) or `not-implemented` (server API pending, SC-ORG-BOT#1659); nothing is faked.
+  apply, so jobs report `cancellable: false`. StarOrg Tools sign-in (OAuth with PKCE) and
+  blueprint pull/push are built (`contract/real/starorg.rs`); they return `network-off` while
+  the switch is off and `not-implemented` only when the host has not enabled sign-in for this
+  app yet ("Nothing was sent"); nothing is faked.
   "Check for updates" is built (`src/update/`, [docs/updates.md](../docs/updates.md)): the
   GitHub releases list through `starorg-net`, the banner, skip, in-app install via
   `tauri-plugin-updater` from Rust (AppImage/NSIS/MSI with a real key). Not built yet, so shown
@@ -58,8 +60,9 @@ cargo test -p starorg-codex-app        # gpu, contract and IPC tests (mock runti
   setup wizard at a step, `?state=ready` starts with LIVE applied, HOTFIX behind a game update,
   backups, two overrides and launch-hook history (`&starorg=1` also signs in to StarOrg Tools),
   `?theme=dark|light`, `?delay=<ms>` per mock job step,
-  `?screen=<home|enhancements|strings|patches|blueprints|backups|activity|settings>`,
-  `?update=available|failed|skipped` (update banner / Settings states, `&notes=1` opens the notes). States for
+  `?screen=<home|enhancements|strings|patches|blueprints|ships|backups|activity|settings>` (the dev
+  screens `explorer|datasets|diff|files` need `&dev=1`; `&dev=open` also loads the Explorer types),
+  `?update=available|failed|skipped|store` (update banner / Settings states, `&notes=1` opens the notes). States for
   renders take channel names: `&running=LIVE`, `&interrupted=LIVE`, `&foreign=LIVE`,
   `&builderr=LIVE`, `&nobackups=LIVE`; also `&channels=5`, `&installs=0`, `&fail=overview`,
   `&log=empty`, `&accent=amber&palette=black`.
@@ -72,15 +75,17 @@ cargo test -p starorg-codex-app        # gpu, contract and IPC tests (mock runti
   core sources (skipped until they are in the workspace, or set `STARORG_CORE_SRC`).
 - **Copy:** words for core values (rule names, stale reasons, hook log prefixes) live in
   `src/lib/messages.ts`; the raw value stays in a mono detail line.
-- Keyboard: Ctrl/Cmd+K command palette, Alt+1..8 screens, arrows in the sidebar, channel
+- Keyboard: Ctrl/Cmd+K command palette, Alt+1..9 screens (Settings is
+  Alt+9, or Alt+0 with Developer mode on, when Alt+9 opens the Explorer), arrows in the sidebar, channel
   switcher and Enhancements categories; Strings grid: arrows, Page Up/Down, Home/End, Enter opens
   a key; Tag Builder: Alt+Left/Right moves a focused part. Escape leaves the wizard (with a guard
   once choices were made) and closes sheets and dialogs.
 
 ## Screens (spec 9.4)
 
-Home, Enhancements, Strings, Patches, Blueprints, Backups, Activity, Settings, all on the
-contract. Shared pieces in `src/components/common/` (Sheet, ActionDialog, ToneBadge, StringDiff,
+Home, Enhancements, Strings, Patches, Blueprints, Ships, Backups, Activity, Settings, and with
+Settings -> Advanced -> Developer mode on the Dev group (Explorer, Datasets, Diff, Files;
+Datasets and Diff through Ctrl+K), all on the contract (`src/lib/nav.ts`). Shared pieces in `src/components/common/` (Sheet, ActionDialog, ToneBadge, StringDiff,
 SelectField, Stat). Override rule checks run as you type (`src/lib/validate.ts`, spec 7.3); the
 backend's `set_override` stays the authority. `cargo test` also checks every theme x palette x
 accent in `src/app.css` for 4.5:1 text and 3:1 UI contrast (`src-tauri/src/contrast_tests.rs`).

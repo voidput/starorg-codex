@@ -2,8 +2,9 @@
 
 Rust port of [sc-gamedata](https://github.com/voidput/sc-gamedata-extractor): Star Citizen game data
 read from `Data.p4k` and written as the same `game-<domain>.json` datasets the published
-dumps carry, field for field and byte for byte. Dev-only for now: nothing in the shipped
-CLI or app depends on it, and `starorg-data`'s `GameData` (apply/enhance) is unchanged. A
+dumps carry, field for field and byte for byte. The shipped CLI and app use it
+only through `starorg-mcp`, whose query layer (the local MCP server, [docs/mcp.md](../../docs/mcp.md))
+reads its datasets; apply/enhance still use `starorg-data`'s `GameData`, unchanged. A
 later step moves `GameData` onto this crate (see "Known limits" first).
 
 ## Status

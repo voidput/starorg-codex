@@ -98,17 +98,14 @@ Never commit the private key. Nothing in this repo generates one.
 `tauri.conf.json` carries a placeholder `plugins.updater.pubkey` (the plugin needs the field) and
 `bundle.createUpdaterArtifacts: false`; release.yml overrides both only when signing is on.
 
-## Private repo caveat (spec Q1)
+## Release location (spec Q1)
 
-`voidput/starorg-codex` is private. Without credentials GitHub answers 404 for its releases
-and its assets, so for everyone else the check reads "Can't see releases ..." and in-app install
-cannot download. Nothing breaks, but updates do not work until Q1 is decided:
-
-- (a) a public releases repo (spec's assumption): publish releases there, then either change
-  `DEFAULT_REPO` in `update/mod.rs` before the first public build or tell users to set the
-  Release repository; (b) static hosting needs a different fetcher; (c) making this repo public
-  makes the default work as is.
-- Whatever is chosen, the repo baked into v0.1.0 is what existing installs ask first.
+`voidput/starorg-codex` is public, so the default **Release repository** works as is: anyone can
+read its releases and download the assets without signing in, and in-app install can fetch the
+installer and its `.sig`. The repo was named `voidput/starorg-strings` before 0.3.0; a saved
+Release repository with that old name reads as the default from 0.3.0 on (`LEGACY_REPO` in
+`update/mod.rs`), because GitHub's redirect would leave release links that do not match the
+checked repo. A fork or mirror works by setting **Release repository** to its `owner/name`.
 
 ## Testing
 
