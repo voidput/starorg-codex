@@ -324,6 +324,113 @@ fn import_smart_citizen_export() {
     assert_eq!(std::fs::read(bp_dir.join("100001.json")).unwrap(), before);
 }
 
+/// A Windows-shaped history: CRLF logs, the main character reset between sessions (same
+/// account and name, new geid). It stays one character; imports and the rescan work on it.
+#[test]
+fn reset_character_reimport_and_rescan() {
+    let f = Fake::new();
+    write_logs(&f);
+    let live = f.lib.join("LIVE");
+    let reset = LOGIN_A
+        .replace("geid 100001", "geid 300003")
+        .replace("2026-03-01T10:00:00.000Z", "2026-03-04T10:00:00.000Z");
+    std::fs::write(
+        live.join("logbackups/Game Build(1) 02 Mar 26 (10 00 00).log"),
+        std::fs::read_to_string(live.join("Game.log")).unwrap(),
+    )
+    .unwrap();
+    std::fs::write(
+        live.join("Game.log"),
+        format!(
+            "<2026-03-04T09:59:00.000Z> Log started\n{reset}{}",
+            bp("2026-03-04T10:05:00.000Z", "New Visor")
+        )
+        .replace('\n', "\r\n"),
+    )
+    .unwrap();
+    f.setup("LIVE");
+    let (code, v) = f.json(&["blueprints", "scan", "--channel", "LIVE"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(
+        v["channels"][0]["scan"]["merged"][0]["into"], "300003",
+        "{v}"
+    );
+    let (_, v) = f.json(&["blueprints", "characters"]);
+    let rows = v["characters"].as_array().unwrap();
+    let names: Vec<&str> = rows.iter().map(|r| r["name"].as_str().unwrap()).collect();
+    assert_eq!(names, vec!["Alt_Pilot", "Test_Pilot"], "{v}");
+    let main = rows.iter().find(|r| r["geid"] == "300003").unwrap();
+    assert_eq!(main["owned"], 3, "both sessions: {v}");
+    assert_eq!(main["active"], true, "newest session");
+
+    // Import, then re-import the same file from memory with --replace after it shrank.
+    let (e, cat) = import_files(&f);
+    let (es, cats) = (e.to_str().unwrap(), cat.to_str().unwrap());
+    let o = f.run(&["blueprints", "reimport", "--character", "Test_Pilot"]);
+    assert_eq!(o.status.code(), Some(2), "no earlier import: {o:?}");
+    let (code, v) = f.json(&[
+        "blueprints",
+        "import",
+        es,
+        "--character",
+        "100001",
+        "--test-catalog",
+        cats,
+    ]);
+    assert_eq!(code, 0, "an old geid resolves: {v}");
+    assert_eq!(v["character"]["geid"], "300003");
+    std::fs::write(
+        &e,
+        SC_EXPORT.replace(
+            "{\"name\": \"[L] Twin Name\", \"completed\": true, \"favorite\": false},",
+            "",
+        ),
+    )
+    .unwrap();
+    let (code, v) = f.json(&[
+        "blueprints",
+        "reimport",
+        "--character",
+        "Test_Pilot",
+        "--replace",
+        "--dry-run",
+        "--test-catalog",
+        cats,
+    ]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["report"]["removed"][0], "Twin Name", "{v}");
+    assert_eq!(v["written"], false);
+    let (_, v) = f.json(&[
+        "blueprints",
+        "reimport",
+        "--character",
+        "Test_Pilot",
+        "--replace",
+        "--test-catalog",
+        cats,
+    ]);
+    assert_eq!(v["report"]["removed"].as_array().unwrap().len(), 1, "{v}");
+    let owned = v["owned_after"].as_u64().unwrap();
+
+    // Rescan: dry run changes nothing; the real one keeps the import.
+    let (code, v) = f.json(&["blueprints", "rescan", "--dry-run"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["written"], false);
+    let (code, v) = f.json(&["blueprints", "rescan"]);
+    assert_eq!(code, 0, "{v}");
+    let d = v["report"]["characters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == "300003")
+        .unwrap();
+    assert_eq!(d["after"].as_u64().unwrap(), owned, "{v}");
+    assert!(d["removed"].as_array().unwrap().is_empty(), "{v}");
+    let bp_dir = f.data_dir("LIVE").join("blueprints");
+    assert!(bp_dir.join("backups").is_dir());
+    assert!(!bp_dir.join("100001.json").exists());
+}
+
 const PRE: &str = "#!/usr/bin/env bash\n# user's pre-launch script\nWINEPREFIX=\"${WINEPREFIX:-$HOME/games/sc}\"\necho \"user: prelaunch\"\nexit 0\n";
 const POST: &str = "#!/usr/bin/env bash\necho \"user: postexit\"\n";
 

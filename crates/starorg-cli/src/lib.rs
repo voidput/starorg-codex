@@ -449,11 +449,44 @@ pub enum BlueprintCmd {
         /// Print the report; write nothing.
         #[arg(long)]
         dry_run: bool,
+        /// Re-import: drop what an earlier Smart Citizen import added and this export no
+        /// longer has (entries from the logs or StarOrg Tools stay).
+        #[arg(long)]
+        replace: bool,
         /// Test hook: blueprint names to match against (`id<TAB>name` per line) instead of
         /// GameData.
         #[cfg(feature = "test-hooks")]
         #[arg(long, hide = true, value_name = "FILE")]
         test_catalog: Option<PathBuf>,
+    },
+    /// Import the Smart Citizen export again: the last file imported on this channel unless
+    /// FILE is given. Same options as `import`.
+    Reimport {
+        #[arg(value_name = "FILE")]
+        file: Option<PathBuf>,
+        #[arg(long, value_name = "NAME|GEID")]
+        character: String,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        #[arg(long)]
+        dry_run: bool,
+        #[arg(long)]
+        replace: bool,
+        #[cfg(feature = "test-hooks")]
+        #[arg(long, hide = true, value_name = "FILE")]
+        test_catalog: Option<PathBuf>,
+    },
+    /// Re-read every log of a channel from the start and rebuild the blueprints found there.
+    /// Imported and StarOrg entries stay unless --replace.
+    Rescan {
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        /// Print what would change; write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Start every set empty: only what the logs show is kept.
+        #[arg(long)]
+        replace: bool,
     },
 }
 

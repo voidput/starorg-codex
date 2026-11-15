@@ -1,4 +1,4 @@
-//! `blueprints scan|characters|list|use|import` (addendum §3, §4).
+//! `blueprints scan|characters|list|use|import|reimport|rescan` (addendum §3, §4).
 
 use crate::apply_cmds::{ctx, find_channel, install, lookup, register, source};
 use crate::commands::{JSON_SCHEMA, fail};
@@ -8,7 +8,7 @@ use starorg_core::apply::{self, Ctx, Target};
 use starorg_core::blueprints::catalog::{BlueprintCatalog, GameDataCatalog, ListCatalog};
 use starorg_core::blueprints::import::{self, EXPORT_LIMIT};
 use starorg_core::blueprints::logscan::{self, ScanReport, Store};
-use starorg_core::blueprints::{self, Characters, Choice};
+use starorg_core::blueprints::{self, Characters, Choice, repair};
 use starorg_core::cache::{self, KeyInputs};
 use starorg_core::discovery::{Channel, Install};
 use starorg_core::fsutil;
@@ -32,6 +32,7 @@ pub fn run(g: &GlobalOpts, cmd: BlueprintCmd) -> ExitCode {
             character,
             channel,
             dry_run,
+            replace,
             #[cfg(feature = "test-hooks")]
             test_catalog,
         } => {
@@ -39,13 +40,38 @@ pub fn run(g: &GlobalOpts, cmd: BlueprintCmd) -> ExitCode {
             let test_catalog: Option<std::path::PathBuf> = None;
             import_cmd(
                 g,
-                &file,
+                Some(&file),
                 &character,
                 &channel,
-                dry_run,
+                (dry_run, replace),
                 test_catalog.as_deref(),
             )
         }
+        BlueprintCmd::Reimport {
+            file,
+            character,
+            channel,
+            dry_run,
+            replace,
+            #[cfg(feature = "test-hooks")]
+            test_catalog,
+        } => {
+            #[cfg(not(feature = "test-hooks"))]
+            let test_catalog: Option<std::path::PathBuf> = None;
+            import_cmd(
+                g,
+                file.as_deref(),
+                &character,
+                &channel,
+                (dry_run, replace),
+                test_catalog.as_deref(),
+            )
+        }
+        BlueprintCmd::Rescan {
+            channel,
+            dry_run,
+            replace,
+        } => rescan_cmd(g, &channel, dry_run, replace),
     }
 }
 
@@ -100,6 +126,7 @@ pub(crate) fn print_scan(g: &GlobalOpts, ch: &str, store: &Store, r: &ScanReport
     if g.quiet || g.json {
         return;
     }
+    print_repairs(ch, store, r);
     if r.disabled {
         println!(
             "{ch}: Game.log import is off (starorg-strings sync set --import-game-log on); no log read"
@@ -133,6 +160,150 @@ pub(crate) fn print_scan(g: &GlobalOpts, ch: &str, store: &Store, r: &ScanReport
     for w in &r.warnings {
         eprintln!("  warning: {w}");
     }
+}
+
+/// The one-time store repair and character merges a scan made, and names shared by
+/// characters of different accounts.
+fn print_repairs(ch: &str, store: &Store, r: &ScanReport) {
+    if let Some(x) = &r.repaired
+        && x.changed()
+    {
+        println!("{ch}: blueprint store repaired: {}", x.summary());
+        if let Some(b) = &x.backup {
+            println!("  backup: {}", b.display());
+        }
+    }
+    let merged = r
+        .repaired
+        .iter()
+        .flat_map(|x| x.merged.iter())
+        .chain(r.merged.iter());
+    for m in merged {
+        println!(
+            "  merged character {} into {} (same account and name, new geid; {} blueprints added)",
+            m.from,
+            name_of(&store.characters, Some(&m.into)),
+            m.added
+        );
+    }
+    let mut shown = std::collections::BTreeSet::new();
+    for group in &r.same_name {
+        if shown.insert(group.clone()) {
+            println!(
+                "  note: {} characters of different accounts are named {}; kept apart (pick one with `blueprints use`)",
+                group.len(),
+                name_of(&store.characters, group.first().map(String::as_str))
+            );
+        }
+    }
+}
+
+fn rescan_cmd(g: &GlobalOpts, channel: &str, dry_run: bool, replace: bool) -> ExitCode {
+    let c = match ctx(g) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+    let i = match install(g) {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+    let ch = match find_channel(g, &i, channel) {
+        Ok(ch) => ch,
+        Err(e) => return e,
+    };
+    let id = if dry_run {
+        lookup(&c, &i)
+    } else {
+        match register(g, &c, &i) {
+            Ok(id) => Some(id),
+            Err(e) => return e,
+        }
+    };
+    if !starorg_core::starorg::SyncPrefs::load(&c.dirs).import_game_log {
+        return fail(
+            g,
+            exit::USAGE,
+            "disabled",
+            "Game.log import is off (starorg-strings sync set --import-game-log on); no log read",
+        );
+    }
+    let data = c
+        .dirs
+        .channel_dir(id.as_deref().unwrap_or("unregistered"), &ch.name);
+    let _lock = match (&id, dry_run) {
+        (Some(id), false) => match blueprint_lock(&c, id, ch) {
+            Ok(l) => Some(l),
+            Err(e) => return fail(g, exit::SKIPPED, "busy", &e),
+        },
+        _ => None,
+    };
+    let mut store = if id.is_some() {
+        match Store::load(&data) {
+            Ok(s) => s,
+            Err(e) => return fail(g, exit::ERROR, "io", &e),
+        }
+    } else {
+        Store::default()
+    };
+    let rep = match repair::rebuild_from_logs(&ch.dir, &data, &mut store, replace, None) {
+        Ok(r) => r,
+        Err(e) => return fail(g, exit::ERROR, "io", &e),
+    };
+    let mut wrote = false;
+    if !dry_run && id.is_some() {
+        if let Err(e) = store.save(&data) {
+            return fail(g, exit::ERROR, "io", &e);
+        }
+        wrote = true;
+    }
+    if g.json {
+        println!(
+            "{}",
+            json!({ "schema": JSON_SCHEMA, "command": "blueprints rescan", "channel": ch.name,
+                    "dry_run": dry_run, "written": wrote, "report": rep })
+        );
+    } else if !g.quiet {
+        println!(
+            "{}: re-read {} log files from the start{}{}",
+            ch.name,
+            rep.scan.files_read,
+            if replace {
+                ", every set rebuilt from the logs only"
+            } else {
+                ""
+            },
+            if dry_run {
+                " [dry run: nothing written]"
+            } else {
+                ""
+            }
+        );
+        print_repairs(&ch.name, &store, &rep.scan);
+        for d in &rep.characters {
+            let who = if d.id.is_some() {
+                d.name.as_str()
+            } else {
+                "unattributed"
+            };
+            println!(
+                "  {who}: {} -> {} blueprints (+{} -{})",
+                d.before,
+                d.after,
+                d.added.len(),
+                d.removed.len()
+            );
+            for n in &d.added {
+                println!("    + {n}");
+            }
+            for n in &d.removed {
+                println!("    - {n}");
+            }
+        }
+        for w in &rep.scan.warnings {
+            eprintln!("  warning: {w}");
+        }
+    }
+    ExitCode::from(exit::OK)
 }
 
 fn scan_cmd(g: &GlobalOpts, channel: Option<&str>) -> ExitCode {
@@ -416,12 +587,40 @@ pub(crate) fn channel_data(
 
 fn import_cmd(
     g: &GlobalOpts,
-    file: &Path,
+    file: Option<&Path>,
     who: &str,
     channel: &str,
-    dry_run: bool,
+    (dry_run, replace): (bool, bool),
     test_catalog: Option<&Path>,
 ) -> ExitCode {
+    let c = match ctx(g) {
+        Ok(c) => c,
+        Err(e) => return e,
+    };
+    let i = match install(g) {
+        Ok(i) => i,
+        Err(e) => return e,
+    };
+    let ch = match find_channel(g, &i, channel) {
+        Ok(ch) => ch,
+        Err(e) => return e,
+    };
+    let last = lookup(&c, &i)
+        .map(|id| import::last_import(&c.dirs.channel_dir(&id, &ch.name)).smart_citizen)
+        .unwrap_or_default();
+    let file: std::path::PathBuf = match (file, last) {
+        (Some(f), _) => f.to_path_buf(),
+        (None, Some(f)) => f,
+        (None, None) => {
+            return fail(
+                g,
+                exit::USAGE,
+                "usage",
+                "no earlier Smart Citizen import on this channel; give the export FILE",
+            );
+        }
+    };
+    let file = file.as_path();
     let bytes = match fsutil::read_limited(file, EXPORT_LIMIT) {
         Ok(Some(b)) => b,
         Ok(None) => {
@@ -437,18 +636,6 @@ fn import_cmd(
     let export = match import::parse_export(&bytes) {
         Ok(x) => x,
         Err(e) => return fail(g, exit::USAGE, "bad-export", &e),
-    };
-    let c = match ctx(g) {
-        Ok(c) => c,
-        Err(e) => return e,
-    };
-    let i = match install(g) {
-        Ok(i) => i,
-        Err(e) => return e,
-    };
-    let ch = match find_channel(g, &i, channel) {
-        Ok(ch) => ch,
-        Err(e) => return e,
     };
     let id = if dry_run {
         lookup(&c, &i)
@@ -509,7 +696,7 @@ fn import_cmd(
         Ok(s) => s,
         Err(e) => return fail(g, exit::ERROR, "io", &e),
     };
-    let rep = import::merge(&export, catalog.as_ref(), set);
+    let rep = import::merge_with(&export, catalog.as_ref(), set, replace);
     let count_after = set.entries.len();
     let name = store
         .characters
@@ -524,6 +711,10 @@ fn import_cmd(
     } else if !dry_run {
         if let Err(e) = store.save(&data) {
             return fail(g, exit::ERROR, "io", &e);
+        }
+        let abs = fsutil::canonicalize(file).unwrap_or_else(|_| file.to_path_buf());
+        if let Err(e) = import::save_last_import(&data, &abs) {
+            eprintln!("  warning: could not remember the export for a re-import: {e}");
         }
         wrote = true;
     }
@@ -549,14 +740,18 @@ fn import_cmd(
             }
         );
         println!(
-            "  imported {}, already known {}, unmatched {}, ambiguous {}, not completed {}, duplicates {}",
+            "  imported {}, already known {}, removed {}, unmatched {}, ambiguous {}, not completed {}, duplicates {}",
             rep.imported.len(),
             rep.known.len(),
+            rep.removed.len(),
             rep.unmatched.len(),
             rep.ambiguous.len(),
             rep.not_completed,
             rep.duplicates
         );
+        for n in &rep.removed {
+            println!("  removed (no longer in the export): {n}");
+        }
         for n in &rep.unmatched {
             println!("  unmatched: {n}");
         }
