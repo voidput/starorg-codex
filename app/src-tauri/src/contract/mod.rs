@@ -153,6 +153,10 @@ pub trait Backend: dev::DevBackend + Send + Sync + 'static {
     /// AppImage / NSIS / MSI with a real key: download, verify, install, restart.
     fn install_update(&self) -> CmdResult<UpdateStatus>;
 
+    /// Footer / About links (Support, Buy me a coffee) in the system browser. The webview
+    /// names an allowlisted link; the URL lives in Rust ([`ExternalLink::url`]).
+    fn open_link(&self, link: ExternalLink) -> CmdResult<()>;
+
     // Experimental local MCP server (docs/mcp.md): off at every start, loopback only.
     fn mcp_status(&self) -> CmdResult<McpStatus>;
     /// Start (`enabled: true`) or stop the server; returns its state.
@@ -262,6 +266,7 @@ commands! {
     skip_update(version: String) -> UpdateStatus;
     open_release_page() -> ();
     install_update() -> UpdateStatus;
+    open_link(link: ExternalLink) -> ();
     mcp_status() -> McpStatus;
     set_mcp_enabled(req: McpToggle) -> McpStatus;
 }
@@ -355,6 +360,7 @@ macro_rules! contract_handler {
             $crate::contract::skip_update,
             $crate::contract::open_release_page,
             $crate::contract::install_update,
+            $crate::contract::open_link,
             $crate::contract::dev::dev_status,
             $crate::contract::dev::dev_open,
             $crate::contract::dev::dev_close,
@@ -452,6 +458,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "skip_update",
     "open_release_page",
     "install_update",
+    "open_link",
     "dev_status",
     "dev_open",
     "dev_close",

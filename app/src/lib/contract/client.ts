@@ -79,6 +79,7 @@ export interface CommandMap extends DevCommandMap {
   skip_update: [{ version: string }, T.UpdateStatus];
   open_release_page: [Record<string, never>, null];
   install_update: [Record<string, never>, T.UpdateStatus];
+  open_link: [{ link: T.ExternalLink }, null];
   mcp_status: [Record<string, never>, T.McpStatus];
   set_mcp_enabled: [{ req: T.McpToggle }, T.McpStatus];
 }
@@ -156,6 +157,7 @@ export const COMMANDS = [
   'skip_update',
   'open_release_page',
   'install_update',
+  'open_link',
   'dev_status',
   'dev_open',
   'dev_close',
@@ -345,6 +347,8 @@ export const api = {
   /** Opens the release page in the system browser (Rust side, github.com only). */
   openReleasePage: () => call('open_release_page', none),
   installUpdate: () => call('install_update', none),
+  /** Support / Buy me a coffee in the system browser. An allowlist: the URLs live in Rust. */
+  openLink: (link: T.ExternalLink) => call('open_link', { link }),
   /** Experimental local MCP server: off at every start, 127.0.0.1 only. */
   mcpStatus: () => call('mcp_status', none),
   setMcpEnabled: (enabled: boolean) => call('set_mcp_enabled', { req: { enabled } }),

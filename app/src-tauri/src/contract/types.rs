@@ -1754,6 +1754,33 @@ pub struct UpdateCheckRequest {
     pub force: bool,
 }
 
+/// A link the webview may ask to open. An allowlist: the webview never sends a URL, so it
+/// cannot open anything else (it has no opener/shell permission of its own).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum ExternalLink {
+    /// The Discord server.
+    Support,
+    /// Buy me a coffee.
+    Donate,
+}
+
+impl ExternalLink {
+    pub const fn url(self) -> &'static str {
+        match self {
+            Self::Support => "https://discord.gg/GCkYhbFYNq",
+            Self::Donate => "https://buymeacoffee.com/zedwil",
+        }
+    }
+
+    pub const fn label(self) -> &'static str {
+        match self {
+            Self::Support => "Support",
+            Self::Donate => "Buy me a coffee",
+        }
+    }
+}
+
 // ---------------------------------------------------------------------------------------
 // Experimental: local MCP server (docs/mcp.md)
 // ---------------------------------------------------------------------------------------

@@ -2684,6 +2684,17 @@ impl Backend for MockBackend {
         self.update.open_release_page()
     }
 
+    // No browser here: the activity log records the click instead.
+    fn open_link(&self, link: ExternalLink) -> CmdResult<()> {
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!("Opened the {} link ({})", link.label(), link.url()),
+        );
+        Ok(())
+    }
+
     fn install_update(&self) -> CmdResult<UpdateStatus> {
         self.update.install(self.updates_on())
     }

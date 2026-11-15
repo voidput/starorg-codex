@@ -3630,6 +3630,7 @@
     "token": null,
     "url": null
   },
+  "open_link": null,
   "overview": {
     "active_install": "inst-7f3a",
     "app_version": "0.1.0",

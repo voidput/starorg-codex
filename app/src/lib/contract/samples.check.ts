@@ -95,6 +95,7 @@ interface Samples {
   dev_close: T.DevStatus;
   mcp_status: T.McpStatus;
   set_mcp_enabled: T.McpStatus;
+  open_link: null;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

@@ -1020,6 +1020,9 @@ export interface UpdateCheckRequest {
   force: boolean;
 }
 
+/** Footer / About links; the URL for each lives in Rust (`ExternalLink::url`). */
+export type ExternalLink = 'support' | 'donate';
+
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';
 // Experimental: local MCP server (docs/mcp.md) --------------------------------------------

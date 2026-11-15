@@ -2769,6 +2769,19 @@ impl Backend for RealBackend {
         self.update.open_release_page()
     }
 
+    fn open_link(&self, link: ExternalLink) -> CmdResult<()> {
+        open::that_detached(link.url()).map_err(|e| {
+            AppError::new(ErrorCode::Internal, format!("cannot open the browser: {e}"))
+        })?;
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!("Opened the {} link in the browser", link.label()),
+        );
+        Ok(())
+    }
+
     fn install_update(&self) -> CmdResult<UpdateStatus> {
         self.log(LogLevel::Info, None, None, "Installing an update");
         self.update.install(self.updates_on())

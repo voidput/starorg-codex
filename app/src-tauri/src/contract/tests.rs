@@ -240,6 +240,7 @@ fn samples() -> Value {
     for (k, x) in super::tests_dev::dev_samples() {
         v[k] = x;
     }
+    v["open_link"] = json!(b.open_link(ExternalLink::Support).unwrap());
     let (mcp_off, mcp_on) = mcp_samples();
     v["mcp_status"] = json!(mcp_off);
     v["set_mcp_enabled"] = json!(mcp_on);
@@ -1842,6 +1843,48 @@ fn update_check_over_ipc_needs_the_switch_and_takes_a_req() {
     assert_eq!(
         ipc("skip_update", json!({ "version": "0.2.0" })).unwrap()["skipped_version"],
         "0.2.0"
+    );
+}
+
+#[test]
+fn open_link_takes_only_allowlisted_links() {
+    assert_eq!(ExternalLink::Support.url(), "https://discord.gg/GCkYhbFYNq");
+    assert_eq!(
+        ExternalLink::Donate.url(),
+        "https://buymeacoffee.com/zedwil"
+    );
+    // links.ts shows the same URLs (display only; Rust opens them).
+    let ts = std::fs::read_to_string(app_src().join("../links.ts")).unwrap();
+    for l in [ExternalLink::Support, ExternalLink::Donate] {
+        assert!(l.url().starts_with("https://"));
+        assert!(
+            ts.contains(&format!("url: '{}'", l.url())),
+            "{l:?} not in links.ts"
+        );
+    }
+    assert_eq!(
+        ipc("open_link", json!({ "link": "support" })).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        ipc("open_link", json!({ "link": "donate" })).unwrap(),
+        Value::Null
+    );
+    // Never a URL, never an unknown name.
+    for bad in [
+        json!({ "link": "https://example.com" }),
+        json!({ "link": "discord" }),
+        json!({ "url": "https://example.com" }),
+        json!({}),
+    ] {
+        assert!(ipc("open_link", bad.clone()).is_err(), "{bad}");
+    }
+    let b = MockBackend::default();
+    b.open_link(ExternalLink::Donate).unwrap();
+    let log = b.activity(1).unwrap();
+    assert!(
+        log[0].message.contains("buymeacoffee.com/zedwil"),
+        "{log:?}"
     );
 }
 
