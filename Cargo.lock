@@ -3457,6 +3457,7 @@ dependencies = [
  "clap",
  "serde",
  "serde_json",
+ "starorg-cli",
  "starorg-core",
  "starorg-data",
  "starorg-net",

@@ -148,6 +148,28 @@ fn postexit_scans_attributes_and_reapplies() {
     ]);
     assert_eq!(code, 0, "{v}");
     assert_eq!(v["channels"][0]["owned"]["count"], 3);
+
+    // A one-off pick is kept: status stays applied and the hook does not flip it back.
+    let (code, v) = f.json(&["apply", "--channel", "LIVE", "--character", "any"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["channels"][0]["owned"]["count"], 3);
+    assert_eq!(f.status_of("LIVE"), "applied");
+    let (code, v) = f.json(&["hook", "prelaunch"]);
+    assert_eq!(code, 0);
+    let live = v["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["channel"] == "LIVE")
+        .unwrap();
+    assert_eq!(live["result"], "up-to-date", "{v}");
+    // `blueprints use` ends it: the channel setting counts again.
+    let o = f.run(&["blueprints", "use", "--channel", "LIVE", "test_pilot"]);
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    assert_eq!(f.status_of("LIVE"), "stale");
+    let (code, v) = f.json(&["apply", "--channel", "LIVE"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["channels"][0]["owned"]["count"], 2);
 }
 
 #[test]

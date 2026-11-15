@@ -50,14 +50,15 @@ pub(crate) fn ctx(g: &GlobalOpts) -> Result<Ctx, ExitCode> {
         ));
     };
     let mut c = Ctx::new(dirs, env!("CARGO_PKG_VERSION"), STARBREAKER_COMMIT);
-    c.use_cache = !g.no_cache && g.test_stock_ini.is_none();
-    c.pause_after_write = g.test_pause_after_write_ms.map(Duration::from_millis);
+    c.use_cache = !g.no_cache && g.test_stock_ini().is_none();
+    c.pause_after_write = g.test_pause_after_write_ms().map(Duration::from_millis);
+    c.pause_before_cfg = g.test_pause_before_cfg_ms().map(Duration::from_millis);
     Ok(c)
 }
 
 pub(crate) fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, ExitCode> {
-    if let Some(p) = &g.test_stock_ini {
-        return Ok(Box::new(FileSource(p.clone())));
+    if let Some(p) = g.test_stock_ini() {
+        return Ok(Box::new(FileSource(p.to_path_buf())));
     }
     let exe = std::env::current_exe().map_err(|e| {
         fail(

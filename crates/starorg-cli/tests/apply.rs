@@ -152,6 +152,91 @@ fn missing_line_is_appended_and_remove_keeps_hand_added_lines() {
     assert_eq!(f.status_of("LIVE"), "not-applied");
 }
 
+/// Two channels sharing one USER.cfg apply at the same time: the slower run must re-read
+/// the file under the cfg lock, see the line the other run appended, and join its ledger
+/// instead of overwriting both the file and the ledger with what it read earlier.
+#[test]
+fn concurrent_applies_on_a_shared_user_cfg_keep_both_on_the_ledger() {
+    let f = Fake::new();
+    let before = "r_width = 2560\r\n";
+    std::fs::write(f.shared_cfg(), before).unwrap();
+    f.setup("LIVE");
+    f.setup("HOTFIX");
+    // LIVE reads USER.cfg (no language line), then waits before its user.cfg step.
+    let slow = f
+        .cmd(&[
+            "apply",
+            "--channel",
+            "LIVE",
+            "--json",
+            "--test-pause-before-cfg-ms",
+            "1500",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(400));
+    // Meanwhile HOTFIX appends the line and the user adds one of their own.
+    let (code, v) = f.json(&["apply", "--channel", "HOTFIX"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["channels"][0]["user_cfg"]["changed"], true);
+    let mid = std::fs::read_to_string(f.shared_cfg()).unwrap();
+    std::fs::write(f.shared_cfg(), format!("{mid}sys_MaxFPS = 144\r\n")).unwrap();
+    let o = slow.wait_with_output().unwrap();
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    let v: serde_json::Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["channels"][0]["user_cfg"]["changed"], false, "{v}");
+    assert_eq!(
+        std::fs::read_to_string(f.shared_cfg()).unwrap(),
+        format!("{before}g_language = english\r\nsys_MaxFPS = 144\r\n"),
+        "LIVE must not write the text it read before HOTFIX changed the file"
+    );
+    // Removing HOTFIX leaves the line LIVE still relies on.
+    let (code, v) = f.json(&["remove", "--channel", "HOTFIX"]);
+    assert_eq!(code, 0, "{v}");
+    assert!(
+        std::fs::read_to_string(f.shared_cfg())
+            .unwrap()
+            .contains("g_language = english"),
+        "{v}"
+    );
+    assert_eq!(f.status_of("LIVE"), "applied");
+    let (code, _) = f.json(&["remove", "--channel", "LIVE"]);
+    assert_eq!(code, 0);
+    assert_eq!(
+        std::fs::read_to_string(f.shared_cfg()).unwrap(),
+        format!("{before}sys_MaxFPS = 144\r\n")
+    );
+}
+
+/// A linked global.ini: remove deletes the file behind the link and keeps the link; the
+/// next apply writes through the (now dangling) link again instead of failing.
+#[test]
+fn linked_global_ini_survives_remove_and_reapply() {
+    let f = Fake::new();
+    f.setup("LIVE");
+    let elsewhere = f.base.join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).unwrap();
+    let real = elsewhere.join("global.ini");
+    std::fs::write(&real, common::stock_bytes("Star Citizen Alpha 4.10")).unwrap();
+    let ini = f.ini("LIVE");
+    std::fs::create_dir_all(ini.parent().unwrap()).unwrap();
+    std::os::unix::fs::symlink(&real, &ini).unwrap();
+    let (code, v) = f.json(&["apply", "--channel", "LIVE"]);
+    assert!(code == 0 || code == 5, "{v}");
+    assert!(is_link(&ini) && real.exists());
+    let (code, v) = f.json(&["remove", "--channel", "LIVE", "--yes"]);
+    assert_eq!(code, 0, "{v}");
+    assert!(is_link(&ini), "link kept");
+    assert!(!real.exists(), "file behind the link deleted");
+    assert!(v.to_string().contains("link-kept"), "{v}");
+    let (code, v) = f.json(&["apply", "--channel", "LIVE"]);
+    assert_eq!(code, 0, "{v}");
+    assert!(is_link(&ini) && real.exists());
+    assert_eq!(f.status_of("LIVE"), "applied");
+}
+
 #[test]
 fn foreign_file_is_pinned_and_cross_build_restore_needs_confirmation() {
     let f = Fake::new();

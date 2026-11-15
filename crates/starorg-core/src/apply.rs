@@ -84,6 +84,9 @@ pub struct Ctx {
     /// Test hook: sleep this long between the write and the record (to kill the process
     /// there).
     pub pause_after_write: Option<Duration>,
+    /// Test hook: sleep this long before the `user.cfg` step (to let another channel change
+    /// a shared `user.cfg` in between).
+    pub pause_before_cfg: Option<Duration>,
 }
 
 impl Ctx {
@@ -96,6 +99,7 @@ impl Ctx {
             p4k_settle: Duration::from_millis(500),
             use_cache: true,
             pause_after_write: None,
+            pause_before_cfg: None,
         }
     }
 }
@@ -187,6 +191,13 @@ pub struct Applied {
     pub warnings: Vec<Warning>,
     pub real_target: PathBuf,
     pub user_cfg_changed: bool,
+    /// `apply --character X` (one-off): the pick, and the channel's `active_character`
+    /// setting at that time. While that setting is unchanged, later runs without
+    /// `--character` (status, hooks) keep using the pick instead of flipping back.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owned_choice: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub owned_setting: Option<String>,
 }
 
 /// `intent.json`: the journal of an apply in progress.
@@ -215,6 +226,10 @@ pub struct Inputs {
     pub overrides_hash: String,
     /// Owned blueprints for `[Owned]` markers (addendum §3).
     pub owned: blueprints::Selection,
+    /// The one-off character pick in force (`--character`, or kept from the last apply).
+    pub owned_choice: Option<String>,
+    /// The channel's `active_character` setting.
+    pub owned_setting: Option<String>,
 }
 
 /// Read the current inputs of a channel. `profile_file` replaces `profile.toml`; `character`
@@ -233,17 +248,24 @@ pub fn current_inputs(
     let patches = patch::load_patches(&ctx.dirs, &profile.disabled_patches());
     let (overrides_bytes, overrides, overrides_bad) =
         state::load_overrides(&data).map_err(|e| e.to_string())?;
-    let choice = match character {
+    let setting = ChannelState::load(&data)
+        .map_err(|e| e.to_string())?
+        .active_character;
+    let one_off = match character {
         Some(c) => Some(c.to_string()),
-        None => {
-            ChannelState::load(&data)
-                .map_err(|e| e.to_string())?
-                .active_character
-        }
+        // A one-off pick from the last apply holds while the channel setting is unchanged.
+        None => read_json::<Applied>(&data.join(APPLIED_JSON))
+            .ok()
+            .flatten()
+            .filter(|a| a.owned_choice.is_some() && a.owned_setting == setting)
+            .and_then(|a| a.owned_choice),
     };
+    let choice = one_off.clone().or_else(|| setting.clone());
     let owned = blueprints::select(&data, choice.as_deref())?;
     Ok(Inputs {
         owned,
+        owned_choice: one_off,
+        owned_setting: setting,
         fingerprint: t.channel.fingerprint().ok(),
         profile_hash: profile.hash(),
         profile,
@@ -253,6 +275,21 @@ pub fn current_inputs(
         overrides,
         overrides_bad,
     })
+}
+
+/// Drop a one-off `apply --character` pick from `applied.json` (after `blueprints use`), so
+/// status and the hooks go back to the channel setting.
+pub fn forget_one_off_character(channel_data: &Path) -> Result<(), String> {
+    let p = channel_data.join(APPLIED_JSON);
+    match read_json::<Applied>(&p) {
+        Ok(Some(mut a)) if a.owned_choice.is_some() => {
+            a.owned_choice = None;
+            a.owned_setting = None;
+            write_json(&p, &a).map_err(|e| format!("{}: {e}", p.display()))
+        }
+        Ok(_) => Ok(()),
+        Err(e) => Err(format!("{}: {e}", p.display())),
+    }
 }
 
 /// Where the loose `global.ini` is.
@@ -271,14 +308,27 @@ pub fn locate_ini(channel_dir: &Path) -> Result<IniTarget, String> {
     let r = resolve_ci(channel_dir, LOOSE_INI).map_err(|e| e.to_string())?;
     let link_meta = std::fs::symlink_metadata(&r.path).ok();
     let exists = r.path.exists();
-    if link_meta.is_some_and(|m| m.file_type().is_symlink()) && !exists {
-        return Err(format!(
-            "{} is a link to a missing file; refusing to replace the link",
-            r.path.display()
-        ));
-    }
     let real = if exists {
         std::fs::canonicalize(&r.path).map_err(|e| format!("{}: {e}", r.path.display()))?
+    } else if link_meta.is_some_and(|m| m.file_type().is_symlink()) {
+        // A link to a missing file (as `remove` leaves a linked global.ini): follow it by
+        // hand and write the file it names; the link itself is never replaced (spec 7.4).
+        let target =
+            std::fs::read_link(&r.path).map_err(|e| format!("{}: {e}", r.path.display()))?;
+        let target = if target.is_absolute() {
+            target
+        } else {
+            r.path.parent().unwrap_or(channel_dir).join(target)
+        };
+        let real = fsutil::canonical_lenient(&target);
+        if !real.parent().is_some_and(Path::is_dir) {
+            return Err(format!(
+                "{} links to {}, whose folder is missing; refusing to replace the link",
+                r.path.display(),
+                real.display()
+            ));
+        }
+        real
     } else {
         fsutil::canonical_lenient(&r.path)
     };
@@ -554,7 +604,7 @@ pub fn recover(ctx: &Ctx, t: &Target<'_>) -> Result<Option<String>, String> {
         let _ = std::fs::remove_file(&intent.temp);
         let mut m = "an interrupted apply had not written the file; undid it".to_string();
         if let Some(cfg) = &intent.user_cfg {
-            let _l = lock::try_lock(&usercfg::lock_path(&ctx.dirs, &cfg.real))
+            let _l = wait_lock(&usercfg::lock_path(&ctx.dirs, &cfg.real), CFG_LOCK_WAIT)
                 .map_err(|e| e.to_string())?;
             match usercfg::release(&ctx.dirs, cfg, &t.channel_ref()) {
                 Ok(o) => m.push_str(&format!(" (user.cfg: {o:?})")),
@@ -580,13 +630,18 @@ pub fn recover_if_idle(ctx: &Ctx, t: &Target<'_>) -> Option<Result<Option<String
 
 fn add_output(ctx: &Ctx, entry: OutputEntry) -> Result<(), String> {
     // outputs.json is shared by all channels: serialise writers.
-    let _l = wait_lock(&ctx.dirs.outputs_lock(), Duration::from_secs(5))?;
+    let _l =
+        wait_lock(&ctx.dirs.outputs_lock(), Duration::from_secs(5)).map_err(|e| e.to_string())?;
     let mut o = Outputs::load(&ctx.dirs).map_err(|e| e.to_string())?;
     o.add(entry);
     o.save(&ctx.dirs).map_err(|e| e.to_string())
 }
 
-fn wait_lock(path: &Path, max: Duration) -> Result<lock::Lock, String> {
+/// How long a run waits for the shared `user.cfg` lock. The critical section is a read, a
+/// small edit and a rename, so a short wait beats skipping the whole channel (exit 3).
+pub const CFG_LOCK_WAIT: Duration = Duration::from_secs(10);
+
+fn wait_lock(path: &Path, max: Duration) -> Result<lock::Lock, LockError> {
     let start = Instant::now();
     loop {
         match lock::try_lock(path) {
@@ -594,8 +649,30 @@ fn wait_lock(path: &Path, max: Duration) -> Result<lock::Lock, String> {
             Err(LockError::Held(_)) if start.elapsed() < max => {
                 std::thread::sleep(Duration::from_millis(20));
             }
-            Err(e) => return Err(e.to_string()),
+            Err(e) => return Err(e),
         }
+    }
+}
+
+fn cfg_action(plan: &Plan) -> String {
+    match plan {
+        Plan::Nothing => "nothing (line already right)",
+        Plan::Append => "append g_language = english",
+        Plan::Replace { .. } => "replace the language line with english",
+        Plan::NeedsDecision { .. } => "needs decision",
+    }
+    .into()
+}
+
+/// The real target must be ours to edit (or creatable) when the plan writes.
+fn cfg_writable(cfg: &CfgTarget, plan: &Plan, channel_dir: &Path) -> Result<(), String> {
+    if *plan == Plan::Nothing {
+        return Ok(());
+    }
+    if cfg.exists {
+        fsutil::owned_regular_file(&cfg.real)
+    } else {
+        write_probe(cfg.real.parent().unwrap_or(channel_dir))
     }
 }
 
@@ -864,6 +941,15 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         Err(e) => return fail(r, e),
     };
     r.owned = Some(inputs.owned.clone());
+    if inputs.owned.ambiguous > 0 {
+        r.warnings.push(Warning::new(
+            "owned-ambiguous",
+            format!(
+                "{} owned blueprint name(s) match several blueprints; not marked [Owned] (`blueprints list` shows them)",
+                inputs.owned.ambiguous
+            ),
+        ));
+    }
     // --if-stale: nothing to do when Applied (no extraction, no Data.p4k open).
     if opts.if_stale {
         match status(ctx, t, &inputs) {
@@ -925,8 +1011,14 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         Ok(p) => p,
         Err(e) => return fail(r, format!("profile.toml: {e}")),
     };
-    let generated =
-        crate::enhance::generate(&loaded.game_data, &stock, &enhance_profile, &inputs.owned);
+    // Data patches are an overlay for the generators; merge evaluates them on the original.
+    let patched = patch::data_overlay(&inputs.patches, &loaded.game_data, t.build());
+    let generated = crate::enhance::generate(
+        patched.as_ref().unwrap_or(&loaded.game_data),
+        &stock,
+        &enhance_profile,
+        &inputs.owned,
+    );
     r.warnings.extend(generated.warnings.iter().cloned());
     let gen_edits: Vec<merge::GenEdit> =
         generated.edits.values().map(merge::GenEdit::from).collect();
@@ -970,24 +1062,9 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     r.user_cfg.path = Some(cfg.path.clone());
     r.user_cfg.link_target = cfg.is_link.then(|| cfg.real.clone());
     r.user_cfg.shared_with = sharing_channels(t, &cfg.real);
-    r.user_cfg.action = Some(
-        match &plan {
-            Plan::Nothing => "nothing (line already right)",
-            Plan::Append => "append g_language = english",
-            Plan::Replace { .. } => "replace the language line with english",
-            Plan::NeedsDecision { .. } => "needs decision",
-        }
-        .into(),
-    );
-    if plan != Plan::Nothing {
-        let check = if cfg.exists {
-            fsutil::owned_regular_file(&cfg.real)
-        } else {
-            write_probe(cfg.real.parent().unwrap_or(&t.channel.dir))
-        };
-        if let Err(e) = check {
-            return fail(r, e);
-        }
+    r.user_cfg.action = Some(cfg_action(&plan));
+    if let Err(e) = cfg_writable(&cfg, &plan, &t.channel.dir) {
+        return fail(r, e);
     }
     let cur_bytes = if ini.exists {
         match std::fs::read(&ini.real) {
@@ -1053,8 +1130,17 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             .push(Warning::new("backup", format!("retention: {e}")));
     }
 
-    // 9. user.cfg, before global.ini.
-    let _cfg_lock = match lock::try_lock(&usercfg::lock_path(&ctx.dirs, &cfg.real)) {
+    if let Some(p) = ctx.pause_before_cfg {
+        eprintln!(
+            "starorg-strings: test pause before user.cfg ({} ms)",
+            p.as_millis()
+        );
+        std::thread::sleep(p);
+    }
+
+    // 9. user.cfg, before global.ini. The file may be shared with another channel whose run
+    // changed it since step 3: re-read and re-plan under the lock, never write stale text.
+    let _cfg_lock = match wait_lock(&usercfg::lock_path(&ctx.dirs, &cfg.real), CFG_LOCK_WAIT) {
         Ok(l) => l,
         Err(LockError::Held(_)) => {
             return r.end(
@@ -1066,6 +1152,36 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         }
         Err(e) => return fail(r, e.to_string()),
     };
+    let cfg = match usercfg::locate(&t.channel.dir) {
+        Ok(c) => c,
+        Err(e) => return fail(r, e.to_string()),
+    };
+    let cfg_text = match usercfg::read(&cfg) {
+        Ok(t) => t,
+        Err(e) => return fail(r, e.to_string()),
+    };
+    let plan = usercfg::plan(
+        &match &cfg_text {
+            None => LanguageLine::NoFile,
+            Some(text) => usercfg::inspect(text),
+        },
+        cstate.switch_language,
+    );
+    if let Plan::NeedsDecision { value } = &plan {
+        return r.end(
+            Outcome::NeedsDecision,
+            exit::NEEDS_DECISION,
+            Some(format!(
+                "the game language in {} changed to {value} while this run worked; nothing written",
+                cfg.path.display()
+            )),
+            started,
+        );
+    }
+    r.user_cfg.action = Some(cfg_action(&plan));
+    if let Err(e) = cfg_writable(&cfg, &plan, &t.channel.dir) {
+        return fail(r, e);
+    }
     let cfg_changed = match update_user_cfg(ctx, t, &cfg, cfg_text.as_deref(), &plan) {
         Ok(c) => c,
         Err(e) => return fail(r, format!("user.cfg: {e}")),
@@ -1104,6 +1220,11 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         warnings: warnings_for_record,
         real_target: ini.real.clone(),
         user_cfg_changed: cfg_changed,
+        owned_choice: inputs.owned_choice.clone(),
+        owned_setting: inputs
+            .owned_choice
+            .as_ref()
+            .and(inputs.owned_setting.clone()),
     };
     let output = OutputEntry {
         sha256: out_sha.clone(),
@@ -1187,7 +1308,13 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
 
 /// Warning kinds that are shown but do not make the result "applied with warnings" (exit 5):
 /// they say nothing about missing text.
-pub const INFO_KINDS: &[&str] = &["launcher-running", "cache", "foreign-file"];
+pub const INFO_KINDS: &[&str] = &[
+    "launcher-running",
+    "cache",
+    "foreign-file",
+    "link-kept",
+    "owned-ambiguous",
+];
 
 fn finish_code(r: Report, outcome: Outcome, started: Instant) -> Report {
     let code = if r
@@ -1247,6 +1374,12 @@ fn update_user_cfg(
             } else {
                 None
             };
+            // Channels on an old ledger still rely on the line (someone removed it by hand):
+            // keep them, so undo waits for all of them.
+            let mut channels: Vec<String> = ledger.map(|l| l.channels).unwrap_or_default();
+            if !channels.contains(&me) {
+                channels.push(me);
+            }
             // Ledger first: if we die after the file write, undo can still find it.
             let new_ledger = Ledger {
                 real_path: cfg.real.clone(),
@@ -1256,7 +1389,7 @@ fn update_user_cfg(
                 },
                 written: usercfg::OUR_LINE.to_string(),
                 added_newline,
-                channels: vec![me],
+                channels,
                 reference_copy,
                 created: text.is_none(),
             };
@@ -1361,6 +1494,16 @@ pub fn remove(ctx: &Ctx, t: &Target<'_>, yes: bool) -> Report {
         if let Err(e) = std::fs::remove_file(&ini.real) {
             return fail(r, format!("cannot delete {}: {e}", ini.real.display()));
         }
+        if ini.is_link {
+            r.warnings.push(Warning::new(
+                "link-kept",
+                format!(
+                    "{} is a link; deleted the file it points to ({}) and kept the link, so the game reads stock text. The next apply writes through it again",
+                    ini.path.display(),
+                    ini.real.display()
+                ),
+            ));
+        }
         if let Some(d) = ini.real.parent() {
             let _ = fsutil::fsync_dir(d);
         }
@@ -1372,7 +1515,7 @@ pub fn remove(ctx: &Ctx, t: &Target<'_>, yes: bool) -> Report {
     {
         r.user_cfg.path = Some(cfg.path.clone());
         r.user_cfg.link_target = cfg.is_link.then(|| cfg.real.clone());
-        match lock::try_lock(&usercfg::lock_path(&ctx.dirs, &cfg.real)) {
+        match wait_lock(&usercfg::lock_path(&ctx.dirs, &cfg.real), CFG_LOCK_WAIT) {
             Ok(_l) => match usercfg::release(&ctx.dirs, &cfg, &t.channel_ref()) {
                 Ok(o) => {
                     r.user_cfg.changed = o == UndoOutcome::Reverted;

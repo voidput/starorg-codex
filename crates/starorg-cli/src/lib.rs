@@ -52,11 +52,43 @@ pub struct GlobalOpts {
     #[arg(long, global = true)]
     pub no_cache: bool,
     /// Test hook: use this file as the stock global.ini instead of extracting Data.p4k.
+    #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "FILE")]
     pub test_stock_ini: Option<PathBuf>,
     /// Test hook: sleep this many milliseconds between writing global.ini and recording it.
+    #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "MS")]
     pub test_pause_after_write_ms: Option<u64>,
+    /// Test hook: sleep this many milliseconds before the user.cfg step.
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, global = true, hide = true, value_name = "MS")]
+    pub test_pause_before_cfg_ms: Option<u64>,
+}
+
+impl GlobalOpts {
+    /// `--test-stock-ini` (only in builds with the `test-hooks` feature).
+    pub fn test_stock_ini(&self) -> Option<&std::path::Path> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_stock_ini.as_deref();
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
+
+    /// `--test-pause-before-cfg-ms` (only in builds with the `test-hooks` feature).
+    pub fn test_pause_before_cfg_ms(&self) -> Option<u64> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_pause_before_cfg_ms;
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
+
+    /// `--test-pause-after-write-ms` (only in builds with the `test-hooks` feature).
+    pub fn test_pause_after_write_ms(&self) -> Option<u64> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_pause_after_write_ms;
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
 }
 
 /// `(--channel <NAME> | --all)`.
@@ -310,6 +342,7 @@ pub enum BlueprintCmd {
         dry_run: bool,
         /// Test hook: blueprint names to match against (`id<TAB>name` per line) instead of
         /// GameData.
+        #[cfg(feature = "test-hooks")]
         #[arg(long, hide = true, value_name = "FILE")]
         test_catalog: Option<PathBuf>,
     },

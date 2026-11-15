@@ -32,15 +32,20 @@ pub fn run(g: &GlobalOpts, cmd: BlueprintCmd) -> ExitCode {
             character,
             channel,
             dry_run,
+            #[cfg(feature = "test-hooks")]
             test_catalog,
-        } => import_cmd(
-            g,
-            &file,
-            &character,
-            &channel,
-            dry_run,
-            test_catalog.as_deref(),
-        ),
+        } => {
+            #[cfg(not(feature = "test-hooks"))]
+            let test_catalog: Option<std::path::PathBuf> = None;
+            import_cmd(
+                g,
+                &file,
+                &character,
+                &channel,
+                dry_run,
+                test_catalog.as_deref(),
+            )
+        }
     }
 }
 
@@ -333,6 +338,10 @@ fn use_cmd(g: &GlobalOpts, channel: &str, who: &str) -> ExitCode {
     st.active_character = value.clone();
     if let Err(e) = st.save(&data) {
         return fail(g, exit::ERROR, "io", &e.to_string());
+    }
+    // An explicit choice ends a one-off `apply --character` pick.
+    if let Err(e) = starorg_core::apply::forget_one_off_character(&data) {
+        return fail(g, exit::ERROR, "io", &e);
     }
     let label = match &value {
         None => "auto".to_string(),
