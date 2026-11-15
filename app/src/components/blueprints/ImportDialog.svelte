@@ -68,7 +68,7 @@
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content class="sm:max-w-xl">
+  <Dialog.Content class="flex max-h-[min(85dvh,44rem)] flex-col overflow-hidden sm:max-w-xl">
     <Dialog.Header>
       <Dialog.Title>Import from Smart Citizen</Dialog.Title>
       <Dialog.Description>
@@ -85,7 +85,7 @@
       </div>
     {:else}
       {@const r = report}
-      <section aria-label="Dry-run report" class="grid gap-3">
+      <section aria-label="Dry-run report" class="-mr-2 grid min-h-0 flex-1 content-start gap-3 overflow-y-auto pr-2">
         <div class="flex items-start gap-2">
           <FileJson class="text-muted-foreground mt-0.5 size-4 shrink-0" aria-hidden="true" />
           <div class="min-w-0">
@@ -109,7 +109,7 @@
         {#if r.imported.length}
           <div>
             <h3 class="mb-1 font-semibold">Will be added to {name(character)}</h3>
-            <ul class="grid gap-0.5 sm:grid-cols-2">{#each r.imported as n (n)}<li class="truncate">{n}</li>{/each}</ul>
+            <ul class="grid max-h-48 gap-x-3 gap-y-0.5 overflow-y-auto rounded-md border p-2 text-[12px] sm:grid-cols-2">{#each r.imported as n (n)}<li class="truncate" title={n}>{n}</li>{/each}</ul>
           </div>
         {/if}
         {#if r.unmatched.length || r.ambiguous.length}
@@ -119,11 +119,11 @@
             <Alert.Description>
               {#if r.unmatched.length}
                 <p>No blueprint with these names in this build (shown as in the file; tag prefixes such as [H] are ignored when matching):</p>
-                <ul class="mono list-inside list-disc text-[12px]">{#each r.unmatched as n (n)}<li>{n}</li>{/each}</ul>
+                <ul class="mono max-h-32 list-inside list-disc overflow-y-auto text-[12px]">{#each r.unmatched as n (n)}<li>{n}</li>{/each}</ul>
               {/if}
               {#if r.ambiguous.length}
                 <p class="mt-1">These names match more than one blueprint, so none was guessed:</p>
-                <ul class="list-inside list-disc">{#each r.ambiguous as a (a.name)}<li><span class="font-medium">{a.name}</span>: {a.candidates.join(', ')}</li>{/each}</ul>
+                <ul class="max-h-32 list-inside list-disc overflow-y-auto text-[12px]">{#each r.ambiguous as a (a.name)}<li><span class="font-medium">{a.name}</span>: {a.candidates.join(', ')}</li>{/each}</ul>
               {/if}
             </Alert.Description>
           </Alert.Root>
@@ -131,7 +131,7 @@
       </section>
     {/if}
     {#if failed}<p role="alert" class="text-destructive">{failed}</p>{/if}
-    <Dialog.Footer>
+    <Dialog.Footer class="shrink-0">
       <Button variant="ghost" onclick={() => (open = false)}>Cancel</Button>
       {#if !report}
         <Button disabled={!character || busy} onclick={check}><FileJson aria-hidden="true" /> Choose file and check</Button>
