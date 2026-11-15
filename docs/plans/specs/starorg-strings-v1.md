@@ -2,7 +2,7 @@
 title: StarOrg Codex v1
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # StarOrg Codex v1
@@ -1582,7 +1582,7 @@ tabular numbers.
 
 | Screen | Content |
 |---|---|
-| **Setup wizard** (first run, full window) | 1 Find your game (auto-scan result cards, Browse) · 2 Channels (this is the consent step; a channel whose game language is not English shows a question, not a default; a file from another tool is named) · 3 Read game data (progress per sub-step, Stop) · 4 Pick enhancements (preset cards with a live in-game preview; "Fix known CIG text bugs" switch) · 5 Review and apply (target path and link target if any, counts, backup location, the `user.cfg` line or "no change needed") · 6 Done (how to automate with the CLI). Steps derive from state, so an interrupted setup resumes |
+| **Setup wizard** (first run, full window) | 1 Find your game (auto-scan result cards, Browse) · 2 Channels (this is the consent step; a channel whose game language is not English shows a question, not a default; a file from another tool is named) · 3 Read game data (progress per sub-step, Stop) · 4 Pick enhancements (preset cards with a live in-game preview; "Fix known CIG text bugs" switch) · 4b Preferences (as built: Check for updates, Connect StarOrg Tools, theme, reduce effects; network switches off unless turned on; no update question in the Store build; saved with the settings on Apply) · 5 Review and apply (target path and link target if any, counts, backup location, the `user.cfg` line or "no change needed") · 6 Done (how to automate with the CLI). Steps derive from state, so an interrupted setup resumes |
 | **Home** | Channel status card (Applied / Game updated, re-apply needed / Not applied / Changed by another tool), facts, Apply and Remove changes; stat tiles; other channels as compact rows; a re-apply banner when the build changed |
 | **Enhancements** | Category list on the left (Ships, Components, Ship weapons, Missiles, FPS weapons, Name tags, Missions, Blueprints); switches per stat line; format options; tag builder with reorderable chips; a sticky in-game preview; Save and Save & apply. Settings are per channel, with "Copy settings from…" |
 | **Strings** | Virtualised table of all keys (about 91,000 rows): Key, Original, Result, Source badge (Unmodified, Enhanced, Patched, Edited), Category. Search, facets, "changed only". Detail sheet: word diff, rendered preview, provenance list (including the winner and losers of the namesake rule), override editor with Reset |
