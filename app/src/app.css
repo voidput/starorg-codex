@@ -163,7 +163,7 @@
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
   --font-sans: 'Inter Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-display: 'Orbitron Variable', 'Inter Variable', sans-serif;
+  --font-display: 'Display Digits', 'Orbitron Variable', 'Inter Variable', sans-serif;
   --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
   --shadow-glow-sm: var(--glow-sm);
   --shadow-glow-md: var(--glow-md);
@@ -210,6 +210,7 @@
   font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  font-variant-numeric: lining-nums tabular-nums;
 }
 @utility mono {
   font-family: var(--font-mono);
