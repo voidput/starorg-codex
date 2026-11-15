@@ -139,6 +139,12 @@
     }
   ],
   "channel_status": {
+    "applied_build": {
+      "branch": "sc-alpha-4.10.0",
+      "change": 13165946,
+      "game_version": "4.10.0",
+      "version": "4.10.200.58746"
+    },
     "build": {
       "branch": "sc-alpha-4.10.0",
       "change": 13165946,
@@ -154,6 +160,14 @@
     "interrupted_apply": false,
     "language": "english",
     "language_value": "english",
+    "last_apply": {
+      "changed": 11254,
+      "dropped": 0,
+      "duration_ms": 1830,
+      "result": "applied",
+      "time": "2026-11-14T21:30:05Z",
+      "warnings": 1
+    },
     "p4k_time": "2026-11-12T18:04:31Z",
     "set_up": true,
     "status": {
@@ -168,6 +182,7 @@
     {
       "channels": [
         {
+          "applied_build": null,
           "build": {
             "branch": "sc-alpha-4.10.0",
             "change": 13165946,
@@ -183,6 +198,7 @@
           "interrupted_apply": false,
           "language": "english",
           "language_value": "english",
+          "last_apply": null,
           "p4k_time": "2026-11-12T18:04:31Z",
           "set_up": false,
           "status": {
@@ -191,6 +207,7 @@
           }
         },
         {
+          "applied_build": null,
           "build": {
             "branch": "sc-alpha-4.10.0-hotfix",
             "change": 13172004,
@@ -206,6 +223,7 @@
           "interrupted_apply": false,
           "language": "english",
           "language_value": "english",
+          "last_apply": null,
           "p4k_time": "2026-11-12T18:04:31Z",
           "set_up": false,
           "status": {
@@ -213,6 +231,7 @@
           }
         },
         {
+          "applied_build": null,
           "build": {
             "branch": "sc-alpha-4.11.0-ptu",
             "change": 13190517,
@@ -228,6 +247,7 @@
           "interrupted_apply": false,
           "language": "other",
           "language_value": "german_(germany)",
+          "last_apply": null,
           "p4k_time": "2026-11-12T18:04:31Z",
           "set_up": false,
           "status": {
@@ -245,6 +265,7 @@
     {
       "channels": [
         {
+          "applied_build": null,
           "build": {
             "branch": "sc-alpha-4.9.1",
             "change": 13002118,
@@ -260,6 +281,7 @@
           "interrupted_apply": false,
           "language": "english",
           "language_value": "english",
+          "last_apply": null,
           "p4k_time": "2026-11-12T18:04:31Z",
           "set_up": false,
           "status": {
@@ -338,6 +360,11 @@
     "code": "needs-decision",
     "detail": "starorg-strings setup --channel PTU --preset recommended --yes",
     "message": "PTU is not set up. Run setup for this channel first."
+  },
+  "export_diagnostics": {
+    "file_name": "starorg-strings-diagnostics-20261114-213005.txt",
+    "redacted": 5,
+    "text": "StarOrg Strings diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 7 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Removed StarOrg changes (back to stock)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
   },
   "get_profile": {
     "branding": false,
@@ -861,6 +888,12 @@
       {
         "channels": [
           {
+            "applied_build": {
+              "branch": "sc-alpha-4.10.0",
+              "change": 13165946,
+              "game_version": "4.10.0",
+              "version": "4.10.200.58746"
+            },
             "build": {
               "branch": "sc-alpha-4.10.0",
               "change": 13165946,
@@ -876,6 +909,14 @@
             "interrupted_apply": false,
             "language": "english",
             "language_value": "english",
+            "last_apply": {
+              "changed": 11254,
+              "dropped": 0,
+              "duration_ms": 1830,
+              "result": "applied",
+              "time": "2026-11-14T21:30:05Z",
+              "warnings": 1
+            },
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": true,
             "status": {
@@ -886,6 +927,7 @@
             }
           },
           {
+            "applied_build": null,
             "build": {
               "branch": "sc-alpha-4.10.0-hotfix",
               "change": 13172004,
@@ -901,6 +943,7 @@
             "interrupted_apply": false,
             "language": "english",
             "language_value": "english",
+            "last_apply": null,
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": true,
             "status": {
@@ -908,6 +951,7 @@
             }
           },
           {
+            "applied_build": null,
             "build": {
               "branch": "sc-alpha-4.11.0-ptu",
               "change": 13190517,
@@ -923,6 +967,7 @@
             "interrupted_apply": false,
             "language": "other",
             "language_value": "german_(germany)",
+            "last_apply": null,
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": false,
             "status": {
@@ -940,6 +985,7 @@
       {
         "channels": [
           {
+            "applied_build": null,
             "build": {
               "branch": "sc-alpha-4.9.1",
               "change": 13002118,
@@ -955,6 +1001,7 @@
             "interrupted_apply": false,
             "language": "english",
             "language_value": "english",
+            "last_apply": null,
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": false,
             "status": {
@@ -982,6 +1029,7 @@
       {
         "channels": [
           {
+            "applied_build": null,
             "build": {
               "branch": "sc-alpha-4.10.0",
               "change": 13165946,
@@ -997,6 +1045,7 @@
             "interrupted_apply": false,
             "language": "english",
             "language_value": "english",
+            "last_apply": null,
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": false,
             "status": {
@@ -1005,6 +1054,7 @@
             }
           },
           {
+            "applied_build": null,
             "build": {
               "branch": "sc-alpha-4.10.0-hotfix",
               "change": 13172004,
@@ -1020,6 +1070,7 @@
             "interrupted_apply": false,
             "language": "english",
             "language_value": "english",
+            "last_apply": null,
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": false,
             "status": {
@@ -1027,6 +1078,7 @@
             }
           },
           {
+            "applied_build": null,
             "build": {
               "branch": "sc-alpha-4.11.0-ptu",
               "change": 13190517,
@@ -1042,6 +1094,7 @@
             "interrupted_apply": false,
             "language": "other",
             "language_value": "german_(germany)",
+            "last_apply": null,
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": false,
             "status": {
@@ -1059,6 +1112,7 @@
       {
         "channels": [
           {
+            "applied_build": null,
             "build": {
               "branch": "sc-alpha-4.9.1",
               "change": 13002118,
@@ -1074,6 +1128,7 @@
             "interrupted_apply": false,
             "language": "english",
             "language_value": "english",
+            "last_apply": null,
             "p4k_time": "2026-11-12T18:04:31Z",
             "set_up": false,
             "status": {
@@ -1129,9 +1184,31 @@
       ]
     }
   ],
+  "patch_detail": {
+    "examples": [
+      {
+        "after": "A synthetic rifle, number 4.",
+        "before": "A synthetic rifle, number 4 (new wording).",
+        "key": "item_DescSYN_Rifle_00004"
+      }
+    ],
+    "kind": "loc",
+    "patch": {
+      "description": "The target text changed in this build; the patch no longer matches.",
+      "enabled": true,
+      "id": "syn-moved-key",
+      "keys": 2,
+      "origin": "built-in",
+      "state": "target-changed",
+      "title": "Moved description key"
+    },
+    "range": "4.10.0 - 4.10.x",
+    "reason": "Target changed: the stock text is no longer what the patch expects, so it is skipped and reported."
+  },
   "pick_install_folder": {
     "channels": [
       {
+        "applied_build": null,
         "build": {
           "branch": "sc-alpha-4.9.1",
           "change": 13002118,
@@ -1147,6 +1224,7 @@
         "interrupted_apply": false,
         "language": "english",
         "language_value": "english",
+        "last_apply": null,
         "p4k_time": "2026-11-12T18:04:31Z",
         "set_up": false,
         "status": {
@@ -1373,6 +1451,33 @@
     "skipped": [
       "PTU"
     ]
+  },
+  "starorg_pull": {
+    "added": [
+      "Sample Medical Gun",
+      "Test Multitool"
+    ],
+    "already": 1,
+    "channel": "LIVE",
+    "character": "1000000000001",
+    "direction": "pull",
+    "guild": "Synthetic Org",
+    "sent": 0,
+    "time": "2026-11-14T21:30:05Z",
+    "unmatched": [
+      "Retired Sample Visor"
+    ]
+  },
+  "starorg_push": {
+    "added": [],
+    "already": 0,
+    "channel": "LIVE",
+    "character": null,
+    "direction": "push",
+    "guild": "Synthetic Org",
+    "sent": 7,
+    "time": "2026-11-14T21:30:05Z",
+    "unmatched": []
   },
   "starorg_status": {
     "connected": true,

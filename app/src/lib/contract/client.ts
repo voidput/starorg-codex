@@ -36,6 +36,7 @@ export interface CommandMap {
   reset_override: [{ req: T.KeyRequest }, T.StringDetail];
   list_patches: [{ req: T.ChannelRef }, T.PatchView[]];
   set_patch_enabled: [{ req: T.PatchToggle }, T.PatchView];
+  patch_detail: [{ req: T.PatchRef }, T.PatchDetail];
   activity: [{ limit: number }, T.LogEntry[]];
   get_settings: [Record<string, never>, T.Settings];
   save_settings: [{ req: T.Settings }, T.Settings];
@@ -47,10 +48,13 @@ export interface CommandMap {
   starorg_login: [{ channel: string }, T.StarOrgStatus];
   starorg_logout: [{ channel: string }, T.StarOrgStatus];
   set_sync_characters: [{ req: T.SyncCharactersRequest }, T.StarOrgStatus];
+  starorg_pull: [{ req: T.StarOrgPullRequest }, T.SyncReport];
+  starorg_push: [{ channel: string }, T.SyncReport];
   hooks_status: [Record<string, never>, T.HooksStatus];
   hooks_install: [Record<string, never>, T.HooksStatus];
   hooks_uninstall: [Record<string, never>, T.HooksStatus];
   doctor: [Record<string, never>, T.DoctorReport];
+  export_diagnostics: [Record<string, never>, T.Diagnostics];
 }
 
 export type Command = keyof CommandMap;
@@ -84,6 +88,7 @@ export const COMMANDS = [
   'reset_override',
   'list_patches',
   'set_patch_enabled',
+  'patch_detail',
   'activity',
   'get_settings',
   'save_settings',
@@ -95,10 +100,13 @@ export const COMMANDS = [
   'starorg_login',
   'starorg_logout',
   'set_sync_characters',
+  'starorg_pull',
+  'starorg_push',
   'hooks_status',
   'hooks_install',
   'hooks_uninstall',
   'doctor',
+  'export_diagnostics',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -218,6 +226,7 @@ export const api = {
   resetOverride: (req: T.KeyRequest) => call('reset_override', { req }),
   listPatches: (req: T.ChannelRef) => call('list_patches', { req }),
   setPatchEnabled: (req: T.PatchToggle) => call('set_patch_enabled', { req }),
+  patchDetail: (req: T.PatchRef) => call('patch_detail', { req }),
   activity: (limit = 200) => call('activity', { limit }),
   getSettings: () => call('get_settings', none),
   saveSettings: (req: T.Settings) => call('save_settings', { req }),
@@ -229,9 +238,12 @@ export const api = {
   starorgLogin: (channel: string) => call('starorg_login', { channel }),
   starorgLogout: (channel: string) => call('starorg_logout', { channel }),
   setSyncCharacters: (req: T.SyncCharactersRequest) => call('set_sync_characters', { req }),
+  starorgPull: (req: T.StarOrgPullRequest) => call('starorg_pull', { req }),
+  starorgPush: (channel: string) => call('starorg_push', { channel }),
   hooksStatus: () => call('hooks_status', none),
   hooksInstall: () => call('hooks_install', none),
   hooksUninstall: () => call('hooks_uninstall', none),
   doctor: () => call('doctor', none),
+  exportDiagnostics: () => call('export_diagnostics', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
 };

@@ -54,6 +54,18 @@ export interface ChannelSummary {
   interrupted_apply: boolean;
   p4k_time: string | null;
   cache: CacheState;
+  /** Build the file in place was made for (applied manifest); compare with `build`. */
+  applied_build: Build | null;
+  last_apply: LastApply | null;
+}
+
+export interface LastApply {
+  time: string;
+  result: ApplyResult;
+  changed: number;
+  warnings: number;
+  dropped: number;
+  duration_ms: number;
 }
 
 export type FoundBy = 'config' | 'game-dir' | 'prefix' | 'lug-config' | 'default-prefix' | 'lutris' | 'launcher-log' | 'common-path' | 'scan' | 'manual';
@@ -85,7 +97,7 @@ export interface ChannelRef {
 
 // Jobs ----------------------------------------------------------------------------------
 
-export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync';
+export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook';
 export type JobPhase = 'running' | 'done' | 'failed' | 'cancelled';
 
 export interface JobProgress {
@@ -423,6 +435,25 @@ export interface PatchView {
   enabled: boolean;
 }
 
+export interface PatchRef {
+  target: ChannelRef;
+  id: string;
+}
+
+export interface PatchExample {
+  key: string;
+  before: string;
+  after: string;
+}
+
+export interface PatchDetail {
+  patch: PatchView;
+  kind: string;
+  range: string | null;
+  reason: string;
+  examples: PatchExample[];
+}
+
 export interface PatchToggle {
   target: ChannelRef;
   id: string;
@@ -564,6 +595,25 @@ export interface SyncCharactersRequest {
   ticked: string[];
 }
 
+export interface StarOrgPullRequest {
+  channel: string;
+  character: string;
+}
+
+export type SyncDirection = 'pull' | 'push';
+
+export interface SyncReport {
+  direction: SyncDirection;
+  channel: string;
+  guild: string | null;
+  character: string | null;
+  added: string[];
+  already: number;
+  unmatched: string[];
+  sent: number;
+  time: string;
+}
+
 // Hooks and doctor ----------------------------------------------------------------------
 
 export type HookKind = 'prelaunch' | 'postexit';
@@ -604,4 +654,11 @@ export interface DoctorSection {
 
 export interface DoctorReport {
   sections: DoctorSection[];
+}
+
+/** Doctor + recent log with paths, user names and character ids replaced. */
+export interface Diagnostics {
+  file_name: string;
+  text: string;
+  redacted: number;
 }

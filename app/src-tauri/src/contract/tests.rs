@@ -173,6 +173,10 @@ fn samples() -> Value {
         "owned_blueprints": b.owned_blueprints(CharacterRequest { target: live(), character: "1000000000001".into() }).unwrap(),
         "import_smart_citizen": b.import_smart_citizen(ImportRequest { target: live(), character: "1000000000002".into(), dry_run: true }).unwrap(),
         "starorg_status": b.starorg_login("LIVE".into()).unwrap(),
+        "starorg_pull": b.starorg_pull(StarOrgPullRequest { channel: "LIVE".into(), character: "1000000000001".into() }).unwrap(),
+        "starorg_push": b.starorg_push("LIVE".into()).unwrap(),
+        "patch_detail": b.patch_detail(PatchRef { target: live(), id: "syn-moved-key".into() }).unwrap(),
+        "export_diagnostics": b.export_diagnostics().unwrap(),
         "hooks_status": b.hooks_status().unwrap(),
         "doctor": b.doctor().unwrap(),
     })
@@ -273,6 +277,7 @@ fn ts_unions_list_every_variant() {
                 JobKind::Restore,
                 JobKind::Import,
                 JobKind::Sync,
+                JobKind::Hook,
             ]),
         ),
         (
@@ -440,6 +445,10 @@ fn ts_unions_list_every_variant() {
         (
             "StarOrgEnv",
             names(&[StarOrgEnv::Production, StarOrgEnv::Dev]),
+        ),
+        (
+            "SyncDirection",
+            names(&[SyncDirection::Pull, SyncDirection::Push]),
         ),
         (
             "HookKind",
@@ -791,4 +800,87 @@ fn preview_follows_profile_switches() {
         })
         .unwrap();
     assert_eq!(without[0].result, without[0].original);
+}
+
+#[test]
+fn starorg_pull_and_push_need_a_connection_and_respect_q22() {
+    let b = MockBackend::default();
+    let pull = || {
+        b.starorg_pull(StarOrgPullRequest {
+            channel: "LIVE".into(),
+            character: "1000000000002".into(),
+        })
+    };
+    assert_eq!(pull().unwrap_err().code, ErrorCode::NetworkOff);
+    let mut s = b.get_settings().unwrap();
+    s.network.starorg = true;
+    b.save_settings(s).unwrap();
+    assert_eq!(pull().unwrap_err().code, ErrorCode::NeedsDecision);
+    b.starorg_login("LIVE".into()).unwrap();
+    // Pull writes into the one chosen character (union, never delete).
+    let r = pull().unwrap();
+    assert_eq!(r.direction, SyncDirection::Pull);
+    assert_eq!(r.added.len(), 2);
+    assert_eq!(r.already, 1);
+    let alt = b
+        .owned_blueprints(CharacterRequest {
+            target: live(),
+            character: "1000000000002".into(),
+        })
+        .unwrap();
+    assert_eq!(alt.len(), 4);
+    let main = b
+        .owned_blueprints(CharacterRequest {
+            target: live(),
+            character: "1000000000001".into(),
+        })
+        .unwrap();
+    assert_eq!(main.len(), 4, "pull never spreads across alts");
+    // Push sends the union of ticked characters: Pilot_A 4 + Alt_B now 4, 1 shared = 7.
+    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 7);
+    b.set_sync_characters(SyncCharactersRequest {
+        channel: "LIVE".into(),
+        ticked: vec!["1000000000001".into()],
+    })
+    .unwrap();
+    assert_eq!(b.starorg_push("LIVE".into()).unwrap().sent, 4);
+}
+
+#[test]
+fn diagnostics_are_redacted() {
+    let b = MockBackend::default();
+    let d = b.export_diagnostics().unwrap();
+    assert!(d.redacted > 0);
+    for leak in ["/home/pilot", "1000000000001", "Pilot_A", "pilot_a_discord"] {
+        assert!(!d.text.contains(leak), "diagnostics leak {leak}");
+    }
+    assert!(d.text.contains("<geid>"));
+}
+
+#[test]
+fn apply_records_the_applied_build_and_last_apply() {
+    let b = MockBackend::default();
+    set_up(&b);
+    assert!(b.channel_status(live()).unwrap().last_apply.is_none());
+    b.apply(
+        ApplyRequest {
+            target: live(),
+            dry_run: false,
+        },
+        &noop,
+    )
+    .unwrap();
+    let c = b.channel_status(live()).unwrap();
+    assert_eq!(c.applied_build.as_ref(), Some(&c.build));
+    let last = c.last_apply.unwrap();
+    assert_eq!(last.result, ApplyResult::Applied);
+    assert!(last.changed > 0);
+    let d = b
+        .patch_detail(PatchRef {
+            target: live(),
+            id: "syn-moved-key".into(),
+        })
+        .unwrap();
+    assert_eq!(d.patch.state, PatchState::TargetChanged);
+    assert!(!d.examples.is_empty());
 }

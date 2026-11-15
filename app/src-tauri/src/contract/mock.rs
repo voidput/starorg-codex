@@ -110,6 +110,8 @@ fn channel(name: &str, build: Build, status: ApplyState) -> ChannelSummary {
         interrupted_apply: false,
         p4k_time: Some("2026-11-12T18:04:31Z".into()),
         cache: CacheState::Missing,
+        applied_build: None,
+        last_apply: None,
     }
 }
 
@@ -1177,6 +1179,15 @@ impl Backend for MockBackend {
             c.summary.status = ApplyState::Applied;
             c.summary.foreign_file = false;
             c.summary.cache = CacheState::Fresh;
+            c.summary.applied_build = Some(c.summary.build.clone());
+            c.summary.last_apply = Some(LastApply {
+                time: NOW.into(),
+                result: r.result,
+                changed: r.counts.changed,
+                warnings: r.warnings.len() as u32,
+                dropped: r.counts.dropped,
+                duration_ms: r.duration_ms,
+            });
             Ok(r)
         })?;
         progress(JobProgress {
@@ -1228,6 +1239,7 @@ impl Backend for MockBackend {
             }
             c.summary.status = ApplyState::NotApplied;
             c.summary.foreign_file = false;
+            c.summary.applied_build = None;
             let mut r = report(&c.summary, ApplyResult::Removed);
             r.target = Some(target_path(&req.install, &c.summary.channel));
             Ok(r)
@@ -1518,6 +1530,20 @@ impl Backend for MockBackend {
         })
     }
 
+    fn patch_detail(&self, req: PatchRef) -> CmdResult<PatchDetail> {
+        self.with_channel(&req.target, |c, _| {
+            let p = c
+                .patches
+                .iter()
+                .find(|p| p.id == req.id)
+                .cloned()
+                .ok_or_else(|| {
+                    AppError::new(ErrorCode::NotFound, format!("No patch {}", req.id))
+                })?;
+            Ok(patch_detail(p))
+        })
+    }
+
     fn activity(&self, limit: u32) -> CmdResult<Vec<LogEntry>> {
         let s = self.lock();
         Ok(s.log.iter().rev().take(limit as usize).cloned().collect())
@@ -1670,6 +1696,94 @@ impl Backend for MockBackend {
         Ok(s.starorg.clone())
     }
 
+    fn starorg_pull(&self, req: StarOrgPullRequest) -> CmdResult<SyncReport> {
+        let guild = self.starorg_guild()?;
+        let ch = ChannelRef {
+            install: INSTALL_ID.into(),
+            channel: req.channel.clone(),
+        };
+        if !CHARACTERS.iter().any(|c| c.0 == req.character) {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "Pick one of the characters found in the logs.",
+            ));
+        }
+        let remote = [
+            "Synthetic Rifle Mk1",
+            "Sample Medical Gun",
+            "Test Multitool",
+        ];
+        let (added, already) = self.with_channel(&ch, |c, _| {
+            let set = c.owned.entry(req.character.clone()).or_default();
+            let mut added = Vec::new();
+            let mut already = 0;
+            for n in remote {
+                if set.iter().any(|b| b.name == n) {
+                    already += 1;
+                } else {
+                    added.push(n.to_string());
+                    set.push(OwnedBlueprint {
+                        name: n.into(),
+                        ambiguous: false,
+                        favorite: false,
+                        sources: vec![format!("starorg:{guild}")],
+                        acquired: Some(NOW.into()),
+                    });
+                }
+            }
+            Ok((added, already))
+        })?;
+        let mut s = self.lock();
+        s.starorg.last_sync = Some(NOW.into());
+        drop(s);
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Sync),
+            Some(&req.channel),
+            &format!(
+                "Pulled from StarOrg ({guild}): {} added, {already} already known",
+                added.len()
+            ),
+        );
+        Ok(SyncReport {
+            direction: SyncDirection::Pull,
+            channel: req.channel,
+            guild: Some(guild),
+            character: Some(req.character),
+            added,
+            already,
+            unmatched: vec!["Retired Sample Visor".into()],
+            sent: 0,
+            time: NOW.into(),
+        })
+    }
+
+    fn starorg_push(&self, channel: String) -> CmdResult<SyncReport> {
+        let guild = self.starorg_guild()?;
+        let mut s = self.lock();
+        starorg_view(&mut s, &channel);
+        let sent = s.starorg.push_count;
+        s.starorg.last_sync = Some(NOW.into());
+        drop(s);
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Sync),
+            Some(&channel),
+            &format!("Pushed {sent} owned blueprints to StarOrg ({guild})"),
+        );
+        Ok(SyncReport {
+            direction: SyncDirection::Push,
+            channel,
+            guild: Some(guild),
+            character: None,
+            added: Vec::new(),
+            already: 0,
+            unmatched: Vec::new(),
+            sent,
+            time: NOW.into(),
+        })
+    }
+
     fn hooks_status(&self) -> CmdResult<HooksStatus> {
         Ok(self.lock().hooks.clone())
     }
@@ -1691,7 +1805,15 @@ impl Backend for MockBackend {
             }
             h.status = HookState::Current;
         }
-        Ok(s.hooks.clone())
+        let out = s.hooks.clone();
+        drop(s);
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Hook),
+            None,
+            "Installed the launch hook block in sc-prelaunch.sh and sc-postexit.sh",
+        );
+        Ok(out)
     }
 
     fn hooks_uninstall(&self) -> CmdResult<HooksStatus> {
@@ -1699,7 +1821,15 @@ impl Backend for MockBackend {
         for h in &mut s.hooks.scripts {
             h.status = HookState::Absent;
         }
-        Ok(s.hooks.clone())
+        let out = s.hooks.clone();
+        drop(s);
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Hook),
+            None,
+            "Removed the launch hook block; the rest of each script is unchanged",
+        );
+        Ok(out)
     }
 
     fn doctor(&self) -> CmdResult<DoctorReport> {
@@ -1765,6 +1895,150 @@ impl Backend for MockBackend {
                 },
             ],
         })
+    }
+
+    fn export_diagnostics(&self) -> CmdResult<Diagnostics> {
+        let mut text = String::from("StarOrg Strings diagnostics\n\n");
+        for sec in self.doctor()?.sections {
+            text.push_str(&format!("## {}\n", sec.title));
+            for c in sec.checks {
+                text.push_str(&format!("[{}] {}", serde_plain(&c.level), c.label));
+                if let Some(d) = c.detail {
+                    text.push_str(&format!(" ({d})"));
+                }
+                text.push('\n');
+            }
+            text.push('\n');
+        }
+        text.push_str("## Recent log\n");
+        let s = self.lock();
+        for e in s.log.iter().rev().take(50) {
+            text.push_str(&format!(
+                "{} {} {}\n",
+                e.time,
+                serde_plain(&e.level),
+                e.message
+            ));
+        }
+        text.push_str(&format!(
+            "\n## Characters\n{} (geid {}) active on LIVE\nStarOrg user: {}\n",
+            CHARACTERS[0].1,
+            CHARACTERS[0].0,
+            s.starorg.user.as_deref().unwrap_or("not signed in")
+        ));
+        drop(s);
+        let (text, redacted) = redact(&text);
+        Ok(Diagnostics {
+            file_name: "starorg-strings-diagnostics-20261114-213005.txt".into(),
+            text,
+            redacted,
+        })
+    }
+}
+
+impl MockBackend {
+    /// The signed-in guild, or the error the UI shows when StarOrg is off or not connected.
+    fn starorg_guild(&self) -> CmdResult<String> {
+        let s = self.lock();
+        if !s.settings.network.starorg {
+            return Err(AppError::new(
+                ErrorCode::NetworkOff,
+                "Turn on \"Connect StarOrg Tools\" under Settings -> Network first.",
+            ));
+        }
+        match (&s.starorg.connected, &s.starorg.guild) {
+            (true, Some(g)) => Ok(g.clone()),
+            _ => Err(AppError::new(
+                ErrorCode::NeedsDecision,
+                "Sign in to StarOrg Tools first (Settings -> StarOrg Tools).",
+            )),
+        }
+    }
+}
+
+/// Replace home paths, user names and character ids (addendum §3 privacy).
+pub fn redact(text: &str) -> (String, u32) {
+    let mut out = text.to_string();
+    let mut n = 0u32;
+    let mut swap = |out: &mut String, from: &str, to: &str| {
+        let c = out.matches(from).count() as u32;
+        if c > 0 {
+            *out = out.replace(from, to);
+            n += c;
+        }
+    };
+    swap(&mut out, "/home/pilot", "~");
+    swap(&mut out, "users/pilot", "users/<user>");
+    for (id, name, _) in CHARACTERS {
+        swap(&mut out, id, "<geid>");
+        swap(&mut out, name, "<character>");
+    }
+    swap(&mut out, "pilot_a_discord", "<starorg-user>");
+    (out, n)
+}
+
+fn patch_detail(p: PatchView) -> PatchDetail {
+    let ex = |key: &str, before: &str, after: &str| PatchExample {
+        key: key.into(),
+        before: before.into(),
+        after: after.into(),
+    };
+    let (range, reason, examples) = match p.id.as_str() {
+        "syn-typo-cargo" => (
+            Some("4.9.0 - 4.10.x".into()),
+            "The stock text still has the typo in this build, so the patch applies.".to_string(),
+            vec![
+                ex(
+                    "vehicle_DescSYN_Ship_00194",
+                    "Cargo grid: 12 SUC.",
+                    "Cargo grid: 12 SCU.",
+                ),
+                ex(
+                    "vehicle_DescSYN_Ship_00388",
+                    "Holds 8 SUC of cargo.",
+                    "Holds 8 SCU of cargo.",
+                ),
+            ],
+        ),
+        "syn-missing-rep" => (
+            None,
+            "The reputation line is still missing, so the patch adds it.".to_string(),
+            vec![ex(
+                "mission_DescSYN_Contract_00045",
+                "Reward: 12,500 aUEC",
+                "Reward: 12,500 aUEC\\nReputation: +150",
+            )],
+        ),
+        "syn-old-name" => (
+            Some("up to 4.9.x".into()),
+            "Not needed: the game text already reads the way this patch would make it.".to_string(),
+            vec![ex(
+                "item_NameSYN_Cooler_S1_00001",
+                "Sample Cooler 1",
+                "Sample Cooler 1",
+            )],
+        ),
+        _ => (
+            Some("4.10.0 - 4.10.x".into()),
+            "Target changed: the stock text is no longer what the patch expects, so it is skipped and reported."
+                .to_string(),
+            vec![ex(
+                "item_DescSYN_Rifle_00004",
+                "A synthetic rifle, number 4 (new wording).",
+                "A synthetic rifle, number 4.",
+            )],
+        ),
+    };
+    PatchDetail {
+        kind: if p.id == "syn-missing-rep" {
+            "data".into()
+        } else {
+            "loc".into()
+        },
+        patch: p,
+        range,
+        reason,
+        examples,
     }
 }
 

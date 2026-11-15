@@ -5,7 +5,8 @@
  * All data is synthetic: no real character names, geids or CIG text.
  *
  * URL switches: `?delay=<ms>` per job step (default 250), `?state=ready` to start with LIVE
- * and HOTFIX set up (skips the wizard).
+ * applied and HOTFIX set up but behind a game update (skips the wizard), with some backups,
+ * overrides and hook history; add `&starorg=1` to start signed in to StarOrg Tools.
  */
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
@@ -190,6 +191,50 @@ export function preview(p: T.Profile): T.PreviewItem[] {
   ];
 }
 
+const CHARACTER_IDS = ['1000000000001', '1000000000002', '1000000000003'];
+const CHARACTER_NAMES = ['Pilot_A', 'Alt_B', 'Alt_C'];
+
+/** Same replacements as `mock::redact` in Rust. */
+export function redact(text: string): [string, number] {
+  let out = text;
+  let n = 0;
+  const swap = (from: string, to: string) => {
+    const c = out.split(from).length - 1;
+    if (c) {
+      out = out.split(from).join(to);
+      n += c;
+    }
+  };
+  swap('/home/pilot', '~');
+  swap('users/pilot', 'users/<user>');
+  CHARACTER_IDS.forEach((id, i) => {
+    swap(id, '<geid>');
+    swap(CHARACTER_NAMES[i]!, '<character>');
+  });
+  swap('pilot_a_discord', '<starorg-user>');
+  return [out, n];
+}
+
+/** Same data as `mock::patch_detail` in Rust. */
+function patchDetail(p: T.PatchView): T.PatchDetail {
+  const ex = (key: string, before: string, after: string): T.PatchExample => ({ key, before, after });
+  const by: Record<string, [string | null, string, T.PatchExample[]]> = {
+    'syn-typo-cargo': [
+      '4.9.0 - 4.10.x',
+      'The stock text still has the typo in this build, so the patch applies.',
+      [ex('vehicle_DescSYN_Ship_00194', 'Cargo grid: 12 SUC.', 'Cargo grid: 12 SCU.'), ex('vehicle_DescSYN_Ship_00388', 'Holds 8 SUC of cargo.', 'Holds 8 SCU of cargo.')],
+    ],
+    'syn-missing-rep': [null, 'The reputation line is still missing, so the patch adds it.', [ex('mission_DescSYN_Contract_00045', 'Reward: 12,500 aUEC', 'Reward: 12,500 aUEC\\nReputation: +150')]],
+    'syn-old-name': ['up to 4.9.x', 'Not needed: the game text already reads the way this patch would make it.', [ex('item_NameSYN_Cooler_S1_00001', 'Sample Cooler 1', 'Sample Cooler 1')]],
+  };
+  const [range, reason, examples] = by[p.id] ?? [
+    '4.10.0 - 4.10.x',
+    'Target changed: the stock text is no longer what the patch expects, so it is skipped and reported.',
+    [ex('item_DescSYN_Rifle_00004', 'A synthetic rifle, number 4 (new wording).', 'A synthetic rifle, number 4.')],
+  ];
+  return { patch: clone(p), kind: p.id === 'syn-missing-rep' ? 'data' : 'loc', range, reason, examples };
+}
+
 type Handler<K extends Command> = (args: Args<K>) => Result<K> | Promise<Result<K>>;
 type Handlers = { [K in Command]: Handler<K> };
 
@@ -293,6 +338,11 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     characters: SAMPLES.list_characters.characters.map((x) => ({ ...x, owned: c.owned.get(x.id)?.length ?? 0 })),
     active: clone(c.active),
   });
+  const starorgGuild = (): string => {
+    if (!settings.network.starorg) fail('network-off', 'Turn on "Connect StarOrg Tools" under Settings -> Network first.');
+    if (!starorg.connected || !starorg.guild) fail('needs-decision', 'Sign in to StarOrg Tools first (Settings -> StarOrg Tools).');
+    return starorg.guild!;
+  };
   const firstRun = () => !installs.some((i) => i.channels.some((c) => c.set_up));
 
   const h: Handlers = {
@@ -436,6 +486,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         c.summary.status = { state: 'applied' };
         c.summary.foreign_file = false;
         c.summary.cache = 'fresh';
+        c.summary.applied_build = clone(c.summary.build);
+        c.summary.last_apply = { time: NOW, result: r.result, changed: k.changed, warnings: r.warnings.length, dropped: k.dropped, duration_ms: r.duration_ms };
       }
       const done: T.JobProgress = { job, kind: 'apply', channel: name, phase: 'done', step: steps.length, steps: steps.length, label: req.dry_run ? 'Dry run finished' : `Applied to ${name}`, cancellable: false };
       listeners.forEach((l) => l(done));
@@ -449,6 +501,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       if (c.summary.foreign_file) c.backups.push(mkBackup(c.backups.length + 1, 'before-restore', c.summary.build, 'foreign', c.summary.foreign_tool));
       c.summary.status = { state: 'not-applied' };
       c.summary.foreign_file = false;
+      c.summary.applied_build = null;
       addLog('info', 'remove', req.channel, 'Removed StarOrg changes (back to stock)');
       return emptyReport(c.summary, 'removed');
     },
@@ -549,6 +602,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       c.profile.patches_disabled = c.patches.filter((x) => !x.enabled).map((x) => x.id);
       return clone(p);
     },
+    patch_detail: ({ req }) => patchDetail(chan(req.target).patches.find((x) => x.id === req.id) ?? fail('not-found', `No patch ${req.id}`)),
     activity: ({ limit }) => clone(log.slice(-limit).reverse()),
     get_settings: () => clone(settings),
     save_settings: ({ req }) => {
@@ -592,17 +646,58 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       if (!req.ticked.length) return { ...clone(starorg), push_count: 0 };
       return starorgView(req.channel);
     },
+    starorg_pull: ({ req }) => {
+      const guild = starorgGuild();
+      if (!CHARACTER_IDS.includes(req.character)) fail('invalid', 'Pick one of the characters found in the logs.');
+      const c = chan({ install: installs[0]!.id, channel: req.channel });
+      const set = c.owned.get(req.character) ?? [];
+      const added: string[] = [];
+      let already = 0;
+      for (const n of ['Synthetic Rifle Mk1', 'Sample Medical Gun', 'Test Multitool']) {
+        if (set.some((b) => b.name === n)) already++;
+        else {
+          added.push(n);
+          set.push({ name: n, ambiguous: false, favorite: false, sources: [`starorg:${guild}`], acquired: NOW });
+        }
+      }
+      c.owned.set(req.character, set);
+      starorg.last_sync = NOW;
+      addLog('info', 'sync', req.channel, `Pulled from StarOrg (${guild}): ${added.length} added, ${already} already known`);
+      return { direction: 'pull', channel: req.channel, guild, character: req.character, added, already, unmatched: ['Retired Sample Visor'], sent: 0, time: NOW };
+    },
+    starorg_push: ({ channel }) => {
+      const guild = starorgGuild();
+      const sent = starorgView(channel).push_count;
+      starorg.last_sync = NOW;
+      addLog('info', 'sync', channel, `Pushed ${sent} owned blueprints to StarOrg (${guild})`);
+      return { direction: 'push', channel, guild, character: null, added: [], already: 0, unmatched: [], sent, time: NOW };
+    },
     hooks_status: () => clone(hooks),
     hooks_install: () => {
       if (!hooks.supported) fail('invalid', 'Launch hooks are for the LUG Helper on Linux.');
       hooks = { ...hooks, scripts: hooks.scripts.map((s) => ({ ...s, path: s.path ?? `/home/pilot/Games/star-citizen/sc-${s.kind}.sh`, status: { state: 'current' } })) };
+      addLog('info', 'hook', null, 'Installed the launch hook block in sc-prelaunch.sh and sc-postexit.sh');
       return clone(hooks);
     },
     hooks_uninstall: () => {
       hooks = { ...hooks, scripts: hooks.scripts.map((s) => ({ ...s, status: { state: 'absent' } })) };
+      addLog('info', 'hook', null, 'Removed the launch hook block; the rest of each script is unchanged');
       return clone(hooks);
     },
     doctor: () => clone(SAMPLES.doctor),
+    export_diagnostics: () => {
+      let text = 'StarOrg Strings diagnostics\n\n';
+      for (const sec of SAMPLES.doctor.sections) {
+        text += `## ${sec.title}\n`;
+        for (const c of sec.checks) text += `[${c.level}] ${c.label}${c.detail ? ` (${c.detail})` : ''}\n`;
+        text += '\n';
+      }
+      text += '## Recent log\n';
+      for (const e of log.slice(-50).reverse()) text += `${e.time} ${e.level} ${e.message}\n`;
+      text += `\n## Characters\n${CHARACTER_NAMES[0]} (geid ${CHARACTER_IDS[0]}) active on LIVE\nStarOrg user: ${starorg.user ?? 'not signed in'}\n`;
+      const [out, redacted] = redact(text);
+      return { file_name: 'starorg-strings-diagnostics-20261114-213005.txt', text: out, redacted };
+    },
   };
 
   if (startReady) {
@@ -616,6 +711,41 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         fix_known_bugs: true,
       },
     });
+    // A lived-in state for renders: LIVE applied over Smart Citizen's old file, HOTFIX behind a game update.
+    const live = chans.get(`${inst.id}/LIVE`)!;
+    live.backups.push(mkBackup(1, 'pre-existing', oldBuild, 'foreign', 'Smart Citizen'), mkBackup(2, 'before-apply', live.summary.build, 'ours', null));
+    live.summary.status = { state: 'applied' };
+    live.summary.foreign_file = false;
+    live.summary.foreign_tool = null;
+    live.summary.cache = 'fresh';
+    live.summary.applied_build = clone(live.summary.build);
+    live.summary.last_apply = { time: '2026-11-14T19:41:12Z', result: 'applied', changed: 11_254, warnings: 1, dropped: 0, duration_ms: 1830 };
+    live.overrides.set('item_NameSYN_Cooler_S2_00001', 'My favourite cooler');
+    live.overrides.set('mission_TitleSYN_Contract_00005', 'Synthetic Contract 5 <EM4>[Easy]</EM4>');
+    const hot = chans.get(`${inst.id}/HOTFIX`)!;
+    hot.backups.push(mkBackup(1, 'pre-existing', hot.summary.build, 'none', null));
+    hot.summary.applied_build = { branch: 'sc-alpha-4.10.0-hotfix', game_version: '4.10.0', change: 13_150_002, version: '1.0.188.55001' };
+    hot.summary.status = { state: 'stale', reasons: ['build'] };
+    hot.summary.last_apply = { time: '2026-11-09T08:12:40Z', result: 'applied', changed: 10_980, warnings: 0, dropped: 0, duration_ms: 1710 };
+    hooks = { ...hooks, scripts: hooks.scripts.map((s) => ({ ...s, path: s.path ?? `/home/pilot/Games/star-citizen/sc-${s.kind}.sh`, status: { state: 'current' } })) };
+    const seed: [T.LogLevel, T.JobKind | null, string | null, string, string][] = [
+      ['info', 'hook', null, 'Installed the launch hook block in sc-prelaunch.sh and sc-postexit.sh', '2026-11-09T08:05:00Z'],
+      ['info', 'apply', 'HOTFIX', 'Applied: 10,980 strings changed, 0 warning(s)', '2026-11-09T08:12:40Z'],
+      ['info', 'hook', 'LIVE', 'prelaunch: LIVE is up to date (0.2 s, no apply)', '2026-11-13T20:01:10Z'],
+      ['info', 'hook', 'LIVE', 'postexit: 2 new blueprints for Pilot_A from Game.log; re-applied', '2026-11-13T23:48:02Z'],
+      ['warn', 'apply', 'LIVE', 'Applied: 11,254 strings changed, 1 warning(s): syn-moved-key target changed', '2026-11-14T19:41:12Z'],
+      ['warn', 'hook', 'HOTFIX', 'prelaunch: HOTFIX game build changed (13150002 -> 13172004); data cache missing, apply skipped (time budget 20 s)', '2026-11-14T20:15:31Z'],
+      ['error', 'apply', 'PTU', 'PTU is not set up. Run setup for this channel first.', '2026-11-14T20:20:00Z'],
+    ];
+    for (const [level, job, channel, message, time] of seed) log.push({ id: 0, time, level, job, channel, message });
+    log.sort((a, b) => a.time.localeCompare(b.time));
+    log.forEach((e, i) => (e.id = i + 1));
+    nextLog = log.length + 1;
+    if (params.get('starorg') === '1') {
+      settings.network.starorg = true;
+      Object.assign(starorg, { connected: true, user: 'pilot_a_discord', guild: 'Synthetic Org', expires: '2027-02-12T21:30:05Z' });
+    }
+    sync();
   }
 
   return {

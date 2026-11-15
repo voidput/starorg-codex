@@ -36,6 +36,10 @@ interface Samples {
   owned_blueprints: T.OwnedBlueprint[];
   import_smart_citizen: T.ImportReport;
   starorg_status: T.StarOrgStatus;
+  starorg_pull: T.SyncReport;
+  starorg_push: T.SyncReport;
+  patch_detail: T.PatchDetail;
+  export_diagnostics: T.Diagnostics;
   hooks_status: T.HooksStatus;
   doctor: T.DoctorReport;
 }

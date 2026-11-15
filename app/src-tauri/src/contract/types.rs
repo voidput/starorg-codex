@@ -116,6 +116,20 @@ pub struct ChannelSummary {
     /// `Data.p4k` modification time, RFC 3339, for the footer.
     pub p4k_time: Option<String>,
     pub cache: CacheState,
+    /// Build the file in place was made for (M1 applied manifest); compare with `build`.
+    pub applied_build: Option<Build>,
+    pub last_apply: Option<LastApply>,
+}
+
+/// The last apply recorded in the applied manifest (spec 7.5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LastApply {
+    pub time: String,
+    pub result: ApplyResult,
+    pub changed: u32,
+    pub warnings: u32,
+    pub dropped: u32,
+    pub duration_ms: u64,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -186,6 +200,8 @@ pub enum JobKind {
     Restore,
     Import,
     Sync,
+    /// A LUG launch hook ran (`apply --all --if-stale` from sc-prelaunch / sc-postexit).
+    Hook,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -739,6 +755,32 @@ pub struct PatchView {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatchRef {
+    pub target: ChannelRef,
+    pub id: String,
+}
+
+/// One key a patch touches, as stock and as patched text (spec 9.4 Patches detail).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatchExample {
+    pub key: String,
+    pub before: String,
+    pub after: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PatchDetail {
+    pub patch: PatchView,
+    /// `loc` (output string) or `data` (a GameData field), spec 4.5.
+    pub kind: String,
+    /// The build range the patch is written for, as text ("4.9.0 - 4.10.x"), or null when open.
+    pub range: Option<String>,
+    /// Why the state is what it is, in words.
+    pub reason: String,
+    pub examples: Vec<PatchExample>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PatchToggle {
     pub target: ChannelRef,
     pub id: String,
@@ -959,6 +1001,37 @@ pub struct SyncCharactersRequest {
     pub ticked: Vec<String>,
 }
 
+/// Pull writes into one chosen character (union, never delete; addendum §5).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StarOrgPullRequest {
+    pub channel: String,
+    pub character: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SyncDirection {
+    Pull,
+    Push,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SyncReport {
+    pub direction: SyncDirection,
+    pub channel: String,
+    pub guild: Option<String>,
+    /// Pull: the character written into. Push: null (the union of ticked characters).
+    pub character: Option<String>,
+    /// Pull: names added locally. Push: names the server did not have yet.
+    pub added: Vec<String>,
+    pub already: u32,
+    /// Pull: StarOrg entries with no blueprint record in this build's game data.
+    pub unmatched: Vec<String>,
+    /// Push: size of the union sent.
+    pub sent: u32,
+    pub time: String,
+}
+
 // ---------------------------------------------------------------------------------------
 // Launch hooks (addendum §2) and doctor (spec 10.5)
 // ---------------------------------------------------------------------------------------
@@ -1022,4 +1095,14 @@ pub struct DoctorSection {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DoctorReport {
     pub sections: Vec<DoctorSection>,
+}
+
+/// Doctor and recent log as one text, with paths, user names and character ids replaced
+/// (spec 9.4 Activity, addendum §3 privacy). The UI shows it before saving or copying.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Diagnostics {
+    pub file_name: String,
+    pub text: String,
+    /// How many values were replaced.
+    pub redacted: u32,
 }

@@ -54,6 +54,7 @@ pub trait Backend: Send + Sync + 'static {
 
     fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>>;
     fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView>;
+    fn patch_detail(&self, req: PatchRef) -> CmdResult<PatchDetail>;
 
     fn activity(&self, limit: u32) -> CmdResult<Vec<LogEntry>>;
 
@@ -70,12 +71,18 @@ pub trait Backend: Send + Sync + 'static {
     fn starorg_login(&self, channel: String) -> CmdResult<StarOrgStatus>;
     fn starorg_logout(&self, channel: String) -> CmdResult<StarOrgStatus>;
     fn set_sync_characters(&self, req: SyncCharactersRequest) -> CmdResult<StarOrgStatus>;
+    /// StarOrg owned set -> one character's set (union). Refused while not connected.
+    fn starorg_pull(&self, req: StarOrgPullRequest) -> CmdResult<SyncReport>;
+    /// Union of the ticked characters' sets -> StarOrg. Never pushes removals.
+    fn starorg_push(&self, channel: String) -> CmdResult<SyncReport>;
 
     fn hooks_status(&self) -> CmdResult<HooksStatus>;
     fn hooks_install(&self) -> CmdResult<HooksStatus>;
     fn hooks_uninstall(&self) -> CmdResult<HooksStatus>;
 
     fn doctor(&self) -> CmdResult<DoctorReport>;
+    /// Redacted doctor + recent log; the real backend also offers to save it via a dialog.
+    fn export_diagnostics(&self) -> CmdResult<Diagnostics>;
 }
 
 /// Managed state: the selected backend.
@@ -139,6 +146,7 @@ commands! {
     reset_override(req: KeyRequest) -> StringDetail;
     list_patches(req: ChannelRef) -> Vec<PatchView>;
     set_patch_enabled(req: PatchToggle) -> PatchView;
+    patch_detail(req: PatchRef) -> PatchDetail;
     activity(limit: u32) -> Vec<LogEntry>;
     get_settings() -> Settings;
     save_settings(req: Settings) -> Settings;
@@ -150,10 +158,13 @@ commands! {
     starorg_login(channel: String) -> StarOrgStatus;
     starorg_logout(channel: String) -> StarOrgStatus;
     set_sync_characters(req: SyncCharactersRequest) -> StarOrgStatus;
+    starorg_pull(req: StarOrgPullRequest) -> SyncReport;
+    starorg_push(channel: String) -> SyncReport;
     hooks_status() -> HooksStatus;
     hooks_install() -> HooksStatus;
     hooks_uninstall() -> HooksStatus;
     doctor() -> DoctorReport;
+    export_diagnostics() -> Diagnostics;
 }
 
 /// Apply streams [`JOB_EVENT`] events while it runs.
@@ -203,6 +214,7 @@ macro_rules! contract_handler {
             $crate::contract::reset_override,
             $crate::contract::list_patches,
             $crate::contract::set_patch_enabled,
+            $crate::contract::patch_detail,
             $crate::contract::activity,
             $crate::contract::get_settings,
             $crate::contract::save_settings,
@@ -214,10 +226,13 @@ macro_rules! contract_handler {
             $crate::contract::starorg_login,
             $crate::contract::starorg_logout,
             $crate::contract::set_sync_characters,
+            $crate::contract::starorg_pull,
+            $crate::contract::starorg_push,
             $crate::contract::hooks_status,
             $crate::contract::hooks_install,
             $crate::contract::hooks_uninstall,
             $crate::contract::doctor,
+            $crate::contract::export_diagnostics,
         ]
     };
 }
@@ -250,6 +265,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "reset_override",
     "list_patches",
     "set_patch_enabled",
+    "patch_detail",
     "activity",
     "get_settings",
     "save_settings",
@@ -261,10 +277,13 @@ pub const COMMAND_NAMES: &[&str] = &[
     "starorg_login",
     "starorg_logout",
     "set_sync_characters",
+    "starorg_pull",
+    "starorg_push",
     "hooks_status",
     "hooks_install",
     "hooks_uninstall",
     "doctor",
+    "export_diagnostics",
 ];
 
 #[cfg(test)]
