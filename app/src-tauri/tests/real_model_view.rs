@@ -139,6 +139,53 @@ fn model_view_on_a_real_install() {
             .unwrap();
         assert!(after.lods[0].cached && after.lods[3].cached);
     }
+    // Monotonic detail on the slider's steps (LOD 3 -> 0), and a Stop that comes before the
+    // worker has the request (the job's first event) still stops it.
+    for ship in ["AEGS_Gladius", "ANVL_Carrack", "ORIG_890Jump"] {
+        let mut tris = Vec::new();
+        for lod in [3, 2, 1, 0, 4] {
+            let v = b
+                .asset_model_view(
+                    AssetModelViewRequest {
+                        target: target.clone(),
+                        what: ship.into(),
+                        name: ship.into(),
+                        lod,
+                        force: true,
+                    },
+                    &noop,
+                )
+                .unwrap();
+            tris.push((
+                v.lod,
+                v.triangles.unwrap_or(0),
+                v.ms,
+                v.peak_rss.map(|b| b / 1_048_576),
+            ));
+        }
+        eprintln!("{ship}: (lod, triangles, ms, peak MB) {tris:?}");
+        assert!(
+            tris[..4].windows(2).all(|w| w[0].1 <= w[1].1),
+            "LOD 3 -> 0 adds detail: {tris:?}"
+        );
+    }
+    let stopped = b
+        .asset_model_view(
+            AssetModelViewRequest {
+                target: target.clone(),
+                what: "AEGS_Javelin".into(),
+                name: "AEGS_Javelin".into(),
+                lod: 1,
+                force: true,
+            },
+            &|p: JobProgress| {
+                if p.phase == JobPhase::Running && p.step <= 1 {
+                    let _ = b.cancel_job(p.job.clone());
+                }
+            },
+        )
+        .unwrap_err();
+    assert_eq!(stopped.code, ErrorCode::Cancelled, "{}", stopped.message);
     assert_eq!(
         std::fs::metadata(&p4k).and_then(|m| m.modified()).ok(),
         before,

@@ -40,6 +40,7 @@ function mock(devOn = true) {
       throw new Fail(code, message);
     },
     memory: () => ({ limit: Math.round(samples.memory_status.limit_gb * 1024 ** 3), free: samples.memory_status.available_bytes }),
+    takeCancel: () => false,
   });
   return { h: m.handlers, events, settings };
 }
@@ -149,6 +150,7 @@ test('the model guard refuses over the limit and asks when memory is short', asy
       throw new Fail(code, message);
     },
     memory: () => mem,
+    takeCancel: () => false,
   });
   const i = await m.handlers.asset_model_info({ req: { target: live, what: ship(1), name: '' } });
   assert.deepEqual(i.lods.map((l) => l.fit), ['over-limit', 'ok', 'ok', 'ok', 'ok']);

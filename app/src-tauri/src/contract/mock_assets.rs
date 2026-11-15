@@ -1002,7 +1002,7 @@ impl AssetBackend for MockBackend {
         use starorg_core::memlimit;
         use starorg_data::assets::model::{self, ModelOptions};
         self.asset_on(&req.target)?;
-        let (rec_name, _) = self.model_record(&req.what)?;
+        let (rec_name, ship) = self.model_record(&req.what)?;
         let name = if req.name.is_empty() {
             &rec_name
         } else {
@@ -1020,6 +1020,9 @@ impl AssetBackend for MockBackend {
                     stl: false,
                 };
                 let bytes = self.cache_size(&format!("model:{}", o.cache_key(&req.what)));
+                let triangles = bytes.and_then(|_| {
+                    starorg_data::assets::stl::glb_triangle_count(&model_glb(ship, uses))
+                });
                 AssetModelLod {
                     lod,
                     uses,
@@ -1027,6 +1030,7 @@ impl AssetBackend for MockBackend {
                     fit: memory_fit(memlimit::check(need, limit, free)),
                     cached: bytes.is_some(),
                     bytes,
+                    triangles,
                 }
             })
             .collect();

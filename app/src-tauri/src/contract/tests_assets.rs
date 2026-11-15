@@ -568,6 +568,11 @@ fn the_model_view_steps_through_lods_with_estimates_the_guard_and_the_cache() {
     assert_eq!(i.lods[4].uses, 3);
     assert!(i.lods[3].cached && i.lods[4].cached && !i.lods[2].cached);
     assert_eq!(i.lods[3].bytes, Some(v.bytes));
+    assert_eq!(
+        i.lods[3].triangles, v.triangles,
+        "a cached step knows its triangles"
+    );
+    assert_eq!(i.lods[2].triangles, None);
     // The chunks put together are the GLB, with the triangles the view said.
     let mut glb = Vec::new();
     while (glb.len() as u64) < v.bytes {

@@ -59,13 +59,22 @@ impl AssetSpawner for AssetWorkerSpawner {
     }
 }
 
+/// A streamed worker job: its Activity job id, the worker, the worker's request id once sent,
+/// and a Stop that came before that id (sent as soon as it is known).
+struct ExportJob {
+    job: String,
+    worker: Arc<Worker>,
+    id: Option<u64>,
+    cancel: bool,
+}
+
 pub struct AssetState {
     spawner: Mutex<Arc<dyn AssetSpawner>>,
     worker: Mutex<Option<Arc<Worker>>>,
     failed: Mutex<Option<(String, String, String)>>,
     start: Mutex<()>,
-    /// The running streamed job: (job id, worker, request id).
-    export: Mutex<Option<(String, Arc<Worker>, u64)>>,
+    /// The running streamed job.
+    export: Mutex<Option<ExportJob>>,
     /// The cache folder before the last change, offered for "Move existing cache".
     previous: Mutex<Option<PathBuf>>,
     /// The mesh LODs a model export read, per (channel, build, record): this session only.
@@ -249,10 +258,21 @@ impl RealBackend {
     }
 
     pub(super) fn asset_cancel(&self, job: &str) -> Option<CmdResult<()>> {
-        let cur = lock_or(&self.assets.export).clone();
-        let (_, w, id) = cur.filter(|x| x.0 == job)?;
+        let send = {
+            let mut cur = lock_or(&self.assets.export);
+            let e = cur.as_mut().filter(|e| e.job == job)?;
+            match e.id {
+                Some(id) => (e.worker.clone(), id),
+                // Stop before the worker has the request: sent when its id arrives.
+                None => {
+                    e.cancel = true;
+                    return Some(Ok(()));
+                }
+            }
+        };
         Some(
-            w.call::<bool>(&AssetRequest::Cancel { job: id })
+            send.0
+                .call::<bool>(&AssetRequest::Cancel { job: send.1 })
                 .map(|_| ()),
         )
     }
@@ -267,21 +287,47 @@ impl RealBackend {
         unit: &str,
         progress: Progress<'_>,
     ) -> CmdResult<serde_json::Value> {
-        {
-            let cur = lock_or(&self.assets.export);
-            if cur.is_some() {
-                return Err(err(ErrorCode::Busy, "Another asset export is running."));
-            }
+        if lock_or(&self.assets.export).is_some() {
+            return Err(err(ErrorCode::Busy, "Another asset export is running."));
         }
         let mut job = self.job_start(JobKind::Dev, Some(channel), 1, label);
         job.cancellable = true;
+        let job_id = job.job.clone();
+        {
+            let mut cur = lock_or(&self.assets.export);
+            if cur.is_some() {
+                drop(cur);
+                let e = err(ErrorCode::Busy, "Another asset export is running.");
+                self.job_end(job, JobPhase::Failed, &e.message, Some(progress));
+                return Err(e);
+            }
+            *cur = Some(ExportJob {
+                job: job_id.clone(),
+                worker: w.clone(),
+                id: None,
+                cancel: false,
+            });
+        }
         progress(job.clone());
         w.busy.store(true, Ordering::SeqCst);
-        let job_id = job.job.clone();
         let cell = Mutex::new(job);
         let r = w.call_stream(
             req,
-            &|id| *lock_or(&self.assets.export) = Some((job_id.clone(), w.clone(), id)),
+            &|id| {
+                let stop = {
+                    let mut cur = lock_or(&self.assets.export);
+                    match cur.as_mut().filter(|e| e.job == job_id) {
+                        Some(e) => {
+                            e.id = Some(id);
+                            e.cancel
+                        }
+                        None => false,
+                    }
+                };
+                if stop {
+                    let _ = w.call::<bool>(&AssetRequest::Cancel { job: id });
+                }
+            },
             &|p: ExportProgress| {
                 let mut j = lock_or(&cell);
                 j.steps = p.total.max(1);
@@ -385,16 +431,27 @@ impl RealBackend {
     }
 
     /// The mesh LODs of `what`, once an export read them (empty otherwise).
+    /// In memory for the session, else what the asset cache recorded (`model::cached_lods`).
     fn known_lods(&self, key: &WorkerKey, what: &str) -> Vec<u32> {
-        lock_or(&self.assets.lods)
-            .get(&Self::lods_key(key, what))
-            .cloned()
-            .unwrap_or_default()
+        if let Some(l) = lock_or(&self.assets.lods).get(&Self::lods_key(key, what)) {
+            return l.clone();
+        }
+        let l = self
+            .asset_cache()
+            .map(|c| model::cached_lods(&c, &key.channel, &key.build, what))
+            .unwrap_or_default();
+        if !l.is_empty() {
+            lock_or(&self.assets.lods).insert(Self::lods_key(key, what), l.clone());
+        }
+        l
     }
 
     fn remember_lods(&self, key: &WorkerKey, what: &str, lods: &[u32]) {
         if !lods.is_empty() {
             lock_or(&self.assets.lods).insert(Self::lods_key(key, what), lods.to_vec());
+            if let Ok(c) = self.asset_cache() {
+                let _ = model::cache_lods(&c, &key.channel, &key.build, what, lods);
+            }
         }
     }
 
@@ -964,16 +1021,20 @@ impl AssetBackend for RealBackend {
             .map(|lod| {
                 let o = view_options(model::effective_lod(lod, &known));
                 let need = model::memory_need(&o, name);
-                let bytes = c
-                    .peek(
-                        &key.channel,
-                        &key.build,
-                        Kind::Models,
-                        &o.cache_key(&req.what),
-                        "glb",
-                    )
+                let hit = c.peek(
+                    &key.channel,
+                    &key.build,
+                    Kind::Models,
+                    &o.cache_key(&req.what),
+                    "glb",
+                );
+                let bytes = hit
+                    .as_ref()
                     .and_then(|p| std::fs::metadata(p).ok())
                     .map(|m| m.len());
+                let triangles = hit
+                    .as_deref()
+                    .and_then(starorg_data::assets::stl::glb_file_triangle_count);
                 AssetModelLod {
                     lod,
                     uses: o.lod,
@@ -981,6 +1042,7 @@ impl AssetBackend for RealBackend {
                     fit: memory_fit(memlimit::check(need, limit, free)),
                     cached: bytes.is_some(),
                     bytes,
+                    triangles,
                 }
             })
             .collect();

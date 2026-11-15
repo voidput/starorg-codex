@@ -32,6 +32,8 @@ export interface AssetMockCtx {
   fail(code: T.ErrorCode, message: string): never;
   /** The memory guard's inputs: the limit and the free memory, bytes. */
   memory(): { limit: number | null; free: number | null };
+  /** True (once) when `cancel_job` asked to stop this job. */
+  takeCancel(job: string): boolean;
 }
 
 type H<A, R> = (args: A) => R | Promise<R>;
@@ -231,6 +233,19 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
       ctx.emit({ job: id, kind: 'dev', channel, phase, step, steps: 2, label, cancellable: true });
     }
   };
+  /** A job that honours `cancel_job` (Stop) between its steps, as the real worker does. */
+  const stoppable = async (channel: string, label: string) => {
+    const id = ctx.nextJob();
+    const steps = 4;
+    for (let step = 1; step <= steps; step++) {
+      if (step > 1 && ctx.delay) await ctx.sleep(ctx.delay);
+      if (ctx.takeCancel(id)) {
+        ctx.emit({ job: id, kind: 'dev', channel, phase: 'cancelled', step, steps, label: 'Stopped', cancellable: false });
+        ctx.fail('cancelled', 'Stopped; nothing was kept.');
+      }
+      ctx.emit({ job: id, kind: 'dev', channel, phase: step === steps ? 'done' : 'running', step, steps, label, cancellable: true });
+    }
+  };
   const status = (r: T.ChannelRef): A.AssetStatus => {
     const o = open === key(r);
     return {
@@ -413,14 +428,15 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
     },
     asset_model_info: ({ req }) => {
       on(req.target);
-      modelRecord(req.what);
+      const [, ship] = modelRecord(req.what);
       const k = known.get(req.what) ?? [];
       const { limit, free } = ctx.memory();
       const lods: A.AssetModelLod[] = [0, 1, 2, 3, 4].map((lod) => {
         const uses = effectiveLod(lod, k);
         const need = printEstimate(uses);
         const bytes = size(modelKey(req.what, uses));
-        return { lod, uses, need, fit: memoryFit(need, limit, free), cached: bytes !== null, bytes };
+        const triangles = bytes === null ? null : glbTriangles(glbOf(ship, uses));
+        return { lod, uses, need, fit: memoryFit(need, limit, free), cached: bytes !== null, bytes, triangles };
       });
       return { what: req.what, lods, available: [...k], default_lod: effectiveLod(3, k), limit, free, max_bytes: data.cacheMax / 4 };
     },
@@ -441,7 +457,7 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
       const fit = memoryFit(need, limit, free);
       if (fit === 'over-limit') ctx.fail('invalid', `Viewing this model needs about ${gb(need)}, more than the ${gb(limit ?? 0)} memory limit allows (a worker is stopped at 90% of it). Raise the limit under Settings > Advanced > Memory limit, or pick less detail.`);
       if (fit === 'low-free' && !req.force) ctx.fail('needs-decision', `Viewing this model may need about ${gb(need)}, and only ${gb(free ?? 0)} of memory is free now (is the game running?). Close something first, or run it anyway: the memory limit still applies.`);
-      await job(req.target.channel, `Loading model ${name} (LOD ${asked})`);
+      await stoppable(req.target.channel, `Loading model ${name} (LOD ${asked})`);
       const lods = mockLods(ship);
       known.set(req.what, lods);
       const v = viewOf(effectiveLod(asked, lods), [...lods], false);

@@ -20,15 +20,13 @@
   import { Button } from '@/components/ui/button';
   import { Progress } from '@/components/ui/progress';
   import ErrorState from '@/components/common/ErrorState.svelte';
-  import JobProgress from '@/components/common/JobProgress.svelte';
   import { assetApi, PERSONAL_USE, type AssetModelInfo, type AssetModelView } from '@/lib/contract/assets';
-  import { toContractError } from '@/lib/contract/client';
-  import type { ChannelRef } from '@/lib/contract/types';
-  import { app } from '@/lib/stores/app.svelte';
+  import { api, toContractError } from '@/lib/contract/client';
+  import type { ChannelRef, JobProgress as Job } from '@/lib/contract/types';
   import { toast } from '@/lib/stores/toast.svelte';
   import { gbText } from '@/lib/memory';
   import { cn } from '@/lib/utils';
-  import { fetchGlb, FetchCancelled, lodLabel, lodToSlider, mbText, MAX_LOD, sizeText, sliderToLod, stepNote, stepState, trianglesText, webglProblem, type FetchProgress } from '@/lib/modelview';
+  import { fetchGlb, FetchCancelled, LOD_NAMES, lodLabel, mbText, sizeText, sliderSteps, stepIndex, stepNote, stepState, trianglesShort, trianglesText, webglAvailable, webglProblem, type FetchProgress } from '@/lib/modelview';
   import { ModelScene, parseGlb, type ModelStats } from '@/lib/modelscene';
 
   let { target, guid, name }: { target: ChannelRef; guid: string; name: string } = $props();
@@ -36,13 +34,15 @@
   type Phase = 'idle' | 'exporting' | 'loading' | 'building' | 'ready';
   let info = $state<AssetModelInfo | null>(null);
   let infoError = $state<{ message: string; detail?: string | null } | null>(null);
-  let slider = $state(lodToSlider(3));
+  /** The LOD the slider is on (its position is this LOD's index among `steps`). */
+  let selLod = $state(3);
   let phase = $state<Phase>('idle');
   let fetched = $state<FetchProgress | null>(null);
   let error = $state<{ message: string; detail?: string | null } | null>(null);
   let memAsk = $state<string | null>(null);
   let wire = $state(false);
-  let noGl = $state<string | null>(null);
+  // Checked before anything is exported: no WebGL, no export.
+  let noGl = $state<string | null>(webglAvailable() ? null : webglProblem(new Error('no WebGL context on a test canvas')));
   let shown = $state<{ lod: number; view: AssetModelView; stats: ModelStats } | null>(null);
   let exporting = $state(false);
 
@@ -53,8 +53,15 @@
   /** Bumped by each load and each record change; an older load's result is dropped. */
   let token = 0;
   let cancelled = false;
+  /** Our export's job (from its first progress event), its latest progress, and a Stop asked
+   * before the job id was known (sent once it arrives). Only this job is ever cancelled. */
+  let ownJob = $state<string | null>(null);
+  let ownProgress = $state<Job | null>(null);
+  let stopWanted = $state(false);
 
-  const lod = $derived(sliderToLod(slider));
+  const steps = $derived(info ? sliderSteps(info) : []);
+  const slider = $derived(stepIndex(steps, selLod));
+  const lod = $derived(steps[slider]?.lod ?? selLod);
   const step = $derived(info?.lods[lod] ?? null);
   const stepKind = $derived(step && info ? stepState(step, info.max_bytes) : null);
   const busy = $derived(phase === 'exporting' || phase === 'loading' || phase === 'building');
@@ -78,7 +85,8 @@
     const g = guid;
     untrack(() => {
       // An export still running for the last record is stopped (one export at a time).
-      if (phase === 'exporting') void app.cancel();
+      clearPick();
+      stopOwn();
       token++;
       cancelled = true;
       info = null;
@@ -90,7 +98,7 @@
       fetched = null;
       void loadInfo(g).then((i) => {
         if (!i) return;
-        slider = lodToSlider(i.default_lod);
+        selLod = i.default_lod;
         if (i.lods[i.default_lod]?.cached) void load(false);
       });
     });
@@ -113,7 +121,8 @@
   });
 
   onDestroy(() => {
-    if (phase === 'exporting') void app.cancel();
+    clearPick();
+    stopOwn();
     token++;
     cancelled = true;
     scene?.dispose();
@@ -151,6 +160,20 @@
     fetched = null;
     const cachedStep = info?.lods[asked]?.cached ?? false;
     phase = cachedStep ? 'loading' : 'exporting';
+    ownJob = null;
+    ownProgress = null;
+    stopWanted = false;
+    // Our job is the model load the backend starts for this call (one export at a time).
+    const unlisten = cachedStep
+      ? null
+      : await api.onJob((p) => {
+          if (my !== token) return;
+          if (!ownJob && p.kind === 'dev' && p.phase === 'running' && p.label.startsWith('Loading model ')) {
+            ownJob = p.job;
+            if (stopWanted) void cancelOwn();
+          }
+          if (p.job === ownJob) ownProgress = p.phase === 'running' ? p : null;
+        });
     try {
       const v = await assetApi.modelView({ target: $state.snapshot(target), what: g, name, lod: asked, force });
       if (my !== token) return;
@@ -181,11 +204,37 @@
       else if (err.code === 'cancelled') toast('info', 'Model load stopped', 'Nothing was kept.');
       else error = err;
       void loadInfo(g);
+    } finally {
+      unlisten?.();
+      if (my === token) {
+        ownJob = null;
+        ownProgress = null;
+        stopWanted = false;
+      }
+    }
+  }
+
+  async function cancelOwn() {
+    const j = ownJob;
+    if (!j) return;
+    try {
+      await api.cancelJob(j);
+    } catch (e) {
+      // Already finished: nothing to stop.
+      if (toContractError(e).code !== 'not-found') toast('error', 'Could not stop the model load', toContractError(e).message);
+    }
+  }
+
+  /** Stop our export (now, or once its job id arrives); reads from the cache just stop. */
+  function stopOwn() {
+    if (phase === 'exporting') {
+      stopWanted = true;
+      void cancelOwn();
     }
   }
 
   function stop() {
-    if (phase === 'exporting') void app.cancel();
+    if (phase === 'exporting') stopOwn();
     else cancelled = true;
   }
 
@@ -205,11 +254,19 @@
 
   // Moving onto a cached step shows it at once (cheap); others wait for "Load".
   let pickTimer: ReturnType<typeof setTimeout> | null = null;
-  function onSlide(v: number) {
-    slider = v;
+  function clearPick() {
     if (pickTimer) clearTimeout(pickTimer);
-    const s = info?.lods[sliderToLod(v)];
-    if (s?.cached && !busy && shown?.lod !== s.uses) pickTimer = setTimeout(() => void load(false), 150);
+    pickTimer = null;
+  }
+  function onSlide(v: number) {
+    const s = steps[Math.round(v)];
+    if (!s) return;
+    selLod = s.lod;
+    clearPick();
+    if (s.cached && !busy && !noGl && shown?.lod !== s.uses) pickTimer = setTimeout(() => {
+      pickTimer = null;
+      void load(false);
+    }, 150);
   }
 </script>
 
@@ -223,22 +280,23 @@
           type="range"
           class="accent-primary h-2 min-w-0 flex-1 cursor-pointer"
           min="0"
-          max={MAX_LOD}
+          max={Math.max(0, steps.length - 1)}
           step="1"
           value={slider}
-          disabled={!info || busy}
+          disabled={!info || busy || steps.length < 2}
           aria-valuetext={lodLabel(lod)}
           aria-describedby="model-step-note"
           oninput={(e) => onSlide(Number((e.currentTarget as HTMLInputElement).value))}
         />
       </div>
       {#if info}
-        <!-- One column per slider step, left (LOD 4) to right (LOD 0): its memory or its cache. -->
-        <ol class="text-muted-foreground mono ml-[3.25rem] grid grid-cols-5 text-center text-[10px] leading-tight whitespace-nowrap" aria-label="Memory per level of detail">
-          {#each [...info.lods].reverse() as s (s.lod)}
+        <!-- One column per slider step, least detail left: name, memory or cached size, triangles once known. -->
+        <ol class="text-muted-foreground mono ml-[3.25rem] grid text-center text-[10px] leading-tight whitespace-nowrap" style="grid-template-columns: repeat({Math.max(1, steps.length)}, minmax(0, 1fr))" aria-label="Levels of detail">
+          {#each steps as s (s.lod)}
             <li class={cn(s.lod === lod && 'text-foreground font-semibold', !s.cached && s.fit === 'over-limit' && 'text-destructive')} data-step={s.lod} data-cached={s.cached}>
-              <span class="block">LOD {s.lod}</span>
+              <span class="block">{LOD_NAMES[s.lod]}</span>
               <span class="block">{s.cached ? (s.bytes !== null ? mbText(s.bytes) : 'cached') : `~${gbText(s.need)}`}</span>
+              <span class="block" data-step-triangles>{s.triangles !== null ? `${trianglesShort(s.triangles)} tri` : '\u00a0'}</span>
             </li>
           {/each}
         </ol>
@@ -256,12 +314,18 @@
       {/if}
       {#if busy}
         {#if phase === 'exporting'}
-          <JobProgress job={app.job} compact />
+          <div class="flex w-60 min-w-0 items-center gap-2" data-own-job={ownJob ?? ''}>
+            <div class="grid min-w-0 flex-1 gap-1">
+              <span class="truncate text-[12px]">{ownProgress?.label ?? (stopWanted ? 'Stopping…' : 'Starting the export…')}</span>
+              <Progress value={ownProgress?.step ?? 0} max={ownProgress?.steps ?? 1} class="h-1" aria-label="Model export" />
+            </div>
+            <Button variant="outline" size="xs" disabled={stopWanted} onclick={stop}><Square aria-hidden="true" /> {stopWanted ? 'Stopping…' : 'Stop'}</Button>
+          </div>
         {:else}
           <Button variant="outline" size="xs" onclick={stop} disabled={phase === 'building'}><Square aria-hidden="true" /> Stop</Button>
         {/if}
       {:else}
-        <Button size="xs" disabled={!info || stepKind === 'refused' || stepKind === 'too-big' || (shown?.lod === step?.uses && !error)} onclick={() => void load(false)} data-load>
+        <Button size="xs" disabled={!info || !!noGl || stepKind === 'refused' || stepKind === 'too-big' || (shown?.lod === step?.uses && !error)} onclick={() => void load(false)} data-load>
           <Box aria-hidden="true" /> {shown?.lod === step?.uses && !error ? `LOD ${shown?.lod} shown` : stepKind === 'cached' ? `Show LOD ${lod}` : `Load LOD ${lod}`}
         </Button>
       {/if}

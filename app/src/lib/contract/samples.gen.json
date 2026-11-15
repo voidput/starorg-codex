@@ -336,6 +336,7 @@
         "fit": "ok",
         "lod": 0,
         "need": 1503238553,
+        "triangles": null,
         "uses": 0
       },
       {
@@ -344,6 +345,7 @@
         "fit": "ok",
         "lod": 1,
         "need": 1288490188,
+        "triangles": null,
         "uses": 1
       },
       {
@@ -352,6 +354,7 @@
         "fit": "ok",
         "lod": 2,
         "need": 1288490188,
+        "triangles": null,
         "uses": 2
       },
       {
@@ -360,6 +363,7 @@
         "fit": "ok",
         "lod": 3,
         "need": 1288490188,
+        "triangles": null,
         "uses": 3
       },
       {
@@ -368,6 +372,7 @@
         "fit": "ok",
         "lod": 4,
         "need": 1288490188,
+        "triangles": null,
         "uses": 4
       }
     ],
@@ -391,6 +396,7 @@
         "fit": "ok",
         "lod": 0,
         "need": 1503238553,
+        "triangles": null,
         "uses": 0
       },
       {
@@ -399,6 +405,7 @@
         "fit": "ok",
         "lod": 1,
         "need": 1288490188,
+        "triangles": null,
         "uses": 1
       },
       {
@@ -407,6 +414,7 @@
         "fit": "ok",
         "lod": 2,
         "need": 1288490188,
+        "triangles": null,
         "uses": 2
       },
       {
@@ -415,6 +423,7 @@
         "fit": "ok",
         "lod": 3,
         "need": 1288490188,
+        "triangles": 164,
         "uses": 3
       },
       {
@@ -423,6 +432,7 @@
         "fit": "ok",
         "lod": 4,
         "need": 1288490188,
+        "triangles": 164,
         "uses": 3
       }
     ],

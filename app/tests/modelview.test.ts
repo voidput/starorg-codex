@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { fetchGlb, FetchCancelled, lodLabel, lodToSlider, mbText, sizeText, sliderToLod, stepNote, stepState, trianglesText, webglProblem } from '../src/lib/modelview.ts';
+import { fetchGlb, FetchCancelled, lodLabel, mbText, sizeText, sliderSteps, stepIndex, stepNote, stepState, trianglesShort, trianglesText, webglAvailable, webglProblem } from '../src/lib/modelview.ts';
 import { createAssetMock, type AssetMockData } from '../src/lib/contract/mock-assets.ts';
 import type { AssetModelLod } from '../src/lib/contract/assets.ts';
 
@@ -37,24 +37,90 @@ function mock(limitGb = 5, freeGb = 18) {
       throw new Fail(code, message);
     },
     memory: () => mem,
+    takeCancel: () => false,
   });
   return { h: m.handlers, mem };
 }
 
-test('the slider runs from LOD 4 (least detail, left) to LOD 0 (most, right)', () => {
-  assert.deepEqual([0, 1, 2, 3, 4].map(sliderToLod), [4, 3, 2, 1, 0]);
-  assert.equal(lodToSlider(3), 1, 'LOD 3 starts one step from the left');
-  for (let l = 0; l <= 4; l++) assert.equal(sliderToLod(lodToSlider(l)), l);
-  assert.equal(sliderToLod(9), 0);
-  assert.equal(sliderToLod(-1), 4);
-  assert.equal(lodLabel(4), 'LOD 4 · least detail');
-  assert.equal(lodLabel(0), 'LOD 0 · most detail');
-  assert.equal(lodLabel(2), 'LOD 2');
+const lodStep = (lod: number, over: Partial<AssetModelLod> = {}): AssetModelLod => ({ lod, uses: lod, need: 1.2 * GIB, fit: 'ok', cached: false, bytes: null, triangles: null, ...over });
+
+test('the slider runs LOD 3 -> LOD 0 (Low to Full); LOD 4 only when known to be lighter', () => {
+  const five = [0, 1, 2, 3, 4].map((l) => lodStep(l));
+  // Before any export: four steps, least detail first.
+  assert.deepEqual(sliderSteps({ lods: five, available: [] }).map((s) => s.lod), [3, 2, 1, 0]);
+  // LIVE 4.10 Gladius: LOD 4 has more triangles than LOD 3 (parts fall back to LOD 0): hidden.
+  const gladius = five.map((s) => ({ ...s, cached: true, triangles: [1069627, 476384, 198089, 85907, 104146][s.lod]! }));
+  assert.deepEqual(sliderSteps({ lods: gladius, available: [0, 1, 2, 3, 4] }).map((s) => s.lod), [3, 2, 1, 0]);
+  // Javelin: LOD 4 is lighter (58k vs 132k) and both are known: shown first.
+  const javelin = five.map((s) => ({ ...s, cached: true, triangles: [3662991, 1040309, 380906, 132056, 57889][s.lod]! }));
+  assert.deepEqual(sliderSteps({ lods: javelin, available: [0, 1, 2, 3, 4] }).map((s) => s.lod), [4, 3, 2, 1, 0]);
+  // Lighter but LOD 3 unknown, or the mesh has no LOD 4: hidden.
+  const j2 = javelin.map((s) => (s.lod === 3 ? { ...s, triangles: null } : s));
+  assert.deepEqual(sliderSteps({ lods: j2, available: [0, 1, 2, 3, 4] }).map((s) => s.lod), [3, 2, 1, 0]);
+  assert.deepEqual(sliderSteps({ lods: javelin, available: [0, 1, 2, 3] }).map((s) => s.lod), [3, 2, 1, 0]);
+  // A mesh with LODs 0-1: LOD 3 and 2 would show LOD 1 again; left out once known.
+  const item = five.map((s) => ({ ...s, uses: Math.min(s.lod, 1) }));
+  assert.deepEqual(sliderSteps({ lods: item, available: [0, 1] }).map((s) => s.lod), [1, 0]);
+  assert.deepEqual(sliderSteps({ lods: [lodStep(0, { uses: 0 })], available: [0] }).map((s) => s.lod), [0], 'never empty');
+  // Positions: the asked LOD, or the nearest step with at least its detail.
+  const st = sliderSteps({ lods: item, available: [0, 1] });
+  assert.equal(stepIndex(st, 1), 0);
+  assert.equal(stepIndex(st, 3), 0);
+  assert.equal(stepIndex(st, 0), 1);
+  assert.equal(lodLabel(3), 'Low · LOD 3');
+  assert.equal(lodLabel(0), 'Full · LOD 0');
+  assert.equal(lodLabel(4), 'Lowest · LOD 4');
+  assert.equal(trianglesShort(85907), '86k');
+  assert.equal(trianglesShort(3405469), '3.41M');
+});
+
+test('WebGL is probed on a throwaway canvas before any export', () => {
+  let lost = 0;
+  const gl = { getExtension: (n: string) => (n === 'WEBGL_lose_context' ? { loseContext: () => lost++ } : null) };
+  const canvas = (ctx: unknown) => () => ({ getContext: () => ctx }) as unknown as HTMLCanvasElement;
+  assert.equal(webglAvailable(canvas(gl)), true);
+  assert.equal(lost, 1, 'the probe context is released');
+  assert.equal(webglAvailable(canvas(null)), false);
+  assert.equal(webglAvailable(() => {
+    throw new Error('no canvas');
+  }), false);
+});
+
+test('Stop on the mock: cancel_job of the load job ends it as cancelled, others are not touched', async () => {
+  const cancels = new Set<string>();
+  const events: { job: string; phase: string }[] = [];
+  let release: () => void = () => {};
+  let jobs = 0;
+  const m = createAssetMock(data, {
+    devOn: () => true,
+    hasChannel: () => true,
+    findRecord: (w) => ({ guid: w, name: 'SYN_Ship', type: 'SynShip' }),
+    emit: (p) => events.push(p),
+    sleep: () => new Promise<void>((r) => (release = r)),
+    delay: 10,
+    nextJob: () => `job-${++jobs}`,
+    fail: (code, message) => {
+      throw new Fail(code, message);
+    },
+    memory: () => ({ limit: 5 * GIB, free: 18 * GIB }),
+    takeCancel: (j) => cancels.delete(j),
+  });
+  const run = m.handlers.asset_model_view({ req: { target: live, what: ship(7), name: '', lod: 3, force: false } }) as Promise<unknown>;
+  await new Promise((r) => setTimeout(r, 0));
+  assert.deepEqual(events.map((e) => e.phase), ['running']);
+  cancels.add('job-99'); // someone else's job: ignored
+  cancels.add(events[0]!.job);
+  release();
+  await assert.rejects(run, (e: Fail) => e.code === 'cancelled');
+  assert.equal(events.at(-1)!.phase, 'cancelled');
+  assert.ok(cancels.has('job-99'));
+  const info = await m.handlers.asset_model_info({ req: { target: live, what: ship(7), name: '' } });
+  assert.ok(info.lods.every((l) => !l.cached), 'nothing kept');
 });
 
 test('each step says what choosing it does: cache, export, ask first or refused', () => {
   const info = { limit: 1.5 * GIB, max_bytes: 512 * 1024 * 1024 };
-  const s = (over: Partial<AssetModelLod>): AssetModelLod => ({ lod: 3, uses: 3, need: 1.2 * GIB, fit: 'ok', cached: false, bytes: null, ...over });
+  const s = (over: Partial<AssetModelLod>): AssetModelLod => ({ lod: 3, uses: 3, need: 1.2 * GIB, fit: 'ok', cached: false, bytes: null, triangles: null, ...over });
   assert.equal(stepState(s({}), info.max_bytes), 'export');
   assert.match(stepNote(s({}), info), /^Exports in its own process, about 1\.2 GB of memory/);
   assert.equal(stepState(s({ cached: true, bytes: 5_200_548 }), info.max_bytes), 'cached');
@@ -108,6 +174,7 @@ test('the guard: over the limit refused even when forced, short of free memory a
   const { h, mem } = mock(1.5, 18);
   const info = await h.asset_model_info({ req: { target: live, what: ship(5), name: '' } });
   assert.deepEqual(info.lods.map((l) => stepState(l, info.max_bytes)), ['refused', 'export', 'export', 'export', 'export']);
+  assert.deepEqual(sliderSteps(info).map((l) => l.lod), [3, 2, 1, 0]);
   await assert.rejects(async () => h.asset_model_view({ req: { target: live, what: ship(5), name: '', lod: 0, force: true } }), (e: Fail) => e.code === 'invalid');
   mem.limit = 8 * GIB;
   mem.free = 1 * GIB;

@@ -663,6 +663,7 @@ fn the_model_view_reads_the_cache_per_lod_and_respects_the_memory_guard() {
         "per LOD"
     );
     assert_eq!(i.lods[3].bytes, Some(glb.len() as u64));
+    assert_eq!((i.lods[3].triangles, i.lods[2].triangles), (Some(1), None));
     let v = view(3).unwrap();
     assert!(v.cached);
     assert_eq!(

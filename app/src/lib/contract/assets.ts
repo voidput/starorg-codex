@@ -248,6 +248,8 @@ export interface AssetModelLod {
   /** In the asset cache: shown without a worker. */
   cached: boolean;
   bytes: number | null;
+  /** The cached GLB's triangles; null until it is exported. */
+  triangles: number | null;
 }
 
 export interface AssetModelInfo {

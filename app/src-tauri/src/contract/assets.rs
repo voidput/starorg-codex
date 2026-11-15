@@ -251,6 +251,8 @@ pub struct AssetModelLod {
     pub cached: bool,
     /// The cached GLB's size.
     pub bytes: Option<u64>,
+    /// The cached GLB's triangles (read from its JSON chunk); `None` until it is exported.
+    pub triangles: Option<u64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

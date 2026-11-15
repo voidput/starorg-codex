@@ -26,7 +26,8 @@ const load = async (p) => {
   await p.locator('[data-model-viewer][data-phase="ready"]').waitFor();
   await p.locator('[data-triangles]').waitFor();
 };
-const slide = (p, lod) => p.locator('#model-detail').fill(String(4 - lod));
+// The mock's ship has LODs 0-3: steps Low (3) .. Full (0), least detail first.
+const slide = (p, lod) => p.locator('#model-detail').fill(String(3 - lod));
 
 const shots = [
   ['model-start', '', async (p) => {
@@ -45,6 +46,14 @@ const shots = [
     await load(p);
     await p.getByRole('switch', { name: 'Wireframe' }).click();
     await p.getByRole('switch', { name: 'Wireframe', checked: true }).waitFor();
+  }],
+  ['model-stop', '&delay=1500', async (p) => {
+    await openShip(p, 'SYN_Ship_003');
+    await modelTab(p);
+    await p.locator('[data-load]').click();
+    await p.getByRole('button', { name: 'Stop' }).click();
+    await p.getByText('Model load stopped').waitFor();
+    await p.locator('[data-model-viewer][data-phase="idle"]').waitFor();
   }],
   ['model-limit', '&memory=1.5', async (p) => {
     await openShip(p, 'SYN_Ship_003');
@@ -89,7 +98,7 @@ const GL = ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-
         const tag = `${name}-${theme}-${w}x${h}`;
         page.on('pageerror', (e) => errors.push(`${tag}: ${e.message}`));
         page.on('console', (m) => m.type() === 'error' && errors.push(`${tag} console: ${m.text()}`));
-        await page.goto(`${BASE}?state=ready&screen=explorer&theme=${theme}&delay=0&dev=1${extra}`);
+        await page.goto(`${BASE}?state=ready&screen=explorer&theme=${theme}${extra.includes('delay=') ? '' : '&delay=0'}&dev=1${extra}`);
         await page.waitForSelector('#page-title');
         await page.evaluate((t) => (document.documentElement.dataset.theme = t), theme);
         try {

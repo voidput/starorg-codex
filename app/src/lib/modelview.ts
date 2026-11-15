@@ -1,6 +1,6 @@
 /**
  * The Explorer's Model tab (addendum 7.20), the parts without three.js: the detail slider
- * (left = least detail, LOD 4; right = most, LOD 0), the words for each step, fetching the GLB
+ * (left = least detail, right = LOD 0; see `sliderSteps`), the words for each step, fetching the GLB
  * from the asset cache in chunks, and the readouts. `ModelViewer.svelte` uses these; tests run
  * them in node (`tests/modelview.test.ts`).
  */
@@ -9,15 +9,70 @@ import { gbText } from './memory.ts';
 
 export const MAX_LOD = 4;
 
-/** Slider position (0 = least detail) -> LOD (4 = least detail). */
-export const sliderToLod = (v: number): number => MAX_LOD - Math.min(MAX_LOD, Math.max(0, Math.round(v)));
-export const lodToSlider = (lod: number): number => MAX_LOD - Math.min(MAX_LOD, Math.max(0, lod));
+/** The words for each LOD (the slider's labels). */
+export const LOD_NAMES = ['Full', 'High', 'Medium', 'Low', 'Lowest'] as const;
 
-/** "LOD 4 · least detail", "LOD 2", "LOD 0 · most detail". */
+/** "Low · LOD 3", "Full · LOD 0". */
 export function lodLabel(lod: number): string {
-  if (lod === MAX_LOD) return `LOD ${lod} · least detail`;
-  if (lod === 0) return 'LOD 0 · most detail';
-  return `LOD ${lod}`;
+  return `${LOD_NAMES[Math.min(MAX_LOD, Math.max(0, lod))]} · LOD ${lod}`;
+}
+
+/**
+ * The slider's steps, least detail first. LOD 4 is not reliably lighter: StarBreaker loads LOD 0
+ * for any part without a `_lod4` file, so on LIVE 4.10 a Gladius has 104k triangles at LOD 4
+ * and 86k at LOD 3 (Carrack 402k vs 232k). The slider therefore runs LOD 3 -> LOD 0, and shows
+ * LOD 4 only when the mesh has it and both GLBs are known with LOD 4 the lighter. A step the mesh
+ * lacks (it shows the LOD below it) is left out once the LODs are known. Never empty.
+ */
+export function sliderSteps(info: Pick<AssetModelInfo, 'lods' | 'available'>): AssetModelLod[] {
+  const lods = Array.isArray(info.lods) ? info.lods : [];
+  const at = (l: number) => lods.find((x) => x.lod === l);
+  const known = Array.isArray(info.available) && info.available.length > 0;
+  const steps = lods.filter((s) => s.lod <= 3 && (!known || s.uses === s.lod));
+  const four = at(4);
+  const three = at(3);
+  if (
+    four &&
+    three &&
+    known &&
+    info.available.includes(4) &&
+    four.uses === 4 &&
+    four.triangles !== null &&
+    three.triangles !== null &&
+    four.triangles < three.triangles
+  )
+    steps.push(four);
+  if (steps.length === 0 && lods[0]) steps.push(lods[0]);
+  return steps.sort((a, b) => b.lod - a.lod);
+}
+
+/** The slider position of `lod` among `steps` (the nearest step with at least its detail). */
+export function stepIndex(steps: Pick<AssetModelLod, 'lod'>[], lod: number): number {
+  const i = steps.findIndex((s) => s.lod <= lod);
+  return i < 0 ? Math.max(0, steps.length - 1) : i;
+}
+
+/** "86k", "1.07M" triangles, short (under the slider). */
+export function trianglesShort(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1000) return `${Math.round(n / 1000)}k`;
+  return String(n);
+}
+
+/**
+ * Whether this webview can draw WebGL, checked on a throwaway canvas before anything is exported
+ * (the probe's context is released at once). `make` creates the canvas (tests pass a fake).
+ */
+export function webglAvailable(make: () => HTMLCanvasElement = () => document.createElement('canvas')): boolean {
+  try {
+    const c = make();
+    const gl = (c.getContext('webgl2') ?? c.getContext('webgl')) as WebGLRenderingContext | null;
+    if (!gl) return false;
+    gl.getExtension('WEBGL_lose_context')?.loseContext();
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /** Bytes as "4.6 MB" (0.1 MB steps under 10 MB). */
