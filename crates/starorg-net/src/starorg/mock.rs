@@ -144,6 +144,11 @@ impl MockServer {
         t
     }
 
+    /// "Sign out everywhere": every issued token stops working.
+    pub fn revoke_all(&self) {
+        self.state().tokens.clear();
+    }
+
     pub fn valid_tokens(&self) -> usize {
         self.state().tokens.len()
     }

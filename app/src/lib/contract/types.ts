@@ -605,6 +605,20 @@ export interface Settings {
   default_channel: string | null;
   safe_gpu: boolean;
   advanced: AdvancedSettings;
+  /** Settings -> StarOrg Tools; stored in config.toml [sync] (shared with the CLI and hooks). */
+  starorg: StarOrgSettings;
+}
+
+/** Environment and "What to sync". Defaults: production, Game.log import on, the rest off. */
+export interface StarOrgSettings {
+  environment: StarOrgEnv;
+  /** Read Game.log for new blueprints (app, CLI, post-exit hook). Off: no log is read. */
+  import_game_log: boolean;
+  push_blueprints: boolean;
+  pull_blueprints: boolean;
+  pull_fleet: boolean;
+  /** Sync by itself after the game exits; off = only when asked. */
+  auto_sync: boolean;
 }
 
 /** Settings > Advanced (addendum 7.7). */
@@ -778,8 +792,9 @@ export interface FleetView {
   settings_file: string;
 }
 
-export type FleetSourceKind = 'file' | 'text' | 'last';
-export type FleetSource = { kind: 'file' } | { kind: 'text'; text: string } | { kind: 'last' };
+export type FleetSourceKind = 'file' | 'text' | 'last' | 'star-org';
+/** `star-org`: the StarOrg Tools hangar (needs "Pull fleet/hangar" and a sign-in). */
+export type FleetSource = { kind: 'file' } | { kind: 'text'; text: string } | { kind: 'last' } | { kind: 'star-org' };
 
 export interface FleetImportRequest {
   target: ChannelRef;
@@ -835,16 +850,46 @@ export interface SyncCharacter {
   owned: number;
 }
 
+/** One org from the account card. `blueprints`: the org has blueprint tracking. */
+export interface StarOrgGuild {
+  id: string;
+  name: string;
+  blueprints: boolean;
+}
+
+export type TokenStoreKind = 'keyring' | 'file';
+
 export interface StarOrgStatus {
   enabled: boolean;
   connected: boolean;
   environment: StarOrgEnv;
+  /** starorg.tools or dev.starorg.tools */
+  host: string;
   user: string | null;
   guild: string | null;
+  guild_id: string | null;
+  guilds: StarOrgGuild[];
   expires: string | null;
+  /** Signed in before, but the token expired or was revoked. */
+  expired: boolean;
+  token_store: TokenStoreKind | null;
   last_sync: string | null;
   sync_characters: SyncCharacter[];
   push_count: number;
+}
+
+export interface StarOrgGuildRequest {
+  channel: string;
+  guild: string;
+}
+
+/** "Sync now" / the run after game exit: pull, push, fleet as the switches allow. */
+export interface SyncRun {
+  channel: string;
+  reports: SyncReport[];
+  fleet: FleetImportReport | null;
+  skipped: string[];
+  time: string;
 }
 
 export interface SyncCharactersRequest {

@@ -3009,7 +3009,15 @@
       "published_dumps": false,
       "starorg": true
     },
-    "safe_gpu": false
+    "safe_gpu": false,
+    "starorg": {
+      "auto_sync": false,
+      "environment": "production",
+      "import_game_log": true,
+      "pull_blueprints": true,
+      "pull_fleet": true,
+      "push_blueprints": true
+    }
   },
   "hooks_status": {
     "cli_on_path": true,
@@ -5179,6 +5187,52 @@
     "message": "Every <EMn> tag needs its closing </EMn>.",
     "rule": "added-em-unbalanced"
   },
+  "set_starorg_guild": {
+    "connected": true,
+    "enabled": true,
+    "environment": "production",
+    "expired": false,
+    "expires": "2027-02-12T21:30:05Z",
+    "guild": "Synthetic Org",
+    "guild_id": "100000000000000001",
+    "guilds": [
+      {
+        "blueprints": true,
+        "id": "100000000000000001",
+        "name": "Synthetic Org"
+      },
+      {
+        "blueprints": false,
+        "id": "100000000000000002",
+        "name": "Other Test Org"
+      }
+    ],
+    "host": "starorg.tools",
+    "last_sync": "2026-11-14T21:30:05Z",
+    "push_count": 7,
+    "sync_characters": [
+      {
+        "id": "1000000000001",
+        "name": "Pilot_A",
+        "owned": 6,
+        "ticked": true
+      },
+      {
+        "id": "1000000000002",
+        "name": "Alt_B",
+        "owned": 2,
+        "ticked": true
+      },
+      {
+        "id": "1000000000003",
+        "name": "Alt_C",
+        "owned": 0,
+        "ticked": true
+      }
+    ],
+    "token_store": "keyring",
+    "user": "pilot_a_discord"
+  },
   "setup": {
     "install": "inst-7f3a",
     "set_up": [
@@ -5220,8 +5274,23 @@
     "connected": true,
     "enabled": true,
     "environment": "production",
+    "expired": false,
     "expires": "2027-02-12T21:30:05Z",
     "guild": "Synthetic Org",
+    "guild_id": "100000000000000001",
+    "guilds": [
+      {
+        "blueprints": true,
+        "id": "100000000000000001",
+        "name": "Synthetic Org"
+      },
+      {
+        "blueprints": false,
+        "id": "100000000000000002",
+        "name": "Other Test Org"
+      }
+    ],
+    "host": "starorg.tools",
     "last_sync": null,
     "push_count": 5,
     "sync_characters": [
@@ -5244,7 +5313,97 @@
         "ticked": true
       }
     ],
+    "token_store": "keyring",
     "user": "pilot_a_discord"
+  },
+  "starorg_sync": {
+    "channel": "LIVE",
+    "fleet": {
+      "added_to_order": 0,
+      "ambiguous": [
+        {
+          "candidates": [
+            "vehicle_NameKSTL_Talon",
+            "vehicle_NameKSTL_Talon_Mk2"
+          ],
+          "count": 1,
+          "maker": "KSTL",
+          "name": "Talon",
+          "names": []
+        }
+      ],
+      "dry_run": false,
+      "empty_catalog": false,
+      "file": "StarOrg Tools hangar",
+      "format": "xplor-json",
+      "hulls": [
+        {
+          "count": 2,
+          "hull": "vehicle_NameKSTL_Kite",
+          "name": "Kestrel Kite",
+          "names": [
+            "Needle"
+          ],
+          "new": false
+        },
+        {
+          "count": 1,
+          "hull": "vehicle_NameORBW_Lantern",
+          "name": "Orbit Works Lantern",
+          "names": [
+            "Rusty"
+          ],
+          "new": false
+        },
+        {
+          "count": 2,
+          "hull": "vehicle_NameRDGE_Hauler",
+          "name": "Ridge Freight Hauler",
+          "names": [],
+          "new": false
+        },
+        {
+          "count": 1,
+          "hull": "vehicle_NameVLMR_Pike",
+          "name": "Volmar Pike",
+          "names": [],
+          "new": false
+        }
+      ],
+      "merge": true,
+      "not_in_game": 1,
+      "skipped": 1,
+      "total": 9,
+      "unmatched": []
+    },
+    "reports": [
+      {
+        "added": [],
+        "already": 3,
+        "channel": "LIVE",
+        "character": "1000000000001",
+        "direction": "pull",
+        "guild": "Synthetic Org",
+        "sent": 0,
+        "time": "2026-11-14T21:30:05Z",
+        "unmatched": [
+          "Retired Sample Visor"
+        ]
+      },
+      {
+        "added": [],
+        "already": 0,
+        "channel": "LIVE",
+        "character": null,
+        "direction": "push",
+        "guild": "Synthetic Org",
+        "sent": 7,
+        "time": "2026-11-14T21:30:05Z",
+        "unmatched": []
+      }
+    ],
+    "skipped": [],
+    "time": "2026-11-14T21:30:05Z"
   },
   "string_detail": {
     "also_used_by": [],

@@ -60,10 +60,13 @@ export interface CommandMap extends DevCommandMap {
   fleet_clear: [{ req: T.ChannelRef }, T.FleetView];
   starorg_status: [{ channel: string }, T.StarOrgStatus];
   starorg_login: [{ channel: string }, T.StarOrgStatus];
+  starorg_cancel_login: [Record<string, never>, null];
   starorg_logout: [{ channel: string }, T.StarOrgStatus];
+  set_starorg_guild: [{ req: T.StarOrgGuildRequest }, T.StarOrgStatus];
   set_sync_characters: [{ req: T.SyncCharactersRequest }, T.StarOrgStatus];
   starorg_pull: [{ req: T.StarOrgPullRequest }, T.SyncReport];
   starorg_push: [{ channel: string }, T.SyncReport];
+  starorg_sync: [{ channel: string }, T.SyncRun];
   hooks_status: [Record<string, never>, T.HooksStatus];
   hooks_install: [Record<string, never>, T.HooksStatus];
   hooks_uninstall: [Record<string, never>, T.HooksStatus];
@@ -134,10 +137,13 @@ export const COMMANDS = [
   'fleet_clear',
   'starorg_status',
   'starorg_login',
+  'starorg_cancel_login',
   'starorg_logout',
+  'set_starorg_guild',
   'set_sync_characters',
   'starorg_pull',
   'starorg_push',
+  'starorg_sync',
   'hooks_status',
   'hooks_install',
   'hooks_uninstall',
@@ -314,11 +320,15 @@ export const api = {
   saveShipNames: (req: T.SaveShipNamesRequest) => call('save_ship_names', { req }),
   fleetClear: (req: T.ChannelRef) => call('fleet_clear', { req }),
   starorgStatus: (channel: string) => call('starorg_status', { channel }),
+  /** Opens the system browser and waits for it (or starorgCancelLogin). */
   starorgLogin: (channel: string) => call('starorg_login', { channel }),
+  starorgCancelLogin: () => call('starorg_cancel_login', none),
   starorgLogout: (channel: string) => call('starorg_logout', { channel }),
+  setStarorgGuild: (req: T.StarOrgGuildRequest) => call('set_starorg_guild', { req }),
   setSyncCharacters: (req: T.SyncCharactersRequest) => call('set_sync_characters', { req }),
   starorgPull: (req: T.StarOrgPullRequest) => call('starorg_pull', { req }),
   starorgPush: (channel: string) => call('starorg_push', { channel }),
+  starorgSync: (channel: string) => call('starorg_sync', { channel }),
   hooksStatus: () => call('hooks_status', none),
   hooksInstall: () => call('hooks_install', none),
   hooksUninstall: () => call('hooks_uninstall', none),

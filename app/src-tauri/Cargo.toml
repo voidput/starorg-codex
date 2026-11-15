@@ -47,6 +47,10 @@ tauri-plugin-updater = { version = "2", default-features = false, features = ["n
 # crate and call tauri-plugin-opener uses for `open_url`, without the plugin: no webview
 # permission, and not its Linux D-Bus stack (zbus 5 is flagged unmaintained by cargo deny).
 open = { version = "5", features = ["shellexecute-on-windows"] }
+# The StarOrg Tools sign-in token (addendum §5): Windows Credential Manager or the Secret
+# Service on Linux (over the dbus crate tao already links); an owner-only file when neither
+# is there (app/src-tauri/src/tokens.rs).
+keyring = { version = "=3.6.3", features = ["windows-native", "sync-secret-service", "crypto-openssl"] }
 
 [features]
 # The real backend (src/contract/real/) over starorg-core and starorg-data is the default.
@@ -61,6 +65,8 @@ store = []
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
+# A local StarOrg Tools stand-in on 127.0.0.1 for the sync tests; never the real servers.
+starorg-net = { workspace = true, features = ["mock-server"] }
 # The apply-flow tests run on elevated Windows CI runners through this override
 # (fsutil::test_allow_elevated); never part of a release build.
 starorg-core = { workspace = true, features = ["test-hooks"] }
