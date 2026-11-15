@@ -256,7 +256,7 @@ pub fn map_windows_path(prefix: &Path, win: &str) -> Option<PathBuf> {
 }
 
 /// Launcher log files under a prefix's users (skipping `Public`).
-fn prefix_launcher_logs(prefix: &Path) -> Vec<PathBuf> {
+pub fn prefix_launcher_logs(prefix: &Path) -> Vec<PathBuf> {
     let Ok(Some(users)) = find_existing_ci(prefix, &["drive_c", "users"]) else {
         return Vec::new();
     };

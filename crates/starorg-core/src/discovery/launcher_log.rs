@@ -95,28 +95,55 @@ pub fn parse_message(msg: &str) -> Option<LogHit> {
 /// Read at most the last [`MAX_TAIL`] bytes of a log and parse them. Missing or unreadable
 /// files give no hits.
 pub fn read_tail(path: &Path) -> Vec<LogHit> {
-    let Ok(mut f) = std::fs::File::open(path) else {
-        return Vec::new();
-    };
-    let Ok(len) = f.seek(SeekFrom::End(0)) else {
-        return Vec::new();
-    };
+    read_tail_text(path).map(|t| parse(&t)).unwrap_or_default()
+}
+
+/// The last [`MAX_TAIL`] bytes of a log as text, starting at a line boundary.
+pub fn read_tail_text(path: &Path) -> Option<String> {
+    let mut f = std::fs::File::open(path).ok()?;
+    let len = f.seek(SeekFrom::End(0)).ok()?;
     let start = len.saturating_sub(MAX_TAIL);
-    if f.seek(SeekFrom::Start(start)).is_err() {
-        return Vec::new();
-    }
+    f.seek(SeekFrom::Start(start)).ok()?;
     let mut buf = Vec::new();
-    if f.take(MAX_TAIL).read_to_end(&mut buf).is_err() {
-        return Vec::new();
-    }
-    let text = String::from_utf8_lossy(&buf);
+    f.take(MAX_TAIL).read_to_end(&mut buf).ok()?;
+    let text = String::from_utf8_lossy(&buf).into_owned();
     // Drop a partial first line when we started mid-file.
-    let text = if start > 0 {
-        text.split_once('\n').map(|(_, r)| r).unwrap_or("")
+    Some(if start > 0 {
+        text.split_once('\n')
+            .map(|(_, r)| r.to_string())
+            .unwrap_or_default()
     } else {
-        &text
-    };
-    parse(text)
+        text
+    })
+}
+
+/// Markers that an install pipeline finished (or the game was started afterwards).
+const PIPELINE_DONE: &[&str] = &[
+    "cig-data-patcher-worker ended",
+    "[ShaderCompilationPhase] Compile completed",
+    "[Launcher::launch]",
+];
+
+/// Does the log text show an install pipeline for `channel` that has not finished? The last
+/// `[Pipeline] Installing Star Citizen <CH>` line counts as in progress until a later line
+/// shows the patcher worker ending, shader compilation completing, or a game launch.
+pub fn pipeline_in_progress(text: &str, channel: &str) -> bool {
+    let mut open = false;
+    for line in text.lines() {
+        if let Some(i) = line.find(INSTALL) {
+            let rest = &line[i + INSTALL.len()..];
+            if rest
+                .split(' ')
+                .next()
+                .is_some_and(|c| c.eq_ignore_ascii_case(channel))
+            {
+                open = true;
+            }
+        } else if open && PIPELINE_DONE.iter().any(|m| line.contains(m)) {
+            open = false;
+        }
+    }
+    open
 }
 
 #[cfg(test)]
@@ -128,6 +155,16 @@ mod tests {
 garbage line with [Launcher::launch] Launching Star Citizen but not json
 { "t":"2026-11-12 12:21:30.287", "[main][info] ": "[Launcher::launch] Launching Star Citizen PTU from (D:\\Games\\StarCitizen\\PTU)"  },
 "#;
+
+    #[test]
+    fn pipeline_progress() {
+        let start = r#"{ "t":"x", "[main][info] ": "[Pipeline] Installing Star Citizen PTU 5.0.0-ptu.1 at C:\\X (type: install, forceDP: false)"  },"#;
+        let end = r#"{ "t":"x", "[main][info] ": "[Worker] cig-data-patcher-worker ended (code 0, alive 1930.3s, 0 live)"  },"#;
+        assert!(pipeline_in_progress(start, "PTU"));
+        assert!(!pipeline_in_progress(start, "LIVE"));
+        assert!(!pipeline_in_progress(&format!("{start}\n{end}"), "PTU"));
+        assert!(pipeline_in_progress(&format!("{end}\n{start}"), "ptu"));
+    }
 
     #[test]
     fn parses_install_and_launch_lines_newest_first() {

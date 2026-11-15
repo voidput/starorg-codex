@@ -3306,14 +3306,17 @@ dependencies = [
  "starorg-core",
  "starorg-data",
  "tempfile",
+ "toml 0.9.12+spec-1.1.0",
 ]
 
 [[package]]
 name = "starorg-core"
 version = "0.0.0"
 dependencies = [
+ "getrandom 0.3.4",
  "serde",
  "serde_json",
+ "sha2",
  "tempfile",
  "thiserror 2.0.21",
  "toml 0.9.12+spec-1.1.0",

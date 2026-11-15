@@ -137,6 +137,27 @@ impl StockIni {
         std::str::from_utf8(&self.bytes[l.start..l.eq?]).ok()
     }
 
+    /// Line ending bytes of line `i` (`\r\n`, `\n` or empty for a last line without one).
+    pub fn line_ending(&self, i: usize) -> Option<&[u8]> {
+        let l = self.lines.get(i)?;
+        Some(&self.bytes[l.content_end..l.end])
+    }
+
+    /// Number of keys with a flag suffix such as `,P` (spec 7.2).
+    pub fn flagged_key_count(&self) -> usize {
+        self.entries()
+            .filter(|(_, k, _)| strip_flag_suffix(k).len() != k.len())
+            .count()
+    }
+
+    /// Number of lines that end in CRLF.
+    pub fn crlf_count(&self) -> usize {
+        self.lines
+            .iter()
+            .filter(|l| l.end - l.content_end == 2)
+            .count()
+    }
+
     /// Value bytes of line `i` as in stock.
     pub fn value_at(&self, i: usize) -> Option<&str> {
         let l = self.lines.get(i)?;
@@ -214,6 +235,27 @@ impl Edits {
 
     pub fn len(&self) -> usize {
         self.values.len()
+    }
+
+    /// Set the value of stock line `line` directly (the caller found it with
+    /// [`StockIni::find`]). Raw CR or LF is refused.
+    pub fn set_line(
+        &mut self,
+        line: usize,
+        key: &str,
+        value: impl Into<String>,
+    ) -> Result<(), IniError> {
+        let value = value.into();
+        if value.contains(['\r', '\n']) {
+            return Err(IniError::LineBreakInValue(key.to_string()));
+        }
+        self.values.insert(line, value);
+        Ok(())
+    }
+
+    /// Iterate `(line, new value)`.
+    pub fn iter(&self) -> impl Iterator<Item = (usize, &str)> {
+        self.values.iter().map(|(l, v)| (*l, v.as_str()))
     }
 
     /// Set the value of `key` (matched by [`fold_key`]). A newline in a value must be the
