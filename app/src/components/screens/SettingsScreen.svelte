@@ -17,6 +17,7 @@
   import StarOrgCard from '@/components/settings/StarOrgCard.svelte';
   import HooksCard from '@/components/settings/HooksCard.svelte';
   import DoctorCard from '@/components/settings/DoctorCard.svelte';
+  import UpdatesSection from '@/components/settings/UpdatesSection.svelte';
   import { statusView } from '@/lib/format';
 
   const sections = [
@@ -161,7 +162,7 @@
         <Card.Description>All off by default. With these off, StarOrg Strings' own code makes no network request.</Card.Description>
       </Card.Header>
       <Card.Content class="grid gap-1">
-        <SwitchRow id="net-updates" label="Check for updates" hint="Not in this build yet. When built: one request to the GitHub release endpoint of voidput/starorg-strings when the app starts." checked={false} disabled onchange={() => {}} />
+        <UpdatesSection checked={s.network.check_updates} onchange={(v) => patch((x) => (x.network.check_updates = v))} />
         <SwitchRow id="net-dumps" label="Use published game data" hint="Not in this build yet; game data is read from Data.p4k on this machine. When built: downloads the datasets for your exact build from github.com/voidput/sc-gamedata-dumps, checked by checksum and read as data only." checked={false} disabled onchange={() => {}} />
         <SwitchRow id="net-starorg" label="Connect StarOrg Tools" hint="Lets you sign in to starorg.tools in your browser to pull and push owned blueprints. Nothing is sent until you sign in." checked={s.network.starorg} onchange={(v) => patch((x) => (x.network.starorg = v))} />
         <p class="text-muted-foreground mt-2 text-[12px]">No telemetry, crash upload or analytics exists in the app. On Windows the window is drawn by Microsoft's WebView2 runtime, which has its own update traffic that the app cannot fully switch off. On Linux the window loads only the app's own pages.</p>
