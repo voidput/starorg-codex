@@ -195,6 +195,73 @@
       "state": "stale"
     }
   },
+  "check_for_updates": {
+    "check": {
+      "release": {
+        "notes": [
+          {
+            "kind": "heading",
+            "text": "0.2.0 (2026-11-12)"
+          },
+          {
+            "kind": "heading",
+            "text": "Features"
+          },
+          {
+            "kind": "item",
+            "text": "app: check for updates from GitHub releases (#15)"
+          },
+          {
+            "kind": "item",
+            "text": "app: install signed updates on AppImage and Windows"
+          },
+          {
+            "kind": "heading",
+            "text": "Bug Fixes"
+          },
+          {
+            "kind": "item",
+            "text": "core: keep the user.cfg order when re-applying"
+          }
+        ],
+        "notes_truncated": false,
+        "prerelease": false,
+        "published": "2026-11-12T16:20:00Z",
+        "tag": "v0.2.0",
+        "title": "StarOrg Strings 0.2.0",
+        "url": "https://github.com/voidput/starorg-strings/releases/tag/v0.2.0",
+        "version": "0.2.0"
+      },
+      "state": "available"
+    },
+    "current_version": "0.1.0",
+    "enabled": true,
+    "install": "in-app",
+    "install_note": "Mock data: updates would be downloaded, checked against the signing key and installed when you choose.",
+    "last_checked": "2026-11-14T21:30:05Z",
+    "prefs": {
+      "include_prereleases": false,
+      "repo": "voidput/starorg-strings"
+    },
+    "skipped_version": null
+  },
+  "check_for_updates_failed": {
+    "check": {
+      "message": "Can't see releases for someone/private-fork: the repo is private, renamed or has no public releases yet. Nothing is wrong with this install.",
+      "problem": "not-visible",
+      "state": "failed"
+    },
+    "current_version": "0.1.0",
+    "enabled": true,
+    "install": "in-app",
+    "install_note": "Mock data: updates would be downloaded, checked against the signing key and installed when you choose.",
+    "last_checked": "2026-11-14T21:30:05Z",
+    "prefs": {
+      "include_prereleases": false,
+      "repo": "someone/private-fork"
+    },
+    "skipped_version": null
+  },
   "contract": 1,
   "discover_installs": [
     {
@@ -1586,5 +1653,20 @@
       "result": "Synthetic hull 0. A test ship description.\\nSecond line. (fixed)",
       "source": "patched"
     }
+  },
+  "update_status": {
+    "check": {
+      "state": "not-checked"
+    },
+    "current_version": "0.1.0",
+    "enabled": false,
+    "install": "in-app",
+    "install_note": "Mock data: updates would be downloaded, checked against the signing key and installed when you choose.",
+    "last_checked": null,
+    "prefs": {
+      "include_prereleases": false,
+      "repo": "voidput/starorg-strings"
+    },
+    "skipped_version": null
   }
 }

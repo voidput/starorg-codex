@@ -10,12 +10,14 @@
  * States for renders (channel names): `&running=LIVE` (game running), `&interrupted=LIVE`,
  * `&foreign=LIVE` (another tool's file in place), `&builderr=LIVE`, `&channels=5`,
  * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
- * `&accent=<accent>`, `&palette=black`.
+ * `&accent=<accent>`, `&palette=black`. Updates: `&update=available|failed|skipped`
+ * (mock-update.ts).
  */
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
 import samples from './samples.gen.json';
 import type * as T from './types';
+import { createUpdateMock } from './mock-update';
 
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
@@ -843,6 +845,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       addLog('info', null, null, 'Saved diagnostics');
       return '~/starorg-strings-diagnostics-20261114-213005.txt';
     },
+    ...createUpdateMock(() => settings, params),
   };
 
   if (startReady) {

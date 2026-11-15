@@ -3,6 +3,7 @@
 pub mod commands;
 pub mod contract;
 pub mod gpu;
+pub mod update;
 
 #[cfg(test)]
 mod contrast_tests;
@@ -26,35 +27,42 @@ pub fn builder<R: tauri::Runtime>(
 }
 
 /// The backend the app runs with: the real one over starorg-core, or the in-memory mock with
-/// the non-default `mock-backend` feature. The second value receives the native dialogs once
-/// the app exists.
-fn backend() -> (BackendState, contract::real::DialogSlot) {
+/// the non-default `mock-backend` feature. The other values receive the native dialogs and
+/// the update opener/installer once the app exists.
+fn backend() -> (BackendState, contract::real::DialogSlot, update::HostSlot) {
     let slot = contract::real::DialogSlot::default();
     #[cfg(feature = "mock-backend")]
     {
         // Slow enough to see progress in the window, fast enough not to annoy.
         let b = contract::mock::MockBackend::new(std::time::Duration::from_millis(250));
-        (BackendState::new(b), slot)
+        (BackendState::new(b), slot, update::HostSlot::default())
     }
     #[cfg(not(feature = "mock-backend"))]
     {
         let mut cfg = contract::real::RealConfig::from_env()
             .unwrap_or_else(|e| panic!("StarOrg Strings cannot start: {e}"));
         cfg.dialogs = slot.clone();
-        (
-            BackendState::new(contract::real::RealBackend::new(cfg)),
-            slot,
-        )
+        let b = contract::real::RealBackend::new(cfg);
+        let host = b.update_host();
+        (BackendState::new(b), slot, host)
     }
 }
 
 /// Start the GUI. [`gpu::apply`] must already have run (see `main.rs`).
 pub fn run() {
-    let (state, dialogs) = backend();
+    let (state, dialogs, update_host) = backend();
     builder(tauri::Builder::default(), DiscoveryConfig::default(), state)
         .plugin(tauri_plugin_dialog::init())
+        // Used from Rust only (update::host); the webview has no updater permission. The key
+        // comes from updater-public-key.txt, not from tauri.conf.json.
+        .plugin(
+            tauri_plugin_updater::Builder::new()
+                .pubkey(update::host::UPDATER_PUBKEY.trim())
+                .build(),
+        )
         .setup(move |app| {
             dialogs.set(contract::real::TauriDialogs(app.handle().clone()));
+            update_host.set(update::host::TauriUpdateHost(app.handle().clone()));
             Ok(())
         })
         .run(tauri::generate_context!())

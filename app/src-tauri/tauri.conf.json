@@ -57,6 +57,13 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": false
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE-WITH-THE-PUBLIC-KEY-FROM-npx-tauri-signer-generate",
+      "endpoints": []
+    }
   }
 }

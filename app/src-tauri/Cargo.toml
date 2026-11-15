@@ -32,6 +32,18 @@ toml.workspace = true
 # Native folder/file/save dialogs, called from Rust only (no dialog permission for the
 # webview; see capabilities/default.json).
 tauri-plugin-dialog = "2"
+# Update check (spec 11, 12; docs/updates.md). Only used when Settings -> Network ->
+# "Check for updates" is on. The GitHub releases request goes through starorg-net (ureq, OS
+# TLS); the updater plugin downloads and verifies signed installers (AppImage, NSIS, MSI).
+# native-tls instead of the default rustls: OS trust store, like starorg-net.
+starorg-net.workspace = true
+semver = "1"
+tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "zip"] }
+# Opens the release page in the system browser, from Rust only, after the
+# https://github.com/<repo>/releases allowlist check (update::allowed_release_url). The same
+# crate and call tauri-plugin-opener uses for `open_url`, without the plugin: no webview
+# permission, and not its Linux D-Bus stack (zbus 5 is flagged unmaintained by cargo deny).
+open = { version = "5", features = ["shellexecute-on-windows"] }
 
 [features]
 # The real backend (src/contract/real/) over starorg-core and starorg-data is the default.

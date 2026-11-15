@@ -1,0 +1,1 @@
+REPLACE-WITH-THE-PUBLIC-KEY-FROM-npx-tauri-signer-generate

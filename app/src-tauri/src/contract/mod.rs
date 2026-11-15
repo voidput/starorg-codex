@@ -110,6 +110,19 @@ pub trait Backend: Send + Sync + 'static {
     /// Save the same text through a native save dialog. The path shown back is for display;
     /// `None` = cancelled (or no dialog, as in the browser mock).
     fn save_diagnostics(&self) -> CmdResult<Option<String>>;
+
+    // Updates (docs/updates.md): both backends delegate to a `crate::update::Updater`.
+    fn update_status(&self) -> CmdResult<UpdateStatus>;
+    /// `force: false` = the start-up check (switch on and 24 h since the last one), `true` =
+    /// "Check now" (`network-off` while the switch is off).
+    fn check_for_updates(&self, req: UpdateCheckRequest) -> CmdResult<UpdateStatus>;
+    fn set_update_prefs(&self, req: UpdatePrefs) -> CmdResult<UpdateStatus>;
+    /// "Skip this version"; an empty string clears it.
+    fn skip_update(&self, version: String) -> CmdResult<UpdateStatus>;
+    /// The available release's page in the system browser (https://github.com only).
+    fn open_release_page(&self) -> CmdResult<()>;
+    /// AppImage / NSIS / MSI with a real key: download, verify, install, restart.
+    fn install_update(&self) -> CmdResult<UpdateStatus>;
 }
 
 /// Managed state: the selected backend.
@@ -200,6 +213,12 @@ commands! {
     doctor() -> DoctorReport;
     export_diagnostics() -> Diagnostics;
     save_diagnostics() -> Option<String>;
+    update_status() -> UpdateStatus;
+    check_for_updates(req: UpdateCheckRequest) -> UpdateStatus;
+    set_update_prefs(req: UpdatePrefs) -> UpdateStatus;
+    skip_update(version: String) -> UpdateStatus;
+    open_release_page() -> ();
+    install_update() -> UpdateStatus;
 }
 
 /// Apply streams [`JOB_EVENT`] events while it runs.
@@ -276,6 +295,12 @@ macro_rules! contract_handler {
             $crate::contract::doctor,
             $crate::contract::export_diagnostics,
             $crate::contract::save_diagnostics,
+            $crate::contract::update_status,
+            $crate::contract::check_for_updates,
+            $crate::contract::set_update_prefs,
+            $crate::contract::skip_update,
+            $crate::contract::open_release_page,
+            $crate::contract::install_update,
         ]
     };
 }
@@ -335,6 +360,12 @@ pub const COMMAND_NAMES: &[&str] = &[
     "doctor",
     "export_diagnostics",
     "save_diagnostics",
+    "update_status",
+    "check_for_updates",
+    "set_update_prefs",
+    "skip_update",
+    "open_release_page",
+    "install_update",
 ];
 
 #[cfg(test)]

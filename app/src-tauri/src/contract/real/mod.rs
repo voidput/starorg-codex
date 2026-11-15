@@ -115,6 +115,8 @@ const APP_JSON: &str = "app.json";
 /// Our record of the last apply's numbers (M1's `applied.json` keeps no counts).
 const LAST_APPLY_JSON: &str = "app-last-apply.json";
 const LOG_KEEP: usize = 500;
+/// Update checker state (last check, result, skipped version, repo), in the data folder.
+pub const UPDATE_JSON: &str = "app-update.json";
 
 /// One install as the UI knows it.
 #[derive(Debug, Clone)]
@@ -175,6 +177,7 @@ struct Mem {
 pub struct RealBackend {
     cfg: RealConfig,
     mem: Mutex<Mem>,
+    update: crate::update::Updater,
 }
 
 /// Longest header line accepted (the core has no limit; the line goes into every block).
@@ -272,10 +275,28 @@ const TEXT_FILTER: FileFilter = FileFilter {
 
 impl RealBackend {
     pub fn new(cfg: RealConfig) -> Self {
+        let update = crate::update::Updater::github(cfg.ctx.dirs.data.join(UPDATE_JSON));
         Self {
             cfg,
             mem: Mutex::new(Mem::default()),
+            update,
         }
+    }
+
+    /// Swap the update checker (tests: a fake HTTP layer). Keeps the current host slot.
+    pub fn with_updater(mut self, u: crate::update::Updater) -> Self {
+        let host = self.update.host();
+        self.update = u.with_host(host);
+        self
+    }
+
+    /// Where the app puts the opener and installer once its window exists.
+    pub fn update_host(&self) -> crate::update::HostSlot {
+        self.update.host()
+    }
+
+    fn updates_on(&self) -> bool {
+        self.settings().network.check_updates
     }
 
     fn mem(&self) -> MutexGuard<'_, Mem> {
@@ -866,10 +887,10 @@ impl RealBackend {
                 palette: Palette::Void,
                 reduce_effects: false,
             }),
-            // check_updates / published_dumps are not built yet: always reported off, even
-            // if an older app.json stored them on.
+            // published_dumps is not built yet: always reported off, even if an older
+            // app.json stored it on.
             network: NetworkSettings {
-                check_updates: false,
+                check_updates: a.network.as_ref().is_some_and(|n| n.check_updates),
                 published_dumps: false,
                 starorg: a.network.map(|n| n.starorg).unwrap_or(false),
             },
@@ -2093,10 +2114,9 @@ impl Backend for RealBackend {
     fn save_settings(&self, req: Settings) -> CmdResult<Settings> {
         let mut a = self.app_file();
         a.appearance = Some(req.appearance.clone());
-        // Update checks and published game data are not built yet (no HTTP client in this
-        // app): they stay off rather than saving a switch that does nothing.
+        // Published game data is not built yet: it stays off rather than saving a switch
+        // that does nothing. check_updates is stored as given (crate::update).
         let mut net = req.network.clone();
-        net.check_updates = false;
         net.published_dumps = false;
         a.network = Some(net);
         a.safe_gpu = req.safe_gpu;
@@ -2372,6 +2392,44 @@ impl Backend for RealBackend {
             &format!("Saved diagnostics to {shown}"),
         );
         Ok(Some(path_text(&to)))
+    }
+
+    fn update_status(&self) -> CmdResult<UpdateStatus> {
+        self.update.status(self.updates_on())
+    }
+
+    fn check_for_updates(&self, req: UpdateCheckRequest) -> CmdResult<UpdateStatus> {
+        let on = self.updates_on();
+        let before = self.update.status(on)?.last_checked;
+        let s = self.update.check(on, req.force)?;
+        // Log only checks that made a request.
+        if s.last_checked != before {
+            let what = match &s.check {
+                UpdateCheck::Available { release } => format!("{} is available", release.version),
+                UpdateCheck::UpToDate => "up to date".into(),
+                UpdateCheck::Failed { message, .. } => message.clone(),
+                UpdateCheck::NotChecked => "not checked".into(),
+            };
+            self.log(LogLevel::Info, None, None, &format!("Update check: {what}"));
+        }
+        Ok(s)
+    }
+
+    fn set_update_prefs(&self, req: UpdatePrefs) -> CmdResult<UpdateStatus> {
+        self.update.set_prefs(self.updates_on(), req)
+    }
+
+    fn skip_update(&self, version: String) -> CmdResult<UpdateStatus> {
+        self.update.skip(self.updates_on(), version)
+    }
+
+    fn open_release_page(&self) -> CmdResult<()> {
+        self.update.open_release_page()
+    }
+
+    fn install_update(&self) -> CmdResult<UpdateStatus> {
+        self.log(LogLevel::Info, None, None, "Installing an update");
+        self.update.install(self.updates_on())
     }
 }
 

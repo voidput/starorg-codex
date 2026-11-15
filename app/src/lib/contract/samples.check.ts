@@ -47,6 +47,9 @@ interface Samples {
   save_diagnostics: string | null;
   hooks_status: T.HooksStatus;
   doctor: T.DoctorReport;
+  update_status: T.UpdateStatus;
+  check_for_updates: T.UpdateStatus;
+  check_for_updates_failed: T.UpdateStatus;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */
