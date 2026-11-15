@@ -38,15 +38,15 @@ registry! {
 
     // blueprints, // blueprints.ts
 
-    // cargo, // cargo.ts
+    cargo, // cargo.ts
 
     // commodities, // commodities.ts
 
-    // components, // components.ts -> game-ship-components
+    components, // components.ts -> game-ship-components
 
     consumables, // consumables.ts
 
-    // containers, // containers.ts
+    containers, // containers.ts
 
     fps_weapons, // fps-weapons.ts
 
@@ -56,7 +56,7 @@ registry! {
 
     // law, // law.ts
 
-    // loot, // loot.ts
+    loot, // loot.ts
 
     manufacturers, // manufacturers.ts
 
@@ -66,7 +66,7 @@ registry! {
 
     // missions, // missions.ts
 
-    // quantum, // quantum.ts
+    quantum, // quantum.ts
 
     // refining, // refining.ts
 
@@ -74,7 +74,7 @@ registry! {
 
     // salvage, // salvage.ts
 
-    // ships, // ships.ts
+    ships, // ships.ts
 
     // shops, // shops.ts
 

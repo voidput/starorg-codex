@@ -25,6 +25,7 @@ pub mod entity;
 pub mod fixtures;
 pub mod glob;
 pub mod helpers_items;
+pub mod helpers_ships;
 pub mod localization;
 pub mod output;
 pub mod pipeline;
