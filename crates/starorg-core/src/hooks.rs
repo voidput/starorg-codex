@@ -144,14 +144,24 @@ fn find(lines: &[&str]) -> Result<Option<(usize, usize)>, String> {
     }
 }
 
-fn split(text: &str) -> (Vec<&str>, &'static str) {
-    let nl = if text.contains("\r\n") { "\r\n" } else { "\n" };
-    let lines: Vec<&str> = text.split_inclusive('\n').collect();
-    (lines, nl)
+fn split(text: &str) -> Vec<&str> {
+    text.split_inclusive('\n').collect()
+}
+
+/// The line without its line ending.
+fn bare(l: &str) -> &str {
+    l.trim_end_matches(['\n', '\r'])
+}
+
+/// The line ends in a shell line continuation (`\` right before the line ending).
+fn continues(l: &str) -> bool {
+    let b = bare(l);
+    let slashes = b.len() - b.trim_end_matches('\\').len();
+    slashes % 2 == 1
 }
 
 pub fn inspect(text: &str, expected: &str) -> BlockState {
-    let (lines, _) = split(text);
+    let lines = split(text);
     match find(&lines) {
         Err(why) => BlockState::Broken { why },
         Ok(None) => BlockState::Absent,
@@ -173,7 +183,7 @@ pub fn inspect(text: &str, expected: &str) -> BlockState {
 /// Lines outside the block that call `starorg-strings` (a hand-made snippet like the one in
 /// spec 8): 1-based line numbers.
 pub fn manual_calls(text: &str) -> Vec<usize> {
-    let (lines, _) = split(text);
+    let lines = split(text);
     let span = find(&lines).ok().flatten();
     lines
         .iter()
@@ -209,31 +219,65 @@ pub fn other_tools(text: &str) -> Vec<String> {
 }
 
 /// `text` with the block installed (or replaced). Unchanged text when already current.
+///
+/// The block's lines always end in `\n`, also in a CRLF script: bash reads `then\r` as a
+/// syntax error, and a mixed file still gives the user's lines back byte for byte. When the
+/// script has no final newline, the block goes at the very end with one `\n` before it and
+/// none after its last line, so `uninstall` can drop exactly that `\n` again.
 pub fn install(text: &str, block: &str) -> Result<String, String> {
-    let (lines, nl) = split(text);
-    let block_lines: Vec<String> = block.lines().map(|l| format!("{l}{nl}")).collect();
+    let lines = split(text);
+    let block_lines: Vec<String> = block.lines().map(|l| format!("{l}\n")).collect();
+    let unterminated = |mut v: Vec<String>| {
+        if let Some(last) = v.last_mut() {
+            last.pop();
+        }
+        v
+    };
     if let Some((b, e)) = find(&lines)? {
+        let at_eof_open = e + 1 == lines.len() && !lines[e].ends_with('\n');
         let mut out: String = lines[..b].concat();
-        out.extend(block_lines);
+        out.extend(if at_eof_open {
+            unterminated(block_lines)
+        } else {
+            block_lines
+        });
         out.push_str(&lines[e + 1..].concat());
         return Ok(out);
     }
-    // Before a final top-level `exit` (with only blank lines and comments after it).
+    // Before a final top-level `exit` (with only blank lines and comments after it). The
+    // exit may end a command continued over several lines (`a && \` + `exit 0`): the block
+    // then goes before the whole command, never inside it.
     let mut at = lines.len();
     for i in (0..lines.len()).rev() {
         let t = lines[i].trim();
         if t.is_empty() || (t.starts_with('#') && !t.starts_with("#!")) {
             continue;
         }
-        let top_level = !lines[i].starts_with([' ', '\t']);
-        if top_level && (t == "exit" || t.starts_with("exit ") || t.starts_with("exit\t")) {
-            at = i;
+        let mut start = i;
+        while start > 0 && continues(lines[start - 1]) {
+            start -= 1;
+        }
+        let first = lines[start];
+        let top_level = !first.starts_with([' ', '\t']);
+        let is_exit = |l: &str| {
+            let t = l.trim();
+            t == "exit" || t.starts_with("exit ") || t.starts_with("exit\t")
+        };
+        if top_level && (is_exit(lines[i]) && (start == i || !continues(lines[i]))) {
+            at = start;
         }
         break;
     }
+    // Never put the block right after a continuation line (it would join that command).
+    if at == lines.len() && lines.last().is_some_and(|l| continues(l)) {
+        return Err("the script ends inside a continued line (`\\`); fix it by hand".into());
+    }
     let mut out: String = lines[..at].concat();
     if !out.is_empty() && !out.ends_with('\n') {
-        out.push_str(nl);
+        // Only possible at the end of the script: no final newline.
+        out.push('\n');
+        out.extend(unterminated(block_lines));
+        return Ok(out);
     }
     out.extend(block_lines);
     out.push_str(&lines[at..].concat());
@@ -242,11 +286,15 @@ pub fn install(text: &str, block: &str) -> Result<String, String> {
 
 /// `text` without the block. `None` when there is no block.
 pub fn uninstall(text: &str) -> Result<Option<String>, String> {
-    let (lines, _) = split(text);
+    let lines = split(text);
     let Some((b, e)) = find(&lines)? else {
         return Ok(None);
     };
     let mut out: String = lines[..b].concat();
+    if e + 1 == lines.len() && !lines[e].ends_with('\n') && b > 0 {
+        // Installed at the end of a script without a final newline: drop the `\n` we added.
+        out.pop();
+    }
     out.push_str(&lines[e + 1..].concat());
     Ok(Some(out))
 }
@@ -355,11 +403,18 @@ mod tests {
 
     #[test]
     fn install_at_end_without_exit() {
+        // No final newline: byte for byte back, also after a re-install.
         let s = "#!/bin/sh\necho hi";
         let out = install(s, &blk()).unwrap();
         assert!(out.starts_with("#!/bin/sh\necho hi\n# >>>"));
+        assert!(out.ends_with(END), "{out:?}");
+        assert_eq!(uninstall(&out).unwrap().unwrap(), s);
+        assert_eq!(inspect(&out, &blk()), BlockState::Current);
+        assert_eq!(install(&out, &blk()).unwrap(), out, "idempotent");
+        let s = "#!/bin/sh\necho hi\n";
+        let out = install(s, &blk()).unwrap();
         assert!(out.ends_with(&format!("{END}\n")));
-        assert_eq!(uninstall(&out).unwrap().unwrap(), "#!/bin/sh\necho hi\n");
+        assert_eq!(uninstall(&out).unwrap().unwrap(), s);
         // Indented exit is not a final top-level exit.
         let s2 = "#!/bin/sh\nif x; then\n  exit 1\nfi\n";
         let out2 = install(s2, &blk()).unwrap();
@@ -398,11 +453,38 @@ mod tests {
     }
 
     #[test]
-    fn crlf_kept() {
+    fn crlf_script_gets_an_lf_block_and_round_trips() {
         let s = "#!/bin/sh\r\necho a\r\nexit 0\r\n";
         let out = install(s, &blk()).unwrap();
-        assert!(!out.replace("\r\n", "").contains('\n'), "only CRLF endings");
+        let start = out.find(BEGIN).unwrap();
+        let end = out.find(END).unwrap() + END.len() + 1;
+        assert!(
+            !out[start..end].contains('\r'),
+            "block lines end in LF: {out:?}"
+        );
+        assert!(out.ends_with(&format!("{END}\nexit 0\r\n")));
+        assert_eq!(inspect(&out, &blk()), BlockState::Current);
         assert_eq!(uninstall(&out).unwrap().unwrap(), s);
+    }
+
+    #[test]
+    fn continued_exit_line_is_not_split() {
+        let s = "#!/bin/bash\necho a && \\\nexit 0\n";
+        let out = install(s, &blk()).unwrap();
+        assert!(
+            out.ends_with(&format!("{END}\necho a && \\\nexit 0\n")),
+            "{out}"
+        );
+        assert_eq!(uninstall(&out).unwrap().unwrap(), s);
+        // Two continuation lines, and an escaped backslash that is not a continuation.
+        let s = "#!/bin/bash\ntrue && \\\n  true && \\\nexit 0\n";
+        let out = install(s, &blk()).unwrap();
+        assert!(out.starts_with(&format!("#!/bin/bash\n{BEGIN}")), "{out}");
+        let s = "#!/bin/bash\necho a\\\\\nexit 0\n";
+        let out = install(s, &blk()).unwrap();
+        assert!(out.ends_with(&format!("{END}\nexit 0\n")), "{out}");
+        // A script that ends inside a continued line is refused.
+        assert!(install("#!/bin/bash\necho a \\\n", &blk()).is_err());
     }
 
     #[test]
@@ -467,5 +549,44 @@ mod tests {
             locate(Kind::Prelaunch, &prefix.join("nope.sh"), &[]),
             Err((true, _))
         ));
+    }
+}
+
+#[cfg(all(test, unix))]
+mod bash_tests {
+    use super::*;
+
+    /// `bash -n` accepts the installed block in LF, CRLF and no-final-newline scripts.
+    #[test]
+    fn installed_scripts_parse() {
+        let Ok(bash) = which_bash() else { return };
+        let blk = block(Kind::Prelaunch, &BlockOpts::default());
+        for s in [
+            "#!/bin/bash\necho a\nexit 0\n",
+            "#!/bin/bash\r\necho a\r\n",
+            "#!/bin/bash\necho a",
+            "#!/bin/bash\necho a && \\\nexit 0\n",
+        ] {
+            let out = install(s, &blk).unwrap();
+            let d = tempfile::tempdir().unwrap();
+            let p = d.path().join("s.sh");
+            std::fs::write(&p, &out).unwrap();
+            let st = std::process::Command::new(&bash)
+                .arg("-n")
+                .arg(&p)
+                .status()
+                .unwrap();
+            // A CRLF line of the user's own is not a syntax error for `echo`; our block
+            // must not add one.
+            assert!(st.success(), "{out:?}");
+        }
+    }
+
+    fn which_bash() -> Result<std::path::PathBuf, ()> {
+        ["/bin/bash", "/usr/bin/bash"]
+            .iter()
+            .map(std::path::PathBuf::from)
+            .find(|p| p.exists())
+            .ok_or(())
     }
 }
