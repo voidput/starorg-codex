@@ -6,11 +6,13 @@
 pub mod appdirs;
 pub mod apply;
 pub mod backup;
+pub mod blueprints;
 pub mod build;
 pub mod cache;
 pub mod config;
 pub mod discovery;
 pub mod fsutil;
+pub mod hooks;
 pub mod ini;
 pub mod lock;
 pub mod merge;

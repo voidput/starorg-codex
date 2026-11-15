@@ -15,6 +15,7 @@
 
 use crate::appdirs::AppDirs;
 use crate::backup::{self, FileOrigin, Reason};
+use crate::blueprints;
 use crate::build::BuildInfo;
 use crate::cache::{self, KeyInputs};
 use crate::config::{LOOSE_INI, OutputEntry, Outputs};
@@ -176,6 +177,9 @@ pub struct Applied {
     pub profile_hash: String,
     pub patch_set_hash: String,
     pub overrides_hash: String,
+    /// Hash of the owned-blueprint names used (empty when none; older records lack it).
+    #[serde(default)]
+    pub owned_hash: String,
     pub app_version: String,
     pub output_sha256: String,
     pub time: String,
@@ -209,13 +213,17 @@ pub struct Inputs {
     pub overrides: Vec<state::Override>,
     pub overrides_bad: Vec<String>,
     pub overrides_hash: String,
+    /// Owned blueprints for `[Owned]` markers (addendum §3).
+    pub owned: blueprints::Selection,
 }
 
-/// Read the current inputs of a channel. `profile_file` replaces `profile.toml`.
+/// Read the current inputs of a channel. `profile_file` replaces `profile.toml`; `character`
+/// replaces the channel's `active_character` setting.
 pub fn current_inputs(
     ctx: &Ctx,
     t: &Target<'_>,
     profile_file: Option<&Path>,
+    character: Option<&str>,
 ) -> Result<Inputs, String> {
     let data = t.data_dir(&ctx.dirs);
     let profile_path = profile_file
@@ -225,7 +233,17 @@ pub fn current_inputs(
     let patches = patch::load_patches(&ctx.dirs, &profile.disabled_patches());
     let (overrides_bytes, overrides, overrides_bad) =
         state::load_overrides(&data).map_err(|e| e.to_string())?;
+    let choice = match character {
+        Some(c) => Some(c.to_string()),
+        None => {
+            ChannelState::load(&data)
+                .map_err(|e| e.to_string())?
+                .active_character
+        }
+    };
+    let owned = blueprints::select(&data, choice.as_deref())?;
     Ok(Inputs {
+        owned,
         fingerprint: t.channel.fingerprint().ok(),
         profile_hash: profile.hash(),
         profile,
@@ -332,6 +350,9 @@ fn stale_reasons(a: &Applied, inp: &Inputs, ctx: &Ctx) -> Vec<String> {
     }
     if inp.overrides_hash != a.overrides_hash {
         r.push("overrides".into());
+    }
+    if inp.owned.hash != a.owned_hash {
+        r.push("owned blueprints".into());
     }
     if ctx.app_version != a.app_version {
         r.push("app version".into());
@@ -446,6 +467,8 @@ pub struct Report {
     pub target_is_link: bool,
     pub output_sha256: Option<String>,
     pub recovered: Option<String>,
+    /// Owned blueprints used for `[Owned]` markers (addendum §3).
+    pub owned: Option<blueprints::Selection>,
     pub duration_ms: u64,
 }
 
@@ -473,6 +496,7 @@ impl Report {
             target_is_link: false,
             output_sha256: None,
             recovered: None,
+            owned: None,
             duration_ms: 0,
         }
     }
@@ -683,6 +707,8 @@ pub struct ApplyOpts {
     pub dry_run: bool,
     pub budget: Budget,
     pub profile_file: Option<PathBuf>,
+    /// `--character <name|geid|auto|any>` for `[Owned]` markers.
+    pub character: Option<String>,
 }
 
 enum LoadErr {
@@ -797,10 +823,16 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             started,
         );
     }
-    let inputs = match current_inputs(ctx, t, opts.profile_file.as_deref()) {
+    let inputs = match current_inputs(
+        ctx,
+        t,
+        opts.profile_file.as_deref(),
+        opts.character.as_deref(),
+    ) {
         Ok(i) => i,
         Err(e) => return fail(r, e),
     };
+    r.owned = Some(inputs.owned.clone());
     // --if-stale: nothing to do when Applied (no extraction, no Data.p4k open).
     if opts.if_stale {
         match status(ctx, t, &inputs) {
@@ -1022,6 +1054,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         fingerprint: (&fp).into(),
         cache_key: key_inputs.as_ref().map(KeyInputs::key).unwrap_or_default(),
         profile_hash: inputs.profile_hash.clone(),
+        owned_hash: inputs.owned.hash.clone(),
         patch_set_hash: inputs.patches.hash(),
         overrides_hash: inputs.overrides_hash.clone(),
         app_version: ctx.app_version.clone(),

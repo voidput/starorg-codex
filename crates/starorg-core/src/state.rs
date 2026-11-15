@@ -25,6 +25,10 @@ pub struct ChannelState {
     /// The user agreed to replace another `g_language` value with `english` (spec 7.4).
     #[serde(default)]
     pub switch_language: bool,
+    /// Whose owned blueprints drive `[Owned]` markers: `auto` (default: the character of the
+    /// newest session in this channel's logs), `any` (union), or a geid (addendum §3).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub active_character: Option<String>,
     #[serde(flatten)]
     pub extra: toml::Table,
 }
