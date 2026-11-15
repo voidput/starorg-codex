@@ -11,7 +11,7 @@ updated: 2026-11-14
 - [[updates|Updates: check, install, signing]] ([plain](updates.md))
 - [[ci|CI and security checks]] ([plain](ci.md))
 - [[plans/specs/starorg-strings-v1|v1 spec]] ([plain](plans/specs/starorg-strings-v1.md))
-- [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps + LUG hooks]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
+- [[plans/specs/starorg-strings-v1-addendum|v1 addendum: dumps, LUG hooks, dev mode, strings grouping]] ([plain](plans/specs/starorg-strings-v1-addendum.md))
 
 ## Decisions
 - [[decisions/tauri-svelte-ui|Tauri + Svelte UI]] ([plain](decisions/tauri-svelte-ui.md))
