@@ -18,7 +18,7 @@ use crate::domain::Domain;
 
 // pub mod tags; // src/tags.ts (item-sources, item-tags, loot)
 
-// pub mod socpak; // src/socpak.ts (starmap: object containers in the archive, read via ParseContext::files)
+pub mod socpak; // src/socpak.ts (starmap: object containers in the archive, read via ParseContext::files)
 
 macro_rules! registry {
     ($($slot:ident),* $(,)?) => {

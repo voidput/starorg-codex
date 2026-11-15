@@ -69,6 +69,88 @@ pub fn truthy(v: Option<&Value>) -> bool {
     }
 }
 
+/// `Number(s)` for a string: JS whitespace trimmed, empty is 0, `0x`/`0o`/`0b` integers,
+/// `Infinity`, else a decimal literal; anything else is NaN.
+pub fn js_to_number(s: &str) -> f64 {
+    let t = js_trim(s);
+    if t.is_empty() {
+        return 0.0;
+    }
+    for (prefix, radix) in [
+        ("0x", 16),
+        ("0X", 16),
+        ("0o", 8),
+        ("0O", 8),
+        ("0b", 2),
+        ("0B", 2),
+    ] {
+        if let Some(digits) = t.strip_prefix(prefix) {
+            if digits.is_empty() || !digits.chars().all(|c| c.is_digit(radix)) {
+                return f64::NAN;
+            }
+            return digits.chars().fold(0.0, |acc, c| {
+                acc * f64::from(radix) + f64::from(c.to_digit(radix).unwrap_or(0))
+            });
+        }
+    }
+    match t {
+        "Infinity" | "+Infinity" => return f64::INFINITY,
+        "-Infinity" => return f64::NEG_INFINITY,
+        _ => {}
+    }
+    if !t
+        .chars()
+        .all(|c| c.is_ascii_digit() || matches!(c, '+' | '-' | '.' | 'e' | 'E'))
+    {
+        return f64::NAN;
+    }
+    t.parse::<f64>().unwrap_or(f64::NAN)
+}
+
+/// `Math.round`: the nearest integer, halves toward +infinity.
+pub fn js_round(x: f64) -> f64 {
+    if !x.is_finite() {
+        return x;
+    }
+    let floor = x.floor();
+    if x - floor >= 0.5 { floor + 1.0 } else { floor }
+}
+
+/// `Math.hypot` as V8 computes it: scaled by the largest magnitude, Kahan-summed.
+pub fn js_hypot(values: &[f64]) -> f64 {
+    let mut max = 0.0f64;
+    for v in values {
+        let a = v.abs();
+        if a.is_infinite() {
+            return f64::INFINITY;
+        }
+        if a.is_nan() {
+            return f64::NAN;
+        }
+        if a > max {
+            max = a;
+        }
+    }
+    if max == 0.0 {
+        return 0.0;
+    }
+    let mut sum = 0.0;
+    let mut compensation = 0.0;
+    for v in values {
+        let n = v.abs() / max;
+        let summand = n * n - compensation;
+        let preliminary = sum + summand;
+        compensation = (preliminary - sum) - summand;
+        sum = preliminary;
+    }
+    sum.sqrt() * max
+}
+
+/// `[A-Za-z0-9_]`, JavaScript's `\w` without the `u` flag.
+pub fn is_word_byte(b: u8) -> bool {
+    b.is_ascii_alphanumeric() || b == b'_'
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -83,5 +165,16 @@ mod tests {
         assert_eq!(literal_newlines(r"a\nb"), "a\nb");
         assert_eq!(last_segment("a/b/c"), "c");
         assert_eq!(last_segment("c"), "c");
+        assert_eq!(js_to_number(""), 0.0);
+        assert_eq!(js_to_number(" 12.5 "), 12.5);
+        assert_eq!(js_to_number("0x10"), 16.0);
+        assert_eq!(js_to_number("1e3"), 1000.0);
+        assert!(js_to_number("abc").is_nan());
+        assert!(js_to_number("inf").is_nan());
+        assert_eq!(js_to_number("-Infinity"), f64::NEG_INFINITY);
+        assert_eq!(js_round(2.5), 3.0);
+        assert_eq!(js_round(-2.5), -2.0);
+        assert_eq!(js_round(0.49999999999999994), 0.0);
+        assert_eq!(js_hypot(&[3.0, 4.0, 0.0]), 5.0);
     }
 }
