@@ -6,10 +6,10 @@ updated: 2026-11-15
 
 # Privacy policy
 
-*StarOrg Strings, desktop app and command-line tool. Applies to every build: Microsoft Store,
+*StarOrg Codex, desktop app and command-line tool. Applies to every build: Microsoft Store,
 GitHub release downloads and builds from source.*
 
-**Short version: StarOrg Strings collects nothing about you. It has no telemetry, no analytics,
+**Short version: StarOrg Codex collects nothing about you. It has no telemetry, no analytics,
 no crash upload and no account of its own.**
 
 ## What the app does with data on your computer
@@ -31,7 +31,8 @@ no crash upload and no account of its own.**
 ## Network
 
 With the default settings the app's own code makes **no network request**. Each item below is
-off until you turn it on in Settings -> Network:
+off until you turn it on in Settings -> Network (the setup wizard's Preferences step asks about
+Check for updates and Connect StarOrg Tools, with both off unless you switch them on):
 
 | Setting | What is sent, to whom |
 |---|---|
@@ -75,5 +76,5 @@ Changes to this policy are made in this file; its history is public at
 <https://github.com/voidput/starorg-strings/commits/main/docs/privacy.md>. Questions: open an issue
 at <https://github.com/voidput/starorg-strings/issues>.
 
-StarOrg Strings is a fan-made tool. It is not affiliated with or endorsed by Cloud Imperium Games
+StarOrg Codex is a fan-made tool. It is not affiliated with or endorsed by Cloud Imperium Games
 or Roberts Space Industries.

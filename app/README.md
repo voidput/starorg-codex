@@ -1,4 +1,4 @@
-# StarOrg Strings app (`starorg-strings-app`)
+# StarOrg Codex app (`starorg-strings-app`)
 
 Tauri 2 shell (`src-tauri/`, a workspace member) with a Svelte 5 + Tailwind 4 +
 shadcn-svelte frontend (`src/`). Design tokens: spec section 9.2, in `src/app.css`.
@@ -54,7 +54,7 @@ cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock run
   directions (`samples.check.ts`). Rust tests also compare every string union and the command
   list with the TS files.
 - **Browser-only dev:** `npm run dev` (or `npm run build && npx vite preview`) runs the whole UI on
-  the mock. URL switches: `?wizard=<install|channels|source|enhancements|review|apply>` opens the
+  the mock. URL switches: `?wizard=<install|channels|source|enhancements|prefs|review|apply>` opens the
   setup wizard at a step, `?state=ready` starts with LIVE applied, HOTFIX behind a game update,
   backups, two overrides and launch-hook history (`&starorg=1` also signs in to StarOrg Tools),
   `?theme=dark|light`, `?delay=<ms>` per mock job step,

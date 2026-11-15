@@ -6,12 +6,12 @@ updated: 2026-11-15
 
 # Windows
 
-StarOrg Strings runs natively on Windows 10 (1809 or later) and Windows 11, x64. Two ways to
+StarOrg Codex runs natively on Windows 10 (1809 or later) and Windows 11, x64. Two ways to
 get it, from the same code:
 
 | | Direct download (GitHub release) | Microsoft Store |
 |---|---|---|
-| Files | `StarOrg Strings_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-strings-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
+| Files | `StarOrg Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-strings-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
 | Signed | Yes once Azure Artifact Signing is set up ([Code signing](#code-signing)); until then unsigned | Signed by Microsoft when published |
 | Updates | In the app (Settings -> Network -> Check for updates, off by default), signed with the updater key ([updates](updates.md)) | Only through the Store. The app never checks GitHub and never installs an update ("Updates come from the Microsoft Store.") |
 | App data | `%APPDATA%\StarOrg Tools\Strings\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Strings\cache\` | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
@@ -23,7 +23,7 @@ The NSIS installer downloads it if missing.
 
 ## Install (direct download)
 
-1. Download `StarOrg Strings_<version>_x64-setup.exe` from the release page.
+1. Download `StarOrg Codex_<version>_x64-setup.exe` from the release page.
 2. Run it. It installs for your user only and never asks for administrator rights.
 3. **While the builds are unsigned**, SmartScreen shows "Windows protected your PC". Choose
    **More info -> Run anyway**. Check the file first if you like: `SHA256SUMS` on the release
@@ -32,7 +32,7 @@ The NSIS installer downloads it if missing.
 4. With **Smart App Control** on (some fresh Windows 11 installs), unsigned programs cannot run
    at all and there is no "Run anyway". Use the Store version, or wait for signed builds. Turning
    Smart App Control off cannot be undone without resetting Windows, so we do not recommend it.
-5. Do **not** run StarOrg Strings as administrator. It refuses to change game files when
+5. Do **not** run StarOrg Codex as administrator. It refuses to change game files when
    elevated (a mistake there could leave files only an administrator can fix).
 
 The portable zip (CLI `starorg-strings.exe`) needs no install; unzip it anywhere.
@@ -96,7 +96,7 @@ The same as on Linux (spec 7), with these Windows parts:
 | Symptom | What to do |
 |---|---|
 | "No Star Citizen install found" | Start the RSI Launcher once (it writes the log we read), or Browse to the folder that contains `LIVE` |
-| "refusing to run as root or elevated" | Start StarOrg Strings normally, not with "Run as administrator"; if UAC is off on your PC, apply cannot run |
+| "refusing to run as root or elevated" | Start StarOrg Codex normally, not with "Run as administrator"; if UAC is off on your PC, apply cannot run |
 | "cannot write in <folder> ... icacls" | Run the shown `icacls` command in a normal (not admin) terminal for your user, or reinstall the game library under your user folder |
 | "the game is running for LIVE" | Quit the game fully (check Task Manager for `StarCitizen.exe`), then apply again |
 | "the launcher is installing LIVE" | Wait for the launcher's download or verify to finish |
@@ -134,7 +134,7 @@ Owner setup (once):
    exe, the NSIS installer and the MSI, or the job fails), and the signing step finds the
    newest `signtool.exe` of the runner's Windows SDK and the Azure CLI itself, so a runner image
    update does not break it. A spot check on a downloaded file is still worth it once:
-   `Get-AuthenticodeSignature '.\StarOrg Strings_<v>_x64-setup.exe'` shows `Valid`.
+   `Get-AuthenticodeSignature '.\StarOrg Codex_<v>_x64-setup.exe'` shows `Valid`.
 
 SmartScreen reputation still builds up per certificate over the first downloads; a signed
 build may show the prompt for a while.
@@ -174,11 +174,11 @@ Owner setup:
 
 1. Create a Partner Center developer account (individual or company) at
    <https://partner.microsoft.com/dashboard>.
-2. Apps and games -> New product -> MSIX or PWA app -> **reserve the name** "StarOrg Strings".
+2. Apps and games -> New product -> MSIX or PWA app -> **reserve the name** "StarOrg Codex".
 3. Product management -> **Product identity**: copy *Package/Identity/Name*,
    *Package/Identity/Publisher* (`CN=...`) and *Package/Properties/PublisherDisplayName* into the
    repo **variables** `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME`.
-   (Done 2026-11-14 for "StarOrg Strings", Store ID in `MS_STORE_ID`, package family name in
+   (Done 2026-11-14 for "StarOrg Codex", Store ID in `MS_STORE_ID`, package family name in
    `MS_STORE_PFN`; steps 1-3 are only needed again for a new account.)
 4. First release with version **1.0.0** or later (see [Store versions](#store-versions)):
    download the `.msix` from the release, start a submission, upload it under Packages.

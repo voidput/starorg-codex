@@ -15,6 +15,6 @@ Only the latest release receives security fixes.
 
 ## Scope
 
-StarOrg Strings reads local game files and writes a patched `Data.p4k` overlay and `user.cfg` locally. Issues
+StarOrg Codex reads local game files and writes a patched `Data.p4k` overlay and `user.cfg` locally. Issues
 such as path traversal, unsafe archive handling, or supply-chain problems in the build or release pipeline are
 in scope. The CI hardening is described in [docs/ci.md](docs/ci.md).

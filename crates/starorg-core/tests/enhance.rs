@@ -519,7 +519,7 @@ fn render_keeps_the_file_shape() {
     assert!(text.contains("\r\nui_unrelated,P=Unrelated filler\r\n"));
     // Branding is on in Everything.
     assert!(
-        text.contains("Frontend_PU_Version=Filler version\\nText enhanced with StarOrg Strings v")
+        text.contains("Frontend_PU_Version=Filler version\\nText enhanced with StarOrg Codex v")
     );
     assert_eq!(g.warnings, vec![]);
 }

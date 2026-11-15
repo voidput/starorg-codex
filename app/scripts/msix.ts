@@ -40,7 +40,7 @@ export const LOGOS: ReadonlyArray<{ file: string; width: number; height: number 
   { file: 'Square150x150Logo.png', width: 150, height: 150 },
 ];
 
-export const DISPLAY_NAME = 'StarOrg Strings';
+export const DISPLAY_NAME = 'StarOrg Codex';
 export const DESCRIPTION = 'Star Citizen text enhancements: component tags, ship and weapon stats, mission info.';
 /** Windows 10 1809: the oldest build the Tauri runtime and MSIX desktop apps support well. */
 export const MIN_VERSION = '10.0.17763.0';

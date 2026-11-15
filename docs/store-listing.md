@@ -11,7 +11,7 @@ current length limit in Partner Center when pasting. Setup steps: [windows](wind
 
 ## Product name
 
-StarOrg Strings
+StarOrg Codex
 
 ## Short description
 
@@ -20,7 +20,7 @@ applied to your own install and removable in one click.
 
 ## Description
 
-StarOrg Strings improves the in-game text of Star Citizen on your PC.
+StarOrg Codex improves the in-game text of Star Citizen on your PC.
 
 It builds a new text file for the game from the files of your own install: component names get
 short tags such as size, class and grade, ship and weapon descriptions get a stats block, and
@@ -37,7 +37,7 @@ How it works
 Privacy: no account, no telemetry, no analytics. With the default settings the app makes no
 network request at all.
 
-StarOrg Strings is a fan-made tool. It is not affiliated with or endorsed by Cloud Imperium Games
+StarOrg Codex is a fan-made tool. It is not affiliated with or endorsed by Cloud Imperium Games
 or Roberts Space Industries. Star Citizen is a trademark of Cloud Imperium Rights LLC.
 
 Requires a Star Citizen installation.

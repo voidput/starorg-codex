@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * "StarOrg Strings X.Y.Z is available" (docs/updates.md): non-modal, above the screen, only
+   * "StarOrg Codex X.Y.Z is available" (docs/updates.md): non-modal, above the screen, only
    * when "Check for updates" is on and the version is not skipped. Release notes arrive as
    * plain text blocks (sanitised in Rust) and are shown as text, never as HTML.
    */

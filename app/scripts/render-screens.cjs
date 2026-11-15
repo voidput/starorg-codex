@@ -19,6 +19,11 @@ const shots = [
     await p.getByRole('button', { name: 'Open HOTFIX' }).click();
     await p.getByText('The game was updated').waitFor();
   }],
+  ['privacy', 'home', async (p) => {
+    await p.getByRole('heading', { name: 'LIVE' }).waitFor();
+    await p.getByRole('button', { name: 'Privacy' }).click();
+    await p.getByText('Local MCP server').waitFor();
+  }],
   ['enhancements', 'enhancements', async (p) => p.getByText('Header line').waitFor()],
   ['enhancements-tags', 'enhancements', async (p) => {
     await p.getByRole('tab', { name: /Name tags/ }).click();
@@ -153,7 +158,7 @@ const shots = [
     await p.getByText('Characters to sync').waitFor();
   }, '&starorg=1'],
   // Update check (docs/updates.md; mock-update.ts switches).
-  ['home-update-available', 'home', async (p) => p.getByText('StarOrg Strings 0.2.0 is available').waitFor(), '&update=available'],
+  ['home-update-available', 'home', async (p) => p.getByText('StarOrg Codex 0.2.0 is available').waitFor(), '&update=available'],
   ['home-update-notes', 'home', async (p) => p.getByText('core: keep the user.cfg order when re-applying').waitFor(), '&update=available&notes=1'],
   ['settings-updates', 'settings', async (p) => {
     await p.getByText('0.2.0 is available (this is 0.1.0).').waitFor();

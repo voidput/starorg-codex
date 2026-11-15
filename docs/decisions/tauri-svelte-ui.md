@@ -10,7 +10,7 @@ Status: accepted (2026-11-14), revised the same day after review
 
 ## Context
 
-StarOrg Strings needs a desktop UI on Windows and Linux, a headless CLI from the same code,
+StarOrg Codex needs a desktop UI on Windows and Linux, a headless CLI from the same code,
 and the easiest possible install. The backend is Rust because game data is read through the
 StarBreaker crates. We already have a design system and about 20 reusable components in RSI+
 (Svelte 5, Tailwind 4, shadcn-svelte) and a visual identity in StarOrg Tools.
@@ -63,4 +63,4 @@ it had to run under Wine.
 - The webview is treated as untrusted: strict CSP, minimal capabilities, no raw paths from
   the frontend.
 
-Spec: [StarOrg Strings v1](../plans/specs/starorg-strings-v1.md), sections 3 and 9.
+Spec: [StarOrg Codex v1](../plans/specs/starorg-strings-v1.md), sections 3 and 9.

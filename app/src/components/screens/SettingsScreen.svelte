@@ -6,6 +6,7 @@
    */
   import Wand from '@lucide/svelte/icons/wand-sparkles';
   import * as Card from '@/components/ui/card';
+  import { jumpToSection } from '@/lib/scroll';
   import { Button } from '@/components/ui/button';
   import Segmented from '@/components/common/Segmented.svelte';
   import SwitchRow from '@/components/common/SwitchRow.svelte';
@@ -33,11 +34,7 @@
     { id: 'experimental', label: 'Experimental' },
     { id: 'cli', label: 'Command line' },
   ];
-  function jump(id: string) {
-    const el = document.getElementById(id);
-    el?.scrollIntoView({ block: 'start', behavior: 'smooth' });
-    el?.querySelector<HTMLElement>('[data-slot=card-title]')?.focus();
-  }
+  const jump = (id: string) => void jumpToSection(id);
 
   const accents: Accent[] = ['cyan', 'green', 'amber', 'orange', 'rose', 'violet'];
   const swatch: Record<Accent, string> = { cyan: '#3cc8ff', green: '#3ddc97', amber: '#ffd166', orange: '#ff9f43', rose: '#ff6b9d', violet: '#a78bfa' };
@@ -86,7 +83,7 @@
       {/each}
     </nav>
     <Card.Root id="game">
-      <Card.Header><Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Game</Card.Title><Card.Description>Where StarOrg Strings writes, and which channels are set up.</Card.Description></Card.Header>
+      <Card.Header><Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Game</Card.Title><Card.Description>Where StarOrg Codex writes, and which channels are set up.</Card.Description></Card.Header>
       <Card.Content class="grid gap-3">
         {#if app.install}
           <div class="grid gap-0.5">
@@ -164,7 +161,7 @@
     <Card.Root id="network">
       <Card.Header>
         <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Network</Card.Title>
-        <Card.Description>All off by default. With these off, StarOrg Strings' own code makes no network request.</Card.Description>
+        <Card.Description>All off by default. With these off, StarOrg Codex' own code makes no network request.</Card.Description>
       </Card.Header>
       <Card.Content class="grid gap-1">
         <UpdatesSection checked={s.network.check_updates} onchange={(v) => patch((x) => (x.network.check_updates = v))} />

@@ -1,12 +1,12 @@
 ---
 title: Windows test checklist (real install)
 tags: [docs]
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
 # Windows test checklist (real install)
 
-For the person testing StarOrg Strings on a real Windows PC with Star Citizen installed
+For the person testing StarOrg Codex on a real Windows PC with Star Citizen installed
 (spec 13 and 14, Q19). Takes about 45 minutes plus one game start. Nothing here needs
 administrator rights; please do **not** use "Run as administrator" at any point.
 
@@ -18,14 +18,14 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
 
 ## 1. Install
 
-- [ ] Download `StarOrg Strings_<version>_x64-setup.exe` and `SHA256SUMS` from the release.
-- [ ] Optional: in PowerShell, `Get-FileHash '.\StarOrg Strings_<version>_x64-setup.exe'` matches
+- [ ] Download `StarOrg Codex_<version>_x64-setup.exe` and `SHA256SUMS` from the release.
+- [ ] Optional: in PowerShell, `Get-FileHash '.\StarOrg Codex_<version>_x64-setup.exe'` matches
       the line in `SHA256SUMS`.
 - [ ] Run the installer. If SmartScreen says "Windows protected your PC", note it, then
       More info -> Run anyway. No administrator (UAC) prompt appears.
 - [ ] If the build is signed: right-click the setup file -> Properties -> Digital Signatures shows
       the publisher.
-- [ ] StarOrg Strings starts from the Start menu; the window is not blank.
+- [ ] StarOrg Codex starts from the Start menu; the window is not blank.
 
 ## 2. First-run wizard
 
@@ -38,6 +38,12 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
       Report this as a discovery miss and include the library path.
 - [ ] Step "Choose channels": pick **LIVE** only.
 - [ ] Steps "Game data source" and "Pick enhancements": keep the defaults (Recommended).
+- [ ] Step "Preferences": "Check for updates automatically" and "Connect StarOrg Tools" are
+      **off**; the update hint names `api.github.com` and at most once a day. In the Microsoft
+      Store build there is no update switch, only a line that the Store updates the app.
+      Choosing Dark or Light changes the window at once; keep the defaults.
+- [ ] Step "Review" lists Updates (not in the Store build), Appearance and StarOrg Tools as
+      chosen.
 
 ## 3. Dry run (Review step)
 
@@ -45,7 +51,7 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
       (first build reads `Data.p4k`, can take a few minutes).
 - [ ] Open the preview list: a component (e.g. a cooler or power plant) shows a tag like
       `[MIL-S1-B]`, a ship weapon a stats block, and the main-menu version line ends with
-      "Text enhanced with StarOrg Strings v<version>".
+      "Text enhanced with StarOrg Codex v<version>".
 - [ ] `<library>\LIVE\Data\Localization\english\global.ini` still does **not** exist (or is
       unchanged if another tool made it).
 
@@ -61,7 +67,7 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
 
 ## 5. In game (LIVE)
 
-- [ ] Main menu: the version text in the corner ends with **"Text enhanced with StarOrg Strings"**
+- [ ] Main menu: the version text in the corner ends with **"Text enhanced with StarOrg Codex"**
       and the version number.
 - [ ] A **component tag**: open a ship's components (or a shop list) and look at a component
       name, e.g. a power plant or cooler shows `[MIL-S1-B]`-style tag text.
@@ -77,7 +83,7 @@ Tick each box; when something differs, write down what you saw (a screenshot hel
 - [ ] `global.ini` is gone, or (if another tool's file was there before) it is that tool's file
       again.
 - [ ] `USER.cfg` no longer has the line we added (lines you had before stay).
-- [ ] Optional: start the game; the version text no longer mentions StarOrg Strings.
+- [ ] Optional: start the game; the version text no longer mentions StarOrg Codex.
 
 ## 7. Restore a backup
 
@@ -106,7 +112,7 @@ Copy this into a GitHub issue (title "Windows test: <version>, <Windows version>
 Diagnostics export and any screenshots.
 
 ```text
-StarOrg Strings version:
+StarOrg Codex version:
 Windows version and edition:
 Installer: setup.exe / msi / Store / zip     Signed: yes / no
 SmartScreen or Smart App Control prompt: none / "Run anyway" / blocked

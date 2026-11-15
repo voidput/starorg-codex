@@ -14,7 +14,7 @@
 </script>
 
 <p class="text-muted-foreground">
-  Setting up a channel lets StarOrg Strings write <span class="mono">Data/Localization/english/global.ini</span> there and, only when needed, one line in
+  Setting up a channel lets StarOrg Codex write <span class="mono">Data/Localization/english/global.ini</span> there and, only when needed, one line in
   <span class="mono">user.cfg</span>. Launch hooks and the command line never touch a channel you do not tick here.
 </p>
 
@@ -46,7 +46,7 @@
         <fieldset class="border-warning/40 bg-warning/10 grid gap-1.5 rounded-md border p-3">
           <legend class="flex items-center gap-1.5 px-1 font-semibold"><Languages class="text-warning size-4" aria-hidden="true" /> {c.channel} is set to another language</legend>
           <p class="text-muted-foreground">
-            Its <span class="mono">user.cfg</span> says <span class="mono">g_language = {c.language_value}</span>. StarOrg Strings writes English text, which only shows when the game language is English.
+            Its <span class="mono">user.cfg</span> says <span class="mono">g_language = {c.language_value}</span>. StarOrg Codex writes English text, which only shows when the game language is English.
           </p>
           <label class="flex cursor-pointer items-center gap-2">
             <input type="radio" name="lang-{c.channel}" class="accent-primary size-4" checked={choice.switch_language === true} onchange={() => (choice.switch_language = true)} />

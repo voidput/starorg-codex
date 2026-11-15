@@ -80,7 +80,7 @@ fn support_for(
     use tauri::utils::config::BundleType as B;
     match bundle {
         Some(B::AppImage | B::Nsis | B::Msi) if has_key => Ok(
-            "Updates are downloaded, checked against the StarOrg Strings signing key and installed when you choose."
+            "Updates are downloaded, checked against the StarOrg Codex signing key and installed when you choose."
                 .into(),
         ),
         Some(B::AppImage | B::Nsis | B::Msi) => Err(

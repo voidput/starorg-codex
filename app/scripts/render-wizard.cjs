@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const OUT = (process.env.RENDER_DIR || require('path').resolve(__dirname, '../../.tmp/renders')) + '/m3-wizard';
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:4317/') + '';
-const steps = ['install', 'channels', 'source', 'enhancements', 'review', 'apply'];
+const steps = ['install', 'channels', 'source', 'enhancements', 'prefs', 'review', 'apply'];
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const errors = [];
@@ -21,7 +21,7 @@ const steps = ['install', 'channels', 'source', 'enhancements', 'review', 'apply
     };
     for (const [i, s] of steps.entries()) {
       await shot(`${i + 1}-${s}`, `?wizard=${s}`, async (p) => {
-        if (s === 'apply') await p.getByRole('button', { name: 'Open StarOrg Strings' }).waitFor({ timeout: 10000 });
+        if (s === 'apply') await p.getByRole('button', { name: 'Open StarOrg Codex' }).waitFor({ timeout: 10000 });
         if (s === 'review') await p.getByText('strings changed').first().waitFor();
         if (s === 'enhancements') await p.getByText('Ship description').waitFor();
       });
@@ -30,11 +30,11 @@ const steps = ['install', 'channels', 'source', 'enhancements', 'review', 'apply
       await p.locator('#ch-PTU').click();
       await p.getByRole('button', { name: /^Next/ }).click();
     });
-    await shot('7-close-guard', '?wizard=source', async (p) => {
+    await shot('8-close-guard', '?wizard=source', async (p) => {
       await p.getByRole('button', { name: /Set up later/ }).click();
       await p.getByRole('heading', { name: 'Leave setup for now?' }).waitFor();
     });
-    await shot('8-home-frame', '?state=ready', async (p) => {
+    await shot('9-home-frame', '?state=ready', async (p) => {
       await p.getByRole('heading', { name: 'LIVE' }).waitFor();
     });
     await ctx.close();

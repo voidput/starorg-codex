@@ -1,13 +1,13 @@
 ---
-title: StarOrg Strings v1
+title: StarOrg Codex v1
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-14
+updated: 2026-11-15
 ---
 
-# StarOrg Strings v1
+# StarOrg Codex v1
 
-StarOrg Strings is a desktop app and command-line tool that customises Star Citizen's
+StarOrg Codex is a desktop app and command-line tool that customises Star Citizen's
 localization file. It reads the installed `Data.p4k`, builds an enhanced `global.ini`
 (stat blocks, name tags, mission and blueprint info, fixes for known CIG text bugs) and
 applies it to the game per channel, with backups and rollback.
@@ -90,7 +90,7 @@ One native app, Rust only on the backend, that does the following on Windows and
 | Binary | What it is | Links GTK / WebView |
 |---|---|---|
 | `starorg-strings` (`.exe` on Windows) | The CLI. Console program. Also runs the hidden `extract-worker` step | No |
-| `starorg-strings-app` (`StarOrg Strings.exe` on Windows) | The GUI (Tauri) | Yes |
+| `starorg-strings-app` (`StarOrg Codex.exe` on Windows) | The GUI (Tauri) | Yes |
 
 The CLI is a separate small binary on **both** systems. It starts without WebKitGTK or
 WebView2 installed, and its start-up time is not affected by the GUI's libraries.
@@ -406,7 +406,7 @@ backups.
   moved?" for the weaker match.
 - **Knowing our own output.** A loose `global.ini` whose SHA-256 is in `outputs.json` is ours,
   whatever the install id or `applied.json` say. This keeps our own file from being treated
-  as another tool's, or backed up as "the file from before StarOrg Strings".
+  as another tool's, or backed up as "the file from before StarOrg Codex".
 
 **Cache.** `<cache-key>` is a hash of: fingerprint, `GameData` schema number, StarBreaker
 commit, and the source (`local` or `dump`). An app update that changes the model layout
@@ -456,7 +456,7 @@ above), or a patch or override names it.
 ### 4.4 User overrides file (`overrides.ini`)
 
 ```ini
-; StarOrg Strings user overrides. One key=value per line.
+; StarOrg Codex user overrides. One key=value per line.
 vehicle_NameAEGS_Avenger_Titan=*05-Avenger Titan
 item_NameKLWE_LaserCannon_S3=CF-337 Panther (mine)
 ```
@@ -1021,8 +1021,8 @@ no entry at all; we never invent a name.
 
 ### 5.7 Branding stamp (off by default)
 
-Option "Show StarOrg Strings in the game's version text". When on, `Frontend_PU_Version` gets
-`\nText enhanced with StarOrg Strings v<version>` appended, unless that key turns out to be a
+Option "Show StarOrg Codex in the game's version text". When on, `Frontend_PU_Version` gets
+`\nText enhanced with StarOrg Codex v<version>` appended, unless that key turns out to be a
 format key (section 7.3). Detection of our own output does not depend on this stamp
 (section 7.5).
 
@@ -1364,7 +1364,7 @@ GUI, in `starorg-strings remove` and in the Windows uninstaller.
 offered when that backup was made under the current change number; otherwise the offer is
 "Re-apply" instead, because the file is regenerable.
 
-**3. Restore the file from before StarOrg Strings.** Puts the pinned `pre-existing` backup
+**3. Restore the file from before StarOrg Codex.** Puts the pinned `pre-existing` backup
 back. This is another tool's string table for one build, so:
 
 - It is only offered when that backup's `origin` is `foreign`.
@@ -1582,12 +1582,12 @@ tabular numbers.
 
 | Screen | Content |
 |---|---|
-| **Setup wizard** (first run, full window) | 1 Find your game (auto-scan result cards, Browse) · 2 Channels (this is the consent step; a channel whose game language is not English shows a question, not a default; a file from another tool is named) · 3 Read game data (progress per sub-step, Stop) · 4 Pick enhancements (preset cards with a live in-game preview; "Fix known CIG text bugs" switch) · 5 Review and apply (target path and link target if any, counts, backup location, the `user.cfg` line or "no change needed") · 6 Done (how to automate with the CLI). Steps derive from state, so an interrupted setup resumes |
+| **Setup wizard** (first run, full window) | 1 Find your game (auto-scan result cards, Browse) · 2 Channels (this is the consent step; a channel whose game language is not English shows a question, not a default; a file from another tool is named) · 3 Read game data (progress per sub-step, Stop) · 4 Pick enhancements (preset cards with a live in-game preview; "Fix known CIG text bugs" switch) · 4b Preferences (as built: Check for updates, Connect StarOrg Tools, theme, reduce effects; network switches off unless turned on; no update question in the Store build; saved with the settings on Apply) · 5 Review and apply (target path and link target if any, counts, backup location, the `user.cfg` line or "no change needed") · 6 Done (how to automate with the CLI). Steps derive from state, so an interrupted setup resumes |
 | **Home** | Channel status card (Applied / Game updated, re-apply needed / Not applied / Changed by another tool), facts, Apply and Remove changes; stat tiles; other channels as compact rows; a re-apply banner when the build changed |
 | **Enhancements** | Category list on the left (Ships, Components, Ship weapons, Missiles, FPS weapons, Name tags, Missions, Blueprints); switches per stat line; format options; tag builder with reorderable chips; a sticky in-game preview; Save and Save & apply. Settings are per channel, with "Copy settings from…" |
 | **Strings** | Virtualised table of all keys (about 91,000 rows): Key, Original, Result, Source badge (Unmodified, Enhanced, Patched, Edited), Category. Search, facets, "changed only". Detail sheet: word diff, rendered preview, provenance list (including the winner and losers of the namesake rule), override editor with Reset |
 | **Patches** | Table: name, what it fixes, keys affected, origin (Built-in / Yours), state badge, enabled switch. Detail sheet with before/after. Add, import, export |
-| **Backups** | Timeline per channel. Three separate actions (section 7.6): **Remove StarOrg changes** (back to stock), **Undo last apply**, and, only when one exists, **Restore the file from before StarOrg Strings** with its build shown and a mismatch warning. Also Compare with current, Show in folder, Delete, Back up now, retention setting |
+| **Backups** | Timeline per channel. Three separate actions (section 7.6): **Remove StarOrg changes** (back to stock), **Undo last apply**, and, only when one exists, **Restore the file from before StarOrg Codex** with its build shown and a mismatch warning. Also Compare with current, Show in folder, Delete, Back up now, retention setting |
 | **Activity** | Job log with levels, warnings and dropped edits; coverage numbers; Copy; Open log folder; Export diagnostics (paths and user name redacted) |
 | **Settings** | Game (install root, re-scan, channels) · Appearance · Network (all off by default, with exact wording of what is contacted) · Command line (examples, exit codes, Install command-line tool, how to remove before uninstalling) · Settings export/import · About (credits and licences) |
 
@@ -1676,7 +1676,7 @@ Rules for both:
 | Game file | `<root>\<CH>\data\Localization\english\global.ini` | `<prefix>/drive_c/…/StarCitizen/<CH>/Data/Localization/english/global.ini` (casing as found) |
 | User config | `<root>\<CH>\user.cfg` | `<…>/<CH>/USER.cfg` (casing as found; may be a symlink, section 7.4) |
 | CLI binary | `starorg-strings.exe` in the install folder, optionally on `PATH` | `/usr/bin/starorg-strings`, or `~/.local/bin/starorg-strings` for AppImage and tarball installs |
-| GUI binary | `StarOrg Strings.exe` | `/usr/bin/starorg-strings-app`, or the AppImage |
+| GUI binary | `StarOrg Codex.exe` | `/usr/bin/starorg-strings-app`, or the AppImage |
 
 ### 10.3 Case-insensitive path resolution
 
@@ -1755,7 +1755,7 @@ Traces of other tools it reports, all present on our machine today:
 
 ### Network
 
-- **Off by default.** After a fresh install, StarOrg Strings' own code makes no network
+- **Off by default.** After a fresh install, StarOrg Codex' own code makes no network
   request. Each network feature has its own switch and its own wording of what is contacted:
   1. **Check for updates** (v1): one request to the release endpoint. Built: GitHub releases
      list, at most once per 24 h plus "Check now"; as-built details in `docs/updates.md`.
@@ -1821,7 +1821,7 @@ Traces of other tools it reports, all present on our machine today:
 - Named credits: StarBreaker (full MIT text), Smart Citizen (ideas), fonts (OFL). The AppImage
   bundles WebKitGTK and GTK, which are LGPL: their notices and a link to source go in the
   same file.
-- Shown in About and in the README: "StarOrg Strings is an unofficial fan-made tool. It is
+- Shown in About and in the README: "StarOrg Codex is an unofficial fan-made tool. It is
   not affiliated with or endorsed by Cloud Imperium Games or Roberts Space Industries. Star
   Citizen is a trademark of its owners."
 - **Smart Citizen clean-room rule.** Smart Citizen is Apache-2.0 and ships a NOTICE file.

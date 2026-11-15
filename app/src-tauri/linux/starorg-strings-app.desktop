@@ -1,8 +1,8 @@
 [Desktop Entry]
 # Hidden alias so Wayland compositors (KDE, GNOME) can match the window's app_id
-# "starorg-strings-app" to an icon. The visible menu entry is "StarOrg Strings.desktop".
+# "starorg-strings-app" to an icon. The visible menu entry is "StarOrg Codex.desktop".
 Type=Application
-Name=StarOrg Strings
+Name=StarOrg Codex
 Exec=starorg-strings-app
 Icon=starorg-strings-app
 StartupWMClass=starorg-strings-app

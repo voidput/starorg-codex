@@ -19,7 +19,7 @@
 
 <header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-3">
   <div class="min-w-0">
-    <div class="eyebrow text-primary">StarOrg Strings</div>
+    <div class="eyebrow text-primary">StarOrg Codex</div>
     <h1 id="page-title" class="text-h1 truncate">{page.label}</h1>
     <p class="text-muted-foreground truncate">{page.description}</p>
   </div>

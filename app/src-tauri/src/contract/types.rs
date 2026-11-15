@@ -458,7 +458,7 @@ pub struct RestoreOffers {
     pub remove_foreign: bool,
     /// Undo the last apply: a `before-apply` backup under the current change number.
     pub undo_last_apply: Option<String>,
-    /// Restore the file from before StarOrg Strings (pinned, origin foreign).
+    /// Restore the file from before StarOrg Codex (pinned, origin foreign).
     pub restore_foreign: Option<ForeignRestore>,
 }
 

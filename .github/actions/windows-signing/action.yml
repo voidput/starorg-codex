@@ -116,7 +116,7 @@ runs:
       run: |
         node -e '
           const { ENDPOINT, ACCOUNT, PROFILE, OUT } = process.env;
-          const args = ["-e", ENDPOINT, "-a", ACCOUNT, "-c", PROFILE, "-d", "StarOrg Strings", "%1"];
+          const args = ["-e", ENDPOINT, "-a", ACCOUNT, "-c", PROFILE, "-d", "StarOrg Codex", "%1"];
           const cfg = { bundle: { windows: { signCommand: { cmd: "artifact-signing-cli", args } } } };
           require("fs").writeFileSync(OUT, JSON.stringify(cfg, null, 2) + "\n");
         '

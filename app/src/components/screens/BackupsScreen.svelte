@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Backups (spec 7.6, 9.4): three separate actions (Remove StarOrg changes, Undo last apply,
-   * Restore the file from before StarOrg Strings, shown only when one exists, with its build and
+   * Restore the file from before StarOrg Codex, shown only when one exists, with its build and
    * a mismatch warning), Back up now, and the timeline of this channel's backups.
    */
   import Eraser from '@lucide/svelte/icons/eraser';
@@ -123,7 +123,7 @@
         {@const f = o.restore_foreign}
         <div class="bg-card flex flex-col gap-3 self-start rounded-lg border p-4">
           <div>
-            <h2 class="font-semibold">Restore the file from before StarOrg Strings</h2>
+            <h2 class="font-semibold">Restore the file from before StarOrg Codex</h2>
             <p class="text-muted-foreground mt-1 text-[12.5px]">{f.tool ?? 'Another tool'}'s file, made for <span class="mono">{buildLabel(f.made_for)}</span>.</p>
             {#if f.build_mismatch}<p class="text-warning mt-1 flex items-center gap-1 text-[12px]"><TriangleAlert class="size-3.5" aria-hidden="true" /> Made for another game build</p>{/if}
           </div>
@@ -148,7 +148,7 @@
               <div class="min-w-0">
                 <div class="flex flex-wrap items-center gap-2">
                   <span class="font-medium">{BACKUP_REASON[b.reason]}</span>
-                  {#if b.pinned}<ToneBadge tone="info" icon={Pin} label="Kept" hint="The file from before StarOrg Strings is never deleted by retention" />{/if}
+                  {#if b.pinned}<ToneBadge tone="info" icon={Pin} label="Kept" hint="The file from before StarOrg Codex is never deleted by retention" />{/if}
                   {#if mismatch(b.build)}<ToneBadge tone="warning" label="Other build" hint="Made for {buildLabel(b.build)}" />{/if}
                 </div>
                 <div class="text-muted-foreground text-[12px]">
@@ -167,7 +167,7 @@
           {/each}
         </ol>
         <p class="text-muted-foreground text-[12px]">
-          Kept automatically: the newest {list.keep_newest} backups of this channel, the newest backup of each of the last {list.keep_builds} game builds, and the file from before StarOrg Strings. Older ones are deleted after an apply.
+          Kept automatically: the newest {list.keep_newest} backups of this channel, the newest backup of each of the last {list.keep_builds} game builds, and the file from before StarOrg Codex. Older ones are deleted after an apply.
         </p>
       {/if}
     </section>
@@ -191,7 +191,7 @@
     {@const f = o.restore_foreign}
     <ActionDialog
       bind:open={isOpen('foreign'), setOpen('foreign')}
-      title="Restore the file from before StarOrg Strings?"
+      title="Restore the file from before StarOrg Codex?"
       description={`Puts ${f.tool ?? 'the other tool'}'s file back in place of ours.`}
       confirmLabel={`Restore ${f.tool ?? 'the old'} file`}
       busyLabel="Restoring…"

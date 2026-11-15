@@ -327,7 +327,7 @@
                 checked={fixesOff < builtin.length}
                 onchange={setFixes}
               />
-              <SwitchRow id="branding" label="Add a small StarOrg Strings stamp" hint="One line at the end of the main menu version text. Off by default." checked={d.branding} onchange={(v) => edit((p) => (p.branding = v))} />
+              <SwitchRow id="branding" label="Add a small StarOrg Codex stamp" hint="One line at the end of the main menu version text. Off by default." checked={d.branding} onchange={(v) => edit((p) => (p.branding = v))} />
             </Card.Content>
           </Card.Root>
         {:else if selected === 'name-tags'}

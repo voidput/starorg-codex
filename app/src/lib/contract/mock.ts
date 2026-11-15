@@ -1193,7 +1193,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     doctor: () => clone(SAMPLES.doctor),
     export_diagnostics: () => {
-      let text = 'StarOrg Strings diagnostics\n\n';
+      let text = 'StarOrg Codex diagnostics\n\n';
       for (const sec of SAMPLES.doctor.sections) {
         text += `## ${sec.title}\n`;
         for (const c of sec.checks) text += `[${c.level}] ${c.label}${c.detail ? ` (${c.detail})` : ''}\n`;

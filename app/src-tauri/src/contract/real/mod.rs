@@ -911,7 +911,7 @@ impl RealBackend {
 
     fn channel_lock(&self, id: &str, ch: &Channel) -> CmdResult<lock::Lock> {
         lock::try_lock(&self.dirs().channel_lock(id, &ch.name))
-            .map_err(|e| busy_or(e, &format!("{} (another StarOrg Strings run)", ch.name)))
+            .map_err(|e| busy_or(e, &format!("{} (another StarOrg Codex run)", ch.name)))
     }
 
     // -----------------------------------------------------------------------------------
@@ -1803,7 +1803,7 @@ impl Backend for RealBackend {
         if b.pinned() {
             return Err(err(
                 ErrorCode::Invalid,
-                "The file from before StarOrg Strings is kept; it cannot be deleted.",
+                "The file from before StarOrg Codex is kept; it cannot be deleted.",
             ));
         }
         std::fs::remove_dir_all(&b.dir).map_err(io)?;

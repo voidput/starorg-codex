@@ -1,4 +1,4 @@
-//! StarOrg Strings desktop app: a thin Tauri 2 shell over `starorg-core` (spec 3.1, 9).
+//! StarOrg Codex desktop app: a thin Tauri 2 shell over `starorg-core` (spec 3.1, 9).
 
 pub mod commands;
 pub mod contract;
@@ -41,7 +41,7 @@ fn backend() -> (BackendState, contract::real::DialogSlot, update::HostSlot) {
     #[cfg(not(feature = "mock-backend"))]
     {
         let mut cfg = contract::real::RealConfig::from_env()
-            .unwrap_or_else(|e| panic!("StarOrg Strings cannot start: {e}"));
+            .unwrap_or_else(|e| panic!("StarOrg Codex cannot start: {e}"));
         cfg.dialogs = slot.clone();
         let b = contract::real::RealBackend::new(cfg);
         let host = b.update_host();
@@ -69,7 +69,7 @@ pub fn run() {
         Ok(())
     })
     .build(tauri::generate_context!())
-    .expect("error while building StarOrg Strings")
+    .expect("error while building StarOrg Codex")
     .run(|app, event| {
         // The local MCP server stops with the app (docs/mcp.md).
         if let tauri::RunEvent::Exit = event {

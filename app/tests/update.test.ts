@@ -13,7 +13,7 @@ const off = samples.update_status;
 test('banner shows an available, not skipped version only while the switch is on', () => {
   const r = bannerRelease(available);
   assert.equal(r?.version, '0.2.0');
-  assert.equal(bannerTitle(r!), 'StarOrg Strings 0.2.0 is available');
+  assert.equal(bannerTitle(r!), 'StarOrg Codex 0.2.0 is available');
   assert.equal(bannerRelease({ ...available, enabled: false }), null);
   assert.equal(bannerRelease({ ...available, skipped_version: '0.2.0' }), null);
   assert.equal(bannerRelease(available, '0.2.0'), null, 'dismissed for this session');

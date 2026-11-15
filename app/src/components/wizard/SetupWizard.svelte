@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * First-run setup wizard (spec 9.4, issue #15): Find your game -> Channels (consent) -> Data source
-   * -> Enhancements -> Review -> Apply. Full window, on the tactical grid, chamfered frame.
+   * -> Enhancements -> Preferences (update check, StarOrg Tools, theme) -> Review -> Apply. Apply
+   * saves the preferences with save_settings before setup runs. Full window, on the tactical grid, chamfered frame.
    * Practice: few steps; Back/Next with the reason a step is blocked; review with jump-to-edit;
    * close guard while there are unsaved choices; focus moves to the step heading; the draft resumes.
    * `?wizard=<step>` opens at a step (headless renders); earlier steps are filled with defaults.
@@ -19,12 +20,16 @@
   import StepChannels from './StepChannels.svelte';
   import StepSource from './StepSource.svelte';
   import StepEnhancements from './StepEnhancements.svelte';
+  import StepPrefs from './StepPrefs.svelte';
   import StepReview from './StepReview.svelte';
   import StepApply from './StepApply.svelte';
-  import { STEPS, blocker, clearDraft, emptyDraft, ensureChoices, loadDraft, request, saveDraft, type Draft, type StepId } from './draft.svelte';
+  import { STEPS, blocker, clearDraft, defaultPrefs, emptyDraft, ensureChoices, loadDraft, prefsFrom, request, saveDraft, withPrefs, type Draft, type StepId } from './draft.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
-  import type { ApplyReport, InstallSummary, JobProgress } from '@/lib/contract/types';
+  import type { ApplyReport, InstallSummary, JobProgress, Settings } from '@/lib/contract/types';
   import { app } from '@/lib/stores/app.svelte';
+  import { updates } from '@/lib/stores/update.svelte';
+  import { applyAppearance, isLinux } from '@/lib/theme';
+  import { applyUpdateSwitch, storeManaged } from '@/lib/update';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
 
@@ -67,6 +72,36 @@
   $effect(() => {
     ensureChoices(draft, install);
   });
+  // Preferences start from the saved Settings (so a second setup keeps them); the defaults only
+  // when Settings could not be read by the time the step is shown.
+  $effect(() => {
+    if (draft.prefs) return;
+    if (app.settings) draft.prefs = prefsFrom(app.settings);
+    else if (cur.id === 'prefs' || cur.id === 'review') draft.prefs = defaultPrefs(isLinux());
+  });
+
+  /** Save the Preferences step before setup: setup may set the default channel in the same
+   *  config, so this reads the saved Settings fresh and saves first. A failed save is reported
+   *  (toast) and setup goes on; the choices can be made again in Settings. */
+  async function savePrefs() {
+    const p = draft.prefs;
+    if (!p) return;
+    let current: Settings;
+    try {
+      current = await api.getSettings();
+    } catch (e) {
+      toast('error', 'Preferences not saved', toContractError(e).message);
+      return;
+    }
+    const store = storeManaged(updates.status);
+    const next = withPrefs(current, p, store);
+    const turnedOn = !store && next.network.check_updates && !current.network.check_updates;
+    await applyUpdateSwitch(next.network.check_updates, {
+      save: () => app.saveSettings(next),
+      check: () => (turnedOn ? updates.enabled() : updates.refresh()),
+      refresh: () => updates.refresh(),
+    });
+  }
 
   async function scan(deep = false) {
     scanning = true;
@@ -135,6 +170,7 @@
     runError = null;
     jobs = {};
     reports = [];
+    await savePrefs();
     const off = await api.onJob((p) => {
       if (p.channel) jobs = { ...jobs, [p.channel]: p };
     });
@@ -196,7 +232,11 @@
       if (dirty || phase === 'running') e.preventDefault();
     };
     window.addEventListener('beforeunload', beforeUnload);
-    return () => window.removeEventListener('beforeunload', beforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', beforeUnload);
+      // The Preferences step previews the theme; leaving without saving puts the saved look back.
+      if (app.settings) applyAppearance(app.settings.appearance);
+    };
   });
 </script>
 
@@ -212,7 +252,7 @@
     <header class="flex items-start justify-between gap-4 border-b px-6 pt-5 pb-4">
       <div>
         <div class="eyebrow text-primary">{again ? 'Setup' : 'First-run setup'}</div>
-        <h1 id="wizard-title" class="text-h1">{again ? 'Set up channels again' : 'Set up StarOrg Strings'}</h1>
+        <h1 id="wizard-title" class="text-h1">{again ? 'Set up channels again' : 'Set up StarOrg Codex'}</h1>
       </div>
       <Button variant="ghost" size="sm" onclick={requestClose} disabled={phase === 'running'}>
         {#if phase === 'done'}Close{:else}<X aria-hidden="true" /> Set up later{/if}
@@ -268,6 +308,8 @@
           <StepSource {draft} />
         {:else if cur.id === 'enhancements'}
           <StepEnhancements {draft} target={firstTarget} />
+        {:else if cur.id === 'prefs' && draft.prefs}
+          <StepPrefs prefs={draft.prefs} />
         {:else if cur.id === 'review' && install}
           <StepReview {draft} {install} onedit={(s) => go(STEPS.findIndex((x) => x.id === s))} />
         {:else if cur.id === 'apply'}
@@ -290,7 +332,7 @@
         {#if phase === 'failed'}
           <Button variant="outline" onclick={() => { phase = 'idle'; go(STEPS.length - 2); }}><ArrowLeft aria-hidden="true" /> Back to review</Button>
         {:else if phase === 'done'}
-          <Button onclick={finish}>Open StarOrg Strings <ArrowRight aria-hidden="true" /></Button>
+          <Button onclick={finish}>Open StarOrg Codex <ArrowRight aria-hidden="true" /></Button>
         {/if}
       {:else}
         <Button onclick={next} aria-describedby={showBlock && block ? "wizard-block" : undefined}>Next <ArrowRight aria-hidden="true" /></Button>

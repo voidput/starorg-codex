@@ -126,7 +126,7 @@ impl Server {
                     json!({
                         "protocolVersion": version,
                         "capabilities": {"tools": {"listChanged": false}},
-                        "serverInfo": {"name": SERVER_NAME, "title": "StarOrg Strings (experimental)", "version": env!("CARGO_PKG_VERSION")},
+                        "serverInfo": {"name": SERVER_NAME, "title": "StarOrg Codex (experimental)", "version": env!("CARGO_PKG_VERSION")},
                         "instructions": self.instructions,
                     }),
                 )

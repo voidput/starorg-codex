@@ -20,7 +20,7 @@ export function storeManaged(s: Pick<UpdateStatus, 'install'> | null): boolean {
 }
 
 export function bannerTitle(r: ReleaseView): string {
-  return `StarOrg Strings ${r.version} is available${r.prerelease ? ' (pre-release)' : ''}`;
+  return `StarOrg Codex ${r.version} is available${r.prerelease ? ' (pre-release)' : ''}`;
 }
 
 /** One line for Settings -> Network under "Check for updates". */

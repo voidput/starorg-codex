@@ -2477,7 +2477,7 @@ impl Backend for MockBackend {
     }
 
     fn export_diagnostics(&self) -> CmdResult<Diagnostics> {
-        let mut text = String::from("StarOrg Strings diagnostics\n\n");
+        let mut text = String::from("StarOrg Codex diagnostics\n\n");
         for sec in self.doctor()?.sections {
             text.push_str(&format!("## {}\n", sec.title));
             for c in sec.checks {

@@ -153,7 +153,7 @@ impl World {
                 .unwrap()
                 .insert(d.join("Data.p4k"), ch == "PTU");
         }
-        // The text StarOrg Strings applied to LIVE (its sha is in our outputs list).
+        // The text StarOrg Codex applied to LIVE (its sha is in our outputs list).
         let applied = "\u{feff}item_NameBEHR_LMG_FS9=FS-9 LMG [Owned]\r\nitem_DescBEHR_LMG_FS9=A light machine gun.\r\n";
         std::fs::write(
             root.join("game/LIVE/Data/Localization/english/global.ini"),

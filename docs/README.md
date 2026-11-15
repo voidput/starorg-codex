@@ -1,10 +1,10 @@
 ---
-title: StarOrg Strings docs
+title: StarOrg Codex docs
 tags: [docs]
 updated: 2026-11-15
 ---
 
-# StarOrg Strings docs
+# StarOrg Codex docs
 
 - [Release process](release.md)
 - [Updates: check, install, signing](updates.md)

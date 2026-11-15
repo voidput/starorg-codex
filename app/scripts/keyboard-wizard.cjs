@@ -29,8 +29,8 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
   console.log('after step4:', await heading());
   await p.getByText('strings changed').first().waitFor();
   await pressUntil('Set up and apply'); await p.keyboard.press('Enter');
-  await p.getByRole('button', { name: 'Open StarOrg Strings' }).waitFor({ timeout: 10000 });
-  await pressUntil('Open StarOrg Strings'); await p.keyboard.press('Enter');
+  await p.getByRole('button', { name: 'Open StarOrg Codex' }).waitFor({ timeout: 10000 });
+  await pressUntil('Open StarOrg Codex'); await p.keyboard.press('Enter');
   await p.waitForSelector('#wizard-title', { state: 'detached' });
   console.log('wizard closed; page title:', await p.evaluate(() => document.getElementById('page-title')?.textContent));
   // Escape guard: reopen via Ctrl+K palette.

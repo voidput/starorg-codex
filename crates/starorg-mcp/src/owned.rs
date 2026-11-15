@@ -36,7 +36,7 @@ impl OwnedView {
 pub fn select(ch: &ChannelSource, who: &str) -> ToolResult<OwnedView> {
     let Some(dir) = &ch.data_dir else {
         return Err(ToolError(format!(
-            "no owned blueprints for {}: the channel is not set up in StarOrg Strings",
+            "no owned blueprints for {}: the channel is not set up in StarOrg Codex",
             ch.name
         )));
     };
