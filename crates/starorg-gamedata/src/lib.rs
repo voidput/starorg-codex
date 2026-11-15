@@ -7,6 +7,8 @@
 //! - [`entity`] (`entity.ts`): components of `EntityClassDefinition` records;
 //! - [`localization`] (`localization.ts`): the string table, `localize`, overlays, and the
 //!   published-dump redaction (off by default);
+//! - [`overlays`] (`sources/overlays.ts`): the community pack registry, fetching (HTTP
+//!   supplied by the caller), installed packs, loading a pack from disk;
 //! - [`search_index`] (`search-index.ts`): `game-search-index.json`, derived from the
 //!   item-tags and ships datasets;
 //! - [`cryxml`] (`cryxml.ts`): CryXmlB documents in raw archive files;
@@ -33,6 +35,7 @@ pub mod helpers_world;
 pub mod js;
 pub mod localization;
 pub mod output;
+pub mod overlays;
 pub mod pipeline;
 pub mod records;
 pub mod search_index;
