@@ -13,3 +13,9 @@ regexes = [
   # Two or more underscore-joined words starting with a letter, e.g. item_NameCOOL_AEGS_S01_Bracer.
   '''^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+){2,}(,P)?$''',
 ]
+
+[[allowlists]]
+description = "minisign/Tauri updater PUBLIC keys (base64 of 'untrusted comment: minisign public key:'); private keys do not match"
+# Match on the whole line: generic-api-key may capture only part of the base64 string.
+regexTarget = "line"
+regexes = ['''dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6[A-Za-z0-9+/=]*''']
