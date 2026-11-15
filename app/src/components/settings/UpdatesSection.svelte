@@ -43,7 +43,7 @@
       {#if line}<p class={cn('text-[13px]', tone[line.tone])} role="status">{line.text}</p>{/if}
       <Button variant="outline" size="xs" disabled={updates.checking} onclick={() => updates.check(true)}><RefreshCw class={cn(updates.checking && 'animate-spin')} aria-hidden="true" /> {updates.checking ? 'Checking…' : 'Check now'}</Button>
     </div>
-    <p class="text-muted-foreground text-[12px]">Last checked {st.last_checked ? fmtDateTime(st.last_checked) : 'never'} · this is {st.current_version}{#if st.skipped_version} · skipping {st.skipped_version} <Button variant="link" size="xs" class="h-auto p-0 text-[12px]" onclick={() => updates.skip('')}>Undo</Button>{/if}</p>
+    <p class="text-muted-foreground text-[12px]">Last checked {st.last_checked ? fmtDateTime(st.last_checked) : 'never'}{#if st.skipped_version} · skipping {st.skipped_version} <Button variant="link" size="xs" class="h-auto p-0 text-[12px]" onclick={() => updates.skip('')}>Undo</Button>{/if}</p>
     <SwitchRow id="net-prerelease" size="sm" label="Include pre-releases" hint="Also offer beta and release-candidate versions." checked={st.prefs.include_prereleases} onchange={(v) => updates.setPrefs({ repo: st.prefs.repo, include_prereleases: v })} />
     <div class="grid gap-1">
       <label for="net-repo" class="text-[13px]">Release repository</label>

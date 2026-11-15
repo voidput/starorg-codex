@@ -6,6 +6,12 @@ const BASE = (process.env.BASE_URL || 'http://127.0.0.1:4317/') + '';
 const only = process.argv[2] ? new RegExp(process.argv[2]) : null;
 require('fs').mkdirSync(OUT, { recursive: true });
 
+/** Scroll <main> (not the document) so Settings -> Network is at the top. */
+const toNetwork = () => {
+  const m = document.getElementById('main');
+  m.scrollTop += document.getElementById('network').getBoundingClientRect().top - m.getBoundingClientRect().top - 12;
+};
+
 const shots = [
   ['home', 'home', async (p) => p.getByRole('heading', { name: 'LIVE' }).waitFor()],
   ['home-hotfix-stale', 'home', async (p) => {
@@ -113,6 +119,21 @@ const shots = [
     await p.evaluate(() => document.getElementById('starorg').scrollIntoView({ block: 'start' }));
     await p.getByText('Characters to sync').waitFor();
   }, '&starorg=1'],
+  // Update check (docs/updates.md; mock-update.ts switches).
+  ['home-update-available', 'home', async (p) => p.getByText('StarOrg Strings 0.2.0 is available').waitFor(), '&update=available'],
+  ['home-update-notes', 'home', async (p) => p.getByText('core: keep the user.cfg order when re-applying').waitFor(), '&update=available&notes=1'],
+  ['settings-updates', 'settings', async (p) => {
+    await p.getByText('0.2.0 is available (this is 0.1.0).').waitFor();
+    await p.evaluate(toNetwork);
+  }, '&update=available'],
+  ['settings-updates-failed', 'settings', async (p) => {
+    await p.getByText(/^Can't see releases for someone\/private-fork/).waitFor();
+    await p.evaluate(toNetwork);
+  }, '&update=failed'],
+  ['settings-updates-off', 'settings', async (p) => {
+    await p.getByText('Check for updates').waitFor();
+    await p.evaluate(toNetwork);
+  }],
   ['settings-diagnostics', 'settings', async (p) => {
     await p.getByText('Default channel').waitFor();
     await p.getByRole('button', { name: 'Run doctor' }).click();
