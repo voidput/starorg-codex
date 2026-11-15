@@ -58,6 +58,36 @@ interface Samples {
   update_status: T.UpdateStatus;
   check_for_updates: T.UpdateStatus;
   check_for_updates_failed: T.UpdateStatus;
+  dev_status: T.DevStatus;
+  dev_open: T.DevStatus;
+  dev_types: T.TypeCount[];
+  dev_tree: T.TreePage;
+  dev_tree_type: T.TreePage;
+  dev_tree_path: T.TreePage;
+  dev_tree_folder: T.TreePage;
+  dev_search: T.SearchPage;
+  dev_search_guid: T.SearchPage;
+  dev_search_type: T.SearchPage;
+  dev_record: T.RecordView;
+  dev_record_cut: T.RecordView;
+  dev_record_pointer: T.RecordView;
+  dev_export_record: T.DevExportResult;
+  dev_export_type: T.DevExportResult;
+  dev_sources: T.DevSource[];
+  dev_add_source: T.DevSource[];
+  dev_dataset: T.DatasetInfo;
+  dev_table: T.TableInfo;
+  dev_table_kv: T.TableInfo;
+  dev_rows: T.RowsPage;
+  dev_rows_filtered: T.RowsPage;
+  dev_row: T.DevRowDetail;
+  dev_row_loc: T.DevRowDetail;
+  dev_diff: T.DevDiffSummary;
+  dev_diff_summary: T.DevDiffSummary;
+  dev_diff_records: T.DevDiffRecords;
+  dev_diff_records_added: T.DevDiffRecords;
+  dev_diff_record: T.DevFieldDiff;
+  dev_close: T.DevStatus;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

@@ -11,9 +11,12 @@
 //! Command names are snake_case and take one argument named `req` (or none), so the TS client
 //! is a straight `invoke(name, { req })`.
 
+pub mod dev;
 pub mod fleet;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock;
+#[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_dev;
 pub mod real;
 pub mod schema;
 pub mod strings_query;
@@ -28,7 +31,8 @@ pub type Progress<'a> = &'a (dyn Fn(JobProgress) + Send + Sync);
 
 /// Everything the UI can ask of the core. Implementations must be cheap to call from many
 /// threads; long jobs report through `progress`.
-pub trait Backend: Send + Sync + 'static {
+/// Developer mode (addendum 7) is the [`dev::DevBackend`] half.
+pub trait Backend: dev::DevBackend + Send + Sync + 'static {
     fn overview(&self) -> CmdResult<Overview>;
     fn discover_installs(&self, deep: bool) -> CmdResult<Vec<InstallSummary>>;
     /// Opens the native folder picker in the real backend; the webview never sends a path.
@@ -152,7 +156,7 @@ impl BackendState {
 }
 
 /// Run a backend call on the blocking pool (real implementations read and hash files).
-async fn run<T: Send + 'static>(
+pub(crate) async fn run<T: Send + 'static>(
     state: &BackendState,
     f: impl FnOnce(&dyn Backend) -> CmdResult<T> + Send + 'static,
 ) -> CmdResult<T> {
@@ -329,6 +333,27 @@ macro_rules! contract_handler {
             $crate::contract::skip_update,
             $crate::contract::open_release_page,
             $crate::contract::install_update,
+            $crate::contract::dev::dev_status,
+            $crate::contract::dev::dev_open,
+            $crate::contract::dev::dev_close,
+            $crate::contract::dev::dev_types,
+            $crate::contract::dev::dev_tree,
+            $crate::contract::dev::dev_search,
+            $crate::contract::dev::dev_record,
+            $crate::contract::dev::dev_export_record,
+            $crate::contract::dev::dev_export_type,
+            $crate::contract::dev::dev_sources,
+            $crate::contract::dev::dev_add_source,
+            $crate::contract::dev::dev_remove_source,
+            $crate::contract::dev::dev_download_dump,
+            $crate::contract::dev::dev_dataset,
+            $crate::contract::dev::dev_table,
+            $crate::contract::dev::dev_rows,
+            $crate::contract::dev::dev_row,
+            $crate::contract::dev::dev_diff,
+            $crate::contract::dev::dev_diff_summary,
+            $crate::contract::dev::dev_diff_records,
+            $crate::contract::dev::dev_diff_record,
         ]
     };
 }
@@ -400,7 +425,30 @@ pub const COMMAND_NAMES: &[&str] = &[
     "skip_update",
     "open_release_page",
     "install_update",
+    "dev_status",
+    "dev_open",
+    "dev_close",
+    "dev_types",
+    "dev_tree",
+    "dev_search",
+    "dev_record",
+    "dev_export_record",
+    "dev_export_type",
+    "dev_sources",
+    "dev_add_source",
+    "dev_remove_source",
+    "dev_download_dump",
+    "dev_dataset",
+    "dev_table",
+    "dev_rows",
+    "dev_row",
+    "dev_diff",
+    "dev_diff_summary",
+    "dev_diff_records",
+    "dev_diff_record",
 ];
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_dev;

@@ -76,6 +76,17 @@ pub fn run() {
 /// subcommand. Returns the exit code, or `None` when the arguments are not a worker call.
 pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
     use std::path::{Path, PathBuf};
+    // `dev-worker --p4k <P>` (or `--dcb <F> [--ini <F>]`): the Developer mode explorer
+    // (addendum 7.2). Read only; exports go only to paths from a native save dialog.
+    if args.get(1).map(|a| a.as_os_str()) == Some("dev-worker".as_ref()) {
+        return Some(match starorg_data::devworker::parse_args(&args[2..]) {
+            Ok(input) => starorg_data::devworker::run(&input),
+            Err(e) => {
+                eprintln!("dev-worker: {e}");
+                2
+            }
+        });
+    }
     if args.get(1).map(|a| a.as_os_str()) != Some("extract-worker".as_ref()) {
         return None;
     }

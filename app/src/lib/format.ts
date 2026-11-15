@@ -113,6 +113,7 @@ export const JOB_LABEL: Record<JobKind, string> = {
   restore: 'Restore',
   import: 'Import',
   sync: 'StarOrg sync',
+  dev: 'Developer',
   hook: 'Launch hook',
 };
 

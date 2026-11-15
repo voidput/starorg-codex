@@ -6,7 +6,7 @@ use super::*;
 use serde_json::{Value, json};
 use std::path::PathBuf;
 
-fn app_src() -> PathBuf {
+pub(super) fn app_src() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../src/lib/contract")
 }
 
@@ -226,6 +226,9 @@ fn samples() -> Value {
     v["update_status"] = json!(off);
     v["check_for_updates"] = json!(available);
     v["check_for_updates_failed"] = json!(failed);
+    for (k, x) in super::tests_dev::dev_samples() {
+        v[k] = x;
+    }
     v
 }
 
@@ -318,7 +321,7 @@ fn update_samples() -> (UpdateStatus, UpdateStatus, UpdateStatus) {
 /// Regenerate with `UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-strings-app`.
 /// Objects with sorted keys, whatever serde_json's `preserve_order` feature says (starorg-data
 /// turns it on for the whole build).
-fn sorted(v: Value) -> Value {
+pub(super) fn sorted(v: Value) -> Value {
     match v {
         Value::Object(m) => {
             let b: std::collections::BTreeMap<String, Value> =
@@ -348,7 +351,7 @@ fn samples_match_the_committed_file() {
     );
 }
 
-fn names<T: serde::Serialize>(all: &[T]) -> Vec<String> {
+pub(super) fn names<T: serde::Serialize>(all: &[T]) -> Vec<String> {
     all.iter()
         .map(|v| {
             serde_json::to_value(v)
@@ -361,7 +364,7 @@ fn names<T: serde::Serialize>(all: &[T]) -> Vec<String> {
 }
 
 /// `export type X = 'a' | 'b';` from types.ts, as the list of members.
-fn ts_union(ts: &str, name: &str) -> Vec<String> {
+pub(super) fn ts_union(ts: &str, name: &str) -> Vec<String> {
     let start = format!("export type {name} =");
     let at = ts
         .find(&start)
@@ -391,6 +394,7 @@ fn ts_unions_list_every_variant() {
                 E::Cancelled,
                 E::NotImplemented,
                 E::Internal,
+                E::DevDisabled,
             ]),
         ),
         (
@@ -427,6 +431,7 @@ fn ts_unions_list_every_variant() {
                 JobKind::Import,
                 JobKind::Sync,
                 JobKind::Hook,
+                JobKind::Dev,
             ]),
         ),
         (
@@ -924,7 +929,8 @@ fn ts_client_lists_every_command() {
     .unwrap();
     for name in COMMAND_NAMES {
         assert!(
-            src.contains(&format!("$crate::contract::{name},")),
+            src.contains(&format!("$crate::contract::{name},"))
+                || src.contains(&format!("$crate::contract::dev::{name},")),
             "{name} missing from contract_handler!"
         );
     }
@@ -934,7 +940,7 @@ fn ts_client_lists_every_command() {
 // Over IPC
 // ---------------------------------------------------------------------------------------
 
-fn ipc(cmd: &str, body: Value) -> Result<Value, Value> {
+pub(super) fn ipc(cmd: &str, body: Value) -> Result<Value, Value> {
     use tauri::test::{INVOKE_KEY, get_ipc_response, mock_builder, mock_context, noop_assets};
     let app = crate::builder(
         mock_builder(),

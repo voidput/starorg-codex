@@ -39,7 +39,7 @@ impl ColType {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ValueCount {
     pub value: String,
     pub count: u32,

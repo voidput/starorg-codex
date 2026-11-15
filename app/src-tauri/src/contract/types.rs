@@ -45,6 +45,8 @@ pub enum ErrorCode {
     /// The feature waits on something outside the app (StarOrg sync: SC-ORG-BOT#1659).
     NotImplemented,
     Internal,
+    /// A Developer mode command while Settings > Advanced > "Developer mode" is off.
+    DevDisabled,
 }
 
 /// Every command fails with this shape (`Result<T, AppError>`).
@@ -204,6 +206,8 @@ pub enum JobKind {
     Sync,
     /// A LUG launch hook ran (`apply --all --if-stale` from sc-prelaunch / sc-postexit).
     Hook,
+    /// Developer mode: worker start, record export, dataset diff (addendum 7).
+    Dev,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1081,6 +1085,17 @@ pub struct Settings {
     pub network: NetworkSettings,
     pub default_channel: Option<String>,
     pub safe_gpu: bool,
+    /// Missing in older saved settings = all off.
+    #[serde(default)]
+    pub advanced: AdvancedSettings,
+}
+
+/// Settings > Advanced (addendum 7.7).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AdvancedSettings {
+    /// Explorer, Datasets and Diff screens. Off by default.
+    #[serde(default)]
+    pub developer_mode: bool,
 }
 
 // ---------------------------------------------------------------------------------------

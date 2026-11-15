@@ -61,6 +61,8 @@ tauri = { version = "2", features = ["test"] }
 # The apply-flow tests run on elevated Windows CI runners through this override
 # (fsutil::test_allow_elevated); never part of a release build.
 starorg-core = { workspace = true, features = ["test-hooks"] }
+# A synthetic DCB for the Developer mode worker tests (tests/real_dev.rs).
+starorg-data = { workspace = true, features = ["synthetic-dcb"] }
 tempfile.workspace = true
 
 # Not `[lints] workspace = true`: the workspace forbids unsafe code, and this crate needs one

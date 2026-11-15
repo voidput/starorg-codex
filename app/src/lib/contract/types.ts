@@ -12,7 +12,7 @@ export const JOB_EVENT = 'job-progress';
 
 // Errors --------------------------------------------------------------------------------
 
-export type ErrorCode = 'invalid' | 'not-found' | 'needs-decision' | 'busy' | 'network-off' | 'cancelled' | 'not-implemented' | 'internal';
+export type ErrorCode = 'invalid' | 'not-found' | 'needs-decision' | 'busy' | 'network-off' | 'cancelled' | 'not-implemented' | 'internal' | 'dev-disabled';
 
 export interface AppError {
   code: ErrorCode;
@@ -97,7 +97,7 @@ export interface ChannelRef {
 
 // Jobs ----------------------------------------------------------------------------------
 
-export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook';
+export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook' | 'dev';
 export type JobPhase = 'running' | 'done' | 'failed' | 'cancelled';
 
 export interface JobProgress {
@@ -604,6 +604,13 @@ export interface Settings {
   network: NetworkSettings;
   default_channel: string | null;
   safe_gpu: boolean;
+  advanced: AdvancedSettings;
+}
+
+/** Settings > Advanced (addendum 7.7). */
+export interface AdvancedSettings {
+  /** Explorer, Datasets and Diff screens. Off by default. */
+  developer_mode: boolean;
 }
 
 // Characters and blueprints -------------------------------------------------------------
@@ -967,3 +974,6 @@ export interface UpdateStatus {
 export interface UpdateCheckRequest {
   force: boolean;
 }
+
+// Developer mode (addendum 7): dev.ts ---------------------------------------------------
+export type * from './dev';

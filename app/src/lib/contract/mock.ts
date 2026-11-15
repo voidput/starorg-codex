@@ -12,6 +12,8 @@
  * `&installs=0` (nothing found), `&fail=overview`, `&log=empty`, `&nobackups=LIVE`,
  * `&accent=<accent>`, `&palette=black`. Updates: `&update=available|failed|skipped`
  * (mock-update.ts).
+ * Developer mode: `&dev=1` turns it on (Settings > Advanced) with the sample dataset folder
+ * added; `&dev=open` also opens LIVE's explorer (mock-dev.ts).
  * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
  * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
  * not read yet).
@@ -22,6 +24,8 @@ import { ContractError } from './client';
 import samples from './samples.gen.json';
 import type * as T from './types';
 import { createUpdateMock } from './mock-update';
+import { createDevMock, type DevMockData } from './mock-dev';
+import devData from './mock-dev.gen.json';
 
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
@@ -614,7 +618,22 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     sync();
   };
 
+  // Developer mode (mock-dev.ts): the same synthetic DataCore and datasets as the Rust mock.
+  const dev = createDevMock(devData as unknown as DevMockData, {
+    devOn: () => settings.advanced.developer_mode,
+    dumpsOn: () => settings.network.published_dumps,
+    hasChannel: (r) => chans.has(id(r)),
+    channelNames: (install) => installs.find((i) => i.id === install)?.channels.map((c) => c.channel) ?? [],
+    stockText: (k) => table().find((x) => x.key.toLowerCase() === k.toLowerCase())?.original ?? null,
+    emit: (p) => listeners.forEach((l) => l(p)),
+    sleep,
+    delay,
+    nextJob: () => `job-${nextJob++}`,
+    fail: (c, m) => fail(c, m),
+  });
+
   const h: Handlers = {
+    ...dev.handlers,
     overview: () => {
       sync();
       const active = installs.find((i) => i.saved)?.id ?? null;
@@ -1280,6 +1299,11 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   }
   if (params.get('installs') === '0') installs.length = 0;
   const failing = new Set((params.get('fail') ?? '').split(',').filter(Boolean));
+  if (params.get('dev')) {
+    settings.advanced = { developer_mode: true };
+    dev.addFolder();
+    if (params.get('dev') === 'open' && installs[0]) void dev.handlers.dev_types({ req: { install: installs[0].id, channel: 'LIVE' } });
+  }
 
   return {
     kind: 'mock',

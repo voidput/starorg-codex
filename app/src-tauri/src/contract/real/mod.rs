@@ -13,10 +13,12 @@
 //!   return `network-off` or `not-implemented`, never a fake success.
 
 mod convert;
+mod dev;
 mod diag;
 pub mod dialogs;
 mod table;
 
+pub use dev::{DevSpawner, WorkerSpawner};
 pub use dialogs::{DialogSlot, Dialogs, FileFilter, TauriDialogs};
 
 use super::types::*;
@@ -114,6 +116,9 @@ struct AppFile {
     /// Per channel: characters ticked for a StarOrg push.
     #[serde(default)]
     sync: BTreeMap<String, Vec<String>>,
+    /// Developer mode switch and dataset folders (addendum 7).
+    #[serde(default)]
+    dev: dev::DevFile,
 }
 
 const APP_JSON: &str = "app.json";
@@ -217,6 +222,7 @@ pub struct RealBackend {
     cfg: RealConfig,
     mem: Mutex<Mem>,
     update: crate::update::Updater,
+    dev: dev::DevState,
 }
 
 /// Longest header line accepted (the core has no limit; the line goes into every block).
@@ -323,6 +329,7 @@ impl RealBackend {
             cfg,
             mem: Mutex::new(Mem::default()),
             update,
+            dev: dev::DevState::default(),
         }
     }
 
@@ -938,6 +945,9 @@ impl RealBackend {
             },
             default_channel: self.config().default_channel,
             safe_gpu: a.safe_gpu,
+            advanced: AdvancedSettings {
+                developer_mode: a.dev.developer_mode,
+            },
         }
     }
 
@@ -1805,6 +1815,9 @@ impl Backend for RealBackend {
     }
 
     fn cancel_job(&self, job: String) -> CmdResult<()> {
+        if let Some(r) = self.dev_cancel(&job) {
+            return r;
+        }
         let running = self.mem().job.as_ref().is_some_and(|j| j.job == job);
         if !running {
             return Err(err(ErrorCode::NotFound, format!("no running job {job}")));
@@ -2260,7 +2273,13 @@ impl Backend for RealBackend {
         net.published_dumps = false;
         a.network = Some(net);
         a.safe_gpu = req.safe_gpu;
+        let dev_off = a.dev.developer_mode && !req.advanced.developer_mode;
+        a.dev.developer_mode = req.advanced.developer_mode;
         self.save_app_file(&a)?;
+        if dev_off {
+            // Off: the explorer's memory is returned at once.
+            self.dev.stop();
+        }
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
         if cfg.default_channel != req.default_channel {
             cfg.default_channel = req.default_channel.clone();

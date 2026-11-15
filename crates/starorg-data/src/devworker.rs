@@ -173,6 +173,11 @@ pub enum Request {
     Cancel {
         job: u64,
     },
+    /// For each value: the GUID of the record it names (GUID or exact record name), or null.
+    /// Feeds the dataset viewer's "Open in Explorer" links.
+    Resolve {
+        values: Vec<String>,
+    },
     /// Test hook: panics inside the request guard (only with [`Hooks::panic_op`]).
     TestPanic,
 }
@@ -524,6 +529,19 @@ impl<'d, 'a> Session<'d, 'a> {
                 let i = self.find(what)?;
                 let done = export_record(self.db, i, out).map_err(|e| fail("internal", e))?;
                 to(serde_json::to_value(done))
+            }
+            Request::Resolve { values } => {
+                let hits: Vec<Option<String>> = values
+                    .iter()
+                    .take(MAX_PAGE)
+                    .map(|v| {
+                        ix.by_guid(v)
+                            .or_else(|| ix.find_name(v))
+                            .and_then(|i| ix.entry(i))
+                            .map(|e| e.guid.clone())
+                    })
+                    .collect();
+                to(serde_json::to_value(hits))
             }
             Request::TestPanic if self.hooks.panic_op => {
                 panic!("test panic inside the dev worker")

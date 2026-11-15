@@ -7,10 +7,11 @@
  * Selection is at runtime: outside Tauri, or with `?backend=mock`, the mock is used.
  */
 import type * as T from './types';
+import type { DevCommandMap } from './dev';
 import { CONTRACT_VERSION, JOB_EVENT } from './types';
 
 /** Command name -> [arguments object, result]. Argument names match the Rust parameters. */
-export interface CommandMap {
+export interface CommandMap extends DevCommandMap {
   overview: [Record<string, never>, T.Overview];
   discover_installs: [{ deep: boolean }, T.InstallSummary[]];
   pick_install_folder: [Record<string, never>, T.InstallSummary | null];
@@ -147,6 +148,27 @@ export const COMMANDS = [
   'skip_update',
   'open_release_page',
   'install_update',
+  'dev_status',
+  'dev_open',
+  'dev_close',
+  'dev_types',
+  'dev_tree',
+  'dev_search',
+  'dev_record',
+  'dev_export_record',
+  'dev_export_type',
+  'dev_sources',
+  'dev_add_source',
+  'dev_remove_source',
+  'dev_download_dump',
+  'dev_dataset',
+  'dev_table',
+  'dev_rows',
+  'dev_row',
+  'dev_diff',
+  'dev_diff_summary',
+  'dev_diff_records',
+  'dev_diff_record',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.

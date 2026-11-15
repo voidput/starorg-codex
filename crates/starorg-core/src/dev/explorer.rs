@@ -215,6 +215,24 @@ impl ExplorerIndex {
             .unwrap_or_default()
     }
 
+    /// A record of exactly this name (case-insensitive), main records first.
+    pub fn find_name(&self, name: &str) -> Option<usize> {
+        let ln = name.trim().to_lowercase();
+        if ln.is_empty() {
+            return None;
+        }
+        let mut hit = None;
+        for (i, n) in self.lname.iter().enumerate() {
+            if *n == ln {
+                if self.entries[i].main {
+                    return Some(i);
+                }
+                hit.get_or_insert(i);
+            }
+        }
+        hit
+    }
+
     pub fn by_guid(&self, guid: &str) -> Option<usize> {
         self.by_guid
             .get(&guid.trim().to_lowercase())

@@ -229,12 +229,15 @@ fn protocol_answers_each_line_and_exits_on_eof() {
         r#"not json"#,
         r#"{"id":6,"op":"test-panic"}"#,
         r#"{"id":7,"op":"types"}"#,
+        r#"{"id":8,"op":"resolve","values":["SYN_Item_002","nothing"]}"#,
     ]
     .iter()
     .map(|s| s.to_string())
     .collect();
     let replies = run_lines(&db, &lines, Hooks::default());
-    assert_eq!(replies.len(), 8, "{replies:?}");
+    assert_eq!(replies.len(), 9, "{replies:?}");
+    assert_eq!(replies[8]["result"][0], synthetic::guid_text(1, 2));
+    assert!(replies[8]["result"][1].is_null());
     assert_eq!(replies[0]["id"], 1);
     assert_eq!(replies[0]["result"]["struct_defs"], 3);
     assert_eq!(replies[1]["result"]["total"], 3);

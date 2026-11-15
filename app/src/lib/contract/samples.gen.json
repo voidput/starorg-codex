@@ -263,6 +263,1506 @@
     "skipped_version": null
   },
   "contract": 1,
+  "dev_add_source": [
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 6872,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:LIVE",
+      "kind": "build",
+      "label": "LIVE build",
+      "state": "ready"
+    },
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 6874,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:HOTFIX",
+      "kind": "build",
+      "label": "HOTFIX build",
+      "state": "ready"
+    },
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 6845,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:PTU",
+      "kind": "build",
+      "label": "PTU build",
+      "state": "ready"
+    },
+    {
+      "build": null,
+      "datasets": [
+        {
+          "bytes": 1481,
+          "file": "game-ships.json",
+          "rows": 15,
+          "tables": 2
+        },
+        {
+          "bytes": 3765,
+          "file": "game-strings-english.json",
+          "rows": 41,
+          "tables": 2
+        },
+        {
+          "bytes": 6115,
+          "file": "game-weapons.json",
+          "rows": 38,
+          "tables": 2
+        }
+      ],
+      "detail": "/synthetic/sample-data",
+      "id": "folder:0",
+      "kind": "folder",
+      "label": "sample-data",
+      "state": "ready"
+    },
+    {
+      "build": null,
+      "datasets": [],
+      "detail": "Off (Settings > Network)",
+      "id": "dump:LIVE",
+      "kind": "dump",
+      "label": "Published dump",
+      "state": "off"
+    }
+  ],
+  "dev_close": {
+    "build": "4.10.0-mock",
+    "channel": "LIVE",
+    "error": null,
+    "main": 0,
+    "memory": null,
+    "records": 0,
+    "start_ms": null,
+    "started": null,
+    "state": "stopped",
+    "types": 0
+  },
+  "dev_dataset": {
+    "bytes": 6115,
+    "facts": [
+      {
+        "key": "shipWeapons",
+        "value": "30"
+      },
+      {
+        "key": "missiles",
+        "value": "8"
+      }
+    ],
+    "file": "game-weapons.json",
+    "meta": [
+      {
+        "key": "_source",
+        "value": "synthetic"
+      },
+      {
+        "key": "_extracted",
+        "value": "2026-11-14T12:00:00Z"
+      },
+      {
+        "key": "_build",
+        "value": "4.10.0-mock"
+      }
+    ],
+    "tables": [
+      {
+        "kind": "main",
+        "name": "shipWeapons",
+        "rows": 30
+      },
+      {
+        "kind": "main",
+        "name": "missiles",
+        "rows": 8
+      }
+    ]
+  },
+  "dev_diff": {
+    "a": "build:LIVE",
+    "b": "build:PTU",
+    "ms": 12,
+    "tables": [
+      {
+        "added": 1,
+        "changed": 5,
+        "dataset": "gamedata.json",
+        "identity": "recordName",
+        "presence": "both",
+        "removed": 1,
+        "same": 18,
+        "table": "components"
+      },
+      {
+        "added": 0,
+        "changed": 1,
+        "dataset": "gamedata.json",
+        "identity": "recordName",
+        "presence": "both",
+        "removed": 0,
+        "same": 11,
+        "table": "ships"
+      },
+      {
+        "added": 0,
+        "changed": 1,
+        "dataset": "gamedata.json",
+        "identity": "className",
+        "presence": "both",
+        "removed": 0,
+        "same": 9,
+        "table": "weapons"
+      }
+    ]
+  },
+  "dev_diff_record": {
+    "changes": [
+      {
+        "delta": 25.0,
+        "new": 528,
+        "old": 503,
+        "path": "/health",
+        "percent": 4.970178926441352
+      }
+    ],
+    "id": "SYN_shield_001",
+    "state": "changed"
+  },
+  "dev_diff_records": {
+    "fields": [
+      {
+        "count": 5,
+        "value": "health"
+      }
+    ],
+    "identity_options": [
+      "name",
+      "recordName",
+      "kind",
+      "size",
+      "grade",
+      "manufacturer",
+      "health"
+    ],
+    "offset": 0,
+    "records": [
+      {
+        "a": 1,
+        "b": 1,
+        "fields": [
+          "/health"
+        ],
+        "id": "SYN_shield_001",
+        "state": "changed"
+      },
+      {
+        "a": 9,
+        "b": 8,
+        "fields": [
+          "/health"
+        ],
+        "id": "SYN_shield_009",
+        "state": "changed"
+      },
+      {
+        "a": 13,
+        "b": 12,
+        "fields": [
+          "/health"
+        ],
+        "id": "SYN_shield_013",
+        "state": "changed"
+      },
+      {
+        "a": 17,
+        "b": 16,
+        "fields": [
+          "/health"
+        ],
+        "id": "SYN_shield_017",
+        "state": "changed"
+      },
+      {
+        "a": 21,
+        "b": 20,
+        "fields": [
+          "/health"
+        ],
+        "id": "SYN_shield_021",
+        "state": "changed"
+      }
+    ],
+    "summary": {
+      "added": 1,
+      "changed": 5,
+      "dataset": "gamedata.json",
+      "identity": "recordName",
+      "presence": "both",
+      "removed": 1,
+      "same": 18,
+      "table": "components"
+    },
+    "total": 7
+  },
+  "dev_diff_records_added": {
+    "fields": [
+      {
+        "count": 5,
+        "value": "health"
+      }
+    ],
+    "identity_options": [
+      "name",
+      "recordName",
+      "kind",
+      "size",
+      "grade",
+      "manufacturer",
+      "health"
+    ],
+    "offset": 0,
+    "records": [
+      {
+        "a": null,
+        "b": 23,
+        "fields": [],
+        "id": "SYN_cooler_099",
+        "state": "added"
+      }
+    ],
+    "summary": {
+      "added": 1,
+      "changed": 5,
+      "dataset": "gamedata.json",
+      "identity": "recordName",
+      "presence": "both",
+      "removed": 1,
+      "same": 18,
+      "table": "components"
+    },
+    "total": 1
+  },
+  "dev_diff_summary": {
+    "a": "build:LIVE",
+    "b": "build:PTU",
+    "ms": 12,
+    "tables": [
+      {
+        "added": 1,
+        "changed": 5,
+        "dataset": "gamedata.json",
+        "identity": "recordName",
+        "presence": "both",
+        "removed": 1,
+        "same": 18,
+        "table": "components"
+      },
+      {
+        "added": 0,
+        "changed": 1,
+        "dataset": "gamedata.json",
+        "identity": "recordName",
+        "presence": "both",
+        "removed": 0,
+        "same": 11,
+        "table": "ships"
+      },
+      {
+        "added": 0,
+        "changed": 1,
+        "dataset": "gamedata.json",
+        "identity": "className",
+        "presence": "both",
+        "removed": 0,
+        "same": 9,
+        "table": "weapons"
+      }
+    ]
+  },
+  "dev_export_record": {
+    "bytes": 0,
+    "cancelled": true,
+    "path": null,
+    "records": 0
+  },
+  "dev_export_type": {
+    "bytes": 0,
+    "cancelled": true,
+    "path": null,
+    "records": 0
+  },
+  "dev_open": {
+    "build": "4.10.0-mock",
+    "channel": "LIVE",
+    "error": null,
+    "main": 241,
+    "memory": 432013312,
+    "records": 300,
+    "start_ms": 840,
+    "started": "2026-11-14T21:30:05Z",
+    "state": "ready",
+    "types": 3
+  },
+  "dev_record": {
+    "header": {
+      "bytes": 790,
+      "guid": "51000000-0000-4000-8000-000000000001",
+      "main": true,
+      "name": "SYN_Ship_001",
+      "path": "libs/foundry/records/entities/spaceships/syn_ship_001.xml",
+      "tag": null,
+      "type": "SynShip"
+    },
+    "json": "{\"_RecordName_\":\"SYN_Ship_001\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000001\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00008\",\"Crew\":2,\"Mass\":10250,\"Speed\":{\"Scm\":151,\"Max\":907,\"Boost\":{\"Forward\":1.5,\"Back\":0.75}},\"Components\":[{\"_ref\":\"52000000-0000-4000-8000-000000000005\",\"name\":\"SYN_shield_005\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/shield/syn_comp_005.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000006\",\"name\":\"SYN_powerplant_006\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/powerplant/syn_comp_006.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000007\",\"name\":\"SYN_quantumdrive_007\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/quantumdrive/syn_comp_007.xml\"}]}}",
+    "loc": [
+      {
+        "key": "@vehicle_DescSYN_Ship_00008",
+        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+      }
+    ],
+    "pointer": "",
+    "truncated": false
+  },
+  "dev_record_cut": {
+    "header": {
+      "bytes": 1585195,
+      "guid": "51000000-0000-4000-8000-000000000027",
+      "main": true,
+      "name": "SYN_Ship_039",
+      "path": "libs/foundry/records/entities/spaceships/syn_ship_039.xml",
+      "tag": null,
+      "type": "SynShip"
+    },
+    "json": "{\"_RecordName_\":\"SYN_Ship_039\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000027\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00312\",\"Crew\":4,\"Mass\":19750,\"Speed\":{\"_cut\":{\"kind\":\"object\",\"len\":3}},\"Components\":{\"_cut\":{\"kind\":\"array\",\"len\":3}},\"Loadout\":{\"_cut\":{\"kind\":\"array\",\"len\":3400}}}}",
+    "loc": [
+      {
+        "key": "@vehicle_DescSYN_Ship_00312",
+        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+      }
+    ],
+    "pointer": "",
+    "truncated": true
+  },
+  "dev_record_pointer": {
+    "header": {
+      "bytes": 361,
+      "guid": "52000000-0000-4000-8000-000000000004",
+      "main": true,
+      "name": "SYN_cooler_004",
+      "path": "libs/foundry/records/entities/scitem/ships/cooler/syn_comp_004.xml",
+      "tag": null,
+      "type": "SynComponent"
+    },
+    "json": "{\"_ref\":\"51000000-0000-4000-8000-000000000004\",\"name\":\"SYN_Ship_004\",\"type\":\"SynShip\",\"path\":\"libs/foundry/records/entities/spaceships/syn_ship_004.xml\"}",
+    "loc": [],
+    "pointer": "/_RecordValue_/Ship",
+    "truncated": false
+  },
+  "dev_row": {
+    "json": "{\"name\":\"Test Repeater 1\",\"recordName\":\"SYN_Laser_S2_01\",\"id\":\"51000000-0000-4000-8000-000000000001\",\"size\":2,\"type\":\"Cannon\",\"dps\":112.75,\"modes\":[{\"name\":\"Auto\",\"rpm\":601}]}",
+    "links": [
+      {
+        "pointer": "/id",
+        "value": "51000000-0000-4000-8000-000000000001",
+        "what": "51000000-0000-4000-8000-000000000001"
+      }
+    ],
+    "loc": [],
+    "row": 1,
+    "truncated": false
+  },
+  "dev_row_loc": {
+    "json": "{\"name\":\"Sample Cooler 00\",\"recordName\":\"SYN_cooler_000\",\"kind\":\"cooler\",\"size\":1,\"grade\":\"A\",\"manufacturer\":\"SYNA\",\"health\":500,\"loc\":{\"name\":\"item_NameSYN_Cooler_S2_00001\"}}",
+    "links": [
+      {
+        "pointer": "/recordName",
+        "value": "SYN_cooler_000",
+        "what": "52000000-0000-4000-8000-000000000000"
+      }
+    ],
+    "loc": [
+      {
+        "key": "item_NameSYN_Cooler_S2_00001",
+        "text": "Sample Cooler 1"
+      }
+    ],
+    "row": 0,
+    "truncated": false
+  },
+  "dev_rows": {
+    "all": 24,
+    "columns": [
+      "name",
+      "recordName",
+      "kind",
+      "size",
+      "grade",
+      "manufacturer",
+      "health"
+    ],
+    "offset": 0,
+    "rows": [
+      {
+        "cells": [
+          "Sample Cooler 20",
+          "SYN_cooler_020",
+          "cooler",
+          "1",
+          "A",
+          "SYNC",
+          "560"
+        ],
+        "id": 20
+      },
+      {
+        "cells": [
+          "Sample Cooler 16",
+          "SYN_cooler_016",
+          "cooler",
+          "1",
+          "A",
+          "SYNB",
+          "548"
+        ],
+        "id": 16
+      },
+      {
+        "cells": [
+          "Sample Cooler 12",
+          "SYN_cooler_012",
+          "cooler",
+          "1",
+          "A",
+          "SYNA",
+          "536"
+        ],
+        "id": 12
+      }
+    ],
+    "total": 6
+  },
+  "dev_rows_filtered": {
+    "all": 24,
+    "columns": [
+      "name",
+      "size",
+      "manufacturer"
+    ],
+    "offset": 0,
+    "rows": [
+      {
+        "cells": [
+          "Sample Shield 01",
+          "2",
+          "SYNB"
+        ],
+        "id": 1
+      },
+      {
+        "cells": [
+          "Sample Quantum Drive 07",
+          "4",
+          "SYNB"
+        ],
+        "id": 7
+      },
+      {
+        "cells": [
+          "Sample Power Plant 10",
+          "3",
+          "SYNB"
+        ],
+        "id": 10
+      },
+      {
+        "cells": [
+          "Sample Shield 13",
+          "2",
+          "SYNB"
+        ],
+        "id": 13
+      },
+      {
+        "cells": [
+          "Sample Quantum Drive 19",
+          "4",
+          "SYNB"
+        ],
+        "id": 19
+      }
+    ],
+    "total": 6
+  },
+  "dev_search": {
+    "hits": [
+      {
+        "guid": "52000000-0000-4000-8000-00000000000c",
+        "main": true,
+        "name": "SYN_cooler_012",
+        "path": "libs/foundry/records/entities/scitem/ships/cooler/syn_comp_012.xml",
+        "type": "SynComponent"
+      },
+      {
+        "guid": "52000000-0000-4000-8000-000000000010",
+        "main": true,
+        "name": "SYN_cooler_016",
+        "path": "libs/foundry/records/entities/scitem/ships/cooler/syn_comp_016.xml",
+        "type": "SynComponent"
+      }
+    ],
+    "total": 2
+  },
+  "dev_search_guid": {
+    "hits": [
+      {
+        "guid": "51000000-0000-4000-8000-000000000000",
+        "main": true,
+        "name": "SYN_Ship_000",
+        "path": "libs/foundry/records/entities/spaceships/syn_ship_000.xml",
+        "type": "SynShip"
+      },
+      {
+        "guid": "51000000-0000-4000-8000-000000000001",
+        "main": true,
+        "name": "SYN_Ship_001",
+        "path": "libs/foundry/records/entities/spaceships/syn_ship_001.xml",
+        "type": "SynShip"
+      },
+      {
+        "guid": "51000000-0000-4000-8000-000000000002",
+        "main": true,
+        "name": "SYN_Ship_002",
+        "path": "libs/foundry/records/entities/spaceships/syn_ship_002.xml",
+        "type": "SynShip"
+      }
+    ],
+    "total": 40
+  },
+  "dev_search_type": {
+    "hits": [
+      {
+        "guid": "53000000-0000-4000-8000-00000000003b",
+        "main": true,
+        "name": "SynTag59",
+        "path": "libs/foundry/records/tagdatabase/syn_tags.xml",
+        "type": "SynTag"
+      },
+      {
+        "guid": "53000000-0000-4000-8000-000000000005",
+        "main": false,
+        "name": "SynTag05",
+        "path": "libs/foundry/records/tagdatabase/syn_tags.xml",
+        "type": "SynTag"
+      },
+      {
+        "guid": "53000000-0000-4000-8000-00000000000f",
+        "main": false,
+        "name": "SynTag15",
+        "path": "libs/foundry/records/tagdatabase/syn_tags.xml",
+        "type": "SynTag"
+      }
+    ],
+    "total": 15
+  },
+  "dev_sources": [
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 6872,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:LIVE",
+      "kind": "build",
+      "label": "LIVE build",
+      "state": "ready"
+    },
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 6874,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:HOTFIX",
+      "kind": "build",
+      "label": "HOTFIX build",
+      "state": "ready"
+    },
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 6845,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:PTU",
+      "kind": "build",
+      "label": "PTU build",
+      "state": "ready"
+    },
+    {
+      "build": null,
+      "datasets": [],
+      "detail": "Off (Settings > Network)",
+      "id": "dump:LIVE",
+      "kind": "dump",
+      "label": "Published dump",
+      "state": "off"
+    }
+  ],
+  "dev_status": {
+    "build": "4.10.0-mock",
+    "channel": "LIVE",
+    "error": null,
+    "main": 0,
+    "memory": null,
+    "records": 0,
+    "start_ms": null,
+    "started": null,
+    "state": "stopped",
+    "types": 0
+  },
+  "dev_table": {
+    "columns": [
+      {
+        "distinct": [
+          {
+            "count": 1,
+            "value": "Sample Cooler 00"
+          },
+          {
+            "count": 1,
+            "value": "Sample Cooler 04"
+          },
+          {
+            "count": 1,
+            "value": "Sample Cooler 08"
+          },
+          {
+            "count": 1,
+            "value": "Sample Cooler 12"
+          },
+          {
+            "count": 1,
+            "value": "Sample Cooler 16"
+          },
+          {
+            "count": 1,
+            "value": "Sample Cooler 20"
+          },
+          {
+            "count": 1,
+            "value": "Sample Power Plant 02"
+          },
+          {
+            "count": 1,
+            "value": "Sample Power Plant 06"
+          },
+          {
+            "count": 1,
+            "value": "Sample Power Plant 10"
+          },
+          {
+            "count": 1,
+            "value": "Sample Power Plant 14"
+          },
+          {
+            "count": 1,
+            "value": "Sample Power Plant 18"
+          },
+          {
+            "count": 1,
+            "value": "Sample Power Plant 22"
+          },
+          {
+            "count": 1,
+            "value": "Sample Quantum Drive 03"
+          },
+          {
+            "count": 1,
+            "value": "Sample Quantum Drive 07"
+          },
+          {
+            "count": 1,
+            "value": "Sample Quantum Drive 11"
+          },
+          {
+            "count": 1,
+            "value": "Sample Quantum Drive 15"
+          },
+          {
+            "count": 1,
+            "value": "Sample Quantum Drive 19"
+          },
+          {
+            "count": 1,
+            "value": "Sample Quantum Drive 23"
+          },
+          {
+            "count": 1,
+            "value": "Sample Shield 01"
+          },
+          {
+            "count": 1,
+            "value": "Sample Shield 05"
+          },
+          {
+            "count": 1,
+            "value": "Sample Shield 09"
+          },
+          {
+            "count": 1,
+            "value": "Sample Shield 13"
+          },
+          {
+            "count": 1,
+            "value": "Sample Shield 17"
+          },
+          {
+            "count": 1,
+            "value": "Sample Shield 21"
+          }
+        ],
+        "filled": 24,
+        "kind": "text",
+        "max": null,
+        "min": null,
+        "name": "name"
+      },
+      {
+        "distinct": [
+          {
+            "count": 1,
+            "value": "SYN_cooler_000"
+          },
+          {
+            "count": 1,
+            "value": "SYN_cooler_004"
+          },
+          {
+            "count": 1,
+            "value": "SYN_cooler_008"
+          },
+          {
+            "count": 1,
+            "value": "SYN_cooler_012"
+          },
+          {
+            "count": 1,
+            "value": "SYN_cooler_016"
+          },
+          {
+            "count": 1,
+            "value": "SYN_cooler_020"
+          },
+          {
+            "count": 1,
+            "value": "SYN_powerplant_002"
+          },
+          {
+            "count": 1,
+            "value": "SYN_powerplant_006"
+          },
+          {
+            "count": 1,
+            "value": "SYN_powerplant_010"
+          },
+          {
+            "count": 1,
+            "value": "SYN_powerplant_014"
+          },
+          {
+            "count": 1,
+            "value": "SYN_powerplant_018"
+          },
+          {
+            "count": 1,
+            "value": "SYN_powerplant_022"
+          },
+          {
+            "count": 1,
+            "value": "SYN_quantumdrive_003"
+          },
+          {
+            "count": 1,
+            "value": "SYN_quantumdrive_007"
+          },
+          {
+            "count": 1,
+            "value": "SYN_quantumdrive_011"
+          },
+          {
+            "count": 1,
+            "value": "SYN_quantumdrive_015"
+          },
+          {
+            "count": 1,
+            "value": "SYN_quantumdrive_019"
+          },
+          {
+            "count": 1,
+            "value": "SYN_quantumdrive_023"
+          },
+          {
+            "count": 1,
+            "value": "SYN_shield_001"
+          },
+          {
+            "count": 1,
+            "value": "SYN_shield_005"
+          },
+          {
+            "count": 1,
+            "value": "SYN_shield_009"
+          },
+          {
+            "count": 1,
+            "value": "SYN_shield_013"
+          },
+          {
+            "count": 1,
+            "value": "SYN_shield_017"
+          },
+          {
+            "count": 1,
+            "value": "SYN_shield_021"
+          }
+        ],
+        "filled": 24,
+        "kind": "text",
+        "max": null,
+        "min": null,
+        "name": "recordName"
+      },
+      {
+        "distinct": [
+          {
+            "count": 6,
+            "value": "cooler"
+          },
+          {
+            "count": 6,
+            "value": "powerplant"
+          },
+          {
+            "count": 6,
+            "value": "quantumdrive"
+          },
+          {
+            "count": 6,
+            "value": "shield"
+          }
+        ],
+        "filled": 24,
+        "kind": "text",
+        "max": null,
+        "min": null,
+        "name": "kind"
+      },
+      {
+        "distinct": null,
+        "filled": 24,
+        "kind": "number",
+        "max": 4.0,
+        "min": 1.0,
+        "name": "size"
+      },
+      {
+        "distinct": [
+          {
+            "count": 6,
+            "value": "A"
+          },
+          {
+            "count": 6,
+            "value": "B"
+          },
+          {
+            "count": 6,
+            "value": "C"
+          },
+          {
+            "count": 6,
+            "value": "D"
+          }
+        ],
+        "filled": 24,
+        "kind": "text",
+        "max": null,
+        "min": null,
+        "name": "grade"
+      },
+      {
+        "distinct": [
+          {
+            "count": 8,
+            "value": "SYNA"
+          },
+          {
+            "count": 8,
+            "value": "SYNB"
+          },
+          {
+            "count": 8,
+            "value": "SYNC"
+          }
+        ],
+        "filled": 24,
+        "kind": "text",
+        "max": null,
+        "min": null,
+        "name": "manufacturer"
+      },
+      {
+        "distinct": null,
+        "filled": 24,
+        "kind": "number",
+        "max": 569.0,
+        "min": 500.0,
+        "name": "health"
+      },
+      {
+        "distinct": null,
+        "filled": 24,
+        "kind": "object",
+        "max": null,
+        "min": null,
+        "name": "loc"
+      }
+    ],
+    "default_columns": [
+      "name",
+      "recordName",
+      "kind",
+      "size",
+      "grade",
+      "manufacturer",
+      "health"
+    ],
+    "identity": "recordName",
+    "kind": "main",
+    "name": "components",
+    "rows": 24
+  },
+  "dev_table_kv": {
+    "columns": [
+      {
+        "distinct": [
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00000"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00008"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00016"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00024"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00032"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00040"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00048"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00056"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00064"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00072"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00080"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00088"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00096"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00104"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00112"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00120"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00128"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00136"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00144"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00152"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00160"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00168"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00176"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00184"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00192"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00200"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00208"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00216"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00224"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00232"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00240"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00248"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00256"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00264"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00272"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00280"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00288"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00296"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00304"
+          },
+          {
+            "count": 1,
+            "value": "vehicle_DescSYN_Ship_00312"
+          }
+        ],
+        "filled": 40,
+        "kind": "text",
+        "max": null,
+        "min": null,
+        "name": "key"
+      },
+      {
+        "distinct": [
+          {
+            "count": 1,
+            "value": "Synthetic hull 0. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 104. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 112. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 120. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 128. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 136. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 144. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 152. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 16. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 160. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 168. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 176. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 184. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 192. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 200. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 208. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 216. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 224. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 232. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 24. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 240. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 248. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 256. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 264. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 272. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 280. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 288. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 296. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 304. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 312. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 32. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 40. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 48. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 56. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 64. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 72. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 8. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 80. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 88. A test ship description.\\nSecond line."
+          },
+          {
+            "count": 1,
+            "value": "Synthetic hull 96. A test ship description.\\nSecond line."
+          }
+        ],
+        "filled": 40,
+        "kind": "text",
+        "max": null,
+        "min": null,
+        "name": "value"
+      }
+    ],
+    "default_columns": [
+      "key",
+      "value"
+    ],
+    "identity": "key",
+    "kind": "main",
+    "name": "strings",
+    "rows": 40
+  },
+  "dev_tree": {
+    "nodes": [
+      {
+        "count": 200,
+        "id": "t:SynComponent",
+        "kind": "type",
+        "label": "SynComponent",
+        "main": false
+      },
+      {
+        "count": 40,
+        "id": "t:SynShip",
+        "kind": "type",
+        "label": "SynShip",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "t:SynTag",
+        "kind": "type",
+        "label": "SynTag",
+        "main": false
+      }
+    ],
+    "offset": 0,
+    "total": 3
+  },
+  "dev_tree_folder": {
+    "nodes": [
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-000000000000",
+        "kind": "record",
+        "label": "SYN_cooler_000",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-000000000004",
+        "kind": "record",
+        "label": "SYN_cooler_004",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-000000000008",
+        "kind": "record",
+        "label": "SYN_cooler_008",
+        "main": true
+      }
+    ],
+    "offset": 0,
+    "total": 50
+  },
+  "dev_tree_path": {
+    "nodes": [
+      {
+        "count": 240,
+        "id": "p:entities/",
+        "kind": "folder",
+        "label": "entities",
+        "main": false
+      },
+      {
+        "count": 1,
+        "id": "p:tagdatabase/",
+        "kind": "folder",
+        "label": "tagdatabase",
+        "main": false
+      }
+    ],
+    "offset": 0,
+    "total": 2
+  },
+  "dev_tree_type": {
+    "nodes": [
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-000000000000",
+        "kind": "record",
+        "label": "SYN_cooler_000",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-000000000004",
+        "kind": "record",
+        "label": "SYN_cooler_004",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-000000000008",
+        "kind": "record",
+        "label": "SYN_cooler_008",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-00000000000c",
+        "kind": "record",
+        "label": "SYN_cooler_012",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:52000000-0000-4000-8000-000000000010",
+        "kind": "record",
+        "label": "SYN_cooler_016",
+        "main": true
+      }
+    ],
+    "offset": 0,
+    "total": 200
+  },
+  "dev_types": [
+    {
+      "main": 200,
+      "name": "SynComponent",
+      "records": 200
+    },
+    {
+      "main": 40,
+      "name": "SynShip",
+      "records": 40
+    },
+    {
+      "main": 1,
+      "name": "SynTag",
+      "records": 60
+    }
+  ],
   "discover_installs": [
     {
       "channels": [
@@ -1494,6 +2994,9 @@
     }
   },
   "get_settings": {
+    "advanced": {
+      "developer_mode": false
+    },
     "appearance": {
       "accent": "cyan",
       "palette": "void",

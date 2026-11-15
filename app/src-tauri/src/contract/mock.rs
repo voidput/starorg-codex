@@ -103,6 +103,8 @@ pub struct MockBackend {
     strings: OnceLock<Vec<StringRow>>,
     delay: Duration,
     update: crate::update::Updater,
+    /// Developer mode state (mock_dev.rs).
+    dev: Mutex<super::mock_dev::DevMock>,
 }
 
 impl Default for MockBackend {
@@ -323,6 +325,7 @@ impl MockBackend {
                 },
                 default_channel: None,
                 safe_gpu: false,
+                advanced: AdvancedSettings::default(),
             },
             log: Vec::new(),
             starorg: StarOrgStatus {
@@ -367,6 +370,7 @@ impl MockBackend {
             strings: OnceLock::new(),
             delay,
             update: crate::update::mock::updater(),
+            dev: Mutex::new(Default::default()),
         };
         me.log(
             LogLevel::Info,
@@ -383,6 +387,53 @@ impl MockBackend {
             c.summary.game_running = running;
             Ok(())
         });
+    }
+
+    // Accessors for mock_dev.rs (Developer mode).
+    pub(crate) fn dev_mode_on(&self) -> bool {
+        self.lock().settings.advanced.developer_mode
+    }
+
+    pub(crate) fn dumps_on(&self) -> bool {
+        self.lock().settings.network.published_dumps
+    }
+
+    pub(crate) fn dev_state(&self) -> MutexGuard<'_, super::mock_dev::DevMock> {
+        self.dev.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    pub(crate) fn job_delay(&self) -> Duration {
+        self.delay
+    }
+
+    pub(crate) fn next_job_id(&self) -> String {
+        let mut s = self.lock();
+        s.next_job += 1;
+        format!("job-{}", s.next_job)
+    }
+
+    pub(crate) fn has_channel(&self, r: &ChannelRef) -> bool {
+        self.lock()
+            .channels
+            .contains_key(&(r.install.clone(), r.channel.clone()))
+    }
+
+    /// Stock text of a synthetic key (case-insensitive), for loc lookups.
+    pub(crate) fn stock_text(&self, key: &str) -> Option<String> {
+        self.strings()
+            .iter()
+            .find(|x| x.key.eq_ignore_ascii_case(key))
+            .map(|x| x.original.clone())
+    }
+
+    /// The mock's channel names of an install, in order.
+    pub(crate) fn channel_names(&self, install: &str) -> Vec<String> {
+        self.lock()
+            .installs
+            .iter()
+            .find(|i| i.0.id == install)
+            .map(|i| i.1.clone())
+            .unwrap_or_default()
     }
 
     fn lock(&self) -> MutexGuard<'_, MockState> {
