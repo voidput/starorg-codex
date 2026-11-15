@@ -25,7 +25,14 @@ tauri-build = { version = "2", features = [] }
 starorg-core.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+thiserror.workspace = true
 tauri = { version = "2", features = [] }
+
+[features]
+# Commands answer from the in-memory mock backend (src/contract/mock.rs) until the M1/M2
+# backends are merged. Turning it off needs a real `contract::Backend` in `run()`.
+default = ["mock-backend"]
+mock-backend = []
 
 [dev-dependencies]
 tauri = { version = "2", features = ["test"] }
