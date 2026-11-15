@@ -2199,13 +2199,15 @@ byte-identical.
   `app/src/lib/messages.ts`): `build`, `game data`, `profile`, `patches`, `overrides`,
   `owned blueprints`, `ship names`, `enhancer update`; plus `not the last recorded output`
   for an older output of ours. `app version` is gone.
-- **Output version.** `starorg_core::OUTPUT_VERSION` (`u32`, now 2) is recorded in
+- **Output version.** `starorg_core::OUTPUT_VERSION` (`u32`, now 3) is recorded in
   `applied.json` as `output_version`; a different recorded value is `Stale (enhancer update)`.
   Bump it **only when the generated text changes for the same inputs**: a new or changed
   enhancement, a changed default of a setting, a text or merge fix. `app_version` is still
   recorded, for information only. History: 1 = 0.1.0; 2 = no stats written into shared
   `LOC_*` sentinel keys or `<= ... =>` placeholder text (a radar's stats showed on PTU
-  contract headers through `LOC_PLACEHOLDER`).
+  contract headers through `LOC_PLACEHOLDER`); 3 = same-named blueprints: ownership per
+  blueprint, no false `[Owned]`/`[BP Owned]` (a merged list line is `[Owned]` only when all
+  its blueprints are owned).
 - **Old manifests** (0.1.0, no `output_version`) read as version 1, the version 0.1.0
   generated: no prompt on upgrade, and the first real bump still reaches them. (Treating a
   missing field as "always current" would hide that first bump.)

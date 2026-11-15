@@ -109,7 +109,8 @@ fn manifest_from_0_1_0_keeps_its_profile_and_only_needs_the_enhancer_update() {
         a.insert("profile_hash".into(), profile.legacy_hash().into());
     });
     // The old profile hash still matches (legacy form); 0.1.0 output is version 1, so the
-    // only reason is the generator change since then (OUTPUT_VERSION 2: LOC_* sentinels).
+    // only reason is the generator changes since then (OUTPUT_VERSION 2: LOC_* sentinels;
+    // 3: per-blueprint ownership of same-named blueprints).
     let st = status_json(&f, "LIVE");
     assert_eq!(st["state"], "stale", "{st}");
     assert_eq!(
