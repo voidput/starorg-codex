@@ -98,6 +98,20 @@ jobs:
             fi
           done
 
+      # release-please bumps each workspace crate's Cargo.lock version by name
+      # (release-please-config.json extra-files). A crate missing from that list keeps its old
+      # lockfile version and every `--locked` release build fails after the bump.
+      - name: Every workspace crate is bumped by release-please
+        run: |
+          missing=0
+          for name in $(cargo metadata --no-deps --format-version 1 --locked | jq -r '.packages[].name'); do
+            if ! jq -e --arg n "$name" '.packages["."]["extra-files"][] | select(.path == "Cargo.lock" and (.jsonpath | contains("\"" + $n + "\"")))' release-please-config.json >/dev/null; then
+              echo "::error::release-please-config.json does not bump Cargo.lock for crate $name"
+              missing=1
+            fi
+          done
+          exit $missing
+
   ui:
     name: ui (app/)
     runs-on: ubuntu-latest
