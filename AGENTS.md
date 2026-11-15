@@ -94,6 +94,6 @@ build needs it.
 - **Big temp files go on disk.** On some dev machines `/tmp` is RAM-backed. Put scratch output
   in the repo's `.tmp/` (git-ignored) and point `TMPDIR` there for large test or build runs
   (`scripts/gen-notices.sh` uses `mktemp -d`).
-- **Docs**: kebab-case names in `docs/`, wikilinks only in `docs/Home.md` and
-  `docs/README.md`, frontmatter via `python3 scripts/obsidian_frontmatter.py` (see
+- **Docs**: kebab-case names in `docs/`, wikilinks only in `docs/Home.md` (each with a
+  plain link; `docs/README.md` is the plain-link index), frontmatter via `python3 scripts/obsidian_frontmatter.py` (see
   CONTRIBUTING.md).
