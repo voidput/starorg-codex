@@ -54,7 +54,7 @@ registry! {
 
     // item_tags, // item-tags.ts
 
-    // law, // law.ts
+    law, // law.ts
 
     // loot, // loot.ts
 

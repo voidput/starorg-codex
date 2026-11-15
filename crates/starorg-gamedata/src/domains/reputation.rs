@@ -210,6 +210,25 @@ mod tests {
         assert_eq!((none.display_name, none.gated), (None, None));
     }
 
+    // sc-gamedata src/domains/new-domains.test.ts ("reputation").
+    #[test]
+    fn orders_each_organisations_ranks_by_threshold() {
+        let set = RecordSet::new(vec![
+            standing("ReputationStanding_Guild_02", json!({"minReputation": 2051})),
+            standing("ReputationStanding_Guild_01", json!({"minReputation": 0})),
+        ]);
+        let body = DOMAIN
+            .parse(&ParseContext::new(&set, &Localization::new(), &NoFiles))
+            .unwrap();
+        let mins: Vec<f64> = body["byOrganisation"]["Guild"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["minReputation"].as_f64().unwrap())
+            .collect();
+        assert_eq!(mins, vec![0.0, 2051.0]);
+    }
+
     #[test]
     fn groups_by_organisation_in_threshold_order() {
         let set = RecordSet::new(vec![
