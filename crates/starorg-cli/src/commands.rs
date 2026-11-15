@@ -14,9 +14,9 @@ use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
 /// JSON output schema version (fields are only ever added within a major version).
-const JSON_SCHEMA: u32 = 1;
+pub(crate) const JSON_SCHEMA: u32 = 1;
 
-fn run_discovery(g: &GlobalOpts) -> Discovery {
+pub(crate) fn run_discovery(g: &GlobalOpts) -> Discovery {
     let req = DiscoveryRequest {
         game_dir: g.game_dir.clone(),
         prefix: g.prefix.clone(),
@@ -24,7 +24,7 @@ fn run_discovery(g: &GlobalOpts) -> Discovery {
     discover(&req, &DiscoveryEnv::from_process())
 }
 
-fn fail(g: &GlobalOpts, code: u8, kind: &str, message: &str) -> ExitCode {
+pub(crate) fn fail(g: &GlobalOpts, code: u8, kind: &str, message: &str) -> ExitCode {
     if g.json {
         println!(
             "{}",
@@ -136,6 +136,27 @@ fn canonical_lenient(p: &Path) -> PathBuf {
     }
 }
 
+/// Why an output path must not be written, if it must not: inside the install root, inside
+/// the install's Wine prefix, or inside any Wine prefix (a folder with `drive_c/` and
+/// `system.reg` above it).
+pub(crate) fn forbidden_output(out_abs: &Path, install: &Install) -> Option<String> {
+    if out_abs.starts_with(&install.root) {
+        return Some("inside the game install".into());
+    }
+    let prefix = install
+        .prefix
+        .clone()
+        .or_else(|| starorg_core::running::enclosing_prefix(&install.root));
+    if let Some(p) = prefix {
+        let p = std::fs::canonicalize(&p).unwrap_or(p);
+        if out_abs.starts_with(&p) {
+            return Some(format!("inside the Wine prefix {}", p.display()));
+        }
+    }
+    starorg_core::running::enclosing_prefix(out_abs)
+        .map(|p| format!("inside the Wine prefix {}", p.display()))
+}
+
 /// Write `bytes` to `path` atomically: temp file in the same directory, fsync, rename.
 fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let dir = path.parent().filter(|d| !d.as_os_str().is_empty());
@@ -191,15 +212,15 @@ pub fn build(g: &GlobalOpts, channel: &str, out: &Path, timeout: Option<u64>) ->
         );
     };
 
-    // `build` writes only the given file, never into the game.
+    // `build` writes only the given file, never into the game or its Wine prefix.
     let out_abs = canonical_lenient(out);
-    if out_abs.starts_with(&install.root) {
+    if let Some(why) = forbidden_output(&out_abs, install) {
         return fail(
             g,
             exit::USAGE,
             "usage",
             &format!(
-                "--out {} is inside the game install; build never writes there",
+                "--out {} is {why}; build never writes there",
                 out_abs.display()
             ),
         );

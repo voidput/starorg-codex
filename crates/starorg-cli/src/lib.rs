@@ -3,6 +3,7 @@
 //!
 //! The CLI never opens a window, needs no display, and links no GTK, WebView or HTTP client.
 
+mod apply_cmds;
 mod commands;
 
 use clap::{Args, Parser, Subcommand};
@@ -11,15 +12,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 /// Exit codes (spec 8).
-pub mod exit {
-    pub const OK: u8 = 0;
-    pub const ERROR: u8 = 1;
-    pub const USAGE: u8 = 2;
-    pub const SKIPPED: u8 = 3;
-    pub const NOT_FOUND: u8 = 4;
-    pub const WARNINGS: u8 = 5;
-    pub const NEEDS_DECISION: u8 = 6;
-}
+pub use starorg_core::apply::exit;
 
 #[derive(Debug, Parser)]
 #[command(
@@ -49,6 +42,28 @@ pub struct GlobalOpts {
     /// Errors only.
     #[arg(long, global = true)]
     pub quiet: bool,
+    /// Linux: desktop notification with the result (notify-send). Ignored on Windows.
+    #[arg(long, global = true)]
+    pub notify: bool,
+    /// Force a fresh extraction.
+    #[arg(long, global = true)]
+    pub no_cache: bool,
+    /// Test hook: use this file as the stock global.ini instead of extracting Data.p4k.
+    #[arg(long, global = true, hide = true, value_name = "FILE")]
+    pub test_stock_ini: Option<PathBuf>,
+    /// Test hook: sleep this many milliseconds between writing global.ini and recording it.
+    #[arg(long, global = true, hide = true, value_name = "MS")]
+    pub test_pause_after_write_ms: Option<u64>,
+}
+
+/// `(--channel <NAME> | --all)`.
+#[derive(Debug, Clone, Args)]
+pub struct ChannelSel {
+    #[arg(long, value_name = "NAME", conflicts_with = "all")]
+    pub channel: Option<String>,
+    /// Every set-up channel of the install.
+    #[arg(long)]
+    pub all: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -65,6 +80,75 @@ pub enum Command {
         #[arg(long, value_name = "SECONDS")]
         timeout: Option<u64>,
     },
+    /// Set up a channel: consent to write into it, and pick a starting profile.
+    Setup {
+        #[arg(long, value_name = "NAME")]
+        channel: String,
+        /// Start from a preset.
+        #[arg(long, value_parser = ["recommended", "minimal", "everything"], required_unless_present = "copy_from", conflicts_with = "copy_from")]
+        preset: Option<String>,
+        /// Copy the profile of another channel.
+        #[arg(long, value_name = "CH")]
+        copy_from: Option<String>,
+        /// Agree to replace another g_language value in user.cfg with english.
+        #[arg(long)]
+        switch_language: bool,
+        /// Confirm. Without it, setup only says what it would do (exit 6).
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Build and apply the enhanced global.ini to a channel.
+    Apply {
+        #[command(flatten)]
+        sel: ChannelSel,
+        /// Do nothing when the status is Applied.
+        #[arg(long)]
+        if_stale: bool,
+        /// Run up to validation and preflight; write nothing.
+        #[arg(long)]
+        dry_run: bool,
+        /// Use this profile file instead of the channel's profile.toml.
+        #[arg(long, value_name = "FILE")]
+        profile: Option<PathBuf>,
+        /// Give up when the budget runs out before the write phase (exit 3).
+        #[arg(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
+    },
+    /// Applied, Stale, Changed by another tool, or Not applied, per channel.
+    Status {
+        #[arg(long, value_name = "NAME")]
+        channel: Option<String>,
+    },
+    /// Remove StarOrg changes: back to stock.
+    Remove {
+        #[command(flatten)]
+        sel: ChannelSel,
+        /// Also remove a global.ini from another tool (it is backed up first).
+        #[arg(long)]
+        yes: bool,
+    },
+    /// Put a backup back.
+    Restore {
+        #[arg(long, value_name = "NAME")]
+        channel: String,
+        #[arg(long, value_name = "ID")]
+        backup: String,
+        /// Restore a backup made for another build.
+        #[arg(long)]
+        allow_build_mismatch: bool,
+    },
+    /// List a channel's backups.
+    Backups {
+        #[arg(long, value_name = "NAME")]
+        channel: String,
+    },
+    /// List patches and, when a cached extraction exists, their outcome.
+    Patches {
+        #[arg(long, value_name = "NAME")]
+        channel: Option<String>,
+    },
+    /// Report installs, paths, casing, links, other tools' traces. Changes nothing.
+    Doctor,
     /// Internal: extract one Data.p4k in a separate process (spec 3.3).
     #[command(hide = true)]
     ExtractWorker {
@@ -105,6 +189,37 @@ where
             out,
             timeout,
         } => commands::build(&cli.global, &channel, &out, timeout),
+        Command::Setup {
+            channel,
+            preset,
+            copy_from,
+            switch_language,
+            yes,
+        } => apply_cmds::setup(
+            &cli.global,
+            &channel,
+            preset.as_deref(),
+            copy_from.as_deref(),
+            switch_language,
+            yes,
+        ),
+        Command::Apply {
+            sel,
+            if_stale,
+            dry_run,
+            profile,
+            timeout,
+        } => apply_cmds::apply(&cli.global, &sel, if_stale, dry_run, profile, timeout),
+        Command::Status { channel } => apply_cmds::status(&cli.global, channel.as_deref()),
+        Command::Remove { sel, yes } => apply_cmds::remove(&cli.global, &sel, yes),
+        Command::Restore {
+            channel,
+            backup,
+            allow_build_mismatch,
+        } => apply_cmds::restore(&cli.global, &channel, &backup, allow_build_mismatch),
+        Command::Backups { channel } => apply_cmds::backups(&cli.global, &channel),
+        Command::Patches { channel } => apply_cmds::patches(&cli.global, channel.as_deref()),
+        Command::Doctor => apply_cmds::doctor(&cli.global),
         Command::ExtractWorker {
             p4k,
             out,
