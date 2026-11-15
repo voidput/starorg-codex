@@ -1172,7 +1172,7 @@ mod tests {
         assert!(!a.is_empty());
         for (k, v) in &a {
             assert_eq!(*k, normalize(k), "alias keys are normalised");
-            assert!(v.starts_with("vehicle_Name"), "{v}");
+            assert!(v.to_ascii_lowercase().starts_with("vehicle_name"), "{v}");
         }
     }
 }

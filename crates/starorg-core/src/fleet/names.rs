@@ -176,6 +176,86 @@ pub fn preview(
     v
 }
 
+/// One listed ship as `fleet list` and the Ships screen show it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+pub struct Listed {
+    /// 1-based among the listed ships this build has; `None` when it lacks the hull.
+    pub position: Option<usize>,
+    pub hull: String,
+    pub group: Option<String>,
+    /// Prefix with its separator (`01 `), empty for none.
+    pub prefix: String,
+    /// Stock long name (empty when the build lacks the hull).
+    pub stock: String,
+    /// Final long name after the plan and overrides.
+    pub value: String,
+    pub renamed: bool,
+    /// An override replaces the long (or short) key: it wins with its whole value.
+    pub overridden: bool,
+    pub overridden_short: bool,
+    pub not_in_build: bool,
+}
+
+/// The listed ships in order with their final names. `overrides` are the channel's
+/// `overrides.ini` lines (a later line for the same key wins, as in merge).
+pub fn listing(s: &ShipNames, cat: &Catalog, overrides: &[crate::state::Override]) -> Vec<Listed> {
+    let p = plan(s, cat);
+    let ov = |key: &str| {
+        let f = fold_key(key);
+        overrides
+            .iter()
+            .rev()
+            .find(|o| fold_key(&o.key) == f)
+            .map(|o| o.value.clone())
+    };
+    s.ordered()
+        .into_iter()
+        .map(|(g, e)| {
+            let group = g.map(|g| g.id.clone());
+            match (
+                cat.get(&e.hull),
+                p.placed
+                    .iter()
+                    .find(|x| fold_key(&x.hull) == fold_key(&e.hull)),
+            ) {
+                (Some(h), Some(placed)) => {
+                    let edit = p.edits.iter().find(|x| !x.short && x.hull == h.hull);
+                    let prefix = edit.map(|x| x.prefix.clone()).unwrap_or_default();
+                    let long_ov = ov(&h.hull);
+                    let short_ov = h.short_key.as_deref().and_then(ov);
+                    Listed {
+                        position: Some(placed.position),
+                        hull: h.hull.clone(),
+                        group,
+                        prefix,
+                        stock: h.name.clone(),
+                        value: long_ov.clone().unwrap_or_else(|| {
+                            edit.map(|x| x.value(&h.name))
+                                .unwrap_or_else(|| h.name.clone())
+                        }),
+                        renamed: e.name.is_some(),
+                        overridden: long_ov.is_some(),
+                        overridden_short: short_ov.is_some(),
+                        not_in_build: false,
+                    }
+                }
+                _ => Listed {
+                    position: None,
+                    hull: e.hull.clone(),
+                    group,
+                    prefix: String::new(),
+                    stock: String::new(),
+                    value: e.name.clone().unwrap_or_default(),
+                    renamed: e.name.is_some(),
+                    overridden: false,
+                    overridden_short: false,
+                    not_in_build: true,
+                },
+            }
+        })
+        .collect()
+}
+
 #[cfg(test)]
 #[allow(clippy::field_reassign_with_default)]
 mod tests {
