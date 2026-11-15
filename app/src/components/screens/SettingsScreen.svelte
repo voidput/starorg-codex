@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * Settings (spec 9.4): Game, Appearance, Network (all off by default, spec 11), StarOrg Tools,
-   * Launch hooks (Linux), Diagnostics, Command line. A section index on top jumps by anchor.
+   * Launch hooks (Linux), Diagnostics, Advanced (Developer mode, addendum 7.8), Command line.
+   * A section index on top jumps by anchor.
    */
   import Wand from '@lucide/svelte/icons/wand-sparkles';
   import * as Card from '@/components/ui/card';
@@ -27,6 +28,7 @@
     { id: 'starorg', label: 'StarOrg Tools' },
     { id: 'hooks', label: 'Launch hooks' },
     { id: 'diagnostics', label: 'Diagnostics' },
+    { id: 'advanced', label: 'Advanced' },
     { id: 'cli', label: 'Command line' },
   ];
   function jump(id: string) {
@@ -164,7 +166,7 @@
       </Card.Header>
       <Card.Content class="grid gap-1">
         <UpdatesSection checked={s.network.check_updates} onchange={(v) => patch((x) => (x.network.check_updates = v))} />
-        <SwitchRow id="net-dumps" label="Use published game data" hint="Not in this build yet; game data is read from Data.p4k on this machine. When built: downloads the datasets for your exact build from github.com/voidput/sc-gamedata-dumps, checked by checksum and read as data only." checked={false} disabled onchange={() => {}} />
+        <SwitchRow id="net-dumps" label="Use published game data" hint="Not in this build yet; game data is read from Data.p4k on this machine. When built: downloads the datasets for your exact build from github.com/voidput/sc-gamedata-dumps, checked by checksum and read as data only, for apply and as a Developer mode dataset source." checked={false} disabled onchange={() => {}} />
         <SwitchRow id="net-starorg" label="Connect StarOrg Tools" hint="Lets you sign in to starorg.tools in your browser to pull and push owned blueprints. Nothing is sent until you sign in." checked={s.network.starorg} onchange={(v) => patch((x) => (x.network.starorg = v))} />
         <p class="text-muted-foreground mt-2 text-[12px]">No telemetry, crash upload or analytics exists in the app. On Windows the window is drawn by Microsoft's WebView2 runtime, which has its own update traffic that the app cannot fully switch off. On Linux the window loads only the app's own pages.</p>
       </Card.Content>
@@ -172,6 +174,23 @@
     <StarOrgCard />
     <HooksCard />
     <DoctorCard />
+    <Card.Root id="advanced">
+      <Card.Header>
+        <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Advanced</Card.Title>
+      </Card.Header>
+      <Card.Content class="grid gap-1">
+        <SwitchRow
+          id="dev-mode"
+          label="Developer mode"
+          hint="Adds tools to browse the game's data records and compare datasets. Read only. Uses about 400 MB of memory while open."
+          checked={s.advanced.developer_mode}
+          onchange={(v) => patch((x) => (x.advanced.developer_mode = v))}
+        />
+        {#if s.advanced.developer_mode}
+          <p class="text-muted-foreground mt-1 text-[12px]">Explorer (Alt+9), Datasets and Diff are in the sidebar under Dev; Settings moves to Alt+0. Ctrl+K has "Find record…".</p>
+        {/if}
+      </Card.Content>
+    </Card.Root>
     <Card.Root id="cli">
       <Card.Header>
         <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Command line</Card.Title>
@@ -183,6 +202,8 @@ starorg-strings apply --channel LIVE
 starorg-strings apply --all --if-stale --timeout 20
 starorg-strings remove --channel LIVE
 starorg-strings blueprints import owned-blueprints.json --character Pilot_A --dry-run
+starorg-strings dev types --channel LIVE
+starorg-strings dev record &lt;guid|path|name&gt; --channel LIVE
 starorg-strings doctor</pre>
         <p class="text-muted-foreground text-[12px]">Exit codes: 0 done, 5 applied with warnings, other values an error named in the output. Before uninstalling, run <span class="mono">starorg-strings remove --all</span> to put stock text back.</p>
       </Card.Content>

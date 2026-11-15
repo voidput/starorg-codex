@@ -1,11 +1,17 @@
-/** Sidebar layout (spec 9.3, addendum §6.6): Home · Customize (Enhancements, Strings, Patches, Blueprints, Ships) · Game (Backups, Activity) · Settings. */
-export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'backups' | 'activity' | 'settings';
+/**
+ * Sidebar layout (spec 9.3, addendum §6.6, §7.8): Home · Customize (Enhancements, Strings, Patches,
+ * Blueprints, Ships) · Game (Backups, Activity) · Dev (Explorer, Datasets, Diff; only with
+ * Settings > Advanced > Developer mode on) · Settings. With Developer mode on, Alt+9 opens the
+ * Explorer and Settings moves to Alt+0 (Q-D6: Datasets and Diff through Ctrl+K).
+ */
+export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'backups' | 'activity' | 'settings' | DevScreenId;
+export type DevScreenId = 'explorer' | 'datasets' | 'diff';
 
 export interface NavItem {
   id: ScreenId;
   label: string;
   description: string;
-  /** Keyboard shortcut digit (Alt+n). */
+  /** Keyboard shortcut digit (Alt+n); empty = palette only. */
   key: string;
 }
 
@@ -38,6 +44,27 @@ export const NAV: NavGroup[] = [
 
 export const NAV_ITEMS = NAV.flatMap((g) => g.items);
 
-export const findNav = (id: ScreenId): NavItem => NAV_ITEMS.find((i) => i.id === id) ?? NAV_ITEMS[0]!;
+export const DEV_GROUP: NavGroup = {
+  label: 'Dev',
+  items: [
+    { id: 'explorer', label: 'Explorer', description: "The game's DataCore records: types, folders, search, references", key: '9' },
+    { id: 'datasets', label: 'Datasets', description: 'Our game data and folders of JSON files as tables', key: '' },
+    { id: 'diff', label: 'Diff', description: 'Compare two builds or two dataset folders', key: '' },
+  ],
+};
 
-export const isScreen = (s: string | null): s is ScreenId => NAV_ITEMS.some((n) => n.id === s);
+export const DEV_SCREENS: readonly DevScreenId[] = ['explorer', 'datasets', 'diff'];
+export const isDevScreen = (s: ScreenId): s is DevScreenId => (DEV_SCREENS as readonly string[]).includes(s);
+
+/** The sidebar groups: the Dev group after Game when Developer mode is on. */
+export function navGroups(dev: boolean): NavGroup[] {
+  if (!dev) return NAV;
+  const settings = NAV[NAV.length - 1]!;
+  return [...NAV.slice(0, -1), DEV_GROUP, { label: null, items: settings.items.map((i) => ({ ...i, key: '0' })) }];
+}
+
+export const navItems = (dev: boolean): NavItem[] => navGroups(dev).flatMap((g) => g.items);
+
+export const findNav = (id: ScreenId): NavItem => navItems(true).find((i) => i.id === id) ?? NAV_ITEMS[0]!;
+
+export const isScreen = (s: string | null): s is ScreenId => navItems(true).some((n) => n.id === s);

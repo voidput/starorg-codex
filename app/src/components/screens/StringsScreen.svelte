@@ -42,8 +42,10 @@
   const PAGE = 200;
   const OVERSCAN = 8;
 
-  let search = $state('');
-  let debounced = $state('');
+  // A loc key handed over from the Dev screens (Explorer, Datasets) becomes the search.
+  let search = $state(app.stringsSearch ?? '');
+  let debounced = $state(app.stringsSearch ?? '');
+  app.stringsSearch = null;
   let sources = $state<StringSource[]>([]);
   let changedOnly = $state(false);
   /** Which generator touched the row (`StringRow.category`); separate from the group tree. */

@@ -59,6 +59,8 @@ class AppState {
   rev = $state(0);
   /** Unsaved edits of the open screen, registered by that screen. */
   draft = $state.raw<Draft | null>(null);
+  /** A search the Strings screen takes on its next open (a loc key from the Dev screens). */
+  stringsSearch = $state<string | null>(null);
   pending = $state.raw<Pending | null>(null);
 
   install = $derived(this.overview?.installs.find((i) => i.id === this.installId) ?? this.overview?.installs[0] ?? null);

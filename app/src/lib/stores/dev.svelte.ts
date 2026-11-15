@@ -1,0 +1,74 @@
+/**
+ * Developer mode state shared by the Dev screens and the command palette (addendum 7.8): the
+ * explorer worker's status, the visited-records history, and hand-offs from Ctrl+K ("Find
+ * record…", "Open record by GUID") and from the dataset viewer ("Open in Explorer").
+ */
+import { devApi, type DevStatus } from '@/lib/contract/dev';
+import { toContractError, type ContractError } from '@/lib/contract/client';
+import type { ChannelRef } from '@/lib/contract/types';
+import { History } from '@/lib/devnav';
+
+class DevState {
+  status = $state<DevStatus | null>(null);
+  statusFor = $state('');
+  opening = $state(false);
+  error = $state<ContractError | null>(null);
+  /** A search the explorer should run and focus (palette "Find record…"). */
+  pendingSearch = $state<string | null>(null);
+  /** A record the explorer should open (palette GUID, dataset link). */
+  pendingOpen = $state<string | null>(null);
+  /** Bumped on every hand-off so the explorer reacts even to the same text again. */
+  seq = $state(0);
+  history = new History();
+  /** Bumped when the history changes (the class itself is not reactive). */
+  histRev = $state(0);
+
+  findRecord(q: string, go: () => void): void {
+    this.pendingSearch = q;
+    this.seq++;
+    go();
+  }
+
+  openRecord(what: string, go: () => void): void {
+    this.pendingOpen = what;
+    this.seq++;
+    go();
+  }
+
+  /** Status of the worker for this channel; starts it when `open` (with progress events). */
+  async ensure(target: ChannelRef, open: boolean): Promise<DevStatus | null> {
+    const key = `${target.install}/${target.channel}`;
+    try {
+      let s = await devApi.status(target);
+      if (open && s.state !== 'ready') {
+        this.opening = true;
+        s = await devApi.open(target);
+      }
+      this.status = s;
+      this.statusFor = key;
+      this.error = null;
+      return s;
+    } catch (e) {
+      this.error = toContractError(e);
+      try {
+        this.status = await devApi.status(target);
+        this.statusFor = key;
+      } catch {
+        /* keep the last status */
+      }
+      return null;
+    } finally {
+      this.opening = false;
+    }
+  }
+
+  async close(target: ChannelRef): Promise<void> {
+    try {
+      this.status = await devApi.close(target);
+    } catch (e) {
+      this.error = toContractError(e);
+    }
+  }
+}
+
+export const dev = new DevState();
