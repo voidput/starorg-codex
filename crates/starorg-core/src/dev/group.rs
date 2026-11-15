@@ -9,8 +9,11 @@
 //! The structure comes from every row; counts follow the search and filters (facet rule), so
 //! nodes do not jump while typing and zero-count nodes are dimmed rather than removed.
 
-use super::dataset::{ColType, RowFilter, Table, TableKind, row_matches, scalar_text};
+use super::dataset::{
+    ColType, RowFilter, Table, TableKind, identity_column, row_matches, scalar_text,
+};
 use super::diff::{RecordState, TableDiff};
+use super::readable::{self, Lookup};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -110,12 +113,18 @@ pub enum DiffGroupBy {
     Folders,
 }
 
-/// What the app passes to read a value (addendum 7.12 readable labels): `(column, value)`.
+/// What a value reads as (addendum 7.14 readable labels): `(column, value)`.
 pub type LabelFn<'a> = &'a dyn Fn(&str, &str) -> Option<String>;
 
 /// No readable labels.
 pub fn no_labels(_: &str, _: &str) -> Option<String> {
     None
+}
+
+/// Node labels from a lookup: what a value reads as (a record's display name, a
+/// manufacturer's name, stock text of a key).
+pub fn lookup_label(l: &dyn Lookup, column: &str, value: &str) -> Option<String> {
+    readable::label(l, value, Some(column)).map(|x| x.text)
 }
 
 // ---------------------------------------------------------------------------------------
@@ -557,8 +566,12 @@ pub struct GroupQuery {
     pub filters: Vec<RowFilter>,
 }
 
-/// The visible nodes of a table's group tree.
-pub fn group_rows(t: &Table, q: &GroupQuery, label: LabelFn<'_>) -> GroupPage {
+/// The visible nodes of a table's group tree. With a lookup, the search also matches what
+/// cells read as (as the rows do) and node labels read the values.
+pub fn group_rows(t: &Table, q: &GroupQuery, l: Option<&dyn Lookup>) -> GroupPage {
+    let named = |c: &str, v: &str| l.and_then(|l| lookup_label(l, c, v));
+    let label: LabelFn<'_> = &named;
+    let identity = identity_column(&t.rows, None);
     let columns = if q.columns.is_empty() {
         super::dataset::default_columns(&t.columns)
     } else {
@@ -569,7 +582,7 @@ pub fn group_rows(t: &Table, q: &GroupQuery, label: LabelFn<'_>) -> GroupPage {
     let mut total = 0u32;
     if !q.by.is_empty() {
         for r in &t.rows {
-            let hit = row_matches(r, &columns, &needle, &q.filters);
+            let hit = row_matches(r, &columns, &needle, &q.filters, l, identity.as_deref());
             total += u32::from(hit);
             tree.add(&segments(r, &q.by), hit, None, label);
         }
@@ -577,7 +590,7 @@ pub fn group_rows(t: &Table, q: &GroupQuery, label: LabelFn<'_>) -> GroupPage {
         total = t
             .rows
             .iter()
-            .filter(|r| row_matches(r, &columns, &needle, &q.filters))
+            .filter(|r| row_matches(r, &columns, &needle, &q.filters, l, identity.as_deref()))
             .count() as u32;
     }
     tree.finish();

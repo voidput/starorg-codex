@@ -65,6 +65,16 @@ const shots = [
     await p.getByRole('option', { name: /^type › subType › size/ }).click();
     await groups(p).getByRole('treeitem', { name: /^WeaponGun,/ }).waitFor();
   }],
+  ['datasets-tree-maker', 'datasets', async (p) => {
+    await weapons(p);
+    await p.getByRole('combobox', { name: 'Group by' }).click();
+    await p.getByRole('option', { name: 'manufacturer', exact: true }).click();
+    // Readable labels (7.14): codes read as names; the node still filters by the code.
+    await groups(p).getByRole('treeitem', { name: /^Beta Works, 5 rows/ }).click();
+    await p.getByText('5 / 10 rows').waitFor();
+    // The group-by is remembered per table: put the default back for the next shot.
+    await p.evaluate(() => Object.keys(localStorage).filter((k) => k.startsWith('starorg.dev.groupby.')).forEach((k) => localStorage.removeItem(k)));
+  }],
   ['datasets-tree-railed', 'datasets', async (p) => {
     await weapons(p);
     await p.getByRole('button', { name: 'Hide groups' }).click();

@@ -515,7 +515,7 @@ const CATEGORIES: &[&str] = &[
 ];
 
 /// Deterministic synthetic table. Every 9th row is enhanced, every 97th patched.
-fn synthetic_strings() -> Vec<StringRow> {
+pub(super) fn synthetic_strings() -> Vec<StringRow> {
     (0..MOCK_STRING_COUNT)
         .map(|i| {
             let cat = CATEGORIES[i % CATEGORIES.len()];

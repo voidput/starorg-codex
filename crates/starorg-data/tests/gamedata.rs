@@ -334,15 +334,17 @@ fn real_ptu_extracts() {
 #[ignore = "needs the real LIVE Data.p4k"]
 fn real_live_weapons_group_by_type_subtype_size() {
     use starorg_core::dev::dataset::{RowsQuery, infer, query_rows};
-    use starorg_core::dev::group::{
-        GroupPick, GroupQuery, group_rows, no_labels, presets, row_path,
-    };
+    use starorg_core::dev::group::{GroupPick, GroupQuery, group_rows, presets, row_path};
+    use starorg_core::dev::readable::{Lookup, MapLookup};
     use std::collections::BTreeMap;
     let Some(x) = real_extract("LIVE") else {
         return;
     };
     let v = serde_json::to_value(&x.game_data).unwrap();
     let d = infer("gamedata.json", 0, v);
+    // Labels as the app reads them (addendum 7.14).
+    let lookup = MapLookup::from_gamedata(&x.game_data);
+    let l: Option<&dyn Lookup> = Some(&lookup);
     let t = d.table("weapons").expect("weapons table");
     let chain = presets(t).into_iter().next().expect("a default preset");
     assert_eq!(chain.label, "type › subType › size");
@@ -365,7 +367,7 @@ fn real_live_weapons_group_by_type_subtype_size() {
         open,
         ..Default::default()
     };
-    let page = group_rows(t, &q, &no_labels);
+    let page = group_rows(t, &q, l);
     assert_eq!(
         (page.total, page.all),
         (t.rows.len() as u32, t.rows.len() as u32)
@@ -398,6 +400,7 @@ fn real_live_weapons_group_by_type_subtype_size() {
                 ..Default::default()
             },
             1,
+            l,
         );
         assert_eq!(rows.total, n.count, "rows of {}", n.id);
     }

@@ -2,15 +2,16 @@
  * Setup wizard state. Steps derive from the draft (spec 9.4: "steps derive from state, so an
  * interrupted setup resumes"); the draft is kept in localStorage per viewer until setup succeeds.
  */
-import type { ChannelSummary, DataSource, InstallSummary, Preset, SetupRequest } from '@/lib/contract/types';
+import type { ChannelSummary, DataSource, InstallSummary, Preset, Settings, SetupRequest, Theme } from '@/lib/contract/types';
 
-export type StepId = 'install' | 'channels' | 'source' | 'enhancements' | 'review' | 'apply';
+export type StepId = 'install' | 'channels' | 'source' | 'enhancements' | 'prefs' | 'review' | 'apply';
 
 export const STEPS: { id: StepId; title: string; short: string }[] = [
   { id: 'install', title: 'Find your game', short: 'Game' },
   { id: 'channels', title: 'Choose channels', short: 'Channels' },
   { id: 'source', title: 'Game data source', short: 'Data' },
   { id: 'enhancements', title: 'Pick enhancements', short: 'Enhancements' },
+  { id: 'prefs', title: 'Preferences', short: 'Preferences' },
   { id: 'review', title: 'Review', short: 'Review' },
   { id: 'apply', title: 'Apply', short: 'Apply' },
 ];
@@ -27,6 +28,8 @@ export interface Draft {
   data_source: DataSource;
   preset: Preset;
   fix_known_bugs: boolean;
+  /** App settings asked in setup; null until seeded from the saved Settings (or the defaults). */
+  prefs: Prefs | null;
   /** Furthest step reached, for the rail and resume. */
   reached: number;
 }
@@ -34,7 +37,7 @@ export interface Draft {
 const KEY = 'starorg:setup-draft';
 
 export function emptyDraft(): Draft {
-  return { install: null, channels: {}, data_source: 'local', preset: 'recommended', fix_known_bugs: true, reached: 0 };
+  return { install: null, channels: {}, data_source: 'local', preset: 'recommended', fix_known_bugs: true, prefs: null, reached: 0 };
 }
 
 export function loadDraft(): Draft | null {
@@ -102,4 +105,52 @@ export function request(d: Draft, install: InstallSummary): SetupRequest {
     preset: d.preset,
     fix_known_bugs: d.fix_known_bugs,
   };
+}
+
+/**
+ * The basic app settings the Preferences step asks (all existing Settings fields, saved with
+ * save_settings on Apply). Network switches default off (docs/privacy.md).
+ */
+export interface Prefs {
+  /** settings.network.check_updates. Not asked in the Microsoft Store build. */
+  check_updates: boolean;
+  theme: Theme;
+  reduce_effects: boolean;
+  /** settings.network.starorg: offer the starorg.tools sign-in. */
+  starorg: boolean;
+}
+
+/** Defaults when no saved Settings could be read: as Rust's (theme.ts `defaultAppearance`). */
+export function defaultPrefs(linux: boolean): Prefs {
+  return { check_updates: false, theme: 'system', reduce_effects: linux, starorg: false };
+}
+
+/** The current values, so running setup again shows (and keeps) what is saved. */
+export function prefsFrom(s: Settings): Prefs {
+  return { check_updates: s.network.check_updates, theme: s.appearance.theme, reduce_effects: s.appearance.reduce_effects, starorg: s.network.starorg };
+}
+
+/** Settings with the step's choices; everything else as saved. The Store build keeps its update switch. */
+export function withPrefs(s: Settings, p: Prefs, store: boolean): Settings {
+  return {
+    ...s,
+    appearance: { ...s.appearance, theme: p.theme, reduce_effects: p.reduce_effects },
+    network: { ...s.network, check_updates: store ? s.network.check_updates : p.check_updates, starorg: p.starorg },
+  };
+}
+
+const THEME_NAME: Record<Theme, string> = { system: 'Same as the system', dark: 'Dark', light: 'Light' };
+
+/** Review rows for the Preferences step. */
+export function prefsSummary(p: Prefs, store: boolean): { label: string; value: string }[] {
+  const rows: { label: string; value: string }[] = [];
+  if (!store) {
+    rows.push({
+      label: 'Updates',
+      value: p.check_updates ? 'Check automatically (api.github.com, at most once a day)' : 'Do not check (no request)',
+    });
+  }
+  rows.push({ label: 'Appearance', value: `${THEME_NAME[p.theme]}${p.reduce_effects ? ', reduced effects' : ''}` });
+  rows.push({ label: 'StarOrg Tools', value: p.starorg ? 'Sign-in offered (nothing sent until you sign in)' : 'Off' });
+  return rows;
 }

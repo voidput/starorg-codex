@@ -567,13 +567,38 @@
     "changes": [
       {
         "delta": 25.0,
+        "group": null,
         "new": 528,
+        "new_label": null,
         "old": 503,
+        "old_label": null,
         "path": "/health",
-        "percent": 4.970178926441352
+        "path_label": null,
+        "percent": 4.970178926441352,
+        "unit": "HP"
       }
     ],
     "id": "SYN_shield_001",
+    "label": "Sample Cooler 9",
+    "state": "changed"
+  },
+  "dev_diff_record_ship": {
+    "changes": [
+      {
+        "delta": 47.0,
+        "group": null,
+        "new": 200,
+        "new_label": null,
+        "old": 153,
+        "old_label": null,
+        "path": "/scm",
+        "path_label": null,
+        "percent": 30.718954248366014,
+        "unit": "m/s"
+      }
+    ],
+    "id": "SYN_Ship_003",
+    "label": "Synthetic hull 24. A test ship description.\\nSecond line.",
     "state": "changed"
   },
   "dev_diff_records": {
@@ -601,6 +626,7 @@
           "/health"
         ],
         "id": "SYN_shield_001",
+        "label": "Sample Cooler 9",
         "state": "changed"
       },
       {
@@ -610,6 +636,7 @@
           "/health"
         ],
         "id": "SYN_shield_009",
+        "label": "Sample Cooler 73",
         "state": "changed"
       },
       {
@@ -619,6 +646,7 @@
           "/health"
         ],
         "id": "SYN_shield_013",
+        "label": "Sample Cooler 105",
         "state": "changed"
       },
       {
@@ -628,6 +656,7 @@
           "/health"
         ],
         "id": "SYN_shield_017",
+        "label": "Sample Cooler 137",
         "state": "changed"
       },
       {
@@ -637,6 +666,7 @@
           "/health"
         ],
         "id": "SYN_shield_021",
+        "label": "Sample Cooler 169",
         "state": "changed"
       }
     ],
@@ -675,6 +705,7 @@
         "b": 23,
         "fields": [],
         "id": "SYN_cooler_099",
+        "label": "Sample Cooler 99",
         "state": "added"
       }
     ],
@@ -716,6 +747,7 @@
           "/dps"
         ],
         "id": "SYN_Laser_S5_04",
+        "label": "Test Repeater 4",
         "state": "changed"
       }
     ],
@@ -728,6 +760,45 @@
       "removed": 1,
       "same": 7,
       "table": "weapons"
+    },
+    "total": 1
+  },
+  "dev_diff_records_query": {
+    "fields": [
+      {
+        "count": 5,
+        "value": "health"
+      }
+    ],
+    "identity_options": [
+      "name",
+      "recordName",
+      "kind",
+      "size",
+      "grade",
+      "manufacturer",
+      "health"
+    ],
+    "offset": 0,
+    "records": [
+      {
+        "a": 5,
+        "b": null,
+        "fields": [],
+        "id": "SYN_shield_005",
+        "label": "Sample Cooler 41",
+        "state": "removed"
+      }
+    ],
+    "summary": {
+      "added": 1,
+      "changed": 5,
+      "dataset": "gamedata.json",
+      "identity": "recordName",
+      "presence": "both",
+      "removed": 1,
+      "same": 18,
+      "table": "components"
     },
     "total": 1
   },
@@ -895,6 +966,44 @@
       "type": "SynShip"
     },
     "json": "{\"_RecordName_\":\"SYN_Ship_001\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000001\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00008\",\"Crew\":2,\"Mass\":10250,\"Speed\":{\"Scm\":151,\"Max\":907,\"Boost\":{\"Forward\":1.5,\"Back\":0.75}},\"Components\":[{\"_ref\":\"52000000-0000-4000-8000-000000000005\",\"name\":\"SYN_shield_005\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/shield/syn_comp_005.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000006\",\"name\":\"SYN_powerplant_006\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/powerplant/syn_comp_006.xml\"},{\"_ref\":\"52000000-0000-4000-8000-000000000007\",\"name\":\"SYN_quantumdrive_007\",\"type\":\"SynComponent\",\"path\":\"libs/foundry/records/entities/scitem/ships/quantumdrive/syn_comp_007.xml\"}]}}",
+    "labels": {
+      "51000000-0000-4000-8000-000000000001": {
+        "detail": "SYN_Ship_001",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+      },
+      "52000000-0000-4000-8000-000000000005": {
+        "detail": "SYN_shield_005",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Sample Cooler 41"
+      },
+      "52000000-0000-4000-8000-000000000006": {
+        "detail": "SYN_powerplant_006",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Sample Cooler 49"
+      },
+      "52000000-0000-4000-8000-000000000007": {
+        "detail": "SYN_quantumdrive_007",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Sample Cooler 57"
+      },
+      "@vehicle_DescSYN_Ship_00008": {
+        "detail": null,
+        "enhanced": null,
+        "kind": "loc",
+        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+      },
+      "SYN_Ship_001": {
+        "detail": "SYN_Ship_001",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+      }
+    },
     "loc": [
       {
         "key": "@vehicle_DescSYN_Ship_00008",
@@ -915,6 +1024,26 @@
       "type": "SynShip"
     },
     "json": "{\"_RecordName_\":\"SYN_Ship_039\",\"_RecordId_\":\"51000000-0000-4000-8000-000000000027\",\"_RecordValue_\":{\"_Type_\":\"SynShip\",\"Name\":\"@vehicle_DescSYN_Ship_00312\",\"Crew\":4,\"Mass\":19750,\"Speed\":{\"_cut\":{\"kind\":\"object\",\"len\":3}},\"Components\":{\"_cut\":{\"kind\":\"array\",\"len\":3}},\"Loadout\":{\"_cut\":{\"kind\":\"array\",\"len\":3400}}}}",
+    "labels": {
+      "51000000-0000-4000-8000-000000000027": {
+        "detail": "SYN_Ship_039",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+      },
+      "@vehicle_DescSYN_Ship_00312": {
+        "detail": null,
+        "enhanced": null,
+        "kind": "loc",
+        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+      },
+      "SYN_Ship_039": {
+        "detail": "SYN_Ship_039",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Synthetic hull 312. A test ship description.\\nSecond line."
+      }
+    },
     "loc": [
       {
         "key": "@vehicle_DescSYN_Ship_00312",
@@ -935,12 +1064,28 @@
       "type": "SynComponent"
     },
     "json": "{\"_ref\":\"51000000-0000-4000-8000-000000000004\",\"name\":\"SYN_Ship_004\",\"type\":\"SynShip\",\"path\":\"libs/foundry/records/entities/spaceships/syn_ship_004.xml\"}",
+    "labels": {
+      "51000000-0000-4000-8000-000000000004": {
+        "detail": "SYN_Ship_004",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Synthetic hull 32. A test ship description.\\nSecond line."
+      }
+    },
     "loc": [],
     "pointer": "/_RecordValue_/Ship",
     "truncated": false
   },
   "dev_row": {
     "json": "{\"name\":\"Test Repeater 1\",\"recordName\":\"SYN_Laser_S2_01\",\"id\":\"51000000-0000-4000-8000-000000000001\",\"size\":2,\"type\":\"Cannon\",\"dps\":112.75,\"modes\":[{\"name\":\"Auto\",\"rpm\":601}]}",
+    "labels": {
+      "51000000-0000-4000-8000-000000000001": {
+        "detail": "SYN_Ship_001",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Synthetic hull 8. A test ship description.\\nSecond line."
+      }
+    },
     "links": [
       {
         "pointer": "/id",
@@ -954,6 +1099,26 @@
   },
   "dev_row_loc": {
     "json": "{\"name\":\"Sample Cooler 00\",\"recordName\":\"SYN_cooler_000\",\"kind\":\"cooler\",\"size\":1,\"grade\":\"A\",\"manufacturer\":\"SYNA\",\"health\":500,\"loc\":{\"name\":\"item_NameSYN_Cooler_S2_00001\"}}",
+    "labels": {
+      "SYNA": {
+        "detail": null,
+        "enhanced": null,
+        "kind": "manufacturer",
+        "text": "Alpha Synthetics"
+      },
+      "SYN_cooler_000": {
+        "detail": "SYN_cooler_000",
+        "enhanced": null,
+        "kind": "record",
+        "text": "Sample Cooler 1"
+      },
+      "item_NameSYN_Cooler_S2_00001": {
+        "detail": null,
+        "enhanced": null,
+        "kind": "loc",
+        "text": "Sample Cooler 1"
+      }
+    },
     "links": [
       {
         "pointer": "/recordName",
@@ -985,42 +1150,102 @@
     "rows": [
       {
         "cells": [
-          "Sample Cooler 20",
-          "SYN_cooler_020",
-          "cooler",
-          "1",
-          "A",
+          "Sample Quantum Drive 23",
+          "SYN_quantumdrive_023",
+          "quantumdrive",
+          "4",
+          "D",
           "SYNC",
-          "560"
+          "569"
         ],
-        "id": 20
+        "id": 23,
+        "labels": [
+          null,
+          {
+            "detail": "SYN_quantumdrive_023",
+            "enhanced": null,
+            "kind": "record",
+            "text": "Sample Cooler 185"
+          },
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Gamma Test Yards"
+          },
+          null
+        ],
+        "title": "Sample Cooler 185"
       },
       {
         "cells": [
-          "Sample Cooler 16",
-          "SYN_cooler_016",
-          "cooler",
-          "1",
-          "A",
+          "Sample Power Plant 22",
+          "SYN_powerplant_022",
+          "powerplant",
+          "3",
+          "C",
           "SYNB",
-          "548"
+          "566"
         ],
-        "id": 16
+        "id": 22,
+        "labels": [
+          null,
+          {
+            "detail": "SYN_powerplant_022",
+            "enhanced": null,
+            "kind": "record",
+            "text": "Sample Cooler 177"
+          },
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          },
+          null
+        ],
+        "title": "Sample Cooler 177"
       },
       {
         "cells": [
-          "Sample Cooler 12",
-          "SYN_cooler_012",
-          "cooler",
-          "1",
-          "A",
+          "Sample Shield 21",
+          "SYN_shield_021",
+          "shield",
+          "2",
+          "B",
           "SYNA",
-          "536"
+          "563"
         ],
-        "id": 12
+        "id": 21,
+        "labels": [
+          null,
+          {
+            "detail": "SYN_shield_021",
+            "enhanced": null,
+            "kind": "record",
+            "text": "Sample Cooler 169"
+          },
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Alpha Synthetics"
+          },
+          null
+        ],
+        "title": "Sample Cooler 169"
       }
     ],
-    "total": 6
+    "total": 24
   },
   "dev_rows_filtered": {
     "all": 24,
@@ -1037,7 +1262,18 @@
           "2",
           "SYNB"
         ],
-        "id": 1
+        "id": 1,
+        "labels": [
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          }
+        ],
+        "title": "Sample Cooler 9"
       },
       {
         "cells": [
@@ -1045,7 +1281,18 @@
           "4",
           "SYNB"
         ],
-        "id": 7
+        "id": 7,
+        "labels": [
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          }
+        ],
+        "title": "Sample Cooler 57"
       },
       {
         "cells": [
@@ -1053,7 +1300,18 @@
           "3",
           "SYNB"
         ],
-        "id": 10
+        "id": 10,
+        "labels": [
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          }
+        ],
+        "title": "Sample Cooler 81"
       },
       {
         "cells": [
@@ -1061,7 +1319,18 @@
           "2",
           "SYNB"
         ],
-        "id": 13
+        "id": 13,
+        "labels": [
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          }
+        ],
+        "title": "Sample Cooler 105"
       },
       {
         "cells": [
@@ -1069,7 +1338,18 @@
           "4",
           "SYNB"
         ],
-        "id": 19
+        "id": 19,
+        "labels": [
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          }
+        ],
+        "title": "Sample Cooler 153"
       }
     ],
     "total": 6
@@ -1099,7 +1379,23 @@
           "SYNA",
           "100.25"
         ],
-        "id": 0
+        "id": 0,
+        "labels": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Alpha Synthetics"
+          },
+          null
+        ],
+        "title": "Test Repeater 0"
       },
       {
         "cells": [
@@ -1112,7 +1408,23 @@
           "SYNB",
           "112.75"
         ],
-        "id": 1
+        "id": 1,
+        "labels": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          },
+          null
+        ],
+        "title": "Test Repeater 1"
       },
       {
         "cells": [
@@ -1125,7 +1437,23 @@
           "SYNB",
           "137.75"
         ],
-        "id": 3
+        "id": 3,
+        "labels": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          },
+          null
+        ],
+        "title": "Test Repeater 3"
       },
       {
         "cells": [
@@ -1138,7 +1466,23 @@
           "SYNA",
           "175.25"
         ],
-        "id": 6
+        "id": 6,
+        "labels": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Alpha Synthetics"
+          },
+          null
+        ],
+        "title": "Test Repeater 6"
       },
       {
         "cells": [
@@ -1151,10 +1495,138 @@
           "SYNB",
           "187.75"
         ],
-        "id": 7
+        "id": 7,
+        "labels": [
+          null,
+          null,
+          null,
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Beta Works"
+          },
+          null
+        ],
+        "title": "Test Repeater 7"
       }
     ],
     "total": 5
+  },
+  "dev_rows_readable": {
+    "all": 24,
+    "columns": [
+      "name",
+      "recordName",
+      "kind",
+      "size",
+      "grade",
+      "manufacturer",
+      "health"
+    ],
+    "offset": 0,
+    "rows": [
+      {
+        "cells": [
+          "Sample Cooler 00",
+          "SYN_cooler_000",
+          "cooler",
+          "1",
+          "A",
+          "SYNA",
+          "500"
+        ],
+        "id": 0,
+        "labels": [
+          null,
+          {
+            "detail": "SYN_cooler_000",
+            "enhanced": null,
+            "kind": "record",
+            "text": "Sample Cooler 1"
+          },
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Alpha Synthetics"
+          },
+          null
+        ],
+        "title": "Sample Cooler 1"
+      },
+      {
+        "cells": [
+          "Sample Quantum Drive 03",
+          "SYN_quantumdrive_003",
+          "quantumdrive",
+          "4",
+          "D",
+          "SYNA",
+          "509"
+        ],
+        "id": 3,
+        "labels": [
+          null,
+          {
+            "detail": "SYN_quantumdrive_003",
+            "enhanced": null,
+            "kind": "record",
+            "text": "Sample Cooler 25"
+          },
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Alpha Synthetics"
+          },
+          null
+        ],
+        "title": "Sample Cooler 25"
+      },
+      {
+        "cells": [
+          "Sample Power Plant 06",
+          "SYN_powerplant_006",
+          "powerplant",
+          "3",
+          "C",
+          "SYNA",
+          "518"
+        ],
+        "id": 6,
+        "labels": [
+          null,
+          {
+            "detail": "SYN_powerplant_006",
+            "enhanced": null,
+            "kind": "record",
+            "text": "Sample Cooler 49"
+          },
+          null,
+          null,
+          null,
+          {
+            "detail": null,
+            "enhanced": null,
+            "kind": "manufacturer",
+            "text": "Alpha Synthetics"
+          },
+          null
+        ],
+        "title": "Sample Cooler 49"
+      }
+    ],
+    "total": 8
   },
   "dev_search": {
     "hits": [

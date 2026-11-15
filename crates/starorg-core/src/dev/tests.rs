@@ -450,10 +450,11 @@ fn rows_search_filter_sort_and_page() {
             ..Default::default()
         },
         500,
+        None,
     );
     assert_eq!((all.total, all.all, all.rows.len()), (30, 30, 10));
     assert_eq!(all.columns, ["name", "size", "maker", "desc"]);
-    let q = |q: RowsQuery| query_rows(&t, &q, 500);
+    let q = |q: RowsQuery| query_rows(&t, &q, 500, None);
     let r = q(RowsQuery {
         search: "item 1".into(),
         limit: 50,
@@ -514,6 +515,7 @@ fn rows_search_filter_sort_and_page() {
             ..Default::default()
         },
         20,
+        None,
     );
     assert_eq!(r.rows.len(), 20);
 }
@@ -636,4 +638,449 @@ fn oversized_and_malformed_files_are_refused() {
     // Nesting deeper than serde_json's limit of 128.
     let deep = "[".repeat(200) + &"]".repeat(200);
     assert!(Dataset::parse("deep.json", deep.as_bytes()).is_err());
+}
+
+// ---------------------------------------------------------------------------------------
+// Readable labels (addendum 7.14)
+// ---------------------------------------------------------------------------------------
+
+mod readable_labels {
+    use super::super::readable::*;
+    use super::*;
+    use std::collections::HashMap;
+    use std::sync::Arc;
+
+    const COOLER: &str = "aaaaaaaa-0000-4000-8000-000000000001";
+    const TAG: &str = "aaaaaaaa-0000-4000-8000-0000000000a1";
+    const NAMELESS: &str = "aaaaaaaa-0000-4000-8000-000000000002";
+    const UNKNOWN: &str = "aaaaaaaa-0000-4000-8000-0000000000ff";
+
+    fn text(pairs: &[(&str, &str)]) -> TextFn {
+        let m: HashMap<String, String> = pairs
+            .iter()
+            .map(|(k, v)| (k.to_lowercase(), v.to_string()))
+            .collect();
+        Arc::new(move |k: &str| m.get(&k.to_lowercase()).cloned())
+    }
+
+    fn lookup() -> MapLookup {
+        let mut m = MapLookup::new();
+        m.add(KnownRecord {
+            guid: Some(COOLER.into()),
+            name: "EntityClassDefinition.COOL_SYN_S01_Bracer".into(),
+            kind: LabelKind::Record,
+            display: Some("@item_NameCOOL_SYN_S01_Bracer".into()),
+        });
+        m.add(KnownRecord {
+            guid: Some(NAMELESS.into()),
+            name: "SEntityDensityClass.VehicleItems".into(),
+            kind: LabelKind::Record,
+            display: None,
+        });
+        m.add(KnownRecord {
+            guid: Some(TAG.into()),
+            name: format!("Tag.{TAG}"),
+            kind: LabelKind::Tag,
+            display: Some("Cooler".into()),
+        });
+        m.with_stock(text(&[
+            ("item_NameCOOL_SYN_S01_Bracer", "Bracer"),
+            ("item_DescCOOL_SYN_S01_Bracer", "A cooler."),
+            ("manufacturer_NameSYNA", "Alpha Synthetics"),
+            ("LOC_EMPTY", ""),
+        ]))
+        .with_enhanced(text(&[(
+            "item_DescCOOL_SYN_S01_Bracer",
+            "A cooler.\\nGrade: C",
+        )]))
+    }
+
+    #[test]
+    fn guids_read_as_display_names_with_the_short_name() {
+        let l = lookup();
+        let r = label(&l, COOLER, None).unwrap();
+        assert_eq!(r.kind, LabelKind::Record);
+        assert_eq!(r.text, "Bracer");
+        assert_eq!(r.detail.as_deref(), Some("COOL_SYN_S01_Bracer"));
+        // Upper case GUIDs too.
+        assert_eq!(
+            label(&l, &COOLER.to_uppercase(), None).unwrap().text,
+            "Bracer"
+        );
+        // No display name: the short record name.
+        let r = label(&l, NAMELESS, None).unwrap();
+        assert_eq!((r.text.as_str(), r.detail), ("VehicleItems", None));
+        // Names, full or short, case-insensitive.
+        assert_eq!(
+            label(&l, "cool_syn_s01_bracer", Some("item")).unwrap().text,
+            "Bracer"
+        );
+    }
+
+    #[test]
+    fn loc_keys_read_as_stock_text_and_mark_enhanced_text() {
+        let l = lookup();
+        let r = label(&l, "@item_NameCOOL_SYN_S01_Bracer", None).unwrap();
+        assert_eq!(
+            (r.kind, r.text.as_str(), r.enhanced),
+            (LabelKind::Loc, "Bracer", None)
+        );
+        let r = label(&l, "@item_DescCOOL_SYN_S01_Bracer", None).unwrap();
+        assert_eq!(r.text, "A cooler.");
+        assert_eq!(r.enhanced.as_deref(), Some("A cooler.\\nGrade: C"));
+        // Empty stock text stays raw (no blank label).
+        assert_eq!(label(&l, "@LOC_EMPTY", None), None);
+        // Bare keys only where the lookup allows them (datasets).
+        assert_eq!(label(&l, "item_NameCOOL_SYN_S01_Bracer", None), None);
+        let bare = lookup().with_bare_keys(true);
+        assert_eq!(
+            label(&bare, "item_NameCOOL_SYN_S01_Bracer", None)
+                .unwrap()
+                .text,
+            "Bracer"
+        );
+    }
+
+    #[test]
+    fn tags_and_manufacturers() {
+        let l = lookup();
+        let r = label(&l, TAG, None).unwrap();
+        assert_eq!(
+            (r.kind, r.text.as_str(), r.detail),
+            (LabelKind::Tag, "Cooler", None)
+        );
+        let r = label(&l, "SYNA", Some("manufacturer")).unwrap();
+        assert_eq!(
+            (r.kind, r.text.as_str()),
+            (LabelKind::Manufacturer, "Alpha Synthetics")
+        );
+        // Lower case codes (ships), and only under a manufacturer key.
+        assert_eq!(
+            label(&l, "syna", Some("manufacturer")).unwrap().text,
+            "Alpha Synthetics"
+        );
+        assert_eq!(label(&l, "SYNA", Some("grade")), None);
+    }
+
+    #[test]
+    fn unknown_values_stay_raw() {
+        let l = lookup();
+        for (raw, key) in [
+            (UNKNOWN, None),
+            ("@item_NameNOPE", None),
+            ("SYNZ", Some("manufacturer")),
+            ("Some prose with spaces", None),
+            ("", None),
+        ] {
+            assert_eq!(label(&l, raw, key), None, "{raw}");
+        }
+        assert_eq!(label(&NoLookup, COOLER, None), None);
+    }
+
+    #[test]
+    fn record_json_labels_refs_guids_and_keys() {
+        let l = lookup();
+        let v = json!({
+            "_RecordId_": COOLER,
+            "_RecordValue_": {
+                "Localization": { "Name": "@item_NameCOOL_SYN_S01_Bracer", "ShortName": "@LOC_EMPTY" },
+                "density": { "_ref": NAMELESS, "name": "SEntityDensityClass.VehicleItems", "type": "SEntityDensityClass", "path": "x" },
+                "tags": [{ "_RecordId_": TAG, "_RecordName_": format!("Tag.{TAG}") }, { "_RecordId_": UNKNOWN }],
+                "Manufacturer": "SYNA",
+            },
+        });
+        let m = labels_in(&Strict(&l), &v);
+        assert_eq!(m[COOLER].text, "Bracer");
+        assert_eq!(m[NAMELESS].text, "VehicleItems");
+        assert_eq!(m[TAG].text, "Cooler");
+        assert_eq!(m["@item_NameCOOL_SYN_S01_Bracer"].text, "Bracer");
+        assert_eq!(m["SYNA"].kind, LabelKind::Manufacturer);
+        assert!(!m.contains_key(UNKNOWN));
+        assert!(!m.contains_key("@LOC_EMPTY"));
+        assert!(
+            !m.contains_key("SEntityDensityClass.VehicleItems"),
+            "inside a ref only the GUID"
+        );
+        assert_eq!(
+            display_of(&v),
+            Some((LabelKind::Record, "@item_NameCOOL_SYN_S01_Bracer".into()))
+        );
+        let tag = json!({ "_RecordValue_": { "_Type_": "Tag", "tagName": "Cooler" } });
+        assert_eq!(display_of(&tag), Some((LabelKind::Tag, "Cooler".into())));
+        assert_eq!(display_of(&json!({ "_RecordValue_": { "Size": 1 } })), None);
+    }
+
+    /// Only a record's own name fields name it (LIVE: a seat-access entity read "Enter" from
+    /// its interaction, an armor variant "ORC-mkV Core" from its shop entry, a game mode
+    /// "Released" from a filter).
+    #[test]
+    fn display_of_reads_only_own_name_fields() {
+        let rec = |body: Value| json!({ "_RecordValue_": body });
+        let interact = json!({ "_Type_": "SEntityInteractableParams", "Interactable": {
+            "SharedInteractions": [{ "DisplayName": "@ui_interactor_enter" }] } });
+        let ports = json!({ "_Type_": "SItemPortContainerComponentParams",
+            "Ports": [{ "DisplayName": "@itemPort_rifle_1" }] });
+        let shop = |k: &str| json!({ "_Type_": "SCItemPurchasableParams", "displayName": k });
+        let attach = |k: &str| {
+            json!({ "_Type_": "SAttachableComponentParams",
+            "AttachDef": { "Localization": { "Name": k, "ShortName": "@x_short" } } })
+        };
+        // Nothing of its own: no name, whatever its parts say.
+        let seat = rec(json!({ "_Type_": "EntityClassDefinition",
+            "StaticEntityClassData": [{ "displayName": "@LOC_UNINITIALIZED" }],
+            "Components": [ports.clone(), interact.clone()] }));
+        assert_eq!(display_of(&seat), None);
+        let mode = rec(
+            json!({ "_Type_": "GameMode", "filters": [{ "displayName": "@ea_filter_Released" }] }),
+        );
+        assert_eq!(display_of(&mode), None);
+        let nested = rec(json!({ "params": { "entry": { "name": "@gas_name" } } }));
+        assert_eq!(display_of(&nested), None);
+        // The item's own Localization.Name beats the shop entry's shared one.
+        let armor = rec(json!({ "_Type_": "EntityClassDefinition", "Components": [
+            interact.clone(), shop("@item_Name_armor_core"), attach("@item_Name_armor_core_16")] }));
+        assert_eq!(
+            display_of(&armor),
+            Some((LabelKind::Record, "@item_Name_armor_core_16".into()))
+        );
+        // A vehicle without an attach name reads its vehicleName, then a shop name.
+        let ship = rec(json!({ "Components": [interact.clone(),
+            json!({ "_Type_": "VehicleComponentParams", "vehicleName": "@vehicle_NameSYN" }),
+            shop("@vehicle_NameSYN_shop")] }));
+        assert_eq!(
+            display_of(&ship),
+            Some((LabelKind::Record, "@vehicle_NameSYN".into()))
+        );
+        let sold = rec(json!({ "Components": [ports, shop("@item_NameSold")] }));
+        assert_eq!(
+            display_of(&sold),
+            Some((LabelKind::Record, "@item_NameSold".into()))
+        );
+        // Top-level own names, placeholders skipped.
+        let gm = rec(
+            json!({ "_Type_": "GameMode", "locDisplayName": "@ea_ui_mode_FreeFlight",
+            "filters": [{ "displayName": "@ea_filter_Released" }] }),
+        );
+        assert_eq!(
+            display_of(&gm),
+            Some((LabelKind::Record, "@ea_ui_mode_FreeFlight".into()))
+        );
+        let placeholder = rec(json!({ "displayName": "@LOC_PLACEHOLDER", "name": "@own_name" }));
+        assert_eq!(
+            display_of(&placeholder),
+            Some((LabelKind::Record, "@own_name".into()))
+        );
+    }
+
+    #[test]
+    fn rows_titles_paths_units_and_label_search() {
+        let l = lookup().with_bare_keys(true);
+        let row = json!({ "recordName": "EntityClassDefinition.COOL_SYN_S01_Bracer", "loc": { "name": "@item_NameCOOL_SYN_S01_Bracer" }, "manufacturer": "SYNA", "health": 500 });
+        assert_eq!(
+            row_title(&l, &row, Some("recordName")).as_deref(),
+            Some("Bracer")
+        );
+        let by_id = json!({ "className": "COOL_SYN_S01_Bracer" });
+        assert_eq!(
+            row_title(&l, &by_id, Some("className")).as_deref(),
+            Some("Bracer")
+        );
+        let dump = json!({ "className": "SYN_Unknown_01", "name": "Plain Name" });
+        assert_eq!(
+            row_title(&l, &dump, Some("className")).as_deref(),
+            Some("Plain Name")
+        );
+        assert_eq!(row_title(&l, &json!({ "id": UNKNOWN }), Some("id")), None);
+        assert_eq!(
+            path_label(&l, "/loadout/[className=COOL_SYN_S01_Bracer]/size").as_deref(),
+            Some("loadout › Bracer › size")
+        );
+        assert_eq!(path_label(&l, "/stats/health"), None);
+        assert_eq!(
+            group_of(&l, "/loadout/[className=COOL_SYN_S01_Bracer]/size").as_deref(),
+            Some("loadout › Bracer")
+        );
+        assert_eq!(group_of(&l, "/stats/health").as_deref(), Some("stats"));
+        assert_eq!(group_of(&l, "/health"), None);
+        assert_eq!(unit_of("/flight/scmSpeed"), Some("m/s"));
+        assert_eq!(unit_of("/weapons/[name=x]/dps"), Some("dmg/s"));
+        assert_eq!(unit_of("/size"), None);
+        // Search finds a row by what its cells read as; the page carries labels and titles.
+        let rows = vec![
+            row.clone(),
+            json!({ "recordName": "Other.Thing_01", "manufacturer": "SYNB", "health": 1 }),
+        ];
+        let cols = columns(&rows);
+        let t = Table {
+            name: "c".into(),
+            kind: TableKind::Main,
+            rows,
+            columns: cols,
+        };
+        let q = RowsQuery {
+            search: "alpha synth".into(),
+            limit: 10,
+            ..Default::default()
+        };
+        assert_eq!(query_rows(&t, &q, 500, None).total, 0);
+        let p = query_rows(&t, &q, 500, Some(&l));
+        assert_eq!(p.total, 1);
+        let r = &p.rows[0];
+        assert_eq!(r.title.as_deref(), Some("Bracer"));
+        let at = p.columns.iter().position(|c| c == "manufacturer").unwrap();
+        assert_eq!(r.labels[at].as_ref().unwrap().text, "Alpha Synthetics");
+        assert_eq!(r.cells[at].as_deref(), Some("SYNA"), "the raw cell stays");
+        let q = RowsQuery {
+            search: "bracer".into(),
+            limit: 10,
+            ..Default::default()
+        };
+        assert_eq!(query_rows(&t, &q, 500, Some(&l)).total, 1);
+    }
+
+    #[test]
+    fn field_changes_read_on_their_own_side() {
+        let a = lookup();
+        let mut b = MapLookup::new();
+        b.add(KnownRecord {
+            guid: Some(COOLER.into()),
+            name: "EntityClassDefinition.COOL_SYN_S01_Bracer".into(),
+            kind: LabelKind::Record,
+            display: Some("@item_NameCOOL_SYN_S01_Bracer".into()),
+        });
+        let b = b.with_stock(text(&[("item_NameCOOL_SYN_S01_Bracer", "Bracer Mk II")]));
+        let mut c = field_changes(
+            &json!({ "cooler": COOLER, "health": 100, "mass": 2 }),
+            &json!({ "cooler": COOLER.to_uppercase(), "health": 120, "mass": 2 }),
+        );
+        annotate_changes(&mut c, &a, &b);
+        assert_eq!(c.len(), 2);
+        assert_eq!(c[0].path, "/cooler");
+        assert_eq!(c[0].old_label.as_ref().unwrap().text, "Bracer");
+        assert_eq!(c[0].new_label.as_ref().unwrap().text, "Bracer Mk II");
+        assert_eq!(c[1].unit.as_deref(), Some("HP"));
+        assert_eq!(c[1].old_label, None);
+    }
+}
+
+/// Real data, read only (addendum 7.14): two builds' GameData (`gamedata.json`) and stock
+/// `global.ini` in `STARORG_READABLE_A` and `STARORG_READABLE_B` (`DIR/gamedata.json`,
+/// `DIR/base.ini`). Diffs them as the app does and prints titled records, readable field
+/// changes and dataset cells, with timings and lookup sizes. `--ignored --nocapture`.
+#[test]
+#[ignore = "needs real GameData in STARORG_READABLE_A and STARORG_READABLE_B"]
+fn real_builds_read_as_names() {
+    use super::readable::{self, MapLookup};
+    use crate::ini::StockIni;
+    use crate::model::GameData;
+    use std::sync::Arc;
+    let side = |var: &str| {
+        let dir = PathBuf::from(std::env::var(var).expect(var));
+        let stock = Arc::new(StockIni::parse(
+            std::fs::read(dir.join("base.ini")).unwrap(),
+        ));
+        let gd: GameData =
+            serde_json::from_slice(&std::fs::read(dir.join("gamedata.json")).unwrap()).unwrap();
+        let t = std::time::Instant::now();
+        let s = stock.clone();
+        let l = MapLookup::from_gamedata(&gd)
+            .with_stock(Arc::new(move |k: &str| s.value(k).map(str::to_string)))
+            .with_bare_keys(true);
+        eprintln!("{var}: lookup of {} records in {:?}", l.len(), t.elapsed());
+        let mut v = serde_json::to_value(&gd).unwrap();
+        for k in ["schema", "build", "datacore"] {
+            let x = v.as_object_mut().unwrap().shift_remove(k);
+            if let Some(x) = x {
+                v[format!("_{k}")] = x;
+            }
+        }
+        (infer("gamedata.json", 0, v), l)
+    };
+    let (da, la) = side("STARORG_READABLE_A");
+    let (db, lb) = side("STARORG_READABLE_B");
+    let t = std::time::Instant::now();
+    let tables = diff_sources(
+        &[("gamedata.json".into(), &da)],
+        &[("gamedata.json".into(), &db)],
+        &|_, _| {},
+    );
+    eprintln!("diff in {:?}", t.elapsed());
+    let mut titled = 0;
+    let mut all = 0;
+    for td in tables.iter().filter(|t| t.summary.weight() > 0) {
+        let (ta, tb) = (da.table(&td.summary.table), db.table(&td.summary.table));
+        let id = td.summary.identity.as_deref();
+        eprintln!(
+            "== {} +{} -{} ~{} (by {:?})",
+            td.summary.table, td.summary.added, td.summary.removed, td.summary.changed, id
+        );
+        for (k, r) in td.records.iter().enumerate() {
+            fn row(t: Option<&Table>, i: Option<u32>) -> Option<&Value> {
+                t?.rows.get(i? as usize)
+            }
+            let title = row(tb, r.b)
+                .and_then(|x| readable::row_title(&lb, x, id))
+                .or_else(|| row(ta, r.a).and_then(|x| readable::row_title(&la, x, id)));
+            all += 1;
+            titled += usize::from(title.is_some());
+            if k < 4 {
+                eprintln!(
+                    "  {:?} {} ({})",
+                    r.state,
+                    title.as_deref().unwrap_or("-"),
+                    r.id
+                );
+                if r.state == RecordState::Changed {
+                    let mut c = field_changes(
+                        row(ta, r.a).unwrap_or(&Value::Null),
+                        row(tb, r.b).unwrap_or(&Value::Null),
+                    );
+                    annotate_changes(&mut c, &la, &lb);
+                    for c in c.iter().take(4) {
+                        let side = |v: &Option<Value>, l: &Option<readable::Readable>| {
+                            l.as_ref().map(|l| l.text.clone()).unwrap_or_else(|| {
+                                v.as_ref().map(|v| v.to_string()).unwrap_or("-".into())
+                            })
+                        };
+                        eprintln!(
+                            "      {}: {} -> {} {}",
+                            c.path_label.as_deref().unwrap_or(&c.path),
+                            side(&c.old, &c.old_label),
+                            side(&c.new, &c.new_label),
+                            c.unit.as_deref().unwrap_or("")
+                        );
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("titled {titled} of {all} changed/added/removed records");
+    assert!(
+        all > 0 && titled * 20 >= all * 19,
+        "most records read as a name"
+    );
+    let comps = db.table("components").unwrap();
+    let q = RowsQuery {
+        columns: vec!["recordName".into(), "manufacturer".into(), "type".into()],
+        search: "bracer".into(),
+        limit: 3,
+        ..Default::default()
+    };
+    let t = std::time::Instant::now();
+    let p = query_rows(comps, &q, 500, Some(&lb));
+    eprintln!("search by name: {} rows in {:?}", p.total, t.elapsed());
+    for r in &p.rows {
+        let cells: Vec<String> = r
+            .cells
+            .iter()
+            .zip(&r.labels)
+            .map(|(c, l)| match (c, l) {
+                (Some(c), Some(l)) => format!("{} [{c}]", l.text),
+                (Some(c), None) => c.clone(),
+                _ => "-".into(),
+            })
+            .collect();
+        eprintln!("  {:?}: {}", r.title, cells.join(" | "));
+    }
+    assert!(p.total > 0 && p.rows[0].title.is_some());
 }

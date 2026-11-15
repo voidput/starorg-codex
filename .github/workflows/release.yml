@@ -3,7 +3,8 @@
 # attestations, then a checksum job uploads SHA256SUMS. With the updater signing secret set,
 # the AppImage and Windows installers also get .sig files and latest.json (docs/updates.md). Tauri/app steps skip until app/ exists (#8).
 # Windows extras (docs/windows.md, docs/release.md): Azure Artifact Signing signs the NSIS/MSI
-# installers and the CLI exe only when the AZURE_* secrets and variables exist; the store job
+# installers and the CLI exe only when the AZURE_* secrets and variables exist and the version
+# is not a prerelease (X.Y.Z-suffix); the store job
 # packs an unsigned .msix for Partner Center only when the MSIX_* variables exist. Without them
 # both are skipped with a notice and the release is exactly as before.
 # See docs/release.md for the throwaway v0.0.1 dry run.
@@ -25,6 +26,7 @@ jobs:
       release_created: ${{ steps.rp.outputs.release_created }}
       tag_name: ${{ steps.rp.outputs.tag_name }}
       version: ${{ steps.rp.outputs.version }}
+      prerelease: ${{ steps.pre.outputs.prerelease }}
     steps:
       - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
         id: rp
@@ -32,6 +34,27 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
           target-branch: main
+      # Prerelease = a SemVer pre-release version (X.Y.Z-beta.1, -rc.1 ...). Those ship unsigned
+      # (no Azure Artifact Signing) and never go to the Store; only plain X.Y.Z releases are signed.
+      - name: Prerelease?
+        id: pre
+        if: steps.rp.outputs.release_created == 'true'
+        env:
+          VERSION: ${{ steps.rp.outputs.version }}
+        run: |
+          if [[ "$VERSION" == *-* ]]; then
+            echo "prerelease=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$VERSION is a prerelease: Windows builds stay unsigned and the Store package is skipped."
+          else
+            echo "prerelease=false" >> "$GITHUB_OUTPUT"
+          fi
+      # Mark it as a GitHub prerelease too, so releases/latest (and the in-app updater) skip it.
+      - name: Mark the GitHub release as a prerelease
+        if: steps.pre.outputs.prerelease == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.rp.outputs.tag_name }}
+        run: gh release edit "$TAG" --prerelease --repo "$GITHUB_REPOSITORY"
 
   cli:
     name: cli (${{ matrix.name }})
@@ -70,7 +93,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         with:
-          has-secrets: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
+          has-secrets: ${{ needs.release-please.outputs.prerelease != 'true' && secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
           account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           profile: ${{ vars.AZURE_SIGNING_PROFILE }}
@@ -200,7 +223,7 @@ jobs:
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
         with:
-          has-secrets: ${{ secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
+          has-secrets: ${{ needs.release-please.outputs.prerelease != 'true' && secrets.AZURE_CLIENT_ID != '' && secrets.AZURE_CLIENT_SECRET != '' && secrets.AZURE_TENANT_ID != '' }}
           endpoint: ${{ vars.AZURE_SIGNING_ENDPOINT }}
           account: ${{ vars.AZURE_SIGNING_ACCOUNT }}
           profile: ${{ vars.AZURE_SIGNING_PROFILE }}
@@ -259,7 +282,7 @@ jobs:
   store:
     name: store (msix)
     needs: release-please
-    if: needs.release-please.outputs.release_created == 'true'
+    if: needs.release-please.outputs.release_created == 'true' && needs.release-please.outputs.prerelease != 'true'
     runs-on: windows-latest
     permissions:
       contents: write

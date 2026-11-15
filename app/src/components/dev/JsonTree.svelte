@@ -5,7 +5,9 @@
    * Keys: `role="tree"` with Up/Down, Right/Left, Home/End, `*` opens all siblings, Enter
    * follows a reference or toggles, Ctrl+C copies the value under the cursor, Shift+Ctrl+C its
    * JSON pointer, Ctrl+F (or `/`) searches inside the value and Enter/F3 steps through
-   * matches. Values are text only: nothing is rendered as HTML.
+   * matches. References, GUIDs and `@key`s show what they read as next to the raw value
+   * (7.14; hidden with "Show IDs"); a GUID that names a record follows like a reference.
+   * Values are text only: nothing is rendered as HTML.
    */
   import { tick, untrack } from 'svelte';
   import Search from '@lucide/svelte/icons/search';
@@ -14,7 +16,8 @@
   import { Input } from '@/components/ui/input';
   import { Button } from '@/components/ui/button';
   import { ancestors, at, copyText, initialOpen, jsonKey, scalarText, searchJson, splice, visibleLines, type Json, type JsonLine, type RefInfo } from '@/lib/jsontree';
-  import type { LocText } from '@/lib/contract/dev';
+  import type { LocText, Readable } from '@/lib/contract/dev';
+  import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
 
@@ -22,6 +25,7 @@
     json,
     label,
     loc = [],
+    labels = {},
     onfollow = null,
     onload = null,
     onloc = null,
@@ -32,6 +36,8 @@
     json: string;
     label: string;
     loc?: LocText[];
+    /** Raw value -> what it reads as (7.14). */
+    labels?: Record<string, Readable>;
     onfollow?: ((r: RefInfo) => void) | null;
     /** Load the node at a pointer that the backend cut. */
     onload?: ((pointer: string) => Promise<Json>) | null;
@@ -63,6 +69,8 @@
   });
   const lines = $derived(visibleLines(root, open));
   const locMap = $derived(new Map(loc.map((l) => [l.key, l.text])));
+  const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const labelOf = (v: unknown): Readable | null => (!dev.showIds && typeof v === 'string' ? (labels[v] ?? null) : null);
 
   let scroller = $state<HTMLElement | null>(null);
   let treeEl = $state<HTMLElement | null>(null);
@@ -153,6 +161,11 @@
       return;
     }
     if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (e.key === 'Enter' && cur.kind === 'value' && typeof cur.value === 'string' && GUID.test(cur.value) && labelOf(cur.value) && onfollow) {
+      e.preventDefault();
+      onfollow({ guid: cur.value, name: null, type: null, path: null });
+      return;
+    }
     const a = jsonKey(lines, cur.pointer, e.key);
     if (!a) return;
     e.preventDefault();
@@ -203,8 +216,14 @@
   }
   function a11yName(l: JsonLine) {
     const k = keyLabel(l);
-    if (l.kind === 'ref') return `${k}: reference to ${l.ref?.name ?? l.ref?.guid}${l.ref?.type ? `, ${l.ref.type}` : ''}`;
-    if (l.kind === 'value') return `${k}: ${scalarText(l.value)}`;
+    if (l.kind === 'ref') {
+      const lab = labelOf(l.ref?.guid);
+      return `${k}: reference to ${lab ? `${lab.text}, ` : ''}${l.ref?.name ?? l.ref?.guid}${l.ref?.type ? `, ${l.ref.type}` : ''}`;
+    }
+    if (l.kind === 'value') {
+      const lab = labelOf(l.value);
+      return `${k}: ${scalarText(l.value)}${lab ? `, reads as ${lab.text}` : ''}`;
+    }
     if (l.kind === 'cut') return `${k}: ${l.size} ${l.cutKind === 'array' ? 'items' : 'fields'}, not loaded`;
     return `${k}: ${l.size} ${l.kind === 'array' ? 'items' : 'fields'}`;
   }
@@ -248,7 +267,8 @@
     >
       {#each shown as { l, i } (l.pointer)}
         {@const container = l.kind === 'object' || l.kind === 'array' || l.kind === 'cut'}
-        {@const text = l.kind === 'value' && typeof l.value === 'string' ? locMap.get(l.value) : undefined}
+        {@const lab = l.kind === 'value' ? labelOf(l.value) : null}
+        {@const text = !dev.showIds && l.kind === 'value' && typeof l.value === 'string' && (!lab || lab.kind === 'loc') ? (lab?.text ?? locMap.get(l.value)) : undefined}
         <!-- svelte-ignore a11y_click_events_have_key_events -->
         <div
           id={lineId(i)}
@@ -291,18 +311,20 @@
           {#if l.key !== null || l.kind !== 'object'}<span class="text-muted-foreground">:</span>{/if}
           {#if l.kind === 'ref' && l.ref}
             {@const r = l.ref}
+            {@const rl = labelOf(r.guid)}
             <button
               type="button"
               tabindex="-1"
-              class="text-primary inline-flex items-center gap-0.5 underline-offset-2 hover:underline"
-              title={r.path ?? r.guid}
+              class={cn('text-primary inline-flex items-center gap-0.5 underline-offset-2 hover:underline', rl && 'font-sans')}
+              title={`${rl ? `${rl.text}\n` : ''}${r.name ?? ''}\n${r.path ?? r.guid}`}
               onclick={(e) => {
                 e.stopPropagation();
                 onfollow?.(r);
               }}
             >
-              <ArrowUpRight class="size-3" aria-hidden="true" />{r.name ?? r.guid}
+              <ArrowUpRight class="size-3" aria-hidden="true" />{rl ? rl.text : (r.name ?? r.guid)}
             </button>
+            {#if rl && r.name}<span class="text-muted-foreground text-[11px]">{r.name}</span>{/if}
             {#if r.type}<span class="text-muted-foreground">({r.type})</span>{/if}
           {:else if l.kind === 'value'}
             <span class={cn(typeof l.value === 'string' ? 'text-emerald-700 dark:text-emerald-300' : typeof l.value === 'number' ? 'text-amber-700 dark:text-amber-300' : 'text-violet-700 dark:text-violet-300')}>{scalarText(l.value)}</span>
@@ -311,12 +333,26 @@
                 type="button"
                 tabindex="-1"
                 class="text-muted-foreground hover:text-foreground ml-1 max-w-[32rem] truncate font-sans italic underline-offset-2 hover:underline"
-                title="Open in Strings"
+                title={lab?.enhanced ? `Open in Strings\nEnhanced: ${lab.enhanced}` : 'Open in Strings'}
                 onclick={(e) => {
                   e.stopPropagation();
                   onloc?.(String(l.value));
                 }}>“{text}”</button
               >
+              {#if lab?.enhanced}<span class="text-primary font-sans text-[10px] font-semibold uppercase" title="Enhanced: {lab.enhanced}">enh</span>{/if}
+            {:else if lab && GUID.test(String(l.value)) && (lab.kind === 'record' || lab.kind === 'tag') && onfollow}
+              <button
+                type="button"
+                tabindex="-1"
+                class="text-primary ml-1 inline-flex max-w-[32rem] items-center gap-0.5 truncate font-sans underline-offset-2 hover:underline"
+                title={lab.detail ? `${lab.text} (${lab.detail})` : lab.text}
+                onclick={(e) => {
+                  e.stopPropagation();
+                  onfollow?.({ guid: String(l.value), name: lab.detail, type: null, path: null });
+                }}><ArrowUpRight class="size-3" aria-hidden="true" />{lab.text}</button
+              >
+            {:else if lab}
+              <span class="text-muted-foreground ml-1 max-w-[32rem] truncate font-sans italic" title={lab.detail ?? lab.text}>{lab.text}</span>
             {/if}
           {:else}
             <span class="text-muted-foreground">{summary(l)}</span>

@@ -12,7 +12,9 @@ use serde_json::{Value, json};
 use starorg_core::dev::dataset::{self, Dataset, RowsQuery};
 use starorg_core::dev::diff::{self, TableDiff};
 use starorg_core::dev::explorer::{Entry, ExplorerIndex, MAX_PAGE};
+use starorg_core::dev::readable::{self, KnownRecord, LabelKind, MapLookup};
 use starorg_core::dev::record;
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 pub const SHIPS: u32 = 40;
@@ -166,6 +168,88 @@ fn build_core() -> MockCore {
 pub fn core() -> &'static MockCore {
     static CORE: OnceLock<MockCore> = OnceLock::new();
     CORE.get_or_init(build_core)
+}
+
+/// Synthetic manufacturer names (`manufacturer_Name<code>`) of the mock's codes.
+pub const MAKERS: [(&str, &str); 3] = [
+    ("SYNA", "Alpha Synthetics"),
+    ("SYNB", "Beta Works"),
+    ("SYNC", "Gamma Test Yards"),
+];
+
+/// The records the mock's labels know (7.14): every synthetic record, ships and components
+/// with their `Name` key, tags with their label.
+pub fn known() -> Vec<KnownRecord> {
+    let c = core();
+    c.index
+        .entries()
+        .iter()
+        .zip(&c.values)
+        .map(|(e, v)| {
+            let tag = e.struct_type == "SynTag";
+            let field = if tag { "Label" } else { "Name" };
+            KnownRecord {
+                guid: Some(e.guid.clone()),
+                name: e.name.clone(),
+                kind: if tag {
+                    LabelKind::Tag
+                } else {
+                    LabelKind::Record
+                },
+                display: v["_RecordValue_"][field].as_str().map(str::to_string),
+            }
+        })
+        .collect()
+}
+
+/// Synthetic strings by lower-case key: (stock, result).
+fn texts() -> &'static HashMap<String, (String, String)> {
+    static T: OnceLock<HashMap<String, (String, String)>> = OnceLock::new();
+    T.get_or_init(|| {
+        super::mock::synthetic_strings()
+            .into_iter()
+            .map(|r| (r.key.to_lowercase(), (r.original, r.result)))
+            .collect()
+    })
+}
+
+/// Enhanced text of the keys the known records name, where it differs from stock (lower-case
+/// key -> text); the TS mock gets the same map.
+pub fn enhanced() -> &'static HashMap<String, String> {
+    static E: OnceLock<HashMap<String, String>> = OnceLock::new();
+    E.get_or_init(|| {
+        known()
+            .iter()
+            .filter_map(|r| {
+                let k = r.display.as_deref()?.trim_start_matches('@').to_lowercase();
+                let (o, res) = texts().get(&k)?;
+                (o != res).then(|| (k, res.clone()))
+            })
+            .collect()
+    })
+}
+
+/// The mock's lookup: known records, synthetic stock text and manufacturer names, enhanced
+/// text. `bare` for dataset rows.
+pub fn lookup(bare: bool) -> MapLookup {
+    let mut m = MapLookup::new();
+    for r in known() {
+        m.add(r);
+    }
+    m.with_stock(Arc::new(|k: &str| {
+        let lk = k.to_lowercase();
+        if let Some(code) = lk.strip_prefix("manufacturer_name") {
+            return MAKERS
+                .iter()
+                .find(|x| x.0.eq_ignore_ascii_case(code))
+                .map(|x| x.1.to_string());
+        }
+        texts().get(&lk).map(|x| x.0.clone())
+    }))
+    .with_enhanced(Arc::new(|k: &str| {
+        enhanced().get(&k.to_lowercase()).cloned()
+    }))
+    .with_bare_keys(bare)
 }
 
 /// Synthetic GameData-like dataset of a channel's build. PTU differs from LIVE (changed,
@@ -591,6 +675,8 @@ impl DevBackend for MockBackend {
                 Some(LocText { key: k, text })
             })
             .collect();
+        let sent: Value = serde_json::from_str(&json).unwrap_or(Value::Null);
+        let labels = readable::labels_in(&lookup(false), &sent);
         let e = c.index.entry(i).expect("found");
         Ok(RecordView {
             header: RecordHeader {
@@ -608,6 +694,7 @@ impl DevBackend for MockBackend {
             pointer: req.pointer,
             truncated,
             loc,
+            labels,
         })
     }
 
@@ -706,6 +793,7 @@ impl DevBackend for MockBackend {
                 group: req.group,
             },
             MAX_PAGE,
+            Some(&lookup(true)),
         ))
     }
 
@@ -723,7 +811,7 @@ impl DevBackend for MockBackend {
                 search: req.search,
                 filters: req.filters,
             },
-            &starorg_core::dev::group::no_labels,
+            Some(&lookup(true)),
         ))
     }
 
@@ -756,6 +844,7 @@ impl DevBackend for MockBackend {
             truncated,
             loc,
             links,
+            labels: readable::labels_in(&lookup(true), row),
         })
     }
 
@@ -820,11 +909,14 @@ impl DevBackend for MockBackend {
             );
         }
         let in_group = diff_group_filter(&req, a, b);
+        let l = lookup(true);
+        let id = tables[pos].summary.identity.clone();
         Ok(page_records(
             &tables[pos],
             &req,
             identity_options(ta.as_ref(), tb.as_ref()),
             &in_group,
+            &|r| record_title(r, id.as_deref(), ta.as_ref(), tb.as_ref(), &l, &l),
         ))
     }
 
@@ -835,13 +927,10 @@ impl DevBackend for MockBackend {
             .diff
             .as_ref()
             .ok_or_else(|| not_found("No comparison yet: pick A and B."))?;
-        Ok(diff_tree(
-            tables,
-            a,
-            b,
-            &req,
-            &starorg_core::dev::group::no_labels,
-        ))
+        let l = lookup(true);
+        Ok(diff_tree(tables, a, b, &req, &|c, v| {
+            starorg_core::dev::group::lookup_label(&l, c, v)
+        }))
     }
 
     fn dev_diff_record(&self, req: DevDiffRecordRequest) -> CmdResult<DevFieldDiff> {
@@ -869,10 +958,22 @@ impl DevBackend for MockBackend {
             })
             .unwrap_or_else(|| Value::Object(Default::default()))
         };
+        let l = lookup(true);
+        let mut changes = diff::field_changes(&row(a, rec.a), &row(b, rec.b));
+        diff::annotate_changes(&mut changes, &l, &l);
+        let label = record_title(
+            rec,
+            td.summary.identity.as_deref(),
+            side_table(a, &req.dataset, &req.table),
+            side_table(b, &req.dataset, &req.table),
+            &l,
+            &l,
+        );
         Ok(DevFieldDiff {
             id: rec.id.clone(),
+            label,
             state: rec.state,
-            changes: diff::field_changes(&row(a, rec.a), &row(b, rec.b)),
+            changes,
         })
     }
 }
@@ -907,6 +1008,9 @@ pub fn gen_file() -> Value {
         "values": values,
         "huge": { "guid": ship_guid(HUGE_SHIP), "ports": HUGE_PORTS },
         "builds": (["LIVE", "PTU", "HOTFIX"].iter().map(|c| (c.to_string(), build_value(c))).collect::<serde_json::Map<_, _>>()),
+        "known": known(),
+        "makers": (MAKERS.iter().map(|(c, n)| (c.to_string(), Value::from(*n))).collect::<serde_json::Map<_, _>>()),
+        "enhanced": (enhanced().iter().map(|(k, v)| (k.clone(), Value::from(v.clone()))).collect::<std::collections::BTreeMap<_, _>>()),
         "folder": { "label": FOLDER_LABEL, "path": FOLDER_PATH, "files": (folder_files().into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) },
     })
 }

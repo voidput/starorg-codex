@@ -91,3 +91,16 @@ Do this on a scratch repo or a branch with Actions enabled, never against the re
 
 Locally, without GitHub: `npx release-please release-pr --dry-run --repo-url=voidput/starorg-strings --token=$(gh auth token)`
 prints the planned diff.
+
+## Prereleases
+
+A version with a SemVer pre-release suffix (`X.Y.Z-beta.1`, `-rc.1`; set it with `"release-as"` in
+`release-please-config.json`) is a prerelease. The release job marks its GitHub release as a
+prerelease (so `releases/latest` and the in-app updater skip it), builds the Windows installers and
+the CLI exe **unsigned** (no Azure Artifact Signing) and skips the Store package. Plain `X.Y.Z`
+releases are signed as before.
+
+## Branch protection
+
+Rulesets on GitHub (Settings -> Rules): `main` blocks deletion and force pushes and requires signed
+commits; `release tags` (`refs/tags/v*`) blocks deleting, moving or force-updating a release tag.

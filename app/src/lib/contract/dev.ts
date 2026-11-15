@@ -67,6 +67,19 @@ export interface RecordHeader {
   bytes: number;
 }
 
+/** What a raw value reads as (addendum 7.14). */
+export type LabelKind = 'record' | 'loc' | 'tag' | 'manufacturer';
+
+export interface Readable {
+  kind: LabelKind;
+  /** Display name, stock text, tag name or manufacturer name. */
+  text: string;
+  /** Records with a display name: the short record name. */
+  detail: string | null;
+  /** Our enhanced text of the same key, when it differs from stock. */
+  enhanced: string | null;
+}
+
 export interface LocText {
   key: string;
   text: string;
@@ -78,6 +91,8 @@ export interface RecordView {
   pointer: string;
   truncated: boolean;
   loc: LocText[];
+  /** Raw value (GUID, `@key`, name) -> what it reads as. */
+  labels: Record<string, Readable>;
 }
 
 export interface DevTreeRequest {
@@ -311,6 +326,10 @@ export interface DevRowsRequest {
 export interface Row {
   id: number;
   cells: (string | null)[];
+  /** What each cell reads as, same order; null = show the raw cell. */
+  labels: (Readable | null)[];
+  /** The row's display name. */
+  title: string | null;
 }
 
 export interface RowsPage {
@@ -341,6 +360,7 @@ export interface DevRowDetail {
   truncated: boolean;
   loc: LocText[];
   links: ExplorerLink[];
+  labels: Record<string, Readable>;
 }
 
 export type Presence = 'both' | 'only-a' | 'only-b';
@@ -363,6 +383,8 @@ export interface DiffRecord {
   fields: string[];
   a: number | null;
   b: number | null;
+  /** The record's display name. */
+  label: string | null;
 }
 
 export interface FieldChange {
@@ -371,6 +393,13 @@ export interface FieldChange {
   new: unknown;
   delta: number | null;
   percent: number | null;
+  /** The path with its `[column=value]` segments read. */
+  path_label: string | null;
+  /** Shown under this group (the item or top-level field it belongs to). */
+  group: string | null;
+  unit: string | null;
+  old_label: Readable | null;
+  new_label: Readable | null;
 }
 
 export interface DevDiffRequest {
@@ -393,6 +422,8 @@ export interface DevDiffRecordsRequest {
   state: RecordState | null;
   field: string | null;
   identity: string | null;
+  /** Only records whose id or display name contains this. */
+  query: string | null;
   offset: number;
   limit: number;
   /** Only records in this Diff tree node. */
@@ -418,6 +449,8 @@ export interface DevDiffRecordRequest {
 
 export interface DevFieldDiff {
   id: string;
+  /** The record's display name. */
+  label: string | null;
   state: RecordState;
   changes: FieldChange[];
 }

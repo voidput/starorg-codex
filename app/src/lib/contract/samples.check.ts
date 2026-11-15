@@ -94,6 +94,9 @@ interface Samples {
   dev_diff_groups: T.GroupPage;
   dev_diff_groups_open: T.GroupPage;
   dev_diff_record: T.DevFieldDiff;
+  dev_rows_readable: T.RowsPage;
+  dev_diff_records_query: T.DevDiffRecords;
+  dev_diff_record_ship: T.DevFieldDiff;
   dev_close: T.DevStatus;
   mcp_status: T.McpStatus;
   set_mcp_enabled: T.McpStatus;

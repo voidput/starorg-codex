@@ -79,7 +79,7 @@ fn tree_counts_are_exact_and_open_nodes_list_children() {
         by: by(&["type", "subType", "size"]),
         ..Default::default()
     };
-    let p = group_rows(&t, &q, &no_labels);
+    let p = group_rows(&t, &q, None);
     assert_eq!((p.total, p.all), (12, 12));
     assert_eq!(
         ids(&p),
@@ -94,7 +94,7 @@ fn tree_counts_are_exact_and_open_nodes_list_children() {
         open: vec![r#"["WeaponGun"]"#.into(), r#"["WeaponGun","Gun"]"#.into()],
         ..q
     };
-    let p = group_rows(&t, &q, &no_labels);
+    let p = group_rows(&t, &q, None);
     let labels: Vec<(&str, u32, u32)> = p
         .nodes
         .iter()
@@ -131,7 +131,7 @@ fn counts_follow_the_search_and_filters_but_the_structure_stays() {
         }],
         ..Default::default()
     };
-    let p = group_rows(&t, &q, &no_labels);
+    let p = group_rows(&t, &q, None);
     assert_eq!(p.total, 3);
     let c: Vec<(&str, u32)> = p
         .nodes
@@ -140,10 +140,7 @@ fn counts_follow_the_search_and_filters_but_the_structure_stays() {
         .collect();
     assert_eq!(c, [("AMRS", 1), ("BEHR", 2)]);
     // Readable labels replace the value; the id keeps it.
-    let named = |col: &str, v: &str| {
-        (col == "manufacturer" && v == "AMRS").then(|| "Aegis Test".to_string())
-    };
-    let p = group_rows(&t, &q, &named);
+    let p = group_rows(&t, &q, Some(&Maker));
     assert_eq!(p.nodes[0].label, "Aegis Test");
     assert_eq!(p.nodes[0].id, r#"["AMRS"]"#);
 }
@@ -159,7 +156,7 @@ fn path_folders_join_single_chains() {
         open: vec![r#"["entities","scitem","ships","weapons"]"#.into()],
         ..Default::default()
     };
-    let p = group_rows(&t, &q, &no_labels);
+    let p = group_rows(&t, &q, None);
     assert_eq!(
         ids(&p),
         [
@@ -190,14 +187,14 @@ fn a_picked_node_filters_rows() {
         }),
         ..Default::default()
     };
-    assert_eq!(query_rows(&t, &pick(r#"["WeaponGun"]"#), 500).total, 6);
+    assert_eq!(query_rows_(&t, &pick(r#"["WeaponGun"]"#), 500).total, 6);
     assert_eq!(
-        query_rows(&t, &pick(r#"["WeaponGun","Gun","1"]"#), 500).total,
+        query_rows_(&t, &pick(r#"["WeaponGun","Gun","1"]"#), 500).total,
         1
     );
-    assert_eq!(query_rows(&t, &pick(r#"["Nope"]"#), 500).total, 0);
+    assert_eq!(query_rows_(&t, &pick(r#"["Nope"]"#), 500).total, 0);
     // Not a node id: no group filter.
-    assert_eq!(query_rows(&t, &pick("garbage"), 500).total, 12);
+    assert_eq!(query_rows_(&t, &pick("garbage"), 500).total, 12);
     // A missing value is its own node.
     let mut rows = t.rows.clone();
     rows.push(json!({ "recordName": "X", "type": null }));
@@ -210,7 +207,7 @@ fn a_picked_node_filters_rows() {
             by: by(&["type"]),
             ..Default::default()
         },
-        &no_labels,
+        None,
     );
     let last = p.nodes.last().unwrap();
     assert_eq!(
@@ -228,7 +225,8 @@ fn a_picked_node_filters_rows() {
                 }),
                 ..Default::default()
             },
-            500
+            500,
+            None
         )
         .total,
         1
@@ -250,7 +248,7 @@ fn many_children_are_capped() {
             }],
             ..Default::default()
         },
-        &no_labels,
+        None,
     );
     assert_eq!(p.nodes.len(), MAX_CHILDREN);
 }
@@ -325,4 +323,19 @@ fn diff_tree_groups_changed_records_by_table_then_levels() {
     );
     assert_eq!(p.nodes.len(), 1);
     assert_eq!(p.nodes[0].children, 0);
+}
+
+fn query_rows_(t: &Table, q: &RowsQuery, max: usize) -> RowsPage {
+    query_rows(t, q, max, None)
+}
+
+/// A lookup that names one manufacturer code.
+struct Maker;
+impl super::readable::Lookup for Maker {
+    fn by_guid(&self, _: &str) -> Option<super::readable::KnownRecord> {
+        None
+    }
+    fn stock(&self, k: &str) -> Option<String> {
+        (k == "manufacturer_NameAMRS").then(|| "Aegis Test".to_string())
+    }
 }
