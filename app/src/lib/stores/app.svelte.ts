@@ -6,6 +6,16 @@ import { api, ContractError, toContractError } from '@/lib/contract/client';
 import type * as T from '@/lib/contract/types';
 import { applyAppearance } from '@/lib/theme';
 import { toast } from './toast.svelte';
+import { isScreen, type ScreenId } from '@/lib/nav';
+
+function initialScreen(): ScreenId {
+  try {
+    const s = new URLSearchParams(window.location.search).get('screen');
+    return isScreen(s) ? s : 'home';
+  } catch {
+    return 'home';
+  }
+}
 
 class AppState {
   overview = $state<T.Overview | null>(null);
@@ -18,6 +28,12 @@ class AppState {
   busy = $state(false);
   /** The wizard is open (first run, or re-run from Settings). */
   wizard = $state(false);
+  /** Current screen; `?screen=` deep-links it (headless renders). */
+  screen = $state<ScreenId>(initialScreen());
+  /** Bumped on every navigation so the frame moves focus to <main>. */
+  navSeq = $state(0);
+  /** Refresh counter: screens reload their data when this or the channel changes. */
+  rev = $state(0);
 
   install = $derived(this.overview?.installs.find((i) => i.id === this.installId) ?? this.overview?.installs[0] ?? null);
   channels = $derived(this.install?.channels ?? []);
@@ -40,6 +56,7 @@ class AppState {
       const o = await api.overview();
       this.overview = o;
       this.error = null;
+      this.rev++;
       const inst = o.installs.find((i) => i.id === (this.installId ?? o.active_install)) ?? o.installs.find((i) => i.saved) ?? o.installs[0];
       this.installId = inst?.id ?? null;
       if (!this.channelName || !inst?.channels.some((c) => c.channel === this.channelName)) {
@@ -72,6 +89,11 @@ class AppState {
       if (before) applyAppearance(before.appearance);
       toast('error', 'Settings not saved', toContractError(e).message);
     }
+  }
+
+  go(s: ScreenId): void {
+    this.screen = s;
+    this.navSeq++;
   }
 
   selectChannel(name: string): void {

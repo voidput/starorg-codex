@@ -16,5 +16,7 @@ export default defineConfig({
     target: 'es2022',
     // Fonts are self-hosted and bundled; never inline them as data: URIs (CSP font-src 'self').
     assetsInlineLimit: 0,
+    // One local bundle read from disk by the webview (no network): ~150 kB gzip is fine.
+    chunkSizeWarningLimit: 800,
   },
 });

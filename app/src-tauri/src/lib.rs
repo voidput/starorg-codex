@@ -4,6 +4,9 @@ pub mod commands;
 pub mod contract;
 pub mod gpu;
 
+#[cfg(test)]
+mod contrast_tests;
+
 use commands::DiscoveryConfig;
 use contract::BackendState;
 

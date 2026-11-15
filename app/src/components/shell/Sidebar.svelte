@@ -8,6 +8,7 @@
   import Table2 from '@lucide/svelte/icons/table-2';
   import Wrench from '@lucide/svelte/icons/wrench';
   import Archive from '@lucide/svelte/icons/archive';
+  import BookOpenCheck from '@lucide/svelte/icons/book-open-check';
   import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Settings from '@lucide/svelte/icons/settings';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
@@ -18,7 +19,7 @@
 
   let { current = $bindable<ScreenId>('home'), version = '' }: { current: ScreenId; version?: string } = $props();
 
-  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, backups: Archive, activity: ScrollText, settings: Settings } as const;
+  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, backups: Archive, activity: ScrollText, settings: Settings } as const;
   const MIN = 168;
   const MAX = 384;
   const KEY = 'starorg:sidebar';

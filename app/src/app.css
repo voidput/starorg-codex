@@ -66,10 +66,11 @@
   --accent-foreground: #0f172a;
   --destructive: #be123c;
   --destructive-foreground: #ffffff;
-  --success: #15803d;
-  --warning: #b45309;
+  /* Status hues darkened from #15803d / #b45309 / #a16207: those were 4.4:1 on the page background (contrast test). */
+  --success: #15763a;
+  --warning: #a84d08;
   --info: #7c3aed;
-  --accent-2: #a16207;
+  --accent-2: #925a06;
   --border: rgb(15 23 42 / 0.12);
   --input: rgb(15 23 42 / 0.16);
   --sidebar: #f7f9fc;

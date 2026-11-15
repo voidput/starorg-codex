@@ -1,0 +1,176 @@
+<script lang="ts">
+  /**
+   * One key's detail (spec 9.4 Strings): rendered preview, word diff, provenance (winner and the
+   * layers it beat), and the override editor with live rule checks (spec 7.3) and Reset.
+   */
+  import Crown from '@lucide/svelte/icons/crown';
+  import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import CircleX from '@lucide/svelte/icons/circle-x';
+  import CircleAlert from '@lucide/svelte/icons/circle-alert';
+  import Sheet from '@/components/common/Sheet.svelte';
+  import ToneBadge from '@/components/common/ToneBadge.svelte';
+  import InGamePreview from '@/components/common/InGamePreview.svelte';
+  import StringDiff from '@/components/common/StringDiff.svelte';
+  import ConfirmButton from '@/components/common/ConfirmButton.svelte';
+  import { Button } from '@/components/ui/button';
+  import { Skeleton } from '@/components/ui/skeleton';
+  import * as Alert from '@/components/ui/alert';
+  import { api, toContractError } from '@/lib/contract/client';
+  import type { ChannelRef, Layer, StringDetail, StringRow } from '@/lib/contract/types';
+  import { CATEGORY_LABEL, SOURCE_LABEL, SOURCE_TONE } from '@/lib/format';
+  import { checkOverride } from '@/lib/validate';
+  import { toast } from '@/lib/stores/toast.svelte';
+  import { cn } from '@/lib/utils';
+
+  let {
+    open = $bindable(false),
+    target,
+    rowKey,
+    onchanged,
+  }: { open: boolean; target: ChannelRef | null; rowKey: string | null; onchanged: (row: StringRow) => void } = $props();
+
+  let detail = $state<StringDetail | null>(null);
+  let value = $state('');
+  let rejected = $state<{ rule: string | null; message: string | null } | null>(null);
+  let busy = $state(false);
+  let loadMs = $state<number | null>(null);
+
+  $effect(() => {
+    const k = rowKey;
+    if (!open || !k || !target) return;
+    const t = $state.snapshot(target);
+    let stale = false;
+    detail = null;
+    rejected = null;
+    const t0 = performance.now();
+    api
+      .stringDetail({ target: t, key: k })
+      .then((d) => {
+        if (stale) return;
+        detail = d;
+        value = d.override_value ?? d.row.result;
+        loadMs = Math.round(performance.now() - t0);
+      })
+      .catch((e) => !stale && toast('error', `Could not open ${k}`, toContractError(e).message));
+    return () => (stale = true);
+  });
+
+  const stock = $derived(detail?.provenance.find((p) => p.layer === 'stock')?.text ?? detail?.row.original ?? '');
+  const checks = $derived(detail ? checkOverride(stock, value) : []);
+  const failing = $derived(checks.filter((c) => !c.ok));
+  const changed = $derived(detail !== null && value !== (detail.override_value ?? detail.row.result));
+  const layerLabel: Record<Layer, string> = { stock: 'Stock', generated: 'Enhancement', patch: 'Patch', override: 'Your edit' };
+
+  async function save() {
+    if (!detail || !target) return;
+    busy = true;
+    try {
+      const r = await api.setOverride({ target, key: detail.row.key, value });
+      if (!r.accepted) {
+        rejected = { rule: r.rule, message: r.message };
+        return;
+      }
+      rejected = null;
+      if (r.detail) {
+        detail = r.detail;
+        value = r.detail.override_value ?? r.detail.row.result;
+        onchanged(r.detail.row);
+      }
+      toast('success', 'Edit saved', 'It is written on the next apply.');
+    } catch (e) {
+      toast('error', 'Edit not saved', toContractError(e).message);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function reset() {
+    if (!detail || !target) return;
+    try {
+      const d = await api.resetOverride({ target, key: detail.row.key });
+      detail = d;
+      value = d.row.result;
+      rejected = null;
+      onchanged(d.row);
+      toast('success', 'Edit removed', 'The key goes back to what StarOrg Strings builds.');
+    } catch (e) {
+      toast('error', 'Reset failed', toContractError(e).message);
+    }
+  }
+</script>
+
+<Sheet bind:open title={rowKey ?? ''} description={detail ? `${CATEGORY_LABEL[detail.row.category] ?? detail.row.category} · opened in ${loadMs ?? '–'} ms` : null}>
+  {#if !detail}
+    <div class="grid gap-3"><Skeleton class="h-20 w-full" /><Skeleton class="h-32 w-full" /></div>
+  {:else}
+    {@const d = detail}
+    <div class="grid gap-5">
+      <section aria-labelledby="sd-result" class="grid gap-1.5">
+        <div class="flex items-center gap-2">
+          <h3 id="sd-result" class="eyebrow text-muted-foreground">In game</h3>
+          <ToneBadge tone={SOURCE_TONE[d.row.source]} label={SOURCE_LABEL[d.row.source]} />
+        </div>
+        <InGamePreview text={d.row.result} />
+      </section>
+      <section aria-labelledby="sd-diff" class="grid gap-1.5">
+        <h3 id="sd-diff" class="eyebrow text-muted-foreground">Changes from stock</h3>
+        <StringDiff before={stock} after={d.row.result} />
+      </section>
+      <section aria-labelledby="sd-prov" class="grid gap-1.5">
+        <h3 id="sd-prov" class="eyebrow text-muted-foreground">Where the text comes from</h3>
+        <ol class="grid gap-1.5">
+          {#each [...d.provenance].reverse() as p, i (i)}
+            <li class={cn('rounded-md border px-3 py-2', p.winner && 'border-primary/50 bg-primary/5')}>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="font-semibold">{layerLabel[p.layer]}</span>
+                <span class="mono text-muted-foreground text-[11.5px]">{p.by}</span>
+                {#if p.winner}<ToneBadge tone="info" icon={Crown} label="Shown in game" />{:else}<ToneBadge tone="muted" label="Overridden" />{/if}
+              </div>
+              <p class="mono mt-1 line-clamp-3 text-[12px] break-words">{p.text}</p>
+              {#if p.note}<p class="text-muted-foreground mt-1 text-[12px]">{p.note}</p>{/if}
+            </li>
+          {/each}
+        </ol>
+      </section>
+      <section aria-labelledby="sd-edit" class="grid gap-2">
+        <div class="flex items-center justify-between gap-2">
+          <h3 id="sd-edit" class="eyebrow text-muted-foreground">Your edit</h3>
+          {#if d.override_value !== null}<ToneBadge tone="info" label="Edited" />{/if}
+        </div>
+        <label for="sd-value" class="text-muted-foreground text-[12px]">Raw text as in global.ini. Write a line break as \n; tags as &lt;EM4&gt;…&lt;/EM4&gt;.</label>
+        <textarea
+          id="sd-value"
+          bind:value
+          rows="5"
+          spellcheck="false"
+          aria-invalid={failing.length > 0 || rejected !== null}
+          aria-describedby="sd-checks{rejected ? ' sd-rejected' : ''}"
+          class="mono border-input bg-background focus-visible:ring-ring/50 aria-invalid:border-destructive w-full resize-y rounded-md border px-3 py-2 outline-none focus-visible:ring-3"
+        ></textarea>
+        <ul id="sd-checks" class="grid gap-1 sm:grid-cols-2" aria-label="Rule checks">
+          {#each checks as c (c.rule)}
+            <li class={cn('flex items-start gap-1.5 text-[12px]', c.ok ? 'text-muted-foreground' : 'text-destructive')}>
+              {#if c.ok}<CircleCheck class="text-success mt-px size-3.5 shrink-0" aria-hidden="true" />{:else}<CircleX class="mt-px size-3.5 shrink-0" aria-hidden="true" />{/if}
+              <span><span class="font-medium">{c.label}: {c.ok ? 'ok' : 'breaks the rule'}.</span>{#if !c.ok}{' '}{c.message}{/if}</span>
+            </li>
+          {/each}
+        </ul>
+        {#if rejected}
+          <Alert.Root variant="destructive" role="alert" id="sd-rejected">
+            <CircleAlert aria-hidden="true" />
+            <Alert.Title>Not saved: rule “{rejected.rule ?? 'unknown'}”</Alert.Title>
+            <Alert.Description>{rejected.message}</Alert.Description>
+          </Alert.Root>
+        {/if}
+        <div class="flex flex-wrap items-center gap-2">
+          <Button size="sm" disabled={!changed || busy} onclick={save}>Save edit</Button>
+          <Button variant="ghost" size="sm" disabled={!changed} onclick={() => (value = d.override_value ?? d.row.result)}>Discard</Button>
+          <span class="flex-1"></span>
+          {#if d.override_value !== null}
+            <ConfirmButton variant="outline" size="sm" confirmLabel="Remove edit? Click again" onconfirm={reset}>Reset to built text</ConfirmButton>
+          {/if}
+        </div>
+      </section>
+    </div>
+  {/if}
+</Sheet>

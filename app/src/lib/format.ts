@@ -1,4 +1,4 @@
-import type { ApplyState, Build } from './contract/types';
+import type { ApplyState, BackupReason, Build, JobKind, PatchState, StringSource } from './contract/types';
 
 /** Short build label: "4.10.0 · 13165946". */
 export function buildLabel(b: Build): string {
@@ -39,3 +39,81 @@ export function statusView(s: ApplyState, setUp: boolean): { label: string; tone
       return { label: 'Not applied', tone: 'muted', hint: 'The game shows its stock text.' };
   }
 }
+
+export function fmtBytes(n: number | null | undefined): string {
+  if (n == null) return '—';
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KiB`;
+  return `${(n / 1024 / 1024).toFixed(1)} MiB`;
+}
+
+export const fmtMs = (ms: number) => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toFixed(1)} s`);
+
+/** Same build = same change number and branch (addendum §1), never by ordering versions. */
+export function sameBuild(a: Build | null | undefined, b: Build | null | undefined): boolean {
+  if (!a || !b) return false;
+  return a.change === b.change && a.branch === b.branch;
+}
+
+export interface ToneView {
+  label: string;
+  tone: StatusTone;
+  hint: string;
+}
+
+/** Patch states in words (spec 4.5); mismatch states are warnings, never colour alone. */
+export function patchStateView(s: PatchState, enabled: boolean): ToneView {
+  if (!enabled && s !== 'retired') return { label: 'Off', tone: 'muted', hint: 'You turned this patch off.' };
+  switch (s) {
+    case 'applies':
+      return { label: 'Applied', tone: 'success', hint: 'The stock text matches; the fix is written on apply.' };
+    case 'not-needed':
+      return { label: 'Not needed', tone: 'muted', hint: 'The game text already reads the way the patch would make it.' };
+    case 'nothing-to-add':
+      return { label: 'Nothing to add', tone: 'muted', hint: 'The text the patch adds is already there.' };
+    case 'target-changed':
+      return { label: 'Mismatch', tone: 'warning', hint: 'The stock text changed in this build; the patch is skipped and reported.' };
+    case 'missing':
+      return { label: 'Key missing', tone: 'warning', hint: 'The key is not in this build.' };
+    case 'out-of-range':
+      return { label: 'Other build', tone: 'muted', hint: 'Written for a different game version range.' };
+    case 'conflict':
+      return { label: 'Conflict', tone: 'destructive', hint: 'Another patch changes the same key.' };
+    case 'disabled':
+      return { label: 'Off', tone: 'muted', hint: 'You turned this patch off.' };
+    case 'retired':
+      return { label: 'Retired', tone: 'muted', hint: 'Fixed upstream; kept for older builds.' };
+  }
+}
+
+export const SOURCE_LABEL: Record<StringSource, string> = { unmodified: 'Unmodified', enhanced: 'Enhanced', patched: 'Patched', edited: 'Edited' };
+export const SOURCE_TONE: Record<StringSource, StatusTone> = { unmodified: 'muted', enhanced: 'success', patched: 'info', edited: 'info' };
+
+export const CATEGORY_LABEL: Record<string, string> = {
+  ships: 'Ships',
+  components: 'Components',
+  'ship-weapons': 'Ship weapons',
+  missiles: 'Missiles',
+  'fps-weapons': 'FPS weapons',
+  missions: 'Missions',
+  items: 'Items',
+  ui: 'Interface',
+};
+
+export const JOB_LABEL: Record<JobKind, string> = {
+  discover: 'Discover',
+  extract: 'Game data',
+  apply: 'Apply',
+  remove: 'Remove',
+  restore: 'Restore',
+  import: 'Import',
+  sync: 'StarOrg sync',
+  hook: 'Launch hook',
+};
+
+export const BACKUP_REASON: Record<BackupReason, string> = {
+  'pre-existing': 'From before StarOrg Strings',
+  'before-apply': 'Before an apply',
+  'before-restore': 'Before a restore',
+  manual: 'Backed up by you',
+};

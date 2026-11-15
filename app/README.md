@@ -35,7 +35,35 @@ cargo test -p starorg-strings-app        # gpu workaround, contract and IPC comm
   list with the TS files.
 - **Browser-only dev:** `npm run dev` (or `npm run build && npx vite preview`) runs the whole UI on
   the mock. URL switches: `?wizard=<install|channels|source|enhancements|review|apply>` opens the
-  setup wizard at a step, `?state=ready` starts with LIVE and HOTFIX set up, `?theme=dark|light`,
-  `?delay=<ms>` per mock job step, `?screen=<id>`.
-- Keyboard: Ctrl/Cmd+K command palette, Alt+1..7 screens, arrows in the sidebar and channel
-  switcher, Escape leaves the wizard (with a guard once choices were made).
+  setup wizard at a step, `?state=ready` starts with LIVE applied, HOTFIX behind a game update,
+  backups, two overrides and launch-hook history (`&starorg=1` also signs in to StarOrg Tools),
+  `?theme=dark|light`, `?delay=<ms>` per mock job step,
+  `?screen=<home|enhancements|strings|patches|blueprints|backups|activity|settings>`.
+- Keyboard: Ctrl/Cmd+K command palette, Alt+1..8 screens, arrows in the sidebar, channel
+  switcher and Enhancements categories; Strings grid: arrows, Page Up/Down, Home/End, Enter opens
+  a key; Tag Builder: Alt+Left/Right moves a focused part. Escape leaves the wizard (with a guard
+  once choices were made) and closes sheets and dialogs.
+
+## Screens (spec 9.4)
+
+Home, Enhancements, Strings, Patches, Blueprints, Backups, Activity, Settings, all on the
+contract. Shared pieces in `src/components/common/` (Sheet, ActionDialog, ToneBadge, StringDiff,
+SelectField, Stat). Override rule checks run as you type (`src/lib/validate.ts`, spec 7.3); the
+backend's `set_override` stays the authority. `cargo test` also checks every theme x palette x
+accent in `src/app.css` for 4.5:1 text and 3:1 UI contrast (`src-tauri/src/contrast_tests.rs`).
+
+## Headless checks
+
+Never open a window: run `npm run build && npx vite preview --host 127.0.0.1 --port 4317`, then
+with a `playwright-core` and its headless Chromium (`PLAYWRIGHT_CORE=/path/to/playwright-core`,
+not a project dependency):
+
+```sh
+node scripts/render-screens.cjs   # every screen, dark + light, 1280x800 + 1024x700 -> ../.tmp/renders/m3-screens
+node scripts/render-wizard.cjs    # wizard steps -> ../.tmp/renders/m3-wizard
+node scripts/keyboard-check.cjs   # grid, sheet, tag builder, dialogs by keyboard
+node scripts/keyboard-wizard.cjs  # the wizard end to end by keyboard
+```
+
+`RENDER_DIR` and `BASE_URL` override the output folder and server. Render scripts also report
+page errors and horizontal overflow.

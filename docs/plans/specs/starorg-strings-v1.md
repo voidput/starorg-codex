@@ -1483,10 +1483,10 @@ so its components port unchanged). Values:
 | `--muted-foreground` | `#94a3b8` | `#526178` |
 | `--accent` (hover, selected row) | `#243049` | `#d9e1ec` |
 | `--destructive` | `#ff5470` | `#be123c` |
-| `--success` | `#3ddc97` | `#15803d` |
-| `--warning` | `#ffd166` | `#b45309` |
+| `--success` | `#3ddc97` | `#15763a` |
+| `--warning` | `#ffd166` | `#a84d08` |
 | `--info` (patched, edited) | `#c084fc` | `#7c3aed` |
-| `--accent-2` (logo gold) | `#ffb547` | `#a16207` |
+| `--accent-2` (logo gold) | `#ffb547` | `#925a06` |
 | `--border` | `rgb(148 163 184 / 0.14)` | `rgb(15 23 42 / 0.12)` |
 | `--input` | `rgb(148 163 184 / 0.22)` | `rgb(15 23 42 / 0.16)` |
 | `--sidebar` | `#050b1a` | `#f7f9fc` |
@@ -1500,6 +1500,9 @@ Notes:
 
 - The light primary is `#0369a1`, not RSI+'s `#0b7fb5`, which is 4.45:1 on white and fails
   WCAG AA.
+- Light success, warning and accent-2 were `#15803d`, `#b45309`, `#a16207`: 4.4:1 on the light
+  page background. The contrast test (section 9.6) caught it in M3; the darker values pass on
+  background, card and muted.
 - Theme setting is System / Dark / Light, resolved to `data-theme` before first paint.
 - Accent swatches: cyan (default), green, amber, orange, rose, violet. Palettes: Void
   (default) and Black (OLED).
