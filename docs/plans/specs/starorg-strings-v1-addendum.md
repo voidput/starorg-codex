@@ -1583,3 +1583,48 @@ backend, Activity entries; the worker's refusal to write into the game.
   with LIVE, PTU and HOTFIX). `HttpServer::stop` joins the accept thread only; a connection
   thread mid-request ends on its own (30 s socket timeouts).
 - `mission` titles of broker missions are the game's unresolved `~mission(...)` tokens.
+
+## 11. Stale reasons across app updates (branch `stale-reasons`)
+
+**Bug (0.1.0).** Every channel read `Stale (app version)` after any update, so the app and the
+launch hooks (`apply --if-stale`) asked for or did a re-apply although the output would be
+byte-identical.
+
+- **Reasons** (`apply::stale_reasons`, shown as words by `staleWords` in
+  `app/src/lib/messages.ts`): `build`, `game data`, `profile`, `patches`, `overrides`,
+  `owned blueprints`, `ship names`, `enhancer update`; plus `not the last recorded output`
+  for an older output of ours. `app version` is gone.
+- **Output version.** `starorg_core::OUTPUT_VERSION` (`u32`, now 1) is recorded in
+  `applied.json` as `output_version`; a different recorded value is `Stale (enhancer update)`.
+  Bump it **only when the generated text changes for the same inputs**: a new or changed
+  enhancement, a changed default of a setting, a text or merge fix. `app_version` is still
+  recorded, for information only.
+- **Old manifests** (0.1.0, no `output_version`) read as version 1, the version 0.1.0
+  generated: no prompt on upgrade, and the first real bump still reaches them. (Treating a
+  missing field as "always current" would hide that first bump.)
+- **Profile hash** = hash of the generator settings (`[enhance]` over the preset) that differ
+  from the Recommended defaults (`canon::settings_hash`: both sides to JSON, keep only values
+  off the default, recurse into objects, arrays whole, keys sorted). A build adding a setting
+  with its default leaves it unchanged; any user change, preset included, changes it. Keys
+  that do not feed the generators no longer count: `patches.disabled` is in the patch-set
+  hash, `[ship_names]` in the ship-names hash, unknown keys change nothing. An invalid
+  `[enhance]` hashes as `invalid:` + the text hash.
+- **Ship-names hash**: the same difference-from-default form of the effective settings
+  (empty when off). Fields added later to `[[ship]]`/`[[group]]` entries need
+  `skip_serializing_if` at their default, since array elements are compared whole.
+- **Migration.** 0.1.0 recorded the profile hash of the whole `profile.toml` TOML text and the
+  ship-names hash of all settings. Status computes those too (`legacy_hash`) and accepts a
+  match with either form, so current users are not prompted once more; the next apply records
+  the new form. The ship-names fallback holds while its shape is the 0.1.0 one.
+- **Other inputs, reviewed for build stability.** Overrides hash = raw bytes of
+  `overrides.ini`; owned hash = sorted names/ids of the selection: both change only with the
+  user's data. Patch-set hash = id, SHA-256 of the pack text and enabled state per patch, plus
+  load errors: it changes when a bundled pack's text changes (any byte, comments included) or
+  a load error's wording changes. That is intended (a new pack may change the output); keep
+  bundled packs free of per-build stamps.
+- **Tests.** `canon` (new default field keeps the hash; key order, nesting), profile and
+  state hash tests, `scope_and_hash` (legacy differs), core `fleet.rs` (old manifest reads
+  `output_version` 1), CLI `apply.rs`: another app version with the same output version is
+  `applied`; an older output version is `Stale (enhancer update)` and `--if-stale` re-applies;
+  a 0.1.0 manifest (no `output_version`, text-hash profile) is `applied`, and a real settings
+  change against it is `Stale (profile)`.

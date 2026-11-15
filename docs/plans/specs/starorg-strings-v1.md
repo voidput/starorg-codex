@@ -1326,13 +1326,14 @@ leaves a shared file untouched.
 ### 7.5 Applied manifest and status
 
 `applied.json` records: branch, game version, change number, data fingerprint, cache key,
-profile hash, patch-set hash, overrides hash, app version, SHA-256 of the output, time,
-backup id, warnings.
+profile hash, patch-set hash, overrides hash, app version (information only), output version,
+SHA-256 of the output, time, backup id, warnings. Stale reasons and the build-stable hashes:
+[addendum section 11](starorg-strings-v1-addendum.md#11-stale-reasons-across-app-updates-branch-stale-reasons).
 
 | Status | Condition |
 |---|---|
 | **Applied** | Game file hash equals the recorded output hash, and all recorded inputs equal the current ones |
-| **Stale** | Game file is ours (hash in `applied.json` or `outputs.json`), but the build, profile, patches, overrides or app version changed |
+| **Stale** | Game file is ours (hash in `applied.json` or `outputs.json`), but the build, profile, patches, overrides, owned blueprints, ship names or output version changed (not the app version alone) |
 | **Changed by another tool** | A loose `global.ini` exists whose hash is not in `outputs.json` |
 | **Not applied** | No loose `global.ini` |
 
