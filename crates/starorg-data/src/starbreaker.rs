@@ -402,3 +402,407 @@ mod tests {
         assert!(matches!(err, Some(ArchiveError::Open(_))));
     }
 }
+
+// ---------------------------------------------------------------------------------------
+// Developer mode (addendum 7): the explorer's view of the whole DataCore
+// ---------------------------------------------------------------------------------------
+
+use starorg_core::dev::explorer::{Entry, ExplorerIndex};
+
+/// A parsed DataCore with an [`ExplorerIndex`] over every record. Entry `i` of the index is
+/// record `i` of the database.
+pub struct DevDatabase<'a> {
+    db: starbreaker_datacore::Database<'a>,
+    index: ExplorerIndex,
+}
+
+impl<'a> DevDatabase<'a> {
+    /// Parse and index. May panic on malformed data; run under `catch_unwind`.
+    pub fn parse(bytes: &'a [u8]) -> Result<Self, String> {
+        let db = starbreaker_datacore::Database::from_bytes(bytes).map_err(|e| e.to_string())?;
+        let entries = db
+            .records()
+            .iter()
+            .map(|r| {
+                let tag = (r.tag_offset.0 != -1)
+                    .then(|| db.resolve_string2(r.tag_offset).to_string())
+                    .filter(|t| !t.is_empty());
+                Entry {
+                    guid: r.id.to_string(),
+                    name: db.resolve_string2(r.name_offset).to_string(),
+                    struct_type: db.struct_name(r.struct_id()).to_string(),
+                    path: db.resolve_string(r.file_name_offset).replace('\\', "/"),
+                    main: db.is_main_record(r),
+                    tag,
+                }
+            })
+            .collect();
+        Ok(Self {
+            index: ExplorerIndex::new(entries),
+            db,
+        })
+    }
+
+    pub fn index(&self) -> &ExplorerIndex {
+        &self.index
+    }
+
+    pub fn summary(&self) -> DataCoreSummary {
+        DataCoreSummary {
+            records: self.db.records().len(),
+            struct_defs: self.db.struct_defs().len(),
+        }
+    }
+
+    fn record(&self, i: usize) -> Result<&starbreaker_datacore::types::Record, String> {
+        self.db
+            .records()
+            .get(i)
+            .ok_or_else(|| format!("no record {i}"))
+    }
+
+    /// The record as a JSON value with references written as
+    /// `{"_ref": guid, "name", "type", "path"}` (addendum 7.4).
+    pub fn record_value(&self, i: usize) -> Result<serde_json::Value, String> {
+        let r = self.record(i)?;
+        let mut sink = ValueSink {
+            index: &self.index,
+            stack: Vec::new(),
+            root: None,
+        };
+        starbreaker_datacore::walker::walk_record(&self.db, r, &mut sink)
+            .map_err(|e| e.to_string())?;
+        sink.root.ok_or_else(|| "empty record export".to_string())
+    }
+
+    /// StarBreaker's own JSON form (references as relative paths), as `starbreaker` writes it.
+    pub fn write_export(
+        &self,
+        i: usize,
+        w: impl std::io::Write,
+        pretty: bool,
+    ) -> Result<(), String> {
+        let r = self.record(i)?;
+        if pretty {
+            starbreaker_datacore::export::write_json(&self.db, r, w)
+        } else {
+            starbreaker_datacore::export::write_json_compact(&self.db, r, w)
+        }
+        .map_err(|e| e.to_string())
+    }
+}
+
+enum Frame {
+    Obj(Option<String>, serde_json::Map<String, serde_json::Value>),
+    Arr(Option<String>, Vec<serde_json::Value>),
+}
+
+/// Builds a [`serde_json::Value`] from the walker; references become `_ref` objects.
+struct ValueSink<'i> {
+    index: &'i ExplorerIndex,
+    stack: Vec<Frame>,
+    root: Option<serde_json::Value>,
+}
+
+impl ValueSink<'_> {
+    fn put(&mut self, name: Option<&str>, v: serde_json::Value) {
+        match self.stack.last_mut() {
+            Some(Frame::Obj(_, m)) => {
+                m.insert(name.unwrap_or_default().to_string(), v);
+            }
+            Some(Frame::Arr(_, a)) => a.push(v),
+            None => self.root = Some(v),
+        }
+    }
+
+    fn close(&mut self) {
+        let (name, v) = match self.stack.pop() {
+            Some(Frame::Obj(n, m)) => (n, serde_json::Value::Object(m)),
+            Some(Frame::Arr(n, a)) => (n, serde_json::Value::Array(a)),
+            None => return,
+        };
+        self.put(name.as_deref(), v);
+    }
+
+    fn num(&mut self, name: Option<&str>, n: impl Into<serde_json::Number>) {
+        self.put(name, serde_json::Value::Number(n.into()));
+    }
+
+    fn float(&mut self, name: Option<&str>, f: Option<f64>) {
+        let v = f
+            .and_then(serde_json::Number::from_f64)
+            .map_or(serde_json::Value::Null, serde_json::Value::Number);
+        self.put(name, v);
+    }
+}
+
+impl starbreaker_datacore::sink::ExportSink for ValueSink<'_> {
+    type Error = std::io::Error;
+
+    fn extension(&self) -> &str {
+        "json"
+    }
+    fn begin_object(&mut self, name: Option<&str>) -> Result<(), Self::Error> {
+        self.stack
+            .push(Frame::Obj(name.map(str::to_string), Default::default()));
+        Ok(())
+    }
+    fn end_object(&mut self) -> Result<(), Self::Error> {
+        self.close();
+        Ok(())
+    }
+    fn begin_array(&mut self, name: &str) -> Result<(), Self::Error> {
+        self.stack
+            .push(Frame::Arr(Some(name.to_string()), Vec::new()));
+        Ok(())
+    }
+    fn end_array(&mut self) -> Result<(), Self::Error> {
+        self.close();
+        Ok(())
+    }
+    fn write_null(&mut self, n: Option<&str>) -> Result<(), Self::Error> {
+        self.put(n, serde_json::Value::Null);
+        Ok(())
+    }
+    fn write_bool(&mut self, n: Option<&str>, v: bool) -> Result<(), Self::Error> {
+        self.put(n, serde_json::Value::Bool(v));
+        Ok(())
+    }
+    fn write_i8(&mut self, n: Option<&str>, v: i8) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_i16(&mut self, n: Option<&str>, v: i16) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_i32(&mut self, n: Option<&str>, v: i32) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_i64(&mut self, n: Option<&str>, v: i64) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_u8(&mut self, n: Option<&str>, v: u8) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_u16(&mut self, n: Option<&str>, v: u16) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_u32(&mut self, n: Option<&str>, v: u32) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_u64(&mut self, n: Option<&str>, v: u64) -> Result<(), Self::Error> {
+        self.num(n, v);
+        Ok(())
+    }
+    fn write_f32(&mut self, n: Option<&str>, v: f32) -> Result<(), Self::Error> {
+        // The shortest text of the f32 (as the JSON export writes it), not its f64 widening.
+        let f = v
+            .is_finite()
+            .then(|| v.to_string().parse::<f64>().ok())
+            .flatten();
+        self.float(n, f);
+        Ok(())
+    }
+    fn write_f64(&mut self, n: Option<&str>, v: f64) -> Result<(), Self::Error> {
+        self.float(n, v.is_finite().then_some(v));
+        Ok(())
+    }
+    fn write_str(&mut self, n: Option<&str>, v: &str) -> Result<(), Self::Error> {
+        self.put(n, serde_json::Value::String(v.to_string()));
+        Ok(())
+    }
+    fn write_guid(
+        &mut self,
+        n: Option<&str>,
+        v: &starbreaker_datacore::types::CigGuid,
+    ) -> Result<(), Self::Error> {
+        self.put(n, serde_json::Value::String(v.to_string()));
+        Ok(())
+    }
+    fn write_record_ref(
+        &mut self,
+        name: Option<&str>,
+        id: &starbreaker_datacore::types::CigGuid,
+        record_name: &str,
+        path: &str,
+    ) -> Result<(), Self::Error> {
+        let guid = id.to_string();
+        let target = self.index.by_guid(&guid).and_then(|i| self.index.entry(i));
+        let v = serde_json::json!({
+            starorg_core::dev::record::REF_KEY: guid,
+            "name": record_name,
+            "type": target.map(|e| e.struct_type.as_str()),
+            "path": target.map_or(path, |e| e.path.as_str()),
+        });
+        self.put(name, v);
+        Ok(())
+    }
+}
+
+/// A small valid DCB built with StarBreaker's `DcbBuilder`, for tests here and in the app
+/// (feature `synthetic-dcb`): `makers` manufacturer records, `items` item records that
+/// reference a maker and hold a `@item_Name...` loc key, and `tags` tag records sharing one
+/// file (only the last is a main record). No CIG data.
+#[cfg(any(test, feature = "synthetic-dcb"))]
+pub mod synthetic {
+    use starbreaker_datacore::dcb_builder::DcbBuilder;
+    use starbreaker_datacore::types::{
+        CigGuid, DataMapping, PropertyDefinition, Record, StringId2, StructDefinition,
+    };
+
+    pub const ITEM_TYPE: &str = "SynItem";
+    pub const MAKER_TYPE: &str = "SynMaker";
+    pub const TAG_TYPE: &str = "SynTag";
+
+    /// GUID of record `n` of kind `k` (0 makers, 1 items, 2 tags).
+    pub fn guid(k: u8, n: u32) -> CigGuid {
+        let mut b = [0u8; 16];
+        b[0] = k + 1;
+        b[8..12].copy_from_slice(&n.to_le_bytes());
+        b[15] = 0x5a;
+        CigGuid::from_bytes(b)
+    }
+
+    pub fn guid_text(k: u8, n: u32) -> String {
+        guid(k, n).to_string()
+    }
+
+    pub fn item_path(n: u32) -> String {
+        format!("libs/foundry/records/entities/scitem/ships/syn/syn_item_{n:03}.xml")
+    }
+
+    pub fn maker_path(n: u32) -> String {
+        format!("libs/foundry/records/scitemmanufacturer/syn_maker_{n}.xml")
+    }
+
+    pub const TAG_FILE: &str = "libs/foundry/records/tagdatabase/syn_tags.xml";
+
+    pub fn build(makers: u32, items: u32, tags: u32) -> Vec<u8> {
+        let mut b = DcbBuilder::new();
+        let prop = |b: &mut DcbBuilder, name: &str, s: u16, ty: u16| {
+            let n = b.add_string2(name);
+            b.property_defs.push(PropertyDefinition {
+                name_offset: n,
+                struct_index: s,
+                data_type: ty,
+                conversion_type: 0,
+                _padding: 0,
+            });
+        };
+        // 0 SynItem: Name (String), Size (Int32), Mass (Single), Maker (Reference),
+        // Active (Boolean) = 4 + 4 + 4 + 20 + 1 bytes.
+        let item_name = b.add_string2(ITEM_TYPE);
+        b.struct_defs.push(StructDefinition {
+            name_offset: item_name,
+            parent_type_index: -1,
+            attribute_count: 5,
+            first_attribute_index: 0,
+            struct_size: 33,
+        });
+        prop(&mut b, "Name", 0, 0x000A);
+        prop(&mut b, "Size", 0, 0x0004);
+        prop(&mut b, "Mass", 0, 0x000B);
+        prop(&mut b, "Maker", 0, 0x0310);
+        prop(&mut b, "Active", 0, 0x0001);
+        // 1 SynMaker: Name, Code (String).
+        let maker_name = b.add_string2(MAKER_TYPE);
+        b.struct_defs.push(StructDefinition {
+            name_offset: maker_name,
+            parent_type_index: -1,
+            attribute_count: 2,
+            first_attribute_index: 5,
+            struct_size: 8,
+        });
+        prop(&mut b, "Name", 1, 0x000A);
+        prop(&mut b, "Code", 1, 0x000A);
+        // 2 SynTag: Label (String).
+        let tag_name = b.add_string2(TAG_TYPE);
+        b.struct_defs.push(StructDefinition {
+            name_offset: tag_name,
+            parent_type_index: -1,
+            attribute_count: 1,
+            first_attribute_index: 7,
+            struct_size: 4,
+        });
+        prop(&mut b, "Label", 2, 0x000A);
+        // Instance data follows the data mappings: items, makers, tags.
+        b.data_mappings.push(DataMapping {
+            struct_count: items,
+            struct_index: 0,
+        });
+        b.data_mappings.push(DataMapping {
+            struct_count: makers,
+            struct_index: 1,
+        });
+        b.data_mappings.push(DataMapping {
+            struct_count: tags,
+            struct_index: 2,
+        });
+        let tag_file = b.add_string1(TAG_FILE);
+        for n in 0..items {
+            let name = b.add_string2(&format!("SYN_Item_{n:03}"));
+            let file = b.add_string1(&item_path(n));
+            let loc = b.add_string1(&format!("@item_NameSYN_Item_{n:03}"));
+            b.records.push(Record {
+                name_offset: name,
+                file_name_offset: file,
+                tag_offset: StringId2(-1),
+                struct_index: 0,
+                id: guid(1, n),
+                instance_index: n as u16,
+                struct_size: 33,
+            });
+            b.instance_data.extend_from_slice(&loc.0.to_le_bytes());
+            b.instance_data
+                .extend_from_slice(&((n % 4 + 1) as i32).to_le_bytes());
+            b.instance_data
+                .extend_from_slice(&(n as f32 * 0.5 + 0.1).to_le_bytes());
+            let maker = if makers > 0 {
+                guid(0, n % makers)
+            } else {
+                CigGuid::EMPTY
+            };
+            b.instance_data.extend_from_slice(&0i32.to_le_bytes());
+            b.instance_data.extend_from_slice(&maker.bytes);
+            b.instance_data.push(u8::from(n % 2 == 0));
+        }
+        for n in 0..makers {
+            let name = b.add_string2(&format!("SYN_Maker_{n}"));
+            let file = b.add_string1(&maker_path(n));
+            let display = b.add_string1(&format!("Synthetic Maker {n}"));
+            let code = b.add_string1(&format!("SYN{n}"));
+            b.records.push(Record {
+                name_offset: name,
+                file_name_offset: file,
+                tag_offset: StringId2(-1),
+                struct_index: 1,
+                id: guid(0, n),
+                instance_index: n as u16,
+                struct_size: 8,
+            });
+            b.instance_data.extend_from_slice(&display.0.to_le_bytes());
+            b.instance_data.extend_from_slice(&code.0.to_le_bytes());
+        }
+        for n in 0..tags {
+            let name = b.add_string2(&format!("SynTag{n}"));
+            let label = b.add_string1(&format!("tag {n}"));
+            b.records.push(Record {
+                name_offset: name,
+                file_name_offset: tag_file,
+                tag_offset: StringId2(-1),
+                struct_index: 2,
+                id: guid(2, n),
+                instance_index: n as u16,
+                struct_size: 4,
+            });
+            b.instance_data.extend_from_slice(&label.0.to_le_bytes());
+        }
+        b.build()
+    }
+}

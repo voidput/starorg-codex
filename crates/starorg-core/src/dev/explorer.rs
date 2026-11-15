@@ -251,10 +251,10 @@ impl ExplorerIndex {
             }
             hit
         };
-        if lw.contains('/') {
-            if let Some(i) = best(&|i| strip(&self.lrel[i]) == lw_stem) {
-                return Some(i);
-            }
+        if lw.contains('/')
+            && let Some(i) = best(&|i| strip(&self.lrel[i]) == lw_stem)
+        {
+            return Some(i);
         }
         let ln = w.to_lowercase();
         best(&|i| self.lname[i] == ln)

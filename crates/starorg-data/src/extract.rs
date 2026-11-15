@@ -109,7 +109,11 @@ pub fn guarded<T>(
 /// The `crc32` field of CIG's p4k entries is CRC-32C (Castagnoli), not the ZIP CRC-32: on
 /// LIVE 4.10 a sample of 3,000 entries (stored, zstd and encrypted) all match CRC-32C and
 /// none match CRC-32.
-fn read_checked(archive: &Archive, info: &EntryInfo, max: u64) -> Result<Vec<u8>, ExtractError> {
+pub(crate) fn read_checked(
+    archive: &Archive,
+    info: &EntryInfo,
+    max: u64,
+) -> Result<Vec<u8>, ExtractError> {
     if info.uncompressed_size > max {
         return Err(ExtractError::TooLarge {
             name: info.name.clone(),

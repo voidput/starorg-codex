@@ -21,5 +21,13 @@ serde_json = { workspace = true, features = ["preserve_order"] }
 crc32c.workspace = true
 rayon.workspace = true
 
+[features]
+# `starbreaker::synthetic`: a small DCB built with StarBreaker's DcbBuilder, for the app's
+# Developer mode tests (its dev-dependencies turn this on; never in a release build).
+synthetic-dcb = []
+
 [lints]
 workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

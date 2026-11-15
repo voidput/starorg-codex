@@ -5,7 +5,9 @@
 //! - [`extract`]: the extraction steps.
 //! - [`gamedata`]: DataCore records -> `GameData`.
 //! - [`worker`]: the `extract-worker` process body.
+//! - [`devworker`]: the `dev-worker` process body (Developer mode explorer, addendum 7).
 
+pub mod devworker;
 pub mod eocd;
 pub mod extract;
 pub mod gamedata;
