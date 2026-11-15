@@ -17,6 +17,8 @@ fn run(home: &Path, args: &[&str]) -> Output {
         .env("XDG_CONFIG_HOME", home.join("config"))
         .env("XDG_DATA_HOME", home.join("data"))
         .env("XDG_CACHE_HOME", home.join("cache"))
+        .env("APPDATA", home.join("appdata"))
+        .env("LOCALAPPDATA", home.join("localappdata"))
         .output()
         .unwrap()
 }
@@ -265,14 +267,27 @@ fn a_cache_folder_in_the_game_folder_or_prefix_is_refused_at_use() {
     assert!(String::from_utf8_lossy(&o.stderr).contains("never goes into the game folder"));
     assert!(!inside.exists());
     // The setting pointing into the Wine prefix.
-    let cfg = t.path().join("config").join("starorg-strings");
+    // On Windows there is no Wine prefix and the config lives under %APPDATA%: point the
+    // setting into the channel folder there instead.
+    let (cfg, bad) = if cfg!(windows) {
+        (
+            t.path()
+                .join("appdata")
+                .join("StarOrg Tools")
+                .join("Strings")
+                .join("config"),
+            p.parent().unwrap().join("x"),
+        )
+    } else {
+        (
+            t.path().join("config").join("starorg-strings"),
+            pfx.join("x"),
+        )
+    };
     std::fs::create_dir_all(&cfg).unwrap();
     std::fs::write(
         cfg.join("config.toml"),
-        format!(
-            "[dev]\nasset_cache_dir = {:?}\n",
-            pfx.join("x").display().to_string()
-        ),
+        format!("[dev]\nasset_cache_dir = {:?}\n", bad.display().to_string()),
     )
     .unwrap();
     let o = run(
@@ -293,5 +308,5 @@ fn a_cache_folder_in_the_game_folder_or_prefix_is_refused_at_use() {
         "{}",
         String::from_utf8_lossy(&o.stderr)
     );
-    assert!(!pfx.join("x").exists());
+    assert!(!bad.exists());
 }

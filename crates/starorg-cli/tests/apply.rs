@@ -92,7 +92,7 @@ fn app_update_alone_is_not_stale_but_an_output_version_bump_is() {
 }
 
 #[test]
-fn manifest_from_0_1_0_reads_as_applied() {
+fn manifest_from_0_1_0_keeps_its_profile_and_only_needs_the_enhancer_update() {
     let f = Fake::new();
     f.setup("LIVE");
     let (code, v) = f.json(&["apply", "--channel", "LIVE"]);
@@ -108,8 +108,15 @@ fn manifest_from_0_1_0_reads_as_applied() {
         a.insert("app_version".into(), "0.1.0".into());
         a.insert("profile_hash".into(), profile.legacy_hash().into());
     });
+    // The old profile hash still matches (legacy form); 0.1.0 output is version 1, so the
+    // only reason is the generator change since then (OUTPUT_VERSION 2: LOC_* sentinels).
     let st = status_json(&f, "LIVE");
-    assert_eq!(st["state"], "applied", "{st}");
+    assert_eq!(st["state"], "stale", "{st}");
+    assert_eq!(
+        st["reasons"],
+        serde_json::json!(["enhancer update"]),
+        "{st}"
+    );
     // A real settings change still shows against the old record.
     std::fs::write(
         starorg_core::state::Profile::path(&data),
@@ -117,7 +124,11 @@ fn manifest_from_0_1_0_reads_as_applied() {
     )
     .unwrap();
     let st = status_json(&f, "LIVE");
-    assert_eq!(st["reasons"], serde_json::json!(["profile"]), "{st}");
+    assert_eq!(
+        st["reasons"],
+        serde_json::json!(["profile", "enhancer update"]),
+        "{st}"
+    );
 }
 
 #[test]
