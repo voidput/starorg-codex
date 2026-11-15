@@ -17,7 +17,7 @@ export function resolveTheme(setting: ThemeSetting, prefersDark: boolean): 'dark
 export const isLinux = () => /Linux/i.test(navigator.userAgent) && !/Android/i.test(navigator.userAgent);
 
 export function defaultAppearance(): Appearance {
-  return { theme: 'system', accent: 'cyan', palette: 'void', reduce_effects: isLinux() };
+  return { theme: 'dark', accent: 'cyan', palette: 'void', reduce_effects: isLinux() };
 }
 
 let unwatch: (() => void) | null = null;

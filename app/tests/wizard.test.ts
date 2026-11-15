@@ -16,7 +16,7 @@ test('Preferences sits after Enhancements and before Review, and never blocks', 
 });
 
 test('defaults keep every network switch off (docs/privacy.md)', () => {
-  assert.deepEqual(defaultPrefs(false), { check_updates: false, theme: 'system', reduce_effects: false, starorg: false });
+  assert.deepEqual(defaultPrefs(false), { check_updates: false, theme: 'dark', reduce_effects: false, starorg: false });
   assert.equal(defaultPrefs(true).reduce_effects, true, 'Linux draws blur slowly');
 });
 
@@ -54,5 +54,5 @@ test('Review says what the update check sends', () => {
   const off = prefsSummary(defaultPrefs(false), false);
   assert.equal(off.find((r) => r.label === 'Updates')!.value, 'Do not check (no request)');
   assert.equal(off.find((r) => r.label === 'StarOrg Tools')!.value, 'Off');
-  assert.equal(off.find((r) => r.label === 'Appearance')!.value, 'Same as the system');
+  assert.equal(off.find((r) => r.label === 'Appearance')!.value, 'Dark');
 });

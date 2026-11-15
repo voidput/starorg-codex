@@ -7935,7 +7935,7 @@
       "accent": "cyan",
       "palette": "void",
       "reduce_effects": true,
-      "theme": "system"
+      "theme": "dark"
     },
     "default_channel": "LIVE",
     "network": {

@@ -955,7 +955,7 @@ impl RealBackend {
         let a = self.app_file();
         Settings {
             appearance: a.appearance.unwrap_or(Appearance {
-                theme: Theme::System,
+                theme: Theme::Dark,
                 accent: Accent::Cyan,
                 palette: Palette::Void,
                 reduce_effects: false,

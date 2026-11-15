@@ -122,7 +122,7 @@ export interface Prefs {
 
 /** Defaults when no saved Settings could be read: as Rust's (theme.ts `defaultAppearance`). */
 export function defaultPrefs(linux: boolean): Prefs {
-  return { check_updates: false, theme: 'system', reduce_effects: linux, starorg: false };
+  return { check_updates: false, theme: 'dark', reduce_effects: linux, starorg: false };
 }
 
 /** The current values, so running setup again shows (and keeps) what is saved. */

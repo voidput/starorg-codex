@@ -323,7 +323,7 @@ impl MockBackend {
             channels,
             settings: Settings {
                 appearance: Appearance {
-                    theme: Theme::System,
+                    theme: Theme::Dark,
                     accent: Accent::Cyan,
                     palette: Palette::Void,
                     // Fixed, not per OS: the mock feeds samples.gen.json, which must match on every runner.
