@@ -256,6 +256,30 @@ pub struct SetupResult {
     pub skipped: Vec<String>,
 }
 
+/// What setup + the first apply would do per channel: the wizard's review step (spec 9.4).
+/// Real backend: path resolution (spec 10.3) and a dry-run build; nothing is written.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PlannedChannel {
+    pub channel: String,
+    pub target: String,
+    pub target_is_link: bool,
+    pub link_target: Option<String>,
+    pub backup_dir: String,
+    /// The `user.cfg` line we add, or null for "no change needed".
+    pub user_cfg_line: Option<String>,
+    pub user_cfg_path: Option<String>,
+    /// Another tool's file that will be backed up (pinned) and replaced.
+    pub replaces_tool: Option<String>,
+    pub counts: ApplyCounts,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SetupPlan {
+    pub install: String,
+    pub channels: Vec<PlannedChannel>,
+    pub warnings: Vec<Warning>,
+}
+
 // ---------------------------------------------------------------------------------------
 // Apply, preview, remove, restore, backups
 // ---------------------------------------------------------------------------------------

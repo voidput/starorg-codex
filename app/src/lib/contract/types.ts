@@ -124,6 +124,24 @@ export interface SetupResult {
   skipped: string[];
 }
 
+export interface PlannedChannel {
+  channel: string;
+  target: string;
+  target_is_link: boolean;
+  link_target: string | null;
+  backup_dir: string;
+  user_cfg_line: string | null;
+  user_cfg_path: string | null;
+  replaces_tool: string | null;
+  counts: ApplyCounts;
+}
+
+export interface SetupPlan {
+  install: string;
+  channels: PlannedChannel[];
+  warnings: Warning[];
+}
+
 // Apply, backups ------------------------------------------------------------------------
 
 export type ApplyResult = 'applied' | 'up-to-date' | 'skipped' | 'failed' | 'dry-run' | 'needs-setup' | 'needs-decision' | 'removed' | 'restored' | 'nothing-to-do';

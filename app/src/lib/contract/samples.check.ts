@@ -15,6 +15,7 @@ interface Samples {
   overview: T.Overview;
   discover_installs: T.InstallSummary[];
   pick_install_folder: T.InstallSummary | null;
+  plan_setup: T.SetupPlan;
   setup: T.SetupResult;
   channel_status: T.ChannelSummary;
   apply: T.ApplyReport;

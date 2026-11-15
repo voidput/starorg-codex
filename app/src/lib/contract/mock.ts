@@ -318,6 +318,48 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const i = installs[1];
       return i ? { ...clone(i), found_by: 'manual', found_by_label: 'Chosen folder' } : null;
     },
+    plan_setup: async ({ req }) => {
+      await sleep(Math.min(delay, 300));
+      const inst = installs.find((i) => i.id === req.install) ?? fail('not-found', `No install ${req.install}`);
+      const warnings: T.Warning[] = [];
+      const channels: T.PlannedChannel[] = [];
+      const p = presetProfile(req.preset);
+      const on = (cid: T.CategoryId) => p.categories.some((x) => x.id === cid && x.enabled);
+      for (const c of req.channels.filter((x) => x.consent)) {
+        const s = chan({ install: req.install, channel: c.channel }).summary;
+        if (s.language === 'other' && !c.switch_language) {
+          warnings.push({ kind: 'language', detail: `${c.channel}: the game language is not English; it will be skipped` });
+          continue;
+        }
+        const counts: T.ApplyCounts = {
+          ships: on('ships') ? 231 : 0,
+          components: on('components') ? 1840 : 0,
+          ship_weapons: on('ship-weapons') ? 402 : 0,
+          fps_weapons: on('fps-weapons') ? 318 : 0,
+          missiles: on('missiles') ? 96 : 0,
+          missions: on('missions') ? 2140 : 0,
+          overrides: 0,
+          dropped: 0,
+          changed: 0,
+        };
+        counts.changed = (counts.ships + counts.components + counts.ship_weapons + counts.fps_weapons + counts.missiles + counts.missions) * 2 + 1200;
+        channels.push({
+          channel: c.channel,
+          target: `${inst.root}/${c.channel}/Data/Localization/english/global.ini`,
+          target_is_link: false,
+          link_target: null,
+          backup_dir: `~/.local/share/starorg-strings/channels/${req.install}/${c.channel}/backups`,
+          user_cfg_line: s.language === 'other' ? 'g_language = english' : null,
+          user_cfg_path: `${inst.root}/${c.channel}/USER.cfg`,
+          replaces_tool: s.foreign_tool,
+          counts,
+        });
+      }
+      if (req.data_source === 'published-dumps') {
+        warnings.push({ kind: 'network', detail: 'Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.' });
+      }
+      return { install: req.install, channels, warnings };
+    },
     setup: ({ req }) => {
       const set_up: string[] = [];
       const skipped: string[] = [];

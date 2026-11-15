@@ -177,9 +177,13 @@ mod tests {
     fn list_channels_over_ipc_returns_the_cli_shape() {
         let t = tempfile::tempdir().unwrap();
         fake_install(t.path());
-        let app = crate::builder(mock_builder(), fixture(t.path().to_path_buf()), mock_backend())
-            .build(mock_context(noop_assets()))
-            .unwrap();
+        let app = crate::builder(
+            mock_builder(),
+            fixture(t.path().to_path_buf()),
+            mock_backend(),
+        )
+        .build(mock_context(noop_assets()))
+        .unwrap();
         let v = invoke(&app, "list_channels");
 
         assert_eq!(v["schema"], 1);
@@ -207,9 +211,13 @@ mod tests {
     #[test]
     fn list_channels_with_nothing_found_is_empty_not_an_error() {
         let t = tempfile::tempdir().unwrap();
-        let app = crate::builder(mock_builder(), fixture(t.path().join("nope")), mock_backend())
-            .build(mock_context(noop_assets()))
-            .unwrap();
+        let app = crate::builder(
+            mock_builder(),
+            fixture(t.path().join("nope")),
+            mock_backend(),
+        )
+        .build(mock_context(noop_assets()))
+        .unwrap();
         let v = invoke(&app, "list_channels");
         assert_eq!(v["installs"].as_array().unwrap().len(), 0);
     }

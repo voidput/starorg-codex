@@ -16,7 +16,10 @@ pub fn builder<R: tauri::Runtime>(
 ) -> tauri::Builder<R> {
     b.manage(discovery)
         .manage(backend)
-        .invoke_handler(contract_handler![commands::list_channels, commands::app_info])
+        .invoke_handler(contract_handler![
+            commands::list_channels,
+            commands::app_info
+        ])
 }
 
 /// The backend the app runs with. Mock until M1/M2 land (feature `mock-backend`).
@@ -24,7 +27,9 @@ fn backend() -> BackendState {
     #[cfg(feature = "mock-backend")]
     {
         // Slow enough to see progress in the window, fast enough not to annoy.
-        BackendState::new(contract::mock::MockBackend::new(std::time::Duration::from_millis(250)))
+        BackendState::new(contract::mock::MockBackend::new(
+            std::time::Duration::from_millis(250),
+        ))
     }
     #[cfg(not(feature = "mock-backend"))]
     {
@@ -34,7 +39,11 @@ fn backend() -> BackendState {
 
 /// Start the GUI. [`gpu::apply`] must already have run (see `main.rs`).
 pub fn run() {
-    builder(tauri::Builder::default(), DiscoveryConfig::default(), backend())
-        .run(tauri::generate_context!())
-        .expect("error while running StarOrg Strings");
+    builder(
+        tauri::Builder::default(),
+        DiscoveryConfig::default(),
+        backend(),
+    )
+    .run(tauri::generate_context!())
+    .expect("error while running StarOrg Strings");
 }

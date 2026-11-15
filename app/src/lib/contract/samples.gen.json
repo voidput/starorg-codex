@@ -1161,6 +1161,59 @@
     "root": "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen",
     "saved": false
   },
+  "plan_setup": {
+    "channels": [
+      {
+        "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/LIVE/backups",
+        "channel": "LIVE",
+        "counts": {
+          "changed": 11254,
+          "components": 1840,
+          "dropped": 0,
+          "fps_weapons": 318,
+          "missiles": 96,
+          "missions": 2140,
+          "overrides": 0,
+          "ship_weapons": 402,
+          "ships": 231
+        },
+        "link_target": null,
+        "replaces_tool": "Smart Citizen",
+        "target": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/Data/Localization/english/global.ini",
+        "target_is_link": false,
+        "user_cfg_line": null,
+        "user_cfg_path": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      },
+      {
+        "backup_dir": "~/.local/share/starorg-strings/channels/inst-7f3a/PTU/backups",
+        "channel": "PTU",
+        "counts": {
+          "changed": 11254,
+          "components": 1840,
+          "dropped": 0,
+          "fps_weapons": 318,
+          "missiles": 96,
+          "missions": 2140,
+          "overrides": 0,
+          "ship_weapons": 402,
+          "ships": 231
+        },
+        "link_target": null,
+        "replaces_tool": null,
+        "target": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/PTU/Data/Localization/english/global.ini",
+        "target_is_link": false,
+        "user_cfg_line": "g_language = english",
+        "user_cfg_path": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/PTU/USER.cfg"
+      }
+    ],
+    "install": "inst-7f3a",
+    "warnings": [
+      {
+        "detail": "Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.",
+        "kind": "network"
+      }
+    ]
+  },
   "query_strings": {
     "all": 91000,
     "categories": [

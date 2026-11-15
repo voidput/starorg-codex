@@ -72,13 +72,49 @@ fn samples() -> Value {
     let first_overview = b.overview().unwrap();
     let discovered = b.discover_installs(false).unwrap();
     let picked = b.pick_install_folder().unwrap();
+    let plan = b
+        .plan_setup(SetupRequest {
+            install: "inst-7f3a".into(),
+            channels: vec![
+                ChannelConsent {
+                    channel: "LIVE".into(),
+                    consent: true,
+                    switch_language: false,
+                },
+                ChannelConsent {
+                    channel: "PTU".into(),
+                    consent: true,
+                    switch_language: true,
+                },
+            ],
+            data_source: DataSource::PublishedDumps,
+            preset: Preset::Recommended,
+            fix_known_bugs: true,
+        })
+        .unwrap();
     set_up(&b);
-    let setup_result = json!({ "install": "inst-7f3a", "set_up": ["LIVE", "HOTFIX"], "skipped": ["PTU"] });
+    let setup_result =
+        json!({ "install": "inst-7f3a", "set_up": ["LIVE", "HOTFIX"], "skipped": ["PTU"] });
     let mut events = std::sync::Mutex::new(Vec::new());
     let record = |p: JobProgress| events.lock().unwrap().push(p);
-    let applied = b.apply(ApplyRequest { target: live(), dry_run: false }, &record).unwrap();
+    let applied = b
+        .apply(
+            ApplyRequest {
+                target: live(),
+                dry_run: false,
+            },
+            &record,
+        )
+        .unwrap();
     let event = events.get_mut().unwrap().first().cloned().unwrap();
-    b.apply(ApplyRequest { target: live(), dry_run: false }, &noop).unwrap();
+    b.apply(
+        ApplyRequest {
+            target: live(),
+            dry_run: false,
+        },
+        &noop,
+    )
+    .unwrap();
     let ov = b
         .set_override(OverrideRequest {
             target: live(),
@@ -96,7 +132,18 @@ fn samples() -> Value {
     let mut settings = b.get_settings().unwrap();
     settings.network.starorg = true;
     let settings = b.save_settings(settings).unwrap();
-    let err = b.apply(ApplyRequest { target: ChannelRef { channel: "PTU".into(), ..live() }, dry_run: false }, &noop).unwrap_err();
+    let err = b
+        .apply(
+            ApplyRequest {
+                target: ChannelRef {
+                    channel: "PTU".into(),
+                    ..live()
+                },
+                dry_run: false,
+            },
+            &noop,
+        )
+        .unwrap_err();
     json!({
         "contract": CONTRACT_VERSION,
         "job_event": JOB_EVENT,
@@ -105,6 +152,7 @@ fn samples() -> Value {
         "overview": b.overview().unwrap(),
         "discover_installs": discovered,
         "pick_install_folder": picked,
+        "plan_setup": plan,
         "setup": setup_result,
         "channel_status": b.channel_status(live()).unwrap(),
         "apply": applied,
@@ -150,14 +198,22 @@ fn samples_match_the_committed_file() {
 
 fn names<T: serde::Serialize>(all: &[T]) -> Vec<String> {
     all.iter()
-        .map(|v| serde_json::to_value(v).unwrap().as_str().unwrap().to_string())
+        .map(|v| {
+            serde_json::to_value(v)
+                .unwrap()
+                .as_str()
+                .unwrap()
+                .to_string()
+        })
         .collect()
 }
 
 /// `export type X = 'a' | 'b';` from types.ts, as the list of members.
 fn ts_union(ts: &str, name: &str) -> Vec<String> {
     let start = format!("export type {name} =");
-    let at = ts.find(&start).unwrap_or_else(|| panic!("types.ts has no `{start}`"));
+    let at = ts
+        .find(&start)
+        .unwrap_or_else(|| panic!("types.ts has no `{start}`"));
     let rest = &ts[at + start.len()..];
     let end = rest.find(';').unwrap();
     rest[..end]
@@ -172,57 +228,242 @@ fn ts_unions_list_every_variant() {
     let ts = std::fs::read_to_string(app_src().join("types.ts")).unwrap();
     use ErrorCode as E;
     let cases: Vec<(&str, Vec<String>)> = vec![
-        ("ErrorCode", names(&[E::Invalid, E::NotFound, E::NeedsDecision, E::Busy, E::NetworkOff, E::Cancelled, E::Internal])),
-        ("Language", names(&[Language::English, Language::Other, Language::Unknown])),
-        ("CacheState", names(&[CacheState::Fresh, CacheState::Missing, CacheState::Stale])),
-        ("FoundBy", names(&[
-            FoundBy::Config, FoundBy::GameDir, FoundBy::Prefix, FoundBy::LugConfig, FoundBy::DefaultPrefix,
-            FoundBy::Lutris, FoundBy::LauncherLog, FoundBy::CommonPath, FoundBy::Scan, FoundBy::Manual,
-        ])),
-        ("JobKind", names(&[JobKind::Discover, JobKind::Extract, JobKind::Apply, JobKind::Remove, JobKind::Restore, JobKind::Import, JobKind::Sync])),
-        ("JobPhase", names(&[JobPhase::Running, JobPhase::Done, JobPhase::Failed, JobPhase::Cancelled])),
-        ("Preset", names(&[Preset::Recommended, Preset::Minimal, Preset::Everything])),
-        ("DataSource", names(&[DataSource::Local, DataSource::PublishedDumps])),
-        ("ApplyResult", names(&[
-            ApplyResult::Applied, ApplyResult::UpToDate, ApplyResult::Skipped, ApplyResult::Failed, ApplyResult::DryRun,
-            ApplyResult::NeedsSetup, ApplyResult::NeedsDecision, ApplyResult::Removed, ApplyResult::Restored, ApplyResult::NothingToDo,
-        ])),
-        ("BackupReason", names(&[BackupReason::PreExisting, BackupReason::BeforeApply, BackupReason::BeforeRestore, BackupReason::Manual])),
-        ("FileOrigin", names(&[FileOrigin::Ours, FileOrigin::Foreign, FileOrigin::None])),
-        ("CategoryId", names(&[
-            CategoryId::Ships, CategoryId::Components, CategoryId::ShipWeapons, CategoryId::Missiles,
-            CategoryId::FpsWeapons, CategoryId::NameTags, CategoryId::Missions, CategoryId::Blueprints,
-        ])),
-        ("StatsPlacement", names(&[StatsPlacement::BelowProse, StatsPlacement::AboveProse])),
-        ("TagStyle", names(&[TagStyle::Short, TagStyle::Medium, TagStyle::Long])),
-        ("TagSeparator", names(&[
-            TagSeparator::Dash, TagSeparator::None, TagSeparator::Space, TagSeparator::Underscore,
-            TagSeparator::Dot, TagSeparator::Slash, TagSeparator::Pipe,
-        ])),
-        ("TagEnclosing", names(&[TagEnclosing::Square, TagEnclosing::Round, TagEnclosing::Curly, TagEnclosing::Angle, TagEnclosing::None])),
-        ("TagPlacement", names(&[TagPlacement::Prefix, TagPlacement::Suffix])),
-        ("StringSource", names(&[StringSource::Unmodified, StringSource::Enhanced, StringSource::Patched, StringSource::Edited])),
-        ("StringSort", names(&[StringSort::Key, StringSort::KeyDesc, StringSort::Category, StringSort::Source])),
-        ("Layer", names(&[Layer::Stock, Layer::Generated, Layer::Patch, Layer::Override])),
-        ("PatchState", names(&[
-            PatchState::Applies, PatchState::NotNeeded, PatchState::TargetChanged, PatchState::NothingToAdd, PatchState::Missing,
-            PatchState::OutOfRange, PatchState::Conflict, PatchState::Disabled, PatchState::Retired,
-        ])),
-        ("PatchOrigin", names(&[PatchOrigin::BuiltIn, PatchOrigin::User])),
-        ("LogLevel", names(&[LogLevel::Info, LogLevel::Warn, LogLevel::Error])),
+        (
+            "ErrorCode",
+            names(&[
+                E::Invalid,
+                E::NotFound,
+                E::NeedsDecision,
+                E::Busy,
+                E::NetworkOff,
+                E::Cancelled,
+                E::Internal,
+            ]),
+        ),
+        (
+            "Language",
+            names(&[Language::English, Language::Other, Language::Unknown]),
+        ),
+        (
+            "CacheState",
+            names(&[CacheState::Fresh, CacheState::Missing, CacheState::Stale]),
+        ),
+        (
+            "FoundBy",
+            names(&[
+                FoundBy::Config,
+                FoundBy::GameDir,
+                FoundBy::Prefix,
+                FoundBy::LugConfig,
+                FoundBy::DefaultPrefix,
+                FoundBy::Lutris,
+                FoundBy::LauncherLog,
+                FoundBy::CommonPath,
+                FoundBy::Scan,
+                FoundBy::Manual,
+            ]),
+        ),
+        (
+            "JobKind",
+            names(&[
+                JobKind::Discover,
+                JobKind::Extract,
+                JobKind::Apply,
+                JobKind::Remove,
+                JobKind::Restore,
+                JobKind::Import,
+                JobKind::Sync,
+            ]),
+        ),
+        (
+            "JobPhase",
+            names(&[
+                JobPhase::Running,
+                JobPhase::Done,
+                JobPhase::Failed,
+                JobPhase::Cancelled,
+            ]),
+        ),
+        (
+            "Preset",
+            names(&[Preset::Recommended, Preset::Minimal, Preset::Everything]),
+        ),
+        (
+            "DataSource",
+            names(&[DataSource::Local, DataSource::PublishedDumps]),
+        ),
+        (
+            "ApplyResult",
+            names(&[
+                ApplyResult::Applied,
+                ApplyResult::UpToDate,
+                ApplyResult::Skipped,
+                ApplyResult::Failed,
+                ApplyResult::DryRun,
+                ApplyResult::NeedsSetup,
+                ApplyResult::NeedsDecision,
+                ApplyResult::Removed,
+                ApplyResult::Restored,
+                ApplyResult::NothingToDo,
+            ]),
+        ),
+        (
+            "BackupReason",
+            names(&[
+                BackupReason::PreExisting,
+                BackupReason::BeforeApply,
+                BackupReason::BeforeRestore,
+                BackupReason::Manual,
+            ]),
+        ),
+        (
+            "FileOrigin",
+            names(&[FileOrigin::Ours, FileOrigin::Foreign, FileOrigin::None]),
+        ),
+        (
+            "CategoryId",
+            names(&[
+                CategoryId::Ships,
+                CategoryId::Components,
+                CategoryId::ShipWeapons,
+                CategoryId::Missiles,
+                CategoryId::FpsWeapons,
+                CategoryId::NameTags,
+                CategoryId::Missions,
+                CategoryId::Blueprints,
+            ]),
+        ),
+        (
+            "StatsPlacement",
+            names(&[StatsPlacement::BelowProse, StatsPlacement::AboveProse]),
+        ),
+        (
+            "TagStyle",
+            names(&[TagStyle::Short, TagStyle::Medium, TagStyle::Long]),
+        ),
+        (
+            "TagSeparator",
+            names(&[
+                TagSeparator::Dash,
+                TagSeparator::None,
+                TagSeparator::Space,
+                TagSeparator::Underscore,
+                TagSeparator::Dot,
+                TagSeparator::Slash,
+                TagSeparator::Pipe,
+            ]),
+        ),
+        (
+            "TagEnclosing",
+            names(&[
+                TagEnclosing::Square,
+                TagEnclosing::Round,
+                TagEnclosing::Curly,
+                TagEnclosing::Angle,
+                TagEnclosing::None,
+            ]),
+        ),
+        (
+            "TagPlacement",
+            names(&[TagPlacement::Prefix, TagPlacement::Suffix]),
+        ),
+        (
+            "StringSource",
+            names(&[
+                StringSource::Unmodified,
+                StringSource::Enhanced,
+                StringSource::Patched,
+                StringSource::Edited,
+            ]),
+        ),
+        (
+            "StringSort",
+            names(&[
+                StringSort::Key,
+                StringSort::KeyDesc,
+                StringSort::Category,
+                StringSort::Source,
+            ]),
+        ),
+        (
+            "Layer",
+            names(&[
+                Layer::Stock,
+                Layer::Generated,
+                Layer::Patch,
+                Layer::Override,
+            ]),
+        ),
+        (
+            "PatchState",
+            names(&[
+                PatchState::Applies,
+                PatchState::NotNeeded,
+                PatchState::TargetChanged,
+                PatchState::NothingToAdd,
+                PatchState::Missing,
+                PatchState::OutOfRange,
+                PatchState::Conflict,
+                PatchState::Disabled,
+                PatchState::Retired,
+            ]),
+        ),
+        (
+            "PatchOrigin",
+            names(&[PatchOrigin::BuiltIn, PatchOrigin::User]),
+        ),
+        (
+            "LogLevel",
+            names(&[LogLevel::Info, LogLevel::Warn, LogLevel::Error]),
+        ),
         ("Theme", names(&[Theme::System, Theme::Dark, Theme::Light])),
-        ("Accent", names(&[Accent::Cyan, Accent::Green, Accent::Amber, Accent::Orange, Accent::Rose, Accent::Violet])),
+        (
+            "Accent",
+            names(&[
+                Accent::Cyan,
+                Accent::Green,
+                Accent::Amber,
+                Accent::Orange,
+                Accent::Rose,
+                Accent::Violet,
+            ]),
+        ),
         ("Palette", names(&[Palette::Void, Palette::Black])),
-        ("CharacterMode", names(&[CharacterMode::Auto, CharacterMode::Manual, CharacterMode::Union])),
-        ("StarOrgEnv", names(&[StarOrgEnv::Production, StarOrgEnv::Dev])),
-        ("HookKind", names(&[HookKind::Prelaunch, HookKind::Postexit])),
-        ("CheckLevel", names(&[CheckLevel::Ok, CheckLevel::Info, CheckLevel::Warn, CheckLevel::Error])),
+        (
+            "CharacterMode",
+            names(&[
+                CharacterMode::Auto,
+                CharacterMode::Manual,
+                CharacterMode::Union,
+            ]),
+        ),
+        (
+            "StarOrgEnv",
+            names(&[StarOrgEnv::Production, StarOrgEnv::Dev]),
+        ),
+        (
+            "HookKind",
+            names(&[HookKind::Prelaunch, HookKind::Postexit]),
+        ),
+        (
+            "CheckLevel",
+            names(&[
+                CheckLevel::Ok,
+                CheckLevel::Info,
+                CheckLevel::Warn,
+                CheckLevel::Error,
+            ]),
+        ),
     ];
     for (name, want) in cases {
         assert_eq!(ts_union(&ts, name), want, "types.ts union {name}");
     }
     // Tagged unions: the `state` tags.
-    let tags = |v: Vec<Value>| -> Vec<String> { v.iter().map(|x| x["state"].as_str().unwrap().to_string()).collect() };
+    let tags = |v: Vec<Value>| -> Vec<String> {
+        v.iter()
+            .map(|x| x["state"].as_str().unwrap().to_string())
+            .collect()
+    };
     let apply_states = tags(vec![
         serde_json::to_value(ApplyState::Applied).unwrap(),
         serde_json::to_value(ApplyState::Stale { reasons: vec![] }).unwrap(),
@@ -243,7 +484,9 @@ fn ts_unions_list_every_variant() {
 #[test]
 fn ts_client_lists_every_command() {
     let ts = std::fs::read_to_string(app_src().join("client.ts")).unwrap();
-    let start = ts.find("export const COMMANDS = [").expect("client.ts has COMMANDS");
+    let start = ts
+        .find("export const COMMANDS = [")
+        .expect("client.ts has COMMANDS");
     let rest = &ts[start..];
     let body = &rest[rest.find('[').unwrap() + 1..rest.find(']').unwrap()];
     let listed: Vec<&str> = body
@@ -252,9 +495,15 @@ fn ts_client_lists_every_command() {
         .filter(|s| !s.is_empty())
         .collect();
     assert_eq!(listed, COMMAND_NAMES);
-    let src = std::fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/contract/mod.rs")).unwrap();
+    let src = std::fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/contract/mod.rs"),
+    )
+    .unwrap();
     for name in COMMAND_NAMES {
-        assert!(src.contains(&format!("$crate::contract::{name},")), "{name} missing from contract_handler!");
+        assert!(
+            src.contains(&format!("$crate::contract::{name},")),
+            "{name} missing from contract_handler!"
+        );
     }
 }
 
@@ -280,9 +529,13 @@ fn ipc(cmd: &str, body: Value) -> Result<Value, Value> {
             cmd: cmd.into(),
             callback: tauri::ipc::CallbackFn(0),
             error: tauri::ipc::CallbackFn(1),
-            url: if cfg!(windows) { "http://tauri.localhost" } else { "tauri://localhost" }
-                .parse()
-                .unwrap(),
+            url: if cfg!(windows) {
+                "http://tauri.localhost"
+            } else {
+                "tauri://localhost"
+            }
+            .parse()
+            .unwrap(),
             body: tauri::ipc::InvokeBody::Json(body),
             headers: Default::default(),
             invoke_key: INVOKE_KEY.to_string(),
@@ -296,12 +549,19 @@ fn overview_over_ipc_is_first_run_with_synthetic_installs() {
     let v = ipc("overview", json!({})).unwrap();
     assert_eq!(v["contract"], CONTRACT_VERSION);
     assert_eq!(v["first_run"], true);
-    assert_eq!(v["installs"][0]["channels"][0]["status"]["state"], "changed-by-another-tool");
+    assert_eq!(
+        v["installs"][0]["channels"][0]["status"]["state"],
+        "changed-by-another-tool"
+    );
 }
 
 #[test]
 fn query_strings_over_ipc_takes_a_snake_case_req() {
-    let v = ipc("query_strings", json!({ "req": serde_json::to_value(query("")).unwrap() })).unwrap();
+    let v = ipc(
+        "query_strings",
+        json!({ "req": serde_json::to_value(query("")).unwrap() }),
+    )
+    .unwrap();
     assert_eq!(v["all"], MOCK_STRING_COUNT);
     assert_eq!(v["rows"].as_array().unwrap().len(), 3);
 }
@@ -310,7 +570,12 @@ fn query_strings_over_ipc_takes_a_snake_case_req() {
 fn errors_cross_ipc_as_app_error() {
     let e = ipc("apply", json!({ "req": { "target": { "install": "inst-7f3a", "channel": "LIVE" }, "dry_run": false } })).unwrap_err();
     assert_eq!(e["code"], "needs-decision");
-    assert!(e["detail"].as_str().unwrap().contains("starorg-strings setup"));
+    assert!(
+        e["detail"]
+            .as_str()
+            .unwrap()
+            .contains("starorg-strings setup")
+    );
 }
 
 // ---------------------------------------------------------------------------------------
@@ -323,7 +588,11 @@ fn setup_asks_when_the_language_is_not_english() {
     let e = b
         .setup(SetupRequest {
             install: "inst-7f3a".into(),
-            channels: vec![ChannelConsent { channel: "PTU".into(), consent: true, switch_language: false }],
+            channels: vec![ChannelConsent {
+                channel: "PTU".into(),
+                consent: true,
+                switch_language: false,
+            }],
             data_source: DataSource::Local,
             preset: Preset::Minimal,
             fix_known_bugs: true,
@@ -338,22 +607,63 @@ fn first_apply_pins_the_foreign_file_and_restore_needs_a_mismatch_flag() {
     let b = MockBackend::default();
     set_up(&b);
     assert!(!b.overview().unwrap().first_run);
-    let r = b.apply(ApplyRequest { target: live(), dry_run: false }, &noop).unwrap();
+    let r = b
+        .apply(
+            ApplyRequest {
+                target: live(),
+                dry_run: false,
+            },
+            &noop,
+        )
+        .unwrap();
     assert_eq!(r.result, ApplyResult::Applied);
     let list = b.list_backups(live()).unwrap();
-    let f = list.offers.restore_foreign.clone().expect("foreign restore offered");
+    let f = list
+        .offers
+        .restore_foreign
+        .clone()
+        .expect("foreign restore offered");
     assert!(f.build_mismatch);
     assert_eq!(f.tool.as_deref(), Some("Smart Citizen"));
     assert!(list.offers.undo_last_apply.is_none());
     let e = b
-        .restore_backup(RestoreRequest { target: live(), backup: f.backup.clone(), allow_build_mismatch: false })
+        .restore_backup(RestoreRequest {
+            target: live(),
+            backup: f.backup.clone(),
+            allow_build_mismatch: false,
+        })
         .unwrap_err();
     assert_eq!(e.code, ErrorCode::NeedsDecision);
-    b.restore_backup(RestoreRequest { target: live(), backup: f.backup, allow_build_mismatch: true }).unwrap();
+    b.restore_backup(RestoreRequest {
+        target: live(),
+        backup: f.backup,
+        allow_build_mismatch: true,
+    })
+    .unwrap();
     // A second apply over our own output makes "undo last apply" available.
-    b.apply(ApplyRequest { target: live(), dry_run: false }, &noop).unwrap();
-    b.apply(ApplyRequest { target: live(), dry_run: false }, &noop).unwrap();
-    assert!(b.list_backups(live()).unwrap().offers.undo_last_apply.is_some());
+    b.apply(
+        ApplyRequest {
+            target: live(),
+            dry_run: false,
+        },
+        &noop,
+    )
+    .unwrap();
+    b.apply(
+        ApplyRequest {
+            target: live(),
+            dry_run: false,
+        },
+        &noop,
+    )
+    .unwrap();
+    assert!(
+        b.list_backups(live())
+            .unwrap()
+            .offers
+            .undo_last_apply
+            .is_some()
+    );
 }
 
 #[test]
@@ -361,7 +671,14 @@ fn apply_reports_progress_steps_in_order() {
     let b = MockBackend::default();
     set_up(&b);
     let seen = std::sync::Mutex::new(Vec::new());
-    b.apply(ApplyRequest { target: live(), dry_run: true }, &|p| seen.lock().unwrap().push((p.step, p.phase))).unwrap();
+    b.apply(
+        ApplyRequest {
+            target: live(),
+            dry_run: true,
+        },
+        &|p| seen.lock().unwrap().push((p.step, p.phase)),
+    )
+    .unwrap();
     let seen = seen.into_inner().unwrap();
     assert_eq!(seen.first(), Some(&(1, JobPhase::Running)));
     assert_eq!(seen.last(), Some(&(5, JobPhase::Done)));
@@ -371,15 +688,38 @@ fn apply_reports_progress_steps_in_order() {
 fn rejected_override_names_the_rule_and_reset_restores() {
     let b = MockBackend::default();
     let key = "item_NameSYN_Cooler_S2_00001";
-    let r = b.set_override(OverrideRequest { target: live(), key: key.into(), value: "Cooler (mine)  |  50%".into() }).unwrap();
+    let r = b
+        .set_override(OverrideRequest {
+            target: live(),
+            key: key.into(),
+            value: "Cooler (mine)  |  50%".into(),
+        })
+        .unwrap();
     assert!(r.accepted);
-    let pct = b.set_override(OverrideRequest { target: live(), key: key.into(), value: "50% off".into() }).unwrap();
+    let pct = b
+        .set_override(OverrideRequest {
+            target: live(),
+            key: key.into(),
+            value: "50% off".into(),
+        })
+        .unwrap();
     assert_eq!(pct.rule.as_deref(), Some("percent"));
     assert_eq!(r.detail.unwrap().row.source, StringSource::Edited);
-    let bad = b.set_override(OverrideRequest { target: live(), key: key.into(), value: "a\nb".into() }).unwrap();
+    let bad = b
+        .set_override(OverrideRequest {
+            target: live(),
+            key: key.into(),
+            value: "a\nb".into(),
+        })
+        .unwrap();
     assert!(!bad.accepted);
     assert_eq!(bad.rule.as_deref(), Some("newline"));
-    let d = b.reset_override(KeyRequest { target: live(), key: key.into() }).unwrap();
+    let d = b
+        .reset_override(KeyRequest {
+            target: live(),
+            key: key.into(),
+        })
+        .unwrap();
     assert!(d.override_value.is_none());
 }
 
@@ -399,7 +739,10 @@ fn strings_query_filters_and_pages_the_whole_table() {
 #[test]
 fn starorg_push_is_the_union_of_ticked_characters() {
     let b = MockBackend::default();
-    assert_eq!(b.starorg_login("LIVE".into()).unwrap_err().code, ErrorCode::NetworkOff);
+    assert_eq!(
+        b.starorg_login("LIVE".into()).unwrap_err().code,
+        ErrorCode::NetworkOff
+    );
     let mut s = b.get_settings().unwrap();
     s.network.starorg = true;
     b.save_settings(s).unwrap();
@@ -408,10 +751,18 @@ fn starorg_push_is_the_union_of_ticked_characters() {
     // Pilot_A owns 4, Alt_B owns 2 with one in common: union = 5.
     assert_eq!(st.push_count, 5);
     let st = b
-        .set_sync_characters(SyncCharactersRequest { channel: "LIVE".into(), ticked: vec!["1000000000002".into()] })
+        .set_sync_characters(SyncCharactersRequest {
+            channel: "LIVE".into(),
+            ticked: vec!["1000000000002".into()],
+        })
         .unwrap();
     assert_eq!(st.push_count, 2);
-    let st = b.set_sync_characters(SyncCharactersRequest { channel: "LIVE".into(), ticked: vec![] }).unwrap();
+    let st = b
+        .set_sync_characters(SyncCharactersRequest {
+            channel: "LIVE".into(),
+            ticked: vec![],
+        })
+        .unwrap();
     assert_eq!(st.push_count, 0);
 }
 
@@ -419,9 +770,25 @@ fn starorg_push_is_the_union_of_ticked_characters() {
 fn preview_follows_profile_switches() {
     let b = MockBackend::default();
     let mut p = b.preset_profile(Preset::Recommended).unwrap();
-    let with = b.build_preview(PreviewRequest { target: live(), profile: Some(p.clone()), preset: None }).unwrap();
+    let with = b
+        .build_preview(PreviewRequest {
+            target: live(),
+            profile: Some(p.clone()),
+            preset: None,
+        })
+        .unwrap();
     assert!(with[0].result.contains("--- STATS ---"));
-    p.categories.iter_mut().find(|c| c.id == CategoryId::Ships).unwrap().enabled = false;
-    let without = b.build_preview(PreviewRequest { target: live(), profile: Some(p), preset: None }).unwrap();
+    p.categories
+        .iter_mut()
+        .find(|c| c.id == CategoryId::Ships)
+        .unwrap()
+        .enabled = false;
+    let without = b
+        .build_preview(PreviewRequest {
+            target: live(),
+            profile: Some(p),
+            preset: None,
+        })
+        .unwrap();
     assert_eq!(without[0].result, without[0].original);
 }

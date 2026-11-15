@@ -27,6 +27,8 @@ pub trait Backend: Send + Sync + 'static {
     fn discover_installs(&self, deep: bool) -> CmdResult<Vec<InstallSummary>>;
     /// Opens the native folder picker in the real backend; the webview never sends a path.
     fn pick_install_folder(&self) -> CmdResult<Option<InstallSummary>>;
+    /// The review step: what `setup` + apply would write, without writing.
+    fn plan_setup(&self, req: SetupRequest) -> CmdResult<SetupPlan>;
     fn setup(&self, req: SetupRequest) -> CmdResult<SetupResult>;
     fn channel_status(&self, req: ChannelRef) -> CmdResult<ChannelSummary>;
 
@@ -116,6 +118,7 @@ commands! {
     overview() -> Overview;
     discover_installs(deep: bool) -> Vec<InstallSummary>;
     pick_install_folder() -> Option<InstallSummary>;
+    plan_setup(req: SetupRequest) -> SetupPlan;
     setup(req: SetupRequest) -> SetupResult;
     channel_status(req: ChannelRef) -> ChannelSummary;
     remove_changes(req: ChannelRef) -> ApplyReport;
@@ -178,6 +181,7 @@ macro_rules! contract_handler {
             $crate::contract::overview,
             $crate::contract::discover_installs,
             $crate::contract::pick_install_folder,
+            $crate::contract::plan_setup,
             $crate::contract::setup,
             $crate::contract::channel_status,
             $crate::contract::apply,
@@ -224,6 +228,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "overview",
     "discover_installs",
     "pick_install_folder",
+    "plan_setup",
     "setup",
     "channel_status",
     "apply",

@@ -223,3 +223,16 @@
   background-color: var(--glass);
   backdrop-filter: blur(var(--glass-blur));
 }
+
+/* Tactical grid: only behind the wizard and full-page empty states (spec 9.1). */
+@utility tactical-grid {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+}
+/* Chamfered step node of the wizard (spec 9.1). */
+@utility chamfer-xs {
+  clip-path: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+}

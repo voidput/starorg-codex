@@ -15,8 +15,10 @@ pub const MOCK_STRING_COUNT: usize = 91_000;
 
 const INSTALL_ID: &str = "inst-7f3a";
 const ALT_INSTALL_ID: &str = "inst-c21e";
-const ROOT: &str = "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen";
-const ALT_ROOT: &str = "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen";
+const ROOT: &str =
+    "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen";
+const ALT_ROOT: &str =
+    "/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen";
 const NOW: &str = "2026-11-14T21:30:05Z";
 
 fn live_build() -> Build {
@@ -130,7 +132,13 @@ fn element(id: &str, label: &str, enabled: bool, style: TagStyle) -> TagElement 
 
 /// The profile a preset starts from (spec 4.7).
 pub fn preset_profile(p: Preset) -> Profile {
-    let cats: [(CategoryId, &str, &[(&str, &str)]); 8] = [
+    /// Category, label, (stat line id, label).
+    type Cat = (
+        CategoryId,
+        &'static str,
+        &'static [(&'static str, &'static str)],
+    );
+    let cats: [Cat; 8] = [
         (
             CategoryId::Ships,
             "Ships",
@@ -183,7 +191,11 @@ pub fn preset_profile(p: Preset) -> Profile {
                 ("magazine", "Magazine"),
             ],
         ),
-        (CategoryId::NameTags, "Name tags", &[("short_name", "Also on short names")]),
+        (
+            CategoryId::NameTags,
+            "Name tags",
+            &[("short_name", "Also on short names")],
+        ),
         (
             CategoryId::Missions,
             "Missions",
@@ -370,9 +382,13 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
 
 impl MockBackend {
     pub fn new(delay: Duration) -> Self {
-        let mut live = channel("LIVE", live_build(), ApplyState::ChangedByAnotherTool {
-            tool: Some("Smart Citizen".into()),
-        });
+        let mut live = channel(
+            "LIVE",
+            live_build(),
+            ApplyState::ChangedByAnotherTool {
+                tool: Some("Smart Citizen".into()),
+            },
+        );
         live.foreign_tool = Some("Smart Citizen".into());
         live.foreign_file = true;
         let hotfix = channel("HOTFIX", hotfix_build(), ApplyState::NotApplied);
@@ -464,7 +480,12 @@ impl MockBackend {
             strings: OnceLock::new(),
             delay,
         };
-        me.log(LogLevel::Info, None, None, "Found 2 installs: LUG Helper config, Lutris game entry");
+        me.log(
+            LogLevel::Info,
+            None,
+            None,
+            "Found 2 installs: LUG Helper config, Lutris game entry",
+        );
         me
     }
 
@@ -534,7 +555,14 @@ fn sync_installs(s: &mut MockState) {
 }
 
 const CATEGORIES: &[&str] = &[
-    "ships", "components", "ship-weapons", "missiles", "fps-weapons", "missions", "items", "ui",
+    "ships",
+    "components",
+    "ship-weapons",
+    "missiles",
+    "fps-weapons",
+    "missions",
+    "items",
+    "ui",
 ];
 
 /// Deterministic synthetic table. Every 9th row is enhanced, every 97th patched.
@@ -654,7 +682,10 @@ fn check_override(original: &str, value: &str) -> Option<(&'static str, String)>
     }
     let tags = |s: &str| s.matches("<EM").count() == s.matches("</EM").count();
     if !tags(value) {
-        return Some(("em-tags", "Every <EMn> tag needs its closing </EMn>.".into()));
+        return Some((
+            "em-tags",
+            "Every <EMn> tag needs its closing </EMn>.".into(),
+        ));
     }
     let spec = |s: &str| s.matches("%s").count() + s.matches("%d").count();
     if spec(original) != spec(value) {
@@ -663,7 +694,12 @@ fn check_override(original: &str, value: &str) -> Option<(&'static str, String)>
             "The value must keep the original's %s / %d placeholders.".into(),
         ));
     }
-    if value.contains("% ") && value.split("% ").skip(1).any(|r| r.starts_with(char::is_alphabetic)) {
+    if value.contains("% ")
+        && value
+            .split("% ")
+            .skip(1)
+            .any(|r| r.starts_with(char::is_alphabetic))
+    {
         return Some((
             "percent",
             "A % must be followed by the end, \\n or two spaces.".into(),
@@ -707,11 +743,21 @@ fn report(ch: &ChannelSummary, result: ApplyResult) -> ApplyReport {
 }
 
 fn target_path(install: &str, ch: &str) -> String {
-    let root = if install == ALT_INSTALL_ID { ALT_ROOT } else { ROOT };
+    let root = if install == ALT_INSTALL_ID {
+        ALT_ROOT
+    } else {
+        ROOT
+    };
     format!("{root}/{ch}/Data/Localization/english/global.ini")
 }
 
-fn backup(id_seq: usize, reason: BackupReason, build: Build, origin: FileOrigin, tool: Option<String>) -> BackupView {
+fn backup(
+    id_seq: usize,
+    reason: BackupReason,
+    build: Build,
+    origin: FileOrigin,
+    tool: Option<String>,
+) -> BackupView {
     BackupView {
         id: format!("20261114-2130{id_seq:02}-{}", serde_plain(&reason)),
         created: NOW.into(),
@@ -766,7 +812,11 @@ fn offers(c: &MockChannel) -> RestoreOffers {
 
 fn starorg_view(s: &mut MockState, channel: &str) {
     let key = (INSTALL_ID.to_string(), channel.to_string());
-    let owned = s.channels.get(&key).map(|c| c.owned.clone()).unwrap_or_default();
+    let owned = s
+        .channels
+        .get(&key)
+        .map(|c| c.owned.clone())
+        .unwrap_or_default();
     let ticked: BTreeSet<String> = if s.starorg.sync_characters.is_empty() {
         CHARACTERS.iter().map(|c| c.0.to_string()).collect()
     } else {
@@ -822,8 +872,7 @@ impl Backend for MockBackend {
 
     fn discover_installs(&self, _deep: bool) -> CmdResult<Vec<InstallSummary>> {
         let s = self.lock();
-        Ok(s
-            .installs
+        Ok(s.installs
             .iter()
             .map(|i| i.0.clone())
             .filter(|i| s.picked || i.found_by != FoundBy::Manual)
@@ -839,6 +888,81 @@ impl Backend for MockBackend {
             i.found_by_label = "Chosen folder".into();
             i
         }))
+    }
+
+    fn plan_setup(&self, req: SetupRequest) -> CmdResult<SetupPlan> {
+        let mut channels = Vec::new();
+        let mut warnings = Vec::new();
+        for c in req.channels.iter().filter(|c| c.consent) {
+            let r = ChannelRef {
+                install: req.install.clone(),
+                channel: c.channel.clone(),
+            };
+            let summary = self.channel_status(r)?;
+            if summary.language == Language::Other && !c.switch_language {
+                warnings.push(Warning {
+                    kind: "language".into(),
+                    detail: format!(
+                        "{}: the game language is not English; it will be skipped",
+                        c.channel
+                    ),
+                });
+                continue;
+            }
+            let mut p = preset_profile(req.preset);
+            p.fix_known_bugs = req.fix_known_bugs;
+            let on = |id: CategoryId| p.categories.iter().any(|x| x.id == id && x.enabled);
+            let mut counts = ApplyCounts {
+                ships: if on(CategoryId::Ships) { 231 } else { 0 },
+                components: if on(CategoryId::Components) { 1840 } else { 0 },
+                ship_weapons: if on(CategoryId::ShipWeapons) { 402 } else { 0 },
+                fps_weapons: if on(CategoryId::FpsWeapons) { 318 } else { 0 },
+                missiles: if on(CategoryId::Missiles) { 96 } else { 0 },
+                missions: if on(CategoryId::Missions) { 2140 } else { 0 },
+                overrides: 0,
+                dropped: 0,
+                changed: 0,
+            };
+            counts.changed = (counts.ships
+                + counts.components
+                + counts.ship_weapons
+                + counts.fps_weapons
+                + counts.missiles
+                + counts.missions)
+                * 2
+                + 1200;
+            let root = if req.install == ALT_INSTALL_ID {
+                ALT_ROOT
+            } else {
+                ROOT
+            };
+            channels.push(PlannedChannel {
+                channel: c.channel.clone(),
+                target: target_path(&req.install, &c.channel),
+                target_is_link: false,
+                link_target: None,
+                backup_dir: format!(
+                    "~/.local/share/starorg-strings/channels/{}/{}/backups",
+                    req.install, c.channel
+                ),
+                user_cfg_line: (summary.language == Language::Other)
+                    .then(|| "g_language = english".into()),
+                user_cfg_path: Some(format!("{root}/{}/USER.cfg", c.channel)),
+                replaces_tool: summary.foreign_tool.clone(),
+                counts,
+            });
+        }
+        if req.data_source == DataSource::PublishedDumps {
+            warnings.push(Warning {
+                kind: "network".into(),
+                detail: "Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.".into(),
+            });
+        }
+        Ok(SetupPlan {
+            install: req.install,
+            channels,
+            warnings,
+        })
     }
 
     fn setup(&self, req: SetupRequest) -> CmdResult<SetupResult> {
@@ -890,7 +1014,11 @@ impl Backend for MockBackend {
             LogLevel::Info,
             None,
             None,
-            &format!("Set up {} (skipped: {})", set_up.join(", "), skipped.join(", ")),
+            &format!(
+                "Set up {} (skipped: {})",
+                set_up.join(", "),
+                skipped.join(", ")
+            ),
         );
         Ok(SetupResult {
             install: req.install,
@@ -923,7 +1051,9 @@ impl Backend for MockBackend {
             return Err(AppError {
                 code: ErrorCode::NeedsDecision,
                 message: format!("{ch_name} is not set up. Run setup for this channel first."),
-                detail: Some(format!("starorg-strings setup --channel {ch_name} --preset recommended --yes")),
+                detail: Some(format!(
+                    "starorg-strings setup --channel {ch_name} --preset recommended --yes"
+                )),
             });
         }
         for (i, label) in steps.iter().enumerate() {
@@ -935,7 +1065,11 @@ impl Backend for MockBackend {
                 phase: JobPhase::Running,
                 step: i as u32 + 1,
                 steps: n,
-                label: if last { "Dry run: nothing written".into() } else { (*label).into() },
+                label: if last {
+                    "Dry run: nothing written".into()
+                } else {
+                    (*label).into()
+                },
                 cancellable: i < 3,
             });
             if !self.delay.is_zero() {
@@ -943,7 +1077,14 @@ impl Backend for MockBackend {
             }
         }
         let rep = self.with_channel(&req.target, |c, _| {
-            let mut r = report(&c.summary, if req.dry_run { ApplyResult::DryRun } else { ApplyResult::Applied });
+            let mut r = report(
+                &c.summary,
+                if req.dry_run {
+                    ApplyResult::DryRun
+                } else {
+                    ApplyResult::Applied
+                },
+            );
             let p = &c.profile;
             let on = |id: CategoryId| p.categories.iter().any(|x| x.id == id && x.enabled);
             r.counts = ApplyCounts {
@@ -958,18 +1099,27 @@ impl Backend for MockBackend {
                 changed: 0,
             };
             let k = &r.counts;
-            r.counts.changed = (k.ships + k.components + k.ship_weapons + k.fps_weapons + k.missiles + k.missions) * 2
-                + k.overrides
-                + 1200;
+            r.counts.changed =
+                (k.ships + k.components + k.ship_weapons + k.fps_weapons + k.missiles + k.missions)
+                    * 2
+                    + k.overrides
+                    + 1200;
             r.patches = c
                 .patches
                 .iter()
                 .map(|x| PatchOutcome {
                     id: x.id.clone(),
-                    state: if x.enabled { x.state } else { PatchState::Disabled },
+                    state: if x.enabled {
+                        x.state
+                    } else {
+                        PatchState::Disabled
+                    },
                 })
                 .collect();
-            if c.patches.iter().any(|x| x.enabled && x.state == PatchState::TargetChanged) {
+            if c.patches
+                .iter()
+                .any(|x| x.enabled && x.state == PatchState::TargetChanged)
+            {
                 r.warnings.push(Warning {
                     kind: "patch-target-changed".into(),
                     detail: "syn-moved-key: the target text changed in this build".into(),
@@ -981,7 +1131,8 @@ impl Backend for MockBackend {
                 path: Some(format!("{}/{}/USER.cfg", ROOT, c.summary.channel)),
                 link_target: Some("/home/pilot/Games/star-citizen/shared/USER.cfg".into()),
                 shared_with: Vec::new(),
-                line: (c.summary.language != Language::English).then(|| "g_language = english".into()),
+                line: (c.summary.language != Language::English)
+                    .then(|| "g_language = english".into()),
             };
             r.backup_dir = Some(format!(
                 "~/.local/share/starorg-strings/channels/{}/{}/backups",
@@ -998,10 +1149,29 @@ impl Backend for MockBackend {
                 } else {
                     (FileOrigin::None, None)
                 };
-                let pre_build = if c.summary.foreign_file { old_live_build() } else { c.summary.build.clone() };
-                c.backups.push(backup(seq, BackupReason::PreExisting, pre_build, origin, tool));
-            } else if matches!(c.summary.status, ApplyState::Applied | ApplyState::Stale { .. }) {
-                c.backups.push(backup(seq, BackupReason::BeforeApply, c.summary.build.clone(), FileOrigin::Ours, None));
+                let pre_build = if c.summary.foreign_file {
+                    old_live_build()
+                } else {
+                    c.summary.build.clone()
+                };
+                c.backups.push(backup(
+                    seq,
+                    BackupReason::PreExisting,
+                    pre_build,
+                    origin,
+                    tool,
+                ));
+            } else if matches!(
+                c.summary.status,
+                ApplyState::Applied | ApplyState::Stale { .. }
+            ) {
+                c.backups.push(backup(
+                    seq,
+                    BackupReason::BeforeApply,
+                    c.summary.build.clone(),
+                    FileOrigin::Ours,
+                    None,
+                ));
             }
             r.backup = c.backups.last().map(|b| b.id.clone());
             c.summary.status = ApplyState::Applied;
@@ -1016,11 +1186,19 @@ impl Backend for MockBackend {
             phase: JobPhase::Done,
             step: n,
             steps: n,
-            label: if req.dry_run { "Dry run finished".into() } else { format!("Applied to {ch_name}") },
+            label: if req.dry_run {
+                "Dry run finished".into()
+            } else {
+                format!("Applied to {ch_name}")
+            },
             cancellable: false,
         });
         self.log(
-            if rep.warnings.is_empty() { LogLevel::Info } else { LogLevel::Warn },
+            if rep.warnings.is_empty() {
+                LogLevel::Info
+            } else {
+                LogLevel::Warn
+            },
             Some(JobKind::Apply),
             Some(&ch_name),
             &format!(
@@ -1040,7 +1218,13 @@ impl Backend for MockBackend {
             }
             if c.summary.foreign_file {
                 let seq = c.backups.len() + 1;
-                c.backups.push(backup(seq, BackupReason::BeforeRestore, c.summary.build.clone(), FileOrigin::Foreign, c.summary.foreign_tool.clone()));
+                c.backups.push(backup(
+                    seq,
+                    BackupReason::BeforeRestore,
+                    c.summary.build.clone(),
+                    FileOrigin::Foreign,
+                    c.summary.foreign_tool.clone(),
+                ));
             }
             c.summary.status = ApplyState::NotApplied;
             c.summary.foreign_file = false;
@@ -1048,7 +1232,12 @@ impl Backend for MockBackend {
             r.target = Some(target_path(&req.install, &c.summary.channel));
             Ok(r)
         })?;
-        self.log(LogLevel::Info, Some(JobKind::Remove), Some(&req.channel), "Removed StarOrg changes (back to stock)");
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Remove),
+            Some(&req.channel),
+            "Removed StarOrg changes (back to stock)",
+        );
         Ok(r)
     }
 
@@ -1056,10 +1245,15 @@ impl Backend for MockBackend {
         self.with_channel(&req, |c, _| {
             let o = offers(c);
             let Some(id) = o.undo_last_apply else {
-                return Err(AppError::new(ErrorCode::NeedsDecision, "No backup of an earlier apply for this build. Re-apply instead."));
+                return Err(AppError::new(
+                    ErrorCode::NeedsDecision,
+                    "No backup of an earlier apply for this build. Re-apply instead.",
+                ));
             };
             c.backups.retain(|b| b.id != id);
-            c.summary.status = ApplyState::Stale { reasons: vec!["profile".into()] };
+            c.summary.status = ApplyState::Stale {
+                reasons: vec!["profile".into()],
+            };
             let mut r = report(&c.summary, ApplyResult::Restored);
             r.backup = Some(id);
             Ok(r)
@@ -1073,7 +1267,9 @@ impl Backend for MockBackend {
                 .iter()
                 .find(|b| b.id == req.backup)
                 .cloned()
-                .ok_or_else(|| AppError::new(ErrorCode::NotFound, format!("No backup {}", req.backup)))?;
+                .ok_or_else(|| {
+                    AppError::new(ErrorCode::NotFound, format!("No backup {}", req.backup))
+                })?;
             if b.build.change != c.summary.build.change && !req.allow_build_mismatch {
                 return Err(AppError {
                     code: ErrorCode::NeedsDecision,
@@ -1085,7 +1281,9 @@ impl Backend for MockBackend {
                     )),
                 });
             }
-            c.summary.status = ApplyState::ChangedByAnotherTool { tool: b.foreign_tool.clone() };
+            c.summary.status = ApplyState::ChangedByAnotherTool {
+                tool: b.foreign_tool.clone(),
+            };
             c.summary.foreign_file = b.origin == FileOrigin::Foreign;
             c.summary.foreign_tool = b.foreign_tool.clone();
             let mut r = report(&c.summary, ApplyResult::Restored);
@@ -1098,7 +1296,10 @@ impl Backend for MockBackend {
         self.with_channel(&req, |c, _| {
             Ok(BackupList {
                 channel: c.summary.channel.clone(),
-                folder: format!("~/.local/share/starorg-strings/channels/{}/{}/backups", req.install, c.summary.channel),
+                folder: format!(
+                    "~/.local/share/starorg-strings/channels/{}/{}/backups",
+                    req.install, c.summary.channel
+                ),
                 backups: c.backups.iter().rev().cloned().collect(),
                 offers: offers(c),
                 keep_newest: 10,
@@ -1113,7 +1314,13 @@ impl Backend for MockBackend {
                 ApplyState::ChangedByAnotherTool { .. } => FileOrigin::Foreign,
                 _ => FileOrigin::Ours,
             };
-            let b = backup(c.backups.len() + 1, BackupReason::Manual, c.summary.build.clone(), origin, c.summary.foreign_tool.clone());
+            let b = backup(
+                c.backups.len() + 1,
+                BackupReason::Manual,
+                c.summary.build.clone(),
+                origin,
+                c.summary.foreign_tool.clone(),
+            );
             c.backups.push(b.clone());
             Ok(b)
         })
@@ -1122,7 +1329,10 @@ impl Backend for MockBackend {
     fn delete_backup(&self, req: BackupRef) -> CmdResult<BackupList> {
         self.with_channel(&req.target, |c, _| {
             if c.backups.iter().any(|b| b.id == req.backup && b.pinned) {
-                return Err(AppError::new(ErrorCode::Invalid, "The pre-existing backup is pinned and cannot be deleted."));
+                return Err(AppError::new(
+                    ErrorCode::Invalid,
+                    "The pre-existing backup is pinned and cannot be deleted.",
+                ));
             }
             c.backups.retain(|b| b.id != req.backup);
             Ok(())
@@ -1155,7 +1365,9 @@ impl Backend for MockBackend {
         self.with_channel(&req.target, |c, _| {
             c.profile = req.profile.clone();
             if matches!(c.summary.status, ApplyState::Applied) {
-                c.summary.status = ApplyState::Stale { reasons: vec!["profile".into()] };
+                c.summary.status = ApplyState::Stale {
+                    reasons: vec!["profile".into()],
+                };
             }
             Ok(c.profile.clone())
         })
@@ -1163,7 +1375,10 @@ impl Backend for MockBackend {
 
     fn copy_profile(&self, req: CopyProfileRequest) -> CmdResult<Profile> {
         let p = self.get_profile(req.from)?;
-        self.save_profile(SaveProfileRequest { target: req.to, profile: p })
+        self.save_profile(SaveProfileRequest {
+            target: req.to,
+            profile: p,
+        })
     }
 
     fn query_strings(&self, req: StringsQuery) -> CmdResult<StringsPage> {
@@ -1171,7 +1386,11 @@ impl Backend for MockBackend {
         let all = self.strings();
         let needle = req.search.to_lowercase();
         let rows_iter = all.iter().map(|r| match overrides.get(&r.key) {
-            Some(v) => StringRow { result: v.clone(), source: StringSource::Edited, ..r.clone() },
+            Some(v) => StringRow {
+                result: v.clone(),
+                source: StringSource::Edited,
+                ..r.clone()
+            },
             None => r.clone(),
         });
         let mut src_counts: BTreeMap<String, u32> = BTreeMap::new();
@@ -1204,13 +1423,25 @@ impl Backend for MockBackend {
         match req.sort {
             StringSort::Key => hits.sort_by(|a, b| a.key.cmp(&b.key)),
             StringSort::KeyDesc => hits.sort_by(|a, b| b.key.cmp(&a.key)),
-            StringSort::Category => hits.sort_by(|a, b| (&a.category, &a.key).cmp(&(&b.category, &b.key))),
-            StringSort::Source => hits.sort_by(|a, b| (serde_plain(&a.source), &a.key).cmp(&(serde_plain(&b.source), &b.key))),
+            StringSort::Category => {
+                hits.sort_by(|a, b| (&a.category, &a.key).cmp(&(&b.category, &b.key)))
+            }
+            StringSort::Source => hits.sort_by(|a, b| {
+                (serde_plain(&a.source), &a.key).cmp(&(serde_plain(&b.source), &b.key))
+            }),
         }
         let total = hits.len() as u32;
         let limit = req.limit.clamp(1, 1000) as usize;
-        let rows = hits.into_iter().skip(req.offset as usize).take(limit).collect();
-        let fc = |m: BTreeMap<String, u32>| m.into_iter().map(|(id, count)| FacetCount { id, count }).collect();
+        let rows = hits
+            .into_iter()
+            .skip(req.offset as usize)
+            .take(limit)
+            .collect();
+        let fc = |m: BTreeMap<String, u32>| {
+            m.into_iter()
+                .map(|(id, count)| FacetCount { id, count })
+                .collect()
+        };
         Ok(StringsPage {
             total,
             all: all.len() as u32,
@@ -1228,17 +1459,29 @@ impl Backend for MockBackend {
     fn set_override(&self, req: OverrideRequest) -> CmdResult<OverrideResult> {
         let d = self.row_with_override(&req.target, &req.key)?;
         if let Some((rule, msg)) = check_override(&d.row.original, &req.value) {
-            return Ok(OverrideResult { accepted: false, rule: Some(rule.into()), message: Some(msg), detail: Some(d) });
+            return Ok(OverrideResult {
+                accepted: false,
+                rule: Some(rule.into()),
+                message: Some(msg),
+                detail: Some(d),
+            });
         }
         let key = d.row.key.clone();
         self.with_channel(&req.target, |c, _| {
             c.overrides.insert(key.clone(), req.value.clone());
             if matches!(c.summary.status, ApplyState::Applied) {
-                c.summary.status = ApplyState::Stale { reasons: vec!["overrides".into()] };
+                c.summary.status = ApplyState::Stale {
+                    reasons: vec!["overrides".into()],
+                };
             }
             Ok(())
         })?;
-        Ok(OverrideResult { accepted: true, rule: None, message: None, detail: Some(self.row_with_override(&req.target, &key)?) })
+        Ok(OverrideResult {
+            accepted: true,
+            rule: None,
+            message: None,
+            detail: Some(self.row_with_override(&req.target, &key)?),
+        })
     }
 
     fn reset_override(&self, req: KeyRequest) -> CmdResult<StringDetail> {
@@ -1260,10 +1503,17 @@ impl Backend for MockBackend {
                 .patches
                 .iter_mut()
                 .find(|p| p.id == req.id)
-                .ok_or_else(|| AppError::new(ErrorCode::NotFound, format!("No patch {}", req.id)))?;
+                .ok_or_else(|| {
+                    AppError::new(ErrorCode::NotFound, format!("No patch {}", req.id))
+                })?;
             p.enabled = req.enabled;
             let out = p.clone();
-            c.profile.patches_disabled = c.patches.iter().filter(|p| !p.enabled).map(|p| p.id.clone()).collect();
+            c.profile.patches_disabled = c
+                .patches
+                .iter()
+                .filter(|p| !p.enabled)
+                .map(|p| p.id.clone())
+                .collect();
             Ok(out)
         })
     }
@@ -1295,18 +1545,30 @@ impl Backend for MockBackend {
     fn set_active_character(&self, req: SetActiveCharacter) -> CmdResult<CharactersView> {
         self.with_channel(&req.target, |c, _| {
             if req.mode == CharacterMode::Manual
-                && !req.character.as_deref().is_some_and(|id| CHARACTERS.iter().any(|x| x.0 == id))
+                && !req
+                    .character
+                    .as_deref()
+                    .is_some_and(|id| CHARACTERS.iter().any(|x| x.0 == id))
             {
-                return Err(AppError::new(ErrorCode::Invalid, "Pick one of the characters found in the logs."));
+                return Err(AppError::new(
+                    ErrorCode::Invalid,
+                    "Pick one of the characters found in the logs.",
+                ));
             }
             c.active.mode = req.mode;
-            c.active.character = if req.mode == CharacterMode::Manual { req.character.clone() } else { None };
+            c.active.character = if req.mode == CharacterMode::Manual {
+                req.character.clone()
+            } else {
+                None
+            };
             Ok(characters_view(c))
         })
     }
 
     fn owned_blueprints(&self, req: CharacterRequest) -> CmdResult<Vec<OwnedBlueprint>> {
-        self.with_channel(&req.target, |c, _| Ok(c.owned.get(&req.character).cloned().unwrap_or_default()))
+        self.with_channel(&req.target, |c, _| {
+            Ok(c.owned.get(&req.character).cloned().unwrap_or_default())
+        })
     }
 
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport> {
@@ -1318,8 +1580,16 @@ impl Backend for MockBackend {
         ];
         self.with_channel(&req.target, |c, _| {
             let set = c.owned.entry(req.character.clone()).or_default();
-            let known: Vec<String> = candidates.iter().filter(|n| set.iter().any(|b| b.name == **n)).map(|s| s.to_string()).collect();
-            let imported: Vec<String> = candidates.iter().filter(|n| !known.iter().any(|k| k == *n)).map(|s| s.to_string()).collect();
+            let known: Vec<String> = candidates
+                .iter()
+                .filter(|n| set.iter().any(|b| b.name == **n))
+                .map(|s| s.to_string())
+                .collect();
+            let imported: Vec<String> = candidates
+                .iter()
+                .filter(|n| !known.iter().any(|k| k == *n))
+                .map(|s| s.to_string())
+                .collect();
             if !req.dry_run {
                 for n in &imported {
                     set.push(OwnedBlueprint {
@@ -1332,7 +1602,8 @@ impl Backend for MockBackend {
                 }
             }
             Ok(ImportReport {
-                file: "~/Games/star-citizen/drive_c/users/pilot/SmartCitizen/owned-blueprints.json".into(),
+                file: "~/Games/star-citizen/drive_c/users/pilot/SmartCitizen/owned-blueprints.json"
+                    .into(),
                 exported_at: Some("2026-11-01T10:00:00Z".into()),
                 dry_run: req.dry_run,
                 total: 9,
@@ -1343,7 +1614,10 @@ impl Backend for MockBackend {
                 unmatched: vec!["[H] Retired Sample Helmet".into()],
                 ambiguous: vec![AmbiguousName {
                     name: "Sample Undersuit".into(),
-                    candidates: vec!["Sample Undersuit (Grey)".into(), "Sample Undersuit (Red)".into()],
+                    candidates: vec![
+                        "Sample Undersuit (Grey)".into(),
+                        "Sample Undersuit (Red)".into(),
+                    ],
                 }],
             })
         })
@@ -1403,11 +1677,17 @@ impl Backend for MockBackend {
     fn hooks_install(&self) -> CmdResult<HooksStatus> {
         let mut s = self.lock();
         if !s.hooks.supported {
-            return Err(AppError::new(ErrorCode::Invalid, "Launch hooks are for the LUG Helper on Linux."));
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "Launch hooks are for the LUG Helper on Linux.",
+            ));
         }
         for h in &mut s.hooks.scripts {
             if h.path.is_none() {
-                h.path = Some(format!("/home/pilot/Games/star-citizen/sc-{}.sh", serde_plain(&h.kind)));
+                h.path = Some(format!(
+                    "/home/pilot/Games/star-citizen/sc-{}.sh",
+                    serde_plain(&h.kind)
+                ));
             }
             h.status = HookState::Current;
         }
@@ -1433,27 +1713,55 @@ impl Backend for MockBackend {
                 DoctorSection {
                     title: "Installs".into(),
                     checks: vec![
-                        chk(CheckLevel::Ok, "Install found by LUG Helper config", Some(ROOT)),
-                        chk(CheckLevel::Info, "Second install found by Lutris game entry", Some(ALT_ROOT)),
+                        chk(
+                            CheckLevel::Ok,
+                            "Install found by LUG Helper config",
+                            Some(ROOT),
+                        ),
+                        chk(
+                            CheckLevel::Info,
+                            "Second install found by Lutris game entry",
+                            Some(ALT_ROOT),
+                        ),
                     ],
                 },
                 DoctorSection {
                     title: "Paths".into(),
                     checks: vec![
-                        chk(CheckLevel::Ok, "LIVE/Data/Localization/english is writable", None),
-                        chk(CheckLevel::Info, "LIVE/USER.cfg is a symlink", Some("-> /home/pilot/Games/star-citizen/shared/USER.cfg")),
+                        chk(
+                            CheckLevel::Ok,
+                            "LIVE/Data/Localization/english is writable",
+                            None,
+                        ),
+                        chk(
+                            CheckLevel::Info,
+                            "LIVE/USER.cfg is a symlink",
+                            Some("-> /home/pilot/Games/star-citizen/shared/USER.cfg"),
+                        ),
                     ],
                 },
                 DoctorSection {
                     title: "Other tools".into(),
                     checks: vec![
-                        chk(CheckLevel::Warn, "Smart Citizen stamp in LIVE global.ini", Some("Frontend_PU_Version")),
-                        chk(CheckLevel::Warn, "Empty Data/languages.ini (0 bytes)", Some("Use the launcher's Verify files to restore it.")),
+                        chk(
+                            CheckLevel::Warn,
+                            "Smart Citizen stamp in LIVE global.ini",
+                            Some("Frontend_PU_Version"),
+                        ),
+                        chk(
+                            CheckLevel::Warn,
+                            "Empty Data/languages.ini (0 bytes)",
+                            Some("Use the launcher's Verify files to restore it."),
+                        ),
                     ],
                 },
                 DoctorSection {
                     title: "Graphics".into(),
-                    checks: vec![chk(CheckLevel::Info, "NVIDIA on Wayland (KDE): explicit sync disabled for the window", None)],
+                    checks: vec![chk(
+                        CheckLevel::Info,
+                        "NVIDIA on Wayland (KDE): explicit sync disabled for the window",
+                        None,
+                    )],
                 },
             ],
         })
@@ -1581,7 +1889,13 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
     let title = "Synthetic Recovery Contract";
     let mut t = title.to_string();
     if on(CategoryId::Missions) {
-        let wrap = |s: &str| if p.missions.em4_title_tags { format!(" <EM4>{s}</EM4>") } else { format!(" {s}") };
+        let wrap = |s: &str| {
+            if p.missions.em4_title_tags {
+                format!(" <EM4>{s}</EM4>")
+            } else {
+                format!(" {s}")
+            }
+        };
         if p.missions.tag_bp {
             t.push_str(&wrap("[BP]"));
         }

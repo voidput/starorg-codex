@@ -14,6 +14,7 @@ export interface CommandMap {
   overview: [Record<string, never>, T.Overview];
   discover_installs: [{ deep: boolean }, T.InstallSummary[]];
   pick_install_folder: [Record<string, never>, T.InstallSummary | null];
+  plan_setup: [{ req: T.SetupRequest }, T.SetupPlan];
   setup: [{ req: T.SetupRequest }, T.SetupResult];
   channel_status: [{ req: T.ChannelRef }, T.ChannelSummary];
   apply: [{ req: T.ApplyRequest }, T.ApplyReport];
@@ -61,6 +62,7 @@ export const COMMANDS = [
   'overview',
   'discover_installs',
   'pick_install_folder',
+  'plan_setup',
   'setup',
   'channel_status',
   'apply',
@@ -194,6 +196,7 @@ export const api = {
   },
   discoverInstalls: (deep = false) => call('discover_installs', { deep }),
   pickInstallFolder: () => call('pick_install_folder', none),
+  planSetup: (req: T.SetupRequest) => call('plan_setup', { req }),
   setup: (req: T.SetupRequest) => call('setup', { req }),
   channelStatus: (req: T.ChannelRef) => call('channel_status', { req }),
   apply: (req: T.ApplyRequest) => call('apply', { req }),
