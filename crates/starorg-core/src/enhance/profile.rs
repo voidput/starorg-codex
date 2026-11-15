@@ -19,7 +19,7 @@ pub struct Profile {
     pub missiles: bool,
     pub missions: bool,
     /// "Used in: <contract> · <system>" after the description of items a mission spawns or
-    /// a contract asks for, from real record references only (addendum §12).
+    /// a contract asks for, from real record references only (addendum §13).
     pub quest_hints: bool,
     /// Stat lines switched off, as `<category>.<line>` (e.g. `ships.boost`, `components.signatures`).
     pub lines_off: BTreeSet<String>,

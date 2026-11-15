@@ -284,7 +284,7 @@ k("zeta_twin_desc", "Filler twin prose.")
 k("zeta_wip_title", "Filler WIP")
 k("zeta_wip_desc", "Filler WIP prose.")
 k("zeta_missing_title", "Filler Missing")
-# Quest items (addendum 12): real references only; general goods, trades, shared keys skipped.
+# Quest items (addendum 13): real references only; general goods, trades, shared keys skipped.
 quest = []
 def qitem(short, typ, uses, sub=None, shared=None, desc=True):
     loc = {"name": f"@item_Name{short}"}

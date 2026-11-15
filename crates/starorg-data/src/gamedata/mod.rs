@@ -13,7 +13,7 @@
 //!    loadout resolved against pass 2,
 //! 4. reputation standings, blueprint pools, blueprints, contract generators,
 //! 5. quest items: entities `MissionBrokerEntry` spawn descriptions and contract hauling
-//!    orders reference (addendum §12).
+//!    orders reference (addendum §13).
 //!
 //! [`drift`] then turns empty categories and missing struct types into schema-drift
 //! warnings (spec 3.3 step 6).

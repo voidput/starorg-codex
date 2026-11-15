@@ -1,4 +1,4 @@
-# Built-in patch (spec 4.5, addendum §12). Keys only; the values are our own hint text.
+# Built-in patch (spec 4.5, addendum §13). Keys only; the values are our own hint text.
 # Mission facts from playing the mission (2026-11-15); DataCore has no record that links these
 # items to their contract (the objectives live in Kaboos_MissionModule.xml, not shipped).
 # Each guard is the sha256 of the stock value on LIVE 4.10.200.58746 (Data.p4k, 2026-11-15):

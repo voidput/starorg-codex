@@ -36,7 +36,7 @@ use serde::{Deserialize, Serialize};
 ///
 /// - 1: M0, build identity and DataCore counts only.
 /// - 2: M2, items, ships, ammo, contracts, blueprints, reputation.
-/// - 3: quest items and the missions that reference them (addendum §12).
+/// - 3: quest items and the missions that reference them (addendum §13).
 pub const GAMEDATA_SCHEMA: u32 = 3;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -69,7 +69,7 @@ pub struct GameData {
     pub blueprint_pools: Vec<BlueprintPool>,
     #[serde(default)]
     pub reputation_standings: Vec<ReputationStanding>,
-    /// Items missions spawn or contracts ask for (addendum §12). Local extraction only.
+    /// Items missions spawn or contracts ask for (addendum §13). Local extraction only.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub quest_items: Vec<QuestItem>,
 }

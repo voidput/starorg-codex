@@ -1,4 +1,4 @@
-//! Quest item hints (addendum §12): `Used in: <contract> · <system>` after the description
+//! Quest item hints (addendum §13): `Used in: <contract> · <system>` after the description
 //! of an item a mission spawns or a contract asks for.
 //!
 //! Only real record references feed it ([`crate::model::quest`]); a loc key that merely

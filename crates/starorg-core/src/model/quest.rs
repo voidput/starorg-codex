@@ -1,5 +1,5 @@
 //! Quest items: items a mission or contract hands out or asks for, with the missions that
-//! reference them (addendum §12).
+//! reference them (addendum §13).
 //!
 //! Only real record references count: a `MissionBrokerEntry` spawn description that puts
 //! the item in an NPC's or a container's inventory (`autoSpawnSettings.inventoryItems`), and

@@ -61,7 +61,7 @@ pub fn preview(t: &Table) -> Vec<PreviewItem> {
         out.push(item(r, "Contract description", "missions"));
     }
     // Quest items: an automatic `Used in:` hint and the hand-written mission hint of the
-    // `quest-items` patch (the Decryption Key; addendum §12).
+    // `quest-items` patch (the Decryption Key; addendum §13).
     if let Some(r) = t.rows.iter().filter(changed).find(|r| {
         r.category == "items" && r.source == StringSource::Enhanced && r.result.contains("Used in:")
     }) {

@@ -582,7 +582,7 @@ been retired for two consecutive game minor versions are removed from the repo.
 |---|---|---|
 | `hockrow-p2m4-desc` | Hockrow facility-delve contract P2M4 points its Description at the P2M1 key | Data patch points P2M4 at its own description key. Loc patch appends P2M4's **generated** mission info to the P2M1 text, because the game still shows P2M1's text for P2M4 |
 | `hockrow-recoveritem-desc` | `hockrowagency_recoveritem` hard variant uses its title key as Description | Data patch points Description at the matching `desc` key, so no mission body is written into a title |
-| `quest-items` | Not a bug: the game never says what the Vanduul-Tech Smugglers (Nyx) items are for, and no shipped record links them to the mission | Loc-only, every entry `append` + `expect_sha256` + `optional`: one hint line each on the QV Airlock Access Card, Decryption Key and Passcode Disk descriptions, and ` (QV)` on the Decryption Key's name. Its own switch under Enhancements > Quest items, not "Fix known CIG text bugs" (addendum §12) |
+| `quest-items` | Not a bug: the game never says what the Vanduul-Tech Smugglers (Nyx) items are for, and no shipped record links them to the mission | Loc-only, every entry `append` + `expect_sha256` + `optional`: one hint line each on the QV Airlock Access Card, Decryption Key and Passcode Disk descriptions, and ` (QV)` on the Decryption Key's name. Its own switch under Enhancements > Quest items, not "Fix known CIG text bugs" (addendum §13) |
 
 **Record names (M2a, confirmed 2026-11-14 on LIVE 4.10.200.58746, HOTFIX and PTU 5.0.201).**
 Files in `crates/starorg-core/patches/`, embedded with `include_str!`.

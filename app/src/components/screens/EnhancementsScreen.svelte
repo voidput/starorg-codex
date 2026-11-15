@@ -205,7 +205,7 @@
     });
 
   // "Fix known text bugs" = no built-in fix in patches_disabled (spec 4.5; Patches lists each).
-  // The hand-written quest hints are a built-in patch too, with their own switch (addendum §12).
+  // The hand-written quest hints are a built-in patch too, with their own switch (addendum §13).
   const QUEST_PATCH = 'quest-items';
   const builtin = $derived(patches.filter((p) => p.origin === 'built-in' && p.id !== QUEST_PATCH).map((p) => p.id));
   const questPack = $derived(patches.some((p) => p.id === QUEST_PATCH));

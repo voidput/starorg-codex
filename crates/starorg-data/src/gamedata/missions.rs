@@ -99,7 +99,7 @@ pub fn parse_contracts(generator: &str, v: &Value, lk: &dyn MissionLookup) -> Ve
     parse_contracts_with_items(generator, v, lk).0
 }
 
-/// [`parse_contracts`], plus the items each contract's hauling orders ask for (addendum §12).
+/// [`parse_contracts`], plus the items each contract's hauling orders ask for (addendum §13).
 pub fn parse_contracts_with_items(
     generator: &str,
     v: &Value,
@@ -242,7 +242,7 @@ pub fn parse_contracts_with_items(
 }
 
 /// Items a `MissionBrokerEntry` spawns into inventories (`autoSpawnSettings.inventoryItems`),
-/// with the mission as their use (addendum §12).
+/// with the mission as their use (addendum §13).
 pub fn parse_mission_entry(name: &str, v: &Value) -> Vec<QuestLink> {
     let mut paths: Vec<String> = Vec::new();
     for prop in array(v.get("properties")) {

@@ -138,7 +138,7 @@ const SELECTED_PATHS: [&str; 10] = [
     "crafting/",
     "contracts/",
     "reputation/",
-    // Mission broker entries: the items they spawn (quest items, addendum §12).
+    // Mission broker entries: the items they spawn (quest items, addendum §13).
     "missionbroker/",
 ];
 

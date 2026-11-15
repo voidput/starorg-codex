@@ -46,7 +46,7 @@ pub enum Category {
     ShipNames,
     /// The colour test line (`Profile::colour_test`). Opt-in, no preset.
     ColourTest,
-    /// "Used in" lines on quest items (`Profile::quest_hints`, addendum §12).
+    /// "Used in" lines on quest items (`Profile::quest_hints`, addendum §13).
     QuestHints,
 }
 
