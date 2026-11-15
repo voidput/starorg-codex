@@ -441,6 +441,18 @@ fn secrets(b: &RealBackend) -> Vec<(String, String)> {
             }
         }
     }
+    // StarOrg Tools account cards: the user name and the orgs (named in sync log lines).
+    for acc in b.app_file().starorg.values() {
+        if let Some(u) = acc.user.as_ref().filter(|u| u.len() >= 2) {
+            out.push((u.clone(), "<starorg-user>".into()));
+        }
+        for g in &acc.guilds {
+            out.push((g.id.clone(), "<org-id>".into()));
+            if g.name.len() >= 2 {
+                out.push((g.name.clone(), "<org>".into()));
+            }
+        }
+    }
     out.sort_by(|a, b| (b.0.len(), &b.0).cmp(&(a.0.len(), &a.0)));
     out.dedup_by(|a, b| a.0 == b.0);
     out

@@ -45,8 +45,10 @@ privacy statement covers what GitHub logs.
 ### StarOrg Tools
 
 Settings -> StarOrg Tools -> Environment picks the one host the app talks to: `starorg.tools` or
-`dev.starorg.tools`. Switching signs you out of the other (its token is revoked there and removed
-here).
+`dev.starorg.tools`. Switching signs you out of the other: its token is removed here, and revoked
+there when "Connect StarOrg Tools" is on and the host answers. Changing the environment with
+`starorg-strings sync set` signs the old one out the same way the next time the app opens StarOrg
+Tools.
 
 - **Sign-in.** Your browser opens StarOrg Tools' sign-in page, which signs you in with Discord
   there. The app only listens on `127.0.0.1` for the browser's return and then sends the one-time
@@ -54,14 +56,17 @@ here).
   routes below), your Discord user name and the orgs you belong to. The token is kept in the
   system keyring (Windows Credential Manager, the Secret Service on Linux), or, when there is
   none, in a file only your user can read in the app's config folder; never in its settings, logs
-  or diagnostics. **Sign out** revokes it on the server and deletes it here.
+  or diagnostics. **Sign out** deletes it here, and revokes it on the server only while "Connect
+  StarOrg Tools" is on and the host answers. Signed out with the switch off or offline, the token
+  stays valid on the server until it expires; the app log says which happened. To end it there,
+  sign out again with the switch on, or use "Sign out everywhere" on StarOrg Tools.
 - **What to sync** (Settings -> StarOrg Tools), one switch each, also read by the command-line
   tool (`starorg-strings sync status`):
 
 | Switch (default) | What is sent, to the chosen host |
 |---|---|
 | Import blueprints from Game.log (on) | Nothing: it reads the game's logs on this computer. Off, the app, the command-line tool and the post-exit hook do not read the logs at all. |
-| Push owned blueprints (off) | The ids of the blueprints owned by the characters you tick, and when each was received (`POST …/my-blueprints`). First, the public blueprint list is downloaded without your token. Never character names, ids or log text; never removals. Names StarOrg Tools has no single blueprint for are not sent. |
+| Push owned blueprints (off) | The ids of the blueprints owned by the characters you tick, and when each was received when Game.log or StarOrg Tools says so (`POST …/my-blueprints`). First, the public blueprint list is downloaded without your token. Never character names, ids or log text; never removals. Names StarOrg Tools has no single blueprint for are not sent. |
 | Pull owned blueprints (off) | Only the request with your token (`GET …/my-blueprints`); the list is added to one character here. |
 | Pull fleet/hangar (off) | Only the request with your token (`GET /api/fleet/hangar`); ship names, counts and your ship names go into Ships. |
 | Sync automatically after game exit (off) | Runs the switches above when the game closes, instead of only when you press Sync now. |

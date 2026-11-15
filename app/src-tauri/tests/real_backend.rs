@@ -791,6 +791,16 @@ fn starorg_sign_in_pull_push_hangar_and_sign_out_against_a_local_server() {
         ErrorCode::NotFound
     );
 
+    // Diagnostics name neither the StarOrg user nor the orgs from the sync log lines.
+    let d = f.backend.export_diagnostics().unwrap();
+    for name in ["test_pilot_discord", "Synthetic Org", "100000000000000001"] {
+        assert!(!d.text.contains(name), "{name} in diagnostics");
+    }
+    assert!(
+        d.text.contains("<org>"),
+        "the sync lines are there, redacted"
+    );
+
     // Sign out revokes on the server and forgets the token.
     let st = f.backend.starorg_logout("LIVE".into()).unwrap();
     assert!(!st.connected && st.user.is_none());
@@ -834,6 +844,68 @@ fn starorg_switching_environment_signs_out_and_a_revoked_token_asks_again() {
     assert_eq!(e.code, ErrorCode::Invalid, "{e:?}");
     let st = f.backend.starorg_status("LIVE".into()).unwrap();
     assert!(!st.connected && st.expired, "{st:?}");
+}
+
+#[test]
+fn starorg_sign_out_with_the_switch_off_says_it_did_not_revoke() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |_| {});
+    f.backend.starorg_login("LIVE".into()).unwrap();
+    set_sync(&f, false, |_| {});
+    let before = m.requests().len();
+    let st = f.backend.starorg_logout("LIVE".into()).unwrap();
+    assert!(!st.connected && st.user.is_none());
+    // Nothing sent: the token is gone here but still valid on the server, and the log says so.
+    assert_eq!(m.requests().len(), before);
+    assert_eq!(m.state().revoked, 0);
+    assert_eq!(m.valid_tokens(), 1);
+    let log = f.backend.activity(50).unwrap();
+    assert!(
+        log.iter().any(|e| e.message.contains("not revoked there")),
+        "{log:?}"
+    );
+}
+
+#[test]
+fn starorg_environment_changed_outside_the_app_signs_the_old_one_out() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |_| {});
+    f.backend.starorg_login("LIVE".into()).unwrap();
+    // `starorg-strings sync set --environment dev`: config.toml only, no token touched.
+    let mut cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    cfg.sync.environment = starorg_core::starorg::Environment::Dev;
+    cfg.save(&f.dirs).unwrap();
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert_eq!(st.environment, StarOrgEnv::Dev);
+    assert!(!st.connected);
+    assert_eq!(m.state().revoked, 1, "the production token was revoked");
+    // Switching back finds no stale production sign-in.
+    let mut cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    cfg.sync.environment = starorg_core::starorg::Environment::Production;
+    cfg.save(&f.dirs).unwrap();
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert!(!st.connected && st.user.is_none(), "{st:?}");
+}
+
+#[test]
+fn starorg_a_token_refused_on_the_first_call_is_not_saved_as_signed_in() {
+    let m = starorg_server();
+    let f = starorg_fake(&m);
+    set_sync(&f, true, |_| {});
+    m.state().dead_tokens = true;
+    let e = f.backend.starorg_login("LIVE".into()).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid, "{e:?}");
+    let st = f.backend.starorg_status("LIVE".into()).unwrap();
+    assert!(!st.connected && st.token_store.is_none(), "{st:?}");
+    let app_json = std::fs::read_to_string(f.dirs.config.join("app.json")).unwrap();
+    let v: serde_json::Value = serde_json::from_str(&app_json).unwrap();
+    assert_ne!(
+        v["starorg"]["production"]["signed_in"],
+        serde_json::json!(true),
+        "{app_json}"
+    );
 }
 
 #[test]

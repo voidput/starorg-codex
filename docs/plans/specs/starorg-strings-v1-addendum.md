@@ -266,8 +266,11 @@ in prod until the owner enables it). The client follows its real routes; nothing
 - **Environment** (owner, 2026-11-15: "the option to set dev/prod"): Settings -> StarOrg Tools ->
   Production (`https://starorg.tools`) / Dev (`https://dev.starorg.tools`). Stored in
   `config.toml` `[sync] environment`; the CLI sets it with `starorg-strings sync set
-  --environment production|dev` (default `$STARORG_ENV`). Tokens and account cards are per
-  environment; switching (after a confirm) revokes and forgets the old one.
+  --environment production|dev`; a bare `sync set` saves `$STARORG_ENV` (it never rides along
+  on other changes). Tokens and account cards are per environment; switching (after a confirm)
+  forgets the old one, revoking it when the network switch is on and the host answers, before
+  the new environment is saved. A change made outside the app (CLI, hand edit) is caught the
+  next time the app looks at StarOrg Tools, which signs the other environment out the same way.
 - **Sign-in** (`starorg_net::starorg`): probe `GET /api/auth/strings/login` (404 = disabled on
   that server, refused before a browser opens) -> PKCE S256 (86-char verifier, 43-char state) ->
   listener on `127.0.0.1:<ephemeral>` -> system browser to `/api/auth/strings/login?redirect_uri=
@@ -291,6 +294,9 @@ in prod until the owner enables it). The client follows its real routes; nothing
   single normalised name or alias; ambiguous/unknown reported as `unmatched`, not sent -> `POST
   /api/industrial/crafting/guilds/{guild}/my-blueprints {blueprint_ids, source:
   "starorg_strings", acquired_at}` in chunks of 2000. Never removals (`…/remove` is not called).
+  `acquired_at` carries receipt times only (log line, or the server's own from a pull; never a
+  Smart Citizen export time) and only well-formed ISO datetimes, since one bad value makes the
+  server refuse the whole chunk. A grant without `aud: "strings"` is refused.
 - **Pull**: `GET …/my-blueprints` -> union into one character with source `starorg:<org>`; names
   not in this build's game data (when read) are `unmatched` and skipped.
 - **Hangar**: `GET /api/fleet/hangar` -> HangarXPLOR-shaped rows -> the fleet importer
@@ -306,7 +312,8 @@ in prod until the owner enables it). The client follows its real routes; nothing
   cancel, timeout; client routes and the disabled/401/404 cases against
   `starorg_net::starorg::mock::MockServer` (127.0.0.1, random tokens); token stores (0600);
   real backend: network switch off sends nothing, each switch off sends nothing, sign-in, push,
-  pull, hangar, org change, sign out revokes, environment switch, revoked token, Game.log off
+  pull, hangar, org change, sign out revokes (and says when it could not), environment switch
+  in the app and from the CLI, a token refused on the first call, revoked token, Game.log off
   reads no log, auto sync after exit and on the hook note; CLI `sync` and the gates; renders
   `app/scripts/render-starorg.cjs`.
 - **Not done**: no refresh (server has none); the CLI has no `starorg login|pull|push` (it links

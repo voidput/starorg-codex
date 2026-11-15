@@ -99,6 +99,7 @@ impl Fake {
             .arg("--test-stock-ini")
             .arg(&self.stock)
             .env_remove("WINEPREFIX")
+            .env_remove("STARORG_ENV")
             .env("HOME", self.base.join("home"))
             .env("XDG_CONFIG_HOME", self.base.join("home/config"))
             .env("XDG_DATA_HOME", self.base.join("home/data"))

@@ -11,14 +11,15 @@
 //!   game exits. The CLI has no HTTP client; its post-exit hook only leaves a
 //!   [`PENDING_FILE`] note for the app when `auto_sync` is on.
 //!
-//! `STARORG_ENV` (`production` / `dev`) is the CLI's default for `sync set --environment`.
+//! `STARORG_ENV` (`production` / `dev`) is what a bare `starorg-strings sync set` saves; it
+//! never overrides the saved environment on its own.
 
 use crate::appdirs::AppDirs;
 use crate::fsutil;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-/// The environment variable the CLI reads for `sync set --environment`.
+/// The environment variable a bare `sync set` saves.
 pub const ENV_VAR: &str = "STARORG_ENV";
 /// Written by the post-exit hook (one channel name per line) when `auto_sync` is on; the app
 /// syncs those channels and deletes it.

@@ -311,8 +311,9 @@ pub enum SyncCmd {
     Status,
     /// Change the environment or switches; the rest stay as they are.
     Set {
-        /// production (starorg.tools) or dev (dev.starorg.tools). Default: $STARORG_ENV.
-        #[arg(long, env = "STARORG_ENV", value_name = "ENV")]
+        /// production (starorg.tools) or dev (dev.starorg.tools). A bare `sync set` with no
+        /// flags saves $STARORG_ENV instead; any other `sync set` leaves the environment alone.
+        #[arg(long, value_name = "ENV")]
         environment: Option<String>,
         /// Read Game.log for new blueprints (app, `blueprints scan`, `hook postexit`).
         #[arg(long, value_enum, value_name = "on|off")]

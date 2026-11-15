@@ -45,9 +45,9 @@
       name: `StarOrg Tools (${host})`,
       on: !!net?.starorg,
       state: net?.starorg ? (so?.auto_sync && anyStarOrg ? 'On, after game exit' : 'On') : 'Off',
-      what: `Only after you sign in at ${host} in your browser (Discord sign-in there). Sign-in: a one-time code and a check value; the token stays in the system keyring and goes only to ${host}. Then only what the switches below allow.`,
+      what: `Only after you sign in at ${host} in your browser (Discord sign-in there). Sign-in: a one-time code and a check value; the token stays on this computer (system keyring, or a private file when there is none) and goes only to ${host}. Sign out revokes it there only while this switch is on. Then only what the switches below allow.`,
       sub: [
-        { name: 'Push owned blueprints', on: !!net?.starorg && !!so?.push_blueprints, what: `Blueprint ids of the ticked characters and when each was received, to ${host}. Never character names, ids or log text; never removals.` },
+        { name: 'Push owned blueprints', on: !!net?.starorg && !!so?.push_blueprints, what: `Blueprint ids of the ticked characters and when each was received (when Game.log or StarOrg Tools says so), to ${host}. Never character names, ids or log text; never removals.` },
         { name: 'Pull owned blueprints', on: !!net?.starorg && !!so?.pull_blueprints, what: `Reads your owned list from ${host}. Sends only the request with your token. Pushing first downloads the public blueprint list (no token).` },
         { name: 'Pull fleet/hangar', on: !!net?.starorg && !!so?.pull_fleet, what: `Reads your hangar from ${host}. Sends only the request with your token.` },
       ],

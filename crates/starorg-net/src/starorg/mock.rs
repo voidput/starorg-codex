@@ -52,6 +52,10 @@ pub struct MockState {
     /// Owned ids -> (source, acquired_at)
     pub owned: BTreeMap<i64, (String, Option<String>)>,
     pub hangar: Vec<Value>,
+    /// The `aud` the exchange answers with (`None`: left out).
+    pub aud: Option<String>,
+    /// Hand out tokens that are already revoked (the first `/me` is a 401).
+    pub dead_tokens: bool,
 }
 
 impl Default for MockState {
@@ -87,6 +91,8 @@ impl Default for MockState {
                 json!({"id": 2, "vehicle_id": 12, "custom_name": null, "amount": 2, "is_hidden": false,
                        "vehicle": {"name": "Synthetic Bravo", "manufacturer": "Test Works"}}),
             ],
+            aud: Some("strings".into()),
+            dead_tokens: false,
         }
     }
 }
@@ -363,15 +369,17 @@ fn exchange(g: &mut MockState, req: &Request) -> Reply {
         return invalid;
     }
     let t = random_text("mock");
-    g.tokens.insert(t.clone());
-    (
-        200,
-        json!({
-            "access_token": t, "expires_in": g.expires_in, "token_type": "bearer", "aud": "strings",
-            "user": { "discord_id": "200000000000000007", "username": "test_pilot_discord", "rsi_handle": null },
-        }),
-        None,
-    )
+    if !g.dead_tokens {
+        g.tokens.insert(t.clone());
+    }
+    let mut body = json!({
+        "access_token": t, "expires_in": g.expires_in, "token_type": "bearer",
+        "user": { "discord_id": "200000000000000007", "username": "test_pilot_discord", "rsi_handle": null },
+    });
+    if let Some(a) = &g.aud {
+        body["aud"] = json!(a);
+    }
+    (200, body, None)
 }
 
 fn add(g: &mut MockState, req: &Request) -> Reply {
@@ -386,6 +394,13 @@ fn add(g: &mut MockState, req: &Request) -> Reply {
     };
     if ids.is_empty() || ids.len() > super::MAX_BULK_IDS {
         return (422, detail("blueprint_ids"), None);
+    }
+    // Like pydantic's datetime: one bad value refuses the whole request.
+    if let Some(m) = b["acquired_at"].as_object()
+        && m.values()
+            .any(|v| !v.as_str().is_some_and(super::is_iso_datetime))
+    {
+        return (422, detail("acquired_at"), None);
     }
     let (mut added, mut already) = (Vec::new(), Vec::new());
     for id in ids.iter().filter_map(Value::as_i64) {

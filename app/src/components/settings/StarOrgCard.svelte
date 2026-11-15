@@ -158,7 +158,7 @@
 <Card.Root id="starorg">
   <Card.Header>
     <Card.Title tabindex={-1}>StarOrg Tools</Card.Title>
-    <Card.Description>Link your StarOrg Tools account to pull and push owned blueprints and read your hangar. Sign-in happens in your browser; the token stays in the system keyring.</Card.Description>
+    <Card.Description>Link your StarOrg Tools account to pull and push owned blueprints and read your hangar. Sign-in happens in your browser; the token is kept on this computer only (where is shown below once you are signed in).</Card.Description>
   </Card.Header>
   <Card.Content class="grid gap-3">
     {#if !st || !so}
@@ -248,7 +248,7 @@
 <ActionDialog
   bind:open={confirmOpen}
   title="Switch to {confirmEnv ? HOSTS[confirmEnv] : ''}?"
-  description="Sign-ins are per environment: you will be signed out of {HOSTS[env]} (the token is revoked there and removed here). Your owned blueprints on this computer stay."
+  description="Sign-ins are per environment: you will be signed out of {HOSTS[env]} (the token is removed here, and revoked there while Connect StarOrg Tools is on and the host answers). Your owned blueprints on this computer stay."
   confirmLabel="Switch and sign out"
   busyLabel="Switching…"
   onconfirm={switchEnv}

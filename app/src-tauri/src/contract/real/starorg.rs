@@ -235,6 +235,7 @@ impl RealBackend {
     /// A client with a live token, or why there is none (expired tokens are dropped here).
     fn authed(&self) -> CmdResult<(Client, Account, StarOrgEnv)> {
         let env = self.env();
+        self.sign_out_other_envs(env)?;
         let c = self.client(env)?;
         let mut acc = self.account(env);
         let not_in = || {
@@ -350,6 +351,7 @@ impl RealBackend {
     pub(super) fn starorg_view(&self, channel: &str) -> CmdResult<StarOrgStatus> {
         let s = self.settings();
         let env = s.starorg.environment;
+        self.sign_out_other_envs(env)?;
         let a = self.app_file();
         let ticked = a.sync.get(channel).cloned();
         let mut chars = Vec::new();
@@ -429,7 +431,14 @@ impl RealBackend {
                 )
             })?;
         let c = c.with_token(grant.access_token.clone());
-        let me = c.me().map_err(|e| self.so_err(env, e));
+        let me = match c.me() {
+            // Refused on the first call: drop the token and save no signed-in card.
+            Err(e @ StarOrgError::Unauthorized(_)) => {
+                let _ = self.starorg.tokens.delete(env);
+                return Err(self.so_err(env, e));
+            }
+            r => r,
+        };
         let old = self.account(env);
         let mut acc = Account {
             user: Some(grant.user.username.clone()),
@@ -469,16 +478,20 @@ impl RealBackend {
     }
 
     /// Revoke on the server when the network switch allows it (best effort), then forget the
-    /// token and the account card here.
-    pub(super) fn sign_out(&self, env: StarOrgEnv) -> CmdResult<()> {
+    /// token and the account card here. Returns whether the server confirmed the revoke; when
+    /// it did not (switch off, offline, refused) the token is gone from this computer but
+    /// stays valid on the server until it expires.
+    pub(super) fn sign_out(&self, env: StarOrgEnv) -> CmdResult<bool> {
         let acc = self.account(env);
-        if acc.signed_in
+        let revoked = acc.signed_in
             && self.settings().network.starorg
-            && let Ok(Some((t, _))) = self.starorg.tokens.get(env)
-            && let Ok(c) = Client::new(&(self.starorg.base)(env), &user_agent())
-        {
-            let _ = c.with_token(t).logout();
-        }
+            && match (
+                self.starorg.tokens.get(env),
+                Client::new(&(self.starorg.base)(env), &user_agent()),
+            ) {
+                (Ok(Some((t, _))), Ok(c)) => c.with_token(t).logout().is_ok(),
+                _ => false,
+            };
         self.starorg.tokens.delete(env).map_err(|e| {
             err(
                 ErrorCode::Internal,
@@ -489,12 +502,35 @@ impl RealBackend {
         a.starorg.remove(env_key(env));
         self.save_app_file(&a)?;
         if acc.signed_in {
+            let host = core_env(env).host();
+            let msg = if revoked {
+                format!("Signed out of {host}; the token was revoked there")
+            } else {
+                format!(
+                    "Signed out of {host} on this computer only; the token was not revoked there and stays valid until it expires"
+                )
+            };
             self.log(
-                LogLevel::Info,
+                if revoked {
+                    LogLevel::Info
+                } else {
+                    LogLevel::Warn
+                },
                 Some(JobKind::Sync),
                 None,
-                &format!("Signed out of {}", core_env(env).host()),
+                &msg,
             );
+        }
+        Ok(revoked)
+    }
+
+    /// Sign out of every environment but the chosen one. The app's own switch does this
+    /// itself; this catches `config.toml` changed by the CLI or by hand.
+    pub(super) fn sign_out_other_envs(&self, env: StarOrgEnv) -> CmdResult<()> {
+        for other in [StarOrgEnv::Production, StarOrgEnv::Dev] {
+            if other != env && self.account(other).signed_in {
+                self.sign_out(other)?;
+            }
         }
         Ok(())
     }
@@ -661,7 +697,15 @@ impl RealBackend {
                         ids.push(id);
                         v.insert(e.name.clone());
                     }
-                    if let Some(t) = e.sources.iter().filter_map(|s| s.time.clone()).min() {
+                    // Receipt times only: a log line's or the server's own. A Smart Citizen
+                    // import's time is when the file was exported, not when it was received.
+                    if let Some(t) = e
+                        .sources
+                        .iter()
+                        .filter(|s| s.kind != blueprints::SOURCE_SMART_CITIZEN)
+                        .filter_map(|s| s.time.clone())
+                        .min()
+                    {
                         let slot = times.entry(id).or_insert_with(|| t.clone());
                         if t < *slot {
                             *slot = t;

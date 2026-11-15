@@ -498,7 +498,7 @@ impl Client {
         }
         let g: TokenGrant = Self::json(&Self::ok(a, "sign-in")?)?;
         if !g.token_type.eq_ignore_ascii_case("bearer")
-            || g.aud.as_deref().is_some_and(|a| a != AUDIENCE)
+            || g.aud.as_deref() != Some(AUDIENCE)
             || g.access_token.is_empty()
         {
             return Err(StarOrgError::Protocol("not a StarOrg Codex token".into()));
@@ -547,6 +547,9 @@ impl Client {
             let times: BTreeMap<String, &String> = chunk
                 .iter()
                 .filter_map(|id| acquired_at.get(id).map(|t| (id.to_string(), t)))
+                // The server parses these as datetimes and refuses the whole chunk on one bad
+                // value: send only well-formed ones (the rest go without a time).
+                .filter(|(_, t)| is_iso_datetime(t))
                 .collect();
             let mut body = serde_json::json!({ "blueprint_ids": chunk, "source": SOURCE });
             if !times.is_empty() {
@@ -572,6 +575,60 @@ impl Client {
 
     pub fn hangar(&self) -> Result<Vec<HangarVehicle>, StarOrgError> {
         Self::json(&Self::ok(self.get("/api/fleet/hangar", true)?, "hangar")?)
+    }
+}
+
+/// `YYYY-MM-DD[T ]HH:MM[:SS[.frac]][Z|±HH[:]MM]`, the shapes the server's datetime parser
+/// takes from a string.
+pub fn is_iso_datetime(s: &str) -> bool {
+    let b = s.as_bytes();
+    let digits =
+        |r: std::ops::Range<usize>| b.get(r).is_some_and(|x| x.iter().all(u8::is_ascii_digit));
+    if b.len() < 16
+        || !digits(0..4)
+        || b[4] != b'-'
+        || !digits(5..7)
+        || b[7] != b'-'
+        || !digits(8..10)
+        || !matches!(b[10], b'T' | b't' | b' ')
+        || !digits(11..13)
+        || b[13] != b':'
+        || !digits(14..16)
+    {
+        return false;
+    }
+    let num = |r: std::ops::Range<usize>| s[r].parse::<u32>().unwrap_or(99);
+    if !(1..=12).contains(&num(5..7))
+        || !(1..=31).contains(&num(8..10))
+        || num(11..13) > 23
+        || num(14..16) > 59
+    {
+        return false;
+    }
+    let mut i = 16;
+    if b.get(i) == Some(&b':') {
+        if !digits(i + 1..i + 3) || num(i + 1..i + 3) > 59 {
+            return false;
+        }
+        i += 3;
+        if b.get(i) == Some(&b'.') {
+            let n = b[i + 1..].iter().take_while(|c| c.is_ascii_digit()).count();
+            if n == 0 {
+                return false;
+            }
+            i += 1 + n;
+        }
+    }
+    match &b[i..] {
+        [] | [b'Z' | b'z'] => true,
+        [b'+' | b'-', rest @ ..] => {
+            let r: Vec<u8> = rest.iter().copied().filter(|c| *c != b':').collect();
+            r.len() == 4
+                && r.iter().all(u8::is_ascii_digit)
+                && rest.len() <= 5
+                && (rest.len() == 4 || rest.get(2) == Some(&b':'))
+        }
+        _ => false,
     }
 }
 
@@ -620,6 +677,33 @@ mod tests {
         assert!(!u.contains(&p.verifier));
         let c = c.with_token("x".repeat(40));
         assert!(!format!("{c:?}").contains("xxxx"));
+    }
+
+    #[test]
+    fn iso_datetimes_the_server_parses() {
+        for ok in [
+            "2026-03-02T10:05:00.000Z",
+            "2026-03-02T10:05:00Z",
+            "2026-03-02 10:05:00",
+            "2026-03-02T10:05",
+            "2026-03-02T10:05:00.123456+02:00",
+            "2026-03-02T10:05:00-0500",
+        ] {
+            assert!(is_iso_datetime(ok), "{ok}");
+        }
+        for bad in [
+            "",
+            "yesterday",
+            "2026-03-02",
+            "2026-13-02T10:05:00Z",
+            "2026-03-02T25:05:00Z",
+            "2026-03-02T10:05:00.Z",
+            "2026-03-02T10:05:00 UTC",
+            "2026-03-02T10:05:00+2",
+            "03/02/2026 10:05",
+        ] {
+            assert!(!is_iso_datetime(bad), "{bad}");
+        }
     }
 
     #[test]

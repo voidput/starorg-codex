@@ -510,6 +510,7 @@ fn game_log_import_off_reads_no_log_in_scan_or_postexit() {
 fn sync_set_takes_starorg_env_and_postexit_leaves_the_app_a_note() {
     let f = Fake::new();
     f.setup("LIVE");
+    // An exported STARORG_ENV does not ride along on an unrelated change.
     let o = f
         .cmd(&["sync", "set", "--auto", "on", "--push", "on", "--json"])
         .env("STARORG_ENV", "dev")
@@ -517,8 +518,19 @@ fn sync_set_takes_starorg_env_and_postexit_leaves_the_app_a_note() {
         .unwrap();
     assert_eq!(o.status.code(), Some(0), "{o:?}");
     let v: Value = serde_json::from_slice(&o.stdout).unwrap();
+    assert_eq!(v["environment"], "production");
+    assert_eq!(v["sync"]["auto_sync"], true);
+    // A bare `sync set` saves it.
+    let o = f
+        .cmd(&["sync", "set", "--json"])
+        .env("STARORG_ENV", "dev")
+        .output()
+        .unwrap();
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    let v: Value = serde_json::from_slice(&o.stdout).unwrap();
     assert_eq!(v["environment"], "dev");
     assert_eq!(v["host"], "dev.starorg.tools");
+    assert_eq!(v["sync"]["push_blueprints"], true);
     let o = f
         .cmd(&["sync", "set", "--json"])
         .env("STARORG_ENV", "staging")

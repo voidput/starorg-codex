@@ -2262,14 +2262,15 @@ impl Backend for RealBackend {
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
         let prefs = starorg::prefs_of(&req.starorg);
         let old_env = starorg::contract_env(cfg.sync.environment);
+        // Tokens are per environment: switching signs the old one out (the UI asks first),
+        // before the new environment is saved, so a failure leaves the old one chosen.
+        if old_env != req.starorg.environment {
+            self.sign_out(old_env)?;
+        }
         if cfg.default_channel != req.default_channel || cfg.sync != prefs {
             cfg.default_channel = req.default_channel.clone();
             cfg.sync = prefs;
             cfg.save(self.dirs()).map_err(io)?;
-        }
-        // Tokens are per environment: switching signs the old one out (the UI asks first).
-        if old_env != req.starorg.environment {
-            self.sign_out(old_env)?;
         }
         Ok(self.settings())
     }

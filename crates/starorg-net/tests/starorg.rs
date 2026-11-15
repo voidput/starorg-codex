@@ -92,6 +92,38 @@ fn exchange_needs_the_right_verifier_and_redirect() {
 }
 
 #[test]
+fn a_grant_without_the_strings_audience_is_refused() {
+    for aud in [None, Some("rsi_plus")] {
+        let m = MockServer::start();
+        m.state().aud = aud.map(str::to_string);
+        let e = sign_in(&m).unwrap_err();
+        assert!(matches!(e, StarOrgError::Protocol(_)), "{aud:?}: {e:?}");
+    }
+}
+
+#[test]
+fn a_malformed_acquired_at_is_left_out_not_sent() {
+    let m = MockServer::start();
+    let t = m.issue_token();
+    let c = client(&m).with_token(t);
+    let at = BTreeMap::from([
+        (1, "2026-03-01T10:05:00.000Z".to_string()),
+        (2, "exported last Tuesday".to_string()),
+    ]);
+    let r = c
+        .add_blueprints("100000000000000001", &[1, 2], &at)
+        .unwrap();
+    assert_eq!(r.added, [1, 2]);
+    let add = m
+        .requests()
+        .into_iter()
+        .find(|r| r.method == "POST")
+        .unwrap();
+    assert!(add.body.contains("\"1\":\"2026-03-01"), "{}", add.body);
+    assert!(!add.body.contains("Tuesday"), "{}", add.body);
+}
+
+#[test]
 fn blueprint_routes_pull_push_and_lookup() {
     let m = MockServer::start();
     let t = m.issue_token();
