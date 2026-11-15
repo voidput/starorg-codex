@@ -254,9 +254,11 @@ jobs:
         if: steps.app.outputs.present == 'true' && runner.os == 'Windows' && steps.winsign.outputs.enabled == 'true'
         shell: pwsh
         run: |
-          $files = @(Get-Item target\release\starorg-strings-app.exe) +
-            @(Get-ChildItem target\release\bundle -Recurse -Include *.exe, *.msi)
-          if ($files.Count -lt 3) { throw "expected the app exe, the NSIS installer and the MSI, found $($files.Count) files" }
+          # Tauri signs the copy of the app exe it packs, not target\release\starorg-strings-app.exe
+          # (v0.0.2: that file is NotSigned while the exe inside the MSI is signed), so check the
+          # installers here; the packed exe is covered by the installer signature chain.
+          $files = @(Get-ChildItem target\release\bundle -Recurse -Include *.exe, *.msi)
+          if ($files.Count -lt 2) { throw "expected the NSIS installer and the MSI, found $($files.Count) files" }
           $bad = 0
           foreach ($f in $files) {
             $sig = Get-AuthenticodeSignature $f.FullName
