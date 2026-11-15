@@ -22,7 +22,7 @@
     <span class="flex items-center gap-2 pr-6 font-semibold"><CloudDownload class="text-primary size-4" aria-hidden="true" /> Use published game data <Badge variant="warning">Network</Badge></span>
     <span class="text-muted-foreground">
       Downloads the datasets for your exact build from <span class="mono">github.com/voidput/sc-gamedata-dumps</span>, checked by checksum and read as data only. A build
-      without a published dump (often PTU and HOTFIX) is still read locally. This turns on Settings → Network → Use published game data.
+      without a published dump (often PTU and HOTFIX) is still read locally. Not in this build yet: game data is read on this computer either way.
     </span>
   </RadioCard>
 </fieldset>

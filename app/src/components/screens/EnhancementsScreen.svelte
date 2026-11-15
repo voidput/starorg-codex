@@ -56,6 +56,7 @@
     const h = draft?.header ?? '';
     if (/[^\x20-\x7e]/.test(h)) return 'Use plain ASCII letters, digits and punctuation only.';
     if (/[%<~]/.test(h) || h.includes('\\n')) return 'Not allowed here: %, <, ~ and \\n.';
+    if (h.length > 80) return 'At most 80 characters.';
     return null;
   });
 

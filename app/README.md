@@ -34,6 +34,10 @@ cargo test -p starorg-strings-app        # gpu, contract and IPC tests (mock run
   no dialog permission and never sends a path. The core has no cancellation points inside an
   apply, so jobs report `cancellable: false`. StarOrg login/pull/push return `network-off`
   (switch off) or `not-implemented` (server API pending, SC-ORG-BOT#1659); nothing is faked.
+  Not built yet, so shown disabled in Settings and always stored off: "Check for updates" and
+  "Use published game data" (no HTTP client in the app). Also not read yet: `safe_gpu`, and
+  `discover_installs(deep)` (same scan either way). Running setup again keeps a set-up
+  channel's profile and setup time; only new channels get the chosen preset.
   `cargo test -p starorg-strings-app --test real_backend` runs it against a synthetic install
   in a temp folder; `-- --ignored print_real` prints this machine's overview (read only).
 - **Mock backend:** `contract/mock.rs` (`MockBackend`: synthetic, stateful, no disk or network),

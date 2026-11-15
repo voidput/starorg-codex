@@ -177,6 +177,71 @@ pub struct RealBackend {
     mem: Mutex<Mem>,
 }
 
+/// Longest header line accepted (the core has no limit; the line goes into every block).
+pub const MAX_HEADER: usize = 80;
+/// Mission list cap range, as the Enhancements screen offers it.
+pub const MAX_LIST: std::ops::RangeInclusive<u32> = 1..=200;
+
+/// Values the core would ignore or that have no sane limit there are refused up front:
+/// unknown stat lines and tag elements, an over-long header, a huge list cap.
+fn check_profile(p: &Profile) -> CmdResult<()> {
+    let sch = schema::profile_schema();
+    let bad = |m: String| Err(err(ErrorCode::Invalid, m));
+    for l in &p.lines_off {
+        if !sch
+            .categories
+            .iter()
+            .any(|c| c.lines.iter().any(|x| x.key == *l))
+        {
+            return bad(format!("unknown stat line {l}"));
+        }
+    }
+    for (kind, t) in [
+        (TagKind::Components, &p.tags.components),
+        (TagKind::ShipWeapons, &p.tags.ship_weapons),
+        (TagKind::Missiles, &p.tags.missiles),
+    ] {
+        let known = sch.tag_kinds.iter().find(|k| k.kind == kind);
+        for e in t.elements.iter().chain(t.styles.keys()) {
+            if !known.is_some_and(|k| k.elements.iter().any(|x| x.id == *e)) {
+                return bad(format!("unknown tag element {e}"));
+            }
+        }
+    }
+    if p.header.chars().count() > MAX_HEADER {
+        return bad(format!(
+            "The header line is longer than {MAX_HEADER} characters."
+        ));
+    }
+    if !MAX_LIST.contains(&p.mission.max_list) {
+        return bad(format!(
+            "The list length must be {} to {}.",
+            MAX_LIST.start(),
+            MAX_LIST.end()
+        ));
+    }
+    Ok(())
+}
+
+/// `user-<slug>`; a title with letters the slug drops (non-ASCII) or no slug at all gets a
+/// short hash of the title, so distinct titles do not collapse into one id.
+fn user_patch_id(title: &str, slug: &str) -> String {
+    let lossy = title
+        .chars()
+        .any(|c| c.is_alphanumeric() && !c.is_ascii_alphanumeric());
+    if slug.is_empty() || lossy {
+        let h = fsutil::sha256_parts(&[title.trim().as_bytes()]);
+        let h = &h[..8.min(h.len())];
+        if slug.is_empty() {
+            format!("user-{h}")
+        } else {
+            format!("user-{slug}-{h}")
+        }
+    } else {
+        format!("user-{slug}")
+    }
+}
+
 fn now() -> String {
     fsutil::rfc3339(fsutil::unix_now())
 }
@@ -265,7 +330,11 @@ impl RealBackend {
             label: label.to_string(),
             cancellable: false,
         };
-        m.job = Some(p.clone());
+        // One slot for overview.job: a second job (remove while an apply runs, or an apply
+        // skipped on the lock) does not hide the one already running.
+        if m.job.is_none() {
+            m.job = Some(p.clone());
+        }
         p
     }
 
@@ -278,7 +347,12 @@ impl RealBackend {
     ) {
         p.step = step;
         p.label = label.to_string();
-        self.mem().job = Some(p.clone());
+        {
+            let mut m = self.mem();
+            if m.job.as_ref().is_none_or(|j| j.job == p.job) {
+                m.job = Some(p.clone());
+            }
+        }
         if let Some(cb) = progress {
             cb(p.clone());
         }
@@ -792,11 +866,13 @@ impl RealBackend {
                 palette: Palette::Void,
                 reduce_effects: false,
             }),
-            network: a.network.unwrap_or(NetworkSettings {
+            // check_updates / published_dumps are not built yet: always reported off, even
+            // if an older app.json stored them on.
+            network: NetworkSettings {
                 check_updates: false,
                 published_dumps: false,
-                starorg: false,
-            }),
+                starorg: a.network.map(|n| n.starorg).unwrap_or(false),
+            },
             default_channel: self.config().default_channel,
             safe_gpu: a.safe_gpu,
         }
@@ -1223,7 +1299,12 @@ impl Backend for RealBackend {
             let ini = apply::locate_ini(&ch.dir).map_err(internal)?;
             let cfg = usercfg::locate(&ch.dir).ok();
             let s = self.summary(&f, ch);
-            let counts = match self.build_table(&f, ch, Some((&eprof, &disabled)), true) {
+            // A channel that is already set up keeps its own profile (setup does not touch
+            // it), so its counts come from that profile, not from the wizard's preset.
+            let keep =
+                self.is_set_up(&f, ch) && state::Profile::path(&self.data_dir(&f, ch)).is_file();
+            let chosen = (!keep).then_some((&eprof, disabled.as_slice()));
+            let counts = match self.build_table(&f, ch, chosen, true) {
                 Ok(t) => t.counts.clone(),
                 Err(e) => {
                     warnings.push(Warning {
@@ -1292,9 +1373,19 @@ impl Backend for RealBackend {
             }
             let data = self.dirs().channel_dir(&id, &ch.name);
             let mut st = ChannelState::load(&data).map_err(io)?;
+            let had_consent = st.consent;
             st.consent = true;
-            st.setup_time = Some(now());
+            if !had_consent || st.setup_time.is_none() {
+                st.setup_time = Some(now());
+            }
             st.switch_language = c.switch_language;
+            // Running setup again (Settings, "Set up PTU") must not wipe a channel's
+            // settings: an existing profile.toml is kept as it is.
+            if state::Profile::path(&data).is_file() {
+                st.save(&data).map_err(io)?;
+                set_up.push(ch.name.clone());
+                continue;
+            }
             let mut prof = state::Profile::preset(convert::preset_name(req.preset))
                 .ok_or_else(|| internal("unknown preset"))?;
             if !req.fix_known_bugs {
@@ -1313,13 +1404,7 @@ impl Backend for RealBackend {
             cfg.default_channel = Some(first.clone());
             cfg.save(self.dirs()).map_err(io)?;
         }
-        if req.data_source == DataSource::PublishedDumps {
-            let mut a = self.app_file();
-            let mut n = self.settings().network;
-            n.published_dumps = true;
-            a.network = Some(n);
-            self.save_app_file(&a)?;
-        }
+        // Published game data is not built yet (plan_setup warns); nothing is stored for it.
         self.log(
             LogLevel::Info,
             None,
@@ -1449,7 +1534,12 @@ impl Backend for RealBackend {
             Some(&ch.name),
             &format!("{}: {}", ch.name, kebab(&out.result)),
         );
-        self.job_end(job, JobPhase::Done, "Done", None);
+        let phase = if out.result == ApplyResult::Failed {
+            JobPhase::Failed
+        } else {
+            JobPhase::Done
+        };
+        self.job_end(job, phase, kebab(&out.result).as_str(), None);
         Ok(out)
     }
 
@@ -1492,7 +1582,12 @@ impl Backend for RealBackend {
             Some(&ch.name),
             &format!("{}: {} {}", ch.name, kebab(&out.result), req.backup),
         );
-        self.job_end(job, JobPhase::Done, "Done", None);
+        let phase = if out.result == ApplyResult::Failed {
+            JobPhase::Failed
+        } else {
+            JobPhase::Done
+        };
+        self.job_end(job, phase, kebab(&out.result).as_str(), None);
         Ok(out)
     }
 
@@ -1640,6 +1735,7 @@ impl Backend for RealBackend {
         let mut f = self.resolve(&req.target)?;
         self.register(&mut f)?;
         let ch = f.channel(&req.target.channel)?;
+        check_profile(&req.profile)?;
         let mut file = self.profile_file(&f, ch)?;
         convert::store_profile(&mut file, &req.profile)?;
         file.save(&self.data_dir(&f, ch)).map_err(io)?;
@@ -1803,6 +1899,17 @@ impl Backend for RealBackend {
         let mut f = self.resolve(&req.target)?;
         self.register(&mut f)?;
         let ch = f.channel(&req.target.channel)?;
+        // An unknown id is refused before anything is saved.
+        if !patch::load_patches(self.dirs(), &[])
+            .patches
+            .iter()
+            .any(|p| p.file.id == req.id)
+        {
+            return Err(err(
+                ErrorCode::NotFound,
+                format!("no patch {} for {}", req.id, ch.name),
+            ));
+        }
         let mut p = self.get_profile(req.target.clone())?;
         p.patches_disabled.retain(|x| *x != req.id);
         if !req.enabled {
@@ -1854,7 +1961,7 @@ impl Backend for RealBackend {
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join("-");
-        let id = format!("user-{slug}");
+        let id = user_patch_id(&req.title, &slug);
         let path = patch::user_patch_path(self.dirs(), &id);
         let set = patch::load_patches(self.dirs(), &[]);
         if path.exists() || set.patches.iter().any(|p| p.file.id == id) {
@@ -1986,7 +2093,12 @@ impl Backend for RealBackend {
     fn save_settings(&self, req: Settings) -> CmdResult<Settings> {
         let mut a = self.app_file();
         a.appearance = Some(req.appearance.clone());
-        a.network = Some(req.network.clone());
+        // Update checks and published game data are not built yet (no HTTP client in this
+        // app): they stay off rather than saving a switch that does nothing.
+        let mut net = req.network.clone();
+        net.check_updates = false;
+        net.published_dumps = false;
+        a.network = Some(net);
         a.safe_gpu = req.safe_gpu;
         self.save_app_file(&a)?;
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
@@ -2260,5 +2372,42 @@ impl Backend for RealBackend {
             &format!("Saved diagnostics to {shown}"),
         );
         Ok(Some(path_text(&to)))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{check_profile, convert, user_patch_id};
+    use crate::contract::types::Preset;
+
+    #[test]
+    fn presets_pass_the_profile_check_and_junk_does_not() {
+        for p in [Preset::Recommended, Preset::Minimal, Preset::Everything] {
+            check_profile(&convert::preset(p)).unwrap();
+        }
+        let base = convert::preset(Preset::Recommended);
+        let mut p = base.clone();
+        p.lines_off = vec!["bogus.line".into()];
+        assert!(check_profile(&p).is_err());
+        let mut p = base.clone();
+        p.tags.components.elements.push("bogus".into());
+        assert!(check_profile(&p).is_err());
+        let mut p = base.clone();
+        p.mission.max_list = u32::MAX;
+        assert!(check_profile(&p).is_err());
+        let mut p = base;
+        p.header = "x".repeat(5000);
+        assert!(check_profile(&p).is_err());
+    }
+
+    #[test]
+    fn user_patch_ids_do_not_collapse() {
+        assert_eq!(user_patch_id("Fix Rifle", "fix-rifle"), "user-fix-rifle");
+        let a = user_patch_id("!!!", "");
+        assert!(a.starts_with("user-") && a.len() == 13, "{a}");
+        assert_ne!(a, user_patch_id("???", ""));
+        let b = user_patch_id("Ünï çødé", "n-d");
+        assert!(b.starts_with("user-n-d-"), "{b}");
+        assert_ne!(b, user_patch_id("Ñnï çødé", "n-d"));
     }
 }

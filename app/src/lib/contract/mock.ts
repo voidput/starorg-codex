@@ -481,12 +481,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         if (ch.summary.language === 'other' && !c.switch_language) {
           fail('needs-decision', `${c.channel}: the game language is not English. Choose whether to switch it.`, ch.summary.language_value);
         }
+        // Setup again keeps a set-up channel's own settings.
+        if (!ch.summary.set_up) ch.profile = setupProfile(req);
         ch.summary.set_up = true;
-        ch.profile = setupProfile(req);
         set_up.push(c.channel);
       }
       for (const i of installs) i.saved = i.id === req.install;
-      settings.network.published_dumps = req.data_source === 'published-dumps';
       settings.default_channel ??= set_up[0] ?? null;
       sync();
       addLog('info', null, null, `Set up ${set_up.join(', ')} (skipped: ${skipped.join(', ')})`);

@@ -578,3 +578,105 @@ fn print_real_overview_read_only() {
     let d = b.doctor().unwrap();
     println!("doctor: {} sections", d.sections.len());
 }
+
+#[test]
+fn setup_again_keeps_a_set_up_channels_profile() {
+    let f = Fake::new();
+    f.setup_live();
+    let data = f.dirs.channel_dir(&f.install_id(), "LIVE");
+    let stamp = |d: &std::path::Path| {
+        starorg_core::state::ChannelState::load(d)
+            .unwrap()
+            .setup_time
+    };
+    let first = stamp(&data);
+    assert!(first.is_some());
+    let mut p = f.backend.get_profile(f.live()).unwrap();
+    p.header = "MINE".into();
+    p.ships = false;
+    f.backend
+        .save_profile(SaveProfileRequest {
+            target: f.live(),
+            profile: p,
+        })
+        .unwrap();
+    // The wizard again (Settings "Run setup again"), LIVE and PTU ticked, a different preset.
+    let both = |preset| SetupRequest {
+        install: f.install_id(),
+        channels: ["LIVE", "PTU"]
+            .map(|c| ChannelConsent {
+                channel: c.into(),
+                consent: true,
+                switch_language: false,
+            })
+            .to_vec(),
+        data_source: DataSource::Local,
+        preset,
+        fix_known_bugs: false,
+    };
+    let r = f.backend.setup(both(Preset::Minimal)).unwrap();
+    assert_eq!(r.set_up, ["LIVE", "PTU"]);
+    let after = f.backend.get_profile(f.live()).unwrap();
+    assert_eq!(after.header, "MINE");
+    assert!(!after.ships);
+    assert!(after.patches_disabled.is_empty(), "{after:?}");
+    assert_eq!(stamp(&data), first, "setup time kept");
+    // PTU was new: it gets the chosen preset with fixes off.
+    let ptu = f
+        .backend
+        .get_profile(ChannelRef {
+            install: f.install_id(),
+            channel: "PTU".into(),
+        })
+        .unwrap();
+    assert_eq!(ptu.preset, Some(Preset::Minimal));
+    assert!(!ptu.patches_disabled.is_empty());
+}
+
+#[test]
+fn unbuilt_network_switches_stay_off() {
+    let f = Fake::new();
+    let mut s = f.backend.get_settings().unwrap();
+    s.network.check_updates = true;
+    s.network.published_dumps = true;
+    s.network.starorg = true;
+    let saved = f.backend.save_settings(s).unwrap();
+    assert!(!saved.network.check_updates);
+    assert!(!saved.network.published_dumps);
+    assert!(saved.network.starorg);
+    let req = SetupRequest {
+        install: f.install_id(),
+        channels: vec![ChannelConsent {
+            channel: "LIVE".into(),
+            consent: true,
+            switch_language: false,
+        }],
+        data_source: DataSource::PublishedDumps,
+        preset: Preset::Recommended,
+        fix_known_bugs: true,
+    };
+    f.backend.setup(req).unwrap();
+    assert!(!f.backend.get_settings().unwrap().network.published_dumps);
+}
+
+#[test]
+fn unknown_patch_id_is_refused_and_not_saved() {
+    let f = Fake::new();
+    f.setup_live();
+    let e = f
+        .backend
+        .set_patch_enabled(PatchToggle {
+            target: f.live(),
+            id: "user-x".into(),
+            enabled: false,
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::NotFound);
+    assert!(
+        f.backend
+            .get_profile(f.live())
+            .unwrap()
+            .patches_disabled
+            .is_empty()
+    );
+}

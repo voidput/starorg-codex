@@ -31,9 +31,13 @@ pub trait Backend: Send + Sync + 'static {
     fn discover_installs(&self, deep: bool) -> CmdResult<Vec<InstallSummary>>;
     /// Opens the native folder picker in the real backend; the webview never sends a path.
     fn pick_install_folder(&self) -> CmdResult<Option<InstallSummary>>;
-    /// The review step: what `setup` + apply would write, without writing. Real backend:
-    /// `counts` come from an M1 dry-run apply per channel with the chosen preset.
+    /// The review step: what `setup` + apply would write, without writing game files (the
+    /// real backend registers the install and fills its cache in the app folders). Real backend:
+    /// `counts` come from an M1 dry-run apply per channel with the chosen preset (a channel
+    /// already set up: with its own profile).
     fn plan_setup(&self, req: SetupRequest) -> CmdResult<SetupPlan>;
+    /// Consent per channel. A channel already set up keeps its profile and setup time; only
+    /// new channels get the chosen preset.
     fn setup(&self, req: SetupRequest) -> CmdResult<SetupResult>;
     fn channel_status(&self, req: ChannelRef) -> CmdResult<ChannelSummary>;
 

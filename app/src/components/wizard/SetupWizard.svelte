@@ -74,8 +74,13 @@
     try {
       const found = await api.discoverInstalls(deep);
       // Keep a folder the user browsed to.
+      // The id of an install changes once it is registered (found-… -> its config id): follow
+      // the chosen install by its folder, not by index.
+      const prevRoot = installs.find((i) => i.id === draft.install)?.root ?? null;
       installs = [...found, ...installs.filter((i) => i.found_by === 'manual' && !found.some((f) => f.root === i.root))];
-      if (!draft.install || !installs.some((i) => i.id === draft.install)) draft.install = installs[0]?.id ?? null;
+      if (!draft.install || !installs.some((i) => i.id === draft.install)) {
+        draft.install = installs.find((i) => prevRoot !== null && i.root === prevRoot)?.id ?? installs[0]?.id ?? null;
+      }
     } catch (e) {
       scanError = toContractError(e);
     } finally {
@@ -137,7 +142,7 @@
       const res = await api.setup(req);
       applyChannels = res.set_up;
       for (const ch of res.set_up) {
-        const r = await api.apply({ target: { install: install.id, channel: ch }, dry_run: false });
+        const r = await api.apply({ target: { install: res.install, channel: ch }, dry_run: false });
         reports = [...reports, r];
       }
       phase = 'done';

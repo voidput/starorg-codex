@@ -865,8 +865,11 @@ impl Backend for MockBackend {
                         detail: ch.summary.language_value.clone(),
                     });
                 }
+                // Setup again keeps a set-up channel's own settings.
+                if !ch.summary.set_up {
+                    ch.profile = setup_profile(&req);
+                }
                 ch.summary.set_up = true;
-                ch.profile = setup_profile(&req);
                 Ok(true)
             })?;
             if res {
@@ -880,7 +883,6 @@ impl Backend for MockBackend {
             for (inst, _) in &mut s.installs {
                 inst.saved = inst.id == req.install;
             }
-            s.settings.network.published_dumps = req.data_source == DataSource::PublishedDumps;
             if s.settings.default_channel.is_none() {
                 s.settings.default_channel = set_up.first().cloned();
             }

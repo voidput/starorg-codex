@@ -275,7 +275,8 @@ pub struct SetupResult {
 }
 
 /// What setup + the first apply would do per channel: the wizard's review step (spec 9.4).
-/// Real backend: path resolution (spec 10.3) and a dry-run build; nothing is written.
+/// Real backend: path resolution (spec 10.3) and a dry-run build. Nothing is written in the
+/// game folder; the app's own folders get the install registered and the game-data cache.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PlannedChannel {
     pub channel: String,
