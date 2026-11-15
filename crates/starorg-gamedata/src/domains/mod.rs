@@ -52,7 +52,7 @@ registry! {
 
     // item_sources, // item-sources.ts
 
-    // item_tags, // item-tags.ts
+    item_tags, // item-tags.ts
 
     // law, // law.ts
 
