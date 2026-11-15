@@ -44,7 +44,7 @@ registry! {
 
     // components, // components.ts -> game-ship-components
 
-    // consumables, // consumables.ts
+    consumables, // consumables.ts
 
     // containers, // containers.ts
 
