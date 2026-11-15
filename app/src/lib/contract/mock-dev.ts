@@ -873,7 +873,8 @@ export function rowTitle(l: Lookup, row: Json, identity: string | null): string 
     }
   }
   if (!isObj(row)) return null;
-  for (const c of [...(identity !== null ? [identity] : []), 'recordName', 'className', 'id', 'record', 'item']) {
+  const ids = [...(identity !== null ? [identity] : []), 'recordName', 'className', 'id', 'record', 'item'];
+  for (const c of ids) {
     const s = row[c];
     if (typeof s === 'string') {
       const r = label(l, s, c);
@@ -881,7 +882,15 @@ export function rowTitle(l: Lookup, row: Json, identity: string | null): string 
     }
   }
   const n = row['name'];
-  return typeof n === 'string' && identity !== 'name' && shown(n) && !n.startsWith('@') ? n : null;
+  if (typeof n === 'string' && identity !== 'name' && shown(n) && !n.startsWith('@')) return n;
+  for (const c of ids) {
+    const s = row[c];
+    if (typeof s === 'string') {
+      const r = label(l, s, c);
+      if (r && r.text !== s) return r.text;
+    }
+  }
+  return null;
 }
 
 const unescape = (seg: string) => seg.replace(/~1/g, '/').replace(/~0/g, '~');

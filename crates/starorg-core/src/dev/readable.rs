@@ -394,8 +394,9 @@ const TITLE_KEYS: [&str; 5] = [
     "/name",
 ];
 
-/// The display name of a dataset row: its own name key, else what its identity value reads
-/// as, else a plain `name` that is not the identity.
+/// The display name of a dataset row: its own name key, else the display name its identity
+/// value reads as, else a plain `name` that is not the identity, else the short record name
+/// its identity reads as.
 pub fn row_title(l: &dyn Lookup, row: &Value, identity: Option<&str>) -> Option<String> {
     for p in TITLE_KEYS {
         if let Some(s) = row.pointer(p).and_then(Value::as_str)
@@ -408,20 +409,32 @@ pub fn row_title(l: &dyn Lookup, row: &Value, identity: Option<&str>) -> Option<
     let ids = identity
         .into_iter()
         .chain(["recordName", "className", "id", "record", "item"]);
-    for c in ids {
-        if let Some(s) = row.get(c).and_then(Value::as_str)
+    let ids: Vec<&str> = ids.collect();
+    for c in &ids {
+        if let Some(s) = row.get(*c).and_then(Value::as_str)
             && let Some(r) = label(l, s, Some(c))
             && r.detail.is_some()
         {
             return Some(r.text);
         }
     }
-    match row.get("name").and_then(Value::as_str) {
-        Some(s) if identity != Some("name") && shown(s) && !s.starts_with('@') => {
-            Some(s.to_string())
-        }
-        _ => None,
+    if let Some(s) = row.get("name").and_then(Value::as_str)
+        && identity != Some("name")
+        && shown(s)
+        && !s.starts_with('@')
+    {
+        return Some(s.to_string());
     }
+    // A record without a display name: its short name, when the id is not already that.
+    for c in &ids {
+        if let Some(s) = row.get(*c).and_then(Value::as_str)
+            && let Some(r) = label(l, s, Some(c))
+            && r.text != s
+        {
+            return Some(r.text);
+        }
+    }
+    None
 }
 
 fn unescape(seg: &str) -> String {

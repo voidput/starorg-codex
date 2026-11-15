@@ -900,3 +900,125 @@ mod readable_labels {
         assert_eq!(c[1].old_label, None);
     }
 }
+
+/// Real data, read only (addendum 7.12): two builds' GameData (`gamedata.json`) and stock
+/// `global.ini` in `STARORG_READABLE_A` and `STARORG_READABLE_B` (`DIR/gamedata.json`,
+/// `DIR/base.ini`). Diffs them as the app does and prints titled records, readable field
+/// changes and dataset cells, with timings and lookup sizes. `--ignored --nocapture`.
+#[test]
+#[ignore = "needs real GameData in STARORG_READABLE_A and STARORG_READABLE_B"]
+fn real_builds_read_as_names() {
+    use super::readable::{self, MapLookup};
+    use crate::ini::StockIni;
+    use crate::model::GameData;
+    use std::sync::Arc;
+    let side = |var: &str| {
+        let dir = PathBuf::from(std::env::var(var).expect(var));
+        let stock = Arc::new(StockIni::parse(
+            std::fs::read(dir.join("base.ini")).unwrap(),
+        ));
+        let gd: GameData =
+            serde_json::from_slice(&std::fs::read(dir.join("gamedata.json")).unwrap()).unwrap();
+        let t = std::time::Instant::now();
+        let s = stock.clone();
+        let l = MapLookup::from_gamedata(&gd)
+            .with_stock(Arc::new(move |k: &str| s.value(k).map(str::to_string)))
+            .with_bare_keys(true);
+        eprintln!("{var}: lookup of {} records in {:?}", l.len(), t.elapsed());
+        let mut v = serde_json::to_value(&gd).unwrap();
+        for k in ["schema", "build", "datacore"] {
+            let x = v.as_object_mut().unwrap().shift_remove(k);
+            if let Some(x) = x {
+                v[format!("_{k}")] = x;
+            }
+        }
+        (infer("gamedata.json", 0, v), l)
+    };
+    let (da, la) = side("STARORG_READABLE_A");
+    let (db, lb) = side("STARORG_READABLE_B");
+    let t = std::time::Instant::now();
+    let tables = diff_sources(
+        &[("gamedata.json".into(), &da)],
+        &[("gamedata.json".into(), &db)],
+        &|_, _| {},
+    );
+    eprintln!("diff in {:?}", t.elapsed());
+    let mut titled = 0;
+    let mut all = 0;
+    for td in tables.iter().filter(|t| t.summary.weight() > 0) {
+        let (ta, tb) = (da.table(&td.summary.table), db.table(&td.summary.table));
+        let id = td.summary.identity.as_deref();
+        eprintln!(
+            "== {} +{} -{} ~{} (by {:?})",
+            td.summary.table, td.summary.added, td.summary.removed, td.summary.changed, id
+        );
+        for (k, r) in td.records.iter().enumerate() {
+            fn row(t: Option<&Table>, i: Option<u32>) -> Option<&Value> {
+                t?.rows.get(i? as usize)
+            }
+            let title = row(tb, r.b)
+                .and_then(|x| readable::row_title(&lb, x, id))
+                .or_else(|| row(ta, r.a).and_then(|x| readable::row_title(&la, x, id)));
+            all += 1;
+            titled += usize::from(title.is_some());
+            if k < 4 {
+                eprintln!(
+                    "  {:?} {} ({})",
+                    r.state,
+                    title.as_deref().unwrap_or("-"),
+                    r.id
+                );
+                if r.state == RecordState::Changed {
+                    let mut c = field_changes(
+                        row(ta, r.a).unwrap_or(&Value::Null),
+                        row(tb, r.b).unwrap_or(&Value::Null),
+                    );
+                    annotate_changes(&mut c, &la, &lb);
+                    for c in c.iter().take(4) {
+                        let side = |v: &Option<Value>, l: &Option<readable::Readable>| {
+                            l.as_ref().map(|l| l.text.clone()).unwrap_or_else(|| {
+                                v.as_ref().map(|v| v.to_string()).unwrap_or("-".into())
+                            })
+                        };
+                        eprintln!(
+                            "      {}: {} -> {} {}",
+                            c.path_label.as_deref().unwrap_or(&c.path),
+                            side(&c.old, &c.old_label),
+                            side(&c.new, &c.new_label),
+                            c.unit.as_deref().unwrap_or("")
+                        );
+                    }
+                }
+            }
+        }
+    }
+    eprintln!("titled {titled} of {all} changed/added/removed records");
+    assert!(
+        all > 0 && titled * 20 >= all * 19,
+        "most records read as a name"
+    );
+    let comps = db.table("components").unwrap();
+    let q = RowsQuery {
+        columns: vec!["recordName".into(), "manufacturer".into(), "type".into()],
+        search: "bracer".into(),
+        limit: 3,
+        ..Default::default()
+    };
+    let t = std::time::Instant::now();
+    let p = query_rows(comps, &q, 500, Some(&lb));
+    eprintln!("search by name: {} rows in {:?}", p.total, t.elapsed());
+    for r in &p.rows {
+        let cells: Vec<String> = r
+            .cells
+            .iter()
+            .zip(&r.labels)
+            .map(|(c, l)| match (c, l) {
+                (Some(c), Some(l)) => format!("{} [{c}]", l.text),
+                (Some(c), None) => c.clone(),
+                _ => "-".into(),
+            })
+            .collect();
+        eprintln!("  {:?}: {}", r.title, cells.join(" | "));
+    }
+    assert!(p.total > 0 && p.rows[0].title.is_some());
+}
