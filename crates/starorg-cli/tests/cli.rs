@@ -412,6 +412,7 @@ fn old_name_alias_works_and_says_it_is_deprecated() {
     assert_eq!(bad.status.code(), Some(2));
 }
 
+#[cfg(unix)]
 fn xdg(home: &Path) -> impl Fn(&mut Command) -> &mut Command + '_ {
     move |c: &mut Command| {
         c.env_remove("WINEPREFIX")
@@ -422,6 +423,7 @@ fn xdg(home: &Path) -> impl Fn(&mut Command) -> &mut Command + '_ {
     }
 }
 
+#[cfg(unix)]
 fn old_folders(home: &Path) {
     for (d, f, body) in [
         ("config", "config.toml", "schema = 1\n"),
