@@ -1,0 +1,21 @@
+# gitleaks config (security.yml runs the CLI, which reads this file from the repo root).
+# Default rules, plus one narrow allowlist: the generic-api-key rule flags game localisation keys stored in
+# a field called `key` (e.g. key = "Hockrow_FacilityDelve_P2M1_Repeat_desc", "item_DescSYN_Rifle_00004").
+# Those are underscore-separated identifiers from global.ini, not secrets.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Star Citizen localisation keys (global.ini identifiers), not credentials"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+regexes = [
+  # Two or more underscore-joined words starting with a letter, e.g. item_NameCOOL_AEGS_S01_Bracer.
+  '''^[A-Za-z][A-Za-z0-9]*(_[A-Za-z0-9]+){2,}(,P)?$''',
+]
+
+[[allowlists]]
+description = "minisign/Tauri updater PUBLIC keys (base64 of 'untrusted comment: minisign public key:'); private keys do not match"
+# Match on the whole line: generic-api-key may capture only part of the base64 string.
+regexTarget = "line"
+regexes = ['''dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6[A-Za-z0-9+/=]*''']

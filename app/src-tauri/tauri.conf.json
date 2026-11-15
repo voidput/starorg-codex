@@ -57,6 +57,25 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "createUpdaterArtifacts": false,
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/applications/starorg-strings-app.desktop": "linux/starorg-strings-app.desktop"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/applications/starorg-strings-app.desktop": "linux/starorg-strings-app.desktop"
+        }
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE-WITH-THE-PUBLIC-KEY-FROM-npx-tauri-signer-generate",
+      "endpoints": []
+    }
   }
 }

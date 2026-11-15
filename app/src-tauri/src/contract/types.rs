@@ -1478,3 +1478,108 @@ pub struct Diagnostics {
     /// How many values were replaced.
     pub redacted: u32,
 }
+
+// ---------------------------------------------------------------------------------------
+// Updates (spec 11, 12; docs/updates.md). Only used when `network.check_updates` is on.
+// ---------------------------------------------------------------------------------------
+
+/// Where releases are looked up, and whether pre-releases count.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdatePrefs {
+    /// `owner/name` on github.com. Default `voidput/starorg-strings`; a public mirror works.
+    pub repo: String,
+    pub include_prereleases: bool,
+}
+
+/// How this copy of the app can be updated.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum UpdateInstall {
+    /// AppImage, NSIS or MSI with a real updater key: download, verify the signature, install.
+    InApp,
+    /// deb, rpm, portable or a build without a key: the app only links to the release.
+    DownloadOnly,
+}
+
+/// Why a check did not give an answer. Not alarming: the app keeps working either way.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum UpdateProblem {
+    /// HTTP 404 / 401 / 403 without a rate limit: the repo is private, renamed or has no
+    /// public releases (spec Q1).
+    NotVisible,
+    /// GitHub's limit for requests without sign-in.
+    RateLimited,
+    /// No HTTP answer at all.
+    Offline,
+    /// An answer we could not use (5xx, not JSON, too large).
+    BadResponse,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum NoteKind {
+    Heading,
+    Item,
+    Text,
+}
+
+/// One block of release notes, as plain text: Markdown markers, HTML, links and images are
+/// removed in Rust, and the UI shows `text` as text (never as HTML).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NoteBlock {
+    pub kind: NoteKind,
+    pub text: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReleaseView {
+    /// Semver without the `v`.
+    pub version: String,
+    pub tag: String,
+    pub title: String,
+    /// `https://github.com/<repo>/releases/tag/<tag>`, built by the app (never taken from the
+    /// response).
+    pub url: String,
+    pub published: Option<String>,
+    pub prerelease: bool,
+    pub notes: Vec<NoteBlock>,
+    /// Notes were cut to the first blocks; the release page has the rest.
+    pub notes_truncated: bool,
+}
+
+/// Result of the last check.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "state", rename_all = "kebab-case")]
+pub enum UpdateCheck {
+    NotChecked,
+    UpToDate,
+    Available {
+        release: ReleaseView,
+    },
+    Failed {
+        problem: UpdateProblem,
+        message: String,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateStatus {
+    /// `network.check_updates`. Off: nothing is requested, the last result is kept.
+    pub enabled: bool,
+    pub current_version: String,
+    pub prefs: UpdatePrefs,
+    pub last_checked: Option<String>,
+    pub check: UpdateCheck,
+    /// "Skip this version": no banner for exactly this version (a newer one shows again).
+    pub skipped_version: Option<String>,
+    pub install: UpdateInstall,
+    /// Why `install` is what it is, in one sentence for Settings.
+    pub install_note: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateCheckRequest {
+    /// `false`: the start-up check, at most once per 24 h. `true`: "Check now".
+    pub force: bool,
+}

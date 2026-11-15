@@ -108,16 +108,19 @@ class AppState {
     }
   }
 
-  async saveSettings(s: T.Settings): Promise<void> {
+  /** Saves and resolves once Rust has written app.json; false when the save failed. */
+  async saveSettings(s: T.Settings): Promise<boolean> {
     const before = this.settings;
     this.settings = s;
     applyAppearance(s.appearance);
     try {
       this.settings = await api.saveSettings(s);
+      return true;
     } catch (e) {
       this.settings = before;
       if (before) applyAppearance(before.appearance);
       toast('error', 'Settings not saved', toContractError(e).message);
+      return false;
     }
   }
 

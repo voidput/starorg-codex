@@ -329,3 +329,23 @@ fn gamedata_without_network_feature_refuses_published_data() {
     assert_eq!(o.status.code(), Some(2), "{o:?}");
     assert!(!out.exists());
 }
+
+#[test]
+fn version_prints_build_details_without_network() {
+    let out = run(&["version", "--json"]);
+    assert_eq!(out.status.code(), Some(0));
+    let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
+    assert_eq!(v["name"], "starorg-strings");
+    assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
+    assert_eq!(v["features"]["published_dumps"], false);
+    assert_eq!(v["starbreaker_commit"].as_str().unwrap().len(), 40);
+    let human = run(&["version"]);
+    assert_eq!(human.status.code(), Some(0));
+    let text = String::from_utf8(human.stdout).unwrap();
+    assert!(
+        text.starts_with(&format!("starorg-strings {}\n", env!("CARGO_PKG_VERSION"))),
+        "{text}"
+    );
+    assert!(text.contains("/releases"));
+    assert!(run(&["version", "--quiet"]).stdout.is_empty());
+}

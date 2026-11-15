@@ -9,6 +9,7 @@ mod commands;
 mod fleet_cmds;
 mod gamedata_cmd;
 mod hook_cmds;
+mod version_cmd;
 
 use clap::{Args, Parser, Subcommand};
 use std::ffi::OsString;
@@ -241,6 +242,8 @@ pub enum Command {
     },
     /// Report installs, paths, casing, links, other tools' traces. Changes nothing.
     Doctor,
+    /// Version and build details. No network: the app's Settings checks for updates.
+    Version,
     /// LUG Helper launch hooks: run them, or add/remove them in the hook scripts.
     Hook {
         #[command(subcommand)]
@@ -512,6 +515,7 @@ where
         Command::Backups { channel } => apply_cmds::backups(&cli.global, &channel),
         Command::Patches { channel } => apply_cmds::patches(&cli.global, channel.as_deref()),
         Command::Doctor => apply_cmds::doctor(&cli.global),
+        Command::Version => version_cmd::version(&cli.global),
         Command::Hook { cmd } => hook_cmds::run(&cli.global, cmd),
         Command::Blueprints { cmd } => blueprint_cmds::run(&cli.global, cmd),
         Command::Fleet { cmd } => fleet_cmds::run(&cli.global, cmd),

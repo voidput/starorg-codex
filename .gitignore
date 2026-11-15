@@ -1,6 +1,44 @@
+# Scratch and build output
 .tmp/
 tmp/
 target/
 node_modules/
 dist/
+coverage/
+*.log
+npm-debug.log*
+
+# Secrets: never commit. Local env comes from the 1Password Environment mounted at .env.
 .env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+*.minisign
+!app/src-tauri/updater-public-key.txt
+
+# Written by release.yml at build time (signing config with the updater pubkey)
+app/src-tauri/tauri.updater.conf.json
+
+# Bundles if built outside target/
+*.AppImage
+*.deb
+*.rpm
+*.msi
+
+# Tool output
+graphify-out/
+playwright-report/
+test-results/
+.claude/worktrees/
+
+# Editors and OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.swp
+*~
+.DS_Store
+Thumbs.db

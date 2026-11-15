@@ -99,6 +99,7 @@ pub struct MockBackend {
     state: Mutex<MockState>,
     strings: OnceLock<Vec<StringRow>>,
     delay: Duration,
+    update: crate::update::Updater,
 }
 
 impl Default for MockBackend {
@@ -360,6 +361,7 @@ impl MockBackend {
             state: Mutex::new(state),
             strings: OnceLock::new(),
             delay,
+            update: crate::update::mock::updater(),
         };
         me.log(
             LogLevel::Info,
@@ -2388,6 +2390,36 @@ impl Backend for MockBackend {
         let d = self.export_diagnostics()?;
         self.log(LogLevel::Info, None, None, "Saved diagnostics");
         Ok(Some(format!("~/{}", d.file_name)))
+    }
+
+    fn update_status(&self) -> CmdResult<UpdateStatus> {
+        self.update.status(self.updates_on())
+    }
+
+    fn check_for_updates(&self, req: UpdateCheckRequest) -> CmdResult<UpdateStatus> {
+        self.update.check(self.updates_on(), req.force)
+    }
+
+    fn set_update_prefs(&self, req: UpdatePrefs) -> CmdResult<UpdateStatus> {
+        self.update.set_prefs(self.updates_on(), req)
+    }
+
+    fn skip_update(&self, version: String) -> CmdResult<UpdateStatus> {
+        self.update.skip(self.updates_on(), version)
+    }
+
+    fn open_release_page(&self) -> CmdResult<()> {
+        self.update.open_release_page()
+    }
+
+    fn install_update(&self) -> CmdResult<UpdateStatus> {
+        self.update.install(self.updates_on())
+    }
+}
+
+impl MockBackend {
+    fn updates_on(&self) -> bool {
+        self.lock().settings.network.check_updates
     }
 }
 

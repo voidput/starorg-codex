@@ -215,6 +215,11 @@ fn samples() -> Value {
     ] {
         v[k] = x;
     }
+    // Outside json! (its recursion limit).
+    let (off, available, failed) = update_samples();
+    v["update_status"] = json!(off);
+    v["check_for_updates"] = json!(available);
+    v["check_for_updates_failed"] = json!(failed);
     v
 }
 
@@ -279,6 +284,28 @@ fn fleet_samples(
     })
     .unwrap();
     (dry, real, matched, saved, cleared, view)
+}
+
+/// Update samples on their own mock (the switch is on there): off and never checked, an
+/// available release, a repo that cannot be seen.
+fn update_samples() -> (UpdateStatus, UpdateStatus, UpdateStatus) {
+    let b = MockBackend::default();
+    let off = b.update_status().unwrap();
+    let mut s = b.get_settings().unwrap();
+    s.network.check_updates = true;
+    b.save_settings(s).unwrap();
+    let available = b
+        .check_for_updates(UpdateCheckRequest { force: false })
+        .unwrap();
+    b.set_update_prefs(UpdatePrefs {
+        repo: "someone/private-fork".into(),
+        include_prereleases: false,
+    })
+    .unwrap();
+    let failed = b
+        .check_for_updates(UpdateCheckRequest { force: true })
+        .unwrap();
+    (off, available, failed)
 }
 
 /// `samples.gen.json` is what the TS types are checked against (`samples.check.ts`).
@@ -613,6 +640,23 @@ fn ts_unions_list_every_variant() {
                 CheckLevel::Error,
             ]),
         ),
+        (
+            "UpdateInstall",
+            names(&[UpdateInstall::InApp, UpdateInstall::DownloadOnly]),
+        ),
+        (
+            "UpdateProblem",
+            names(&[
+                UpdateProblem::NotVisible,
+                UpdateProblem::RateLimited,
+                UpdateProblem::Offline,
+                UpdateProblem::BadResponse,
+            ]),
+        ),
+        (
+            "NoteKind",
+            names(&[NoteKind::Heading, NoteKind::Item, NoteKind::Text]),
+        ),
     ];
     for (name, want) in cases {
         assert_eq!(ts_union(&ts, name), want, "types.ts union {name}");
@@ -654,6 +698,21 @@ fn ts_unions_list_every_variant() {
     })
     .collect();
     assert_eq!(ts_union(&ts, "FleetSourceKind"), kinds);
+    let release = match update_samples().1.check {
+        UpdateCheck::Available { release } => release,
+        other => panic!("{other:?}"),
+    };
+    let update_states = tags(vec![
+        serde_json::to_value(UpdateCheck::NotChecked).unwrap(),
+        serde_json::to_value(UpdateCheck::UpToDate).unwrap(),
+        serde_json::to_value(UpdateCheck::Available { release }).unwrap(),
+        serde_json::to_value(UpdateCheck::Failed {
+            problem: UpdateProblem::Offline,
+            message: String::new(),
+        })
+        .unwrap(),
+    ]);
+    assert_eq!(ts_union(&ts, "UpdateCheckState"), update_states);
 }
 
 #[test]
@@ -1463,4 +1522,73 @@ fn contract_matches_core_names() {
             "Report.{f}"
         );
     }
+}
+
+// ---------------------------------------------------------------------------------------
+// Updates (docs/updates.md)
+// ---------------------------------------------------------------------------------------
+
+#[test]
+fn update_check_over_ipc_needs_the_switch_and_takes_a_req() {
+    // Fresh mock: switch off. The start-up check is a quiet no-op; "Check now" says why not.
+    let quiet = ipc("check_for_updates", json!({ "req": { "force": false } })).unwrap();
+    assert_eq!(quiet["enabled"], false);
+    assert_eq!(quiet["check"]["state"], "not-checked");
+    let e = ipc("check_for_updates", json!({ "req": { "force": true } })).unwrap_err();
+    assert_eq!(e["code"], "network-off");
+    assert_eq!(
+        ipc("install_update", json!({})).unwrap_err()["code"],
+        "network-off"
+    );
+    let st = ipc("update_status", json!({})).unwrap();
+    assert_eq!(st["prefs"]["repo"], "voidput/starorg-strings");
+    assert_eq!(
+        ipc("skip_update", json!({ "version": "0.2.0" })).unwrap()["skipped_version"],
+        "0.2.0"
+    );
+}
+
+#[test]
+fn mock_update_flow_finds_skips_and_refuses_to_install() {
+    let (_, available, failed) = update_samples();
+    let UpdateCheck::Available { release } = &available.check else {
+        panic!("{:?}", available.check)
+    };
+    // Stable only by default: the beta and the draft are not offered.
+    assert_eq!(release.version, "0.2.0");
+    assert_eq!(available.current_version, crate::update::mock::MOCK_VERSION);
+    assert!(
+        release
+            .notes
+            .iter()
+            .all(|n| !n.text.contains('<') && !n.text.contains("onerror")),
+        "{:?}",
+        release.notes
+    );
+    let UpdateCheck::Failed { problem, message } = &failed.check else {
+        panic!("{:?}", failed.check)
+    };
+    assert_eq!(*problem, UpdateProblem::NotVisible);
+    assert!(message.contains("private"));
+
+    let b = MockBackend::default();
+    let mut s = b.get_settings().unwrap();
+    s.network.check_updates = true;
+    b.save_settings(s).unwrap();
+    b.set_update_prefs(UpdatePrefs {
+        repo: crate::update::DEFAULT_REPO.into(),
+        include_prereleases: true,
+    })
+    .unwrap();
+    let pre = b
+        .check_for_updates(UpdateCheckRequest { force: false })
+        .unwrap();
+    let UpdateCheck::Available { release } = &pre.check else {
+        panic!()
+    };
+    assert_eq!(release.version, "0.2.1-beta.1");
+    b.open_release_page().unwrap();
+    assert_eq!(b.install_update().unwrap_err().code, ErrorCode::Internal);
+    let skipped = b.skip_update(release.version.clone()).unwrap();
+    assert_eq!(skipped.skipped_version.as_deref(), Some("0.2.1-beta.1"));
 }

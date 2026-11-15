@@ -11,11 +11,14 @@ use starorg_core::apply::Ctx;
 use starorg_core::discovery::{Channel, DiscoveryEnv, DiscoveryRequest};
 use starorg_core::model::{Blueprint, GameData, Ship, ShipLoc};
 use starorg_core::source::{Budget, GameSource, Loaded, Origin, SourceError};
+use starorg_net::releases::Reply;
 use starorg_strings_app::contract::Backend;
+use starorg_strings_app::contract::real::UPDATE_JSON;
 use starorg_strings_app::contract::real::{
     DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory,
 };
 use starorg_strings_app::contract::types::*;
+use starorg_strings_app::update::{ReleaseFetch, Updater};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -148,7 +151,12 @@ impl Fake {
             env: DiscoveryEnv::from_process(),
             source: Arc::new(TestSources),
             dialogs: slot,
-        });
+        })
+        // Never the network in tests: the update check gets a scripted GitHub.
+        .with_updater(Updater::with_fetch(
+            dirs.data.join(UPDATE_JSON),
+            Box::new(FakeGitHub::default()),
+        ));
         Self {
             _t: t,
             base,
@@ -657,7 +665,9 @@ fn unbuilt_network_switches_stay_off() {
     s.network.published_dumps = true;
     s.network.starorg = true;
     let saved = f.backend.save_settings(s).unwrap();
-    assert!(!saved.network.check_updates);
+    // check_updates is built (docs/updates.md) and stored; published data is not.
+    assert!(saved.network.check_updates);
+    assert!(f.backend.get_settings().unwrap().network.check_updates);
     assert!(!saved.network.published_dumps);
     assert!(saved.network.starorg);
     let req = SetupRequest {
@@ -891,4 +901,91 @@ fn fleet_import_order_and_ship_names_through_apply() {
     assert_eq!(bad.unwrap_err().code, ErrorCode::Invalid);
     let v = f.backend.fleet_clear(f.live()).unwrap();
     assert!(v.owned.is_empty() && !v.settings.ships.is_empty());
+}
+
+/// GitHub's release list, scripted; counts requests.
+#[derive(Default)]
+struct FakeGitHub {
+    calls: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl ReleaseFetch for FakeGitHub {
+    fn fetch(&self, repo: &str) -> Result<Reply, String> {
+        self.calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        assert_eq!(repo, "voidput/starorg-strings");
+        Ok(Reply {
+            status: 200,
+            rate_limit_remaining: Some(59),
+            body: br#"[{"tag_name":"v999.0.0","name":"Future","body":"* <b>new</b>","draft":false,"prerelease":false}]"#.to_vec(),
+        })
+    }
+}
+
+#[test]
+fn update_check_asks_only_with_the_switch_on_and_keeps_its_state() {
+    let Fake {
+        _t, dirs, backend, ..
+    } = Fake::new();
+    let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let backend = backend.with_updater(Updater::with_fetch(
+        dirs.data.join(UPDATE_JSON),
+        Box::new(FakeGitHub {
+            calls: calls.clone(),
+        }),
+    ));
+    let n = || calls.load(std::sync::atomic::Ordering::SeqCst);
+
+    // Off: the start-up check is a no-op and "Check now" refuses.
+    let st = backend
+        .check_for_updates(UpdateCheckRequest { force: false })
+        .unwrap();
+    assert!(!st.enabled);
+    assert_eq!(st.check, UpdateCheck::NotChecked);
+    assert_eq!(
+        backend
+            .check_for_updates(UpdateCheckRequest { force: true })
+            .unwrap_err()
+            .code,
+        ErrorCode::NetworkOff
+    );
+    assert_eq!(n(), 0);
+    assert!(!dirs.data.join(UPDATE_JSON).exists());
+
+    let mut s = backend.get_settings().unwrap();
+    s.network.check_updates = true;
+    backend.save_settings(s).unwrap();
+    let st = backend
+        .check_for_updates(UpdateCheckRequest { force: false })
+        .unwrap();
+    let UpdateCheck::Available { release } = &st.check else {
+        panic!("{:?}", st.check)
+    };
+    assert_eq!(release.version, "999.0.0");
+    assert_eq!(release.notes[0].text, "new");
+    assert_eq!(st.current_version, env!("CARGO_PKG_VERSION"));
+    // Tests are not a bundle: download only.
+    assert_eq!(st.install, UpdateInstall::DownloadOnly);
+    assert_eq!(n(), 1);
+    // Within 24 h: no second request; the state is a file in the data folder.
+    backend
+        .check_for_updates(UpdateCheckRequest { force: false })
+        .unwrap();
+    assert_eq!(n(), 1);
+    assert!(dirs.data.join(UPDATE_JSON).is_file());
+    // Download-only installs refuse in-app install with their reason; no window, no browser.
+    assert_eq!(
+        backend.install_update().unwrap_err().code,
+        ErrorCode::Invalid
+    );
+    assert_eq!(
+        backend.open_release_page().unwrap_err().code,
+        ErrorCode::NotImplemented
+    );
+    assert!(
+        backend
+            .activity(20)
+            .unwrap()
+            .iter()
+            .any(|e| e.message == "Update check: 999.0.0 is available")
+    );
 }

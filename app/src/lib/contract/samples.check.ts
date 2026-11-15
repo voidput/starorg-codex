@@ -53,6 +53,9 @@ interface Samples {
   fleet_match: T.FleetView;
   save_ship_names: T.FleetView;
   fleet_clear: T.FleetView;
+  update_status: T.UpdateStatus;
+  check_for_updates: T.UpdateStatus;
+  check_for_updates_failed: T.UpdateStatus;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

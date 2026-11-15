@@ -882,3 +882,57 @@ export interface Diagnostics {
   text: string;
   redacted: number;
 }
+
+// Updates (spec 11, 12; docs/updates.md). Only used when network.check_updates is on --------
+
+export interface UpdatePrefs {
+  /** owner/name on github.com. */
+  repo: string;
+  include_prereleases: boolean;
+}
+
+export type UpdateInstall = 'in-app' | 'download-only';
+
+export type UpdateProblem = 'not-visible' | 'rate-limited' | 'offline' | 'bad-response';
+
+export type NoteKind = 'heading' | 'item' | 'text';
+
+/** Plain text (sanitised in Rust); render as text, never as HTML. */
+export interface NoteBlock {
+  kind: NoteKind;
+  text: string;
+}
+
+export interface ReleaseView {
+  version: string;
+  tag: string;
+  title: string;
+  url: string;
+  published: string | null;
+  prerelease: boolean;
+  notes: NoteBlock[];
+  notes_truncated: boolean;
+}
+
+export type UpdateCheck =
+  | { state: 'not-checked' }
+  | { state: 'up-to-date' }
+  | { state: 'available'; release: ReleaseView }
+  | { state: 'failed'; problem: UpdateProblem; message: string };
+
+export type UpdateCheckState = 'not-checked' | 'up-to-date' | 'available' | 'failed';
+
+export interface UpdateStatus {
+  enabled: boolean;
+  current_version: string;
+  prefs: UpdatePrefs;
+  last_checked: string | null;
+  check: UpdateCheck;
+  skipped_version: string | null;
+  install: UpdateInstall;
+  install_note: string;
+}
+
+export interface UpdateCheckRequest {
+  force: boolean;
+}

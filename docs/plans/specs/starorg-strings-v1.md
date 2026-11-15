@@ -1395,6 +1395,7 @@ starorg-strings build    --channel <NAME> --out <file>     # write output to a f
 starorg-strings channels
 starorg-strings patches  [--channel <NAME>]
 starorg-strings doctor
+starorg-strings version                                    # version + build details, no network
 starorg-strings gui                                        # start the app, if installed
 ```
 
@@ -1756,7 +1757,8 @@ Traces of other tools it reports, all present on our machine today:
 
 - **Off by default.** After a fresh install, StarOrg Strings' own code makes no network
   request. Each network feature has its own switch and its own wording of what is contacted:
-  1. **Check for updates** (v1): one request to the release endpoint.
+  1. **Check for updates** (v1): one request to the release endpoint. Built: GitHub releases
+     list, at most once per 24 h plus "Check now"; as-built details in `docs/updates.md`.
   2. **Use published game data** (addendum; v1 per Q17): downloads datasets for the installed build
      from `voidput/sc-gamedata-dumps`, verified by checksum, parsed as data only.
 - The CLI has no HTTP client in v1 (CI checks the dependency tree). When feature 2 arrives it
@@ -1908,6 +1910,12 @@ Linux builds run on Ubuntu 22.04 for an old glibc baseline.
   copy in 1Password. Losing the key ends updates for existing installs.
 - `bundle.createUpdaterArtifacts: true`. Updatable targets: NSIS and AppImage.
 - `check()` is called only when the consent setting is on.
+- As built (`docs/updates.md`): the public key is read from `app/src-tauri/updater-public-key.txt`
+  (placeholder until the owner generates the key); release.yml turns on
+  `createUpdaterArtifacts` and uploads `latest.json` only when the signing secret and a real key
+  exist. The update notice reads the GitHub releases list of a configurable repo; installing
+  uses the checked release's own `latest.json`. The webview gets no updater or opener permission:
+  both run from Rust.
 
 ---
 

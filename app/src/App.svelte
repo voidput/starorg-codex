@@ -27,6 +27,8 @@
   import Wand from '@lucide/svelte/icons/wand-sparkles';
   import { findNav, NAV_ITEMS, type ScreenId } from '@/lib/nav';
   import { app } from '@/lib/stores/app.svelte';
+  import UpdateBanner from '@/components/shell/UpdateBanner.svelte';
+  import { updates } from '@/lib/stores/update.svelte';
 
   const params = new URLSearchParams(window.location.search);
   let palette = $state(false);
@@ -73,6 +75,8 @@
   onMount(() => {
     void app.init().then(() => {
       if (params.has('wizard')) app.wizard = true;
+      // The start-up update check: Rust asks only with the switch on, at most once per 24 h.
+      void updates.init();
     });
   });
 </script>
@@ -87,6 +91,7 @@
       <div class="flex min-w-0 flex-1 flex-col">
         <AppHeader {page} />
         <main id="main" bind:this={main} tabindex="-1" aria-labelledby="page-title" class="min-h-0 flex-1 overflow-y-auto px-6 py-5 outline-none">
+          <UpdateBanner />
           {#if needsSetup && app.channel}
             <FullEmpty icon={Wand} title={`${app.channel.channel} is not set up`}>
               Set up {app.channel.channel} to see its {page.label.toLowerCase()}. Setup asks before anything is written to the game.

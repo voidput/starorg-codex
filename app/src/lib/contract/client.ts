@@ -68,6 +68,12 @@ export interface CommandMap {
   doctor: [Record<string, never>, T.DoctorReport];
   export_diagnostics: [Record<string, never>, T.Diagnostics];
   save_diagnostics: [Record<string, never>, string | null];
+  update_status: [Record<string, never>, T.UpdateStatus];
+  check_for_updates: [{ req: T.UpdateCheckRequest }, T.UpdateStatus];
+  set_update_prefs: [{ req: T.UpdatePrefs }, T.UpdateStatus];
+  skip_update: [{ version: string }, T.UpdateStatus];
+  open_release_page: [Record<string, never>, null];
+  install_update: [Record<string, never>, T.UpdateStatus];
 }
 
 export type Command = keyof CommandMap;
@@ -133,6 +139,12 @@ export const COMMANDS = [
   'doctor',
   'export_diagnostics',
   'save_diagnostics',
+  'update_status',
+  'check_for_updates',
+  'set_update_prefs',
+  'skip_update',
+  'open_release_page',
+  'install_update',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -285,5 +297,14 @@ export const api = {
   exportDiagnostics: () => call('export_diagnostics', none),
   /** Native save dialog (Tauri only); the path comes back for display, null = cancelled. */
   saveDiagnostics: () => call('save_diagnostics', none),
+  updateStatus: () => call('update_status', none),
+  /** force=false: the start-up check (switch on, at most once per 24 h); true: "Check now". */
+  checkForUpdates: (force: boolean) => call('check_for_updates', { req: { force } }),
+  setUpdatePrefs: (req: T.UpdatePrefs) => call('set_update_prefs', { req }),
+  /** "Skip this version"; '' clears it. */
+  skipUpdate: (version: string) => call('skip_update', { version }),
+  /** Opens the release page in the system browser (Rust side, github.com only). */
+  openReleasePage: () => call('open_release_page', none),
+  installUpdate: () => call('install_update', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
 };

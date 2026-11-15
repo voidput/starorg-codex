@@ -43,6 +43,8 @@ or a small bump script run in the release PR.
 ## Secrets and variables
 
 `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (updater key; lose it and installs stop updating).
+Optional: without them (or with the placeholder in `app/src-tauri/updater-public-key.txt`) releases build
+without `.sig`/`latest.json` and the app offers download only. Key setup: [updates](updates.md).
 Repo setting: Actions may create PRs. The private repo cannot verify attestations publicly; see the
 release-location decision in spec section 12.
 
