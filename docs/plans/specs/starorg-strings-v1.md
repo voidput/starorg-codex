@@ -1203,7 +1203,7 @@ exist in stock but their look is **not verified in game**, so no default uses th
 | `title_bp_em` | `[BP]` / `[BP?]` / `[BP Owned]` (while `title_em` is on) | 4 |
 | `title_rep_em` | `[N Rep]` (while `title_em` is on) | 4 |
 | `variant_em` | Variant sub-headers such as `[Easy]` | 4 |
-| `owned_em` | `[Owned]`, or the whole owned line with `owned_line = true` | 0 |
+| `owned_em` | `[Owned]`, or the whole owned line with `owned_line = true` | 4 |
 | `missing_em` | `[Missing]` | 0 |
 | `reward_em` | Item names under ITEM REWARDS | 0 |
 
@@ -1218,7 +1218,9 @@ Marker scheme (short, ASCII only: the game font has no check mark in stock text)
   that tag and the marker is not wrapped again.
 
 Every tag is opened and closed on the same line and never nested; the section 7.3 checks
-still run on every generated value, and the defaults write exactly what earlier builds wrote.
+still run on every generated value, and the defaults write exactly what earlier builds wrote,
+except `[Owned]`, which is blue (`owned_em = 4`) since profile schema 2 (see the profile
+schema notes above).
 
 Not coloured, on purpose: stat block headers and item name tags. Those strings also show
 outside mobiGlas (kiosks, HUD, inventory) where EM tags are not confirmed to render.

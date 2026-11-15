@@ -2403,8 +2403,10 @@ Missions among the contract options). No contract change: the profile fields exi
   collapses, Right expands, `aria-expanded` / `aria-controls`), the description and content hide
   while collapsed and the card no longer stretches to its grid row. A `card/collapse.ts` context
   drives `Card.Title` / `Card.Description` / `Card.Content`; without it the card parts render as
-  before. `bare` wraps a component that renders its own card (e.g. a "Fix owned blueprints"
-  card). State: `starorg.cards.collapsed.v1` in localStorage (a list of card keys,
+  before. `bare` wraps a component that renders its own card: "Fix owned blueprints"
+  (`ReimportCard`, key `blueprints.reimport`). The auto-mode owner warning ("Check whose
+  blueprints are marked") sits above the cards, outside any of them, so collapsing never hides
+  it (mock: `&bphint=larger`). State: `starorg.cards.collapsed.v1` in localStorage (a list of card keys,
   `blueprints.finder|character|starorg|markers`), validated on read, re-read before each write.
 - **Collapsible finder groups.** With Group by set, each group header is a button with the
   group's count (Enter/Space, Left/Right, Up/Down/Home/End move between headers), plus
@@ -2430,4 +2432,8 @@ Missions among the contract options). No contract change: the profile fields exi
   preview order); `scripts/keyboard-blueprints.cjs` (groups and cards by keyboard, kept after a
   reload, Collapse/Expand all, the jump to Enhancements → Blueprints, no blueprint switch left
   under Missions); `scripts/render-blueprints.cjs` shots `bp-groups-collapsed`,
-  `bp-cards-collapsed`, `enh-blueprints`, `enh-missions`.
+  `bp-cards-collapsed`, `bp-hint-collapsed`, `enh-blueprints`, `enh-missions`;
+  `keyboard-check.cjs` walks the category tabs past the new Blueprints tab. Stale script
+  selectors fixed on the way: the Strings search label ("Search keys, owners and text"), the
+  Home foreign-file warning (`data-testid="foreign-home"`) and the two "Import from Smart
+  Citizen" buttons on the Blueprints screen.
