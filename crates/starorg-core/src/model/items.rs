@@ -329,7 +329,27 @@ impl FireMode {
             },
             FireKind::Charged => "Charged".into(),
             FireKind::Beam => "Beam".into(),
-            FireKind::Sequence | FireKind::Other => self.name.clone(),
+            // A sequence takes the label of its nested action, which extraction keeps as the
+            // mode name (`Single`, `Rapid`, ...).
+            FireKind::Sequence | FireKind::Other => {
+                let n = self.name.to_ascii_lowercase();
+                if n.contains("single") || n.contains("semi") {
+                    "Semi".into()
+                } else if n.contains("rapid") || n.contains("auto") {
+                    "Auto".into()
+                } else if n.contains("burst") {
+                    match self.shot_count {
+                        Some(c) => format!("Burst {c}"),
+                        None => "Burst".into(),
+                    }
+                } else if n.contains("charge") {
+                    "Charged".into()
+                } else if n.contains("beam") {
+                    "Beam".into()
+                } else {
+                    self.name.clone()
+                }
+            }
         }
     }
 }

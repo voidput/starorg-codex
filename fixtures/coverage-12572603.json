@@ -1,0 +1,91 @@
+{
+  "schema": 1,
+  "categories": {
+    "ships": {
+      "candidates": 283,
+      "written": 280,
+      "left": {
+        "contenders-differ": 1,
+        "not-in-stock": 1,
+        "format-key": 1
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "components": {
+      "candidates": 400,
+      "written": 393,
+      "left": {
+        "contenders-differ": 7
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "ship-weapons": {
+      "candidates": 173,
+      "written": 165,
+      "left": {
+        "contenders-differ": 8
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "fps-weapons": {
+      "candidates": 206,
+      "written": 205,
+      "left": {
+        "owned-by-other": 1
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "missiles": {
+      "candidates": 62,
+      "written": 62,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "component-tags": {
+      "candidates": 403,
+      "written": 400,
+      "left": {
+        "contenders-differ": 3
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "ship-weapon-tags": {
+      "candidates": 152,
+      "written": 150,
+      "left": {
+        "owned-by-other": 2
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "missile-tags": {
+      "candidates": 62,
+      "written": 61,
+      "left": {
+        "owned-by-other": 1
+      },
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "mission-titles": {
+      "candidates": 685,
+      "written": 685,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "mission-descriptions": {
+      "candidates": 786,
+      "written": 786,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    }
+  }
+}

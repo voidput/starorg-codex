@@ -5,6 +5,7 @@
 
 pub mod build;
 pub mod discovery;
+pub mod enhance;
 pub mod ini;
 pub mod model;
 pub mod paths;
