@@ -58,3 +58,27 @@ the current hand-made versions):
   LUG prelaunch/postexit scripts (respect existing user content, back up before editing).
 - Windows: no LUG; decide between a launcher-side option (scheduled task / watcher on
   `RSI Launcher.exe` exit) or a manual "Check now" — open question.
+
+## 3. Blueprint ownership per character (alts)
+
+Players often have several accounts/characters (the owner has four). Owned blueprints are
+tracked **per character**, never merged.
+
+- Who is playing: each login writes one line per session, e.g.
+  `<AccountLoginCharacterStatus_Character> Character: createdAt … - updatedAt … - geid <GEID> - accountId <ACCOUNT> - name <HANDLE> - state STATE_CURRENT`.
+  Key characters by `geid` (stable); keep `accountId` and the latest `name` for display.
+  Ignore `nickname="…" playerGEID=…` lines: those are other players.
+- Attribution: walk each log (`Game.log`, `logbackups/*.log`) in order; every
+  `Received Blueprint: <name>` notification belongs to the most recent `STATE_CURRENT`
+  character line **in the same file**. A blueprint seen before any login line in that file is
+  "unattributed" (kept, shown, never applied to a character silently).
+- Storage: one owned set per character (`blueprints/<geid>.json`), plus scan state per log
+  file (path, size, mtime, last offset) so rescans are incremental and idempotent.
+- Which set drives `[Owned]` tags on apply: setting "active character" — default **auto** =
+  the character of the newest session in that channel's logs; manual pick in the app and
+  `--character <name|geid>` on the CLI; or "any of my characters" (union) as an option.
+  `hook postexit` re-applies with the character that just played.
+- Channels: logs are per channel folder (LIVE, PTU, HOTFIX); same geid across channels is the
+  same character (PTU copies) but PTU progress is not LIVE progress: keep sets per channel.
+- Privacy: geid/accountId/handles are personal data. Never upload them, redact them in
+  `doctor` diagnostics, and use synthetic names in test fixtures (no real handles in the repo).
