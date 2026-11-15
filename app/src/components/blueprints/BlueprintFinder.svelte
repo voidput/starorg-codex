@@ -14,6 +14,9 @@
   import X from '@lucide/svelte/icons/x';
   import Info from '@lucide/svelte/icons/info';
   import ListFilter from '@lucide/svelte/icons/list-filter';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
+  import ChevronsDownUp from '@lucide/svelte/icons/chevrons-down-up';
+  import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
   import { untrack } from 'svelte';
   import { Button } from '@/components/ui/button';
   import { Input } from '@/components/ui/input';
@@ -34,6 +37,7 @@
     clearFilters,
     kindLabel,
     makerLabel,
+    pageRows,
     parsePrefs,
     query,
     sourceText,
@@ -44,6 +48,7 @@
     type OwnedFilter,
     type SortKey,
   } from '@/lib/bpfinder';
+  import { GROUPS_KEY, arrowToggle, readCollapsed, withCollapsed, writeCollapsed } from '@/lib/collapse';
   import { fmtDate } from '@/lib/format';
   import { cn } from '@/lib/utils';
   import { toast } from '@/lib/stores/toast.svelte';
@@ -209,23 +214,48 @@
     { id: 'source', label: 'Source', cls: 'max-xl:hidden' },
     { id: 'acquired', label: 'Since' },
   ];
-  const shownRows = $derived.by(() => {
-    if (!v) return [] as { group: string | null; label: string | null; count: number; row: BlueprintRow | null }[];
-    const out: { group: string | null; label: string | null; count: number; row: BlueprintRow | null }[] = [];
-    let n = 0;
-    if (v.groups) {
-      for (const g of v.groups) {
-        if (n >= limit) break;
-        out.push({ group: g.id, label: g.label, count: g.rows.length, row: null });
-        for (const r of g.rows) {
-          if (n++ >= limit) break;
-          out.push({ group: g.id, label: null, count: 0, row: r });
-        }
-      }
-    } else for (const r of v.rows.slice(0, limit)) out.push({ group: null, label: null, count: 0, row: r });
-    return out;
+  // Collapsed groups, remembered per channel, scope and group-by (a group id is a category,
+  // maker or character id). A collapsed group keeps its header; its rows leave the paging.
+  const groupKey = $derived(prefs.group === 'none' ? '' : GROUPS_KEY(target.install, target.channel, scopeAll ? 'all' : 'channel', prefs.group));
+  let collapsed = $state<string[]>([]);
+  let collapsedFor = $state('');
+  $effect(() => {
+    const k = groupKey;
+    if (k === collapsedFor) return;
+    untrack(() => {
+      collapsed = k ? readCollapsed(k) : [];
+      collapsedFor = k;
+    });
   });
-  const totalShown = $derived(v ? (v.groups ? v.groups.reduce((a, g) => a + g.rows.length, 0) : v.rows.length) : 0);
+  const shut = $derived(new Set(collapsed));
+  function setCollapsed(list: string[]) {
+    collapsed = list;
+    if (collapsedFor) writeCollapsed(collapsedFor, list);
+  }
+  const toggleGroup = (id: string, open: boolean) => setCollapsed(withCollapsed(collapsed, id, !open));
+  const allIds = $derived(v?.groups?.map((g) => g.id) ?? []);
+  const allShut = $derived(allIds.length > 0 && allIds.every((id) => shut.has(id)));
+  const nShut = $derived(allIds.filter((id) => shut.has(id)).length);
+  const noneShut = $derived(nShut === 0);
+  function groupKeydown(e: KeyboardEvent, id: string, open: boolean) {
+    const to = arrowToggle(e.key, open);
+    if (to !== null) {
+      e.preventDefault();
+      toggleGroup(id, to);
+      return;
+    }
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Home' && e.key !== 'End') return;
+    // Up/Down/Home/End move between the group headers.
+    const all = [...((e.currentTarget as HTMLElement).closest('tbody')?.querySelectorAll<HTMLElement>('[data-group-toggle]') ?? [])];
+    const i = all.indexOf(e.currentTarget as HTMLElement);
+    const j = e.key === 'Home' ? 0 : e.key === 'End' ? all.length - 1 : e.key === 'ArrowDown' ? i + 1 : i - 1;
+    if (j < 0 || j >= all.length || j === i) return;
+    e.preventDefault();
+    all[j]!.focus();
+  }
+  const paged = $derived(v ? pageRows(v, limit, shut) : { lines: [], total: 0 });
+  const shownRows = $derived(paged.lines);
+  const totalShown = $derived(paged.total);
 </script>
 
 <svelte:window onkeydown={onKey} />
@@ -340,6 +370,13 @@
       <span><span id="bp-count" class="text-foreground font-medium">{v.rows.length}</span> <span class="text-muted-foreground">shown of {v.total}</span></span>
       {#if catalogSize !== null && !scopeAll}<span class="text-muted-foreground">{target.channel}'s build has {catalogSize} blueprints</span>{/if}
       {#if prefs.owned === 'missing' && v.maybe}<span class="text-muted-foreground">{v.maybe} maybe owned (an owned name several blueprints have)</span>{/if}
+      {#if v.groups && v.groups.length > 1}
+        <span class="ml-auto flex items-center gap-1">
+          <span class="text-muted-foreground">{v.groups.length} groups{nShut ? `, ${nShut} collapsed` : ''}</span>
+          <Button variant="ghost" size="sm" disabled={allShut} onclick={() => setCollapsed([...allIds])}><ChevronsDownUp aria-hidden="true" /> Collapse all</Button>
+          <Button variant="ghost" size="sm" disabled={noneShut} onclick={() => setCollapsed(collapsed.filter((id) => !allIds.includes(id)))}><ChevronsUpDown aria-hidden="true" /> Expand all</Button>
+        </span>
+      {/if}
     </div>
     {#if !v.rows.length}
       <div class="text-muted-foreground grid justify-items-center gap-2 py-6 text-center">
@@ -369,7 +406,24 @@
           <tbody class="divide-y">
             {#each shownRows as s, i (`${s.group ?? ''}/${s.row?.key ?? `#${s.label}`}/${i}`)}
               {#if s.row === null}
-                <tr class="bg-muted/40"><th scope="rowgroup" colspan={cols.length} class="py-1.5 text-[12px] font-semibold">{s.label} <span class="text-muted-foreground mono font-normal">{s.count}</span></th></tr>
+                {@const open = !s.collapsed}
+                <tr class="bg-muted/40">
+                  <th scope="rowgroup" colspan={cols.length} class="p-0 text-[12px] font-semibold">
+                    <button
+                      type="button"
+                      data-group-toggle
+                      class="hover:bg-muted focus-visible:ring-ring/60 flex w-full items-center gap-1.5 px-1 py-1.5 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                      aria-expanded={open}
+                      onclick={() => toggleGroup(s.group ?? '', !open)}
+                      onkeydown={(e) => groupKeydown(e, s.group ?? '', open)}
+                    >
+                      <ChevronRight class={cn('text-muted-foreground size-3.5 shrink-0 transition-transform motion-reduce:transition-none', open && 'rotate-90')} aria-hidden="true" />
+                      <span>{s.label}</span>
+                      <span class="text-muted-foreground mono font-normal">{s.count}</span>
+                      {#if !open}<span class="sr-only">(collapsed)</span>{/if}
+                    </button>
+                  </th>
+                </tr>
               {:else}
                 {@const r = s.row}
                 {@const own = owners(r)}

@@ -22,6 +22,7 @@
   import { characterLabel, fallbackHint, largerHint, newestId } from '@/lib/characters';
   import * as Alert from '@/components/ui/alert';
   import Info from '@lucide/svelte/icons/info';
+  import CollapsibleCard from '@/components/common/CollapsibleCard.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { CharacterMode, CharactersView, StarOrgStatus, SyncReport } from '@/lib/contract/types';
   import { fmtDateTime } from '@/lib/format';
@@ -111,8 +112,20 @@
   <div class="grid gap-3"><Skeleton class="h-28 w-full" /><Skeleton class="h-64 w-full" /></div>
 {:else}
   {@const v = view}
+  {@const hint = v.active.mode === 'auto' ? (fallbackHint(v.characters, v.active.resolved, v.active.fallback_from) ?? largerHint(v.characters, v.active.resolved, v.active.larger)) : null}
   <div class="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(320px,380px)]">
-    <Card.Root class="min-w-0 xl:col-span-2">
+    <!-- Outside every card: it stays in view when the cards are collapsed. -->
+    {#if hint}
+      <Alert.Root variant="warning" class="xl:col-span-2">
+        <Info aria-hidden="true" />
+        <Alert.Title>Check whose blueprints are marked</Alert.Title>
+        <Alert.Description>
+          <p>{hint}</p>
+          <div class="mt-2"><Button variant="outline" size="sm" onclick={() => setMode('union')}>Use Any of my characters</Button></div>
+        </Alert.Description>
+      </Alert.Root>
+    {/if}
+    <CollapsibleCard key="blueprints.finder" class="min-w-0 xl:col-span-2">
       <Card.Header>
         <Card.Title>Blueprints</Card.Title>
         <Card.Description>Every blueprint of the build and who owns it. Kept per character and per channel; PTU progress is not LIVE progress.</Card.Description>
@@ -123,9 +136,9 @@
       <Card.Content>
         <BlueprintFinder target={app.target} channels={channelNames} rev={key} bind:picked />
       </Card.Content>
-    </Card.Root>
+    </CollapsibleCard>
 
-    <Card.Root class="min-w-0">
+    <CollapsibleCard key="blueprints.character" class="min-w-0">
       <Card.Header>
         <Card.Title class="flex items-center gap-2">Character for [Owned] tags <ChannelBadge channel={v.channel} /></Card.Title>
         <Card.Description>Which character's blueprints are marked as owned on {v.channel}. Characters come from the game logs (last scan {fmtDateTime(v.last_scan)}).</Card.Description>
@@ -148,26 +161,13 @@
           {#if v.active.mode === 'union'}Owned by any of {v.characters.length} characters counts.{:else}Now using <span class="text-foreground font-medium">{name(v.active.resolved)}</span>.{/if}
           {#if v.unattributed}{v.unattributed} blueprint{v.unattributed === 1 ? ' was' : 's were'} seen before any login in a log file and belong to no character.{/if}
         </p>
-        {#if v.active.mode === 'auto'}
-          {@const hint = fallbackHint(v.characters, v.active.resolved, v.active.fallback_from) ?? largerHint(v.characters, v.active.resolved, v.active.larger)}
-          {#if hint}
-            <Alert.Root variant="warning">
-              <Info aria-hidden="true" />
-              <Alert.Title>Check whose blueprints are marked</Alert.Title>
-              <Alert.Description>
-                <p>{hint}</p>
-                <div class="mt-2"><Button variant="outline" size="sm" onclick={() => setMode('union')}>Use Any of my characters</Button></div>
-              </Alert.Description>
-            </Alert.Root>
-          {/if}
-        {/if}
       </Card.Content>
-    </Card.Root>
+    </CollapsibleCard>
 
-    <ReimportCard target={app.target} view={v} shown={picked ?? v.active.resolved} ondone={() => tick++} />
+    <CollapsibleCard key="blueprints.reimport" bare><ReimportCard target={app.target} view={v} shown={picked ?? v.active.resolved} ondone={() => tick++} /></CollapsibleCard>
 
 
-    <Card.Root>
+    <CollapsibleCard key="blueprints.starorg">
       <Card.Header>
         <Card.Title>StarOrg Tools</Card.Title>
         <Card.Description>Pull your guild's owned list into one character; push the characters you ticked in Settings as one list.</Card.Description>
@@ -210,7 +210,7 @@
           </div>
         {/if}
       </Card.Content>
-    </Card.Root>
+    </CollapsibleCard>
 
   </div>
   <ImportDialog bind:open={importing} target={app.target} characters={v.characters} initial={picked ?? v.active.resolved} ondone={() => tick++} />

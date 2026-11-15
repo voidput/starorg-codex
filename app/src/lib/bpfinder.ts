@@ -426,3 +426,49 @@ function groupRows(list: Sortable[], p: FinderPrefs, ctx: ViewCtx): Group[] | nu
   else groups.sort((a, b) => (a.id === '' || a.id === 'none' ? 1 : 0) - (b.id === '' || b.id === 'none' ? 1 : 0) || cmp(a.label, b.label));
   return groups;
 }
+
+// Paging ------------------------------------------------------------------------------------
+
+/** A line of the finder table: a group header (`row` null) or a blueprint. */
+export interface ShownRow {
+  group: string | null;
+  label: string | null;
+  /** Rows of the group (headers only). */
+  count: number;
+  /** The group is collapsed (headers only). */
+  collapsed: boolean;
+  row: BlueprintRow | null;
+}
+
+/**
+ * The first `limit` rows of the view ("Show 200 more" pages them). With groups, every group in
+ * reach gets its header; a collapsed group shows only its header and its rows neither count
+ * toward the limit nor toward `total`, so the paging button only counts what expanding it shows.
+ */
+export function pageRows(v: Pick<FinderView, 'rows' | 'groups'>, limit: number, collapsed: ReadonlySet<string> = new Set()): { lines: ShownRow[]; total: number } {
+  const lines: ShownRow[] = [];
+  if (!v.groups) return { lines: v.rows.slice(0, limit).map((row) => ({ group: null, label: null, count: 0, collapsed: false, row })), total: v.rows.length };
+  let n = 0;
+  let total = 0;
+  // Once a row is cut off, later groups wait for "Show more" (headers included).
+  let cut = false;
+  for (const g of v.groups) {
+    const shut = collapsed.has(g.id);
+    if (!shut) total += g.rows.length;
+    if (cut || (!shut && n >= limit)) {
+      cut ||= !shut && g.rows.length > 0;
+      continue;
+    }
+    lines.push({ group: g.id, label: g.label, count: g.rows.length, collapsed: shut, row: null });
+    if (shut) continue;
+    for (const r of g.rows) {
+      if (n >= limit) {
+        cut = true;
+        break;
+      }
+      n++;
+      lines.push({ group: g.id, label: null, count: 0, collapsed: false, row: r });
+    }
+  }
+  return { lines, total };
+}
