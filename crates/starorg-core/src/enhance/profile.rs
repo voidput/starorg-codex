@@ -277,8 +277,17 @@ impl Profile {
     }
 
     /// Read a `profile.toml`: `preset = "..."` (default recommended) plus an optional
-    /// `[enhance]` table that overrides fields of the preset.
+    /// `[enhance]` table that overrides fields of the preset. Keys this build does not know
+    /// are ignored (see [`Self::from_toml_checked`]).
     pub fn from_toml(text: &str) -> Result<Self, ProfileError> {
+        Self::from_toml_checked(text).map(|(p, _)| p)
+    }
+
+    /// [`Self::from_toml`], plus the `[enhance]` keys this build does not know (as
+    /// `enhance.mission.some_key`). They are ignored, not refused, so a profile saved by a
+    /// newer build still reads here; callers report them as warnings. Known keys are
+    /// still checked: a wrong type or value is an error.
+    pub fn from_toml_checked(text: &str) -> Result<(Self, Vec<String>), ProfileError> {
         let table: toml::Table =
             toml::from_str(text).map_err(|e| ProfileError::Toml(e.to_string()))?;
         let preset = table
@@ -287,16 +296,18 @@ impl Profile {
             .unwrap_or("recommended");
         let base = Self::preset(preset)?;
         let Some(over) = table.get("enhance") else {
-            return Ok(base);
+            return Ok((base, Vec::new()));
         };
         let mut merged =
             toml::Value::try_from(&base).map_err(|e| ProfileError::Toml(e.to_string()))?;
-        merge(&mut merged, over);
+        let mut unknown = Vec::new();
+        let over = known_only(&merged, over, "enhance", &mut unknown);
+        merge(&mut merged, &over);
         let p: Self = merged
             .try_into()
             .map_err(|e: toml::de::Error| ProfileError::Toml(e.to_string()))?;
         p.validate()?;
-        Ok(p)
+        Ok((p, unknown))
     }
 
     fn validate(&self) -> Result<(), ProfileError> {
@@ -365,6 +376,32 @@ impl Profile {
     /// changes the output for the same profile: bump [`crate::OUTPUT_VERSION`] for that.
     pub fn hash(&self) -> String {
         crate::canon::settings_hash(self)
+    }
+}
+
+/// `over` without the keys `base` (a serialised profile) has no field for, which are
+/// listed in `unknown`. Tables whose keys are data, not fields (`styles`), pass whole.
+fn known_only(
+    base: &toml::Value,
+    over: &toml::Value,
+    path: &str,
+    unknown: &mut Vec<String>,
+) -> toml::Value {
+    match (base, over) {
+        (toml::Value::Table(b), toml::Value::Table(o)) if !path.ends_with(".styles") => {
+            let mut out = toml::Table::new();
+            for (k, v) in o {
+                let p = format!("{path}.{k}");
+                match b.get(k) {
+                    Some(bv) => {
+                        out.insert(k.clone(), known_only(bv, v, &p, unknown));
+                    }
+                    None => unknown.push(p),
+                }
+            }
+            toml::Value::Table(out)
+        }
+        _ => over.clone(),
     }
 }
 
@@ -491,13 +528,39 @@ mod tests {
     }
 
     #[test]
+    fn unknown_keys_are_ignored_and_listed() {
+        // A profile saved by a newer build: its new keys are skipped, the rest applies.
+        let (p, unknown) = Profile::from_toml_checked(
+            "[enhance]\nno_such = 1\nships = false\n[enhance.mission]\nnew_em = 2\nowned_em = 4\n[enhance.tags.components]\nnew_flag = true\n[enhance.tags.components.styles]\nsize = \"long\"\n[enhance.future]\nx = 1\n",
+        )
+        .unwrap();
+        assert!(!p.ships && p.mission.owned_em == 4);
+        assert_eq!(p.tags.components.style_of("size"), "long");
+        assert_eq!(
+            unknown,
+            vec![
+                "enhance.future",
+                "enhance.mission.new_em",
+                "enhance.no_such",
+                "enhance.tags.components.new_flag"
+            ]
+        );
+        assert_eq!(
+            Profile::from_toml("[enhance]\nno_such = 1\n").unwrap(),
+            Profile::default()
+        );
+    }
+
+    #[test]
     fn bad_values_are_refused() {
         assert!(Profile::from_toml("[enhance.tags.missiles]\nseparator = \"%\"\n").is_err());
         assert!(Profile::from_toml("[enhance]\nheader = \"<EM4>x\"\n").is_err());
         assert!(Profile::from_toml("[enhance.mission]\nheader_em = 6\n").is_err());
         assert!(Profile::from_toml("[enhance.mission]\nowned_em = 9\n").is_err());
         assert!(Profile::from_toml("[enhance.mission]\nreward_em = -1\n").is_err());
-        assert!(Profile::from_toml("[enhance]\nno_such = 1\n").is_err());
+        // Wrong types of known keys are still errors.
+        assert!(Profile::from_toml("[enhance.mission]\nowned_em = \"blue\"\n").is_err());
+        assert!(Profile::from_toml("[enhance]\nmission = 3\n").is_err());
         assert!(Profile::from_toml("preset = \"x\"").is_err());
     }
 }

@@ -732,3 +732,75 @@ fn every_colour_setting_writes_valid_markup() {
         }
     }
 }
+
+#[test]
+fn same_named_blueprints_are_marked_only_when_all_agree() {
+    let (gd, stock) = fixture();
+    let ids = |ids: &[&str]| {
+        let entries: serde_json::Map<String, serde_json::Value> = ids
+            .iter()
+            .map(|id| {
+                (
+                    id.to_string(),
+                    serde_json::json!({"name": "-", "ids": [id]}),
+                )
+            })
+            .collect();
+        let mut o =
+            OwnedList::from_json(&serde_json::json!({ "entries": entries }).to_string()).unwrap();
+        o.names.insert("filler pistol".into());
+        o
+    };
+    let mut p = Profile::default();
+    p.mission.title_owned = true;
+    p.mission.missing_marker = true;
+    let body = |g: &Generated| added(g, &stock, "zeta_twin_desc");
+    // Core owned, helmet not: one "Filler Twin" bullet with neither marker, and no
+    // [BP Owned] in the title.
+    let g = generate(&gd, &stock, &p, &ids(&["bp-bp_craft_zeta_twin_core"]));
+    assert!(
+        body(&g).contains("\\n- Filler pistol [Owned]\\n- Filler Twin\\n\\n"),
+        "{}",
+        body(&g)
+    );
+    assert_eq!(
+        value(&g, &stock, "zeta_twin_title").as_deref(),
+        Some("Filler Twin Job <EM4>[BP]</EM4> <EM4>[100 Rep]</EM4>")
+    );
+    // Both owned: marked, and the title says so.
+    let g = generate(
+        &gd,
+        &stock,
+        &p,
+        &ids(&["bp-bp_craft_zeta_twin_core", "bp-bp_craft_zeta_twin_helmet"]),
+    );
+    assert!(
+        body(&g).contains("\\n- Filler Twin [Owned]"),
+        "{}",
+        body(&g)
+    );
+    assert!(
+        value(&g, &stock, "zeta_twin_title")
+            .unwrap()
+            .contains("[BP Owned]")
+    );
+    // Neither owned: [Missing].
+    let g = generate(&gd, &stock, &p, &ids(&[]));
+    assert!(
+        body(&g).contains("\\n- Filler Twin [Missing]"),
+        "{}",
+        body(&g)
+    );
+    // Only the shared name is listed: cannot tell which, so no marker either way.
+    let g = generate(&gd, &stock, &p, &OwnedList::from_names(["Filler Twin"]));
+    assert!(
+        body(&g).contains("\\n- Filler pistol [Missing]\\n- Filler Twin\\n\\n"),
+        "{}",
+        body(&g)
+    );
+    assert!(
+        !value(&g, &stock, "zeta_twin_title")
+            .unwrap()
+            .contains("Owned")
+    );
+}

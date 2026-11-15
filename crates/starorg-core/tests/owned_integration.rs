@@ -52,7 +52,9 @@ fn gamedata_catalog_names_blueprints_through_stock_text() {
     let idx = index(&GameDataCatalog::new(&gd, &stock));
     assert_eq!(idx["filler rifle"], vec!["bp-bp_craft_zeta_rifle_01"]);
     assert_eq!(idx["filler wall"], vec!["bp-bp_craft_shld_zeta_s01_wall"]);
-    assert_eq!(idx.len(), gd.blueprints.len());
+    // Two blueprints share "Filler Twin": one name, both ids.
+    assert_eq!(idx["filler twin"].len(), 2);
+    assert_eq!(idx.len(), gd.blueprints.len() - 1);
 }
 
 #[test]

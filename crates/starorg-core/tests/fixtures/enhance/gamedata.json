@@ -26,6 +26,20 @@
    "name": "BP_POOL_B"
   },
   {
+   "blueprints": [
+    {
+     "blueprint": "BP_CRAFT_zeta_twin_core"
+    },
+    {
+     "blueprint": "BP_CRAFT_zeta_twin_helmet"
+    },
+    {
+     "blueprint": "BP_CRAFT_zeta_pistol_01"
+    }
+   ],
+   "name": "BP_POOL_TWIN"
+  },
+  {
    "blueprints": [],
    "name": "BP_POOL_EMPTY"
   }
@@ -80,6 +94,28 @@
    "produces": "zeta_lmg_01",
    "producesNameKey": "@item_Namezeta_lmg_01",
    "recordName": "CraftingBlueprintRecord.BP_CRAFT_zeta_lmg_01",
+   "tiers": [
+    {
+     "craftTimeSeconds": 60
+    }
+   ]
+  },
+  {
+   "id": "bp-bp_craft_zeta_twin_core",
+   "produces": "zeta_twin_core",
+   "producesNameKey": "@item_Namezeta_twin_core",
+   "recordName": "CraftingBlueprintRecord.BP_CRAFT_zeta_twin_core",
+   "tiers": [
+    {
+     "craftTimeSeconds": 60
+    }
+   ]
+  },
+  {
+   "id": "bp-bp_craft_zeta_twin_helmet",
+   "produces": "zeta_twin_helmet",
+   "producesNameKey": "@item_Namezeta_twin_helmet",
+   "recordName": "CraftingBlueprintRecord.BP_CRAFT_zeta_twin_helmet",
    "tiers": [
     {
      "craftTimeSeconds": 60
@@ -557,6 +593,27 @@
     }
    ],
    "titleKey": "@zeta_stray_title"
+  },
+  {
+   "blueprintRewards": [
+    {
+     "chance": 1,
+     "pool": "BP_POOL_TWIN"
+    }
+   ],
+   "debugName": "Zeta_Twin",
+   "descriptionKey": "@zeta_twin_desc",
+   "generator": "Gen_Zeta",
+   "id": "c-zeta_twin",
+   "reputation": [
+    {
+     "amount": 100,
+     "faction": "f",
+     "onFailure": false,
+     "onSuccess": true
+    }
+   ],
+   "titleKey": "@zeta_twin_title"
   },
   {
    "debugName": "Zeta_WIP",

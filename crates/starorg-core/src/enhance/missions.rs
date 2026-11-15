@@ -2,7 +2,7 @@
 //! required standing and contract type, computed over every contract that shares a key.
 
 use super::format::{int, pct};
-use super::owned::{BlueprintRef, OwnedBlueprints};
+use super::owned::{BlueprintRef, Owned, OwnedBlueprints};
 use super::profile::{Mission, em};
 use super::{Category, Engine, Payload, items, stock_name, tags};
 use crate::ini::fold_key;
@@ -60,8 +60,9 @@ pub fn title_tags(group: &[&Contract], m: &Mission, all_owned: bool) -> Option<S
 pub struct Bullet {
     pub name: String,
     pub tag: Option<String>,
-    /// The active character owns it (always false without an owned set).
-    pub owned: bool,
+    /// Whether the active character owns it (`No` when ownership is not looked up). A
+    /// bullet that stands for several same-named blueprints is `Unsure` unless they agree.
+    pub owned: Owned,
 }
 
 impl Bullet {
@@ -75,13 +76,13 @@ impl Bullet {
             base.push(' ');
         }
         base.push_str(&self.name);
-        if self.owned && m.owned_marker {
+        if self.owned == Owned::Yes && m.owned_marker {
             if m.owned_line && m.owned_em != 0 {
                 format!("- {}", em(m.owned_em, &format!("{base} [Owned]")))
             } else {
                 format!("- {base} {}", em(m.owned_em, "[Owned]"))
             }
-        } else if !self.owned && known && m.missing_marker {
+        } else if self.owned == Owned::No && known && m.missing_marker {
             format!("- {base} {}", em(m.missing_em, "[Missing]"))
         } else {
             format!("- {base}")
@@ -184,10 +185,9 @@ impl<'a> Lookup<'a> {
         }
     }
 
-    /// The bullets of a pool. `track`: look up ownership (only when a setting shows it, so
-    /// pools that differ only in what is owned still merge when nothing shows it).
-    fn bullets(&self, pool: &str, track: bool) -> Vec<Bullet> {
-        let mut seen = BTreeSet::new();
+    /// Every blueprint of a pool that has a display name, before de-duplication: name,
+    /// bullet tag and ownership (`No` unless `track`).
+    fn entries(&self, pool: &str, track: bool) -> Vec<(&'a str, Option<String>, Owned)> {
         let mut out = Vec::new();
         for b in self
             .pools
@@ -203,21 +203,45 @@ impl<'a> Lookup<'a> {
                 .as_ref()
                 .and_then(|p| self.item_tags.get(&p.to_ascii_lowercase()))
                 .cloned();
-            let owned = track
-                && self.owned.owns(&BlueprintRef {
+            let owned = if track {
+                self.owned.state(&BlueprintRef {
                     id: &b.id,
                     record: b.short_name(),
                     name,
                     name_unique: !self
                         .shared_names
                         .contains(&super::owned::normalize_name(name)),
-                });
-            if seen.insert((name.to_lowercase(), tag.clone())) {
-                out.push(Bullet {
-                    name: name.to_string(),
-                    tag,
-                    owned,
-                });
+                })
+            } else {
+                Owned::No
+            };
+            out.push((name, tag, owned));
+        }
+        out
+    }
+
+    /// The bullets of a pool. `track`: look up ownership (only when a setting shows it, so
+    /// pools that differ only in what is owned still merge when nothing shows it).
+    fn bullets(&self, pool: &str, track: bool) -> Vec<Bullet> {
+        let mut seen: HashMap<(String, Option<String>), usize> = HashMap::new();
+        let mut out: Vec<Bullet> = Vec::new();
+        for (name, tag, owned) in self.entries(pool, track) {
+            match seen.get(&(name.to_lowercase(), tag.clone())) {
+                // Same name and tag as an earlier blueprint: one bullet, and its marker only
+                // when both agree.
+                Some(&i) => {
+                    if out[i].owned != owned {
+                        out[i].owned = Owned::Unsure;
+                    }
+                }
+                None => {
+                    seen.insert((name.to_lowercase(), tag.clone()), out.len());
+                    out.push(Bullet {
+                        name: name.to_string(),
+                        tag,
+                        owned,
+                    });
+                }
             }
         }
         out.sort_by(|a, b| {
@@ -423,12 +447,13 @@ fn tracks_owned(m: &Mission) -> bool {
 
 impl Lookup<'_> {
     /// Every blueprint the group's pools can award is owned (and there is at least one).
+    /// Checked per blueprint, before bullets merge same-named ones.
     fn all_owned(&self, group: &[&Contract]) -> bool {
         let mut any = false;
         for c in group {
             for r in &c.blueprint_rewards {
-                for b in self.bullets(&r.pool, true) {
-                    if !b.owned {
+                for (_, _, owned) in self.entries(&r.pool, true) {
+                    if owned != Owned::Yes {
                         return false;
                     }
                     any = true;

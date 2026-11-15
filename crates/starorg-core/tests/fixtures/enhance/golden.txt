@@ -190,6 +190,12 @@ zeta_stray_title=Filler Stray <EM4>[75 Rep]</EM4>
 [mission-descriptions] zeta_stray_desc <- Zeta_Stray
 zeta_stray_desc=Filler prose with a stray </EM4> close\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Reputation:</EM4> 75
 
+[mission-titles] zeta_twin_title <- Zeta_Twin
+zeta_twin_title=Filler Twin Job <EM4>[BP]</EM4> <EM4>[100 Rep]</EM4>
+
+[mission-descriptions] zeta_twin_desc <- Zeta_Twin
+zeta_twin_desc=Filler twin prose.\n\n<EM3>BLUEPRINTS</EM3>\n- Filler pistol\n- Filler Twin\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Guaranteed\n<EM4>Reputation:</EM4> 100
+
 [mission-titles] zeta_missing_title <- Zeta_Missing
 zeta_missing_title=Filler Missing <EM4>[5 Rep]</EM4>
 
@@ -257,8 +263,8 @@ zeta_missing_title=Filler Missing <EM4>[5 Rep]</EM4>
       "case_folded": 0
     },
     "mission-titles": {
-      "candidates": 8,
-      "written": 7,
+      "candidates": 9,
+      "written": 8,
       "left": {
         "format-key": 1
       },
@@ -266,8 +272,8 @@ zeta_missing_title=Filler Missing <EM4>[5 Rep]</EM4>
       "case_folded": 0
     },
     "mission-descriptions": {
-      "candidates": 6,
-      "written": 6,
+      "candidates": 7,
+      "written": 7,
       "left": {},
       "open_tail": 1,
       "case_folded": 0

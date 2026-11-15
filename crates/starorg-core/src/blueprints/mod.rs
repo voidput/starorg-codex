@@ -390,6 +390,17 @@ impl crate::enhance::owned::OwnedBlueprints for Selection {
     fn known(&self) -> bool {
         !self.ids.is_empty() || !self.names.is_empty()
     }
+    fn state(&self, bp: &crate::enhance::owned::BlueprintRef<'_>) -> crate::enhance::owned::Owned {
+        use crate::enhance::owned::Owned;
+        if self.owns(bp) {
+            Owned::Yes
+        } else if !bp.name_unique && !bp.name.is_empty() && self.names.contains(&normalize(bp.name))
+        {
+            Owned::Unsure
+        } else {
+            Owned::No
+        }
+    }
 }
 
 #[cfg(test)]

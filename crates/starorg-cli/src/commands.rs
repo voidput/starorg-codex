@@ -205,19 +205,27 @@ pub struct BuildArgs<'a> {
     pub ship_names: Option<PathBuf>,
 }
 
-fn load_profile(a: &BuildArgs) -> Result<(Profile, String), String> {
+/// The profile, its name for reports, and warnings for `[enhance]` keys this build does
+/// not know (ignored).
+type LoadedProfile = (Profile, String, Vec<starorg_core::source::Warning>);
+
+fn load_profile(a: &BuildArgs) -> Result<LoadedProfile, String> {
     if a.no_enhancements {
-        return Ok((Profile::off(), "none".into()));
+        return Ok((Profile::off(), "none".into(), Vec::new()));
     }
     if let Some(path) = &a.profile {
         let text = std::fs::read_to_string(path)
             .map_err(|e| format!("cannot read {}: {e}", path.display()))?;
-        let p = Profile::from_toml(&text).map_err(|e| e.to_string())?;
-        return Ok((p, path.display().to_string()));
+        let (p, unknown) = Profile::from_toml_checked(&text).map_err(|e| e.to_string())?;
+        let w = unknown
+            .iter()
+            .map(|k| starorg_core::apply::unknown_key_warning(k))
+            .collect();
+        return Ok((p, path.display().to_string(), w));
     }
     let name = a.preset.as_deref().unwrap_or("recommended");
     Profile::preset(name)
-        .map(|p| (p, name.to_string()))
+        .map(|p| (p, name.to_string(), Vec::new()))
         .map_err(|e| e.to_string())
 }
 
@@ -262,7 +270,7 @@ fn load_owned(a: &BuildArgs) -> Result<Option<OwnedList>, String> {
 
 pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     let started = Instant::now();
-    let (profile, profile_name) = match load_profile(a) {
+    let (profile, profile_name, profile_warnings) = match load_profile(a) {
         Ok(p) => p,
         Err(e) => return fail(g, exit::USAGE, "usage", &e),
     };
@@ -407,6 +415,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     }
 
     let mut warnings = loaded.warnings.clone();
+    warnings.extend(profile_warnings);
     warnings.extend(ship_name_warnings);
     warnings.extend(generated.warnings.iter().cloned());
     let dropped = warnings.iter().filter(|w| w.kind == "dropped-edit").count();

@@ -224,9 +224,14 @@ def bp(short, produces):
             "producesNameKey": f"@item_Name{produces}", "tiers": [{"craftTimeSeconds": 60}]}
 blueprints = [bp("BP_CRAFT_zeta_pistol_01", "zeta_pistol_01"), bp("BP_CRAFT_zeta_rifle_01", "zeta_rifle_01"),
               bp("BP_CRAFT_SHLD_ZETA_S01_Wall", "SHLD_ZETA_S01_Wall"), bp("BP_CRAFT_ZETA_Scatter_S3", "ZETA_Scatter_S3"),
-              bp("BP_CRAFT_zeta_lmg_01", "zeta_lmg_01")]
+              bp("BP_CRAFT_zeta_lmg_01", "zeta_lmg_01"),
+              # Two blueprints whose items share a display name (a core and a helmet in game).
+              bp("BP_CRAFT_zeta_twin_core", "zeta_twin_core"), bp("BP_CRAFT_zeta_twin_helmet", "zeta_twin_helmet")]
+k("item_Namezeta_twin_core", "Filler Twin")
+k("item_Namezeta_twin_helmet", "Filler Twin")
 pools = [{"name": "BP_POOL_A", "blueprints": [{"blueprint": "BP_CRAFT_zeta_rifle_01"}, {"blueprint": "BP_CRAFT_zeta_pistol_01"}, {"blueprint": "BP_CRAFT_SHLD_ZETA_S01_Wall"}]},
          {"name": "BP_POOL_B", "blueprints": [{"blueprint": "BP_CRAFT_ZETA_Scatter_S3"}, {"blueprint": "BP_CRAFT_zeta_lmg_01"}]},
+         {"name": "BP_POOL_TWIN", "blueprints": [{"blueprint": "BP_CRAFT_zeta_twin_core"}, {"blueprint": "BP_CRAFT_zeta_twin_helmet"}, {"blueprint": "BP_CRAFT_zeta_pistol_01"}]},
          {"name": "BP_POOL_EMPTY", "blueprints": []}]
 standings = [{"name": "Standing_Jr", "recordName": "SReputationStandingParams.Standing_Jr", "displayNameKey": "@rep_standing_jr", "minReputation": 1000},
              {"name": "Standing_Sr", "recordName": "SReputationStandingParams.Standing_Sr", "displayNameKey": "@rep_standing_sr", "minReputation": 9000}]
@@ -257,6 +262,8 @@ contract("Zeta_Odd", "zeta_odd_title", "zeta_patrol_title", reputation=[rep(10)]
 # Stock description ends inside an open EM tag (open tail) and one with CIG's unbalanced close.
 contract("Zeta_Open", "zeta_open_title", "zeta_open_desc", reputation=[rep(75)])
 contract("Zeta_Stray", "zeta_stray_title", "zeta_stray_desc", reputation=[rep(75)])
+# A pool with two same-named blueprints: one bullet, owned only when both are.
+contract("Zeta_Twin", "zeta_twin_title", "zeta_twin_desc", blueprintRewards=[{"pool": "BP_POOL_TWIN", "chance": 1}], reputation=[rep(100)])
 contract("Zeta_WIP", "zeta_wip_title", "zeta_wip_desc", reputation=[rep(1)], workInProgress=True)
 contract("Zeta_Missing", "zeta_missing_title", "LOC_EMPTY", reputation=[rep(5)])
 k("zeta_haul_title", "Filler Haul\\n ")
@@ -272,6 +279,8 @@ k("zeta_open_title", "Filler Open")
 k("zeta_open_desc", "Filler prose with an <EM4>open tail")
 k("zeta_stray_title", "Filler Stray")
 k("zeta_stray_desc", "Filler prose with a stray </EM4> close")
+k("zeta_twin_title", "Filler Twin Job")
+k("zeta_twin_desc", "Filler twin prose.")
 k("zeta_wip_title", "Filler WIP")
 k("zeta_wip_desc", "Filler WIP prose.")
 k("zeta_missing_title", "Filler Missing")

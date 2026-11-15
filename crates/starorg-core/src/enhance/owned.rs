@@ -21,9 +21,24 @@ pub struct BlueprintRef<'a> {
     pub name_unique: bool,
 }
 
+/// What a blueprint's marker can say.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Owned {
+    Yes,
+    No,
+    /// Cannot tell: only the display name matched and another blueprint shares it, or one
+    /// bullet stands for several blueprints that are not all owned. Neither marker shows.
+    Unsure,
+}
+
 /// The active character's owned blueprints.
 pub trait OwnedBlueprints {
     fn owns(&self, bp: &BlueprintRef<'_>) -> bool;
+    /// [`Owned::Unsure`] when the name is in the set but shared with another blueprint
+    /// (a name-only match is never guessed, addendum §4).
+    fn state(&self, bp: &BlueprintRef<'_>) -> Owned {
+        if self.owns(bp) { Owned::Yes } else { Owned::No }
+    }
     /// An owned set is there at all. `[Missing]` markers need one: with nothing known,
     /// every blueprint would read as missing.
     fn known(&self) -> bool;
@@ -124,6 +139,15 @@ impl OwnedBlueprints for OwnedList {
     fn known(&self) -> bool {
         !self.is_empty()
     }
+    fn state(&self, bp: &BlueprintRef<'_>) -> Owned {
+        if self.owns(bp) {
+            Owned::Yes
+        } else if !bp.name_unique && self.names.contains(&normalize_name(bp.name)) {
+            Owned::Unsure
+        } else {
+            Owned::No
+        }
+    }
 }
 
 #[cfg(test)]
@@ -168,5 +192,10 @@ mod tests {
         let by_id =
             OwnedList::from_json(r#"{"entries":{"x":{"name":"Other","ids":["abc"]}}}"#).unwrap();
         assert!(by_id.owns(&shared), "an id match still marks it");
+        // Listed by a shared name only: unsure, not missing.
+        let by_name = OwnedList::from_names(["Fake Rifle 'Ember'"]);
+        assert_eq!(by_name.state(&shared), Owned::Unsure);
+        assert_eq!(by_name.state(&bp), Owned::Yes);
+        assert_eq!(OwnedList::from_names(["Other"]).state(&shared), Owned::No);
     }
 }

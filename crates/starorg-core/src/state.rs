@@ -98,6 +98,13 @@ impl Profile {
     /// The generator settings: `preset` plus the optional `[enhance]` table (spec 4.7).
     /// Other tables (`patches`, unknown keys) are not the generators' business.
     pub fn enhance(&self) -> Result<crate::enhance::profile::Profile, String> {
+        self.enhance_checked().map(|(p, _)| p)
+    }
+
+    /// [`Self::enhance`] plus the `[enhance]` keys this build does not know (ignored).
+    pub fn enhance_checked(
+        &self,
+    ) -> Result<(crate::enhance::profile::Profile, Vec<String>), String> {
         let mut t = toml::Table::new();
         for k in ["preset", "enhance"] {
             if let Some(v) = self.table.get(k) {
@@ -105,7 +112,7 @@ impl Profile {
             }
         }
         let text = toml::to_string(&t).map_err(|e| e.to_string())?;
-        crate::enhance::profile::Profile::from_toml(&text).map_err(|e| e.to_string())
+        crate::enhance::profile::Profile::from_toml_checked(&text).map_err(|e| e.to_string())
     }
 
     /// Ids of built-in patches the user switched off.
@@ -250,9 +257,11 @@ mod tests {
         assert_eq!(base.hash(), same.hash());
         let changed = parse("preset = \"recommended\"\n[enhance]\nmissions = false\n");
         assert_ne!(base.hash(), changed.hash());
+        // A key from a newer build is ignored: no change to what is written.
+        assert_eq!(base.hash(), parse("[enhance]\nno_such = 1\n").hash());
         // Invalid: still changes with the text.
-        let bad1 = parse("[enhance]\nno_such = 1\n");
-        let bad2 = parse("[enhance]\nno_such = 2\n");
+        let bad1 = parse("[enhance.mission]\nheader_em = 7\n");
+        let bad2 = parse("[enhance.mission]\nheader_em = 8\n");
         assert!(bad1.hash().starts_with("invalid:"));
         assert_ne!(bad1.hash(), bad2.hash());
     }

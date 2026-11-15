@@ -50,6 +50,19 @@ release-please 17.11.2: all 8 entries changed, both checks pass).
 If the `simple` + extra-files route fails the dry run, fall back to `rust` with a `[package]`-bearing root
 or a small bump script run in the release PR.
 
+## Profile compatibility across versions
+
+`profile.toml` `[enhance]` gains keys over time (0.2.x: the mission colour settings and
+`colour_test`). Builds up to and including the one before the colour settings refuse any key
+they do not know (`deny_unknown_fields`): opening a profile saved by a newer build in such an
+older build fails with "profile: unknown field ...", and apply stops. Release notes for a
+version that adds `[enhance]` keys must say so ("going back to an older version: reset the
+Enhancements settings or delete the new keys from profile.toml").
+
+From the colour settings on, unknown `[enhance]` keys are **ignored with a warning**
+(`profile-unknown-key` in apply and `build` reports); known keys are still validated and a
+bad value is still an error. So later additions read in this and newer builds.
+
 ## Secrets and variables
 
 `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` (updater key; lose it and installs stop updating).

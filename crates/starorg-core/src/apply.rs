@@ -1061,8 +1061,12 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             format!("{k} folds to the same key on lines {lines:?}; left out"),
         ));
     }
-    let enhance_profile = match inputs.profile.enhance() {
-        Ok(p) => p,
+    let enhance_profile = match inputs.profile.enhance_checked() {
+        Ok((p, unknown)) => {
+            r.warnings
+                .extend(unknown.iter().map(|k| unknown_key_warning(k)));
+            p
+        }
         Err(e) => return fail(r, format!("profile.toml: {e}")),
     };
     // Data patches are an overlay for the generators; merge evaluates them on the original.
@@ -1754,6 +1758,14 @@ pub fn restore(ctx: &Ctx, t: &Target<'_>, backup_id: &str, allow_build_mismatch:
     let mut rep = finish_code(r, Outcome::Restored, started);
     rep.reason = reason;
     rep
+}
+
+/// A `profile.toml` key this build does not know (written by a newer one): ignored.
+pub fn unknown_key_warning(key: &str) -> Warning {
+    Warning::new(
+        "profile-unknown-key",
+        format!("profile.toml: {key} is not known to this version and was ignored"),
+    )
 }
 
 #[cfg(test)]

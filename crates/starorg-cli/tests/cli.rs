@@ -277,7 +277,7 @@ fn build_profile_errors_are_exit_2() {
     fake_install(t.path());
     let out = t.path().join("x.ini");
     let bad_profile = t.path().join("profile.toml");
-    std::fs::write(&bad_profile, "[enhance]\nno_such_switch = true\n").unwrap();
+    std::fs::write(&bad_profile, "[enhance.mission]\nheader_em = 9\n").unwrap();
     let bad_owned = t.path().join("owned.json");
     std::fs::write(&bad_owned, "42").unwrap();
     let base = [
@@ -300,7 +300,19 @@ fn build_profile_errors_are_exit_2() {
         let o = run(&args);
         assert_eq!(o.status.code(), Some(2), "{extra:?}: {o:?}");
     }
-    assert!(!out.exists());
+    // A key from a newer build is ignored with a warning, not a usage error: this build
+    // goes on to read the game (which the fake install then fails, exit 1).
+    let newer = t.path().join("newer.toml");
+    std::fs::write(&newer, "[enhance.mission]\nsome_future_switch = true\n").unwrap();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let out2 = elsewhere.path().join("x.ini");
+    let mut args = base.to_vec();
+    let last = args.len() - 1;
+    args[last] = out2.to_str().unwrap();
+    args.extend(["--profile", newer.to_str().unwrap()]);
+    let o = run(&args);
+    assert_eq!(o.status.code(), Some(1), "{o:?}");
+    assert!(!out.exists() && !out2.exists());
 }
 
 #[test]

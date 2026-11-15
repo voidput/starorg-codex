@@ -1190,6 +1190,17 @@ and harmless. The next apply without the setting writes the stock text back. Its
 category is `colour-test`. The app's Enhancements → General → Colour test says what to look
 for; the reported looks then set better names and defaults for EM1, EM2 and EM5.
 
+**Same-named blueprints.** A pool can hold two blueprints whose items share a display name
+(in LIVE: a core and a helmet both named "Antium Core Jet"); the list shows them as one
+bullet. Ownership is decided per blueprint: the bullet is `[Owned]` only when all of them are
+owned, `[Missing]` only when none is, and has no marker when they differ. `[BP Owned]` checks
+every blueprint before bullets merge. A name in the owned set that several blueprints share
+(a name-only match from the log or an import) gets no marker either: it is not guessed.
+
+**Compatibility.** Unknown `[enhance]` keys (from a newer build) are ignored with a
+`profile-unknown-key` warning; builds before these settings refused them (see
+`docs/release.md`).
+
 ---
 
 ## 7. Apply, backup, rollback, validation
