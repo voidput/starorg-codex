@@ -40,7 +40,7 @@ registry! {
 
     // cargo, // cargo.ts
 
-    // commodities, // commodities.ts
+    commodities, // commodities.ts
 
     // components, // components.ts -> game-ship-components
 
