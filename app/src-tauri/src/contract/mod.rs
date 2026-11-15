@@ -108,6 +108,8 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn blueprint_finder(&self, req: BlueprintFinderRequest) -> CmdResult<BlueprintFinder>;
     /// Real backend: file picker for Smart Citizen's `owned-blueprints.json`, then import.
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport>;
+    /// Re-read every log of the channel from the start; dry run first, then confirm.
+    fn rescan_logs(&self, req: RescanRequest) -> CmdResult<RescanReport>;
     /// Deletes one character's owned set (`<geid>.json`) and its entry in the character list.
     fn forget_character(&self, req: CharacterRequest) -> CmdResult<CharactersView>;
 
@@ -255,6 +257,7 @@ commands! {
     owned_blueprints(req: CharacterRequest) -> Vec<OwnedBlueprint>;
     blueprint_finder(req: BlueprintFinderRequest) -> BlueprintFinder;
     import_smart_citizen(req: ImportRequest) -> ImportReport;
+    rescan_logs(req: RescanRequest) -> RescanReport;
     forget_character(req: CharacterRequest) -> CharactersView;
     fleet_view(req: FleetViewRequest) -> FleetView;
     fleet_import(req: FleetImportRequest) -> FleetImportReport;
@@ -352,6 +355,7 @@ macro_rules! contract_handler {
             $crate::contract::owned_blueprints,
             $crate::contract::blueprint_finder,
             $crate::contract::import_smart_citizen,
+            $crate::contract::rescan_logs,
             $crate::contract::forget_character,
             $crate::contract::fleet_view,
             $crate::contract::fleet_import,
@@ -475,6 +479,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "owned_blueprints",
     "blueprint_finder",
     "import_smart_citizen",
+    "rescan_logs",
     "forget_character",
     "fleet_view",
     "fleet_import",

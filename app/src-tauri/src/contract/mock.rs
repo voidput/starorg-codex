@@ -69,6 +69,8 @@ struct MockChannel {
     owned: HashMap<String, Vec<OwnedBlueprint>>,
     /// Characters whose entries were deleted (`forget_character`).
     forgotten: BTreeSet<String>,
+    /// File name of the last Smart Citizen import.
+    last_import: Option<String>,
     /// Groups from the loc-reference pass (LIVE); other channels start approximate, as after
     /// a launch hook, until `read_string_groups`.
     exact_groups: bool,
@@ -244,6 +246,7 @@ fn mock_channel(summary: ChannelSummary) -> MockChannel {
         exact_groups,
         owned: owned_sets,
         forgotten: BTreeSet::new(),
+        last_import: None,
         names_profile: Default::default(),
     }
 }
@@ -2279,7 +2282,22 @@ impl Backend for MockBackend {
                 .filter(|n| !known.iter().any(|k| k == *n))
                 .map(|s| s.to_string())
                 .collect();
+            // A re-import with replace drops what an earlier import added and this one lacks.
+            let removed: Vec<String> = if req.replace {
+                set.iter()
+                    .filter(|b| {
+                        b.sources.iter().any(|s| s == "import:smart-citizen")
+                            && !candidates.contains(&b.name.as_str())
+                    })
+                    .map(|b| b.name.clone())
+                    .collect()
+            } else {
+                Vec::new()
+            };
             if !req.dry_run {
+                set.retain(|b| !removed.contains(&b.name));
+                c.last_import = Some("owned-blueprints.json".into());
+                let set = c.owned.entry(req.character.clone()).or_default();
                 for n in &imported {
                     set.push(OwnedBlueprint {
                         name: n.clone(),
@@ -2309,6 +2327,48 @@ impl Backend for MockBackend {
                         "Sample Undersuit (Red)".into(),
                     ],
                 }],
+                removed,
+            })
+        })
+    }
+
+    fn rescan_logs(&self, req: RescanRequest) -> CmdResult<RescanReport> {
+        self.with_channel(&req.target, |c, _| {
+            let characters = CHARACTERS
+                .iter()
+                .filter(|(id, _, _)| !c.forgotten.contains(*id))
+                .map(|(id, name, _)| {
+                    let set = c.owned.get(*id).map_or(&[][..], Vec::as_slice);
+                    let removed: Vec<String> = if req.replace {
+                        set.iter()
+                            .filter(|b| b.sources.iter().all(|s| s != "log"))
+                            .map(|b| b.name.clone())
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
+                    CharacterChange {
+                        id: Some((*id).into()),
+                        name: (*name).into(),
+                        before: set.len() as u32,
+                        after: (set.len() - removed.len()) as u32,
+                        added: Vec::new(),
+                        removed,
+                    }
+                })
+                .collect::<Vec<_>>();
+            if !req.dry_run && req.replace {
+                for set in c.owned.values_mut() {
+                    set.retain(|b| b.sources.iter().any(|s| s == "log"));
+                }
+            }
+            Ok(RescanReport {
+                channel: c.summary.channel.clone(),
+                dry_run: req.dry_run,
+                replace: req.replace,
+                files_read: 3,
+                merged: 0,
+                characters,
             })
         })
     }
@@ -3057,6 +3117,8 @@ fn characters_view(c: &MockChannel) -> CharactersView {
         active: c.active.clone(),
         unattributed: 1,
         last_scan: Some("2026-11-14T19:40:00Z".into()),
+        notice: None,
+        last_import: c.last_import.clone(),
     }
 }
 

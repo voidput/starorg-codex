@@ -54,6 +54,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   owned_blueprints: [{ req: T.CharacterRequest }, T.OwnedBlueprint[]];
   blueprint_finder: [{ req: T.BlueprintFinderRequest }, T.BlueprintFinder];
   import_smart_citizen: [{ req: T.ImportRequest }, T.ImportReport];
+  rescan_logs: [{ req: T.RescanRequest }, T.RescanReport];
   forget_character: [{ req: T.CharacterRequest }, T.CharactersView];
   fleet_view: [{ req: T.FleetViewRequest }, T.FleetView];
   fleet_import: [{ req: T.FleetImportRequest }, T.FleetImportReport];
@@ -135,6 +136,7 @@ export const COMMANDS = [
   'owned_blueprints',
   'blueprint_finder',
   'import_smart_citizen',
+  'rescan_logs',
   'forget_character',
   'fleet_view',
   'fleet_import',
@@ -345,6 +347,7 @@ export const api = {
   ownedBlueprints: (req: T.CharacterRequest) => call('owned_blueprints', { req }),
   blueprintFinder: (req: T.BlueprintFinderRequest) => call('blueprint_finder', { req }),
   importSmartCitizen: (req: T.ImportRequest) => call('import_smart_citizen', { req }),
+  rescanLogs: (req: T.RescanRequest) => call('rescan_logs', { req }),
   forgetCharacter: (req: T.CharacterRequest) => call('forget_character', { req }),
   fleetView: (req: T.FleetViewRequest) => call('fleet_view', { req }),
   fleetImport: (req: T.FleetImportRequest) => call('fleet_import', { req }),

@@ -1255,6 +1255,14 @@ pub struct CharactersView {
     /// Blueprints seen before any login line in their log file.
     pub unattributed: u32,
     pub last_scan: Option<String>,
+    /// Characters of different accounts share a name: kept apart (not merged), so the
+    /// user picks. Characters of one account with the same name (a reset) are merged.
+    #[serde(default)]
+    pub notice: Option<String>,
+    /// File name of the last Smart Citizen export imported on this channel (a re-import
+    /// reads it again without the picker).
+    #[serde(default)]
+    pub last_import: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1384,6 +1392,14 @@ pub struct ImportRequest {
     pub target: ChannelRef,
     pub character: String,
     pub dry_run: bool,
+    /// Read the last export imported on this channel (or the file the dry run just read)
+    /// instead of opening the picker.
+    #[serde(default)]
+    pub reuse_last: bool,
+    /// Re-import: drop what an earlier Smart Citizen import added and this export no
+    /// longer has. Entries from the logs or StarOrg Tools are never removed.
+    #[serde(default)]
+    pub replace: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1407,6 +1423,43 @@ pub struct ImportReport {
     pub ambiguous: Vec<AmbiguousName>,
     /// Game data was not read for this channel, so nothing could match (M1).
     pub empty_catalog: bool,
+    /// `replace`: entries of an earlier import this export no longer has.
+    #[serde(default)]
+    pub removed: Vec<String>,
+}
+
+/// Re-read every log of a channel from the start.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RescanRequest {
+    pub target: ChannelRef,
+    pub dry_run: bool,
+    /// Start every set empty: only what the logs show is kept (imported and StarOrg entries
+    /// go too).
+    #[serde(default)]
+    pub replace: bool,
+}
+
+/// One character's change in a rescan.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CharacterChange {
+    /// geid; `None` for blueprints seen before any login.
+    pub id: Option<String>,
+    pub name: String,
+    pub before: u32,
+    pub after: u32,
+    pub added: Vec<String>,
+    pub removed: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RescanReport {
+    pub channel: String,
+    pub dry_run: bool,
+    pub replace: bool,
+    pub files_read: u32,
+    /// Characters merged into another (same account and name, new geid).
+    pub merged: u32,
+    pub characters: Vec<CharacterChange>,
 }
 
 // ---------------------------------------------------------------------------------------

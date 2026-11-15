@@ -53,6 +53,7 @@ const SAMPLES = samples as unknown as {
   starorg_status: T.StarOrgStatus;
   set_starorg_guild: T.StarOrgStatus;
   import_smart_citizen: T.ImportReport;
+  rescan_logs: T.RescanReport;
   query_strings: T.StringsPage;
   fleet_view: T.FleetView;
   fleet_import: T.FleetImportReport;
@@ -76,6 +77,7 @@ interface Chan {
   active: T.ActiveCharacter;
   owned: Map<string, T.OwnedBlueprint[]>;
   forgotten: Set<string>;
+  lastImport?: string | null;
   /** LIVE has run the loc-reference pass; other channels start approximate. */
   exactGroups?: boolean;
 }
@@ -574,6 +576,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     channel: c.summary.channel,
     characters: SAMPLES.list_characters.characters.filter((x) => !c.forgotten.has(x.id)).map((x) => ({ ...x, owned: c.owned.get(x.id)?.length ?? 0 })),
     active: clone(c.active),
+    last_import: c.lastImport ?? null,
   });
   const starorgGuild = (): string => {
     if (!settings.network.starorg) fail('network-off', 'Turn on "Connect StarOrg Tools" under Settings -> Network first.');
@@ -1165,11 +1168,27 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const cands = ['Synthetic Rifle Mk1', 'Sample Armor Legs', 'Sample Armor Arms', 'Test Knife'];
       const known = cands.filter((n) => set.some((b) => b.name === n));
       const imported = cands.filter((n) => !known.includes(n));
+      // A re-import with replace drops what an earlier import added and this one lacks.
+      const removed = req.replace ? set.filter((b) => b.sources.includes('import:smart-citizen') && !cands.includes(b.name)).map((b) => b.name) : [];
       if (!req.dry_run) {
-        for (const n of imported) set.push({ name: n, ambiguous: false, favorite: false, sources: ['import:smart-citizen'], acquired: '2026-11-01T10:00:00Z' });
-        c.owned.set(req.character, set);
+        const kept = set.filter((b) => !removed.includes(b.name));
+        for (const n of imported) kept.push({ name: n, ambiguous: false, favorite: false, sources: ['import:smart-citizen'], acquired: '2026-11-01T10:00:00Z' });
+        c.owned.set(req.character, kept);
+        c.lastImport = 'owned-blueprints.json';
       }
-      return { ...clone(SAMPLES.import_smart_citizen), dry_run: req.dry_run, imported, known };
+      return { ...clone(SAMPLES.import_smart_citizen), dry_run: req.dry_run, imported, known, removed };
+    },
+    rescan_logs: ({ req }) => {
+      const c = chan(req.target);
+      const characters = SAMPLES.list_characters.characters
+        .filter((x) => !c.forgotten.has(x.id))
+        .map((x) => {
+          const set = c.owned.get(x.id) ?? [];
+          const removed = req.replace ? set.filter((b) => !b.sources.includes('log')).map((b) => b.name) : [];
+          return { id: x.id, name: x.name, before: set.length, after: set.length - removed.length, added: [], removed };
+        });
+      if (!req.dry_run && req.replace) for (const [k, v] of c.owned) c.owned.set(k, v.filter((b) => b.sources.includes('log')));
+      return { ...clone(SAMPLES.rescan_logs), channel: c.summary.channel, dry_run: req.dry_run, replace: !!req.replace, characters };
     },
     fleet_view: ({ req }) => {
       if (req.read_game_data && fleetMode === 'nodata') fleetMode = null;

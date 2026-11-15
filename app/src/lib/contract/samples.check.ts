@@ -44,6 +44,7 @@ interface Samples {
   list_characters: T.CharactersView;
   owned_blueprints: T.OwnedBlueprint[];
   import_smart_citizen: T.ImportReport;
+  rescan_logs: T.RescanReport;
   starorg_status: T.StarOrgStatus;
   starorg_pull: T.SyncReport;
   starorg_push: T.SyncReport;

@@ -744,6 +744,8 @@ fn smart_citizen_import_dry_run_reports_and_writes_nothing() {
         target: f.live(),
         character: "300003".into(),
         dry_run,
+        reuse_last: false,
+        replace: false,
     };
 
     // No file chosen: cancelled, nothing read.
@@ -834,6 +836,139 @@ fn smart_citizen_import_dry_run_reports_and_writes_nothing() {
         })
         .unwrap();
     assert_eq!(again.rows, all.rows);
+}
+
+/// The store v0.2.0 left after a character reset: the same account and name under an old
+/// geid holding the import, the new geid (the newest session) empty. On first load the
+/// store is backed up and merged once, Activity says so, the channel shows stale for the
+/// owned blueprints, and a re-import reads the remembered file with no picker.
+#[test]
+fn an_old_store_with_a_reset_character_is_repaired_once() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let s = f.setup_live();
+    let export = f.base.join("owned-blueprints.json");
+    std::fs::write(&export, SC_EXPORT).unwrap();
+    let bp = f.dirs.channel_dir(&s.install, "LIVE").join("blueprints");
+    std::fs::create_dir_all(&bp).unwrap();
+    std::fs::write(
+        bp.join("characters.json"),
+        r#"{"characters": {
+            "100001": {"account_id": "900", "name": "Test_Pilot", "last_seen": "2026-01-01T00:00:00.000Z"},
+            "300003": {"account_id": "900", "name": "Test_Pilot\r", "last_seen": "2026-03-02T10:00:00.000Z"}}}"#,
+    )
+    .unwrap();
+    std::fs::write(
+        bp.join("100001.json"),
+        r#"{"schema": 1, "geid": "100001", "entries": {"fake rifle kestrel": {"name": "Fake Rifle Kestrel",
+            "ids": ["bp_rifle"], "sources": [{"kind": "import:smart-citizen", "time": "2026-01-05T00:00:00Z"}]}}}"#,
+    )
+    .unwrap();
+    let (r, _) = f.apply(false);
+    assert_eq!(r.result, ApplyResult::Applied, "{r:?}");
+
+    let v = f.backend.list_characters(f.live()).unwrap();
+    assert_eq!(v.characters.len(), 1, "{v:?}");
+    assert_eq!(v.characters[0].id, "300003");
+    assert_eq!(v.characters[0].name, "Test_Pilot");
+    assert_eq!(v.characters[0].owned, 1);
+    assert_eq!(v.notice, None);
+    let backups: Vec<_> = std::fs::read_dir(bp.join("backups")).unwrap().collect();
+    assert_eq!(backups.len(), 1);
+    let log = f.backend.activity(20).unwrap();
+    let line = log
+        .iter()
+        .find(|e| {
+            e.message
+                .contains("Owned blueprints updated for this version")
+        })
+        .expect("one activity line");
+    assert!(
+        line.message.contains("Merged 2 characters into 1"),
+        "{}",
+        line.message
+    );
+    assert!(matches!(
+        f.backend.channel_status(f.live()).unwrap().status,
+        ApplyState::Stale { ref reasons } if reasons.iter().any(|r| r == "owned blueprints")
+    ));
+
+    // Once: a second load changes nothing more.
+    f.backend.list_characters(f.live()).unwrap();
+    assert_eq!(std::fs::read_dir(bp.join("backups")).unwrap().count(), 1);
+    let again = f.backend.activity(50).unwrap();
+    assert_eq!(
+        again
+            .iter()
+            .filter(|e| e.message.contains("Owned blueprints updated"))
+            .count(),
+        1
+    );
+
+    // Import picks the file once; the confirm and a later re-import read it again.
+    let req = |dry_run, reuse_last, replace| ImportRequest {
+        target: f.live(),
+        character: "100001".into(),
+        dry_run,
+        reuse_last,
+        replace,
+    };
+    let e = f
+        .backend
+        .import_smart_citizen(req(true, true, false))
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::NotFound, "nothing imported yet");
+    *f.pick.lock().unwrap() = Some(export.clone());
+    let r = f
+        .backend
+        .import_smart_citizen(req(true, false, false))
+        .unwrap();
+    assert_eq!(r.known, ["[L] Fake Rifle Kestrel"], "{r:?}");
+    *f.pick.lock().unwrap() = None;
+    f.backend
+        .import_smart_citizen(req(false, true, false))
+        .unwrap();
+    assert_eq!(
+        f.backend
+            .list_characters(f.live())
+            .unwrap()
+            .last_import
+            .as_deref(),
+        Some("owned-blueprints.json")
+    );
+    std::fs::write(&export, r#"{"version": 1, "blueprints": []}"#).unwrap();
+    let r = f
+        .backend
+        .import_smart_citizen(req(true, true, true))
+        .unwrap();
+    assert_eq!(r.removed, ["Fake Rifle Kestrel"], "{r:?}");
+    let r = f
+        .backend
+        .import_smart_citizen(req(false, true, true))
+        .unwrap();
+    assert_eq!(r.removed.len(), 1);
+    assert_eq!(
+        f.backend.list_characters(f.live()).unwrap().characters[0].owned,
+        0
+    );
+
+    // Re-scan: dry run first, then for real; the log has no blueprints, nothing to change.
+    let r = f
+        .backend
+        .rescan_logs(RescanRequest {
+            target: f.live(),
+            dry_run: true,
+            replace: false,
+        })
+        .unwrap();
+    assert!(r.dry_run && r.files_read == 1, "{r:?}");
+    assert!(
+        r.characters
+            .iter()
+            .all(|c| c.added.is_empty() && c.removed.is_empty())
+    );
 }
 
 fn bp_line(t: &str, name: &str) -> String {

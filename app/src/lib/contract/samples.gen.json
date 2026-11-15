@@ -9969,6 +9969,7 @@
       "Synthetic Rifle Mk1"
     ],
     "not_completed": 2,
+    "removed": [],
     "total": 9,
     "unmatched": [
       "[H] Retired Sample Helmet"
@@ -10074,7 +10075,9 @@
         "owned": 0
       }
     ],
+    "last_import": null,
     "last_scan": "2026-11-14T19:40:00Z",
+    "notice": null,
     "unattributed": 1
   },
   "list_overrides": [
@@ -12570,6 +12573,39 @@
       "shared_with": []
     },
     "warnings": []
+  },
+  "rescan_logs": {
+    "channel": "LIVE",
+    "characters": [
+      {
+        "added": [],
+        "after": 6,
+        "before": 6,
+        "id": "1000000000001",
+        "name": "Pilot_A",
+        "removed": []
+      },
+      {
+        "added": [],
+        "after": 2,
+        "before": 2,
+        "id": "1000000000002",
+        "name": "Alt_B",
+        "removed": []
+      },
+      {
+        "added": [],
+        "after": 0,
+        "before": 0,
+        "id": "1000000000003",
+        "name": "Alt_C",
+        "removed": []
+      }
+    ],
+    "dry_run": true,
+    "files_read": 3,
+    "merged": 0,
+    "replace": false
   },
   "save_diagnostics": "~/starorg-strings-diagnostics-20261114-213005.txt",
   "save_ship_names": {

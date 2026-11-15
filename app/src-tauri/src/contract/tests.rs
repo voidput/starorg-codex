@@ -203,7 +203,7 @@ fn samples() -> Value {
         "get_settings": settings,
         "list_characters": b.list_characters(live()).unwrap(),
         "owned_blueprints": b.owned_blueprints(CharacterRequest { target: live(), character: "1000000000001".into() }).unwrap(),
-        "import_smart_citizen": b.import_smart_citizen(ImportRequest { target: live(), character: "1000000000002".into(), dry_run: true }).unwrap(),
+        "import_smart_citizen": b.import_smart_citizen(ImportRequest { target: live(), character: "1000000000002".into(), dry_run: true, reuse_last: false, replace: false }).unwrap(),
         "starorg_status": b.starorg_login("LIVE".into()).unwrap(),
         "starorg_pull": b.starorg_pull(StarOrgPullRequest { channel: "LIVE".into(), character: "1000000000001".into() }).unwrap(),
         "starorg_push": b.starorg_push("LIVE".into()).unwrap(),
@@ -213,6 +213,14 @@ fn samples() -> Value {
         "hooks_status": b.hooks_status().unwrap(),
         "doctor": b.doctor().unwrap(),
     });
+    v["rescan_logs"] = json!(
+        b.rescan_logs(RescanRequest {
+            target: live(),
+            dry_run: true,
+            replace: false
+        })
+        .unwrap()
+    );
     // Separate inserts: one json! with every sample hits the macro recursion limit.
     for (k, x) in [
         ("fleet_view", json!(fleet_view)),

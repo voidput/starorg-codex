@@ -687,6 +687,10 @@ export interface CharactersView {
   active: ActiveCharacter;
   unattributed: number;
   last_scan: string | null;
+  /** Characters of different accounts share a name: kept apart, the user picks. */
+  notice: string | null;
+  /** File name of the last Smart Citizen export imported on this channel. */
+  last_import: string | null;
 }
 
 export interface SetActiveCharacter {
@@ -775,6 +779,10 @@ export interface ImportRequest {
   target: ChannelRef;
   character: string;
   dry_run: boolean;
+  /** Read the file the dry run just read, else the last export imported here (no picker). */
+  reuse_last?: boolean;
+  /** Re-import: drop what an earlier import added and this export no longer has. */
+  replace?: boolean;
 }
 
 export interface AmbiguousName {
@@ -795,6 +803,36 @@ export interface ImportReport {
   ambiguous: AmbiguousName[];
   /** Game data was not read for this channel, so nothing could match. */
   empty_catalog: boolean;
+  /** `replace`: entries of an earlier import this export no longer has. */
+  removed: string[];
+}
+
+/** Re-read every log of a channel from the start. */
+export interface RescanRequest {
+  target: ChannelRef;
+  dry_run: boolean;
+  /** Start every set empty: only what the logs show is kept. */
+  replace?: boolean;
+}
+
+export interface CharacterChange {
+  /** geid; null for blueprints seen before any login. */
+  id: string | null;
+  name: string;
+  before: number;
+  after: number;
+  added: string[];
+  removed: string[];
+}
+
+export interface RescanReport {
+  channel: string;
+  dry_run: boolean;
+  replace: boolean;
+  files_read: number;
+  /** Characters merged into another (same account and name, new geid). */
+  merged: number;
+  characters: CharacterChange[];
 }
 
 // Fleet import and ship names (addendum §6) ---------------------------------------------

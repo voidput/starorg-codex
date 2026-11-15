@@ -40,6 +40,7 @@ use starorg_core::blueprints::{
     catalog::{BlueprintCatalog, GameDataCatalog},
     finder as bp_finder, import as bp_import,
     logscan::{self, Store},
+    repair as bp_repair,
 };
 use starorg_core::cache::{self, KeyInputs};
 use starorg_core::config::{self, Config, Outputs};
@@ -242,6 +243,9 @@ struct Mem {
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
     /// without a second picker.
     last_fleet: Option<(String, Vec<u8>)>,
+    /// The Smart Citizen export picked for the last dry run (channel data folder, file): the
+    /// confirm step reads the same file without a second picker.
+    last_export: Option<(PathBuf, PathBuf)>,
 }
 
 pub struct RealBackend {
@@ -1054,7 +1058,8 @@ impl RealBackend {
             &mut store,
             None,
         );
-        if r.disabled {
+        let repaired = r.repaired.as_ref().filter(|x| x.changed());
+        if r.disabled && repaired.is_none() {
             return;
         }
         if let Err(e) = store.save(&data) {
@@ -1064,7 +1069,41 @@ impl RealBackend {
                 Some(&ch.name),
                 &format!("blueprint scan not saved: {e}"),
             );
-        } else if !r.new_blueprints.is_empty() {
+            return;
+        }
+        self.after_merge(&ch.name, &store);
+        if let Some(x) = repaired {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Import),
+                Some(&ch.name),
+                &format!(
+                    "Owned blueprints updated for this version: {}. Backup in {}",
+                    x.summary(),
+                    x.backup
+                        .as_ref()
+                        .map_or_else(|| "-".into(), |b| b.display().to_string())
+                ),
+            );
+            self.forget_tables(f, ch);
+        }
+        if !r.merged.is_empty() {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Import),
+                Some(&ch.name),
+                &format!(
+                    "Merged {} reset character{} into the newest one (same account and name)",
+                    r.merged.len(),
+                    if r.merged.len() == 1 { "" } else { "s" }
+                ),
+            );
+            self.forget_tables(f, ch);
+        }
+        if r.disabled {
+            return;
+        }
+        if !r.new_blueprints.is_empty() {
             self.log(
                 LogLevel::Info,
                 Some(JobKind::Import),
@@ -1158,6 +1197,60 @@ impl RealBackend {
         inp
     }
 
+    /// After characters were merged: StarOrg push ticks that name a merged geid follow it.
+    fn after_merge(&self, channel: &str, store: &Store) {
+        if store.characters.aliases.is_empty() {
+            return;
+        }
+        let mut a = self.app_file();
+        let Some(ticked) = a.sync.get_mut(channel) else {
+            return;
+        };
+        let mut next: Vec<String> = Vec::new();
+        for g in ticked.iter() {
+            let c = store.characters.canonical(g);
+            if !next.contains(&c) {
+                next.push(c);
+            }
+        }
+        if *ticked != next {
+            *ticked = next;
+            if let Err(e) = self.save_app_file(&a) {
+                self.log(
+                    LogLevel::Warn,
+                    None,
+                    Some(channel),
+                    &format!("push characters not updated after a merge: {}", e.message),
+                );
+            }
+        }
+    }
+
+    /// `reuse_last`: the file the dry run of this channel just read, else the last export
+    /// imported here. `None` opens the picker.
+    fn reuse_export(&self, req: &ImportRequest) -> CmdResult<Option<PathBuf>> {
+        if !req.reuse_last {
+            return Ok(None);
+        }
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let data = self.data_dir(&f, ch);
+        if let Some((d, p)) = &self.mem().last_export
+            && *d == data
+        {
+            return Ok(Some(p.clone()));
+        }
+        bp_import::last_import(&data)
+            .smart_citizen
+            .map(Some)
+            .ok_or_else(|| {
+                err(
+                    ErrorCode::NotFound,
+                    "no earlier Smart Citizen import on this channel",
+                )
+            })
+    }
+
     fn characters_view(&self, f: &Found, ch: &Channel) -> CmdResult<CharactersView> {
         let data = self.data_dir(f, ch);
         if f.id.is_none() {
@@ -1171,9 +1264,28 @@ impl RealBackend {
                 },
                 unattributed: 0,
                 last_scan: None,
+                notice: None,
+                last_import: None,
             });
         }
         let chars = blueprints::load_characters(&data).map_err(io)?;
+        let mut by_name: BTreeMap<String, Vec<&str>> = BTreeMap::new();
+        for c in chars.characters.values() {
+            by_name
+                .entry(blueprints::normalize(&c.name))
+                .or_default()
+                .push(c.name.as_str());
+        }
+        let notice = by_name
+            .values()
+            .find(|v| v.len() > 1)
+            .map(|v| {
+                format!(
+                    "{} characters are named {} but belong to different accounts, so they are kept apart. Pick the one you play under One character.",
+                    v.len(),
+                    v[0]
+                )
+            });
         let setting = ChannelState::load(&data)
             .ok()
             .and_then(|s| s.active_character);
@@ -1209,6 +1321,10 @@ impl RealBackend {
                 .ok()
                 .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
                 .map(|d| fsutil::rfc3339(d.as_secs())),
+            notice,
+            last_import: bp_import::last_import(&data)
+                .smart_citizen
+                .and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())),
         })
     }
 
@@ -2502,14 +2618,18 @@ impl Backend for RealBackend {
     }
 
     fn import_smart_citizen(&self, req: ImportRequest) -> CmdResult<ImportReport> {
-        let d = self
-            .cfg
-            .dialogs
-            .get()
-            .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
-        let file = d
-            .pick_file("Smart Citizen export (owned-blueprints.json)", JSON_FILTER)
-            .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+        let file = match self.reuse_export(&req)? {
+            Some(p) => p,
+            None => {
+                let d = self
+                    .cfg
+                    .dialogs
+                    .get()
+                    .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?;
+                d.pick_file("Smart Citizen export (owned-blueprints.json)", JSON_FILTER)
+                    .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?
+            }
+        };
         let bytes = fsutil::read_limited(&file, bp_import::EXPORT_LIMIT)
             .map_err(io)?
             .ok_or_else(|| err(ErrorCode::NotFound, format!("{} not found", file.display())))?;
@@ -2556,9 +2676,22 @@ impl Backend for RealBackend {
                     _ => err(ErrorCode::NotFound, e.to_string()),
                 })?;
             let set = store.set_mut(&data, &geid).map_err(io)?;
-            let rep = bp_import::merge(&export, &catalog as &dyn BlueprintCatalog, set);
-            if !req.dry_run && !rep.empty_catalog {
+            let rep =
+                bp_import::merge_with(&export, &catalog as &dyn BlueprintCatalog, set, req.replace);
+            if req.dry_run {
+                self.mem().last_export = Some((data.clone(), file.clone()));
+            } else if !rep.empty_catalog {
                 store.save(&data).map_err(io)?;
+                self.after_merge(&ch.name, &store);
+                let abs = fsutil::canonicalize(&file).unwrap_or_else(|_| file.clone());
+                if let Err(e) = bp_import::save_last_import(&data, &abs) {
+                    self.log(
+                        LogLevel::Warn,
+                        Some(JobKind::Import),
+                        Some(&ch.name),
+                        &format!("could not remember the export for a re-import: {e}"),
+                    );
+                }
             }
             Ok::<_, AppError>(rep)
         })();
@@ -2575,10 +2708,12 @@ impl Backend for RealBackend {
             Some(JobKind::Import),
             Some(&ch.name),
             &format!(
-                "Smart Citizen import{}: {} new, {} known, {} unmatched, {} ambiguous",
+                "Smart Citizen {}{}: {} new, {} known, {} removed, {} unmatched, {} ambiguous",
+                if req.replace { "re-import" } else { "import" },
                 if req.dry_run { " (dry run)" } else { "" },
                 rep.imported.len(),
                 rep.known.len(),
+                rep.removed.len(),
                 rep.unmatched.len(),
                 rep.ambiguous.len()
             ),
@@ -2606,6 +2741,73 @@ impl Backend for RealBackend {
                 })
                 .collect(),
             empty_catalog: rep.empty_catalog,
+            removed: rep.removed,
+        })
+    }
+
+    fn rescan_logs(&self, req: RescanRequest) -> CmdResult<RescanReport> {
+        let mut f = self.resolve(&req.target)?;
+        if !req.dry_run {
+            self.register(&mut f)?;
+        }
+        let ch = f.channel(&req.target.channel)?;
+        if !self.prefs().import_game_log {
+            return Err(err(
+                ErrorCode::Invalid,
+                "Reading Game.log is off (Settings, Blueprints from Game.log); no log was read.",
+            ));
+        }
+        let data = self.data_dir(&f, ch);
+        let _lock = match (&f.id, req.dry_run) {
+            (Some(id), false) => Some(self.blueprint_lock(id, ch)?),
+            _ => None,
+        };
+        let mut store = if f.id.is_some() {
+            Store::load(&data).map_err(io)?
+        } else {
+            Store::default()
+        };
+        let rep = bp_repair::rebuild_from_logs(&ch.dir, &data, &mut store, req.replace, None)
+            .map_err(io)?;
+        if !req.dry_run && f.id.is_some() {
+            store.save(&data).map_err(io)?;
+            self.after_merge(&ch.name, &store);
+            self.forget_tables(&f, ch);
+        }
+        let changes = rep
+            .characters
+            .iter()
+            .map(|c| c.added.len() + c.removed.len())
+            .sum::<usize>();
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Import),
+            Some(&ch.name),
+            &format!(
+                "Re-scan of the game logs{}: {} files read, {changes} blueprint changes, {} characters merged",
+                if req.dry_run { " (dry run)" } else { "" },
+                rep.scan.files_read,
+                rep.scan.merged.len()
+            ),
+        );
+        Ok(RescanReport {
+            channel: ch.name.clone(),
+            dry_run: req.dry_run,
+            replace: req.replace,
+            files_read: rep.scan.files_read as u32,
+            merged: rep.scan.merged.len() as u32,
+            characters: rep
+                .characters
+                .into_iter()
+                .map(|c| CharacterChange {
+                    id: c.id,
+                    name: c.name,
+                    before: c.before as u32,
+                    after: c.after as u32,
+                    added: c.added,
+                    removed: c.removed,
+                })
+                .collect(),
         })
     }
 
