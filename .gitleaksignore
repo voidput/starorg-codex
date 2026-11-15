@@ -4,3 +4,6 @@
 # 2. The first version of this file quoted that decoded line in a comment.
 63e7359bb57110b9087148c6bdc3bbe1b1b21c7e:app/src-tauri/src/update/host.rs:generic-api-key:158
 c1453dd9ea3aa14380c5c7ec87aef21c1b285a3a:.gitleaksignore:generic-api-key:3
+# Fixed placeholder bearer token in the MCP status contract sample and its test (a real run uses a random one).
+3ed87710a1f1a14d6d3775c4a846f38d415782b1:app/src/lib/contract/samples.gen.json:generic-api-key:5107
+3ed87710a1f1a14d6d3775c4a846f38d415782b1:app/src-tauri/src/contract/tests.rs:generic-api-key:244
