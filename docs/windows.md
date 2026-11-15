@@ -14,7 +14,7 @@ get it, from the same code:
 | Files | `StarOrg Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-codex-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
 | Signed | Yes once Azure Artifact Signing is set up ([Code signing](#code-signing)); until then unsigned | Signed by Microsoft when published |
 | Updates | In the app (Settings -> Network -> Check for updates, off by default), signed with the updater key ([updates](updates.md)) | Only through the Store. The app never checks GitHub and never installs an update ("Updates come from the Microsoft Store.") |
-| App data | `%APPDATA%\StarOrg Tools\Codex\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\` | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
+| App data | `%APPDATA%\StarOrg Tools\Codex\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\` (extracted game text; the Developer mode asset cache in `assets\`, 2 GB by default or a folder you choose; MCP datasets in `mcp\`) | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
 | CLI | In the zip | Not included |
 | Uninstall | Settings -> Apps. **Run Remove in the app first**: the uninstaller option that puts the game back to stock (spec 2) is not built yet | Settings -> Apps. **Run Remove in the app first**: a Store package cannot run code when it is uninstalled |
 
@@ -48,7 +48,19 @@ for one release that prints a deprecation line.
 5. Do **not** run StarOrg Codex as administrator. It refuses to change game files when
    elevated (a mistake there could leave files only an administrator can fix).
 
-The portable zip (CLI `starorg-codex.exe`) needs no install; unzip it anywhere.
+The portable zip (CLI `starorg-codex.exe`) needs no install; unzip it anywhere. To run it as
+`starorg-codex` from any terminal, put it in a folder on your user `PATH`, e.g. in PowerShell:
+
+```powershell
+$bin = "$env:LOCALAPPDATA\Programs\starorg-codex"
+New-Item -ItemType Directory -Force $bin | Out-Null
+Copy-Item .\starorg-codex.exe $bin
+$path = [Environment]::GetEnvironmentVariable('Path', 'User')
+if (($path -split ';') -notcontains $bin) { [Environment]::SetEnvironmentVariable('Path', "$path;$bin", 'User') }
+```
+
+Open a new terminal, then check with `starorg-codex --version` and `starorg-codex doctor`
+(installs, paths, other tools' traces; changes nothing). Without this, call it by its full path.
 
 ## First run
 
@@ -117,6 +129,9 @@ The same as on Linux (spec 7, [linux](linux.md)), with these Windows parts:
 | SmartScreen blocks the installer | More info -> Run anyway (unsigned builds), or use the Store version |
 | The window stays blank | Install or repair the WebView2 runtime from Microsoft, then restart the app |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
+| `starorg-codex` is not recognized | The CLI folder is not on `PATH`: see [Install](#install-direct-download), or call it by full path |
+| Developer mode or the MCP server refuses a dataset ("needs about 4.1 GB, more than the ... memory limit allows") | Raise Settings -> Advanced -> Memory limit (default 5 GB or half the RAM). Each worker stops itself at 90% of the limit; Windows has no hard cap |
+| Developer mode: a sound will not play ("The app's webview could not play…") | WebView2 plays the converted sound itself and needs no extra codecs; repair the WebView2 runtime and restart the app. Exporting the sound and playing it in another player works either way |
 | Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints\backups\`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-codex blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
 
 Diagnostics (Activity -> Diagnostics) exports a report with user names and home paths replaced.

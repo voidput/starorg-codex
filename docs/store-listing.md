@@ -15,8 +15,9 @@ StarOrg Codex
 
 ## Short description
 
-Clearer Star Citizen item, ship and mission text: component tags, stat lines and mission info,
-applied to your own install and removable in one click.
+Clearer Star Citizen item, ship and mission text: component tags, stats, mission rewards with
+[Owned] blueprint markers and quest item hints, applied to your own install and removable in one
+click.
 
 ## Description
 
@@ -26,6 +27,22 @@ It builds a new text file for the game from the files of your own install: compo
 short tags such as size, class and grade, ship and weapon descriptions get a stats block, and
 mission text gets the facts you would otherwise look up. You choose what is added, preview every
 change before it is written, and can go back to the game's own text at any time.
+
+Blueprints
+- See which blueprints a contract can reward, marked [Owned] or [Missing] for your character,
+  and [BP] / [BP Owned] in contract titles.
+- A finder with every blueprint of the build and who owns it, per character and channel.
+- Ownership comes from your game log, an import from Smart Citizen's blueprint tracker, or the
+  optional StarOrg Tools sync.
+
+More in game
+- Quest items say which contract uses them, with hand-written notes for missions such as
+  Vanduul-Tech Smugglers.
+- Fixes for known text bugs, and your own edits to any line.
+- Your ships first in game ship lists, in your order and with your names.
+
+For the curious: Developer mode adds an item finder over the game's records, data tables and a
+diff between builds, a game file browser, sounds and model export.
 
 How it works
 - Finds your game through the RSI Launcher logs or the folder you pick.
@@ -50,6 +67,11 @@ Requires a Star Citizen installation.
 - Component tags: size, class and grade in item names
 - Stats blocks for ships, ship weapons, personal weapons and missiles
 - Mission info in contract descriptions
+- [Owned] / [Missing] blueprint markers and [BP] title tags, in colours you choose
+- Blueprint finder per character and channel; game log and Smart Citizen import
+- Quest item hints and fixes for known text bugs
+- Ship order and names in game lists from your fleet
+- Strings browser: every text key, what it belongs to, and your own edits
 - Preview every changed line before applying
 - Automatic backup of the existing text file; one-click restore
 - Works with LIVE, PTU, EPTU, HOTFIX and other channels
@@ -58,7 +80,8 @@ Requires a Star Citizen installation.
 
 ## Search terms
 
-Star Citizen, localization, global.ini, item names, component tags, ship stats, mission info
+Star Citizen, localization, global.ini, item names, component tags, ship stats, mission info,
+blueprints, owned blueprints, quest items, crafting
 
 ## Screenshots
 
@@ -76,6 +99,14 @@ In order:
 6. `backups-foreign-restore` - another tool's file backed up and restorable
 7. `home-running` - the "game is running" guard
 8. `settings-updates-store` - Store build: "Updates come from the Microsoft Store."
+9. `bp-live-owned` (`app/scripts/render-blueprints.cjs`, output `.tmp/renders/blueprints/`) -
+   the blueprint finder with owners
+10. `enhancements-colours` (`render-screens.cjs`) - [Owned] / [Missing] markers and their colours
+    in the in-game preview
+11. A Quest items shot: `enhancements` with the **Quest items** tab selected (add a
+    `render-screens.cjs` entry like `enhancements-ships` that clicks the tab `/^Quest items/`)
+12. `ships-imported` (`app/scripts/render-fleet.cjs`, output `.tmp/renders/fleet/`) - Ships: your
+    fleet in order with names
 
 Do not include the Star Citizen logo or game art.
 

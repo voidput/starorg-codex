@@ -24,7 +24,7 @@ the manual way.
 ## Flavours
 
 All files are on the [release page](https://github.com/voidput/starorg-codex/releases).
-`<v>` is the version without the `v`, e.g. `0.1.0`.
+`<v>` is the version without the `v`, e.g. `0.3.0`.
 
 | | AppImage | .deb | .rpm | CLI tarball | Build from source |
 |---|---|---|---|---|---|
@@ -44,7 +44,9 @@ to stock, use **Remove** in the app or `starorg-codex remove --all` *before* you
 |---|---|
 | Config (profiles, settings) | `${XDG_CONFIG_HOME:-~/.config}/starorg-codex/` |
 | Data (backups of game files, blueprints, update state `app-update.json`) | `${XDG_DATA_HOME:-~/.local/share}/starorg-codex/` |
-| Cache (extracted game text, GameData) | `${XDG_CACHE_HOME:-~/.cache}/starorg-codex/` |
+| Cache (extracted game text, GameData; can be deleted, it is rebuilt) | `${XDG_CACHE_HOME:-~/.cache}/starorg-codex/` |
+| Asset cache (Developer mode: decoded sounds, exported models, texture previews; 2 GB by default, Settings -> Advanced) | `<cache>/assets/`, or a `StarOrg Codex asset cache` subfolder of a folder you choose |
+| MCP datasets (local MCP server, experimental) | `<cache>/mcp/` |
 | Webview storage (WebKitGTK, made by Tauri) | `~/.local/share/tools.starorg.codex/`, `~/.cache/tools.starorg.codex/` |
 
 Nothing of ours is stored in the game folder, so the RSI Launcher's "Verify files" cannot
