@@ -304,35 +304,35 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$TAG" dist/*.msix --clobber
       # Optional, off by default: submit the package to Partner Center with the msstore CLI.
-      # Needs the repo variable MSSTORE_SUBMIT=true and the Partner Center API secrets
+      # Needs the repo variable MS_STORE_SUBMIT=true and the Partner Center API secrets
       # (docs/windows.md, "Automatic submission"). Otherwise the owner uploads the .msix by hand.
       - name: Check the Partner Center secrets
-        if: steps.identity.outputs.configured == 'true' && vars.MSSTORE_SUBMIT == 'true'
+        if: steps.identity.outputs.configured == 'true' && vars.MS_STORE_SUBMIT == 'true'
         shell: bash
         env:
-          HAS_ALL: ${{ secrets.MSSTORE_TENANT_ID != '' && secrets.MSSTORE_SELLER_ID != '' && secrets.MSSTORE_CLIENT_ID != '' && secrets.MSSTORE_CLIENT_SECRET != '' && vars.MSSTORE_PRODUCT_ID != '' }}
+          HAS_ALL: ${{ secrets.MS_STORE_TENANT_ID != '' && secrets.MS_STORE_SELLER_ID != '' && secrets.MS_STORE_CLIENT_ID != '' && secrets.MS_STORE_CLIENT_SECRET != '' && vars.MS_STORE_ID != '' }}
         run: |
           if [ "$HAS_ALL" != "true" ]; then
-            echo "::error::MSSTORE_SUBMIT is true but a Partner Center secret or MSSTORE_PRODUCT_ID is missing (docs/windows.md)"
+            echo "::error::MS_STORE_SUBMIT is true but a Partner Center secret or MS_STORE_ID is missing (docs/windows.md)"
             exit 1
           fi
       - uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
-        if: steps.identity.outputs.configured == 'true' && vars.MSSTORE_SUBMIT == 'true'
+        if: steps.identity.outputs.configured == 'true' && vars.MS_STORE_SUBMIT == 'true'
       # --noCommit: the package lands in a draft submission; the owner reviews and submits it
       # in Partner Center (listing text, screenshots, age rating stay hand-made).
       - name: Submit to Partner Center (msstore, draft)
-        if: steps.identity.outputs.configured == 'true' && vars.MSSTORE_SUBMIT == 'true'
+        if: steps.identity.outputs.configured == 'true' && vars.MS_STORE_SUBMIT == 'true'
         shell: pwsh
         env:
-          MSSTORE_TENANT_ID: ${{ secrets.MSSTORE_TENANT_ID }}
-          MSSTORE_SELLER_ID: ${{ secrets.MSSTORE_SELLER_ID }}
-          MSSTORE_CLIENT_ID: ${{ secrets.MSSTORE_CLIENT_ID }}
-          MSSTORE_CLIENT_SECRET: ${{ secrets.MSSTORE_CLIENT_SECRET }}
-          MSSTORE_PRODUCT_ID: ${{ vars.MSSTORE_PRODUCT_ID }}
+          MS_STORE_TENANT_ID: ${{ secrets.MS_STORE_TENANT_ID }}
+          MS_STORE_SELLER_ID: ${{ secrets.MS_STORE_SELLER_ID }}
+          MS_STORE_CLIENT_ID: ${{ secrets.MS_STORE_CLIENT_ID }}
+          MS_STORE_CLIENT_SECRET: ${{ secrets.MS_STORE_CLIENT_SECRET }}
+          MS_STORE_ID: ${{ vars.MS_STORE_ID }}
         run: |
-          msstore reconfigure --tenantId $env:MSSTORE_TENANT_ID --sellerId $env:MSSTORE_SELLER_ID --clientId $env:MSSTORE_CLIENT_ID --clientSecret $env:MSSTORE_CLIENT_SECRET
+          msstore reconfigure --tenantId $env:MS_STORE_TENANT_ID --sellerId $env:MS_STORE_SELLER_ID --clientId $env:MS_STORE_CLIENT_ID --clientSecret $env:MS_STORE_CLIENT_SECRET
           $pkg = Get-ChildItem dist\*.msix | Select-Object -First 1
-          msstore publish $pkg.FullName --appId $env:MSSTORE_PRODUCT_ID --noCommit
+          msstore publish $pkg.FullName --appId $env:MS_STORE_ID --noCommit
           if ($LASTEXITCODE -ne 0) { throw "msstore publish failed ($LASTEXITCODE)" }
   checksums:
     needs: [release-please, cli, app, store]

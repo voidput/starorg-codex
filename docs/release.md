@@ -60,8 +60,8 @@ Windows extras, all optional (setup steps in [windows](windows.md)):
 | `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, `AZURE_TENANT_ID` | secrets | Artifact Signing app registration |
 | `AZURE_SIGNING_ENDPOINT`, `AZURE_SIGNING_ACCOUNT`, `AZURE_SIGNING_PROFILE` | variables | Artifact Signing account and certificate profile |
 | `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME` | variables | Store package identity (Partner Center -> Product identity) |
-| `MSSTORE_SUBMIT` (`true`), `MSSTORE_PRODUCT_ID` | variables | Optional draft submission with the msstore CLI |
-| `MSSTORE_TENANT_ID`, `MSSTORE_SELLER_ID`, `MSSTORE_CLIENT_ID`, `MSSTORE_CLIENT_SECRET` | secrets | Partner Center API, only with `MSSTORE_SUBMIT` |
+| `MS_STORE_SUBMIT` (`true`), `MS_STORE_ID` | variables | Optional draft submission with the msstore CLI |
+| `MS_STORE_TENANT_ID`, `MS_STORE_SELLER_ID`, `MS_STORE_CLIENT_ID`, `MS_STORE_CLIENT_SECRET` | secrets | Partner Center API, only with `MS_STORE_SUBMIT` |
 
 Each missing group gives a notice in the run and leaves that part out; a release never fails for
 lack of signing or Store setup.

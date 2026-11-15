@@ -16,5 +16,6 @@ regexes = [
 
 [[allowlists]]
 description = "minisign/Tauri updater PUBLIC keys (base64 of 'untrusted comment: minisign public key:'); private keys do not match"
-regexTarget = "secret"
-regexes = ['''^dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6[A-Za-z0-9+/=]*$''']
+# Match on the whole line: generic-api-key may capture only part of the base64 string.
+regexTarget = "line"
+regexes = ['''dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6[A-Za-z0-9+/=]*''']

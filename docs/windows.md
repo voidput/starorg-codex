@@ -152,6 +152,8 @@ Owner setup:
 3. Product management -> **Product identity**: copy *Package/Identity/Name*,
    *Package/Identity/Publisher* (`CN=...`) and *Package/Properties/PublisherDisplayName* into the
    repo **variables** `MSIX_IDENTITY_NAME`, `MSIX_PUBLISHER`, `MSIX_PUBLISHER_DISPLAY_NAME`.
+   (Done 2026-11-14 for "StarOrg Strings", Store ID in `MS_STORE_ID`, package family name in
+   `MS_STORE_PFN`; steps 1-3 are only needed again for a new account.)
 4. Next release: download the `.msix` from the release, start a submission, upload it under
    Packages.
 5. Fill in the listing from [store-listing](store-listing.md), the privacy policy URL
@@ -175,13 +177,13 @@ not use the Star Citizen logo or game art in the screenshots or logos.
 
 ### Automatic submission (optional, off by default)
 
-With the repo variable `MSSTORE_SUBMIT=true`, the store job also sends the package to Partner
+With the repo variable `MS_STORE_SUBMIT=true`, the store job also sends the package to Partner
 Center as a **draft** (`msstore publish --noCommit`); you still review and submit by hand. Needs
 an Entra app with Partner Center API access (Partner Center -> Account settings -> User
 management -> Microsoft Entra applications) and:
 
-- secrets `MSSTORE_TENANT_ID`, `MSSTORE_SELLER_ID`, `MSSTORE_CLIENT_ID`, `MSSTORE_CLIENT_SECRET`;
-- variable `MSSTORE_PRODUCT_ID` (the Store ID, e.g. `9N...`).
+- secrets `MS_STORE_TENANT_ID`, `MS_STORE_SELLER_ID`, `MS_STORE_CLIENT_ID`, `MS_STORE_CLIENT_SECRET`;
+- variable `MS_STORE_ID` (the Store ID, e.g. `9N...`).
 
 A missing one fails that step with a clear error; the `.msix` is already on the release by then.
 Check the first run against Microsoft's current `msstore` CLI docs, since its flags change.
