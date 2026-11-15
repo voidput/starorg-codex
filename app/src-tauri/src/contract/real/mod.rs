@@ -1626,6 +1626,18 @@ impl Backend for RealBackend {
         if let Some(why) = &out.reason {
             msg.push_str(&format!(" ({why})"));
         }
+        // A warning row must say what the warning is, not only "applied" (Activity list).
+        if let Some(w) = out.warnings.first() {
+            let n = out.warnings.len();
+            msg.push_str(&format!(
+                " with {n} warning{}: {}",
+                if n == 1 { "" } else { "s" },
+                w.detail
+            ));
+            if n > 1 {
+                msg.push_str(&format!(" (+{} more)", n - 1));
+            }
+        }
         self.log(level, Some(JobKind::Apply), Some(&name), &msg);
         let phase = if out.result == ApplyResult::Failed {
             JobPhase::Failed
