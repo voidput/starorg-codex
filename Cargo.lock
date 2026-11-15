@@ -475,6 +475,7 @@ version = "0.0.0"
 name = "starorg-core"
 version = "0.0.0"
 dependencies = [
+ "thiserror",
  "toml",
 ]
 
