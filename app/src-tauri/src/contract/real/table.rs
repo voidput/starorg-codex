@@ -38,6 +38,20 @@ pub struct Table {
     pub owners: Arc<OwnerIndex>,
 }
 
+/// Names and makers of the secondary owners, lower case, for search (`None` when none).
+pub fn other_owners<'a>(rest: impl Iterator<Item = owners::Owner<'a>>) -> Option<Box<str>> {
+    let mut out = String::new();
+    for o in rest {
+        out.push_str(&o.name.to_lowercase());
+        out.push('\n');
+        if let Some(d) = o.detail {
+            out.push_str(&d.to_lowercase());
+            out.push('\n');
+        }
+    }
+    (!out.is_empty()).then(|| out.into())
+}
+
 /// A core owner in contract terms.
 pub fn key_owner(o: owners::Owner<'_>) -> KeyOwner {
     use owners::{Field as F, OwnerKind as K};
@@ -205,6 +219,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
             size: i.groups.size(row_no).map(u32::from),
             owner: i.owners.primary(row_no).map(|o| Box::new(key_owner(o))),
             owners: i.owners.count(row_no) as u32,
+            other_owners: other_owners(i.owners.owners(row_no).skip(1)),
         });
         also.push(
             i.groups

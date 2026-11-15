@@ -77,6 +77,9 @@ fn matches(r: &StringRow, needle: &str) -> bool {
         || r.owner
             .as_deref()
             .is_some_and(|o| has(&o.name) || o.detail.as_deref().is_some_and(has))
+        || r.other_owners
+            .as_deref()
+            .is_some_and(|s| s.contains(needle))
 }
 
 /// A page row without an owner gets the readable key (`kind: key`).

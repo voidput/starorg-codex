@@ -1428,6 +1428,15 @@ fn strings_rows_carry_readable_owners() {
     assert_eq!(d.owners.len() as u32, shared.owners);
     assert_eq!(Some(&d.owners[0]), shared.owner.as_deref());
     assert!(d.owners[1].name.ends_with("Turret"));
+    // Search finds a key by a secondary owner too.
+    let turrets = b
+        .query_strings(StringsQuery {
+            limit: 50,
+            ..query("repeater 10 turret")
+        })
+        .unwrap();
+    assert!(turrets.total > 0);
+    assert!(turrets.rows.iter().all(|r| r.owners > 1));
 }
 
 /// Addendum 8.4: one group per row, tree counts follow the facet rule, a parent selects its

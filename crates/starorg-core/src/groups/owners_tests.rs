@@ -94,7 +94,7 @@ fn game_data() -> GameData {
     });
     gd.components.push(Component {
         item: item(
-            "COOL_AEGS_S01_Bracer",
+            "COOL_AEGS_S01_Bracer_Copy",
             "item_NameCOOL_AEGS_S01_Bracer",
             Some("item_DescShared"),
             Some("AEGS"),
@@ -194,7 +194,7 @@ fn records_name_their_keys_with_the_field() {
     assert_eq!(
         (o.name, o.field, o.kind),
         (
-            "Bounty: ~mission(TargetName)",
+            "Bounty: [target name]",
             Field::Description,
             OwnerKind::Mission
         )
@@ -225,22 +225,21 @@ fn shared_keys_list_every_owner_namesake_first() {
     assert_eq!(
         all,
         vec![
-            ("Bracer", OwnerKind::Component),
-            ("P4-AR Rifle", OwnerKind::FpsWeapon)
+            ("P4-AR Rifle", OwnerKind::FpsWeapon),
+            ("Bracer", OwnerKind::Component)
         ]
     );
-    // The namesake record goes first even when its kind sorts later.
+    // The namesake record goes first even when its kind ranks later (a component).
     let mut gd = game_data();
-    gd.weapons[0].item.loc.desc = Some("@item_DescBEHR_Rifle".into());
-    gd.components[0].item.loc.desc = Some("@item_DescBEHR_Rifle".into());
+    gd.weapons[0].item.loc.desc = Some("@item_DescCOOL_AEGS_S01_Bracer".into());
     let s2 = stock(&[
-        ("item_DescBEHR_Rifle", "x"),
+        ("item_DescCOOL_AEGS_S01_Bracer", "x"),
         ("item_NameBEHR_Rifle", "P4-AR Rifle"),
         ("item_NameCOOL_AEGS_S01_Bracer", "Bracer"),
     ]);
     let idx2 = OwnerIndex::build(&s2, &gd);
     let first = idx2.primary(0).unwrap();
-    assert_eq!(first.name, "P4-AR Rifle");
+    assert_eq!(first.name, "Bracer");
     assert_eq!(idx2.count(0), 2);
 }
 
@@ -330,6 +329,21 @@ fn real_cache_entry() {
     let records = (0..rows)
         .filter(|r| idx.primary(*r).is_some_and(|o| o.kind != OwnerKind::Named))
         .count();
+    let mut kinds: std::collections::BTreeMap<&str, usize> = Default::default();
+    for r in 0..rows {
+        if idx.count(r) > 1 {
+            *kinds
+                .entry(idx.primary(r).unwrap().kind.label())
+                .or_default() += 1;
+        }
+    }
+    let mut prim: std::collections::BTreeMap<&str, usize> = Default::default();
+    for r in 0..rows {
+        if let Some(o) = idx.primary(r) {
+            *prim.entry(o.kind.label()).or_default() += 1;
+        }
+    }
+    eprintln!("shared by primary kind {kinds:?}\nprimary kinds {prim:?}");
     eprintln!(
         "keys {rows}, with owner {owned} ({records} from records), shared {shared}, distinct owners {}, build {took:?}, heap {} KiB",
         idx.records(),
@@ -343,6 +357,15 @@ fn real_cache_entry() {
         "Pyro1_L2_03_desc",
         "item_Desc_fta_medium_helmet_01_04_10",
         "hud_law_TrespassAreaRevokedAuthorisation",
+        "item_NameBEHR_LaserCannon_S1",
+        "item_DescKLWE_LaserRepeater_S3",
+        "item_NameGMISL_S03_EM_FSKI_Thunderbolt",
+        "item_NameQDMP_WETK_S01_Burke",
+        "item_DescHRST_S3_RPOD_18x_S1",
+        "vehicle_NameARGO_CSV_Cargo",
+        "item_DescGMNI_rifle_ballistic_01",
+        "item_DescGMNI_rifle_ballistic_01_grey_red01",
+        "item_Descgmni_rifle_ballistic_01_mag",
     ] {
         let r = stock.entries().position(|(_, k, _)| k == key);
         let o = r.and_then(|r| idx.primary(r));
@@ -368,4 +391,181 @@ fn real_cache_entry() {
         std::fs::write(out, tsv).unwrap();
     }
     assert!(owned * 3 > rows / 2, "{owned} of {rows} keys have an owner");
+}
+
+fn one_key(lines: &[(&str, &str)], gd: &GameData) -> (StockIni, OwnerIndex) {
+    let s = stock(lines);
+    let idx = OwnerIndex::build(&s, gd);
+    (s, idx)
+}
+
+#[test]
+fn a_record_in_components_and_weapons_is_one_owner_of_the_specific_kind() {
+    let gun = item(
+        "BEHR_LaserCannon_S1",
+        "item_NameBEHR_LaserCannon_S1",
+        Some("item_DescBEHR_LaserCannon_S1"),
+        Some("BEHR"),
+    );
+    let mut gd = GameData::default();
+    gd.components.push(Component {
+        item: gun.clone(),
+        category: "weapons".into(),
+        ..Default::default()
+    });
+    gd.weapons.push(Weapon {
+        item: gun,
+        class: WeaponClass::Ship,
+        ..Default::default()
+    });
+    let missile = item(
+        "MISL_S03_Thunderbolt",
+        "item_NameMISL_Thunderbolt",
+        None,
+        None,
+    );
+    gd.components.push(Component {
+        item: missile.clone(),
+        category: "missiles".into(),
+        ..Default::default()
+    });
+    gd.missiles.push(crate::model::Missile {
+        item: missile,
+        ..Default::default()
+    });
+    let (s, idx) = one_key(
+        &[
+            ("item_NameBEHR_LaserCannon_S1", "M3A Cannon"),
+            ("item_DescBEHR_LaserCannon_S1", "A cannon."),
+            ("item_NameMISL_Thunderbolt", "Thunderbolt III"),
+            ("manufacturer_NameBEHR", "Behring"),
+        ],
+        &gd,
+    );
+    for (key, kind) in [
+        ("item_NameBEHR_LaserCannon_S1", OwnerKind::ShipWeapon),
+        ("item_DescBEHR_LaserCannon_S1", OwnerKind::ShipWeapon),
+        ("item_NameMISL_Thunderbolt", OwnerKind::Missile),
+    ] {
+        let r = row(&s, key);
+        assert_eq!(idx.count(r), 1, "{key}");
+        assert_eq!(idx.primary(r).unwrap().kind, kind, "{key}");
+    }
+}
+
+#[test]
+fn one_record_under_two_fields_and_makerless_copies_count_once() {
+    let mut gd = GameData::default();
+    // Name and short name are the same key: one owner, the name field.
+    let mut qd = item("QDMP_WETK_S01_Burke", "item_NameBurke", None, Some("WETK"));
+    qd.loc.short_name = Some("@item_NameBurke".into());
+    gd.components.push(Component {
+        item: qd,
+        category: "quantumDrives".into(),
+        ..Default::default()
+    });
+    // The same rack with and without a maker, and twice more: one owner, with the maker.
+    for (rec, mfr) in [
+        ("HRST_RPOD_A", None),
+        ("HRST_RPOD_B", Some("HRST")),
+        ("HRST_RPOD_C", None),
+        ("HRST_RPOD_D", Some("HRST")),
+    ] {
+        gd.components.push(Component {
+            item: item(rec, "item_NameRack", Some("item_DescRack"), mfr),
+            category: "missileRacks".into(),
+            ..Default::default()
+        });
+    }
+    let (s, idx) = one_key(
+        &[
+            ("item_NameBurke", "Burke"),
+            ("item_NameRack", "Rack"),
+            ("item_DescRack", "A rack."),
+            ("manufacturer_NameHRST", "Hurston Dynamics"),
+        ],
+        &gd,
+    );
+    let r = row(&s, "item_NameBurke");
+    assert_eq!(idx.count(r), 1);
+    assert_eq!(idx.primary(r).unwrap().field, Field::Name);
+    let r = row(&s, "item_DescRack");
+    assert_eq!(idx.count(r), 1);
+    assert_eq!(idx.primary(r).unwrap().detail, Some("Hurston Dynamics"));
+}
+
+#[test]
+fn names_are_cleaned_or_refused() {
+    let mut gd = GameData::default();
+    for (rec, key, mfr) in [
+        ("A_Missing", "item_NameMissing", None),
+        ("B_PH", "item_NamePh", None),
+        ("C_Cargo", "item_NameCargo", Some("NONE")),
+    ] {
+        gd.components.push(Component {
+            item: item(rec, key, None, mfr),
+            category: "coolers".into(),
+            ..Default::default()
+        });
+    }
+    let (s, idx) = one_key(
+        &[
+            ("item_NameMissing", "<-=MISSING=->"),
+            ("item_NamePh", "PH - Cooler"),
+            ("item_NameCargo", "\\nArgo CSV Cargo\\n"),
+            ("manufacturer_NameNONE", "Unknown"),
+            ("item_Name_x_desc_thing", "Thing"),
+            ("item_Desc_x_desc_thing", "About it."),
+        ],
+        &gd,
+    );
+    // Placeholders fall back to the record name, never shown as a name.
+    assert_eq!(
+        primary(&s, &idx, "item_NameMissing").unwrap().name,
+        "A_Missing"
+    );
+    assert_eq!(primary(&s, &idx, "item_NamePh").unwrap().name, "B_PH");
+    let o = primary(&s, &idx, "item_NameCargo").unwrap();
+    assert_eq!((o.name, o.detail), ("Argo CSV Cargo", None));
+    assert_eq!(
+        humanise_vars("Kill ~mission(TargetName) at ~mission(Location)"),
+        "Kill [target name] at [location]"
+    );
+    assert_eq!(humanise_vars("50~ off"), "50~ off");
+    assert_eq!(humanise_vars("~mission (title) cargo"), "[title] cargo");
+    assert!(as_name("PH").is_none() && as_name("PH Associated Science").is_none());
+}
+
+#[test]
+fn variants_without_a_name_take_their_base_name_and_suffix() {
+    let (s, idx) = one_key(
+        &[
+            ("item_Namegmni_rifle_ballistic_01", "Gemini S71 Rifle"),
+            ("item_Descgmni_rifle_ballistic_01", "Base text."),
+            (
+                "item_Descgmni_rifle_ballistic_01_grey_red01",
+                "Variant text.",
+            ),
+            (
+                "item_Namegmni_rifle_ballistic_01_store01",
+                "S71 Rifle Store Edition",
+            ),
+            ("item_Descgmni_rifle_ballistic_01_store01", "Store text."),
+        ],
+        &GameData::default(),
+    );
+    let o = primary(&s, &idx, "item_Descgmni_rifle_ballistic_01_grey_red01").unwrap();
+    assert_eq!(
+        (o.name, o.field),
+        ("Gemini S71 Rifle (grey_red01)", Field::Description)
+    );
+    // A variant the game names reads as its own item.
+    let o = primary(&s, &idx, "item_Descgmni_rifle_ballistic_01_store01").unwrap();
+    assert_eq!(o.name, "S71 Rifle Store Edition");
+    assert_eq!(
+        primary(&s, &idx, "item_Descgmni_rifle_ballistic_01")
+            .unwrap()
+            .name,
+        "Gemini S71 Rifle"
+    );
 }

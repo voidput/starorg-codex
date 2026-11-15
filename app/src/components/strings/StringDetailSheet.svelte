@@ -42,6 +42,9 @@
   let loadError = $state<ContractError | null>(null);
   let retry = $state(0);
   let askClose = $state(false);
+  /** The detail lists this many owners of a shared key until "Show all". */
+  const OWNERS_SHOWN = 8;
+  let allOwners = $state(false);
 
   $effect(() => {
     const k = rowKey;
@@ -50,6 +53,7 @@
     const t = $state.snapshot(target);
     let stale = false;
     detail = null;
+    allOwners = false;
     rejected = null;
     loadError = null;
     askClose = false;
@@ -134,13 +138,16 @@
       <section aria-labelledby="sd-owner" class="grid gap-1.5">
         <h3 id="sd-owner" class="eyebrow text-muted-foreground">{d.owners.length > 1 ? `Used by ${d.owners.length} records` : 'What this is'}</h3>
         <ul class="grid gap-1">
-          {#each d.owners.length ? d.owners : [d.row.owner] as o, i (i)}
+          {#each d.owners.length ? (allOwners ? d.owners : d.owners.slice(0, OWNERS_SHOWN)) : [d.row.owner] as o, i (i)}
             <li class="leading-snug">
               <span class={cn(o?.kind === 'key' && 'text-muted-foreground')}>{ownerLabel(o, d.row.key)}</span>
               {#if ownerContext(o)}<span class="text-muted-foreground text-[12px]"> — {ownerContext(o)}</span>{/if}
             </li>
           {/each}
         </ul>
+        {#if d.owners.length > OWNERS_SHOWN && !allOwners}
+          <Button variant="link" size="xs" class="h-auto w-fit p-0" onclick={() => (allOwners = true)}>Show all {d.owners.length}</Button>
+        {/if}
         {#if !d.owners.length}<p class="text-muted-foreground text-[12px]">No record uses this key; this is the key made readable.</p>{/if}
       </section>
       <section aria-labelledby="sd-result" class="grid gap-1.5">

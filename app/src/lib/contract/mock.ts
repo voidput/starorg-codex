@@ -144,6 +144,9 @@ export function mockOwners(cat: string, i: number, original: string, group: stri
   }
 }
 
+/** Secondary owners' names per shared key, lower case (search only; `StringRow.other_owners` in Rust). */
+const OTHER_OWNERS = new Map<string, string>();
+
 /** A page row without an owner gets the readable key (as `strings_query::with_fallback`). */
 const withFallback = (r: T.StringRow): T.StringRow => (r.owner ? r : { ...r, owner: { name: prettyKey(r.key), field: null, kind: 'key', detail: null } });
 
@@ -288,6 +291,7 @@ function syntheticStrings(): T.StringRow[] {
     }
     const [group, manufacturer, size] = mockGroup(cat, i);
     const owners = mockOwners(cat, i, original, group, manufacturer);
+    if (owners.length > 1) OTHER_OWNERS.set(key, owners.slice(1).map((o) => o.name.toLowerCase()).join('\n'));
     rows[i] = { key, original, result, source, category: cat, group, group_label: groupLabel(group), manufacturer, size, owner: owners[0] ?? null, owners: owners.length };
   }
   return rows;
@@ -977,7 +981,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         const r = ov === undefined ? base : { ...base, result: ov, source: 'edited' as const };
         if (req.changed_only && r.source === 'unmodified') continue;
         const has = (t: string | null | undefined) => !!t && t.toLowerCase().includes(needle);
-        if (needle && !has(r.key) && !has(r.original) && !has(r.result) && !has(r.owner?.name) && !has(r.owner?.detail)) continue;
+        if (needle && !has(r.key) && !has(r.original) && !has(r.result) && !has(r.owner?.name) && !has(r.owner?.detail) && !has(OTHER_OWNERS.get(r.key))) continue;
         const srcOk = !req.sources.length || req.sources.includes(r.source);
         const catOk = !req.categories.length || req.categories.includes(r.category);
         const typeOk = inGroups(r.group);

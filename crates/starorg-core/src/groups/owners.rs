@@ -23,6 +23,7 @@
 use crate::ini::{StockIni, fold_key, strip_flag_suffix};
 use crate::model::{GameData, ItemIdentity, WeaponClass, is_placeholder_name, loc_key, namesake};
 use serde::{Deserialize, Serialize};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 /// Which field of its owner a key is.
@@ -201,11 +202,72 @@ impl OwnerIndex {
     }
 }
 
-/// A one-line text short enough to be a name.
-fn as_name(v: &str) -> Option<&str> {
-    let v = v.trim();
-    (!v.is_empty() && v.len() <= 120 && !v.contains("\\n") && !is_placeholder_name(Some(v)))
-        .then_some(v)
+/// A one-line text short enough to be a name: trimmed (also of literal `\n` at either end),
+/// game variables (`~mission(TargetName)`) made readable (`[target name]`), placeholders
+/// (`<-=MISSING=->`, `PH - ...`) refused.
+fn as_name(v: &str) -> Option<Cow<'_, str>> {
+    let mut v = v.trim();
+    loop {
+        let t = v
+            .strip_prefix("\\n")
+            .or_else(|| v.strip_suffix("\\n"))
+            .map(str::trim);
+        match t {
+            Some(t) => v = t,
+            None => break,
+        }
+    }
+    let lower = v.to_ascii_lowercase();
+    if v.is_empty()
+        || v.contains("\\n")
+        || is_placeholder_name(Some(v))
+        || lower.contains("=missing=")
+        || lower == "ph"
+        || lower.starts_with("ph ")
+        || lower.starts_with("ph-")
+        || lower.starts_with("[ph]")
+    {
+        return None;
+    }
+    let v = if v.contains('~') {
+        Cow::Owned(humanise_vars(v))
+    } else {
+        Cow::Borrowed(v)
+    };
+    (!v.trim().is_empty() && v.len() <= 120).then_some(v)
+}
+
+/// `Bounty: ~mission(TargetName)` -> `Bounty: [target name]`.
+fn humanise_vars(v: &str) -> String {
+    let mut out = String::with_capacity(v.len());
+    let mut rest = v;
+    while let Some(i) = rest.find('~') {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + 1..];
+        let open = after.find('(');
+        let close = after.find(')');
+        match (open, close) {
+            (Some(o), Some(c))
+                if o < c
+                    && !after[..o].trim().is_empty()
+                    && after[..o]
+                        .trim_end()
+                        .chars()
+                        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_') =>
+            {
+                out.push('[');
+                out.push_str(&words(&after[o + 1..c]));
+                out.push(']');
+                rest = &after[c + 1..];
+            }
+            _ => {
+                out.push('~');
+                rest = after;
+            }
+        }
+    }
+    out.push_str(rest);
+    out
 }
 
 struct Builder<'s> {
@@ -229,13 +291,16 @@ impl Builder<'_> {
 
     fn text(&self, key: Option<&str>) -> Option<String> {
         let k = key.and_then(loc_key)?;
-        as_name(self.stock.value(k)?).map(str::to_string)
+        as_name(self.stock.value(k)?).map(Cow::into_owned)
     }
 
     fn maker(&self, code: Option<&str>) -> Option<Box<str>> {
         let code = code.filter(|c| !c.is_empty())?.to_ascii_uppercase();
-        let v = self.stock.value(&format!("manufacturer_Name{code}"))?;
-        as_name(v).map(Into::into)
+        if code == "NONE" {
+            return None;
+        }
+        let v = as_name(self.stock.value(&format!("manufacturer_Name{code}"))?)?;
+        (!v.eq_ignore_ascii_case("unknown")).then(|| v.into())
     }
 
     /// Link `key` to a record; `short` is the record's short name (namesake order).
@@ -274,18 +339,35 @@ impl Builder<'_> {
     }
 
     fn game_data(&mut self, gd: &GameData) {
-        for c in &gd.components {
-            self.item(&c.item, OwnerKind::Component);
-        }
-        for w in &gd.weapons {
+        // One record, one owner: a ship weapon or missile is also listed among the components
+        // (its category is `weapons`/`missiles`); the specific list wins.
+        let mut order: Vec<&str> = Vec::new();
+        let mut items: HashMap<&str, (&ItemIdentity, OwnerKind)> = HashMap::new();
+        let weapons = gd.weapons.iter().map(|w| {
             let kind = match w.class {
                 WeaponClass::Ship => OwnerKind::ShipWeapon,
                 WeaponClass::Fps => OwnerKind::FpsWeapon,
             };
-            self.item(&w.item, kind);
+            (&w.item, kind)
+        });
+        let all = gd
+            .components
+            .iter()
+            .map(|c| (&c.item, OwnerKind::Component))
+            .chain(weapons)
+            .chain(gd.missiles.iter().map(|m| (&m.item, OwnerKind::Missile)));
+        for (it, kind) in all {
+            match items.get_mut(it.record_name.as_str()) {
+                Some(slot) => *slot = (it, kind),
+                None => {
+                    order.push(&it.record_name);
+                    items.insert(&it.record_name, (it, kind));
+                }
+            }
         }
-        for m in &gd.missiles {
-            self.item(&m.item, OwnerKind::Missile);
+        for name in order {
+            let (it, kind) = items[name];
+            self.item(it, kind);
         }
         for s in &gd.ships {
             if s.is_template {
@@ -337,22 +419,62 @@ impl Builder<'_> {
             });
             self.link(r.display_name_key.as_deref(), rec, Field::Name, &r.name);
         }
-        // Primary first: the namesake record, then by kind and name.
+        // Primary first: the namesake record, then a specific kind over "component", one
+        // with a maker over one without, then kind, name and field.
         let records = &self.records;
+        let rank = |r: &Record| {
+            (
+                r.kind == OwnerKind::Component,
+                r.kind,
+                r.detail.is_none(),
+                r.name.to_lowercase(),
+            )
+        };
         for list in self.links.values_mut() {
-            list.sort_by(|a, b| {
-                let (ra, rb) = (&records[a.0 as usize], &records[b.0 as usize]);
-                (!a.2, ra.kind, &ra.name, a.1).cmp(&(!b.2, rb.kind, &rb.name, b.1))
+            list.sort_by_cached_key(|(rec, field, namesake)| {
+                (!namesake, rank(&records[*rec as usize]), *field)
             });
+            // One entry per owner: the same record under another field, and records that
+            // read the same (same name, compatible kind, same or missing maker), collapse
+            // into the first.
+            let mut kept: Vec<(u32, Field, bool)> = Vec::with_capacity(list.len());
+            for e in list.drain(..) {
+                let r = &records[e.0 as usize];
+                let dup = kept.iter().any(|k| {
+                    let o = &records[k.0 as usize];
+                    k.0 == e.0
+                        || (o.name.eq_ignore_ascii_case(&r.name)
+                            && kinds_match(o.kind, r.kind)
+                            && (o.detail == r.detail || o.detail.is_none() || r.detail.is_none()))
+                });
+                if !dup {
+                    kept.push(e);
+                }
+            }
+            *list = kept;
         }
     }
+}
+
+/// Two kinds that may name the same thing: equal, or a component and a weapon or missile.
+fn kinds_match(a: OwnerKind, b: OwnerKind) -> bool {
+    let item = |k| {
+        matches!(
+            k,
+            OwnerKind::Component
+                | OwnerKind::ShipWeapon
+                | OwnerKind::FpsWeapon
+                | OwnerKind::Missile
+        )
+    };
+    a == b || (item(a) && item(b) && (a == OwnerKind::Component || b == OwnerKind::Component))
 }
 
 /// Rule 2: owners read from the key's shape and its sibling keys.
 struct Siblings<'s> {
     stock: &'s StockIni,
     /// Namesake stem -> text of its `item_Name*`/`vehicle_Name*` key.
-    names: HashMap<String, &'s str>,
+    names: HashMap<String, Cow<'s, str>>,
 }
 
 impl<'s> Siblings<'s> {
@@ -384,7 +506,25 @@ impl<'s> Siblings<'s> {
         )
     }
 
-    fn value(&self, folded: &str) -> Option<&'s str> {
+    /// A variant without a name of its own (`_grey_red01`, `_store01`): the name of its base
+    /// item with the suffix, `Gemini S71 Rifle (grey_red01)`. Up to three trailing tokens are
+    /// dropped; the base keeps at least two.
+    fn variant(&self, rest: &str, field: Field) -> Option<(Record, Field)> {
+        let tokens: Vec<&str> = rest
+            .trim_start_matches('_')
+            .split('_')
+            .filter(|t| !t.is_empty())
+            .collect();
+        (1..=3usize)
+            .filter(|k| tokens.len() >= k + 2)
+            .find_map(|k| {
+                let (base, suffix) = tokens.split_at(tokens.len() - k);
+                let name = self.names.get(&namesake::squash_name(&base.join("_")))?;
+                Some(self.named(&format!("{name} ({})", suffix.join("_")), field))
+            })
+    }
+
+    fn value(&self, folded: &str) -> Option<Cow<'s, str>> {
         self.stock.value(folded).and_then(as_name)
     }
 
@@ -401,11 +541,22 @@ impl<'s> Siblings<'s> {
             if !folded.starts_with(prefix) {
                 continue;
             }
-            let sibling = namesake::stem(folded).and_then(|s| self.names.get(&s).copied());
+            // `item_NameX_short` / `vehicle_NameX_short`: the short name of X.
+            let field = if field == Field::Name && folded.ends_with("_short") {
+                Field::ShortName
+            } else {
+                field
+            };
+            let sibling = namesake::stem(folded).and_then(|s| self.names.get(&s));
             return match field {
-                Field::Name => as_name(value).map(|v| self.named(v, field)),
-                Field::ShortName => sibling.or(as_name(value)).map(|v| self.named(v, field)),
-                _ => sibling.map(|v| self.named(v, field)),
+                Field::Name => as_name(value).map(|v| self.named(&v, field)),
+                Field::ShortName => sibling
+                    .map(|v| v.as_ref())
+                    .or(as_name(value).as_deref())
+                    .map(|v| self.named(v, field)),
+                _ => sibling
+                    .map(|v| self.named(v, field))
+                    .or_else(|| self.variant(&folded[prefix.len()..], field)),
             };
         }
         if let Some(code) = folded.strip_prefix("manufacturer_") {
@@ -445,27 +596,27 @@ impl<'s> Siblings<'s> {
             return cands
                 .iter()
                 .find_map(|k| self.value(k))
-                .map(|v| self.named(v, Field::Description));
+                .map(|v| self.named(&v, Field::Description));
         }
         let described = |k: String| self.stock.value(&k).is_some();
         let own = as_name(value)?;
         if let Some((a, b)) = folded.rsplit_once("_title_")
             && described(format!("{a}_desc_{b}"))
         {
-            return Some(self.named(own, Field::Title));
+            return Some(self.named(&own, Field::Title));
         }
         if let Some(base) = folded.strip_suffix("_title")
             && described(format!("{base}_desc"))
         {
-            return Some(self.named(own, Field::Title));
+            return Some(self.named(&own, Field::Title));
         }
         if let Some(base) = folded.strip_suffix("_name")
             && described(format!("{base}_desc"))
         {
-            return Some(self.named(own, Field::Name));
+            return Some(self.named(&own, Field::Name));
         }
         if described(format!("{folded}_desc")) {
-            return Some(self.named(own, Field::Name));
+            return Some(self.named(&own, Field::Name));
         }
         None
     }

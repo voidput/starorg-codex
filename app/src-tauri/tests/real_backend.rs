@@ -1754,6 +1754,10 @@ fn measure_strings_owners_on_real_live() {
         "Pyro1_L2_03_desc",
         "item_Desc_fta_medium_helmet_01_04_10",
         "hud_law_TrespassAreaRevokedAuthorisation",
+        "item_NameBEHR_LaserCannon_S1",
+        "item_NameGMISL_S03_EM_FSKI_Thunderbolt",
+        "item_DescGMNI_rifle_ballistic_01_grey_red01",
+        "item_Descgmni_rifle_ballistic_01_mag",
     ] {
         let p = b.query_strings(q(key, StringSort::Key)).unwrap();
         if let Some(r) = p.rows.iter().find(|r| r.key == key) {

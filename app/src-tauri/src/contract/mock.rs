@@ -563,10 +563,17 @@ pub(super) fn synthetic_strings() -> Vec<StringRow> {
                 (original.clone(), StringSource::Unmodified)
             };
             let (group, manufacturer, size) = mock_group(cat, i);
-            let (owner, owners) = match mock_owners(cat, i, &original, group, manufacturer).as_slice() {
-                [] => (None, 0),
-                list => (Some(Box::new(list[0].clone())), list.len() as u32),
-            };
+            let list = mock_owners(cat, i, &original, group, manufacturer);
+            let owner = list.first().cloned().map(Box::new);
+            let owners = list.len() as u32;
+            let other_owners = (list.len() > 1).then(|| {
+                list[1..]
+                    .iter()
+                    .map(|o| o.name.to_lowercase())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+                    .into()
+            });
             StringRow {
                 key,
                 original,
@@ -579,6 +586,7 @@ pub(super) fn synthetic_strings() -> Vec<StringRow> {
                 size,
                 owner,
                 owners,
+                other_owners,
             }
         })
         .collect()

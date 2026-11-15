@@ -273,6 +273,8 @@
 
   function onKey(e: KeyboardEvent) {
     if (total === null) return;
+    // Keys on a button in a row (owners, copy) are that button's, not the grid's.
+    if ((e.target as HTMLElement).closest?.('button')) return;
     const per = Math.max(1, Math.floor(viewH / ROW) - 1);
     const map: Record<string, number> = { ArrowDown: active + 1, ArrowUp: active - 1, PageDown: active + per, PageUp: active - per, Home: 0, End: total - 1 };
     if (e.key in map) {
@@ -283,6 +285,13 @@
       if (r) {
         e.preventDefault();
         void copyKey(r.key);
+      }
+    } else if (e.key.toLowerCase() === 'o' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const r = rowAt(active);
+      const anchor = r && r.owners > 1 ? scroller?.querySelector<HTMLElement>(`[data-row="${active}"] [data-owners]`) : null;
+      if (r && anchor) {
+        e.preventDefault();
+        void openOwners(anchor, r);
       }
     } else if (e.key === 'Enter' || e.key === ' ') {
       const r = rowAt(active);
@@ -311,15 +320,15 @@
   let ownersPop = $state<{ key: string; top: number; left: number; list: KeyOwner[] | null; failed: boolean } | null>(null);
   let ownersEl = $state<HTMLElement | null>(null);
   let ownersFrom: HTMLElement | null = null;
-  async function openOwners(e: MouseEvent, r: StringRow) {
-    e.stopPropagation();
+  /** Open the owners of `r` beside `anchor` (its "N records" button); focus returns to the row. */
+  async function openOwners(anchor: HTMLElement, r: StringRow) {
     if (!target) return;
     if (ownersPop?.key === r.key) {
       ownersPop = null;
       return;
     }
-    ownersFrom = e.currentTarget as HTMLElement;
-    const b = ownersFrom.getBoundingClientRect();
+    ownersFrom = anchor.closest<HTMLElement>('[role=row]');
+    const b = anchor.getBoundingClientRect();
     const left = Math.max(8, Math.min(b.left, innerWidth - 328));
     const top = b.bottom + 4 + 260 > innerHeight ? Math.max(8, b.top - 264) : b.bottom + 4;
     ownersPop = { key: r.key, top, left, list: null, failed: false };
@@ -652,6 +661,7 @@
                 data-row={v.i}
                 aria-rowindex={v.i + 2}
                 aria-selected={active === v.i}
+                aria-keyshortcuts={r && r.owners > 1 ? 'Enter Control+C O' : 'Enter Control+C'}
                 tabindex={tabRow === v.i ? 0 : -1}
                 class={cn(
                   cols,
@@ -668,7 +678,7 @@
                 {#if r}
                   {@const ctx = ownerContext(r.owner)}
                   {@const fallback = !r.owner || r.owner.kind === 'key'}
-                  <span role="gridcell" class="flex min-w-0 items-center gap-1" title={[ownerLabel(r.owner, r.key), ctx, r.key].filter(Boolean).join('\n')}>
+                  <span role="gridcell" class="relative flex min-w-0 items-center" title={[ownerLabel(r.owner, r.key), ctx, r.key].filter(Boolean).join('\n')}>
                     <span class="grid min-w-0 flex-1 leading-tight">
                       {#if r.owners > 1}
                         <button
@@ -678,19 +688,23 @@
                           aria-haspopup="dialog"
                           aria-expanded={ownersPop?.key === r.key}
                           class="decoration-muted-foreground/60 hover:text-primary w-fit max-w-full truncate text-left text-[12.5px] underline decoration-dotted underline-offset-2 outline-none"
-                          onclick={(e) => void openOwners(e, r)}
+                          onclick={(e) => {
+                            e.stopPropagation();
+                            active = v.i;
+                            void openOwners(e.currentTarget, r);
+                          }}
                         >{sharedLabel(r.owners, r.owner)}</button>
                       {:else}
                         <span class={cn('truncate text-[12.5px]', fallback && 'text-muted-foreground')}>{ownerLabel(r.owner, r.key)}</span>
                       {/if}
-                      {#if showKeys}<span class="mono text-muted-foreground truncate text-[10.5px]">{r.key}</span>{/if}
+                      {#if showKeys}<span class="mono text-muted-foreground truncate text-[11px]">{r.key}</span>{/if}
                     </span>
                     <button
                       type="button"
                       tabindex="-1"
                       aria-label="Copy key {r.key}"
                       title="Copy key"
-                      class="text-muted-foreground hover:text-foreground grid size-6 shrink-0 place-items-center rounded opacity-0 outline-none group-hover:opacity-100 group-focus:opacity-100 focus-visible:opacity-100"
+                      class="text-muted-foreground hover:text-foreground bg-card pointer-events-none absolute top-1/2 right-0 grid size-6 -translate-y-1/2 place-items-center rounded border opacity-0 shadow-sm outline-none group-hover:pointer-events-auto group-hover:opacity-100 group-focus:pointer-events-auto group-focus:opacity-100"
                       onclick={(e) => {
                         e.stopPropagation();
                         void copyKey(r.key);
@@ -712,7 +726,7 @@
         {/if}
       </div>
     </div>
-    <p class="text-muted-foreground text-[11.5px]">Arrow keys move, Enter opens a key, Ctrl+C copies its key. Edits are saved per channel and written on the next apply.</p>
+    <p class="text-muted-foreground text-[11.5px]">Arrow keys move, Enter opens a key, Ctrl+C copies its key, O lists the records of a shared key. Edits are saved per channel and written on the next apply.</p>
   {/if}
 </div>
 
@@ -728,7 +742,8 @@
     class="bg-popover text-popover-foreground fixed z-40 flex max-h-64 w-80 flex-col rounded-lg border shadow-lg outline-none"
     style="top: {p.top}px; left: {p.left}px"
     onkeydown={(e) => {
-      if (e.key === 'Escape') {
+      if (e.key === 'Escape' || e.key === 'Tab') {
+        e.preventDefault();
         e.stopPropagation();
         closeOwners(true);
       }

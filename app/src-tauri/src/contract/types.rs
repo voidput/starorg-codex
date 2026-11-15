@@ -877,6 +877,9 @@ pub struct StringRow {
     /// Distinct owners of the key (0 = none; above 1 the UI lists them).
     #[serde(default)]
     pub owners: u32,
+    /// Backend only: the other owners' names and makers, lower case, for search.
+    #[serde(skip)]
+    pub other_owners: Option<Box<str>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
