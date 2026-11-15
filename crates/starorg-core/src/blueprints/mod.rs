@@ -13,6 +13,7 @@
 //! user's own terminal, are never uploaded, and are redacted in `doctor`.
 
 pub mod catalog;
+pub mod finder;
 pub mod import;
 pub mod logscan;
 
