@@ -22,9 +22,11 @@ use crate::extract::{
 use crate::starbreaker::DevDatabase;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use starorg_core::dev::explorer::{MAX_PAGE, TreeRoot};
+use starorg_core::dev::explorer::{MAX_PAGE, SearchHit, TreeRoot};
+use starorg_core::dev::media::{self, MediaNames};
 use starorg_core::dev::readable::{self, KnownRecord, LabelKind, Lookup, Readable};
 use starorg_core::dev::record::{self, RecordHeader, RecordView};
+use starorg_core::dev::sections::{self, Facts, ListPage, ListQuery, SectionIndex};
 use starorg_core::ini::StockIni;
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, VecDeque};
@@ -64,6 +66,9 @@ pub struct LoadedDcb {
     pub source: String,
     /// The game folder (the p4k's), where exports never go.
     pub game_dir: Option<PathBuf>,
+    /// Geometry file names and ATL trigger names of the archive (7.17), read before the
+    /// archive is dropped; `None` for a bare `--dcb`.
+    pub media: Option<MediaNames>,
 }
 
 fn read_file(path: &Path, max: u64) -> Result<Vec<u8>, ExtractError> {
@@ -93,12 +98,14 @@ pub fn load(input: &DevInput) -> Result<LoadedDcb, ExtractError> {
                 .or_else(|| archive.entry(DCB_FALLBACK_ENTRY))
                 .ok_or(ExtractError::Missing(DCB_ENTRY))?;
             let dcb = extract::read_checked(&archive, &info, MAX_DCB_BYTES)?;
+            let media = media_names(&archive);
             drop(archive);
             Ok(LoadedDcb {
                 dcb,
                 ini,
                 source: info.name,
                 game_dir: p4k.parent().map(Path::to_path_buf),
+                media: Some(media),
             })
         }
         DevInput::Dcb { dcb, ini } => Ok(LoadedDcb {
@@ -109,8 +116,29 @@ pub fn load(input: &DevInput) -> Result<LoadedDcb, ExtractError> {
                 .transpose()?,
             source: dcb.display().to_string(),
             game_dir: None,
+            media: None,
         }),
     }
+}
+
+/// The archive's geometry files and ATL triggers, as hashes (7.17).
+pub fn media_names(archive: &crate::starbreaker::Archive) -> MediaNames {
+    let geometry = archive
+        .entry_names()
+        .filter(|n| {
+            let l = n.to_ascii_lowercase();
+            crate::starbreaker::GEOMETRY_EXTS
+                .iter()
+                .any(|e| l.ends_with(e))
+        })
+        .map(|n| media::hash(&crate::starbreaker::norm_asset_path(n)))
+        .collect();
+    let triggers = archive
+        .atl_trigger_names()
+        .iter()
+        .map(|t| media::hash(t))
+        .collect();
+    MediaNames { geometry, triggers }
 }
 
 /// Resident memory of this process, where the OS tells us cheaply (Linux).
@@ -132,6 +160,9 @@ pub struct WorkerInfo {
     pub start_ms: u64,
     pub rss: Option<u64>,
     pub source: String,
+    /// The section index (7.17), once built.
+    #[serde(default)]
+    pub sections: Option<SectionStats>,
 }
 
 /// One request line (without its `id`).
@@ -148,6 +179,20 @@ pub enum Request {
         offset: u32,
         limit: u32,
         main_only: bool,
+        /// Sections view: hide AI, NPC, test and template variants (7.17).
+        #[serde(default)]
+        player_only: bool,
+    },
+    /// The filtered, grouped record list with facet counts (7.17).
+    List(Box<ListQuery>),
+    /// Entities whose geometry is this archive file.
+    Owner {
+        path: String,
+    },
+    /// Records added or changed against another channel (by GUID); replaces earlier marks.
+    /// Answers how many were found.
+    Marks {
+        marks: Vec<(String, sections::Change)>,
     },
     Search {
         query: String,
@@ -435,6 +480,28 @@ pub struct Session<'d, 'a> {
     pub hooks: Hooks,
     lru: Lru,
     names: NameCache,
+    /// Sections, quick filters and the Models/Sounds views (7.17).
+    pub sections: SectionIndex,
+    /// Geometry file (hash of the normalised path) -> entities naming it, for "Open owning
+    /// record" in Files.
+    owners: HashMap<u64, Vec<u32>, media::HashBuild>,
+    pub section_stats: Option<SectionStats>,
+}
+
+/// How the section index was built (7.17), reported in `status`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SectionStats {
+    /// Facet scan of the entities plus the index build, milliseconds.
+    pub build_ms: u64,
+    pub scan_ms: u64,
+    /// Bytes held by the index, the owner map and the media name sets, roughly.
+    pub bytes: u64,
+    pub entities: u32,
+    pub models: u32,
+    pub sounds: u32,
+    /// The archive's names were checked (false for a bare `--dcb`: then "has model" means a
+    /// geometry file is named and "has sounds" an audio trigger is set).
+    pub verified: bool,
 }
 
 /// Display keys (or tag names) by record, read lazily (7.14).
@@ -522,7 +589,125 @@ impl<'d, 'a> Session<'d, 'a> {
             hooks: Hooks::default(),
             lru: Lru::default(),
             names: NameCache::default(),
+            sections: SectionIndex::default(),
+            owners: HashMap::default(),
+            section_stats: None,
         }
+    }
+
+    /// Scan the entities and build the section index (7.17). `media`: the archive's
+    /// geometry and trigger names (`None` = trust the fields).
+    pub fn index_sections(&mut self, media: Option<&MediaNames>) -> SectionStats {
+        let t = Instant::now();
+        let raw = self.db.scan_facets();
+        let scan_ms = t.elapsed().as_millis() as u64;
+        let stock = self.stock.as_ref();
+        let text = |k: &str| {
+            stock
+                .and_then(|s| s.value(k.trim_start_matches('@')))
+                .map(str::to_string)
+        };
+        let mut owners: HashMap<u64, Vec<u32>, media::HashBuild> = HashMap::default();
+        let mut stats = SectionStats {
+            scan_ms,
+            verified: media.is_some(),
+            ..Default::default()
+        };
+        let facts: Vec<Option<Facts>> = raw
+            .into_iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let r = r?;
+                stats.entities += 1;
+                let model = r.vehicle
+                    || match media {
+                        Some(m) => r.geometry.iter().any(|g| m.has_geometry(g)),
+                        None => !r.geometry.is_empty(),
+                    };
+                let sounds = match media {
+                    Some(m) => r.triggers.iter().any(|t| m.has_trigger(t)),
+                    None => !r.triggers.is_empty(),
+                };
+                for g in &r.geometry {
+                    if media.is_none_or(|m| m.has_geometry(g)) {
+                        let v = owners.entry(media::hash(g)).or_default();
+                        if v.len() < 16 {
+                            v.push(i as u32);
+                        }
+                    }
+                }
+                stats.models += u32::from(model);
+                stats.sounds += u32::from(sounds);
+                let (grade, class) = r
+                    .description
+                    .as_deref()
+                    .and_then(text)
+                    .map(|d| sections::desc_facts(&d))
+                    .unwrap_or_default();
+                Some(Facts {
+                    item_type: r.item_type,
+                    sub_type: r.sub_type,
+                    size: r.size,
+                    manufacturer: r.manufacturer,
+                    display: r
+                        .display
+                        .as_deref()
+                        .and_then(text)
+                        .filter(|t| !t.trim().is_empty()),
+                    grade,
+                    class,
+                    model,
+                    sounds,
+                })
+            })
+            .collect();
+        let makers =
+            |code: &str| text(&format!("manufacturer_Name{code}")).filter(|t| !t.trim().is_empty());
+        self.sections = SectionIndex::new(self.db.index(), &facts, &makers);
+        drop(facts);
+        owners.shrink_to_fit();
+        let owner_bytes: usize = owners.values().map(|v| v.capacity() * 4 + 40).sum();
+        self.owners = owners;
+        stats.build_ms = t.elapsed().as_millis() as u64;
+        stats.bytes = (self.sections.bytes() + owner_bytes + media.map_or(0, |m| m.bytes())) as u64;
+        self.section_stats = Some(stats.clone());
+        stats
+    }
+
+    /// The list with readable names for records the scan did not name (lazily, as labels).
+    pub fn list(&mut self, q: &ListQuery) -> ListPage {
+        let ix = self.db.index();
+        let mut page = self.sections.list(ix, q);
+        let l = self.lookup();
+        for it in page.items.iter_mut().filter(|it| it.detail.is_none()) {
+            if let Some(rd) = l.by_guid(&it.guid).map(|r| readable::record_label(&l, &r))
+                && rd.detail.is_some()
+            {
+                it.detail = rd.detail;
+                it.label = rd.text;
+            }
+        }
+        page
+    }
+
+    /// Entities whose geometry is this archive file (`Data\Objects\...cga`).
+    pub fn owners(&self, path: &str) -> Vec<SearchHit> {
+        let ix = self.db.index();
+        self.owners
+            .get(&media::hash(&crate::starbreaker::norm_asset_path(path)))
+            .map(|v| {
+                v.iter()
+                    .filter_map(|&i| ix.entry(i as usize))
+                    .map(|e| SearchHit {
+                        guid: e.guid.clone(),
+                        name: e.name.clone(),
+                        struct_type: e.struct_type.clone(),
+                        path: e.path.clone(),
+                        main: e.main,
+                    })
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// Display names remembered so far.
@@ -611,19 +796,62 @@ impl<'d, 'a> Session<'d, 'a> {
             |x: Result<Value, serde_json::Error>| x.map_err(|e| fail("internal", e.to_string()));
         let db = self.db;
         let ix = db.index();
+        let wants_sections = matches!(
+            req,
+            Request::List(_)
+                | Request::Tree {
+                    root: TreeRoot::Section,
+                    ..
+                }
+        );
+        if wants_sections && !self.sections.covers(ix) {
+            // Not built at start (a test session): build now, trusting the fields.
+            self.index_sections(None);
+        }
         match req {
             Request::Status => {
                 let mut info = self.info.clone();
                 info.rss = rss_bytes();
+                info.sections = self.section_stats.clone();
                 to(serde_json::to_value(info))
             }
             Request::Types => to(serde_json::to_value(ix.types())),
+            Request::Tree {
+                root: TreeRoot::Section,
+                node,
+                offset,
+                limit,
+                main_only,
+                player_only,
+            } => to(serde_json::to_value(self.sections.tree(
+                ix,
+                node,
+                *offset as usize,
+                (*limit as usize).min(MAX_PAGE),
+                *main_only,
+                *player_only,
+            ))),
+            Request::List(q) => {
+                let q = q.clone();
+                to(serde_json::to_value(self.list(&q)))
+            }
+            Request::Owner { path } => to(serde_json::to_value(self.owners(path))),
+            Request::Marks { marks } => {
+                let found: Vec<(usize, sections::Change)> = marks
+                    .iter()
+                    .filter_map(|(g, c)| ix.by_guid(g).map(|i| (i, *c)))
+                    .collect();
+                let n = found.len();
+                self.sections.set_changes(found);
+                to(serde_json::to_value(n))
+            }
             Request::Tree {
                 root,
                 node,
                 offset,
                 limit,
                 main_only,
+                ..
             } => to(serde_json::to_value(ix.tree(
                 *root,
                 node,
@@ -898,11 +1126,18 @@ pub fn run(input: &DevInput) -> i32 {
         struct_defs: summary.struct_defs as u32,
         dcb_bytes: loaded.dcb.len() as u64,
         start_ms: started.elapsed().as_millis() as u64,
-        rss: rss_bytes(),
+        rss: None,
         source: loaded.source.clone(),
+        sections: None,
     };
     let mut session = Session::new(&db, loaded.ini.clone(), info.clone());
     session.game_dir = loaded.game_dir.clone();
+    let stats = guard(|| Ok(session.index_sections(loaded.media.as_ref()))).ok();
+    let mut info = info;
+    info.start_ms = started.elapsed().as_millis() as u64;
+    info.rss = rss_bytes();
+    info.sections = stats;
+    session.info = info.clone();
     if write_line(
         &mut stdout,
         &Event {

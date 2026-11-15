@@ -77,6 +77,7 @@ fn live_opens_indexes_and_every_main_record_exports() {
         start_ms: 0,
         rss: None,
         source: loaded.source.clone(),
+        sections: None,
     };
     let mut s = Session::new(&db, loaded.ini.clone(), info);
     let first = hits.hits.first().map(|h| h.guid.clone()).unwrap();
@@ -116,5 +117,161 @@ fn live_opens_indexes_and_every_main_record_exports() {
         "{} failed: {:?}",
         failed.len(),
         &failed[..failed.len().min(5)]
+    );
+}
+
+/// Sections and quick filters (addendum 7.17) on the real archive: every record in one
+/// section, the counts, the cost of the archive-name sets and of the index, and a few list
+/// queries. Read only.
+#[test]
+#[ignore = "needs a game install"]
+fn live_sections_index_counts_and_cost() {
+    use starorg_core::dev::sections::{Filters, ListGroup, ListQuery, SortKey};
+    let want = std::env::var("STARORG_CHANNEL").unwrap_or_else(|_| "LIVE".into());
+    let ch = starorg_core::discovery::list_channels(&game_dir())
+        .into_iter()
+        .find(|c| c.name == want)
+        .unwrap_or_else(|| panic!("no {want}"));
+    let t = Instant::now();
+    let (archive, _) = starorg_data::extract::open_checked(&ch.p4k).unwrap();
+    let t_open = t.elapsed();
+    let t = Instant::now();
+    let media = devworker::media_names(&archive);
+    let t_media = t.elapsed();
+    drop(archive);
+    let loaded = devworker::load(&DevInput::Dcb {
+        dcb: PathBuf::from("/nonexistent"),
+        ini: None,
+    });
+    assert!(loaded.is_err());
+    let loaded = devworker::load(&DevInput::P4k(ch.p4k.clone())).unwrap();
+    let db = DevDatabase::parse(&loaded.dcb).unwrap();
+    let info = WorkerInfo {
+        records: db.index().len() as u32,
+        main: db.index().main_count() as u32,
+        types: 0,
+        struct_defs: 0,
+        dcb_bytes: 0,
+        start_ms: 0,
+        rss: None,
+        source: String::new(),
+        sections: None,
+    };
+    let mut s = Session::new(&db, loaded.ini.clone(), info);
+    let rss0 = devworker::rss_bytes().unwrap_or(0);
+    let stats = s.index_sections(Some(&media));
+    let rss1 = devworker::rss_bytes().unwrap_or(0);
+    println!(
+        "open {t_open:?}; media names {t_media:?} ({} geometry files, {} triggers, ~{} KB)",
+        media.geometry.len(),
+        media.triggers.len(),
+        media.bytes() / 1024
+    );
+    println!(
+        "sections: scan {} ms, build {} ms, ~{} KB held; RSS {} -> {} MB; {} entities, {} with a model, {} with sounds",
+        stats.scan_ms,
+        stats.build_ms,
+        stats.bytes / 1024,
+        rss0 / 1_000_000,
+        rss1 / 1_000_000,
+        stats.entities,
+        stats.models,
+        stats.sounds
+    );
+    let ix = db.index();
+    let counts = s.sections.counts();
+    let total: u32 = counts.iter().map(|c| c.1).sum();
+    assert_eq!(
+        total as usize,
+        ix.len(),
+        "every record in exactly one section"
+    );
+    let mains = s.sections.tree(ix, "", 0, 500, true, false);
+    let players = s.sections.tree(ix, "", 0, 500, true, true);
+    for n in &mains.nodes {
+        let p = players
+            .nodes
+            .iter()
+            .find(|x| x.id == n.id)
+            .map_or(0, |x| x.count);
+        println!(
+            "  {:<28} {:>7} main  {:>7} player-usable",
+            n.label, n.count, p
+        );
+    }
+    for (id, c) in &counts {
+        println!("  all records {id:<14} {c:>7}");
+    }
+    let q = |query: &str, f: Filters, group: ListGroup| ListQuery {
+        query: query.into(),
+        filters: f,
+        group,
+        limit: 500,
+        main_only: true,
+        sort: SortKey::Name,
+        ..Default::default()
+    };
+    for (label, lq) in [
+        (
+            "all, grouped by section",
+            q("", Filters::default(), ListGroup::Section),
+        ),
+        ("gladius", q("gladius", Filters::default(), ListGroup::None)),
+        (
+            "type:cooler size:1 maker:aegis",
+            q(
+                "type:cooler size:1 maker:aegis",
+                Filters::default(),
+                ListGroup::None,
+            ),
+        ),
+        (
+            "quantum (fuzzy, grouped by kind)",
+            q("quantum", Filters::default(), ListGroup::Kind),
+        ),
+        (
+            "has:model player only",
+            q(
+                "has:model",
+                Filters {
+                    player_only: true,
+                    ..Default::default()
+                },
+                ListGroup::None,
+            ),
+        ),
+    ] {
+        let t = Instant::now();
+        let p = s.list(&lq);
+        println!(
+            "list {label}: {} rows, {} sections, first {:?}, {:?}",
+            p.total,
+            p.facets.sections.len(),
+            p.items.first().map(|i| (&i.label, &i.detail)),
+            t.elapsed()
+        );
+    }
+    let gl = s.list(&q("gladius", Filters::default(), ListGroup::None));
+    for it in gl.items.iter().take(8) {
+        println!(
+            "  gladius hit: {} | {:?} | {} | model {} sounds {} | {:?} {:?}",
+            it.label, it.detail, it.section, it.model, it.sounds, it.grade, it.class
+        );
+    }
+    let cool = s.list(&q("bracer", Filters::default(), ListGroup::None));
+    println!("  bracer: {:?}", cool.items.first());
+    let ship = gl
+        .items
+        .iter()
+        .find(|i| i.name == "EntityClassDefinition.AEGS_Gladius")
+        .expect("the Gladius");
+    assert!(ship.model && ship.sounds, "{ship:?}");
+    assert_eq!(gl.items[0].name, ship.name, "the ship ranks first");
+    let gun = s.list(&q("type:weapongun", Filters::default(), ListGroup::None));
+    assert!(gun.items.iter().filter(|i| i.sounds).count() > 50);
+    println!(
+        "RSS after queries {:?} MB, peak {:?} MB",
+        devworker::rss_bytes().map(|b| b / 1_000_000),
+        peak_rss().map(|b| b / 1_000_000)
     );
 }

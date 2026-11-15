@@ -12,6 +12,7 @@ fn info() -> WorkerInfo {
         start_ms: 0,
         rss: None,
         source: "test".into(),
+        sections: None,
     }
 }
 
@@ -445,4 +446,111 @@ fn records_carry_labels_for_refs_and_loc_keys() {
     assert_eq!(r[0]["text"], "Synthetic Item One");
     assert_eq!(r[0]["detail"], "SYN_Item_001");
     assert!(r[1].is_null());
+}
+
+#[test]
+fn sections_tree_list_marks_and_owner_over_the_protocol() {
+    let bytes = synthetic::build(3, 10, 4);
+    let db = DevDatabase::parse(&bytes).unwrap();
+    let mut s = Session::new(&db, Some(INI.to_vec()), info());
+    let stats = s.index_sections(None);
+    assert!(!stats.verified);
+    assert_eq!(stats.entities, 0, "the synthetic DCB has no entities");
+    // Every record in exactly one section.
+    let total: u32 = s.sections.counts().iter().map(|c| c.1).sum();
+    assert_eq!(total as usize, db.index().len());
+    let root: Value = s
+        .handle(&Request::Tree {
+            root: TreeRoot::Section,
+            node: String::new(),
+            offset: 0,
+            limit: 500,
+            main_only: true,
+            player_only: true,
+        })
+        .unwrap();
+    let nodes = root["nodes"].as_array().unwrap();
+    assert!(!nodes.is_empty());
+    assert!(nodes.iter().all(|n| n["kind"] == "section"));
+    let other = nodes.iter().find(|n| n["label"] == "Other").expect("Other");
+    // Other > SynItem type > folder > records.
+    let l1 = s.sections.tree(
+        db.index(),
+        other["id"].as_str().unwrap(),
+        0,
+        500,
+        true,
+        false,
+    );
+    assert!(l1.nodes.iter().any(|n| n.label == ITEM_TYPE));
+    let q = sections::ListQuery {
+        query: "type:synitem syn_item_00".into(),
+        limit: 500,
+        ..Default::default()
+    };
+    let page: Value = s.handle(&Request::List(Box::new(q))).unwrap();
+    assert_eq!(page["total"], 10);
+    assert_eq!(page["understood"][0], "type:synitem");
+    // Lazily read display names: SYN_Item_001 reads as its stock text.
+    let one = page["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["name"].as_str().unwrap().ends_with("SYN_Item_001"))
+        .unwrap();
+    assert_eq!(one["label"], "Synthetic Item One");
+    assert_eq!(one["detail"], "SYN_Item_001");
+    let marked: Value = s
+        .handle(&Request::Marks {
+            marks: vec![
+                (synthetic::guid_text(1, 1), sections::Change::Changed),
+                (
+                    "ffffffff-0000-0000-0000-000000000000".into(),
+                    sections::Change::Added,
+                ),
+            ],
+        })
+        .unwrap();
+    assert_eq!(marked, 1);
+    let q = sections::ListQuery {
+        filters: sections::Filters {
+            changes: vec!["changed".into()],
+            ..Default::default()
+        },
+        limit: 500,
+        ..Default::default()
+    };
+    let page: Value = s.handle(&Request::List(Box::new(q))).unwrap();
+    assert_eq!(page["total"], 1);
+    assert_eq!(page["items"][0]["change"], "changed");
+    let owner: Value = s
+        .handle(&Request::Owner {
+            path: r"Data\Objects\nothing.cga".into(),
+        })
+        .unwrap();
+    assert_eq!(owner, serde_json::json!([]));
+    // The protocol parses the new ops (kebab-case, list flattened).
+    let lines = vec![
+        r#"{"id":1,"op":"list","node":"","query":"syn","limit":5}"#.to_string(),
+        r#"{"id":2,"op":"tree","root":"section","node":"","limit":5,"main_only":true}"#.to_string(),
+        r#"{"id":3,"op":"owner","path":"x.cga"}"#.to_string(),
+    ];
+    let out = run_lines(&db, &lines, Hooks::default());
+    assert!(out.iter().all(|r| r["ok"] == true), "{out:?}");
+    assert_eq!(out[0]["result"]["items"].as_array().unwrap().len(), 5);
+}
+
+#[test]
+fn facet_sink_reads_attach_def_geometry_triggers_and_vehicle() {
+    use crate::starbreaker::scan_events_for_test as scan;
+    let f = scan();
+    assert_eq!(f.item_type.as_deref(), Some("Cooler"));
+    assert_eq!(f.sub_type.as_deref(), Some("UNDEFINED"));
+    assert_eq!(f.size, Some(1));
+    assert_eq!(f.manufacturer.as_deref(), Some("AEGS"));
+    assert_eq!(f.display.as_deref(), Some("@item_NameX"));
+    assert_eq!(f.description.as_deref(), Some("@item_DescX"));
+    assert_eq!(f.geometry, ["objects/x/x.cga"]);
+    assert_eq!(f.triggers, ["Play_x"]);
+    assert!(f.vehicle);
 }

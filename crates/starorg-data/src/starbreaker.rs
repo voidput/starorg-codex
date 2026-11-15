@@ -48,6 +48,34 @@ impl Archive {
         self.inner
     }
 
+    /// Every ATL trigger name of the archive's GameAudio documents (addendum 7.17: the
+    /// explorer's "has sounds" index). Read before the archive is dropped.
+    pub fn atl_trigger_names(&self) -> Vec<String> {
+        use rayon::prelude::*;
+        // StarBreaker's `AtlIndex::from_p4k` reads the documents one after another (about
+        // 0.8 s on LIVE); the same parse per document, in parallel.
+        let docs: Vec<_> = self
+            .inner
+            .entries()
+            .iter()
+            .filter(|e| {
+                e.name.starts_with(r"Data\Libs\GameAudio\")
+                    && e.name.to_ascii_lowercase().ends_with(".xml")
+            })
+            .collect();
+        docs.par_iter()
+            .flat_map_iter(|e| {
+                let mut ix = starbreaker_wwise::atl::AtlIndex::default();
+                if let Ok(data) = self.inner.read(e)
+                    && let Ok(Some(doc)) = starbreaker_wwise::game_audio::parse_document(&data)
+                {
+                    let _ = ix.add_document(&doc);
+                }
+                ix.iter().map(|(n, _)| n.to_string()).collect::<Vec<_>>()
+            })
+            .collect()
+    }
+
     /// Number of entries StarBreaker parsed from the central directory.
     pub fn parsed_entries(&self) -> usize {
         self.inner.len()
@@ -812,5 +840,309 @@ pub mod synthetic {
             b.instance_data.extend_from_slice(&label.0.to_le_bytes());
         }
         b.build()
+    }
+}
+
+// ---------------------------------------------------------------------------------------
+// Explorer sections (addendum 7.17): the few entity fields sections and quick filters use
+// ---------------------------------------------------------------------------------------
+
+/// What one entity record says about itself, read by [`DevDatabase::scan_facets`] without
+/// building JSON: `AttachDef` type, sub-type, size and manufacturer, its own display key, the
+/// geometry files it names and its own audio triggers.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct RawFacets {
+    pub item_type: Option<String>,
+    pub sub_type: Option<String>,
+    pub size: Option<i64>,
+    /// Manufacturer code (`AEGS`), from the reference into `scitemmanufacturer`.
+    pub manufacturer: Option<String>,
+    /// `AttachDef.Localization.Name`, else `VehicleComponentParams.vehicleName` (an `@key`).
+    pub display: Option<String>,
+    /// `AttachDef.Localization.Description` (an `@key`; its text names grade and class).
+    pub description: Option<String>,
+    /// Geometry files (`.cga`/`.cgf`/`.skin`/`.chr`/`.cdf`) under `SGeometryResourceParams`,
+    /// lower case, `/` separated, without a leading `data/`.
+    pub geometry: Vec<String>,
+    /// `VehicleComponentParams.vehicleDefinition` is set (a ship or vehicle model).
+    pub vehicle: bool,
+    /// Non-empty `audioTrigger` values of the record itself.
+    pub triggers: Vec<String>,
+}
+
+/// Geometry file extensions a model export can start from.
+pub const GEOMETRY_EXTS: &[&str] = &[".cga", ".cgf", ".skin", ".chr", ".cdf"];
+
+/// `Objects\Ships\X.cga`, `Data/Objects/...`: lower case, `/`, no leading `data/`.
+pub fn norm_asset_path(p: &str) -> String {
+    let l = p.trim().replace('\\', "/").to_ascii_lowercase();
+    let l = l.trim_start_matches('/');
+    l.strip_prefix("data/").unwrap_or(l).to_string()
+}
+
+#[derive(Default)]
+struct FacetSink {
+    /// (name, `_Type_`) of the open objects and arrays.
+    stack: Vec<(Option<String>, Option<String>)>,
+    /// Depth where an `SGeometryResourceParams` object began.
+    geom_at: Option<usize>,
+    out: RawFacets,
+}
+
+impl FacetSink {
+    fn name_at(&self, back: usize) -> Option<&str> {
+        let n = self.stack.len().checked_sub(1 + back)?;
+        self.stack[n].0.as_deref()
+    }
+    fn in_attach_def(&self) -> bool {
+        self.name_at(0) == Some("AttachDef")
+    }
+    fn ty(&self) -> Option<&str> {
+        self.stack.last().and_then(|f| f.1.as_deref())
+    }
+    fn begin(&mut self, name: Option<&str>) {
+        self.stack.push((name.map(str::to_string), None));
+    }
+    fn end(&mut self) {
+        self.stack.pop();
+        if self.geom_at.is_some_and(|d| self.stack.len() < d) {
+            self.geom_at = None;
+        }
+    }
+    fn string(&mut self, name: Option<&str>, v: &str) {
+        if name == Some("_Type_") {
+            if v == "SGeometryResourceParams" && self.geom_at.is_none() {
+                self.geom_at = Some(self.stack.len());
+            }
+            if let Some(f) = self.stack.last_mut() {
+                f.1 = Some(v.to_string());
+            }
+            return;
+        }
+        let attach = self.in_attach_def();
+        let loc_name =
+            self.name_at(0) == Some("Localization") && self.name_at(1) == Some("AttachDef");
+        let vehicle = self.ty() == Some("VehicleComponentParams");
+        let geom = self.geom_at.is_some();
+        let key = v.len() > 1 && v.starts_with('@') && !v.starts_with("@LOC_");
+        let o = &mut self.out;
+        match name {
+            Some("audioTrigger") if !v.trim().is_empty() => {
+                if !o.triggers.iter().any(|t| t == v) {
+                    o.triggers.push(v.to_string());
+                }
+            }
+            Some("Type") if attach && o.item_type.is_none() => o.item_type = Some(v.into()),
+            Some("SubType") if attach && o.sub_type.is_none() => o.sub_type = Some(v.into()),
+            Some("Name") if loc_name && key && o.display.is_none() => o.display = Some(v.into()),
+            Some("Description") if loc_name && key && o.description.is_none() => {
+                o.description = Some(v.into())
+            }
+            Some("vehicleName") if vehicle && key && o.display.is_none() => {
+                o.display = Some(v.into())
+            }
+            Some("vehicleDefinition") if vehicle && !v.trim().is_empty() => o.vehicle = true,
+            _ if geom => {
+                let l = v.to_ascii_lowercase();
+                if GEOMETRY_EXTS.iter().any(|e| l.ends_with(e)) {
+                    let p = norm_asset_path(v);
+                    if !o.geometry.contains(&p) {
+                        o.geometry.push(p);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    fn int(&mut self, name: Option<&str>, v: i64) {
+        if name == Some("Size") && self.in_attach_def() && self.out.size.is_none() {
+            self.out.size = Some(v);
+        }
+    }
+    fn record_ref(&mut self, name: Option<&str>, path: &str) {
+        if name == Some("Manufacturer")
+            && self.in_attach_def()
+            && self.out.manufacturer.is_none()
+            && path.to_ascii_lowercase().contains("scitemmanufacturer")
+        {
+            let file = path.rsplit(['/', '\\']).next().unwrap_or_default();
+            let stem = file
+                .strip_suffix(".json")
+                .or_else(|| file.strip_suffix(".xml"))
+                .unwrap_or(file);
+            let code = stem.rsplit('.').next().unwrap_or_default();
+            if !code.is_empty() {
+                self.out.manufacturer = Some(code.to_ascii_uppercase());
+            }
+        }
+    }
+}
+
+impl starbreaker_datacore::sink::ExportSink for FacetSink {
+    type Error = std::io::Error;
+
+    fn extension(&self) -> &str {
+        "json"
+    }
+    fn begin_object(&mut self, name: Option<&str>) -> Result<(), Self::Error> {
+        self.begin(name);
+        Ok(())
+    }
+    fn end_object(&mut self) -> Result<(), Self::Error> {
+        self.end();
+        Ok(())
+    }
+    fn begin_array(&mut self, name: &str) -> Result<(), Self::Error> {
+        self.begin(Some(name));
+        Ok(())
+    }
+    fn end_array(&mut self) -> Result<(), Self::Error> {
+        self.end();
+        Ok(())
+    }
+    fn write_null(&mut self, _: Option<&str>) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_bool(&mut self, _: Option<&str>, _: bool) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_i8(&mut self, n: Option<&str>, v: i8) -> Result<(), Self::Error> {
+        self.int(n, v.into());
+        Ok(())
+    }
+    fn write_i16(&mut self, n: Option<&str>, v: i16) -> Result<(), Self::Error> {
+        self.int(n, v.into());
+        Ok(())
+    }
+    fn write_i32(&mut self, n: Option<&str>, v: i32) -> Result<(), Self::Error> {
+        self.int(n, v.into());
+        Ok(())
+    }
+    fn write_i64(&mut self, n: Option<&str>, v: i64) -> Result<(), Self::Error> {
+        self.int(n, v);
+        Ok(())
+    }
+    fn write_u8(&mut self, n: Option<&str>, v: u8) -> Result<(), Self::Error> {
+        self.int(n, v.into());
+        Ok(())
+    }
+    fn write_u16(&mut self, n: Option<&str>, v: u16) -> Result<(), Self::Error> {
+        self.int(n, v.into());
+        Ok(())
+    }
+    fn write_u32(&mut self, n: Option<&str>, v: u32) -> Result<(), Self::Error> {
+        self.int(n, v.into());
+        Ok(())
+    }
+    fn write_u64(&mut self, n: Option<&str>, v: u64) -> Result<(), Self::Error> {
+        self.int(n, i64::try_from(v).unwrap_or(i64::MAX));
+        Ok(())
+    }
+    fn write_f32(&mut self, _: Option<&str>, _: f32) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_f64(&mut self, _: Option<&str>, _: f64) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_str(&mut self, n: Option<&str>, v: &str) -> Result<(), Self::Error> {
+        self.string(n, v);
+        Ok(())
+    }
+    fn write_guid(
+        &mut self,
+        _: Option<&str>,
+        _: &starbreaker_datacore::types::CigGuid,
+    ) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn write_record_ref(
+        &mut self,
+        name: Option<&str>,
+        _: &starbreaker_datacore::types::CigGuid,
+        _: &str,
+        path: &str,
+    ) -> Result<(), Self::Error> {
+        self.record_ref(name, path);
+        Ok(())
+    }
+}
+
+/// Feed [`FacetSink`] the events of a small made-up entity (tests only).
+#[cfg(test)]
+pub fn scan_events_for_test() -> RawFacets {
+    use starbreaker_datacore::sink::ExportSink;
+    let g = starbreaker_datacore::types::CigGuid::EMPTY;
+    let mut k = FacetSink::default();
+    let s = &mut k;
+    s.begin_object(None).unwrap();
+    s.begin_object(Some("_RecordValue_")).unwrap();
+    s.write_str(Some("_Type_"), "EntityClassDefinition")
+        .unwrap();
+    s.begin_array("Components").unwrap();
+    // A geometry component: the path below it counts, a material path does not.
+    s.begin_object(None).unwrap();
+    s.write_str(Some("_Type_"), "SGeometryResourceParams")
+        .unwrap();
+    s.begin_object(Some("Geometry")).unwrap();
+    s.write_str(Some("path"), r"Data\Objects\X\x.cga").unwrap();
+    s.write_str(Some("path"), "objects/x/x.mtl").unwrap();
+    s.end_object().unwrap();
+    s.end_object().unwrap();
+    // The attachable component.
+    s.begin_object(None).unwrap();
+    s.write_str(Some("_Type_"), "SAttachableComponentParams")
+        .unwrap();
+    s.begin_object(Some("AttachDef")).unwrap();
+    s.write_str(Some("Type"), "Cooler").unwrap();
+    s.write_str(Some("SubType"), "UNDEFINED").unwrap();
+    s.write_i32(Some("Size"), 1).unwrap();
+    s.write_record_ref(
+        Some("Manufacturer"),
+        &g,
+        "x",
+        "file://./scitemmanufacturer/scitemmanufacturer.aegs.json",
+    )
+    .unwrap();
+    s.begin_object(Some("Localization")).unwrap();
+    s.write_str(Some("Name"), "@item_NameX").unwrap();
+    s.write_str(Some("Description"), "@item_DescX").unwrap();
+    s.end_object().unwrap();
+    s.end_object().unwrap();
+    s.end_object().unwrap();
+    // Geometry outside SGeometryResourceParams is not the model.
+    s.begin_object(None).unwrap();
+    s.write_str(Some("_Type_"), "VehicleComponentParams")
+        .unwrap();
+    s.write_str(Some("vehicleDefinition"), "scripts/x.xml")
+        .unwrap();
+    s.write_str(Some("path"), "objects/other.cgf").unwrap();
+    s.write_str(Some("audioTrigger"), "Play_x").unwrap();
+    s.write_str(Some("audioTrigger"), "Play_x").unwrap();
+    s.write_str(Some("audioTrigger"), "").unwrap();
+    s.end_object().unwrap();
+    s.end_array().unwrap();
+    s.end_object().unwrap();
+    s.end_object().unwrap();
+    k.out
+}
+
+impl DevDatabase<'_> {
+    /// [`RawFacets`] of every main `EntityClassDefinition` record, by index entry, in
+    /// parallel. Other records (and entities the walker cannot read) get `None`.
+    pub fn scan_facets(&self) -> Vec<Option<RawFacets>> {
+        use rayon::prelude::*;
+        let db = &self.db;
+        let entity = db.struct_id("EntityClassDefinition");
+        db.records()
+            .par_iter()
+            .map(|r| {
+                if Some(r.struct_id()) != entity || !db.is_main_record(r) {
+                    return None;
+                }
+                let mut sink = FacetSink::default();
+                starbreaker_datacore::walker::walk_record(db, r, &mut sink).ok()?;
+                Some(sink.out)
+            })
+            .collect()
     }
 }

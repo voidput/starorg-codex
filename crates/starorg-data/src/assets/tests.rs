@@ -324,3 +324,27 @@ fn globs_match_within_and_across_folders() {
     assert!(plan[0].rel.starts_with("Data"));
     assert!(files::plan_glob(&a, "nothing*").is_err());
 }
+
+#[test]
+fn sound_search_finds_triggers_by_name_event_and_words() {
+    let t = tempfile::tempdir().unwrap();
+    let p = t.path().join("game").join("Data.p4k");
+    synthetic::write_with_audio(&p).unwrap();
+    let a = AssetArchive::open(&p).unwrap();
+    let idx = a.audio().unwrap();
+    let r = idx.search_triggers("engine", 50);
+    assert_eq!(r.total, 1);
+    assert_eq!(r.hits[0].name, "Play_SYN_Engine_Loop");
+    assert_eq!(r.hits[0].duration_type.as_deref(), Some("Infinite"));
+    // Words in any order; the event name counts too.
+    assert_eq!(
+        idx.search_triggers("boom syn", 50).hits[0].name,
+        "Play_SYN_Explosion_Big"
+    );
+    assert_eq!(idx.search_triggers("syn", 50).total, 2);
+    assert_eq!(idx.search_triggers("", 50).total, 0);
+    let t = idx.trigger(&a, "Play_SYN_Engine_Loop");
+    assert_eq!(t.event.as_deref(), Some("Play_SYN_Engine_Loop"));
+    let none = idx.trigger(&a, "Nope");
+    assert!(none.event.is_none() && none.sounds.is_empty());
+}

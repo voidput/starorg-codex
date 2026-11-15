@@ -6,8 +6,10 @@ pub mod dataset;
 pub mod diff;
 pub mod explorer;
 pub mod group;
+pub mod media;
 pub mod readable;
 pub mod record;
+pub mod sections;
 
 #[cfg(test)]
 mod group_tests;

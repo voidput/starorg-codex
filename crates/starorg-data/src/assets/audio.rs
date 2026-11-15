@@ -82,6 +82,21 @@ pub struct TriggerInfo {
     pub sounds: Vec<SoundInfo>,
 }
 
+/// One ATL trigger found by name (7.17).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TriggerHit {
+    pub name: String,
+    pub event: String,
+    pub bank: String,
+    pub duration_type: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TriggerSearch {
+    pub hits: Vec<TriggerHit>,
+    pub total: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RecordSounds {
     pub record: String,
@@ -135,6 +150,74 @@ impl AudioIndex {
 
     pub fn triggers(&self) -> usize {
         self.atl.len()
+    }
+
+    /// Triggers whose name, Wwise event or bank holds every word (case-insensitive), ranked:
+    /// name starts with the words run together, then name holds them, then event/bank.
+    /// Feeds the Explorer's "Sounds" search mode (addendum 7.17).
+    pub fn search_triggers(&self, query: &str, limit: usize) -> TriggerSearch {
+        let words: Vec<String> = query.split_whitespace().map(str::to_lowercase).collect();
+        if words.is_empty() {
+            return TriggerSearch::default();
+        }
+        let joined = words.join("_");
+        let mut hits: Vec<(u8, &starbreaker_wwise::AtlTrigger)> = self
+            .atl
+            .iter()
+            .filter_map(|(name, t)| {
+                let n = name.to_lowercase();
+                let other = format!("{} {}", t.wwise_event_name, t.bank_name).to_lowercase();
+                if !words
+                    .iter()
+                    .all(|w| n.contains(w.as_str()) || other.contains(w.as_str()))
+                {
+                    return None;
+                }
+                let rank = if n.starts_with(&joined) || n.contains(&format!("_{joined}")) {
+                    0
+                } else if words.iter().all(|w| n.contains(w.as_str())) {
+                    1
+                } else {
+                    2
+                };
+                Some((rank, t))
+            })
+            .collect();
+        let total = hits.len() as u32;
+        hits.sort_by(|a, b| {
+            a.0.cmp(&b.0)
+                .then(a.1.trigger_name.len().cmp(&b.1.trigger_name.len()))
+                .then(a.1.trigger_name.cmp(&b.1.trigger_name))
+        });
+        TriggerSearch {
+            hits: hits
+                .into_iter()
+                .take(limit.min(500))
+                .map(|(_, t)| TriggerHit {
+                    name: t.trigger_name.clone(),
+                    event: t.wwise_event_name.clone(),
+                    bank: t.bank_name.clone(),
+                    duration_type: Some(t.duration_type.clone()).filter(|d| !d.is_empty()),
+                })
+                .collect(),
+            total,
+        }
+    }
+
+    /// One trigger with the sounds it plays.
+    pub fn trigger(&self, a: &AssetArchive, name: &str) -> TriggerInfo {
+        let (atl, sounds) = self.resolve(a, name);
+        TriggerInfo {
+            name: name.to_string(),
+            property: String::new(),
+            from: String::new(),
+            bank: atl.map(|x| x.bank_name.clone()),
+            event: atl.map(|x| x.wwise_event_name.clone()),
+            duration_type: atl
+                .map(|x| x.duration_type.clone())
+                .filter(|d| !d.is_empty()),
+            sounds,
+        }
     }
 
     fn bank_path(&self, bank: &str) -> String {

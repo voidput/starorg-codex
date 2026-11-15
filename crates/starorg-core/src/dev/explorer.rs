@@ -33,6 +33,8 @@ pub struct Entry {
 pub enum TreeRoot {
     Type,
     Path,
+    /// Player-meaningful sections (7.17), served by [`super::sections::SectionIndex`].
+    Section,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -41,6 +43,8 @@ pub enum NodeKind {
     Type,
     Folder,
     Record,
+    /// A section or media view (7.17).
+    Section,
 }
 
 /// One row of a tree level. Ids: `t:<type>`, `p:<folder>/`, `r:<guid>`; the root is `""`.
@@ -370,6 +374,8 @@ impl ExplorerIndex {
                     .collect(),
                 None => vec![],
             },
+            // Served by the section index; the plain index has none.
+            TreeRoot::Section => vec![],
             TreeRoot::Path => {
                 let prefix = if node.is_empty() {
                     String::new()

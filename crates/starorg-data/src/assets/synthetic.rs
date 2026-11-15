@@ -130,6 +130,14 @@ pub const XML: &str = "Data\\Scripts\\syn_config.xml";
 /// The loose WEM.
 pub const WEM: &str = "Data\\Sounds\\wwise\\Media\\123456.wem";
 
+/// A GameAudio document with two ATL triggers (the Explorer's Sounds search, 7.17).
+pub const GAME_AUDIO: &str = "Data\\Libs\\GameAudio\\syn_audio.xml";
+pub const GAME_AUDIO_XML: &str = "<ATLConfig><AudioTriggers>\
+<ATLTrigger atl_name=\"Play_SYN_Engine_Loop\"><WwiseEvent wwise_name=\"Play_SYN_Engine_Loop\" \
+wwise_duration_type=\"Infinite\"/></ATLTrigger>\
+<ATLTrigger atl_name=\"Play_SYN_Explosion_Big\"><WwiseEvent wwise_name=\"Play_SYN_Boom\"/></ATLTrigger>\
+</AudioTriggers></ATLConfig>";
+
 /// Every file of the synthetic archive.
 pub fn files() -> Vec<(&'static str, Vec<u8>)> {
     let (base, mip1) = dds_split(8, 8);
@@ -153,6 +161,16 @@ pub fn files() -> Vec<(&'static str, Vec<u8>)> {
         (WEM, pcm_wem(480)),
         ("Data\\Sounds\\wwise\\bad.wem", b"not a wem".to_vec()),
     ]
+}
+
+/// The synthetic archive plus [`GAME_AUDIO`], for the trigger search.
+pub fn write_with_audio(path: &Path) -> std::io::Result<()> {
+    if let Some(d) = path.parent() {
+        std::fs::create_dir_all(d)?;
+    }
+    let mut f = files();
+    f.push((GAME_AUDIO, GAME_AUDIO_XML.as_bytes().to_vec()));
+    std::fs::write(path, zip(&f))
 }
 
 /// Write the synthetic archive to `path`.

@@ -71,6 +71,15 @@ pub enum AssetRequest {
     Sounds {
         what: String,
     },
+    /// ATL triggers by name, event or bank (the Explorer's Sounds search, 7.17).
+    SoundSearch {
+        query: String,
+        limit: u32,
+    },
+    /// One trigger and its sounds.
+    Trigger {
+        name: String,
+    },
     /// One sound: Ogg to `out_ogg` (Vorbis), else (or with `raw`) the WEM to `out_wem`.
     Sound {
         sound: SoundRef,
@@ -375,6 +384,10 @@ impl Server {
             }
             AssetRequest::Preview { path, out } => to_value(files::preview(a, path, out)?),
             AssetRequest::Sounds { what } => to_value(audio::record_sounds(a, what)?),
+            AssetRequest::SoundSearch { query, limit } => {
+                to_value(a.audio()?.search_triggers(query, *limit as usize))
+            }
+            AssetRequest::Trigger { name } => to_value(a.audio()?.trigger(a, name)),
             AssetRequest::Sound {
                 sound,
                 out_ogg,
@@ -635,6 +648,7 @@ pub fn run(args: &Args) -> i32 {
         start_ms: started.elapsed().as_millis() as u64,
         rss: rss_bytes(),
         source: args.p4k.display().to_string(),
+        sections: None,
     };
     write_line(
         &out,
