@@ -8,6 +8,10 @@
 # packs an unsigned .msix for Partner Center only when the MSIX_* variables exist. Without them
 # both are skipped with a notice and the release is exactly as before.
 # See docs/release.md for the throwaway v0.0.1 dry run.
+# Licenses: the notices job regenerates THIRD_PARTY_NOTICES.md from the release commit's lock
+# files (scripts/gen-notices.sh), uploads it as a release asset, and hands it to the cli, app
+# and store jobs, so every shipped build carries the exact notices even if the committed copy
+# lags behind a dependency bump. The CLI archives contain LICENSE and THIRD_PARTY_NOTICES.md.
 name: Release
 on:
   push:
@@ -56,9 +60,47 @@ jobs:
           TAG: ${{ steps.rp.outputs.tag_name }}
         run: gh release edit "$TAG" --prerelease --repo "$GITHUB_REPOSITORY"
 
+  notices:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Install toolchain from rust-toolchain.toml
+        run: rustup show active-toolchain || rustup toolchain install
+      - uses: taiki-e/install-action@ab49d3c64680143e184118bed66a46419fc15519 # v2.90.5
+        with:
+          tool: cargo-about@0.9.3
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - name: npm ci
+        working-directory: app
+        run: npm ci
+      - name: Generate THIRD_PARTY_NOTICES.md
+        run: |
+          scripts/gen-notices.sh --check || {
+            echo "::warning::The committed THIRD_PARTY_NOTICES.md was stale; the release ships the regenerated one."
+            scripts/gen-notices.sh
+          }
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: third-party-notices
+          path: THIRD_PARTY_NOTICES.md
+          if-no-files-found: error
+      - name: Upload to the release
+        run: gh release upload "$TAG" THIRD_PARTY_NOTICES.md --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+
   cli:
     name: cli (${{ matrix.name }})
-    needs: release-please
+    needs: [release-please, notices]
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ${{ matrix.os }}
     permissions:
@@ -78,6 +120,10 @@ jobs:
         run: |
           rustup show active-toolchain || rustup toolchain install
           rustup target add ${{ matrix.target }}
+      # Overwrites the committed copy with the one generated for this release (notices job).
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: third-party-notices
       - name: musl tools
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y musl-tools
@@ -128,7 +174,7 @@ jobs:
           mkdir -p "dist/$name"
           bin=target/${{ matrix.target }}/release/starorg-strings
           [ "${{ runner.os }}" = Windows ] && bin="$bin.exe"
-          cp "$bin" LICENSE "dist/$name/"
+          cp "$bin" LICENSE THIRD_PARTY_NOTICES.md "dist/$name/"
           cd dist
           if [ "${{ matrix.ext }}" = zip ]; then 7z a "$name.zip" "$name"; else tar czf "$name.tar.gz" "$name"; fi
           rm -rf "$name"
@@ -144,7 +190,7 @@ jobs:
 
   app:
     name: app (${{ matrix.os }})
-    needs: release-please
+    needs: [release-please, notices]
     if: needs.release-please.outputs.release_created == 'true'
     runs-on: ${{ matrix.os }}
     permissions:
@@ -162,6 +208,10 @@ jobs:
         shell: bash
         run: |
           if [ -f app/package.json ] && [ -f app/src-tauri/Cargo.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "app/ not present, skipping installers"; fi
+      # The About dialog embeds it and the installers carry it as a resource (tauri.conf.json).
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: third-party-notices
       - name: Install toolchain from rust-toolchain.toml
         if: steps.app.outputs.present == 'true'
         shell: bash
@@ -283,7 +333,7 @@ jobs:
   # from Partner Center -> Product identity; without them every step after the check is skipped.
   store:
     name: store (msix)
-    needs: release-please
+    needs: [release-please, notices]
     if: needs.release-please.outputs.release_created == 'true' && needs.release-please.outputs.prerelease != 'true'
     runs-on: windows-latest
     permissions:
@@ -316,6 +366,11 @@ jobs:
             echo "configured=false" >> "$GITHUB_OUTPUT"
             echo "::notice::No Store package: set the repo variables MSIX_IDENTITY_NAME, MSIX_PUBLISHER and MSIX_PUBLISHER_DISPLAY_NAME (docs/windows.md)."
           fi
+      # Embedded in the About dialog of the Store exe.
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: steps.identity.outputs.configured == 'true'
+        with:
+          name: third-party-notices
       - name: Install toolchain from rust-toolchain.toml
         if: steps.identity.outputs.configured == 'true'
         shell: bash
@@ -400,9 +455,9 @@ jobs:
           msstore publish $pkg.FullName --appId $env:MS_STORE_ID --noCommit
           if ($LASTEXITCODE -ne 0) { throw "msstore publish failed ($LASTEXITCODE)" }
   checksums:
-    needs: [release-please, cli, app, store]
+    needs: [release-please, notices, cli, app, store]
     # The Store package is extra: a failed store job must not keep SHA256SUMS off the release.
-    if: ${{ !cancelled() && needs.release-please.outputs.release_created == 'true' && needs.cli.result == 'success' && needs.app.result == 'success' }}
+    if: ${{ !cancelled() && needs.release-please.outputs.release_created == 'true' && needs.notices.result == 'success' && needs.cli.result == 'success' && needs.app.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write

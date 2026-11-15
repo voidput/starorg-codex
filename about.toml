@@ -1,0 +1,29 @@
+# cargo-about config for THIRD_PARTY_NOTICES.md (scripts/gen-notices.sh). Keep `accepted` in
+# step with deny.toml [licenses].allow; cargo deny enforces the policy, this only lists texts.
+accepted = ["MIT", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause", "BSD-3-Clause", "Unicode-3.0", "Zlib", "MPL-2.0"]
+# The shipped targets: Linux GUI (gnu), Linux CLI (musl), Windows GUI and CLI.
+targets = ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl", "x86_64-pc-windows-msvc"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+# Our own workspace crates (publish = false) are covered by LICENSE.
+private = { ignore = true }
+
+# StarBreaker's crates carry no `license` field; MIT LICENSE at the repo root of the pinned rev
+# 041e5592 (as in deny.toml). Re-check the checksum whenever the pin moves.
+[starbreaker-common.clarify]
+license = "MIT"
+[[starbreaker-common.clarify.git]]
+path = "LICENSE"
+checksum = "1bc6eda2576a558fb0d5ed81b6d806d4f9e757f28b434e35fa5826be74638b82"
+
+[starbreaker-datacore.clarify]
+license = "MIT"
+[[starbreaker-datacore.clarify.git]]
+path = "LICENSE"
+checksum = "1bc6eda2576a558fb0d5ed81b6d806d4f9e757f28b434e35fa5826be74638b82"
+
+[starbreaker-p4k.clarify]
+license = "MIT"
+[[starbreaker-p4k.clarify.git]]
+path = "LICENSE"
+checksum = "1bc6eda2576a558fb0d5ed81b6d806d4f9e757f28b434e35fa5826be74638b82"
