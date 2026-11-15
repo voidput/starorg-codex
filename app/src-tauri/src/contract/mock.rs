@@ -1088,7 +1088,8 @@ impl Backend for MockBackend {
         let active = installs.iter().find(|i| i.saved).map(|i| i.id.clone());
         Ok(Overview {
             contract: CONTRACT_VERSION,
-            app_version: env!("CARGO_PKG_VERSION").into(),
+            // Fixed, not the crate version: samples.gen.json must not change on every release bump.
+            app_version: "0.1.0".into(),
             first_run,
             active_install: active.clone(),
             default_channel: s.settings.default_channel.clone().or_else(|| {

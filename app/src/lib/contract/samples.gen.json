@@ -1718,7 +1718,7 @@
   ],
   "overview": {
     "active_install": "inst-7f3a",
-    "app_version": "0.0.0",
+    "app_version": "0.1.0",
     "contract": 1,
     "default_channel": "LIVE",
     "first_run": false,
@@ -1859,7 +1859,7 @@
   },
   "overview_first_run": {
     "active_install": null,
-    "app_version": "0.0.0",
+    "app_version": "0.1.0",
     "contract": 1,
     "default_channel": null,
     "first_run": true,
