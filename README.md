@@ -69,7 +69,8 @@ Developer mode (optional) needs a little more:
   AppImage, sound playback does not work on most distros: it bundles an old GStreamer core
   (1.20) but no plugins, and cannot load the system's. Exporting a sound works everywhere.
 - **3D model viewer:** WebGL 2 in the webview, so a working GPU driver with hardware
-  acceleration. With `--safe-gpu` on Linux there is no WebGL; "Export .glb" still works.
+  acceleration. On some older WebKitGTK builds, `--safe-gpu` can turn WebGL off; "Export .glb"
+  still works.
 - **Memory and disk:** big datasets need several GB of RAM (Settings -> Advanced -> Memory
   limit); the asset cache uses up to 2 GB by default.
 

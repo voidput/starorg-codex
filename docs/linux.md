@@ -43,8 +43,8 @@ For Developer mode only:
   core cannot load your system's plugins. Use the .deb, .rpm or a source build,
   or Export the sound instead.
 - **The 3D model viewer** needs WebGL 2 in WebKitGTK, which means a working GPU driver with
-  hardware acceleration. `--safe-gpu` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` turn WebGL off, see
-  [Troubleshooting](#troubleshooting).
+  hardware acceleration. On some older WebKitGTK builds, `--safe-gpu` and
+  `WEBKIT_DISABLE_COMPOSITING_MODE=1` can turn WebGL off, see [Troubleshooting](#troubleshooting).
 
 ## Flavours
 
@@ -315,14 +315,14 @@ is not on your `PATH` it prints the exact line to add for your shell (bash, zsh,
 | AppImage: nothing happens, or `No suitable fusermount binary found on the $PATH` | Install `fuse3` (it provides `fusermount3`), or run it with `--appimage-extract-and-run`. libfuse2 does not help |
 | AppImage: "Permission denied" | `chmod +x StarOrg-Codex.AppImage`; also check the folder is not on a `noexec` mount |
 | AppImage crashes at start on a rolling distro (Arch, CachyOS), Wayland errors in the terminal | A library bundled in the AppImage clashes with newer system ones. Try `GDK_BACKEND=x11 ./StarOrg-Codex.AppImage`, or extract it (`--appimage-extract`), delete `squashfs-root/usr/lib/libwayland-*` and run `squashfs-root/AppRun`. Building from source uses only system libraries |
-| Window blank, white or black, or flickers (often NVIDIA) | The app already sets WebKitGTK workarounds on NVIDIA (`__NV_DISABLE_EXPLICIT_SYNC=1` on KDE Wayland, `WEBKIT_DISABLE_DMABUF_RENDERER=1` on X11 and Hyprland). If it still fails, start it with `--safe-gpu` (adds `WEBKIT_DISABLE_COMPOSITING_MODE=1` too), or set `WEBKIT_DISABLE_DMABUF_RENDERER=1` yourself. If you set any of these variables yourself, the app leaves all of them alone. `--safe-gpu` also turns off WebGL, so the Developer mode 3D model viewer is off |
+| Window blank, white or black, or flickers (often NVIDIA) | The app already sets WebKitGTK workarounds on NVIDIA (`__NV_DISABLE_EXPLICIT_SYNC=1` on KDE Wayland, `WEBKIT_DISABLE_DMABUF_RENDERER=1` on X11 and Hyprland). If it still fails, start it with `--safe-gpu` (adds `WEBKIT_DISABLE_COMPOSITING_MODE=1` too), or set `WEBKIT_DISABLE_DMABUF_RENDERER=1` yourself. If you set any of these variables yourself, the app leaves all of them alone. On some older WebKitGTK builds `--safe-gpu` can also turn WebGL off, so the Developer mode 3D model viewer may not work |
 | No icon in the taskbar on Wayland | The window's app id is `starorg-codex-app`; the packages and the installer script ship a `starorg-codex-app.desktop` for it. For a hand-placed AppImage, run the installer with `--app` or create that file |
 | .deb: "unable to locate package" | Use `./` before the file name: `sudo apt install ./StarOrg.Codex_<v>_amd64.deb` |
 | "No Star Citizen install found" | Start the RSI Launcher in the prefix once (it writes the log we read), or Browse / `--prefix` / `--game-dir` ([first run](#first-run-find-the-game-in-the-wine-prefix)) |
 | "refusing to run as root or elevated" | Run it as your normal user, without sudo |
 | "the game is running for LIVE" | Quit the game fully (also check for a leftover `StarCitizen.exe` with `pgrep -af StarCitizen`), then apply again |
 | A duplicate-case error (`data` and `Data`) | Two folders differ only in case inside the game folder; Wine may use either. Merge them by hand, then apply again. `starorg-codex doctor` reports casing problems |
-| Developer mode: the 3D view says "The webview has no WebGL here (...)" | The model viewer needs WebGL 2. `--safe-gpu` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` turn it off: start the app without them (and unset the variable). Otherwise check that the GPU driver is installed and working. "Export .glb" works either way; open the file in Blender |
+| Developer mode: the 3D view says "The webview has no WebGL here (...)" | The model viewer needs WebGL 2. On some older WebKitGTK builds, `--safe-gpu` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` can turn it off: try the app without them (and unset the variable). Otherwise check that the GPU driver is installed and working. "Export .glb" works either way; open the file in Blender |
 | Developer mode: a sound will not play ("The app's webview could not play…", or `NotSupportedError`) | WebKitGTK plays sounds through GStreamer and needs gst-plugins-good for its audio output (`autoaudiosink`) and for `.wav`: Arch/CachyOS `sudo pacman -S gst-plugins-good`, Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora `gstreamer1-plugins-good`, openSUSE `gstreamer-plugins-good`; then restart the app. The AppImage cannot play sounds on most distros (it bundles GStreamer 1.20 without plugins and cannot use the system's): use the .deb, .rpm or a source build. Exporting the sound works everywhere |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
 | Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints/backups/`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-codex blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
