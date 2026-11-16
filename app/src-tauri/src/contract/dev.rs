@@ -533,16 +533,49 @@ pub fn field_counts(records: &[DiffRecord]) -> Vec<ValueCount> {
     v
 }
 
+/// The part of each record name that tells records sharing a title apart: the common
+/// leading `_` segments dropped, the rest with spaces ("PU AI CRIM" for
+/// `AEGS_Tiburon_PU_AI_CRIM` next to `AEGS_Tiburon`). `None` for the record named by the
+/// common part alone. Names that are not all different give `None` everywhere.
+fn name_tails(names: &[&str]) -> Vec<Option<String>> {
+    let distinct = names
+        .iter()
+        .map(|n| n.to_lowercase())
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    if distinct != names.len() {
+        return vec![None; names.len()];
+    }
+    let segs: Vec<Vec<&str>> = names.iter().map(|n| n.split('_').collect()).collect();
+    let mut common = 0;
+    while segs.iter().all(|s| s.len() > common)
+        && segs
+            .iter()
+            .all(|s| s[common].eq_ignore_ascii_case(segs[0][common]))
+    {
+        common += 1;
+    }
+    segs.iter()
+        .map(|s| {
+            let tail = s[common..].join(" ");
+            (!tail.trim().is_empty()).then(|| tail.trim().to_string())
+        })
+        .collect()
+}
+
 /// Shared by both backends: filter, page and trim one table's diff records. `title` gives a
-/// record's display name (addendum 7.14); the text query matches it and the id. Titles that
-/// several records of the result share get the record's short id appended ("Aegis Javelin
-/// (AEGS_Javelin_AI_Escort)").
+/// record's display name (addendum 7.14); the text query matches it and the id. `name` gives
+/// its record name (`recordName` / `className`), when the row has one. Titles that several
+/// records of the result share are told apart by the differing end of their record names
+/// ("Aegis Tiburon · PU AI CRIM" next to plain "Aegis Tiburon"), else by the short id
+/// ("Aegis Javelin (AEGS_Javelin_AI_Escort)", or a GUID).
 pub fn page_records(
     d: &starorg_core::dev::diff::TableDiff,
     req: &DevDiffRecordsRequest,
     identity_options: Vec<String>,
     in_group: &dyn Fn(&DiffRecord) -> bool,
     title: &dyn Fn(&DiffRecord) -> Option<String>,
+    name: &dyn Fn(&DiffRecord) -> Option<String>,
 ) -> DevDiffRecords {
     let needle = req
         .query
@@ -571,26 +604,64 @@ pub fn page_records(
             }
         })
         .collect();
-    let mut seen: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
-    for t in hits.iter().filter_map(|h| h.1.as_deref()) {
-        *seen.entry(t).or_default() += 1;
+    // Shared titles: the record name of each, then the part that differs.
+    let mut groups: std::collections::HashMap<&str, Vec<usize>> = std::collections::HashMap::new();
+    for (i, t) in hits.iter().enumerate() {
+        if let Some(t) = t.1.as_deref() {
+            groups.entry(t).or_default().push(i);
+        }
+    }
+    enum Suffix {
+        Plain,
+        Tail(String),
+        ShortId,
+    }
+    let mut suffix: std::collections::HashMap<usize, Suffix> = std::collections::HashMap::new();
+    for idx in groups.values().filter(|v| v.len() > 1) {
+        // No record name: the id stands in, unless it is a GUID (nothing readable in it).
+        let names: Option<Vec<String>> = idx
+            .iter()
+            .map(|&i| {
+                let r = hits[i].0;
+                name(r)
+                    .or_else(|| {
+                        (!starorg_core::dev::explorer::is_guid(&r.id)).then(|| r.id.clone())
+                    })
+                    .map(|n| starorg_core::model::short_name(&n).to_string())
+            })
+            .collect();
+        let tails = match &names {
+            Some(n) => name_tails(&n.iter().map(String::as_str).collect::<Vec<_>>()),
+            None => vec![None; idx.len()],
+        };
+        // Told apart by name: the base record keeps the plain title. Otherwise: the short id.
+        let by_name = tails.iter().any(Option::is_some);
+        for (k, &i) in idx.iter().enumerate() {
+            let label = match (&tails[k], by_name) {
+                (Some(t), _) => Suffix::Tail(t.clone()),
+                (None, true) => Suffix::Plain,
+                (None, false) => Suffix::ShortId,
+            };
+            suffix.insert(i, label);
+        }
     }
     let limit = (req.limit as usize).clamp(1, starorg_core::dev::explorer::MAX_PAGE);
     DevDiffRecords {
         summary: d.summary.clone(),
         records: hits
             .iter()
+            .enumerate()
             .skip(req.offset as usize)
             .take(limit)
-            .map(|(r, t)| {
+            .map(|(i, (r, t))| {
                 let mut r = (*r).clone();
                 r.fields.truncate(20);
                 r.label = t.as_deref().map(|t| {
                     let short = starorg_core::model::short_name(&r.id);
-                    if seen.get(t).is_some_and(|&n| n > 1) && t != short {
-                        format!("{t} ({short})")
-                    } else {
-                        t.to_string()
+                    match suffix.get(&i) {
+                        Some(Suffix::Tail(tail)) => format!("{t} · {tail}"),
+                        Some(Suffix::ShortId) if t != short => format!("{t} ({short})"),
+                        _ => t.to_string(),
                     }
                 });
                 r
@@ -678,6 +749,22 @@ pub fn record_title(
     row(b, r.b)
         .and_then(|x| row_title(lb, x, identity))
         .or_else(|| row(a, r.a).and_then(|x| row_title(la, x, identity)))
+}
+
+/// A diff record's record name (`recordName`, else `className`), B's row first.
+pub fn record_name(
+    r: &DiffRecord,
+    a: Option<&starorg_core::dev::dataset::Table>,
+    b: Option<&starorg_core::dev::dataset::Table>,
+) -> Option<String> {
+    let of = |t: Option<&starorg_core::dev::dataset::Table>, i: Option<u32>| {
+        let row = t?.rows.get(i? as usize)?;
+        ["recordName", "className"]
+            .iter()
+            .find_map(|k| row.get(*k).and_then(serde_json::Value::as_str))
+            .map(str::to_string)
+    };
+    of(b, r.b).or_else(|| of(a, r.a))
 }
 
 /// Explorer links in a dataset row (7.5): GUID-shaped strings found in the index, and

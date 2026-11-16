@@ -167,6 +167,25 @@
   let dopen = $state<string[]>([]);
   let dgroups = $state<GroupPage | null>(null);
   let recGroup = $state<DiffGroupPick | null>(null);
+  /** Records pane width beside the field changes (drag or arrow keys on the divider; double-click resets). */
+  const REC_W = 'starorg.dev.diff.records.width';
+  const REC_MIN = 260;
+  const REC_DEFAULT = 420;
+  let recW = $state(Math.max(REC_MIN, Number(readPref(REC_W)) || REC_DEFAULT));
+  $effect(() => writePref(REC_W, String(Math.round(recW))));
+  let pairEl = $state<HTMLElement | null>(null);
+  /** Leave the field table at least 320 px. */
+  const recMax = () => Math.max(REC_MIN, (pairEl?.clientWidth ?? 1200) - 320);
+  const setRecW = (w: number) => (recW = Math.min(recMax(), Math.max(REC_MIN, w)));
+  let recDrag: { x: number; w: number } | null = null;
+  function recKey(e: KeyboardEvent) {
+    const d = e.key === 'ArrowLeft' ? -16 : e.key === 'ArrowRight' ? 16 : 0;
+    if (e.key === 'Home') setRecW(REC_MIN);
+    else if (e.key === 'End') setRecW(recMax());
+    else if (d) setRecW(recW + d);
+    else return;
+    e.preventDefault();
+  }
   let railed = $state(readPref('starorg.dev.difftree.railed') === '1');
   $effect(() => writePref('starorg.dev.difftree.railed', railed ? '1' : '0'));
   const diffByOptions: { id: DiffGroupBy; label: string }[] = [
@@ -374,9 +393,9 @@
           {#if picked}
             <!-- Narrow (1024 wide with the tree open): records above the field changes, so the
                  field table keeps its full width instead of clipping the delta column. -->
-            <div class="@container/pair flex min-h-0 flex-1">
-              <div class="flex min-h-0 flex-1 flex-col gap-3 @2xl/pair:flex-row">
-                <section class="bg-card flex max-h-[45%] min-h-28 w-full shrink-0 flex-col overflow-hidden rounded-lg border @2xl/pair:max-h-none @2xl/pair:w-[min(420px,45%)]" aria-label="Records">
+            <div class="@container/pair flex min-h-0 flex-1" bind:this={pairEl}>
+              <div class="flex min-h-0 flex-1 flex-col gap-3 @2xl/pair:flex-row @2xl/pair:gap-0">
+                <section class="bg-card flex max-h-[45%] min-h-28 w-full shrink-0 flex-col overflow-hidden rounded-lg border @2xl/pair:max-h-none @2xl/pair:w-[var(--rec-w)] @2xl/pair:max-w-[calc(100%-20rem)]" style="--rec-w: {recW}px" aria-label="Records">
                   <div class="flex flex-wrap items-center gap-2 border-b px-2 py-1.5">
                     <Segmented size="sm" ariaLabel="Records" options={[{ id: 'all', label: 'All' }, { id: 'changed', label: 'Changed' }, { id: 'added', label: 'Added' }, { id: 'removed', label: 'Removed' }] as { id: 'all' | RecordState; label: string }[]} bind:value={stateFilter} />
                     {#if records?.fields.length}
@@ -439,11 +458,33 @@
                     </div>
                   {/if}
                 </section>
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize record list"
+                  aria-valuenow={Math.round(recW)}
+                  aria-valuemin={REC_MIN}
+                  tabindex="0"
+                  title="Drag to resize; double-click to reset"
+                  class="hover:bg-primary/40 focus-visible:bg-primary/60 mx-1 hidden w-1.5 shrink-0 cursor-col-resize touch-none rounded outline-none @2xl/pair:block"
+                  onkeydown={recKey}
+                  ondblclick={() => setRecW(REC_DEFAULT)}
+                  onpointerdown={(e) => {
+                    recDrag = { x: e.clientX, w: recW };
+                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                  }}
+                  onpointermove={(e) => recDrag && setRecW(recDrag.w + e.clientX - recDrag.x)}
+                  onpointerup={() => (recDrag = null)}
+                  onpointercancel={() => (recDrag = null)}
+                ></div>
                 <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">
                   {#if field}
-                    {@const t = titled(field.id, field.label, dev.showIds)}
+                    <!-- The list's label tells AI variants apart ("· PU AI CRIM"); the field reply alone cannot. -->
+                    {@const fieldLabel = records?.records.find((x) => x.id === field!.id)?.label ?? field.label}
+                    {@const t = titled(field.id, fieldLabel, dev.showIds)}
                     <div class="flex items-center gap-2 border-b px-3 py-2">
-                      <h2 class="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={field.label ? `${field.label}\n${field.id}` : field.id}>
+                      <h2 class="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={fieldLabel ? `${fieldLabel}\n${field.id}` : field.id}>
                         <span class={cn('truncate text-[13px] font-semibold', !t.secondary && 'mono')}>{t.primary}</span>
                         {#if t.secondary}<span class="text-muted-foreground mono truncate text-[11.5px]">({t.secondary})</span>{/if}
                       </h2>

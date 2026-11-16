@@ -1207,8 +1207,10 @@ it. Raw data and every export stay unchanged.
     (`localStorage` `starorg.dev.showIds`).
   - Unresolved GUIDs and `@key`s show raw, marked "unresolved", never blank.
   - Diff records are titled "Bracer (COOL_AEGS_S01_Bracer_SCItem)" and filter by name or id.
-    Titles several records of a result share get the short id appended ("Aegis Javelin
-    (AEGS_Javelin_AI_Escort)"). Field changes are grouped by item or top-level field and read
+    Titles several records of a result share get the differing end of their record names
+    ("Aegis Tiburon · PU AI CRIM" next to plain "Aegis Tiburon"), else the short id when there
+    is no readable record name. The record list pane is resizable (drag the divider, arrow
+    keys; double-click resets; width remembered). Field changes are grouped by item or top-level field and read
     as names, text and numbers with units. Positional list segments are named from the
     element (`loadout › weapons › M9A Cannon › dps`; LIVE vs PTU: 2,018 of 2,064 positional
     paths named). A key swapped for one with the same text shows both keys, the shared text

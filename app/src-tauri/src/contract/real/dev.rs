@@ -1507,6 +1507,7 @@ impl DevBackend for RealBackend {
             identity_options(ta.as_ref(), tb.as_ref()),
             &in_group,
             &|r| record_title(r, id.as_deref(), ta.as_ref(), tb.as_ref(), la, lb),
+            &|r| record_name(r, ta.as_ref(), tb.as_ref()),
         ))
     }
 

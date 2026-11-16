@@ -1052,7 +1052,7 @@ fn group_trees_count_rows_and_filter_rows_and_records() {
     assert_eq!(other.total, 0);
 }
 
-/// Records that read the same (AI variants of one ship) get their short id appended, in the
+/// Records that read the same (AI variants of one ship) get the differing end of their name, in the
 /// list and when searched; a unique title stays as it is.
 #[test]
 fn diff_records_tell_shared_titles_apart() {
@@ -1091,7 +1091,7 @@ fn diff_records_tell_shared_titles_apart() {
     };
     let mut req = records_req("gamedata.json", "ships");
     req.limit = 10;
-    let page = page_records(&d, &req, vec![], &|_| true, &title);
+    let page = page_records(&d, &req, vec![], &|_| true, &title, &|_| None);
     let mut labels: Vec<String> = page
         .records
         .iter()
@@ -1102,16 +1102,83 @@ fn diff_records_tell_shared_titles_apart() {
         labels,
         [
             "Aegis Gladius",
-            "Aegis Javelin (AEGS_Javelin_AI_Boss)",
-            "Aegis Javelin (AEGS_Javelin_AI_Escort)"
+            "Aegis Javelin · Boss",
+            "Aegis Javelin · Escort"
         ]
     );
     req.query = Some("boss".into());
-    let page = page_records(&d, &req, vec![], &|_| true, &title);
+    let page = page_records(&d, &req, vec![], &|_| true, &title, &|_| None);
     assert_eq!(page.records.len(), 1);
     assert_eq!(
         page.records[0].label.as_deref(),
         Some("Aegis Javelin"),
         "unique within the result"
+    );
+}
+
+#[test]
+fn shared_titles_with_guid_ids_read_by_record_name() {
+    use starorg_core::dev::dataset::{Table, TableKind, columns};
+    use starorg_core::dev::diff::diff_table;
+    let rows = |hp: u32| -> Vec<serde_json::Value> {
+        [
+            ("58544d8c-f000-47a4-9ec6-ad663dbd8ff0", "AEGS_Tiburon"),
+            ("8e4ee666-3b54-4b1e-8279-6432815d688f", "AEGS_Tiburon_PU_AI_CIV"),
+            ("3230463a-ef0f-4686-b977-6e75da997884", "AEGS_Tiburon_PU_AI_CRIM"),
+        ]
+        .iter()
+        .map(|(id, n)| json!({ "id": id, "recordName": format!("EntityClassDefinition.{n}"), "hp": hp }))
+        .collect()
+    };
+    let table = |hp| {
+        let rows = rows(hp);
+        Table {
+            name: "ships".into(),
+            kind: TableKind::Main,
+            columns: columns(&rows),
+            rows,
+        }
+    };
+    let (a, b) = (table(1), table(2));
+    let d = diff_table("gamedata.json", "ships", Some(&a), Some(&b), Some("id"));
+    let mut req = records_req("gamedata.json", "ships");
+    req.limit = 10;
+    let page = page_records(
+        &d,
+        &req,
+        vec![],
+        &|_| true,
+        &|_| Some("Aegis Tiburon".to_string()),
+        &|r| record_name(r, Some(&a), Some(&b)),
+    );
+    let mut labels: Vec<String> = page
+        .records
+        .iter()
+        .filter_map(|r| r.label.clone())
+        .collect();
+    labels.sort();
+    assert_eq!(
+        labels,
+        [
+            "Aegis Tiburon",
+            "Aegis Tiburon · PU AI CIV",
+            "Aegis Tiburon · PU AI CRIM"
+        ]
+    );
+    // No record names to go by: the short id, as before.
+    let page = page_records(
+        &d,
+        &req,
+        vec![],
+        &|_| true,
+        &|_| Some("Aegis Tiburon".to_string()),
+        &|_| None,
+    );
+    assert!(
+        page.records
+            .iter()
+            .all(|r| r.label.as_deref() == Some(&format!("Aegis Tiburon ({})", r.id))),
+        "{:?}",
+        page.records.iter().map(|r| &r.label).collect::<Vec<_>>()
     );
 }
