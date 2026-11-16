@@ -21,6 +21,29 @@ Read the script first if you like ([scripts/install-linux.sh](../scripts/install
 it is described under [Installer script](#installer-script). Everything else on this page is
 the manual way.
 
+## Requirements
+
+x86_64 only. The summary for all platforms is in the
+[README](../README.md#system-requirements); per flavour on Linux:
+
+| Flavour | Needs |
+|---|---|
+| AppImage | glibc 2.35+ and a `fusermount3` or `fusermount` program: `fuse3` on Arch, Debian, Ubuntu, Fedora and openSUSE (most desktops have it). The AppImage runtime has FUSE built in, so libfuse2 is **not** needed. No FUSE at all: `--appimage-extract-and-run` |
+| .deb | Debian 12 or Ubuntu 22.04+; apt installs `libwebkit2gtk-4.1-0` and `libgtk-3-0`, and recommends `gstreamer1.0-plugins-good` |
+| .rpm | WebKitGTK 4.1 (`webkit2gtk4.1` on Fedora, `libwebkit2gtk-4_1-0` on openSUSE); recommends `gstreamer1-plugins-good` (Fedora) or `gstreamer-plugins-good` (openSUSE) |
+| CLI tarball | Nothing: a static binary |
+
+For Developer mode only:
+
+- **Sounds** play through GStreamer and need its "good" plugins: Arch/CachyOS
+  `gst-plugins-good`, Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora
+  `gstreamer1-plugins-good`, openSUSE `gstreamer-plugins-good`. The .deb and .rpm pull them in
+  as recommended packages (unless you turned recommends off); the AppImage does not bundle them
+  and uses the system's, so install them yourself.
+- **The 3D model viewer** needs WebGL 2 in WebKitGTK, which means a working GPU driver with
+  hardware acceleration. `--safe-gpu` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` turn WebGL off, see
+  [Troubleshooting](#troubleshooting).
+
 ## Flavours
 
 All files are on the [release page](https://github.com/voidput/starorg-codex/releases).
@@ -109,20 +132,22 @@ openSUSE); install it by hand if the package manager does not.
 There is no AUR package yet. Use the AppImage:
 
 ```sh
-sudo pacman -S --needed fuse2          # AppImages need libfuse.so.2
+sudo pacman -S --needed fuse3          # the AppImage mounts itself with fusermount3
 mkdir -p ~/.local/bin
 mv ~/Downloads/StarOrg.Codex_<v>_amd64.AppImage ~/.local/bin/StarOrg-Codex.AppImage
 chmod +x ~/.local/bin/StarOrg-Codex.AppImage
 ~/.local/bin/StarOrg-Codex.AppImage
 ```
 
-Without FUSE 2 the AppImage can still run: `StarOrg-Codex.AppImage --appimage-extract-and-run`
+Without FUSE the AppImage can still run: `StarOrg-Codex.AppImage --appimage-extract-and-run`
 (slower to start; it unpacks to a temp folder each time). The installer script with `--app`
 does the steps above and adds a menu entry and icon. Keep the AppImage in a folder you own
 (as here): the in-app update replaces the file in place.
 
-On other distros the FUSE 2 package is `libfuse2` (Debian/Ubuntu before 24.04),
-`libfuse2t64` (Ubuntu 24.04+) or `fuse-libs` (Fedora).
+On other distros the package is `fuse3` too (Debian, Ubuntu, Fedora, openSUSE); the older
+`fuse` / `fuse2` package with `fusermount` also works. libfuse2 (`libfuse2`, `libfuse2t64`,
+`fuse-libs`) is not needed: our AppImage uses the static
+[type2-runtime](https://github.com/AppImage/type2-runtime), which has FUSE built in.
 
 ### Steam Deck (SteamOS) and atomic distros (Bazzite, Silverblue)
 
@@ -267,7 +292,7 @@ A self-built app shows new versions but never installs them (download only).
 | Option | Does |
 |---|---|
 | (none) | Latest release: download the CLI tarball and `SHA256SUMS`, check the checksum, install `starorg-codex` to `${XDG_BIN_HOME:-~/.local/bin}` |
-| `--app` | Also the AppImage as `~/.local/bin/StarOrg-Codex.AppImage`, a menu entry `~/.local/share/applications/starorg-codex-app.desktop` and its icon; warns if `libfuse.so.2` is missing |
+| `--app` | Also the AppImage as `~/.local/bin/StarOrg-Codex.AppImage`, a menu entry `~/.local/share/applications/starorg-codex-app.desktop` and its icon; warns if neither `fusermount3` nor `fusermount` is found |
 | `--version X.Y.Z` | That release instead of the latest |
 | `--bin-dir DIR` | Install somewhere else |
 | `--dry-run` | Resolve the release, check the files exist, print what would happen; writes nothing |
@@ -285,17 +310,18 @@ is not on your `PATH` it prints the exact line to add for your shell (bash, zsh,
 |---|---|
 | `starorg-codex: command not found` | The CLI is not in a `PATH` folder. Install it to `~/.local/bin` and add that folder to `PATH` ([above](#install-the-command-line-tool)); or call it by full path |
 | Hooks do nothing although the CLI works in a terminal | The launcher has a different `PATH`: `starorg-codex hook install --bin ~/.local/bin/starorg-codex` |
-| AppImage: nothing happens, or `dlopen(): error loading libfuse.so.2` | Install FUSE 2 (`fuse2`, `libfuse2`, `libfuse2t64` or `fuse-libs`), or run it with `--appimage-extract-and-run` |
+| AppImage: nothing happens, or `No suitable fusermount binary found on the $PATH` | Install `fuse3` (it provides `fusermount3`), or run it with `--appimage-extract-and-run`. libfuse2 does not help |
 | AppImage: "Permission denied" | `chmod +x StarOrg-Codex.AppImage`; also check the folder is not on a `noexec` mount |
 | AppImage crashes at start on a rolling distro (Arch, CachyOS), Wayland errors in the terminal | A library bundled in the AppImage clashes with newer system ones. Try `GDK_BACKEND=x11 ./StarOrg-Codex.AppImage`, or extract it (`--appimage-extract`), delete `squashfs-root/usr/lib/libwayland-*` and run `squashfs-root/AppRun`. Building from source uses only system libraries |
-| Window blank, white or black, or flickers (often NVIDIA) | The app already sets WebKitGTK workarounds on NVIDIA (`__NV_DISABLE_EXPLICIT_SYNC=1` on KDE Wayland, `WEBKIT_DISABLE_DMABUF_RENDERER=1` on X11 and Hyprland). If it still fails, start it with `--safe-gpu` (adds `WEBKIT_DISABLE_COMPOSITING_MODE=1` too), or set `WEBKIT_DISABLE_DMABUF_RENDERER=1` yourself. If you set any of these variables yourself, the app leaves all of them alone |
+| Window blank, white or black, or flickers (often NVIDIA) | The app already sets WebKitGTK workarounds on NVIDIA (`__NV_DISABLE_EXPLICIT_SYNC=1` on KDE Wayland, `WEBKIT_DISABLE_DMABUF_RENDERER=1` on X11 and Hyprland). If it still fails, start it with `--safe-gpu` (adds `WEBKIT_DISABLE_COMPOSITING_MODE=1` too), or set `WEBKIT_DISABLE_DMABUF_RENDERER=1` yourself. If you set any of these variables yourself, the app leaves all of them alone. `--safe-gpu` also turns off WebGL, so the Developer mode 3D model viewer is off |
 | No icon in the taskbar on Wayland | The window's app id is `starorg-codex-app`; the packages and the installer script ship a `starorg-codex-app.desktop` for it. For a hand-placed AppImage, run the installer with `--app` or create that file |
 | .deb: "unable to locate package" | Use `./` before the file name: `sudo apt install ./StarOrg.Codex_<v>_amd64.deb` |
 | "No Star Citizen install found" | Start the RSI Launcher in the prefix once (it writes the log we read), or Browse / `--prefix` / `--game-dir` ([first run](#first-run-find-the-game-in-the-wine-prefix)) |
 | "refusing to run as root or elevated" | Run it as your normal user, without sudo |
 | "the game is running for LIVE" | Quit the game fully (also check for a leftover `StarCitizen.exe` with `pgrep -af StarCitizen`), then apply again |
 | A duplicate-case error (`data` and `Data`) | Two folders differ only in case inside the game folder; Wine may use either. Merge them by hand, then apply again. `starorg-codex doctor` reports casing problems |
-| Developer mode: a sound will not play ("The app's webview could not play…", or `NotSupportedError`) | WebKitGTK plays sounds through GStreamer and needs gst-plugins-good for its audio output (`autoaudiosink`) and for `.wav`: Arch/CachyOS `sudo pacman -S gst-plugins-good`, Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora `gstreamer1-plugins-good`; then restart the app. Exporting the sound works without it |
+| Developer mode: the 3D view says "The webview has no WebGL here (...)" | The model viewer needs WebGL 2. `--safe-gpu` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` turn it off: start the app without them (and unset the variable). Otherwise check that the GPU driver is installed and working. "Export .glb" works either way; open the file in Blender |
+| Developer mode: a sound will not play ("The app's webview could not play…", or `NotSupportedError`) | WebKitGTK plays sounds through GStreamer and needs gst-plugins-good for its audio output (`autoaudiosink`) and for `.wav`: Arch/CachyOS `sudo pacman -S gst-plugins-good`, Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora `gstreamer1-plugins-good`, openSUSE `gstreamer-plugins-good`; then restart the app. The AppImage needs them installed on the system too. Exporting the sound works without it |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
 | Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints/backups/`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-codex blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
 

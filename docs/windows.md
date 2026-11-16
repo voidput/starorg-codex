@@ -12,16 +12,13 @@ get it, from the same code:
 | | Direct download (GitHub release) | Microsoft Store |
 |---|---|---|
 | Files | `StarOrg.Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-codex-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
-| Signed | Yes once Azure Artifact Signing is set up ([Code signing](#code-signing)); until then unsigned | Signed by Microsoft when published |
+| Signed | Yes, with Azure Artifact Signing since 0.1.0: the app exe, both installers and the CLI exe ([Code signing](#code-signing)). Prereleases (`X.Y.Z-beta.1` ...) are unsigned | Signed by Microsoft when published |
 | Updates | In the app (Settings -> Network -> Check for updates, off by default), signed with the updater key ([updates](updates.md)) | Only through the Store. The app never checks GitHub and never installs an update ("Updates come from the Microsoft Store.") |
 | App data | `%APPDATA%\StarOrg Tools\Codex\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\` (extracted game text; the Developer mode asset cache in `assets\`, 2 GB by default or a folder you choose; MCP datasets in `mcp\`) | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
 | CLI | In the zip | Not included |
 | Uninstall | Settings -> Apps. **Run Remove in the app first**: the uninstaller option that puts the game back to stock (spec 2) is not built yet | Settings -> Apps. **Run Remove in the app first**: a Store package cannot run code when it is uninstalled |
 
 All uninstall steps and data folders: [uninstall](uninstall.md).
-
-Both need the Microsoft Edge WebView2 runtime, which Windows 10 (updated) and 11 already have.
-The NSIS installer downloads it if missing.
 
 ### Upgrading from 0.2 (the rename)
 
@@ -36,17 +33,34 @@ product name and MSI upgrade code, `c6237751-9461-5af9-a0e2-d71aacef213e`, now p
 `tauri.conf.json`). The CLI zip also carries `starorg-strings.exe`, a copy under the old name
 for one release that prints a deprecation line.
 
+## Requirements
+
+The summary for all platforms is in the [README](../README.md#system-requirements). On Windows:
+
+- **Windows 10 (1809 or later) or Windows 11, x64.**
+- **App (installer or Store):** the Microsoft Edge WebView2 runtime. Windows 11 and updated
+  Windows 10 already have it; the NSIS installer downloads it if missing. The Store package does
+  not install it (see [Store versions](#store-versions)).
+- **CLI zip:** the Microsoft Visual C++ Redistributable (`VCRUNTIME140.dll`, x64). Most PCs
+  already have it; if `starorg-codex.exe` says `VCRUNTIME140.dll` was not found, install the
+  latest supported redistributable from Microsoft. The app does not need it (it carries its own
+  copy of the C runtime).
+- **Developer mode, 3D model viewer:** WebGL 2 in WebView2, which means a working GPU driver with
+  hardware acceleration. Sounds need nothing extra.
+
 ## Install (direct download)
 
 1. Download `StarOrg.Codex_<version>_x64-setup.exe` from the release page.
 2. Run it. It installs for your user only and never asks for administrator rights.
-3. **While the builds are unsigned**, SmartScreen shows "Windows protected your PC". Choose
-   **More info -> Run anyway**. Check the file first if you like: `SHA256SUMS` on the release
+3. The installers are signed (Azure Artifact Signing). SmartScreen may still show "Windows
+   protected your PC" while the certificate builds up reputation, and always for prereleases,
+   which are unsigned. Choose **More info -> Run anyway**. Check the file first if you like: `SHA256SUMS` on the release
    lists every file, and each file has a build provenance attestation
    (`gh attestation verify <file> -R voidput/starorg-codex`).
 4. With **Smart App Control** on (some fresh Windows 11 installs), unsigned programs cannot run
-   at all and there is no "Run anyway". Use the Store version, or wait for signed builds. Turning
-   Smart App Control off cannot be undone without resetting Windows, so we do not recommend it.
+   at all and there is no "Run anyway". Release builds are signed; use a release, not a
+   prerelease. Turning Smart App Control off cannot be undone without resetting Windows, so we do
+   not recommend it.
 5. Do **not** run StarOrg Codex as administrator. It refuses to change game files when
    elevated (a mistake there could leave files only an administrator can fix).
 
@@ -128,11 +142,12 @@ The same as on Linux (spec 7, [linux](linux.md)), with these Windows parts:
 | "the game is running for LIVE" | Quit the game fully (check Task Manager for `StarCitizen.exe`), then apply again |
 | "the launcher is installing LIVE" | Wait for the launcher's download or verify to finish |
 | Apply fails with "Access is denied" or "being used by another process" after a few seconds | A scanner holds the file. Try again; if it repeats, add the game's `Data\Localization` folder to your antivirus exclusions |
-| SmartScreen blocks the installer | More info -> Run anyway (unsigned builds), or use the Store version |
+| SmartScreen blocks the installer | More info -> Run anyway. Releases are signed, but SmartScreen can still warn while the certificate is new; prereleases are unsigned |
 | The window stays blank | Install or repair the WebView2 runtime from Microsoft, then restart the app |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
 | `starorg-codex` is not recognized | The CLI folder is not on `PATH`: see [Install](#install-direct-download), or call it by full path |
 | Developer mode or the MCP server refuses a dataset ("needs about 4.1 GB, more than the ... memory limit allows") | Raise Settings -> Advanced -> Memory limit (default 5 GB or half the RAM). Each worker stops itself at 90% of the limit; Windows has no hard cap |
+| Developer mode: the 3D view says "The webview has no WebGL here (...)" | The model viewer needs WebGL 2. Update the GPU driver and check that hardware acceleration is not turned off for the GPU. "Export .glb" works either way; open the file in Blender |
 | Developer mode: a sound will not play ("The app's webview could not play…") | WebView2 plays the converted sound itself and needs no extra codecs; repair the WebView2 runtime and restart the app. Exporting the sound and playing it in another player works either way |
 | Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints\backups\`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-codex blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
 
@@ -142,8 +157,8 @@ Attach it to a bug report.
 ## Code signing
 
 Direct downloads are signed with **Azure Artifact Signing** (the service formerly called Trusted
-Signing) when the repo has its secrets and variables; without them, releases build unsigned
-exactly as before. `.github/actions/windows-signing` checks the configuration, installs
+Signing), live since 0.1.0. The release job signs every plain `X.Y.Z` release; prereleases
+(`X.Y.Z-beta.1`, `-rc.1`) and a fork without the secrets and variables below build unsigned. `.github/actions/windows-signing` checks the configuration, installs
 `artifact-signing-cli` (pinned) and gives Tauri a `bundle.windows.signCommand`; Tauri signs the
 app exe, the NSIS installer and uninstaller and the MSI. The CLI exe in the zip is signed too.
 

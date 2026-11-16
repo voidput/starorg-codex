@@ -48,6 +48,32 @@ desktop app for Windows and Linux, plus the `starorg-codex` command-line tool.
   update check and StarOrg Tools are opt-in ([what each sends](docs/privacy.md))
 - Never writes while the game or a launcher update is running
 
+## System requirements
+
+A Star Citizen install (on Linux: in a Wine prefix) and a 64-bit x86 PC (x64 / x86_64).
+
+| Install type | OS | Needs | Notes |
+|---|---|---|---|
+| Windows installer (`.exe`, `.msi`) | Windows 10 1809+ or 11 | Microsoft Edge WebView2 runtime | Built into Windows 11 and updated Windows 10; the `.exe` downloads it if missing |
+| Windows CLI zip | Windows 10 or 11 | Microsoft Visual C++ Redistributable (`VCRUNTIME140.dll`) | Most PCs already have it; the app does not need it |
+| Linux AppImage | Any distro with glibc 2.35+, Steam Deck | A `fusermount3` or `fusermount` program (package `fuse3` on most distros) | No libfuse2 needed. Without FUSE: `--appimage-extract-and-run` |
+| Linux `.deb` | Debian 12, Ubuntu 22.04 or newer | `libwebkit2gtk-4.1-0`, `libgtk-3-0` | apt installs them, plus `gstreamer1.0-plugins-good` (recommended) |
+| Linux `.rpm` | Fedora, openSUSE, Nobara | WebKitGTK 4.1 (`webkit2gtk4.1`, openSUSE `libwebkit2gtk-4_1-0`) | Recommends `gstreamer1-plugins-good` (Fedora) or `gstreamer-plugins-good` (openSUSE) |
+| Linux CLI tarball | Any x86_64 Linux | Nothing (static binary) | |
+
+Developer mode (optional) needs a little more:
+
+- **Sounds on Linux:** the GStreamer "good" plugins (Arch/CachyOS `gst-plugins-good`,
+  Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora `gstreamer1-plugins-good`, openSUSE
+  `gstreamer-plugins-good`). The AppImage uses the system's plugins too. Exporting a sound works
+  without them.
+- **3D model viewer:** WebGL 2 in the webview, so a working GPU driver with hardware
+  acceleration. With `--safe-gpu` on Linux there is no WebGL; "Export .glb" still works.
+- **Memory and disk:** big datasets need several GB of RAM (Settings -> Advanced -> Memory
+  limit); the asset cache uses up to 2 GB by default.
+
+More detail: [Windows](docs/windows.md#requirements), [Linux](docs/linux.md#requirements).
+
 ## Install
 
 Downloads are on the [releases page](https://github.com/voidput/starorg-codex/releases). Every
