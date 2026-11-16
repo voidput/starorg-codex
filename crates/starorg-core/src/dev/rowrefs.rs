@@ -28,15 +28,23 @@ pub struct RowRef<'a> {
 
 const KEYS: [&str; 3] = ["id", "recordName", "className"];
 
-/// Identity values of every row of a dataset, case-insensitive. A value two rows share
-/// (an AI copy and its ship with the same `className`) maps to the first.
+/// Identity values of every row of a dataset, case-insensitive. One item is often a row of
+/// several tables (`components` and `weapons` both list a gun), so a value maps to its first
+/// row in each table; within a table, a value two rows share (an AI copy and its ship with the
+/// same `className`) maps to the first.
 pub struct RowIndex<'a> {
-    map: HashMap<String, RowAt<'a>>,
+    map: HashMap<String, Vec<RowAt<'a>>>,
 }
 
 impl<'a> RowIndex<'a> {
     pub fn new(d: &'a Dataset) -> Self {
-        let mut map = HashMap::new();
+        let mut map: HashMap<String, Vec<RowAt<'a>>> = HashMap::new();
+        let mut add = |k: &str, at: RowAt<'a>| {
+            let v = map.entry(k.to_lowercase()).or_default();
+            if !v.iter().any(|x| x.table == at.table) {
+                v.push(at);
+            }
+        };
         for t in &d.tables {
             for (i, row) in t.rows.iter().enumerate() {
                 let at = RowAt {
@@ -45,10 +53,10 @@ impl<'a> RowIndex<'a> {
                 };
                 for k in KEYS {
                     if let Some(s) = row.get(k).and_then(Value::as_str).filter(|s| s.len() > 2) {
-                        map.entry(s.to_lowercase()).or_insert(at);
+                        add(s, at);
                         let short = short_name(s);
                         if short != s && short.len() > 2 {
-                            map.entry(short.to_lowercase()).or_insert(at);
+                            add(short, at);
                         }
                     }
                 }
@@ -57,8 +65,11 @@ impl<'a> RowIndex<'a> {
         Self { map }
     }
 
-    pub fn get(&self, value: &str) -> Option<RowAt<'a>> {
-        self.map.get(&value.to_lowercase()).copied()
+    /// The rows `value` names, one per table, in table order.
+    pub fn get(&self, value: &str) -> &[RowAt<'a>] {
+        self.map
+            .get(&value.to_lowercase())
+            .map_or(&[], Vec::as_slice)
     }
 }
 
@@ -78,18 +89,19 @@ pub fn refs_in<'a>(row: &Value, index: &RowIndex<'a>, own: RowAt<'_>) -> Vec<Row
                 if s.len() < 3 || s.contains(char::is_whitespace) {
                     return;
                 }
-                let Some(at) = index.get(s) else { return };
-                if (at.table, at.row) == own {
-                    return;
-                }
-                match out.iter_mut().find(|r| r.at == at) {
-                    Some(r) => r.count += 1,
-                    None => out.push(RowRef {
-                        pointer: path.clone(),
-                        value: s.clone(),
-                        at,
-                        count: 1,
-                    }),
+                for &at in index.get(s) {
+                    if (at.table, at.row) == own {
+                        continue;
+                    }
+                    match out.iter_mut().find(|r| r.at == at) {
+                        Some(r) => r.count += 1,
+                        None => out.push(RowRef {
+                            pointer: path.clone(),
+                            value: s.clone(),
+                            at,
+                            count: 1,
+                        }),
+                    }
                 }
             }
             Value::Array(a) => {
@@ -146,6 +158,9 @@ mod tests {
                       { "item": "Not_A_Row" } ] },
                   "self": "RSI_Perseus" }
             ],
+            "components": [
+                { "recordName": "EntityClassDefinition.GATS_BallisticGatling_S3", "id": "w-1" }
+            ],
             "weapons": [
                 { "recordName": "EntityClassDefinition.GATS_BallisticGatling_S3", "id": "w-1" },
                 { "recordName": "EntityClassDefinition.RSI_Perseus_BallisticCannon_B_S8", "id": "w-2" }
@@ -169,10 +184,11 @@ mod tests {
         assert_eq!(
             got,
             [
+                ("components", 0, 2, "/loadout/weapons/0/item"),
                 ("weapons", 0, 2, "/loadout/weapons/0/item"),
                 ("weapons", 1, 1, "/loadout/weapons/2/item")
             ],
-            "the ship's own name and its identity keys do not link"
+            "every table the item is in; not the ship's own name or identity keys"
         );
     }
 }

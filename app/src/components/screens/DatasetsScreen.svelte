@@ -396,13 +396,19 @@
     });
   });
 
-  /** The open row's record in the loaded comparison, when Diff compares this source. */
-  let diffAt = $state<{ dataset: string; table: string; id: string } | null>(null);
+  /**
+   * The open row in the loaded comparison, when Diff compares this source: its record and how
+   * many fields changed, or that it is the same on both sides (checked before offering the jump).
+   */
+  let diffAt = $state<{ dataset: string; table: string; id: string; changed: number } | null>(null);
+  let diffSame = $state<string | null>(null);
+  const srcLabel = (id: string) => sources.find((x) => x.id === id)?.label ?? id;
   $effect(() => {
     const d = detail;
     const p = pick;
     const tn = tableName;
     diffAt = null;
+    diffSame = null;
     if (!d || !p || !tn || !target) return;
     let live = true;
     untrack(async () => {
@@ -417,7 +423,13 @@
           if (v === undefined || v === null) return;
           id = typeof v === 'string' ? v : JSON.stringify(v);
         }
-        if (live) diffAt = { dataset: p.dataset, table: tn, id };
+        const at = { dataset: p.dataset, table: tn, id };
+        try {
+          const f = await devApi.diffRecord({ target: $state.snapshot(target!), ...at, identity: null });
+          if (live) diffAt = { ...at, changed: f.changes.length };
+        } catch {
+          if (live) diffSame = `Same in ${srcLabel(sum.a)} and ${srcLabel(sum.b)}`;
+        }
       } catch {
         /* no comparison loaded: no link */
       }
@@ -429,7 +441,8 @@
   function showInDiff() {
     if (!diffAt) return;
     sheet = false;
-    dev.openDiff(diffAt, () => app.go('diff'));
+    const { dataset, table, id } = diffAt;
+    dev.openDiff({ dataset, table, id }, () => app.go('diff'));
   }
 
   function openInExplorer(what: string) {
@@ -740,7 +753,9 @@
   {#if detail}
     <div class="flex h-[calc(100vh-140px)] min-h-0 flex-col gap-3">
       {#if diffAt}
-        <div><Button variant="outline" size="xs" title={`${diffAt.table} · ${diffAt.id}`} onclick={showInDiff}><GitCompare aria-hidden="true" /> Show changes in Diff</Button></div>
+        <div><Button variant="outline" size="xs" title={`${diffAt.table} · ${diffAt.id}`} onclick={showInDiff}><GitCompare aria-hidden="true" /> Show changes in Diff<span class="text-muted-foreground mono">{diffAt.changed} {diffAt.changed === 1 ? 'field' : 'fields'}</span></Button></div>
+      {:else if diffSame}
+        <p class="text-muted-foreground flex items-center gap-1.5 text-[12px]"><GitCompare class="size-3.5" aria-hidden="true" />{diffSame}</p>
       {/if}
       {#if detail.row_links.length && pick}
         {@const at = pick}

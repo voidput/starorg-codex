@@ -1038,28 +1038,35 @@ function rowLinks(d: Dataset | undefined, table: string, row: number, l: Lookup)
   const v = d?.tables.find((t) => t.name === table)?.rows[row];
   if (!d || v === undefined) return [];
   const KEYS = ['id', 'recordName', 'className'];
-  const index = new Map<string, [string, number]>();
+  // A value maps to its first row in each table (an item is often in `components` and `weapons`).
+  const index = new Map<string, [string, number][]>();
+  const add = (k: string, at: [string, number]) => {
+    const v = index.get(k.toLowerCase()) ?? [];
+    if (!v.some((x) => x[0] === at[0])) v.push(at);
+    index.set(k.toLowerCase(), v);
+  };
   for (const t of d.tables)
     t.rows.forEach((r, i) => {
       for (const k of KEYS) {
         const s = r[k];
         if (typeof s !== 'string' || s.length <= 2) continue;
-        if (!index.has(s.toLowerCase())) index.set(s.toLowerCase(), [t.name, i]);
+        add(s, [t.name, i]);
         const short = s.includes('.') ? s.slice(s.indexOf('.') + 1) : s;
-        if (short !== s && short.length > 2 && !index.has(short.toLowerCase())) index.set(short.toLowerCase(), [t.name, i]);
+        if (short !== s && short.length > 2) add(short, [t.name, i]);
       }
     });
   const out: D.RowLink[] = [];
   const go = (x: Json, path: string, top: boolean) => {
     if (typeof x === 'string') {
       if (x.length < 3 || /\s/.test(x)) return;
-      const at = index.get(x.toLowerCase());
-      if (!at || (at[0] === table && at[1] === row)) return;
-      const seen = out.find((o) => o.table === at[0] && o.row === at[1]);
-      if (seen) seen.count++;
-      else {
-        const target = d.tables.find((t) => t.name === at[0])!.rows[at[1]]!;
-        out.push({ pointer: path, value: x, table: at[0], row: at[1], title: rowTitle(l, target, null), count: 1, source: null, diff_id: null, diff_state: null });
+      for (const at of index.get(x.toLowerCase()) ?? []) {
+        if (at[0] === table && at[1] === row) continue;
+        const seen = out.find((o) => o.table === at[0] && o.row === at[1]);
+        if (seen) seen.count++;
+        else {
+          const target = d.tables.find((t) => t.name === at[0])!.rows[at[1]]!;
+          out.push({ pointer: path, value: x, table: at[0], row: at[1], title: rowTitle(l, target, null), count: 1, source: null, diff_id: null, diff_state: null });
+        }
       }
     } else if (Array.isArray(x)) x.forEach((y, i) => go(y, `${path}/${i}`, false));
     else if (isObj(x)) for (const [k, y] of Object.entries(x)) if (!(top && KEYS.includes(k))) go(y, `${path}/${esc(k)}`, false);
