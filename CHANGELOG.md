@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.0.0](https://github.com/voidput/starorg-codex/compare/v0.3.0...v1.0.0) (2026-11-16)
+
+
+### Features
+
+* **app:** add a Model tab with a 3D viewer and a detail slider ([fb02da2](https://github.com/voidput/starorg-codex/commit/fb02da2a8f23906831c542fb90ba9104bebb9d19))
+* **app:** add a Quest items tab to Enhancements ([9f08196](https://github.com/voidput/starorg-codex/commit/9f081967f80aeeb113fbe0c509b29ab80955edc7))
+* **assets:** export the LODs a mesh has and count GLB triangles ([8b798dd](https://github.com/voidput/starorg-codex/commit/8b798ddb6fb8fc9faf65d4cc6908ec9adf5b76b9))
+* **data:** extract quest items from mission spawns and hauling orders ([fc43063](https://github.com/voidput/starorg-codex/commit/fc4306303b0c7d0d5bd04f0bc3834dd35032765a))
+* **enhance:** add "Used in" hints to quest items ([15266ed](https://github.com/voidput/starorg-codex/commit/15266edb46c3c7110b98676e917c72329acee160))
+* **patches:** add quest-items pack for Vanduul-Tech Smugglers ([bacf14c](https://github.com/voidput/starorg-codex/commit/bacf14cc8af7edd376194180f209fac903bc36af))
+
+
+### Bug Fixes
+
+* **app:** honest detail slider, own-job Stop and a WebGL check first ([7041e45](https://github.com/voidput/starorg-codex/commit/7041e45fafd4fc7a0509d68c36f0812f4a7020b1))
+* **assets:** keep a record's mesh LODs in the cache ([a77963b](https://github.com/voidput/starorg-codex/commit/a77963be82be13a7c632f774740d017b721d658b))
+* **installer:** check for fusermount instead of libfuse.so.2 ([93e289a](https://github.com/voidput/starorg-codex/commit/93e289a0410d2ae1470966375bfc77fff15865c0))
+
+
+### Miscellaneous Chores
+
+* release 1.0.0 ([be540e9](https://github.com/voidput/starorg-codex/commit/be540e97bf5a898bc6e90715e4985c6b043c2127))
+
 ## [0.3.0](https://github.com/voidput/starorg-codex/compare/v0.2.0...v0.3.0) (2026-11-15)
 
 
