@@ -951,6 +951,8 @@ export interface FleetImportRequest {
   source: FleetSource;
   dry_run: boolean;
   merge: boolean;
+  /** "Remove all ships first": replace the fleet and drop My ships entries the import lacks. Not with `merge`. */
+  prune?: boolean;
 }
 
 export interface ImportedHull {
@@ -974,6 +976,16 @@ export interface FleetImportReport {
   not_in_game: number;
   empty_catalog: boolean;
   added_to_order: number;
+  prune: boolean;
+  /** With `prune`: ships dropped from the shared My ships list (would be, on a dry run). */
+  removed_from_order: RemovedShip[];
+}
+
+export interface RemovedShip {
+  hull: string;
+  name: string;
+  /** Its rename in My ships, lost with it. */
+  rename: string | null;
 }
 
 export interface FleetMatchRequest {

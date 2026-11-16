@@ -131,7 +131,11 @@ type and are written on the next apply.
 Import your fleet (RSI+ "Export fleet", FleetYards, FleetView, hangar.link, or a plain list,
 one ship per line), match the rows the app could not place, then put your ships in the order
 you want them in game lists and give them names. *Write ship names into the game* adds this to
-the next apply. CLI: `starorg-codex fleet import|list|match|clear`.
+the next apply. A new import adds new ships to the end of My ships but never takes any away;
+to start fresh, tick **Remove all ships first** in the import dialog: My ships then keeps only
+the ships of that import (with their names, groups and places), and the check lists what goes
+before anything is removed. CLI: `starorg-codex fleet import|list|match|clear` (`--prune` for
+the same).
 
 ## Backups and restore
 

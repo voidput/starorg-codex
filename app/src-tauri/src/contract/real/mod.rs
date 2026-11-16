@@ -1616,6 +1616,20 @@ impl RealBackend {
         Ok(n)
     }
 
+    /// "Remove all ships first" on a real import; the fleet lock is held.
+    fn prune_shared_order(
+        &self,
+        out: &fleet_import::Outcome,
+        cat: &Catalog,
+    ) -> CmdResult<Vec<RemovedShip>> {
+        let mut s = fleet_store::load_shared(self.dirs()).map_err(io)?;
+        let removed = super::fleet::prune_order(&mut s, out, cat);
+        if !removed.is_empty() {
+            fleet_store::save_shared(self.dirs(), &s).map_err(io)?;
+        }
+        Ok(removed)
+    }
+
     fn fleet_view_of(
         &self,
         f: &Found,
@@ -3028,10 +3042,19 @@ impl Backend for RealBackend {
         };
         let fleet = FleetFile::load(self.dirs()).map_err(io)?;
         let mut out = fleet_import::run(&parsed, &cat, &fleet, req.merge);
+        super::fleet::check_prune(&req, &out)?;
         let mut appended = 0;
+        let mut removed = None;
+        if req.dry_run && req.prune && !out.report.empty_catalog {
+            let mut s = fleet_store::load_shared(self.dirs()).map_err(io)?;
+            removed = Some(super::fleet::prune_order(&mut s, &out, &cat));
+        }
         if !req.dry_run && !out.report.empty_catalog {
             out.fleet.imported_at = Some(now());
             out.fleet.save(self.dirs()).map_err(io)?;
+            if req.prune {
+                removed = Some(self.prune_shared_order(&out, &cat)?);
+            }
             appended = self.append_to_order(&out.added)?;
             self.forget_tables(&f, ch);
             if !req.dry_run {
@@ -3051,7 +3074,13 @@ impl Backend for RealBackend {
                 r.ambiguous.len()
             ),
         );
-        Ok(super::fleet::report(&out, file, req.dry_run, appended))
+        Ok(super::fleet::report(
+            &out,
+            file,
+            req.dry_run,
+            appended,
+            removed,
+        ))
     }
 
     fn fleet_match(&self, req: FleetMatchRequest) -> CmdResult<FleetView> {

@@ -635,7 +635,7 @@ impl TestP4kArg {
 pub enum FleetCmd {
     /// Import a fleet: HangarXPLOR JSON or CSV (RSI+ "Export fleet", FleetYards, FleetView,
     /// hangar.link) or a plain list, one ship per line. Replaces the fleet list unless
-    /// --merge. Writes only the app's own files; reads the game read-only.
+    /// --merge; --prune also drops sold ships from the ship-names list. Writes only the app's own files; reads the game read-only.
     Import {
         /// The file, or `-` for stdin.
         #[arg(value_name = "FILE|-")]
@@ -646,6 +646,11 @@ pub enum FleetCmd {
         /// Add to the current fleet (count = the larger) instead of replacing it.
         #[arg(long)]
         merge: bool,
+        /// Remove all ships first: replace the fleet and drop the ships of the shared
+        /// ship-names list that this import does not have. Ships that stay keep their
+        /// group, rename and place. Refused when no ship matches.
+        #[arg(long, conflicts_with = "merge")]
+        prune: bool,
         #[arg(long, value_name = "FORMAT", default_value = "auto",
               value_parser = ["auto", "xplor-json", "xplor-csv", "text"])]
         format: String,

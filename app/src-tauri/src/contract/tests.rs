@@ -417,6 +417,7 @@ fn fleet_samples(
             source: FleetSource::File,
             dry_run,
             merge: false,
+            prune: false,
         })
         .unwrap()
     };
@@ -457,6 +458,7 @@ fn fleet_samples(
         source: FleetSource::File,
         dry_run: false,
         merge: true,
+        prune: false,
     })
     .unwrap();
     (dry, real, matched, saved, cleared, view)
@@ -1042,6 +1044,7 @@ fn fleet_import_dry_run_writes_nothing_and_new_hulls_join_the_order() {
         source,
         dry_run,
         merge,
+        prune: false,
     };
     let r = b.fleet_import(req(FleetSource::File, true, false)).unwrap();
     assert!(r.dry_run && r.hulls.len() == 4, "{r:?}");
@@ -1120,6 +1123,73 @@ fn fleet_import_dry_run_writes_nothing_and_new_hulls_join_the_order() {
         .unwrap();
     assert_eq!(off.scope, ShipNamesScope::Off);
     assert_eq!(view().scope, ShipNamesScope::Shared);
+}
+
+#[test]
+fn fleet_import_prune_drops_ships_the_new_fleet_lacks() {
+    let b = MockBackend::default();
+    let view = || {
+        b.fleet_view(FleetViewRequest {
+            target: live(),
+            read_game_data: false,
+        })
+        .unwrap()
+    };
+    let req = |text: &str, dry_run, merge, prune| FleetImportRequest {
+        target: live(),
+        source: FleetSource::Text { text: text.into() },
+        dry_run,
+        merge,
+        prune,
+    };
+    b.fleet_import(FleetImportRequest {
+        target: live(),
+        source: FleetSource::File,
+        dry_run: false,
+        merge: false,
+        prune: false,
+    })
+    .unwrap();
+    let v = view();
+    assert_eq!(v.settings.ships.len(), 4);
+    let kite = "vehicle_NameKSTL_Kite";
+    let mut s = v.settings.clone();
+    s.ships.iter_mut().find(|e| e.hull == kite).unwrap().name = Some("Needle".into());
+    b.save_ship_names(SaveShipNamesRequest {
+        target: live(),
+        scope: ShipNamesScope::Shared,
+        settings: s,
+    })
+    .unwrap();
+
+    let list = "Kestrel Kite\nVolmar Moth\n";
+    // Dry run: lists what would go, writes nothing.
+    let r = b.fleet_import(req(list, true, false, true)).unwrap();
+    assert!(r.prune);
+    assert_eq!(r.removed_from_order.len(), 3, "{r:?}");
+    assert!(r.removed_from_order.iter().all(|x| x.hull != kite));
+    assert_eq!(view().settings.ships.len(), 4);
+    // Refused: with merge, or when nothing matched (it would empty My ships).
+    let e = b.fleet_import(req(list, true, true, true)).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    let e = b
+        .fleet_import(req("Nothing Like A Ship\n", false, false, true))
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert_eq!(view().settings.ships.len(), 4);
+
+    let r = b.fleet_import(req(list, false, false, true)).unwrap();
+    assert_eq!((r.removed_from_order.len(), r.added_to_order), (3, 1));
+    let v = view();
+    let hulls: Vec<_> = v.settings.ships.iter().map(|e| e.hull.as_str()).collect();
+    assert_eq!(hulls.len(), 2);
+    assert_eq!(hulls[0], kite, "ships that stay keep their place");
+    let k = &v.settings.ships[0];
+    assert_eq!(k.name.as_deref(), Some("Needle"), "and their rename");
+    assert_eq!(v.owned.len(), 2);
+    // Without prune the report says so.
+    let r = b.fleet_import(req(list, true, false, false)).unwrap();
+    assert!(!r.prune && r.removed_from_order.is_empty());
 }
 
 #[test]
@@ -1748,6 +1818,7 @@ fn starorg_environment_switch_signs_out_and_sync_follows_the_switches() {
         source: FleetSource::StarOrg,
         dry_run: true,
         merge: true,
+        prune: false,
     };
     assert_eq!(
         b.fleet_import(hangar.clone()).unwrap_err().code,

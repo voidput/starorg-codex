@@ -1254,7 +1254,23 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         not_in_game: notInGame,
         empty_catalog: fleetMode === 'nodata',
         added_to_order: 0,
+        prune: !!req.prune,
+        removed_from_order: [],
       };
+      if (req.prune) {
+        if (req.merge) fail('invalid', '"Remove all ships first" replaces the fleet; it cannot also add to it.');
+        if (!req.dry_run && !hulls.size) fail('invalid', 'No ship matched, so My ships would be emptied: nothing removed or imported.');
+        if (!report.empty_catalog) {
+          const keep = new Set([...hulls.keys()].map(fold));
+          report.removed_from_order = shared.ships
+            .filter((e) => !keep.has(fold(e.hull)))
+            .map((e) => ({ hull: e.hull, name: catalog.find((h) => fold(h.hull) === fold(e.hull))?.name.trim() ?? e.hull, rename: e.name }));
+          if (!req.dry_run && report.removed_from_order.length) {
+            shared.ships = shared.ships.filter((e) => keep.has(fold(e.hull)));
+            if (shared.enabled) markStale();
+          }
+        }
+      }
       if (!req.dry_run && !report.empty_catalog) {
         const next = req.merge ? clone(fleet.owned) : [];
         for (const h of hulls.values()) {

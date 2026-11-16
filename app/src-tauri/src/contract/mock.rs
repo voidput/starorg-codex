@@ -2431,10 +2431,20 @@ impl Backend for MockBackend {
         let out = self.with_channel(&req.target, |_, s| {
             let cat = mock_catalog();
             let mut out = import::run(&parsed, &cat, &s.fleet, req.merge);
+            super::fleet::check_prune(&req, &out)?;
             let mut appended = 0;
-            if !req.dry_run {
+            let mut removed = None;
+            if req.dry_run {
+                if req.prune {
+                    let mut list = s.ship_names.clone();
+                    removed = Some(super::fleet::prune_order(&mut list, &out, &cat));
+                }
+            } else {
                 out.fleet.imported_at = Some(NOW.into());
                 s.fleet = out.fleet.clone();
+                if req.prune {
+                    removed = Some(super::fleet::prune_order(&mut s.ship_names, &out, &cat));
+                }
                 appended = s.ship_names.append(&out.added);
             }
             Ok(super::fleet::report(
@@ -2442,6 +2452,7 @@ impl Backend for MockBackend {
                 file.clone(),
                 req.dry_run,
                 appended,
+                removed,
             ))
         })?;
         self.log(
@@ -2697,6 +2708,7 @@ impl Backend for MockBackend {
                 source: FleetSource::StarOrg,
                 dry_run: false,
                 merge: true,
+                prune: false,
             }) {
                 Ok(r) => Some(r),
                 Err(e) => {

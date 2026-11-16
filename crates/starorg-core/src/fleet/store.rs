@@ -429,6 +429,18 @@ impl ShipNames {
         }
         n
     }
+
+    /// Drop the ships whose hull is not in `keep` ("Remove all ships first" on a fleet
+    /// import). Ships that stay keep their group, rename and place; groups stay even when
+    /// they end up empty. Returns the dropped entries, in list order.
+    pub fn prune_to(&mut self, keep: &[String]) -> Vec<ShipEntry> {
+        let keep: Vec<String> = keep.iter().map(|h| fold_key(h)).collect();
+        let (stay, gone): (Vec<_>, Vec<_>) = std::mem::take(&mut self.ships)
+            .into_iter()
+            .partition(|s| keep.contains(&fold_key(&s.hull)));
+        self.ships = stay;
+        gone
+    }
 }
 
 /// The shared settings. A missing file is the default (off, empty list).
@@ -710,6 +722,40 @@ hull = "vehicle_NameDRAK_Cutlass_Black"
         assert!(file.ships[1].extra.contains_key("pinned"));
         assert!(file.groups[0].extra.contains_key("colour"));
         assert_eq!(file.ships[0].hull, "vehicle_NameDRAK_Cutlass_Black");
+    }
+
+    #[test]
+    fn prune_to_keeps_listed_ships_with_their_settings() {
+        let mut s = ShipNames::default();
+        s.groups.push(Group {
+            id: "combat".into(),
+            name: "Combat".into(),
+            extra: toml::Table::new(),
+        });
+        s.ships = vec![
+            entry("vehicle_NameAEGS_Gladius", Some("combat")),
+            entry("vehicle_NameDRAK_Cutlass_Black", None),
+            entry("vehicle_NameRSI_Aurora_MR", Some("combat")),
+        ];
+        s.ships[2].name = Some("Old Rusty".into());
+        let gone = s.prune_to(&[
+            "VEHICLE_NAMEAEGS_GLADIUS".into(),
+            "vehicle_NameRSI_Aurora_MR".into(),
+        ]);
+        assert_eq!(gone.len(), 1);
+        assert_eq!(gone[0].hull, "vehicle_NameDRAK_Cutlass_Black");
+        let hulls: Vec<_> = s.ships.iter().map(|e| e.hull.as_str()).collect();
+        assert_eq!(
+            hulls,
+            ["vehicle_NameAEGS_Gladius", "vehicle_NameRSI_Aurora_MR"]
+        );
+        assert_eq!(s.ships[1].name.as_deref(), Some("Old Rusty"));
+        assert_eq!(s.ships[1].group.as_deref(), Some("combat"));
+        assert_eq!(s.groups.len(), 1, "groups stay");
+
+        let gone = s.prune_to(&[]);
+        assert_eq!(gone.len(), 2);
+        assert!(s.ships.is_empty());
     }
 
     #[test]

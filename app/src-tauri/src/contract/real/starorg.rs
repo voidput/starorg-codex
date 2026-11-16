@@ -838,6 +838,7 @@ impl RealBackend {
                 source: FleetSource::StarOrg,
                 dry_run: false,
                 merge: true,
+                prune: false,
             };
             match self.fleet_import(req) {
                 Ok(r) => fleet = Some(r),

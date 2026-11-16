@@ -495,7 +495,14 @@ Hull D, …), the rest are alias-table material.
 - A real import **replaces** the fleet list (the export is the whole hangar); `--merge` adds
   to it instead (count = the larger of the two). Hand matches survive either way. Hulls new
   to the fleet are appended to the end of the shared order list (§6.4), ungrouped; nothing
-  is removed from the order list.
+  is removed from the order list, unless the import asks for a prune.
+- **Prune** (`--prune`, "Remove all ships first", `prune` in the contract): a replacing
+  import that also drops the ships of the shared order list that the new fleet does not
+  have, sold ships and hand picks alike. Ships that stay keep their group, rename and place;
+  groups stay even when empty; hand matches and the prefix style are untouched. The dry run
+  lists the ships it would drop (`removed_from_order`, with their renames). Refused with
+  `--merge`, and refused for a real import that matched no ship (it would empty the list).
+  Like the append, it acts on the shared list only; a channel's own list is left alone.
 - Unmatched and ambiguous rows are kept (name, maker code, ship code, count, custom names) so
   they can be matched by hand later: pick a hull, or "Not in the game" to stop asking.
 
@@ -674,8 +681,9 @@ Applies to: [All channels ▾]      Style: [None | 01 | A1 | Symbol]  Separator 
   to "All channels" asks before dropping the channel's own list.
 - **Import dialog** (same shell as the blueprint import): choose a file or paste text → dry
   run → report (hulls with counts, unmatched, ambiguous with a pick per row, rename
-  suggestions listed) → Import. Replace is the default; "Add to my current fleet" is a
-  checkbox.
+  suggestions listed) → Import. Replace is the default; "Add to my current fleet" and
+  "Remove all ships first" (prune, §6.3; the report lists what goes) are checkboxes, at most
+  one ticked.
 - **Unmatched review:** one row per pending name with a Combobox over the catalogue and
   "Not in the game".
 - **Empty states.** No game data read: "Read game data first" with the action. No fleet and
@@ -689,13 +697,13 @@ Applies to: [All channels ▾]      Style: [None | 01 | A1 | Symbol]  Separator 
 
 Contract (Rust contract + TS types/client + mock + samples + drift tests): `fleet_view`
 (catalogue, fleet, effective settings, scope, per-ship state), `fleet_import` (file dialog or
-pasted text; `dry_run`, `merge`), `fleet_match` (pending name → hull or none),
+pasted text; `dry_run`, `merge`, `prune`), `fleet_match` (pending name → hull or none),
 `save_ship_names` (scope + settings), `fleet_clear`.
 
 ### 6.7 CLI
 
 ```
-starorg-codex fleet import <file|-> [--dry-run] [--merge] [--format auto|xplor-json|xplor-csv|text]
+starorg-codex fleet import <file|-> [--dry-run] [--merge | --prune] [--format auto|xplor-json|xplor-csv|text]
                                       [--channel LIVE] [--json]
 starorg-codex fleet list [--channel LIVE] [--json]
 starorg-codex fleet match <row name> <hull id | none>

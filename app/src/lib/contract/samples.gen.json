@@ -9337,6 +9337,8 @@
     ],
     "merge": false,
     "not_in_game": 0,
+    "prune": false,
+    "removed_from_order": [],
     "skipped": 1,
     "total": 9,
     "unmatched": [
@@ -9403,6 +9405,8 @@
     ],
     "merge": false,
     "not_in_game": 0,
+    "prune": false,
+    "removed_from_order": [],
     "skipped": 1,
     "total": 9,
     "unmatched": [
@@ -13465,6 +13469,8 @@
       ],
       "merge": true,
       "not_in_game": 1,
+      "prune": false,
+      "removed_from_order": [],
       "skipped": 1,
       "total": 9,
       "unmatched": []
