@@ -334,11 +334,12 @@ EOF
         update-desktop-database "$DATA_HOME/applications" >/dev/null 2>&1 || true
     fi
 
-    # Type 2 AppImages need libfuse.so.2 to mount themselves.
-    if command -v ldconfig >/dev/null 2>&1 && ! ldconfig -p 2>/dev/null | grep -q 'libfuse\.so\.2'; then
-        warn "libfuse.so.2 not found: the AppImage will not start until you install it"
-        warn "  Debian/Ubuntu: sudo apt install libfuse2   (24.04+: libfuse2t64)"
-        warn "  Fedora: sudo dnf install fuse-libs   Arch/CachyOS: sudo pacman -S fuse2"
+    # The AppImage runtime (AppImage/type2-runtime, static) has FUSE built in and needs no
+    # libfuse.so.2, but it mounts itself with a fusermount3 or fusermount program from PATH.
+    if ! command -v fusermount3 >/dev/null 2>&1 && ! command -v fusermount >/dev/null 2>&1; then
+        warn "fusermount3 not found: the AppImage will not start until you install FUSE"
+        warn "  Debian/Ubuntu: sudo apt install fuse3   Fedora: sudo dnf install fuse3"
+        warn "  openSUSE: sudo zypper install fuse3   Arch/CachyOS: sudo pacman -S fuse3"
         warn "  or start it with: $APP_DEST --appimage-extract-and-run"
     fi
 fi
