@@ -65,8 +65,9 @@ Developer mode (optional) needs a little more:
 
 - **Sounds on Linux:** the GStreamer "good" plugins (Arch/CachyOS `gst-plugins-good`,
   Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora `gstreamer1-plugins-good`, openSUSE
-  `gstreamer-plugins-good`). The AppImage uses the system's plugins too. Exporting a sound works
-  without them.
+  `gstreamer-plugins-good`) with the .deb, .rpm or a source build. In the
+  AppImage, sound playback does not work on most distros: it bundles an old GStreamer core
+  (1.20) but no plugins, and cannot load the system's. Exporting a sound works everywhere.
 - **3D model viewer:** WebGL 2 in the webview, so a working GPU driver with hardware
   acceleration. With `--safe-gpu` on Linux there is no WebGL; "Export .glb" still works.
 - **Memory and disk:** big datasets need several GB of RAM (Settings -> Advanced -> Memory

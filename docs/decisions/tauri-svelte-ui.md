@@ -57,7 +57,8 @@ it had to run under Wine.
 - On Windows the window is drawn by Microsoft's WebView2 runtime, which has traffic of its
   own. "No network by default" is a promise about our code, and the app says so.
 - Unsigned Windows builds do not run under Smart App Control. That is a signing question,
-  not a UI one, but it limits who can use v0.x.
+  not a UI one, but it limits who can use v0.x. (Later: releases are signed with Azure
+  Artifact Signing since 0.1.0; only prereleases are unsigned.)
 - The 91,000-row string table must be virtualised; filtering and sorting run in Rust.
 - StarOrg's React components cannot be copied; the few we need are rebuilt in Svelte from the
   design spec.

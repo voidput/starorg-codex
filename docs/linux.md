@@ -38,8 +38,10 @@ For Developer mode only:
 - **Sounds** play through GStreamer and need its "good" plugins: Arch/CachyOS
   `gst-plugins-good`, Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora
   `gstreamer1-plugins-good`, openSUSE `gstreamer-plugins-good`. The .deb and .rpm pull them in
-  as recommended packages (unless you turned recommends off); the AppImage does not bundle them
-  and uses the system's, so install them yourself.
+  as recommended packages (unless you turned recommends off). The AppImage cannot play sounds
+  on most distros: it bundles GStreamer 1.20 (from Ubuntu 22.04) without plugins, and that
+  core cannot load your system's plugins. Use the .deb, .rpm or a source build,
+  or Export the sound instead.
 - **The 3D model viewer** needs WebGL 2 in WebKitGTK, which means a working GPU driver with
   hardware acceleration. `--safe-gpu` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` turn WebGL off, see
   [Troubleshooting](#troubleshooting).
@@ -321,7 +323,7 @@ is not on your `PATH` it prints the exact line to add for your shell (bash, zsh,
 | "the game is running for LIVE" | Quit the game fully (also check for a leftover `StarCitizen.exe` with `pgrep -af StarCitizen`), then apply again |
 | A duplicate-case error (`data` and `Data`) | Two folders differ only in case inside the game folder; Wine may use either. Merge them by hand, then apply again. `starorg-codex doctor` reports casing problems |
 | Developer mode: the 3D view says "The webview has no WebGL here (...)" | The model viewer needs WebGL 2. `--safe-gpu` and `WEBKIT_DISABLE_COMPOSITING_MODE=1` turn it off: start the app without them (and unset the variable). Otherwise check that the GPU driver is installed and working. "Export .glb" works either way; open the file in Blender |
-| Developer mode: a sound will not play ("The app's webview could not play…", or `NotSupportedError`) | WebKitGTK plays sounds through GStreamer and needs gst-plugins-good for its audio output (`autoaudiosink`) and for `.wav`: Arch/CachyOS `sudo pacman -S gst-plugins-good`, Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora `gstreamer1-plugins-good`, openSUSE `gstreamer-plugins-good`; then restart the app. The AppImage needs them installed on the system too. Exporting the sound works without it |
+| Developer mode: a sound will not play ("The app's webview could not play…", or `NotSupportedError`) | WebKitGTK plays sounds through GStreamer and needs gst-plugins-good for its audio output (`autoaudiosink`) and for `.wav`: Arch/CachyOS `sudo pacman -S gst-plugins-good`, Debian/Ubuntu `gstreamer1.0-plugins-good`, Fedora `gstreamer1-plugins-good`, openSUSE `gstreamer-plugins-good`; then restart the app. The AppImage cannot play sounds on most distros (it bundles GStreamer 1.20 without plugins and cannot use the system's): use the .deb, .rpm or a source build. Exporting the sound works everywhere |
 | In-game text unchanged | The game reads `global.ini` only at start: restart the game. Check that `USER.cfg` in the channel folder has `g_language = english` |
 | Blueprints shows your character twice, or missions mark nothing `[Owned]` | A character reset gives a new id. Same account and name are merged on their own (the store is backed up first under the channel's `blueprints/backups/`). Otherwise: Blueprints -> Fix owned blueprints -> Re-scan game logs or Re-import from Smart Citizen into your current character, or choose "Any of my characters"; then re-apply. Command line: `starorg-codex blueprints rescan --dry-run`, `blueprints reimport --character <name> --dry-run` |
 
