@@ -1215,9 +1215,10 @@ it. Raw data and every export stay unchanged.
     a filter box on the field changes keeps the fields whose path, read path or either value
     contains every word. Datasets reads number columns with the unit their name says
     ("25,740 HP", grid and row tree). Rows that name other rows of the same dataset (a ship's
-    loadout naming its weapons by record name; `row_links`, core `rowrefs`) list them: in the
-    Datasets row sheet to open them, in the Diff field pane to open their changes (when they
-    changed too) or their row in Datasets. "Open in Datasets" and "Show changes in Diff"
+    loadout naming its weapons by record name, in every table the item is in; `row_links`,
+    core `rowrefs`) link them on the line itself: in the Datasets row tree the naming value
+    opens that row; in the Diff field pane each changed line of the item opens its changes
+    (when it changed too) or its row in Datasets. "Open in Datasets" and "Show changes in Diff"
     jump between the two screens. Field changes are grouped by item or top-level field and read
     as names, text and numbers with units. Positional list segments are named from the
     element (`loadout › weapons › M9A Cannon › dps`; LIVE vs PTU: 2,018 of 2,064 positional

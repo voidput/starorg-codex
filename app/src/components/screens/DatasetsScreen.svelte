@@ -757,21 +757,6 @@
       {:else if diffSame}
         <p class="text-muted-foreground flex items-center gap-1.5 text-[12px]"><GitCompare class="size-3.5" aria-hidden="true" />{diffSame}</p>
       {/if}
-      {#if detail.row_links.length && pick}
-        {@const at = pick}
-        <div class="grid gap-1">
-          <h3 class="eyebrow text-muted-foreground">Rows it names</h3>
-          <ul class="flex flex-wrap gap-1.5">
-            {#each detail.row_links as k (k.table + '/' + k.row)}
-              <li>
-                <Button variant="outline" size="xs" title={`${k.pointer}\n${k.value}`} onclick={() => void goToRow({ ...at, table: k.table, row: k.row })}>
-                  <ArrowUpRight aria-hidden="true" />{k.title && !dev.showIds ? k.title : k.value}{#if k.count > 1}<span class="mono">×{k.count}</span>{/if}<span class="text-muted-foreground mono text-[10.5px]">{k.table}</span>
-                </Button>
-              </li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
       {#if detail.links.length}
         <div class="grid gap-1">
           <h3 class="eyebrow text-muted-foreground">In the explorer</h3>
@@ -793,7 +778,7 @@
           </ul>
         </div>
       {/if}
-      <JsonTree id="row" json={detail.json} label="row" labels={detail.labels} units onfollow={(r) => openInExplorer(r.guid)} onloc={openLoc} class="min-h-0 flex-1 rounded-md border" />
+      <JsonTree id="row" json={detail.json} label="row" labels={detail.labels} units rowLinks={detail.row_links} onrow={(k) => pick && void goToRow({ ...pick, table: k.table, row: k.row })} onfollow={(r) => openInExplorer(r.guid)} onloc={openLoc} class="min-h-0 flex-1 rounded-md border" />
     </div>
   {/if}
 </Sheet>

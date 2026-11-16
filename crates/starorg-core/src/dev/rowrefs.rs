@@ -16,11 +16,11 @@ pub struct RowAt<'a> {
     pub row: u32,
 }
 
-/// One referenced row: where the first reference sits, the value, the row, and how many
-/// values of the row point at it.
+/// One referenced row: every place naming it (JSON pointers, in order), the value, the row,
+/// and how many values of the row point at it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RowRef<'a> {
-    pub pointer: String,
+    pub pointers: Vec<String>,
     pub value: String,
     pub at: RowAt<'a>,
     pub count: u32,
@@ -94,9 +94,12 @@ pub fn refs_in<'a>(row: &Value, index: &RowIndex<'a>, own: RowAt<'_>) -> Vec<Row
                         continue;
                     }
                     match out.iter_mut().find(|r| r.at == at) {
-                        Some(r) => r.count += 1,
+                        Some(r) => {
+                            r.count += 1;
+                            r.pointers.push(path.clone());
+                        }
                         None => out.push(RowRef {
-                            pointer: path.clone(),
+                            pointers: vec![path.clone()],
                             value: s.clone(),
                             at,
                             count: 1,
@@ -179,7 +182,7 @@ mod tests {
         );
         let got: Vec<_> = refs
             .iter()
-            .map(|r| (r.at.table, r.at.row, r.count, r.pointer.as_str()))
+            .map(|r| (r.at.table, r.at.row, r.count, r.pointers[0].as_str()))
             .collect();
         assert_eq!(
             got,
@@ -189,6 +192,10 @@ mod tests {
                 ("weapons", 1, 1, "/loadout/weapons/2/item")
             ],
             "every table the item is in; not the ship's own name or identity keys"
+        );
+        assert_eq!(
+            refs[1].pointers,
+            ["/loadout/weapons/0/item", "/loadout/weapons/1/item"]
         );
     }
 }

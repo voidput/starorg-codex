@@ -312,8 +312,8 @@ pub struct DevRowDetail {
 /// name). The Datasets row sheet and the Diff field pane list them to jump there.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RowLink {
-    /// JSON pointer of the first value naming it.
-    pub pointer: String,
+    /// JSON pointers of the values naming it, in order (one line each in the row).
+    pub pointers: Vec<String>,
     pub value: String,
     pub table: String,
     pub row: u32,
@@ -823,7 +823,7 @@ pub fn row_links(
                 .table(r.at.table)
                 .and_then(|t| t.rows.get(r.at.row as usize))
                 .and_then(|x| starorg_core::dev::readable::row_title(l, x, None)),
-            pointer: r.pointer,
+            pointers: r.pointers,
             value: r.value,
             table: r.at.table.to_string(),
             row: r.at.row,

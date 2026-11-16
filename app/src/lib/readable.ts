@@ -152,3 +152,19 @@ export function unitOf(path: string): string | null {
   if (last.includes('scu')) return 'SCU';
   return null;
 }
+
+/**
+ * The links of a row that belong to one line. A link names a row through a value at a JSON
+ * pointer (`/loadout/weapons/0/item`); that value's own line, and the lines of its siblings
+ * (`/loadout/weapons/0/dps`), belong to it. `exact`: only the value's own line (the JSON tree).
+ */
+export function linksAt<T extends { pointers: string[] }>(links: T[], path: string, exact = false): T[] {
+  return links.filter((k) =>
+    k.pointers.some((p) => {
+      if (p === path) return true;
+      if (exact) return false;
+      const parent = p.slice(0, p.lastIndexOf('/'));
+      return parent !== '' && path.startsWith(`${parent}/`);
+    }),
+  );
+}

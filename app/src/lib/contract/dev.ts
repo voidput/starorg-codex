@@ -521,7 +521,8 @@ export interface DevRowDetail {
 
 /** A row of the same dataset this row names (a ship's loadout naming its weapons). */
 export interface RowLink {
-  pointer: string;
+  /** JSON pointers of the values naming it (one line each in the row). */
+  pointers: string[];
   value: string;
   table: string;
   row: number;

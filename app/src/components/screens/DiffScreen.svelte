@@ -31,7 +31,7 @@
   import Search from '@lucide/svelte/icons/search';
   import { Input } from '@/components/ui/input';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
-  import { changeMatches, changeTexts, groupChanges, titled } from '@/lib/readable';
+  import { changeMatches, changeTexts, groupChanges, linksAt, titled } from '@/lib/readable';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffSearchHit, type DiffTable, type GroupPage, type RowLink, type RecordState } from '@/lib/contract/dev';
@@ -637,21 +637,6 @@
                       <Button variant="ghost" size="xs" title="This record's full row, in Datasets" onclick={() => openInDatasets(field!.id)}><Sheet_ aria-hidden="true" /> Open in Datasets</Button>
                       <span class="text-muted-foreground text-[12px]">{fieldQuery.trim() ? `${int(shownChanges.length)} of ` : ''}{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
                     </div>
-                    {#if field.row_links.length}
-                      <div class="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5" aria-label="Rows this record names">
-                        <span class="text-muted-foreground text-[11.5px]">Names:</span>
-                        {#each field.row_links as k (k.table + '/' + k.row)}
-                          <Button
-                            variant="outline"
-                            size="xs"
-                            title={`${k.pointer}\n${k.value}\n${k.diff_id !== null ? `Changed too: open its changes` : 'Unchanged: open its row in Datasets'}`}
-                            onclick={() => void followLink(k)}
-                          >
-                            {#if k.diff_id !== null}<GitCompare aria-hidden="true" />{:else}<Sheet_ aria-hidden="true" />{/if}{k.title && !dev.showIds ? k.title : k.value}{#if k.count > 1}<span class="mono">×{k.count}</span>{/if}<span class="text-muted-foreground mono text-[10.5px]">{k.table}</span>
-                          </Button>
-                        {/each}
-                      </div>
-                    {/if}
                     <div class="border-b px-3 py-1.5">
                       <div class="relative max-w-sm">
                         <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
@@ -677,6 +662,17 @@
                               <tr class="border-t border-border/60 align-top">
                                 <td class="px-3 py-1 break-all" title={c.path}>
                                   <span class={cn(path === c.path && 'mono')}>{path}</span>
+                                  {#each linksAt(field.row_links, c.path) as k (k.table + '/' + k.row)}
+                                    <button
+                                      type="button"
+                                      class="text-primary hover:bg-accent/60 ml-1.5 inline-flex items-center gap-0.5 rounded px-1 align-baseline text-[11px] whitespace-nowrap"
+                                      title={`${k.title ?? k.value} (${k.table})\n${k.diff_id !== null ? 'Changed too: open its changes' : 'Same on both sides: open its row in Datasets'}`}
+                                      aria-label={`Open ${k.title ?? k.value} in ${k.table}`}
+                                      onclick={() => void followLink(k)}
+                                    >
+                                      {#if k.diff_id !== null}<GitCompare class="size-3" aria-hidden="true" />{:else}<Sheet_ class="size-3" aria-hidden="true" />{/if}{k.table}
+                                    </button>
+                                  {/each}
                                   {#if path !== c.path}<span class="text-muted-foreground mono block text-[10.5px]">{c.path}</span>{/if}
                                 </td>
                                 <td class="text-destructive px-3 py-1 break-all" title={o.title}>

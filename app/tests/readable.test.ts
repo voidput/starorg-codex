@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SHOW_IDS_KEY, changeMatches, numberCell, unitOf, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
+import { SHOW_IDS_KEY, changeMatches, linksAt, numberCell, unitOf, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
 import { type Lookup, nameTails, pathLabelIn } from '../src/lib/contract/mock-dev.ts';
 import type { DevFieldDiff, Readable, RecordView, RowsPage } from '../src/lib/contract/dev.ts';
 
@@ -170,4 +170,17 @@ test('numberCell and unitOf: Datasets numbers read like the Diff', () => {
   assert.equal(numberCell('n/a', 'HP', false), 'n/a');
   assert.equal(numberCell(null, 'HP', false), null);
   assert.equal(unitOf('size'), null);
+});
+
+test('linksAt: a link belongs to the line naming it and to that item\'s other lines', () => {
+  const gat = { pointers: ['/loadout/weapons/0/item', '/loadout/weapons/1/item'], table: 'weapons' };
+  const can = { pointers: ['/loadout/weapons/2/item'], table: 'weapons' };
+  const links = [gat, can];
+  assert.deepEqual(linksAt(links, '/loadout/weapons/0/dps'), [gat]);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/1/item'), [gat]);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/2/dps'), [can]);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/10/dps'), [], 'not a prefix match on 1');
+  assert.deepEqual(linksAt(links, '/totals/weaponDps'), []);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/0/dps', true), [], 'exact: the value line only');
+  assert.deepEqual(linksAt(links, '/loadout/weapons/0/item', true), [gat]);
 });

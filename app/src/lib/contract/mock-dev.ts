@@ -1062,10 +1062,12 @@ function rowLinks(d: Dataset | undefined, table: string, row: number, l: Lookup)
       for (const at of index.get(x.toLowerCase()) ?? []) {
         if (at[0] === table && at[1] === row) continue;
         const seen = out.find((o) => o.table === at[0] && o.row === at[1]);
-        if (seen) seen.count++;
-        else {
+        if (seen) {
+          seen.count++;
+          seen.pointers.push(path);
+        } else {
           const target = d.tables.find((t) => t.name === at[0])!.rows[at[1]]!;
-          out.push({ pointer: path, value: x, table: at[0], row: at[1], title: rowTitle(l, target, null), count: 1, source: null, diff_id: null, diff_state: null });
+          out.push({ pointers: [path], value: x, table: at[0], row: at[1], title: rowTitle(l, target, null), count: 1, source: null, diff_id: null, diff_state: null });
         }
       }
     } else if (Array.isArray(x)) x.forEach((y, i) => go(y, `${path}/${i}`, false));
