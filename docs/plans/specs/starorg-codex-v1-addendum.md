@@ -1210,7 +1210,15 @@ it. Raw data and every export stay unchanged.
     Titles several records of a result share get the differing end of their record names
     ("Aegis Tiburon · PU AI CRIM" next to plain "Aegis Tiburon"), else the short id when there
     is no readable record name. The record list pane is resizable (drag the divider, arrow
-    keys; double-click resets; width remembered). Field changes are grouped by item or top-level field and read
+    keys; double-click resets; width remembered). A search box above the tables searches
+    every table's changed records by name or id (`dev_diff_search`; Enter opens the first hit);
+    a filter box on the field changes keeps the fields whose path, read path or either value
+    contains every word. Datasets reads number columns with the unit their name says
+    ("25,740 HP", grid and row tree). Rows that name other rows of the same dataset (a ship's
+    loadout naming its weapons by record name; `row_links`, core `rowrefs`) list them: in the
+    Datasets row sheet to open them, in the Diff field pane to open their changes (when they
+    changed too) or their row in Datasets. "Open in Datasets" and "Show changes in Diff"
+    jump between the two screens. Field changes are grouped by item or top-level field and read
     as names, text and numbers with units. Positional list segments are named from the
     element (`loadout › weapons › M9A Cannon › dps`; LIVE vs PTU: 2,018 of 2,064 positional
     paths named). A key swapped for one with the same text shows both keys, the shared text
