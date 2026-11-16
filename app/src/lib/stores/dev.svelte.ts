@@ -26,6 +26,10 @@ class DevState {
   pendingSearch = $state<string | null>(null);
   /** A record the explorer should open (palette GUID, dataset link). */
   pendingOpen = $state<string | null>(null);
+  /** A dataset row Datasets should show (Diff "Open in Datasets", a linked row). */
+  pendingRow = $state<{ source: string; dataset: string; table: string; row: number } | null>(null);
+  /** A record Diff should show (Datasets "Show changes in Diff", a changed linked row). */
+  pendingDiff = $state<{ dataset: string; table: string; id: string } | null>(null);
   /** Bumped on every hand-off so the explorer reacts even to the same text again. */
   seq = $state(0);
   history = new History();
@@ -47,6 +51,18 @@ class DevState {
 
   openRecord(what: string, go: () => void): void {
     this.pendingOpen = what;
+    this.seq++;
+    go();
+  }
+
+  openRow(at: { source: string; dataset: string; table: string; row: number }, go: () => void): void {
+    this.pendingRow = at;
+    this.seq++;
+    go();
+  }
+
+  openDiff(at: { dataset: string; table: string; id: string }, go: () => void): void {
+    this.pendingDiff = at;
     this.seq++;
     go();
   }

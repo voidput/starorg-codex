@@ -303,6 +303,32 @@ pub struct DevRowDetail {
     /// value (addendum 7.14).
     #[serde(default)]
     pub labels: std::collections::BTreeMap<String, Readable>,
+    /// Rows of the same dataset this row names.
+    #[serde(default)]
+    pub row_links: Vec<RowLink>,
+}
+
+/// A row of the same dataset this row names (a ship's loadout naming its weapons by record
+/// name). The Datasets row sheet and the Diff field pane list them to jump there.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RowLink {
+    /// JSON pointer of the first value naming it.
+    pub pointer: String,
+    pub value: String,
+    pub table: String,
+    pub row: u32,
+    /// Its display name (7.14), when it has one.
+    pub title: Option<String>,
+    /// Values of this row naming it ("4 Gatlings": one row, several mounts).
+    pub count: u32,
+    /// Diff only: the source the row is in (B's, or A's for a removed record).
+    #[serde(default)]
+    pub source: Option<String>,
+    /// Diff only: the linked row's record in the comparison, when it changed.
+    #[serde(default)]
+    pub diff_id: Option<String>,
+    #[serde(default)]
+    pub diff_state: Option<RecordState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -394,6 +420,9 @@ pub struct DevFieldDiff {
     pub label: Option<String>,
     pub state: RecordState,
     pub changes: Vec<FieldChange>,
+    /// Rows of the same dataset the record names (B's row, A's for a removed record).
+    #[serde(default)]
+    pub row_links: Vec<RowLink>,
 }
 
 /// The Developer mode half of the backend. Every method returns `dev-disabled` while the
@@ -769,6 +798,82 @@ pub fn search_tables(
         }
     }
     out
+}
+
+/// At most this many linked rows per row.
+pub const MAX_ROW_LINKS: usize = 60;
+
+/// Shared by both backends: the rows of `d` that row `row` of `table` names, titled.
+pub fn row_links(
+    d: &starorg_core::dev::dataset::Dataset,
+    table: &str,
+    row: u32,
+    l: &dyn starorg_core::dev::readable::Lookup,
+) -> Vec<RowLink> {
+    use starorg_core::dev::rowrefs::{RowAt, RowIndex, refs_in};
+    let Some(v) = d.table(table).and_then(|t| t.rows.get(row as usize)) else {
+        return Vec::new();
+    };
+    let index = RowIndex::new(d);
+    refs_in(v, &index, RowAt { table, row })
+        .into_iter()
+        .take(MAX_ROW_LINKS)
+        .map(|r| RowLink {
+            title: d
+                .table(r.at.table)
+                .and_then(|t| t.rows.get(r.at.row as usize))
+                .and_then(|x| starorg_core::dev::readable::row_title(l, x, None)),
+            pointer: r.pointer,
+            value: r.value,
+            table: r.at.table.to_string(),
+            row: r.at.row,
+            count: r.count,
+            source: None,
+            diff_id: None,
+            diff_state: None,
+        })
+        .collect()
+}
+
+/// Shared by both backends: [`row_links`] of a diff record's row (B's, A's when removed),
+/// each with its source and, when the linked row changed too, its record in the comparison.
+#[allow(clippy::too_many_arguments)]
+pub fn diff_row_links(
+    tables: &[starorg_core::dev::diff::TableDiff],
+    summary: &DevDiffSummary,
+    a: &DiffSideSets,
+    b: &DiffSideSets,
+    dataset: &str,
+    table: &str,
+    rec: &DiffRecord,
+    la: &dyn starorg_core::dev::readable::Lookup,
+    lb: &dyn starorg_core::dev::readable::Lookup,
+) -> Vec<RowLink> {
+    let (side, row, source, l, on_b) = match (rec.b, rec.a) {
+        (Some(r), _) => (b, r, &summary.b, lb, true),
+        (None, Some(r)) => (a, r, &summary.a, la, false),
+        (None, None) => return Vec::new(),
+    };
+    let Some(d) = side.iter().find(|x| x.0 == dataset).map(|x| &x.1) else {
+        return Vec::new();
+    };
+    let mut links = row_links(d, table, row, l);
+    for k in &mut links {
+        k.source = Some(source.clone());
+        let found = tables
+            .iter()
+            .find(|t| t.summary.dataset == dataset && t.summary.table == k.table)
+            .and_then(|t| {
+                t.records
+                    .iter()
+                    .find(|r| (if on_b { r.b } else { r.a }) == Some(k.row))
+            });
+        if let Some(r) = found {
+            k.diff_id = Some(r.id.clone());
+            k.diff_state = Some(r.state);
+        }
+    }
+    links
 }
 
 /// Shared by both backends: the Diff tree of a comparison (addendum 7.15).

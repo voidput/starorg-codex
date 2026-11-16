@@ -1392,10 +1392,10 @@ impl DevBackend for RealBackend {
             }
             None => vec![],
         };
-        let mut labels = match self.source_lookup(&req.target, &req.source) {
-            Some(l) => readable::labels_in(&*l, row),
-            None => readable::labels_in(&NoLookup, row),
-        };
+        let src_lookup = self.source_lookup(&req.target, &req.source);
+        let sl: &dyn Lookup = src_lookup.as_deref().map_or(&NoLookup, |l| l);
+        let mut labels = readable::labels_in(sl, row);
+        let row_links = row_links(&d, &req.table, req.row, sl);
         // GUIDs and record names the build's GameData does not name: ask the explorer, while
         // it runs.
         let mut open: Vec<String> = Vec::new();
@@ -1417,6 +1417,7 @@ impl DevBackend for RealBackend {
             loc,
             links,
             labels,
+            row_links,
         })
     }
 
@@ -1605,11 +1606,23 @@ impl DevBackend for RealBackend {
             la,
             lb,
         );
+        let row_links = diff_row_links(
+            &st.tables,
+            &st.summary,
+            &st.a,
+            &st.b,
+            &req.dataset,
+            &req.table,
+            rec,
+            la,
+            lb,
+        );
         Ok(DevFieldDiff {
             id: rec.id.clone(),
             label,
             state: rec.state,
             changes,
+            row_links,
         })
     }
 }

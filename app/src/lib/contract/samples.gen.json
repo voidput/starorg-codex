@@ -3261,6 +3261,7 @@
     ],
     "id": "SYN_shield_001",
     "label": "Sample Cooler 9",
+    "row_links": [],
     "state": "changed"
   },
   "dev_diff_record_ship": {
@@ -3280,6 +3281,7 @@
     ],
     "id": "SYN_Ship_003",
     "label": "Synthetic hull 3",
+    "row_links": [],
     "state": "changed"
   },
   "dev_diff_records": {
@@ -6486,6 +6488,7 @@
     ],
     "loc": [],
     "row": 1,
+    "row_links": [],
     "truncated": false
   },
   "dev_row_loc": {
@@ -6524,6 +6527,7 @@
       }
     ],
     "row": 0,
+    "row_links": [],
     "truncated": false
   },
   "dev_rows": {

@@ -9,6 +9,7 @@ pub mod group;
 pub mod media;
 pub mod readable;
 pub mod record;
+pub mod rowrefs;
 pub mod sections;
 
 #[cfg(test)]

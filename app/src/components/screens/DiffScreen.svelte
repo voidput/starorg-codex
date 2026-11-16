@@ -13,6 +13,7 @@
    */
   import { untrack } from 'svelte';
   import GitCompare from '@lucide/svelte/icons/git-compare';
+  import Sheet_ from '@lucide/svelte/icons/sheet';
   import ListTree from '@lucide/svelte/icons/list-tree';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
@@ -33,7 +34,7 @@
   import { changeMatches, changeTexts, groupChanges, titled } from '@/lib/readable';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
-  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffSearchHit, type DiffTable, type GroupPage, type RecordState } from '@/lib/contract/dev';
+  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffSearchHit, type DiffTable, type GroupPage, type RowLink, type RecordState } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { app } from '@/lib/stores/app.svelte';
   import { int } from '@/lib/format';
@@ -174,6 +175,52 @@
       clearTimeout(t);
     };
   });
+  /** Open a record of any table: its table, its records filtered by `query`, the record. */
+  async function openRecordIn(dataset: string, table: string, id: string, query: string) {
+    const t = summary?.tables.find((x) => x.dataset === dataset && x.table === table);
+    if (!t || !target) return false;
+    await pickTable(t);
+    recQuery = query;
+    recQueryDebounced = query;
+    await loadRecords();
+    recActive = Math.max(0, records?.records.findIndex((r) => r.id === id) ?? 0);
+    try {
+      field = await devApi.diffRecord({ target: $state.snapshot(target), dataset, table, id, identity });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  // Hand-offs from Datasets ("Show changes in Diff").
+  $effect(() => {
+    void dev.seq;
+    const p = dev.pendingDiff;
+    if (!p || !summary) return;
+    untrack(async () => {
+      dev.pendingDiff = null;
+      allQuery = '';
+      if (!(await openRecordIn(p.dataset, p.table, p.id, p.id))) toast('info', 'No changes for this row', `${p.table} · ${p.id} is the same in ${label(summary!.a)} and ${label(summary!.b)}.`);
+    });
+  });
+  /** The picked record's row in Datasets (B's, A's for a removed record). */
+  function openInDatasets(id: string) {
+    const r = records?.records.find((x) => x.id === id);
+    if (!r || !summary || !picked) return;
+    const at = r.b !== null ? { source: summary.b, row: r.b } : r.a !== null ? { source: summary.a, row: r.a } : null;
+    if (!at) return;
+    dev.openRow({ ...at, dataset: picked.dataset, table: picked.table }, () => app.go('datasets'));
+  }
+  /** A row the record names: its own changes when it changed, else its row in Datasets. */
+  async function followLink(k: RowLink) {
+    if (!picked) return;
+    const ds = picked.dataset;
+    if (k.diff_id !== null) {
+      await openRecordIn(ds, k.table, k.diff_id, k.diff_id);
+      return;
+    }
+    if (k.source !== null) dev.openRow({ source: k.source, dataset: ds, table: k.table, row: k.row }, () => app.go('datasets'));
+  }
+
   /** Open a hit: its table, its records filtered by the search, the record itself. */
   async function openHit(h: DiffSearchHit) {
     const t = summary?.tables.find((x) => x.dataset === h.dataset && x.table === h.table);
@@ -587,8 +634,24 @@
                         {#if t.secondary}<span class="text-muted-foreground mono truncate text-[11.5px]">({t.secondary})</span>{/if}
                       </h2>
                       <Button variant="ghost" size="icon-xs" aria-label="Copy id {field.id}" title="Copy the id" onclick={() => void copyId(field!.id)}><Copy aria-hidden="true" /></Button>
+                      <Button variant="ghost" size="xs" title="This record's full row, in Datasets" onclick={() => openInDatasets(field!.id)}><Sheet_ aria-hidden="true" /> Open in Datasets</Button>
                       <span class="text-muted-foreground text-[12px]">{fieldQuery.trim() ? `${int(shownChanges.length)} of ` : ''}{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
                     </div>
+                    {#if field.row_links.length}
+                      <div class="flex flex-wrap items-center gap-1.5 border-b px-3 py-1.5" aria-label="Rows this record names">
+                        <span class="text-muted-foreground text-[11.5px]">Names:</span>
+                        {#each field.row_links as k (k.table + '/' + k.row)}
+                          <Button
+                            variant="outline"
+                            size="xs"
+                            title={`${k.pointer}\n${k.value}\n${k.diff_id !== null ? `Changed too: open its changes` : 'Unchanged: open its row in Datasets'}`}
+                            onclick={() => void followLink(k)}
+                          >
+                            {#if k.diff_id !== null}<GitCompare aria-hidden="true" />{:else}<Sheet_ aria-hidden="true" />{/if}{k.title && !dev.showIds ? k.title : k.value}{#if k.count > 1}<span class="mono">×{k.count}</span>{/if}<span class="text-muted-foreground mono text-[10.5px]">{k.table}</span>
+                          </Button>
+                        {/each}
+                      </div>
+                    {/if}
                     <div class="border-b px-3 py-1.5">
                       <div class="relative max-w-sm">
                         <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />

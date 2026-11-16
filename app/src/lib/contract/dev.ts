@@ -515,6 +515,24 @@ export interface DevRowDetail {
   loc: LocText[];
   links: ExplorerLink[];
   labels: Record<string, Readable>;
+  /** Rows of the same dataset this row names. */
+  row_links: RowLink[];
+}
+
+/** A row of the same dataset this row names (a ship's loadout naming its weapons). */
+export interface RowLink {
+  pointer: string;
+  value: string;
+  table: string;
+  row: number;
+  title: string | null;
+  /** Values of this row naming it. */
+  count: number;
+  /** Diff only: the source the row is in. */
+  source: string | null;
+  /** Diff only: the linked row's record in the comparison, when it changed. */
+  diff_id: string | null;
+  diff_state: RecordState | null;
 }
 
 export type Presence = 'both' | 'only-a' | 'only-b';
@@ -628,6 +646,8 @@ export interface DevFieldDiff {
   label: string | null;
   state: RecordState;
   changes: FieldChange[];
+  /** Rows of the same dataset the record names (B's row, A's for a removed record). */
+  row_links: RowLink[];
 }
 
 /** The cut stub that stands for a node not sent (`{"_cut": {"kind", "len"}}`). */

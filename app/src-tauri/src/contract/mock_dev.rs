@@ -1864,13 +1864,15 @@ impl DevBackend for MockBackend {
         } else {
             vec![]
         };
+        let l = lookup(true);
         Ok(DevRowDetail {
             row: req.row,
             json,
             truncated,
             loc,
             links,
-            labels: readable::labels_in(&lookup(true), row),
+            labels: readable::labels_in(&l, row),
+            row_links: row_links(&d, &req.table, req.row, &l),
         })
     }
 
@@ -1974,7 +1976,7 @@ impl DevBackend for MockBackend {
     fn dev_diff_record(&self, req: DevDiffRecordRequest) -> CmdResult<DevFieldDiff> {
         self.dev_on(&req.target)?;
         let g = self.dev_state();
-        let (_, tables, a, b) = g
+        let (summary, tables, a, b) = g
             .diff
             .as_ref()
             .ok_or_else(|| not_found("No comparison yet: pick A and B."))?;
@@ -2009,11 +2011,14 @@ impl DevBackend for MockBackend {
             &l,
             &l,
         );
+        let row_links =
+            diff_row_links(tables, summary, a, b, &req.dataset, &req.table, rec, &l, &l);
         Ok(DevFieldDiff {
             id: rec.id.clone(),
             label,
             state: rec.state,
             changes,
+            row_links,
         })
     }
 }

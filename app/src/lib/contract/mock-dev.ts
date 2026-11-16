@@ -1033,6 +1033,41 @@ function pageRecords(
   };
 }
 
+/** The rows of `d` that row `row` of `table` names (as `row_links` / core `rowrefs` in Rust). */
+function rowLinks(d: Dataset | undefined, table: string, row: number, l: Lookup): D.RowLink[] {
+  const v = d?.tables.find((t) => t.name === table)?.rows[row];
+  if (!d || v === undefined) return [];
+  const KEYS = ['id', 'recordName', 'className'];
+  const index = new Map<string, [string, number]>();
+  for (const t of d.tables)
+    t.rows.forEach((r, i) => {
+      for (const k of KEYS) {
+        const s = r[k];
+        if (typeof s !== 'string' || s.length <= 2) continue;
+        if (!index.has(s.toLowerCase())) index.set(s.toLowerCase(), [t.name, i]);
+        const short = s.includes('.') ? s.slice(s.indexOf('.') + 1) : s;
+        if (short !== s && short.length > 2 && !index.has(short.toLowerCase())) index.set(short.toLowerCase(), [t.name, i]);
+      }
+    });
+  const out: D.RowLink[] = [];
+  const go = (x: Json, path: string, top: boolean) => {
+    if (typeof x === 'string') {
+      if (x.length < 3 || /\s/.test(x)) return;
+      const at = index.get(x.toLowerCase());
+      if (!at || (at[0] === table && at[1] === row)) return;
+      const seen = out.find((o) => o.table === at[0] && o.row === at[1]);
+      if (seen) seen.count++;
+      else {
+        const target = d.tables.find((t) => t.name === at[0])!.rows[at[1]]!;
+        out.push({ pointer: path, value: x, table: at[0], row: at[1], title: rowTitle(l, target, null), count: 1, source: null, diff_id: null, diff_state: null });
+      }
+    } else if (Array.isArray(x)) x.forEach((y, i) => go(y, `${path}/${i}`, false));
+    else if (isObj(x)) for (const [k, y] of Object.entries(x)) if (!(top && KEYS.includes(k))) go(y, `${path}/${esc(k)}`, false);
+  };
+  go(v, '', true);
+  return out.slice(0, 60);
+}
+
 /** A diff record's record name (`recordName`, else `className`), B's row first. */
 function recordName(r: D.DiffRecord, a: Table | undefined, b: Table | undefined): string | null {
   const of = (t: Table | undefined, i: number | null) => {
@@ -1604,7 +1639,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
               return i === null ? null : index.entries[i]!.guid;
             })
           : [];
-      return { row: req.row, json, truncated, loc: rowLoc(row, (k) => ctx.stockText(k)), links, labels: labelsIn(lookup, row) };
+      return { row: req.row, json, truncated, loc: rowLoc(row, (k) => ctx.stockText(k)), links, labels: labelsIn(lookup, row), row_links: rowLinks(datasetOf(req.target, req.source, req.dataset), req.table, req.row, lookup) };
     },
     dev_diff: async ({ req }) => {
       on(req.target);
@@ -1676,7 +1711,17 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       annotateChanges(changes, lookup, lookup);
       namePositions(changes, ra, rb, lookup, lookup);
       const find = (side: [string, Dataset][]) => side.find((x) => x[0] === req.dataset)?.[1].tables.find((t) => t.name === req.table);
-      return { id: rec.id, label: recordTitle(rec, td.summary.identity, find(st.a), find(st.b), lookup, lookup), state: rec.state, changes };
+      const onB = rec.b !== null;
+      const side = onB ? st.b : st.a;
+      const at = onB ? rec.b : rec.a;
+      const row_links =
+        at === null
+          ? []
+          : rowLinks(side.find((x) => x[0] === req.dataset)?.[1], req.table, at, lookup).map((k) => {
+              const r = st.tables.find((t) => t.summary.dataset === req.dataset && t.summary.table === k.table)?.records.find((x) => (onB ? x.b : x.a) === k.row);
+              return { ...k, source: onB ? st.summary.b : st.summary.a, diff_id: r?.id ?? null, diff_state: r?.state ?? null };
+            });
+      return { id: rec.id, label: recordTitle(rec, td.summary.identity, find(st.a), find(st.b), lookup, lookup), state: rec.state, changes, row_links };
     },
   };
   return { handlers, index, addFolder: () => (folder = true) };

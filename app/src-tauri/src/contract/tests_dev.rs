@@ -1216,3 +1216,88 @@ fn shared_titles_with_guid_ids_read_by_record_name() {
         page.records.iter().map(|r| &r.label).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn row_links_name_the_weapons_and_their_diff_records() {
+    use starorg_core::dev::dataset::infer;
+    use starorg_core::dev::diff::diff_table;
+    use std::sync::Arc;
+    let data = |cannon_dps: f64| {
+        json!({
+            "ships": [{ "recordName": "EntityClassDefinition.RSI_Perseus", "id": "p-1", "hp": 1,
+                        "loadout": { "weapons": [
+                            { "item": "GATS_BallisticGatling_S3" },
+                            { "item": "GATS_BallisticGatling_S3" },
+                            { "item": "RSI_Perseus_BallisticCannon_B_S8" } ] } }],
+            "weapons": [
+                { "recordName": "EntityClassDefinition.GATS_BallisticGatling_S3", "id": "w-1", "dps": 1094.4 },
+                { "recordName": "EntityClassDefinition.RSI_Perseus_BallisticCannon_B_S8", "id": "w-2", "dps": cannon_dps }
+            ]
+        })
+    };
+    let (da, db) = (
+        Arc::new(infer("gamedata.json", 0, data(9000.0))),
+        Arc::new(infer("gamedata.json", 0, data(9720.0))),
+    );
+    let links = row_links(&db, "ships", 0, &starorg_core::dev::readable::NoLookup);
+    let got: Vec<_> = links
+        .iter()
+        .map(|k| (k.table.as_str(), k.row, k.count, k.value.as_str()))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("weapons", 0, 2, "GATS_BallisticGatling_S3"),
+            ("weapons", 1, 1, "RSI_Perseus_BallisticCannon_B_S8")
+        ]
+    );
+    assert!(
+        links
+            .iter()
+            .all(|k| k.source.is_none() && k.diff_id.is_none())
+    );
+
+    let a: Vec<(String, Arc<starorg_core::dev::dataset::Dataset>)> =
+        vec![("gamedata.json".into(), da.clone())];
+    let b: Vec<(String, Arc<starorg_core::dev::dataset::Dataset>)> =
+        vec![("gamedata.json".into(), db.clone())];
+    let tables: Vec<_> = ["ships", "weapons"]
+        .iter()
+        .map(|t| diff_table("gamedata.json", t, da.table(t), db.table(t), Some("id")))
+        .collect();
+    let summary = DevDiffSummary {
+        a: "build:LIVE".into(),
+        b: "build:PTU".into(),
+        tables: tables.iter().map(|t| t.summary.clone()).collect(),
+        ms: 0,
+    };
+    // The ship itself did not change; give it a record by hand.
+    let rec = DiffRecord {
+        id: "p-1".into(),
+        state: RecordState::Changed,
+        a: Some(0),
+        b: Some(0),
+        fields: vec![],
+        label: None,
+    };
+    let links = diff_row_links(
+        &tables,
+        &summary,
+        &a,
+        &b,
+        "gamedata.json",
+        "ships",
+        &rec,
+        &starorg_core::dev::readable::NoLookup,
+        &starorg_core::dev::readable::NoLookup,
+    );
+    assert_eq!(links.len(), 2);
+    assert!(
+        links
+            .iter()
+            .all(|k| k.source.as_deref() == Some("build:PTU"))
+    );
+    assert_eq!(links[0].diff_id, None, "the Gatling did not change");
+    assert_eq!(links[1].diff_id.as_deref(), Some("w-2"), "the cannon did");
+    assert_eq!(links[1].diff_state, Some(RecordState::Changed));
+}

@@ -19,6 +19,7 @@
   import Funnel from '@lucide/svelte/icons/funnel';
   import X from '@lucide/svelte/icons/x';
   import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
+  import GitCompare from '@lucide/svelte/icons/git-compare';
   import Sheet_ from '@lucide/svelte/icons/sheet';
   import ListTree from '@lucide/svelte/icons/list-tree';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
@@ -87,6 +88,8 @@
 
   // --- The picked dataset and table ------------------------------------------------------
   let pick = $state<{ source: string; dataset: string } | null>(null);
+  /** The table to show once a hand-off's dataset has loaded (instead of its first table). */
+  let wantTable: string | null = null;
   let info = $state<DatasetInfo | null>(null);
   let tableName = $state<string | null>(null);
   let table = $state<TableInfo | null>(null);
@@ -100,7 +103,9 @@
       if (!p || !target) return;
       try {
         info = await devApi.dataset({ target: $state.snapshot(target), ...p });
-        tableName = info.tables[0]?.name ?? null;
+        const want = wantTable;
+        wantTable = null;
+        tableName = want && info.tables.some((t) => t.name === want) ? want : (info.tables[0]?.name ?? null);
         dsError = null;
       } catch (e) {
         dsError = toContractError(e);
@@ -365,6 +370,68 @@
       toast('error', 'Could not open the row', toContractError(e).message);
     }
   }
+  /** Show a row of any source, dataset and table: the grid moves there, the sheet opens. */
+  async function goToRow(at: { source: string; dataset: string; table: string; row: number }) {
+    if (!target) return;
+    if (pick?.source !== at.source || pick?.dataset !== at.dataset) {
+      wantTable = at.table;
+      pick = { source: at.source, dataset: at.dataset };
+    } else tableName = at.table;
+    try {
+      detail = await devApi.row({ target: $state.snapshot(target), ...at });
+      detailTitle = null;
+      sheet = true;
+    } catch (e) {
+      toast('error', 'Could not open the row', toContractError(e).message);
+    }
+  }
+  // Hand-offs from Diff ("Open in Datasets", a linked row there).
+  $effect(() => {
+    void dev.seq;
+    const p = dev.pendingRow;
+    if (!p) return;
+    untrack(() => {
+      dev.pendingRow = null;
+      void goToRow(p);
+    });
+  });
+
+  /** The open row's record in the loaded comparison, when Diff compares this source. */
+  let diffAt = $state<{ dataset: string; table: string; id: string } | null>(null);
+  $effect(() => {
+    const d = detail;
+    const p = pick;
+    const tn = tableName;
+    diffAt = null;
+    if (!d || !p || !tn || !target) return;
+    let live = true;
+    untrack(async () => {
+      try {
+        const sum = await devApi.diffSummary($state.snapshot(target!));
+        if (!live || (sum.a !== p.source && sum.b !== p.source)) return;
+        const t = sum.tables.find((x) => x.dataset === p.dataset && x.table === tn);
+        if (!t) return;
+        let id = `#${d.row}`;
+        if (t.identity) {
+          const v = (JSON.parse(d.json) as Record<string, unknown>)[t.identity];
+          if (v === undefined || v === null) return;
+          id = typeof v === 'string' ? v : JSON.stringify(v);
+        }
+        if (live) diffAt = { dataset: p.dataset, table: tn, id };
+      } catch {
+        /* no comparison loaded: no link */
+      }
+    });
+    return () => {
+      live = false;
+    };
+  });
+  function showInDiff() {
+    if (!diffAt) return;
+    sheet = false;
+    dev.openDiff(diffAt, () => app.go('diff'));
+  }
+
   function openInExplorer(what: string) {
     sheet = false;
     dev.openRecord(what, () => app.go('explorer'));
@@ -672,6 +739,24 @@
 <Sheet bind:open={sheet} title={detail ? `${tableName} · ${detailTitle && !dev.showIds ? `${detailTitle} (row ${detail.row + 1})` : `row ${detail.row + 1}`}` : 'Row'} width="w-[min(720px,calc(100vw-48px))]">
   {#if detail}
     <div class="flex h-[calc(100vh-140px)] min-h-0 flex-col gap-3">
+      {#if diffAt}
+        <div><Button variant="outline" size="xs" title={`${diffAt.table} · ${diffAt.id}`} onclick={showInDiff}><GitCompare aria-hidden="true" /> Show changes in Diff</Button></div>
+      {/if}
+      {#if detail.row_links.length && pick}
+        {@const at = pick}
+        <div class="grid gap-1">
+          <h3 class="eyebrow text-muted-foreground">Rows it names</h3>
+          <ul class="flex flex-wrap gap-1.5">
+            {#each detail.row_links as k (k.table + '/' + k.row)}
+              <li>
+                <Button variant="outline" size="xs" title={`${k.pointer}\n${k.value}`} onclick={() => void goToRow({ ...at, table: k.table, row: k.row })}>
+                  <ArrowUpRight aria-hidden="true" />{k.title && !dev.showIds ? k.title : k.value}{#if k.count > 1}<span class="mono">×{k.count}</span>{/if}<span class="text-muted-foreground mono text-[10.5px]">{k.table}</span>
+                </Button>
+              </li>
+            {/each}
+          </ul>
+        </div>
+      {/if}
       {#if detail.links.length}
         <div class="grid gap-1">
           <h3 class="eyebrow text-muted-foreground">In the explorer</h3>
