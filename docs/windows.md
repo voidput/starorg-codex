@@ -12,7 +12,7 @@ get it, from the same code:
 | | Direct download (GitHub release) | Microsoft Store |
 |---|---|---|
 | Files | `StarOrg.Codex_<v>_x64-setup.exe` (NSIS, per user), `..._x64_en-US.msi`, CLI `starorg-codex-v<v>-windows-x86_64.zip` | Store listing (the release also carries the `.msix` sent to the Store) |
-| Signed | Yes, with Azure Artifact Signing since 0.1.0: the app exe, both installers and the CLI exe ([Code signing](#code-signing)). Prereleases (`X.Y.Z-beta.1` ...) are unsigned | Signed by Microsoft when published |
+| Signed | Yes, with Azure Artifact Signing since 0.0.2: the app exe, both installers and the CLI exe ([Code signing](#code-signing)). Prereleases (`X.Y.Z-beta.1` ...) are unsigned | Signed by Microsoft when published |
 | Updates | In the app (Settings -> Network -> Check for updates, off by default), signed with the updater key ([updates](updates.md)) | Only through the Store. The app never checks GitHub and never installs an update ("Updates come from the Microsoft Store.") |
 | App data | `%APPDATA%\StarOrg Tools\Codex\` (config, data), `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\` (extracted game text; the Developer mode asset cache in `assets\`, 2 GB by default or a folder you choose; MCP datasets in `mcp\`) | The same paths as the app sees them, but Windows redirects them into the package folder (`%LOCALAPPDATA%\Packages\<package>\LocalCache\...`), see [Store notes](#store-notes) |
 | CLI | In the zip | Not included |
@@ -157,7 +157,7 @@ Attach it to a bug report.
 ## Code signing
 
 Direct downloads are signed with **Azure Artifact Signing** (the service formerly called Trusted
-Signing), live since 0.1.0. The release job signs every plain `X.Y.Z` release; prereleases
+Signing), live since 0.0.2. The release job signs every plain `X.Y.Z` release; prereleases
 (`X.Y.Z-beta.1`, `-rc.1`) and a fork without the secrets and variables below build unsigned. `.github/actions/windows-signing` checks the configuration, installs
 `artifact-signing-cli` (pinned) and gives Tauri a `bundle.windows.signCommand`; Tauri signs the
 app exe, the NSIS installer and uninstaller and the MSI. The CLI exe in the zip is signed too.

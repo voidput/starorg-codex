@@ -172,5 +172,5 @@ export async function fetchGlb(
 /** Why there is no 3D view, in words, from what WebGL creation threw. */
 export function webglProblem(e: unknown): string {
   const m = e instanceof Error ? e.message : String(e);
-  return `The webview has no WebGL here (${m}), so it cannot draw the model. With --safe-gpu or WEBKIT_DISABLE_COMPOSITING_MODE=1 the Linux webview runs without 3D; start the app without them, or use "Export .glb" and open the file in Blender.`;
+  return `The webview has no WebGL here (${m}), so it cannot draw the model. On some older WebKitGTK builds --safe-gpu or WEBKIT_DISABLE_COMPOSITING_MODE=1 turn 3D off; if you use them, try the app without them, or use "Export .glb" and open the file in Blender.`;
 }
