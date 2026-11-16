@@ -74,11 +74,18 @@
     },
     "linux": {
       "deb": {
+        "recommends": [
+          "gstreamer1.0-plugins-good"
+        ],
         "files": {
           "/usr/share/applications/starorg-codex-app.desktop": "linux/starorg-codex-app.desktop"
         }
       },
       "rpm": {
+        "recommends": [
+          "gstreamer1-plugins-good",
+          "gstreamer-plugins-good"
+        ],
         "files": {
           "/usr/share/applications/starorg-codex-app.desktop": "linux/starorg-codex-app.desktop"
         }
