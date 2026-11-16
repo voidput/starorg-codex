@@ -42,6 +42,7 @@
   import { bytes } from '@/lib/devnav';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
+  import { numberCell } from '@/lib/readable';
   import { toast } from '@/lib/stores/toast.svelte';
   import { int } from '@/lib/format';
   import { cn } from '@/lib/utils';
@@ -646,7 +647,8 @@
                               {#if c !== null && lab}
                                 <span role="gridcell" class="flex min-w-0 text-[12px]"><ReadableValue raw={c} label={lab} /></span>
                               {:else}
-                                <span role="gridcell" class={cn('truncate text-[12px]', c === null && 'text-muted-foreground', colMeta(pageCols[k] ?? '')?.kind === 'number' && 'mono')} title={c ?? ''}>{c ?? '—'}</span>
+                                {@const meta = colMeta(pageCols[k] ?? '')}
+                                <span role="gridcell" class={cn('truncate text-[12px]', c === null && 'text-muted-foreground', meta?.kind === 'number' && 'mono text-right')} title={c ?? ''}>{(meta?.kind === 'number' ? numberCell(c, meta.unit, dev.showIds) : c) ?? '—'}</span>
                               {/if}
                             {/each}
                           {:else}
@@ -691,7 +693,7 @@
           </ul>
         </div>
       {/if}
-      <JsonTree id="row" json={detail.json} label="row" labels={detail.labels} onfollow={(r) => openInExplorer(r.guid)} onloc={openLoc} class="min-h-0 flex-1 rounded-md border" />
+      <JsonTree id="row" json={detail.json} label="row" labels={detail.labels} units onfollow={(r) => openInExplorer(r.guid)} onloc={openLoc} class="min-h-0 flex-1 rounded-md border" />
     </div>
   {/if}
 </Sheet>

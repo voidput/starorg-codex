@@ -7297,7 +7297,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "name"
+        "name": "name",
+        "unit": null
       },
       {
         "distinct": [
@@ -7402,7 +7403,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "recordName"
+        "name": "recordName",
+        "unit": null
       },
       {
         "distinct": [
@@ -7427,7 +7429,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "kind"
+        "name": "kind",
+        "unit": null
       },
       {
         "distinct": null,
@@ -7435,7 +7438,8 @@
         "kind": "number",
         "max": 4.0,
         "min": 1.0,
-        "name": "size"
+        "name": "size",
+        "unit": null
       },
       {
         "distinct": [
@@ -7460,7 +7464,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "grade"
+        "name": "grade",
+        "unit": null
       },
       {
         "distinct": [
@@ -7481,7 +7486,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "manufacturer"
+        "name": "manufacturer",
+        "unit": null
       },
       {
         "distinct": null,
@@ -7489,7 +7495,8 @@
         "kind": "number",
         "max": 569.0,
         "min": 500.0,
-        "name": "health"
+        "name": "health",
+        "unit": "HP"
       },
       {
         "distinct": null,
@@ -7497,7 +7504,8 @@
         "kind": "object",
         "max": null,
         "min": null,
-        "name": "loc"
+        "name": "loc",
+        "unit": null
       }
     ],
     "default_columns": [
@@ -7739,7 +7747,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "key"
+        "name": "key",
+        "unit": null
       },
       {
         "distinct": [
@@ -7908,7 +7917,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "value"
+        "name": "value",
+        "unit": null
       }
     ],
     "default_columns": [
@@ -7970,7 +7980,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "name"
+        "name": "name",
+        "unit": null
       },
       {
         "distinct": [
@@ -8019,7 +8030,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "className"
+        "name": "className",
+        "unit": null
       },
       {
         "distinct": [
@@ -8068,7 +8080,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "path"
+        "name": "path",
+        "unit": null
       },
       {
         "distinct": [
@@ -8085,7 +8098,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "type"
+        "name": "type",
+        "unit": null
       },
       {
         "distinct": [
@@ -8102,7 +8116,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "subType"
+        "name": "subType",
+        "unit": null
       },
       {
         "distinct": null,
@@ -8110,7 +8125,8 @@
         "kind": "number",
         "max": 3.0,
         "min": 1.0,
-        "name": "size"
+        "name": "size",
+        "unit": null
       },
       {
         "distinct": [
@@ -8127,7 +8143,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "manufacturer"
+        "name": "manufacturer",
+        "unit": null
       },
       {
         "distinct": null,
@@ -8135,7 +8152,8 @@
         "kind": "number",
         "max": 212.75,
         "min": 100.25,
-        "name": "dps"
+        "name": "dps",
+        "unit": "dmg/s"
       },
       {
         "distinct": null,
@@ -8143,7 +8161,8 @@
         "kind": "object",
         "max": null,
         "min": null,
-        "name": "ammo"
+        "name": "ammo",
+        "unit": null
       }
     ],
     "default_columns": [

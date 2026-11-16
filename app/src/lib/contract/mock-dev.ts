@@ -7,6 +7,9 @@
  */
 import type * as T from './types';
 import type * as D from './dev';
+import { unitOf } from '../readable.ts';
+
+export { unitOf };
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 type Obj = { [k: string]: Json };
@@ -397,6 +400,7 @@ export function columns(rows: Obj[]): D.Column[] {
       distinct: kind === 'text' && !a.tooMany && distinct.length ? distinct : null,
       min: kind === 'number' ? a.min : null,
       max: kind === 'number' ? a.max : null,
+      unit: kind === 'number' ? unitOf(name.replaceAll('.', '/')) : null,
     };
   });
 }
@@ -1320,17 +1324,6 @@ export function groupOf(l: Lookup, path: string): string | null {
     .slice(0, end)
     .map((s) => segText(l, s)[0])
     .join(' › ');
-}
-
-export function unitOf(path: string): string | null {
-  const last = (path.split('/').at(-1) ?? path).toLowerCase();
-  const fixed: Record<string, string> = { mass: 'kg', dps: 'dmg/s', weapondps: 'dmg/s', rpm: 'rpm', firerate: 'rpm', health: 'HP', armorhealth: 'HP', shieldhealth: 'HP', scm: 'm/s', duration: 's', cooldown: 's' };
-  if (fixed[last]) return fixed[last]!;
-  if (last.includes('speed')) return 'm/s';
-  if (last.endsWith('range') || last.endsWith('distance')) return 'm';
-  if (last.endsWith('seconds')) return 's';
-  if (last.includes('scu')) return 'SCU';
-  return null;
 }
 
 export function annotateChanges(changes: D.FieldChange[], a: Lookup, b: Lookup): void {

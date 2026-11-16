@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SHOW_IDS_KEY, changeMatches, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
+import { SHOW_IDS_KEY, changeMatches, numberCell, unitOf, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
 import { type Lookup, nameTails, pathLabelIn } from '../src/lib/contract/mock-dev.ts';
 import type { DevFieldDiff, Readable, RecordView, RowsPage } from '../src/lib/contract/dev.ts';
 
@@ -160,4 +160,14 @@ test('nameTails: the differing end of shared-title record names', () => {
   assert.deepEqual(nameTails(['AEGS_Tiburon', 'AEGS_Tiburon_PU_AI_CIV', 'AEGS_Tiburon_PU_AI_CRIM']), [null, 'PU AI CIV', 'PU AI CRIM']);
   assert.deepEqual(nameTails(['AEGS_Javelin_AI_Escort', 'AEGS_Javelin_AI_Boss']), ['Escort', 'Boss']);
   assert.deepEqual(nameTails(['A_B', 'a_b']), [null, null], 'same name twice: nothing to tell apart');
+});
+
+test('numberCell and unitOf: Datasets numbers read like the Diff', () => {
+  assert.equal(numberCell('25740', unitOf('totals/armorHealth'), false), '25,740 HP');
+  assert.equal(numberCell('817.88', 'dmg/s', false), '817.88 dmg/s');
+  assert.equal(numberCell('1234567', null, false), '1,234,567');
+  assert.equal(numberCell('25740', 'HP', true), '25740', 'Show IDs: raw');
+  assert.equal(numberCell('n/a', 'HP', false), 'n/a');
+  assert.equal(numberCell(null, 'HP', false), null);
+  assert.equal(unitOf('size'), null);
 });

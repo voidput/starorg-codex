@@ -56,6 +56,9 @@ pub struct Column {
     pub distinct: Option<Vec<ValueCount>>,
     pub min: Option<f64>,
     pub max: Option<f64>,
+    /// Number columns: the unit their name says (`health` -> HP), as the Diff shows it.
+    #[serde(default)]
+    pub unit: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -223,13 +226,17 @@ pub fn columns(rows: &[Value]) -> Vec<Column> {
                 .collect();
             distinct.sort_by(|x, y| y.count.cmp(&x.count).then(x.value.cmp(&y.value)));
             Column {
-                name,
                 kind,
                 filled: a.filled,
                 distinct: (kind == ColType::Text && !a.too_many && !distinct.is_empty())
                     .then_some(distinct),
                 min: (kind == ColType::Number).then_some(a.min).flatten(),
                 max: (kind == ColType::Number).then_some(a.max).flatten(),
+                unit: (kind == ColType::Number)
+                    .then(|| super::readable::unit_of(&name.replace('.', "/")))
+                    .flatten()
+                    .map(str::to_string),
+                name,
             }
         })
         .collect()

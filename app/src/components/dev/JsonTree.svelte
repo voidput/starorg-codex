@@ -20,6 +20,7 @@
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
+  import { numberCell, unitOf } from '@/lib/readable';
 
   let {
     json,
@@ -29,6 +30,7 @@
     onfollow = null,
     onload = null,
     onloc = null,
+    units = false,
     id = 'jt',
     class: className = '',
   }: {
@@ -43,6 +45,8 @@
     onload?: ((pointer: string) => Promise<Json>) | null;
     /** A loc key's text was clicked: open it in Strings. */
     onloc?: ((key: string) => void) | null;
+    /** Numbers read as the Diff shows them: grouped, with the unit their key says ("25,740 HP"). */
+    units?: boolean;
     id?: string;
     class?: string;
   } = $props();
@@ -327,7 +331,7 @@
             {#if rl && r.name}<span class="text-muted-foreground text-[11px]">{r.name}</span>{/if}
             {#if r.type}<span class="text-muted-foreground">({r.type})</span>{/if}
           {:else if l.kind === 'value'}
-            <span class={cn(typeof l.value === 'string' ? 'text-emerald-700 dark:text-emerald-300' : typeof l.value === 'number' ? 'text-amber-700 dark:text-amber-300' : 'text-violet-700 dark:text-violet-300')}>{scalarText(l.value)}</span>
+            <span class={cn(typeof l.value === 'string' ? 'text-emerald-700 dark:text-emerald-300' : typeof l.value === 'number' ? 'text-amber-700 dark:text-amber-300' : 'text-violet-700 dark:text-violet-300')}>{units && !dev.showIds && typeof l.value === 'number' ? numberCell(String(l.value), unitOf(l.key ?? ''), false) : scalarText(l.value)}</span>
             {#if text !== undefined}
               <button
                 type="button"

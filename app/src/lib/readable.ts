@@ -90,6 +90,17 @@ export function valueText(v: unknown, label: Readable | null | undefined, unit: 
 }
 
 /**
+ * A number cell of the Datasets grid as the Diff shows numbers: grouped, with the column's unit
+ * ("25,740 HP"). Raw with "Show IDs", for text that is not a number, and for null.
+ */
+export function numberCell(text: string | null, unit: string | null | undefined, showIds: boolean): string | null {
+  if (text === null || showIds || text.trim() === '') return text;
+  const n = Number(text);
+  if (!Number.isFinite(n)) return text;
+  return valueText(n, null, unit, false).primary;
+}
+
+/**
  * Both sides of a field change. When the two read the same but their raw values differ (a
  * key swapped for another with the same text), the raw values lead so the change shows,
  * with the shared text as the secondary line.
@@ -128,4 +139,16 @@ export function groupChanges<T extends { group: string | null }>(changes: T[]): 
     else out.push({ group: c.group, items: [c] });
   }
   return out;
+}
+
+/** The unit of a numeric field by its name (as `unit_of` in the Rust core); null when unknown. */
+export function unitOf(path: string): string | null {
+  const last = (path.split('/').at(-1) ?? path).toLowerCase();
+  const fixed: Record<string, string> = { mass: 'kg', dps: 'dmg/s', weapondps: 'dmg/s', rpm: 'rpm', firerate: 'rpm', health: 'HP', armorhealth: 'HP', shieldhealth: 'HP', scm: 'm/s', duration: 's', cooldown: 's' };
+  if (fixed[last]) return fixed[last]!;
+  if (last.includes('speed')) return 'm/s';
+  if (last.endsWith('range') || last.endsWith('distance')) return 'm';
+  if (last.endsWith('seconds')) return 's';
+  if (last.includes('scu')) return 'SCU';
+  return null;
 }

@@ -339,6 +339,8 @@ export interface Column {
   distinct: ValueCount[] | null;
   min: number | null;
   max: number | null;
+  /** Number columns: the unit their name says (`health` -> HP), as the Diff shows it. */
+  unit: string | null;
 }
 
 export type TableKind = 'main' | 'index' | 'tree';
