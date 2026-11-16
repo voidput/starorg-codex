@@ -30,10 +30,10 @@
   import Search from '@lucide/svelte/icons/search';
   import { Input } from '@/components/ui/input';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
-  import { changeTexts, groupChanges, titled } from '@/lib/readable';
+  import { changeMatches, changeTexts, groupChanges, titled } from '@/lib/readable';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
-  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffTable, type GroupPage, type RecordState } from '@/lib/contract/dev';
+  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffSearchHit, type DiffTable, type GroupPage, type RecordState } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { app } from '@/lib/stores/app.svelte';
   import { int } from '@/lib/format';
@@ -139,6 +139,54 @@
       if (more) loadingMore = false;
     }
   }
+  // --- Search across all tables -----------------------------------------------------------
+  let allQuery = $state('');
+  let allHits = $state<{ q: string; hits: DiffSearchHit[]; total: number } | null>(null);
+  let allError = $state<ContractError | null>(null);
+  let allBusy = $state(false);
+  const SEARCH_LIMIT = 100;
+  $effect(() => {
+    const q = allQuery.trim();
+    const tgt = target;
+    void summary;
+    if (q.length < 2 || !tgt) {
+      allHits = null;
+      allError = null;
+      return;
+    }
+    let live = true;
+    const t = setTimeout(async () => {
+      allBusy = true;
+      try {
+        const r = await devApi.diffSearch({ target: $state.snapshot(tgt), query: q, state: null, limit: SEARCH_LIMIT });
+        if (live) {
+          allHits = { q, hits: r.hits, total: r.total };
+          allError = null;
+        }
+      } catch (e) {
+        if (live) allError = toContractError(e);
+      } finally {
+        if (live) allBusy = false;
+      }
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  });
+  /** Open a hit: its table, its records filtered by the search, the record itself. */
+  async function openHit(h: DiffSearchHit) {
+    const t = summary?.tables.find((x) => x.dataset === h.dataset && x.table === h.table);
+    if (!t) return;
+    const q = allHits?.q ?? '';
+    await pickTable(t);
+    recQuery = q;
+    recQueryDebounced = q;
+    await loadRecords();
+    recActive = Math.max(0, records?.records.findIndex((r) => r.id === h.record.id) ?? 0);
+    await pickRecord(h.record.id);
+  }
+
   async function pickTable(t: DiffTable, group: DiffGroupPick | null = null, fromTree = false) {
     recGroup = group;
     if (!fromTree) dnode = JSON.stringify([t.dataset, t.table]);
@@ -247,6 +295,9 @@
 
   // --- Field diff --------------------------------------------------------------------------
   let field = $state<DevFieldDiff | null>(null);
+  /** Filter on the picked record's field changes; kept while moving between records. */
+  let fieldQuery = $state('');
+  const shownChanges = $derived(field ? field.changes.filter((c) => changeMatches(c, fieldQuery, dev.showIds)) : []);
   async function pickRecord(id: string) {
     if (!target || !picked) return;
     try {
@@ -352,6 +403,52 @@
           </aside>
         {/if}
         <div class="flex min-w-0 flex-1 flex-col gap-3">
+          <div class="flex items-center gap-2">
+            <div class="relative max-w-md flex-1">
+              <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
+              <Input
+                type="search"
+                aria-label="Search all tables by name or id"
+                placeholder="Search all tables: Tiburon, Medusa, an id…"
+                class="h-8 pl-7 text-[12.5px]"
+                bind:value={allQuery}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key === 'Escape') allQuery = '';
+                  else if (e.key === 'Enter' && allHits?.hits[0]) void openHit(allHits.hits[0]);
+                }}
+              />
+            </div>
+            {#if allQuery.trim().length >= 2}
+              <span class="text-muted-foreground text-[12px]" aria-live="polite">{allBusy && !allHits ? 'Searching…' : allHits ? `${int(allHits.total)} ${allHits.total === 1 ? 'match' : 'matches'}${allHits.total > allHits.hits.length ? ` (first ${int(allHits.hits.length)})` : ''}` : ''}</span>
+            {/if}
+          </div>
+          {#if allQuery.trim().length >= 2}
+            <section class="bg-card max-h-[38%] min-h-24 shrink-0 overflow-auto rounded-lg border" aria-label="Search results">
+              {#if allError}
+                <div class="p-2"><ErrorState title="Search failed" error={allError} /></div>
+              {:else if allHits && !allHits.hits.length}
+                <p class="text-muted-foreground p-3 text-[12.5px]">No changed record in any table matches “{allHits.q}”.</p>
+              {:else if allHits}
+                <ul class="divide-border/60 divide-y" role="list">
+                  {#each allHits.hits as h (h.dataset + '/' + h.table + '/' + h.record.id + h.record.state)}
+                    {@const t = titled(h.record.id, h.record.label, dev.showIds)}
+                    <li>
+                      <button type="button" class="hover:bg-accent/60 grid w-full gap-0.5 px-3 py-1.5 text-left" onclick={() => void openHit(h)} title={h.record.label ? `${h.record.label}\n${h.record.id}` : h.record.id}>
+                        <span class="flex min-w-0 items-baseline gap-2">
+                          <span class={cn('shrink-0 rounded px-1 text-[10.5px] font-semibold uppercase', h.record.state === 'added' ? 'bg-success/15 text-success' : h.record.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{h.record.state}</span>
+                          <span class={cn('min-w-0 truncate text-[12px]', !t.secondary && 'mono', t.secondary && 'font-medium')}>{t.primary}</span>
+                          <span class="text-muted-foreground mono ml-auto shrink-0 text-[11px]">{h.table}</span>
+                        </span>
+                        <span class="text-muted-foreground mono truncate text-[10.5px]">{h.dataset} · {h.record.id}</span>
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {:else}
+                <div class="grid gap-1 p-2">{#each { length: 4 } as _, i (i)}<Skeleton class="h-6 w-full" />{/each}</div>
+              {/if}
+            </section>
+          {:else}
           <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
           <div
             role="listbox"
@@ -389,6 +486,7 @@
               </div>
             {/each}
           </div>
+          {/if}
 
           {#if picked}
             <!-- Narrow (1024 wide with the tree open): records above the field changes, so the
@@ -489,14 +587,23 @@
                         {#if t.secondary}<span class="text-muted-foreground mono truncate text-[11.5px]">({t.secondary})</span>{/if}
                       </h2>
                       <Button variant="ghost" size="icon-xs" aria-label="Copy id {field.id}" title="Copy the id" onclick={() => void copyId(field!.id)}><Copy aria-hidden="true" /></Button>
-                      <span class="text-muted-foreground text-[12px]">{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
+                      <span class="text-muted-foreground text-[12px]">{fieldQuery.trim() ? `${int(shownChanges.length)} of ` : ''}{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
+                    </div>
+                    <div class="border-b px-3 py-1.5">
+                      <div class="relative max-w-sm">
+                        <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
+                        <Input type="search" aria-label="Filter changed fields" placeholder="Filter fields: shield, dps, Medusa…" class="h-7 pl-7 text-[12px]" bind:value={fieldQuery} />
+                      </div>
                     </div>
                     <div class="min-h-0 flex-1 overflow-auto" data-stop tabindex="-1">
                       <table class="w-full text-[12px]">
                         <thead class="text-muted-foreground bg-card sticky top-0 text-left text-[11.5px]">
                           <tr><th class="px-3 py-1.5 font-medium">Field</th><th class="px-3 py-1.5 font-medium">{label(summary.a)}</th><th class="px-3 py-1.5 font-medium">{label(summary.b)}</th><th class="px-3 py-1.5 font-medium">Δ</th></tr>
                         </thead>
-                        {#each groupChanges(field.changes) as g, gi (gi)}
+                        {#if !shownChanges.length}
+                          <tbody><tr><td colspan="4" class="text-muted-foreground px-3 py-4 text-center">No changed field matches “{fieldQuery.trim()}”. <Button size="sm" variant="link" class="h-auto p-0" onclick={() => (fieldQuery = '')}>Clear</Button></td></tr></tbody>
+                        {/if}
+                        {#each groupChanges(shownChanges) as g, gi (gi)}
                           <tbody>
                             {#if g.group && !dev.showIds}
                               <tr class="bg-muted/40 border-t border-border/60"><th colspan="4" scope="rowgroup" class="px-3 py-1 text-left text-[11.5px] font-semibold">{g.group}</th></tr>

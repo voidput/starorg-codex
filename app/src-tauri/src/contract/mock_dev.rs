@@ -1947,6 +1947,17 @@ impl DevBackend for MockBackend {
         ))
     }
 
+    fn dev_diff_search(&self, req: DevDiffSearchRequest) -> CmdResult<DevDiffSearch> {
+        self.dev_on(&req.target)?;
+        let g = self.dev_state();
+        let (_, tables, a, b) = g
+            .diff
+            .as_ref()
+            .ok_or_else(|| not_found("No comparison yet: pick A and B."))?;
+        let l = lookup(true);
+        Ok(search_tables(tables, a, b, &req, &l, &l))
+    }
+
     fn dev_diff_groups(&self, req: DevDiffGroupsRequest) -> CmdResult<GroupPage> {
         self.dev_on(&req.target)?;
         let g = self.dev_state();

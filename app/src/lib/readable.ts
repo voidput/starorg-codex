@@ -102,6 +102,23 @@ export function changeTexts(c: { old: unknown; new: unknown; old_label: Readable
   return [same(o, c.old), same(n, c.new)];
 }
 
+/**
+ * Whether a field change matches the Diff field filter: every word of `query` (case-insensitive)
+ * is in its path, read path, group, or either side as shown (names, numbers with units) or raw.
+ */
+export function changeMatches(
+  c: { path: string; path_label: string | null; group: string | null; old: unknown; new: unknown; old_label: Readable | null; new_label: Readable | null; unit: string | null },
+  query: string,
+  showIds: boolean,
+): boolean {
+  const words = query.toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return true;
+  const [o, n] = changeTexts(c, showIds);
+  const raw = (v: unknown) => (v === null || v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v));
+  const hay = [c.path, c.path_label, c.group, o.primary, o.secondary, n.primary, n.secondary, raw(c.old), raw(c.new)].filter(Boolean).join('\n').toLowerCase();
+  return words.every((w) => hay.includes(w));
+}
+
 /** Field changes in their groups, in order (a group per item or top-level field). */
 export function groupChanges<T extends { group: string | null }>(changes: T[]): { group: string | null; items: T[] }[] {
   const out: { group: string | null; items: T[] }[] = [];

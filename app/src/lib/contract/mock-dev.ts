@@ -964,7 +964,23 @@ export function fieldCounts(records: D.DiffRecord[]): D.ValueCount[] {
   return [...m.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || cmp(a.value, b.value));
 }
 
-function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_options: string[], inGroup: (r: D.DiffRecord) => boolean, title: (r: D.DiffRecord) => string | null): D.DevDiffRecords {
+/** The differing end of record names that share a title (as `name_tails` in the Rust contract). */
+export function nameTails(names: string[]): (string | null)[] {
+  if (new Set(names.map((n) => n.toLowerCase())).size !== names.length) return names.map(() => null);
+  const segs = names.map((n) => n.split('_'));
+  let common = 0;
+  while (segs.every((s) => s.length > common) && segs.every((s) => s[common]!.toLowerCase() === segs[0]![common]!.toLowerCase())) common++;
+  return segs.map((s) => s.slice(common).join(' ').trim() || null);
+}
+
+function pageRecords(
+  d: TableDiff,
+  req: D.DevDiffRecordsRequest,
+  identity_options: string[],
+  inGroup: (r: D.DiffRecord) => boolean,
+  title: (r: D.DiffRecord) => string | null,
+  name: (r: D.DiffRecord) => string | null = () => null,
+): D.DevDiffRecords {
   const q = (req.query ?? '').trim().toLowerCase();
   const hits = d.records
     .filter((r) => req.state === null || r.state === req.state)
@@ -976,20 +992,52 @@ function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_option
     })
     .map((r) => [r, title(r)] as const)
     .filter(([r, t]) => !q || r.id.toLowerCase().includes(q) || (t !== null && t.toLowerCase().includes(q)));
-  // Titles several records share get the short id appended (as the Rust page_records).
-  const seen = new Map<string, number>();
-  for (const [, t] of hits) if (t !== null) seen.set(t, (seen.get(t) ?? 0) + 1);
+  // Titles several records share: the differing end of their record names, else the short id
+  // (as the Rust page_records).
   const shortOf = (id: string) => (id.includes('.') ? id.slice(id.indexOf('.') + 1) : id);
-  const named = (id: string, t: string | null) => (t !== null && (seen.get(t) ?? 0) > 1 && t !== shortOf(id) ? `${t} (${shortOf(id)})` : t);
+  const groups = new Map<string, number[]>();
+  hits.forEach(([, t], i) => {
+    if (t !== null) groups.set(t, [...(groups.get(t) ?? []), i]);
+  });
+  const suffix = new Map<number, { tail: string } | 'plain' | 'id'>();
+  for (const idx of groups.values()) {
+    if (idx.length < 2) continue;
+    const names = idx.map((i) => {
+      const r = hits[i]![0];
+      const n = name(r) ?? (isGuid(r.id) ? null : r.id);
+      return n === null ? null : shortOf(n);
+    });
+    const tails = names.every((n) => n !== null) ? nameTails(names as string[]) : idx.map(() => null);
+    const byName = tails.some((t) => t !== null);
+    idx.forEach((i, k) => suffix.set(i, tails[k] ? { tail: tails[k]! } : byName ? 'plain' : 'id'));
+  }
+  const named = (i: number, id: string, t: string | null) => {
+    if (t === null) return null;
+    const s = suffix.get(i);
+    if (s && typeof s === 'object') return `${t} · ${s.tail}`;
+    if (s === 'id' && t !== shortOf(id)) return `${t} (${shortOf(id)})`;
+    return t;
+  };
   const limit = Math.min(Math.max(req.limit, 1), MAX_PAGE);
   return {
     summary: { ...d.summary },
-    records: hits.slice(req.offset, req.offset + limit).map(([r, t]) => ({ ...r, fields: r.fields.slice(0, 20), label: named(r.id, t) })),
+    records: hits.slice(req.offset, req.offset + limit).map(([r, t], k) => ({ ...r, fields: r.fields.slice(0, 20), label: named(req.offset + k, r.id, t) })),
     offset: req.offset,
     total: hits.length,
     fields: fieldCounts(d.records),
     identity_options,
   };
+}
+
+/** A diff record's record name (`recordName`, else `className`), B's row first. */
+function recordName(r: D.DiffRecord, a: Table | undefined, b: Table | undefined): string | null {
+  const of = (t: Table | undefined, i: number | null) => {
+    const row = i === null ? undefined : t?.rows[i];
+    if (!isObj(row)) return null;
+    for (const k of ['recordName', 'className']) if (typeof row[k] === 'string') return row[k] as string;
+    return null;
+  };
+  return of(b, r.b) ?? of(a, r.a);
 }
 
 export function explorerLinks(row: Json, isRecord: (s: string) => string | null): D.ExplorerLink[] {
@@ -1591,7 +1639,32 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       if (pos < 0) ctx.fail('not-found', `no table ${req.table}`);
       if (req.identity !== null && st.tables[pos]!.summary.identity !== req.identity) st.tables[pos] = diffTable(req.dataset, req.table, ta, tb, req.identity);
       const id = st.tables[pos]!.summary.identity;
-      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb), diffGroupFilter(req, st.a, st.b), (r) => recordTitle(r, id, ta, tb, lookup, lookup));
+      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb), diffGroupFilter(req, st.a, st.b), (r) => recordTitle(r, id, ta, tb, lookup, lookup), (r) => recordName(r, ta, tb));
+    },
+    dev_diff_search: ({ req }) => {
+      on(req.target);
+      const st = diff ?? noDiff();
+      const query = req.query.trim();
+      const limit = Math.min(Math.max(req.limit, 1), MAX_PAGE);
+      const out: D.DevDiffSearch = { hits: [], total: 0 };
+      if (!query) return out;
+      const find = (side: [string, Dataset][], ds: string, tn: string) => side.find((x) => x[0] === ds)?.[1].tables.find((t) => t.name === tn);
+      for (const td of st.tables) {
+        const { dataset, table, identity } = td.summary;
+        const ta = find(st.a, dataset, table);
+        const tb = find(st.b, dataset, table);
+        const page = pageRecords(
+          td,
+          { target: req.target, dataset, table, state: req.state, field: null, identity: null, query, offset: 0, limit: Math.max(1, limit - Math.min(out.hits.length, limit)), group: null },
+          [],
+          () => true,
+          (r) => recordTitle(r, identity, ta, tb, lookup, lookup),
+          (r) => recordName(r, ta, tb),
+        );
+        out.total += page.total;
+        for (const record of page.records) if (out.hits.length < limit) out.hits.push({ dataset, table, record });
+      }
+      return out;
     },
     dev_diff_groups: ({ req }) => {
       on(req.target);

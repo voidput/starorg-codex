@@ -1524,6 +1524,17 @@ impl DevBackend for RealBackend {
         }))
     }
 
+    fn dev_diff_search(&self, req: DevDiffSearchRequest) -> CmdResult<DevDiffSearch> {
+        self.dev_on()?;
+        let g = lock_or(&self.dev.diff);
+        let st = g
+            .as_ref()
+            .ok_or_else(|| err(ErrorCode::NotFound, "No comparison yet: pick A and B."))?;
+        let la: &dyn Lookup = st.la.as_deref().map_or(&NoLookup, |l| l);
+        let lb: &dyn Lookup = st.lb.as_deref().map_or(&NoLookup, |l| l);
+        Ok(search_tables(&st.tables, &st.a, &st.b, &req, la, lb))
+    }
+
     fn dev_diff_record(&self, req: DevDiffRecordRequest) -> CmdResult<DevFieldDiff> {
         self.dev_on()?;
         let g = lock_or(&self.dev.diff);

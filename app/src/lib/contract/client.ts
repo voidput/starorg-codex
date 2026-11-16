@@ -191,6 +191,7 @@ export const COMMANDS = [
   'dev_diff_records',
   'dev_diff_groups',
   'dev_diff_record',
+  'dev_diff_search',
   'asset_status',
   'asset_close',
   'asset_list',

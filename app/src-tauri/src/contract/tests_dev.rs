@@ -224,6 +224,30 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
             ..records_req("gamedata.json", "components")
         })
         .unwrap();
+    let search_req = |query: &str, limit| DevDiffSearchRequest {
+        target: live(),
+        query: query.into(),
+        state: None,
+        limit,
+    };
+    let wide = b.dev_diff_search(search_req("sample", 4)).unwrap();
+    assert_eq!(wide.hits.len(), 4, "{wide:?}");
+    assert!(wide.total >= 4);
+    let one = b
+        .dev_diff_search(search_req("sample cooler 4", 10))
+        .unwrap();
+    assert!(one.hits.iter().any(|h| h.table == "components"), "{one:?}");
+    assert_eq!(
+        one.total as usize,
+        one.hits.len(),
+        "under the limit: all hits"
+    );
+    assert!(
+        b.dev_diff_search(search_req("  ", 10))
+            .unwrap()
+            .hits
+            .is_empty()
+    );
     let ship = b
         .dev_diff_record(DevDiffRecordRequest {
             target: live(),
@@ -508,6 +532,7 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         ("dev_rows_readable", json!(readable_rows)),
         ("dev_diff_records_query", json!(by_name)),
         ("dev_diff_record_ship", json!(ship)),
+        ("dev_diff_search", json!(one)),
         ("dev_close", json!(b.dev_close(live()).unwrap())),
     ]
 }
@@ -664,6 +689,15 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
                 table: "components".into(),
                 id: "x".into(),
                 identity: None,
+            })),
+        ),
+        (
+            "dev_diff_search",
+            j(b.dev_diff_search(DevDiffSearchRequest {
+                target: live(),
+                query: "x".into(),
+                state: None,
+                limit: 5,
             })),
         ),
     ];

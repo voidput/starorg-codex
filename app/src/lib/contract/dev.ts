@@ -591,6 +591,27 @@ export interface DevDiffRecords {
   identity_options: string[];
 }
 
+/** Search every table of the comparison by record name or id (the Diff screen's top search). */
+export interface DevDiffSearchRequest {
+  target: ChannelRef;
+  query: string;
+  state: RecordState | null;
+  limit: number;
+}
+
+export interface DiffSearchHit {
+  dataset: string;
+  table: string;
+  record: DiffRecord;
+}
+
+export interface DevDiffSearch {
+  /** Tables in summary order; at most `limit`. */
+  hits: DiffSearchHit[];
+  /** Matches in all tables (more than `hits` when cut at `limit`). */
+  total: number;
+}
+
 export interface DevDiffRecordRequest {
   target: ChannelRef;
   dataset: string;
@@ -644,6 +665,7 @@ export interface DevCommandMap {
   dev_diff_records: [{ req: DevDiffRecordsRequest }, DevDiffRecords];
   dev_diff_groups: [{ req: DevDiffGroupsRequest }, GroupPage];
   dev_diff_record: [{ req: DevDiffRecordRequest }, DevFieldDiff];
+  dev_diff_search: [{ req: DevDiffSearchRequest }, DevDiffSearch];
 }
 
 /** Same order as the dev part of `COMMAND_NAMES` in contract/mod.rs. */
@@ -674,6 +696,7 @@ export const DEV_COMMANDS = [
   'dev_diff_records',
   'dev_diff_groups',
   'dev_diff_record',
+  'dev_diff_search',
 ] as const satisfies readonly (keyof DevCommandMap)[];
 
 export const devApi = {
@@ -705,4 +728,5 @@ export const devApi = {
   diffRecords: (req: DevDiffRecordsRequest) => call('dev_diff_records', { req }),
   diffGroups: (req: DevDiffGroupsRequest) => call('dev_diff_groups', { req }),
   diffRecord: (req: DevDiffRecordRequest) => call('dev_diff_record', { req }),
+  diffSearch: (req: DevDiffSearchRequest) => call('dev_diff_search', { req }),
 };

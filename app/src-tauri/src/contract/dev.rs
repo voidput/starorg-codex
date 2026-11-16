@@ -352,6 +352,31 @@ pub struct DevDiffRecords {
     pub identity_options: Vec<String>,
 }
 
+/// Search every table of the comparison by record name or id (the Diff screen's top search).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevDiffSearchRequest {
+    pub target: ChannelRef,
+    /// Case-insensitive, matched like the per-table record filter.
+    pub query: String,
+    pub state: Option<RecordState>,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffSearchHit {
+    pub dataset: String,
+    pub table: String,
+    pub record: DiffRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevDiffSearch {
+    /// Tables in summary order, records in each table's order; at most `limit`.
+    pub hits: Vec<DiffSearchHit>,
+    /// Matches in all tables (more than `hits` when cut at `limit`).
+    pub total: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevDiffRecordRequest {
     pub target: ChannelRef,
@@ -417,6 +442,7 @@ pub trait DevBackend {
     fn dev_diff_records(&self, req: DevDiffRecordsRequest) -> CmdResult<DevDiffRecords>;
     fn dev_diff_groups(&self, req: DevDiffGroupsRequest) -> CmdResult<GroupPage>;
     fn dev_diff_record(&self, req: DevDiffRecordRequest) -> CmdResult<DevFieldDiff>;
+    fn dev_diff_search(&self, req: DevDiffSearchRequest) -> CmdResult<DevDiffSearch>;
 }
 
 pub fn disabled() -> AppError {
@@ -499,6 +525,7 @@ dev_commands! {
     dev_diff_records(req: DevDiffRecordsRequest) -> DevDiffRecords;
     dev_diff_groups(req: DevDiffGroupsRequest) -> GroupPage;
     dev_diff_record(req: DevDiffRecordRequest) -> DevFieldDiff;
+    dev_diff_search(req: DevDiffSearchRequest) -> DevDiffSearch;
 }
 
 dev_progress_commands! {
@@ -686,6 +713,62 @@ pub fn side_table<'a>(
     side.iter()
         .find(|x| x.0 == dataset)
         .and_then(|x| x.1.table(table))
+}
+
+/// Shared by both backends: the records of every table whose title or id contains the query,
+/// labelled as the per-table list labels them. An empty query finds nothing.
+pub fn search_tables(
+    tables: &[starorg_core::dev::diff::TableDiff],
+    a: &DiffSideSets,
+    b: &DiffSideSets,
+    req: &DevDiffSearchRequest,
+    la: &dyn starorg_core::dev::readable::Lookup,
+    lb: &dyn starorg_core::dev::readable::Lookup,
+) -> DevDiffSearch {
+    let query = req.query.trim();
+    let limit = (req.limit as usize).clamp(1, starorg_core::dev::explorer::MAX_PAGE);
+    let mut out = DevDiffSearch {
+        hits: Vec::new(),
+        total: 0,
+    };
+    if query.is_empty() {
+        return out;
+    }
+    for td in tables {
+        let (ds, tn) = (&td.summary.dataset, &td.summary.table);
+        let (ta, tb) = (side_table(a, ds, tn), side_table(b, ds, tn));
+        let id = td.summary.identity.as_deref();
+        let page = page_records(
+            td,
+            &DevDiffRecordsRequest {
+                target: req.target.clone(),
+                dataset: ds.clone(),
+                table: tn.clone(),
+                state: req.state,
+                field: None,
+                identity: None,
+                query: Some(query.to_string()),
+                offset: 0,
+                limit: (limit - out.hits.len().min(limit)).max(1) as u32,
+                group: None,
+            },
+            Vec::new(),
+            &|_| true,
+            &|r| record_title(r, id, ta, tb, la, lb),
+            &|r| record_name(r, ta, tb),
+        );
+        out.total += page.total;
+        for r in page.records {
+            if out.hits.len() < limit {
+                out.hits.push(DiffSearchHit {
+                    dataset: ds.clone(),
+                    table: tn.clone(),
+                    record: r,
+                });
+            }
+        }
+    }
+    out
 }
 
 /// Shared by both backends: the Diff tree of a comparison (addendum 7.15).

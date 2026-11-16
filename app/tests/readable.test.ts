@@ -3,8 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SHOW_IDS_KEY, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
-import { type Lookup, pathLabelIn } from '../src/lib/contract/mock-dev.ts';
+import { SHOW_IDS_KEY, changeMatches, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
+import { type Lookup, nameTails, pathLabelIn } from '../src/lib/contract/mock-dev.ts';
 import type { DevFieldDiff, Readable, RecordView, RowsPage } from '../src/lib/contract/dev.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
@@ -134,4 +134,30 @@ test('positional paths name the element they point at (TS mock mirror)', () => {
   const row = { loadout: { weapons: [{ name: 'Left Gun', dps: 1 }, { name: 'Right Gun', dps: 2 }] } };
   assert.equal(pathLabelIn(none, '/loadout/weapons/1/dps', row), 'loadout › weapons › Right Gun › dps');
   assert.equal(pathLabelIn(none, '/a/0/b', { a: [{ b: 1 }] }), null);
+});
+
+test('changeMatches: words against path, read path, group and both sides with units', () => {
+  const c = {
+    path: '/loadout/weapons/0/dps',
+    path_label: 'loadout › weapons › CF-447 Rhino Repeater › dps',
+    group: 'loadout',
+    old: 817.88,
+    new: 2204.13,
+    old_label: null,
+    new_label: null,
+    unit: 'dmg/s',
+  };
+  assert.equal(changeMatches(c, '', false), true);
+  assert.equal(changeMatches(c, 'rhino', false), true);
+  assert.equal(changeMatches(c, 'DPS rhino', false), true, 'every word, any case');
+  assert.equal(changeMatches(c, 'dmg/s', false), true, 'unit as shown');
+  assert.equal(changeMatches(c, '2204', false), true, 'raw number');
+  assert.equal(changeMatches(c, 'shield', false), false);
+  assert.equal(changeMatches(c, 'rhino shield', false), false);
+});
+
+test('nameTails: the differing end of shared-title record names', () => {
+  assert.deepEqual(nameTails(['AEGS_Tiburon', 'AEGS_Tiburon_PU_AI_CIV', 'AEGS_Tiburon_PU_AI_CRIM']), [null, 'PU AI CIV', 'PU AI CRIM']);
+  assert.deepEqual(nameTails(['AEGS_Javelin_AI_Escort', 'AEGS_Javelin_AI_Boss']), ['Escort', 'Boss']);
+  assert.deepEqual(nameTails(['A_B', 'a_b']), [null, null], 'same name twice: nothing to tell apart');
 });

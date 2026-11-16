@@ -3483,6 +3483,23 @@
     },
     "total": 1
   },
+  "dev_diff_search": {
+    "hits": [
+      {
+        "dataset": "gamedata.json",
+        "record": {
+          "a": 5,
+          "b": null,
+          "fields": [],
+          "id": "SYN_shield_005",
+          "label": "Sample Cooler 41",
+          "state": "removed"
+        },
+        "table": "components"
+      }
+    ],
+    "total": 1
+  },
   "dev_diff_summary": {
     "a": "build:LIVE",
     "b": "build:PTU",

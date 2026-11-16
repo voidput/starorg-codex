@@ -118,6 +118,7 @@ interface Samples {
   dev_rows_readable: T.RowsPage;
   dev_diff_records_query: T.DevDiffRecords;
   dev_diff_record_ship: T.DevFieldDiff;
+  dev_diff_search: T.DevDiffSearch;
   dev_close: T.DevStatus;
   asset_cache_clear: T.AssetCacheStatus;
   asset_cache_move: T.AssetCacheStatus;
