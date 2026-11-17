@@ -582,9 +582,26 @@ pub enum DevCmd {
         /// Also write an STL next to the GLB (geometry, transforms baked, Z-up).
         #[arg(long)]
         stl: bool,
+        /// Full only: wear this paint, by its tag (`dev model-paints` lists them); default:
+        /// the paint the default loadout fits.
+        #[arg(long, value_name = "TAG")]
+        paint: Option<String>,
+        /// Full only: StarBreaker's layer materials too (experimental).
+        #[arg(long)]
+        layers: bool,
         /// Asset cache folder (default: the setting, else the app cache's `assets`).
         #[arg(long, value_name = "DIR")]
         cache_dir: Option<PathBuf>,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        #[command(flatten)]
+        test_p4k: TestP4kArg,
+    },
+    /// The paints a ship can wear in a Full export (`export-model --paint TAG`), and the one
+    /// its default loadout fits.
+    ModelPaints {
+        #[arg(value_name = "GUID|NAME")]
+        what: String,
         #[arg(long, value_name = "NAME", default_value = "LIVE")]
         channel: String,
         #[command(flatten)]

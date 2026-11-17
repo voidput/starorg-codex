@@ -86,6 +86,8 @@ test('every asset sample of the Rust mock comes back equal from the TS mock', as
   got.asset_export_model = await h.asset_export_model(model('print-shell', 0, true));
   got.asset_export_model_cached = await h.asset_export_model(model('print-shell', 0, false));
   got.asset_export_model_full = await h.asset_export_model(model('full', 1, false));
+  got.asset_model_paints = await h.asset_model_paints({ req: { target: live, what: ship(2) } });
+  got.asset_export_model_paint = await h.asset_export_model({ req: { ...model('full', 1, false).req, paint: 'SYN_Ship_002BlackGold', layers: true } });
   const info = (what: string) => ({ req: { target: live, what, name: '' } });
   const view = (what: string, lod: number) => ({ req: { target: live, what, name: '', lod, force: false } });
   got.asset_model_info = await h.asset_model_info(info(ship(4)));
@@ -196,4 +198,15 @@ test('a sound the webview refuses names the file and what is missing', () => {
   assert.ok(!m.includes('NotSupportedError'));
   assert.match(playFailure(ns, '', null), /^The app's webview could not play this sound\. Its media engine reported the format as not supported\./);
   assert.equal(playFailure(new DOMException('x', 'NetworkError'), 'PCM (.wav)', hint), 'NetworkError: x');
+});
+
+test('a Full export wears a paint the ship has and refuses one it lacks', async () => {
+  const { h } = mock();
+  const req = (preset: 'full' | 'print-shell', paint: string) => ({ req: { target: live, what: ship(2), name: 'SYN_Ship_002', preset, lod: 1, stl: false, force: false, paint, layers: true } });
+  const r = await h.asset_export_model(req('full', 'syn_ship_002blackgold'));
+  assert.ok(r.path?.endsWith('SYN_Ship_002-full-lod1-paint-syn_ship_002blackgold-layers.glb'));
+  await assert.rejects(async () => h.asset_export_model(req('full', 'Nope')), (e: Fail) => e.code === 'invalid');
+  const p = await h.asset_export_model(req('print-shell', 'Nope'));
+  assert.ok(p.path?.endsWith('SYN_Ship_002-print-lod1.glb'));
+  assert.deepEqual((await h.asset_model_paints({ req: { target: live, what: comp(8) } })).paints, []);
 });

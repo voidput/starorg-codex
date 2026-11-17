@@ -132,6 +132,8 @@ interface Samples {
   asset_export_sounds: T.AssetExportResult;
   asset_extract: T.AssetExportResult;
   asset_model_info: T.AssetModelInfo;
+  asset_model_paints: T.ModelPaints;
+  asset_export_model_paint: T.AssetExportResult;
   asset_model_info_known: T.AssetModelInfo;
   asset_model_view: T.AssetModelView;
   asset_model_view_cached: T.AssetModelView;

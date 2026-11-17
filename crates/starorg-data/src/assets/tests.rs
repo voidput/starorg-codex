@@ -199,6 +199,7 @@ fn models_need_an_entity_and_respect_the_guard() {
         preset: ModelPreset::PrintShell,
         lod: 0,
         stl: false,
+        ..Default::default()
     };
     let out = t.path().join("m.glb");
     let e = model::export_model(&a, &dcb::guid_text(1, 1), &o, &out, &|_, _| true).unwrap_err();
@@ -228,6 +229,7 @@ fn presets_map_to_starbreaker_options() {
         preset: ModelPreset::Full,
         lod: 1,
         stl: false,
+        ..Default::default()
     });
     assert_eq!(full.material_mode, MaterialMode::Textures);
     assert!(full.include_interior && full.include_lights && full.include_attachments);
@@ -237,11 +239,74 @@ fn presets_map_to_starbreaker_options() {
         preset: ModelPreset::PrintShell,
         lod: 9,
         stl: true,
+        ..Default::default()
     });
     assert_eq!(print.material_mode, MaterialMode::None);
     assert!(!print.include_interior && !print.include_lights && print.include_attachments);
     assert_eq!(print.lod_level, model::MAX_LOD);
     assert_eq!(print.kind, starbreaker_3d::ExportKind::Bundled);
+}
+
+#[test]
+fn a_full_export_can_wear_a_paint_and_use_layer_materials() {
+    use starbreaker_3d::MaterialMode;
+    let full = ModelOptions {
+        preset: ModelPreset::Full,
+        lod: 1,
+        paint: Some(" GladiusPirate ".into()),
+        layers: true,
+        ..Default::default()
+    };
+    assert_eq!(
+        model::export_options(&full).material_mode,
+        MaterialMode::All
+    );
+    assert_eq!(full.paint(), Some("GladiusPirate"));
+    assert_eq!(full.key(), "full-lod1-paint-gladiuspirate-layers");
+    assert_eq!(
+        model::file_name("AEGS_Gladius", &full),
+        "AEGS_Gladius-full-lod1-paint-gladiuspirate-layers.glb"
+    );
+    // A print shell has no materials: both are ignored (and not in the cache key).
+    let print = ModelOptions {
+        preset: ModelPreset::PrintShell,
+        ..full.clone()
+    };
+    assert_eq!(
+        model::export_options(&print).material_mode,
+        MaterialMode::None
+    );
+    assert_eq!((print.paint(), print.layers()), (None, false));
+    assert_eq!(print.key(), "print-lod1");
+    let blank = ModelOptions {
+        paint: Some("  ".into()),
+        layers: false,
+        ..full
+    };
+    assert_eq!((blank.paint(), blank.key().as_str()), (None, "full-lod1"));
+}
+
+#[test]
+fn a_paint_names_its_subgeometry_tag_after_an_at() {
+    assert_eq!(
+        model::paint_tag("Paint_Gladius @GladiusPirate"),
+        Some("GladiusPirate")
+    );
+    assert_eq!(
+        model::paint_tag("AEGS_Gladius_Base Gladius_Paint @GladiusDefault"),
+        Some("GladiusDefault")
+    );
+    assert_eq!(model::paint_tag("Paint_Gladius"), None);
+    assert_eq!(model::paint_tag("Paint_Gladius @"), None);
+}
+
+#[test]
+fn model_options_from_older_requests_have_no_paint() {
+    let o: ModelOptions =
+        serde_json::from_value(serde_json::json!({ "preset": "full", "lod": 1 })).unwrap();
+    assert_eq!((o.paint.as_deref(), o.layers, o.stl), (None, false, false));
+    let back = serde_json::to_value(&o).unwrap();
+    assert!(back.get("paint").is_none() && back.get("layers").is_none());
 }
 
 /// A GLB with one triangle on a node translated by (0, 0, 5): the STL has it moved and
@@ -328,6 +393,7 @@ fn model_cache_keys_are_per_record_preset_and_lod() {
         preset,
         lod,
         stl: false,
+        ..Default::default()
     };
     let g = "8f1c2d3e-0000-4000-8000-000000000001";
     let keys: Vec<String> = (0..=model::MAX_LOD)
@@ -371,6 +437,7 @@ fn mesh_lods_are_kept_in_the_cache_so_a_missing_lod_finds_the_one_below() {
         preset: ModelPreset::PrintShell,
         lod: model::effective_lod(4, &known),
         stl: false,
+        ..Default::default()
     };
     assert_eq!(o.cache_key(g), format!("{g}-print-lod3"));
     // Our file: counted, cleared with the rest; garbage reads as unknown.

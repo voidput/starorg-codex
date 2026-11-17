@@ -1368,9 +1368,29 @@ lights, attachments, LOD 1 by default. *Print shell (geometry only)* = `--materi
 primitives of the default scene, node transforms baked, Y-up -> Z-up), what
 `glb_to_stl_trimesh.py` did; no Blender needed.
 
+**Paints and layer materials (Full only).** A paint is an item on the ship's `hardpoint_paint`
+port; its `AttachDef.Tags` name one of the ship's top-level `SGeometryResourceParams`
+SubGeometry entries after an `@` (`Paint_Gladius @GladiusPirate`), which gives that paint's
+material set and tint palette (primary, secondary, tertiary, glass, decals). `asset_model_paints`
+(worker op `paints`, CLI `dev model-paints <guid|name>`) lists the ship's SubGeometry tags that
+some paint item (`AttachDef.Type` `Paints`) selects, with the in-game name from the stock
+`global.ini` (`AttachDef.Localization.Name`; placeholders dropped) and the paint the default
+loadout fits. The tags are read raw: StarBreaker's `sub_geometry_variants` splits
+`Paint_Gladius_Blue_Turquoise` into selector words. `paint` on the export request (CLI
+`--paint TAG`) fits that paint item on the loadout handed to StarBreaker (the port is added
+when the default loadout leaves it out), so StarBreaker's own `resolve_paint_override` applies
+it, as fitting the paint in game does; a tag the ship lacks is refused. `layers` (CLI
+`--layers`) uses `MaterialMode::All` instead of `Textures`: each layered (`LayerBlend_V2`)
+material's layer textures are written too, experimental (how they blend is the viewer's
+guess). Both are ignored for a Print shell (the CLI refuses them) and are part of the cache
+key and file name (`AEGS_Gladius-full-lod1-paint-gladiuspirate-layers.glb`). The Model tab
+still shows the Print shell. Measured on LIVE 4.10: 12 Gladius paints, listing 0.9 s; Gladius
+Full LOD 3 3.3 s, 1.8 GB, Pirate palette red/black/grey in the GLB extras (`paint_override`
+names `Paint_Gladius_Pirate`).
+
 **CLI.** `starorg-codex dev extract <p4k path|folder|glob>... --out DIR [--convert]`,
 `dev export-model <guid|name> --out FILE [--preset full|print] [--lod N] [--stl]
-[--cache-dir DIR]`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
+[--paint TAG] [--layers] [--cache-dir DIR]`, `dev model-paints <guid|name>`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
 [--cache-dir DIR]` (`--list` names each sound's codec and the file it becomes; the summary counts
 files by extension and lists the sounds kept as `.wem`, with why); in process, `extract.lock` while the archive is read, never into the install
 or a Wine prefix.

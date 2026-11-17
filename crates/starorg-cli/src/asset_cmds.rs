@@ -208,6 +208,8 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
             preset,
             lod,
             stl,
+            paint,
+            layers,
             cache_dir,
             channel,
             test_p4k,
@@ -221,7 +223,17 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
                 preset,
                 lod: lod.unwrap_or(preset.default_lod()).min(model::MAX_LOD),
                 stl,
+                paint,
+                layers,
             };
+            if preset == ModelPreset::PrintShell && (o.paint.is_some() || layers) {
+                return fail(
+                    g,
+                    exit::USAGE,
+                    "usage",
+                    "--paint and --layers need --preset full (a print shell has no materials)",
+                );
+            }
             export_model(
                 g,
                 &what,
@@ -250,7 +262,56 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
             &channel,
             test_p4k.get(),
         ),
+        DevCmd::ModelPaints {
+            what,
+            channel,
+            test_p4k,
+        } => model_paints(g, &what, &channel, test_p4k.get()),
         _ => ExitCode::from(exit::USAGE),
+    }
+}
+
+fn model_paints(g: &GlobalOpts, what: &str, channel: &str, test_p4k: Option<PathBuf>) -> ExitCode {
+    let testing = test_p4k.is_some();
+    let t = match target(g, channel, test_p4k) {
+        Ok(t) => t,
+        Err(c) => return c,
+    };
+    let (a, lock) = match open(g, &t, testing) {
+        Ok(x) => x,
+        Err(c) => return c,
+    };
+    let r = model::list_paints(&a, what);
+    drop(lock);
+    match r {
+        Ok(p) => {
+            if g.json {
+                println!("{}", json!({ "schema": JSON_SCHEMA, "paints": p }));
+            } else if !g.quiet {
+                if p.paints.is_empty() {
+                    println!("No paints for {what}.");
+                }
+                for x in &p.paints {
+                    let fitted = if p
+                        .equipped
+                        .as_deref()
+                        .is_some_and(|e| e.eq_ignore_ascii_case(&x.tag))
+                    {
+                        "  (fitted)"
+                    } else {
+                        ""
+                    };
+                    println!(
+                        "{}\t{}\t{}{fitted}",
+                        x.tag,
+                        x.name.as_deref().unwrap_or("-"),
+                        x.items.join(", ")
+                    );
+                }
+            }
+            ExitCode::from(exit::OK)
+        }
+        Err(e) => asset_fail(g, &e),
     }
 }
 
@@ -428,7 +489,11 @@ fn export_model(
     match r {
         Ok(d) => {
             // Cached under the LOD it has (LOD 4 asked of a mesh with 0-3 is LOD 3).
-            let key = ModelOptions { lod: d.lod, ..o }.cache_key(what);
+            let key = ModelOptions {
+                lod: d.lod,
+                ..o.clone()
+            }
+            .cache_key(what);
             if let Some(c) = &c {
                 let _ = c.put_copy(&t.channel, &t.build, Kind::Models, &key, "glb", &out_abs);
                 let _ = model::cache_lods(c, &t.channel, &t.build, what, &d.lods);

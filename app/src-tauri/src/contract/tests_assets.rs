@@ -216,6 +216,8 @@ pub(super) fn asset_samples() -> Vec<(&'static str, Value)> {
         lod,
         stl,
         force: false,
+        paint: None,
+        layers: false,
     };
     put(
         "asset_export_model",
@@ -236,6 +238,30 @@ pub(super) fn asset_samples() -> Vec<(&'static str, Value)> {
         json!(
             b.asset_export_model(model(ModelPreset::Full, 1, false), &noop)
                 .unwrap()
+        ),
+    );
+    put(
+        "asset_model_paints",
+        json!(
+            b.asset_model_paints(AssetRecordRequest {
+                target: live(),
+                what: ship_guid(2),
+            })
+            .unwrap()
+        ),
+    );
+    put(
+        "asset_export_model_paint",
+        json!(
+            b.asset_export_model(
+                AssetExportModelRequest {
+                    paint: Some("SYN_Ship_002BlackGold".into()),
+                    layers: true,
+                    ..model(ModelPreset::Full, 1, false)
+                },
+                &noop
+            )
+            .unwrap()
         ),
     );
     let info = |what: String| AssetModelInfoRequest {
@@ -426,9 +452,19 @@ fn every_asset_command_but_the_cache_refuses_while_developer_mode_is_off() {
                     lod: 1,
                     stl: false,
                     force: false,
+                    paint: None,
+                    layers: false,
                 },
                 &noop,
             )
+            .map(to)),
+        ),
+        (
+            "asset_model_paints",
+            j(b.asset_model_paints(AssetRecordRequest {
+                target: live(),
+                what: ship_guid(1),
+            })
             .map(to)),
         ),
         (
@@ -504,6 +540,8 @@ fn the_mock_caches_previews_sounds_and_models_and_switches_folders() {
                 lod: 1,
                 stl: false,
                 force: false,
+                paint: None,
+                layers: false,
             },
             &noop,
         )
@@ -626,6 +664,8 @@ fn the_model_view_steps_through_lods_with_estimates_the_guard_and_the_cache() {
                 lod: 3,
                 stl: false,
                 force: false,
+                paint: None,
+                layers: false,
             },
             &noop,
         )
@@ -735,5 +775,56 @@ fn mock_assets_data_matches_the_committed_file() {
         committed == text,
         "{} is out of date: run UPDATE_CONTRACT_SAMPLES=1 cargo test -p starorg-codex-app",
         path.display()
+    );
+}
+
+#[test]
+fn a_full_export_wears_a_paint_and_refuses_one_the_ship_lacks() {
+    let b = dev_mock();
+    let p = b
+        .asset_model_paints(AssetRecordRequest {
+            target: live(),
+            what: ship_guid(2),
+        })
+        .unwrap();
+    assert_eq!(p.paints.len(), 2);
+    assert_eq!(p.equipped.as_deref(), Some("SYN_Ship_002Pirate"));
+    let req = |preset, paint: &str| AssetExportModelRequest {
+        target: live(),
+        what: ship_guid(2),
+        name: "SYN_Ship_002".into(),
+        preset,
+        lod: 1,
+        stl: false,
+        force: false,
+        paint: Some(paint.into()),
+        layers: true,
+    };
+    let r = b
+        .asset_export_model(req(ModelPreset::Full, "syn_ship_002blackgold"), &noop)
+        .unwrap();
+    assert!(
+        r.path
+            .unwrap()
+            .ends_with("SYN_Ship_002-full-lod1-paint-syn_ship_002blackgold-layers.glb")
+    );
+    let e = b
+        .asset_export_model(req(ModelPreset::Full, "Nope"), &noop)
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    // A print shell has no materials: paint and layers are ignored, not refused.
+    let r = b
+        .asset_export_model(req(ModelPreset::PrintShell, "Nope"), &noop)
+        .unwrap();
+    assert!(r.path.unwrap().ends_with("SYN_Ship_002-print-lod1.glb"));
+    // Items have no paints.
+    assert!(
+        b.asset_model_paints(AssetRecordRequest {
+            target: live(),
+            what: component_guid(8),
+        })
+        .unwrap()
+        .paints
+        .is_empty()
     );
 }

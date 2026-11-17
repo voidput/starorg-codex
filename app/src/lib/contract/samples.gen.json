@@ -129,9 +129,9 @@
     "problem": null
   },
   "asset_cache_move": {
-    "bytes": 404557650,
+    "bytes": 752694310,
     "default_path": "/synthetic/cache/assets",
-    "files": 9,
+    "files": 10,
     "is_default": false,
     "max_bytes": 2147483648,
     "other_drive": true,
@@ -148,8 +148,8 @@
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
     "previous": {
-      "bytes": 404557655,
-      "files": 9,
+      "bytes": 752694319,
+      "files": 10,
       "path": "/synthetic/cache/assets"
     },
     "problem": null
@@ -211,6 +211,15 @@
     "files": 1,
     "note": null,
     "path": "/synthetic/exports/SYN_Ship_002-full-lod1.glb"
+  },
+  "asset_export_model_paint": {
+    "bytes": 348136664,
+    "cached": false,
+    "cancelled": false,
+    "failed": [],
+    "files": 1,
+    "note": null,
+    "path": "/synthetic/exports/SYN_Ship_002-full-lod1-paint-syn_ship_002blackgold-layers.glb"
   },
   "asset_export_sounds": {
     "bytes": 11296,
@@ -438,6 +447,26 @@
     ],
     "max_bytes": 536870912,
     "what": "51000000-0000-4000-8000-000000000004"
+  },
+  "asset_model_paints": {
+    "equipped": "SYN_Ship_002Pirate",
+    "paints": [
+      {
+        "items": [
+          "Paint_SYN_Ship_002_Pirate"
+        ],
+        "name": "SYN_Ship_002 Pirate Livery",
+        "tag": "SYN_Ship_002Pirate"
+      },
+      {
+        "items": [
+          "Paint_SYN_Ship_002_BlackGold"
+        ],
+        "name": "SYN_Ship_002 Black and Gold Livery",
+        "tag": "SYN_Ship_002BlackGold"
+      }
+    ],
+    "what": "51000000-0000-4000-8000-000000000002"
   },
   "asset_model_view": {
     "asked": 4,

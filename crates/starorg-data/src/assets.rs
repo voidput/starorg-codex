@@ -24,11 +24,12 @@ pub mod stl;
 pub mod synthetic;
 pub mod wemcodec;
 
-use crate::extract::{DCB_ENTRY, DCB_FALLBACK_ENTRY, MAX_DCB_BYTES};
+use crate::extract::{DCB_ENTRY, DCB_FALLBACK_ENTRY, INI_ENTRY, MAX_DCB_BYTES};
 use serde::{Deserialize, Serialize};
 use starbreaker_datacore::database::Database;
 use starbreaker_datacore::types::Record;
 use starbreaker_p4k::{MappedP4k, P4kEntry};
+use starorg_core::ini::StockIni;
 use std::path::{Path, PathBuf};
 use std::sync::OnceLock;
 
@@ -134,7 +135,12 @@ pub struct AssetArchive {
     game_dir: Option<PathBuf>,
     db: OnceLock<Result<Database<'static>, String>>,
     audio: OnceLock<Result<audio::AudioIndex, String>>,
+    /// The stock `global.ini` (in-game names), read on the first lookup; `None` when missing.
+    ini: OnceLock<Option<StockIni>>,
 }
+
+/// The largest `global.ini` read for names (the stock one is about 10 MB).
+const MAX_INI_BYTES: u64 = 256 * 1024 * 1024;
 
 impl AssetArchive {
     /// Open the archive index with the count check extraction uses (read only).
@@ -147,6 +153,7 @@ impl AssetArchive {
             game_dir: p4k.parent().map(Path::to_path_buf),
             db: OnceLock::new(),
             audio: OnceLock::new(),
+            ini: OnceLock::new(),
         })
     }
 
@@ -157,6 +164,7 @@ impl AssetArchive {
             game_dir,
             db: OnceLock::new(),
             audio: OnceLock::new(),
+            ini: OnceLock::new(),
         }
     }
 
@@ -242,6 +250,20 @@ impl AssetArchive {
             .audio
             .get_or_init(|| audio::AudioIndex::build(&self.p4k).map_err(|e| e.message));
         r.as_ref().map_err(|e| AssetError::internal(e.clone()))
+    }
+
+    /// The in-game text of a localization key (`@item_NamePaint_X` or without the `@`), from
+    /// the stock `global.ini`; `None` when the key or the file is missing or the text is empty.
+    pub fn text(&self, key: &str) -> Option<String> {
+        let ini = self.ini.get_or_init(|| {
+            let e = self.entry(INI_ENTRY)?;
+            self.read(e, MAX_INI_BYTES).ok().map(StockIni::parse)
+        });
+        ini.as_ref()?
+            .value(key)
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string)
     }
 
     /// Whether the audio index is built (status only).

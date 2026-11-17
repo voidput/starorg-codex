@@ -205,7 +205,30 @@ export interface AssetExportModelRequest {
   stl: boolean;
   /** Export even with less free memory than the preset may need (after `needs-decision`). */
   force: boolean;
+  /** Full only: the paint to wear (a `ModelPaint.tag`); null/absent = the fitted one. */
+  paint?: string | null;
+  /** Full only: StarBreaker's experimental layer materials too. */
+  layers?: boolean;
 }
+
+/** One paint a ship can wear: the SubGeometry tag it selects and the paint items that do. */
+export interface ModelPaint {
+  tag: string;
+  /** The in-game name ("Gladius Pirate Livery"), when the stock text has one. */
+  name: string | null;
+  /** Paint items (short record names) selecting it, this ship's first. */
+  items: string[];
+}
+
+export interface ModelPaints {
+  what: string;
+  paints: ModelPaint[];
+  /** The tag of the paint the default loadout fits (null: none, or one not in `paints`). */
+  equipped: string | null;
+}
+
+/** What the paint picker shows for a paint: its name, else its tag. */
+export const paintLabel = (p: ModelPaint): string => p.name ?? p.tag;
 
 export interface AssetCachePrevious {
   path: string;
@@ -316,6 +339,7 @@ export interface AssetCommandMap {
   asset_export_sounds: [{ req: AssetExportSoundsRequest }, AssetExportResult];
   asset_export_model: [{ req: AssetExportModelRequest }, AssetExportResult];
   asset_model_info: [{ req: AssetModelInfoRequest }, AssetModelInfo];
+  asset_model_paints: [{ req: AssetRecordRequest }, ModelPaints];
   asset_model_view: [{ req: AssetModelViewRequest }, AssetModelView];
   /** Raw IPC binary: an ArrayBuffer, not JSON. */
   asset_model_chunk: [{ req: AssetModelChunkRequest }, ArrayBuffer];
@@ -341,6 +365,7 @@ export const ASSET_COMMANDS = [
   'asset_export_sounds',
   'asset_export_model',
   'asset_model_info',
+  'asset_model_paints',
   'asset_model_view',
   'asset_model_chunk',
   'asset_cache_status',
@@ -371,6 +396,8 @@ export const assetApi = {
   exportModel: (req: AssetExportModelRequest) => call('asset_export_model', { req }),
   /** The Model tab's slider steps (no worker). */
   modelInfo: (req: AssetModelInfoRequest) => call('asset_model_info', { req }),
+  /** A ship's paints for a Full export (reads the DataCore in the asset worker). */
+  modelPaints: (req: AssetRecordRequest) => call('asset_model_paints', { req }),
   /** The Print shell GLB at one LOD into the cache (a fresh worker unless cached). */
   modelView: (req: AssetModelViewRequest) => call('asset_model_view', { req }),
   modelChunk: (req: AssetModelChunkRequest) => call('asset_model_chunk', { req }),

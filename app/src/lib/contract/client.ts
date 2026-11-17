@@ -205,6 +205,7 @@ export const COMMANDS = [
   'asset_export_sounds',
   'asset_export_model',
   'asset_model_info',
+  'asset_model_paints',
   'asset_model_view',
   'asset_model_chunk',
   'asset_cache_status',

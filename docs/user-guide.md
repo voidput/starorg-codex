@@ -167,6 +167,9 @@ For players who want to look things up in the game data. Read only on the game.
   search with prefixes like `type:cooler maker:alpha`, typo-tolerant; quick filters such as
   *Player-usable*, *Has model*, *Has sounds*; grouping and compare), the record's JSON with
   readable references, its sounds (play or export) and **Export model** (GLB, optionally STL).
+  A **Full** export can wear any paint the ship has (**Paint**, listed with their in-game names;
+  default: the one fitted) and can include **Layer materials (experimental)**, the textures of
+  each material's layers (bigger files; some surfaces may look wrong).
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
 - **Diff:** compare two builds or two dataset folders.
 - **Files:** browse `Data.p4k`, preview textures and text, extract files.
