@@ -2026,6 +2026,8 @@ pub enum ExternalLink {
     Support,
     /// Buy me a coffee.
     Donate,
+    /// StarOrg Tools on Patreon.
+    Patreon,
 }
 
 impl ExternalLink {
@@ -2033,6 +2035,7 @@ impl ExternalLink {
         match self {
             Self::Support => "https://discord.gg/GCkYhbFYNq",
             Self::Donate => "https://buymeacoffee.com/zedwil",
+            Self::Patreon => "https://www.patreon.com/cw/StarOrgTools",
         }
     }
 
@@ -2040,6 +2043,7 @@ impl ExternalLink {
         match self {
             Self::Support => "Support",
             Self::Donate => "Buy me a coffee",
+            Self::Patreon => "Patreon",
         }
     }
 }

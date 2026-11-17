@@ -2182,7 +2182,15 @@ fn open_link_takes_only_allowlisted_links() {
     );
     // links.ts shows the same URLs (display only; Rust opens them).
     let ts = std::fs::read_to_string(app_src().join("../links.ts")).unwrap();
-    for l in [ExternalLink::Support, ExternalLink::Donate] {
+    assert_eq!(
+        ExternalLink::Patreon.url(),
+        "https://www.patreon.com/cw/StarOrgTools"
+    );
+    for l in [
+        ExternalLink::Support,
+        ExternalLink::Donate,
+        ExternalLink::Patreon,
+    ] {
         assert!(l.url().starts_with("https://"));
         assert!(
             ts.contains(&format!("url: '{}'", l.url())),
@@ -2195,6 +2203,10 @@ fn open_link_takes_only_allowlisted_links() {
     );
     assert_eq!(
         ipc("open_link", json!({ "link": "donate" })).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        ipc("open_link", json!({ "link": "patreon" })).unwrap(),
         Value::Null
     );
     // Never a URL, never an unknown name.

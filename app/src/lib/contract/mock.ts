@@ -1461,7 +1461,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     // No system browser in the mock: the activity log records the click.
     open_link: ({ link }) => {
-      addLog('info', null, null, `Opened the ${link === 'support' ? 'Support' : 'Buy me a coffee'} link`);
+      addLog('info', null, null, `Opened the ${link === 'support' ? 'Support' : link === 'patreon' ? 'Patreon' : 'Buy me a coffee'} link`);
       return null;
     },
     ...createUpdateMock(() => settings, params),

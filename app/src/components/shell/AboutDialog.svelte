@@ -8,6 +8,7 @@
   import Info from '@lucide/svelte/icons/info';
   import LifeBuoy from '@lucide/svelte/icons/life-buoy';
   import Coffee from '@lucide/svelte/icons/coffee';
+  import Heart from '@lucide/svelte/icons/heart';
   import { LINKS, openLink } from '@/lib/links';
   import * as Dialog from '@/components/ui/dialog';
   import { Button } from '@/components/ui/button';
@@ -48,8 +49,8 @@
       <section aria-labelledby="about-support" class="rounded-md border p-2.5">
         <h3 id="about-support" class="font-medium">Support</h3>
         <p class="text-muted-foreground mt-1 text-[12.5px]">
-          Questions, bugs and ideas: the Discord server. If the app saves you time, you can buy me a coffee. Both open in
-          your browser; the app itself sends nothing.
+          Questions, bugs and ideas: the Discord server. If the app saves you time, you can buy me a coffee or support
+          StarOrg Tools on Patreon. They open in your browser; the app itself sends nothing.
         </p>
         <div class="mt-2 flex flex-wrap gap-2">
           <Button variant="outline" size="sm" title={LINKS.support.url} onclick={() => openLink('support')}>
@@ -57,6 +58,9 @@
           </Button>
           <Button variant="outline" size="sm" title={LINKS.donate.url} onclick={() => openLink('donate')}>
             <Coffee aria-hidden="true" /> {LINKS.donate.label}
+          </Button>
+          <Button variant="outline" size="sm" title={LINKS.patreon.url} onclick={() => openLink('patreon')}>
+            <Heart aria-hidden="true" /> {LINKS.patreon.label}
           </Button>
         </div>
       </section>

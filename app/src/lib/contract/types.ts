@@ -1183,7 +1183,7 @@ export interface UpdateCheckRequest {
 }
 
 /** Footer / About links; the URL for each lives in Rust (`ExternalLink::url`). */
-export type ExternalLink = 'support' | 'donate';
+export type ExternalLink = 'support' | 'donate' | 'patreon';
 
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';

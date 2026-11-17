@@ -1,11 +1,12 @@
 <script lang="ts">
-  /** Footer bar (spec 9.3): 24 px mono — build, Data.p4k date, cache state, running job, Support, Coffee, Privacy, About. */
+  /** Footer bar (spec 9.3): 24 px mono — build, Data.p4k date, cache state, running job, Support, Coffee, Patreon, Privacy, About. */
   import { app } from '@/lib/stores/app.svelte';
   import { fmtDate } from '@/lib/format';
   import ShieldCheck from '@lucide/svelte/icons/shield-check';
   import Info from '@lucide/svelte/icons/info';
   import LifeBuoy from '@lucide/svelte/icons/life-buoy';
   import Coffee from '@lucide/svelte/icons/coffee';
+  import Heart from '@lucide/svelte/icons/heart';
   import { LINKS, openLink } from '@/lib/links';
   import PrivacyDialog from './PrivacyDialog.svelte';
   import AboutDialog from './AboutDialog.svelte';
@@ -45,6 +46,15 @@
     onclick={() => openLink('donate')}
   >
     <Coffee class="size-3" aria-hidden="true" /> {LINKS.donate.short}
+  </button>
+  <button
+    type="button"
+    class="hover:text-foreground focus-visible:ring-ring/60 flex items-center gap-1 rounded-sm outline-none focus-visible:ring-2"
+    title={LINKS.patreon.title}
+    aria-label={LINKS.patreon.label}
+    onclick={() => openLink('patreon')}
+  >
+    <Heart class="size-3" aria-hidden="true" /> {LINKS.patreon.short}
   </button>
   <button
     type="button"

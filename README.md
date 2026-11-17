@@ -145,9 +145,10 @@ Details: [Linux](docs/linux.md#upgrading-from-02-the-rename-to-starorg-codex) ·
 - Questions, bugs and ideas: the [Discord server](https://discord.gg/GCkYhbFYNq), or open an
   [issue](https://github.com/voidput/starorg-codex/issues). Attach the diagnostics report
   (Activity -> Diagnostics).
-- If the app saves you time: [Buy me a coffee](https://buymeacoffee.com/zedwil).
+- If the app saves you time: [Buy me a coffee](https://buymeacoffee.com/zedwil) or support
+  StarOrg Tools on [Patreon](https://www.patreon.com/cw/StarOrgTools).
 
-Both links are also in the app (footer and Footer -> About); they open your browser.
+These links are also in the app (footer and Footer -> About); they open your browser.
 
 ## Development
 
