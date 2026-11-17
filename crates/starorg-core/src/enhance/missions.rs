@@ -268,6 +268,65 @@ fn title_case(s: &str) -> String {
         .join(" ")
 }
 
+/// How sure a title's blueprint reward is, over its contract group: what MISSION DETAILS says
+/// and what the note under BLUEPRINTS warns about (`[BP?]` titles).
+#[derive(Debug, Clone, PartialEq)]
+enum Odds {
+    /// Every variant awards a pool at 100 %.
+    Guaranteed,
+    /// Only some contracts with this title award a pool.
+    SomeVariants,
+    /// Every variant awards a pool, by chance (lowest and highest, 0-1).
+    Chance(f64, f64),
+}
+
+impl Odds {
+    fn text(&self) -> String {
+        match self {
+            Odds::Guaranteed => "Guaranteed".into(),
+            Odds::SomeVariants => "Some variants only".into(),
+            Odds::Chance(lo, hi) => {
+                let (lo, hi) = (lo * 100.0, hi * 100.0);
+                if int(lo) == int(hi) {
+                    pct(hi)
+                } else {
+                    format!("{}–{}", int(lo), pct(hi))
+                }
+            }
+        }
+    }
+
+    /// The line under BLUEPRINTS for a `[BP?]` title; none when the reward is guaranteed.
+    fn note(&self) -> Option<String> {
+        match self {
+            Odds::Guaranteed => None,
+            Odds::SomeVariants => Some("Not every offer with this title awards one".into()),
+            // Ends with the `%`: the game reads `%` followed by text as a format code.
+            Odds::Chance(..) => Some(format!("Awarded by chance: {}", self.text())),
+        }
+    }
+}
+
+fn reward_odds(group: &[&Contract]) -> Option<Odds> {
+    let with_pool: Vec<&&Contract> = group
+        .iter()
+        .filter(|c| !c.blueprint_rewards.is_empty())
+        .collect();
+    if with_pool.is_empty() {
+        return None;
+    }
+    if with_pool.len() < group.len() {
+        return Some(Odds::SomeVariants);
+    }
+    let ch: Vec<f64> = with_pool.iter().filter_map(|c| chance(c)).collect();
+    if ch.iter().all(|x| *x >= 1.0) {
+        return Some(Odds::Guaranteed);
+    }
+    let lo = ch.iter().copied().fold(f64::INFINITY, f64::min);
+    let hi = ch.iter().copied().fold(0.0, f64::max);
+    Some(Odds::Chance(lo, hi))
+}
+
 /// The description body for a contract group (spec 6.4), without the stock prose.
 pub fn description_body(
     group: &[&Contract],
@@ -310,12 +369,14 @@ pub fn description_body(
             }
             v
         };
+        // `[BP?]` titles: say why under the header, so the list is not read as a sure reward.
+        let note = reward_odds(group).and_then(|o| o.note());
+        let head = match &note {
+            Some(n) => format!("{}\\n{n}", h("BLUEPRINTS")),
+            None => h("BLUEPRINTS"),
+        };
         if pools.len() == 1 {
-            sections.push(format!(
-                "{}\\n{}",
-                h("BLUEPRINTS"),
-                cut(&pools[0].0).join("\\n")
-            ));
+            sections.push(format!("{head}\\n{}", cut(&pools[0].0).join("\\n")));
         } else if pools.len() > 1 {
             // Variant label: the shared difficulty of a pool's contracts, when every pool
             // has its own; otherwise `Variant n`.
@@ -330,7 +391,7 @@ pub fn description_body(
                 .collect();
             let distinct: BTreeSet<&Option<String>> = labels.iter().collect();
             let use_data = labels.iter().all(Option::is_some) && distinct.len() == labels.len();
-            let mut body = vec![h("BLUEPRINTS")];
+            let mut body = vec![head];
             for (i, (list, _)) in pools.iter().enumerate() {
                 let l = if use_data {
                     labels[i].clone().unwrap_or_default()
@@ -383,27 +444,8 @@ pub fn description_body(
 
     if m.details {
         let mut d: Vec<String> = Vec::new();
-        let with_pool: Vec<&&Contract> = group
-            .iter()
-            .filter(|c| !c.blueprint_rewards.is_empty())
-            .collect();
-        if !with_pool.is_empty() {
-            let text = if with_pool.len() < group.len() {
-                "Some variants only".to_string()
-            } else {
-                let ch: Vec<f64> = with_pool.iter().filter_map(|c| chance(c)).collect();
-                if ch.iter().all(|x| *x >= 1.0) {
-                    "Guaranteed".into()
-                } else {
-                    let lo = ch.iter().copied().fold(f64::INFINITY, f64::min) * 100.0;
-                    let hi = ch.iter().copied().fold(0.0, f64::max) * 100.0;
-                    if int(lo) == int(hi) {
-                        pct(hi)
-                    } else {
-                        format!("{}–{}", int(lo), pct(hi))
-                    }
-                }
-            };
+        if let Some(odds) = reward_odds(group) {
+            let text = odds.text();
             d.push(format!("{} {text}", label("Blueprint reward")));
         }
         if let Some(r) = range(group.iter().filter_map(|c| c.reputation_gain())) {
