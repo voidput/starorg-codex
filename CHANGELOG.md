@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.1.0](https://github.com/voidput/starorg-codex/compare/v1.0.0...v1.1.0) (2026-11-17)
+
+
+### Features
+
+* **app:** Datasets numbers with units, as the Diff shows them ([8b391d0](https://github.com/voidput/starorg-codex/commit/8b391d076f5f554e8085f55784e2e00ec2af21e4))
+* **app:** Diff search across all tables and a filter on field changes ([685fd1a](https://github.com/voidput/starorg-codex/commit/685fd1aa5f8086e405ad387a8e274a3f53fa716c))
+* **app:** jump between Diff and Datasets, and to the rows a record names ([6f61190](https://github.com/voidput/starorg-codex/commit/6f61190dce44112c0b426a4355f4a3ec43784c0b))
+* **app:** Patreon link in the footer and About ([3d950c0](https://github.com/voidput/starorg-codex/commit/3d950c042914220277b28df097dbac51b30c0a38))
+* **assets:** wear any paint and optional layer materials in a Full model export ([27ac131](https://github.com/voidput/starorg-codex/commit/27ac13125baf4484f955cd90cd5651f473cc613a))
+* remove all ships first on a fleet import (prune) ([d6fe47f](https://github.com/voidput/starorg-codex/commit/d6fe47f05d1730818a623c5dcc43dc0e27d36a05))
+
+
+### Bug Fixes
+
+* **app:** link an item in every table it is in; check Diff before offering the jump ([ebe828d](https://github.com/voidput/starorg-codex/commit/ebe828d711b314ca984bbcaa59f884ae2e3133b9))
+* **app:** row links on the line that names them, not as buttons on top ([41bbd2c](https://github.com/voidput/starorg-codex/commit/41bbd2c455294077c967ecd9210d8f2a1552d937))
+* **app:** tell same-named diff records apart by record name; resizable record list ([2aca3f7](https://github.com/voidput/starorg-codex/commit/2aca3f705d78a9f532adbe08a4448f58aea37977))
+* **blueprints:** Smart Citizen import asks for the file once ([29d3785](https://github.com/voidput/starorg-codex/commit/29d3785fed5954aff3b2f5910def038025f48194))
+
+
+### Miscellaneous Chores
+
+* release 1.1.0 ([e09e406](https://github.com/voidput/starorg-codex/commit/e09e4062dfb9dbcd62dc101f3bfa1596e8b79afe))
+
 ## [1.0.0](https://github.com/voidput/starorg-codex/compare/v0.3.0...v1.0.0) (2026-11-16)
 
 
