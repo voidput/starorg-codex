@@ -582,9 +582,26 @@ pub enum DevCmd {
         /// Also write an STL next to the GLB (geometry, transforms baked, Z-up).
         #[arg(long)]
         stl: bool,
+        /// Full only: wear this paint, by its tag (`dev model-paints` lists them); default:
+        /// the paint the default loadout fits.
+        #[arg(long, value_name = "TAG")]
+        paint: Option<String>,
+        /// Full only: StarBreaker's layer materials too (experimental).
+        #[arg(long)]
+        layers: bool,
         /// Asset cache folder (default: the setting, else the app cache's `assets`).
         #[arg(long, value_name = "DIR")]
         cache_dir: Option<PathBuf>,
+        #[arg(long, value_name = "NAME", default_value = "LIVE")]
+        channel: String,
+        #[command(flatten)]
+        test_p4k: TestP4kArg,
+    },
+    /// The paints a ship can wear in a Full export (`export-model --paint TAG`), and the one
+    /// its default loadout fits.
+    ModelPaints {
+        #[arg(value_name = "GUID|NAME")]
+        what: String,
         #[arg(long, value_name = "NAME", default_value = "LIVE")]
         channel: String,
         #[command(flatten)]
@@ -635,7 +652,7 @@ impl TestP4kArg {
 pub enum FleetCmd {
     /// Import a fleet: HangarXPLOR JSON or CSV (RSI+ "Export fleet", FleetYards, FleetView,
     /// hangar.link) or a plain list, one ship per line. Replaces the fleet list unless
-    /// --merge. Writes only the app's own files; reads the game read-only.
+    /// --merge; --prune also drops sold ships from the ship-names list. Writes only the app's own files; reads the game read-only.
     Import {
         /// The file, or `-` for stdin.
         #[arg(value_name = "FILE|-")]
@@ -646,6 +663,11 @@ pub enum FleetCmd {
         /// Add to the current fleet (count = the larger) instead of replacing it.
         #[arg(long)]
         merge: bool,
+        /// Remove all ships first: replace the fleet and drop the ships of the shared
+        /// ship-names list that this import does not have. Ships that stay keep their
+        /// group, rename and place. Refused when no ship matches.
+        #[arg(long, conflicts_with = "merge")]
+        prune: bool,
         #[arg(long, value_name = "FORMAT", default_value = "auto",
               value_parser = ["auto", "xplor-json", "xplor-csv", "text"])]
         format: String,

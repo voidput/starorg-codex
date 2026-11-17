@@ -96,6 +96,10 @@ pub enum AssetRequest {
         #[serde(default)]
         wem: bool,
     },
+    /// The paints a ship can wear ([`model::list_paints`]).
+    Paints {
+        what: String,
+    },
     /// Streamed: an entity as GLB (and STL).
     ExportModel {
         what: String,
@@ -435,6 +439,7 @@ impl Server {
             }
             AssetRequest::Preview { path, out } => to_value(files::preview(a, path, out)?),
             AssetRequest::Sounds { what } => to_value(audio::record_sounds(a, what)?),
+            AssetRequest::Paints { what } => to_value(model::list_paints(a, what)?),
             AssetRequest::SoundSearch { query, limit } => {
                 to_value(a.audio()?.search_triggers(query, *limit as usize))
             }

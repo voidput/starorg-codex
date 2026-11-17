@@ -19,6 +19,7 @@
   import Funnel from '@lucide/svelte/icons/funnel';
   import X from '@lucide/svelte/icons/x';
   import ArrowUpRight from '@lucide/svelte/icons/arrow-up-right';
+  import GitCompare from '@lucide/svelte/icons/git-compare';
   import Sheet_ from '@lucide/svelte/icons/sheet';
   import ListTree from '@lucide/svelte/icons/list-tree';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
@@ -42,6 +43,7 @@
   import { bytes } from '@/lib/devnav';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
+  import { numberCell } from '@/lib/readable';
   import { toast } from '@/lib/stores/toast.svelte';
   import { int } from '@/lib/format';
   import { cn } from '@/lib/utils';
@@ -86,6 +88,8 @@
 
   // --- The picked dataset and table ------------------------------------------------------
   let pick = $state<{ source: string; dataset: string } | null>(null);
+  /** The table to show once a hand-off's dataset has loaded (instead of its first table). */
+  let wantTable: string | null = null;
   let info = $state<DatasetInfo | null>(null);
   let tableName = $state<string | null>(null);
   let table = $state<TableInfo | null>(null);
@@ -99,7 +103,9 @@
       if (!p || !target) return;
       try {
         info = await devApi.dataset({ target: $state.snapshot(target), ...p });
-        tableName = info.tables[0]?.name ?? null;
+        const want = wantTable;
+        wantTable = null;
+        tableName = want && info.tables.some((t) => t.name === want) ? want : (info.tables[0]?.name ?? null);
         dsError = null;
       } catch (e) {
         dsError = toContractError(e);
@@ -364,6 +370,81 @@
       toast('error', 'Could not open the row', toContractError(e).message);
     }
   }
+  /** Show a row of any source, dataset and table: the grid moves there, the sheet opens. */
+  async function goToRow(at: { source: string; dataset: string; table: string; row: number }) {
+    if (!target) return;
+    if (pick?.source !== at.source || pick?.dataset !== at.dataset) {
+      wantTable = at.table;
+      pick = { source: at.source, dataset: at.dataset };
+    } else tableName = at.table;
+    try {
+      detail = await devApi.row({ target: $state.snapshot(target), ...at });
+      detailTitle = null;
+      sheet = true;
+    } catch (e) {
+      toast('error', 'Could not open the row', toContractError(e).message);
+    }
+  }
+  // Hand-offs from Diff ("Open in Datasets", a linked row there).
+  $effect(() => {
+    void dev.seq;
+    const p = dev.pendingRow;
+    if (!p) return;
+    untrack(() => {
+      dev.pendingRow = null;
+      void goToRow(p);
+    });
+  });
+
+  /**
+   * The open row in the loaded comparison, when Diff compares this source: its record and how
+   * many fields changed, or that it is the same on both sides (checked before offering the jump).
+   */
+  let diffAt = $state<{ dataset: string; table: string; id: string; changed: number } | null>(null);
+  let diffSame = $state<string | null>(null);
+  const srcLabel = (id: string) => sources.find((x) => x.id === id)?.label ?? id;
+  $effect(() => {
+    const d = detail;
+    const p = pick;
+    const tn = tableName;
+    diffAt = null;
+    diffSame = null;
+    if (!d || !p || !tn || !target) return;
+    let live = true;
+    untrack(async () => {
+      try {
+        const sum = await devApi.diffSummary($state.snapshot(target!));
+        if (!live || (sum.a !== p.source && sum.b !== p.source)) return;
+        const t = sum.tables.find((x) => x.dataset === p.dataset && x.table === tn);
+        if (!t) return;
+        let id = `#${d.row}`;
+        if (t.identity) {
+          const v = (JSON.parse(d.json) as Record<string, unknown>)[t.identity];
+          if (v === undefined || v === null) return;
+          id = typeof v === 'string' ? v : JSON.stringify(v);
+        }
+        const at = { dataset: p.dataset, table: tn, id };
+        try {
+          const f = await devApi.diffRecord({ target: $state.snapshot(target!), ...at, identity: null });
+          if (live) diffAt = { ...at, changed: f.changes.length };
+        } catch {
+          if (live) diffSame = `Same in ${srcLabel(sum.a)} and ${srcLabel(sum.b)}`;
+        }
+      } catch {
+        /* no comparison loaded: no link */
+      }
+    });
+    return () => {
+      live = false;
+    };
+  });
+  function showInDiff() {
+    if (!diffAt) return;
+    sheet = false;
+    const { dataset, table, id } = diffAt;
+    dev.openDiff({ dataset, table, id }, () => app.go('diff'));
+  }
+
   function openInExplorer(what: string) {
     sheet = false;
     dev.openRecord(what, () => app.go('explorer'));
@@ -646,7 +727,8 @@
                               {#if c !== null && lab}
                                 <span role="gridcell" class="flex min-w-0 text-[12px]"><ReadableValue raw={c} label={lab} /></span>
                               {:else}
-                                <span role="gridcell" class={cn('truncate text-[12px]', c === null && 'text-muted-foreground', colMeta(pageCols[k] ?? '')?.kind === 'number' && 'mono')} title={c ?? ''}>{c ?? '—'}</span>
+                                {@const meta = colMeta(pageCols[k] ?? '')}
+                                <span role="gridcell" class={cn('truncate text-[12px]', c === null && 'text-muted-foreground', meta?.kind === 'number' && 'mono text-right')} title={c ?? ''}>{(meta?.kind === 'number' ? numberCell(c, meta.unit, dev.showIds) : c) ?? '—'}</span>
                               {/if}
                             {/each}
                           {:else}
@@ -670,6 +752,11 @@
 <Sheet bind:open={sheet} title={detail ? `${tableName} · ${detailTitle && !dev.showIds ? `${detailTitle} (row ${detail.row + 1})` : `row ${detail.row + 1}`}` : 'Row'} width="w-[min(720px,calc(100vw-48px))]">
   {#if detail}
     <div class="flex h-[calc(100vh-140px)] min-h-0 flex-col gap-3">
+      {#if diffAt}
+        <div><Button variant="outline" size="xs" title={`${diffAt.table} · ${diffAt.id}`} onclick={showInDiff}><GitCompare aria-hidden="true" /> Show changes in Diff<span class="text-muted-foreground mono">{diffAt.changed} {diffAt.changed === 1 ? 'field' : 'fields'}</span></Button></div>
+      {:else if diffSame}
+        <p class="text-muted-foreground flex items-center gap-1.5 text-[12px]"><GitCompare class="size-3.5" aria-hidden="true" />{diffSame}</p>
+      {/if}
       {#if detail.links.length}
         <div class="grid gap-1">
           <h3 class="eyebrow text-muted-foreground">In the explorer</h3>
@@ -691,7 +778,7 @@
           </ul>
         </div>
       {/if}
-      <JsonTree id="row" json={detail.json} label="row" labels={detail.labels} onfollow={(r) => openInExplorer(r.guid)} onloc={openLoc} class="min-h-0 flex-1 rounded-md border" />
+      <JsonTree id="row" json={detail.json} label="row" labels={detail.labels} units rowLinks={detail.row_links} onrow={(k) => pick && void goToRow({ ...pick, table: k.table, row: k.row })} onfollow={(r) => openInExplorer(r.guid)} onloc={openLoc} class="min-h-0 flex-1 rounded-md border" />
     </div>
   {/if}
 </Sheet>

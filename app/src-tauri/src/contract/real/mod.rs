@@ -278,6 +278,9 @@ struct Mem {
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
     /// without a second picker.
     last_fleet: Option<(String, Vec<u8>)>,
+    /// The Smart Citizen export picked for the last dry run, per channel (install, channel):
+    /// the confirm step (`reuse_last`) imports it without a second picker.
+    last_sc_pick: Option<((String, String), PathBuf)>,
     /// Channel data dirs whose `profile.toml` migration failed: warned about once.
     profile_migrate_failed: HashSet<PathBuf>,
 }
@@ -1302,6 +1305,14 @@ impl RealBackend {
         if !req.reuse_last {
             return Ok(None);
         }
+        // The file the dry run just read (the import dialog's confirm), while it still exists.
+        let key = (req.target.install.clone(), req.target.channel.clone());
+        if let Some((k, p)) = &self.mem().last_sc_pick
+            && *k == key
+            && p.is_file()
+        {
+            return Ok(Some(p.clone()));
+        }
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
         let data = self.data_dir(&f, ch);
@@ -1614,6 +1625,20 @@ impl RealBackend {
             fleet_store::save_shared(self.dirs(), &s).map_err(io)?;
         }
         Ok(n)
+    }
+
+    /// "Remove all ships first" on a real import; the fleet lock is held.
+    fn prune_shared_order(
+        &self,
+        out: &fleet_import::Outcome,
+        cat: &Catalog,
+    ) -> CmdResult<Vec<RemovedShip>> {
+        let mut s = fleet_store::load_shared(self.dirs()).map_err(io)?;
+        let removed = super::fleet::prune_order(&mut s, out, cat);
+        if !removed.is_empty() {
+            fleet_store::save_shared(self.dirs(), &s).map_err(io)?;
+        }
+        Ok(removed)
     }
 
     fn fleet_view_of(
@@ -2718,6 +2743,12 @@ impl Backend for RealBackend {
                 .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?
             }
         };
+        if req.dry_run {
+            self.mem().last_sc_pick = Some((
+                (req.target.install.clone(), req.target.channel.clone()),
+                file.clone(),
+            ));
+        }
         let bytes = fsutil::read_limited(&file, bp_import::EXPORT_LIMIT)
             .map_err(io)?
             .ok_or_else(|| err(ErrorCode::NotFound, format!("{} not found", file.display())))?;
@@ -2769,6 +2800,7 @@ impl Backend for RealBackend {
             if !req.dry_run && !rep.empty_catalog {
                 store.save(&data).map_err(io)?;
                 self.after_merge(&ch.name, &store);
+                self.mem().last_sc_pick = None;
                 let abs = fsutil::canonicalize(&file).unwrap_or_else(|_| file.clone());
                 if let Err(e) = bp_import::save_last_import(&data, &abs) {
                     self.log(
@@ -3028,10 +3060,19 @@ impl Backend for RealBackend {
         };
         let fleet = FleetFile::load(self.dirs()).map_err(io)?;
         let mut out = fleet_import::run(&parsed, &cat, &fleet, req.merge);
+        super::fleet::check_prune(&req, &out)?;
         let mut appended = 0;
+        let mut removed = None;
+        if req.dry_run && req.prune && !out.report.empty_catalog {
+            let mut s = fleet_store::load_shared(self.dirs()).map_err(io)?;
+            removed = Some(super::fleet::prune_order(&mut s, &out, &cat));
+        }
         if !req.dry_run && !out.report.empty_catalog {
             out.fleet.imported_at = Some(now());
             out.fleet.save(self.dirs()).map_err(io)?;
+            if req.prune {
+                removed = Some(self.prune_shared_order(&out, &cat)?);
+            }
             appended = self.append_to_order(&out.added)?;
             self.forget_tables(&f, ch);
             if !req.dry_run {
@@ -3051,7 +3092,13 @@ impl Backend for RealBackend {
                 r.ambiguous.len()
             ),
         );
-        Ok(super::fleet::report(&out, file, req.dry_run, appended))
+        Ok(super::fleet::report(
+            &out,
+            file,
+            req.dry_run,
+            appended,
+            removed,
+        ))
     }
 
     fn fleet_match(&self, req: FleetMatchRequest) -> CmdResult<FleetView> {

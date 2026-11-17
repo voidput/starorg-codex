@@ -131,7 +131,11 @@ type and are written on the next apply.
 Import your fleet (RSI+ "Export fleet", FleetYards, FleetView, hangar.link, or a plain list,
 one ship per line), match the rows the app could not place, then put your ships in the order
 you want them in game lists and give them names. *Write ship names into the game* adds this to
-the next apply. CLI: `starorg-codex fleet import|list|match|clear`.
+the next apply. A new import adds new ships to the end of My ships but never takes any away;
+to start fresh, tick **Remove all ships first** in the import dialog: My ships then keeps only
+the ships of that import (with their names, groups and places), and the check lists what goes
+before anything is removed. CLI: `starorg-codex fleet import|list|match|clear` (`--prune` for
+the same).
 
 ## Backups and restore
 
@@ -163,6 +167,9 @@ For players who want to look things up in the game data. Read only on the game.
   search with prefixes like `type:cooler maker:alpha`, typo-tolerant; quick filters such as
   *Player-usable*, *Has model*, *Has sounds*; grouping and compare), the record's JSON with
   readable references, its sounds (play or export) and **Export model** (GLB, optionally STL).
+  A **Full** export can wear any paint the ship has (**Paint**, listed with their in-game names;
+  default: the one fitted) and can include **Layer materials (experimental)**, the textures of
+  each material's layers (bigger files; some surfaces may look wrong).
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
 - **Diff:** compare two builds or two dataset folders.
 - **Files:** browse `Data.p4k`, preview textures and text, extract files.

@@ -16,10 +16,11 @@
   import { Input } from '@/components/ui/input';
   import { Button } from '@/components/ui/button';
   import { ancestors, at, copyText, initialOpen, jsonKey, scalarText, searchJson, splice, visibleLines, type Json, type JsonLine, type RefInfo } from '@/lib/jsontree';
-  import type { LocText, Readable } from '@/lib/contract/dev';
+  import type { LocText, Readable, RowLink } from '@/lib/contract/dev';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
+  import { linksAt, numberCell, unitOf } from '@/lib/readable';
 
   let {
     json,
@@ -29,6 +30,9 @@
     onfollow = null,
     onload = null,
     onloc = null,
+    units = false,
+    rowLinks = [],
+    onrow = null,
     id = 'jt',
     class: className = '',
   }: {
@@ -43,6 +47,11 @@
     onload?: ((pointer: string) => Promise<Json>) | null;
     /** A loc key's text was clicked: open it in Strings. */
     onloc?: ((key: string) => void) | null;
+    /** Numbers read as the Diff shows them: grouped, with the unit their key says ("25,740 HP"). */
+    units?: boolean;
+    /** Rows of the dataset this value names: its line gets a link to each. */
+    rowLinks?: RowLink[];
+    onrow?: ((k: RowLink) => void) | null;
     id?: string;
     class?: string;
   } = $props();
@@ -327,7 +336,23 @@
             {#if rl && r.name}<span class="text-muted-foreground text-[11px]">{r.name}</span>{/if}
             {#if r.type}<span class="text-muted-foreground">({r.type})</span>{/if}
           {:else if l.kind === 'value'}
-            <span class={cn(typeof l.value === 'string' ? 'text-emerald-700 dark:text-emerald-300' : typeof l.value === 'number' ? 'text-amber-700 dark:text-amber-300' : 'text-violet-700 dark:text-violet-300')}>{scalarText(l.value)}</span>
+            <span class={cn(typeof l.value === 'string' ? 'text-emerald-700 dark:text-emerald-300' : typeof l.value === 'number' ? 'text-amber-700 dark:text-amber-300' : 'text-violet-700 dark:text-violet-300')}>{units && !dev.showIds && typeof l.value === 'number' ? numberCell(String(l.value), unitOf(l.key ?? ''), false) : scalarText(l.value)}</span>
+            {#if onrow}
+              {#each linksAt(rowLinks, l.pointer, true) as k (k.table + '/' + k.row)}
+                <button
+                  type="button"
+                  tabindex="-1"
+                  class="text-primary hover:bg-accent/60 inline-flex items-center gap-0.5 rounded px-1 text-[11px] whitespace-nowrap"
+                  title={`Open ${k.title ?? k.value} (${k.table}, row ${k.row + 1})`}
+                  onclick={(e) => {
+                    e.stopPropagation();
+                    onrow?.(k);
+                  }}
+                >
+                  <ArrowUpRight class="size-3" aria-hidden="true" />{k.title && !dev.showIds ? `${k.title} · ` : ''}{k.table}
+                </button>
+              {/each}
+            {/if}
             {#if text !== undefined}
               <button
                 type="button"

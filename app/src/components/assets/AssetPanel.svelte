@@ -18,7 +18,7 @@
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import JobProgress from '@/components/common/JobProgress.svelte';
-  import { assetApi, bytesText, DEFAULT_LOD, hasModel, MAX_LOD, PERSONAL_USE, soundId, type ModelPreset, type RecordSounds, type SoundInfo } from '@/lib/contract/assets';
+  import { assetApi, bytesText, DEFAULT_LOD, hasModel, MAX_LOD, paintLabel, PERSONAL_USE, soundId, type ModelPaints, type ModelPreset, type RecordSounds, type SoundInfo } from '@/lib/contract/assets';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import type { ChannelRef } from '@/lib/contract/types';
   import { app } from '@/lib/stores/app.svelte';
@@ -87,11 +87,51 @@
   let preset = $state<ModelPreset>('print-shell');
   let lod = $state(0);
   let stl = $state(false);
+  /** Full only: the paint ('' = the fitted one) and StarBreaker's layer materials. */
+  let paint = $state('');
+  let layers = $state(false);
+  let paints = $state<ModelPaints | null>(null);
+  let paintsFor = $state('');
+  let paintsLoading = $state(false);
+  let paintsError = $state<string | null>(null);
   function setPreset(p: ModelPreset) {
     preset = p;
     lod = DEFAULT_LOD[p];
     if (p === 'full') stl = false;
   }
+  // A new record forgets the last one's paints and choice.
+  $effect(() => {
+    if (paintsFor && paintsFor !== guid) {
+      paints = null;
+      paintsFor = '';
+      paint = '';
+      paintsError = null;
+    }
+  });
+  // The paints are read when a Full export of this record is being set up (once per record).
+  $effect(() => {
+    if (modelOpen && preset === 'full' && paintsFor !== guid && !paintsLoading) void loadPaints();
+  });
+  async function loadPaints() {
+    const what = guid;
+    paintsLoading = true;
+    paintsError = null;
+    try {
+      const p = await assetApi.modelPaints({ target: $state.snapshot(target), what });
+      if (what === guid) paints = p;
+    } catch (e) {
+      if (what === guid) paintsError = toContractError(e).message;
+    } finally {
+      paintsFor = what;
+      paintsLoading = false;
+    }
+  }
+  const fittedName = $derived.by(() => {
+    const e = paints?.equipped;
+    if (!e) return 'default';
+    const p = paints?.paints.find((x) => x.tag.toLowerCase() === e.toLowerCase());
+    return p ? paintLabel(p) : 'default';
+  });
   /** Set when the backend says free memory is short: the dialog asks before going on. */
   let memWarn = $state<string | null>(null);
   async function exportModel(force = false) {
@@ -99,7 +139,8 @@
     memWarn = null;
     exporting = true;
     try {
-      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl, force });
+      const full = preset === 'full';
+      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl, force, paint: full && paint ? paint : null, layers: full && layers });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
       else toast('success', `Exported ${name}${r.cached ? ' from the cache' : ''}`, [bytesText(r.bytes), r.note, r.path, r.failed.length ? `${r.failed.length} failed` : ''].filter(Boolean).join(' · '));
     } catch (e) {
@@ -198,6 +239,24 @@
         </select>
       </label>
       <SwitchRow id="model-stl" label="Also write an STL" hint="Geometry with the node transforms baked in, Z-up, next to the GLB." checked={stl} onchange={(v) => (stl = v)} disabled={preset === 'full'} />
+      {#if preset === 'full'}
+        <label class="flex min-w-0 items-center gap-2">
+          <span class="shrink-0">Paint</span>
+          <select class="border-input bg-background h-7 min-w-0 flex-1 truncate rounded-md border px-2" bind:value={paint} aria-label="Paint" disabled={paintsLoading} data-model-paint>
+            <option value="">As fitted ({paintsLoading ? 'reading paints…' : fittedName})</option>
+            {#each Array.isArray(paints?.paints) ? paints.paints : [] as p (p.tag)}<option value={p.tag} title={[p.tag, ...p.items].join('\n')}>{paintLabel(p)}</option>{/each}
+          </select>
+          {#if paintsLoading}<LoaderCircle class="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />{/if}
+        </label>
+        {#if paintsError}<p class="text-destructive">Could not read the paints: {paintsError}</p>{:else if paints && paints.paints.length === 0}<p class="text-muted-foreground">No other paints for this record.</p>{/if}
+        <SwitchRow
+          id="model-layers"
+          label="Layer materials (experimental)"
+          hint="Also the textures of each material's layers (StarBreaker's All mode). Larger files; how the layers blend is up to the viewer, so some surfaces may look wrong."
+          checked={layers}
+          onchange={(v) => (layers = v)}
+        />
+      {/if}
       {#if preset === 'full'}<p class="text-amber-700 dark:text-amber-300">Full exports of large ships need a lot of memory (Javelin about 6.5 GB, Idris about 11 GB).</p>{/if}
       {#if memory.status}
         {@const need = memory.status.estimates.find((e) => e.id === (preset === 'full' ? 'model-full' : 'model-print'))}

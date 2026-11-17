@@ -392,6 +392,8 @@ fn extract_and_exports_respect_dialogs_and_the_game_folder() {
             lod: 0,
             stl: false,
             force: false,
+            paint: None,
+            layers: false,
         }
     };
     let e = f

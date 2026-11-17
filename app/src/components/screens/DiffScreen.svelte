@@ -13,6 +13,7 @@
    */
   import { untrack } from 'svelte';
   import GitCompare from '@lucide/svelte/icons/git-compare';
+  import Sheet_ from '@lucide/svelte/icons/sheet';
   import ListTree from '@lucide/svelte/icons/list-tree';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
@@ -30,10 +31,10 @@
   import Search from '@lucide/svelte/icons/search';
   import { Input } from '@/components/ui/input';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
-  import { changeTexts, groupChanges, titled } from '@/lib/readable';
+  import { changeMatches, changeTexts, groupChanges, linksAt, titled } from '@/lib/readable';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
-  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffTable, type GroupPage, type RecordState } from '@/lib/contract/dev';
+  import { devApi, type DevDiffRecords, type DevDiffSummary, type DevFieldDiff, type DevSource, type DiffGroupBy, type DiffGroupPick, type DiffSearchHit, type DiffTable, type GroupPage, type RowLink, type RecordState } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { app } from '@/lib/stores/app.svelte';
   import { int } from '@/lib/format';
@@ -139,6 +140,100 @@
       if (more) loadingMore = false;
     }
   }
+  // --- Search across all tables -----------------------------------------------------------
+  let allQuery = $state('');
+  let allHits = $state<{ q: string; hits: DiffSearchHit[]; total: number } | null>(null);
+  let allError = $state<ContractError | null>(null);
+  let allBusy = $state(false);
+  const SEARCH_LIMIT = 100;
+  $effect(() => {
+    const q = allQuery.trim();
+    const tgt = target;
+    void summary;
+    if (q.length < 2 || !tgt) {
+      allHits = null;
+      allError = null;
+      return;
+    }
+    let live = true;
+    const t = setTimeout(async () => {
+      allBusy = true;
+      try {
+        const r = await devApi.diffSearch({ target: $state.snapshot(tgt), query: q, state: null, limit: SEARCH_LIMIT });
+        if (live) {
+          allHits = { q, hits: r.hits, total: r.total };
+          allError = null;
+        }
+      } catch (e) {
+        if (live) allError = toContractError(e);
+      } finally {
+        if (live) allBusy = false;
+      }
+    }, 250);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
+  });
+  /** Open a record of any table: its table, its records filtered by `query`, the record. */
+  async function openRecordIn(dataset: string, table: string, id: string, query: string) {
+    const t = summary?.tables.find((x) => x.dataset === dataset && x.table === table);
+    if (!t || !target) return false;
+    await pickTable(t);
+    recQuery = query;
+    recQueryDebounced = query;
+    await loadRecords();
+    recActive = Math.max(0, records?.records.findIndex((r) => r.id === id) ?? 0);
+    try {
+      field = await devApi.diffRecord({ target: $state.snapshot(target), dataset, table, id, identity });
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  // Hand-offs from Datasets ("Show changes in Diff").
+  $effect(() => {
+    void dev.seq;
+    const p = dev.pendingDiff;
+    if (!p || !summary) return;
+    untrack(async () => {
+      dev.pendingDiff = null;
+      allQuery = '';
+      if (!(await openRecordIn(p.dataset, p.table, p.id, p.id))) toast('info', 'No changes for this row', `${p.table} · ${p.id} is the same in ${label(summary!.a)} and ${label(summary!.b)}.`);
+    });
+  });
+  /** The picked record's row in Datasets (B's, A's for a removed record). */
+  function openInDatasets(id: string) {
+    const r = records?.records.find((x) => x.id === id);
+    if (!r || !summary || !picked) return;
+    const at = r.b !== null ? { source: summary.b, row: r.b } : r.a !== null ? { source: summary.a, row: r.a } : null;
+    if (!at) return;
+    dev.openRow({ ...at, dataset: picked.dataset, table: picked.table }, () => app.go('datasets'));
+  }
+  /** A row the record names: its own changes when it changed, else its row in Datasets. */
+  async function followLink(k: RowLink) {
+    if (!picked) return;
+    const ds = picked.dataset;
+    if (k.diff_id !== null) {
+      await openRecordIn(ds, k.table, k.diff_id, k.diff_id);
+      return;
+    }
+    if (k.source !== null) dev.openRow({ source: k.source, dataset: ds, table: k.table, row: k.row }, () => app.go('datasets'));
+  }
+
+  /** Open a hit: its table, its records filtered by the search, the record itself. */
+  async function openHit(h: DiffSearchHit) {
+    const t = summary?.tables.find((x) => x.dataset === h.dataset && x.table === h.table);
+    if (!t) return;
+    const q = allHits?.q ?? '';
+    await pickTable(t);
+    recQuery = q;
+    recQueryDebounced = q;
+    await loadRecords();
+    recActive = Math.max(0, records?.records.findIndex((r) => r.id === h.record.id) ?? 0);
+    await pickRecord(h.record.id);
+  }
+
   async function pickTable(t: DiffTable, group: DiffGroupPick | null = null, fromTree = false) {
     recGroup = group;
     if (!fromTree) dnode = JSON.stringify([t.dataset, t.table]);
@@ -167,6 +262,25 @@
   let dopen = $state<string[]>([]);
   let dgroups = $state<GroupPage | null>(null);
   let recGroup = $state<DiffGroupPick | null>(null);
+  /** Records pane width beside the field changes (drag or arrow keys on the divider; double-click resets). */
+  const REC_W = 'starorg.dev.diff.records.width';
+  const REC_MIN = 260;
+  const REC_DEFAULT = 420;
+  let recW = $state(Math.max(REC_MIN, Number(readPref(REC_W)) || REC_DEFAULT));
+  $effect(() => writePref(REC_W, String(Math.round(recW))));
+  let pairEl = $state<HTMLElement | null>(null);
+  /** Leave the field table at least 320 px. */
+  const recMax = () => Math.max(REC_MIN, (pairEl?.clientWidth ?? 1200) - 320);
+  const setRecW = (w: number) => (recW = Math.min(recMax(), Math.max(REC_MIN, w)));
+  let recDrag: { x: number; w: number } | null = null;
+  function recKey(e: KeyboardEvent) {
+    const d = e.key === 'ArrowLeft' ? -16 : e.key === 'ArrowRight' ? 16 : 0;
+    if (e.key === 'Home') setRecW(REC_MIN);
+    else if (e.key === 'End') setRecW(recMax());
+    else if (d) setRecW(recW + d);
+    else return;
+    e.preventDefault();
+  }
   let railed = $state(readPref('starorg.dev.difftree.railed') === '1');
   $effect(() => writePref('starorg.dev.difftree.railed', railed ? '1' : '0'));
   const diffByOptions: { id: DiffGroupBy; label: string }[] = [
@@ -228,6 +342,9 @@
 
   // --- Field diff --------------------------------------------------------------------------
   let field = $state<DevFieldDiff | null>(null);
+  /** Filter on the picked record's field changes; kept while moving between records. */
+  let fieldQuery = $state('');
+  const shownChanges = $derived(field ? field.changes.filter((c) => changeMatches(c, fieldQuery, dev.showIds)) : []);
   async function pickRecord(id: string) {
     if (!target || !picked) return;
     try {
@@ -333,6 +450,52 @@
           </aside>
         {/if}
         <div class="flex min-w-0 flex-1 flex-col gap-3">
+          <div class="flex items-center gap-2">
+            <div class="relative max-w-md flex-1">
+              <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
+              <Input
+                type="search"
+                aria-label="Search all tables by name or id"
+                placeholder="Search all tables: Tiburon, Medusa, an id…"
+                class="h-8 pl-7 text-[12.5px]"
+                bind:value={allQuery}
+                onkeydown={(e: KeyboardEvent) => {
+                  if (e.key === 'Escape') allQuery = '';
+                  else if (e.key === 'Enter' && allHits?.hits[0]) void openHit(allHits.hits[0]);
+                }}
+              />
+            </div>
+            {#if allQuery.trim().length >= 2}
+              <span class="text-muted-foreground text-[12px]" aria-live="polite">{allBusy && !allHits ? 'Searching…' : allHits ? `${int(allHits.total)} ${allHits.total === 1 ? 'match' : 'matches'}${allHits.total > allHits.hits.length ? ` (first ${int(allHits.hits.length)})` : ''}` : ''}</span>
+            {/if}
+          </div>
+          {#if allQuery.trim().length >= 2}
+            <section class="bg-card max-h-[38%] min-h-24 shrink-0 overflow-auto rounded-lg border" aria-label="Search results">
+              {#if allError}
+                <div class="p-2"><ErrorState title="Search failed" error={allError} /></div>
+              {:else if allHits && !allHits.hits.length}
+                <p class="text-muted-foreground p-3 text-[12.5px]">No changed record in any table matches “{allHits.q}”.</p>
+              {:else if allHits}
+                <ul class="divide-border/60 divide-y" role="list">
+                  {#each allHits.hits as h (h.dataset + '/' + h.table + '/' + h.record.id + h.record.state)}
+                    {@const t = titled(h.record.id, h.record.label, dev.showIds)}
+                    <li>
+                      <button type="button" class="hover:bg-accent/60 grid w-full gap-0.5 px-3 py-1.5 text-left" onclick={() => void openHit(h)} title={h.record.label ? `${h.record.label}\n${h.record.id}` : h.record.id}>
+                        <span class="flex min-w-0 items-baseline gap-2">
+                          <span class={cn('shrink-0 rounded px-1 text-[10.5px] font-semibold uppercase', h.record.state === 'added' ? 'bg-success/15 text-success' : h.record.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{h.record.state}</span>
+                          <span class={cn('min-w-0 truncate text-[12px]', !t.secondary && 'mono', t.secondary && 'font-medium')}>{t.primary}</span>
+                          <span class="text-muted-foreground mono ml-auto shrink-0 text-[11px]">{h.table}</span>
+                        </span>
+                        <span class="text-muted-foreground mono truncate text-[10.5px]">{h.dataset} · {h.record.id}</span>
+                      </button>
+                    </li>
+                  {/each}
+                </ul>
+              {:else}
+                <div class="grid gap-1 p-2">{#each { length: 4 } as _, i (i)}<Skeleton class="h-6 w-full" />{/each}</div>
+              {/if}
+            </section>
+          {:else}
           <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
           <div
             role="listbox"
@@ -370,13 +533,14 @@
               </div>
             {/each}
           </div>
+          {/if}
 
           {#if picked}
             <!-- Narrow (1024 wide with the tree open): records above the field changes, so the
                  field table keeps its full width instead of clipping the delta column. -->
-            <div class="@container/pair flex min-h-0 flex-1">
-              <div class="flex min-h-0 flex-1 flex-col gap-3 @2xl/pair:flex-row">
-                <section class="bg-card flex max-h-[45%] min-h-28 w-full shrink-0 flex-col overflow-hidden rounded-lg border @2xl/pair:max-h-none @2xl/pair:w-[min(420px,45%)]" aria-label="Records">
+            <div class="@container/pair flex min-h-0 flex-1" bind:this={pairEl}>
+              <div class="flex min-h-0 flex-1 flex-col gap-3 @2xl/pair:flex-row @2xl/pair:gap-0">
+                <section class="bg-card flex max-h-[45%] min-h-28 w-full shrink-0 flex-col overflow-hidden rounded-lg border @2xl/pair:max-h-none @2xl/pair:w-[var(--rec-w)] @2xl/pair:max-w-[calc(100%-20rem)]" style="--rec-w: {recW}px" aria-label="Records">
                   <div class="flex flex-wrap items-center gap-2 border-b px-2 py-1.5">
                     <Segmented size="sm" ariaLabel="Records" options={[{ id: 'all', label: 'All' }, { id: 'changed', label: 'Changed' }, { id: 'added', label: 'Added' }, { id: 'removed', label: 'Removed' }] as { id: 'all' | RecordState; label: string }[]} bind:value={stateFilter} />
                     {#if records?.fields.length}
@@ -439,23 +603,55 @@
                     </div>
                   {/if}
                 </section>
+                <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+                <div
+                  role="separator"
+                  aria-orientation="vertical"
+                  aria-label="Resize record list"
+                  aria-valuenow={Math.round(recW)}
+                  aria-valuemin={REC_MIN}
+                  tabindex="0"
+                  title="Drag to resize; double-click to reset"
+                  class="hover:bg-primary/40 focus-visible:bg-primary/60 mx-1 hidden w-1.5 shrink-0 cursor-col-resize touch-none rounded outline-none @2xl/pair:block"
+                  onkeydown={recKey}
+                  ondblclick={() => setRecW(REC_DEFAULT)}
+                  onpointerdown={(e) => {
+                    recDrag = { x: e.clientX, w: recW };
+                    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                  }}
+                  onpointermove={(e) => recDrag && setRecW(recDrag.w + e.clientX - recDrag.x)}
+                  onpointerup={() => (recDrag = null)}
+                  onpointercancel={() => (recDrag = null)}
+                ></div>
                 <section class="bg-card flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border" aria-label="Field changes">
                   {#if field}
-                    {@const t = titled(field.id, field.label, dev.showIds)}
+                    <!-- The list's label tells AI variants apart ("· PU AI CRIM"); the field reply alone cannot. -->
+                    {@const fieldLabel = records?.records.find((x) => x.id === field!.id)?.label ?? field.label}
+                    {@const t = titled(field.id, fieldLabel, dev.showIds)}
                     <div class="flex items-center gap-2 border-b px-3 py-2">
-                      <h2 class="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={field.label ? `${field.label}\n${field.id}` : field.id}>
+                      <h2 class="flex min-w-0 flex-1 items-baseline gap-2 truncate" title={fieldLabel ? `${fieldLabel}\n${field.id}` : field.id}>
                         <span class={cn('truncate text-[13px] font-semibold', !t.secondary && 'mono')}>{t.primary}</span>
                         {#if t.secondary}<span class="text-muted-foreground mono truncate text-[11.5px]">({t.secondary})</span>{/if}
                       </h2>
                       <Button variant="ghost" size="icon-xs" aria-label="Copy id {field.id}" title="Copy the id" onclick={() => void copyId(field!.id)}><Copy aria-hidden="true" /></Button>
-                      <span class="text-muted-foreground text-[12px]">{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
+                      <Button variant="ghost" size="xs" title="This record's full row, in Datasets" onclick={() => openInDatasets(field!.id)}><Sheet_ aria-hidden="true" /> Open in Datasets</Button>
+                      <span class="text-muted-foreground text-[12px]">{fieldQuery.trim() ? `${int(shownChanges.length)} of ` : ''}{int(field.changes.length)} {field.changes.length === 1 ? 'field' : 'fields'}</span>
+                    </div>
+                    <div class="border-b px-3 py-1.5">
+                      <div class="relative max-w-sm">
+                        <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2 size-3.5 -translate-y-1/2" aria-hidden="true" />
+                        <Input type="search" aria-label="Filter changed fields" placeholder="Filter fields: shield, dps, Medusa…" class="h-7 pl-7 text-[12px]" bind:value={fieldQuery} />
+                      </div>
                     </div>
                     <div class="min-h-0 flex-1 overflow-auto" data-stop tabindex="-1">
                       <table class="w-full text-[12px]">
                         <thead class="text-muted-foreground bg-card sticky top-0 text-left text-[11.5px]">
                           <tr><th class="px-3 py-1.5 font-medium">Field</th><th class="px-3 py-1.5 font-medium">{label(summary.a)}</th><th class="px-3 py-1.5 font-medium">{label(summary.b)}</th><th class="px-3 py-1.5 font-medium">Δ</th></tr>
                         </thead>
-                        {#each groupChanges(field.changes) as g, gi (gi)}
+                        {#if !shownChanges.length}
+                          <tbody><tr><td colspan="4" class="text-muted-foreground px-3 py-4 text-center">No changed field matches “{fieldQuery.trim()}”. <Button size="sm" variant="link" class="h-auto p-0" onclick={() => (fieldQuery = '')}>Clear</Button></td></tr></tbody>
+                        {/if}
+                        {#each groupChanges(shownChanges) as g, gi (gi)}
                           <tbody>
                             {#if g.group && !dev.showIds}
                               <tr class="bg-muted/40 border-t border-border/60"><th colspan="4" scope="rowgroup" class="px-3 py-1 text-left text-[11.5px] font-semibold">{g.group}</th></tr>
@@ -466,6 +662,17 @@
                               <tr class="border-t border-border/60 align-top">
                                 <td class="px-3 py-1 break-all" title={c.path}>
                                   <span class={cn(path === c.path && 'mono')}>{path}</span>
+                                  {#each linksAt(field.row_links, c.path) as k (k.table + '/' + k.row)}
+                                    <button
+                                      type="button"
+                                      class="text-primary hover:bg-accent/60 ml-1.5 inline-flex items-center gap-0.5 rounded px-1 align-baseline text-[11px] whitespace-nowrap"
+                                      title={`${k.title ?? k.value} (${k.table})\n${k.diff_id !== null ? 'Changed too: open its changes' : 'Same on both sides: open its row in Datasets'}`}
+                                      aria-label={`Open ${k.title ?? k.value} in ${k.table}`}
+                                      onclick={() => void followLink(k)}
+                                    >
+                                      {#if k.diff_id !== null}<GitCompare class="size-3" aria-hidden="true" />{:else}<Sheet_ class="size-3" aria-hidden="true" />{/if}{k.table}
+                                    </button>
+                                  {/each}
                                   {#if path !== c.path}<span class="text-muted-foreground mono block text-[10.5px]">{c.path}</span>{/if}
                                 </td>
                                 <td class="text-destructive px-3 py-1 break-all" title={o.title}>

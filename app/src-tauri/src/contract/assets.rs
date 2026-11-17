@@ -25,7 +25,7 @@ pub use starorg_data::assets::audio::{
     RecordSounds, SoundInfo, SoundRef, SourceKind, TriggerHit, TriggerInfo, TriggerSearch,
 };
 pub use starorg_data::assets::files::{DirPage, FileEntry, FileSearch, PreviewKind};
-pub use starorg_data::assets::model::ModelPreset;
+pub use starorg_data::assets::model::{ModelPaint, ModelPaints, ModelPreset};
 
 /// Shown next to every export button (and in the CLI help).
 pub const PERSONAL_USE: &str =
@@ -187,6 +187,13 @@ pub struct AssetExportModelRequest {
     pub stl: bool,
     /// Export even with less free memory than the preset may need (after `needs-decision`).
     pub force: bool,
+    /// Full only: the paint to wear, a [`ModelPaint::tag`] from `asset_model_paints`
+    /// (`None` = the one the default loadout fits).
+    #[serde(default)]
+    pub paint: Option<String>,
+    /// Full only: StarBreaker's experimental layer materials too.
+    #[serde(default)]
+    pub layers: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -350,6 +357,9 @@ pub trait AssetBackend {
     /// The Model tab's slider: per LOD the memory estimate, the guard and the cache (never
     /// starts a worker).
     fn asset_model_info(&self, req: AssetModelInfoRequest) -> CmdResult<AssetModelInfo>;
+    /// The paints a ship can wear in a Full export and the one its loadout fits (reads the
+    /// DataCore in the asset worker).
+    fn asset_model_paints(&self, req: AssetRecordRequest) -> CmdResult<ModelPaints>;
     /// The record's Print shell GLB at this LOD into the asset cache (a fresh worker, stopped
     /// afterwards; none when cached). The memory guard as for exports.
     fn asset_model_view(
@@ -414,6 +424,7 @@ asset_commands! {
     asset_trigger(req: AssetTriggerRequest) -> TriggerInfo;
     asset_sound(req: AssetSoundRequest) -> AssetAudio;
     asset_model_info(req: AssetModelInfoRequest) -> AssetModelInfo;
+    asset_model_paints(req: AssetRecordRequest) -> ModelPaints;
     asset_cache_status() -> AssetCacheStatus;
     asset_cache_pick() -> AssetCacheStatus;
     asset_cache_reset() -> AssetCacheStatus;
@@ -454,6 +465,7 @@ pub const ASSET_COMMAND_NAMES: &[&str] = &[
     "asset_export_sounds",
     "asset_export_model",
     "asset_model_info",
+    "asset_model_paints",
     "asset_model_view",
     "asset_model_chunk",
     "asset_cache_status",

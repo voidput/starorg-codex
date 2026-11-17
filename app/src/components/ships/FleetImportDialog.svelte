@@ -3,7 +3,8 @@
    * Fleet import (addendum §6.3, 6.6): choose a file (RSI+ / FleetYards / FleetView / hangar.link
    * export, HangarXPLOR JSON or CSV) or paste a list, see the dry-run report (hulls with counts,
    * unmatched, ambiguous with a pick per row, rename suggestions), then Import. Replace is the
-   * default; "Add to my current fleet" merges. Nothing is written before Import. The real backend
+   * default; "Add to my current fleet" merges; "Remove all ships first" also drops the ships of
+   * My ships the import lacks (the report lists them). Nothing is written before Import. The real backend
    * opens the file picker inside the dry run and keeps the file for the Import step.
    */
   import FileJson from '@lucide/svelte/icons/file-json';
@@ -37,6 +38,8 @@
   const hangarOn = $derived(!!app.settings?.network.starorg && !!app.settings?.starorg.pull_fleet);
   let text = $state('');
   let merge = $state(false);
+  /** "Remove all ships first": My ships keeps only the ships of this import. Not with merge. */
+  let prune = $state(false);
   let report = $state<FleetImportReport | null>(null);
   let busy = $state(false);
   let failed = $state<string | null>(null);
@@ -59,7 +62,7 @@
     busy = true;
     failed = null;
     try {
-      report = await api.fleetImport({ target, source: source(), dry_run: true, merge });
+      report = await api.fleetImport({ target, source: source(), dry_run: true, merge, prune });
     } catch (e) {
       const c = toContractError(e);
       if (c.code !== 'cancelled') failed = c.message;
@@ -74,11 +77,12 @@
     failed = null;
     try {
       const src = mode === 'file' ? { kind: 'last' as const } : source();
-      const r = await api.fleetImport({ target, source: src, dry_run: false, merge });
+      const r = await api.fleetImport({ target, source: src, dry_run: false, merge, prune });
       for (const [name, hull] of Object.entries(picks)) await api.fleetMatch({ target, name, hull });
       const ships = r.hulls.reduce((n, h) => n + h.count, 0);
       const left = r.unmatched.length + r.ambiguous.length - Object.keys(picks).length;
-      toast('success', `Imported ${ships} ships (${r.hulls.length} models)`, `${r.added_to_order} added to the end of My ships.${left > 0 ? ` ${left} still to match.` : ''} Nothing is written to the game until ship names are on and you apply.`);
+      const gone = r.removed_from_order.length;
+      toast('success', `Imported ${ships} ships (${r.hulls.length} models)`, `${gone ? `${gone} removed from My ships, ` : ''}${r.added_to_order} added to the end.${left > 0 ? ` ${left} still to match.` : ''} Nothing is written to the game until ship names are on and you apply.`);
       open = false;
       ondone();
     } catch (e) {
@@ -109,7 +113,7 @@
         />
         {#if mode === 'file'}
           <div class="text-muted-foreground grid gap-1.5 text-[12.5px]">
-            <p><span class="text-foreground font-medium">RSI+:</span> My Hangar, then Export fleet, then HangarXPLOR JSON. FleetYards, FleetView (myfleet.gg) and hangar.link exports in the same format work too.</p>
+            <p><span class="text-foreground font-medium">RSI+:</span> Hangar (category), then ships, then Export fleet, then HangarXPLOR JSON. FleetYards, FleetView (myfleet.gg) and hangar.link exports in the same format work too.</p>
             <p>CSV works, but a ship you named is listed under its name only, so it has to be matched by hand. Prefer JSON.</p>
             <p>Only ship names, counts and the names you gave your ships are kept. Pledge names, prices, dates and insurance are not stored.</p>
           </div>
@@ -129,8 +133,15 @@
           </div>
         {/if}
         <div class="flex items-start gap-2">
-          <Checkbox id="{uid}-merge" checked={merge} onCheckedChange={(v) => (merge = v === true)} class="mt-0.5" />
+          <Checkbox id="{uid}-merge" checked={merge} onCheckedChange={(v) => { merge = v === true; if (merge) prune = false; }} class="mt-0.5" />
           <Label for="{uid}-merge" class="leading-snug font-normal">Add to my current fleet instead of replacing it</Label>
+        </div>
+        <div class="flex items-start gap-2">
+          <Checkbox id="{uid}-prune" checked={prune} onCheckedChange={(v) => { prune = v === true; if (prune) merge = false; }} class="mt-0.5" aria-describedby="{uid}-prune-hint" />
+          <div class="grid gap-0.5">
+            <Label for="{uid}-prune" class="leading-snug font-normal">Remove all ships first</Label>
+            <p id="{uid}-prune-hint" class="text-muted-foreground text-[12px]">My ships keeps only the ships of this import, so ships you sold or picked by hand go. Ships that stay keep their name, group and place. The check shows what goes before anything is removed.</p>
+          </div>
         </div>
       </div>
     {:else}
@@ -168,6 +179,18 @@
               {/each}
             </ul>
           </div>
+        {/if}
+        {#if r.prune && r.removed_from_order.length}
+          <Alert.Root variant="warning">
+            <TriangleAlert aria-hidden="true" />
+            <Alert.Title>Removed from My ships ({r.removed_from_order.length})</Alert.Title>
+            <Alert.Description>
+              <p>Not in this import, so they leave the list{r.removed_from_order.some((x) => x.rename) ? ', with the names you gave them' : ''}. Your settings for every other ship stay.</p>
+              <ul class="max-h-32 list-inside list-disc overflow-y-auto text-[12px]">{#each r.removed_from_order as x (x.hull)}<li>{x.name}{x.rename ? ` (“${x.rename}”)` : ''}</li>{/each}</ul>
+            </Alert.Description>
+          </Alert.Root>
+        {:else if r.prune}
+          <p class="text-muted-foreground text-[12.5px]">Every ship in My ships is in this import: nothing is removed.</p>
         {/if}
         {#if suggestions.length}
           <div>
@@ -212,7 +235,7 @@
       {:else}
         <Button variant="outline" disabled={busy} onclick={() => (report = null)}>Back</Button>
         <Button disabled={busy || report.empty_catalog || !report.hulls.length} aria-busy={busy} onclick={confirm}>
-          {#if busy}<LoaderCircle class="animate-spin" aria-hidden="true" />Importing…{:else}{merge ? 'Add' : 'Import'} {report.hulls.length} model{report.hulls.length === 1 ? '' : 's'}{/if}
+          {#if busy}<LoaderCircle class="animate-spin" aria-hidden="true" />Importing…{:else}{merge ? 'Add' : report.removed_from_order.length ? `Remove ${report.removed_from_order.length} and import` : 'Import'} {report.hulls.length} model{report.hulls.length === 1 ? '' : 's'}{/if}
         </Button>
       {/if}
     </Dialog.Footer>

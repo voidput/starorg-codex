@@ -279,11 +279,49 @@ pub fn view(p: ViewParts<'_>) -> FleetView {
     }
 }
 
+/// `merge` and `prune` together, or a real prune that matched no ship (it would empty My
+/// ships): refused before anything is written.
+pub fn check_prune(req: &FleetImportRequest, o: &Outcome) -> CmdResult<()> {
+    if !req.prune {
+        return Ok(());
+    }
+    if req.merge {
+        return Err(err(
+            ErrorCode::Invalid,
+            "\"Remove all ships first\" replaces the fleet; it cannot also add to it.",
+        ));
+    }
+    if !req.dry_run && o.report.hulls.is_empty() {
+        return Err(err(
+            ErrorCode::Invalid,
+            "No ship matched, so My ships would be emptied: nothing removed or imported.",
+        ));
+    }
+    Ok(())
+}
+
+/// "Remove all ships first": drop from `list` the ships the imported fleet does not have.
+pub fn prune_order(list: &mut ShipNames, o: &Outcome, cat: &Catalog) -> Vec<RemovedShip> {
+    let keep: Vec<String> = o.fleet.hulls.iter().map(|h| h.hull.clone()).collect();
+    list.prune_to(&keep)
+        .into_iter()
+        .map(|e| RemovedShip {
+            name: cat
+                .get(&e.hull)
+                .map(|h| h.name.trim().to_string())
+                .unwrap_or_else(|| e.hull.clone()),
+            rename: e.name,
+            hull: e.hull,
+        })
+        .collect()
+}
+
 pub fn report(
     o: &Outcome,
     file: Option<String>,
     dry_run: bool,
     appended: usize,
+    removed: Option<Vec<RemovedShip>>,
 ) -> FleetImportReport {
     let r = &o.report;
     let find = |name: &str| o.fleet.pending.iter().find(|p| p.name == name).map(pending);
@@ -323,6 +361,8 @@ pub fn report(
         not_in_game: r.not_in_game as u32,
         empty_catalog: r.empty_catalog,
         added_to_order: appended as u32,
+        prune: removed.is_some(),
+        removed_from_order: removed.unwrap_or_default(),
     }
 }
 

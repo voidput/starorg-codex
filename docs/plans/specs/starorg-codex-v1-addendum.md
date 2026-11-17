@@ -495,7 +495,14 @@ Hull D, …), the rest are alias-table material.
 - A real import **replaces** the fleet list (the export is the whole hangar); `--merge` adds
   to it instead (count = the larger of the two). Hand matches survive either way. Hulls new
   to the fleet are appended to the end of the shared order list (§6.4), ungrouped; nothing
-  is removed from the order list.
+  is removed from the order list, unless the import asks for a prune.
+- **Prune** (`--prune`, "Remove all ships first", `prune` in the contract): a replacing
+  import that also drops the ships of the shared order list that the new fleet does not
+  have, sold ships and hand picks alike. Ships that stay keep their group, rename and place;
+  groups stay even when empty; hand matches and the prefix style are untouched. The dry run
+  lists the ships it would drop (`removed_from_order`, with their renames). Refused with
+  `--merge`, and refused for a real import that matched no ship (it would empty the list).
+  Like the append, it acts on the shared list only; a channel's own list is left alone.
 - Unmatched and ambiguous rows are kept (name, maker code, ship code, count, custom names) so
   they can be matched by hand later: pick a hull, or "Not in the game" to stop asking.
 
@@ -674,8 +681,9 @@ Applies to: [All channels ▾]      Style: [None | 01 | A1 | Symbol]  Separator 
   to "All channels" asks before dropping the channel's own list.
 - **Import dialog** (same shell as the blueprint import): choose a file or paste text → dry
   run → report (hulls with counts, unmatched, ambiguous with a pick per row, rename
-  suggestions listed) → Import. Replace is the default; "Add to my current fleet" is a
-  checkbox.
+  suggestions listed) → Import. Replace is the default; "Add to my current fleet" and
+  "Remove all ships first" (prune, §6.3; the report lists what goes) are checkboxes, at most
+  one ticked.
 - **Unmatched review:** one row per pending name with a Combobox over the catalogue and
   "Not in the game".
 - **Empty states.** No game data read: "Read game data first" with the action. No fleet and
@@ -689,13 +697,13 @@ Applies to: [All channels ▾]      Style: [None | 01 | A1 | Symbol]  Separator 
 
 Contract (Rust contract + TS types/client + mock + samples + drift tests): `fleet_view`
 (catalogue, fleet, effective settings, scope, per-ship state), `fleet_import` (file dialog or
-pasted text; `dry_run`, `merge`), `fleet_match` (pending name → hull or none),
+pasted text; `dry_run`, `merge`, `prune`), `fleet_match` (pending name → hull or none),
 `save_ship_names` (scope + settings), `fleet_clear`.
 
 ### 6.7 CLI
 
 ```
-starorg-codex fleet import <file|-> [--dry-run] [--merge] [--format auto|xplor-json|xplor-csv|text]
+starorg-codex fleet import <file|-> [--dry-run] [--merge | --prune] [--format auto|xplor-json|xplor-csv|text]
                                       [--channel LIVE] [--json]
 starorg-codex fleet list [--channel LIVE] [--json]
 starorg-codex fleet match <row name> <hull id | none>
@@ -1199,8 +1207,19 @@ it. Raw data and every export stay unchanged.
     (`localStorage` `starorg.dev.showIds`).
   - Unresolved GUIDs and `@key`s show raw, marked "unresolved", never blank.
   - Diff records are titled "Bracer (COOL_AEGS_S01_Bracer_SCItem)" and filter by name or id.
-    Titles several records of a result share get the short id appended ("Aegis Javelin
-    (AEGS_Javelin_AI_Escort)"). Field changes are grouped by item or top-level field and read
+    Titles several records of a result share get the differing end of their record names
+    ("Aegis Tiburon · PU AI CRIM" next to plain "Aegis Tiburon"), else the short id when there
+    is no readable record name. The record list pane is resizable (drag the divider, arrow
+    keys; double-click resets; width remembered). A search box above the tables searches
+    every table's changed records by name or id (`dev_diff_search`; Enter opens the first hit);
+    a filter box on the field changes keeps the fields whose path, read path or either value
+    contains every word. Datasets reads number columns with the unit their name says
+    ("25,740 HP", grid and row tree). Rows that name other rows of the same dataset (a ship's
+    loadout naming its weapons by record name, in every table the item is in; `row_links`,
+    core `rowrefs`) link them on the line itself: in the Datasets row tree the naming value
+    opens that row; in the Diff field pane each changed line of the item opens its changes
+    (when it changed too) or its row in Datasets. "Open in Datasets" and "Show changes in Diff"
+    jump between the two screens. Field changes are grouped by item or top-level field and read
     as names, text and numbers with units. Positional list segments are named from the
     element (`loadout › weapons › M9A Cannon › dps`; LIVE vs PTU: 2,018 of 2,064 positional
     paths named). A key swapped for one with the same text shows both keys, the shared text
@@ -1349,9 +1368,29 @@ lights, attachments, LOD 1 by default. *Print shell (geometry only)* = `--materi
 primitives of the default scene, node transforms baked, Y-up -> Z-up), what
 `glb_to_stl_trimesh.py` did; no Blender needed.
 
+**Paints and layer materials (Full only).** A paint is an item on the ship's `hardpoint_paint`
+port; its `AttachDef.Tags` name one of the ship's top-level `SGeometryResourceParams`
+SubGeometry entries after an `@` (`Paint_Gladius @GladiusPirate`), which gives that paint's
+material set and tint palette (primary, secondary, tertiary, glass, decals). `asset_model_paints`
+(worker op `paints`, CLI `dev model-paints <guid|name>`) lists the ship's SubGeometry tags that
+some paint item (`AttachDef.Type` `Paints`) selects, with the in-game name from the stock
+`global.ini` (`AttachDef.Localization.Name`; placeholders dropped) and the paint the default
+loadout fits. The tags are read raw: StarBreaker's `sub_geometry_variants` splits
+`Paint_Gladius_Blue_Turquoise` into selector words. `paint` on the export request (CLI
+`--paint TAG`) fits that paint item on the loadout handed to StarBreaker (the port is added
+when the default loadout leaves it out), so StarBreaker's own `resolve_paint_override` applies
+it, as fitting the paint in game does; a tag the ship lacks is refused. `layers` (CLI
+`--layers`) uses `MaterialMode::All` instead of `Textures`: each layered (`LayerBlend_V2`)
+material's layer textures are written too, experimental (how they blend is the viewer's
+guess). Both are ignored for a Print shell (the CLI refuses them) and are part of the cache
+key and file name (`AEGS_Gladius-full-lod1-paint-gladiuspirate-layers.glb`). The Model tab
+still shows the Print shell. Measured on LIVE 4.10: 12 Gladius paints, listing 0.9 s; Gladius
+Full LOD 3 3.3 s, 1.8 GB, Pirate palette red/black/grey in the GLB extras (`paint_override`
+names `Paint_Gladius_Pirate`).
+
 **CLI.** `starorg-codex dev extract <p4k path|folder|glob>... --out DIR [--convert]`,
 `dev export-model <guid|name> --out FILE [--preset full|print] [--lod N] [--stl]
-[--cache-dir DIR]`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
+[--paint TAG] [--layers] [--cache-dir DIR]`, `dev model-paints <guid|name>`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
 [--cache-dir DIR]` (`--list` names each sound's codec and the file it becomes; the summary counts
 files by extension and lists the sounds kept as `.wem`, with why); in process, `extract.lock` while the archive is read, never into the install
 or a Wine prefix.

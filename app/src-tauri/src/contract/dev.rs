@@ -303,6 +303,32 @@ pub struct DevRowDetail {
     /// value (addendum 7.14).
     #[serde(default)]
     pub labels: std::collections::BTreeMap<String, Readable>,
+    /// Rows of the same dataset this row names.
+    #[serde(default)]
+    pub row_links: Vec<RowLink>,
+}
+
+/// A row of the same dataset this row names (a ship's loadout naming its weapons by record
+/// name). The Datasets row sheet and the Diff field pane list them to jump there.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RowLink {
+    /// JSON pointers of the values naming it, in order (one line each in the row).
+    pub pointers: Vec<String>,
+    pub value: String,
+    pub table: String,
+    pub row: u32,
+    /// Its display name (7.14), when it has one.
+    pub title: Option<String>,
+    /// Values of this row naming it ("4 Gatlings": one row, several mounts).
+    pub count: u32,
+    /// Diff only: the source the row is in (B's, or A's for a removed record).
+    #[serde(default)]
+    pub source: Option<String>,
+    /// Diff only: the linked row's record in the comparison, when it changed.
+    #[serde(default)]
+    pub diff_id: Option<String>,
+    #[serde(default)]
+    pub diff_state: Option<RecordState>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -352,6 +378,31 @@ pub struct DevDiffRecords {
     pub identity_options: Vec<String>,
 }
 
+/// Search every table of the comparison by record name or id (the Diff screen's top search).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevDiffSearchRequest {
+    pub target: ChannelRef,
+    /// Case-insensitive, matched like the per-table record filter.
+    pub query: String,
+    pub state: Option<RecordState>,
+    pub limit: u32,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DiffSearchHit {
+    pub dataset: String,
+    pub table: String,
+    pub record: DiffRecord,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevDiffSearch {
+    /// Tables in summary order, records in each table's order; at most `limit`.
+    pub hits: Vec<DiffSearchHit>,
+    /// Matches in all tables (more than `hits` when cut at `limit`).
+    pub total: u32,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevDiffRecordRequest {
     pub target: ChannelRef,
@@ -369,6 +420,9 @@ pub struct DevFieldDiff {
     pub label: Option<String>,
     pub state: RecordState,
     pub changes: Vec<FieldChange>,
+    /// Rows of the same dataset the record names (B's row, A's for a removed record).
+    #[serde(default)]
+    pub row_links: Vec<RowLink>,
 }
 
 /// The Developer mode half of the backend. Every method returns `dev-disabled` while the
@@ -417,6 +471,7 @@ pub trait DevBackend {
     fn dev_diff_records(&self, req: DevDiffRecordsRequest) -> CmdResult<DevDiffRecords>;
     fn dev_diff_groups(&self, req: DevDiffGroupsRequest) -> CmdResult<GroupPage>;
     fn dev_diff_record(&self, req: DevDiffRecordRequest) -> CmdResult<DevFieldDiff>;
+    fn dev_diff_search(&self, req: DevDiffSearchRequest) -> CmdResult<DevDiffSearch>;
 }
 
 pub fn disabled() -> AppError {
@@ -499,6 +554,7 @@ dev_commands! {
     dev_diff_records(req: DevDiffRecordsRequest) -> DevDiffRecords;
     dev_diff_groups(req: DevDiffGroupsRequest) -> GroupPage;
     dev_diff_record(req: DevDiffRecordRequest) -> DevFieldDiff;
+    dev_diff_search(req: DevDiffSearchRequest) -> DevDiffSearch;
 }
 
 dev_progress_commands! {
@@ -533,16 +589,49 @@ pub fn field_counts(records: &[DiffRecord]) -> Vec<ValueCount> {
     v
 }
 
+/// The part of each record name that tells records sharing a title apart: the common
+/// leading `_` segments dropped, the rest with spaces ("PU AI CRIM" for
+/// `AEGS_Tiburon_PU_AI_CRIM` next to `AEGS_Tiburon`). `None` for the record named by the
+/// common part alone. Names that are not all different give `None` everywhere.
+fn name_tails(names: &[&str]) -> Vec<Option<String>> {
+    let distinct = names
+        .iter()
+        .map(|n| n.to_lowercase())
+        .collect::<std::collections::HashSet<_>>()
+        .len();
+    if distinct != names.len() {
+        return vec![None; names.len()];
+    }
+    let segs: Vec<Vec<&str>> = names.iter().map(|n| n.split('_').collect()).collect();
+    let mut common = 0;
+    while segs.iter().all(|s| s.len() > common)
+        && segs
+            .iter()
+            .all(|s| s[common].eq_ignore_ascii_case(segs[0][common]))
+    {
+        common += 1;
+    }
+    segs.iter()
+        .map(|s| {
+            let tail = s[common..].join(" ");
+            (!tail.trim().is_empty()).then(|| tail.trim().to_string())
+        })
+        .collect()
+}
+
 /// Shared by both backends: filter, page and trim one table's diff records. `title` gives a
-/// record's display name (addendum 7.14); the text query matches it and the id. Titles that
-/// several records of the result share get the record's short id appended ("Aegis Javelin
-/// (AEGS_Javelin_AI_Escort)").
+/// record's display name (addendum 7.14); the text query matches it and the id. `name` gives
+/// its record name (`recordName` / `className`), when the row has one. Titles that several
+/// records of the result share are told apart by the differing end of their record names
+/// ("Aegis Tiburon · PU AI CRIM" next to plain "Aegis Tiburon"), else by the short id
+/// ("Aegis Javelin (AEGS_Javelin_AI_Escort)", or a GUID).
 pub fn page_records(
     d: &starorg_core::dev::diff::TableDiff,
     req: &DevDiffRecordsRequest,
     identity_options: Vec<String>,
     in_group: &dyn Fn(&DiffRecord) -> bool,
     title: &dyn Fn(&DiffRecord) -> Option<String>,
+    name: &dyn Fn(&DiffRecord) -> Option<String>,
 ) -> DevDiffRecords {
     let needle = req
         .query
@@ -571,26 +660,64 @@ pub fn page_records(
             }
         })
         .collect();
-    let mut seen: std::collections::HashMap<&str, u32> = std::collections::HashMap::new();
-    for t in hits.iter().filter_map(|h| h.1.as_deref()) {
-        *seen.entry(t).or_default() += 1;
+    // Shared titles: the record name of each, then the part that differs.
+    let mut groups: std::collections::HashMap<&str, Vec<usize>> = std::collections::HashMap::new();
+    for (i, t) in hits.iter().enumerate() {
+        if let Some(t) = t.1.as_deref() {
+            groups.entry(t).or_default().push(i);
+        }
+    }
+    enum Suffix {
+        Plain,
+        Tail(String),
+        ShortId,
+    }
+    let mut suffix: std::collections::HashMap<usize, Suffix> = std::collections::HashMap::new();
+    for idx in groups.values().filter(|v| v.len() > 1) {
+        // No record name: the id stands in, unless it is a GUID (nothing readable in it).
+        let names: Option<Vec<String>> = idx
+            .iter()
+            .map(|&i| {
+                let r = hits[i].0;
+                name(r)
+                    .or_else(|| {
+                        (!starorg_core::dev::explorer::is_guid(&r.id)).then(|| r.id.clone())
+                    })
+                    .map(|n| starorg_core::model::short_name(&n).to_string())
+            })
+            .collect();
+        let tails = match &names {
+            Some(n) => name_tails(&n.iter().map(String::as_str).collect::<Vec<_>>()),
+            None => vec![None; idx.len()],
+        };
+        // Told apart by name: the base record keeps the plain title. Otherwise: the short id.
+        let by_name = tails.iter().any(Option::is_some);
+        for (k, &i) in idx.iter().enumerate() {
+            let label = match (&tails[k], by_name) {
+                (Some(t), _) => Suffix::Tail(t.clone()),
+                (None, true) => Suffix::Plain,
+                (None, false) => Suffix::ShortId,
+            };
+            suffix.insert(i, label);
+        }
     }
     let limit = (req.limit as usize).clamp(1, starorg_core::dev::explorer::MAX_PAGE);
     DevDiffRecords {
         summary: d.summary.clone(),
         records: hits
             .iter()
+            .enumerate()
             .skip(req.offset as usize)
             .take(limit)
-            .map(|(r, t)| {
+            .map(|(i, (r, t))| {
                 let mut r = (*r).clone();
                 r.fields.truncate(20);
                 r.label = t.as_deref().map(|t| {
                     let short = starorg_core::model::short_name(&r.id);
-                    if seen.get(t).is_some_and(|&n| n > 1) && t != short {
-                        format!("{t} ({short})")
-                    } else {
-                        t.to_string()
+                    match suffix.get(&i) {
+                        Some(Suffix::Tail(tail)) => format!("{t} · {tail}"),
+                        Some(Suffix::ShortId) if t != short => format!("{t} ({short})"),
+                        _ => t.to_string(),
                     }
                 });
                 r
@@ -615,6 +742,138 @@ pub fn side_table<'a>(
     side.iter()
         .find(|x| x.0 == dataset)
         .and_then(|x| x.1.table(table))
+}
+
+/// Shared by both backends: the records of every table whose title or id contains the query,
+/// labelled as the per-table list labels them. An empty query finds nothing.
+pub fn search_tables(
+    tables: &[starorg_core::dev::diff::TableDiff],
+    a: &DiffSideSets,
+    b: &DiffSideSets,
+    req: &DevDiffSearchRequest,
+    la: &dyn starorg_core::dev::readable::Lookup,
+    lb: &dyn starorg_core::dev::readable::Lookup,
+) -> DevDiffSearch {
+    let query = req.query.trim();
+    let limit = (req.limit as usize).clamp(1, starorg_core::dev::explorer::MAX_PAGE);
+    let mut out = DevDiffSearch {
+        hits: Vec::new(),
+        total: 0,
+    };
+    if query.is_empty() {
+        return out;
+    }
+    for td in tables {
+        let (ds, tn) = (&td.summary.dataset, &td.summary.table);
+        let (ta, tb) = (side_table(a, ds, tn), side_table(b, ds, tn));
+        let id = td.summary.identity.as_deref();
+        let page = page_records(
+            td,
+            &DevDiffRecordsRequest {
+                target: req.target.clone(),
+                dataset: ds.clone(),
+                table: tn.clone(),
+                state: req.state,
+                field: None,
+                identity: None,
+                query: Some(query.to_string()),
+                offset: 0,
+                limit: (limit - out.hits.len().min(limit)).max(1) as u32,
+                group: None,
+            },
+            Vec::new(),
+            &|_| true,
+            &|r| record_title(r, id, ta, tb, la, lb),
+            &|r| record_name(r, ta, tb),
+        );
+        out.total += page.total;
+        for r in page.records {
+            if out.hits.len() < limit {
+                out.hits.push(DiffSearchHit {
+                    dataset: ds.clone(),
+                    table: tn.clone(),
+                    record: r,
+                });
+            }
+        }
+    }
+    out
+}
+
+/// At most this many linked rows per row.
+pub const MAX_ROW_LINKS: usize = 60;
+
+/// Shared by both backends: the rows of `d` that row `row` of `table` names, titled.
+pub fn row_links(
+    d: &starorg_core::dev::dataset::Dataset,
+    table: &str,
+    row: u32,
+    l: &dyn starorg_core::dev::readable::Lookup,
+) -> Vec<RowLink> {
+    use starorg_core::dev::rowrefs::{RowAt, RowIndex, refs_in};
+    let Some(v) = d.table(table).and_then(|t| t.rows.get(row as usize)) else {
+        return Vec::new();
+    };
+    let index = RowIndex::new(d);
+    refs_in(v, &index, RowAt { table, row })
+        .into_iter()
+        .take(MAX_ROW_LINKS)
+        .map(|r| RowLink {
+            title: d
+                .table(r.at.table)
+                .and_then(|t| t.rows.get(r.at.row as usize))
+                .and_then(|x| starorg_core::dev::readable::row_title(l, x, None)),
+            pointers: r.pointers,
+            value: r.value,
+            table: r.at.table.to_string(),
+            row: r.at.row,
+            count: r.count,
+            source: None,
+            diff_id: None,
+            diff_state: None,
+        })
+        .collect()
+}
+
+/// Shared by both backends: [`row_links`] of a diff record's row (B's, A's when removed),
+/// each with its source and, when the linked row changed too, its record in the comparison.
+#[allow(clippy::too_many_arguments)]
+pub fn diff_row_links(
+    tables: &[starorg_core::dev::diff::TableDiff],
+    summary: &DevDiffSummary,
+    a: &DiffSideSets,
+    b: &DiffSideSets,
+    dataset: &str,
+    table: &str,
+    rec: &DiffRecord,
+    la: &dyn starorg_core::dev::readable::Lookup,
+    lb: &dyn starorg_core::dev::readable::Lookup,
+) -> Vec<RowLink> {
+    let (side, row, source, l, on_b) = match (rec.b, rec.a) {
+        (Some(r), _) => (b, r, &summary.b, lb, true),
+        (None, Some(r)) => (a, r, &summary.a, la, false),
+        (None, None) => return Vec::new(),
+    };
+    let Some(d) = side.iter().find(|x| x.0 == dataset).map(|x| &x.1) else {
+        return Vec::new();
+    };
+    let mut links = row_links(d, table, row, l);
+    for k in &mut links {
+        k.source = Some(source.clone());
+        let found = tables
+            .iter()
+            .find(|t| t.summary.dataset == dataset && t.summary.table == k.table)
+            .and_then(|t| {
+                t.records
+                    .iter()
+                    .find(|r| (if on_b { r.b } else { r.a }) == Some(k.row))
+            });
+        if let Some(r) = found {
+            k.diff_id = Some(r.id.clone());
+            k.diff_state = Some(r.state);
+        }
+    }
+    links
 }
 
 /// Shared by both backends: the Diff tree of a comparison (addendum 7.15).
@@ -678,6 +937,22 @@ pub fn record_title(
     row(b, r.b)
         .and_then(|x| row_title(lb, x, identity))
         .or_else(|| row(a, r.a).and_then(|x| row_title(la, x, identity)))
+}
+
+/// A diff record's record name (`recordName`, else `className`), B's row first.
+pub fn record_name(
+    r: &DiffRecord,
+    a: Option<&starorg_core::dev::dataset::Table>,
+    b: Option<&starorg_core::dev::dataset::Table>,
+) -> Option<String> {
+    let of = |t: Option<&starorg_core::dev::dataset::Table>, i: Option<u32>| {
+        let row = t?.rows.get(i? as usize)?;
+        ["recordName", "className"]
+            .iter()
+            .find_map(|k| row.get(*k).and_then(serde_json::Value::as_str))
+            .map(str::to_string)
+    };
+    of(b, r.b).or_else(|| of(a, r.a))
 }
 
 /// Explorer links in a dataset row (7.5): GUID-shaped strings found in the index, and

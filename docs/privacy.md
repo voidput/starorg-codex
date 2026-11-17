@@ -87,10 +87,10 @@ org names shown in the app are kept in `app.json`.
 
 The Microsoft Store version never checks GitHub: the Store installs its updates.
 
-**Support and Buy me a coffee** (footer and Footer -> About) open `discord.gg` or
-`buymeacoffee.com` in your browser, only when you click them. The app itself sends nothing:
-your browser loads the page, under that site's privacy terms. The app can open only these two
-fixed addresses.
+**Support, Buy me a coffee and Patreon** (footer and Footer -> About) open `discord.gg`,
+`buymeacoffee.com` or `patreon.com` in your browser, only when you click them. The app itself
+sends nothing: your browser loads the page, under that site's privacy terms. The app can open
+only these three fixed addresses.
 
 ## Local MCP server (experimental, off by default)
 

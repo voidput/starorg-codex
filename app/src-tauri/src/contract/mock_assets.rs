@@ -626,6 +626,33 @@ impl MockBackend {
         }
     }
 
+    /// A mock ship's paints: two liveries (the first fitted), none for an item.
+    fn mock_paints(&self, what: &str) -> CmdResult<ModelPaints> {
+        let (name, ship) = self.model_record(what)?;
+        let short = name.rsplit('.').next().unwrap_or(&name).to_string();
+        let paints = if ship {
+            [
+                ("Pirate", "Pirate Livery"),
+                ("BlackGold", "Black and Gold Livery"),
+            ]
+            .into_iter()
+            .map(|(t, n)| ModelPaint {
+                tag: format!("{short}{t}"),
+                name: Some(format!("{short} {n}")),
+                items: vec![format!("Paint_{short}_{t}")],
+            })
+            .collect()
+        } else {
+            Vec::new()
+        };
+        let equipped = ship.then(|| format!("{short}Pirate"));
+        Ok(ModelPaints {
+            what: what.to_string(),
+            paints,
+            equipped,
+        })
+    }
+
     fn cache_view(&self) -> AssetCacheStatus {
         let s = self.asset_state();
         AssetCacheStatus {
@@ -957,11 +984,26 @@ impl AssetBackend for MockBackend {
     ) -> CmdResult<AssetExportResult> {
         self.asset_on(&req.target)?;
         let (rec_name, _) = self.model_record(&req.what)?;
+        if req.preset == ModelPreset::Full
+            && let Some(tag) = req.paint.as_deref().filter(|t| !t.trim().is_empty())
+            && !self
+                .mock_paints(&req.what)?
+                .paints
+                .iter()
+                .any(|p| p.tag.eq_ignore_ascii_case(tag.trim()))
+        {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                format!("{rec_name} has no paint {tag:?} (see its paints)"),
+            ));
+        }
         let lod = req.lod.min(starorg_data::assets::model::MAX_LOD);
         let o = starorg_data::assets::model::ModelOptions {
             preset: req.preset,
             lod: starorg_data::assets::model::effective_lod(lod, &self.known_lods(&req.what)),
             stl: req.stl,
+            paint: req.paint.clone(),
+            layers: req.layers,
         };
         let key = format!("model:{}", o.cache_key(&req.what));
         let held = self.cache_size(&key);
@@ -998,6 +1040,12 @@ impl AssetBackend for MockBackend {
         })
     }
 
+    fn asset_model_paints(&self, req: AssetRecordRequest) -> CmdResult<ModelPaints> {
+        self.assets_open(&req.target)?;
+        self.asset_state().datacore = true;
+        self.mock_paints(&req.what)
+    }
+
     fn asset_model_info(&self, req: AssetModelInfoRequest) -> CmdResult<AssetModelInfo> {
         use starorg_core::memlimit;
         use starorg_data::assets::model::{self, ModelOptions};
@@ -1018,6 +1066,7 @@ impl AssetBackend for MockBackend {
                     preset: ModelPreset::PrintShell,
                     lod: uses,
                     stl: false,
+                    ..Default::default()
                 };
                 let bytes = self.cache_size(&format!("model:{}", o.cache_key(&req.what)));
                 let triangles = bytes.and_then(|_| {
@@ -1066,6 +1115,7 @@ impl AssetBackend for MockBackend {
                 preset: ModelPreset::PrintShell,
                 lod,
                 stl: false,
+                ..Default::default()
             };
             format!("model:{}", o.cache_key(&req.what))
         };
@@ -1129,6 +1179,7 @@ impl AssetBackend for MockBackend {
             preset: ModelPreset::PrintShell,
             lod: req.lod.min(starorg_data::assets::model::MAX_LOD),
             stl: false,
+            ..Default::default()
         };
         if self
             .cache_size(&format!("model:{}", o.cache_key(&req.what)))

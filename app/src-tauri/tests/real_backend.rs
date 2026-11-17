@@ -783,8 +783,17 @@ fn smart_citizen_import_dry_run_reports_and_writes_nothing() {
         .join("blueprints/300003.json");
     assert!(!set.exists(), "dry run wrote {}", set.display());
 
-    // For real: the character owns it now.
-    let r = f.backend.import_smart_citizen(req(false)).unwrap();
+    // For real: the confirm step reads the file the dry run just read, with no second
+    // picker (none is answered now), and the character owns it.
+    *f.pick.lock().unwrap() = None;
+    let r = f
+        .backend
+        .import_smart_citizen(ImportRequest {
+            reuse_last: true,
+            ..req(false)
+        })
+        .unwrap();
+    assert_eq!(r.file, "owned-blueprints.json");
     assert_eq!(r.imported.len(), 1);
     let owned = f
         .backend
@@ -1225,6 +1234,7 @@ fn starorg_sign_in_pull_push_hangar_and_sign_out_against_a_local_server() {
         source: FleetSource::StarOrg,
         dry_run: true,
         merge: true,
+        prune: false,
     };
     assert_eq!(
         f.backend.fleet_import(hangar.clone()).unwrap_err().code,
@@ -1639,6 +1649,56 @@ const FLEET_EXPORT: &str = r#"[
  {"ship_code":"SYN_Zulu","ship_name":"Zulu","manufacturer_code":"SYN","name":"Zulu","entity_type":"ship"}
 ]"#;
 
+const BRAVO_ONLY: &str =
+    r#"[{"ship_code":"SYN_Bravo","manufacturer_code":"SYN","name":"Bravo","entity_type":"ship"}]"#;
+
+#[test]
+fn fleet_import_prune_rewrites_the_shared_order_list() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    f.setup_live();
+    let req = |text: &str, dry_run, prune| FleetImportRequest {
+        target: f.live(),
+        source: FleetSource::Text { text: text.into() },
+        dry_run,
+        merge: false,
+        prune,
+    };
+    let v = f
+        .backend
+        .fleet_view(FleetViewRequest {
+            target: f.live(),
+            read_game_data: true,
+        })
+        .unwrap();
+    assert!(v.catalog_ready);
+    let r = f
+        .backend
+        .fleet_import(req(FLEET_EXPORT, false, false))
+        .unwrap();
+    assert_eq!(r.added_to_order, 2);
+    let names_toml = f.dirs.data.join("ship-names.toml");
+    let before = std::fs::read_to_string(&names_toml).unwrap();
+
+    let r = f.backend.fleet_import(req(BRAVO_ONLY, true, true)).unwrap();
+    assert_eq!(r.removed_from_order.len(), 1);
+    assert_eq!(r.removed_from_order[0].hull, "vehicle_NameSYN_Alpha");
+    assert_eq!(std::fs::read_to_string(&names_toml).unwrap(), before);
+
+    let r = f
+        .backend
+        .fleet_import(req(BRAVO_ONLY, false, true))
+        .unwrap();
+    assert_eq!((r.removed_from_order.len(), r.added_to_order), (1, 0));
+    let after = std::fs::read_to_string(&names_toml).unwrap();
+    assert!(
+        !after.contains("SYN_Alpha") && after.contains("SYN_Bravo"),
+        "{after}"
+    );
+}
+
 #[test]
 fn fleet_import_order_and_ship_names_through_apply() {
     if elevated() {
@@ -1671,6 +1731,7 @@ fn fleet_import_order_and_ship_names_through_apply() {
         source,
         dry_run,
         merge: false,
+        prune: false,
     };
     let r = f
         .backend

@@ -1648,6 +1648,11 @@ pub struct FleetImportRequest {
     pub dry_run: bool,
     /// Add to the fleet instead of replacing it.
     pub merge: bool,
+    /// "Remove all ships first": replace the fleet and drop the ships of the shared My
+    /// ships list that the import does not have. Ships that stay keep their group, rename
+    /// and place. Not with `merge`.
+    #[serde(default)]
+    pub prune: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1677,6 +1682,18 @@ pub struct FleetImportReport {
     pub empty_catalog: bool,
     /// Hulls appended to the shared order list (0 for a dry run).
     pub added_to_order: u32,
+    pub prune: bool,
+    /// With `prune`: ships dropped from the shared order list (would be, on a dry run).
+    pub removed_from_order: Vec<RemovedShip>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RemovedShip {
+    pub hull: String,
+    /// Catalogue name; the hull id when the build does not have it.
+    pub name: String,
+    /// Its rename in My ships, lost with it.
+    pub rename: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2009,6 +2026,8 @@ pub enum ExternalLink {
     Support,
     /// Buy me a coffee.
     Donate,
+    /// StarOrg Tools on Patreon.
+    Patreon,
 }
 
 impl ExternalLink {
@@ -2016,6 +2035,7 @@ impl ExternalLink {
         match self {
             Self::Support => "https://discord.gg/GCkYhbFYNq",
             Self::Donate => "https://buymeacoffee.com/zedwil",
+            Self::Patreon => "https://www.patreon.com/cw/StarOrgTools",
         }
     }
 
@@ -2023,6 +2043,7 @@ impl ExternalLink {
         match self {
             Self::Support => "Support",
             Self::Donate => "Buy me a coffee",
+            Self::Patreon => "Patreon",
         }
     }
 }

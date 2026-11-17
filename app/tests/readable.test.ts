@@ -3,8 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SHOW_IDS_KEY, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
-import { type Lookup, pathLabelIn } from '../src/lib/contract/mock-dev.ts';
+import { SHOW_IDS_KEY, changeMatches, linksAt, numberCell, unitOf, changeTexts, groupChanges, idLike, loadShowIds, saveShowIds, shown, titled, valueText } from '../src/lib/readable.ts';
+import { type Lookup, nameTails, pathLabelIn } from '../src/lib/contract/mock-dev.ts';
 import type { DevFieldDiff, Readable, RecordView, RowsPage } from '../src/lib/contract/dev.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
@@ -134,4 +134,53 @@ test('positional paths name the element they point at (TS mock mirror)', () => {
   const row = { loadout: { weapons: [{ name: 'Left Gun', dps: 1 }, { name: 'Right Gun', dps: 2 }] } };
   assert.equal(pathLabelIn(none, '/loadout/weapons/1/dps', row), 'loadout › weapons › Right Gun › dps');
   assert.equal(pathLabelIn(none, '/a/0/b', { a: [{ b: 1 }] }), null);
+});
+
+test('changeMatches: words against path, read path, group and both sides with units', () => {
+  const c = {
+    path: '/loadout/weapons/0/dps',
+    path_label: 'loadout › weapons › CF-447 Rhino Repeater › dps',
+    group: 'loadout',
+    old: 817.88,
+    new: 2204.13,
+    old_label: null,
+    new_label: null,
+    unit: 'dmg/s',
+  };
+  assert.equal(changeMatches(c, '', false), true);
+  assert.equal(changeMatches(c, 'rhino', false), true);
+  assert.equal(changeMatches(c, 'DPS rhino', false), true, 'every word, any case');
+  assert.equal(changeMatches(c, 'dmg/s', false), true, 'unit as shown');
+  assert.equal(changeMatches(c, '2204', false), true, 'raw number');
+  assert.equal(changeMatches(c, 'shield', false), false);
+  assert.equal(changeMatches(c, 'rhino shield', false), false);
+});
+
+test('nameTails: the differing end of shared-title record names', () => {
+  assert.deepEqual(nameTails(['AEGS_Tiburon', 'AEGS_Tiburon_PU_AI_CIV', 'AEGS_Tiburon_PU_AI_CRIM']), [null, 'PU AI CIV', 'PU AI CRIM']);
+  assert.deepEqual(nameTails(['AEGS_Javelin_AI_Escort', 'AEGS_Javelin_AI_Boss']), ['Escort', 'Boss']);
+  assert.deepEqual(nameTails(['A_B', 'a_b']), [null, null], 'same name twice: nothing to tell apart');
+});
+
+test('numberCell and unitOf: Datasets numbers read like the Diff', () => {
+  assert.equal(numberCell('25740', unitOf('totals/armorHealth'), false), '25,740 HP');
+  assert.equal(numberCell('817.88', 'dmg/s', false), '817.88 dmg/s');
+  assert.equal(numberCell('1234567', null, false), '1,234,567');
+  assert.equal(numberCell('25740', 'HP', true), '25740', 'Show IDs: raw');
+  assert.equal(numberCell('n/a', 'HP', false), 'n/a');
+  assert.equal(numberCell(null, 'HP', false), null);
+  assert.equal(unitOf('size'), null);
+});
+
+test('linksAt: a link belongs to the line naming it and to that item\'s other lines', () => {
+  const gat = { pointers: ['/loadout/weapons/0/item', '/loadout/weapons/1/item'], table: 'weapons' };
+  const can = { pointers: ['/loadout/weapons/2/item'], table: 'weapons' };
+  const links = [gat, can];
+  assert.deepEqual(linksAt(links, '/loadout/weapons/0/dps'), [gat]);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/1/item'), [gat]);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/2/dps'), [can]);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/10/dps'), [], 'not a prefix match on 1');
+  assert.deepEqual(linksAt(links, '/totals/weaponDps'), []);
+  assert.deepEqual(linksAt(links, '/loadout/weapons/0/dps', true), [], 'exact: the value line only');
+  assert.deepEqual(linksAt(links, '/loadout/weapons/0/item', true), [gat]);
 });

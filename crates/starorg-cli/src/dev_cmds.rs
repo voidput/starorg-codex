@@ -97,6 +97,7 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
         ),
         cmd @ (DevCmd::Extract { .. }
         | DevCmd::ExportModel { .. }
+        | DevCmd::ModelPaints { .. }
         | DevCmd::ExportSounds { .. }) => crate::asset_cmds::run(g, cmd),
     }
 }

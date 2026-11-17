@@ -252,3 +252,66 @@ fn text_from_stdin_and_refusals() {
     assert_eq!(v["report"]["empty_catalog"], true);
     assert!(!data_root(&f).join("fleet.json").exists());
 }
+
+#[test]
+fn prune_drops_listed_ships_the_import_lacks() {
+    let f = Fake::new();
+    let gd = with_ships(&f);
+    let file = export(&f);
+    f.setup("LIVE");
+    let names_toml = data_root(&f).join("ship-names.toml");
+    let (code, v) = run_json(&f, &gd, &["fleet", "import", file.to_str().unwrap()]);
+    assert_eq!((code, &v["added_to_order"]), (0, &json!(2)), "{v}");
+
+    let bravo = f.base.join("bravo.txt");
+    std::fs::write(&bravo, "Synthetic Bravo\n").unwrap();
+    let before = std::fs::read_to_string(&names_toml).unwrap();
+    let (code, v) = run_json(
+        &f,
+        &gd,
+        &[
+            "fleet",
+            "import",
+            bravo.to_str().unwrap(),
+            "--prune",
+            "--dry-run",
+        ],
+    );
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["removed_from_order"], json!(["vehicle_NameSYN_Alpha"]));
+    assert_eq!(std::fs::read_to_string(&names_toml).unwrap(), before);
+
+    // --merge and --prune together is a usage error; nothing matched is refused.
+    let out = f.run(&[
+        "--test-gamedata",
+        gd.to_str().unwrap(),
+        "fleet",
+        "import",
+        bravo.to_str().unwrap(),
+        "--prune",
+        "--merge",
+    ]);
+    assert!(!out.status.success());
+    let junk = f.base.join("junk.txt");
+    std::fs::write(&junk, "Nothing Like A Ship\n").unwrap();
+    let (code, v) = run_json(
+        &f,
+        &gd,
+        &["fleet", "import", junk.to_str().unwrap(), "--prune"],
+    );
+    assert_ne!(code, 0, "{v}");
+    assert_eq!(std::fs::read_to_string(&names_toml).unwrap(), before);
+
+    let (code, v) = run_json(
+        &f,
+        &gd,
+        &["fleet", "import", bravo.to_str().unwrap(), "--prune"],
+    );
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["written"], true);
+    let after = std::fs::read_to_string(&names_toml).unwrap();
+    assert!(
+        !after.contains("SYN_Alpha") && after.contains("SYN_Bravo"),
+        "{after}"
+    );
+}

@@ -57,8 +57,8 @@
     if (!character || !report) return;
     busy = true;
     try {
-      // The picker opens again: a dry run remembers nothing (pick the same file).
-      const r = await api.importSmartCitizen({ target, character, dry_run: false });
+      // The file the check just read (the backend remembers it): no second picker.
+      const r = await api.importSmartCitizen({ target, character, dry_run: false, reuse_last: true });
       toast('success', `Imported ${r.imported.length} blueprints for ${name(character)}`, `${r.known.length} were already known. Re-apply to update [Owned] tags.`);
       open = false;
       ondone(character);

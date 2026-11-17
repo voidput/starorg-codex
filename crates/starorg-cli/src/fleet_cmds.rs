@@ -29,9 +29,20 @@ pub fn run(g: &GlobalOpts, cmd: FleetCmd) -> ExitCode {
             file,
             dry_run,
             merge,
+            prune,
             format,
             channel,
-        } => import_cmd(g, &file, dry_run, merge, &format, channel.as_deref()),
+        } => import_cmd(
+            g,
+            &file,
+            ImportOpts {
+                dry_run,
+                merge,
+                prune,
+            },
+            &format,
+            channel.as_deref(),
+        ),
         FleetCmd::List { channel } => list(g, channel.as_deref()),
         FleetCmd::Match {
             name,
@@ -111,14 +122,36 @@ fn append_to_order(c: &Ctx, added: &[String]) -> Result<usize, String> {
     Ok(n)
 }
 
+struct ImportOpts {
+    dry_run: bool,
+    merge: bool,
+    /// Drop the listed ships the import does not have (`--prune`).
+    prune: bool,
+}
+
+/// `--prune`: the shared list without the ships `out` lacks, and the dropped entries.
+fn prune_order(
+    c: &Ctx,
+    out: &import::Outcome,
+) -> Result<(store::ShipNames, Vec<store::ShipEntry>), String> {
+    let mut s = store::load_shared(&c.dirs)?;
+    let keep: Vec<String> = out.fleet.hulls.iter().map(|h| h.hull.clone()).collect();
+    let gone = s.prune_to(&keep);
+    Ok((s, gone))
+}
+
 fn import_cmd(
     g: &GlobalOpts,
     file: &Path,
-    dry_run: bool,
-    merge: bool,
+    opts: ImportOpts,
     format: &str,
     channel: Option<&str>,
 ) -> ExitCode {
+    let ImportOpts {
+        dry_run,
+        merge,
+        prune,
+    } = opts;
     let fmt = match format {
         "auto" => None,
         f => match Format::parse(f) {
@@ -168,6 +201,21 @@ fn import_cmd(
     };
     let mut out = import::run(&parsed, &cat, &fleet, merge);
     let r = &out.report;
+    if prune && !dry_run && !r.empty_catalog && r.hulls.is_empty() {
+        return fail(
+            g,
+            exit::ERROR,
+            "nothing-matched",
+            "--prune: no ship matched, so the ship-names list would be emptied; nothing removed or imported",
+        );
+    }
+    let mut pruned = None;
+    if prune && !r.empty_catalog {
+        pruned = match prune_order(&o.c, &out) {
+            Ok(p) => Some(p),
+            Err(e) => return fail(g, exit::ERROR, "io", &e),
+        };
+    }
     let mut written = false;
     let mut appended = 0;
     if !dry_run && !r.empty_catalog {
@@ -176,17 +224,28 @@ fn import_cmd(
             return fail(g, exit::ERROR, "io", &e);
         }
         written = true;
+        if let Some((list, gone)) = &pruned
+            && !gone.is_empty()
+            && let Err(e) = store::save_shared(&o.c.dirs, list)
+        {
+            return fail(g, exit::ERROR, "io", &e);
+        }
         appended = match append_to_order(&o.c, &out.added) {
             Ok(n) => n,
             Err(e) => return fail(g, exit::ERROR, "io", &e),
         };
     }
     let r = &out.report;
+    let removed: Vec<&str> = pruned
+        .as_ref()
+        .map(|(_, gone)| gone.iter().map(|e| e.hull.as_str()).collect())
+        .unwrap_or_default();
     if g.json {
         println!(
             "{}",
             json!({ "schema": JSON_SCHEMA, "command": "fleet import", "channel": ch.name,
                     "dry_run": dry_run, "written": written, "added_to_order": appended,
+                    "prune": prune, "removed_from_order": removed,
                     "fleet_file": store::fleet_path(&o.c.dirs), "report": r })
         );
     } else if !g.quiet {
@@ -245,6 +304,17 @@ fn import_cmd(
         }
         if !r.unmatched.is_empty() || !r.ambiguous.is_empty() {
             println!("  match by hand: starorg-codex fleet match \"<row name>\" <hull id|none>");
+        }
+        for h in &removed {
+            let name = cat.get(h).map(|c| c.name.trim()).unwrap_or(h);
+            println!(
+                "  - {name:<40} {} the ship-names list  {h}",
+                if written {
+                    "removed from"
+                } else {
+                    "would leave"
+                }
+            );
         }
         if written && appended > 0 {
             println!(

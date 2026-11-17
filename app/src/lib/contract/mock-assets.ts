@@ -51,6 +51,7 @@ export interface AssetHandlers {
   asset_export_sounds: H<{ req: A.AssetExportSoundsRequest }, A.AssetExportResult>;
   asset_export_model: H<{ req: A.AssetExportModelRequest }, A.AssetExportResult>;
   asset_model_info: H<{ req: A.AssetModelInfoRequest }, A.AssetModelInfo>;
+  asset_model_paints: H<{ req: A.AssetRecordRequest }, A.ModelPaints>;
   asset_model_view: H<{ req: A.AssetModelViewRequest }, A.AssetModelView>;
   asset_model_chunk: H<{ req: A.AssetModelChunkRequest }, ArrayBuffer>;
   asset_cache_status: H<Record<string, never>, A.AssetCacheStatus>;
@@ -94,8 +95,14 @@ export const isDdsSibling = (p: string) => {
   return tail.length > 0 && /^[0-9]*$/.test(tail.replace(/a+$/, ''));
 };
 const cmpName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-const lodKey = (o: { preset: A.ModelPreset; lod: number }) => `${o.preset === 'full' ? 'full' : 'print'}-lod${o.lod}`;
-export const modelFileName = (name: string, o: { preset: A.ModelPreset; lod: number }) => {
+type KeyOpts = { preset: A.ModelPreset; lod: number; paint?: string | null; layers?: boolean };
+/** As `ModelOptions::key`: `full-lod1`, `full-lod1-paint-gladiuspirate-layers` (paint and layers Full only). */
+const lodKey = (o: KeyOpts) => {
+  const full = o.preset === 'full';
+  const paint = full ? o.paint?.trim() : '';
+  return `${full ? 'full' : 'print'}-lod${o.lod}${paint ? `-paint-${paint.toLowerCase().replace(/[^a-z0-9._-]/g, '_')}` : ''}${full && o.layers ? '-layers' : ''}`;
+};
+export const modelFileName = (name: string, o: KeyOpts) => {
   const base = [...name].map((c) => (/[A-Za-z0-9_-]/.test(c) ? c : '_')).join('');
   return `${base || 'model'}-${lodKey(o)}.glb`;
 };
@@ -188,6 +195,15 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
     const r = ctx.findRecord(what) ?? ctx.fail('not-found', `no record ${JSON.stringify(what)}`);
     if (r.type !== 'SynShip' && r.type !== 'SynComponent') ctx.fail('invalid', `${r.name} is not an entity (EntityClassDefinition); only entities have models`);
     return [r.name, r.type === 'SynShip'];
+  };
+  /** As the Rust mock: two liveries for a ship (the first fitted), none for an item. */
+  const mockPaints = (what: string): A.ModelPaints => {
+    const [name, ship] = modelRecord(what);
+    const short = name.split('.').at(-1) ?? name;
+    const paints = ship
+      ? ([['Pirate', 'Pirate Livery'], ['BlackGold', 'Black and Gold Livery']] as const).map(([t, n]) => ({ tag: `${short}${t}`, name: `${short} ${n}`, items: [`Paint_${short}_${t}`] }))
+      : [];
+    return { what, paints, equipped: ship ? `${short}Pirate` : null };
   };
 
   const on = (r: T.ChannelRef) => {
@@ -415,7 +431,10 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
     asset_export_model: async ({ req }) => {
       on(req.target);
       const [recName] = modelRecord(req.what);
-      const o = { preset: req.preset, lod: effectiveLod(Math.min(req.lod, 4), known.get(req.what) ?? []) };
+      const paint = req.paint?.trim();
+      if (req.preset === 'full' && paint && !mockPaints(req.what).paints.some((p) => p.tag.toLowerCase() === paint.toLowerCase()))
+        ctx.fail('invalid', `${recName} has no paint ${JSON.stringify(paint)} (see its paints)`);
+      const o = { preset: req.preset, lod: effectiveLod(Math.min(req.lod, 4), known.get(req.what) ?? []), paint: req.paint ?? null, layers: req.layers ?? false };
       const k = `model:${req.what}-${lodKey(o)}`;
       const held = size(k);
       const bytes = held ?? (req.preset === 'full' ? 348136664 : 56398596);
@@ -425,6 +444,10 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
       }
       const name = req.name || recName;
       return { cancelled: false, path: `${data.exports}/${modelFileName(name, o)}`, files: 1 + (req.stl ? 1 : 0), bytes: bytes + (req.stl ? 183149634 : 0), cached: held !== null, failed: [], note: null };
+    },
+    asset_model_paints: ({ req }) => {
+      on(req.target);
+      return mockPaints(req.what);
     },
     asset_model_info: ({ req }) => {
       on(req.target);

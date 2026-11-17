@@ -7,6 +7,9 @@
  */
 import type * as T from './types';
 import type * as D from './dev';
+import { unitOf } from '../readable.ts';
+
+export { unitOf };
 
 type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 type Obj = { [k: string]: Json };
@@ -397,6 +400,7 @@ export function columns(rows: Obj[]): D.Column[] {
       distinct: kind === 'text' && !a.tooMany && distinct.length ? distinct : null,
       min: kind === 'number' ? a.min : null,
       max: kind === 'number' ? a.max : null,
+      unit: kind === 'number' ? unitOf(name.replaceAll('.', '/')) : null,
     };
   });
 }
@@ -964,7 +968,23 @@ export function fieldCounts(records: D.DiffRecord[]): D.ValueCount[] {
   return [...m.entries()].map(([value, count]) => ({ value, count })).sort((a, b) => b.count - a.count || cmp(a.value, b.value));
 }
 
-function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_options: string[], inGroup: (r: D.DiffRecord) => boolean, title: (r: D.DiffRecord) => string | null): D.DevDiffRecords {
+/** The differing end of record names that share a title (as `name_tails` in the Rust contract). */
+export function nameTails(names: string[]): (string | null)[] {
+  if (new Set(names.map((n) => n.toLowerCase())).size !== names.length) return names.map(() => null);
+  const segs = names.map((n) => n.split('_'));
+  let common = 0;
+  while (segs.every((s) => s.length > common) && segs.every((s) => s[common]!.toLowerCase() === segs[0]![common]!.toLowerCase())) common++;
+  return segs.map((s) => s.slice(common).join(' ').trim() || null);
+}
+
+function pageRecords(
+  d: TableDiff,
+  req: D.DevDiffRecordsRequest,
+  identity_options: string[],
+  inGroup: (r: D.DiffRecord) => boolean,
+  title: (r: D.DiffRecord) => string | null,
+  name: (r: D.DiffRecord) => string | null = () => null,
+): D.DevDiffRecords {
   const q = (req.query ?? '').trim().toLowerCase();
   const hits = d.records
     .filter((r) => req.state === null || r.state === req.state)
@@ -976,20 +996,96 @@ function pageRecords(d: TableDiff, req: D.DevDiffRecordsRequest, identity_option
     })
     .map((r) => [r, title(r)] as const)
     .filter(([r, t]) => !q || r.id.toLowerCase().includes(q) || (t !== null && t.toLowerCase().includes(q)));
-  // Titles several records share get the short id appended (as the Rust page_records).
-  const seen = new Map<string, number>();
-  for (const [, t] of hits) if (t !== null) seen.set(t, (seen.get(t) ?? 0) + 1);
+  // Titles several records share: the differing end of their record names, else the short id
+  // (as the Rust page_records).
   const shortOf = (id: string) => (id.includes('.') ? id.slice(id.indexOf('.') + 1) : id);
-  const named = (id: string, t: string | null) => (t !== null && (seen.get(t) ?? 0) > 1 && t !== shortOf(id) ? `${t} (${shortOf(id)})` : t);
+  const groups = new Map<string, number[]>();
+  hits.forEach(([, t], i) => {
+    if (t !== null) groups.set(t, [...(groups.get(t) ?? []), i]);
+  });
+  const suffix = new Map<number, { tail: string } | 'plain' | 'id'>();
+  for (const idx of groups.values()) {
+    if (idx.length < 2) continue;
+    const names = idx.map((i) => {
+      const r = hits[i]![0];
+      const n = name(r) ?? (isGuid(r.id) ? null : r.id);
+      return n === null ? null : shortOf(n);
+    });
+    const tails = names.every((n) => n !== null) ? nameTails(names as string[]) : idx.map(() => null);
+    const byName = tails.some((t) => t !== null);
+    idx.forEach((i, k) => suffix.set(i, tails[k] ? { tail: tails[k]! } : byName ? 'plain' : 'id'));
+  }
+  const named = (i: number, id: string, t: string | null) => {
+    if (t === null) return null;
+    const s = suffix.get(i);
+    if (s && typeof s === 'object') return `${t} · ${s.tail}`;
+    if (s === 'id' && t !== shortOf(id)) return `${t} (${shortOf(id)})`;
+    return t;
+  };
   const limit = Math.min(Math.max(req.limit, 1), MAX_PAGE);
   return {
     summary: { ...d.summary },
-    records: hits.slice(req.offset, req.offset + limit).map(([r, t]) => ({ ...r, fields: r.fields.slice(0, 20), label: named(r.id, t) })),
+    records: hits.slice(req.offset, req.offset + limit).map(([r, t], k) => ({ ...r, fields: r.fields.slice(0, 20), label: named(req.offset + k, r.id, t) })),
     offset: req.offset,
     total: hits.length,
     fields: fieldCounts(d.records),
     identity_options,
   };
+}
+
+/** The rows of `d` that row `row` of `table` names (as `row_links` / core `rowrefs` in Rust). */
+function rowLinks(d: Dataset | undefined, table: string, row: number, l: Lookup): D.RowLink[] {
+  const v = d?.tables.find((t) => t.name === table)?.rows[row];
+  if (!d || v === undefined) return [];
+  const KEYS = ['id', 'recordName', 'className'];
+  // A value maps to its first row in each table (an item is often in `components` and `weapons`).
+  const index = new Map<string, [string, number][]>();
+  const add = (k: string, at: [string, number]) => {
+    const v = index.get(k.toLowerCase()) ?? [];
+    if (!v.some((x) => x[0] === at[0])) v.push(at);
+    index.set(k.toLowerCase(), v);
+  };
+  for (const t of d.tables)
+    t.rows.forEach((r, i) => {
+      for (const k of KEYS) {
+        const s = r[k];
+        if (typeof s !== 'string' || s.length <= 2) continue;
+        add(s, [t.name, i]);
+        const short = s.includes('.') ? s.slice(s.indexOf('.') + 1) : s;
+        if (short !== s && short.length > 2) add(short, [t.name, i]);
+      }
+    });
+  const out: D.RowLink[] = [];
+  const go = (x: Json, path: string, top: boolean) => {
+    if (typeof x === 'string') {
+      if (x.length < 3 || /\s/.test(x)) return;
+      for (const at of index.get(x.toLowerCase()) ?? []) {
+        if (at[0] === table && at[1] === row) continue;
+        const seen = out.find((o) => o.table === at[0] && o.row === at[1]);
+        if (seen) {
+          seen.count++;
+          seen.pointers.push(path);
+        } else {
+          const target = d.tables.find((t) => t.name === at[0])!.rows[at[1]]!;
+          out.push({ pointers: [path], value: x, table: at[0], row: at[1], title: rowTitle(l, target, null), count: 1, source: null, diff_id: null, diff_state: null });
+        }
+      }
+    } else if (Array.isArray(x)) x.forEach((y, i) => go(y, `${path}/${i}`, false));
+    else if (isObj(x)) for (const [k, y] of Object.entries(x)) if (!(top && KEYS.includes(k))) go(y, `${path}/${esc(k)}`, false);
+  };
+  go(v, '', true);
+  return out.slice(0, 60);
+}
+
+/** A diff record's record name (`recordName`, else `className`), B's row first. */
+function recordName(r: D.DiffRecord, a: Table | undefined, b: Table | undefined): string | null {
+  const of = (t: Table | undefined, i: number | null) => {
+    const row = i === null ? undefined : t?.rows[i];
+    if (!isObj(row)) return null;
+    for (const k of ['recordName', 'className']) if (typeof row[k] === 'string') return row[k] as string;
+    return null;
+  };
+  return of(b, r.b) ?? of(a, r.a);
 }
 
 export function explorerLinks(row: Json, isRecord: (s: string) => string | null): D.ExplorerLink[] {
@@ -1274,17 +1370,6 @@ export function groupOf(l: Lookup, path: string): string | null {
     .join(' › ');
 }
 
-export function unitOf(path: string): string | null {
-  const last = (path.split('/').at(-1) ?? path).toLowerCase();
-  const fixed: Record<string, string> = { mass: 'kg', dps: 'dmg/s', weapondps: 'dmg/s', rpm: 'rpm', firerate: 'rpm', health: 'HP', armorhealth: 'HP', shieldhealth: 'HP', scm: 'm/s', duration: 's', cooldown: 's' };
-  if (fixed[last]) return fixed[last]!;
-  if (last.includes('speed')) return 'm/s';
-  if (last.endsWith('range') || last.endsWith('distance')) return 'm';
-  if (last.endsWith('seconds')) return 's';
-  if (last.includes('scu')) return 'SCU';
-  return null;
-}
-
 export function annotateChanges(changes: D.FieldChange[], a: Lookup, b: Lookup): void {
   const keyOf = (p: string) => {
     const last = p.split('/').at(-1) ?? p;
@@ -1563,7 +1648,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
               return i === null ? null : index.entries[i]!.guid;
             })
           : [];
-      return { row: req.row, json, truncated, loc: rowLoc(row, (k) => ctx.stockText(k)), links, labels: labelsIn(lookup, row) };
+      return { row: req.row, json, truncated, loc: rowLoc(row, (k) => ctx.stockText(k)), links, labels: labelsIn(lookup, row), row_links: rowLinks(datasetOf(req.target, req.source, req.dataset), req.table, req.row, lookup) };
     },
     dev_diff: async ({ req }) => {
       on(req.target);
@@ -1591,7 +1676,32 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       if (pos < 0) ctx.fail('not-found', `no table ${req.table}`);
       if (req.identity !== null && st.tables[pos]!.summary.identity !== req.identity) st.tables[pos] = diffTable(req.dataset, req.table, ta, tb, req.identity);
       const id = st.tables[pos]!.summary.identity;
-      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb), diffGroupFilter(req, st.a, st.b), (r) => recordTitle(r, id, ta, tb, lookup, lookup));
+      return pageRecords(st.tables[pos]!, req, identityOptions(ta, tb), diffGroupFilter(req, st.a, st.b), (r) => recordTitle(r, id, ta, tb, lookup, lookup), (r) => recordName(r, ta, tb));
+    },
+    dev_diff_search: ({ req }) => {
+      on(req.target);
+      const st = diff ?? noDiff();
+      const query = req.query.trim();
+      const limit = Math.min(Math.max(req.limit, 1), MAX_PAGE);
+      const out: D.DevDiffSearch = { hits: [], total: 0 };
+      if (!query) return out;
+      const find = (side: [string, Dataset][], ds: string, tn: string) => side.find((x) => x[0] === ds)?.[1].tables.find((t) => t.name === tn);
+      for (const td of st.tables) {
+        const { dataset, table, identity } = td.summary;
+        const ta = find(st.a, dataset, table);
+        const tb = find(st.b, dataset, table);
+        const page = pageRecords(
+          td,
+          { target: req.target, dataset, table, state: req.state, field: null, identity: null, query, offset: 0, limit: Math.max(1, limit - Math.min(out.hits.length, limit)), group: null },
+          [],
+          () => true,
+          (r) => recordTitle(r, identity, ta, tb, lookup, lookup),
+          (r) => recordName(r, ta, tb),
+        );
+        out.total += page.total;
+        for (const record of page.records) if (out.hits.length < limit) out.hits.push({ dataset, table, record });
+      }
+      return out;
     },
     dev_diff_groups: ({ req }) => {
       on(req.target);
@@ -1610,7 +1720,17 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       annotateChanges(changes, lookup, lookup);
       namePositions(changes, ra, rb, lookup, lookup);
       const find = (side: [string, Dataset][]) => side.find((x) => x[0] === req.dataset)?.[1].tables.find((t) => t.name === req.table);
-      return { id: rec.id, label: recordTitle(rec, td.summary.identity, find(st.a), find(st.b), lookup, lookup), state: rec.state, changes };
+      const onB = rec.b !== null;
+      const side = onB ? st.b : st.a;
+      const at = onB ? rec.b : rec.a;
+      const row_links =
+        at === null
+          ? []
+          : rowLinks(side.find((x) => x[0] === req.dataset)?.[1], req.table, at, lookup).map((k) => {
+              const r = st.tables.find((t) => t.summary.dataset === req.dataset && t.summary.table === k.table)?.records.find((x) => (onB ? x.b : x.a) === k.row);
+              return { ...k, source: onB ? st.summary.b : st.summary.a, diff_id: r?.id ?? null, diff_state: r?.state ?? null };
+            });
+      return { id: rec.id, label: recordTitle(rec, td.summary.identity, find(st.a), find(st.b), lookup, lookup), state: rec.state, changes, row_links };
     },
   };
   return { handlers, index, addFolder: () => (folder = true) };

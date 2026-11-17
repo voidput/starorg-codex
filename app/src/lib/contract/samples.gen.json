@@ -129,9 +129,9 @@
     "problem": null
   },
   "asset_cache_move": {
-    "bytes": 404557650,
+    "bytes": 752694310,
     "default_path": "/synthetic/cache/assets",
-    "files": 9,
+    "files": 10,
     "is_default": false,
     "max_bytes": 2147483648,
     "other_drive": true,
@@ -148,8 +148,8 @@
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
     "previous": {
-      "bytes": 404557655,
-      "files": 9,
+      "bytes": 752694319,
+      "files": 10,
       "path": "/synthetic/cache/assets"
     },
     "problem": null
@@ -211,6 +211,15 @@
     "files": 1,
     "note": null,
     "path": "/synthetic/exports/SYN_Ship_002-full-lod1.glb"
+  },
+  "asset_export_model_paint": {
+    "bytes": 348136664,
+    "cached": false,
+    "cancelled": false,
+    "failed": [],
+    "files": 1,
+    "note": null,
+    "path": "/synthetic/exports/SYN_Ship_002-full-lod1-paint-syn_ship_002blackgold-layers.glb"
   },
   "asset_export_sounds": {
     "bytes": 11296,
@@ -438,6 +447,26 @@
     ],
     "max_bytes": 536870912,
     "what": "51000000-0000-4000-8000-000000000004"
+  },
+  "asset_model_paints": {
+    "equipped": "SYN_Ship_002Pirate",
+    "paints": [
+      {
+        "items": [
+          "Paint_SYN_Ship_002_Pirate"
+        ],
+        "name": "SYN_Ship_002 Pirate Livery",
+        "tag": "SYN_Ship_002Pirate"
+      },
+      {
+        "items": [
+          "Paint_SYN_Ship_002_BlackGold"
+        ],
+        "name": "SYN_Ship_002 Black and Gold Livery",
+        "tag": "SYN_Ship_002BlackGold"
+      }
+    ],
+    "what": "51000000-0000-4000-8000-000000000002"
   },
   "asset_model_view": {
     "asked": 4,
@@ -3261,6 +3290,7 @@
     ],
     "id": "SYN_shield_001",
     "label": "Sample Cooler 9",
+    "row_links": [],
     "state": "changed"
   },
   "dev_diff_record_ship": {
@@ -3280,6 +3310,7 @@
     ],
     "id": "SYN_Ship_003",
     "label": "Synthetic hull 3",
+    "row_links": [],
     "state": "changed"
   },
   "dev_diff_records": {
@@ -3481,6 +3512,23 @@
       "same": 18,
       "table": "components"
     },
+    "total": 1
+  },
+  "dev_diff_search": {
+    "hits": [
+      {
+        "dataset": "gamedata.json",
+        "record": {
+          "a": 5,
+          "b": null,
+          "fields": [],
+          "id": "SYN_shield_005",
+          "label": "Sample Cooler 41",
+          "state": "removed"
+        },
+        "table": "components"
+      }
+    ],
     "total": 1
   },
   "dev_diff_summary": {
@@ -6469,6 +6517,7 @@
     ],
     "loc": [],
     "row": 1,
+    "row_links": [],
     "truncated": false
   },
   "dev_row_loc": {
@@ -6507,6 +6556,7 @@
       }
     ],
     "row": 0,
+    "row_links": [],
     "truncated": false
   },
   "dev_rows": {
@@ -7280,7 +7330,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "name"
+        "name": "name",
+        "unit": null
       },
       {
         "distinct": [
@@ -7385,7 +7436,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "recordName"
+        "name": "recordName",
+        "unit": null
       },
       {
         "distinct": [
@@ -7410,7 +7462,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "kind"
+        "name": "kind",
+        "unit": null
       },
       {
         "distinct": null,
@@ -7418,7 +7471,8 @@
         "kind": "number",
         "max": 4.0,
         "min": 1.0,
-        "name": "size"
+        "name": "size",
+        "unit": null
       },
       {
         "distinct": [
@@ -7443,7 +7497,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "grade"
+        "name": "grade",
+        "unit": null
       },
       {
         "distinct": [
@@ -7464,7 +7519,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "manufacturer"
+        "name": "manufacturer",
+        "unit": null
       },
       {
         "distinct": null,
@@ -7472,7 +7528,8 @@
         "kind": "number",
         "max": 569.0,
         "min": 500.0,
-        "name": "health"
+        "name": "health",
+        "unit": "HP"
       },
       {
         "distinct": null,
@@ -7480,7 +7537,8 @@
         "kind": "object",
         "max": null,
         "min": null,
-        "name": "loc"
+        "name": "loc",
+        "unit": null
       }
     ],
     "default_columns": [
@@ -7722,7 +7780,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "key"
+        "name": "key",
+        "unit": null
       },
       {
         "distinct": [
@@ -7891,7 +7950,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "value"
+        "name": "value",
+        "unit": null
       }
     ],
     "default_columns": [
@@ -7953,7 +8013,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "name"
+        "name": "name",
+        "unit": null
       },
       {
         "distinct": [
@@ -8002,7 +8063,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "className"
+        "name": "className",
+        "unit": null
       },
       {
         "distinct": [
@@ -8051,7 +8113,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "path"
+        "name": "path",
+        "unit": null
       },
       {
         "distinct": [
@@ -8068,7 +8131,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "type"
+        "name": "type",
+        "unit": null
       },
       {
         "distinct": [
@@ -8085,7 +8149,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "subType"
+        "name": "subType",
+        "unit": null
       },
       {
         "distinct": null,
@@ -8093,7 +8158,8 @@
         "kind": "number",
         "max": 3.0,
         "min": 1.0,
-        "name": "size"
+        "name": "size",
+        "unit": null
       },
       {
         "distinct": [
@@ -8110,7 +8176,8 @@
         "kind": "text",
         "max": null,
         "min": null,
-        "name": "manufacturer"
+        "name": "manufacturer",
+        "unit": null
       },
       {
         "distinct": null,
@@ -8118,7 +8185,8 @@
         "kind": "number",
         "max": 212.75,
         "min": 100.25,
-        "name": "dps"
+        "name": "dps",
+        "unit": "dmg/s"
       },
       {
         "distinct": null,
@@ -8126,7 +8194,8 @@
         "kind": "object",
         "max": null,
         "min": null,
-        "name": "ammo"
+        "name": "ammo",
+        "unit": null
       }
     ],
     "default_columns": [
@@ -9337,6 +9406,8 @@
     ],
     "merge": false,
     "not_in_game": 0,
+    "prune": false,
+    "removed_from_order": [],
     "skipped": 1,
     "total": 9,
     "unmatched": [
@@ -9403,6 +9474,8 @@
     ],
     "merge": false,
     "not_in_game": 0,
+    "prune": false,
+    "removed_from_order": [],
     "skipped": 1,
     "total": 9,
     "unmatched": [
@@ -13465,6 +13538,8 @@
       ],
       "merge": true,
       "not_in_game": 1,
+      "prune": false,
+      "removed_from_order": [],
       "skipped": 1,
       "total": 9,
       "unmatched": []

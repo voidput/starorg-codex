@@ -5,19 +5,31 @@
 //! - **Print shell (geometry only)**: no materials, no interior, no lights; the settings
 //!   `sc-ship-models/scripts/export_ships.sh` uses for 3D prints (`--materials none
 //!   --no-interior --no-lights`, LOD 0 by default).
+//!
+//! A Full export can wear another paint ([`ModelOptions::paint`], [`list_paints`]) and use
+//! StarBreaker's experimental layer materials ([`ModelOptions::layers`]). A paint is an item on
+//! the ship's `hardpoint_paint` port whose `AttachDef.Tags` name one of the ship's SubGeometry
+//! entries (`Paint_Gladius @GladiusPirate`); that entry gives the material set and the tint
+//! palette. The export swaps the paint item in the loadout it hands StarBreaker, as fitting
+//! another paint in game does.
 
 use super::{
     AssetArchive, AssetError, AssetResult, find_record, peak_rss_bytes, record_short_name,
 };
 use serde::{Deserialize, Serialize};
-use starbreaker_datacore::loadout::{EntityIndex, resolve_loadout_indexed};
+use starbreaker_datacore::database::Database;
+use starbreaker_datacore::loadout::{
+    EntityIndex, LoadoutNode, LoadoutTree, resolve_loadout_indexed,
+};
+use starbreaker_datacore::types::Record;
 use std::path::Path;
 use std::time::Instant;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum ModelPreset {
     Full,
+    #[default]
     PrintShell,
 }
 
@@ -51,7 +63,7 @@ pub const FULL_MEMORY_NOTE: &str = "Full exports need a lot of memory: about 6.5
 /// Highest LOD offered (ships carry 0-3 or 0-4).
 pub const MAX_LOD: u32 = 4;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ModelOptions {
     pub preset: ModelPreset,
     /// 0 = most detail.
@@ -59,12 +71,44 @@ pub struct ModelOptions {
     /// Also write an STL next to the GLB (geometry, node transforms baked).
     #[serde(default)]
     pub stl: bool,
+    /// Full only: the paint to wear, by the ship's SubGeometry tag ([`ModelPaint::tag`]);
+    /// `None` = the paint the default loadout fits.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub paint: Option<String>,
+    /// Full only: StarBreaker's layer materials too (`MaterialMode::All`, experimental: the
+    /// layers' textures are written, how they blend is the viewer's guess).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub layers: bool,
 }
 
 impl ModelOptions {
-    /// The cache key part: `full-lod1`.
+    /// The paint a Full export wears (`None` for a Print shell, which has no materials).
+    pub fn paint(&self) -> Option<&str> {
+        (self.preset == ModelPreset::Full)
+            .then_some(self.paint.as_deref())
+            .flatten()
+            .map(str::trim)
+            .filter(|p| !p.is_empty())
+    }
+
+    /// Whether a Full export uses layer materials.
+    pub fn layers(&self) -> bool {
+        self.preset == ModelPreset::Full && self.layers
+    }
+
+    /// The cache key part: `full-lod1`, `full-lod1-paint-gladiuspirate-layers`.
     pub fn key(&self) -> String {
-        format!("{}-lod{}", self.preset.key(), self.lod)
+        let mut k = format!("{}-lod{}", self.preset.key(), self.lod);
+        if let Some(p) = self.paint() {
+            k.push_str("-paint-");
+            k.push_str(&starorg_core::assetcache::safe_name(
+                &p.to_ascii_lowercase(),
+            ));
+        }
+        if self.layers() {
+            k.push_str("-layers");
+        }
+        k
     }
 
     /// The asset cache key of this export of `what` (a record GUID or name):
@@ -207,7 +251,11 @@ pub fn export_options(o: &ModelOptions) -> starbreaker_3d::ExportOptions {
     };
     match o.preset {
         ModelPreset::Full => ExportOptions {
-            material_mode: MaterialMode::Textures,
+            material_mode: if o.layers {
+                MaterialMode::All
+            } else {
+                MaterialMode::Textures
+            },
             texture_mip: 2,
             include_interior: true,
             include_lights: true,
@@ -271,10 +319,14 @@ pub fn export_model(
     }
     let lods = root_lods(db, a.p4k(), r);
     let lod = effective_lod(o.lod, &lods);
-    let opts = export_options(&ModelOptions { lod, ..*o });
+    let opts = export_options(&ModelOptions { lod, ..o.clone() });
+    let paint = o.paint().map(|tag| choose_paint(db, r, tag)).transpose()?;
     let bytes = crate::extract::guarded("model export", || {
         let idx = EntityIndex::new(db);
-        let tree = resolve_loadout_indexed(&idx, r);
+        let mut tree = resolve_loadout_indexed(&idx, r);
+        if let Some(p) = &paint {
+            wear_paint(&mut tree, p);
+        }
         let p = starbreaker_common::Progress::with_callback(progress);
         let res = starbreaker_3d::assemble_glb_with_loadout_with_progress(
             db,
@@ -345,4 +397,221 @@ pub fn file_name(name: &str, o: &ModelOptions) -> String {
         if base.is_empty() { "model" } else { &base },
         o.key()
     )
+}
+
+/// One paint a ship can wear: the SubGeometry tag it selects and the paint items that do.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelPaint {
+    /// The ship's SubGeometry tag (`GladiusPirate`): what [`ModelOptions::paint`] names.
+    pub tag: String,
+    /// The in-game name of its paint ("Gladius Pirate Livery"), when the stock text has one.
+    pub name: Option<String>,
+    /// The paint items (short record names) that select it, this ship's first.
+    pub items: Vec<String>,
+}
+
+/// The paints of a ship ([`list_paints`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ModelPaints {
+    pub what: String,
+    /// In the ship's SubGeometry order; only tags some paint item selects.
+    pub paints: Vec<ModelPaint>,
+    /// The tag of the paint the default loadout fits (`None`: no paint, the base material).
+    pub equipped: Option<String>,
+}
+
+/// The SubGeometry tag a paint's `AttachDef.Tags` select: `Paint_Gladius @GladiusPirate` ->
+/// `GladiusPirate` (as StarBreaker's `resolve_paint_override` reads it).
+pub fn paint_tag(tags: &str) -> Option<&str> {
+    tags.split_whitespace()
+        .find_map(|t| t.strip_prefix('@'))
+        .filter(|t| !t.is_empty())
+}
+
+/// A paint item of the DataCore.
+#[derive(Debug, Clone)]
+struct PaintItem {
+    record: Record,
+    name: String,
+    tag: String,
+    /// Its `AttachDef.Localization.Name` key.
+    loc: Option<String>,
+}
+
+const ATTACH: &str = "Components[SAttachableComponentParams].AttachDef";
+
+fn query_text(db: &Database<'static>, r: &Record, path: &str) -> Option<String> {
+    let c = db.compile_path::<String>(r.struct_id(), path).ok()?;
+    db.query_single::<String>(&c, r).ok().flatten()
+}
+
+/// Every paint item (`AttachDef.Type` `Paints`) with a SubGeometry tag. Paint items are named
+/// `Paint_*`, so only records with "paint" in the name are read.
+fn paint_items(db: &Database<'static>) -> Vec<PaintItem> {
+    let Some(entity) = db.struct_id("EntityClassDefinition") else {
+        return Vec::new();
+    };
+    let ty = format!("{ATTACH}.Type");
+    let tags = format!("{ATTACH}.Tags");
+    let loc = format!("{ATTACH}.Localization.Name");
+    let mut out = Vec::new();
+    for r in db.records().iter().filter(|r| r.struct_id() == entity) {
+        let name = super::record_short_name(db, r);
+        if !name.to_ascii_lowercase().contains("paint") {
+            continue;
+        }
+        if !query_text(db, r, &ty).is_some_and(|t| t.eq_ignore_ascii_case("Paints")) {
+            continue;
+        }
+        let Some(tag) = query_text(db, r, &tags).and_then(|t| paint_tag(&t).map(str::to_string))
+        else {
+            continue;
+        };
+        out.push(PaintItem {
+            record: *r,
+            name,
+            tag,
+            loc: query_text(db, r, &loc).filter(|k| !k.trim().is_empty()),
+        });
+    }
+    out.sort_by(|a, b| a.name.cmp(&b.name));
+    out
+}
+
+/// The ship's own paint tags: the `Tags` of its top-level SubGeometry entries, raw, once each,
+/// in order (as `resolve_paint_override` matches them; StarBreaker's `sub_geometry_variants`
+/// splits `Paint_Gladius_Blue_Turquoise` into selector words, which a paint never names).
+fn ship_tags(db: &Database<'static>, r: &Record) -> Vec<String> {
+    use starbreaker_datacore::query::value::Value;
+    fn field<'v, 'a>(v: &'v Value<'a>, name: &str) -> Option<&'v Value<'a>> {
+        match v {
+            Value::Object { fields, .. } => fields.iter().find(|(k, _)| *k == name).map(|x| &x.1),
+            _ => None,
+        }
+    }
+    let Ok(c) = db.compile_path::<Value>(r.struct_id(), "Components[SGeometryResourceParams]")
+    else {
+        return Vec::new();
+    };
+    let mut out: Vec<String> = Vec::new();
+    for comp in db.query::<Value>(&c, r).unwrap_or_default() {
+        let Some(Value::Array(subs)) =
+            field(&comp, "Geometry").and_then(|g| field(g, "SubGeometry"))
+        else {
+            continue;
+        };
+        for sub in subs {
+            let Some(Value::String(t)) = field(sub, "Tags") else {
+                continue;
+            };
+            let t = t.trim();
+            if !t.is_empty() && !out.iter().any(|x| x.eq_ignore_ascii_case(t)) {
+                out.push(t.to_string());
+            }
+        }
+    }
+    out
+}
+
+/// `AEGS_Gladius` -> `gladius`: the part of a ship's name its paint items carry.
+fn family(ship: &str) -> String {
+    let s = ship.to_ascii_lowercase();
+    s.split('_').nth(1).unwrap_or(&s).to_string()
+}
+
+/// The items selecting `tag`, this ship's first (two ships may share a tag name).
+fn items_for<'p>(items: &'p [PaintItem], tag: &str, ship: &str) -> Vec<&'p PaintItem> {
+    let fam = family(ship);
+    let mut hits: Vec<&PaintItem> = items
+        .iter()
+        .filter(|p| p.tag.eq_ignore_ascii_case(tag))
+        .collect();
+    hits.sort_by_key(|p| !p.name.to_ascii_lowercase().contains(&fam));
+    hits
+}
+
+/// The paint port of a loadout's root (`hardpoint_paint`), as StarBreaker finds it.
+fn paint_node(tree: &mut LoadoutTree) -> Option<&mut LoadoutNode> {
+    tree.root
+        .children
+        .iter_mut()
+        .find(|c| c.item_port_name.to_lowercase().contains("paint"))
+}
+
+/// The paints a ship can wear and the one its default loadout fits.
+pub fn list_paints(a: &AssetArchive, what: &str) -> AssetResult<ModelPaints> {
+    let db = a.db()?;
+    let r = find_record(db, what)?;
+    let ship = super::record_short_name(db, r);
+    let items = paint_items(db);
+    let paints = ship_tags(db, r)
+        .into_iter()
+        .filter_map(|tag| {
+            let hits = items_for(&items, &tag, &ship);
+            if hits.is_empty() {
+                return None;
+            }
+            let name = hits
+                .iter()
+                .find_map(|p| p.loc.as_deref().and_then(|k| a.text(k)))
+                .filter(|n| !n.contains("PLACEHOLDER"));
+            Some(ModelPaint {
+                name,
+                items: hits.iter().map(|p| p.name.clone()).collect(),
+                tag,
+            })
+        })
+        .collect();
+    let idx = EntityIndex::new(db);
+    let mut tree = resolve_loadout_indexed(&idx, r);
+    let equipped = paint_node(&mut tree)
+        .and_then(|n| query_text(db, &n.record, &format!("{ATTACH}.Tags")))
+        .and_then(|t| paint_tag(&t).map(str::to_string));
+    Ok(ModelPaints {
+        what: what.to_string(),
+        paints,
+        equipped,
+    })
+}
+
+/// The paint item to fit for `tag`, refused when the ship has no such paint.
+fn choose_paint(db: &Database<'static>, r: &Record, tag: &str) -> AssetResult<PaintItem> {
+    let ship = super::record_short_name(db, r);
+    if !ship_tags(db, r).iter().any(|t| t.eq_ignore_ascii_case(tag)) {
+        return Err(AssetError::invalid(format!(
+            "{ship} has no paint {tag:?} (see its paints)"
+        )));
+    }
+    let items = paint_items(db);
+    items_for(&items, tag, &ship)
+        .first()
+        .map(|p| (*p).clone())
+        .ok_or_else(|| AssetError::invalid(format!("no paint item selects {tag:?} on {ship}")))
+}
+
+/// Fit `p` on the root's paint port (adding the port when the default loadout leaves it out).
+fn wear_paint(tree: &mut LoadoutTree, p: &PaintItem) {
+    if let Some(n) = paint_node(tree) {
+        n.record = p.record;
+        n.entity_name = p.name.clone();
+        n.geometry_path = None;
+        n.material_path = None;
+        n.children.clear();
+        return;
+    }
+    tree.root.children.push(LoadoutNode {
+        record: p.record,
+        entity_name: p.name.clone(),
+        item_port_name: "hardpoint_paint".into(),
+        helper_bone_name: None,
+        no_rotation: false,
+        offset_position: [0.0; 3],
+        offset_rotation: [0.0; 3],
+        detach_direction: [0.0; 3],
+        port_flags: String::new(),
+        port_tags: String::new(),
+        geometry_path: None,
+        material_path: None,
+        children: Vec::new(),
+    });
 }

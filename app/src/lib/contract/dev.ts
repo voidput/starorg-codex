@@ -339,6 +339,8 @@ export interface Column {
   distinct: ValueCount[] | null;
   min: number | null;
   max: number | null;
+  /** Number columns: the unit their name says (`health` -> HP), as the Diff shows it. */
+  unit: string | null;
 }
 
 export type TableKind = 'main' | 'index' | 'tree';
@@ -513,6 +515,25 @@ export interface DevRowDetail {
   loc: LocText[];
   links: ExplorerLink[];
   labels: Record<string, Readable>;
+  /** Rows of the same dataset this row names. */
+  row_links: RowLink[];
+}
+
+/** A row of the same dataset this row names (a ship's loadout naming its weapons). */
+export interface RowLink {
+  /** JSON pointers of the values naming it (one line each in the row). */
+  pointers: string[];
+  value: string;
+  table: string;
+  row: number;
+  title: string | null;
+  /** Values of this row naming it. */
+  count: number;
+  /** Diff only: the source the row is in. */
+  source: string | null;
+  /** Diff only: the linked row's record in the comparison, when it changed. */
+  diff_id: string | null;
+  diff_state: RecordState | null;
 }
 
 export type Presence = 'both' | 'only-a' | 'only-b';
@@ -591,6 +612,27 @@ export interface DevDiffRecords {
   identity_options: string[];
 }
 
+/** Search every table of the comparison by record name or id (the Diff screen's top search). */
+export interface DevDiffSearchRequest {
+  target: ChannelRef;
+  query: string;
+  state: RecordState | null;
+  limit: number;
+}
+
+export interface DiffSearchHit {
+  dataset: string;
+  table: string;
+  record: DiffRecord;
+}
+
+export interface DevDiffSearch {
+  /** Tables in summary order; at most `limit`. */
+  hits: DiffSearchHit[];
+  /** Matches in all tables (more than `hits` when cut at `limit`). */
+  total: number;
+}
+
 export interface DevDiffRecordRequest {
   target: ChannelRef;
   dataset: string;
@@ -605,6 +647,8 @@ export interface DevFieldDiff {
   label: string | null;
   state: RecordState;
   changes: FieldChange[];
+  /** Rows of the same dataset the record names (B's row, A's for a removed record). */
+  row_links: RowLink[];
 }
 
 /** The cut stub that stands for a node not sent (`{"_cut": {"kind", "len"}}`). */
@@ -644,6 +688,7 @@ export interface DevCommandMap {
   dev_diff_records: [{ req: DevDiffRecordsRequest }, DevDiffRecords];
   dev_diff_groups: [{ req: DevDiffGroupsRequest }, GroupPage];
   dev_diff_record: [{ req: DevDiffRecordRequest }, DevFieldDiff];
+  dev_diff_search: [{ req: DevDiffSearchRequest }, DevDiffSearch];
 }
 
 /** Same order as the dev part of `COMMAND_NAMES` in contract/mod.rs. */
@@ -674,6 +719,7 @@ export const DEV_COMMANDS = [
   'dev_diff_records',
   'dev_diff_groups',
   'dev_diff_record',
+  'dev_diff_search',
 ] as const satisfies readonly (keyof DevCommandMap)[];
 
 export const devApi = {
@@ -705,4 +751,5 @@ export const devApi = {
   diffRecords: (req: DevDiffRecordsRequest) => call('dev_diff_records', { req }),
   diffGroups: (req: DevDiffGroupsRequest) => call('dev_diff_groups', { req }),
   diffRecord: (req: DevDiffRecordRequest) => call('dev_diff_record', { req }),
+  diffSearch: (req: DevDiffSearchRequest) => call('dev_diff_search', { req }),
 };

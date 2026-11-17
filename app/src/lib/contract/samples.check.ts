@@ -118,6 +118,7 @@ interface Samples {
   dev_rows_readable: T.RowsPage;
   dev_diff_records_query: T.DevDiffRecords;
   dev_diff_record_ship: T.DevFieldDiff;
+  dev_diff_search: T.DevDiffSearch;
   dev_close: T.DevStatus;
   asset_cache_clear: T.AssetCacheStatus;
   asset_cache_move: T.AssetCacheStatus;
@@ -131,6 +132,8 @@ interface Samples {
   asset_export_sounds: T.AssetExportResult;
   asset_extract: T.AssetExportResult;
   asset_model_info: T.AssetModelInfo;
+  asset_model_paints: T.ModelPaints;
+  asset_export_model_paint: T.AssetExportResult;
   asset_model_info_known: T.AssetModelInfo;
   asset_model_view: T.AssetModelView;
   asset_model_view_cached: T.AssetModelView;

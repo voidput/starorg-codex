@@ -7,6 +7,13 @@ contracts show what they reward and whether you already own those blueprints, an
 what they are for. You choose what is added and preview every change before it is written. A
 desktop app for Windows and Linux, plus the `starorg-codex` command-line tool.
 
+> [!NOTE]
+> StarOrg Codex is based on the work of the Star Citizen localization community:
+> [StarStrings](https://github.com/MrKraken/StarStrings) by MrKraken,
+> [Smart Citizen](https://github.com/Osiris-DevWorks/smart-citizen) by Osiris DevWorks and the
+> [Component Language Pack](https://github.com/ExoAE/ScCompLangPack) by ExoAE. See
+> [Credits](#credits).
+
 | | |
 |---|---|
 | ![Home: channels, game build and apply status](docs/assets/screenshots/home.png) | ![Enhancements: blueprint markers with the in-game preview](docs/assets/screenshots/enhancements-preview.png) |
@@ -138,9 +145,10 @@ Details: [Linux](docs/linux.md#upgrading-from-02-the-rename-to-starorg-codex) ·
 - Questions, bugs and ideas: the [Discord server](https://discord.gg/GCkYhbFYNq), or open an
   [issue](https://github.com/voidput/starorg-codex/issues). Attach the diagnostics report
   (Activity -> Diagnostics).
-- If the app saves you time: [Buy me a coffee](https://buymeacoffee.com/zedwil).
+- If the app saves you time: [Buy me a coffee](https://buymeacoffee.com/zedwil) or support
+  StarOrg Tools on [Patreon](https://www.patreon.com/cw/StarOrgTools).
 
-Both links are also in the app (footer and Footer -> About); they open your browser.
+These links are also in the app (footer and Footer -> About); they open your browser.
 
 ## Development
 
@@ -149,6 +157,20 @@ Rust workspace (`crates/`) plus the Tauri 2 + Svelte 5 app (`app/`). See
 repo map and rules (also for AI agents), [PATCH.md](PATCH.md) for text patches and pull requests, [app/README.md](app/README.md)
 for the app, and [docs/](docs/README.md) for specs, decisions and the release process. Security
 issues: [SECURITY.md](SECURITY.md).
+
+## Credits
+
+StarOrg Codex builds on these projects; thank you to their authors.
+
+- [StarStrings](https://github.com/MrKraken/StarStrings) by MrKraken: the string replacement
+  quality-of-life pack (contract `[BP]` tags, commodity and hauling text clean-ups and more).
+- [Smart Citizen](https://github.com/Osiris-DevWorks/smart-citizen) by Osiris DevWorks: the
+  UI-based localization editor and enhancer that many of the app's features follow, and the
+  blueprint tracker export Codex imports.
+- [ScCompLangPack](https://github.com/ExoAE/ScCompLangPack) by ExoAE: the component language
+  pack (component names with class and grade for spotting and tracking stats).
+- [StarBreaker](https://github.com/diogotr7/StarBreaker): the `Data.p4k`, DataCore and model
+  export crates behind the Developer tools.
 
 ## License
 

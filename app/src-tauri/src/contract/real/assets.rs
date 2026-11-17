@@ -673,6 +673,23 @@ impl AssetBackend for RealBackend {
         r
     }
 
+    fn asset_model_paints(&self, req: AssetRecordRequest) -> CmdResult<ModelPaints> {
+        let w = self.asset_worker(&req.target)?;
+        // The first record request reads the DataCore: a memory peak.
+        let ready = w
+            .call::<WorkerStatus>(&AssetRequest::Status)
+            .is_ok_and(|s| s.datacore);
+        let _x = if ready {
+            None
+        } else {
+            Some(wait_lock(&self.dirs().extract_lock())?)
+        };
+        w.busy.store(true, Ordering::SeqCst);
+        let r = w.call(&AssetRequest::Paints { what: req.what });
+        w.busy.store(false, Ordering::SeqCst);
+        r
+    }
+
     fn asset_sound_search(&self, req: AssetSoundSearchRequest) -> CmdResult<TriggerSearch> {
         let w = self.asset_worker(&req.target)?;
         // The first one reads the audio index (GameAudio documents and bank names) only.
@@ -902,6 +919,8 @@ impl AssetBackend for RealBackend {
             preset: req.preset,
             lod: model::effective_lod(asked, &self.known_lods(&key, &req.what)),
             stl: req.stl,
+            paint: req.paint.clone(),
+            layers: req.layers,
         };
         let name = if req.name.is_empty() {
             &req.what
@@ -977,7 +996,7 @@ impl AssetBackend for RealBackend {
             &format!("Exporting model {name}"),
             &AssetRequest::ExportModel {
                 what: req.what.clone(),
-                options: o,
+                options: o.clone(),
                 out: out.clone(),
             },
             "%",
@@ -987,7 +1006,11 @@ impl AssetBackend for RealBackend {
         drop(_x);
         let d: ModelDone = serde_json::from_value(r?).map_err(internal)?;
         self.remember_lods(&key, &req.what, &d.lods);
-        let mkey = ModelOptions { lod: d.lod, ..o }.cache_key(&req.what);
+        let mkey = ModelOptions {
+            lod: d.lod,
+            ..o.clone()
+        }
+        .cache_key(&req.what);
         let _ = c.put_copy(&key.channel, &key.build, Kind::Models, &mkey, "glb", &out);
         self.log(
             LogLevel::Info,
@@ -1120,7 +1143,7 @@ impl AssetBackend for RealBackend {
             &format!("Loading model {name} (LOD {asked})"),
             &AssetRequest::ExportModel {
                 what: req.what.clone(),
-                options: o,
+                options: o.clone(),
                 out: out.clone(),
             },
             "%",
@@ -1304,6 +1327,7 @@ fn view_options(lod: u32) -> ModelOptions {
         preset: ModelPreset::PrintShell,
         lod,
         stl: false,
+        ..Default::default()
     }
 }
 
