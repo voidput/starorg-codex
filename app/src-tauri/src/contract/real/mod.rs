@@ -278,6 +278,9 @@ struct Mem {
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
     /// without a second picker.
     last_fleet: Option<(String, Vec<u8>)>,
+    /// The Smart Citizen export picked for the last dry run, per channel (install, channel):
+    /// the confirm step (`reuse_last`) imports it without a second picker.
+    last_sc_pick: Option<((String, String), PathBuf)>,
     /// Channel data dirs whose `profile.toml` migration failed: warned about once.
     profile_migrate_failed: HashSet<PathBuf>,
 }
@@ -1301,6 +1304,14 @@ impl RealBackend {
     fn reuse_export(&self, req: &ImportRequest) -> CmdResult<Option<PathBuf>> {
         if !req.reuse_last {
             return Ok(None);
+        }
+        // The file the dry run just read (the import dialog's confirm), while it still exists.
+        let key = (req.target.install.clone(), req.target.channel.clone());
+        if let Some((k, p)) = &self.mem().last_sc_pick
+            && *k == key
+            && p.is_file()
+        {
+            return Ok(Some(p.clone()));
         }
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
@@ -2732,6 +2743,12 @@ impl Backend for RealBackend {
                 .ok_or_else(|| err(ErrorCode::Cancelled, "no file chosen"))?
             }
         };
+        if req.dry_run {
+            self.mem().last_sc_pick = Some((
+                (req.target.install.clone(), req.target.channel.clone()),
+                file.clone(),
+            ));
+        }
         let bytes = fsutil::read_limited(&file, bp_import::EXPORT_LIMIT)
             .map_err(io)?
             .ok_or_else(|| err(ErrorCode::NotFound, format!("{} not found", file.display())))?;
@@ -2783,6 +2800,7 @@ impl Backend for RealBackend {
             if !req.dry_run && !rep.empty_catalog {
                 store.save(&data).map_err(io)?;
                 self.after_merge(&ch.name, &store);
+                self.mem().last_sc_pick = None;
                 let abs = fsutil::canonicalize(&file).unwrap_or_else(|_| file.clone());
                 if let Err(e) = bp_import::save_last_import(&data, &abs) {
                     self.log(

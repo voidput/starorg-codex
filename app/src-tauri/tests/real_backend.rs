@@ -783,8 +783,17 @@ fn smart_citizen_import_dry_run_reports_and_writes_nothing() {
         .join("blueprints/300003.json");
     assert!(!set.exists(), "dry run wrote {}", set.display());
 
-    // For real: the character owns it now.
-    let r = f.backend.import_smart_citizen(req(false)).unwrap();
+    // For real: the confirm step reads the file the dry run just read, with no second
+    // picker (none is answered now), and the character owns it.
+    *f.pick.lock().unwrap() = None;
+    let r = f
+        .backend
+        .import_smart_citizen(ImportRequest {
+            reuse_last: true,
+            ..req(false)
+        })
+        .unwrap();
+    assert_eq!(r.file, "owned-blueprints.json");
     assert_eq!(r.imported.len(), 1);
     let owned = f
         .backend
