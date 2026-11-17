@@ -113,6 +113,59 @@ The same as on Linux (spec 7, [linux](linux.md)), with these Windows parts:
 - **USER.cfg:** a plain file on NTFS (no links). We add or keep one `g_language = english` line
   and nothing else; Remove takes our line out again.
 
+## After playing: blueprints and re-apply
+
+Linux has launch hooks that do this after every session ([linux](linux.md)); Windows has no
+equivalent in the RSI Launcher, so you trigger it yourself or let Task Scheduler do it.
+
+**In the app:** quit the game, open **Blueprints** (it reads the new `Received Blueprint` lines
+from `Game.log` and `logbackups`), then **Home -> Apply**: a channel with new blueprints shows
+**Stale** ("owned blueprints"). After a character reset: Blueprints -> **Fix owned blueprints**
+-> **Re-scan game logs**, then apply.
+
+**From a terminal** (the CLI zip, see [Install](#install-direct-download)):
+
+```powershell
+starorg-codex hook postexit
+```
+
+It reads the new log lines, then re-applies every channel that is stale, and always exits 0 (a
+skipped apply is reported, not an error). Step by step instead: `starorg-codex blueprints scan`,
+then `starorg-codex apply --all --if-stale`. Only `hook install` / `hook uninstall` (editing the
+LUG Helper scripts) are Linux only.
+
+**Automatically with Task Scheduler** (optional). Runs it when you log on and then every hour;
+while the game runs it still reads the logs but skips the write, and a later run applies.
+
+1. Task Scheduler -> **Create Task...** (not *Basic Task*, which cannot repeat).
+2. **General:** name `StarOrg Codex blueprints`; *Run only when user is logged on*; leave
+   **Run with highest privileges** off (apply refuses to run elevated).
+3. **Triggers -> New:** *At log on* of your user; tick **Repeat task every 1 hour** for
+   **Indefinitely**.
+4. **Actions -> New:** *Start a program*; Program: the full path of `starorg-codex.exe` (e.g.
+   `%LOCALAPPDATA%\Programs\starorg-codex\starorg-codex.exe`); Arguments: `hook postexit --quiet`.
+5. **Settings:** *If the task is already running: Do not start a new instance*.
+
+Or the same from PowerShell (as your normal user, not as administrator):
+
+```powershell
+$exe = "$env:LOCALAPPDATA\Programs\starorg-codex\starorg-codex.exe"
+$action = New-ScheduledTaskAction -Execute $exe -Argument 'hook postexit --quiet'
+$trigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+$trigger.Repetition = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Hours 1)).Repetition
+$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+Register-ScheduledTask -TaskName 'StarOrg Codex blueprints' -Action $action -Trigger $trigger -Settings $settings -RunLevel Limited
+```
+
+Check it with `Start-ScheduledTask 'StarOrg Codex blueprints'` and the app's **Activity** log;
+remove it with `Unregister-ScheduledTask 'StarOrg Codex blueprints' -Confirm:$false`. The task
+runs a console window for a moment each hour; that is the CLI doing its run.
+
+The Microsoft Store app has no CLI, and Windows keeps its settings and blueprint data in the
+package's private folder ([Store notes](#store-notes)), where the CLI does not look. So the task
+pairs with the direct-download app (installer or MSI), which shares its data with the CLI; with
+the Store app, use the in-app steps above.
+
 ## Updates per flavour
 
 - **Direct download:** off until you turn on Settings -> Network -> Check for updates. Then the

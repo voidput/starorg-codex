@@ -115,7 +115,8 @@ type and are written on the next apply.
 - **Where ownership comes from:**
   - **Game logs.** The game writes `Received Blueprint: ...` to `Game.log`. The app reads new
     lines when you open Blueprints; on Linux the post-exit hook does it after every session;
-    the CLI with `starorg-codex blueprints scan`.
+    the CLI with `starorg-codex blueprints scan`. On Windows, a scheduled task can scan and
+    re-apply for you ([windows](windows.md#after-playing-blueprints-and-re-apply)).
   - **Smart Citizen import.** **Import from Smart Citizen** reads its blueprint tracker export
     (`owned-blueprints.json`) into the character you choose.
   - **StarOrg Tools** (optional, off by default, needs sign-in): pull your owned list into one
