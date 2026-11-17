@@ -14,9 +14,8 @@ Release and Windows
 
 - [ ] Windows tester (Q19) ([#9](https://github.com/voidput/starorg-codex/issues/9)); the release location (Q1) is settled: the repo is public and the update check's default works ([updates](../../updates.md#release-location-spec-q1))
 - [ ] Windows tester runs [windows-test-checklist](../../windows-test-checklist.md) on a real install and files the report ([#9](https://github.com/voidput/starorg-codex/issues/9))
-- [ ] Owner: Azure Artifact Signing + `AZURE_*` secrets/variables ([#16](https://github.com/voidput/starorg-codex/issues/16); steps in [windows](../../windows.md))
 - [ ] Owner: delete the duplicate Partner Center app "StarOrgCodex" (identity `StarOrgLabs.StarOrgCodex`, never submitted). Keep "StarOrg Codex" (Store ID 9NWHZD6MLMLD, identity `StarOrgLabs.293108C0BE3BF`), which the repo variables MSIX_* / MS_STORE_* point at
-- [ ] Project board: check that closed issues (#1–#8, #10–#15) are Done and #9, #16–#18 match their state
+- [ ] Project board: check that closed issues (#1–#8, #10–#15) are Done and #9, #18 match their state (#16, #17 closed 2026-11-17)
 
 Apply, hooks and blueprints
 
