@@ -418,7 +418,7 @@
 {:else if emptyList}
   <FullEmpty icon={Rocket} title="Make your own ship list">
     <p>Import your fleet to get a short list of your ships, then put them in the order you want them in game lists and give them names.</p>
-    <p class="mt-2 text-[12.5px]">In RSI+: My Hangar, then Export fleet (HangarXPLOR JSON). FleetYards, FleetView and hangar.link exports work too.</p>
+    <p class="mt-2 text-[12.5px]">In RSI+: Hangar (category), then ships, then Export fleet (HangarXPLOR JSON). FleetYards, FleetView and hangar.link exports work too.</p>
     {#snippet actions()}
       <Button onclick={() => ((importMode = 'file'), (importOpen = true))}><FileUp aria-hidden="true" /> Import fleet</Button>
       <Button variant="outline" onclick={() => ((importMode = 'paste'), (importOpen = true))}><ClipboardPaste aria-hidden="true" /> Paste a list</Button>

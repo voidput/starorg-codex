@@ -113,7 +113,7 @@
         />
         {#if mode === 'file'}
           <div class="text-muted-foreground grid gap-1.5 text-[12.5px]">
-            <p><span class="text-foreground font-medium">RSI+:</span> My Hangar, then Export fleet, then HangarXPLOR JSON. FleetYards, FleetView (myfleet.gg) and hangar.link exports in the same format work too.</p>
+            <p><span class="text-foreground font-medium">RSI+:</span> Hangar (category), then ships, then Export fleet, then HangarXPLOR JSON. FleetYards, FleetView (myfleet.gg) and hangar.link exports in the same format work too.</p>
             <p>CSV works, but a ship you named is listed under its name only, so it has to be matched by hand. Prefer JSON.</p>
             <p>Only ship names, counts and the names you gave your ships are kept. Pledge names, prices, dates and insurance are not stored.</p>
           </div>
