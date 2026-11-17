@@ -1,0 +1,32 @@
+# Advisories Scorecard's Vulnerabilities check (OSV) would otherwise count. Each is a warning
+# (unmaintained or unsound) in a transitive dependency with no fixed version we can move to;
+# the same list, with the same reasons, is in deny.toml [advisories].ignore. Review on every
+# Tauri, keyring or StarBreaker bump and drop entries that no longer apply.
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0370"
+reason = "proc-macro-error unmaintained; build-time proc macro via tauri -> gtk 0.18 -> glib-macros (Linux); no fix until Tauri leaves gtk-rs 0.18"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2024-0429"
+reason = "glib 0.18 VariantStrIter unsound (fixed in 0.20); via tauri -> gtk 0.18 (Linux); we never call VariantStrIter; no fix until Tauri leaves gtk-rs 0.18"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2021-0140"
+reason = "rusttype unmaintained; via starbreaker-3d -> starbreaker-ui (model export draws in-game screens with the game's own fonts); no replacement at the pinned rev"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0192"
+reason = "ttf-parser 0.15 unmaintained; via starbreaker-ui -> rusttype, as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+reason = "zvariant 4 unmaintained; via keyring 3 -> secret-service 4 -> zbus 4 (Linux token storage); keyring 3 has no zbus 5 path"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+reason = "zbus_names 3 unmaintained; via keyring 3 -> secret-service 4 -> zbus 4, as above"
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+reason = "zvariant_derive 4 unmaintained; via keyring 3 -> secret-service 4 -> zbus 4, as above"

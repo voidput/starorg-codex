@@ -94,6 +94,13 @@ ignore = [
   # in-game screens; fonts read are the game's own. No upstream replacement at the pin.
   { id = "RUSTSEC-2021-0140", reason = "rusttype unmaintained; transitive via starbreaker-ui at the pinned rev" },
   { id = "RUSTSEC-2026-0192", reason = "ttf-parser 0.15 unmaintained; transitive via starbreaker-ui -> rusttype" },
+  # glib 0.18 (unsound VariantStrIter, fixed in 0.20) via tauri -> gtk 0.18 on Linux; not called.
+  { id = "RUSTSEC-2024-0429", reason = "glib 0.18 via tauri -> gtk 0.18; no fix until Tauri leaves gtk-rs 0.18" },
+  # zbus 4 family (unmaintained) via keyring 3 -> secret-service 4 (Linux token storage).
+  { id = "RUSTSEC-2026-0370", reason = "zvariant 4 via keyring 3 -> secret-service 4 -> zbus 4" },
+  { id = "RUSTSEC-2026-0371", reason = "zbus_names 3 via keyring 3 -> secret-service 4 -> zbus 4" },
+  { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 4 via keyring 3 -> secret-service 4 -> zbus 4" },
+  # Same list for Scorecard's Vulnerabilities check: osv-scanner.toml.
 ]
 
 [bans]

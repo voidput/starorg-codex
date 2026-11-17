@@ -1,0 +1,39 @@
+# cargo-fuzz targets for the parsers that read files a user hands the app (docs/ci.md, "Fuzzing").
+# Not a workspace member: built with `cargo +nightly fuzz run <target>`; the weekly Fuzz workflow
+# runs each for a few minutes.
+[package]
+name = "starorg-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+starorg-core = { path = "../crates/starorg-core" }
+
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "global_ini"
+path = "fuzz_targets/global_ini.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "fleet_import"
+path = "fuzz_targets/fleet_import.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "smart_citizen_export"
+path = "fuzz_targets/smart_citizen_export.rs"
+test = false
+doc = false
+bench = false
