@@ -74,7 +74,9 @@ for a sample of each, with the game's own colours (EM styles) where they apply.
     whole line* colours the full line); **[Missing]** marks one they do not own (off by
     default, only when an owned set is known).
   - In titles, **[BP]** when a contract can reward a blueprint, **[BP?]** when only some of its
-    variants can, and **[BP Owned]** when you own every blueprint it can award.
+    variants can, and **[BP Owned]** when you own every blueprint it can award. A **[BP?]**
+    contract also says why under its BLUEPRINTS list: "Not every offer with this title awards
+    one" (only some variants award a blueprint) or "Awarded by chance: 25–50%".
   - Which character counts is set on the Blueprints screen (below).
 - **Quest items:** two switches. *Add "Used in" to items missions use* adds
   `Used in: <contract> · <system>` to items the game data ties to a mission (ores, food, armour

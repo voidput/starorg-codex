@@ -464,7 +464,7 @@ fn mission_descriptions() {
     // pool; the chance never puts a letter after `%`.
     let bounty = added(&g, &stock, "zeta_bounty_desc");
     assert!(
-        bounty.starts_with("\\n\\n<EM3>BLUEPRINTS</EM3>\\n<EM4>[Easy]</EM4>\\n- Filler pistol\\n"),
+        bounty.starts_with("\\n\\n<EM3>BLUEPRINTS</EM3>\\nNot every offer with this title awards one\\n<EM4>[Easy]</EM4>\\n- Filler pistol\\n"),
         "{bounty}"
     );
     assert!(
@@ -507,6 +507,11 @@ fn chances_print_percent_at_line_end() {
     let g = generate(&gd, &stock, &Profile::default(), &NoneOwned);
     let b = added(&g, &stock, "zeta_bounty_desc");
     assert!(b.contains("<EM4>Blueprint reward:</EM4> 25–50%\\n"), "{b}");
+    // The note under BLUEPRINTS says the same, with the `%` at the end of its line.
+    assert!(
+        b.starts_with("\\n\\n<EM3>BLUEPRINTS</EM3>\\nAwarded by chance: 25–50%\\n"),
+        "{b}"
+    );
 }
 
 #[test]
