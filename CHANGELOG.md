@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.0](https://github.com/voidput/starorg-codex/compare/v1.1.0...v1.2.0) (2026-11-17)
+
+
+### Features
+
+* **missions:** say why a [BP?] contract may not award a blueprint ([#39](https://github.com/voidput/starorg-codex/issues/39)) ([9a6dba9](https://github.com/voidput/starorg-codex/commit/9a6dba93fb1e3e0de77a89100b7f5283764f5018))
+
 ## [1.1.0](https://github.com/voidput/starorg-codex/compare/v1.0.0...v1.1.0) (2026-11-17)
 
 
