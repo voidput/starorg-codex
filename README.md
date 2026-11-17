@@ -1,5 +1,7 @@
 # StarOrg Codex
 
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/voidput/starorg-codex/badge)](https://scorecard.dev/viewer/?uri=github.com/voidput/starorg-codex)
+
 Clearer Star Citizen item, ship and mission text, built from the files of your own install and
 removable in one click. StarOrg Codex writes a new game text file (`global.ini`): component names
 get short tags such as size, class and grade, ship and weapon descriptions get a stats block,
