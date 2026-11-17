@@ -431,7 +431,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release upload "$TAG" dist/*.msix --clobber
-      # Optional, off by default: submit the package to Partner Center with the msstore CLI.
+      # Optional, off by default: publish the package to the Store with the msstore CLI.
       # Needs the repo variable MS_STORE_SUBMIT=true and the Partner Center API secrets
       # (docs/windows.md, "Automatic submission"). Otherwise the owner uploads the .msix by hand.
       - name: Check the Partner Center secrets
@@ -446,9 +446,11 @@ jobs:
           fi
       - uses: microsoft/microsoft-store-apppublisher@cc9910a8d59f2eb55cbb83df0a3800cf3b5300e0 # v1.4
         if: steps.identity.outputs.configured == 'true' && vars.MS_STORE_SUBMIT == 'true'
-      # --noCommit: the package lands in a draft submission; the owner reviews and submits it
-      # in Partner Center (listing text, screenshots, age rating stay hand-made).
-      - name: Submit to Partner Center (msstore, draft)
+      # Commits the submission: it goes to certification and publishes when it passes. The
+      # listing text, screenshots and age rating carry over from the last submission. Fails
+      # while a submission started by hand in Partner Center is in progress (the API may only
+      # change submissions it created): finish or delete that one, then re-run this job.
+      - name: Publish to the Microsoft Store (msstore)
         if: steps.identity.outputs.configured == 'true' && vars.MS_STORE_SUBMIT == 'true'
         shell: pwsh
         env:
@@ -460,7 +462,7 @@ jobs:
         run: |
           msstore reconfigure --tenantId $env:MS_STORE_TENANT_ID --sellerId $env:MS_STORE_SELLER_ID --clientId $env:MS_STORE_CLIENT_ID --clientSecret $env:MS_STORE_CLIENT_SECRET
           $pkg = Get-ChildItem dist\*.msix | Select-Object -First 1
-          msstore publish $pkg.FullName --appId $env:MS_STORE_ID --noCommit
+          msstore publish $pkg.FullName --appId $env:MS_STORE_ID
           if ($LASTEXITCODE -ne 0) { throw "msstore publish failed ($LASTEXITCODE)" }
   checksums:
     needs: [release-please, notices, cli, app, store]

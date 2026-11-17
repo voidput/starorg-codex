@@ -247,10 +247,15 @@ Policy points to keep in mind for the listing: say plainly that the app changes 
 third-party game and is not affiliated with Cloud Imperium Games or Roberts Space Industries; do
 not use the Star Citizen logo or game art in the screenshots or logos.
 
-### Automatic submission (optional, off by default)
+### Automatic submission (on since 1.1.0)
 
-With the repo variable `MS_STORE_SUBMIT=true`, the store job also sends the package to Partner
-Center as a **draft** (`msstore publish --noCommit`); you still review and submit by hand. Needs
+With the repo variable `MS_STORE_SUBMIT=true` (set), the store job also publishes the package
+(`msstore publish`): a new submission with this package goes to certification and is published
+when it passes, usually within a few hours to 3 days. Listing text, screenshots and age rating
+carry over from the last submission; change them in Partner Center when needed. The API may only
+change submissions it created: while a submission started by hand is in progress, the step fails
+("delete the current in-progress submission"); finish or delete it, then re-run the failed job
+(`gh run rerun <run id> --failed`). Needs
 an Entra app with Partner Center API access (Partner Center -> Account settings -> User
 management -> Microsoft Entra applications) and:
 
