@@ -1,4 +1,5 @@
 [workspace]
+exclude = ["fuzz"]
 resolver = "3"
 # app/src-tauri inherits [workspace.package], so the GUI carries the single workspace version.
 members = ["crates/starorg-core", "crates/starorg-data", "crates/starorg-gamedata", "crates/starorg-mcp", "crates/starorg-net", "crates/starorg-cli", "app/src-tauri"]

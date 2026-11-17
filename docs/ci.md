@@ -43,8 +43,29 @@ Deferred majors (each has a targeted `ignore` in `dependabot.yml`; drop it when 
 - Secret scanning and push protection on.
 - Private vulnerability reporting on (see `SECURITY.md`).
 - CodeQL default setup OFF: `security.yml` is the advanced setup, and both together conflict.
-- Optional: branch protection on `main` requiring the CI and Security checks (raises the Scorecard score).
+- `main` ruleset (set 2026-11-17): signed commits, no force push or deletion, changes only through a
+  PR with 1 approval and these checks passing: `rust (ubuntu-latest)`, `rust (windows-latest)`,
+  `ui (app/)`, `deny`, `third-party notices`, `CLI has no GTK or HTTP client`,
+  `gitleaks (full history)`, `cargo audit (RustSec via cargo-deny)`. Repository admins may bypass
+  on a PR only (solo merges, and release-please PRs, which get no CI runs from `GITHUB_TOKEN`); a
+  `Release-As:` commit therefore goes through a PR too. Renaming a CI job means updating the
+  ruleset's check list.
 - Optional: add the `DISCORD_CI_WEBHOOK` Actions secret.
+
+## Scorecard
+
+`scorecard.yml` publishes results (badge in the README). Known advisories in transitive
+dependencies with no fix (Tauri's GTK3 stack, keyring's Secret Service backend, StarBreaker's UI
+renderer) are listed with reasons in both `deny.toml` and `osv-scanner.toml`; review them on every
+Tauri, keyring or StarBreaker bump. Releases carry an SLSA provenance bundle
+(`starorg-codex-vX.Y.Z.intoto.jsonl`, from `actions/attest-build-provenance` over SHA256SUMS).
+
+## Fuzzing
+
+`fuzz/` holds cargo-fuzz targets for the parsers that read files users hand the app:
+`global_ini`, `fleet_import`, `smart_citizen_export`. `fuzz.yml` runs each for 5 minutes weekly
+(and 1 minute on PRs touching those parsers); a crash fails the run and uploads the input. Locally:
+`cargo +nightly fuzz run global_ini -- -max_total_time=60` in `fuzz/`.
 
 ## Local
 ```sh
