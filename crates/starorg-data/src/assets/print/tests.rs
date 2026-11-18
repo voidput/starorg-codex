@@ -276,7 +276,7 @@ fn the_default_pipeline_only_sits_the_model_on_the_bed_in_metres() {
     assert_eq!(out.parts.len(), 1);
     assert!(out.notes.is_empty());
     let b = out.parts[0].mesh.bounds().unwrap();
-    assert_eq!((b.min, b.max), ([2.0, 3.0, 0.0], [4.0, 5.0, 2.0]));
+    assert_eq!((b.min, b.max), ([-1.0, -1.0, 0.0], [1.0, 1.0, 2.0]));
     assert_eq!(out.triangles(), 12);
 }
 

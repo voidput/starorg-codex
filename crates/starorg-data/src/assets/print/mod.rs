@@ -578,6 +578,8 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
             )));
         }
     }
+    // A fit size is the longest side of what is left.
+    let s = scale::factor(&mesh.bounds().unwrap_or(bounds), o);
     scale::scale(&mut mesh, s.k);
     let unit = s.unit;
     let per_mm = 1.0 / unit.mm();

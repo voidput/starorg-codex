@@ -39,6 +39,27 @@ same messages come from the CLI (exit 2), the backends (`invalid`) and the TS ch
 dialog disables "Save as…"). Print options with `--preset full` are refused by the CLI and
 ignored by the backends (as a Print shell ignores paints).
 
+### Scale, bed and small parts (`scale.rs`)
+
+- **Scale**: none keeps real size in metres (3MF `unit="meter"`); fit-mm makes the longest
+  side N mm; ratio 1:N gives mm = m × 1000 / N; shrink-to-bed alone starts from real size in
+  mm. Any of these writes millimetres (3MF `unit="millimeter"`, STL numbers in mm). Fit-mm
+  measures what is left after small parts are dropped.
+- **Sit on the bed** (always, steps 4 and 13): lowest z = 0 and the middle of the footprint at
+  x = y = 0, all parts moved together (each split piece on its own).
+- **Bed check** (scaled models only; real size in metres is never checked): fits as is → no
+  change; fits only turned 90° about Z → turned, with a note; fits neither way → with
+  shrink-to-bed, scaled down (turned when that keeps it larger) with a note giving the
+  percentage and the new size, else a note with the size and what to do (`split` → "the split
+  cuts it into pieces that fit"). 1 µm slack for f32 rounding.
+- **Drop small parts**: corners closer than 1/1000 of the size are welded (union-find over a
+  hash grid), triangles joined by corners form a loose part, and parts whose bounding-box
+  **diagonal** at print size is under N mm are left out ("Left out K parts smaller than N mm.").
+  A small part inside or touching a bigger one without sharing a corner counts as loose. Real
+  data: Skylark LOD 4 (98 376 tris) at fit 150 mm drops 655 parts (→ 94 844 tris) at 1 mm,
+  906 at 3 mm; Carrack LOD 4 (401 933 tris) at fit 250 mm drops 16 020 parts (→ 278 622) at
+  0.3 mm; 0.15 s and about 1 s in a release build.
+
 ## Pipeline
 
 `print::apply(mesh, &PrintOptions, progress) -> AssetResult<PrintOutput>`, fixed order:
@@ -46,7 +67,7 @@ ignored by the backends (as a Print shell ignores paints).
 1. classify groups (multicolor only; otherwise groups are dropped)
 2. drop tiny parts (measured at print size)
 3. scale (`scale::factor`: real size stays metres, `unit="meter"`; any scale or shrink -> mm)
-4. sit on the bed (min z = 0)
+4. sit on the bed (min z = 0, x/y centred)
 5. bed check / shrink to the bed, sit on the bed
 6. voxel solid, 7. thicken, 8. hollow + drain, 9. pegs (at `split::plan`'s cuts)
 10. split into pieces
