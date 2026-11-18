@@ -316,6 +316,8 @@ impl Staging {
             let mut f = std::fs::File::create(self.tmp.join(META_JSON))?;
             f.write_all(&serde_json::to_vec_pretty(&meta)?)?;
             f.sync_all()?;
+            // Windows refuses to rename a folder with a file open in it.
+            drop(f);
             if self.dir.exists() {
                 std::fs::remove_dir_all(&self.dir)?;
             }
