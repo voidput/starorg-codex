@@ -620,10 +620,15 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
                 PEG_DEPTH_MM * per_mm,
                 &mut notes,
             )?;
+        } else if o.split {
+            let (d, depth) = (split::PIN_MM * per_mm, split::PIN_DEPTH_MM * per_mm);
+            split::pins(&mut grid, &cuts, d, depth, &mut notes);
         }
         let pieces = if o.split {
             step(progress, 0.62, "Splitting")?;
-            split::split(grid, &cuts)
+            let pieces = split::split(grid, &cuts);
+            notes.push(split::summary(&cuts, &pieces));
+            pieces
         } else {
             vec![split::Piece {
                 name: String::new(),
