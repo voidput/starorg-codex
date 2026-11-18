@@ -495,9 +495,15 @@ fn print_glb_writes_the_stl_and_3mf_of_a_glb_through_the_pipeline() {
     let f = |o: usize| f32::from_le_bytes(stl[o..o + 4].try_into().unwrap());
     let zs = [f(84 + 12 + 8), f(84 + 24 + 8), f(84 + 36 + 8)];
     assert_eq!(zs.iter().copied().fold(f32::INFINITY, f32::min), 0.0);
+    // 100 mm wide, centred on the bed.
     let xs = [f(84 + 12), f(84 + 24), f(84 + 36)];
+    let (lo, hi) = xs
+        .iter()
+        .fold((f32::INFINITY, f32::NEG_INFINITY), |(a, b), &x| {
+            (a.min(x), b.max(x))
+        });
     assert!(
-        (xs.iter().copied().fold(0.0, f32::max) - 100.0).abs() < 1e-3,
+        (hi - lo - 100.0).abs() < 1e-3 && (lo + hi).abs() < 1e-3,
         "{xs:?}"
     );
     // Only the 3MF when asked; --no-weapons is for export-model.
