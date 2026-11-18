@@ -8,6 +8,10 @@
 //!   the worker is ready, so it never overlaps an extraction's peak.
 //! - A worker crash is a `failed` status with the reason; the next request starts a new one.
 //! - The webview never sends a path: exports and folders go through native dialogs here.
+//! - Published LIVE builds (addendum §1, Diff only): listed and downloaded through a
+//!   [`DumpTransport`] only while Settings > Network > "Download published LIVE builds for
+//!   Diff" is on, verified and cached by `starorg_core::source::dump` below the app cache;
+//!   a downloaded build is the `dump:<tag>` source with the switch off too.
 
 use super::dialogs::FileFilter;
 use super::{Found, RealBackend, err, internal, io, now};
@@ -24,7 +28,10 @@ use starorg_core::dev::readable::{self, LabelKind, Lookup, MapLookup, NoLookup};
 use starorg_core::dev::record;
 use starorg_core::discovery::Channel;
 use starorg_core::lock;
+use starorg_core::source::SourceError;
+use starorg_core::source::dump::{self as dumps, DumpCache, DumpFiles, DumpTransport};
 use starorg_data::devworker::{ExportDone, ExportProgress, Reply, Request, WorkerInfo};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -402,6 +409,8 @@ pub struct DevState {
     stats: Mutex<Option<(LookupKey, Arc<StatsByGuid>)>>,
     /// The comparison the current worker holds marks for: (worker, result).
     compared: Mutex<Option<(Weak<Worker>, DevCompare)>>,
+    /// How published LIVE builds are reached (tests: an in-memory one).
+    dumps: Mutex<Arc<dyn DumpTransport + Send + Sync>>,
 }
 
 impl Default for DevState {
@@ -417,6 +426,7 @@ impl Default for DevState {
             lookups: Mutex::new(Vec::new()),
             stats: Mutex::new(None),
             compared: Mutex::new(None),
+            dumps: Mutex::new(Arc::new(starorg_net::GitHubTransport::new())),
         }
     }
 }
@@ -424,6 +434,10 @@ impl Default for DevState {
 impl DevState {
     pub fn set_spawner(&self, s: Arc<dyn DevSpawner>) {
         *lock_or(&self.spawner) = s;
+    }
+
+    pub fn set_dump_transport(&self, t: Arc<dyn DumpTransport + Send + Sync>) {
+        *lock_or(&self.dumps) = t;
     }
 
     /// Stop the worker (Developer mode off, or `dev_close`).
@@ -491,6 +505,17 @@ impl RealBackend {
     pub fn with_dev_spawner(self, s: Arc<dyn DevSpawner>) -> Self {
         self.dev.set_spawner(s);
         self
+    }
+
+    /// Swap how published LIVE builds are downloaded (tests: an in-memory transport).
+    pub fn with_dump_transport(self, t: Arc<dyn DumpTransport + Send + Sync>) -> Self {
+        self.dev.set_dump_transport(t);
+        self
+    }
+
+    /// As [`Self::with_dump_transport`], on a backend in use.
+    pub fn set_dump_transport(&self, t: Arc<dyn DumpTransport + Send + Sync>) {
+        self.dev.set_dump_transport(t);
     }
 
     fn dev_on(&self) -> CmdResult<()> {
@@ -748,12 +773,7 @@ impl RealBackend {
     fn parse_file(&self, path: &Path) -> CmdResult<Arc<Dataset>> {
         let key = file_key(path)
             .ok_or_else(|| err(ErrorCode::NotFound, format!("{} is gone", path.display())))?;
-        if let Some(d) = lock_or(&self.dev.data)
-            .files
-            .iter()
-            .find(|x| x.0 == key)
-            .map(|x| x.1.clone())
-        {
+        if let Some(d) = self.parsed(&key) {
             return Ok(d);
         }
         if key.1 > dataset::MAX_FILE {
@@ -763,11 +783,25 @@ impl RealBackend {
             ));
         }
         let bytes = std::fs::read(path).map_err(io)?;
-        let name = path
+        self.parse_bytes(key, &bytes)
+    }
+
+    fn parsed(&self, key: &FileKey) -> Option<Arc<Dataset>> {
+        lock_or(&self.dev.data)
+            .files
+            .iter()
+            .find(|x| x.0 == *key)
+            .map(|x| x.1.clone())
+    }
+
+    /// Parse a dataset file's bytes and keep it (and its counts) by file identity.
+    fn parse_bytes(&self, key: FileKey, bytes: &[u8]) -> CmdResult<Arc<Dataset>> {
+        let name = key
+            .0
             .file_name()
             .map(|n| n.to_string_lossy().to_string())
             .unwrap_or_default();
-        let d = Arc::new(Dataset::parse(&name, &bytes).map_err(|e| err(ErrorCode::Invalid, e))?);
+        let d = Arc::new(Dataset::parse(&name, bytes).map_err(|e| err(ErrorCode::Invalid, e))?);
         let mut c = lock_or(&self.dev.data);
         c.summaries.insert(
             key.clone(),
@@ -780,6 +814,107 @@ impl RealBackend {
         c.files.insert(0, (key, d.clone()));
         c.files.truncate(KEEP_DATASETS);
         Ok(d)
+    }
+
+    // ----- Published LIVE builds (Diff only) -----------------------------------------
+
+    fn dump_cache(&self) -> DumpCache {
+        DumpCache::new(dumps::cache_root(&self.dirs().cache))
+    }
+
+    fn dumps_on(&self) -> bool {
+        self.settings().network.published_dumps
+    }
+
+    fn dump_transport(&self) -> Arc<dyn DumpTransport + Send + Sync> {
+        lock_or(&self.dev.dumps).clone()
+    }
+
+    /// The downloaded build of a `dump:<tag>` source.
+    fn dump_files(&self, source: &str) -> CmdResult<DumpFiles> {
+        let tag = dump_tag(source)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("no source {source}")))?;
+        self.dump_cache().entry(tag).ok_or_else(|| {
+            err(
+                ErrorCode::NotFound,
+                format!("{} is not downloaded", dump_label(tag)),
+            )
+        })
+    }
+
+    /// One dataset of a downloaded build, checked against its SHA-256 before it is parsed.
+    fn parse_dump(&self, files: &DumpFiles, name: &str) -> CmdResult<Arc<Dataset>> {
+        let path = files
+            .path(name)
+            .filter(|_| !name.starts_with('_'))
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("no dataset {name}")))?;
+        let key = file_key(&path)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("{} is gone", path.display())))?;
+        if let Some(d) = self.parsed(&key) {
+            return Ok(d);
+        }
+        let bytes = files.read(name).map_err(|e| {
+            err(
+                ErrorCode::Invalid,
+                format!(
+                    "{} {name}: {e}. Remove it and download it again.",
+                    dump_label(&files.meta.tag)
+                ),
+            )
+        })?;
+        self.parse_bytes(key, &bytes)
+    }
+
+    fn dump_source(&self, files: &DumpFiles) -> DevSource {
+        let tag = files.meta.tag.clone();
+        let mut datasets = Vec::new();
+        let mut problem = None;
+        for (name, f) in files.datasets() {
+            let cached = files
+                .path(name)
+                .and_then(|p| file_key(&p))
+                .and_then(|k| lock_or(&self.dev.data).summaries.get(&k).copied());
+            let counts = cached.or_else(|| {
+                let key = files.path(name).and_then(|p| file_key(&p))?;
+                match files.read(name) {
+                    Ok(bytes) => self.parse_bytes(key, &bytes).ok().map(|d| {
+                        (
+                            d.tables.len() as u32,
+                            d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+                        )
+                    }),
+                    Err(e) => {
+                        problem = Some(format!("{name}: {e}. Remove it and download it again."));
+                        None
+                    }
+                }
+            });
+            let (tables, rows) = counts.unwrap_or((0, 0));
+            datasets.push(DevDatasetSummary {
+                file: name.clone(),
+                bytes: f.size,
+                tables,
+                rows,
+            });
+        }
+        let title = if files.meta.title.is_empty() {
+            format!("{} from github.com/{}", dump_label(&tag), files.meta.repo)
+        } else {
+            format!("{} from github.com/{}", files.meta.title, files.meta.repo)
+        };
+        DevSource {
+            id: format!("dump:{tag}"),
+            kind: SourceKind::Dump,
+            label: dump_label(&tag),
+            build: Some(tag),
+            state: if problem.is_some() {
+                SourceState::Error
+            } else {
+                SourceState::Ready
+            },
+            detail: Some(problem.unwrap_or(title)),
+            datasets,
+        }
     }
 
     fn build_dataset(&self, f: &Found, ch: &Channel) -> CmdResult<Arc<Dataset>> {
@@ -815,7 +950,14 @@ impl RealBackend {
                 .map(|(name, p, _)| Ok((name, self.parse_file(&p)?)))
                 .collect();
         }
-        Err(dump_or_missing(source))
+        if source.starts_with("dump:") {
+            let files = self.dump_files(source)?;
+            return files
+                .datasets()
+                .map(|(name, _)| Ok((name.clone(), self.parse_dump(&files, name)?)))
+                .collect();
+        }
+        Err(err(ErrorCode::NotFound, format!("no source {source}")))
     }
 
     fn dataset(&self, r: &ChannelRef, source: &str, name: &str) -> CmdResult<Arc<Dataset>> {
@@ -836,7 +978,11 @@ impl RealBackend {
                 .ok_or_else(|| err(ErrorCode::NotFound, format!("no dataset {name}")))?;
             return self.parse_file(&p);
         }
-        Err(dump_or_missing(source))
+        if source.starts_with("dump:") {
+            let files = self.dump_files(source)?;
+            return self.parse_dump(&files, name);
+        }
+        Err(err(ErrorCode::NotFound, format!("no source {source}")))
     }
 
     /// The label lookup of a channel's build (7.14): its GameData records, stock text and our
@@ -976,30 +1122,22 @@ impl RealBackend {
                 datasets,
             });
         }
-        let on = self.settings().network.published_dumps;
-        out.push(DevSource {
-            id: format!("dump:{}", r.channel),
-            kind: SourceKind::Dump,
-            label: "Published dump".into(),
-            build: None,
-            state: SourceState::Off,
-            detail: Some(if on {
-                "Follow-up: not in this build".into()
-            } else {
-                "Off (Settings > Network)".into()
-            }),
-            datasets: vec![],
-        });
+        // Downloaded LIVE builds, newest first; usable with the switch off too.
+        for files in self.dump_cache().list() {
+            out.push(self.dump_source(&files));
+        }
         Ok(out)
     }
 }
 
-fn dump_or_missing(source: &str) -> AppError {
-    if source.starts_with("dump:") {
-        dump_refusal(false)
-    } else {
-        err(ErrorCode::NotFound, format!("no source {source}"))
-    }
+/// A dump error as the UI shows it.
+fn dump_error(tag: &str, e: SourceError) -> AppError {
+    let code = match &e {
+        SourceError::Unavailable(_) => ErrorCode::NotFound,
+        SourceError::Check(_) => ErrorCode::Invalid,
+        _ => ErrorCode::Internal,
+    };
+    err(code, format!("Could not download {}: {e}", dump_label(tag)))
 }
 
 fn identity_options(a: Option<&dataset::Table>, b: Option<&dataset::Table>) -> Vec<String> {
@@ -1275,6 +1413,21 @@ impl DevBackend for RealBackend {
 
     fn dev_remove_source(&self, req: DevSourceRef) -> CmdResult<Vec<DevSource>> {
         self.dev_on()?;
+        if req.source.starts_with("dump:") {
+            let tag = dump_tag(&req.source)
+                .ok_or_else(|| err(ErrorCode::NotFound, format!("no source {}", req.source)))?;
+            if !self.dump_cache().remove(tag).map_err(io)? {
+                return Err(err(
+                    ErrorCode::NotFound,
+                    format!("no source {}", req.source),
+                ));
+            }
+            lock_or(&self.dev.data)
+                .files
+                .retain(|x| !x.0.0.components().any(|c| c.as_os_str() == tag));
+            *lock_or(&self.dev.diff) = None;
+            return self.sources(&req.target);
+        }
         let path = self.folder_path(&req.source)?;
         let mut a = self.app_file();
         let text = path.display().to_string();
@@ -1284,13 +1437,108 @@ impl DevBackend for RealBackend {
         self.sources(&req.target)
     }
 
+    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<Vec<DumpRelease>> {
+        self.dev_on()?;
+        self.resolve(&req)?;
+        let cache = self.dump_cache();
+        let cached = cache.list();
+        let of_cache = |f: &DumpFiles| DumpRelease {
+            tag: f.meta.tag.clone(),
+            title: if f.meta.title.is_empty() {
+                dump_label(&f.meta.tag)
+            } else {
+                f.meta.title.clone()
+            },
+            channel: "LIVE".into(),
+            branch: f.meta.release.branch.clone(),
+            published: f.meta.published.clone(),
+            cached: true,
+        };
+        if !self.dumps_on() {
+            // Off: no request; what is on this computer still works.
+            return Ok(cached.iter().map(of_cache).collect());
+        }
+        let live = dumps::live_releases(self.dump_transport().as_ref()).map_err(|e| {
+            err(
+                ErrorCode::Internal,
+                format!("Could not list the published LIVE builds: {e}"),
+            )
+        })?;
+        let mut out: Vec<DumpRelease> = live
+            .into_iter()
+            .map(|r| DumpRelease {
+                cached: cached.iter().any(|c| c.meta.tag == r.tag),
+                channel: "LIVE".into(),
+                branch: dumps::parse_release_body(&r.body).branch,
+                title: r.title,
+                published: r.published,
+                tag: r.tag,
+            })
+            .collect();
+        // Downloaded builds GitHub no longer lists (or lists past the first page) stay.
+        for c in &cached {
+            if !out.iter().any(|r| r.tag == c.meta.tag) {
+                out.push(of_cache(c));
+            }
+        }
+        out.sort_by(|a, b| b.published.cmp(&a.published));
+        Ok(out)
+    }
+
     fn dev_download_dump(
         &self,
-        _req: ChannelRef,
-        _progress: Progress<'_>,
+        req: DevDumpRequest,
+        progress: Progress<'_>,
     ) -> CmdResult<Vec<DevSource>> {
         self.dev_on()?;
-        Err(dump_refusal(self.settings().network.published_dumps))
+        self.resolve(&req.target)?;
+        if !self.dumps_on() {
+            return Err(dumps_off());
+        }
+        let tag = req.tag.as_str();
+        if !dumps::valid_component(tag) {
+            return Err(err(ErrorCode::Invalid, format!("bad build tag {tag:?}")));
+        }
+        let label = dump_label(tag);
+        let job = RefCell::new(self.job_start(
+            JobKind::Dev,
+            Some(&req.target.channel),
+            1,
+            &format!("Asking GitHub for {label}"),
+        ));
+        progress(job.borrow().clone());
+        let transport = self.dump_transport();
+        let r = dumps::fetch_verified(
+            transport.as_ref(),
+            &self.dump_cache(),
+            tag,
+            &|i, n, file| {
+                let mut j = job.borrow_mut();
+                j.steps = n as u32 + 1;
+                let text = if file.is_empty() {
+                    format!("Checking {label}")
+                } else {
+                    format!("Downloading {file} ({} of {n})", i + 1)
+                };
+                self.job_step(&mut j, i as u32 + 1, &text, Some(progress));
+            },
+        )
+        .map_err(|e| dump_error(tag, e));
+        let r = r.and_then(|_| {
+            *lock_or(&self.dev.diff) = None;
+            self.sources(&req.target)
+        });
+        let job = job.into_inner();
+        match &r {
+            Ok(_) => self.job_end(
+                job,
+                JobPhase::Done,
+                &format!("Downloaded {label}"),
+                Some(progress),
+            ),
+            Err(e) => self.job_end(job, JobPhase::Failed, &e.message, Some(progress)),
+        }
+        r
     }
 
     fn dev_dataset(&self, req: DevDatasetRef) -> CmdResult<DatasetInfo> {

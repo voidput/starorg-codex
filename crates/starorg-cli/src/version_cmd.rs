@@ -13,9 +13,9 @@ pub fn version_info() -> serde_json::Value {
         "version": env!("CARGO_PKG_VERSION"),
         "target": format!("{}-{}", std::env::consts::ARCH, std::env::consts::OS),
         "profile": if cfg!(debug_assertions) { "debug" } else { "release" },
-        "features": {
-            "published_dumps": cfg!(feature = "published-dumps"),
-        },
+        // No optional features since published dumps left the CLI (2026-11-17); the key
+        // stays for scripts that read it.
+        "features": {},
         "starbreaker_commit": starorg_data::starbreaker::STARBREAKER_COMMIT,
         "repository": env!("CARGO_PKG_REPOSITORY"),
     })
@@ -31,14 +31,6 @@ pub fn version(g: &GlobalOpts) -> ExitCode {
         let s = |k: &str| v[k].as_str().unwrap_or_default().to_string();
         println!("starorg-codex {}", s("version"));
         println!("  target:      {} ({})", s("target"), s("profile"));
-        println!(
-            "  features:    published-dumps {}",
-            if cfg!(feature = "published-dumps") {
-                "on"
-            } else {
-                "off"
-            }
-        );
         println!("  starbreaker: {}", s("starbreaker_commit"));
         println!("  releases:    {}/releases", s("repository"));
     }

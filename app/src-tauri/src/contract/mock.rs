@@ -1354,12 +1354,6 @@ impl Backend for MockBackend {
                 counts,
             });
         }
-        if req.data_source == DataSource::PublishedDumps {
-            warnings.push(Warning {
-                kind: "network".into(),
-                detail: "Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.".into(),
-            });
-        }
         Ok(SetupPlan {
             install: req.install,
             channels,

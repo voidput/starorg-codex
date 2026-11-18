@@ -3038,15 +3038,6 @@
       "kind": "folder",
       "label": "sample-data",
       "state": "ready"
-    },
-    {
-      "build": null,
-      "datasets": [],
-      "detail": "Off (Settings > Network)",
-      "id": "dump:LIVE",
-      "kind": "dump",
-      "label": "Published dump",
-      "state": "off"
     }
   ],
   "dev_close": {
@@ -3568,6 +3559,143 @@
       }
     ]
   },
+  "dev_download_dump": [
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 8021,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:LIVE",
+      "kind": "build",
+      "label": "LIVE build",
+      "state": "ready"
+    },
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 8023,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:HOTFIX",
+      "kind": "build",
+      "label": "HOTFIX build",
+      "state": "ready"
+    },
+    {
+      "build": "4.10.0-mock",
+      "datasets": [
+        {
+          "bytes": 7995,
+          "file": "gamedata.json",
+          "rows": 46,
+          "tables": 3
+        }
+      ],
+      "detail": null,
+      "id": "build:PTU",
+      "kind": "build",
+      "label": "PTU build",
+      "state": "ready"
+    },
+    {
+      "build": null,
+      "datasets": [
+        {
+          "bytes": 1481,
+          "file": "game-ships.json",
+          "rows": 15,
+          "tables": 2
+        },
+        {
+          "bytes": 3765,
+          "file": "game-strings-english.json",
+          "rows": 41,
+          "tables": 2
+        },
+        {
+          "bytes": 6115,
+          "file": "game-weapons.json",
+          "rows": 38,
+          "tables": 2
+        }
+      ],
+      "detail": "/synthetic/sample-data",
+      "id": "folder:0",
+      "kind": "folder",
+      "label": "sample-data",
+      "state": "ready"
+    },
+    {
+      "build": "4.10.197.2878",
+      "datasets": [
+        {
+          "bytes": 496,
+          "file": "game-ships.json",
+          "rows": 5,
+          "tables": 1
+        },
+        {
+          "bytes": 2159,
+          "file": "game-weapons.json",
+          "rows": 24,
+          "tables": 1
+        }
+      ],
+      "detail": "4.10.2 LIVE (4.10.197.2878) from github.com/voidput/sc-gamedata-dumps",
+      "id": "dump:4.10.197.2878",
+      "kind": "dump",
+      "label": "LIVE 4.10.197.2878",
+      "state": "ready"
+    }
+  ],
+  "dev_dump_releases": [
+    {
+      "branch": "sc-alpha-4.10.0",
+      "cached": false,
+      "channel": "LIVE",
+      "published": "2026-11-12T18:20:43Z",
+      "tag": "4.10.200.58746",
+      "title": "4.10.0 LIVE (4.10.200.58746)"
+    },
+    {
+      "branch": "sc-alpha-4.10.2",
+      "cached": false,
+      "channel": "LIVE",
+      "published": "2026-11-01T14:36:39Z",
+      "tag": "4.10.197.2878",
+      "title": "4.10.2 LIVE (4.10.197.2878)"
+    }
+  ],
+  "dev_dump_releases_cached": [
+    {
+      "branch": "sc-alpha-4.10.0",
+      "cached": false,
+      "channel": "LIVE",
+      "published": "2026-11-12T18:20:43Z",
+      "tag": "4.10.200.58746",
+      "title": "4.10.0 LIVE (4.10.200.58746)"
+    },
+    {
+      "branch": "sc-alpha-4.10.2",
+      "cached": true,
+      "channel": "LIVE",
+      "published": "2026-11-01T14:36:39Z",
+      "tag": "4.10.197.2878",
+      "title": "4.10.2 LIVE (4.10.197.2878)"
+    }
+  ],
+  "dev_dump_releases_off": [],
   "dev_export_record": {
     "bytes": 0,
     "cancelled": true,
@@ -7171,15 +7299,6 @@
       "kind": "build",
       "label": "PTU build",
       "state": "ready"
-    },
-    {
-      "build": null,
-      "datasets": [],
-      "detail": "Off (Settings > Network)",
-      "id": "dump:LIVE",
-      "kind": "dump",
-      "label": "Published dump",
-      "state": "off"
     }
   ],
   "dev_status": {
@@ -10886,12 +11005,7 @@
       }
     ],
     "install": "inst-7f3a",
-    "warnings": [
-      {
-        "detail": "Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.",
-        "kind": "network"
-      }
-    ]
+    "warnings": []
   },
   "profile_schema": {
     "categories": [

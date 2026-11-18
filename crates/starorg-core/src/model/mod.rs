@@ -1,10 +1,10 @@
 //! `GameData`: the normalised model generators read (spec 3.4).
 //!
-//! Two sources fill it: local extraction from `Data.p4k` (`starorg-data`) and the published
-//! dumps of `voidput/sc-gamedata-dumps` ([`crate::source::dump`]). The record shapes follow
-//! the dumps' JSON schema (camelCase field names, same derived numbers), so a dump file
-//! deserialises straight into these types; local extraction adds what the dumps do not
-//! carry: loc key references (`loc`), DataForge paths, contracts and reputation keys.
+//! Local extraction from `Data.p4k` (`starorg-data`) fills it. The record shapes follow the
+//! JSON schema of the published dumps of `voidput/sc-gamedata-dumps` (camelCase field names,
+//! same derived numbers); local extraction adds what the dumps do not carry: loc key
+//! references (`loc`), DataForge paths, contracts and reputation keys. (The dumps themselves
+//! serve only Developer mode's Diff, [`crate::source::dump`].)
 //!
 //! Every change of meaning bumps [`GAMEDATA_SCHEMA`], which is part of the cache key.
 //!

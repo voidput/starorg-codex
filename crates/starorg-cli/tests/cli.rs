@@ -331,10 +331,8 @@ fn build_profile_errors_are_exit_2() {
 }
 
 #[test]
-fn gamedata_without_network_feature_refuses_published_data() {
-    if cfg!(feature = "published-dumps") {
-        return;
-    }
+fn gamedata_has_no_published_data_option() {
+    // Published dumps serve only the app's Diff (2026-11-17): the CLI has no network path.
     let t = tempfile::tempdir().unwrap();
     fake_install(t.path());
     let out = t
@@ -364,7 +362,7 @@ fn version_prints_build_details_without_network() {
     let v: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
     assert_eq!(v["name"], "starorg-codex");
     assert_eq!(v["version"], env!("CARGO_PKG_VERSION"));
-    assert_eq!(v["features"]["published_dumps"], false);
+    assert_eq!(v["features"], serde_json::json!({}));
     assert_eq!(v["starbreaker_commit"].as_str().unwrap().len(), 40);
     let human = run(&["version"]);
     assert_eq!(human.status.code(), Some(0));

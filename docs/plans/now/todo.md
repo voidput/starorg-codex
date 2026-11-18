@@ -1,7 +1,7 @@
 ---
 title: Now
 tags: [docs, plans, now]
-updated: 2026-11-15
+updated: 2026-11-17
 ---
 
 # Now
@@ -29,7 +29,7 @@ Fleet import and ship ordering (addendum §6)
 
 Developer mode (addendum §7)
 
-- [ ] Published dumps as a dataset source (follow-up; needs the "Use published game data" switch built) ([#15](https://github.com/voidput/starorg-codex/issues/15))
+- [ ] Owner: download two published LIVE builds on Datasets and compare them on Diff in the real app (rescoped 2026-11-17: dumps are Diff-only, apply reads Data.p4k; built on `feat/dump-diff`) ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] Backlinks ("Referenced by", Q-D2) and the `starorg-gamedata` domain outputs as a source ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] Owner: open Explorer on LIVE in the real app and try a type export ([#15](https://github.com/voidput/starorg-codex/issues/15))
 

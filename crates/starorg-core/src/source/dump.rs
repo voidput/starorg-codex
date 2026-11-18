@@ -1,34 +1,23 @@
-//! [`PublishedDump`]: `GameData` from `voidput/sc-gamedata-dumps` (addendum §1, spec 3.4).
+//! Published LIVE builds from `voidput/sc-gamedata-dumps` for Developer mode's Diff
+//! (addendum §1, rescoped 2026-11-17: dumps are Diff-only, apply reads `Data.p4k` locally).
 //!
-//! - **Opt-in.** Nothing here touches the network unless the caller built a
-//!   [`DumpFirst`] with consent on (default off) and a transport. With consent off it
-//!   always extracts locally. `starorg-core` itself links no HTTP client: the transport is
-//!   a trait ([`DumpTransport`]) implemented elsewhere (`starorg-net`).
-//! - **Same build.** One tag and GitHub release per build, tagged with `Data.Version`.
-//!   `Version` is numbered per branch, so releases are never ordered: a dump is used only
-//!   for the exact tag of the local `Version`, and only when the release names the same
-//!   `Branch`. When the release (or a `data/_build.json`) carries a change number it must
-//!   equal the local `RequestedP4ChangeNum`; when it does not, the match is weaker and a
-//!   warning says so.
+//! - **Diff only.** A dump is never turned into `GameData` and never feeds an apply. The app
+//!   lists the published LIVE builds ([`live_releases`]), downloads one on request
+//!   ([`fetch_verified`]) and shows its `data/*.json` files as a dataset source, so Diff can
+//!   compare an old LIVE build with a new one.
+//! - **Opt-in.** `starorg-core` links no HTTP client: the transport is a trait
+//!   ([`DumpTransport`]) implemented in `starorg-net`, and the caller asks it only while the
+//!   user's switch is on. Cached builds stay readable with the switch off.
+//! - **One tag and GitHub release per build**, tagged with `Data.Version`. Only releases
+//!   whose title or body says LIVE are offered.
 //! - **Integrity.** The tag is resolved to a commit once; every dataset is fetched at that
 //!   commit and checked against the git blob SHA-1 the commit's tree lists for it (and its
 //!   size), then against its own `_build` stamp. The cache stores SHA-256 sums that are
-//!   re-checked on every load. Content is parsed as data only, never executed.
+//!   re-checked whenever a file is read ([`DumpFiles::read`]). Content is parsed as data
+//!   only, never executed.
 //! - **Cached per build** under `<cache>/dumps/<tag>/<commit>/`, written atomically.
-//! - **What dumps lack.** No loc keys (names are resolved text), no contract-generator
-//!   contracts, and only redacted strings. `base_ini` therefore always comes from the local
-//!   `Data.p4k`; loc keys are recovered by the namesake convention against that file
-//!   ([`recover_loc_keys`]); contracts stay empty and are reported, so [`DumpFirst`]
-//!   falls back to local extraction when they are required.
 
-use super::{Budget, GameSource, Loaded, Origin, SourceError, Warning};
-use crate::build::BuildInfo;
-use crate::discovery::Channel;
-use crate::ini::StockIni;
-use crate::model::{
-    Ammo, Blueprint, BlueprintPool, Component, GameData, Missile, ReputationStanding, Ship, Weapon,
-    short_name,
-};
+use super::SourceError;
 use serde::{Deserialize, Serialize};
 use sha1::Digest as _;
 use std::collections::BTreeMap;
@@ -37,25 +26,20 @@ use std::path::{Path, PathBuf};
 
 pub const DUMPS_REPO: &str = "voidput/sc-gamedata-dumps";
 
-/// Datasets read into `GameData`, below `data/` in the dumps repo.
-pub const DATASETS: [&str; 6] = [
-    "game-ships.json",
-    "game-ship-components.json",
-    "game-weapons.json",
-    "game-ammo.json",
-    "game-blueprints.json",
-    "game-reputation.json",
-];
-
 /// Largest dataset accepted (the biggest one is about 5 MB on 4.10).
 pub const MAX_DATASET_BYTES: u64 = 64 * 1024 * 1024;
 
+/// Most datasets taken from one build (4.10 has 27).
+pub const MAX_DATASETS: usize = 200;
+
 /// A GitHub release of the dumps repo.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ReleaseInfo {
     pub tag: String,
     pub title: String,
     pub body: String,
+    /// `published_at` as GitHub gives it (RFC 3339), when known.
+    pub published: Option<String>,
 }
 
 /// One file of a commit's tree.
@@ -70,6 +54,8 @@ pub struct TreeEntry {
 /// How the dumps repo is reached. Implemented over HTTPS in `starorg-net`; tests use an
 /// in-memory one.
 pub trait DumpTransport {
+    /// The newest releases, GitHub's order (newest first).
+    fn releases(&self) -> Result<Vec<ReleaseInfo>, SourceError>;
     /// The release for `tag`, or `None` when there is none.
     fn release(&self, tag: &str) -> Result<Option<ReleaseInfo>, SourceError>;
     /// Commit SHA the tag points at.
@@ -110,46 +96,44 @@ pub fn parse_release_body(body: &str) -> ReleaseBuild {
     out
 }
 
-/// How strongly a release was matched to the local build.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum BuildMatch {
-    /// Tag = `Version`, same `Branch`, same change number.
-    Exact,
-    /// Tag = `Version` and same `Branch`; the release states no change number.
-    BranchAndVersion,
+/// The channel a release is for: the body's `Channel:` line, else a channel word in the
+/// title (`4.10.0 LIVE (4.10.200.58746)`).
+pub fn release_channel(r: &ReleaseInfo) -> Option<String> {
+    if let Some(c) = parse_release_body(&r.body).channel {
+        return Some(c.to_ascii_uppercase());
+    }
+    r.title
+        .split(|c: char| !c.is_ascii_alphanumeric())
+        .map(str::to_ascii_uppercase)
+        .find(|w| {
+            matches!(
+                w.as_str(),
+                "LIVE" | "PTU" | "EPTU" | "HOTFIX" | "TECH-PREVIEW"
+            )
+        })
 }
 
-/// Decide whether `release` (with `stated` identity) is the local build (addendum §1).
-pub fn match_build(
-    local: &BuildInfo,
-    release_tag: &str,
-    stated: &ReleaseBuild,
-) -> Result<BuildMatch, String> {
-    if release_tag != local.version {
-        return Err(format!(
-            "release {release_tag} is not the local build {}",
-            local.version
-        ));
-    }
-    match &stated.branch {
-        Some(b) if *b == local.branch => {}
-        Some(b) => {
-            return Err(format!(
-                "release {release_tag} is branch {b}, local is {}",
-                local.branch
-            ));
-        }
-        None => return Err(format!("release {release_tag} does not name its branch")),
-    }
-    match (stated.change, local.change) {
-        (Some(r), Some(l)) if r == l => Ok(BuildMatch::Exact),
-        (Some(r), Some(l)) => Err(format!(
-            "release {release_tag} is change {r}, local is change {l}"
-        )),
-        (Some(_), None) => Err("local build has no change number to compare".into()),
-        (None, _) => Ok(BuildMatch::BranchAndVersion),
-    }
+/// A release is a LIVE build.
+pub fn is_live(r: &ReleaseInfo) -> bool {
+    release_channel(r).as_deref() == Some("LIVE")
+}
+
+/// The LIVE releases with a usable tag, newest first (by `published`, then GitHub's order).
+pub fn live_releases(transport: &dyn DumpTransport) -> Result<Vec<ReleaseInfo>, SourceError> {
+    let mut v: Vec<(usize, ReleaseInfo)> = transport
+        .releases()?
+        .into_iter()
+        .filter(|r| valid_component(&r.tag) && is_live(r))
+        .enumerate()
+        .collect();
+    // RFC 3339 in UTC sorts as text; a release without a date keeps its place after dated ones.
+    v.sort_by(|(ia, a), (ib, b)| match (&a.published, &b.published) {
+        (Some(x), Some(y)) => y.cmp(x).then(ia.cmp(ib)),
+        (Some(_), None) => std::cmp::Ordering::Less,
+        (None, Some(_)) => std::cmp::Ordering::Greater,
+        (None, None) => ia.cmp(ib),
+    });
+    Ok(v.into_iter().map(|x| x.1).collect())
 }
 
 /// Git's blob id: SHA-1 of `blob <len>\0<bytes>`.
@@ -183,6 +167,12 @@ pub struct CacheMeta {
     pub tag: String,
     pub commit: String,
     pub release: ReleaseBuild,
+    /// The release title (`4.10.0 LIVE (4.10.200.58746)`); empty in older entries.
+    #[serde(default)]
+    pub title: String,
+    /// The release date (RFC 3339), when GitHub gave one.
+    #[serde(default)]
+    pub published: Option<String>,
     pub files: BTreeMap<String, CachedFile>,
     /// Seconds since the Unix epoch.
     pub fetched_at: u64,
@@ -190,7 +180,8 @@ pub struct CacheMeta {
 
 const META_JSON: &str = "meta.json";
 
-fn valid_component(s: &str) -> bool {
+/// A tag, commit or file name that is safe as one path component.
+pub fn valid_component(s: &str) -> bool {
     !s.is_empty()
         && s.len() <= 128
         && s.chars()
@@ -222,6 +213,22 @@ impl DumpFiles {
         }
         Ok(bytes)
     }
+
+    /// The path of a dataset of this entry (`None` for a name not in `meta.json`).
+    pub fn path(&self, name: &str) -> Option<PathBuf> {
+        self.meta
+            .files
+            .contains_key(name)
+            .then(|| self.dir.join(name))
+    }
+
+    /// The `*.json` datasets (not the `_build.json` stamp), by name.
+    pub fn datasets(&self) -> impl Iterator<Item = (&String, &CachedFile)> {
+        self.meta
+            .files
+            .iter()
+            .filter(|(n, _)| !n.starts_with('_') && n.to_ascii_lowercase().ends_with(".json"))
+    }
 }
 
 /// Cache of downloaded builds: `<root>/<tag>/<commit>/`.
@@ -235,43 +242,85 @@ impl DumpCache {
         Self { root: root.into() }
     }
 
+    /// The entries of `tag` whose `meta.json` reads (files not re-hashed), newest first.
+    fn entries_of(&self, tag: &str) -> Vec<DumpFiles> {
+        if !valid_component(tag) {
+            return vec![];
+        }
+        let mut out: Vec<DumpFiles> = std::fs::read_dir(self.root.join(tag))
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                let path = e.path();
+                let name = e.file_name().to_string_lossy().into_owned();
+                if name.contains(".tmp-") || !path.is_dir() {
+                    return None;
+                }
+                std::fs::read(path.join(META_JSON))
+                    .ok()
+                    .and_then(|b| serde_json::from_slice::<CacheMeta>(&b).ok())
+                    .filter(|m| m.tag == tag && m.commit == name)
+                    .map(|meta| DumpFiles { dir: path, meta })
+            })
+            .collect();
+        out.sort_by_key(|f| std::cmp::Reverse(f.meta.fetched_at));
+        out
+    }
+
+    /// The newest entry of `tag` by its `meta.json` alone (quick: files are checked when
+    /// read, [`DumpFiles::read`]).
+    pub fn entry(&self, tag: &str) -> Option<DumpFiles> {
+        self.entries_of(tag).into_iter().next()
+    }
+
+    /// Every cached build (newest entry per tag), newest release first.
+    pub fn list(&self) -> Vec<DumpFiles> {
+        let mut tags: Vec<String> = std::fs::read_dir(&self.root)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter(|e| e.path().is_dir())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|t| valid_component(t))
+            .collect();
+        tags.sort();
+        let mut out: Vec<DumpFiles> = tags.iter().filter_map(|t| self.entry(t)).collect();
+        out.sort_by(|a, b| {
+            b.meta
+                .published
+                .cmp(&a.meta.published)
+                .then(b.meta.fetched_at.cmp(&a.meta.fetched_at))
+        });
+        out
+    }
+
     /// The newest valid entry for `tag` (every file re-hashed); invalid entries are deleted.
     pub fn find(&self, tag: &str) -> Option<DumpFiles> {
-        if !valid_component(tag) {
-            return None;
-        }
-        let dir = self.root.join(tag);
-        let mut best: Option<DumpFiles> = None;
-        for e in std::fs::read_dir(&dir).ok()?.flatten() {
-            let path = e.path();
-            let name = e.file_name().to_string_lossy().into_owned();
-            if name.contains(".tmp-") || !path.is_dir() {
-                continue;
-            }
-            let ok = std::fs::read(path.join(META_JSON))
-                .ok()
-                .and_then(|b| serde_json::from_slice::<CacheMeta>(&b).ok())
-                .filter(|m| m.tag == tag && m.commit == name)
-                .map(|meta| DumpFiles {
-                    dir: path.clone(),
-                    meta,
-                })
-                .filter(|f| f.meta.files.keys().all(|n| f.read(n).is_ok()));
-            match ok {
-                Some(f) => {
-                    if best
-                        .as_ref()
-                        .is_none_or(|b| b.meta.fetched_at < f.meta.fetched_at)
-                    {
-                        best = Some(f);
-                    }
+        let mut best = None;
+        for f in self.entries_of(tag) {
+            if f.meta.files.keys().all(|n| f.read(n).is_ok()) {
+                if best.is_none() {
+                    best = Some(f);
                 }
-                None => {
-                    let _ = std::fs::remove_dir_all(&path);
-                }
+            } else {
+                let _ = std::fs::remove_dir_all(&f.dir);
             }
         }
         best
+    }
+
+    /// Delete every entry of `tag`. `Ok(false)` when there was none.
+    pub fn remove(&self, tag: &str) -> Result<bool, SourceError> {
+        if !valid_component(tag) {
+            return Ok(false);
+        }
+        let dir = self.root.join(tag);
+        if !dir.is_dir() {
+            return Ok(false);
+        }
+        std::fs::remove_dir_all(&dir)?;
+        Ok(true)
     }
 
     /// Write a verified set atomically (temp dir, fsync, rename).
@@ -296,7 +345,7 @@ impl DumpCache {
         };
         let result = (|| -> std::io::Result<()> {
             for (name, bytes) in files {
-                if !valid_component(name) {
+                if !valid_component(name) || name == META_JSON {
                     return Err(std::io::Error::other(format!("bad file name {name}")));
                 }
                 write(name, bytes)?;
@@ -318,75 +367,116 @@ impl DumpCache {
     }
 }
 
-/// Download, verify and cache the datasets of the release tagged `local.version`.
+#[derive(Deserialize)]
+struct Envelope {
+    #[serde(rename = "_build")]
+    build: Option<serde_json::Value>,
+}
+
+/// Download, verify and cache every `data/*.json` of the LIVE release `tag`. `progress`
+/// gets (files done, files in all, file name) before each file.
 pub fn fetch_verified(
     transport: &dyn DumpTransport,
     cache: &DumpCache,
-    local: &BuildInfo,
-) -> Result<(DumpFiles, BuildMatch), SourceError> {
-    let tag = local.version.as_str();
+    tag: &str,
+    progress: &dyn Fn(usize, usize, &str),
+) -> Result<DumpFiles, SourceError> {
     if !valid_component(tag) {
-        return Err(SourceError::Unavailable(format!(
-            "unusable version {tag:?}"
-        )));
+        return Err(SourceError::Unavailable(format!("unusable tag {tag:?}")));
     }
     let release = transport
         .release(tag)?
-        .ok_or_else(|| SourceError::Unavailable(format!("no published dump for {tag}")))?;
-    let mut stated = parse_release_body(&release.body);
+        .ok_or_else(|| SourceError::Unavailable(format!("no published build {tag}")))?;
+    if release.tag != tag {
+        return Err(SourceError::Check(format!(
+            "asked for {tag}, the release is {}",
+            release.tag
+        )));
+    }
+    if !is_live(&release) {
+        return Err(SourceError::Unavailable(format!(
+            "{tag} is not a LIVE build"
+        )));
+    }
     let commit = transport.tag_commit(tag)?;
-    if !valid_component(&commit) || commit.len() != 40 {
+    if !valid_component(&commit)
+        || commit.len() != 40
+        || !commit.chars().all(|c| c.is_ascii_hexdigit())
+    {
         return Err(SourceError::Check(format!("bad commit id {commit:?}")));
     }
     let tree = transport.tree(&commit)?;
+    let wanted: Vec<&TreeEntry> = tree
+        .iter()
+        .filter(|e| {
+            e.path.strip_prefix("data/").is_some_and(|n| {
+                valid_component(n) && n != META_JSON && n.to_ascii_lowercase().ends_with(".json")
+            })
+        })
+        .collect();
+    if wanted.is_empty() {
+        return Err(SourceError::Unavailable(format!("{tag} has no datasets")));
+    }
+    if wanted.len() > MAX_DATASETS {
+        return Err(SourceError::Check(format!(
+            "{tag} lists {} datasets, more than allowed",
+            wanted.len()
+        )));
+    }
     let mut files = BTreeMap::new();
-    let fetch = |name: &str| -> Result<Vec<u8>, SourceError> {
-        let path = format!("data/{name}");
-        let entry = tree
-            .iter()
-            .find(|e| e.path == path)
-            .ok_or_else(|| SourceError::Unavailable(format!("{path} not in {tag}")))?;
+    for (i, entry) in wanted.iter().enumerate() {
+        let name = &entry.path["data/".len()..];
+        progress(i, wanted.len(), name);
         if entry.size > MAX_DATASET_BYTES {
             return Err(SourceError::Check(format!(
-                "{path} is {} bytes, more than allowed",
-                entry.size
+                "{} is {} bytes, more than allowed",
+                entry.path, entry.size
             )));
         }
-        let bytes = transport.file(&commit, &path, MAX_DATASET_BYTES)?;
+        let bytes = transport.file(&commit, &entry.path, MAX_DATASET_BYTES)?;
         if bytes.len() as u64 != entry.size || git_blob_sha1(&bytes) != entry.sha {
             return Err(SourceError::Check(format!(
-                "{path} does not match the blob id of {tag} ({commit})"
+                "{} does not match the blob id of {tag} ({commit})",
+                entry.path
             )));
         }
-        Ok(bytes)
-    };
-    // An optional build stamp may carry the change number (sc-gamedata extract metadata).
-    if tree.iter().any(|e| e.path == "data/_build.json") {
-        let b = fetch("_build.json")?;
-        if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&b) {
-            let ch = v
-                .get("change")
-                .or_else(|| v.get("changeNum"))
-                .or_else(|| v.get("RequestedP4ChangeNum"));
-            if let Some(c) = ch.and_then(|c| c.as_u64().or_else(|| c.as_str()?.parse().ok())) {
-                stated.change = Some(c);
-            }
-            if stated.branch.is_none() {
-                stated.branch = v.get("branch").and_then(|b| b.as_str()).map(str::to_string);
+        // A dataset stamped with another build is refused; `_build.json` is the stamp.
+        if !name.starts_with('_') {
+            let env: Envelope = serde_json::from_slice(&bytes)
+                .map_err(|e| SourceError::Check(format!("{name}: not a dataset: {e}")))?;
+            if let Some(b) = env.build
+                && b.as_str() != Some(tag)
+            {
+                return Err(SourceError::Check(format!(
+                    "{name} is stamped {b}, expected {tag}"
+                )));
             }
         }
-        files.insert("_build.json".to_string(), b);
-    }
-    let how = match_build(local, &release.tag, &stated).map_err(SourceError::Unavailable)?;
-    for name in DATASETS {
-        let bytes = fetch(name)?;
         files.insert(name.to_string(), bytes);
+    }
+    progress(wanted.len(), wanted.len(), "");
+    let mut stated = parse_release_body(&release.body);
+    if let Some(b) = files.get("_build.json")
+        && let Ok(v) = serde_json::from_slice::<serde_json::Value>(b)
+    {
+        let ch = v
+            .get("change")
+            .or_else(|| v.get("changeNum"))
+            .or_else(|| v.get("RequestedP4ChangeNum"));
+        if let Some(c) = ch.and_then(|c| c.as_u64().or_else(|| c.as_str()?.parse().ok())) {
+            stated.change = Some(c);
+        }
+        if stated.branch.is_none() {
+            stated.branch = v.get("branch").and_then(|b| b.as_str()).map(str::to_string);
+        }
     }
     let meta = CacheMeta {
         repo: DUMPS_REPO.to_string(),
         tag: tag.to_string(),
         commit,
         release: stated,
+        title: release.title.clone(),
+        published: release.published.clone(),
         files: files
             .iter()
             .map(|(n, b)| {
@@ -405,268 +495,7 @@ pub fn fetch_verified(
             .map(|d| d.as_secs())
             .unwrap_or(0),
     };
-    Ok((cache.store(&meta, &files)?, how))
-}
-
-// ----- dataset envelopes -------------------------------------------------------------
-
-#[derive(Deserialize)]
-struct Envelope {
-    #[serde(rename = "_build")]
-    build: Option<String>,
-}
-
-#[derive(Deserialize)]
-struct ShipsFile {
-    #[serde(default)]
-    vehicles: Vec<Ship>,
-}
-
-#[derive(Deserialize)]
-struct WeaponsFile {
-    #[serde(default, rename = "shipWeapons")]
-    ship: Vec<Weapon>,
-    #[serde(default, rename = "fpsWeapons")]
-    fps: Vec<Weapon>,
-    #[serde(default)]
-    missiles: Vec<Missile>,
-}
-
-#[derive(Deserialize)]
-struct AmmoFile {
-    #[serde(default)]
-    ammo: Vec<Ammo>,
-}
-
-#[derive(Deserialize)]
-struct BlueprintsFile {
-    #[serde(default)]
-    blueprints: Vec<Blueprint>,
-    #[serde(default, rename = "rewardPools")]
-    pools: Vec<BlueprintPool>,
-}
-
-#[derive(Deserialize)]
-struct ReputationFile {
-    #[serde(default)]
-    standings: Vec<ReputationStanding>,
-}
-
-fn parse<T: serde::de::DeserializeOwned>(
-    name: &str,
-    bytes: &[u8],
-    tag: &str,
-) -> Result<T, SourceError> {
-    let env: Envelope = serde_json::from_slice(bytes)
-        .map_err(|e| SourceError::Check(format!("{name}: not a dataset: {e}")))?;
-    if env.build.as_deref() != Some(tag) {
-        return Err(SourceError::Check(format!(
-            "{name} is stamped {:?}, expected {tag}",
-            env.build
-        )));
-    }
-    serde_json::from_slice(bytes).map_err(|e| SourceError::Check(format!("{name}: {e}")))
-}
-
-/// Turn the verified datasets into `GameData` (no loc keys, no contracts).
-pub fn to_game_data(files: &DumpFiles) -> Result<GameData, SourceError> {
-    let tag = files.meta.tag.as_str();
-    let mut gd = GameData {
-        ships: parse::<ShipsFile>(DATASETS[0], &files.read(DATASETS[0])?, tag)?.vehicles,
-        ..GameData::default()
-    };
-    let comps: serde_json::Map<String, serde_json::Value> =
-        parse(DATASETS[1], &files.read(DATASETS[1])?, tag)?;
-    for (cat, v) in comps {
-        if cat.starts_with('_') || cat == "summary" || !v.is_array() {
-            continue;
-        }
-        let mut list: Vec<Component> = serde_json::from_value(v)
-            .map_err(|e| SourceError::Check(format!("{}: {cat}: {e}", DATASETS[1])))?;
-        for c in &mut list {
-            if c.category.is_empty() {
-                c.category = cat.clone();
-            }
-        }
-        gd.components.extend(list);
-    }
-    let w: WeaponsFile = parse(DATASETS[2], &files.read(DATASETS[2])?, tag)?;
-    gd.weapons = w.ship.into_iter().chain(w.fps).collect();
-    gd.missiles = w.missiles;
-    gd.ammo = parse::<AmmoFile>(DATASETS[3], &files.read(DATASETS[3])?, tag)?.ammo;
-    let b: BlueprintsFile = parse(DATASETS[4], &files.read(DATASETS[4])?, tag)?;
-    gd.blueprints = b.blueprints;
-    gd.blueprint_pools = b.pools;
-    gd.reputation_standings =
-        parse::<ReputationFile>(DATASETS[5], &files.read(DATASETS[5])?, tag)?.standings;
-    gd.sort();
-    Ok(gd)
-}
-
-/// Fill loc keys a dump cannot carry by the namesake convention: a record `X` owns
-/// `item_NameX` / `item_NameX_short` / `item_DescX` (ships: `vehicle_NameX` /
-/// `vehicle_DescX`) when that key is in the local stock file. Returns (filled, records).
-pub fn recover_loc_keys(gd: &mut GameData, stock: &StockIni) -> (usize, usize) {
-    let found = |key: String| stock.find(&key).ok().map(|_| format!("@{key}"));
-    let mut filled = 0;
-    let mut total = 0;
-    let items = gd
-        .components
-        .iter_mut()
-        .map(|c| &mut c.item)
-        .chain(gd.weapons.iter_mut().map(|w| &mut w.item))
-        .chain(gd.missiles.iter_mut().map(|m| &mut m.item));
-    for item in items {
-        total += 1;
-        let s = short_name(&item.record_name).to_string();
-        item.loc.name = item
-            .loc
-            .name
-            .take()
-            .or_else(|| found(format!("item_Name{s}")));
-        item.loc.short_name = item
-            .loc
-            .short_name
-            .take()
-            .or_else(|| found(format!("item_Name{s}_short")));
-        item.loc.desc = item
-            .loc
-            .desc
-            .take()
-            .or_else(|| found(format!("item_Desc{s}")));
-        if item.loc.name.is_some() || item.loc.desc.is_some() {
-            filled += 1;
-        }
-    }
-    for ship in &mut gd.ships {
-        total += 1;
-        let s = short_name(&ship.record_name).to_string();
-        ship.loc.name = ship
-            .loc
-            .name
-            .take()
-            .or_else(|| found(format!("vehicle_Name{s}")));
-        ship.loc.desc = ship
-            .loc
-            .desc
-            .take()
-            .or_else(|| found(format!("vehicle_Desc{s}")));
-        if ship.loc.desc.is_some() {
-            filled += 1;
-        }
-    }
-    for bp in &mut gd.blueprints {
-        if bp.produces_name_key.is_none()
-            && let Some(p) = &bp.produces
-        {
-            bp.produces_name_key = found(format!("item_Name{p}"));
-        }
-    }
-    (filled, total)
-}
-
-/// Loads `GameData` from a published dump; the stock text from `text` (a local source,
-/// typically a `LocalExtraction` in ini-only mode).
-pub struct PublishedDump {
-    pub transport: Box<dyn DumpTransport>,
-    pub cache: DumpCache,
-    pub text: Box<dyn GameSource>,
-    /// Use a cached entry without asking the network (default true).
-    pub prefer_cache: bool,
-}
-
-impl GameSource for PublishedDump {
-    fn load(&self, channel: &Channel, budget: &Budget) -> Result<Loaded, SourceError> {
-        let build = channel
-            .build
-            .as_ref()
-            .ok_or_else(|| SourceError::Unavailable("channel has no build identity".into()))?;
-        let cached = if self.prefer_cache {
-            self.cache.find(&build.version)
-        } else {
-            None
-        };
-        let (files, how) = match cached {
-            Some(f) => {
-                let how = match_build(build, &f.meta.tag, &f.meta.release)
-                    .map_err(SourceError::Unavailable)?;
-                (f, how)
-            }
-            None => fetch_verified(self.transport.as_ref(), &self.cache, build)?,
-        };
-        if budget.expired() {
-            return Err(SourceError::Timeout(std::time::Duration::ZERO));
-        }
-        let mut game_data = to_game_data(&files)?;
-        let text = self.text.load(channel, budget)?;
-        let stock = StockIni::parse(text.base_ini.clone());
-        let (filled, total) = recover_loc_keys(&mut game_data, &stock);
-        game_data.build = Some(build.clone());
-        let mut warnings = text.warnings;
-        if how == BuildMatch::BranchAndVersion {
-            warnings.push(Warning::new(
-                "dump-weak-match",
-                format!(
-                    "dump {} matched by version and branch only; it states no change number",
-                    files.meta.tag
-                ),
-            ));
-        }
-        warnings.push(Warning::new(
-            "dump-no-contracts",
-            "published dumps carry no contract-generator contracts; mission tags need local extraction",
-        ));
-        warnings.push(Warning::new(
-            "dump-loc-keys",
-            format!(
-                "loc keys recovered by the namesake convention for {filled} of {total} records"
-            ),
-        ));
-        Ok(Loaded {
-            base_ini: text.base_ini,
-            game_data,
-            keyrefs: None,
-            origin: Origin::PublishedDump {
-                dataset: format!("{}@{} ({})", DUMPS_REPO, files.meta.tag, files.meta.commit),
-            },
-            warnings,
-        })
-    }
-}
-
-/// Use a published dump when the user turned that on and it is usable, else extract
-/// locally (addendum §1). With `consent` off (the default) the dump is never asked.
-pub struct DumpFirst {
-    pub consent: bool,
-    pub dump: Option<PublishedDump>,
-    pub local: Box<dyn GameSource>,
-    /// Fall back when the dump lacks contracts (true while the dumps carry none).
-    pub require_contracts: bool,
-}
-
-impl GameSource for DumpFirst {
-    fn load(&self, channel: &Channel, budget: &Budget) -> Result<Loaded, SourceError> {
-        let mut note = None;
-        if self.consent
-            && let Some(dump) = &self.dump
-        {
-            match dump.load(channel, budget) {
-                Ok(l) if !(self.require_contracts && l.game_data.contracts.is_empty()) => {
-                    return Ok(l);
-                }
-                Ok(_) => note = Some("the dump has no contracts".to_string()),
-                Err(e) => note = Some(e.to_string()),
-            }
-        }
-        let mut l = self.local.load(channel, budget)?;
-        if let Some(n) = note {
-            l.warnings.push(Warning::new(
-                "dump-unused",
-                format!("published game data not used ({n}); extracted locally"),
-            ));
-        }
-        Ok(l)
-    }
+    cache.store(&meta, &files)
 }
 
 /// Default cache root below the app cache directory.
@@ -679,14 +508,8 @@ mod tests {
     use super::*;
     use std::cell::RefCell;
 
-    fn live() -> BuildInfo {
-        BuildInfo::from_json(
-            br#"{"Data":{"Branch":"sc-alpha-4.10.0","RequestedP4ChangeNum":"13165946","Version":"4.10.200.58746"}}"#,
-        )
-        .unwrap()
-    }
-
     const BODY: &str = "Parsed game data for Star Citizen build `4.10.200.58746`.\n\n- Channel: LIVE\n- Branch: `sc-alpha-4.10.0`\n\n| Dataset | Size |";
+    const TAG: &str = "4.10.200.58746";
 
     #[test]
     fn release_body() {
@@ -698,29 +521,22 @@ mod tests {
         assert_eq!(b.change, Some(13165946));
     }
 
+    fn rel(tag: &str, title: &str, body: &str, published: Option<&str>) -> ReleaseInfo {
+        ReleaseInfo {
+            tag: tag.into(),
+            title: title.into(),
+            body: body.into(),
+            published: published.map(str::to_string),
+        }
+    }
+
     #[test]
-    fn same_build_rule() {
-        let l = live();
-        let stated = parse_release_body(BODY);
-        assert_eq!(
-            match_build(&l, "4.10.200.58746", &stated),
-            Ok(BuildMatch::BranchAndVersion)
-        );
-        let mut exact = stated.clone();
-        exact.change = Some(13165946);
-        assert_eq!(
-            match_build(&l, "4.10.200.58746", &exact),
-            Ok(BuildMatch::Exact)
-        );
-        exact.change = Some(1);
-        assert!(match_build(&l, "4.10.200.58746", &exact).is_err());
-        // Never by version order: a "newer" tag is not this build.
-        assert!(match_build(&l, "4.10.201.0", &stated).is_err());
-        // HOTFIX numbers its versions on its own branch.
-        let mut hotfix = stated.clone();
-        hotfix.branch = Some("sc-alpha-4.10.0-hotfix".into());
-        assert!(match_build(&l, "4.10.200.58746", &hotfix).is_err());
-        assert!(match_build(&l, "4.10.200.58746", &ReleaseBuild::default()).is_err());
+    fn live_from_body_or_title() {
+        assert!(is_live(&rel(TAG, "x", BODY, None)));
+        assert!(is_live(&rel(TAG, "4.10.0 LIVE (4.10.200.58746)", "", None)));
+        assert!(!is_live(&rel(TAG, "4.10.0 LIVE", "- Channel: PTU", None)));
+        assert!(!is_live(&rel(TAG, "5.0 PTU (5.0.1.2)", "", None)));
+        assert!(!is_live(&rel(TAG, "something", "", None)));
     }
 
     #[test]
@@ -733,30 +549,11 @@ mod tests {
     }
 
     fn dataset(name: &str, tag: &str) -> Vec<u8> {
-        let body = match name {
-            "game-ships.json" => {
-                r#""vehicles":[{"recordName":"EntityClassDefinition.TEST_Ship","id":"s","flight":{"controller":"c","pitch":38}}]"#
-            }
-            "game-ship-components.json" => {
-                r#""shields":[{"recordName":"EntityClassDefinition.TEST_Shield","category":"shields","stats":{"MaxShieldHealth":10}}],"summary":{"shields":1}"#
-            }
-            "game-weapons.json" => {
-                r#""shipWeapons":[{"recordName":"EntityClassDefinition.TEST_Gun","class":"ship","dps":5,"modes":[]}],"fpsWeapons":[],"missiles":[]"#
-            }
-            "game-ammo.json" => r#""ammo":[{"name":"a","recordName":"AmmoParams.a","speed":1}]"#,
-            "game-blueprints.json" => {
-                r#""blueprints":[{"recordName":"CraftingBlueprintRecord.BP_X","produces":"TEST_Gun","tiers":[{}]}],"rewardPools":[{"name":"P","blueprints":[]}]"#
-            }
-            "game-reputation.json" => {
-                r#""standings":[{"name":"R","recordName":"SReputationStandingParams.R","minReputation":1}]"#
-            }
-            _ => "",
-        };
-        format!(r#"{{"_source":"t","_build":"{tag}",{body}}}"#).into_bytes()
+        format!(r#"{{"_source":"t","_build":"{tag}","items":[{{"name":"{name}"}}]}}"#).into_bytes()
     }
 
     struct Fake {
-        body: String,
+        releases: Vec<ReleaseInfo>,
         files: BTreeMap<String, Vec<u8>>,
         tamper: Option<String>,
         calls: RefCell<usize>,
@@ -764,12 +561,35 @@ mod tests {
 
     impl Fake {
         fn new(tag: &str) -> Self {
+            let mut files: BTreeMap<String, Vec<u8>> = ["game-ships.json", "game-weapons.json"]
+                .iter()
+                .map(|n| (format!("data/{n}"), dataset(n, tag)))
+                .collect();
+            files.insert("README.md".into(), b"readme".to_vec());
+            files.insert("data/notes.txt".into(), b"not json".to_vec());
             Self {
-                body: BODY.into(),
-                files: DATASETS
-                    .iter()
-                    .map(|n| (format!("data/{n}"), dataset(n, tag)))
-                    .collect(),
+                releases: vec![
+                    rel(
+                        "4.10.197.2878",
+                        "4.10.2 LIVE (4.10.197.2878)",
+                        "- Channel: LIVE\n- Branch: `sc-alpha-4.10.2`",
+                        Some("2026-11-01T14:36:39Z"),
+                    ),
+                    rel(
+                        "5.0.1.2",
+                        "5.0 PTU (5.0.1.2)",
+                        "- Channel: PTU",
+                        Some("2026-11-15T00:00:00Z"),
+                    ),
+                    rel(
+                        TAG,
+                        "4.10.0 LIVE (4.10.200.58746)",
+                        BODY,
+                        Some("2026-11-12T18:20:43Z"),
+                    ),
+                    rel("../x", "LIVE", "", None),
+                ],
+                files,
                 tamper: None,
                 calls: RefCell::new(0),
             }
@@ -779,13 +599,13 @@ mod tests {
     const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
     impl DumpTransport for Fake {
+        fn releases(&self) -> Result<Vec<ReleaseInfo>, SourceError> {
+            *self.calls.borrow_mut() += 1;
+            Ok(self.releases.clone())
+        }
         fn release(&self, tag: &str) -> Result<Option<ReleaseInfo>, SourceError> {
             *self.calls.borrow_mut() += 1;
-            Ok((tag == "4.10.200.58746").then(|| ReleaseInfo {
-                tag: tag.into(),
-                title: "t".into(),
-                body: self.body.clone(),
-            }))
+            Ok(self.releases.iter().find(|r| r.tag == tag).cloned())
         }
         fn tag_commit(&self, _: &str) -> Result<String, SourceError> {
             Ok(COMMIT.into())
@@ -811,172 +631,108 @@ mod tests {
     }
 
     #[test]
-    fn fetch_verify_cache_and_convert() {
+    fn only_live_releases_newest_first() {
+        let fake = Fake::new(TAG);
+        let tags: Vec<String> = live_releases(&fake)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.tag)
+            .collect();
+        assert_eq!(tags, [TAG, "4.10.197.2878"]);
+    }
+
+    #[test]
+    fn fetch_verify_cache_list_and_remove() {
         let t = tempfile::tempdir().unwrap();
         let cache = DumpCache::new(t.path());
-        let fake = Fake::new("4.10.200.58746");
-        let (files, how) = fetch_verified(&fake, &cache, &live()).unwrap();
-        assert_eq!(how, BuildMatch::BranchAndVersion);
-        assert_eq!(files.dir, t.path().join("4.10.200.58746").join(COMMIT));
-        let gd = to_game_data(&files).unwrap();
-        assert_eq!(gd.ships[0].flight.as_ref().unwrap().pitch, Some(38.0));
-        assert_eq!(gd.components[0].category, "shields");
-        assert_eq!(gd.weapons[0].dps, Some(5.0));
-        assert_eq!(gd.blueprint_pools[0].name, "P");
-        assert_eq!(gd.reputation_standings[0].min_reputation, Some(1.0));
-        assert!(gd.contracts.is_empty());
-        // Cached: found again, every file re-hashed.
-        let again = cache.find("4.10.200.58746").unwrap();
-        assert_eq!(again.meta.commit, COMMIT);
-        // A corrupted cache file invalidates (and deletes) the entry.
-        std::fs::write(again.dir.join("game-ammo.json"), b"{}").unwrap();
-        assert!(cache.find("4.10.200.58746").is_none());
+        let fake = Fake::new(TAG);
+        let seen = RefCell::new(Vec::new());
+        let files = fetch_verified(&fake, &cache, TAG, &|i, n, f| {
+            seen.borrow_mut().push((i, n, f.to_string()))
+        })
+        .unwrap();
+        assert_eq!(files.dir, t.path().join(TAG).join(COMMIT));
+        assert_eq!(seen.borrow().len(), 3);
+        assert_eq!(seen.borrow()[2], (2, 2, String::new()));
+        // Only data/*.json, flat.
+        let names: Vec<&String> = files.datasets().map(|x| x.0).collect();
+        assert_eq!(names, ["game-ships.json", "game-weapons.json"]);
+        assert_eq!(files.meta.title, "4.10.0 LIVE (4.10.200.58746)");
+        assert_eq!(
+            files.meta.release.branch.as_deref(),
+            Some("sc-alpha-4.10.0")
+        );
+        assert!(files.read("game-ships.json").unwrap().starts_with(b"{"));
+        // Listed and found again (every file re-hashed).
+        assert_eq!(cache.list().len(), 1);
+        assert_eq!(cache.entry(TAG).unwrap().meta.commit, COMMIT);
+        let again = cache.find(TAG).unwrap();
+        // A corrupted file fails its read, and `find` deletes the entry.
+        std::fs::write(again.dir.join("game-weapons.json"), b"{}").unwrap();
+        assert!(matches!(
+            cache.entry(TAG).unwrap().read("game-weapons.json"),
+            Err(SourceError::Check(_))
+        ));
+        assert!(cache.find(TAG).is_none());
         assert!(!again.dir.exists());
+        // Remove.
+        fetch_verified(&fake, &cache, TAG, &|_, _, _| {}).unwrap();
+        assert!(cache.remove(TAG).unwrap());
+        assert!(cache.list().is_empty());
+        assert!(!cache.remove(TAG).unwrap());
+        assert!(!cache.remove("../etc").unwrap());
     }
 
     #[test]
     fn tampered_download_is_rejected_and_not_cached() {
         let t = tempfile::tempdir().unwrap();
         let cache = DumpCache::new(t.path());
-        let mut fake = Fake::new("4.10.200.58746");
+        let mut fake = Fake::new(TAG);
         fake.tamper = Some("data/game-weapons.json".into());
-        let err = fetch_verified(&fake, &cache, &live()).unwrap_err();
+        let err = fetch_verified(&fake, &cache, TAG, &|_, _, _| {}).unwrap_err();
         assert!(matches!(err, SourceError::Check(_)), "{err}");
-        assert!(cache.find("4.10.200.58746").is_none());
+        assert!(cache.find(TAG).is_none());
+        assert!(cache.list().is_empty());
     }
 
     #[test]
-    fn wrong_stamp_wrong_branch_no_release() {
+    fn wrong_stamp_not_live_no_release() {
         let t = tempfile::tempdir().unwrap();
         let cache = DumpCache::new(t.path());
         // Files stamped with another build.
         let fake = Fake::new("4.10.197.2878");
-        let (files, _) = fetch_verified(&fake, &cache, &live()).unwrap();
-        assert!(matches!(to_game_data(&files), Err(SourceError::Check(_))));
-        // Release names another branch.
-        let mut fake = Fake::new("4.10.200.58746");
-        fake.body = "- Branch: `sc-alpha-4.10.0-hotfix`".into();
-        let t2 = tempfile::tempdir().unwrap();
         assert!(matches!(
-            fetch_verified(&fake, &DumpCache::new(t2.path()), &live()),
+            fetch_verified(&fake, &cache, TAG, &|_, _, _| {}),
+            Err(SourceError::Check(_))
+        ));
+        // A PTU release is not offered.
+        assert!(matches!(
+            fetch_verified(&Fake::new("5.0.1.2"), &cache, "5.0.1.2", &|_, _, _| {}),
             Err(SourceError::Unavailable(_))
         ));
-        // No release for this build (PTU, HOTFIX not published).
-        let mut ptu = live();
-        ptu.version = "5.0.201.16954".into();
+        // No release, or a tag that is not a path component.
         assert!(matches!(
-            fetch_verified(&Fake::new("x"), &DumpCache::new(t2.path()), &ptu),
+            fetch_verified(&fake, &cache, "9.9.9.9", &|_, _, _| {}),
             Err(SourceError::Unavailable(_))
         ));
+        assert!(matches!(
+            fetch_verified(&fake, &cache, "../x", &|_, _, _| {}),
+            Err(SourceError::Unavailable(_))
+        ));
+        assert!(cache.list().is_empty());
     }
 
     #[test]
     fn change_number_from_build_stamp() {
         let t = tempfile::tempdir().unwrap();
-        let mut fake = Fake::new("4.10.200.58746");
+        let mut fake = Fake::new(TAG);
         fake.files.insert(
             "data/_build.json".into(),
             br#"{"build":"4.10.200.58746","branch":"sc-alpha-4.10.0","change":13165946}"#.to_vec(),
         );
-        let (_, how) = fetch_verified(&fake, &DumpCache::new(t.path()), &live()).unwrap();
-        assert_eq!(how, BuildMatch::Exact);
-        fake.files
-            .insert("data/_build.json".into(), br#"{"change":"1"}"#.to_vec());
-        let t2 = tempfile::tempdir().unwrap();
-        assert!(fetch_verified(&fake, &DumpCache::new(t2.path()), &live()).is_err());
-    }
-
-    #[test]
-    fn recover_keys_by_namesake() {
-        let t = tempfile::tempdir().unwrap();
-        let fake = Fake::new("4.10.200.58746");
-        let (files, _) = fetch_verified(&fake, &DumpCache::new(t.path()), &live()).unwrap();
-        let mut gd = to_game_data(&files).unwrap();
-        let stock = StockIni::parse(
-            b"\xEF\xBB\xBFitem_NameTEST_Gun=G\r\nitem_DescTEST_Gun=D\r\nvehicle_DescTEST_Ship=S\r\n".to_vec(),
-        );
-        let (filled, total) = recover_loc_keys(&mut gd, &stock);
-        assert_eq!((filled, total), (2, 3));
-        assert_eq!(
-            gd.weapons[0].item.loc.desc.as_deref(),
-            Some("@item_DescTEST_Gun")
-        );
-        assert_eq!(
-            gd.ships[0].loc.desc.as_deref(),
-            Some("@vehicle_DescTEST_Ship")
-        );
-        assert_eq!(
-            gd.blueprints[0].produces_name_key.as_deref(),
-            Some("@item_NameTEST_Gun")
-        );
-        assert_eq!(gd.components[0].item.loc.name, None);
-    }
-
-    struct Text;
-    impl GameSource for Text {
-        fn load(&self, _: &Channel, _: &Budget) -> Result<Loaded, SourceError> {
-            Ok(Loaded {
-                base_ini: b"\xEF\xBB\xBFk=v\r\n".to_vec(),
-                game_data: GameData::default(),
-                keyrefs: None,
-                origin: Origin::LocalExtraction {
-                    starbreaker_commit: "x".into(),
-                },
-                warnings: vec![],
-            })
-        }
-    }
-
-    fn channel() -> Channel {
-        Channel {
-            name: "LIVE".into(),
-            dir: PathBuf::from("/nonexistent/LIVE"),
-            p4k: PathBuf::from("/nonexistent/LIVE/Data.p4k"),
-            build: Some(live()),
-            build_error: None,
-        }
-    }
-
-    #[test]
-    fn dump_first_respects_consent_and_falls_back() {
-        let t = tempfile::tempdir().unwrap();
-        let mk = || PublishedDump {
-            transport: Box::new(Fake::new("4.10.200.58746")),
-            cache: DumpCache::new(t.path()),
-            text: Box::new(Text),
-            prefer_cache: true,
-        };
-        // Consent off: the dump is never asked and nothing is cached.
-        let off = DumpFirst {
-            consent: false,
-            dump: Some(mk()),
-            local: Box::new(Text),
-            require_contracts: false,
-        };
-        let l = off.load(&channel(), &Budget::unlimited()).unwrap();
-        assert!(matches!(l.origin, Origin::LocalExtraction { .. }));
-        assert!(l.warnings.is_empty());
-        assert!(std::fs::read_dir(t.path()).unwrap().next().is_none());
-        // Consent on, contracts not required: the dump is used.
-        let on = DumpFirst {
-            consent: true,
-            dump: Some(mk()),
-            local: Box::new(Text),
-            require_contracts: false,
-        };
-        let l = on.load(&channel(), &Budget::unlimited()).unwrap();
-        assert!(matches!(l.origin, Origin::PublishedDump { .. }));
-        assert!(l.warnings.iter().any(|w| w.kind == "dump-weak-match"));
-        assert_eq!(l.game_data.build, Some(live()));
-        // Contracts required: falls back with a note.
-        let strict = DumpFirst {
-            consent: true,
-            dump: Some(mk()),
-            local: Box::new(Text),
-            require_contracts: true,
-        };
-        let l = strict.load(&channel(), &Budget::unlimited()).unwrap();
-        assert!(matches!(l.origin, Origin::LocalExtraction { .. }));
-        assert!(l.warnings.iter().any(|w| w.kind == "dump-unused"));
+        let files = fetch_verified(&fake, &DumpCache::new(t.path()), TAG, &|_, _, _| {}).unwrap();
+        assert_eq!(files.meta.release.change, Some(13165946));
+        assert!(files.meta.files.contains_key("_build.json"));
+        assert_eq!(files.datasets().count(), 2, "the stamp is not a dataset");
     }
 }

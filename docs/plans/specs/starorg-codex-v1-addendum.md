@@ -2,7 +2,7 @@
 title: StarOrg Codex v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-15
+updated: 2026-11-17
 ---
 
 # StarOrg Codex v1 — addendum (user requests 2026-11-14)
@@ -60,6 +60,33 @@ review are marked **Corrected**.
 - **No speed gain yet:** the stock text still needs the local `Data.p4k` (ini-only worker,
   ~1.5 s, ~0.9 GB peak for the p4k index), and full local extraction is 1.1-1.6 s wall /
   0.87-0.91 GB peak on LIVE, HOTFIX and PTU (32 threads; ~8 s CPU).
+
+### Rescoped 2026-11-17 (owner decision, branch `feat/dump-diff`): dumps Diff-only, apply local-only
+
+- **Decision.** Published dumps are used **only** to compare an old and a new LIVE build in
+  Developer mode's Datasets/Diff (§7.5, §7.6). Apply always reads `Data.p4k` on this computer;
+  nothing above about dumps feeding `GameData` applies any more. "Check for updates" and
+  StarOrg Tools sync are unchanged.
+- **Why** (from the M2 findings above): dumps carry no loc keys and no contract-generator
+  contracts, still list stale records, and gave no speed gain because the stock text needs the
+  local `Data.p4k` anyway. Comparing past LIVE builds is what they are good for.
+- **Removed:** `PublishedDump`, `DumpFirst`, `to_game_data`, `recover_loc_keys`, `match_build`
+  and the same-build rule; the CLI's `published-dumps` feature and `gamedata
+  --use-published-data` / `--cache-dir` (the CLI links no HTTP client at all now; `version
+  --json` keeps an empty `features` object); the wizard's "Game data source" step and
+  `SetupRequest.data_source` (an older frontend that still sends it is ignored); the ignored
+  `starorg-net/tests/cross_check.rs` (it compared dump `GameData` with local extraction).
+  `Origin::PublishedDump` stays so older records still read.
+- **Kept / changed in `source::dump`:** `DumpTransport` gains `releases()`; `live_releases`
+  keeps the releases whose body (`Channel:`) or title says LIVE, newest first by
+  `published_at`. `fetch_verified(transport, cache, tag, progress)` now takes a tag (no local
+  build to match), refuses a non-LIVE release, and fetches **every** flat `data/*.json`
+  (plus `data/_build.json` when present; 27 files / 24.1 MB on 4.10.200.58746, 25 / 17.6 MB on
+  4.10.197.2878), each against the commit's git blob SHA-1 and size, and its `_build` stamp
+  when present. `DumpCache` gains `entry` (meta only), `list` and `remove`; SHA-256 is
+  re-checked whenever a cached file is read.
+- **Setting:** `network.published_dumps` is a real persisted switch again, labelled "Download
+  published LIVE builds for Diff" (Developer mode only). Same config key as before.
 
 ## 2. LUG launcher hooks (and Windows equivalent)
 
@@ -956,6 +983,15 @@ The steady 341 MB is the cost of having Dev mode open; it is returned when the w
    Dumps already cached are listed as sources even with the switch off (no request needed).
    This is the last slice; if it slips it ships as a labelled follow-up and 1-2 stand alone.
 
+   **Rescoped 2026-11-17 (§1):** not "this exact build" any more but any published **LIVE**
+   build, for Diff only. The Datasets screen has a "Published LIVE builds" list under the
+   sources (`dev_dump_releases`): Download per build (a `dev` job, one step per file) while
+   Settings ► Network ► "Download published LIVE builds for Diff" is on; with it off the list
+   shows only the downloaded builds and says "Off (Settings > Network)", and no request is
+   made. Each downloaded build is a `dump:<tag>` source labelled "LIVE <tag>" (build = tag,
+   datasets = its `data/*.json`), works with the switch off, and is deleted from the cache by
+   its trash button (`dev_remove_source`). The old placeholder `dump:<channel>` row is gone.
+
 **Shape inference** (generic; checked against all 30 `sc-gamedata` files):
 
 - A file is an envelope object. Keys starting with `_` (`_source`, `_extracted`, `_fetched`,
@@ -995,6 +1031,11 @@ parsed datasets are kept (LRU); a file is re-read when its size or mtime changes
 
 - Pick **A** and **B** from the sources above: two builds (LIVE vs PTU, or two cached dumps),
   or local vs published for the same build.
+- **Rescoped 2026-11-17 (§1):** the published side is an old vs a new **LIVE** build
+  (`dump:<old tag>` against `dump:<new tag>`), downloaded on the Datasets screen; the A/B
+  pickers list them like any other ready source. Measured (debug build, real network):
+  4.10.197.2878 ► 4.10.200.58746 compared in 2.9 s, 87 tables, 35 differ (+13,590 -0
+  ~1,908; `game-item-tags.json` is new in 4.10.200, so its 12,896 rows count as added).
 - **Summary:** one row per dataset table present in either side: added / removed / changed /
   same, sorted by changed + added + removed, largest first; tables only in one side are
   marked.
@@ -1028,7 +1069,8 @@ command returns error code `dev-disabled` while the setting is off.
 | `dev_export_record` / `dev_export_type` | target, guid / type ► save dialog ► job id, or `cancelled` |
 | `dev_sources` | target ► sources (kind, label, build, state) with datasets (file, tables, row counts, bytes) |
 | `dev_add_source` / `dev_remove_source` | folder/file dialog ► updated sources |
-| `dev_download_dump` | target ► job id (refused with `network-off` when the switch is off) |
+| `dev_download_dump` | target ► job id (refused with `network-off` when the switch is off). **2026-11-17:** `{ target, tag }` ► sources (a `dev` job) |
+| `dev_dump_releases` | **2026-11-17:** target ► published LIVE builds `{ tag, title, channel, branch, published, cached }`, newest first; switch off = only cached ones, no request |
 | `dev_table` | source, dataset, table ► columns (name, type, distinct values when at most 50), row count, identity column |
 | `dev_rows` | source, dataset, table, columns, search, filters, sort, offset, limit ► rows + total |
 | `dev_row` | source, dataset, table, row id ► JSON text + loc resolutions + explorer links |
@@ -1069,7 +1111,8 @@ starorg-codex dev types [--channel <NAME>]                                  # ty
 Runs in the calling process under `catch_unwind` (about 1 s, about 0.9 GB peak, no cache
 written), takes `extract.lock`, exit codes as section 8. Needs no setting (the CLI is already
 a developer surface). No GTK, no HTTP: the published-dump source stays behind the existing
-`published-dumps` feature and is not part of `dev`.
+`published-dumps` feature and is not part of `dev`. (2026-11-17: that feature is removed; the
+CLI has no network path at all, §1.)
 
 ### 7.10 Privacy and safety
 
@@ -1147,6 +1190,11 @@ records only by default, Q-D6 Alt+9 for Explorer only, Q-D7 UEX files are just J
   not built in this app version, so the row reads Off and `dev_download_dump` answers
   `network-off`, or `not-implemented` with the switch on); backlinks (Q-D2); the
   `starorg-gamedata` domain outputs as a source (that crate is not on main yet).
+- **2026-11-17:** the published-dump source is built, rescoped to past LIVE builds for Diff
+  (§1, §7.5): `dev_dump_releases`, `dev_download_dump({ target, tag })`, `dump:<tag>` sources;
+  `dump_refusal` and its `not-implemented` answer are gone (`dumps_off()` gives `network-off`).
+  Real backend tests use an in-memory `DumpTransport` (`tests/real_dev.rs`), plus an ignored
+  real-network smoke test that downloads both LIVE builds and diffs them.
 
 ### 7.14 Readable ids (branch `readable-dev`, 2026-11-15, Refs #15)
 

@@ -24,6 +24,8 @@ export interface DevMockData {
   makers: Record<string, string>;
   enhanced: Record<string, string>;
   folder: { label: string; path: string; files: { file: string; value: Json }[] };
+  /** The published LIVE builds (newest first) and their synthetic datasets. */
+  dumps: { tag: string; title: string; branch: string; published: string; files: { file: string; value: Json }[] }[];
   /** The section index's input (7.17): facts per entry, the table's result per entry. */
   facts: (Facts | null)[];
   sections: SectionsData;
@@ -1426,6 +1428,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
   });
   let open: string | null = null;
   let folder = false;
+  /** Tags of the LIVE builds "downloaded", in download order. */
+  let dumped: string[] = [];
   let compared: D.DevCompare | null = null;
   let diff: { summary: D.DevDiffSummary; tables: TableDiff[]; a: [string, Dataset][]; b: [string, Dataset][] } | null = null;
   const key = (r: T.ChannelRef) => `${r.install}/${r.channel}`;
@@ -1489,13 +1493,21 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     if (folder) {
       out.push({ id: 'folder:0', kind: 'folder', label: data.folder.label, build: null, state: 'ready', detail: data.folder.path, datasets: data.folder.files.map((f) => summaryOf(f.file, toDataset(f.file, f.value))) });
     }
-    out.push({ id: `dump:${r.channel}`, kind: 'dump', label: 'Published dump', build: null, state: 'off', detail: ctx.dumpsOn() ? 'Follow-up: not in this build' : 'Off (Settings > Network)', datasets: [] });
+    for (const d of data.dumps.filter((x) => dumped.includes(x.tag))) {
+      out.push({
+        id: `dump:${d.tag}`,
+        kind: 'dump',
+        label: dumpLabel(d.tag),
+        build: d.tag,
+        state: 'ready',
+        detail: `${d.title} from github.com/voidput/sc-gamedata-dumps`,
+        datasets: d.files.map((f) => summaryOf(f.file, toDataset(f.file, f.value))),
+      });
+    }
     return out;
   };
-  const dumpRefusal = (on: boolean): never =>
-    on
-      ? ctx.fail('not-implemented', 'Published dumps as a dataset source are a follow-up; use This build or a local folder.')
-      : ctx.fail('network-off', 'Turn on Settings > Network > "Use published game data" first.');
+  const dumpLabel = (tag: string) => `LIVE ${tag}`;
+  const dumpOf = (source: string) => (source.startsWith('dump:') ? data.dumps.find((d) => `dump:${d.tag}` === source && dumped.includes(d.tag)) : undefined);
   const datasetsOf = (r: T.ChannelRef, source: string): [string, Dataset][] => {
     if (source.startsWith('build:')) {
       const c = source.slice(6);
@@ -1503,7 +1515,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       return [[GAMEDATA, toDataset(GAMEDATA, data.builds[c] ?? null)]];
     }
     if (source === 'folder:0' && folder) return data.folder.files.map((f) => [f.file, toDataset(f.file, f.value)]);
-    if (source.startsWith('dump:')) dumpRefusal(false);
+    const d = dumpOf(source);
+    if (d) return d.files.map((f) => [f.file, toDataset(f.file, f.value)]);
     return ctx.fail('not-found', `no source ${source}`);
   };
   const datasetOf = (r: T.ChannelRef, source: string, name: string): Dataset => {
@@ -1627,12 +1640,37 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     },
     dev_remove_source: ({ req }) => {
       on(req.target);
-      if (req.source !== 'folder:0' || !folder) ctx.fail('not-found', `no source ${req.source}`);
-      folder = false;
+      const d = dumpOf(req.source);
+      if (d) dumped = dumped.filter((t) => t !== d.tag);
+      else if (req.source === 'folder:0' && folder) folder = false;
+      else ctx.fail('not-found', `no source ${req.source}`);
       diff = null;
       return sources(req.target);
     },
-    dev_download_dump: ({ req }) => (on(req), dumpRefusal(ctx.dumpsOn())),
+    dev_dump_releases: ({ req }) => {
+      on(req);
+      const live = ctx.dumpsOn();
+      return data.dumps
+        .map((d) => ({ tag: d.tag, title: d.title, channel: 'LIVE', branch: d.branch, published: d.published, cached: dumped.includes(d.tag) }))
+        .filter((r) => live || r.cached);
+    },
+    dev_download_dump: async ({ req }) => {
+      on(req.target);
+      if (!ctx.dumpsOn()) ctx.fail('network-off', 'Turn on Settings > Network > "Download published LIVE builds for Diff" first.');
+      const d = data.dumps.find((x) => x.tag === req.tag) ?? ctx.fail('not-found', `Could not download ${dumpLabel(req.tag)}: no published build ${req.tag}`);
+      const label = dumpLabel(d.tag);
+      const steps = d.files.length + 1;
+      const p: T.JobProgress = { job: ctx.nextJob(), kind: 'dev', channel: req.target.channel, phase: 'running', step: 1, steps, label: `Asking GitHub for ${label}`, cancellable: false };
+      ctx.emit({ ...p });
+      for (const [i, f] of d.files.entries()) {
+        await ctx.sleep(ctx.delay);
+        ctx.emit({ ...p, step: i + 1, label: `Downloading ${f.file} (${i + 1} of ${d.files.length})` });
+      }
+      if (!dumped.includes(d.tag)) dumped.push(d.tag);
+      diff = null;
+      ctx.emit({ ...p, phase: 'done', step: steps, label: `Downloaded ${label}` });
+      return sources(req.target);
+    },
     dev_dataset: ({ req }) => structuredClone(datasetOf(req.target, req.source, req.dataset).info),
     dev_table: ({ req }) => tableInfo(tableOf(datasetOf(req.target, req.source, req.dataset), req.table)),
     dev_rows: ({ req }) => queryRows(tableOf(datasetOf(req.target, req.source, req.dataset), req.table), req, lookup),

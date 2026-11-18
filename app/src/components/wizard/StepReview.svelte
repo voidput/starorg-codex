@@ -83,8 +83,7 @@
   </div>
   <div class="grid grid-cols-[9rem_1fr_auto] items-start gap-3 px-3 py-2">
     <dt class="text-muted-foreground">Game data</dt>
-    <dd>{draft.data_source === 'local' ? 'Read on this computer (no network)' : 'Published game data when available (network)'}</dd>
-    {@render edit('source', 'game data source')}
+    <dd class="col-span-2">Read from <span class="mono">Data.p4k</span> on this computer (no network)</dd>
   </div>
   <div class="grid grid-cols-[9rem_1fr_auto] items-start gap-3 px-3 py-2">
     <dt class="text-muted-foreground">Enhancements</dt>
