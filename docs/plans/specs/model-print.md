@@ -87,6 +87,47 @@ with `from_triangles`, `from_labeled`, `from_glb`, `bounds`, `soup`, `subset`,
 `count_solid`; a cell is 0 (empty) or 1 + its group. `threemf::write_3mf_objects(&[Object],
 Unit, Layout, path)`.
 
+## Voxel solid (`voxel.rs`)
+
+Robust over pretty: the output is always a closed, consistently outward 2-manifold.
+
+- **Voxelize** (`voxelize`): every triangle marks the cells its slightly enlarged box overlaps
+  (Akenine-Möller separating axes; per z-slab in parallel), so the surface has no 6-connected
+  gaps. The outside is flood-filled (span fill on bitsets) from the padded border after a
+  closing of `SEAL_CELLS` (2 voxels: sub-millimetre cracks between panels are sealed). Game
+  hulls have larger openings, so a flood-reached cell stays outside only when it is in plain
+  view along at least `OUTSIDE_VOTES` (3) of the six axis directions (ray stabbing); the inside
+  of a hull with holes is seen through one or two. Trade-off: deep exterior pockets seen from
+  fewer than three directions (between landing gear legs, bores) fill in. The solid is about
+  half a voxel larger on each side. Grids above `CELL_BUDGET` (2^29 cells) are coarsened, with
+  a note (`coarsened`). Each cell keeps its closest triangle's group (`1 + group`, at most 255).
+- **Extract** (`extract`, `extract_where` for one group as its own closed mesh): the cells are
+  made well-composed (no two solid or two empty cells meeting only at an edge or corner; fixed
+  by adding cells), then each solid/empty face is a quad on shared grid corners; a clamped
+  Laplacian smoothing (each vertex within 0.4 voxel of its corner, undone where a triangle would
+  turn over) softens the staircase without changing topology. Triangle counts are high
+  (millions at 0.2 mm); simplify is a separate step.
+- **Thicken** (`thicken`): what an opening of radius t/2 removes, away from the rounded edges
+  of thick parts, is dilated by t/2, so sheets become at least t thick; thin parts grow outwards
+  on both sides and gaps narrower than t between them fill in.
+- **Hollow** (`hollow`): cavities are the solid eroded by the wall (a discrete ball, chained in
+  4-voxel steps); cavities under 1 mm³ stay solid; each cavity drains through a vertical hole
+  from its lowest point (nearest its centre) down through the bottom wall, plus a second for a
+  cavity wider than eight holes. The note lists cavities and hole positions.
+- **Pegs** (`peg`): per cut, a hole at the most solid point (2D distance transform) of each piece
+  of the cut face (up to 4; a second on a large face), `depth` into each side; plus a stand
+  hole into the underside nearest the x/y centre of mass with room. Every hole is clamped to
+  leave `PEG_CAP_MM` (0.6) of material, with a note when clamped, when the wall around is
+  under `PEG_WALL_MM` (0.8), or when there is no room.
+- Helpers for the split and colour steps: `Bits` (bitset with `dilate`/`erode`/`flood`/
+  `components`), `VoxelGrid::bits`, `solid_bounds`, `grown`.
+
+Real data (release, 32 threads; `--fit-mm 150`): Skylark LOD 4 (98 376 triangles in) at 0.2 mm:
+0.56 s, 407 MB peak, 3.09 M triangles, watertight (every edge once each way), 223 cm³; 0.1 mm is
+coarsened to 0.13 mm: 1.6 s, 1.15 GB, 7.6 M triangles; with `--thicken 0.8 --hollow 2,3`:
+0.94 s, 9 cavities, 10 drain holes, 69 cm³, watertight. Gladius LOD 2 at 0.2 mm: 0.52 s,
+278 MB, 1.83 M triangles, watertight.
+
 ## Testing on real GLBs
 
 `starorg-codex dev print-glb <in.glb> --out <dir> [print flags] [--stl] [--3mf]` runs the
