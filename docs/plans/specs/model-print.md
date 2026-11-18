@@ -87,6 +87,22 @@ with `from_triangles`, `from_labeled`, `from_glb`, `bounds`, `soup`, `subset`,
 `count_solid`; a cell is 0 (empty) or 1 + its group. `threemf::write_3mf_objects(&[Object],
 Unit, Layout, path)`.
 
+## Simplify
+
+`simplify.rs`: quadric error metric edge collapse (Garland-Heckbert), pure Rust, no new crate
+(`meshopt` builds C++). Face quadrics are area-weighted; open edges and edges between two
+groups add a perpendicular plane (weight 10) so holes and colour borders stay put. A collapse
+is refused when it breaks the link condition, joins two boundary vertices over an inner edge,
+turns a face by more than about 78° or makes a sliver, makes two faces coincide, or would erase
+a small open piece. Vertices on non-manifold edges never move. A closed, consistently wound
+part stays closed; at or under the budget a part is unchanged; the result can stay above the
+budget when the checks refuse the rest (raw GLB soups; a voxel solid is manifold).
+
+Real data (release build, `dev print-glb --stl --simplify N`): Skylark LOD 4 (98 376
+triangles) to 20 000 in about 0.2 s, its 202 closed shells still closed; a Javelin LOD 0
+(3.66 M triangles, 420 k non-manifold edges) asked for 200 000 stops at about 725 000 in
+about 18 s.
+
 ## Testing on real GLBs
 
 `starorg-codex dev print-glb <in.glb> --out <dir> [print flags] [--stl] [--3mf]` runs the
