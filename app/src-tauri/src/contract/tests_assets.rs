@@ -20,6 +20,28 @@ fn live() -> ChannelRef {
 
 fn noop(_: JobProgress) {}
 
+/// Every print option on (a valid combination).
+fn print_example() -> PrintOptions {
+    PrintOptions {
+        scale: ScaleMode::FitMm(150.0),
+        bed_mm: [256.0, 256.0, 256.0],
+        shrink_to_bed: true,
+        drop_small_mm: Some(1.0),
+        solid: true,
+        solid_res_mm: 0.2,
+        thicken_mm: Some(0.8),
+        hollow: Some(Hollow {
+            wall_mm: 2.0,
+            drain_mm: 3.0,
+        }),
+        peg_mm: Some(5.0),
+        split: true,
+        multicolor: true,
+        simplify_tris: Some(200_000),
+        no_weapons: true,
+    }
+}
+
 fn dev_mock() -> MockBackend {
     let b = MockBackend::default();
     let mut s = b.get_settings().unwrap();
@@ -219,6 +241,7 @@ pub(super) fn asset_samples() -> Vec<(&'static str, Value)> {
         force: false,
         paint: None,
         layers: false,
+        print: PrintOptions::default(),
     };
     put(
         "asset_export_model",
@@ -264,6 +287,30 @@ pub(super) fn asset_samples() -> Vec<(&'static str, Value)> {
             )
             .unwrap()
         ),
+    );
+    put(
+        "asset_export_model_print",
+        json!(
+            b.asset_export_model(
+                AssetExportModelRequest {
+                    three_mf: true,
+                    print: print_example(),
+                    ..model(ModelPreset::PrintShell, 0, false)
+                },
+                &noop
+            )
+            .unwrap()
+        ),
+    );
+    put("print_options_default", json!(PrintOptions::default()));
+    put("print_options_example", json!(print_example()));
+    put(
+        "print_scale_modes",
+        json!([
+            ScaleMode::None,
+            ScaleMode::FitMm(150.0),
+            ScaleMode::Ratio(100)
+        ]),
     );
     let info = |what: String| AssetModelInfoRequest {
         target: live(),
@@ -456,6 +503,7 @@ fn every_asset_command_but_the_cache_refuses_while_developer_mode_is_off() {
                     force: false,
                     paint: None,
                     layers: false,
+                    print: PrintOptions::default(),
                 },
                 &noop,
             )
@@ -545,6 +593,7 @@ fn the_mock_caches_previews_sounds_and_models_and_switches_folders() {
                 force: false,
                 paint: None,
                 layers: false,
+                print: PrintOptions::default(),
             },
             &noop,
         )
@@ -670,6 +719,7 @@ fn the_model_view_steps_through_lods_with_estimates_the_guard_and_the_cache() {
                 force: false,
                 paint: None,
                 layers: false,
+                print: PrintOptions::default(),
             },
             &noop,
         )
@@ -804,6 +854,7 @@ fn a_full_export_wears_a_paint_and_refuses_one_the_ship_lacks() {
         force: false,
         paint: Some(paint.into()),
         layers: true,
+        print: PrintOptions::default(),
     };
     let r = b
         .asset_export_model(req(ModelPreset::Full, "syn_ship_002blackgold"), &noop)
@@ -832,4 +883,91 @@ fn a_full_export_wears_a_paint_and_refuses_one_the_ship_lacks() {
         .paints
         .is_empty()
     );
+}
+
+#[test]
+fn a_model_export_takes_print_options_and_refuses_ones_that_do_not_go_together() {
+    let b = dev_mock();
+    let req = |print: PrintOptions| AssetExportModelRequest {
+        target: live(),
+        what: ship_guid(2),
+        name: "SYN_Ship_002".into(),
+        preset: ModelPreset::PrintShell,
+        lod: 0,
+        stl: true,
+        three_mf: true,
+        force: false,
+        paint: None,
+        layers: false,
+        print,
+    };
+    // No weapons changes the GLB, so its file name and cache key.
+    let r = b
+        .asset_export_model(
+            req(PrintOptions {
+                no_weapons: true,
+                ..Default::default()
+            }),
+            &noop,
+        )
+        .unwrap();
+    assert!(
+        r.path
+            .unwrap()
+            .ends_with("SYN_Ship_002-print-lod0-noweapons.glb")
+    );
+    assert!(r.note.unwrap().contains("experimental"));
+    // The other options change only the STL/3MF: same GLB name, no note without them.
+    let plain = b
+        .asset_export_model(req(PrintOptions::default()), &noop)
+        .unwrap();
+    assert!(plain.path.unwrap().ends_with("SYN_Ship_002-print-lod0.glb"));
+    assert_eq!(plain.note, None);
+    let e = b
+        .asset_export_model(
+            req(PrintOptions {
+                split: true,
+                ..Default::default()
+            }),
+            &noop,
+        )
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(e.message.contains("--split needs --solid"), "{}", e.message);
+    // A Full export ignores them (as a Print shell ignores paints).
+    let full = b
+        .asset_export_model(
+            AssetExportModelRequest {
+                preset: ModelPreset::Full,
+                lod: 1,
+                stl: false,
+                three_mf: false,
+                ..req(PrintOptions {
+                    split: true,
+                    no_weapons: true,
+                    ..Default::default()
+                })
+            },
+            &noop,
+        )
+        .unwrap();
+    assert!(full.path.unwrap().ends_with("SYN_Ship_002-full-lod1.glb"));
+}
+
+#[test]
+fn a_model_request_without_print_or_with_part_of_it_takes_the_defaults() {
+    let base = json!({
+        "target": { "install": "inst-7f3a", "channel": "LIVE" },
+        "what": "x", "name": "", "preset": "print-shell", "lod": 0, "stl": true, "force": false
+    });
+    let r: AssetExportModelRequest = serde_json::from_value(base.clone()).unwrap();
+    assert_eq!(r.print, PrintOptions::default());
+    let mut part = base;
+    part["print"] = json!({ "solid": true, "scale": { "mode": "fit-mm", "value": 120 } });
+    let r: AssetExportModelRequest = serde_json::from_value(part).unwrap();
+    assert!(r.print.solid);
+    assert_eq!(r.print.scale, ScaleMode::FitMm(120.0));
+    assert_eq!(r.print.bed_mm, [256.0; 3]);
+    assert_eq!(r.print.solid_res_mm, 0.2);
+    assert_eq!(r.print.validate(), Ok(()));
 }

@@ -129,9 +129,9 @@
     "problem": null
   },
   "asset_cache_move": {
-    "bytes": 752694310,
+    "bytes": 809092911,
     "default_path": "/synthetic/cache/assets",
-    "files": 10,
+    "files": 11,
     "is_default": false,
     "max_bytes": 2147483648,
     "other_drive": true,
@@ -148,8 +148,8 @@
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
     "previous": {
-      "bytes": 752694319,
-      "files": 10,
+      "bytes": 809092915,
+      "files": 11,
       "path": "/synthetic/cache/assets"
     },
     "problem": null
@@ -220,6 +220,15 @@
     "files": 1,
     "note": null,
     "path": "/synthetic/exports/SYN_Ship_002-full-lod1-paint-syn_ship_002blackgold-layers.glb"
+  },
+  "asset_export_model_print": {
+    "bytes": 101398596,
+    "cached": false,
+    "cancelled": false,
+    "failed": [],
+    "files": 2,
+    "note": "3D print processing (experimental) applied to the STL/3MF.",
+    "path": "/synthetic/exports/SYN_Ship_002-print-lod0-noweapons.glb"
   },
   "asset_export_sounds": {
     "bytes": 11296,
@@ -10893,6 +10902,65 @@
       }
     ]
   },
+  "print_options_default": {
+    "bed_mm": [
+      256.0,
+      256.0,
+      256.0
+    ],
+    "drop_small_mm": null,
+    "hollow": null,
+    "multicolor": false,
+    "no_weapons": false,
+    "peg_mm": null,
+    "scale": {
+      "mode": "none"
+    },
+    "shrink_to_bed": false,
+    "simplify_tris": null,
+    "solid": false,
+    "solid_res_mm": 0.20000000298023224,
+    "split": false,
+    "thicken_mm": null
+  },
+  "print_options_example": {
+    "bed_mm": [
+      256.0,
+      256.0,
+      256.0
+    ],
+    "drop_small_mm": 1.0,
+    "hollow": {
+      "drain_mm": 3.0,
+      "wall_mm": 2.0
+    },
+    "multicolor": true,
+    "no_weapons": true,
+    "peg_mm": 5.0,
+    "scale": {
+      "mode": "fit-mm",
+      "value": 150.0
+    },
+    "shrink_to_bed": true,
+    "simplify_tris": 200000,
+    "solid": true,
+    "solid_res_mm": 0.20000000298023224,
+    "split": true,
+    "thicken_mm": 0.800000011920929
+  },
+  "print_scale_modes": [
+    {
+      "mode": "none"
+    },
+    {
+      "mode": "fit-mm",
+      "value": 150.0
+    },
+    {
+      "mode": "ratio",
+      "value": 100
+    }
+  ],
   "profile_schema": {
     "categories": [
       {

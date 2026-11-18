@@ -63,7 +63,7 @@ pub const FULL_MEMORY_NOTE: &str = "Full exports need a lot of memory: about 6.5
 /// Highest LOD offered (ships carry 0-3 or 0-4).
 pub const MAX_LOD: u32 = 4;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 pub struct ModelOptions {
     pub preset: ModelPreset,
     /// 0 = most detail.
@@ -82,6 +82,13 @@ pub struct ModelOptions {
     /// layers' textures are written, how they blend is the viewer's guess).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub layers: bool,
+    /// Print shell only: the experimental 3D print processing of the STL/3MF
+    /// ([`super::print::PrintOptions`]); only `no_weapons` changes the GLB.
+    #[serde(
+        default,
+        skip_serializing_if = "super::print::PrintOptions::is_default"
+    )]
+    pub print: super::print::PrintOptions,
 }
 
 impl ModelOptions {
@@ -99,7 +106,13 @@ impl ModelOptions {
         self.preset == ModelPreset::Full && self.layers
     }
 
-    /// The cache key part: `full-lod1`, `full-lod1-paint-gladiuspirate-layers`.
+    /// Whether a Print shell export leaves the weapons out (experimental).
+    pub fn no_weapons(&self) -> bool {
+        self.preset == ModelPreset::PrintShell && self.print.no_weapons
+    }
+
+    /// The cache key part: `full-lod1`, `full-lod1-paint-gladiuspirate-layers`,
+    /// `print-lod0-noweapons` (the other print options change only the STL/3MF).
     pub fn key(&self) -> String {
         let mut k = format!("{}-lod{}", self.preset.key(), self.lod);
         if let Some(p) = self.paint() {
@@ -110,6 +123,9 @@ impl ModelOptions {
         }
         if self.layers() {
             k.push_str("-layers");
+        }
+        if self.no_weapons() {
+            k.push_str("-noweapons");
         }
         k
     }
@@ -282,6 +298,9 @@ pub struct ModelDone {
     /// The STL/3MF files written next to the GLB.
     #[serde(default)]
     pub meshes: Vec<super::print::MeshFile>,
+    /// What the print processing says about them (parts left out, bed fit, ...).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
     /// Triangles in the GLB (every node's triangle primitives).
     pub triangles: Option<u64>,
     pub ms: u64,
@@ -308,6 +327,9 @@ pub fn export_model(
     for x in super::print::mesh_outputs(out, o).into_iter().flatten() {
         a.check_out(&x)?;
     }
+    if o.preset == ModelPreset::PrintShell {
+        o.print.validate().map_err(AssetError::invalid)?;
+    }
     let started = Instant::now();
     if !progress(0.0, "Reading the DataCore") {
         return Err(AssetError::cancelled());
@@ -329,6 +351,9 @@ pub fn export_model(
         let mut tree = resolve_loadout_indexed(&idx, r);
         if let Some(p) = &paint {
             wear_paint(&mut tree, p);
+        }
+        if o.no_weapons() {
+            strip_weapons(db, &mut tree);
         }
         let p = starbreaker_common::Progress::with_callback(progress);
         let res = starbreaker_3d::assemble_glb_with_loadout_with_progress(
@@ -363,6 +388,7 @@ pub fn export_model(
         record: r.id.to_string(),
         name: record_short_name(db, r),
         meshes: Vec::new(),
+        notes: Vec::new(),
         triangles: super::stl::glb_triangle_count(&bytes),
         ms: 0,
         peak_rss: None,
@@ -370,9 +396,13 @@ pub fn export_model(
         lods,
     };
     if o.stl || o.three_mf {
-        progress(0.97, "Writing STL/3MF");
-        let m = super::print::write_meshes(&bytes, out, o)?;
+        if !progress(0.9, "Writing STL/3MF") {
+            return Err(AssetError::cancelled());
+        }
+        let m =
+            super::print::write_meshes_with(&bytes, out, o, &|f, s| progress(0.9 + 0.1 * f, s))?;
         done.meshes = m.files;
+        done.notes = m.notes;
     }
     drop(bytes);
     done.ms = started.elapsed().as_millis() as u64;
@@ -587,6 +617,15 @@ fn choose_paint(db: &Database<'static>, r: &Record, tag: &str) -> AssetResult<Pa
         .first()
         .map(|p| (*p).clone())
         .ok_or_else(|| AssetError::invalid(format!("no paint item selects {tag:?} on {ship}")))
+}
+
+/// TODO(weapons agent): leave the weapons out of a Print shell's loadout (experimental
+/// `no_weapons`): remove the nodes of weapon hardpoints (guns, missile racks, turrets' guns)
+/// from `tree`, keeping turrets' bodies and everything else. Returns how many nodes were
+/// removed. Stub: removes nothing.
+pub fn strip_weapons(db: &Database<'static>, tree: &mut LoadoutTree) -> usize {
+    let _ = (db, tree);
+    0
 }
 
 /// Fit `p` on the root's paint port (adding the port when the default loadout leaves it out).

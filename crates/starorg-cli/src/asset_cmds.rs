@@ -13,7 +13,7 @@ use starorg_core::memlimit;
 use starorg_data::assets::audio::{self, SoundRef};
 use starorg_data::assets::files;
 use starorg_data::assets::model::{self, ModelOptions, ModelPreset};
-use starorg_data::assets::print;
+use starorg_data::assets::print::{self, PrintOptions};
 use starorg_data::assets::wemcodec;
 use starorg_data::assets::{AssetArchive, AssetError};
 use starorg_data::assetworker;
@@ -212,6 +212,7 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
             three_mf,
             paint,
             layers,
+            print,
             cache_dir,
             channel,
             test_p4k,
@@ -221,6 +222,30 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
             } else {
                 ModelPreset::Full
             };
+            if preset == ModelPreset::Full && print.any() {
+                return fail(
+                    g,
+                    exit::USAGE,
+                    "usage",
+                    "the 3D print options (experimental) need --preset print",
+                );
+            }
+            let print_opts = match print.options() {
+                Ok(p) => p,
+                Err(m) => return fail(g, exit::USAGE, "usage", &m),
+            };
+            let only_glb = PrintOptions {
+                no_weapons: false,
+                ..print_opts.clone()
+            };
+            if !stl && !three_mf && !only_glb.is_default() {
+                return fail(
+                    g,
+                    exit::USAGE,
+                    "usage",
+                    "the 3D print options (experimental) change the STL/3MF: add --stl or --3mf",
+                );
+            }
             let o = ModelOptions {
                 preset,
                 lod: lod.unwrap_or(preset.default_lod()).min(model::MAX_LOD),
@@ -228,6 +253,7 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
                 three_mf,
                 paint,
                 layers,
+                print: print_opts,
             };
             if preset == ModelPreset::PrintShell && (o.paint.is_some() || layers) {
                 return fail(
@@ -278,6 +304,28 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
             channel,
             test_p4k,
         } => model_paints(g, &what, &channel, test_p4k.get()),
+        DevCmd::PrintGlb {
+            input,
+            out,
+            stl,
+            three_mf,
+            print,
+        } => {
+            if print.no_weapons {
+                return fail(
+                    g,
+                    exit::USAGE,
+                    "usage",
+                    "--no-weapons changes the export: use it with export-model, not print-glb",
+                );
+            }
+            let o = match print.options() {
+                Ok(p) => p,
+                Err(m) => return fail(g, exit::USAGE, "usage", &m),
+            };
+            let both = !stl && !three_mf;
+            print_glb(g, &input, &out, stl || both, three_mf || both, &o)
+        }
         _ => ExitCode::from(exit::USAGE),
     }
 }
@@ -438,9 +486,8 @@ fn export_model(
                 let glb = std::fs::read(&hit)?;
                 print::write_meshes(&glb, &out_abs, &o)
                     .map_err(|e| std::io::Error::other(e.message))?
-                    .files
             } else {
-                Vec::new()
+                print::Meshes::default()
             };
             Ok((n, m))
         });
@@ -501,7 +548,11 @@ fn export_model(
                 let _ = c.put_copy(&t.channel, &t.build, Kind::Models, &key, "glb", &out_abs);
                 let _ = model::cache_lods(c, &t.channel, &t.build, what, &d.lods);
             }
-            report_model(g, &out_abs, d.bytes, &d.meshes, false, Some(&d));
+            let m = print::Meshes {
+                files: d.meshes.clone(),
+                notes: d.notes.clone(),
+            };
+            report_model(g, &out_abs, d.bytes, &m, false, Some(&d));
             ExitCode::from(exit::OK)
         }
         Err(e) => asset_fail(g, &e),
@@ -512,16 +563,19 @@ fn report_model(
     g: &GlobalOpts,
     out: &Path,
     bytes: u64,
-    meshes: &[print::MeshFile],
+    meshes: &print::Meshes,
     cached: bool,
     done: Option<&model::ModelDone>,
 ) {
+    let notes = &meshes.notes;
+    let meshes = meshes.files.as_slice();
     let mesh_path = |kind: &str| meshes.iter().find(|m| m.kind == kind).map(|m| &m.path);
     if g.json {
         println!(
             "{}",
             json!({ "schema": JSON_SCHEMA, "out": out, "bytes": bytes, "cached": cached,
-                    "stl": mesh_path("stl"), "3mf": mesh_path("3mf"),
+                    "stl": mesh_path("stl"), "3mf": mesh_path("3mf"), "meshes": meshes,
+                    "notes": notes,
                     "triangles": done.and_then(|d| d.triangles).or(meshes.first().map(|m| m.triangles)),
                     "lod": done.map(|d| d.lod), "lods": done.map(|d| &d.lods),
                     "peak_rss": done.and_then(|d| d.peak_rss), "ms": done.map_or(0, |d| d.ms) })
@@ -549,15 +603,93 @@ fn report_model(
             if cached { ", from the cache" } else { "" },
             out.display()
         );
-        for m in meshes {
-            eprintln!(
-                "starorg-codex: {} ({} triangles, {} bytes) written to {}",
-                m.kind.to_ascii_uppercase(),
-                m.triangles,
-                m.bytes,
-                m.path
+        report_meshes(meshes, notes);
+    }
+}
+
+fn report_meshes(meshes: &[print::MeshFile], notes: &[String]) {
+    for m in meshes {
+        eprintln!(
+            "starorg-codex: {} ({} triangles, {} bytes) written to {}",
+            m.kind.to_ascii_uppercase(),
+            m.triangles,
+            m.bytes,
+            m.path
+        );
+    }
+    for n in notes {
+        eprintln!("starorg-codex: {n}");
+    }
+}
+
+/// `dev print-glb`: the print pipeline on a GLB file, the STL/3MF into `out_dir` (never into
+/// the game install or a Wine prefix). Reads no game files.
+fn print_glb(
+    g: &GlobalOpts,
+    input: &Path,
+    out_dir: &Path,
+    stl: bool,
+    three_mf: bool,
+    o: &PrintOptions,
+) -> ExitCode {
+    let out_abs = canonical_lenient(out_dir);
+    let d = run_discovery(g);
+    if let Some(install) = d.default_install()
+        && let Some(code) = refuse_protected(g, &out_abs, install)
+    {
+        return code;
+    }
+    if starorg_core::discovery::enclosing_wine_prefix(&out_abs).is_some() {
+        return fail(
+            g,
+            exit::USAGE,
+            "usage",
+            &format!("--out {} is inside a Wine prefix", out_abs.display()),
+        );
+    }
+    let glb = match std::fs::read(input) {
+        Ok(b) => b,
+        Err(e) => {
+            return fail(
+                g,
+                exit::NOT_FOUND,
+                "not-found",
+                &format!("{}: {e}", input.display()),
             );
         }
+    };
+    let stem = input
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "model".into());
+    let base = out_abs.join(format!("{stem}.glb"));
+    let mo = ModelOptions {
+        preset: ModelPreset::PrintShell,
+        stl,
+        three_mf,
+        print: o.clone(),
+        ..Default::default()
+    };
+    let tick = Ticker::new(g);
+    let started = Instant::now();
+    let r = print::write_meshes_with(&glb, &base, &mo, &|f, _| {
+        tick.tell("print", f);
+        true
+    });
+    match r {
+        Ok(m) => {
+            if g.json {
+                println!(
+                    "{}",
+                    json!({ "schema": JSON_SCHEMA, "input": input, "meshes": m.files,
+                            "notes": m.notes, "ms": started.elapsed().as_millis() as u64 })
+                );
+            } else if !g.quiet {
+                report_meshes(&m.files, &m.notes);
+            }
+            ExitCode::from(exit::OK)
+        }
+        Err(e) => asset_fail(g, &e),
     }
 }
 

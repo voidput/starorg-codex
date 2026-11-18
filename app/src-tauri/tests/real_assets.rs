@@ -395,6 +395,7 @@ fn extract_and_exports_respect_dialogs_and_the_game_folder() {
             force: false,
             paint: None,
             layers: false,
+            print: PrintOptions::default(),
         }
     };
     let e = f

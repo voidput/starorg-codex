@@ -657,3 +657,17 @@ fn sound_search_finds_triggers_by_name_event_and_words() {
     assert_eq!(t.event.as_deref(), Some("Play_SYN_Engine_Loop"));
     assert_eq!(idx.trigger(&a, "Nope").unwrap_err().code, "not-found");
 }
+
+#[test]
+fn glb_triangles_carry_their_node_paths() {
+    let l = stl::glb_labeled_triangles(&one_triangle_glb()).unwrap();
+    assert_eq!(
+        l.triangles,
+        stl::glb_triangles(&one_triangle_glb()).unwrap()
+    );
+    assert_eq!(l.node, vec![0]);
+    assert_eq!(l.nodes, vec!["node0/node1".to_string()]);
+    let m = print::Mesh::from_glb(&one_triangle_glb()).unwrap();
+    assert_eq!(m.label(m.group(0)), "node0/node1");
+    assert!(print::Mesh::from_glb(b"nope").is_err());
+}

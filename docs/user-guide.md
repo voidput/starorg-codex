@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-15
+updated: 2026-11-17
 ---
 
 # User guide
@@ -175,6 +175,12 @@ For players who want to look things up in the game data. Read only on the game.
   the GLB goes; the STL and 3MF are written next to it with the same name. The 3MF is
   experimental: the mesh is the game's, not made for printing, so it may need repair in the
   slicer.
+  With an STL or 3MF on, **3D print (experimental)** offers print processing of those files
+  (the GLB stays as exported): a size (longest side in mm or 1:N), the bed size (remembered),
+  shrink to the bed, leaving out tiny parts, a voxel solid (thicken, hollow with a drain hole,
+  split to fit the bed with peg holes), multicolor objects, simplify, and no weapons. All are
+  off by default and experimental; some are not built yet and say so. CLI: the same flags on
+  `dev export-model --preset print`, and `dev print-glb` for a GLB you already have.
   A **Full** export can wear any paint the ship has (**Paint**, listed with their in-game names;
   default: the one fitted) and can include **Layer materials (experimental)**, the textures of
   each material's layers (bigger files; some surfaces may look wrong).

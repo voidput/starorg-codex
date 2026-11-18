@@ -1009,7 +1009,13 @@ impl AssetBackend for MockBackend {
             three_mf: req.three_mf,
             paint: req.paint.clone(),
             layers: req.layers,
+            print: req.print.clone(),
         };
+        if req.preset == ModelPreset::PrintShell
+            && let Err(m) = o.print.validate()
+        {
+            return Err(AppError::new(ErrorCode::Invalid, m));
+        }
         let key = format!("model:{}", o.cache_key(&req.what));
         let held = self.cache_size(&key);
         let bytes = held.unwrap_or(match req.preset {
@@ -1043,7 +1049,7 @@ impl AssetBackend for MockBackend {
                 + if req.three_mf { THREE_MF_BYTES } else { 0 },
             cached: held.is_some(),
             failed: Vec::new(),
-            note: None,
+            note: print_note(&req),
         })
     }
 
@@ -1236,4 +1242,10 @@ impl AssetBackend for MockBackend {
         }
         Ok(self.cache_view())
     }
+}
+
+/// The mock's note for an export with print processing (as the real one's notes would read).
+fn print_note(req: &AssetExportModelRequest) -> Option<String> {
+    (req.preset == ModelPreset::PrintShell && (req.stl || req.three_mf) && !req.print.is_default())
+        .then(|| "3D print processing (experimental) applied to the STL/3MF.".to_string())
 }

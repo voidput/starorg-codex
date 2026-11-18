@@ -20,6 +20,8 @@
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import JobProgress from '@/components/common/JobProgress.svelte';
+  import PrintSection from '@/components/assets/PrintSection.svelte';
+  import { defaultPrintOptions, isDefaultPrint, loadBed, printProblem } from '@/lib/printoptions';
   import { assetApi, bytesText, DEFAULT_LOD, hasModel, MAX_LOD, paintLabel, PERSONAL_USE, soundId, type ModelPaints, type ModelPreset, type RecordSounds, type SoundInfo } from '@/lib/contract/assets';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import type { ChannelRef } from '@/lib/contract/types';
@@ -90,6 +92,10 @@
   let lod = $state(0);
   let stl = $state(false);
   let threeMf = $state(false);
+  /** Print shell with an STL or 3MF: the experimental 3D print options (bed size remembered). */
+  let print = $state({ ...defaultPrintOptions(), bed_mm: loadBed() });
+  const printShown = $derived(preset === 'print-shell' && (stl || threeMf));
+  const printBlock = $derived(printShown ? printProblem(print) : null);
   /** Full only: the paint ('' = the fitted one) and StarBreaker's layer materials. */
   let paint = $state('');
   let layers = $state(false);
@@ -148,7 +154,9 @@
     exporting = true;
     try {
       const full = preset === 'full';
-      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl: !full && stl, three_mf: !full && threeMf, force, paint: full && paint ? paint : null, layers: full && layers });
+      const p = $state.snapshot(print);
+      const withPrint = printShown && !isDefaultPrint(p) ? { print: p } : {};
+      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl: !full && stl, three_mf: !full && threeMf, force, paint: full && paint ? paint : null, layers: full && layers, ...withPrint });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
       else toast('success', `Exported ${name}${r.cached ? ' from the cache' : ''}`, [bytesText(r.bytes), r.note, r.path, r.failed.length ? `${r.failed.length} failed` : ''].filter(Boolean).join(' · '));
     } catch (e) {
@@ -250,6 +258,7 @@
       <SwitchRow id="model-3mf" label="Also write a 3MF (experimental)" hint="Mesh for slicers (PrusaSlicer, Bambu Studio, Cura) in real size (metres), Z-up, next to the GLB. It may need repair in the slicer." checked={threeMf} onchange={(v) => (threeMf = v)} disabled={preset === 'full'}>
         <Badge variant="warning" class="shrink-0"><FlaskConical aria-hidden="true" /> Experimental</Badge>
       </SwitchRow>
+      {#if printShown}<PrintSection bind:value={print} />{/if}
       {#if preset === 'full'}
         <label class="flex min-w-0 items-center gap-2">
           <span class="shrink-0">Paint</span>
@@ -281,7 +290,7 @@
     </div>
     <Dialog.Footer>
       <Button variant="ghost" onclick={() => (modelOpen = false)}>Cancel</Button>
-      <Button onclick={() => void exportModel()}><Download aria-hidden="true" /> Save as…</Button>
+      <Button disabled={printBlock !== null} title={printBlock ?? undefined} onclick={() => void exportModel()}><Download aria-hidden="true" /> Save as…</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

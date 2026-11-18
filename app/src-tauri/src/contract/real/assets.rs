@@ -10,7 +10,7 @@
 //! the archive index, while a model exports, and while the first sounds request reads the
 //! DataCore and the Wwise index, so none of these peaks overlap an extraction.
 
-use super::dev::{Worker, WorkerKey, lock_or};
+use super::dev::{Worker, WorkerKey, lock_or, worker_error};
 use super::dialogs::FileFilter;
 use super::{RealBackend, err, internal, io};
 use crate::contract::Progress;
@@ -132,6 +132,11 @@ fn export_result(path: Option<String>, files: u32, bytes: u64, cached: bool) -> 
         failed: Vec::new(),
         note: None,
     }
+}
+
+/// The print processing's notes as one line (`None` without any).
+fn print_note(notes: &[String]) -> Option<String> {
+    (!notes.is_empty()).then(|| notes.join(" "))
 }
 
 fn preview_key(path: &str) -> String {
@@ -922,7 +927,11 @@ impl AssetBackend for RealBackend {
             three_mf: req.three_mf,
             paint: req.paint.clone(),
             layers: req.layers,
+            print: req.print.clone(),
         };
+        if o.preset == model::ModelPreset::PrintShell {
+            o.print.validate().map_err(|m| err(ErrorCode::Invalid, m))?;
+        }
         let name = if req.name.is_empty() {
             &req.what
         } else {
@@ -973,20 +982,19 @@ impl AssetBackend for RealBackend {
             let n = std::fs::copy(&hit, &out).map_err(io)?;
             let mut files = 1;
             let mut bytes = n;
+            let mut notes = Vec::new();
             if o.stl || o.three_mf {
                 let glb = std::fs::read(&hit).map_err(io)?;
-                let (n, len) = starorg_data::assets::print::write_meshes(&glb, &out, &o)
-                    .map_err(|e| err(ErrorCode::Internal, e.message))?
-                    .files_bytes();
+                let m = starorg_data::assets::print::write_meshes(&glb, &out, &o)
+                    .map_err(|e| worker_error(&e.into()))?;
+                let (n, len) = m.files_bytes();
                 files += n;
                 bytes += len;
+                notes = m.notes;
             }
-            return Ok(export_result(
-                Some(out.display().to_string()),
-                files,
-                bytes,
-                true,
-            ));
+            let mut r = export_result(Some(out.display().to_string()), files, bytes, true);
+            r.note = print_note(&notes);
+            return Ok(r);
         }
         // A fresh worker: the export's memory goes back to the OS when it stops.
         let _x = wait_lock(&self.dirs().extract_lock())?;
@@ -1027,7 +1035,9 @@ impl AssetBackend for RealBackend {
         );
         let (n, len) = starorg_data::assets::print::files_bytes(&d.meshes);
         let (files, bytes) = (1 + n, d.bytes + len);
-        Ok(export_result(Some(d.path), files, bytes, false))
+        let mut r = export_result(Some(d.path), files, bytes, false);
+        r.note = print_note(&d.notes);
+        Ok(r)
     }
 
     fn asset_model_info(&self, req: AssetModelInfoRequest) -> CmdResult<AssetModelInfo> {

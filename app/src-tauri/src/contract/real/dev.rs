@@ -124,7 +124,7 @@ pub(super) fn lock_or<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-fn worker_error(e: &starorg_data::devworker::ReplyError) -> AppError {
+pub(super) fn worker_error(e: &starorg_data::devworker::ReplyError) -> AppError {
     let code = match e.code.as_str() {
         "not-found" => ErrorCode::NotFound,
         "invalid" => ErrorCode::Invalid,
