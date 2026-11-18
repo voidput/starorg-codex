@@ -87,6 +87,24 @@ with `from_triangles`, `from_labeled`, `from_glb`, `bounds`, `soup`, `subset`,
 `count_solid`; a cell is 0 (empty) or 1 + its group. `threemf::write_3mf_objects(&[Object],
 Unit, Layout, path)`.
 
+## Without weapons
+
+`model::strip_weapons` removes, before StarBreaker assembles the GLB, every loadout node whose
+item's `AttachDef.Type` is `Turret` (a gun's own mount: `Mount_Gimbal_*` `GunTurret`, the
+Arrow's chin `BallTurret`, `NoseMounted` cannons), `WeaponGun`, `WeaponMining`, `TractorBeam`,
+`WeaponAttachment`, `MissileLauncher`, `Missile`, `BombLauncher` or `Bomb`, or `UtilityTurret`
+`GunTurret` (a mining laser gimbal), with everything below it (`model::is_weapon`). Kept:
+turret bodies (`TurretBase` and `UtilityTurret` `MannedTurret`: Cutlass/Retaliator domes, MOLE
+cabs, whose guns still go), countermeasure launchers (`WeaponDefensive`), thrusters, seats,
+doors, modules, the paint. The list comes from the LIVE loadouts of 15 ships. The export adds
+the note "Without weapons (experimental): N loadout parts left out".
+
+LIVE, Print shell LOD 4, STL triangles with and without: Skylark 98 376 -> 71 121 (18 nodes:
+3 `Mount_Gimbal_S2`, 3 `KLWE_LaserRepeater_S2`, 2 missile racks, 10 missiles); Gladius
+104 142 -> 59 000 (20 nodes: 3 gimbals, 3 guns and the Gatling's 4 attachments, 4 racks, 6
+missiles). `cargo test --release -p starorg-data --test real_weapons -- --ignored` checks
+Skylark, Gladius, Cutlass Black and Arrow.
+
 ## Testing on real GLBs
 
 `starorg-codex dev print-glb <in.glb> --out <dir> [print flags] [--stl] [--3mf]` runs the
