@@ -180,6 +180,10 @@ pub struct CacheMeta {
 
 const META_JSON: &str = "meta.json";
 
+/// Leftover temp dirs older than this are removed when the cache is listed (a crashed or
+/// killed download); younger ones may belong to a download still running.
+const STALE_TMP: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
 /// A tag, commit or file name that is safe as one path component.
 pub fn valid_component(s: &str) -> bool {
     !s.is_empty()
@@ -188,6 +192,20 @@ pub fn valid_component(s: &str) -> bool {
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
         && s != "."
         && s != ".."
+}
+
+/// A dataset file name a cache entry may hold: one safe component, never `meta.json` in
+/// any case.
+fn valid_file_name(s: &str) -> bool {
+    valid_component(s) && !s.eq_ignore_ascii_case(META_JSON)
+}
+
+/// Names that differ only in case (they collide on Windows and macOS file systems).
+fn case_collision<'a>(names: impl Iterator<Item = &'a str>) -> Option<String> {
+    let mut seen = std::collections::BTreeSet::new();
+    names
+        .map(str::to_ascii_lowercase)
+        .find(|n| !seen.insert(n.clone()))
 }
 
 /// The verified dataset files of one build, on disk.
@@ -231,6 +249,95 @@ impl DumpFiles {
     }
 }
 
+/// A `meta.json` that belongs in `<root>/<tag>/<dir name>/`.
+fn meta_ok(m: &CacheMeta, tag: &str, dir_name: &str) -> bool {
+    m.tag == tag
+        && m.commit == dir_name
+        && m.files.keys().all(|k| valid_file_name(k))
+        && case_collision(m.files.keys().map(String::as_str)).is_none()
+}
+
+fn is_tmp(name: &str) -> bool {
+    name.contains(".tmp-")
+}
+
+/// Remove `dir` when it is a temp dir older than [`STALE_TMP`].
+fn prune_tmp(dir: &Path) {
+    let old = std::fs::metadata(dir)
+        .and_then(|m| m.modified())
+        .ok()
+        .and_then(|t| t.elapsed().ok())
+        .is_some_and(|age| age > STALE_TMP);
+    if old {
+        let _ = std::fs::remove_dir_all(dir);
+    }
+}
+
+static TMP_SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// A build being written: files go to a temp dir as they arrive; [`Staging::finish`] writes
+/// `meta.json` and renames it into place. Dropped unfinished, the temp dir is removed.
+pub struct Staging {
+    tmp: PathBuf,
+    dir: PathBuf,
+    files: BTreeMap<String, CachedFile>,
+    done: bool,
+}
+
+impl Staging {
+    /// Write one verified file (fsynced) and record its sums.
+    pub fn add(&mut self, name: &str, bytes: &[u8]) -> Result<(), SourceError> {
+        if !valid_file_name(name) || self.files.keys().any(|k| k.eq_ignore_ascii_case(name)) {
+            return Err(SourceError::Check(format!("bad file name {name}")));
+        }
+        let mut f = std::fs::File::create(self.tmp.join(name))?;
+        f.write_all(bytes)?;
+        f.sync_all()?;
+        self.files.insert(
+            name.to_string(),
+            CachedFile {
+                git_sha1: git_blob_sha1(bytes),
+                sha256: sha256_hex(bytes),
+                size: bytes.len() as u64,
+            },
+        );
+        Ok(())
+    }
+
+    /// The sums of the files written so far.
+    pub fn files(&self) -> &BTreeMap<String, CachedFile> {
+        &self.files
+    }
+
+    /// Write `meta.json` (its `files` are the ones added) and move the entry into place.
+    pub fn finish(mut self, mut meta: CacheMeta) -> Result<DumpFiles, SourceError> {
+        meta.files = std::mem::take(&mut self.files);
+        let r = (|| -> std::io::Result<()> {
+            let mut f = std::fs::File::create(self.tmp.join(META_JSON))?;
+            f.write_all(&serde_json::to_vec_pretty(&meta)?)?;
+            f.sync_all()?;
+            if self.dir.exists() {
+                std::fs::remove_dir_all(&self.dir)?;
+            }
+            crate::fsutil::rename_retry(&self.tmp, &self.dir)
+        })();
+        r?;
+        self.done = true;
+        Ok(DumpFiles {
+            dir: self.dir.clone(),
+            meta,
+        })
+    }
+}
+
+impl Drop for Staging {
+    fn drop(&mut self) {
+        if !self.done {
+            let _ = std::fs::remove_dir_all(&self.tmp);
+        }
+    }
+}
+
 /// Cache of downloaded builds: `<root>/<tag>/<commit>/`.
 #[derive(Debug, Clone)]
 pub struct DumpCache {
@@ -243,6 +350,7 @@ impl DumpCache {
     }
 
     /// The entries of `tag` whose `meta.json` reads (files not re-hashed), newest first.
+    /// Stale temp dirs of crashed downloads are removed on the way.
     fn entries_of(&self, tag: &str) -> Vec<DumpFiles> {
         if !valid_component(tag) {
             return vec![];
@@ -254,13 +362,17 @@ impl DumpCache {
             .filter_map(|e| {
                 let path = e.path();
                 let name = e.file_name().to_string_lossy().into_owned();
-                if name.contains(".tmp-") || !path.is_dir() {
+                if !path.is_dir() {
+                    return None;
+                }
+                if is_tmp(&name) {
+                    prune_tmp(&path);
                     return None;
                 }
                 std::fs::read(path.join(META_JSON))
                     .ok()
                     .and_then(|b| serde_json::from_slice::<CacheMeta>(&b).ok())
-                    .filter(|m| m.tag == tag && m.commit == name)
+                    .filter(|m| meta_ok(m, tag, &name))
                     .map(|meta| DumpFiles { dir: path, meta })
             })
             .collect();
@@ -323,47 +435,78 @@ impl DumpCache {
         Ok(true)
     }
 
+    /// Start writing the entry `<tag>/<commit>` in a temp dir unique to this download.
+    pub fn begin(&self, tag: &str, commit: &str) -> Result<Staging, SourceError> {
+        if !valid_component(tag) || !valid_component(commit) {
+            return Err(SourceError::Check("bad tag or commit name".into()));
+        }
+        let parent = self.root.join(tag);
+        std::fs::create_dir_all(&parent)?;
+        let nanos = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0);
+        let seq = TMP_SEQ.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        let tmp = parent.join(format!("{commit}.tmp-{}-{nanos}-{seq}", std::process::id()));
+        std::fs::create_dir_all(&tmp)?;
+        Ok(Staging {
+            tmp,
+            dir: parent.join(commit),
+            files: BTreeMap::new(),
+            done: false,
+        })
+    }
+
     /// Write a verified set atomically (temp dir, fsync, rename).
     pub fn store(
         &self,
         meta: &CacheMeta,
         files: &BTreeMap<String, Vec<u8>>,
     ) -> Result<DumpFiles, SourceError> {
-        if !valid_component(&meta.tag) || !valid_component(&meta.commit) {
-            return Err(SourceError::Check("bad tag or commit name".into()));
+        let mut st = self.begin(&meta.tag, &meta.commit)?;
+        for (name, bytes) in files {
+            st.add(name, bytes)?;
         }
-        let parent = self.root.join(&meta.tag);
-        std::fs::create_dir_all(&parent)?;
-        let dir = parent.join(&meta.commit);
-        let tmp = parent.join(format!("{}.tmp-{}", meta.commit, std::process::id()));
-        let _ = std::fs::remove_dir_all(&tmp);
-        std::fs::create_dir_all(&tmp)?;
-        let write = |name: &str, bytes: &[u8]| -> std::io::Result<()> {
-            let mut f = std::fs::File::create(tmp.join(name))?;
-            f.write_all(bytes)?;
-            f.sync_all()
-        };
-        let result = (|| -> std::io::Result<()> {
-            for (name, bytes) in files {
-                if !valid_component(name) || name == META_JSON {
-                    return Err(std::io::Error::other(format!("bad file name {name}")));
-                }
-                write(name, bytes)?;
-            }
-            write(META_JSON, &serde_json::to_vec_pretty(meta)?)?;
-            if dir.exists() {
-                std::fs::remove_dir_all(&dir)?;
-            }
-            crate::fsutil::rename_retry(&tmp, &dir)
-        })();
-        if let Err(e) = result {
-            let _ = std::fs::remove_dir_all(&tmp);
-            return Err(e.into());
+        st.finish(meta.clone())
+    }
+}
+
+/// Why a download failed, so the app can tell "no such build" from a refused file and from
+/// a network problem.
+#[derive(Debug, thiserror::Error)]
+pub enum DumpError {
+    /// No published LIVE build with that tag (or it is not LIVE).
+    #[error("{0}")]
+    NotPublished(String),
+    /// Refused: a bad tag, too large, a file that does not match its blob id or stamp.
+    #[error("{0}")]
+    Refused(String),
+    /// GitHub could not be reached or answered with an error (offline, timeout, 403/429).
+    #[error("{0}")]
+    Network(String),
+    /// The caller stopped the download (its switch went off).
+    #[error("{0}")]
+    Stopped(String),
+    #[error("cache: {0}")]
+    Io(#[from] std::io::Error),
+}
+
+impl From<SourceError> for DumpError {
+    fn from(e: SourceError) -> Self {
+        match e {
+            SourceError::Check(m) => DumpError::Refused(m),
+            SourceError::Io(e) => DumpError::Io(e),
+            SourceError::Unavailable(m) | SourceError::Worker(m) => DumpError::Network(m),
+            SourceError::Timeout(d) => DumpError::Network(format!("timed out after {d:?}")),
         }
-        Ok(DumpFiles {
-            dir,
-            meta: meta.clone(),
-        })
+    }
+}
+
+/// The text of a source error without its category prefix (for the UI).
+pub fn error_text(e: &SourceError) -> String {
+    match e {
+        SourceError::Check(m) | SourceError::Unavailable(m) | SourceError::Worker(m) => m.clone(),
+        other => other.to_string(),
     }
 }
 
@@ -373,28 +516,33 @@ struct Envelope {
     build: Option<serde_json::Value>,
 }
 
-/// Download, verify and cache every `data/*.json` of the LIVE release `tag`. `progress`
-/// gets (files done, files in all, file name) before each file.
+/// Largest build accepted, all files together (4.10 is about 25 MB).
+pub const MAX_BUILD_BYTES: u64 = 512 * 1024 * 1024;
+
+/// Download, verify and cache every `data/*.json` of the LIVE release `tag`. `progress` gets
+/// (files done, files in all, file name) before each file and once more with an empty name
+/// before the entry is written; an `Err` from it stops the download (nothing is cached).
 pub fn fetch_verified(
     transport: &dyn DumpTransport,
     cache: &DumpCache,
     tag: &str,
-    progress: &dyn Fn(usize, usize, &str),
-) -> Result<DumpFiles, SourceError> {
+    progress: &dyn Fn(usize, usize, &str) -> Result<(), String>,
+) -> Result<DumpFiles, DumpError> {
     if !valid_component(tag) {
-        return Err(SourceError::Unavailable(format!("unusable tag {tag:?}")));
+        return Err(DumpError::Refused(format!("bad build tag {tag:?}")));
     }
+    let stop = |r: Result<(), String>| r.map_err(DumpError::Stopped);
     let release = transport
         .release(tag)?
-        .ok_or_else(|| SourceError::Unavailable(format!("no published build {tag}")))?;
+        .ok_or_else(|| DumpError::NotPublished(format!("no published build {tag}")))?;
     if release.tag != tag {
-        return Err(SourceError::Check(format!(
+        return Err(DumpError::Refused(format!(
             "asked for {tag}, the release is {}",
             release.tag
         )));
     }
     if !is_live(&release) {
-        return Err(SourceError::Unavailable(format!(
+        return Err(DumpError::NotPublished(format!(
             "{tag} is not a LIVE build"
         )));
     }
@@ -403,73 +551,84 @@ pub fn fetch_verified(
         || commit.len() != 40
         || !commit.chars().all(|c| c.is_ascii_hexdigit())
     {
-        return Err(SourceError::Check(format!("bad commit id {commit:?}")));
+        return Err(DumpError::Refused(format!("bad commit id {commit:?}")));
     }
     let tree = transport.tree(&commit)?;
     let wanted: Vec<&TreeEntry> = tree
         .iter()
         .filter(|e| {
-            e.path.strip_prefix("data/").is_some_and(|n| {
-                valid_component(n) && n != META_JSON && n.to_ascii_lowercase().ends_with(".json")
-            })
+            e.path
+                .strip_prefix("data/")
+                .is_some_and(|n| valid_file_name(n) && n.to_ascii_lowercase().ends_with(".json"))
         })
         .collect();
     if wanted.is_empty() {
-        return Err(SourceError::Unavailable(format!("{tag} has no datasets")));
+        return Err(DumpError::NotPublished(format!("{tag} has no datasets")));
     }
     if wanted.len() > MAX_DATASETS {
-        return Err(SourceError::Check(format!(
+        return Err(DumpError::Refused(format!(
             "{tag} lists {} datasets, more than allowed",
             wanted.len()
         )));
     }
-    let mut files = BTreeMap::new();
+    if let Some(n) = case_collision(wanted.iter().map(|e| e.path.as_str())) {
+        return Err(DumpError::Refused(format!(
+            "{tag} lists {n} twice (names that differ only in case)"
+        )));
+    }
+    let total: u64 = wanted.iter().map(|e| e.size).sum();
+    if total > MAX_BUILD_BYTES {
+        return Err(DumpError::Refused(format!(
+            "{tag} is {total} bytes, more than the {MAX_BUILD_BYTES} allowed"
+        )));
+    }
+    let mut staging = cache.begin(tag, &commit)?;
+    let mut stated = parse_release_body(&release.body);
     for (i, entry) in wanted.iter().enumerate() {
         let name = &entry.path["data/".len()..];
-        progress(i, wanted.len(), name);
+        stop(progress(i, wanted.len(), name))?;
         if entry.size > MAX_DATASET_BYTES {
-            return Err(SourceError::Check(format!(
+            return Err(DumpError::Refused(format!(
                 "{} is {} bytes, more than allowed",
                 entry.path, entry.size
             )));
         }
         let bytes = transport.file(&commit, &entry.path, MAX_DATASET_BYTES)?;
         if bytes.len() as u64 != entry.size || git_blob_sha1(&bytes) != entry.sha {
-            return Err(SourceError::Check(format!(
+            return Err(DumpError::Refused(format!(
                 "{} does not match the blob id of {tag} ({commit})",
                 entry.path
             )));
         }
-        // A dataset stamped with another build is refused; `_build.json` is the stamp.
-        if !name.starts_with('_') {
+        if name.starts_with('_') {
+            // `_build.json` is the stamp; it may carry the change number and branch.
+            if let Ok(v) = serde_json::from_slice::<serde_json::Value>(&bytes) {
+                let ch = v
+                    .get("change")
+                    .or_else(|| v.get("changeNum"))
+                    .or_else(|| v.get("RequestedP4ChangeNum"));
+                if let Some(c) = ch.and_then(|c| c.as_u64().or_else(|| c.as_str()?.parse().ok())) {
+                    stated.change = Some(c);
+                }
+                if stated.branch.is_none() {
+                    stated.branch = v.get("branch").and_then(|b| b.as_str()).map(str::to_string);
+                }
+            }
+        } else {
+            // A dataset stamped with another build is refused.
             let env: Envelope = serde_json::from_slice(&bytes)
-                .map_err(|e| SourceError::Check(format!("{name}: not a dataset: {e}")))?;
+                .map_err(|e| DumpError::Refused(format!("{name}: not a dataset: {e}")))?;
             if let Some(b) = env.build
                 && b.as_str() != Some(tag)
             {
-                return Err(SourceError::Check(format!(
+                return Err(DumpError::Refused(format!(
                     "{name} is stamped {b}, expected {tag}"
                 )));
             }
         }
-        files.insert(name.to_string(), bytes);
+        staging.add(name, &bytes)?;
     }
-    progress(wanted.len(), wanted.len(), "");
-    let mut stated = parse_release_body(&release.body);
-    if let Some(b) = files.get("_build.json")
-        && let Ok(v) = serde_json::from_slice::<serde_json::Value>(b)
-    {
-        let ch = v
-            .get("change")
-            .or_else(|| v.get("changeNum"))
-            .or_else(|| v.get("RequestedP4ChangeNum"));
-        if let Some(c) = ch.and_then(|c| c.as_u64().or_else(|| c.as_str()?.parse().ok())) {
-            stated.change = Some(c);
-        }
-        if stated.branch.is_none() {
-            stated.branch = v.get("branch").and_then(|b| b.as_str()).map(str::to_string);
-        }
-    }
+    stop(progress(wanted.len(), wanted.len(), ""))?;
     let meta = CacheMeta {
         repo: DUMPS_REPO.to_string(),
         tag: tag.to_string(),
@@ -477,25 +636,13 @@ pub fn fetch_verified(
         release: stated,
         title: release.title.clone(),
         published: release.published.clone(),
-        files: files
-            .iter()
-            .map(|(n, b)| {
-                (
-                    n.clone(),
-                    CachedFile {
-                        git_sha1: git_blob_sha1(b),
-                        sha256: sha256_hex(b),
-                        size: b.len() as u64,
-                    },
-                )
-            })
-            .collect(),
+        files: BTreeMap::new(),
         fetched_at: std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0),
     };
-    cache.store(&meta, &files)
+    Ok(staging.finish(meta)?)
 }
 
 /// Default cache root below the app cache directory.
@@ -507,6 +654,10 @@ pub fn cache_root(app_cache: &Path) -> PathBuf {
 mod tests {
     use super::*;
     use std::cell::RefCell;
+
+    fn ok(_: usize, _: usize, _: &str) -> Result<(), String> {
+        Ok(())
+    }
 
     const BODY: &str = "Parsed game data for Star Citizen build `4.10.200.58746`.\n\n- Channel: LIVE\n- Branch: `sc-alpha-4.10.0`\n\n| Dataset | Size |";
     const TAG: &str = "4.10.200.58746";
@@ -557,6 +708,9 @@ mod tests {
         files: BTreeMap<String, Vec<u8>>,
         tamper: Option<String>,
         calls: RefCell<usize>,
+        /// Tree sizes as listed (to test the build cap without big files).
+        claimed: Option<u64>,
+        downloads: RefCell<usize>,
     }
 
     impl Fake {
@@ -592,6 +746,8 @@ mod tests {
                 files,
                 tamper: None,
                 calls: RefCell::new(0),
+                claimed: None,
+                downloads: RefCell::new(0),
             }
         }
     }
@@ -617,11 +773,12 @@ mod tests {
                 .map(|(p, b)| TreeEntry {
                     path: p.clone(),
                     sha: git_blob_sha1(b),
-                    size: b.len() as u64,
+                    size: self.claimed.unwrap_or(b.len() as u64),
                 })
                 .collect())
         }
         fn file(&self, _: &str, path: &str, _: u64) -> Result<Vec<u8>, SourceError> {
+            *self.downloads.borrow_mut() += 1;
             let mut b = self.files[path].clone();
             if self.tamper.as_deref() == Some(path) {
                 b[0] = b' ';
@@ -648,7 +805,8 @@ mod tests {
         let fake = Fake::new(TAG);
         let seen = RefCell::new(Vec::new());
         let files = fetch_verified(&fake, &cache, TAG, &|i, n, f| {
-            seen.borrow_mut().push((i, n, f.to_string()))
+            seen.borrow_mut().push((i, n, f.to_string()));
+            Ok(())
         })
         .unwrap();
         assert_eq!(files.dir, t.path().join(TAG).join(COMMIT));
@@ -676,7 +834,7 @@ mod tests {
         assert!(cache.find(TAG).is_none());
         assert!(!again.dir.exists());
         // Remove.
-        fetch_verified(&fake, &cache, TAG, &|_, _, _| {}).unwrap();
+        fetch_verified(&fake, &cache, TAG, &ok).unwrap();
         assert!(cache.remove(TAG).unwrap());
         assert!(cache.list().is_empty());
         assert!(!cache.remove(TAG).unwrap());
@@ -689,8 +847,8 @@ mod tests {
         let cache = DumpCache::new(t.path());
         let mut fake = Fake::new(TAG);
         fake.tamper = Some("data/game-weapons.json".into());
-        let err = fetch_verified(&fake, &cache, TAG, &|_, _, _| {}).unwrap_err();
-        assert!(matches!(err, SourceError::Check(_)), "{err}");
+        let err = fetch_verified(&fake, &cache, TAG, &ok).unwrap_err();
+        assert!(matches!(err, DumpError::Refused(_)), "{err}");
         assert!(cache.find(TAG).is_none());
         assert!(cache.list().is_empty());
     }
@@ -702,22 +860,22 @@ mod tests {
         // Files stamped with another build.
         let fake = Fake::new("4.10.197.2878");
         assert!(matches!(
-            fetch_verified(&fake, &cache, TAG, &|_, _, _| {}),
-            Err(SourceError::Check(_))
+            fetch_verified(&fake, &cache, TAG, &ok),
+            Err(DumpError::Refused(_))
         ));
         // A PTU release is not offered.
         assert!(matches!(
-            fetch_verified(&Fake::new("5.0.1.2"), &cache, "5.0.1.2", &|_, _, _| {}),
-            Err(SourceError::Unavailable(_))
+            fetch_verified(&Fake::new("5.0.1.2"), &cache, "5.0.1.2", &ok),
+            Err(DumpError::NotPublished(_))
         ));
         // No release, or a tag that is not a path component.
         assert!(matches!(
-            fetch_verified(&fake, &cache, "9.9.9.9", &|_, _, _| {}),
-            Err(SourceError::Unavailable(_))
+            fetch_verified(&fake, &cache, "9.9.9.9", &ok),
+            Err(DumpError::NotPublished(_))
         ));
         assert!(matches!(
-            fetch_verified(&fake, &cache, "../x", &|_, _, _| {}),
-            Err(SourceError::Unavailable(_))
+            fetch_verified(&fake, &cache, "../x", &ok),
+            Err(DumpError::Refused(_))
         ));
         assert!(cache.list().is_empty());
     }
@@ -730,9 +888,93 @@ mod tests {
             "data/_build.json".into(),
             br#"{"build":"4.10.200.58746","branch":"sc-alpha-4.10.0","change":13165946}"#.to_vec(),
         );
-        let files = fetch_verified(&fake, &DumpCache::new(t.path()), TAG, &|_, _, _| {}).unwrap();
+        let files = fetch_verified(&fake, &DumpCache::new(t.path()), TAG, &ok).unwrap();
         assert_eq!(files.meta.release.change, Some(13165946));
         assert!(files.meta.files.contains_key("_build.json"));
         assert_eq!(files.datasets().count(), 2, "the stamp is not a dataset");
+    }
+
+    #[test]
+    fn build_cap_stop_and_case_collisions() {
+        let t = tempfile::tempdir().unwrap();
+        let cache = DumpCache::new(t.path());
+        // Over the total cap: refused before any file is downloaded.
+        let mut big = Fake::new(TAG);
+        big.claimed = Some(MAX_BUILD_BYTES / 2 + 1);
+        assert!(matches!(
+            fetch_verified(&big, &cache, TAG, &ok),
+            Err(DumpError::Refused(_))
+        ));
+        assert_eq!(*big.downloads.borrow(), 0);
+        // The caller stops it between files: nothing cached, no temp dir left.
+        let fake = Fake::new(TAG);
+        let r = fetch_verified(&fake, &cache, TAG, &|i, _, _| {
+            if i == 1 { Err("off".into()) } else { Ok(()) }
+        });
+        assert!(matches!(r, Err(DumpError::Stopped(_))));
+        assert_eq!(*fake.downloads.borrow(), 1);
+        assert!(cache.list().is_empty());
+        assert_eq!(std::fs::read_dir(t.path().join(TAG)).unwrap().count(), 0);
+        // Two names that differ only in case.
+        let mut twice = Fake::new(TAG);
+        twice
+            .files
+            .insert("data/Game-Ships.json".into(), dataset("x", TAG));
+        assert!(matches!(
+            fetch_verified(&twice, &cache, TAG, &ok),
+            Err(DumpError::Refused(_))
+        ));
+    }
+
+    #[test]
+    fn bad_meta_entries_and_stale_temp_dirs() {
+        let t = tempfile::tempdir().unwrap();
+        let cache = DumpCache::new(t.path());
+        let files = fetch_verified(&Fake::new(TAG), &cache, TAG, &ok).unwrap();
+        // A meta.json naming a file outside its dir is ignored.
+        let mut bad = files.meta.clone();
+        bad.files.insert(
+            "../x".into(),
+            CachedFile {
+                git_sha1: String::new(),
+                sha256: String::new(),
+                size: 0,
+            },
+        );
+        std::fs::write(files.dir.join(META_JSON), serde_json::to_vec(&bad).unwrap()).unwrap();
+        assert!(cache.entry(TAG).is_none());
+        // So is one whose names differ only in case, or that lists meta.json itself.
+        for extra in ["GAME-SHIPS.json", "META.JSON"] {
+            let mut m = files.meta.clone();
+            m.files
+                .insert(extra.into(), m.files["game-ships.json"].clone());
+            std::fs::write(files.dir.join(META_JSON), serde_json::to_vec(&m).unwrap()).unwrap();
+            assert!(cache.entry(TAG).is_none(), "{extra}");
+        }
+        // Temp dirs: a fresh one (a running download) stays, an old one is pruned.
+        let fresh = t.path().join(TAG).join(format!("{COMMIT}.tmp-1-2-3"));
+        let stale = t.path().join(TAG).join(format!("{COMMIT}.tmp-4-5-6"));
+        std::fs::create_dir_all(&fresh).unwrap();
+        std::fs::create_dir_all(&stale).unwrap();
+        // (Setting a directory's mtime through File::open works on Unix only.)
+        #[cfg(unix)]
+        {
+            let old = std::time::SystemTime::now() - 2 * STALE_TMP;
+            std::fs::File::open(&stale)
+                .unwrap()
+                .set_modified(old)
+                .unwrap();
+            cache.list();
+            assert!(!stale.exists());
+        }
+        cache.list();
+        assert!(fresh.exists());
+        // Two downloads never share a temp dir.
+        let a = cache.begin(TAG, COMMIT).unwrap();
+        let b = cache.begin(TAG, COMMIT).unwrap();
+        assert_ne!(a.tmp, b.tmp);
+        drop(a);
+        drop(b);
+        assert!(fresh.exists());
     }
 }

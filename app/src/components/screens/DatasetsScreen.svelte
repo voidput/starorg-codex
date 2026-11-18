@@ -95,6 +95,8 @@
   const dumpsOn = $derived(!!app.settings?.network.published_dumps);
   let releases = $state<DumpRelease[]>([]);
   let relError = $state<ContractError | null>(null);
+  /** GitHub could not be asked: the downloaded builds are listed, with this reason above them. */
+  let relNote = $state<string | null>(null);
   let relLoading = $state(true);
   let downloading = $state<string | null>(null);
   async function loadReleases() {
@@ -102,7 +104,8 @@
     relLoading = true;
     try {
       const r = await devApi.dumpReleases($state.snapshot(target));
-      releases = Array.isArray(r) ? r : [];
+      releases = Array.isArray(r?.releases) ? r.releases : [];
+      relNote = r?.error ?? null;
       relError = null;
     } catch (e) {
       relError = toContractError(e);
@@ -612,27 +615,32 @@
             <Skeleton class="mx-1.5 h-6" />
           {:else if relError}
             <ErrorState title="Could not list the published builds" error={relError} onretry={() => void loadReleases()} />
-          {:else if !releases.length}
-            {#if dumpsOn}<p class="text-muted-foreground px-1.5 text-[11.5px]">No published LIVE build found.</p>{/if}
           {:else}
-            <ul class="grid gap-0.5">
-              {#each releases as r (r.tag)}
-                <li class="flex items-center gap-1.5 rounded-md px-1.5 py-0.5">
-                  <span class="min-w-0 flex-1">
-                    <span class="mono block truncate text-[12px]" title={r.title}>LIVE {r.tag}</span>
-                    <span class="text-muted-foreground block truncate text-[10.5px]">{r.branch ?? r.title}{r.published ? ` · ${fmtDate(r.published)}` : ''}</span>
-                  </span>
-                  {#if r.cached}
-                    <ToneBadge tone="success" label="Downloaded" />
-                    <Button variant="ghost" size="icon-xs" aria-label="Delete LIVE {r.tag}" title="Delete the downloaded copy from this computer" onclick={() => void removeSource(`dump:${r.tag}`)}><Trash aria-hidden="true" /></Button>
-                  {:else if dumpsOn}
-                    <Button variant="outline" size="xs" disabled={downloading !== null} aria-label="Download LIVE {r.tag}" onclick={() => void download(r.tag)}>
-                      <Download aria-hidden="true" /> {downloading === r.tag ? 'Downloading…' : 'Download'}
-                    </Button>
-                  {/if}
-                </li>
-              {/each}
-            </ul>
+            {#if relNote && dumpsOn}
+              <p class="text-warning px-1.5 text-[11.5px]" role="status">{relNote}</p>
+            {/if}
+            {#if releases.length}
+              <ul class="grid gap-0.5">
+                {#each releases as r (r.tag)}
+                  <li class="flex items-center gap-1.5 rounded-md px-1.5 py-0.5">
+                    <span class="min-w-0 flex-1">
+                      <span class="mono block truncate text-[12px]" title={r.title}>LIVE {r.tag}</span>
+                      <span class="text-muted-foreground block truncate text-[10.5px]">{r.branch ?? r.title}{r.published ? ` · ${fmtDate(r.published)}` : ''}</span>
+                    </span>
+                    {#if r.cached}
+                      <ToneBadge tone="success" label="Downloaded" />
+                      <Button variant="ghost" size="icon-xs" aria-label="Delete LIVE {r.tag}" title="Delete the downloaded copy from this computer" onclick={() => void removeSource(`dump:${r.tag}`)}><Trash aria-hidden="true" /></Button>
+                    {:else if dumpsOn}
+                      <Button variant="outline" size="xs" disabled={downloading !== null} aria-label="Download LIVE {r.tag}" onclick={() => void download(r.tag)}>
+                        <Download aria-hidden="true" /> {downloading === r.tag ? 'Downloading…' : 'Download'}
+                      </Button>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {:else if dumpsOn && !relNote}
+              <p class="text-muted-foreground px-1.5 text-[11.5px]">No published LIVE build found.</p>
+            {/if}
           {/if}
         </section>
       </div>

@@ -159,12 +159,23 @@ test('published LIVE builds: switch, download as a job, diff old -> new, remove'
   const { m, settings, events } = mock();
   const h = m.handlers;
   const [nw, old] = [data.dumps[0]!.tag, data.dumps[1]!.tag];
-  assert.deepEqual(await h.dev_dump_releases({ req: live }), []);
+  assert.deepEqual(await h.dev_dump_releases({ req: live }), { releases: [], error: null });
   await assert.rejects(async () => h.dev_download_dump({ req: { target: live, tag: old } }), (e: Fail) => e.code === 'network-off');
   settings.dumps = true;
-  assert.deepEqual((await h.dev_dump_releases({ req: live })).map((r) => r.tag), [nw, old]);
-  await assert.rejects(async () => h.dev_download_dump({ req: { target: live, tag: '9.9.9.9' } }), (e: Fail) => e.code === 'not-found');
+  assert.deepEqual((await h.dev_dump_releases({ req: live })).releases.map((r) => r.tag), [nw, old]);
+  // Same codes and text as the real backend (contract/dev.rs dump_not_published, bad_dump_tag).
+  await assert.rejects(async () => h.dev_download_dump({ req: { target: live, tag: '9.9.9.9' } }), (e: Fail) => e.code === 'not-found' && e.message === 'Could not download LIVE 9.9.9.9: no published build 9.9.9.9');
+  await assert.rejects(async () => h.dev_download_dump({ req: { target: live, tag: '../x' } }), (e: Fail) => e.code === 'invalid' && e.message === 'bad build tag "../x"');
+  const before = events.length;
   await h.dev_download_dump({ req: { target: live, tag: old } });
+  const seq = (events.slice(before) as { step: number; steps: number; label: string }[]).map((e) => [e.step, e.steps, e.label]);
+  assert.deepEqual(seq, [
+    [1, 1, `Asking GitHub for LIVE ${old}`],
+    [1, 3, 'Downloading game-ships.json (1 of 2)'],
+    [2, 3, 'Downloading game-weapons.json (2 of 2)'],
+    [3, 3, `Checking LIVE ${old}`],
+    [3, 3, `Downloaded LIVE ${old}`],
+  ]);
   const src = await h.dev_download_dump({ req: { target: live, tag: nw } });
   assert.deepEqual(src.filter((s) => s.kind === 'dump').map((s) => s.id), [`dump:${nw}`, `dump:${old}`]);
   const jobs = (events as { kind: string; phase: string }[]).filter((e) => e.phase === 'done');
@@ -175,7 +186,7 @@ test('published LIVE builds: switch, download as a job, diff old -> new, remove'
   assert.ok(w.changed > 0);
   // Off again: still listed and readable, no download.
   settings.dumps = false;
-  assert.equal((await h.dev_dump_releases({ req: live })).length, 2);
+  assert.equal((await h.dev_dump_releases({ req: live })).releases.length, 2);
   await h.dev_rows({ req: rows(`dump:${old}`, 'game-weapons.json', 'shipWeapons') });
   const after = await h.dev_remove_source({ req: { target: live, source: `dump:${old}` } });
   assert.equal(after.filter((s) => s.kind === 'dump').length, 1);

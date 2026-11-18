@@ -81,6 +81,10 @@ impl DevSpawner for Broken {
 struct FakeDumps {
     calls: AtomicUsize,
     tamper: Mutex<Option<String>>,
+    /// After this many file downloads, turn the switch off in app.json (a user flipping it
+    /// while a download runs).
+    off_after: Mutex<Option<(usize, PathBuf)>>,
+    files_served: AtomicUsize,
 }
 
 const OLD: &str = "4.10.197.2878";
@@ -175,6 +179,15 @@ impl DumpTransport for FakeDumps {
     }
     fn file(&self, commit: &str, path: &str, _: u64) -> Result<Vec<u8>, SourceError> {
         self.calls.fetch_add(1, Ordering::SeqCst);
+        let served = self.files_served.fetch_add(1, Ordering::SeqCst) + 1;
+        if let Some((n, app_json)) = self.off_after.lock().unwrap().clone()
+            && served >= n
+        {
+            let mut v: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(&app_json).unwrap()).unwrap();
+            v["network"]["published_dumps"] = false.into();
+            std::fs::write(&app_json, serde_json::to_vec(&v).unwrap()).unwrap();
+        }
         let mut b = self.files(Self::tag_of(commit))[path].clone();
         if self.tamper.lock().unwrap().as_deref() == Some(path) {
             b[0] = b' ';
@@ -238,6 +251,8 @@ fn fake(broken: bool) -> Fake {
     let dumps = Arc::new(FakeDumps {
         calls: AtomicUsize::new(0),
         tamper: Mutex::new(None),
+        off_after: Mutex::new(None),
+        files_served: AtomicUsize::new(0),
     });
     let backend = backend.with_dump_transport(dumps.clone());
     Fake {
@@ -632,6 +647,7 @@ fn published_live_builds_download_verify_and_diff() {
         f.backend
             .dev_dump_releases(live.clone())
             .unwrap()
+            .releases
             .is_empty()
     );
     assert_eq!(
@@ -644,7 +660,7 @@ fn published_live_builds_download_verify_and_diff() {
     assert_eq!(f.dumps.calls.load(Ordering::SeqCst), 0);
     dumps_switch(&f, true);
     // On: only LIVE, newest first.
-    let rel = f.backend.dev_dump_releases(live.clone()).unwrap();
+    let rel = f.backend.dev_dump_releases(live.clone()).unwrap().releases;
     assert_eq!(
         rel.iter().map(|r| r.tag.as_str()).collect::<Vec<_>>(),
         [NEW, OLD]
@@ -679,6 +695,7 @@ fn published_live_builds_download_verify_and_diff() {
         f.backend
             .dev_dump_releases(live.clone())
             .unwrap()
+            .releases
             .iter()
             .all(|r| !r.cached)
     );
@@ -717,7 +734,7 @@ fn published_live_builds_download_verify_and_diff() {
     // Off again: no request, the downloaded builds listed and usable.
     dumps_switch(&f, false);
     let calls = f.dumps.calls.load(Ordering::SeqCst);
-    let rel = f.backend.dev_dump_releases(live.clone()).unwrap();
+    let rel = f.backend.dev_dump_releases(live.clone()).unwrap().releases;
     assert_eq!(rel.len(), 2);
     assert!(rel.iter().all(|r| r.cached));
     let sum = f
@@ -776,9 +793,30 @@ fn published_live_builds_download_verify_and_diff() {
         })
         .unwrap_err();
     assert!(e.message.contains("checksum"), "{e:?}");
+    assert!(!e.message.contains("archive check failed"), "{e:?}");
     let src = f.backend.dev_sources(live.clone()).unwrap();
     let old = src.iter().find(|s| s.id == format!("dump:{OLD}")).unwrap();
     assert_eq!(old.state, SourceState::Error);
+    assert!(
+        old.detail.as_deref().unwrap().contains("checksum"),
+        "{:?}",
+        old.detail
+    );
+    // A missing file is an error too, not Ready with no tables.
+    std::fs::remove_file(
+        f.dump_dir(NEW)
+            .read_dir()
+            .unwrap()
+            .flatten()
+            .next()
+            .unwrap()
+            .path()
+            .join("game-law.json"),
+    )
+    .unwrap();
+    let src = f.backend.dev_sources(live.clone()).unwrap();
+    let new = src.iter().find(|s| s.id == format!("dump:{NEW}")).unwrap();
+    assert_eq!(new.state, SourceState::Error, "{:?}", new.detail);
     // Remove deletes the cache entry.
     let src = f
         .backend
@@ -823,7 +861,7 @@ fn real_network_smoke_download_and_diff() {
     dumps_switch(&f, true);
     let live = f.live();
     let t0 = std::time::Instant::now();
-    let rel = f.backend.dev_dump_releases(live.clone()).unwrap();
+    let rel = f.backend.dev_dump_releases(live.clone()).unwrap().releases;
     eprintln!("releases ({} ms):", t0.elapsed().as_millis());
     for r in &rel {
         eprintln!(
@@ -893,4 +931,119 @@ fn real_network_smoke_download_and_diff() {
         sum.tables.len()
     );
     assert!(changed_tables > 0);
+}
+
+/// GitHub unreachable or rate limited.
+struct Down;
+impl DumpTransport for Down {
+    fn releases(&self) -> Result<Vec<ReleaseInfo>, SourceError> {
+        Err(SourceError::Unavailable(
+            "https://api.github.com/...: HTTP 403".into(),
+        ))
+    }
+    fn release(&self, _: &str) -> Result<Option<ReleaseInfo>, SourceError> {
+        self.releases().map(|_| None)
+    }
+    fn tag_commit(&self, _: &str) -> Result<String, SourceError> {
+        Err(SourceError::Unavailable("offline".into()))
+    }
+    fn tree(&self, _: &str) -> Result<Vec<TreeEntry>, SourceError> {
+        Err(SourceError::Unavailable("offline".into()))
+    }
+    fn file(&self, _: &str, _: &str, _: u64) -> Result<Vec<u8>, SourceError> {
+        Err(SourceError::Unavailable("offline".into()))
+    }
+}
+
+#[test]
+fn offline_keeps_downloaded_builds_listed_and_off_stops_a_download() {
+    let f = fake(false);
+    f.dev_mode(true);
+    let live = f.live();
+    dumps_switch(&f, true);
+    f.backend
+        .dev_download_dump(dump_req(&live, OLD), &noop)
+        .unwrap();
+    // GitHub down: the downloaded build is still listed, with the reason, not an error.
+    f.backend.set_dump_transport(Arc::new(Down));
+    let r = f.backend.dev_dump_releases(live.clone()).unwrap();
+    assert_eq!(
+        r.releases
+            .iter()
+            .map(|x| x.tag.as_str())
+            .collect::<Vec<_>>(),
+        [OLD]
+    );
+    assert!(r.releases[0].cached);
+    let why = r.error.unwrap();
+    assert!(
+        why.contains("Could not reach GitHub") && why.contains("403"),
+        "{why}"
+    );
+    assert!(!why.contains("source unavailable"), "{why}");
+    // A download then fails as a network problem, not "not found".
+    let e = f
+        .backend
+        .dev_download_dump(dump_req(&live, NEW), &noop)
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Internal, "{e:?}");
+    assert!(e.message.starts_with("Could not reach GitHub"), "{e:?}");
+    // The source still reads.
+    assert!(
+        f.backend
+            .dev_dataset(DevDatasetRef {
+                target: live.clone(),
+                source: format!("dump:{OLD}"),
+                dataset: "game-weapons.json".into(),
+            })
+            .is_ok()
+    );
+    // Turned off while downloading: no further request, nothing cached, network-off.
+    f.backend.set_dump_transport(f.dumps.clone());
+    let app_json = AppDirs::under(&f.base.join("app")).config.join("app.json");
+    *f.dumps.off_after.lock().unwrap() =
+        Some((f.dumps.files_served.load(Ordering::SeqCst) + 1, app_json));
+    let before = f.dumps.files_served.load(Ordering::SeqCst);
+    let seen = Mutex::new(Vec::new());
+    let e = f
+        .backend
+        .dev_download_dump(dump_req(&live, NEW), &|p| seen.lock().unwrap().push(p))
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::NetworkOff, "{e:?}");
+    assert_eq!(
+        f.dumps.files_served.load(Ordering::SeqCst),
+        before + 1,
+        "stopped after one file"
+    );
+    assert_eq!(seen.lock().unwrap().last().unwrap().phase, JobPhase::Failed);
+    assert!(!f.dump_dir(NEW).exists() || std::fs::read_dir(f.dump_dir(NEW)).unwrap().count() == 0);
+}
+
+#[test]
+fn download_progress_is_asking_then_one_step_per_file_then_checking() {
+    let f = fake(false);
+    f.dev_mode(true);
+    dumps_switch(&f, true);
+    let live = f.live();
+    let seen = Mutex::new(Vec::new());
+    f.backend
+        .dev_download_dump(dump_req(&live, OLD), &|p| seen.lock().unwrap().push(p))
+        .unwrap();
+    let got: Vec<(u32, u32, String)> = seen
+        .into_inner()
+        .unwrap()
+        .into_iter()
+        .map(|p| (p.step, p.steps, p.label))
+        .collect();
+    let l = format!("LIVE {OLD}");
+    assert_eq!(
+        got,
+        [
+            (1, 1, format!("Asking GitHub for {l}")),
+            (1, 3, "Downloading game-law.json (1 of 2)".to_string()),
+            (2, 3, "Downloading game-weapons.json (2 of 2)".to_string()),
+            (3, 3, format!("Checking {l}")),
+            (3, 3, format!("Downloaded {l}")),
+        ]
+    );
 }

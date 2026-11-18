@@ -1852,11 +1852,11 @@ impl DevBackend for MockBackend {
         Ok(self.sources_of(&req.target))
     }
 
-    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<Vec<DumpRelease>> {
+    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases> {
         self.dev_on(&req)?;
         let on = self.dumps_on();
         let cached = self.dev_state().dumps.clone();
-        Ok(DUMPS
+        let releases = DUMPS
             .iter()
             .map(|(tag, title, branch, published)| DumpRelease {
                 tag: tag.to_string(),
@@ -1867,7 +1867,11 @@ impl DevBackend for MockBackend {
                 cached: cached.iter().any(|c| c == tag),
             })
             .filter(|r| on || r.cached)
-            .collect())
+            .collect();
+        Ok(DumpReleases {
+            releases,
+            error: None,
+        })
     }
 
     fn dev_download_dump(
@@ -1879,28 +1883,35 @@ impl DevBackend for MockBackend {
         if !self.dumps_on() {
             return Err(dumps_off());
         }
-        if !DUMPS.iter().any(|d| d.0 == req.tag) {
-            return Err(not_found(format!(
-                "Could not download {}: no published build {}",
-                dump_label(&req.tag),
-                req.tag
-            )));
+        if !starorg_core::source::dump::valid_component(&req.tag) {
+            return Err(bad_dump_tag(&req.tag));
         }
+        if !DUMPS.iter().any(|d| d.0 == req.tag) {
+            return Err(dump_not_published(
+                &req.tag,
+                &format!("no published build {}", req.tag),
+            ));
+        }
+        // The real backend's sequence: one "Asking" step, one per file, then "Checking".
         let label = dump_label(&req.tag);
         let files = dump_files(&req.tag);
-        let steps = files.len() as u32 + 1;
+        let n = files.len();
         let mut p = self.progress_job(
             &format!("Asking GitHub for {label}"),
-            steps,
+            1,
             &req.target.channel,
             progress,
         );
+        p.steps = n as u32 + 1;
         for (i, (f, _)) in files.iter().enumerate() {
             self.wait();
             p.step = i as u32 + 1;
-            p.label = format!("Downloading {f} ({} of {})", i + 1, files.len());
+            p.label = format!("Downloading {f} ({} of {n})", i + 1);
             progress(p.clone());
         }
+        p.step = n as u32 + 1;
+        p.label = format!("Checking {label}");
+        progress(p.clone());
         {
             let mut s = self.dev_state();
             if !s.dumps.contains(&req.tag) {
@@ -1908,7 +1919,6 @@ impl DevBackend for MockBackend {
             }
             s.diff = None;
         }
-        p.step = steps;
         p.phase = JobPhase::Done;
         p.label = format!("Downloaded {label}");
         progress(p);

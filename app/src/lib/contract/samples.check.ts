@@ -120,10 +120,10 @@ interface Samples {
   dev_diff_record_ship: T.DevFieldDiff;
   dev_diff_search: T.DevDiffSearch;
   dev_close: T.DevStatus;
-  dev_dump_releases_off: T.DumpRelease[];
-  dev_dump_releases: T.DumpRelease[];
+  dev_dump_releases_off: T.DumpReleases;
+  dev_dump_releases: T.DumpReleases;
   dev_download_dump: T.DevSource[];
-  dev_dump_releases_cached: T.DumpRelease[];
+  dev_dump_releases_cached: T.DumpReleases;
   asset_cache_clear: T.AssetCacheStatus;
   asset_cache_move: T.AssetCacheStatus;
   asset_cache_pick: T.AssetCacheStatus;

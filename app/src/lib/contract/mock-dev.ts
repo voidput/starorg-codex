@@ -1507,6 +1507,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     return out;
   };
   const dumpLabel = (tag: string) => `LIVE ${tag}`;
+  /** As `starorg_core::source::dump::valid_component`. */
+  const validComponent = (t: string) => t.length > 0 && t.length <= 128 && /^[A-Za-z0-9._-]+$/.test(t) && t !== '.' && t !== '..';
   const dumpOf = (source: string) => (source.startsWith('dump:') ? data.dumps.find((d) => `dump:${d.tag}` === source && dumped.includes(d.tag)) : undefined);
   const datasetsOf = (r: T.ChannelRef, source: string): [string, Dataset][] => {
     if (source.startsWith('build:')) {
@@ -1650,25 +1652,30 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     dev_dump_releases: ({ req }) => {
       on(req);
       const live = ctx.dumpsOn();
-      return data.dumps
+      const releases = data.dumps
         .map((d) => ({ tag: d.tag, title: d.title, channel: 'LIVE', branch: d.branch, published: d.published, cached: dumped.includes(d.tag) }))
         .filter((r) => live || r.cached);
+      return { releases, error: null };
     },
     dev_download_dump: async ({ req }) => {
       on(req.target);
       if (!ctx.dumpsOn()) ctx.fail('network-off', 'Turn on Settings > Network > "Download published LIVE builds for Diff" first.');
+      if (!validComponent(req.tag)) ctx.fail('invalid', `bad build tag ${JSON.stringify(req.tag)}`);
       const d = data.dumps.find((x) => x.tag === req.tag) ?? ctx.fail('not-found', `Could not download ${dumpLabel(req.tag)}: no published build ${req.tag}`);
+      // The real backend's sequence: one "Asking" step, one per file, then "Checking".
       const label = dumpLabel(d.tag);
-      const steps = d.files.length + 1;
-      const p: T.JobProgress = { job: ctx.nextJob(), kind: 'dev', channel: req.target.channel, phase: 'running', step: 1, steps, label: `Asking GitHub for ${label}`, cancellable: false };
+      const n = d.files.length;
+      const p: T.JobProgress = { job: ctx.nextJob(), kind: 'dev', channel: req.target.channel, phase: 'running', step: 1, steps: 1, label: `Asking GitHub for ${label}`, cancellable: false };
       ctx.emit({ ...p });
+      p.steps = n + 1;
       for (const [i, f] of d.files.entries()) {
         await ctx.sleep(ctx.delay);
-        ctx.emit({ ...p, step: i + 1, label: `Downloading ${f.file} (${i + 1} of ${d.files.length})` });
+        ctx.emit({ ...p, step: i + 1, label: `Downloading ${f.file} (${i + 1} of ${n})` });
       }
+      ctx.emit({ ...p, step: n + 1, label: `Checking ${label}` });
       if (!dumped.includes(d.tag)) dumped.push(d.tag);
       diff = null;
-      ctx.emit({ ...p, phase: 'done', step: steps, label: `Downloaded ${label}` });
+      ctx.emit({ ...p, phase: 'done', step: n + 1, label: `Downloaded ${label}` });
       return sources(req.target);
     },
     dev_dataset: ({ req }) => structuredClone(datasetOf(req.target, req.source, req.dataset).info),

@@ -167,22 +167,28 @@ struct ApiTreeEntry {
     size: Option<u64>,
 }
 
-/// Releases read from the dumps repo's list (one per build; newest first).
-const RELEASES_PER_PAGE: u32 = 50;
+/// Releases per page of the dumps repo's list (GitHub's maximum).
+const RELEASES_PER_PAGE: usize = 100;
+/// Pages followed: one release per build, so 300 covers years of LIVE, PTU and HOTFIX builds
+/// and older LIVE builds stay listed once newer PTU releases push them down.
+const RELEASE_PAGES: usize = 3;
 
 impl DumpTransport for GitHubTransport {
     fn releases(&self) -> Result<Vec<ReleaseInfo>, SourceError> {
-        let url = format!(
-            "{API}/repos/{}/releases?per_page={RELEASES_PER_PAGE}",
-            self.repo
-        );
-        Ok(self
-            .get_json::<Vec<ApiRelease>>(&url)?
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|r| !r.draft)
-            .map(ApiRelease::info)
-            .collect())
+        let mut out = Vec::new();
+        for page in 1..=RELEASE_PAGES {
+            let url = format!(
+                "{API}/repos/{}/releases?per_page={RELEASES_PER_PAGE}&page={page}",
+                self.repo
+            );
+            let got = self.get_json::<Vec<ApiRelease>>(&url)?.unwrap_or_default();
+            let last = got.len() < RELEASES_PER_PAGE;
+            out.extend(got.into_iter().filter(|r| !r.draft).map(ApiRelease::info));
+            if last {
+                break;
+            }
+        }
+        Ok(out)
     }
 
     fn release(&self, tag: &str) -> Result<Option<ReleaseInfo>, SourceError> {

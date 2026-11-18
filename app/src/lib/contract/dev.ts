@@ -320,6 +320,13 @@ export interface DumpRelease {
   cached: boolean;
 }
 
+/** The published LIVE builds as far as they could be listed. */
+export interface DumpReleases {
+  releases: DumpRelease[];
+  /** Set when GitHub could not be asked (offline, rate limited): `releases` then holds only the downloaded builds. */
+  error: string | null;
+}
+
 export interface DevDumpRequest {
   target: ChannelRef;
   tag: string;
@@ -695,7 +702,7 @@ export interface DevCommandMap {
   dev_sources: [{ req: ChannelRef }, DevSource[]];
   dev_add_source: [{ req: ChannelRef }, DevSource[]];
   dev_remove_source: [{ req: DevSourceRef }, DevSource[]];
-  dev_dump_releases: [{ req: ChannelRef }, DumpRelease[]];
+  dev_dump_releases: [{ req: ChannelRef }, DumpReleases];
   dev_download_dump: [{ req: DevDumpRequest }, DevSource[]];
   dev_dataset: [{ req: DevDatasetRef }, DatasetInfo];
   dev_table: [{ req: DevTableRef }, TableInfo];

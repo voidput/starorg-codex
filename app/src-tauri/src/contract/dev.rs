@@ -219,6 +219,15 @@ pub struct DumpRelease {
     pub cached: bool,
 }
 
+/// The published LIVE builds as far as they could be listed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DumpReleases {
+    pub releases: Vec<DumpRelease>,
+    /// Set when GitHub could not be asked (offline, rate limited): `releases` then holds only
+    /// the downloaded builds. Not an error: they still work.
+    pub error: Option<String>,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevDumpRequest {
     pub target: ChannelRef,
@@ -478,8 +487,9 @@ pub trait DevBackend {
     fn dev_add_source(&self, req: ChannelRef) -> CmdResult<Vec<DevSource>>;
     fn dev_remove_source(&self, req: DevSourceRef) -> CmdResult<Vec<DevSource>>;
     /// The published LIVE builds, newest first. With "Download published LIVE builds for
-    /// Diff" off: only the downloaded ones, and no request is made.
-    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<Vec<DumpRelease>>;
+    /// Diff" off: only the downloaded ones, and no request is made. When GitHub cannot be
+    /// reached: the downloaded ones with `error` set.
+    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases>;
     /// Download, verify and cache one LIVE build (a job); `network-off` while the switch is
     /// off. Returns the sources, now with `dump:<tag>`.
     fn dev_download_dump(
@@ -513,6 +523,19 @@ pub fn dumps_off() -> AppError {
         ErrorCode::NetworkOff,
         "Turn on Settings > Network > \"Download published LIVE builds for Diff\" first.",
     )
+}
+
+/// The answer for an unknown or non-LIVE tag (both backends).
+pub fn dump_not_published(tag: &str, why: &str) -> AppError {
+    AppError::new(
+        ErrorCode::NotFound,
+        format!("Could not download {}: {why}", dump_label(tag)),
+    )
+}
+
+/// The answer for a tag that is not one path component (both backends).
+pub fn bad_dump_tag(tag: &str) -> AppError {
+    AppError::new(ErrorCode::Invalid, format!("bad build tag {tag:?}"))
 }
 
 /// `dump:<tag>` of a source id, when the tag is usable as one path component.
@@ -576,7 +599,7 @@ dev_commands! {
     dev_sources(req: ChannelRef) -> Vec<DevSource>;
     dev_add_source(req: ChannelRef) -> Vec<DevSource>;
     dev_remove_source(req: DevSourceRef) -> Vec<DevSource>;
-    dev_dump_releases(req: ChannelRef) -> Vec<DumpRelease>;
+    dev_dump_releases(req: ChannelRef) -> DumpReleases;
     dev_dataset(req: DevDatasetRef) -> DatasetInfo;
     dev_table(req: DevTableRef) -> TableInfo;
     dev_rows(req: DevRowsRequest) -> RowsPage;

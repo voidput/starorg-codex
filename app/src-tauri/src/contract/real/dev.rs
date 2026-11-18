@@ -28,8 +28,7 @@ use starorg_core::dev::readable::{self, LabelKind, Lookup, MapLookup, NoLookup};
 use starorg_core::dev::record;
 use starorg_core::discovery::Channel;
 use starorg_core::lock;
-use starorg_core::source::SourceError;
-use starorg_core::source::dump::{self as dumps, DumpCache, DumpFiles, DumpTransport};
+use starorg_core::source::dump::{self as dumps, DumpCache, DumpError, DumpFiles, DumpTransport};
 use starorg_data::devworker::{ExportDone, ExportProgress, Reply, Request, WorkerInfo};
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap};
@@ -857,8 +856,9 @@ impl RealBackend {
             err(
                 ErrorCode::Invalid,
                 format!(
-                    "{} {name}: {e}. Remove it and download it again.",
-                    dump_label(&files.meta.tag)
+                    "{} {name}: {}. Remove it and download it again.",
+                    dump_label(&files.meta.tag),
+                    dumps::error_text(&e)
                 ),
             )
         })?;
@@ -875,16 +875,31 @@ impl RealBackend {
                 .and_then(|p| file_key(&p))
                 .and_then(|k| lock_or(&self.dev.data).summaries.get(&k).copied());
             let counts = cached.or_else(|| {
-                let key = files.path(name).and_then(|p| file_key(&p))?;
-                match files.read(name) {
-                    Ok(bytes) => self.parse_bytes(key, &bytes).ok().map(|d| {
-                        (
-                            d.tables.len() as u32,
-                            d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+                let Some(key) = files.path(name).and_then(|p| file_key(&p)) else {
+                    problem.get_or_insert(format!(
+                        "{name} is missing. Remove it and download it again."
+                    ));
+                    return None;
+                };
+                let parsed = files
+                    .read(name)
+                    .map_err(|e| {
+                        format!(
+                            "{name}: {}. Remove it and download it again.",
+                            dumps::error_text(&e)
                         )
-                    }),
-                    Err(e) => {
-                        problem = Some(format!("{name}: {e}. Remove it and download it again."));
+                    })
+                    .and_then(|bytes| {
+                        self.parse_bytes(key, &bytes)
+                            .map_err(|e| format!("{name} does not read as data: {}", e.message))
+                    });
+                match parsed {
+                    Ok(d) => Some((
+                        d.tables.len() as u32,
+                        d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+                    )),
+                    Err(m) => {
+                        problem.get_or_insert(m);
                         None
                     }
                 }
@@ -1131,13 +1146,28 @@ impl RealBackend {
 }
 
 /// A dump error as the UI shows it.
-fn dump_error(tag: &str, e: SourceError) -> AppError {
-    let code = match &e {
-        SourceError::Unavailable(_) => ErrorCode::NotFound,
-        SourceError::Check(_) => ErrorCode::Invalid,
-        _ => ErrorCode::Internal,
-    };
-    err(code, format!("Could not download {}: {e}", dump_label(tag)))
+fn dump_error(tag: &str, e: DumpError) -> AppError {
+    match e {
+        DumpError::NotPublished(m) => dump_not_published(tag, &m),
+        DumpError::Refused(m) => err(
+            ErrorCode::Invalid,
+            format!("Could not download {}: {m}", dump_label(tag)),
+        ),
+        // No error code means "network failure"; Internal with a plain reason. (NetworkOff
+        // is only for a switch that is off.)
+        DumpError::Network(m) => err(
+            ErrorCode::Internal,
+            format!(
+                "Could not reach GitHub for {}: {m}. Check the connection and try again.",
+                dump_label(tag)
+            ),
+        ),
+        DumpError::Stopped(_) => dumps_off(),
+        DumpError::Io(e) => err(
+            ErrorCode::Internal,
+            format!("Could not save {}: {e}", dump_label(tag)),
+        ),
+    }
 }
 
 fn identity_options(a: Option<&dataset::Table>, b: Option<&dataset::Table>) -> Vec<String> {
@@ -1437,7 +1467,7 @@ impl DevBackend for RealBackend {
         self.sources(&req.target)
     }
 
-    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<Vec<DumpRelease>> {
+    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases> {
         self.dev_on()?;
         self.resolve(&req)?;
         let cache = self.dump_cache();
@@ -1456,14 +1486,24 @@ impl DevBackend for RealBackend {
         };
         if !self.dumps_on() {
             // Off: no request; what is on this computer still works.
-            return Ok(cached.iter().map(of_cache).collect());
+            return Ok(DumpReleases {
+                releases: cached.iter().map(of_cache).collect(),
+                error: None,
+            });
         }
-        let live = dumps::live_releases(self.dump_transport().as_ref()).map_err(|e| {
-            err(
-                ErrorCode::Internal,
-                format!("Could not list the published LIVE builds: {e}"),
-            )
-        })?;
+        let live = match dumps::live_releases(self.dump_transport().as_ref()) {
+            Ok(l) => l,
+            // Offline or rate limited: the downloaded builds, and why the rest is missing.
+            Err(e) => {
+                return Ok(DumpReleases {
+                    releases: cached.iter().map(of_cache).collect(),
+                    error: Some(format!(
+                        "Could not reach GitHub: {}. Downloaded builds still work.",
+                        dumps::error_text(&e)
+                    )),
+                });
+            }
+        };
         let mut out: Vec<DumpRelease> = live
             .into_iter()
             .map(|r| DumpRelease {
@@ -1482,7 +1522,10 @@ impl DevBackend for RealBackend {
             }
         }
         out.sort_by(|a, b| b.published.cmp(&a.published));
-        Ok(out)
+        Ok(DumpReleases {
+            releases: out,
+            error: None,
+        })
     }
 
     fn dev_download_dump(
@@ -1497,7 +1540,7 @@ impl DevBackend for RealBackend {
         }
         let tag = req.tag.as_str();
         if !dumps::valid_component(tag) {
-            return Err(err(ErrorCode::Invalid, format!("bad build tag {tag:?}")));
+            return Err(bad_dump_tag(tag));
         }
         let label = dump_label(tag);
         let job = RefCell::new(self.job_start(
@@ -1513,6 +1556,10 @@ impl DevBackend for RealBackend {
             &self.dump_cache(),
             tag,
             &|i, n, file| {
+                // Off means no request: re-checked before every file.
+                if !self.dumps_on() {
+                    return Err("the switch was turned off".into());
+                }
                 let mut j = job.borrow_mut();
                 j.steps = n as u32 + 1;
                 let text = if file.is_empty() {
@@ -1521,6 +1568,7 @@ impl DevBackend for RealBackend {
                     format!("Downloading {file} ({} of {n})", i + 1)
                 };
                 self.job_step(&mut j, i as u32 + 1, &text, Some(progress));
+                Ok(())
             },
         )
         .map_err(|e| dump_error(tag, e));

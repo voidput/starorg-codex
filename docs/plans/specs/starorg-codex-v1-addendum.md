@@ -85,6 +85,14 @@ review are marked **Corrected**.
   4.10.197.2878), each against the commit's git blob SHA-1 and size, and its `_build` stamp
   when present. `DumpCache` gains `entry` (meta only), `list` and `remove`; SHA-256 is
   re-checked whenever a cached file is read.
+- **Review fixes (same day):** a build over 512 MiB in all (`MAX_BUILD_BYTES`) is refused
+  before any file is downloaded; files are written to a per-download temp dir (pid, time,
+  counter) as they arrive, not held in memory; stale `*.tmp-*` dirs (over an hour old) are
+  pruned when the cache is listed; `meta.json` entries with unsafe or case-colliding names are
+  ignored; the switch is re-checked before every file (off stops the download, `network-off`);
+  `DumpError` separates not published (`not-found`), refused (`invalid`) and network
+  (`internal` with "Could not reach GitHub", since no network-failure error code exists);
+  the release list follows up to 3 pages of 100.
 - **Setting:** `network.published_dumps` is a real persisted switch again, labelled "Download
   published LIVE builds for Diff" (Developer mode only). Same config key as before.
 
@@ -1070,7 +1078,7 @@ command returns error code `dev-disabled` while the setting is off.
 | `dev_sources` | target ► sources (kind, label, build, state) with datasets (file, tables, row counts, bytes) |
 | `dev_add_source` / `dev_remove_source` | folder/file dialog ► updated sources |
 | `dev_download_dump` | target ► job id (refused with `network-off` when the switch is off). **2026-11-17:** `{ target, tag }` ► sources (a `dev` job) |
-| `dev_dump_releases` | **2026-11-17:** target ► published LIVE builds `{ tag, title, channel, branch, published, cached }`, newest first; switch off = only cached ones, no request |
+| `dev_dump_releases` | **2026-11-17:** target ► `{ releases: [{ tag, title, channel, branch, published, cached }], error }`, newest first; switch off = only cached ones, no request; GitHub unreachable or rate limited = cached ones with `error` set (not a failure) |
 | `dev_table` | source, dataset, table ► columns (name, type, distinct values when at most 50), row count, identity column |
 | `dev_rows` | source, dataset, table, columns, search, filters, sort, offset, limit ► rows + total |
 | `dev_row` | source, dataset, table, row id ► JSON text + loc resolutions + explorer links |

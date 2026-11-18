@@ -3659,43 +3659,52 @@
       "state": "ready"
     }
   ],
-  "dev_dump_releases": [
-    {
-      "branch": "sc-alpha-4.10.0",
-      "cached": false,
-      "channel": "LIVE",
-      "published": "2026-11-12T18:20:43Z",
-      "tag": "4.10.200.58746",
-      "title": "4.10.0 LIVE (4.10.200.58746)"
-    },
-    {
-      "branch": "sc-alpha-4.10.2",
-      "cached": false,
-      "channel": "LIVE",
-      "published": "2026-11-01T14:36:39Z",
-      "tag": "4.10.197.2878",
-      "title": "4.10.2 LIVE (4.10.197.2878)"
-    }
-  ],
-  "dev_dump_releases_cached": [
-    {
-      "branch": "sc-alpha-4.10.0",
-      "cached": false,
-      "channel": "LIVE",
-      "published": "2026-11-12T18:20:43Z",
-      "tag": "4.10.200.58746",
-      "title": "4.10.0 LIVE (4.10.200.58746)"
-    },
-    {
-      "branch": "sc-alpha-4.10.2",
-      "cached": true,
-      "channel": "LIVE",
-      "published": "2026-11-01T14:36:39Z",
-      "tag": "4.10.197.2878",
-      "title": "4.10.2 LIVE (4.10.197.2878)"
-    }
-  ],
-  "dev_dump_releases_off": [],
+  "dev_dump_releases": {
+    "error": null,
+    "releases": [
+      {
+        "branch": "sc-alpha-4.10.0",
+        "cached": false,
+        "channel": "LIVE",
+        "published": "2026-11-12T18:20:43Z",
+        "tag": "4.10.200.58746",
+        "title": "4.10.0 LIVE (4.10.200.58746)"
+      },
+      {
+        "branch": "sc-alpha-4.10.2",
+        "cached": false,
+        "channel": "LIVE",
+        "published": "2026-11-01T14:36:39Z",
+        "tag": "4.10.197.2878",
+        "title": "4.10.2 LIVE (4.10.197.2878)"
+      }
+    ]
+  },
+  "dev_dump_releases_cached": {
+    "error": null,
+    "releases": [
+      {
+        "branch": "sc-alpha-4.10.0",
+        "cached": false,
+        "channel": "LIVE",
+        "published": "2026-11-12T18:20:43Z",
+        "tag": "4.10.200.58746",
+        "title": "4.10.0 LIVE (4.10.200.58746)"
+      },
+      {
+        "branch": "sc-alpha-4.10.2",
+        "cached": true,
+        "channel": "LIVE",
+        "published": "2026-11-01T14:36:39Z",
+        "tag": "4.10.197.2878",
+        "title": "4.10.2 LIVE (4.10.197.2878)"
+      }
+    ]
+  },
+  "dev_dump_releases_off": {
+    "error": null,
+    "releases": []
+  },
   "dev_export_record": {
     "bytes": 0,
     "cancelled": true,

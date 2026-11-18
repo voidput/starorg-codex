@@ -822,7 +822,7 @@ fn published_live_builds_download_and_diff() {
     let b = dev_mock();
     let (new, old) = (mock_dev::DUMPS[0].0, mock_dev::DUMPS[1].0);
     // Off: nothing listed (nothing cached), the download is refused, no dump source.
-    assert!(b.dev_dump_releases(live()).unwrap().is_empty());
+    assert!(b.dev_dump_releases(live()).unwrap().releases.is_empty());
     assert_eq!(
         b.dev_download_dump(dump_req(old), &noop).unwrap_err().code,
         ErrorCode::NetworkOff
@@ -833,17 +833,20 @@ fn published_live_builds_download_and_diff() {
     s.network.published_dumps = true;
     b.save_settings(s).unwrap();
     // On: both LIVE builds, newest first, none downloaded.
-    let rel = b.dev_dump_releases(live()).unwrap();
+    let rel = b.dev_dump_releases(live()).unwrap().releases;
     assert_eq!(
         rel.iter().map(|r| r.tag.as_str()).collect::<Vec<_>>(),
         [new, old]
     );
     assert!(rel.iter().all(|r| !r.cached && r.channel == "LIVE"));
+    // Same answers as the real backend.
     assert_eq!(
-        b.dev_download_dump(dump_req("9.9.9.9"), &noop)
-            .unwrap_err()
-            .code,
-        ErrorCode::NotFound
+        b.dev_download_dump(dump_req("9.9.9.9"), &noop).unwrap_err(),
+        dump_not_published("9.9.9.9", "no published build 9.9.9.9")
+    );
+    assert_eq!(
+        b.dev_download_dump(dump_req("../x"), &noop).unwrap_err(),
+        bad_dump_tag("../x")
     );
     // Download both (a job with progress).
     let events = std::sync::Mutex::new(Vec::new());
@@ -851,8 +854,20 @@ fn published_live_builds_download_and_diff() {
     b.dev_download_dump(dump_req(old), &record).unwrap();
     let src = b.dev_download_dump(dump_req(new), &noop).unwrap();
     let ev = events.into_inner().unwrap();
-    assert_eq!(ev.first().unwrap().kind, JobKind::Dev);
-    assert_eq!(ev.last().unwrap().phase, JobPhase::Done);
+    assert!(ev.iter().all(|p| p.kind == JobKind::Dev));
+    // The real backend's sequence (tests/real_dev.rs).
+    let l = format!("LIVE {old}");
+    let got: Vec<(u32, u32, String)> = ev.into_iter().map(|p| (p.step, p.steps, p.label)).collect();
+    assert_eq!(
+        got,
+        [
+            (1, 1, format!("Asking GitHub for {l}")),
+            (1, 3, "Downloading game-ships.json (1 of 2)".to_string()),
+            (2, 3, "Downloading game-weapons.json (2 of 2)".to_string()),
+            (3, 3, format!("Checking {l}")),
+            (3, 3, format!("Downloaded {l}")),
+        ]
+    );
     let dumps: Vec<&DevSource> = src.iter().filter(|s| s.kind == SourceKind::Dump).collect();
     assert_eq!(dumps.len(), 2);
     assert_eq!(dumps[0].id, format!("dump:{new}"));
@@ -862,6 +877,7 @@ fn published_live_builds_download_and_diff() {
     assert!(
         b.dev_dump_releases(live())
             .unwrap()
+            .releases
             .iter()
             .all(|r| r.cached)
     );
@@ -887,7 +903,7 @@ fn published_live_builds_download_and_diff() {
     let mut s = b.get_settings().unwrap();
     s.network.published_dumps = false;
     b.save_settings(s).unwrap();
-    assert_eq!(b.dev_dump_releases(live()).unwrap().len(), 2);
+    assert_eq!(b.dev_dump_releases(live()).unwrap().releases.len(), 2);
     assert!(
         b.dev_rows(rows(
             &format!("dump:{old}"),
@@ -904,7 +920,7 @@ fn published_live_builds_download_and_diff() {
         })
         .unwrap();
     assert_eq!(src.iter().filter(|s| s.kind == SourceKind::Dump).count(), 1);
-    assert_eq!(b.dev_dump_releases(live()).unwrap().len(), 1);
+    assert_eq!(b.dev_dump_releases(live()).unwrap().releases.len(), 1);
     assert_eq!(
         b.dev_dataset(DevDatasetRef {
             target: live(),
