@@ -181,11 +181,16 @@ pub fn write_stl(tris: &[[[f32; 3]; 3]], out: &Path) -> AssetResult<(u64, u64)> 
     Ok((tris.len() as u64, 84 + 50 * tris.len() as u64))
 }
 
-/// GLB bytes -> STL file.
-pub fn glb_file_to_stl(glb: &[u8], out: &Path) -> AssetResult<(u64, u64)> {
+/// [`glb_triangles`], refusing a model without any (what the STL and 3MF writers start from).
+pub fn glb_mesh(glb: &[u8]) -> AssetResult<Vec<[[f32; 3]; 3]>> {
     let tris = glb_triangles(glb)?;
     if tris.is_empty() {
         return Err(AssetError::invalid("the model has no triangles"));
     }
-    write_stl(&tris, out)
+    Ok(tris)
+}
+
+/// GLB bytes -> STL file.
+pub fn glb_file_to_stl(glb: &[u8], out: &Path) -> AssetResult<(u64, u64)> {
+    write_stl(&glb_mesh(glb)?, out)
 }

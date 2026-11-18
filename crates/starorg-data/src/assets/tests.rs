@@ -304,7 +304,10 @@ fn a_paint_names_its_subgeometry_tag_after_an_at() {
 fn model_options_from_older_requests_have_no_paint() {
     let o: ModelOptions =
         serde_json::from_value(serde_json::json!({ "preset": "full", "lod": 1 })).unwrap();
-    assert_eq!((o.paint.as_deref(), o.layers, o.stl), (None, false, false));
+    assert_eq!(
+        (o.paint.as_deref(), o.layers, o.stl, o.three_mf),
+        (None, false, false, false)
+    );
     let back = serde_json::to_value(&o).unwrap();
     assert!(back.get("paint").is_none() && back.get("layers").is_none());
 }
@@ -387,6 +390,120 @@ fn glb_to_stl_bakes_transforms() {
     );
 }
 
+fn unzip(path: &std::path::Path) -> std::collections::BTreeMap<String, String> {
+    use std::io::Read;
+    let mut z = zip::ZipArchive::new(std::fs::File::open(path).unwrap()).unwrap();
+    (0..z.len())
+        .map(|i| {
+            let mut f = z.by_index(i).unwrap();
+            assert_eq!(f.compression(), zip::CompressionMethod::Deflated);
+            let mut s = String::new();
+            f.read_to_string(&mut s).unwrap();
+            (f.name().unwrap().to_string(), s)
+        })
+        .collect()
+}
+
+#[test]
+fn glb_to_3mf_shares_vertices_and_bakes_the_stl_transform() {
+    let t = tempfile::tempdir().unwrap();
+    let out = t.path().join("x.3mf");
+    let (n, len) = threemf::glb_file_to_3mf(&one_triangle_glb(), &out).unwrap();
+    assert_eq!(n, 1);
+    assert_eq!(len, std::fs::metadata(&out).unwrap().len());
+    assert!(!t.path().join("x.3mf.part").exists());
+    let files = unzip(&out);
+    assert_eq!(
+        files.keys().map(String::as_str).collect::<Vec<_>>(),
+        ["3D/3dmodel.model", "[Content_Types].xml", "_rels/.rels"]
+    );
+    assert!(
+        files["[Content_Types].xml"]
+            .contains("application/vnd.ms-package.3dmanufacturing-3dmodel+xml")
+    );
+    assert!(files["_rels/.rels"].contains(r#"Target="/3D/3dmodel.model""#));
+    let m = &files["3D/3dmodel.model"];
+    assert!(m.contains(r#"<model unit="meter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02">"#));
+    assert!(m.contains(r#"<object id="1" type="model">"#));
+    assert!(m.contains(r#"<build>"#) && m.contains(r#"<item objectid="1"/>"#));
+    // The STL test's corners: glTF (x, y, z) -> (x, -z, y), the node moved z by 5.
+    let verts: Vec<&str> = m.lines().filter(|l| l.starts_with("<vertex ")).collect();
+    assert_eq!(
+        verts,
+        [
+            r#"<vertex x="0" y="-5" z="0"/>"#,
+            r#"<vertex x="1" y="-5" z="0"/>"#,
+            r#"<vertex x="0" y="-5" z="1"/>"#,
+        ]
+    );
+    let tris: Vec<&str> = m.lines().filter(|l| l.starts_with("<triangle ")).collect();
+    assert_eq!(tris, [r#"<triangle v1="0" v2="1" v3="2"/>"#]);
+    // Not a GLB, or no triangles: refused, nothing left behind.
+    assert!(threemf::glb_file_to_3mf(b"nope", &out).is_err());
+    assert!(threemf::write_3mf(&[], &t.path().join("e.3mf")).is_err());
+    assert!(!t.path().join("e.3mf").exists() && !t.path().join("e.3mf.part").exists());
+}
+
+#[test]
+fn a_3mf_mesh_shares_equal_vertices_and_drops_degenerate_triangles() {
+    let (a, b, c, d) = (
+        [0.0, 0.0, 0.0],
+        [1.0, 0.0, 0.0],
+        [0.0, 1.0, 0.0],
+        [1.0, 1.0, 0.0],
+    );
+    let m = threemf::index_mesh(&[
+        [a, b, c],
+        [b, d, c],
+        // -0.0 is the same corner as 0.0.
+        [[-0.0, 0.0, -0.0], b, d],
+        // Two equal corners, a NaN: left out.
+        [a, a, b],
+        [a, b, [f32::NAN, 0.0, 0.0]],
+    ]);
+    assert_eq!(m.vertices, vec![a, b, c, d]);
+    assert_eq!(m.triangles, vec![[0, 1, 2], [1, 3, 2], [0, 1, 3]]);
+}
+
+#[test]
+fn write_meshes_writes_the_stl_and_3mf_asked_next_to_the_glb() {
+    let t = tempfile::tempdir().unwrap();
+    let glb = t.path().join("ship.glb");
+    let o = |stl, three_mf| ModelOptions {
+        preset: ModelPreset::PrintShell,
+        stl,
+        three_mf,
+        ..Default::default()
+    };
+    let none = print::write_meshes(b"nope", &glb, &o(false, false)).unwrap();
+    assert_eq!(none.files_bytes(), (0, 0));
+    let m = print::write_meshes(&one_triangle_glb(), &glb, &o(true, true)).unwrap();
+    let got: Vec<(&str, std::path::PathBuf, u64)> = m
+        .files
+        .iter()
+        .map(|f| (f.kind.as_str(), f.path.clone().into(), f.triangles))
+        .collect();
+    assert_eq!(
+        got,
+        [
+            ("stl", t.path().join("ship.stl"), 1),
+            ("3mf", t.path().join("ship.3mf"), 1)
+        ]
+    );
+    let on_disk = std::fs::metadata(t.path().join("ship.stl")).unwrap().len()
+        + std::fs::metadata(t.path().join("ship.3mf")).unwrap().len();
+    assert_eq!(m.files_bytes(), (2, on_disk));
+    let only = print::write_meshes(
+        &one_triangle_glb(),
+        &t.path().join("b.glb"),
+        &o(false, true),
+    )
+    .unwrap();
+    assert_eq!(only.files.len(), 1);
+    assert_eq!(only.files[0].kind, "3mf");
+    assert!(!t.path().join("b.stl").exists());
+}
+
 #[test]
 fn model_cache_keys_are_per_record_preset_and_lod() {
     let o = |preset, lod| ModelOptions {
@@ -410,6 +527,10 @@ fn model_cache_keys_are_per_record_preset_and_lod() {
     let mut s = o(ModelPreset::PrintShell, 3);
     s.stl = true;
     assert_eq!(s.cache_key(g), keys[3]);
+    // Nor is the 3MF switch, nor does it change the file name.
+    s.three_mf = true;
+    assert_eq!(s.cache_key(g), keys[3]);
+    assert_eq!(model::file_name("x", &s), "x-print-lod3.glb");
     // A name with unsafe characters is hashed, still per LOD.
     let a = o(ModelPreset::PrintShell, 0).cache_key("AEGS Javelin/x");
     let b = o(ModelPreset::PrintShell, 4).cache_key("AEGS Javelin/x");

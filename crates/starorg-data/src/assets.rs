@@ -10,7 +10,8 @@
 //!   extraction of files and folders.
 //! - [`audio`]: a record's audio triggers (DataCore) -> ATL triggers -> Wwise banks -> media;
 //!   WEM -> Ogg Vorbis. Ported from StarBreaker's app (`audio_commands.rs`).
-//! - [`model`]: entity -> GLB with the "Full" or "Print shell" preset, optional STL.
+//! - [`model`]: entity -> GLB with the "Full" or "Print shell" preset, optional STL
+//!   ([`stl`]) and 3MF ([`threemf`]) next to it.
 //!
 //! Lazy: [`AssetArchive::open`] reads only the archive index. The DataCore is read on the first
 //! request that needs a record (sounds, models); the Wwise/ATL index on the first sounds
@@ -19,9 +20,11 @@
 pub mod audio;
 pub mod files;
 pub mod model;
+pub mod print;
 pub mod stl;
 #[cfg(any(test, feature = "synthetic-dcb"))]
 pub mod synthetic;
+pub mod threemf;
 pub mod wemcodec;
 
 use crate::extract::{DCB_ENTRY, DCB_FALLBACK_ENTRY, INI_ENTRY, MAX_DCB_BYTES};

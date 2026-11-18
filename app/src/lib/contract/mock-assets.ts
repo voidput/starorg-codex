@@ -110,6 +110,9 @@ export const modelFileName = (name: string, o: KeyOpts) => {
 const GIB = 1024 ** 3;
 const MAX_LOD = 4;
 const MODEL_CHUNK = 8 * 1024 * 1024;
+/** As `mock_assets.rs`: the STL and 3MF of a print-shell export (a Javelin LOD 0's STL, a 3MF a quarter of it). */
+const STL_BYTES = 183149634;
+const THREE_MF_BYTES = 45000000;
 /** `model::effective_lod`: the most detailed LOD the mesh has at or below the asked one. */
 export const effectiveLod = (asked: number, lods: number[]): number => {
   const r = Math.min(asked, MAX_LOD);
@@ -443,7 +446,7 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
         if (bytes <= data.cacheMax / 4) add(k, bytes);
       }
       const name = req.name || recName;
-      return { cancelled: false, path: `${data.exports}/${modelFileName(name, o)}`, files: 1 + (req.stl ? 1 : 0), bytes: bytes + (req.stl ? 183149634 : 0), cached: held !== null, failed: [], note: null };
+      return { cancelled: false, path: `${data.exports}/${modelFileName(name, o)}`, files: 1 + (req.stl ? 1 : 0) + (req.three_mf ? 1 : 0), bytes: bytes + (req.stl ? STL_BYTES : 0) + (req.three_mf ? THREE_MF_BYTES : 0), cached: held !== null, failed: [], note: null };
     },
     asset_model_paints: ({ req }) => {
       on(req.target);

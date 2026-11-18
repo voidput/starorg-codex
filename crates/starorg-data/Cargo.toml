@@ -28,6 +28,9 @@ starbreaker-cryxml.workspace = true
 starbreaker-common.workspace = true
 # GLB -> STL for the print-shell preset (already in the tree through starbreaker-3d).
 gltf = { version = "1", default-features = false, features = ["utils"] }
+# The 3MF package (a deflated zip). zip is already in the tree through tauri-plugin-updater and
+# flate2's pure Rust zlib-rs backend through other crates; no zopfli, no other codecs.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 # PNG encoding of decoded textures in memory (already in the tree through starbreaker-dds).
 image = { version = "0.25", default-features = false, features = ["png"] }
 thiserror.workspace = true

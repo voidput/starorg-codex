@@ -203,6 +203,8 @@ export interface AssetExportModelRequest {
   preset: ModelPreset;
   lod: number;
   stl: boolean;
+  /** Also a 3MF next to the GLB (Print shell only, like the STL); absent = false. */
+  three_mf?: boolean;
   /** Export even with less free memory than the preset may need (after `needs-decision`). */
   force: boolean;
   /** Full only: the paint to wear (a `ModelPaint.tag`); null/absent = the fitted one. */

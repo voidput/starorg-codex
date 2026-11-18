@@ -13,6 +13,7 @@ use starorg_core::memlimit;
 use starorg_data::assets::audio::{self, SoundRef};
 use starorg_data::assets::files;
 use starorg_data::assets::model::{self, ModelOptions, ModelPreset};
+use starorg_data::assets::print;
 use starorg_data::assets::wemcodec;
 use starorg_data::assets::{AssetArchive, AssetError};
 use starorg_data::assetworker;
@@ -208,6 +209,7 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
             preset,
             lod,
             stl,
+            three_mf,
             paint,
             layers,
             cache_dir,
@@ -223,6 +225,7 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
                 preset,
                 lod: lod.unwrap_or(preset.default_lod()).min(model::MAX_LOD),
                 stl,
+                three_mf,
                 paint,
                 layers,
             };
@@ -232,6 +235,14 @@ pub fn run(g: &GlobalOpts, cmd: DevCmd) -> ExitCode {
                     exit::USAGE,
                     "usage",
                     "--paint and --layers need --preset full (a print shell has no materials)",
+                );
+            }
+            if preset == ModelPreset::Full && three_mf {
+                return fail(
+                    g,
+                    exit::USAGE,
+                    "usage",
+                    "--3mf needs --preset print (a 3MF is for 3D printing the shell)",
                 );
             }
             export_model(
@@ -417,33 +428,25 @@ fn export_model(
         o.lod = model::effective_lod(o.lod, &model::cached_lods(c, &t.channel, &t.build, what));
     }
     let key = o.cache_key(what);
-    // A cached GLB: no archive read at all (an STL is made from it here).
+    // A cached GLB: no archive read at all (an STL or 3MF is made from it here).
     if let Some(hit) = c
         .as_ref()
         .and_then(|c| c.get(&t.channel, &t.build, Kind::Models, &key, "glb"))
     {
         let r = copy_out(&hit, &out_abs).and_then(|n| {
-            let stl = if o.stl {
+            let m = if o.stl || o.three_mf {
                 let glb = std::fs::read(&hit)?;
-                let s = out_abs.with_extension("stl");
-                starorg_data::assets::stl::glb_file_to_stl(&glb, &s)
-                    .map(|x| Some((s, x)))
+                print::write_meshes(&glb, &out_abs, &o)
                     .map_err(|e| std::io::Error::other(e.message))?
+                    .files
             } else {
-                None
+                Vec::new()
             };
-            Ok((n, stl))
+            Ok((n, m))
         });
         return match r {
-            Ok((n, stl)) => {
-                report_model(
-                    g,
-                    &out_abs,
-                    n,
-                    stl.as_ref().map(|s| (&s.0, s.1.0)),
-                    true,
-                    None,
-                );
+            Ok((n, m)) => {
+                report_model(g, &out_abs, n, &m, true, None);
                 ExitCode::from(exit::OK)
             }
             Err(e) => fail(g, exit::ERROR, "error", &e.to_string()),
@@ -498,15 +501,7 @@ fn export_model(
                 let _ = c.put_copy(&t.channel, &t.build, Kind::Models, &key, "glb", &out_abs);
                 let _ = model::cache_lods(c, &t.channel, &t.build, what, &d.lods);
             }
-            let stl = d.stl_path.as_ref().map(PathBuf::from);
-            report_model(
-                g,
-                &out_abs,
-                d.bytes,
-                stl.as_ref().zip(d.stl_path.as_ref().and(d.triangles)),
-                false,
-                Some(&d),
-            );
+            report_model(g, &out_abs, d.bytes, &d.meshes, false, Some(&d));
             ExitCode::from(exit::OK)
         }
         Err(e) => asset_fail(g, &e),
@@ -517,16 +512,17 @@ fn report_model(
     g: &GlobalOpts,
     out: &Path,
     bytes: u64,
-    stl: Option<(&PathBuf, u64)>,
+    meshes: &[print::MeshFile],
     cached: bool,
     done: Option<&model::ModelDone>,
 ) {
+    let mesh_path = |kind: &str| meshes.iter().find(|m| m.kind == kind).map(|m| &m.path);
     if g.json {
         println!(
             "{}",
             json!({ "schema": JSON_SCHEMA, "out": out, "bytes": bytes, "cached": cached,
-                    "stl": stl.map(|s| s.0),
-                    "triangles": done.and_then(|d| d.triangles).or(stl.map(|s| s.1)),
+                    "stl": mesh_path("stl"), "3mf": mesh_path("3mf"),
+                    "triangles": done.and_then(|d| d.triangles).or(meshes.first().map(|m| m.triangles)),
                     "lod": done.map(|d| d.lod), "lods": done.map(|d| &d.lods),
                     "peak_rss": done.and_then(|d| d.peak_rss), "ms": done.map_or(0, |d| d.ms) })
         );
@@ -553,10 +549,13 @@ fn report_model(
             if cached { ", from the cache" } else { "" },
             out.display()
         );
-        if let Some((p, n)) = stl {
+        for m in meshes {
             eprintln!(
-                "starorg-codex: STL ({n} triangles) written to {}",
-                p.display()
+                "starorg-codex: {} ({} triangles, {} bytes) written to {}",
+                m.kind.to_ascii_uppercase(),
+                m.triangles,
+                m.bytes,
+                m.path
             );
         }
     }

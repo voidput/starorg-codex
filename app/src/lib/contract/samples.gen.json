@@ -186,11 +186,11 @@
     "state": "stopped"
   },
   "asset_export_model": {
-    "bytes": 239548230,
+    "bytes": 284548230,
     "cached": false,
     "cancelled": false,
     "failed": [],
-    "files": 2,
+    "files": 3,
     "note": null,
     "path": "/synthetic/exports/SYN_Ship_002-print-lod0.glb"
   },

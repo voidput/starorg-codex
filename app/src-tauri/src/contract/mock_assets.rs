@@ -21,6 +21,10 @@ pub const EXPORTS: &str = "/synthetic/exports";
 pub const CACHE_DEFAULT: &str = "/synthetic/cache/assets";
 pub const CACHE_OTHER: &str = "/synthetic/other-drive/asset-cache";
 pub const CACHE_MAX: u64 = 2 * 1024 * 1024 * 1024;
+/// The mock's STL and 3MF of a print-shell export: an AEGS_Javelin LOD 0's STL, and a 3MF a
+/// quarter of it (an RSI_Skylark's 3MF was 0.25 of its STL).
+pub const STL_BYTES: u64 = 183_149_634;
+pub const THREE_MF_BYTES: u64 = 45_000_000;
 
 /// Mock asset state (per backend).
 #[derive(Debug, Default)]
@@ -1002,6 +1006,7 @@ impl AssetBackend for MockBackend {
             preset: req.preset,
             lod: starorg_data::assets::model::effective_lod(lod, &self.known_lods(&req.what)),
             stl: req.stl,
+            three_mf: req.three_mf,
             paint: req.paint.clone(),
             layers: req.layers,
         };
@@ -1032,8 +1037,10 @@ impl AssetBackend for MockBackend {
                 "{EXPORTS}/{}",
                 starorg_data::assets::model::file_name(name, &o)
             )),
-            files: 1 + req.stl as u32,
-            bytes: bytes + if req.stl { 183_149_634 } else { 0 },
+            files: 1 + req.stl as u32 + req.three_mf as u32,
+            bytes: bytes
+                + if req.stl { STL_BYTES } else { 0 }
+                + if req.three_mf { THREE_MF_BYTES } else { 0 },
             cached: held.is_some(),
             failed: Vec::new(),
             note: None,

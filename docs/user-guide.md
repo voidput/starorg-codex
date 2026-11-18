@@ -169,7 +169,12 @@ For players who want to look things up in the game data. Read only on the game.
 - **Explorer:** the item finder (sections such as Ships & vehicles, Ship weapons, Armor & clothing;
   search with prefixes like `type:cooler maker:alpha`, typo-tolerant; quick filters such as
   *Player-usable*, *Has model*, *Has sounds*; grouping and compare), the record's JSON with
-  readable references, its sounds (play or export) and **Export model** (GLB, optionally STL).
+  readable references, its sounds (play or export) and **Export model** (GLB; with the
+  **Print shell** preset optionally an STL and, experimental, a 3MF for slicers such as
+  PrusaSlicer, Bambu Studio and Cura, in real size in metres and Z-up). **Save as…** asks where
+  the GLB goes; the STL and 3MF are written next to it with the same name. The 3MF is
+  experimental: the mesh is the game's, not made for printing, so it may need repair in the
+  slicer.
   A **Full** export can wear any paint the ship has (**Paint**, listed with their in-game names;
   default: the one fitted) and can include **Layer materials (experimental)**, the textures of
   each material's layers (bigger files; some surfaces may look wrong).

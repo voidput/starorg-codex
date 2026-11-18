@@ -71,6 +71,9 @@ pub struct ModelOptions {
     /// Also write an STL next to the GLB (geometry, node transforms baked).
     #[serde(default)]
     pub stl: bool,
+    /// Also write a 3MF next to the GLB (the STL's triangles, shared vertices, in metres).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub three_mf: bool,
     /// Full only: the paint to wear, by the ship's SubGeometry tag ([`ModelPaint::tag`]);
     /// `None` = the paint the default loadout fits.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -112,7 +115,7 @@ impl ModelOptions {
     }
 
     /// The asset cache key of this export of `what` (a record GUID or name):
-    /// `<record>-print-lod3`, one file per record, preset and LOD (the STL is never cached).
+    /// `<record>-print-lod3`, one file per record, preset and LOD (the STL and 3MF are never cached).
     pub fn cache_key(&self, what: &str) -> String {
         format!(
             "{}-{}",
@@ -276,8 +279,9 @@ pub struct ModelDone {
     pub bytes: u64,
     pub record: String,
     pub name: String,
-    pub stl_path: Option<String>,
-    pub stl_bytes: Option<u64>,
+    /// The STL/3MF files written next to the GLB.
+    #[serde(default)]
+    pub meshes: Vec<super::print::MeshFile>,
     /// Triangles in the GLB (every node's triangle primitives).
     pub triangles: Option<u64>,
     pub ms: u64,
@@ -301,9 +305,8 @@ pub fn export_model(
     progress: &(dyn Fn(f32, &str) -> bool + Sync),
 ) -> AssetResult<ModelDone> {
     a.check_out(out)?;
-    let stl_out = o.stl.then(|| out.with_extension("stl"));
-    if let Some(s) = &stl_out {
-        a.check_out(s)?;
+    for x in super::print::mesh_outputs(out, o).into_iter().flatten() {
+        a.check_out(&x)?;
     }
     let started = Instant::now();
     if !progress(0.0, "Reading the DataCore") {
@@ -359,20 +362,17 @@ pub fn export_model(
         bytes: bytes.len() as u64,
         record: r.id.to_string(),
         name: record_short_name(db, r),
-        stl_path: None,
-        stl_bytes: None,
+        meshes: Vec::new(),
         triangles: super::stl::glb_triangle_count(&bytes),
         ms: 0,
         peak_rss: None,
         lod,
         lods,
     };
-    if let Some(s) = stl_out {
-        progress(0.97, "Writing STL");
-        let (n, len) = super::stl::glb_file_to_stl(&bytes, &s)?;
-        done.stl_path = Some(s.display().to_string());
-        done.stl_bytes = Some(len);
-        done.triangles = Some(n);
+    if o.stl || o.three_mf {
+        progress(0.97, "Writing STL/3MF");
+        let m = super::print::write_meshes(&bytes, out, o)?;
+        done.meshes = m.files;
     }
     drop(bytes);
     done.ms = started.elapsed().as_millis() as u64;

@@ -12,7 +12,9 @@
   import Download from '@lucide/svelte/icons/download';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import FlaskConical from '@lucide/svelte/icons/flask-conical';
   import * as Dialog from '@/components/ui/dialog';
+  import { Badge } from '@/components/ui/badge';
   import { Button } from '@/components/ui/button';
   import Segmented from '@/components/common/Segmented.svelte';
   import SwitchRow from '@/components/common/SwitchRow.svelte';
@@ -87,6 +89,7 @@
   let preset = $state<ModelPreset>('print-shell');
   let lod = $state(0);
   let stl = $state(false);
+  let threeMf = $state(false);
   /** Full only: the paint ('' = the fitted one) and StarBreaker's layer materials. */
   let paint = $state('');
   let layers = $state(false);
@@ -97,7 +100,10 @@
   function setPreset(p: ModelPreset) {
     preset = p;
     lod = DEFAULT_LOD[p];
-    if (p === 'full') stl = false;
+    if (p === 'full') {
+      stl = false;
+      threeMf = false;
+    }
   }
   // A new record forgets the last one's paints and choice.
   $effect(() => {
@@ -132,6 +138,8 @@
     const p = paints?.paints.find((x) => x.tag.toLowerCase() === e.toLowerCase());
     return p ? paintLabel(p) : 'default';
   });
+  /** The extra files written next to the GLB: `STL/3MF`, `STL`, `3MF` or ''. */
+  const meshNames = $derived(preset === 'full' ? '' : [stl && 'STL', threeMf && '3MF'].filter(Boolean).join('/'));
   /** Set when the backend says free memory is short: the dialog asks before going on. */
   let memWarn = $state<string | null>(null);
   async function exportModel(force = false) {
@@ -140,7 +148,7 @@
     exporting = true;
     try {
       const full = preset === 'full';
-      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl, force, paint: full && paint ? paint : null, layers: full && layers });
+      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset, lod, stl: !full && stl, three_mf: !full && threeMf, force, paint: full && paint ? paint : null, layers: full && layers });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
       else toast('success', `Exported ${name}${r.cached ? ' from the cache' : ''}`, [bytesText(r.bytes), r.note, r.path, r.failed.length ? `${r.failed.length} failed` : ''].filter(Boolean).join(' · '));
     } catch (e) {
@@ -239,6 +247,9 @@
         </select>
       </label>
       <SwitchRow id="model-stl" label="Also write an STL" hint="Geometry with the node transforms baked in, Z-up, next to the GLB." checked={stl} onchange={(v) => (stl = v)} disabled={preset === 'full'} />
+      <SwitchRow id="model-3mf" label="Also write a 3MF (experimental)" hint="Mesh for slicers (PrusaSlicer, Bambu Studio, Cura) in real size (metres), Z-up, next to the GLB. It may need repair in the slicer." checked={threeMf} onchange={(v) => (threeMf = v)} disabled={preset === 'full'}>
+        <Badge variant="warning" class="shrink-0"><FlaskConical aria-hidden="true" /> Experimental</Badge>
+      </SwitchRow>
       {#if preset === 'full'}
         <label class="flex min-w-0 items-center gap-2">
           <span class="shrink-0">Paint</span>
@@ -265,11 +276,12 @@
           Memory limit {limitText(memory.status.limit_gb)}{need ? (over ? `: this preset needs about ${gbText(need.bytes)}, so it will be refused. Raise the limit under Settings > Advanced.` : `: this preset needs about ${gbText(need.bytes)}${preset === 'full' ? ' (capital ships about 11 GB)' : ''}.`) : '.'}
         </p>
       {/if}
+      <p class="text-muted-foreground" data-model-where>You pick where the GLB goes{meshNames ? `; the ${meshNames} ${meshNames.includes('/') ? 'are' : 'is'} written next to it` : ''}.</p>
       <p class="text-muted-foreground text-[11.5px]">{PERSONAL_USE}</p>
     </div>
     <Dialog.Footer>
       <Button variant="ghost" onclick={() => (modelOpen = false)}>Cancel</Button>
-      <Button onclick={() => void exportModel()}><Download aria-hidden="true" /> Choose file…</Button>
+      <Button onclick={() => void exportModel()}><Download aria-hidden="true" /> Save as…</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

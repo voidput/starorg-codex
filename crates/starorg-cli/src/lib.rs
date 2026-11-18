@@ -582,6 +582,10 @@ pub enum DevCmd {
         /// Also write an STL next to the GLB (geometry, transforms baked, Z-up).
         #[arg(long)]
         stl: bool,
+        /// Print only (experimental): also write a 3MF next to the GLB (for slicers: real
+        /// size in metres, Z-up, shared vertices).
+        #[arg(long = "3mf")]
+        three_mf: bool,
         /// Full only: wear this paint, by its tag (`dev model-paints` lists them); default:
         /// the paint the default loadout fits.
         #[arg(long, value_name = "TAG")]

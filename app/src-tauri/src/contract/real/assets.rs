@@ -919,6 +919,7 @@ impl AssetBackend for RealBackend {
             preset: req.preset,
             lod: model::effective_lod(asked, &self.known_lods(&key, &req.what)),
             stl: req.stl,
+            three_mf: req.three_mf,
             paint: req.paint.clone(),
             layers: req.layers,
         };
@@ -972,12 +973,12 @@ impl AssetBackend for RealBackend {
             let n = std::fs::copy(&hit, &out).map_err(io)?;
             let mut files = 1;
             let mut bytes = n;
-            if o.stl {
+            if o.stl || o.three_mf {
                 let glb = std::fs::read(&hit).map_err(io)?;
-                let (_, len) =
-                    starorg_data::assets::stl::glb_file_to_stl(&glb, &out.with_extension("stl"))
-                        .map_err(|e| err(ErrorCode::Internal, e.message))?;
-                files += 1;
+                let (n, len) = starorg_data::assets::print::write_meshes(&glb, &out, &o)
+                    .map_err(|e| err(ErrorCode::Internal, e.message))?
+                    .files_bytes();
+                files += n;
                 bytes += len;
             }
             return Ok(export_result(
@@ -1024,8 +1025,8 @@ impl AssetBackend for RealBackend {
                 d.peak_rss.map(|b| b / 1_048_576).unwrap_or(0)
             ),
         );
-        let files = 1 + d.stl_path.is_some() as u32;
-        let bytes = d.bytes + d.stl_bytes.unwrap_or(0);
+        let (n, len) = starorg_data::assets::print::files_bytes(&d.meshes);
+        let (files, bytes) = (1 + n, d.bytes + len);
         Ok(export_result(Some(d.path), files, bytes, false))
     }
 

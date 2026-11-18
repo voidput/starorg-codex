@@ -185,6 +185,9 @@ pub struct AssetExportModelRequest {
     pub lod: u32,
     /// Also an STL next to the GLB.
     pub stl: bool,
+    /// Also a 3MF next to the GLB (Print shell only, like the STL).
+    #[serde(default)]
+    pub three_mf: bool,
     /// Export even with less free memory than the preset may need (after `needs-decision`).
     pub force: bool,
     /// Full only: the paint to wear, a [`ModelPaint::tag`] from `asset_model_paints`

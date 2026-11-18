@@ -391,6 +391,7 @@ fn extract_and_exports_respect_dialogs_and_the_game_folder() {
             preset: ModelPreset::PrintShell,
             lod: 0,
             stl: false,
+            three_mf: false,
             force: false,
             paint: None,
             layers: false,

@@ -242,7 +242,7 @@
     if (!shown) return;
     exporting = true;
     try {
-      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset: 'print-shell', lod: shown.lod, stl: false, force: false });
+      const r = await assetApi.exportModel({ target: $state.snapshot(target), what: guid, name, preset: 'print-shell', lod: shown.lod, stl: false, three_mf: false, force: false });
       if (r.cancelled) toast('info', 'Export cancelled', 'Nothing was written.');
       else toast('success', `Exported ${name}${r.cached ? ' from the cache' : ''}`, [mbText(r.bytes), r.path].filter(Boolean).join(' · '));
     } catch (e) {

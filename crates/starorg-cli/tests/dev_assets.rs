@@ -307,3 +307,27 @@ fn a_cache_folder_in_the_game_folder_or_prefix_is_refused_at_use() {
     );
     assert!(!bad.exists());
 }
+
+#[test]
+fn a_3mf_needs_the_print_preset() {
+    let t = tempfile::tempdir().unwrap();
+    let a = p4k(t.path()).display().to_string();
+    let item = dcb::guid_text(1, 2);
+    let out = t.path().join("m.glb");
+    let o = run(
+        t.path(),
+        &[
+            "dev",
+            "export-model",
+            &item,
+            "--3mf",
+            "--out",
+            out.to_str().unwrap(),
+            "--test-p4k",
+            &a,
+        ],
+    );
+    assert_eq!(o.status.code(), Some(2));
+    assert!(String::from_utf8_lossy(&o.stderr).contains("--3mf needs --preset print"));
+    assert!(!out.exists() && !out.with_extension("3mf").exists());
+}
