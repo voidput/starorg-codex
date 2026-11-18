@@ -128,6 +128,36 @@ coarsened to 0.13 mm: 1.6 s, 1.15 GB, 7.6 M triangles; with `--thicken 0.8 --hol
 0.94 s, 9 cavities, 10 drain holes, 69 cm³, watertight. Gladius LOD 2 at 0.2 mm: 0.52 s,
 278 MB, 1.83 M triangles, watertight.
 
+## Split for the bed (`split.rs`)
+
+Needs `--solid` (refused otherwise: "--split needs --solid (experimental)").
+
+- **Plan** (`plan`): whole-grid axis-aligned planes, so the pieces are the cells of a lattice
+  (the `Cut { axis, at }` the pegs also read). Each axis gets the fewest planes its solid
+  extent needs for slabs of at most the bed (less half a voxel); pieces are not turned. Where
+  the planes go is searched: per axis the positions of least total cut area (dynamic
+  programming over the cut-face area: through thin sections) and the slabs slid from the low
+  end to the high end (33 steps); every combination is scored when there are up to 4096, else
+  axis by axis in each of the six axis orders. Score: fewest non-empty pieces, then fewest
+  slivers (a piece under 2 % of the solid), then least cut area. Pieces are counted from
+  per-row solid runs, so a plan scores in about a millisecond.
+- **Pins** (`pins`, when `--peg` is not given; with `--peg` the pegs do this): per cut,
+  `PIN_MM` (2 mm) holes `PIN_DEPTH_MM` (4 mm) into each side, two in the largest piece of the
+  cut face (the most solid point by a chamfer distance transform, the second as far from it as
+  the face allows, at least three diameters apart) and one in each of the next two pieces;
+  only where the face has room, never through (`PEG_CAP_MM` left). One note per cut.
+- **Split** (`split`): each lattice cell cropped to its solid cells, empty ones left out,
+  named `part1`, `part2`, ... (x, then y, then z) and laid out side by side along x
+  (`LAYOUT_GAP`, 5 mm), low y lined up; the pipeline then sits each on the bed. The STL is
+  `<name>-part1.stl`, ... (one `MeshFile` each), the 3MF one object and build item per part.
+  Without a needed cut: one unnamed piece, unchanged output. `summary` gives the note.
+
+Real data (release, 32 threads): Gladius Print shell LOD 2 at 1:100, `--bed 120x120x120
+--solid 0.2 --split`: 4.9 s in all for `dev print-glb` (STL + 3MF), 552 MB peak; cuts at
+x -16.6 and y 24.2, 4 parts (70 x 109 x 51, 20 x 70 x 26, 103 x 109 x 57, 53 x 104 x 42 mm),
+each watertight and within the bed, 2 pin holes per cut; with `--peg 5` the same cuts with
+5 mm pegs and a stand hole; the 3MF has 4 build items.
+
 ## Testing on real GLBs
 
 `starorg-codex dev print-glb <in.glb> --out <dir> [print flags] [--stl] [--3mf]` runs the
