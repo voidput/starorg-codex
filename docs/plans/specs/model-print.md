@@ -128,6 +128,54 @@ coarsened to 0.13 mm: 1.6 s, 1.15 GB, 7.6 M triangles; with `--thicken 0.8 --hol
 0.94 s, 9 cavities, 10 drain holes, 69 cm³, watertight. Gladius LOD 2 at 0.2 mm: 0.52 s,
 278 MB, 1.83 M triangles, watertight.
 
+## Multicolor (`color.rs`)
+
+- What is reliable. A Print shell GLB is exported with `MaterialMode::None`, so its materials
+  are only `material_NN`; the node names survive as full paths (Skylark:
+  `geo_body/lower_cockpit_frame/geo_cockpit_glass_lower_ext`,
+  `hardpoint_thruster_main_left/.../geo_thruster_main_left`; Gladius: `Body/Nose/Canopy`,
+  `hardpoint_thruster_main_left/.../Gladius_Thruster_Main`). So grouping is per node:
+  - `glass`: the node's own name has `glass`, `canopy`, `windshield` or `window` (not
+    `frame`). A canopy node holds its frame too when the artist modelled both in it (the
+    Gladius `Canopy` is about a quarter glass in the Full export's materials); glass inside the
+    body node stays hull.
+  - `engine`: any path segment has `thruster`, `engine` (not `CryEngine`) or `exhaust`, and
+    none has `mav`, `retro`, `rcs` or `maneuver` (manoeuvring thrusters stay hull). The whole
+    thruster, not just its glow (there is no glow node).
+  - `hull`: everything else.
+  - Exact glass would need material names: StarBreaker's `MaterialMode::Colors` keeps them
+    (`..._mtl_glass_ext_04`) without textures, but it changes the Print shell GLB (and its
+    cache key), so it is not used; a follow-up could export it for `--multicolor` only and
+    carry the material per triangle through `stl::walk_glb`.
+- Parts: `classify` sets the groups `hull`, `engine`, `glass` (in that order, the lowest
+  priority first); without Make solid, `by_group` gives one part per non-empty group (open
+  game surfaces, as before). Colours (`color_of`): hull `#B8BCC2`, engine `#FF7A1A`, glass
+  `#3A6EA5`.
+- With Make solid, `color::extract_groups(grid, COLOR_DEPTH_MM, progress)` (called by the
+  pipeline instead of `voxel::extract` + `by_group` when multicolor; one change in `mod.rs`):
+  `paint` keeps the group of outer-surface cells (a face on the outside flood), grows glass
+  and engine `COLOR_DEPTH_MM` (1.2 mm) inwards a layer at a time (glass > engine > hull where
+  they meet), makes every other cell hull and specks under `MIN_GROUP_CELLS` (27) hull; then
+  `voxel::extract_where` per group (on the group's crop when that is under half the grid):
+  one closed mesh per group. Neighbouring parts touch and may overlap by up to a voxel where
+  extracting closes a corner. The walls of a hollowed cavity count as outside (it drains), so
+  they may carry a colour inside; that costs filament, not looks.
+- Slicers (one object made of one component per group, `Layout::Assembly`, object-level
+  `pid`/`pindex` into one `basematerials`). From their 3MF importers' source: Bambu Studio
+  makes each component a part of one object and maps the distinct `displaycolor`s to filament
+  slots (non-Bambu 3MF path, object `pid`/`pindex`); PrusaSlicer's current loader (master,
+  after 2.9) makes each component a part of one object; PrusaSlicer 2.9 places each component
+  as an object of its own in place (join them with its "single object with multiple parts?"
+  question or Assemble). PrusaSlicer reads no colours: pick a filament per part (named `hull`,
+  `glass`, `engine`). Not yet checked in the slicers' GUIs.
+- STL: one file with every part (a single mesh), as without multicolor.
+- Real data (release, `--multicolor --fit-mm 150 --solid`): Skylark LOD 4: 3.7 s (2.7 s
+  without multicolor), 628 MB peak, hull 3.16 M / engine 83 k / glass 277 k triangles, each
+  closed (every edge once each way), 219.7 + 0.5 + 2.3 cm³ = 222.5 cm³ (one-colour solid
+  222.5 cm³). Gladius LOD 2: 2.3 s, 387 MB, hull 1.89 M / engine 128 k / glass 53 k
+  triangles, each closed. Without solid, the Skylark gives hull 96 028, engine 2 018 and glass
+  330 triangles in 0.13 s.
+
 ## Testing on real GLBs
 
 `starorg-codex dev print-glb <in.glb> --out <dir> [print flags] [--stl] [--3mf]` runs the

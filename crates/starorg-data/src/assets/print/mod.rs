@@ -633,8 +633,20 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
         let n = pieces.len().max(1) as f32;
         for (i, piece) in pieces.into_iter().enumerate() {
             let (a, b) = (0.65 + 0.2 * i as f32 / n, 0.65 + 0.2 * (i + 1) as f32 / n);
-            let m = voxel::extract(&piece.grid, &sub(progress, a, b))?;
-            parts.extend(per_group(&piece.name, m, o));
+            if o.multicolor {
+                // One closed mesh per colour group (not the open patches of one mesh).
+                let depth = color::COLOR_DEPTH_MM * per_mm;
+                for (label, m) in color::extract_groups(&piece.grid, depth, &sub(progress, a, b))? {
+                    parts.push(Part {
+                        name: part_name(&piece.name, &label),
+                        color: color::color_of(&label),
+                        mesh: m,
+                    });
+                }
+            } else {
+                let m = voxel::extract(&piece.grid, &sub(progress, a, b))?;
+                parts.extend(per_group(&piece.name, m, o));
+            }
         }
     } else {
         parts = per_group("", mesh, o);
