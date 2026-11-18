@@ -590,6 +590,7 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
     if o.solid {
         step(progress, 0.05, "Building the solid")?;
         let mut grid = voxel::voxelize(&mesh, o.solid_res_mm * per_mm, &sub(progress, 0.05, 0.4))?;
+        notes.extend(voxel::coarsened(&grid, o.solid_res_mm * per_mm));
         drop(mesh);
         if let Some(t) = o.thicken_mm {
             step(progress, 0.4, "Thickening thin parts")?;
