@@ -20,6 +20,8 @@ test('the defaults are the Rust defaults (f32 values to 1e-6)', () => {
 test('every option on is a valid combination, as in Rust', () => {
   assert.equal(printProblem(example), null);
   assert.equal(printProblem(defaultPrintOptions()), null);
+  // Pegs without split: only the stand hole, as in Rust.
+  assert.equal(printProblem({ ...defaultPrintOptions(), solid: true, scale: { mode: 'fit-mm', value: 150 }, peg_mm: 5 }), null);
 });
 
 test('options without the one they need are refused with the Rust wording', () => {
@@ -30,7 +32,6 @@ test('options without the one they need are refused with the Rust wording', () =
     [{ thicken_mm: 0.8 }, '--thicken needs --solid (experimental)'],
     [{ hollow: { wall_mm: 2, drain_mm: 3 } }, '--hollow needs --solid (experimental)'],
     [{ solid: true }, '--solid needs --fit-mm, --scale-ratio or --shrink-to-bed (a real-size ship is metres long)'],
-    [{ solid: true, scale: fit, peg_mm: 5 }, '--peg needs --split (pegs join the split pieces)'],
     [{ solid: true, scale: fit, split: true, peg_mm: 4 }, 'peg size 4 mm must be 3, 5 or 6'],
     [{ solid_res_mm: 0.3 }, 'solid resolution 0.3 mm must be 0.1, 0.2 or 0.4'],
     [{ scale: { mode: 'ratio', value: 0 } }, 'scale ratio must be 1 or more (1:N)'],

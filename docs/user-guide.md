@@ -176,11 +176,23 @@ For players who want to look things up in the game data. Read only on the game.
   experimental: the mesh is the game's, not made for printing, so it may need repair in the
   slicer.
   With an STL or 3MF on, **3D print (experimental)** offers print processing of those files
-  (the GLB stays as exported): a size (longest side in mm or 1:N), the bed size (remembered),
-  shrink to the bed, leaving out tiny parts, a voxel solid (thicken, hollow with a drain hole,
-  split to fit the bed with peg holes), multicolor objects, simplify, and no weapons. All are
-  off by default and experimental; some are not built yet and say so. CLI: the same flags on
-  `dev export-model --preset print`, and `dev print-glb` for a GLB you already have.
+  (the GLB stays as exported). All are off by default and experimental, and the result may
+  still need repair in the slicer; the model always sits on the bed (lowest point at z 0,
+  centred on x/y). Notes after the export say what each step did.
+  - **Size**: longest side in mm or 1:N; a model larger than the bed (remembered) is turned
+    90 degrees when that fits, else **shrink to the bed** or a note.
+  - **Leave out tiny parts**: loose parts whose bounding-box diagonal is under the size.
+  - **Solid** (0.1, 0.2 or 0.4 mm voxels; needs a size): rebuilds the model as one closed,
+    watertight solid. Then optionally **thicken** thin parts, **hollow** (wall and drain hole),
+    **split to fit the bed** (one STL per part, side by side, with 2 mm alignment pin holes)
+    and **peg holes** (across the split cuts, plus a stand hole underneath).
+  - **Multicolor**: hull, glass and engine as separate coloured parts of one 3MF object (from
+    the node names, so a canopy frame may come out as glass); pick a filament per part.
+  - **Simplify** to about N triangles; a solid is millions of triangles without it.
+  - **No weapons**: guns, gimbals, missiles, mining lasers and tractor beams left out (changes
+    the GLB too).
+  CLI: the same flags on `dev export-model --preset print`, and `dev print-glb` for a GLB you
+  already have.
   A **Full** export can wear any paint the ship has (**Paint**, listed with their in-game names;
   default: the one fitted) and can include **Layer materials (experimental)**, the textures of
   each material's layers (bigger files; some surfaces may look wrong).

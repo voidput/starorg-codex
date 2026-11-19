@@ -84,7 +84,6 @@ export function printProblem(p: PrintOptions): string | null {
     const flag = p.thicken_mm !== null ? '--thicken' : p.hollow ? '--hollow' : p.peg_mm !== null ? '--peg' : p.split ? '--split' : null;
     if (flag) return `${flag} needs --solid (experimental)`;
   }
-  if (p.peg_mm !== null && !p.split) return '--peg needs --split (pegs join the split pieces)';
   if (p.solid && s.mode === 'none' && !p.shrink_to_bed) return '--solid needs --fit-mm, --scale-ratio or --shrink-to-bed (a real-size ship is metres long)';
   return null;
 }

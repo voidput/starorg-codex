@@ -253,3 +253,50 @@ fn split_needs_the_solid() {
     assert_eq!(e.code, "invalid");
     assert!(e.message.contains("--split needs --solid"), "{}", e.message);
 }
+
+#[test]
+fn split_parts_stay_side_by_side_centred_and_colour_parts_stay_with_their_piece() {
+    let o = PrintOptions {
+        scale: ScaleMode::FitMm(250.0),
+        bed_mm: [100.0; 3],
+        solid: true,
+        solid_res_mm: 0.4,
+        split: true,
+        multicolor: true,
+        ..Default::default()
+    };
+    let out = apply(cube([0.0; 3], [2.5, 0.3, 0.2]), &o, &all()).unwrap();
+    assert_eq!(
+        out.parts.len(),
+        3,
+        "{:?}",
+        out.parts.iter().map(|p| &p.name).collect::<Vec<_>>()
+    );
+    let b: Vec<_> = out.parts.iter().map(|p| p.mesh.bounds().unwrap()).collect();
+    for w in b.windows(2) {
+        assert!(w[1].min[0] > w[0].max[0], "side by side: {b:?}");
+    }
+    let (lo, hi) = (b[0].min[0], b[b.len() - 1].max[0]);
+    assert!((lo + hi).abs() < 1e-3, "centred on x: {lo} {hi}");
+    assert!(b.iter().all(|x| x.min[2].abs() < 1e-4));
+}
+
+#[test]
+fn pegs_without_split_give_only_the_stand_hole() {
+    let o = PrintOptions {
+        scale: ScaleMode::FitMm(60.0),
+        solid: true,
+        solid_res_mm: 0.4,
+        peg_mm: Some(5.0),
+        ..Default::default()
+    };
+    let out = apply(cube([0.0; 3], [1.0, 0.6, 0.4]), &o, &all()).unwrap();
+    assert_eq!(out.parts.len(), 1);
+    assert!(
+        out.notes
+            .iter()
+            .any(|n| n.starts_with("Stand hole of 5 mm")),
+        "{:?}",
+        out.notes
+    );
+}

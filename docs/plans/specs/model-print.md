@@ -28,7 +28,7 @@ defaults and checks in `app/src/lib/printoptions.ts`).
 | `solid` + `solid_res_mm` | bool + 0.1 \| 0.2 \| 0.4 (0.2) | `--solid [RES]` | a scale or `shrink_to_bed` |
 | `thicken_mm` | `Option<f32>` (0.8) | `--thicken MM` | `solid` |
 | `hollow` | `Option<{wall_mm 2.0, drain_mm 3.0}>` | `--hollow WALL[,DRAIN]` | `solid` |
-| `peg_mm` | `Option<f32>`: 3 \| 5 \| 6, 8 mm deep | `--peg MM` | `split` |
+| `peg_mm` | `Option<f32>`: 3 \| 5 \| 6, 8 mm deep | `--peg MM` | `solid` (without `split`: the stand hole only) |
 | `split` | bool | `--split` | `solid` |
 | `multicolor` | bool | `--multicolor` | |
 | `simplify_tris` | `Option<u32>` (200000, at least 1000) | `--simplify N` | |
@@ -73,10 +73,11 @@ ignored by the backends (as a Print shell ignores paints).
 10. split into pieces
 11. extract per group (`voxel::extract`, then `color::by_group`)
 12. simplify (the triangle budget shared by part size)
-13. sit on the bed again (each split piece alone, else all together)
+13. sit on the bed again (each split piece lowered alone, its colour parts with it, keeping the
+    split's side-by-side layout; then the whole layout centred on x/y)
 14. write: one 3MF with every part (`color::layout`: one assembly for multicolor without
     split, else one build item per part; display colours as `basematerials`); one STL, or one
-    STL per part for separate parts (`ship-piece-1.stl`)
+    STL per part for separate parts (`ship-part1.stl`)
 
 Input: `Mesh::from_glb` (shared vertices, degenerate triangles dropped, each triangle's group is
 its GLB node path such as `geo_body` or `hardpoint_weapon_left/mesh_gun`).
@@ -270,7 +271,25 @@ Notes from the steps are printed (and in `--json`, the app's export note).
 
 ## Status
 
-Foundation done: options, contract in all four layers, CLI flags and `dev print-glb`, the
-dialog's "3D print (experimental)" section, the writer (units, several objects, assemblies,
-colours), `factor`/`scale`/`sit_on_bed`, `layout`. Stubs: the rest of the table above
-(`voxelize`/`extract` refuse "not available in this build yet"; the others pass through).
+Integrated on `feat/model-3mf` (every step built; all experimental, off by default but sitting on
+the bed). Integration fixes: split pieces were centred one by one after scale's x/y centring
+(stacked at the origin), now lowered per piece and the layout centred as a whole; `--peg`
+without `--split` is accepted (stand hole only); a note when simplify cannot reach its budget.
+
+End to end (release, `dev export-model ... --preset print`, 32 threads, 2026-11-17):
+
+- Skylark LOD 4, `--3mf --stl --fit-mm 150 --drop-small 1 --solid 0.2 --thicken 0.8 --hollow
+  2,3 --peg 5 --multicolor --simplify 200000 --no-weapons`: 25 s, 2.3 GB peak (simplify is
+  about 20 s of it, single-threaded on 5.6 M triangles). 18 loadout parts and 576 tiny parts
+  left out; hull 182 838 / engine 4 148 / glass 13 012 triangles, each watertight (every edge in
+  exactly two triangles, once each way); 129.3 x 150.2 x 54.2 mm; 4 cavities, 5 drain holes,
+  a 2.6 mm stand hole (thin there). trimesh loads 3 parts, all watertight.
+- Gladius LOD 2, `--scale-ratio 100 --bed 120x120x120 --solid --split --stl --3mf`: 5.6 s,
+  1.6 GB peak; 4 parts (70.4 x 108.9 x 51.2, 20.1 x 70.1 x 25.7, 103.4 x 109.2 x 57.0,
+  53.3 x 104.3 x 41.6 mm; 1.26 M, 170 k, 2.00 M, 791 k triangles), each watertight and within
+  the bed, side by side; 2 pin holes per cut.
+
+Open: exact glass needs material names (`MaterialMode::Colors`); multicolor with split gives
+separate objects per piece and group (no assembly per piece); the voxel solid is about half a
+voxel larger each side; smoothing and simplify do not guarantee no self-intersections; slicer
+GUIs not yet tried (importers read from source).

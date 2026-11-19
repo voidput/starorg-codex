@@ -380,10 +380,6 @@ fn print_options_that_do_not_go_together_are_usage_errors() {
         (&["--split", "--3mf"], "--split needs --solid"),
         (&["--solid", "--3mf"], "--solid needs --fit-mm"),
         (
-            &["--solid", "--fit-mm", "100", "--peg", "5", "--3mf"],
-            "--peg needs --split",
-        ),
-        (
             &["--solid", "0.3", "--fit-mm", "100", "--3mf"],
             "0.1, 0.2 or 0.4",
         ),

@@ -95,15 +95,6 @@ fn options_without_what_they_need_or_out_of_range_are_refused() {
             PrintOptions {
                 solid: true,
                 scale: fit,
-                peg_mm: Some(5.0),
-                ..d()
-            },
-            "--peg needs --split (pegs join the split pieces)",
-        ),
-        (
-            PrintOptions {
-                solid: true,
-                scale: fit,
                 split: true,
                 peg_mm: Some(4.0),
                 ..d()

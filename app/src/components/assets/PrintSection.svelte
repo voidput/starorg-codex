@@ -56,7 +56,6 @@
   }
   function setSplit(on: boolean) {
     value.split = on;
-    if (!on) value.peg_mm = null;
   }
   const on = $derived(
     [value.scale.mode !== 'none', value.shrink_to_bed, value.drop_small_mm !== null, value.solid, value.multicolor, value.simplify_tris !== null, value.no_weapons].filter(Boolean).length,
@@ -100,7 +99,7 @@
       <SwitchRow id="print-shrink" size="sm" label="Shrink to fit the bed" hint="Scale down when the model is larger than the bed (otherwise only a note)." checked={value.shrink_to_bed} onchange={(v) => (value.shrink_to_bed = v)}>
         {@render experimental()}
       </SwitchRow>
-      <SwitchRow id="print-drop" size="sm" label="Leave out tiny parts" hint="Parts smaller than this at print size (mm)." checked={value.drop_small_mm !== null} onchange={(v) => (value.drop_small_mm = v ? dropMm : null)}>
+      <SwitchRow id="print-drop" size="sm" label="Leave out tiny parts" hint="Loose parts whose bounding-box diagonal is under this at print size (mm)." checked={value.drop_small_mm !== null} onchange={(v) => (value.drop_small_mm = v ? dropMm : null)}>
         {#if value.drop_small_mm !== null}<Input type="number" min="0.1" step="0.1" class="h-7 w-20" aria-label="Smallest part in mm" value={value.drop_small_mm} onchange={(e: Event) => (value.drop_small_mm = dropMm = num(e))} />{/if}
         {@render experimental()}
       </SwitchRow>
@@ -123,10 +122,10 @@
         {/if}
         {@render experimental()}
       </SwitchRow>
-      <SwitchRow id="print-split" size="sm" label="Split to fit the bed" hint="Cut into pieces that each fit the bed (one STL per piece). Needs Solid." checked={value.split} disabled={!value.solid} onchange={setSplit}>
+      <SwitchRow id="print-split" size="sm" label="Split to fit the bed" hint="Cut into pieces that each fit the bed (one STL per piece), with alignment pin holes across each cut. Needs Solid." checked={value.split} disabled={!value.solid} onchange={setSplit}>
         {@render experimental()}
       </SwitchRow>
-      <SwitchRow id="print-peg" size="sm" label="Peg holes" hint={`Holes for pegs of this diameter, ${PEG_DEPTH_MM} mm deep each side of a cut. Needs Split.`} checked={value.peg_mm !== null} disabled={!value.split} onchange={(v) => (value.peg_mm = v ? pegMm : null)}>
+      <SwitchRow id="print-peg" size="sm" label="Peg holes" hint={`Holes for pegs of this diameter, ${PEG_DEPTH_MM} mm deep each side of a cut, plus a stand hole underneath. Needs Solid.`} checked={value.peg_mm !== null} disabled={!value.solid} onchange={(v) => (value.peg_mm = v ? pegMm : null)}>
         {#if value.peg_mm !== null}
           <select class="border-input bg-background h-7 rounded-md border px-2" aria-label="Peg diameter" value={value.peg_mm} onchange={(e) => (value.peg_mm = pegMm = Number(e.currentTarget.value))}>
             {#each PEG_MM as p (p)}<option value={p}>{p} mm</option>{/each}

@@ -41,7 +41,7 @@ pub type Progress<'a> = &'a (dyn Fn(f32, &str) -> bool + Sync);
 pub const DEFAULT_FIT_MM: f32 = 150.0;
 /// A common bed (Bambu X1/P1, Prusa Core One-ish), millimetres.
 pub const DEFAULT_BED_MM: [f32; 3] = [256.0, 256.0, 256.0];
-/// Parts smaller than this (largest side, millimetres at print size) are left out.
+/// Loose parts smaller than this (bounding-box diagonal, millimetres at print size) are left out.
 pub const DEFAULT_DROP_SMALL_MM: f32 = 1.0;
 /// The voxel sizes offered for a solid, millimetres.
 pub const SOLID_RES_MM: [f32; 3] = [0.1, 0.2, 0.4];
@@ -101,7 +101,8 @@ pub struct PrintOptions {
     pub bed_mm: [f32; 3],
     /// Scale down to fit the bed when larger (otherwise only a note).
     pub shrink_to_bed: bool,
-    /// Leave out parts whose largest side is under this, millimetres at print size.
+    /// Leave out loose parts whose bounding-box diagonal is under this, millimetres at print
+    /// size.
     pub drop_small_mm: Option<f32>,
     /// Rebuild the model as one closed solid from voxels (needs a scale or `shrink_to_bed`).
     pub solid: bool,
@@ -112,7 +113,8 @@ pub struct PrintOptions {
     /// Hollow the solid (needs `solid`).
     pub hollow: Option<Hollow>,
     /// Peg holes of this diameter (one of [`PEG_MM`], [`PEG_DEPTH_MM`] deep) across the split
-    /// cuts (needs `split`).
+    /// cuts, plus a stand hole in the underside (needs `solid`; without `split` only the stand
+    /// hole).
     pub peg_mm: Option<f32>,
     /// Cut the solid into pieces that fit the bed (needs `solid`).
     pub split: bool,
@@ -226,9 +228,6 @@ impl PrintOptions {
             && let Some((_, flag)) = needs_solid.iter().find(|(on, _)| *on)
         {
             return Err(format!("{flag} needs --solid (experimental)"));
-        }
-        if self.peg_mm.is_some() && !self.split {
-            return Err("--peg needs --split (pegs join the split pieces)".into());
         }
         if self.solid && self.scale == ScaleMode::None && !self.shrink_to_bed {
             return Err(
@@ -478,7 +477,7 @@ pub struct Cut {
 /// One printable object of the output.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Part {
-    /// `piece-1`, `hull`, `piece-2 glass`; empty for a single part.
+    /// `part1`, `hull`, `part2 glass`; empty for a single part.
     pub name: String,
     pub mesh: Mesh,
     /// Display colour (RGBA) for the 3MF (multicolor).
@@ -589,6 +588,8 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
     scale::sit_on_bed(&mut [&mut mesh]);
     // 6-11. Solid, thicken, hollow, pegs, split, extract per group.
     let mut parts = Vec::new();
+    // The split piece of each part (its colour groups move together).
+    let mut piece_of: Vec<usize> = Vec::new();
     if o.solid {
         step(progress, 0.05, "Building the solid")?;
         let mut grid = voxel::voxelize(&mesh, o.solid_res_mm * per_mm, &sub(progress, 0.05, 0.4))?;
@@ -644,6 +645,7 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
                 // One closed mesh per colour group (not the open patches of one mesh).
                 let depth = color::COLOR_DEPTH_MM * per_mm;
                 for (label, m) in color::extract_groups(&piece.grid, depth, &sub(progress, a, b))? {
+                    piece_of.push(i);
                     parts.push(Part {
                         name: part_name(&piece.name, &label),
                         color: color::color_of(&label),
@@ -652,12 +654,17 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
                 }
             } else {
                 let m = voxel::extract(&piece.grid, &sub(progress, a, b))?;
-                parts.extend(per_group(&piece.name, m, o));
+                let ps = per_group(&piece.name, m, o);
+                piece_of.extend(std::iter::repeat_n(i, ps.len()));
+                parts.extend(ps);
             }
         }
     } else {
         parts = per_group("", mesh, o);
+        piece_of = vec![0; parts.len()];
     }
+    let mut keep = parts.iter().map(|p| !p.mesh.is_empty());
+    piece_of.retain(|_| keep.next().unwrap_or(false));
     parts.retain(|p| !p.mesh.is_empty());
     if parts.is_empty() {
         return Err(AssetError::invalid("the model has no triangles left"));
@@ -673,18 +680,39 @@ pub fn apply(mut mesh: Mesh, o: &PrintOptions, progress: Progress<'_>) -> AssetR
                 let (a, b) = (0.85 + 0.1 * i as f32 / k, 0.85 + 0.1 * (i + 1) as f32 / k);
                 simplify::simplify(&mut p.mesh, target, &sub(progress, a, b))?;
             }
+            let after: u64 = parts.iter().map(|p| p.mesh.triangles.len() as u64).sum();
+            if after > n as u64 + n as u64 / 10 {
+                notes.push(format!(
+                    "Simplified to {after} triangles, not {n}: the rest could not be removed without breaking the surface (experimental)."
+                ));
+            }
         }
     }
-    // 13. Sit on the bed again: each split piece on its own, else all together.
+    // 13. Sit on the bed again: each split piece lowered on its own (its colour parts
+    // together, keeping the split's side-by-side layout), then the whole layout centred.
     let layout = color::layout(o);
     if o.split {
-        for p in &mut parts {
-            scale::sit_on_bed(&mut [&mut p.mesh]);
+        for piece in 0..piece_of.iter().max().map_or(0, |m| m + 1) {
+            let low = parts
+                .iter()
+                .zip(&piece_of)
+                .filter(|(_, k)| **k == piece)
+                .filter_map(|(p, _)| p.mesh.bounds())
+                .map(|b| b.min[2])
+                .fold(f32::INFINITY, f32::min);
+            if low.is_finite() && low != 0.0 {
+                for (p, _) in parts
+                    .iter_mut()
+                    .zip(&piece_of)
+                    .filter(|(_, k)| **k == piece)
+                {
+                    p.mesh.map_vertices(|[x, y, z]| [x, y, z - low]);
+                }
+            }
         }
-    } else {
-        let mut all: Vec<&mut Mesh> = parts.iter_mut().map(|p| &mut p.mesh).collect();
-        scale::sit_on_bed(&mut all);
     }
+    let mut all: Vec<&mut Mesh> = parts.iter_mut().map(|p| &mut p.mesh).collect();
+    scale::sit_on_bed(&mut all);
     step(progress, 0.95, "Writing")?;
     Ok(PrintOutput {
         parts,

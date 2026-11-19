@@ -673,7 +673,8 @@ pub struct PrintArgs {
     /// (experimental) Shrink the model to fit the bed when larger.
     #[arg(long, help_heading = "3D print (experimental)")]
     pub shrink_to_bed: bool,
-    /// (experimental) Leave out parts smaller than MM at print size (e.g. 1).
+    /// (experimental) Leave out loose parts whose bounding-box diagonal is under MM at print
+    /// size (e.g. 1).
     #[arg(long, value_name = "MM", help_heading = "3D print (experimental)")]
     pub drop_small: Option<f32>,
     /// (experimental) Rebuild as one closed solid from voxels of RES mm (0.1, 0.2 or 0.4;
@@ -692,10 +693,12 @@ pub struct PrintArgs {
     )]
     pub hollow: Option<String>,
     /// (experimental) Peg holes of MM diameter (3, 5 or 6; 8 mm deep) across the split
-    /// cuts. Needs --split.
+    /// cuts, plus a stand hole in the underside. Needs --solid (without --split: only the
+    /// stand hole).
     #[arg(long, value_name = "MM", help_heading = "3D print (experimental)")]
     pub peg: Option<f32>,
-    /// (experimental) Cut the solid into pieces that fit the bed. Needs --solid.
+    /// (experimental) Cut the solid into pieces that fit the bed, with 2 mm alignment pin
+    /// holes across each cut (unless --peg). Needs --solid.
     #[arg(long, help_heading = "3D print (experimental)")]
     pub split: bool,
     /// (experimental) One 3MF object per material group (hull, glass, ...) with a colour.
