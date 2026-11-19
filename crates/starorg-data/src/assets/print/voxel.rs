@@ -1125,6 +1125,13 @@ pub fn hollow(
 ) -> AssetResult<()> {
     tick(progress, 0.0, "Hollowing")?;
     let v = grid.voxel;
+    // `erode` leaves a grid unchanged below one cell, which would clear the whole model.
+    if (wall / v).is_nan() || wall / v < 1.0 {
+        notes.push(format!(
+            "Not hollowed: the {wall} mm wall is thinner than the {v:.3} mm voxel."
+        ));
+        return tick(progress, 1.0, "Hollowing");
+    }
     let solid = grid.bits(&|c| c != 0);
     let inner = solid.erode(wall / v);
     drop(solid);

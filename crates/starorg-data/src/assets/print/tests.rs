@@ -129,6 +129,19 @@ fn options_without_what_they_need_or_out_of_range_are_refused() {
             },
             "drop-small size 0 mm must be more than 0",
         ),
+        (
+            PrintOptions {
+                solid: true,
+                scale: fit,
+                solid_res_mm: 0.4,
+                hollow: Some(Hollow {
+                    wall_mm: 0.3,
+                    drain_mm: 0.0,
+                }),
+                ..d()
+            },
+            "hollow wall 0.3 mm must be at least the solid resolution 0.4 mm",
+        ),
     ];
     for (p, want) in cases {
         assert_eq!(err(p), want);
@@ -479,4 +492,58 @@ fn separate_parts_get_one_stl_each_and_one_3mf() {
     assert_eq!(files.len(), 1);
     assert_eq!(files[0].triangles, 24);
     assert!(files[0].path.ends_with("b.stl"));
+}
+
+#[test]
+fn the_solid_adds_its_grid_and_surface_to_the_memory_estimate() {
+    use crate::assets::model::{self, ModelOptions, ModelPreset};
+    const MB: u64 = 1_000_000;
+    let solid = |scale, res: f32, simplify: Option<u32>| PrintOptions {
+        solid: true,
+        scale,
+        solid_res_mm: res,
+        simplify_tris: simplify,
+        ..Default::default()
+    };
+    assert_eq!(PrintOptions::default().solid_memory(), 0);
+    // Skylark LOD 4 at 150 mm measured 407 MB (0.2 mm) and 1.15 GB (0.1 mm, coarsened).
+    let fine = solid(ScaleMode::FitMm(150.0), 0.2, None).solid_memory();
+    assert!((400 * MB..600 * MB).contains(&fine), "{fine}");
+    let finest = solid(ScaleMode::FitMm(150.0), 0.1, None).solid_memory();
+    assert!((1150 * MB..1700 * MB).contains(&finest), "{finest}");
+    // Capped at the cell budget: a bigger print at 0.1 mm needs no more.
+    assert_eq!(
+        solid(ScaleMode::FitMm(400.0), 0.1, None).solid_memory(),
+        finest
+    );
+    // A ratio's size is unknown before the export: the whole budget.
+    assert_eq!(
+        solid(ScaleMode::Ratio(100), 0.4, None).solid_memory(),
+        finest
+    );
+    // Shrink to bed: the bed's longest side.
+    let bed = PrintOptions {
+        shrink_to_bed: true,
+        bed_mm: [150.0, 100.0, 100.0],
+        ..solid(ScaleMode::None, 0.2, None)
+    };
+    assert_eq!(bed.solid_memory(), fine);
+    assert!(solid(ScaleMode::FitMm(150.0), 0.2, Some(200_000)).solid_memory() > fine);
+    // memory_need: on top of the Print shell estimate; nothing for Full.
+    let o = |preset, print| ModelOptions {
+        preset,
+        print,
+        ..Default::default()
+    };
+    let base = model::memory_need(&o(ModelPreset::PrintShell, PrintOptions::default()), "x");
+    let s = solid(ScaleMode::FitMm(150.0), 0.1, None);
+    assert_eq!(
+        model::memory_need(&o(ModelPreset::PrintShell, s.clone()), "x"),
+        base + finest
+    );
+    assert_eq!(
+        model::print_memory(&o(ModelPreset::Full, s)),
+        0,
+        "Full ignores print options"
+    );
 }

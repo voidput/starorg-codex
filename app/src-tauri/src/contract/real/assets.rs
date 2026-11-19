@@ -983,7 +983,8 @@ impl AssetBackend for RealBackend {
             let mut files = 1;
             let mut bytes = n;
             let mut notes = Vec::new();
-            if o.stl || o.three_mf {
+            if (o.stl || o.three_mf) && model::print_memory(&o) == 0 {
+                // A plain conversion (no voxel solid): cheap enough to do here.
                 let glb = std::fs::read(&hit).map_err(io)?;
                 let m = starorg_data::assets::print::write_meshes(&glb, &out, &o)
                     .map_err(|e| worker_error(&e.into()))?;
@@ -991,6 +992,40 @@ impl AssetBackend for RealBackend {
                 files += n;
                 bytes += len;
                 notes = m.notes;
+            } else if o.stl || o.three_mf {
+                // The voxel steps take seconds to minutes and GBs: a fresh worker under the
+                // memory cap, with progress and cancel, on the copy just made.
+                let _x = wait_lock(&self.dirs().extract_lock())?;
+                let w = self.spawn_asset(&ch, &key)?;
+                let r = self.asset_stream(
+                    &w,
+                    &ch.name,
+                    &format!("Processing model {name} for printing"),
+                    &AssetRequest::PrintModel {
+                        glb: out.clone(),
+                        options: o.clone(),
+                        out: out.clone(),
+                    },
+                    "%",
+                    progress,
+                );
+                w.stop();
+                drop(_x);
+                let d: model::PrintDone = serde_json::from_value(r?).map_err(internal)?;
+                let (n, len) = starorg_data::assets::print::files_bytes(&d.meshes);
+                files += n;
+                bytes += len;
+                notes = d.notes;
+                self.log(
+                    LogLevel::Info,
+                    Some(JobKind::Dev),
+                    Some(&ch.name),
+                    &format!(
+                        "Processed cached model {name} for printing ({} ms, peak memory {} MB)",
+                        d.ms,
+                        d.peak_rss.map(|b| b / 1_048_576).unwrap_or(0)
+                    ),
+                );
             }
             let mut r = export_result(Some(out.display().to_string()), files, bytes, true);
             r.note = print_note(&notes);

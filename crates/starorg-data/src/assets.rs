@@ -314,4 +314,4 @@ pub fn record_short_name(db: &Database<'static>, r: &Record) -> String {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

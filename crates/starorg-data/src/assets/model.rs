@@ -52,9 +52,20 @@ impl ModelPreset {
 
 /// The peak-memory estimate of one export of `name` (`starorg_core::memlimit::model_estimate`,
 /// from LIVE 4.10, addendum 7.16): a Print shell about 1.4 GB (an Idris 1.75 GB), Full about
-/// 6.4-6.9 GB (a Javelin), about 11 GB for capital ships (an Idris 10.9 GB).
+/// 6.4-6.9 GB (a Javelin), about 11 GB for capital ships (an Idris 10.9 GB); a Print shell's
+/// voxel solid on top ([`super::print::PrintOptions::solid_memory`], up to about 1.6 GB).
 pub fn memory_need(o: &ModelOptions, name: &str) -> u64 {
     starorg_core::memlimit::model_estimate(o.preset == ModelPreset::Full, o.lod, name)
+        + print_memory(o)
+}
+
+/// The print processing's share of [`memory_need`] (the voxel solid; 0 for Full).
+pub fn print_memory(o: &ModelOptions) -> u64 {
+    if o.preset == ModelPreset::PrintShell {
+        o.print.solid_memory()
+    } else {
+        0
+    }
 }
 
 /// The warning the CLI prints and the app shows before a Full export.
@@ -312,6 +323,52 @@ pub struct ModelDone {
     /// The LODs the entity's own mesh has ([`root_lods`]); empty when unknown.
     #[serde(default)]
     pub lods: Vec<u32>,
+}
+
+/// What [`print_model`] wrote.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct PrintDone {
+    /// The STL/3MF files written next to the GLB.
+    #[serde(default)]
+    pub meshes: Vec<super::print::MeshFile>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub notes: Vec<String>,
+    pub ms: u64,
+    /// Peak resident memory of the process (Linux), bytes.
+    pub peak_rss: Option<u64>,
+}
+
+/// The STL/3MF `o` asks for of an exported GLB (`glb`, e.g. a cached export copied to
+/// `out`), next to `out`, through the print pipeline. The app sends this to a fresh asset
+/// worker (progress, cancel, the memory cap) instead of running the voxel steps itself.
+pub fn print_model(
+    a: &AssetArchive,
+    glb: &Path,
+    o: &ModelOptions,
+    out: &Path,
+    progress: &(dyn Fn(f32, &str) -> bool + Sync),
+) -> AssetResult<PrintDone> {
+    a.check_out(out)?;
+    for x in super::print::mesh_outputs(out, o).into_iter().flatten() {
+        a.check_out(&x)?;
+    }
+    if o.preset == ModelPreset::PrintShell {
+        o.print.validate().map_err(AssetError::invalid)?;
+    }
+    let started = Instant::now();
+    if !progress(0.0, "Reading the GLB") {
+        return Err(AssetError::cancelled());
+    }
+    let bytes = std::fs::read(glb)
+        .map_err(|e| AssetError::invalid(format!("cannot read {}: {e}", glb.display())))?;
+    let m = super::print::write_meshes_with(&bytes, out, o, progress)?;
+    drop(bytes);
+    Ok(PrintDone {
+        meshes: m.files,
+        notes: m.notes,
+        ms: started.elapsed().as_millis() as u64,
+        peak_rss: peak_rss_bytes(),
+    })
 }
 
 /// Export `what` to `out` (via `out.part`). `progress(fraction, stage)` is called from the

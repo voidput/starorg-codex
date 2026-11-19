@@ -323,6 +323,16 @@ fn hollow_keeps_the_walls_and_drains_through_the_bottom() {
     let mut notes = Vec::new();
     hollow(&mut g, 2.0, 3.0, &mut notes, &all()).unwrap();
     assert!(notes[0].starts_with("Not hollowed"), "{notes:?}");
+    // A wall thinner than one voxel (asked below the resolution, or the grid coarsened past
+    // it) leaves the model whole instead of clearing it as one big cavity.
+    let mut t = Vec::new();
+    loose_box(&mut t, [0.0; 3], [30.0, 30.0, 20.0], 0.0);
+    let mut g = voxelize(&Mesh::from_triangles(&t), 0.4, &all()).unwrap();
+    let full = g.count_solid();
+    let mut notes = Vec::new();
+    hollow(&mut g, 0.3, 0.0, &mut notes, &all()).unwrap();
+    assert_eq!(g.count_solid(), full);
+    assert!(notes[0].contains("thinner than the"), "{notes:?}");
 }
 
 #[test]

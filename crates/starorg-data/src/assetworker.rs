@@ -10,7 +10,7 @@
 //!
 //! Requests ([`AssetRequest`]) and replies ([`Reply`]) are one line each; every request runs
 //! on its own thread under `catch_unwind`, so a long export still answers `status` and
-//! `cancel`. `extract`, `export-sounds` and `export-model` stream progress lines
+//! `cancel`. `extract`, `export-sounds`, `export-model` and `print-model` stream progress lines
 //! (`{"id":n,"ok":true,"progress":{"done":..,"total":..}}`) and run one at a time (`busy`).
 //! Model exports are sent to a fresh worker that the app stops afterwards, so their memory
 //! (hundreds of MB to GB for a capital ship) goes back to the OS at once.
@@ -103,6 +103,12 @@ pub enum AssetRequest {
     /// Streamed: an entity as GLB (and STL).
     ExportModel {
         what: String,
+        options: ModelOptions,
+        out: PathBuf,
+    },
+    /// Streamed: the STL/3MF of an exported GLB ([`model::print_model`]), next to `out`.
+    PrintModel {
+        glb: PathBuf,
         options: ModelOptions,
         out: PathBuf,
     },
@@ -469,6 +475,17 @@ impl Server {
             }
             !cancel.load(Ordering::SeqCst)
         };
+        // Model progress (fractions from the export's threads), in MODEL_STEPS.
+        let model_last = Mutex::new(Instant::now() - Duration::from_secs(1));
+        let tell = |f: f32, _stage: &str| {
+            let mut l = lock(&model_last);
+            if l.elapsed() >= Duration::from_millis(250) {
+                *l = Instant::now();
+                let done = ((f.clamp(0.0, 1.0) * MODEL_STEPS as f32) as u32).min(MODEL_STEPS - 1);
+                write_line(out, &progress_line(id, done, MODEL_STEPS));
+            }
+            !cancel.load(Ordering::SeqCst)
+        };
         match req {
             AssetRequest::Extract {
                 paths,
@@ -492,19 +509,16 @@ impl Server {
                 options,
                 out: path,
             } => {
-                let last = Mutex::new(Instant::now() - Duration::from_secs(1));
-                let tell = |f: f32, _stage: &str| {
-                    let mut l = lock(&last);
-                    if l.elapsed() >= Duration::from_millis(250) {
-                        *l = Instant::now();
-                        let done =
-                            ((f.clamp(0.0, 1.0) * MODEL_STEPS as f32) as u32).min(MODEL_STEPS - 1);
-                        write_line(out, &progress_line(id, done, MODEL_STEPS));
-                    }
-                    !cancel.load(Ordering::SeqCst)
-                };
                 write_line(out, &progress_line(id, 0, MODEL_STEPS));
                 to_value(model::export_model(a, what, options, path, &tell)?)
+            }
+            AssetRequest::PrintModel {
+                glb,
+                options,
+                out: path,
+            } => {
+                write_line(out, &progress_line(id, 0, MODEL_STEPS));
+                to_value(model::print_model(a, glb, options, path, &tell)?)
             }
             _ => Err(AssetError::invalid("not a streamed op")),
         }
@@ -534,7 +548,8 @@ impl Server {
             }
             req @ (AssetRequest::Extract { .. }
             | AssetRequest::ExportSounds { .. }
-            | AssetRequest::ExportModel { .. }) => {
+            | AssetRequest::ExportModel { .. }
+            | AssetRequest::PrintModel { .. }) => {
                 {
                     let mut n = lock(&self.running);
                     if *n > 0 {

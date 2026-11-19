@@ -135,7 +135,9 @@ Robust over pretty: the output is always a closed, consistently outward 2-manifo
 - **Hollow** (`hollow`): cavities are the solid eroded by the wall (a discrete ball, chained in
   4-voxel steps); cavities under 1 mm³ stay solid; each cavity drains through a vertical hole
   from its lowest point (nearest its centre) down through the bottom wall, plus a second for a
-  cavity wider than eight holes. The note lists cavities and hole positions.
+  cavity wider than eight holes. The note lists cavities and hole positions. A wall under
+  the solid resolution is refused (`validate`, `printProblem`); a wall under the voxel the
+  grid was coarsened to leaves the solid whole ("Not hollowed: ... thinner than the voxel").
 - **Pegs** (`peg`): per cut, a hole at the most solid point (2D distance transform) of each piece
   of the cut face (up to 4; a second on a large face), `depth` into each side; plus a stand
   hole into the underside nearest the x/y centre of mass with room. Every hole is clamped to
@@ -288,6 +290,13 @@ End to end (release, `dev export-model ... --preset print`, 32 threads, 2026-11-
   1.6 GB peak; 4 parts (70.4 x 108.9 x 51.2, 20.1 x 70.1 x 25.7, 103.4 x 109.2 x 57.0,
   53.3 x 104.3 x 41.6 mm; 1.26 M, 170 k, 2.00 M, 791 k triangles), each watertight and within
   the bed, side by side; 2 pin holes per cut.
+
+Memory and the app: `model::memory_need` adds `PrintOptions::solid_memory` (grid about 2
+bytes a cell from the fit size or bed at the resolution, capped at `CELL_BUDGET`; a ratio takes
+the whole budget; about 50 bytes a surface triangle, 250 with simplify) to the Print shell
+estimate. On a cached GLB the app converts in-process only without a solid; with one it sends
+`print-model` (the copied GLB) to a fresh asset worker, with progress, cancel and the memory
+cap (real: Skylark LOD 4 fit 80 solid 0.4 hollow 2,3 in a debug worker: 2.7 s, 958 MB peak).
 
 Open: exact glass needs material names (`MaterialMode::Colors`); multicolor with split gives
 separate objects per piece and group (no assembly per piece); the voxel solid is about half a

@@ -159,6 +159,43 @@ impl PrintOptions {
         *self == Self::default()
     }
 
+    /// Peak memory the voxel solid adds to an export, bytes (0 without `solid`). The grid is
+    /// sized from the print size (the fit size, else the bed's longest side with
+    /// `shrink_to_bed`; a 1:N ratio's size is unknown before the export, so the full
+    /// [`voxel::CELL_BUDGET`]), about a third of the cube of the longest side as a ship's
+    /// box, at `solid_res_mm`, capped at the budget. Per cell the grid and its bitsets take
+    /// about 2 bytes; the surface (about `12 * cells^(2/3)` triangles) takes about 50 bytes a
+    /// triangle to extract and 200 more to simplify. Real data (Skylark LOD 4, fit 150 mm):
+    /// 0.2 mm 407 MB measured / 444 MB estimated; 0.1 mm (coarsened to 0.13) 1.15 GB / 1.47 GB;
+    /// with simplify on top of the 1.2 GB GLB export, 2.3 GB / 2.3 GB.
+    pub fn solid_memory(&self) -> u64 {
+        if !self.solid {
+            return 0;
+        }
+        let bed = self.bed_mm.iter().copied().fold(0f32, f32::max);
+        let longest = match self.scale {
+            ScaleMode::FitMm(v) if self.shrink_to_bed => Some(v.min(bed)),
+            ScaleMode::FitMm(v) => Some(v),
+            ScaleMode::None if self.shrink_to_bed => Some(bed),
+            _ => None,
+        };
+        let budget = voxel::CELL_BUDGET as f64;
+        let cells = match longest {
+            Some(l) if l.is_finite() && l > 0.0 => {
+                let side = l as f64 / self.solid_res_mm.max(0.01) as f64;
+                (side * side * side / 3.0).min(budget)
+            }
+            _ => budget,
+        };
+        let tris = 12.0 * cells.powf(2.0 / 3.0);
+        let per_tri = if self.simplify_tris.is_some() {
+            250.0
+        } else {
+            50.0
+        };
+        (cells * 2.0 + tris * per_tri) as u64
+    }
+
     /// Refuse values out of range and options without the one they need. The messages name
     /// the CLI flags and read for the app too.
     pub fn validate(&self) -> Result<(), String> {
@@ -198,6 +235,12 @@ impl PrintOptions {
         if let Some(h) = self.hollow {
             if !positive(h.wall_mm) {
                 return Err(format!("hollow wall {} mm must be more than 0", h.wall_mm));
+            }
+            if h.wall_mm < self.solid_res_mm * 0.9999 {
+                return Err(format!(
+                    "hollow wall {} mm must be at least the solid resolution {} mm",
+                    h.wall_mm, self.solid_res_mm
+                ));
             }
             if !(h.drain_mm.is_finite() && h.drain_mm >= 0.0) {
                 return Err(format!(

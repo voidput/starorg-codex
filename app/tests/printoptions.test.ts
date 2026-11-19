@@ -37,6 +37,7 @@ test('options without the one they need are refused with the Rust wording', () =
     [{ scale: { mode: 'ratio', value: 0 } }, 'scale ratio must be 1 or more (1:N)'],
     [{ simplify_tris: 10 }, 'simplify to 10 triangles: at least 1000'],
     [{ drop_small_mm: 0 }, 'drop-small size 0 mm must be more than 0'],
+    [{ solid: true, scale: fit, solid_res_mm: 0.4, hollow: { wall_mm: 0.3, drain_mm: 0 } }, 'hollow wall 0.3 mm must be at least the solid resolution 0.4 mm'],
   ];
   for (const [p, want] of cases) assert.equal(printProblem({ ...d, ...p }), want, JSON.stringify(p));
 });

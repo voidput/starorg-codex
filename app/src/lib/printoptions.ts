@@ -76,6 +76,7 @@ export function printProblem(p: PrintOptions): string | null {
   if (p.thicken_mm !== null && !positive(p.thicken_mm)) return `thicken size ${num(p.thicken_mm)} mm must be more than 0`;
   if (p.hollow) {
     if (!positive(p.hollow.wall_mm)) return `hollow wall ${num(p.hollow.wall_mm)} mm must be more than 0`;
+    if (p.hollow.wall_mm < p.solid_res_mm * 0.9999) return `hollow wall ${num(p.hollow.wall_mm)} mm must be at least the solid resolution ${num(p.solid_res_mm)} mm`;
     if (!(Number.isFinite(p.hollow.drain_mm) && p.hollow.drain_mm >= 0)) return `drain hole ${num(p.hollow.drain_mm)} mm must be 0 (none) or more`;
   }
   if (p.peg_mm !== null && !oneOf(p.peg_mm, PEG_MM)) return `peg size ${num(p.peg_mm)} mm must be 3, 5 or 6`;

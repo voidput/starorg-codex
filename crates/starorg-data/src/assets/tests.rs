@@ -314,7 +314,7 @@ fn model_options_from_older_requests_have_no_paint() {
 
 /// A GLB with one triangle on a node translated by (0, 0, 5): the STL has it moved and
 /// turned Z-up.
-fn one_triangle_glb() -> Vec<u8> {
+pub(crate) fn one_triangle_glb() -> Vec<u8> {
     let mut bin = Vec::new();
     for v in [[0f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]] {
         for c in v {
