@@ -74,6 +74,8 @@ interface Samples {
   dev_tree_sections: T.TreePage;
   dev_tree_section: T.TreePage;
   dev_tree_models: T.TreePage;
+  dev_tree_folded: T.TreePage;
+  dev_list_folded: T.ListPage;
   dev_list: T.ListPage;
   dev_list_node: T.ListPage;
   dev_list_query: T.ListPage;

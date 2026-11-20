@@ -4277,7 +4277,7 @@
         "guid": "54000000-0000-4000-8000-000000000004",
         "kind": "NOITEM_Vehicle",
         "kind_label": "Vehicles",
-        "label": "Alpha Kestrel PU AI CIV",
+        "label": "Alpha Kestrel",
         "main": true,
         "maker_label": "Alpha Synthetics",
         "manufacturer": "SYNA",
@@ -4831,7 +4831,7 @@
         "guid": "54000000-0000-4000-8000-000000000004",
         "kind": "NOITEM_Vehicle",
         "kind_label": "Vehicles",
-        "label": "Alpha Kestrel PU AI CIV",
+        "label": "Alpha Kestrel",
         "main": true,
         "maker_label": "Alpha Synthetics",
         "manufacturer": "SYNA",
@@ -5445,6 +5445,431 @@
     "understood": [],
     "words": []
   },
+  "dev_list_folded": {
+    "facets": {
+      "changes": [],
+      "classes": [],
+      "grades": [],
+      "kinds": [
+        {
+          "count": 7,
+          "label": "Vehicles",
+          "value": "NOITEM_Vehicle"
+        },
+        {
+          "count": 1,
+          "label": "Paints",
+          "value": "Paints"
+        }
+      ],
+      "manufacturers": [
+        {
+          "count": 4,
+          "label": "Alpha Synthetics (SYNA)",
+          "value": "SYNA"
+        },
+        {
+          "count": 3,
+          "label": "Beta Works (SYNB)",
+          "value": "SYNB"
+        },
+        {
+          "count": 1,
+          "label": "Gamma Test Yards (SYNC)",
+          "value": "SYNC"
+        }
+      ],
+      "model": 7,
+      "player": 6,
+      "sections": [
+        {
+          "count": 8,
+          "label": "Ships & vehicles",
+          "value": "ships"
+        }
+      ],
+      "sizes": [
+        {
+          "count": 3,
+          "label": "S1",
+          "value": "1"
+        },
+        {
+          "count": 2,
+          "label": "S2",
+          "value": "2"
+        },
+        {
+          "count": 2,
+          "label": "S3",
+          "value": "3"
+        },
+        {
+          "count": 1,
+          "label": "S4",
+          "value": "4"
+        }
+      ],
+      "sounds": 6,
+      "sub_types": [
+        {
+          "count": 6,
+          "label": "Spaceships",
+          "value": "Vehicle_Spaceship"
+        },
+        {
+          "count": 1,
+          "label": "Ground vehicles",
+          "value": "Vehicle_GroundVehicle"
+        }
+      ],
+      "tags": []
+    },
+    "groups": [],
+    "items": [
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Kestrel",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000001",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Kestrel",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Kestrel",
+        "section": "ships",
+        "size": 2,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 2.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 32.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 180.0
+          }
+        ],
+        "sub_label": "Spaceships",
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false,
+        "variants": [
+          {
+            "guid": "54000000-0000-4000-8000-000000000004",
+            "main": true,
+            "name": "EntityClassDefinition.SYN_Alpha_Kestrel_PU_AI_CIV",
+            "short": "SYN_Alpha_Kestrel_PU_AI_CIV",
+            "variant": true
+          }
+        ]
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Alpha_Sparrow",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000000",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Alpha Sparrow",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Alpha_Sparrow",
+        "section": "ships",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 16.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 210.0
+          }
+        ],
+        "sub_label": "Spaceships",
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Beta_Hauler",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000002",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Beta Hauler",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Beta_Hauler",
+        "section": "ships",
+        "size": 3,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 48.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 150.0
+          }
+        ],
+        "sub_label": "Spaceships",
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Beta_Hauler_Template",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000005",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Beta Hauler Template",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": false,
+        "name": "EntityClassDefinition.SYN_Beta_Hauler_Template",
+        "section": "ships",
+        "size": 3,
+        "sounds": false,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 3.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 48.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 150.0
+          }
+        ],
+        "sub_label": "Spaceships",
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": true
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Beta_Rover",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000006",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Beta Rover",
+        "main": true,
+        "maker_label": "Beta Works",
+        "manufacturer": "SYNB",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Beta_Rover",
+        "section": "ships",
+        "size": 1,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 1.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 16.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 210.0
+          }
+        ],
+        "sub_label": "Ground vehicles",
+        "sub_type": "Vehicle_GroundVehicle",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Gamma_Carrier",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000003",
+        "kind": "NOITEM_Vehicle",
+        "kind_label": "Vehicles",
+        "label": "Gamma Carrier",
+        "main": true,
+        "maker_label": "Gamma Test Yards",
+        "manufacturer": "SYNC",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Gamma_Carrier",
+        "section": "ships",
+        "size": 4,
+        "sounds": true,
+        "stats": [
+          {
+            "key": "size",
+            "label": "Size",
+            "unit": null,
+            "value": 4.0
+          },
+          {
+            "key": "crew",
+            "label": "Crew",
+            "unit": null,
+            "value": 4.0
+          },
+          {
+            "key": "cargo",
+            "label": "Cargo",
+            "unit": "SCU",
+            "value": 64.0
+          },
+          {
+            "key": "scm",
+            "label": "SCM",
+            "unit": "m/s",
+            "value": 120.0
+          }
+        ],
+        "sub_label": "Spaceships",
+        "sub_type": "Vehicle_Spaceship",
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      },
+      {
+        "change": null,
+        "class": null,
+        "detail": "SYN_Kestrel_Ember_Livery",
+        "grade": null,
+        "group": null,
+        "guid": "54000000-0000-4000-8000-000000000007",
+        "kind": "Paints",
+        "kind_label": "Paints",
+        "label": "Kestrel Ember Livery",
+        "main": true,
+        "maker_label": "Alpha Synthetics",
+        "manufacturer": "SYNA",
+        "model": true,
+        "name": "EntityClassDefinition.SYN_Kestrel_Ember_Livery",
+        "section": "ships",
+        "size": 1,
+        "sounds": false,
+        "stats": [],
+        "sub_label": null,
+        "sub_type": null,
+        "tag": null,
+        "type": "EntityClassDefinition",
+        "variant": false
+      }
+    ],
+    "matched": 7,
+    "matching": "exact",
+    "offset": 0,
+    "title": "Ships & vehicles",
+    "total": 7,
+    "understood": [],
+    "words": []
+  },
   "dev_list_grouped": {
     "facets": {
       "changes": [],
@@ -5857,7 +6282,7 @@
         "guid": "54000000-0000-4000-8000-000000000004",
         "kind": "NOITEM_Vehicle",
         "kind_label": "Vehicles",
-        "label": "Alpha Kestrel PU AI CIV",
+        "label": "Alpha Kestrel",
         "main": true,
         "maker_label": "Alpha Synthetics",
         "manufacturer": "SYNA",
@@ -6303,7 +6728,7 @@
         "guid": "54000000-0000-4000-8000-000000000004",
         "kind": "NOITEM_Vehicle",
         "kind_label": "Vehicles",
-        "label": "Alpha Kestrel PU AI CIV",
+        "label": "Alpha Kestrel",
         "main": true,
         "maker_label": "Alpha Synthetics",
         "manufacturer": "SYNA",
@@ -8395,6 +8820,26 @@
     ],
     "offset": 0,
     "total": 14
+  },
+  "dev_tree_folded": {
+    "nodes": [
+      {
+        "count": 2,
+        "id": "r:54000000-0000-4000-8000-000000000001",
+        "kind": "record",
+        "label": "Alpha Kestrel",
+        "main": true
+      },
+      {
+        "count": 0,
+        "id": "r:54000000-0000-4000-8000-000000000000",
+        "kind": "record",
+        "label": "Alpha Sparrow",
+        "main": true
+      }
+    ],
+    "offset": 0,
+    "total": 2
   },
   "dev_tree_folder": {
     "nodes": [

@@ -60,7 +60,7 @@ test('recent searches: newest first, no duplicates, ten at most', () => {
 
 test('presets save by name, replace, delete', () => {
   const s = mem();
-  const p = { name: 'S1 military coolers', query: 'type:cooler', filters: { ...F.NO_FILTERS, sizes: [1], classes: ['Military'] }, sort: 'size' as const, group: 'manufacturer' as const, node: '' };
+  const p = { name: 'S1 military coolers', query: 'type:cooler', filters: { ...F.NO_FILTERS, sizes: [1], classes: ['Military'] }, sort: 'size' as const, group: 'manufacturer' as const, node: '', fold: false };
   F.savePreset(s, p);
   F.savePreset(s, { ...p, name: 'other' });
   F.savePreset(s, { ...p, query: 'type:cooler grade:a' });
@@ -69,6 +69,31 @@ test('presets save by name, replace, delete', () => {
   assert.equal(all[0]!.query, 'type:cooler grade:a');
   assert.deepEqual(F.deletePreset(s, 'other').map((x) => x.name), ['S1 military coolers']);
   assert.deepEqual(F.savePreset(s, { ...p, name: '  ' }).length, 1);
+});
+
+test('fold variants: kept by presets and history, on for older ones', () => {
+  const s = mem();
+  assert.equal(F.DEFAULT_VIEW.fold, true);
+  s.setItem('starorg.dev.finder.presets', JSON.stringify([{ name: 'old', query: '', filters: F.NO_FILTERS, sort: 'name', group: 'none', node: '' }]));
+  assert.equal(F.loadPresets(s)[0]!.fold, true);
+  F.savePreset(s, { ...F.loadPresets(s)[0]!, name: 'flat', fold: false });
+  assert.equal(F.loadPresets(s)[0]!.fold, false);
+  const old = JSON.stringify({ g: 'g-1', v: { mode: 'items', node: '', query: 'x' } });
+  assert.equal(F.decodeEntry(old).view!.fold, true);
+  assert.equal(F.decodeEntry(F.encodeEntry('g-1', { ...F.DEFAULT_VIEW, fold: false })).view!.fold, false);
+});
+
+test('the variant group of a folded row holds its representative and variants', () => {
+  const page = samples.dev_list_folded as ListPage;
+  const row = page.items.find((i) => Array.isArray(i.variants) && i.variants.length > 0)!;
+  const g = F.variantGroup(page.items, row.guid)!;
+  assert.equal(g.label, 'Alpha Kestrel');
+  assert.deepEqual(g.members.map((m) => [m.short, m.variant]), [['SYN_Alpha_Kestrel', false], ['SYN_Alpha_Kestrel_PU_AI_CIV', true]]);
+  assert.deepEqual(F.variantGroup(page.items, row.variants![0]!.guid), g, 'a variant finds its row');
+  const plain = page.items.find((i) => !i.variants)!;
+  assert.equal(F.variantGroup(page.items, plain.guid), null);
+  assert.equal(F.variantGroup(page.items, null), null);
+  assert.equal(F.variantGroup(page.items, 'nope'), null);
 });
 
 test('chips list every active filter and remove one at a time', () => {

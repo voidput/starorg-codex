@@ -191,6 +191,7 @@ fn the_worker_starts_answers_exports_and_stops() {
     let types = f
         .backend
         .dev_tree(DevTreeRequest {
+            fold_variants: false,
             player_only: false,
             target: live.clone(),
             root: TreeRoot::Type,
@@ -204,6 +205,7 @@ fn the_worker_starts_answers_exports_and_stops() {
     let items = f
         .backend
         .dev_tree(DevTreeRequest {
+            fold_variants: false,
             player_only: false,
             target: live.clone(),
             root: TreeRoot::Type,
@@ -456,6 +458,7 @@ fn the_worker_serves_sections_list_owner_and_compare() {
     let root = f
         .backend
         .dev_tree(DevTreeRequest {
+            fold_variants: false,
             player_only: true,
             target: live.clone(),
             root: TreeRoot::Section,

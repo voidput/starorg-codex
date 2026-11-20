@@ -883,3 +883,196 @@ fn a_picked_facet_value_stays_listed() {
         .expect("listed");
     assert_eq!(v.count, 0);
 }
+
+/// Avengers that read the same: the record names differ, the display names do not.
+fn avengers() -> (ExplorerIndex, SectionIndex) {
+    let ship = |i: usize, name: &str, display: &str, main: bool| {
+        let mut e = entry(
+            i,
+            name,
+            E,
+            &format!("entities/spaceships/{}.xml", name.to_lowercase()),
+        );
+        e.main = main;
+        (
+            e,
+            ent("NOITEM_Vehicle", "Vehicle_Spaceship", 2, "AEGS", display),
+        )
+    };
+    let rows = vec![
+        ship(1, "AEGS_Avenger_Titan_PU_AI", "Avenger Titan", true),
+        ship(2, "AEGS_Avenger_Titan_Template", "Avenger Titan", true),
+        ship(3, "AEGS_Avenger_Titan_Ext", "Avenger Titan", true),
+        ship(4, "AEGS_Avenger_Titan", "Avenger Titan", true),
+        ship(5, "AEGS_Avenger_Stalker_B", "Avenger Stalker", false),
+        ship(6, "AEGS_Avenger_Stalker_Long", "AVENGER stalker", true),
+        ship(7, "AEGS_Gladius", "Gladius", true),
+    ];
+    let (entries, facts): (Vec<_>, Vec<_>) = rows.into_iter().unzip();
+    let ix = ExplorerIndex::new(entries);
+    let facts: Vec<(u32, Facts)> = facts
+        .into_iter()
+        .enumerate()
+        .filter_map(|(i, f)| f.map(|f| (i as u32, f)))
+        .collect();
+    let si = SectionIndex::new(&ix, &facts, &|_| None);
+    (ix, si)
+}
+
+fn short(it: &ListItem) -> &str {
+    it.name.split_once('.').unwrap().1
+}
+
+#[test]
+fn folding_off_lists_every_record() {
+    let (ix, si) = avengers();
+    let page = si.list(
+        &ix,
+        &ListQuery {
+            limit: 500,
+            ..Default::default()
+        },
+    );
+    assert_eq!((page.total, page.matched), (7, 7));
+    assert!(page.items.iter().all(|i| i.variants.is_empty()));
+    // No `variants` key on the wire while empty.
+    let v = serde_json::to_value(&page.items[0]).unwrap();
+    assert!(v.get("variants").is_none());
+}
+
+#[test]
+fn folding_picks_the_player_record_and_lists_the_rest() {
+    let (ix, si) = avengers();
+    let q = |offset: u32, limit: u32| ListQuery {
+        fold_variants: true,
+        offset,
+        limit,
+        ..Default::default()
+    };
+    let page = si.list(&ix, &q(0, 500));
+    // One row per readable name, case-insensitively; totals count rows.
+    assert_eq!((page.total, page.matched), (3, 3));
+    let reps: Vec<_> = page.items.iter().map(short).collect();
+    assert_eq!(
+        reps,
+        [
+            "AEGS_Avenger_Stalker_Long",
+            "AEGS_Avenger_Titan",
+            "AEGS_Gladius"
+        ]
+    );
+    // A main record beats a shorter sub-record; the rest follow in the same order.
+    let stalker = &page.items[0];
+    let others: Vec<_> = stalker.variants.iter().map(|v| v.short.as_str()).collect();
+    assert_eq!(others, ["AEGS_Avenger_Stalker_B"]);
+    assert!(!stalker.variants[0].main);
+    let titan = &page.items[1];
+    let others: Vec<_> = titan.variants.iter().map(|v| v.short.as_str()).collect();
+    assert_eq!(
+        others,
+        [
+            "AEGS_Avenger_Titan_Ext",
+            "AEGS_Avenger_Titan_PU_AI",
+            "AEGS_Avenger_Titan_Template"
+        ]
+    );
+    assert_eq!(
+        titan.variants.iter().map(|v| v.variant).collect::<Vec<_>>(),
+        [false, true, true]
+    );
+    assert!(titan.variants[0].guid.starts_with("00000000-"));
+    assert!(titan.variants[0].name.starts_with("EntityClassDefinition."));
+    assert!(page.items[2].variants.is_empty());
+    // Facet counts stay per record.
+    assert_eq!(page.facets.sections[0].count, 7);
+    assert_eq!(page.facets.player, 5);
+    // Paging over folded rows.
+    let p2 = si.list(&ix, &q(1, 1));
+    assert_eq!((p2.total, p2.items.len()), (3, 1));
+    assert_eq!(short(&p2.items[0]), "AEGS_Avenger_Titan");
+    // Grouped headers count folded rows.
+    let g = si.list(
+        &ix,
+        &ListQuery {
+            group: ListGroup::Manufacturer,
+            ..q(0, 500)
+        },
+    );
+    assert_eq!(g.groups.iter().map(|h| h.count).sum::<u32>(), 3);
+    // Filters apply before folding: player-only leaves Titan's two real records.
+    let p = si.list(
+        &ix,
+        &ListQuery {
+            filters: Filters {
+                player_only: true,
+                ..Default::default()
+            },
+            ..q(0, 500)
+        },
+    );
+    let titan = p.items.iter().find(|i| i.label == "Avenger Titan").unwrap();
+    assert_eq!(titan.variants.len(), 1);
+    // A search that only one variant matches still finds the row, by its representative.
+    let s = si.list(
+        &ix,
+        &ListQuery {
+            query: "titan_template".into(),
+            ..q(0, 500)
+        },
+    );
+    assert_eq!(s.total, 1);
+    assert_eq!(short(&s.items[0]), "AEGS_Avenger_Titan_Template");
+    let s = si.list(
+        &ix,
+        &ListQuery {
+            query: "avenger titan".into(),
+            ..q(0, 500)
+        },
+    );
+    assert_eq!(s.total, 1);
+    assert_eq!(short(&s.items[0]), "AEGS_Avenger_Titan");
+    assert_eq!(s.items[0].variants.len(), 3);
+}
+
+#[test]
+fn folded_tree_leaves_count_their_records() {
+    let (ix, si) = avengers();
+    let mut node = root_id(&si, &ix, "Ships & vehicles");
+    let opts = |fold_variants| TreeOpts {
+        main_only: false,
+        player_only: false,
+        fold_variants,
+    };
+    let leaf = loop {
+        let page = si.tree_with(&ix, &node, 0, 500, opts(false));
+        match page.nodes.first() {
+            Some(n) if n.kind == NodeKind::Folder => node = n.id.clone(),
+            _ => break node,
+        }
+    };
+    let flat = si.tree_with(&ix, &leaf, 0, 500, opts(false));
+    assert_eq!(flat.total, 7);
+    assert!(flat.nodes.iter().all(|n| n.count == 0));
+    let folded = si.tree_with(&ix, &leaf, 0, 500, opts(true));
+    let got: Vec<_> = folded
+        .nodes
+        .iter()
+        .map(|n| (n.label.as_str(), n.count))
+        .collect();
+    assert_eq!(
+        got,
+        [("AVENGER stalker", 2), ("Avenger Titan", 4), ("Gladius", 0)]
+    );
+    assert_eq!(folded.total, 3);
+    // The leaf opens the representative.
+    let titan = ix
+        .by_guid(folded.nodes[1].id.trim_start_matches("r:"))
+        .unwrap();
+    assert_eq!(
+        ix.entries()[titan].name,
+        "EntityClassDefinition.AEGS_Avenger_Titan"
+    );
+    // Paging over folded leaves.
+    let p = si.tree_with(&ix, &leaf, 2, 1, opts(true));
+    assert_eq!((p.total, p.nodes.len()), (3, 1));
+}

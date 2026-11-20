@@ -1049,6 +1049,7 @@ impl DevBackend for RealBackend {
             limit: req.limit.min(MAX_PAGE as u32),
             main_only: req.main_only,
             player_only: req.player_only,
+            fold_variants: req.fold_variants,
         })
     }
 

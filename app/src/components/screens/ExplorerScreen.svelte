@@ -60,6 +60,8 @@
   // --- Mode and the item finder's view (7.17) ----------------------------------------------
   const store = F.storage();
   let view = $state<F.FinderView>({ ...F.DEFAULT_VIEW, mode: F.loadMode(store) });
+  // The finder's folded row of the open record, for the header's Variant picker.
+  let variantGroup = $state<F.VariantGroup | null>(null);
   let finderQuery = $state('');
   let trigger = $state<string | null>(null);
   let help = $state(false);
@@ -451,27 +453,48 @@
   let drawer = $state(false);
   let treeW = $state(280);
   let listW = $state(340);
+  // Items/Assets mode: the finder's width (the record pane takes the rest), kept per machine.
+  const FINDER_W = 'starorg.explorer.finderW';
+  let finderW = $state(readW(FINDER_W, 760));
+  function readW(k: string, d: number): number {
+    try {
+      const v = Number(localStorage.getItem(k));
+      return Number.isFinite(v) && v >= 200 ? v : d;
+    } catch {
+      return d;
+    }
+  }
+  function keepW(k: string, v: number) {
+    try {
+      localStorage.setItem(k, String(Math.round(v)));
+    } catch {
+      // Storage off: the width resets next start.
+    }
+  }
+  const clampFinder = (w: number) => Math.min(Math.max(480, winW - 380), Math.max(480, w));
   let rootEl = $state<HTMLElement | null>(null);
-  function resize(which: 'tree' | 'list', e: KeyboardEvent) {
+  function resize(which: 'tree' | 'list' | 'finder', e: KeyboardEvent) {
     const d = e.key === 'ArrowLeft' ? -16 : e.key === 'ArrowRight' ? 16 : 0;
     if (!d) return;
     e.preventDefault();
-    if (which === 'tree') treeW = Math.min(480, Math.max(200, treeW + d));
+    if (which === 'finder') keepW(FINDER_W, (finderW = clampFinder(finderW + d * 2)));
+    else if (which === 'tree') treeW = Math.min(480, Math.max(200, treeW + d));
     else listW = Math.min(560, Math.max(240, listW + d));
   }
-  let dragging: 'tree' | 'list' | null = null;
+  let dragging: 'tree' | 'list' | 'finder' | null = null;
   let dragX = 0;
   let dragW = 0;
-  function startDrag(which: 'tree' | 'list', e: PointerEvent) {
+  function startDrag(which: 'tree' | 'list' | 'finder', e: PointerEvent) {
     dragging = which;
     dragX = e.clientX;
-    dragW = which === 'tree' ? treeW : listW;
+    dragW = which === 'finder' ? finderW : which === 'tree' ? treeW : listW;
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
   function drag(e: PointerEvent) {
     if (!dragging) return;
     const w = dragW + e.clientX - dragX;
-    if (dragging === 'tree') treeW = Math.min(480, Math.max(200, w));
+    if (dragging === 'finder') finderW = clampFinder(w);
+    else if (dragging === 'tree') treeW = Math.min(480, Math.max(200, w));
     else listW = Math.min(560, Math.max(240, w));
   }
   function panes(): HTMLElement[] {
@@ -666,10 +689,15 @@
 
     <div class="relative flex min-h-0 flex-1 gap-0">
       {#if finding && target}
-        <div class="flex min-h-0 min-w-0 flex-[2] basis-0">
-          <ItemFinder {target} {ready} {narrow} {compared} bind:view bind:query={finderQuery} onremember={remember} selected={rec?.header.guid ?? null} selectedTrigger={trigger} onopen={(g) => void openRecord(g)} onopentrigger={(n) => (trigger = n)} />
+        <div class={cn('flex min-h-0 min-w-0', narrow ? 'flex-[2] basis-0' : 'shrink-0')} style={narrow ? undefined : `width: ${clampFinder(finderW)}px`}>
+          <ItemFinder {target} {ready} {narrow} {compared} bind:view bind:query={finderQuery} bind:variants={variantGroup} onremember={remember} selected={rec?.header.guid ?? null} selectedTrigger={trigger} onopen={(g) => void openRecord(g)} onopentrigger={(n) => (trigger = n)} />
         </div>
-        <div class="w-2 shrink-0"></div>
+        {#if narrow}
+          <div class="w-2 shrink-0"></div>
+        {:else}
+          <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+          <div role="separator" aria-orientation="vertical" aria-label="Resize item list" aria-valuenow={clampFinder(finderW)} aria-valuemin={480} tabindex="0" class="hover:bg-primary/40 focus-visible:bg-primary/60 mx-1 w-1.5 shrink-0 cursor-col-resize rounded outline-none" onkeydown={(e) => resize('finder', e)} onpointerdown={(e) => startDrag('finder', e)} onpointermove={drag} onpointerup={() => { dragging = null; keepW(FINDER_W, finderW); }}></div>
+        {/if}
       {:else}
       {#if !narrow}
         <aside data-pane="tree" class="bg-card flex shrink-0 flex-col overflow-hidden rounded-lg border" style="width: {treeW}px" aria-label="Record tree">
@@ -773,6 +801,13 @@
                 <h2 class="mono min-w-0 flex-1 basis-56 truncate text-[13.5px] font-semibold" title={h.name}>{h.name}</h2>
               {/if}
               {#if recLoading}<LoaderCircle class="text-muted-foreground size-4 animate-spin motion-reduce:animate-none" aria-hidden="true" />{/if}
+              {#if finding && variantGroup && Array.isArray(variantGroup.members) && variantGroup.members.some((m) => m.guid === h.guid)}
+                <label class="text-muted-foreground flex items-center gap-1 text-[11.5px]" title="Records that read as {variantGroup.label}">Variant
+                  <select class="border-input bg-background text-foreground mono h-6 max-w-[16rem] rounded-md border px-1 text-[11.5px]" value={h.guid} onchange={(e) => void openRecord(e.currentTarget.value)}>
+                    {#each variantGroup.members as m (m.guid)}<option value={m.guid}>{m.short}{m.variant ? ' (AI/test)' : ''}</option>{/each}
+                  </select>
+                </label>
+              {/if}
               <div class="flex flex-wrap gap-1.5">
                 <ShowIdsToggle size="xs" />
                 <Button variant="outline" size="xs" onclick={() => void exportRecord()}><Download aria-hidden="true" /> Export record…</Button>

@@ -188,6 +188,9 @@ pub enum Request {
         /// Sections view: hide AI, NPC, test and template variants (7.17).
         #[serde(default)]
         player_only: bool,
+        /// Sections view: one record leaf per readable name.
+        #[serde(default)]
+        fold_variants: bool,
     },
     /// The filtered, grouped record list with facet counts (7.17).
     List(Box<ListQuery>),
@@ -257,10 +260,13 @@ pub struct ReplyError {
     pub message: String,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ExportProgress {
     pub done: u32,
     pub total: u32,
+    /// What the job is doing now (model exports: "Simplifying", ...).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stage: Option<String>,
 }
 
 /// One reply line. Exactly one of `result`, `error`, `progress` is set.
@@ -815,13 +821,17 @@ impl<'d, 'a> Session<'d, 'a> {
                 limit,
                 main_only,
                 player_only,
-            } => to(serde_json::to_value(self.sections.tree(
+                fold_variants,
+            } => to(serde_json::to_value(self.sections.tree_with(
                 ix,
                 node,
                 *offset as usize,
                 (*limit as usize).min(MAX_PAGE),
-                *main_only,
-                *player_only,
+                sections::TreeOpts {
+                    main_only: *main_only,
+                    player_only: *player_only,
+                    fold_variants: *fold_variants,
+                },
             ))),
             Request::List(q) => {
                 let q = q.clone();
@@ -1018,7 +1028,11 @@ where
                                     ok: true,
                                     result: None,
                                     error: None,
-                                    progress: Some(ExportProgress { done: 0, total }),
+                                    progress: Some(ExportProgress {
+                                        done: 0,
+                                        total,
+                                        stage: None,
+                                    }),
                                 },
                             )?;
                             job = Some((id, x, 0));
@@ -1042,7 +1056,16 @@ where
             if tell {
                 *last = done;
             }
-            (*id, r, tell, ExportProgress { done, total })
+            (
+                *id,
+                r,
+                tell,
+                ExportProgress {
+                    done,
+                    total,
+                    stage: None,
+                },
+            )
         });
         match stepped {
             None => {}

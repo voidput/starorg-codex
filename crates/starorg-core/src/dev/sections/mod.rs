@@ -121,6 +121,10 @@ pub struct ListQuery {
     pub offset: u32,
     pub limit: u32,
     pub main_only: bool,
+    /// Fold records that read the same in one section (`Aegis Avenger Titan` and its AI,
+    /// PU and template copies) into one row: the representative carries the others in
+    /// [`ListItem::variants`] (see [`SectionIndex::list`] for the counts).
+    pub fold_variants: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -159,6 +163,36 @@ pub struct ListItem {
     /// Headline numbers from the build's GameData (filled by the app, 7.17).
     #[serde(default)]
     pub stats: Vec<Stat>,
+    /// With [`ListQuery::fold_variants`]: the other records folded into this row, the
+    /// likeliest player item first (at most [`MAX_VARIANTS`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub variants: Vec<VariantRef>,
+}
+
+/// A record folded into a list row (same section and readable name).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct VariantRef {
+    pub guid: String,
+    /// The record name (`EntityClassDefinition.AEGS_Avenger_Titan_PU_AI`).
+    pub name: String,
+    /// The short name (`AEGS_Avenger_Titan_PU_AI`).
+    pub short: String,
+    pub variant: bool,
+    pub main: bool,
+}
+
+/// Most variants listed per folded row.
+pub const MAX_VARIANTS: usize = 64;
+
+/// Options of the Sections tree ([`SectionIndex::tree_with`]).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct TreeOpts {
+    pub main_only: bool,
+    /// Hide AI, NPC, test and template variants.
+    pub player_only: bool,
+    /// One record leaf per readable name; its `count` is how many records it stands for
+    /// (0 when only itself).
+    pub fold_variants: bool,
 }
 
 /// One headline number of a list row (`DPS 412`, `SCM 220 m/s`).
@@ -799,7 +833,24 @@ impl SectionIndex {
         main_only: bool,
         player_only: bool,
     ) -> TreePage {
-        let all = self.children(ix, node, main_only, player_only);
+        let opts = TreeOpts {
+            main_only,
+            player_only,
+            fold_variants: false,
+        };
+        self.tree_with(ix, node, offset, limit, opts)
+    }
+
+    /// [`Self::tree`] with every option, folding included.
+    pub fn tree_with(
+        &self,
+        ix: &ExplorerIndex,
+        node: &str,
+        offset: usize,
+        limit: usize,
+        opts: TreeOpts,
+    ) -> TreePage {
+        let all = self.children(ix, node, opts);
         let total = all.len();
         TreePage {
             nodes: all
@@ -812,17 +863,11 @@ impl SectionIndex {
         }
     }
 
-    fn children(
-        &self,
-        ix: &ExplorerIndex,
-        node: &str,
-        main_only: bool,
-        player_only: bool,
-    ) -> Vec<TreeNode> {
+    fn children(&self, ix: &ExplorerIndex, node: &str, opts: TreeOpts) -> Vec<TreeNode> {
         let Some(mut n) = Self::parse(node).filter(|_| self.covers(ix)) else {
             return vec![];
         };
-        let ok = |i: usize| self.base_ok(ix, i, main_only, player_only);
+        let ok = |i: usize| self.base_ok(ix, i, opts.main_only, opts.player_only);
         let group = |id: String, label: String, count: usize, kind: NodeKind| TreeNode {
             id,
             label,
@@ -875,19 +920,24 @@ impl SectionIndex {
             n.keys.push(None);
         }
         if n.keys.len() >= levels.len() {
-            return members
-                .into_iter()
-                .map(|i| {
-                    let e = &ix.entries()[i];
-                    TreeNode {
-                        id: format!("r:{}", e.guid),
-                        label: self.label(ix, i).to_string(),
-                        kind: NodeKind::Record,
-                        count: 0,
-                        main: e.main,
-                    }
-                })
-                .collect();
+            let leaf = |i: usize, count: usize| {
+                let e = &ix.entries()[i];
+                TreeNode {
+                    id: format!("r:{}", e.guid),
+                    label: self.label(ix, i).to_string(),
+                    kind: NodeKind::Record,
+                    count: count as u32,
+                    main: e.main,
+                }
+            };
+            if opts.fold_variants {
+                return self
+                    .fold(ix, members.into_iter().map(|i| ((), i)))
+                    .into_iter()
+                    .map(|(_, m)| leaf(m[0], if m.len() > 1 { m.len() } else { 0 }))
+                    .collect();
+            }
+            return members.into_iter().map(|i| leaf(i, 0)).collect();
         }
         let level = levels[n.keys.len()];
         let mut groups: Vec<(Option<String>, usize)> = Vec::new();
@@ -1137,7 +1187,61 @@ impl SectionIndex {
         }
     }
 
+    /// Records grouped by (section, readable name compared case-insensitively), in order of
+    /// first appearance, each group's rank its best member's and its members in
+    /// representative order: a main non-variant record first, then any non-variant, then
+    /// the shortest record name, then name order. A record without a label stays alone.
+    fn fold<R: Ord + Copy>(
+        &self,
+        ix: &ExplorerIndex,
+        items: impl IntoIterator<Item = (R, usize)>,
+    ) -> Vec<(R, Vec<usize>)> {
+        let mut at: HashMap<(u8, String), usize> = HashMap::new();
+        let mut groups: Vec<(R, Vec<usize>)> = Vec::new();
+        for (rank, i) in items {
+            let label = self.label(ix, i).to_lowercase();
+            let key = (!label.is_empty()).then(|| (self.recs[i].section, label));
+            match key.as_ref().and_then(|k| at.get(k)) {
+                Some(&g) => {
+                    groups[g].0 = groups[g].0.min(rank);
+                    groups[g].1.push(i);
+                }
+                None => {
+                    if let Some(k) = key {
+                        at.insert(k, groups.len());
+                    }
+                    groups.push((rank, vec![i]));
+                }
+            }
+        }
+        for g in &mut groups {
+            if g.1.len() > 1 {
+                g.1.sort_by_cached_key(|&i| {
+                    let e = &ix.entries()[i];
+                    let variant = self.is_variant(i);
+                    (!(e.main && !variant), variant, e.name.len(), e.name.clone())
+                });
+            }
+        }
+        groups
+    }
+
+    fn variant_ref(&self, ix: &ExplorerIndex, i: usize) -> VariantRef {
+        let e = &ix.entries()[i];
+        VariantRef {
+            guid: e.guid.clone(),
+            name: e.name.clone(),
+            short: short_of(&e.name).to_string(),
+            variant: self.is_variant(i),
+            main: e.main,
+        }
+    }
+
     /// The filtered, sorted (and optionally grouped) record list with facet counts.
+    ///
+    /// With [`ListQuery::fold_variants`] the facet counts stay per record (what picking a
+    /// value would match), while the rows, `total`, `matched` and the group header counts
+    /// are folded rows.
     pub fn list(&self, ix: &ExplorerIndex, q: &ListQuery) -> ListPage {
         let pq = parse_query(&q.query);
         let empty = |title: String| ListPage {
@@ -1323,6 +1427,22 @@ impl SectionIndex {
             }
         }
         let (mut hits, counts, flags, change_counts, _) = found.expect("one mode");
+        // Folding happens after the filters, so a group holds only matching records; it
+        // ranks by its best member.
+        let mut folded: HashMap<usize, Vec<usize>> = HashMap::new();
+        if q.fold_variants {
+            hits = self
+                .fold(ix, hits)
+                .into_iter()
+                .map(|(rank, mut m)| {
+                    let rep = m.remove(0);
+                    if !m.is_empty() {
+                        folded.insert(rep, m);
+                    }
+                    (rank, rep)
+                })
+                .collect();
+        }
         let size_of = |i: usize| {
             let s = self.recs[i].size;
             if s == NO_SIZE { i64::MAX } else { i64::from(s) }
@@ -1493,6 +1613,13 @@ impl SectionIndex {
             .map(|(k, (_, i))| {
                 let mut it = self.item(ix, i);
                 it.group = keyed.get(k).cloned().flatten();
+                if let Some(m) = folded.get(&i) {
+                    it.variants = m
+                        .iter()
+                        .take(MAX_VARIANTS)
+                        .map(|&j| self.variant_ref(ix, j))
+                        .collect();
+                }
                 it
             })
             .collect();
@@ -1550,6 +1677,7 @@ impl SectionIndex {
             group: None,
             change: self.change(i).map(|c| c.id().to_string()),
             stats: Vec::new(),
+            variants: Vec::new(),
         }
     }
 }

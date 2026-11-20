@@ -3,7 +3,8 @@
  * search, filters, sort, grouping) and how it rides in the record history so Back/Forward
  * restores it; filters remembered per section, saved presets and recent searches in the
  * viewer's local storage (every access guarded: storage can be missing or blocked); active
- * filter chips; search-word highlighting; the stat columns of a page.
+ * filter chips; search-word highlighting; the stat columns of a page; the variants of a
+ * folded row.
  */
 import type { Filters, ListGroup, ListItem, SortKey, Stat } from './contract/dev';
 
@@ -22,9 +23,11 @@ export interface FinderView {
   collapsed: string[];
   /** Assets mode: search sound events (ATL triggers) instead of records. */
   sounds: boolean;
+  /** One row (and tree leaf) per readable name in a section; the AI, PU and template copies ride along as variants. */
+  fold: boolean;
 }
 
-export const DEFAULT_VIEW: FinderView = { mode: 'items', node: '', query: '', filters: NO_FILTERS, sort: 'name', group: 'none', collapsed: [], sounds: false };
+export const DEFAULT_VIEW: FinderView = { mode: 'items', node: '', query: '', filters: NO_FILTERS, sort: 'name', group: 'none', collapsed: [], sounds: false, fold: true };
 
 const KEY = 'starorg.dev.finder';
 export const MAX_RECENT = 10;
@@ -114,6 +117,8 @@ export interface Preset {
   sort: SortKey;
   group: ListGroup;
   node: string;
+  /** Fold variants; presets saved before it existed fold. */
+  fold: boolean;
 }
 
 export function loadPresets(s: Storage | null): Preset[] {
@@ -121,7 +126,7 @@ export function loadPresets(s: Storage | null): Preset[] {
   if (!Array.isArray(v)) return [];
   return v
     .filter((p): p is Preset => !!p && typeof p === 'object' && typeof (p as Preset).name === 'string')
-    .map((p) => ({ name: p.name, query: String(p.query ?? ''), filters: fullFilters(p.filters), sort: p.sort ?? 'name', group: p.group ?? 'none', node: String(p.node ?? '') }))
+    .map((p) => ({ name: p.name, query: String(p.query ?? ''), filters: fullFilters(p.filters), sort: p.sort ?? 'name', group: p.group ?? 'none', node: String(p.node ?? ''), fold: typeof p.fold === 'boolean' ? p.fold : true }))
     .slice(0, MAX_PRESETS);
 }
 
@@ -248,6 +253,29 @@ export function statText(s: Stat | undefined): string {
   return s.unit ? `${v} ${s.unit}` : v;
 }
 
+/** The records of one folded row, for the record header's Variant picker. */
+export interface VariantGroup {
+  label: string;
+  /** The representative first, then its variants in the worker's order. */
+  members: { guid: string; short: string; variant: boolean }[];
+}
+
+const shortOf = (name: string) => {
+  const d = name.indexOf('.');
+  return d >= 0 ? name.slice(d + 1) : name;
+};
+
+/** The folded row of the list that holds `guid` (as representative or variant); null when none does or the row has no variants. */
+export function variantGroup(items: ListItem[], guid: string | null): VariantGroup | null {
+  if (!guid || !Array.isArray(items)) return null;
+  for (const it of items) {
+    const vs = Array.isArray(it.variants) ? it.variants : [];
+    if (vs.length === 0 || (it.guid !== guid && !vs.some((v) => v.guid === guid))) continue;
+    return { label: it.label, members: [{ guid: it.guid, short: shortOf(it.name), variant: it.variant }, ...vs.map((v) => ({ guid: v.guid, short: v.short, variant: v.variant }))] };
+  }
+  return null;
+}
+
 /** A record-history entry: the record and the finder view it was opened from. */
 export function encodeEntry(guid: string, view: FinderView | null): string {
   return view ? JSON.stringify({ g: guid, v: view }) : guid;
@@ -266,6 +294,7 @@ export function decodeEntry(x: string): { guid: string; view: FinderView | null 
           mode: v.mode === 'assets' || v.mode === 'raw' ? v.mode : 'items',
           filters: fullFilters(v.filters),
           collapsed: Array.isArray(v.collapsed) ? v.collapsed.filter((c): c is string => typeof c === 'string') : [],
+          fold: typeof v.fold === 'boolean' ? v.fold : true,
         }
       : null;
     return { guid: o.g, view };
