@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.0](https://github.com/voidput/starorg-codex/compare/v1.2.0...v1.3.0) (2026-11-20)
+
+
+### Features
+
+* **dev:** published LIVE builds for Diff; apply reads Data.p4k only ([#42](https://github.com/voidput/starorg-codex/issues/42)) ([f855898](https://github.com/voidput/starorg-codex/commit/f85589845c295452ef7a777f580412382a2e6f57))
+* **model:** 3MF export + experimental 3D-print options ([#43](https://github.com/voidput/starorg-codex/issues/43)) ([799c383](https://github.com/voidput/starorg-codex/commit/799c38322423dac7643e013c4cbc47e88d0ba438))
+
 ## [1.2.0](https://github.com/voidput/starorg-codex/compare/v1.1.0...v1.2.0) (2026-11-17)
 
 
