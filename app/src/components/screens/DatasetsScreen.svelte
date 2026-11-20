@@ -1,7 +1,9 @@
 <script lang="ts">
   /**
    * Datasets (addendum 7.5, 7.8): sources (this build's GameData, local folders of `*.json`,
-   * the published dump behind Settings > Network) and their datasets on the left; the picked
+   * downloaded published LIVE builds) and their datasets on the left, with "Published LIVE
+   * builds" below them (addendum §1, Diff only: Download while Settings > Network > "Download
+   * published LIVE builds for Diff" is on; downloaded builds stay usable with it off); the picked
    * table as a virtualised grid (pages of 200) with search, column filters (value chips, min/max,
    * "has a value"), sort and a column picker remembered per dataset and table; a detail sheet
    * with the row's JSON tree, its loc text and "Open in Explorer" links. Cells that hold ids
@@ -14,6 +16,7 @@
   import { tick, untrack } from 'svelte';
   import Search from '@lucide/svelte/icons/search';
   import FolderPlus from '@lucide/svelte/icons/folder-plus';
+  import Download from '@lucide/svelte/icons/download';
   import Trash from '@lucide/svelte/icons/trash-2';
   import Columns from '@lucide/svelte/icons/columns-3';
   import Funnel from '@lucide/svelte/icons/funnel';
@@ -34,18 +37,19 @@
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
+  import JobProgress from '@/components/common/JobProgress.svelte';
   import Sheet from '@/components/common/Sheet.svelte';
   import JsonTree from '@/components/dev/JsonTree.svelte';
   import ReadableValue from '@/components/dev/ReadableValue.svelte';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
-  import { devApi, type Column, type DatasetInfo, type DevRowDetail, type DevSource, type GroupPage, type Row, type RowFilter, type RowSort, type TableInfo } from '@/lib/contract/dev';
+  import { devApi, type Column, type DatasetInfo, type DevRowDetail, type DevSource, type DumpRelease, type GroupPage, type Row, type RowFilter, type RowSort, type TableInfo } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { bytes } from '@/lib/devnav';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
   import { numberCell } from '@/lib/readable';
   import { toast } from '@/lib/stores/toast.svelte';
-  import { int } from '@/lib/format';
+  import { fmtDate, int } from '@/lib/format';
   import { cn } from '@/lib/utils';
 
   const ROW = 32;
@@ -84,6 +88,53 @@
     if (!target) return;
     await loadSources(() => devApi.removeSource({ target: $state.snapshot(target!), source: id }));
     if (pick?.source === id) pick = null;
+    if (id.startsWith('dump:')) void loadReleases();
+  }
+
+  // --- Published LIVE builds (addendum §1, Diff only) -------------------------------------
+  const dumpsOn = $derived(!!app.settings?.network.published_dumps);
+  let releases = $state<DumpRelease[]>([]);
+  let relError = $state<ContractError | null>(null);
+  /** GitHub could not be asked: the downloaded builds are listed, with this reason above them. */
+  let relNote = $state<string | null>(null);
+  let relLoading = $state(true);
+  let downloading = $state<string | null>(null);
+  async function loadReleases() {
+    if (!target) return;
+    relLoading = true;
+    try {
+      const r = await devApi.dumpReleases($state.snapshot(target));
+      releases = Array.isArray(r?.releases) ? r.releases : [];
+      relNote = r?.error ?? null;
+      relError = null;
+    } catch (e) {
+      relError = toContractError(e);
+    } finally {
+      relLoading = false;
+    }
+  }
+  $effect(() => {
+    void tkey;
+    void dumpsOn;
+    untrack(() => void loadReleases());
+  });
+  async function download(tag: string) {
+    if (!target || downloading) return;
+    downloading = tag;
+    try {
+      const next = await devApi.downloadDump({ target: $state.snapshot(target), tag });
+      if (Array.isArray(next)) sources = next;
+      toast('success', `Downloaded LIVE ${tag}`, 'Pick it as A or B on the Diff screen.');
+    } catch (e) {
+      toast('error', `Could not download LIVE ${tag}`, toContractError(e).message);
+    } finally {
+      downloading = null;
+      void loadReleases();
+    }
+  }
+  function networkSettings() {
+    app.settingsSection = 'network';
+    app.go('settings');
   }
 
   // --- The picked dataset and table ------------------------------------------------------
@@ -520,6 +571,8 @@
                   <ToneBadge tone={stateTone[s.state]} label={stateLabel[s.state]} />
                   {#if s.kind === 'folder'}
                     <Button variant="ghost" size="icon-xs" aria-label="Remove {s.label}" title="Remove from the list (the folder stays)" onclick={() => void removeSource(s.id)}><Trash aria-hidden="true" /></Button>
+                  {:else if s.kind === 'dump'}
+                    <Button variant="ghost" size="icon-xs" aria-label="Delete {s.label}" title="Delete the downloaded copy from this computer" onclick={() => void removeSource(s.id)}><Trash aria-hidden="true" /></Button>
                   {/if}
                 </div>
                 {#if s.state !== 'ready' && s.detail}
@@ -545,6 +598,51 @@
             {/each}
           </ul>
         {/if}
+        <section class="mt-3 grid gap-1 border-t pt-2" aria-labelledby="dump-head">
+          <div class="flex items-center gap-1.5 px-1.5">
+            <h3 id="dump-head" class="eyebrow text-muted-foreground flex-1">Published LIVE builds</h3>
+            {#if !dumpsOn}<ToneBadge tone="muted" label="Off" hint="Settings > Network" />{/if}
+          </div>
+          {#if !dumpsOn}
+            <p class="text-muted-foreground px-1.5 text-[11.5px]">
+              Off (<button type="button" class="hover:text-foreground underline underline-offset-2" onclick={networkSettings}>Settings &gt; Network</button>). Turn on "Download published LIVE builds for Diff" to compare old and new LIVE builds. Downloaded builds stay usable.
+            </p>
+          {:else}
+            <p class="text-muted-foreground px-1.5 text-[11.5px]">Past LIVE builds from github.com/voidput/sc-gamedata-dumps, for Diff only. Checked by checksum.</p>
+          {/if}
+          {#if downloading && app.job?.kind === 'dev'}<JobProgress job={app.job} compact class="px-1.5" />{/if}
+          {#if relLoading && !releases.length}
+            <Skeleton class="mx-1.5 h-6" />
+          {:else if relError}
+            <ErrorState title="Could not list the published builds" error={relError} onretry={() => void loadReleases()} />
+          {:else}
+            {#if relNote && dumpsOn}
+              <p class="text-warning px-1.5 text-[11.5px]" role="status">{relNote}</p>
+            {/if}
+            {#if releases.length}
+              <ul class="grid gap-0.5">
+                {#each releases as r (r.tag)}
+                  <li class="flex items-center gap-1.5 rounded-md px-1.5 py-0.5">
+                    <span class="min-w-0 flex-1">
+                      <span class="mono block truncate text-[12px]" title={r.title}>LIVE {r.tag}</span>
+                      <span class="text-muted-foreground block truncate text-[10.5px]">{r.branch ?? r.title}{r.published ? ` · ${fmtDate(r.published)}` : ''}</span>
+                    </span>
+                    {#if r.cached}
+                      <ToneBadge tone="success" label="Downloaded" />
+                      <Button variant="ghost" size="icon-xs" aria-label="Delete LIVE {r.tag}" title="Delete the downloaded copy from this computer" onclick={() => void removeSource(`dump:${r.tag}`)}><Trash aria-hidden="true" /></Button>
+                    {:else if dumpsOn}
+                      <Button variant="outline" size="xs" disabled={downloading !== null} aria-label="Download LIVE {r.tag}" onclick={() => void download(r.tag)}>
+                        <Download aria-hidden="true" /> {downloading === r.tag ? 'Downloading…' : 'Download'}
+                      </Button>
+                    {/if}
+                  </li>
+                {/each}
+              </ul>
+            {:else if dumpsOn && !relNote}
+              <p class="text-muted-foreground px-1.5 text-[11.5px]">No published LIVE build found.</p>
+            {/if}
+          {/if}
+        </section>
       </div>
     </aside>
 

@@ -4,14 +4,13 @@
  */
 import { ACK_LABEL, ackKey, foreignOf, type ForeignChannel } from '../../lib/foreign.ts';
 export { ackKey };
-import type { SetupPlan, ChannelSummary, DataSource, InstallSummary, Preset, Settings, SetupRequest, Theme } from '@/lib/contract/types';
+import type { SetupPlan, ChannelSummary, InstallSummary, Preset, Settings, SetupRequest, Theme } from '@/lib/contract/types';
 
-export type StepId = 'install' | 'channels' | 'source' | 'enhancements' | 'prefs' | 'review' | 'apply';
+export type StepId = 'install' | 'channels' | 'enhancements' | 'prefs' | 'review' | 'apply';
 
 export const STEPS: { id: StepId; title: string; short: string }[] = [
   { id: 'install', title: 'Find your game', short: 'Game' },
   { id: 'channels', title: 'Choose channels', short: 'Channels' },
-  { id: 'source', title: 'Game data source', short: 'Data' },
   { id: 'enhancements', title: 'Pick enhancements', short: 'Enhancements' },
   { id: 'prefs', title: 'Preferences', short: 'Preferences' },
   { id: 'review', title: 'Review', short: 'Review' },
@@ -27,7 +26,6 @@ export interface ChannelChoice {
 export interface Draft {
   install: string | null;
   channels: Record<string, ChannelChoice>;
-  data_source: DataSource;
   preset: Preset;
   fix_known_bugs: boolean;
   /** App settings asked in setup; null until seeded from the saved Settings (or the defaults). */
@@ -40,15 +38,25 @@ export interface Draft {
 }
 
 const KEY = 'starorg:setup-draft';
+/** Index the removed "Game data source" step had (after Channels). */
+const LEGACY_SOURCE_STEP = 2;
 
 export function emptyDraft(): Draft {
-  return { install: null, channels: {}, data_source: 'local', preset: 'recommended', fix_known_bugs: true, prefs: null, reached: 0, replace_ack: null };
+  return { install: null, channels: {}, preset: 'recommended', fix_known_bugs: true, prefs: null, reached: 0, replace_ack: null };
 }
 
 export function loadDraft(): Draft | null {
   try {
     const s = localStorage.getItem(KEY);
-    return s ? { ...emptyDraft(), ...(JSON.parse(s) as Partial<Draft>), replace_ack: null } : null;
+    if (!s) return null;
+    const saved = JSON.parse(s) as Partial<Draft> & { data_source?: unknown };
+    // A draft saved before the "Game data source" step was removed (2026-11-17; game data is
+    // always read on this computer): the steps after it moved up by one.
+    if ('data_source' in saved) {
+      delete saved.data_source;
+      if (typeof saved.reached === 'number' && saved.reached > LEGACY_SOURCE_STEP) saved.reached -= 1;
+    }
+    return { ...emptyDraft(), ...saved, replace_ack: null };
   } catch {
     return null;
   }
@@ -153,7 +161,6 @@ export function request(d: Draft, install: InstallSummary): SetupRequest {
       consent: !!d.channels[c.channel]?.consent,
       switch_language: d.channels[c.channel]?.switch_language === true,
     })),
-    data_source: d.data_source,
     preset: d.preset,
     fix_known_bugs: d.fix_known_bugs,
   };

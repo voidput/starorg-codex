@@ -534,6 +534,33 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         ("dev_diff_record_ship", json!(ship)),
         ("dev_diff_search", json!(one)),
         ("dev_close", json!(b.dev_close(live()).unwrap())),
+        (
+            "dev_dump_releases_off",
+            json!(b.dev_dump_releases(live()).unwrap()),
+        ),
+        ("dev_dump_releases", {
+            let mut s = b.get_settings().unwrap();
+            s.network.published_dumps = true;
+            b.save_settings(s).unwrap();
+            json!(b.dev_dump_releases(live()).unwrap())
+        }),
+        (
+            "dev_download_dump",
+            json!(
+                b.dev_download_dump(
+                    DevDumpRequest {
+                        target: live(),
+                        tag: mock_dev::DUMPS[1].0.into(),
+                    },
+                    &noop
+                )
+                .unwrap()
+            ),
+        ),
+        (
+            "dev_dump_releases_cached",
+            json!(b.dev_dump_releases(live()).unwrap()),
+        ),
     ]
 }
 
@@ -624,7 +651,17 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
                 source: "folder:0".into(),
             })),
         ),
-        ("dev_download_dump", j(b.dev_download_dump(live(), &noop))),
+        ("dev_dump_releases", j(b.dev_dump_releases(live()))),
+        (
+            "dev_download_dump",
+            j(b.dev_download_dump(
+                DevDumpRequest {
+                    target: live(),
+                    tag: mock_dev::DUMPS[0].0.into(),
+                },
+                &noop,
+            )),
+        ),
         (
             "dev_dataset",
             j(b.dev_dataset(DevDatasetRef {
@@ -773,23 +810,127 @@ fn the_mock_explorer_has_300_records_a_catalogue_and_a_huge_one_is_cut() {
     assert!(ship.loc[0].text.starts_with("Synthetic hull 16."));
 }
 
+fn dump_req(tag: &str) -> DevDumpRequest {
+    DevDumpRequest {
+        target: live(),
+        tag: tag.into(),
+    }
+}
+
 #[test]
-fn dumps_need_the_switch_and_are_a_follow_up() {
+fn published_live_builds_download_and_diff() {
     let b = dev_mock();
+    let (new, old) = (mock_dev::DUMPS[0].0, mock_dev::DUMPS[1].0);
+    // Off: nothing listed (nothing cached), the download is refused, no dump source.
+    assert!(b.dev_dump_releases(live()).unwrap().releases.is_empty());
     assert_eq!(
-        b.dev_download_dump(live(), &noop).unwrap_err().code,
+        b.dev_download_dump(dump_req(old), &noop).unwrap_err().code,
         ErrorCode::NetworkOff
     );
+    let src = b.dev_sources(live()).unwrap();
+    assert!(src.iter().all(|s| s.kind != SourceKind::Dump));
     let mut s = b.get_settings().unwrap();
     s.network.published_dumps = true;
     b.save_settings(s).unwrap();
+    // On: both LIVE builds, newest first, none downloaded.
+    let rel = b.dev_dump_releases(live()).unwrap().releases;
     assert_eq!(
-        b.dev_download_dump(live(), &noop).unwrap_err().code,
-        ErrorCode::NotImplemented
+        rel.iter().map(|r| r.tag.as_str()).collect::<Vec<_>>(),
+        [new, old]
     );
-    let src = b.dev_sources(live()).unwrap();
-    let dump = src.iter().find(|s| s.kind == SourceKind::Dump).unwrap();
-    assert_eq!(dump.state, SourceState::Off);
+    assert!(rel.iter().all(|r| !r.cached && r.channel == "LIVE"));
+    // Same answers as the real backend.
+    assert_eq!(
+        b.dev_download_dump(dump_req("9.9.9.9"), &noop).unwrap_err(),
+        dump_not_published("9.9.9.9", "no published build 9.9.9.9")
+    );
+    assert_eq!(
+        b.dev_download_dump(dump_req("../x"), &noop).unwrap_err(),
+        bad_dump_tag("../x")
+    );
+    // Download both (a job with progress).
+    let events = std::sync::Mutex::new(Vec::new());
+    let record = |p: JobProgress| events.lock().unwrap().push(p);
+    b.dev_download_dump(dump_req(old), &record).unwrap();
+    let src = b.dev_download_dump(dump_req(new), &noop).unwrap();
+    let ev = events.into_inner().unwrap();
+    assert!(ev.iter().all(|p| p.kind == JobKind::Dev));
+    // The real backend's sequence (tests/real_dev.rs).
+    let l = format!("LIVE {old}");
+    let got: Vec<(u32, u32, String)> = ev.into_iter().map(|p| (p.step, p.steps, p.label)).collect();
+    assert_eq!(
+        got,
+        [
+            (1, 1, format!("Asking GitHub for {l}")),
+            (1, 3, "Downloading game-ships.json (1 of 2)".to_string()),
+            (2, 3, "Downloading game-weapons.json (2 of 2)".to_string()),
+            (3, 3, format!("Checking {l}")),
+            (3, 3, format!("Downloaded {l}")),
+        ]
+    );
+    let dumps: Vec<&DevSource> = src.iter().filter(|s| s.kind == SourceKind::Dump).collect();
+    assert_eq!(dumps.len(), 2);
+    assert_eq!(dumps[0].id, format!("dump:{new}"));
+    assert_eq!(dumps[0].label, format!("LIVE {new}"));
+    assert_eq!(dumps[0].state, SourceState::Ready);
+    assert_eq!(dumps[0].datasets.len(), 2);
+    assert!(
+        b.dev_dump_releases(live())
+            .unwrap()
+            .releases
+            .iter()
+            .all(|r| r.cached)
+    );
+    // Old -> new: added, removed and changed records.
+    let sum = b
+        .dev_diff(
+            DevDiffRequest {
+                target: live(),
+                a: format!("dump:{old}"),
+                b: format!("dump:{new}"),
+            },
+            &noop,
+        )
+        .unwrap();
+    let w = sum
+        .tables
+        .iter()
+        .find(|t| t.dataset == "game-weapons.json" && t.table == "shipWeapons")
+        .unwrap();
+    assert_eq!((w.added, w.removed), (2, 2), "{w:?}");
+    assert!(w.changed > 0, "{w:?}");
+    // Switch off again: the downloaded builds stay usable and listed.
+    let mut s = b.get_settings().unwrap();
+    s.network.published_dumps = false;
+    b.save_settings(s).unwrap();
+    assert_eq!(b.dev_dump_releases(live()).unwrap().releases.len(), 2);
+    assert!(
+        b.dev_rows(rows(
+            &format!("dump:{old}"),
+            "game-weapons.json",
+            "shipWeapons"
+        ))
+        .is_ok()
+    );
+    // Remove one.
+    let src = b
+        .dev_remove_source(DevSourceRef {
+            target: live(),
+            source: format!("dump:{old}"),
+        })
+        .unwrap();
+    assert_eq!(src.iter().filter(|s| s.kind == SourceKind::Dump).count(), 1);
+    assert_eq!(b.dev_dump_releases(live()).unwrap().releases.len(), 1);
+    assert_eq!(
+        b.dev_dataset(DevDatasetRef {
+            target: live(),
+            source: format!("dump:{old}"),
+            dataset: "game-weapons.json".into(),
+        })
+        .unwrap_err()
+        .code,
+        ErrorCode::NotFound
+    );
 }
 
 #[test]

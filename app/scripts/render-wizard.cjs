@@ -2,7 +2,7 @@
 const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
 const OUT = (process.env.RENDER_DIR || require('path').resolve(__dirname, '../../.tmp/renders')) + '/m3-wizard';
 const BASE = (process.env.BASE_URL || 'http://127.0.0.1:4317/') + '';
-const steps = ['install', 'channels', 'source', 'enhancements', 'prefs', 'review', 'apply'];
+const steps = ['install', 'channels', 'enhancements', 'prefs', 'review', 'apply'];
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const errors = [];
@@ -30,7 +30,7 @@ const steps = ['install', 'channels', 'source', 'enhancements', 'prefs', 'review
       await p.locator('#ch-PTU').click();
       await p.getByRole('button', { name: /^Next/ }).click();
     });
-    await shot('8-close-guard', '?wizard=source', async (p) => {
+    await shot('8-close-guard', '?wizard=enhancements', async (p) => {
       await p.getByRole('button', { name: /Set up later/ }).click();
       await p.getByRole('heading', { name: 'Leave setup for now?' }).waitFor();
     });

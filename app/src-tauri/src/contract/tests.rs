@@ -46,7 +46,6 @@ fn set_up(b: &MockBackend) {
                 switch_language: false,
             },
         ],
-        data_source: DataSource::Local,
         preset: Preset::Recommended,
         fix_known_bugs: true,
     })
@@ -91,7 +90,6 @@ fn samples() -> Value {
                     switch_language: true,
                 },
             ],
-            data_source: DataSource::PublishedDumps,
             preset: Preset::Recommended,
             fix_known_bugs: true,
         })
@@ -616,10 +614,6 @@ fn ts_unions_list_every_variant() {
         (
             "Preset",
             names(&[Preset::Recommended, Preset::Minimal, Preset::Everything]),
-        ),
-        (
-            "DataSource",
-            names(&[DataSource::Local, DataSource::PublishedDumps]),
         ),
         (
             "ApplyResult",
@@ -1306,7 +1300,6 @@ fn setup_asks_when_the_language_is_not_english() {
                 consent: true,
                 switch_language: false,
             }],
-            data_source: DataSource::Local,
             preset: Preset::Minimal,
             fix_known_bugs: true,
         })
@@ -2012,7 +2005,6 @@ fn fix_known_bugs_off_disables_every_built_in_patch() {
             consent: true,
             switch_language: false,
         }],
-        data_source: DataSource::Local,
         preset: Preset::Minimal,
         fix_known_bugs: false,
     })

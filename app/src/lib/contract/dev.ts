@@ -307,6 +307,31 @@ export interface DevSource {
   datasets: DevDatasetSummary[];
 }
 
+/** A published LIVE build of voidput/sc-gamedata-dumps (addendum §1, Diff only). */
+export interface DumpRelease {
+  /** Data.Version of the build; its source id is `dump:<tag>`. */
+  tag: string;
+  title: string;
+  /** Always 'LIVE'. */
+  channel: string;
+  branch: string | null;
+  published: string | null;
+  /** Downloaded: usable as a source with the switch off too. */
+  cached: boolean;
+}
+
+/** The published LIVE builds as far as they could be listed. */
+export interface DumpReleases {
+  releases: DumpRelease[];
+  /** Set when GitHub could not be asked (offline, rate limited): `releases` then holds only the downloaded builds. */
+  error: string | null;
+}
+
+export interface DevDumpRequest {
+  target: ChannelRef;
+  tag: string;
+}
+
 export interface DevSourceRef {
   target: ChannelRef;
   source: string;
@@ -677,7 +702,8 @@ export interface DevCommandMap {
   dev_sources: [{ req: ChannelRef }, DevSource[]];
   dev_add_source: [{ req: ChannelRef }, DevSource[]];
   dev_remove_source: [{ req: DevSourceRef }, DevSource[]];
-  dev_download_dump: [{ req: ChannelRef }, DevSource[]];
+  dev_dump_releases: [{ req: ChannelRef }, DumpReleases];
+  dev_download_dump: [{ req: DevDumpRequest }, DevSource[]];
   dev_dataset: [{ req: DevDatasetRef }, DatasetInfo];
   dev_table: [{ req: DevTableRef }, TableInfo];
   dev_rows: [{ req: DevRowsRequest }, RowsPage];
@@ -708,6 +734,7 @@ export const DEV_COMMANDS = [
   'dev_sources',
   'dev_add_source',
   'dev_remove_source',
+  'dev_dump_releases',
   'dev_download_dump',
   'dev_dataset',
   'dev_table',
@@ -740,7 +767,10 @@ export const devApi = {
   /** Native folder dialog (Rust side). */
   addSource: (req: ChannelRef) => call('dev_add_source', { req }),
   removeSource: (req: DevSourceRef) => call('dev_remove_source', { req }),
-  downloadDump: (req: ChannelRef) => call('dev_download_dump', { req }),
+  /** Published LIVE builds, newest first; with the switch off only the downloaded ones. */
+  dumpReleases: (req: ChannelRef) => call('dev_dump_releases', { req }),
+  /** A job: downloads, verifies and caches one LIVE build. */
+  downloadDump: (req: DevDumpRequest) => call('dev_download_dump', { req }),
   dataset: (req: DevDatasetRef) => call('dev_dataset', { req }),
   table: (req: DevTableRef) => call('dev_table', { req }),
   rows: (req: DevRowsRequest) => call('dev_rows', { req }),

@@ -1,6 +1,6 @@
 [package]
 name = "starorg-net"
-description = "HTTPS transport: published game data and the StarOrg Tools client (opt-in network features)"
+description = "HTTPS transport: published LIVE builds for Diff, the update check and the StarOrg Tools client (opt-in network features)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -30,5 +30,3 @@ workspace = true
 
 [dev-dependencies]
 starorg-net = { path = ".", features = ["mock-server"] }
-starorg-data.workspace = true
-tempfile.workspace = true

@@ -167,7 +167,7 @@ pub enum SourceKind {
     Build,
     /// A local folder (or one file) of `*.json`.
     Folder,
-    /// A published dump of this exact build (addendum §1).
+    /// A published LIVE build downloaded for Diff (addendum §1): `dump:<tag>`.
     Dump,
 }
 
@@ -175,7 +175,7 @@ pub enum SourceKind {
 #[serde(rename_all = "kebab-case")]
 pub enum SourceState {
     Ready,
-    /// Needs Settings > Network > "Use published game data".
+    /// Needs a switch that is off.
     Off,
     /// Not there (yet): the build's data was not read, the folder is gone.
     Missing,
@@ -192,7 +192,7 @@ pub struct DevDatasetSummary {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevSource {
-    /// `build:<channel>`, `folder:<n>`, `dump:<channel>`.
+    /// `build:<channel>`, `folder:<n>`, `dump:<tag>`.
     pub id: String,
     pub kind: SourceKind,
     pub label: String,
@@ -201,6 +201,37 @@ pub struct DevSource {
     /// Why it is not ready, or the folder shown.
     pub detail: Option<String>,
     pub datasets: Vec<DevDatasetSummary>,
+}
+
+/// A published LIVE build of `voidput/sc-gamedata-dumps` (addendum §1, Diff only).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DumpRelease {
+    /// `Data.Version` of the build, e.g. `4.10.200.58746`; its source id is `dump:<tag>`.
+    pub tag: String,
+    /// The release title, e.g. `4.10.0 LIVE (4.10.200.58746)`.
+    pub title: String,
+    /// Always `LIVE` (only LIVE builds are offered).
+    pub channel: String,
+    pub branch: Option<String>,
+    /// When it was published (RFC 3339).
+    pub published: Option<String>,
+    /// Downloaded and on this computer: usable as a source with the switch off too.
+    pub cached: bool,
+}
+
+/// The published LIVE builds as far as they could be listed.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DumpReleases {
+    pub releases: Vec<DumpRelease>,
+    /// Set when GitHub could not be asked (offline, rate limited): `releases` then holds only
+    /// the downloaded builds. Not an error: they still work.
+    pub error: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevDumpRequest {
+    pub target: ChannelRef,
+    pub tag: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -455,10 +486,15 @@ pub trait DevBackend {
     /// Native folder dialog; at most 5 folders are remembered.
     fn dev_add_source(&self, req: ChannelRef) -> CmdResult<Vec<DevSource>>;
     fn dev_remove_source(&self, req: DevSourceRef) -> CmdResult<Vec<DevSource>>;
-    /// `network-off` while "Use published game data" is off.
+    /// The published LIVE builds, newest first. With "Download published LIVE builds for
+    /// Diff" off: only the downloaded ones, and no request is made. When GitHub cannot be
+    /// reached: the downloaded ones with `error` set.
+    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases>;
+    /// Download, verify and cache one LIVE build (a job); `network-off` while the switch is
+    /// off. Returns the sources, now with `dump:<tag>`.
     fn dev_download_dump(
         &self,
-        req: ChannelRef,
+        req: DevDumpRequest,
         progress: Progress<'_>,
     ) -> CmdResult<Vec<DevSource>>;
     fn dev_dataset(&self, req: DevDatasetRef) -> CmdResult<DatasetInfo>;
@@ -481,19 +517,37 @@ pub fn disabled() -> AppError {
     )
 }
 
-/// The refusal both backends give the dump download while it is not built.
-pub fn dump_refusal(switch_on: bool) -> AppError {
-    if switch_on {
-        AppError::new(
-            ErrorCode::NotImplemented,
-            "Published dumps as a dataset source are a follow-up; use This build or a local folder.",
-        )
-    } else {
-        AppError::new(
-            ErrorCode::NetworkOff,
-            "Turn on Settings > Network > \"Use published game data\" first.",
-        )
-    }
+/// The refusal both backends give a dump download while the switch is off.
+pub fn dumps_off() -> AppError {
+    AppError::new(
+        ErrorCode::NetworkOff,
+        "Turn on Settings > Network > \"Download published LIVE builds for Diff\" first.",
+    )
+}
+
+/// The answer for an unknown or non-LIVE tag (both backends).
+pub fn dump_not_published(tag: &str, why: &str) -> AppError {
+    AppError::new(
+        ErrorCode::NotFound,
+        format!("Could not download {}: {why}", dump_label(tag)),
+    )
+}
+
+/// The answer for a tag that is not one path component (both backends).
+pub fn bad_dump_tag(tag: &str) -> AppError {
+    AppError::new(ErrorCode::Invalid, format!("bad build tag {tag:?}"))
+}
+
+/// `dump:<tag>` of a source id, when the tag is usable as one path component.
+pub fn dump_tag(source: &str) -> Option<&str> {
+    source
+        .strip_prefix("dump:")
+        .filter(|t| starorg_core::source::dump::valid_component(t))
+}
+
+/// The label of a downloaded LIVE build in the source lists.
+pub fn dump_label(tag: &str) -> String {
+    format!("LIVE {tag}")
 }
 
 macro_rules! dev_commands {
@@ -545,6 +599,7 @@ dev_commands! {
     dev_sources(req: ChannelRef) -> Vec<DevSource>;
     dev_add_source(req: ChannelRef) -> Vec<DevSource>;
     dev_remove_source(req: DevSourceRef) -> Vec<DevSource>;
+    dev_dump_releases(req: ChannelRef) -> DumpReleases;
     dev_dataset(req: DevDatasetRef) -> DatasetInfo;
     dev_table(req: DevTableRef) -> TableInfo;
     dev_rows(req: DevRowsRequest) -> RowsPage;
@@ -560,7 +615,7 @@ dev_commands! {
 dev_progress_commands! {
     dev_open(req: ChannelRef) -> DevStatus;
     dev_export_type(req: DevExportTypeRequest) -> DevExportResult;
-    dev_download_dump(req: ChannelRef) -> Vec<DevSource>;
+    dev_download_dump(req: DevDumpRequest) -> Vec<DevSource>;
     dev_diff(req: DevDiffRequest) -> DevDiffSummary;
 }
 

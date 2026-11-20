@@ -816,9 +816,6 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
           counts: { ...counts(p, 0), changed: counts(p, 0).changed - 37 * c.channel.length },
         });
       }
-      if (req.data_source === 'published-dumps') {
-        warnings.push({ kind: 'network', detail: 'Published game data is downloaded only when a dump exists for the exact build; otherwise it is read locally.' });
-      }
       return { install: req.install, channels, warnings };
     },
     setup: ({ req }) => {
@@ -1473,7 +1470,6 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       req: {
         install: inst.id,
         channels: inst.channels.map((c) => ({ channel: c.channel, consent: c.language === 'english', switch_language: false })),
-        data_source: 'local',
         preset: 'recommended',
         fix_known_bugs: true,
       },

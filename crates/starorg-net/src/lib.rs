@@ -1,12 +1,14 @@
 //! HTTPS transport for [`starorg_core::source::dump`] (addendum §1).
 //!
-//! This is the only crate with an HTTP client outside the updater plugin. The CLI links it
-//! only with the `published-dumps` feature; the app links it for the two opt-in network
-//! switches. It talks to two hosts, both read only:
+//! This is the only crate with an HTTP client outside the updater plugin. The CLI never
+//! links it; the app links it for its opt-in network switches. For the dumps (Developer
+//! mode's Diff only, while "Download published LIVE builds for Diff" is on) and the update
+//! check it talks to two hosts, both read only:
 //!
-//! - `api.github.com`: the release for a tag, the commit a tag points at, the commit's
-//!   tree (git blob ids, which the core verifies every file against), and the app's own
-//!   release list ([`releases`], used only when "Check for updates" is on);
+//! - `api.github.com`: the dumps repo's release list and the release for a tag, the commit a
+//!   tag points at, the commit's tree (git blob ids, which the core verifies every file
+//!   against), and the app's own release list ([`releases`], used only when "Check for
+//!   updates" is on);
 //! - `raw.githubusercontent.com`: the dataset files at that commit.
 //!
 //! Requests carry a generic `User-Agent` and nothing about the user or the install: no
@@ -125,6 +127,21 @@ struct ApiRelease {
     name: Option<String>,
     #[serde(default)]
     body: Option<String>,
+    #[serde(default)]
+    published_at: Option<String>,
+    #[serde(default)]
+    draft: bool,
+}
+
+impl ApiRelease {
+    fn info(self) -> ReleaseInfo {
+        ReleaseInfo {
+            tag: self.tag_name,
+            title: self.name.unwrap_or_default(),
+            body: self.body.unwrap_or_default(),
+            published: self.published_at,
+        }
+    }
 }
 
 #[derive(Deserialize)]
@@ -150,14 +167,33 @@ struct ApiTreeEntry {
     size: Option<u64>,
 }
 
+/// Releases per page of the dumps repo's list (GitHub's maximum).
+const RELEASES_PER_PAGE: usize = 100;
+/// Pages followed: one release per build, so 300 covers years of LIVE, PTU and HOTFIX builds
+/// and older LIVE builds stay listed once newer PTU releases push them down.
+const RELEASE_PAGES: usize = 3;
+
 impl DumpTransport for GitHubTransport {
+    fn releases(&self) -> Result<Vec<ReleaseInfo>, SourceError> {
+        let mut out = Vec::new();
+        for page in 1..=RELEASE_PAGES {
+            let url = format!(
+                "{API}/repos/{}/releases?per_page={RELEASES_PER_PAGE}&page={page}",
+                self.repo
+            );
+            let got = self.get_json::<Vec<ApiRelease>>(&url)?.unwrap_or_default();
+            let last = got.len() < RELEASES_PER_PAGE;
+            out.extend(got.into_iter().filter(|r| !r.draft).map(ApiRelease::info));
+            if last {
+                break;
+            }
+        }
+        Ok(out)
+    }
+
     fn release(&self, tag: &str) -> Result<Option<ReleaseInfo>, SourceError> {
         let url = format!("{API}/repos/{}/releases/tags/{}", self.repo, url_safe(tag)?);
-        Ok(self.get_json::<ApiRelease>(&url)?.map(|r| ReleaseInfo {
-            tag: r.tag_name,
-            title: r.name.unwrap_or_default(),
-            body: r.body.unwrap_or_default(),
-        }))
+        Ok(self.get_json::<ApiRelease>(&url)?.map(ApiRelease::info))
     }
 
     fn tag_commit(&self, tag: &str) -> Result<String, SourceError> {
@@ -230,5 +266,7 @@ mod tests {
         let tree = t.tree(&c).unwrap();
         assert!(tree.iter().any(|e| e.path == "data/game-ships.json"));
         assert!(t.release("0.0.0.0").unwrap().is_none());
+        let live = starorg_core::source::dump::live_releases(&t).unwrap();
+        assert!(live.iter().any(|r| r.tag == "4.10.200.58746"));
     }
 }

@@ -98,7 +98,6 @@ fn wizard_preview_and_review_on_a_real_install() {
                     switch_language: false,
                 })
                 .collect(),
-            data_source: DataSource::Local,
             preset: Preset::Recommended,
             fix_known_bugs: true,
         })
@@ -135,7 +134,6 @@ fn wizard_preview_and_review_on_a_real_install() {
             consent: true,
             switch_language: false,
         }],
-        data_source: DataSource::Local,
         preset: Preset::Minimal,
         fix_known_bugs: true,
     })

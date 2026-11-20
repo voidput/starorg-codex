@@ -1,5 +1,6 @@
-//! `gamedata`: extract (or, opt-in, download) the `GameData` of a channel and write it as
-//! JSON to a file. Touches nothing else; never writes into the install or its Wine prefix.
+//! `gamedata`: extract the `GameData` of a channel from its `Data.p4k` and write it as JSON
+//! to a file. No network. Touches nothing else; never writes into the install or its Wine
+//! prefix.
 
 use crate::commands::{
     canonical_lenient, fail, refuse_protected, run_discovery, worker_exe, write_atomic,
@@ -8,7 +9,7 @@ use crate::{GlobalOpts, exit};
 use serde_json::json;
 use starorg_core::source::local::LocalExtraction;
 use starorg_core::source::{Budget, GameSource, SourceError};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::ExitCode;
 use std::time::{Duration, Instant};
 
@@ -16,65 +17,6 @@ pub struct Args<'a> {
     pub channel: &'a str,
     pub out: &'a Path,
     pub timeout: Option<u64>,
-    /// Network opt-in (addendum §1): try the published dump for this exact build first.
-    pub use_published_data: bool,
-    pub cache_dir: Option<PathBuf>,
-}
-
-/// Default dump cache: `$XDG_CACHE_HOME` or `~/.cache` on Linux, `%LOCALAPPDATA%` on
-/// Windows, below `starorg-codex/dumps` (spec 4.2).
-fn default_cache() -> Option<PathBuf> {
-    if cfg!(windows) {
-        std::env::var_os("LOCALAPPDATA").map(|d| {
-            PathBuf::from(d)
-                .join("StarOrg Tools")
-                .join("Strings")
-                .join("cache")
-        })
-    } else {
-        std::env::var_os("XDG_CACHE_HOME")
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".cache")))
-            .map(|c| c.join("starorg-codex"))
-    }
-    .map(|c| starorg_core::source::dump::cache_root(&c))
-}
-
-#[cfg(feature = "published-dumps")]
-fn source(
-    local: LocalExtraction,
-    a: &Args,
-    cache: Option<PathBuf>,
-) -> Result<Box<dyn GameSource>, String> {
-    use starorg_core::source::dump::{DumpCache, DumpFirst, PublishedDump};
-    if !a.use_published_data {
-        return Ok(Box::new(local));
-    }
-    let cache = cache.ok_or("no cache directory; pass --cache-dir")?;
-    let text = local.clone().ini_only();
-    Ok(Box::new(DumpFirst {
-        consent: true,
-        dump: Some(PublishedDump {
-            transport: Box::new(starorg_net::GitHubTransport::new()),
-            cache: DumpCache::new(cache),
-            text: Box::new(text),
-            prefer_cache: true,
-        }),
-        local: Box::new(local),
-        require_contracts: false,
-    }))
-}
-
-#[cfg(not(feature = "published-dumps"))]
-fn source(
-    local: LocalExtraction,
-    a: &Args,
-    _: Option<PathBuf>,
-) -> Result<Box<dyn GameSource>, String> {
-    if a.use_published_data {
-        return Err("this build has no network support (feature published-dumps)".into());
-    }
-    Ok(Box::new(local))
 }
 
 pub fn run(g: &GlobalOpts, a: &Args) -> ExitCode {
@@ -104,12 +46,6 @@ pub fn run(g: &GlobalOpts, a: &Args) -> ExitCode {
     if let Some(code) = refuse_protected(g, &out_abs, install) {
         return code;
     }
-    let cache = a.cache_dir.clone().or_else(default_cache);
-    if let Some(c) = &cache
-        && refuse_protected(g, &canonical_lenient(c), install).is_some()
-    {
-        return ExitCode::from(exit::USAGE);
-    }
     let worker = match worker_exe() {
         Ok(w) => w,
         Err(e) => {
@@ -121,10 +57,7 @@ pub fn run(g: &GlobalOpts, a: &Args) -> ExitCode {
             );
         }
     };
-    let src = match source(LocalExtraction::new(worker), a, cache) {
-        Ok(s) => s,
-        Err(e) => return fail(g, exit::USAGE, "usage", &e),
-    };
+    let src = LocalExtraction::new(worker);
     let budget = a
         .timeout
         .map(|s| Budget::with_timeout(Duration::from_secs(s)))

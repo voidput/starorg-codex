@@ -1085,11 +1085,11 @@ impl RealBackend {
                 palette: Palette::Void,
                 reduce_effects: false,
             }),
-            // published_dumps is not built yet: always reported off, even if an older
-            // app.json stored it on.
+            // published_dumps: Developer mode's Diff may download published LIVE builds
+            // (addendum §1). An older app.json could only store it off.
             network: NetworkSettings {
                 check_updates: a.network.as_ref().is_some_and(|n| n.check_updates),
-                published_dumps: false,
+                published_dumps: a.network.as_ref().is_some_and(|n| n.published_dumps),
                 starorg: a.network.map(|n| n.starorg).unwrap_or(false),
             },
             default_channel: self.config().default_channel,
@@ -1803,12 +1803,6 @@ impl Backend for RealBackend {
                     _ => None,
                 },
                 counts,
-            });
-        }
-        if req.data_source == DataSource::PublishedDumps {
-            warnings.push(Warning {
-                kind: "network".into(),
-                detail: "Published game data is not in this build of the app yet; game data is read from Data.p4k on this machine.".into(),
             });
         }
         Ok(SetupPlan {
@@ -2625,11 +2619,9 @@ impl Backend for RealBackend {
     fn save_settings(&self, req: Settings) -> CmdResult<Settings> {
         let mut a = self.app_file();
         a.appearance = Some(req.appearance.clone());
-        // Published game data is not built yet: it stays off rather than saving a switch
-        // that does nothing. check_updates is stored as given (crate::update).
-        let mut net = req.network.clone();
-        net.published_dumps = false;
-        a.network = Some(net);
+        // Every network switch is stored as given (check_updates: crate::update;
+        // published_dumps: Developer mode's Diff only).
+        a.network = Some(req.network.clone());
         a.safe_gpu = req.safe_gpu;
         let dev_off = a.dev.developer_mode && !req.advanced.developer_mode;
         a.dev.developer_mode = req.advanced.developer_mode;

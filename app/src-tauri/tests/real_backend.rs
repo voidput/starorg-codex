@@ -240,7 +240,6 @@ impl Fake {
                         switch_language: false,
                     },
                 ],
-                data_source: DataSource::Local,
                 preset: Preset::Recommended,
                 fix_known_bugs: true,
             })
@@ -339,7 +338,6 @@ fn setup_plan_apply_status_remove_round_trip() {
                 consent: true,
                 switch_language: false,
             }],
-            data_source: DataSource::Local,
             preset: Preset::Recommended,
             fix_known_bugs: true,
         })
@@ -654,7 +652,6 @@ fn preview_is_empty_until_the_dry_run_reads_the_game_data() {
                 consent: true,
                 switch_language: false,
             }],
-            data_source: DataSource::Local,
             preset: Preset::Recommended,
             fix_known_bugs: true,
         })
@@ -689,7 +686,6 @@ fn concurrent_plan_setup_waits_for_the_running_read() {
                 consent: true,
                 switch_language: false,
             }],
-            data_source: DataSource::Local,
             preset: Preset::Recommended,
             fix_known_bugs: true,
         }
@@ -728,7 +724,6 @@ fn plan_setup_while_another_process_reads_is_busy() {
             consent: true,
             switch_language: false,
         }],
-        data_source: DataSource::Local,
         preset: Preset::Recommended,
         fix_known_bugs: true,
     });
@@ -1560,7 +1555,6 @@ fn setup_again_keeps_a_set_up_channels_profile() {
                 switch_language: false,
             })
             .to_vec(),
-        data_source: DataSource::Local,
         preset,
         fix_known_bugs: false,
     };
@@ -1584,31 +1578,43 @@ fn setup_again_keeps_a_set_up_channels_profile() {
 }
 
 #[test]
-fn unbuilt_network_switches_stay_off() {
+fn network_switches_are_stored_and_setup_ignores_an_old_data_source() {
     let f = Fake::new();
     let mut s = f.backend.get_settings().unwrap();
+    assert!(!s.network.published_dumps, "off by default");
     s.network.check_updates = true;
     s.network.published_dumps = true;
     s.network.starorg = true;
     let saved = f.backend.save_settings(s).unwrap();
-    // check_updates is built (docs/updates.md) and stored; published data is not.
+    // Every switch is stored as given; published dumps feed Developer mode's Diff only.
     assert!(saved.network.check_updates);
-    assert!(f.backend.get_settings().unwrap().network.check_updates);
-    assert!(!saved.network.published_dumps);
+    assert!(saved.network.published_dumps);
     assert!(saved.network.starorg);
-    let req = SetupRequest {
-        install: f.install_id(),
-        channels: vec![ChannelConsent {
-            channel: "LIVE".into(),
-            consent: true,
-            switch_language: false,
-        }],
-        data_source: DataSource::PublishedDumps,
-        preset: Preset::Recommended,
-        fix_known_bugs: true,
-    };
+    let back = f.backend.get_settings().unwrap();
+    assert!(back.network.check_updates && back.network.published_dumps);
+    // An older frontend may still send `data_source`: it is ignored, and setup reads
+    // Data.p4k locally without a network warning.
+    let req: SetupRequest = serde_json::from_value(serde_json::json!({
+        "install": f.install_id(),
+        "channels": [{ "channel": "LIVE", "consent": true, "switch_language": false }],
+        "data_source": "published-dumps",
+        "preset": "recommended",
+        "fix_known_bugs": true,
+    }))
+    .unwrap();
+    let plan = f.backend.plan_setup(req.clone()).unwrap();
+    assert!(plan.warnings.iter().all(|w| w.kind != "network"));
     f.backend.setup(req).unwrap();
-    assert!(!f.backend.get_settings().unwrap().network.published_dumps);
+    assert!(f.backend.get_settings().unwrap().network.published_dumps);
+    let mut off = f.backend.get_settings().unwrap();
+    off.network.published_dumps = false;
+    assert!(
+        !f.backend
+            .save_settings(off)
+            .unwrap()
+            .network
+            .published_dumps
+    );
 }
 
 #[test]

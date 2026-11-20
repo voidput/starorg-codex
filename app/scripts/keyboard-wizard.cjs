@@ -25,8 +25,6 @@ const { chromium } = require(process.env.PLAYWRIGHT_CORE || 'playwright-core');
   console.log('after step2:', await heading());
   await pressUntil('Next'); await p.keyboard.press('Enter');
   console.log('after step3:', await heading());
-  await pressUntil('Next'); await p.keyboard.press('Enter');
-  console.log('after step4:', await heading());
   await p.getByText('strings changed').first().waitFor();
   await pressUntil('Set up and apply'); await p.keyboard.press('Enter');
   await p.getByRole('button', { name: 'Open StarOrg Codex' }).waitFor({ timeout: 10000 });

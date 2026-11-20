@@ -180,6 +180,7 @@ export const COMMANDS = [
   'dev_sources',
   'dev_add_source',
   'dev_remove_source',
+  'dev_dump_releases',
   'dev_download_dump',
   'dev_dataset',
   'dev_table',
