@@ -116,6 +116,16 @@ test('every dev sample of the Rust mock comes back equal from the TS mock', asyn
   const shipsId = (got.dev_tree_sections as { nodes: { id: string; label: string }[] }).nodes.find((n) => n.label === 'Ships & vehicles')!.id;
   got.dev_tree_section = await h.dev_tree(sec(shipsId));
   got.dev_tree_models = await h.dev_tree(sec('m:models:[]'));
+  // The Spaceships leaf (the biggest group at each level), folded.
+  let leaf = shipsId;
+  for (;;) {
+    const page = (await h.dev_tree(sec(leaf))) as { nodes: { id: string; kind: string; count: number }[] };
+    const folders = page.nodes.filter((n) => n.kind === 'folder');
+    if (folders.length === 0) break;
+    leaf = folders.reduce((a, n) => (n.count > a.count ? n : a)).id;
+  }
+  got.dev_tree_folded = await h.dev_tree({ req: { ...sec(leaf).req, fold_variants: true } });
+  got.dev_list_folded = await list({ node: shipsId, limit: 10, fold_variants: true });
   got.dev_list = await list({ limit: 5 });
   got.dev_list_node = await list({ node: shipsId, sort: 'size', limit: 10 });
   got.dev_list_query = await list({ query: 'type:cooler maker:alpha frost', limit: 10 });

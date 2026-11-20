@@ -195,6 +195,34 @@ fn streams_extract_and_sound_exports_with_progress() {
                "options": {"preset": "print-shell", "lod": 0}, "out": w.root.join("m.glb")}),
     );
     assert_eq!(r.error.unwrap().code, "invalid");
+    // The STL/3MF of an exported GLB (a cache hit in the app), streamed with progress.
+    let glb = w.root.join("p.glb");
+    std::fs::write(&glb, crate::assets::tests::one_triangle_glb()).unwrap();
+    let r = w.call(
+        5,
+        json!({"op": "print-model", "glb": glb,
+               "options": {"preset": "print-shell", "lod": 0, "stl": true, "three_mf": true},
+               "out": glb}),
+    );
+    let d: model::PrintDone = serde_json::from_value(r.result.unwrap()).unwrap();
+    let kinds: Vec<&str> = d.meshes.iter().map(|m| m.kind.as_str()).collect();
+    assert_eq!(kinds, ["stl", "3mf"]);
+    assert!(w.root.join("p.stl").exists() && w.root.join("p.3mf").exists());
+    assert!(
+        w.sink
+            .replies()
+            .iter()
+            .any(|r| r.id == 5 && r.progress.is_some()),
+        "progress lines"
+    );
+    // Options that do not go together are refused there too.
+    let r = w.call(
+        6,
+        json!({"op": "print-model", "glb": glb,
+               "options": {"preset": "print-shell", "lod": 0, "stl": true, "print": {"split": true}},
+               "out": glb}),
+    );
+    assert_eq!(r.error.unwrap().code, "invalid");
     // Cancel of an unknown job answers false.
     let c = w.call(4, json!({"op": "cancel", "job": 99}));
     assert_eq!(c.result, Some(Value::Bool(false)));

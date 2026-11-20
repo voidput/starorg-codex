@@ -203,12 +203,53 @@ export interface AssetExportModelRequest {
   preset: ModelPreset;
   lod: number;
   stl: boolean;
+  /** Also a 3MF next to the GLB (Print shell only, like the STL); absent = false. */
+  three_mf?: boolean;
   /** Export even with less free memory than the preset may need (after `needs-decision`). */
   force: boolean;
   /** Full only: the paint to wear (a `ModelPaint.tag`); null/absent = the fitted one. */
   paint?: string | null;
   /** Full only: StarBreaker's experimental layer materials too. */
   layers?: boolean;
+  /** Print shell only: the experimental 3D print processing of the STL/3MF; absent = all off. */
+  print?: PrintOptions;
+}
+
+/** How a print is scaled (`print::ScaleMode`): real size (metres), longest side in mm, or 1:N. */
+export type ScaleMode = { mode: 'none' } | { mode: 'fit-mm'; value: number } | { mode: 'ratio'; value: number };
+
+/** A hollow solid: wall thickness and drain hole diameter (0 = none), millimetres. */
+export interface Hollow {
+  wall_mm: number;
+  drain_mm: number;
+}
+
+/**
+ * The experimental 3D print processing (`print::PrintOptions`, Print shell only): every option
+ * off by default; the model always sits on the bed. Defaults and checks: `lib/printoptions.ts`.
+ */
+export interface PrintOptions {
+  scale: ScaleMode;
+  /** Build volume x, y, z in mm. */
+  bed_mm: [number, number, number];
+  shrink_to_bed: boolean;
+  drop_small_mm: number | null;
+  /** Needs a scale or `shrink_to_bed`. */
+  solid: boolean;
+  /** 0.1, 0.2 or 0.4. */
+  solid_res_mm: number;
+  /** Needs `solid`. */
+  thicken_mm: number | null;
+  /** Needs `solid`. */
+  hollow: Hollow | null;
+  /** 3, 5 or 6; needs `split`. */
+  peg_mm: number | null;
+  /** Needs `solid`. */
+  split: boolean;
+  multicolor: boolean;
+  simplify_tris: number | null;
+  /** Changes the GLB (and its cache key: `-noweapons`). */
+  no_weapons: boolean;
 }
 
 /** One paint a ship can wear: the SubGeometry tag it selects and the paint items that do. */

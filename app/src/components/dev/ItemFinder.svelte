@@ -6,8 +6,11 @@
    * the search). Middle: quick filters, active chips, saved presets, sort and grouping, then
    * the rich list (icon, readable name, short id, maker, size, stats, model/sound/change
    * badges), virtualised, with collapsible group headers. All filtering runs in the worker.
-   * Assets mode can also search sound events (ATL triggers) by name. Keys: the tree as in Raw
-   * mode; the list Up/Down/PageUp/PageDown/Home/End, Enter opens (or folds a header).
+   * Assets mode can also search sound events (ATL triggers) by name. "Fold variants" (on by
+   * default) shows one row and tree leaf per readable name in a section; the folded row of the
+   * open record goes out through `variants` for the record header's Variant picker. Keys: the
+   * tree as in Raw mode; the list Up/Down/PageUp/PageDown/Home/End, Enter opens (or folds a
+   * header).
    */
   import { tick, untrack } from 'svelte';
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
@@ -41,6 +44,7 @@
     compared = null,
     narrow = false,
     query = $bindable(''),
+    variants = $bindable(null),
     onopen,
     onopentrigger,
     onremember,
@@ -54,6 +58,8 @@
     narrow?: boolean;
     /** The search box text (owned by the Explorer's top bar). */
     query?: string;
+    /** The folded row the open record belongs to (representative first), or null. */
+    variants?: F.VariantGroup | null;
     onopen: (guid: string) => void;
     onopentrigger: (name: string) => void;
     /** A result was opened: the search that found it is worth remembering. */
@@ -76,7 +82,7 @@
   let treeError = $state<ContractError | null>(null);
   async function fetchChildren(node: string, offset: number) {
     try {
-      const r = await devApi.tree({ target: $state.snapshot(target), root: 'section', node, offset, limit: PAGE, main_only: true, player_only: view.filters.player_only });
+      const r = await devApi.tree({ target: $state.snapshot(target), root: 'section', node, offset, limit: PAGE, main_only: true, player_only: view.filters.player_only, fold_variants: view.fold });
       // Assets mode shows the Models and Sounds views only.
       const nodes = node === '' && assets ? r.nodes.filter((n) => n.id.startsWith('m:')) : r.nodes;
       const prev = offset ? (loaded.get(node)?.nodes ?? []) : [];
@@ -89,9 +95,11 @@
     }
   }
   const playerOnly = $derived(view.filters.player_only);
+  const fold = $derived(view.fold);
   $effect(() => {
     void tkey;
     void playerOnly;
+    void fold;
     void assets;
     const r = ready;
     untrack(() => {
@@ -197,7 +205,7 @@
   let listError = $state<ContractError | null>(null);
   let listLoading = $state(false);
   let gen = 0;
-  const listKey = $derived(JSON.stringify([tkey, view.node, view.query, view.filters, view.sort, view.group, view.collapsed, compared?.other ?? null, assets && view.sounds]));
+  const listKey = $derived(JSON.stringify([tkey, view.node, view.query, view.filters, view.sort, view.group, view.collapsed, view.fold, compared?.other ?? null, assets && view.sounds]));
   $effect(() => {
     void listKey;
     const r = ready;
@@ -211,7 +219,7 @@
     const g = ++gen;
     listLoading = true;
     try {
-      const p = await devApi.list({ target: $state.snapshot(target), query: { node: view.node, query: view.query, filters: $state.snapshot(view.filters), sort: view.sort, group: view.group, collapsed: [...view.collapsed], offset, limit: PAGE, main_only: true } });
+      const p = await devApi.list({ target: $state.snapshot(target), query: { node: view.node, query: view.query, filters: $state.snapshot(view.filters), sort: view.sort, group: view.group, collapsed: [...view.collapsed], offset, limit: PAGE, main_only: true, fold_variants: view.fold } });
       if (g !== gen) return;
       page = p;
       items = offset ? [...items, ...p.items] : p.items;
@@ -223,6 +231,15 @@
       if (g === gen) listLoading = false;
     }
   }
+  // The open record's folded row, kept while the record is one of its members (a reload
+  // that drops the row keeps the last one).
+  $effect(() => {
+    const g = F.variantGroup(items, selected);
+    untrack(() => {
+      const keep = !g && variants && selected && variants.members.some((m) => m.guid === selected);
+      if (!keep) variants = g;
+    });
+  });
   // Filters are remembered per section.
   const filtersKey = $derived(JSON.stringify(view.filters));
   $effect(() => {
@@ -360,14 +377,42 @@
   const flip = (k: 'model' | 'sounds' | 'player_only') => setFilters({ ...view.filters, [k]: !view.filters[k] });
   let more = $state<Record<string, boolean>>({});
   function applyPreset(p: F.Preset) {
-    view = { ...view, node: p.node, query: p.query, filters: F.fullFilters(p.filters), sort: p.sort, group: p.group, collapsed: [] };
+    view = { ...view, node: p.node, query: p.query, filters: F.fullFilters(p.filters), sort: p.sort, group: p.group, fold: p.fold, collapsed: [] };
     showPresets = false;
   }
   function storePreset() {
-    presets = F.savePreset(store, { name: presetName, query: view.query, filters: $state.snapshot(view.filters), sort: view.sort, group: view.group, node: view.node });
+    presets = F.savePreset(store, { name: presetName, query: view.query, filters: $state.snapshot(view.filters), sort: view.sort, group: view.group, node: view.node, fold: view.fold });
     presetName = '';
   }
   let listW = $state(600);
+  // The sections pane's width, dragged or arrowed, kept per machine.
+  const SIDE_W = 'starorg.explorer.sideW';
+  let sideW = $state(
+    (() => {
+      try {
+        const v = Number(localStorage.getItem(SIDE_W));
+        return Number.isFinite(v) && v >= 180 ? Math.min(520, v) : 236;
+      } catch {
+        return 236;
+      }
+    })(),
+  );
+  function keepSide() {
+    try {
+      localStorage.setItem(SIDE_W, String(Math.round(sideW)));
+    } catch {
+      // Storage off: the width resets next start.
+    }
+  }
+  let sideDrag: { x: number; w: number } | null = null;
+  const clampSide = (w: number) => Math.min(520, Math.max(180, w));
+  function sideKey(e: KeyboardEvent) {
+    const d = e.key === 'ArrowLeft' ? -16 : e.key === 'ArrowRight' ? 16 : 0;
+    if (!d) return;
+    e.preventDefault();
+    sideW = clampSide(sideW + d);
+    keepSide();
+  }
   // Stat columns only where the name keeps room (about 300 px); the rest read inline.
   const maxCols = $derived(Math.max(0, Math.min(4, Math.floor((listW - 300) / 72))));
   const allCols = $derived(F.statColumns(items, 6));
@@ -453,7 +498,7 @@
               aria-setsize={r.size}
               aria-expanded={r.node && r.node.kind !== 'record' ? r.expanded : undefined}
               aria-selected={i === tIndex}
-              aria-label={r.node ? `${r.node.label}${r.node.kind !== 'record' ? `, ${r.node.count} records` : ''}` : `Show ${Math.min(PAGE, r.more)} more`}
+              aria-label={r.node ? `${r.node.label}${r.node.kind !== 'record' ? `, ${r.node.count} records` : r.node.count > 1 ? `, ${r.node.count} variants` : ''}` : `Show ${Math.min(PAGE, r.more)} more`}
               tabindex="-1"
               class={cn('absolute right-0 left-0 flex cursor-pointer items-center gap-1.5 pr-2 text-[12.5px] whitespace-nowrap', i === tIndex && 'bg-accent/70', view.node === r.id && 'text-primary font-medium', selected && r.id === `r:${selected}` && 'text-primary')}
               style="top: {i * TROW}px; height: {TROW}px; padding-left: {4 + (r.level - 1) * 14}px"
@@ -475,6 +520,7 @@
               {:else if r.node}
                 <span class="w-3.5 shrink-0"></span>
                 <span class={cn('truncate text-[12px]', !r.node.main && 'text-muted-foreground')}>{r.node.label}</span>
+                {#if r.node.count > 1}<span class="text-muted-foreground mono ml-auto pl-2 text-[11px]" title="{r.node.count} records read as this name">×{int(r.node.count)}</span>{/if}
               {:else}
                 <span class="w-3.5 shrink-0"></span>
                 <span class="text-primary text-[12px]">Show {int(Math.min(PAGE, r.more))} more</span>
@@ -489,10 +535,32 @@
 
 <div class="relative flex min-h-0 min-w-0 flex-1 gap-0" data-finder>
   {#if !narrow}
-    <aside data-pane="tree" class="bg-card flex w-[236px] shrink-0 flex-col overflow-hidden rounded-lg border" aria-label={assets ? 'Media' : 'Sections and filters'}>
+    <aside data-pane="tree" class="bg-card flex shrink-0 flex-col overflow-hidden rounded-lg border" style="width: {sideW}px" aria-label={assets ? 'Media' : 'Sections and filters'}>
       {@render sidePane()}
     </aside>
-    <div class="w-2 shrink-0"></div>
+    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+    <div
+      role="separator"
+      aria-orientation="vertical"
+      aria-label="Resize sections"
+      aria-valuenow={sideW}
+      aria-valuemin={180}
+      aria-valuemax={520}
+      tabindex="0"
+      class="hover:bg-primary/40 focus-visible:bg-primary/60 mx-0.5 w-1.5 shrink-0 cursor-col-resize rounded outline-none"
+      onkeydown={sideKey}
+      onpointerdown={(e) => {
+        sideDrag = { x: e.clientX, w: sideW };
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      }}
+      onpointermove={(e) => {
+        if (sideDrag) sideW = clampSide(sideDrag.w + e.clientX - sideDrag.x);
+      }}
+      onpointerup={() => {
+        sideDrag = null;
+        keepSide();
+      }}
+    ></div>
   {:else if drawer}
     <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
     <aside
@@ -527,6 +595,7 @@
               {#if q.k === 'model'}<Box class="size-3" aria-hidden="true" />{:else if q.k === 'sounds'}<Volume2 class="size-3" aria-hidden="true" />{/if}{q.label}{#if q.n !== undefined}<span class="mono opacity-75">{int(q.n)}</span>{/if}
             </button>
           {/each}
+          <button type="button" aria-pressed={view.fold} title="One row per ship or item; its AI, PU and template copies are picked in the record header" class={cn('focus-visible:ring-ring/60 inline-flex h-6 items-center gap-1 rounded-full border px-2 text-[11.5px] outline-none focus-visible:ring-2', view.fold ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-accent')} onclick={() => (view = { ...view, fold: !view.fold, collapsed: [] })}>Fold variants</button>
           <Button variant="ghost" size="xs" class="ml-auto h-6" aria-expanded={showPresets} aria-controls="finder-presets" onclick={() => (showPresets = !showPresets)}><Bookmark aria-hidden="true" /> Presets{presets.length ? ` · ${presets.length}` : ''}</Button>
           {#if facets && facets.changes.length}
             {#each facets.changes as c (c.value)}
@@ -672,6 +741,7 @@
                       <span class="ml-auto flex shrink-0 items-center gap-1">
                         {#if it.change}<span class="rounded bg-amber-500/20 px-1 text-[10px] font-medium text-amber-800 dark:text-amber-300">{changeLabel(it.change)}</span>{/if}
                         {#if it.variant}<span class="rounded border px-1 text-[10px]" title="AI, NPC, test or template variant">AI/test</span>{/if}
+                        {#if Array.isArray(it.variants) && it.variants.length}<span class="bg-muted rounded px-1 text-[10px]" title={it.variants.map((v) => v.short).join('\n')}>+{int(it.variants.length)} variant{it.variants.length === 1 ? '' : 's'}</span>{/if}
                         {#if it.model}<Box class="text-primary size-3" aria-label="Has a model" />{/if}
                         {#if it.sounds}<Volume2 class="text-primary size-3" aria-label="Has sounds" />{/if}
                       </span>

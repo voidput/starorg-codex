@@ -130,7 +130,7 @@ pub(super) fn lock_or<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
     m.lock().unwrap_or_else(|p| p.into_inner())
 }
 
-fn worker_error(e: &starorg_data::devworker::ReplyError) -> AppError {
+pub(super) fn worker_error(e: &starorg_data::devworker::ReplyError) -> AppError {
     let code = match e.code.as_str() {
         "not-found" => ErrorCode::NotFound,
         "invalid" => ErrorCode::Invalid,
@@ -1217,6 +1217,7 @@ impl DevBackend for RealBackend {
             limit: req.limit.min(MAX_PAGE as u32),
             main_only: req.main_only,
             player_only: req.player_only,
+            fold_variants: req.fold_variants,
         })
     }
 

@@ -26,6 +26,7 @@ pub use starorg_data::assets::audio::{
 };
 pub use starorg_data::assets::files::{DirPage, FileEntry, FileSearch, PreviewKind};
 pub use starorg_data::assets::model::{ModelPaint, ModelPaints, ModelPreset};
+pub use starorg_data::assets::print::{Hollow, PrintOptions, ScaleMode};
 
 /// Shown next to every export button (and in the CLI help).
 pub const PERSONAL_USE: &str =
@@ -175,7 +176,7 @@ pub struct AssetExportSoundsRequest {
     pub wem: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AssetExportModelRequest {
     pub target: ChannelRef,
     pub what: String,
@@ -185,6 +186,9 @@ pub struct AssetExportModelRequest {
     pub lod: u32,
     /// Also an STL next to the GLB.
     pub stl: bool,
+    /// Also a 3MF next to the GLB (Print shell only, like the STL).
+    #[serde(default)]
+    pub three_mf: bool,
     /// Export even with less free memory than the preset may need (after `needs-decision`).
     pub force: bool,
     /// Full only: the paint to wear, a [`ModelPaint::tag`] from `asset_model_paints`
@@ -194,6 +198,11 @@ pub struct AssetExportModelRequest {
     /// Full only: StarBreaker's experimental layer materials too.
     #[serde(default)]
     pub layers: bool,
+    /// Print shell only: the experimental 3D print processing of the STL/3MF (every option
+    /// off by default; `no_weapons` changes the GLB too). Refused (`invalid`) when its options
+    /// do not go together ([`PrintOptions::validate`]).
+    #[serde(default)]
+    pub print: PrintOptions,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]

@@ -575,6 +575,10 @@ pub enum DevCmd {
         /// Also write an STL next to the GLB (geometry, transforms baked, Z-up).
         #[arg(long)]
         stl: bool,
+        /// Print only (experimental): also write a 3MF next to the GLB (for slicers: real
+        /// size in metres, Z-up, shared vertices).
+        #[arg(long = "3mf")]
+        three_mf: bool,
         /// Full only: wear this paint, by its tag (`dev model-paints` lists them); default:
         /// the paint the default loadout fits.
         #[arg(long, value_name = "TAG")]
@@ -582,6 +586,8 @@ pub enum DevCmd {
         /// Full only: StarBreaker's layer materials too (experimental).
         #[arg(long)]
         layers: bool,
+        #[command(flatten)]
+        print: PrintArgs,
         /// Asset cache folder (default: the setting, else the app cache's `assets`).
         #[arg(long, value_name = "DIR")]
         cache_dir: Option<PathBuf>,
@@ -589,6 +595,21 @@ pub enum DevCmd {
         channel: String,
         #[command(flatten)]
         test_p4k: TestP4kArg,
+    },
+    /// Run the experimental 3D print processing on an existing GLB (one `export-model
+    /// --preset print` wrote, or any GLB): the STL and/or 3MF go into DIR, named after the GLB.
+    /// Reads no game files. Without --stl and --3mf, both are written.
+    PrintGlb {
+        #[arg(value_name = "GLB")]
+        input: PathBuf,
+        #[arg(long, value_name = "DIR")]
+        out: PathBuf,
+        #[arg(long)]
+        stl: bool,
+        #[arg(long = "3mf")]
+        three_mf: bool,
+        #[command(flatten)]
+        print: PrintArgs,
     },
     /// The paints a ship can wear in a Full export (`export-model --paint TAG`), and the one
     /// its default loadout fits.
@@ -622,6 +643,150 @@ pub enum DevCmd {
         #[command(flatten)]
         test_p4k: TestP4kArg,
     },
+}
+
+/// The experimental 3D print processing of the STL/3MF (`dev export-model --preset print`,
+/// `dev print-glb`): every option off by default; the model always sits on the bed.
+#[derive(Debug, Clone, Default, Args)]
+pub struct PrintArgs {
+    /// (experimental) Scale so the longest side is N millimetres (3MF in millimetres).
+    #[arg(
+        long,
+        value_name = "N",
+        conflicts_with = "scale_ratio",
+        help_heading = "3D print (experimental)"
+    )]
+    pub fit_mm: Option<f32>,
+    /// (experimental) Scale 1:N of the real size (100 = 1:100), in millimetres.
+    #[arg(long, value_name = "N", help_heading = "3D print (experimental)")]
+    pub scale_ratio: Option<u32>,
+    /// (experimental) The printer's build volume in mm, XxYxZ [default: 256x256x256].
+    #[arg(long, value_name = "XxYxZ", help_heading = "3D print (experimental)")]
+    pub bed: Option<String>,
+    /// (experimental) Shrink the model to fit the bed when larger.
+    #[arg(long, help_heading = "3D print (experimental)")]
+    pub shrink_to_bed: bool,
+    /// (experimental) Leave out loose parts whose bounding-box diagonal is under MM at print
+    /// size (e.g. 1).
+    #[arg(long, value_name = "MM", help_heading = "3D print (experimental)")]
+    pub drop_small: Option<f32>,
+    /// (experimental) Rebuild as one closed solid from voxels of RES mm (0.1, 0.2 or 0.4;
+    /// default 0.2). Needs --fit-mm, --scale-ratio or --shrink-to-bed.
+    #[arg(long, value_name = "RES", num_args = 0..=1, default_missing_value = "0.2", help_heading = "3D print (experimental)")]
+    pub solid: Option<f32>,
+    /// (experimental) Grow thin parts to at least MM (e.g. 0.8). Needs --solid.
+    #[arg(long, value_name = "MM", help_heading = "3D print (experimental)")]
+    pub thicken: Option<f32>,
+    /// (experimental) Hollow with WALL mm walls and a DRAIN mm drain hole (default 3; 0 =
+    /// none), e.g. 2 or 2,3. Needs --solid.
+    #[arg(
+        long,
+        value_name = "WALL[,DRAIN]",
+        help_heading = "3D print (experimental)"
+    )]
+    pub hollow: Option<String>,
+    /// (experimental) Peg holes of MM diameter (3, 5 or 6; 8 mm deep) across the split
+    /// cuts, plus a stand hole in the underside. Needs --solid (without --split: only the
+    /// stand hole).
+    #[arg(long, value_name = "MM", help_heading = "3D print (experimental)")]
+    pub peg: Option<f32>,
+    /// (experimental) Cut the solid into pieces that fit the bed, with 2 mm alignment pin
+    /// holes across each cut (unless --peg). Needs --solid.
+    #[arg(long, help_heading = "3D print (experimental)")]
+    pub split: bool,
+    /// (experimental) One 3MF object per material group (hull, glass, ...) with a colour.
+    #[arg(long, help_heading = "3D print (experimental)")]
+    pub multicolor: bool,
+    /// (experimental) Simplify to about N triangles in all (e.g. 200000).
+    #[arg(long, value_name = "N", help_heading = "3D print (experimental)")]
+    pub simplify: Option<u32>,
+    /// (experimental) Export without the ship's weapons (changes the GLB).
+    #[arg(long, help_heading = "3D print (experimental)")]
+    pub no_weapons: bool,
+}
+
+impl PrintArgs {
+    /// Whether any print flag is given.
+    pub fn any(&self) -> bool {
+        self.fit_mm.is_some()
+            || self.scale_ratio.is_some()
+            || self.bed.is_some()
+            || self.shrink_to_bed
+            || self.drop_small.is_some()
+            || self.solid.is_some()
+            || self.thicken.is_some()
+            || self.hollow.is_some()
+            || self.peg.is_some()
+            || self.split
+            || self.multicolor
+            || self.simplify.is_some()
+            || self.no_weapons
+    }
+
+    /// The options these flags ask for, checked ([`PrintOptions::validate`]); the error is a
+    /// usage message.
+    pub fn options(&self) -> Result<starorg_data::assets::print::PrintOptions, String> {
+        use starorg_data::assets::print::{DEFAULT_DRAIN_MM, Hollow, PrintOptions, ScaleMode};
+        let scale = match (self.fit_mm, self.scale_ratio) {
+            (Some(_), Some(_)) => return Err("--fit-mm and --scale-ratio go alone".into()),
+            (Some(f), None) => ScaleMode::FitMm(f),
+            (None, Some(r)) => ScaleMode::Ratio(r),
+            (None, None) => ScaleMode::None,
+        };
+        let mut o = PrintOptions {
+            scale,
+            ..PrintOptions::default()
+        };
+        if let Some(b) = &self.bed {
+            o.bed_mm = parse_bed(b)?;
+        }
+        o.shrink_to_bed = self.shrink_to_bed;
+        o.drop_small_mm = self.drop_small;
+        if let Some(r) = self.solid {
+            o.solid = true;
+            o.solid_res_mm = r;
+        }
+        o.thicken_mm = self.thicken;
+        if let Some(h) = &self.hollow {
+            let mut it = h.split(',').map(str::trim);
+            let num = |s: Option<&str>, what: &str| -> Result<Option<f32>, String> {
+                s.filter(|s| !s.is_empty())
+                    .map(|s| {
+                        s.parse::<f32>()
+                            .map_err(|_| format!("--hollow {h:?}: {what} is not a number"))
+                    })
+                    .transpose()
+            };
+            let wall = num(it.next(), "WALL")?
+                .ok_or_else(|| format!("--hollow {h:?}: give WALL or WALL,DRAIN in mm"))?;
+            let drain = num(it.next(), "DRAIN")?.unwrap_or(DEFAULT_DRAIN_MM);
+            if it.next().is_some() {
+                return Err(format!("--hollow {h:?}: give WALL or WALL,DRAIN in mm"));
+            }
+            o.hollow = Some(Hollow {
+                wall_mm: wall,
+                drain_mm: drain,
+            });
+        }
+        o.peg_mm = self.peg;
+        o.split = self.split;
+        o.multicolor = self.multicolor;
+        o.simplify_tris = self.simplify;
+        o.no_weapons = self.no_weapons;
+        o.validate()?;
+        Ok(o)
+    }
+}
+
+/// `256x256x256` (or `X`, `*`, `,` between) -> [256.0; 3].
+pub fn parse_bed(s: &str) -> Result<[f32; 3], String> {
+    let parts: Vec<&str> = s.split(['x', 'X', '*', ',']).map(str::trim).collect();
+    let bad = || format!("--bed {s:?}: give XxYxZ in mm, e.g. 256x256x256");
+    let [x, y, z] = parts.as_slice() else {
+        return Err(bad());
+    };
+    let n = |v: &str| v.parse::<f32>().map_err(|_| bad());
+    Ok([n(x)?, n(y)?, n(z)?])
 }
 
 /// `--test-p4k`: a synthetic archive instead of the install's (test builds only).

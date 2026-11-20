@@ -74,6 +74,8 @@ interface Samples {
   dev_tree_sections: T.TreePage;
   dev_tree_section: T.TreePage;
   dev_tree_models: T.TreePage;
+  dev_tree_folded: T.TreePage;
+  dev_list_folded: T.ListPage;
   dev_list: T.ListPage;
   dev_list_node: T.ListPage;
   dev_list_query: T.ListPage;
@@ -138,6 +140,10 @@ interface Samples {
   asset_model_info: T.AssetModelInfo;
   asset_model_paints: T.ModelPaints;
   asset_export_model_paint: T.AssetExportResult;
+  asset_export_model_print: T.AssetExportResult;
+  print_options_default: T.PrintOptions;
+  print_options_example: T.PrintOptions;
+  print_scale_modes: T.ScaleMode[];
   asset_model_info_known: T.AssetModelInfo;
   asset_model_view: T.AssetModelView;
   asset_model_view_cached: T.AssetModelView;

@@ -28,7 +28,7 @@ pub use starorg_core::dev::readable::{LabelKind, Readable};
 pub use starorg_core::dev::record::{LocText, RecordHeader, RecordView};
 pub use starorg_core::dev::sections::{
     Change, FacetCounts, FacetValue, Filters, GroupHead, ListGroup, ListItem, ListPage, ListQuery,
-    Matching, SectionStats, SortKey, Stat,
+    Matching, SectionStats, SortKey, Stat, TreeOpts, VariantRef,
 };
 
 /// Records above this count get a size warning in the export dialog (7.4).
@@ -79,6 +79,10 @@ pub struct DevTreeRequest {
     /// Sections view: hide AI, NPC, test and template variants (7.17).
     #[serde(default)]
     pub player_only: bool,
+    /// Sections view: one record leaf per readable name, its `count` the records it
+    /// stands for (0 when only itself).
+    #[serde(default)]
+    pub fold_variants: bool,
 }
 
 /// The item finder's list (7.17): a node of the Sections view (or every record), search

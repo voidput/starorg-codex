@@ -10,7 +10,7 @@
 //! the archive index, while a model exports, and while the first sounds request reads the
 //! DataCore and the Wwise index, so none of these peaks overlap an extraction.
 
-use super::dev::{Worker, WorkerKey, lock_or};
+use super::dev::{Worker, WorkerKey, lock_or, worker_error};
 use super::dialogs::FileFilter;
 use super::{RealBackend, err, internal, io};
 use crate::contract::Progress;
@@ -132,6 +132,11 @@ fn export_result(path: Option<String>, files: u32, bytes: u64, cached: bool) -> 
         failed: Vec::new(),
         note: None,
     }
+}
+
+/// The print processing's notes as one line (`None` without any).
+fn print_note(notes: &[String]) -> Option<String> {
+    (!notes.is_empty()).then(|| notes.join(" "))
 }
 
 fn preview_key(path: &str) -> String {
@@ -332,7 +337,11 @@ impl RealBackend {
                 let mut j = lock_or(&cell);
                 j.steps = p.total.max(1);
                 let label = if unit == "%" {
-                    format!("{label} {} %", p.done * 100 / p.total.max(1))
+                    let pct = p.done * 100 / p.total.max(1);
+                    match p.stage.as_deref() {
+                        Some(s) => format!("{label} {pct} % · {s}"),
+                        None => format!("{label} {pct} %"),
+                    }
                 } else {
                     format!("{} of {} {unit}", p.done, p.total)
                 };
@@ -919,9 +928,14 @@ impl AssetBackend for RealBackend {
             preset: req.preset,
             lod: model::effective_lod(asked, &self.known_lods(&key, &req.what)),
             stl: req.stl,
+            three_mf: req.three_mf,
             paint: req.paint.clone(),
             layers: req.layers,
+            print: req.print.clone(),
         };
+        if o.preset == model::ModelPreset::PrintShell {
+            o.print.validate().map_err(|m| err(ErrorCode::Invalid, m))?;
+        }
         let name = if req.name.is_empty() {
             &req.what
         } else {
@@ -972,20 +986,54 @@ impl AssetBackend for RealBackend {
             let n = std::fs::copy(&hit, &out).map_err(io)?;
             let mut files = 1;
             let mut bytes = n;
-            if o.stl {
+            let mut notes = Vec::new();
+            if (o.stl || o.three_mf) && model::print_memory(&o) == 0 {
+                // A plain conversion (no voxel solid): cheap enough to do here.
                 let glb = std::fs::read(&hit).map_err(io)?;
-                let (_, len) =
-                    starorg_data::assets::stl::glb_file_to_stl(&glb, &out.with_extension("stl"))
-                        .map_err(|e| err(ErrorCode::Internal, e.message))?;
-                files += 1;
+                let m = starorg_data::assets::print::write_meshes(&glb, &out, &o)
+                    .map_err(|e| worker_error(&e.into()))?;
+                let (n, len) = m.files_bytes();
+                files += n;
                 bytes += len;
+                notes = m.notes;
+            } else if o.stl || o.three_mf {
+                // The voxel steps take seconds to minutes and GBs: a fresh worker under the
+                // memory cap, with progress and cancel, on the copy just made.
+                let _x = wait_lock(&self.dirs().extract_lock())?;
+                let w = self.spawn_asset(&ch, &key)?;
+                let r = self.asset_stream(
+                    &w,
+                    &ch.name,
+                    &format!("Processing model {name} for printing"),
+                    &AssetRequest::PrintModel {
+                        glb: out.clone(),
+                        options: o.clone(),
+                        out: out.clone(),
+                    },
+                    "%",
+                    progress,
+                );
+                w.stop();
+                drop(_x);
+                let d: model::PrintDone = serde_json::from_value(r?).map_err(internal)?;
+                let (n, len) = starorg_data::assets::print::files_bytes(&d.meshes);
+                files += n;
+                bytes += len;
+                notes = d.notes;
+                self.log(
+                    LogLevel::Info,
+                    Some(JobKind::Dev),
+                    Some(&ch.name),
+                    &format!(
+                        "Processed cached model {name} for printing ({} ms, peak memory {} MB)",
+                        d.ms,
+                        d.peak_rss.map(|b| b / 1_048_576).unwrap_or(0)
+                    ),
+                );
             }
-            return Ok(export_result(
-                Some(out.display().to_string()),
-                files,
-                bytes,
-                true,
-            ));
+            let mut r = export_result(Some(out.display().to_string()), files, bytes, true);
+            r.note = print_note(&notes);
+            return Ok(r);
         }
         // A fresh worker: the export's memory goes back to the OS when it stops.
         let _x = wait_lock(&self.dirs().extract_lock())?;
@@ -1024,9 +1072,11 @@ impl AssetBackend for RealBackend {
                 d.peak_rss.map(|b| b / 1_048_576).unwrap_or(0)
             ),
         );
-        let files = 1 + d.stl_path.is_some() as u32;
-        let bytes = d.bytes + d.stl_bytes.unwrap_or(0);
-        Ok(export_result(Some(d.path), files, bytes, false))
+        let (n, len) = starorg_data::assets::print::files_bytes(&d.meshes);
+        let (files, bytes) = (1 + n, d.bytes + len);
+        let mut r = export_result(Some(d.path), files, bytes, false);
+        r.note = print_note(&d.notes);
+        Ok(r)
     }
 
     fn asset_model_info(&self, req: AssetModelInfoRequest) -> CmdResult<AssetModelInfo> {

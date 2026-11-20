@@ -945,6 +945,12 @@ pub fn catalogue_geometry(n: usize) -> Option<String> {
     })
 }
 
+/// What catalogue row `r` reads as in game: an AI copy reads as the ship it copies (`Alpha
+/// Kestrel`; the ` PU AI CIV` suffix is the record name's only), so the finder folds them.
+fn catalogue_display(r: &CatRow) -> &'static str {
+    r.5.strip_suffix(" PU AI CIV").unwrap_or(r.5)
+}
+
 fn catalogue_facts(r: &CatRow) -> Option<Facts> {
     let some = |s: &str| (!s.is_empty()).then(|| s.to_string());
     (r.0 == E).then(|| Facts {
@@ -952,7 +958,7 @@ fn catalogue_facts(r: &CatRow) -> Option<Facts> {
         sub_type: some(r.2),
         size: (r.3 > 0).then_some(r.3),
         manufacturer: some(r.4),
-        display: some(r.5),
+        display: some(catalogue_display(r)),
         grade: some(r.7),
         class: some(r.8),
         model: r.9,
@@ -1098,12 +1104,12 @@ fn build_core() -> MockCore {
                         "_Type_": "SItemDefinition",
                         "Type": r.1, "SubType": r.2, "Size": r.3, "Grade": r.7,
                         "Manufacturer": r.4,
-                        "Localization": { "Name": r.5 },
+                        "Localization": { "Name": catalogue_display(r) },
                     },
                 }],
             })
         } else {
-            json!({ "_Type_": r.0, "displayName": r.5 })
+            json!({ "_Type_": r.0, "displayName": catalogue_display(r) })
         };
         values.push(json!({
             "_RecordName_": format!("{}.{name}", r.0),
@@ -1651,13 +1657,16 @@ impl DevBackend for MockBackend {
     fn dev_tree(&self, req: DevTreeRequest) -> CmdResult<TreePage> {
         let c = self.explorer(&req.target)?;
         if req.root == TreeRoot::Section {
-            return Ok(c.sections.tree(
+            return Ok(c.sections.tree_with(
                 &c.index,
                 &req.node,
                 req.offset as usize,
                 (req.limit as usize).min(MAX_PAGE),
-                req.main_only,
-                req.player_only,
+                TreeOpts {
+                    main_only: req.main_only,
+                    player_only: req.player_only,
+                    fold_variants: req.fold_variants,
+                },
             ));
         }
         Ok(c.index.tree(

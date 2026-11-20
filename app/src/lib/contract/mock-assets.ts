@@ -6,6 +6,7 @@
  */
 import type * as T from './types';
 import type * as A from './assets';
+import { isDefaultPrint, printProblem } from '../printoptions.ts';
 
 export interface AssetMockData {
   files: [string, number][];
@@ -95,12 +96,12 @@ export const isDdsSibling = (p: string) => {
   return tail.length > 0 && /^[0-9]*$/.test(tail.replace(/a+$/, ''));
 };
 const cmpName = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
-type KeyOpts = { preset: A.ModelPreset; lod: number; paint?: string | null; layers?: boolean };
-/** As `ModelOptions::key`: `full-lod1`, `full-lod1-paint-gladiuspirate-layers` (paint and layers Full only). */
+type KeyOpts = { preset: A.ModelPreset; lod: number; paint?: string | null; layers?: boolean; noWeapons?: boolean };
+/** As `ModelOptions::key`: `full-lod1`, `full-lod1-paint-gladiuspirate-layers` (paint and layers Full only), `print-lod0-noweapons` (Print shell only). */
 const lodKey = (o: KeyOpts) => {
   const full = o.preset === 'full';
   const paint = full ? o.paint?.trim() : '';
-  return `${full ? 'full' : 'print'}-lod${o.lod}${paint ? `-paint-${paint.toLowerCase().replace(/[^a-z0-9._-]/g, '_')}` : ''}${full && o.layers ? '-layers' : ''}`;
+  return `${full ? 'full' : 'print'}-lod${o.lod}${paint ? `-paint-${paint.toLowerCase().replace(/[^a-z0-9._-]/g, '_')}` : ''}${full && o.layers ? '-layers' : ''}${!full && o.noWeapons ? '-noweapons' : ''}`;
 };
 export const modelFileName = (name: string, o: KeyOpts) => {
   const base = [...name].map((c) => (/[A-Za-z0-9_-]/.test(c) ? c : '_')).join('');
@@ -110,6 +111,9 @@ export const modelFileName = (name: string, o: KeyOpts) => {
 const GIB = 1024 ** 3;
 const MAX_LOD = 4;
 const MODEL_CHUNK = 8 * 1024 * 1024;
+/** As `mock_assets.rs`: the STL and 3MF of a print-shell export (a Javelin LOD 0's STL, a 3MF a quarter of it). */
+const STL_BYTES = 183149634;
+const THREE_MF_BYTES = 45000000;
 /** `model::effective_lod`: the most detailed LOD the mesh has at or below the asked one. */
 export const effectiveLod = (asked: number, lods: number[]): number => {
   const r = Math.min(asked, MAX_LOD);
@@ -434,7 +438,10 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
       const paint = req.paint?.trim();
       if (req.preset === 'full' && paint && !mockPaints(req.what).paints.some((p) => p.tag.toLowerCase() === paint.toLowerCase()))
         ctx.fail('invalid', `${recName} has no paint ${JSON.stringify(paint)} (see its paints)`);
-      const o = { preset: req.preset, lod: effectiveLod(Math.min(req.lod, 4), known.get(req.what) ?? []), paint: req.paint ?? null, layers: req.layers ?? false };
+      const print = req.preset === 'print-shell' ? req.print : undefined;
+      const problem = print ? printProblem(print) : null;
+      if (problem) ctx.fail('invalid', problem);
+      const o = { preset: req.preset, lod: effectiveLod(Math.min(req.lod, 4), known.get(req.what) ?? []), paint: req.paint ?? null, layers: req.layers ?? false, noWeapons: print?.no_weapons ?? false };
       const k = `model:${req.what}-${lodKey(o)}`;
       const held = size(k);
       const bytes = held ?? (req.preset === 'full' ? 348136664 : 56398596);
@@ -443,7 +450,7 @@ export function createAssetMock(data: AssetMockData, ctx: AssetMockCtx): { handl
         if (bytes <= data.cacheMax / 4) add(k, bytes);
       }
       const name = req.name || recName;
-      return { cancelled: false, path: `${data.exports}/${modelFileName(name, o)}`, files: 1 + (req.stl ? 1 : 0), bytes: bytes + (req.stl ? 183149634 : 0), cached: held !== null, failed: [], note: null };
+      return { cancelled: false, path: `${data.exports}/${modelFileName(name, o)}`, files: 1 + (req.stl ? 1 : 0) + (req.three_mf ? 1 : 0), bytes: bytes + (req.stl ? STL_BYTES : 0) + (req.three_mf ? THREE_MF_BYTES : 0), cached: held !== null, failed: [], note: print && (req.stl || req.three_mf) && !isDefaultPrint(print) ? '3D print processing (experimental) applied to the STL/3MF.' : null };
     },
     asset_model_paints: ({ req }) => {
       on(req.target);

@@ -1556,7 +1556,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     dev_types: ({ req }) => explorer(req).types(),
     dev_tree: ({ req }) => {
       const ix = explorer(req.target);
-      if (req.root === 'section') return sections.tree(req.node, req.offset, Math.min(req.limit, MAX_PAGE), req.main_only, req.player_only ?? false);
+      if (req.root === 'section') return sections.tree(req.node, req.offset, Math.min(req.limit, MAX_PAGE), req.main_only, req.player_only ?? false, req.fold_variants ?? false);
       return ix.tree(req.root, req.node, req.offset, Math.min(req.limit, MAX_PAGE), req.main_only);
     },
     dev_list: ({ req }) => {
@@ -1824,6 +1824,7 @@ interface SectionEntry {
 }
 
 const MAX_FACET_VALUES = 60;
+const MAX_VARIANTS = 64;
 const FOLDER_DEPTH = 3;
 const relative = (p: string) => {
   const t = p.replace(/^[/\\]+/, '');
@@ -2059,12 +2060,51 @@ export class Sections {
     return parts.join(' › ');
   }
 
-  tree(node: string, offset: number, limit: number, mainOnly: boolean, playerOnly: boolean): D.TreePage {
-    const all = this.children(node, mainOnly, playerOnly);
+  tree(node: string, offset: number, limit: number, mainOnly: boolean, playerOnly: boolean, fold = false): D.TreePage {
+    const all = this.children(node, mainOnly, playerOnly, fold);
     return { nodes: all.slice(offset, offset + Math.min(limit, MAX_PAGE)), offset, total: all.length };
   }
 
-  private children(node: string, mainOnly: boolean, playerOnly: boolean): D.TreeNode[] {
+  /**
+   * Records grouped by (section, readable name, case-insensitive) in order of first
+   * appearance, each group's rank its best member's, members in representative order (as
+   * core's `SectionIndex::fold`).
+   */
+  private fold<R>(items: [R, number][], better: (a: R, b: R) => boolean): [R, number[]][] {
+    const at = new Map<string, number>();
+    const groups: [R, number[]][] = [];
+    for (const [rank, i] of items) {
+      const label = this.label(i).toLowerCase();
+      const key = label === '' ? null : `${this.recs[i]!.section}\u0000${label}`;
+      const g = key === null ? undefined : at.get(key);
+      if (g !== undefined) {
+        if (better(rank, groups[g]![0])) groups[g]![0] = rank;
+        groups[g]![1].push(i);
+      } else {
+        if (key !== null) at.set(key, groups.length);
+        groups.push([rank, [i]]);
+      }
+    }
+    const repKey = (i: number) => {
+      const e = this.entries[i]!;
+      const v = this.recs[i]!.variant;
+      return [!(e.main && !v), v, utf8Len(e.name), e.name] as const;
+    };
+    for (const [, m] of groups)
+      m.sort((a, b) => {
+        const x = repKey(a);
+        const y = repKey(b);
+        return Number(x[0]) - Number(y[0]) || Number(x[1]) - Number(y[1]) || x[2] - y[2] || cmp(x[3], y[3]);
+      });
+    return groups;
+  }
+
+  private variantRef(i: number): D.VariantRef {
+    const e = this.entries[i]!;
+    return { guid: e.guid, name: e.name, short: shortName(e.name), variant: this.recs[i]!.variant, main: e.main };
+  }
+
+  private children(node: string, mainOnly: boolean, playerOnly: boolean, fold: boolean): D.TreeNode[] {
     const n = this.parse(node);
     if (!n) return [];
     const ok = (i: number) => (!mainOnly || this.entries[i]!.main) && (!playerOnly || !this.recs[i]!.variant);
@@ -2091,10 +2131,16 @@ export class Sections {
     const keys = [...n.keys];
     while (keys.length < levels.length && members.every((i) => this.key(i, levels[keys.length]!) === null)) keys.push(null);
     if (keys.length >= levels.length) {
-      return members.map((i) => {
+      const leaf = (i: number, count: number): D.TreeNode => {
         const e = this.entries[i]!;
-        return { id: `r:${e.guid}`, label: this.label(i), kind: 'record', count: 0, main: e.main };
-      });
+        return { id: `r:${e.guid}`, label: this.label(i), kind: 'record', count, main: e.main };
+      };
+      if (fold)
+        return this.fold(
+          members.map((i) => [0, i]),
+          () => false,
+        ).map(([, m]) => leaf(m[0]!, m.length > 1 ? m.length : 0));
+      return members.map((i) => leaf(i, 0));
     }
     const level = levels[keys.length]!;
     const groups: [string | null, number][] = [];
@@ -2270,6 +2316,17 @@ export class Sections {
     }
     const { counts, flags, changeCounts } = res;
     let hits = res.hits;
+    // Folding after the filters, as core: a group ranks by its best member.
+    const folded = new Map<number, number[]>();
+    if (q.fold_variants)
+      hits = this.fold(
+        hits.map((h) => [[h[0], h[1]] as [number, number], h[2]]),
+        (a, b) => a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]),
+      ).map(([rank, m]) => {
+        const rep = m.shift()!;
+        if (m.length > 0) folded.set(rep, m);
+        return [rank[0], rank[1], rep] as [number, number, number];
+      });
     const sizeOf = (i: number) => this.recs[i]!.size ?? Number.MAX_SAFE_INTEGER;
     const makerOf = (i: number) => {
       const m = this.recs[i]!.maker;
@@ -2360,7 +2417,12 @@ export class Sections {
           ? []
           : (['added', 'changed'] as const).map((c) => ({ value: c, label: c === 'added' ? 'Added' : 'Changed', count: changeCounts.get(c) ?? 0 })),
     };
-    const items = hits.slice(q.offset, q.offset + Math.min(q.limit, MAX_PAGE)).map(([, , i], k) => ({ ...this.item(i), group: keyed[q.offset + k] ?? null }));
+    const items = hits.slice(q.offset, q.offset + Math.min(q.limit, MAX_PAGE)).map(([, , i], k) => {
+      const it: D.ListItem = { ...this.item(i), group: keyed[q.offset + k] ?? null };
+      const m = folded.get(i);
+      if (m) it.variants = m.slice(0, MAX_VARIANTS).map((j) => this.variantRef(j));
+      return it;
+    });
     return { items, offset: q.offset, total: hits.length, matched, facets, groups, title: this.title(n), understood: pq.understood, words: pq.words, matching };
   }
 

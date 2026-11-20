@@ -33,6 +33,11 @@ Developer mode (addendum §7)
 - [ ] Backlinks ("Referenced by", Q-D2) and the `starorg-gamedata` domain outputs as a source ([#15](https://github.com/voidput/starorg-codex/issues/15))
 - [ ] Owner: open Explorer on LIVE in the real app and try a type export ([#15](https://github.com/voidput/starorg-codex/issues/15))
 
+Model export 3D print processing, experimental — [[specs/model-print]] ([plain](../specs/model-print.md))
+
+- [ ] Fill the stubs (scale: drop tiny + bed check; voxel: solid, thicken, hollow, pegs, extract; split; color; simplify; weapons) per the spec's module table
+- [ ] Owner: print a Skylark from `dev print-glb` output and report what the slicer says
+
 Local MCP server, experimental (addendum §10)
 
 - [ ] Owner: connect Claude Code / Claude Desktop to the app's server on a real install and try the tools ([#15](https://github.com/voidput/starorg-codex/issues/15))

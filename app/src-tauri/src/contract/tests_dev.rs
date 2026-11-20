@@ -29,6 +29,7 @@ fn dev_mock() -> MockBackend {
 
 fn tree(root: TreeRoot, node: &str, limit: u32) -> DevTreeRequest {
     DevTreeRequest {
+        fold_variants: false,
         player_only: false,
         target: live(),
         root,
@@ -282,6 +283,34 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
     let models = b
         .dev_tree(tree(TreeRoot::Section, "m:models:[]", 50))
         .unwrap();
+    // The Spaceships leaf: `Alpha Kestrel` folds its AI copy.
+    let mut node = ships_id.clone();
+    let leaves = loop {
+        let page = b.dev_tree(tree(TreeRoot::Section, &node, 50)).unwrap();
+        // The biggest group at each level (Vehicles, Spaceships, Alpha).
+        let biggest = page
+            .nodes
+            .iter()
+            .filter(|n| n.kind == NodeKind::Folder)
+            .max_by_key(|n| n.count);
+        match biggest {
+            Some(n) => node = n.id.clone(),
+            None => break node.clone(),
+        }
+    };
+    let tree_folded = b
+        .dev_tree(DevTreeRequest {
+            fold_variants: true,
+            ..tree(TreeRoot::Section, &leaves, 50)
+        })
+        .unwrap();
+    let list_folded = list(ListQuery {
+        node: ships_id.clone(),
+        limit: 10,
+        main_only: true,
+        fold_variants: true,
+        ..Default::default()
+    });
     let list_all = list(ListQuery {
         limit: 5,
         main_only: true,
@@ -368,6 +397,8 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         ("dev_tree_sections", json!(sections)),
         ("dev_tree_section", json!(ships)),
         ("dev_tree_models", json!(models)),
+        ("dev_tree_folded", json!(tree_folded)),
+        ("dev_list_folded", json!(list_folded)),
         ("dev_list", json!(list_all)),
         ("dev_list_node", json!(list_node)),
         ("dev_list_query", json!(list_query)),

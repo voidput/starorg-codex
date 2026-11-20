@@ -467,6 +467,7 @@ fn sections_tree_list_marks_and_owner_over_the_protocol() {
             limit: 500,
             main_only: true,
             player_only: true,
+            fold_variants: false,
         })
         .unwrap();
     let nodes = root["nodes"].as_array().unwrap();

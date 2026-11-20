@@ -1,0 +1,304 @@
+---
+title: "Model export: 3D print processing (experimental)"
+tags: [docs, plans, specs]
+status: active
+updated: 2026-11-17
+---
+
+# Model export: 3D print processing (experimental)
+
+Experimental processing of the **STL/3MF** written next to a **Print shell** GLB
+([addendum 7.16](starorg-codex-v1-addendum.md)). The GLB stays as exported (glTF Y-up,
+metres); the STL/3MF are Z-up. Every option is **off by default** and labelled experimental
+(UI badge "Experimental", CLI help "(experimental)"); the model always sits on the bed.
+Only `no_weapons` changes the GLB (it is part of the cache key: `print-lod0-noweapons`).
+
+## Options
+
+`assets::print::PrintOptions` (serde, every field defaulted, one nested `print` object in
+`AssetExportModelRequest` and `ModelOptions`; mirrored in `app/src/lib/contract/assets.ts`,
+defaults and checks in `app/src/lib/printoptions.ts`).
+
+| Option | Type, default | CLI | Needs |
+|---|---|---|---|
+| `scale` | `none` \| `fit-mm` (f32, UI default 150) \| `ratio` (u32, 1:N) | `--fit-mm N` \| `--scale-ratio N` (exclusive) | |
+| `bed_mm` | `[f32; 3]`, `[256, 256, 256]` (remembered by the UI) | `--bed XxYxZ` | |
+| `shrink_to_bed` | bool | `--shrink-to-bed` | |
+| `drop_small_mm` | `Option<f32>` (1.0 when on) | `--drop-small MM` | |
+| `solid` + `solid_res_mm` | bool + 0.1 \| 0.2 \| 0.4 (0.2) | `--solid [RES]` | a scale or `shrink_to_bed` |
+| `thicken_mm` | `Option<f32>` (0.8) | `--thicken MM` | `solid` |
+| `hollow` | `Option<{wall_mm 2.0, drain_mm 3.0}>` | `--hollow WALL[,DRAIN]` | `solid` |
+| `peg_mm` | `Option<f32>`: 3 \| 5 \| 6, 8 mm deep | `--peg MM` | `solid` (without `split`: the stand hole only) |
+| `split` | bool | `--split` | `solid` |
+| `multicolor` | bool | `--multicolor` | |
+| `simplify_tris` | `Option<u32>` (200000, at least 1000) | `--simplify N` | |
+| `no_weapons` | bool (changes the GLB) | `--no-weapons` | |
+
+`PrintOptions::validate` refuses values out of range and options without what they need; the
+same messages come from the CLI (exit 2), the backends (`invalid`) and the TS check (the
+dialog disables "Save as…"). Print options with `--preset full` are refused by the CLI and
+ignored by the backends (as a Print shell ignores paints).
+
+### Scale, bed and small parts (`scale.rs`)
+
+- **Scale**: none keeps real size in metres (3MF `unit="meter"`); fit-mm makes the longest
+  side N mm; ratio 1:N gives mm = m × 1000 / N; shrink-to-bed alone starts from real size in
+  mm. Any of these writes millimetres (3MF `unit="millimeter"`, STL numbers in mm). Fit-mm
+  measures what is left after small parts are dropped.
+- **Sit on the bed** (always, steps 4 and 13): lowest z = 0 and the middle of the footprint at
+  x = y = 0, all parts moved together (each split piece on its own).
+- **Bed check** (scaled models only; real size in metres is never checked): fits as is → no
+  change; fits only turned 90° about Z → turned, with a note; fits neither way → with
+  shrink-to-bed, scaled down (turned when that keeps it larger) with a note giving the
+  percentage and the new size, else a note with the size and what to do (`split` → "the split
+  cuts it into pieces that fit"). 1 µm slack for f32 rounding.
+- **Drop small parts**: corners closer than 1/1000 of the size are welded (union-find over a
+  hash grid), triangles joined by corners form a loose part, and parts whose bounding-box
+  **diagonal** at print size is under N mm are left out ("Left out K parts smaller than N mm.").
+  A small part inside or touching a bigger one without sharing a corner counts as loose. Real
+  data: Skylark LOD 4 (98 376 tris) at fit 150 mm drops 655 parts (→ 94 844 tris) at 1 mm,
+  906 at 3 mm; Carrack LOD 4 (401 933 tris) at fit 250 mm drops 16 020 parts (→ 278 622) at
+  0.3 mm; 0.15 s and about 1 s in a release build.
+
+## Pipeline
+
+`print::apply(mesh, &PrintOptions, progress) -> AssetResult<PrintOutput>`, fixed order:
+
+1. classify groups (multicolor only; otherwise groups are dropped)
+2. drop tiny parts (measured at print size)
+3. scale (`scale::factor`: real size stays metres, `unit="meter"`; any scale or shrink -> mm)
+4. sit on the bed (min z = 0, x/y centred)
+5. bed check / shrink to the bed, sit on the bed
+6. voxel solid, 7. thicken, 8. hollow + drain, 9. pegs (at `split::plan`'s cuts)
+10. split into pieces
+11. extract per group (`voxel::extract`, then `color::by_group`)
+12. simplify (the triangle budget shared by part size)
+13. sit on the bed again (each split piece lowered alone, its colour parts with it, keeping the
+    split's side-by-side layout; then the whole layout centred on x/y)
+14. write: one 3MF with every part (`color::layout`: one assembly for multicolor without
+    split, else one build item per part; display colours as `basematerials`); one STL, or one
+    STL per part for separate parts (`ship-part1.stl`)
+
+Input: `Mesh::from_glb` (shared vertices, degenerate triangles dropped, each triangle's group is
+its GLB node path such as `geo_body` or `hardpoint_weapon_left/mesh_gun`).
+
+## Module ownership
+
+Each feature agent edits **only its file** (and may add `#[cfg(test)] mod tests` inside it);
+signatures below are final. Shared files (`print/mod.rs`, `threemf.rs`, `stl.rs`, the contract,
+CLI, UI) belong to the foundation; ask before changing them.
+
+| File | Owner | Implement |
+|---|---|---|
+| `crates/starorg-data/src/assets/print/scale.rs` | scale | `drop_tiny(&mut Mesh, min_size: f32) -> usize`, `bed_check(&mut Mesh, &PrintOptions, Unit, &mut Vec<String>) -> AssetResult<()>` (done: `factor`, `scale`, `sit_on_bed`) |
+| `crates/starorg-data/src/assets/print/voxel.rs` | voxel | `voxelize(&Mesh, res, Progress) -> AssetResult<VoxelGrid>`, `thicken(&mut VoxelGrid, min, Progress) -> AssetResult<()>`, `hollow(&mut VoxelGrid, wall, drain, &mut Vec<String>, Progress) -> AssetResult<()>`, `peg(&mut VoxelGrid, &[Cut], diameter, depth, &mut Vec<String>) -> AssetResult<()>`, `extract(&VoxelGrid, Progress) -> AssetResult<Mesh>`; keeps the `VoxelGrid` API |
+| `crates/starorg-data/src/assets/print/split.rs` | split | `plan(&VoxelGrid, bed: [f32; 3]) -> Vec<Cut>`, `split(VoxelGrid, &[Cut]) -> Vec<Piece>` |
+| `crates/starorg-data/src/assets/print/color.rs` | color | `classify(&mut Mesh)`, `by_group(&Mesh) -> Vec<(String, Mesh)>`, `color_of(&str) -> Option<[u8; 4]>` (done: `layout`) |
+| `crates/starorg-data/src/assets/print/simplify.rs` | simplify | `simplify(&mut Mesh, target: u32, Progress) -> AssetResult<()>` |
+| `crates/starorg-data/src/assets/model.rs` (`strip_weapons` only) | weapons | `strip_weapons(&Database<'static>, &mut LoadoutTree) -> usize` |
+
+Lengths passed to the steps are in mesh units (after step 3: millimetres, or metres at real
+size); the pipeline converts the options' millimetres. `Progress` is
+`&(dyn Fn(f32, &str) -> bool + Sync)`; false cancels (`AssetError::cancelled`).
+
+Shared types (`print/mod.rs`): `Mesh { vertices, triangles, groups: Option<Vec<u32>>, labels }`
+with `from_triangles`, `from_labeled`, `from_glb`, `bounds`, `soup`, `subset`,
+`retain_triangles`, `compact`, `append`, `map_vertices`; `Aabb`; `Cut { axis, at }`;
+`Part { name, mesh, color }`; `PrintOutput { parts, unit, layout, notes }`. `VoxelGrid`
+(`voxel.rs`): `new`, `get`/`set`/`is_solid`, `center`, `cell_at`, `crop`, `cells(_mut)`,
+`count_solid`; a cell is 0 (empty) or 1 + its group. `threemf::write_3mf_objects(&[Object],
+Unit, Layout, path)`.
+
+## Voxel solid (`voxel.rs`)
+
+Robust over pretty: the output is always a closed, consistently outward 2-manifold.
+
+- **Voxelize** (`voxelize`): every triangle marks the cells its slightly enlarged box overlaps
+  (Akenine-Möller separating axes; per z-slab in parallel), so the surface has no 6-connected
+  gaps. The outside is flood-filled (span fill on bitsets) from the padded border after a
+  closing of `SEAL_CELLS` (2 voxels: sub-millimetre cracks between panels are sealed). Game
+  hulls have larger openings, so a flood-reached cell stays outside only when it is in plain
+  view along at least `OUTSIDE_VOTES` (3) of the six axis directions (ray stabbing); the inside
+  of a hull with holes is seen through one or two. Trade-off: deep exterior pockets seen from
+  fewer than three directions (between landing gear legs, bores) fill in. The solid is about
+  half a voxel larger on each side. Grids above `CELL_BUDGET` (2^29 cells) are coarsened, with
+  a note (`coarsened`). Each cell keeps its closest triangle's group (`1 + group`, at most 255).
+- **Extract** (`extract`, `extract_where` for one group as its own closed mesh): the cells are
+  made well-composed (no two solid or two empty cells meeting only at an edge or corner; fixed
+  by adding cells), then each solid/empty face is a quad on shared grid corners; a clamped
+  Laplacian smoothing (each vertex within 0.4 voxel of its corner, undone where a triangle would
+  turn over) softens the staircase without changing topology. Triangle counts are high
+  (millions at 0.2 mm); simplify is a separate step.
+- **Thicken** (`thicken`): what an opening of radius t/2 removes, away from the rounded edges
+  of thick parts, is dilated by t/2, so sheets become at least t thick; thin parts grow outwards
+  on both sides and gaps narrower than t between them fill in.
+- **Hollow** (`hollow`): cavities are the solid eroded by the wall (a discrete ball, chained in
+  4-voxel steps); cavities under 1 mm³ stay solid; each cavity drains through a vertical hole
+  from its lowest point (nearest its centre) down through the bottom wall, plus a second for a
+  cavity wider than eight holes. The note lists cavities and hole positions. A wall under
+  the solid resolution is refused (`validate`, `printProblem`); a wall under the voxel the
+  grid was coarsened to leaves the solid whole ("Not hollowed: ... thinner than the voxel").
+- **Pegs** (`peg`): per cut, a hole at the most solid point (2D distance transform) of each piece
+  of the cut face (up to 4; a second on a large face), `depth` into each side; plus a stand
+  hole into the underside nearest the x/y centre of mass with room. Every hole is clamped to
+  leave `PEG_CAP_MM` (0.6) of material, with a note when clamped, when the wall around is
+  under `PEG_WALL_MM` (0.8), or when there is no room.
+- Helpers for the split and colour steps: `Bits` (bitset with `dilate`/`erode`/`flood`/
+  `components`), `VoxelGrid::bits`, `solid_bounds`, `grown`.
+
+Real data (release, 32 threads; `--fit-mm 150`): Skylark LOD 4 (98 376 triangles in) at 0.2 mm:
+0.56 s, 407 MB peak, 3.09 M triangles, watertight (every edge once each way), 223 cm³; 0.1 mm is
+coarsened to 0.13 mm: 1.6 s, 1.15 GB, 7.6 M triangles; with `--thicken 0.8 --hollow 2,3`:
+0.94 s, 9 cavities, 10 drain holes, 69 cm³, watertight. Gladius LOD 2 at 0.2 mm: 0.52 s,
+278 MB, 1.83 M triangles, watertight.
+
+## Split for the bed (`split.rs`)
+
+Needs `--solid` (refused otherwise: "--split needs --solid (experimental)").
+
+- **Plan** (`plan`): whole-grid axis-aligned planes, so the pieces are the cells of a lattice
+  (the `Cut { axis, at }` the pegs also read). Each axis gets the fewest planes its solid
+  extent needs for slabs of at most the bed (less half a voxel); pieces are not turned. Where
+  the planes go is searched: per axis the positions of least total cut area (dynamic
+  programming over the cut-face area: through thin sections) and the slabs slid from the low
+  end to the high end (33 steps); every combination is scored when there are up to 4096, else
+  axis by axis in each of the six axis orders. Score: fewest non-empty pieces, then fewest
+  slivers (a piece under 2 % of the solid), then least cut area. Pieces are counted from
+  per-row solid runs, so a plan scores in about a millisecond.
+- **Pins** (`pins`, when `--peg` is not given; with `--peg` the pegs do this): per cut,
+  `PIN_MM` (2 mm) holes `PIN_DEPTH_MM` (4 mm) into each side, two in the largest piece of the
+  cut face (the most solid point by a chamfer distance transform, the second as far from it as
+  the face allows, at least three diameters apart) and one in each of the next two pieces;
+  only where the face has room, never through (`PEG_CAP_MM` left). One note per cut.
+- **Split** (`split`): each lattice cell cropped to its solid cells, empty ones left out,
+  named `part1`, `part2`, ... (x, then y, then z) and laid out side by side along x
+  (`LAYOUT_GAP`, 5 mm), low y lined up; the pipeline then sits each on the bed. The STL is
+  `<name>-part1.stl`, ... (one `MeshFile` each), the 3MF one object and build item per part.
+  Without a needed cut: one unnamed piece, unchanged output. `summary` gives the note.
+
+Real data (release, 32 threads): Gladius Print shell LOD 2 at 1:100, `--bed 120x120x120
+--solid 0.2 --split`: 4.9 s in all for `dev print-glb` (STL + 3MF), 552 MB peak; cuts at
+x -16.6 and y 24.2, 4 parts (70 x 109 x 51, 20 x 70 x 26, 103 x 109 x 57, 53 x 104 x 42 mm),
+each watertight and within the bed, 2 pin holes per cut; with `--peg 5` the same cuts with
+5 mm pegs and a stand hole; the 3MF has 4 build items.
+
+## Multicolor (`color.rs`)
+
+- What is reliable. A Print shell GLB is exported with `MaterialMode::None`, so its materials
+  are only `material_NN`; the node names survive as full paths (Skylark:
+  `geo_body/lower_cockpit_frame/geo_cockpit_glass_lower_ext`,
+  `hardpoint_thruster_main_left/.../geo_thruster_main_left`; Gladius: `Body/Nose/Canopy`,
+  `hardpoint_thruster_main_left/.../Gladius_Thruster_Main`). So grouping is per node:
+  - `glass`: the node's own name has `glass`, `canopy`, `windshield` or `window` (not
+    `frame`). A canopy node holds its frame too when the artist modelled both in it (the
+    Gladius `Canopy` is about a quarter glass in the Full export's materials); glass inside the
+    body node stays hull.
+  - `engine`: any path segment has `thruster`, `engine` (not `CryEngine`) or `exhaust`, and
+    none has `mav`, `retro`, `rcs` or `maneuver` (manoeuvring thrusters stay hull). The whole
+    thruster, not just its glow (there is no glow node).
+  - `hull`: everything else.
+  - Exact glass would need material names: StarBreaker's `MaterialMode::Colors` keeps them
+    (`..._mtl_glass_ext_04`) without textures, but it changes the Print shell GLB (and its
+    cache key), so it is not used; a follow-up could export it for `--multicolor` only and
+    carry the material per triangle through `stl::walk_glb`.
+- Parts: `classify` sets the groups `hull`, `engine`, `glass` (in that order, the lowest
+  priority first); without Make solid, `by_group` gives one part per non-empty group (open
+  game surfaces, as before). Colours (`color_of`): hull `#B8BCC2`, engine `#FF7A1A`, glass
+  `#3A6EA5`.
+- With Make solid, `color::extract_groups(grid, COLOR_DEPTH_MM, progress)` (called by the
+  pipeline instead of `voxel::extract` + `by_group` when multicolor; one change in `mod.rs`):
+  `paint` keeps the group of outer-surface cells (a face on the outside flood), grows glass
+  and engine `COLOR_DEPTH_MM` (1.2 mm) inwards a layer at a time (glass > engine > hull where
+  they meet), makes every other cell hull and specks under `MIN_GROUP_CELLS` (27) hull; then
+  `voxel::extract_where` per group (on the group's crop when that is under half the grid):
+  one closed mesh per group. Neighbouring parts touch and may overlap by up to a voxel where
+  extracting closes a corner. The walls of a hollowed cavity count as outside (it drains), so
+  they may carry a colour inside; that costs filament, not looks.
+- Slicers (one object made of one component per group, `Layout::Assembly`, object-level
+  `pid`/`pindex` into one `basematerials`). From their 3MF importers' source: Bambu Studio
+  makes each component a part of one object and maps the distinct `displaycolor`s to filament
+  slots (non-Bambu 3MF path, object `pid`/`pindex`); PrusaSlicer's current loader (master,
+  after 2.9) makes each component a part of one object; PrusaSlicer 2.9 places each component
+  as an object of its own in place (join them with its "single object with multiple parts?"
+  question or Assemble). PrusaSlicer reads no colours: pick a filament per part (named `hull`,
+  `glass`, `engine`). Not yet checked in the slicers' GUIs.
+- STL: one file with every part (a single mesh), as without multicolor.
+- Real data (release, `--multicolor --fit-mm 150 --solid`): Skylark LOD 4: 3.7 s (2.7 s
+  without multicolor), 628 MB peak, hull 3.16 M / engine 83 k / glass 277 k triangles, each
+  closed (every edge once each way), 219.7 + 0.5 + 2.3 cm³ = 222.5 cm³ (one-colour solid
+  222.5 cm³). Gladius LOD 2: 2.3 s, 387 MB, hull 1.89 M / engine 128 k / glass 53 k
+  triangles, each closed. Without solid, the Skylark gives hull 96 028, engine 2 018 and glass
+  330 triangles in 0.13 s.
+
+## Simplify
+
+`simplify.rs`: quadric error metric edge collapse (Garland-Heckbert), pure Rust, no new crate
+(`meshopt` builds C++). Face quadrics are area-weighted; open edges and edges between two
+groups add a perpendicular plane (weight 10) so holes and colour borders stay put. A collapse
+is refused when it breaks the link condition, joins two boundary vertices over an inner edge,
+turns a face by more than about 78° or makes a sliver, makes two faces coincide, or would erase
+a small open piece. Vertices on non-manifold edges never move. A closed, consistently wound
+part stays closed; at or under the budget a part is unchanged; the result can stay above the
+budget when the checks refuse the rest (raw GLB soups; a voxel solid is manifold).
+
+Real data (release build, `dev print-glb --stl --simplify N`): Skylark LOD 4 (98 376
+triangles) to 20 000 in about 0.2 s, its 202 closed shells still closed; a Javelin LOD 0
+(3.66 M triangles, 420 k non-manifold edges) asked for 200 000 stops at about 725 000 in
+about 18 s.
+
+## Without weapons
+
+`model::strip_weapons` removes, before StarBreaker assembles the GLB, every loadout node whose
+item's `AttachDef.Type` is `Turret` (a gun's own mount: `Mount_Gimbal_*` `GunTurret`, the
+Arrow's chin `BallTurret`, `NoseMounted` cannons), `WeaponGun`, `WeaponMining`, `TractorBeam`,
+`WeaponAttachment`, `MissileLauncher`, `Missile`, `BombLauncher` or `Bomb`, or `UtilityTurret`
+`GunTurret` (a mining laser gimbal), with everything below it (`model::is_weapon`). Kept:
+turret bodies (`TurretBase` and `UtilityTurret` `MannedTurret`: Cutlass/Retaliator domes, MOLE
+cabs, whose guns still go), countermeasure launchers (`WeaponDefensive`), thrusters, seats,
+doors, modules, the paint. The list comes from the LIVE loadouts of 15 ships. The export adds
+the note "Without weapons (experimental): N loadout parts left out".
+
+LIVE, Print shell LOD 4, STL triangles with and without: Skylark 98 376 -> 71 121 (18 nodes:
+3 `Mount_Gimbal_S2`, 3 `KLWE_LaserRepeater_S2`, 2 missile racks, 10 missiles); Gladius
+104 142 -> 59 000 (20 nodes: 3 gimbals, 3 guns and the Gatling's 4 attachments, 4 racks, 6
+missiles). `cargo test --release -p starorg-data --test real_weapons -- --ignored` checks
+Skylark, Gladius, Cutlass Black and Arrow.
+
+## Testing on real GLBs
+
+`starorg-codex dev print-glb <in.glb> --out <dir> [print flags] [--stl] [--3mf]` runs the
+pipeline on an existing GLB (both files without `--stl`/`--3mf`), reading no game files; e.g.
+on a Skylark LOD 4 Print shell (98 376 triangles) `--fit-mm 150` takes about 1 s in a debug build.
+Notes from the steps are printed (and in `--json`, the app's export note).
+
+## Status
+
+Integrated on `feat/model-3mf` (every step built; all experimental, off by default but sitting on
+the bed). Integration fixes: split pieces were centred one by one after scale's x/y centring
+(stacked at the origin), now lowered per piece and the layout centred as a whole; `--peg`
+without `--split` is accepted (stand hole only); a note when simplify cannot reach its budget.
+
+End to end (release, `dev export-model ... --preset print`, 32 threads, 2026-11-17):
+
+- Skylark LOD 4, `--3mf --stl --fit-mm 150 --drop-small 1 --solid 0.2 --thicken 0.8 --hollow
+  2,3 --peg 5 --multicolor --simplify 200000 --no-weapons`: 25 s, 2.3 GB peak (simplify is
+  about 20 s of it, single-threaded on 5.6 M triangles). 18 loadout parts and 576 tiny parts
+  left out; hull 182 838 / engine 4 148 / glass 13 012 triangles, each watertight (every edge in
+  exactly two triangles, once each way); 129.3 x 150.2 x 54.2 mm; 4 cavities, 5 drain holes,
+  a 2.6 mm stand hole (thin there). trimesh loads 3 parts, all watertight.
+- Gladius LOD 2, `--scale-ratio 100 --bed 120x120x120 --solid --split --stl --3mf`: 5.6 s,
+  1.6 GB peak; 4 parts (70.4 x 108.9 x 51.2, 20.1 x 70.1 x 25.7, 103.4 x 109.2 x 57.0,
+  53.3 x 104.3 x 41.6 mm; 1.26 M, 170 k, 2.00 M, 791 k triangles), each watertight and within
+  the bed, side by side; 2 pin holes per cut.
+
+Memory and the app: `model::memory_need` adds `PrintOptions::solid_memory` (grid about 2
+bytes a cell from the fit size or bed at the resolution, capped at `CELL_BUDGET`; a ratio takes
+the whole budget; about 50 bytes a surface triangle, 250 with simplify) to the Print shell
+estimate. On a cached GLB the app converts in-process only without a solid; with one it sends
+`print-model` (the copied GLB) to a fresh asset worker, with progress, cancel and the memory
+cap (real: Skylark LOD 4 fit 80 solid 0.4 hollow 2,3 in a debug worker: 2.7 s, 958 MB peak).
+
+Open: exact glass needs material names (`MaterialMode::Colors`); multicolor with split gives
+separate objects per piece and group (no assembly per piece); the voxel solid is about half a
+voxel larger each side; smoothing and simplify do not guarantee no self-intersections; slicer
+GUIs not yet tried (importers read from source).

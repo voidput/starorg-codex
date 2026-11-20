@@ -82,12 +82,13 @@ test('every asset sample of the Rust mock comes back equal from the TS mock', as
   got.asset_sound = await h.asset_sound({ req: { target: live, sound: first } });
   got.asset_sound_cached = await h.asset_sound({ req: { target: live, sound: first } });
   got.asset_export_sounds = await h.asset_export_sounds({ req: { target: live, what: ship(1), sounds: [], wem: false } });
-  const model = (preset: 'full' | 'print-shell', lod: number, stl: boolean) => ({ req: { target: live, what: ship(2), name: 'SYN_Ship_002', preset, lod, stl, force: false } });
+  const model = (preset: 'full' | 'print-shell', lod: number, stl: boolean) => ({ req: { target: live, what: ship(2), name: 'SYN_Ship_002', preset, lod, stl, three_mf: stl, force: false } });
   got.asset_export_model = await h.asset_export_model(model('print-shell', 0, true));
   got.asset_export_model_cached = await h.asset_export_model(model('print-shell', 0, false));
   got.asset_export_model_full = await h.asset_export_model(model('full', 1, false));
   got.asset_model_paints = await h.asset_model_paints({ req: { target: live, what: ship(2) } });
   got.asset_export_model_paint = await h.asset_export_model({ req: { ...model('full', 1, false).req, paint: 'SYN_Ship_002BlackGold', layers: true } });
+  got.asset_export_model_print = await h.asset_export_model({ req: { ...model('print-shell', 0, false).req, three_mf: true, print: samples.print_options_example } });
   const info = (what: string) => ({ req: { target: live, what, name: '' } });
   const view = (what: string, lod: number) => ({ req: { target: live, what, name: '', lod, force: false } });
   got.asset_model_info = await h.asset_model_info(info(ship(4)));

@@ -1415,14 +1415,23 @@ replays every asset sample against the TS mock.
 (every word), preview (texture PNG at most 1024 px a side, CryXML/XML text, WEM play button),
 Extract (selected file or current folder; "Convert": textures to PNG with their mip files merged,
 CryXmlB to XML). Explorer record header: Sounds (opens a list of triggers with their sounds, play,
-Export sounds… / + .wem) and Export model… (Print shell or Full, LOD 0-4, optional STL). Next to
+Export sounds… / + .wem) and Export model… (Print shell or Full, LOD 0-4, optional STL and 3MF;
+the button says "Save as…" and the dialog says the STL/3MF go next to the GLB). Next to
 every export: "For personal use: these are Cloud Imperium's assets; don't redistribute."
 
 **Presets** (`assets::model`): *Full (textures)* = materials and textures (mip 2), interiors,
 lights, attachments, LOD 1 by default. *Print shell (geometry only)* = `--materials none
 --no-interior --no-lights`, LOD 0 by default. STL: pure Rust from the GLB (all triangle
 primitives of the default scene, node transforms baked, Y-up -> Z-up), what
-`glb_to_stl_trimesh.py` did; no Blender needed.
+`glb_to_stl_trimesh.py` did; no Blender needed. 3MF (experimental; the output may need repair in
+the slicer): the same triangles (`assets::threemf`), vertices shared by exact `f32` equality
+(`-0.0` = `0.0`), triangles with two equal corners or a non-finite coordinate left out (3MF wants
+three distinct vertices), in a deflated zip (`[Content_Types].xml`, `_rels/.rels`,
+`3D/3dmodel.model`, core spec 2015/02, one object, one build item), `unit="meter"`: the GLB is in
+game units, metres, so slicers show the real size. Like the STL, Print shell only (the UI turns it
+off for Full, the CLI refuses `--3mf` with `--preset full`), made from the cached GLB, never
+cached itself. RSI_Skylark LOD 4: 98,377 triangles, STL 4.9 MB, 3MF 1.2 MB (57,153 vertices,
+98,376 triangles: one degenerate left out), 6.09 x 7.08 x 2.69 m.
 
 **Paints and layer materials (Full only).** A paint is an item on the ship's `hardpoint_paint`
 port; its `AttachDef.Tags` name one of the ship's top-level `SGeometryResourceParams`
@@ -1445,7 +1454,7 @@ Full LOD 3 3.3 s, 1.8 GB, Pirate palette red/black/grey in the GLB extras (`pain
 names `Paint_Gladius_Pirate`).
 
 **CLI.** `starorg-codex dev extract <p4k path|folder|glob>... --out DIR [--convert]`,
-`dev export-model <guid|name> --out FILE [--preset full|print] [--lod N] [--stl]
+`dev export-model <guid|name> --out FILE [--preset full|print] [--lod N] [--stl] [--3mf]
 [--paint TAG] [--layers] [--cache-dir DIR]`, `dev model-paints <guid|name>`, `dev export-sounds <guid|name> --out DIR [--wem] [--list]
 [--cache-dir DIR]` (`--list` names each sound's codec and the file it becomes; the summary counts
 files by extension and lists the sounds kept as `.wem`, with why); in process, `extract.lock` while the archive is read, never into the install

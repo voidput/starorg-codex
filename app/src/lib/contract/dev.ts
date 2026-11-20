@@ -74,6 +74,17 @@ export interface ListQuery {
   offset: number;
   limit: number;
   main_only: boolean;
+  /** One row per readable name in a section; the others ride on `ListItem.variants`. Facet counts stay per record, rows and totals are folded. */
+  fold_variants?: boolean;
+}
+
+/** A record folded into a list row (same section and readable name). */
+export interface VariantRef {
+  guid: string;
+  name: string;
+  short: string;
+  variant: boolean;
+  main: boolean;
 }
 
 export interface Stat {
@@ -107,6 +118,8 @@ export interface ListItem {
   group: string | null;
   change: string | null;
   stats: Stat[];
+  /** With `fold_variants`: the other records of this row, likeliest player item first (at most 64). */
+  variants?: VariantRef[];
 }
 
 export interface FacetValue {
@@ -254,6 +267,8 @@ export interface DevTreeRequest {
   main_only: boolean;
   /** Sections view: hide AI, NPC, test and template variants. */
   player_only?: boolean;
+  /** Sections view: one record leaf per readable name, `count` = the records it stands for (0 when only itself). */
+  fold_variants?: boolean;
 }
 
 export interface DevSearchRequest {
