@@ -4746,7 +4746,7 @@ dependencies = [
 
 [[package]]
 name = "starorg-cli"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "clap",
  "serde",
@@ -4761,7 +4761,7 @@ dependencies = [
 
 [[package]]
 name = "starorg-codex-app"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "keyring",
  "open",
@@ -4783,7 +4783,7 @@ dependencies = [
 
 [[package]]
 name = "starorg-core"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "getrandom 0.4.3",
  "memchr",
@@ -4800,7 +4800,7 @@ dependencies = [
 
 [[package]]
 name = "starorg-data"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "crc32c",
  "gltf",
@@ -4827,7 +4827,7 @@ dependencies = [
 
 [[package]]
 name = "starorg-gamedata"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "clap",
  "miniz_oxide 0.9.1",
@@ -4841,7 +4841,7 @@ dependencies = [
 
 [[package]]
 name = "starorg-mcp"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "getrandom 0.4.3",
  "serde",
@@ -4855,7 +4855,7 @@ dependencies = [
 
 [[package]]
 name = "starorg-net"
-version = "1.2.0"
+version = "1.3.0"
 dependencies = [
  "getrandom 0.4.3",
  "serde",
