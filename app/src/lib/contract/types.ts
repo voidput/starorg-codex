@@ -114,7 +114,6 @@ export interface JobProgress {
 // Setup ---------------------------------------------------------------------------------
 
 export type Preset = 'recommended' | 'minimal' | 'everything';
-export type DataSource = 'local' | 'published-dumps';
 
 export interface ChannelConsent {
   channel: string;
@@ -125,7 +124,6 @@ export interface ChannelConsent {
 export interface SetupRequest {
   install: string;
   channels: ChannelConsent[];
-  data_source: DataSource;
   preset: Preset;
   fix_known_bugs: boolean;
 }
@@ -634,6 +632,7 @@ export interface Appearance {
 
 export interface NetworkSettings {
   check_updates: boolean;
+  /** "Download published LIVE builds for Diff" (Developer mode only; never used by apply). */
   published_dumps: boolean;
   starorg: boolean;
 }

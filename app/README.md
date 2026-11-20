@@ -38,8 +38,9 @@ cargo test -p starorg-codex-app        # gpu, contract and IPC tests (mock runti
   app yet ("Nothing was sent"); nothing is faked.
   "Check for updates" is built (`src/update/`, [docs/updates.md](../docs/updates.md)): the
   GitHub releases list through `starorg-net`, the banner, skip, in-app install via
-  `tauri-plugin-updater` from Rust (AppImage/NSIS/MSI with a real key). Not built yet, so shown
-  disabled in Settings and always stored off: "Use published game data". Also not read yet: `safe_gpu`, and
+  `tauri-plugin-updater` from Rust (AppImage/NSIS/MSI with a real key). "Download published LIVE
+  builds for Diff" is built (Developer mode's Datasets/Diff only, `contract/real/dev.rs`); apply
+  never uses published data. Not read yet: `safe_gpu`, and
   `discover_installs(deep)` (same scan either way). Running setup again keeps a set-up
   channel's profile and setup time; only new channels get the chosen preset.
   `cargo test -p starorg-codex-app --test real_backend` runs it against a synthetic install

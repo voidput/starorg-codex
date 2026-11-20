@@ -1,6 +1,7 @@
 //! Developer mode in the mock backend (addendum 7.7): a synthetic 300-record DataCore (three
 //! types, cross references, one 1.5 MiB record), synthetic datasets per channel build and a
-//! sample folder of three files, all OS-independent. The explorer, rows and diff go through
+//! sample folder of three files, two published LIVE builds to download for Diff, all
+//! OS-independent. The explorer, rows and diff go through
 //! the same core functions as the real backend. `mock-dev.gen.json` (written by the contract
 //! tests) carries this data to the TS mock (`app/src/lib/contract/mock-dev.ts`).
 
@@ -28,6 +29,56 @@ const KINDS: [&str; 4] = ["cooler", "shield", "powerplant", "quantumdrive"];
 pub const FOLDER_LABEL: &str = "sample-data";
 pub const FOLDER_PATH: &str = "/synthetic/sample-data";
 pub const GAMEDATA: &str = "gamedata.json";
+
+/// The mock's published LIVE builds (tag, title, branch, published), newest first.
+pub const DUMPS: [(&str, &str, &str, &str); 2] = [
+    (
+        "4.10.200.58746",
+        "4.10.0 LIVE (4.10.200.58746)",
+        "sc-alpha-4.10.0",
+        "2026-11-12T18:20:43Z",
+    ),
+    (
+        "4.10.197.2878",
+        "4.10.2 LIVE (4.10.197.2878)",
+        "sc-alpha-4.10.2",
+        "2026-11-01T14:36:39Z",
+    ),
+];
+
+/// Synthetic datasets of a mock LIVE build. The newer build drops two weapons, adds two,
+/// changes the damage of every fifth and adds a ship, so a diff has all three states.
+pub fn dump_files(tag: &str) -> Vec<(&'static str, Value)> {
+    let new = tag == DUMPS[0].0;
+    let range = if new { 2..26u32 } else { 0..24u32 };
+    let weapons = json!({
+        "_source": "synthetic",
+        "_extracted": if new { "2026-11-12T18:19:26Z" } else { "2026-11-01T14:35:00Z" },
+        "_build": tag,
+        "shipWeapons": range.clone().map(|n| json!({
+            "name": format!("Published Repeater {n}"),
+            "recordName": format!("PUB_Laser_S{}_{n:02}", n % 4 + 1),
+            "size": n % 4 + 1,
+            // Never a whole number: serde_json and JSON.stringify write those differently.
+            "dps": 150.5 + f64::from(n) * 10.0 + if new && n % 5 == 0 { 7.25 } else { 0.0 },
+        })).collect::<Vec<_>>(),
+        "summary": { "shipWeapons": range.len() },
+    });
+    let hulls = if new { 6u32 } else { 5 };
+    let ships = json!({
+        "_source": "synthetic",
+        "_extracted": if new { "2026-11-12T18:19:26Z" } else { "2026-11-01T14:35:00Z" },
+        "_build": tag,
+        "vehicles": (0..hulls).map(|n| json!({
+            "name": format!("Published hull {n}"),
+            "className": format!("PUB_Ship_{n:03}"),
+            "crew": n % 3 + 1,
+            "cargo": n * 16 + if new && n == 1 { 8 } else { 0 },
+        })).collect::<Vec<_>>(),
+        "summary": { "vehicles": hulls },
+    });
+    vec![("game-ships.json", ships), ("game-weapons.json", weapons)]
+}
 
 pub fn ship_guid(n: u32) -> String {
     format!("51000000-0000-4000-8000-{n:012x}")
@@ -1348,6 +1399,8 @@ pub struct DevMock {
     diff: Option<MockDiff>,
     /// The channel the explorer is compared with (7.17).
     compared: Option<DevCompare>,
+    /// Tags of the published LIVE builds "downloaded".
+    dumps: Vec<String>,
 }
 
 fn not_found(m: impl Into<String>) -> AppError {
@@ -1459,19 +1512,29 @@ impl MockBackend {
                     .collect(),
             });
         }
-        out.push(DevSource {
-            id: format!("dump:{}", r.channel),
-            kind: SourceKind::Dump,
-            label: "Published dump".into(),
-            build: None,
-            state: SourceState::Off,
-            detail: Some(if self.dumps_on() {
-                "Follow-up: not in this build".into()
-            } else {
-                "Off (Settings > Network)".into()
-            }),
-            datasets: vec![],
-        });
+        let cached = self.dev_state().dumps.clone();
+        for (tag, title, _, _) in DUMPS.iter().filter(|d| cached.iter().any(|c| c == d.0)) {
+            out.push(DevSource {
+                id: format!("dump:{tag}"),
+                kind: SourceKind::Dump,
+                label: dump_label(tag),
+                build: Some(tag.to_string()),
+                state: SourceState::Ready,
+                detail: Some(format!("{title} from github.com/voidput/sc-gamedata-dumps")),
+                datasets: dump_files(tag)
+                    .into_iter()
+                    .map(|(f, v)| {
+                        let d = to_dataset(f, v);
+                        DevDatasetSummary {
+                            file: f.into(),
+                            bytes: d.info.bytes,
+                            tables: d.tables.len() as u32,
+                            rows: d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+                        }
+                    })
+                    .collect(),
+            });
+        }
         out
     }
 
@@ -1491,8 +1554,13 @@ impl MockBackend {
                 .map(|(f, v)| (f.to_string(), Arc::new(to_dataset(f, v))))
                 .collect());
         }
-        if source.starts_with("dump:") {
-            return Err(dump_refusal(false));
+        if let Some(tag) = dump_tag(source)
+            && self.dev_state().dumps.iter().any(|c| c == tag)
+        {
+            return Ok(dump_files(tag)
+                .into_iter()
+                .map(|(f, v)| (f.to_string(), Arc::new(to_dataset(f, v))))
+                .collect());
         }
         Err(not_found(format!("no source {source}")))
     }
@@ -1778,23 +1846,92 @@ impl DevBackend for MockBackend {
 
     fn dev_remove_source(&self, req: DevSourceRef) -> CmdResult<Vec<DevSource>> {
         self.dev_on(&req.target)?;
-        if req.source != "folder:0" || !self.dev_state().folder {
+        let mut s = self.dev_state();
+        if let Some(tag) = dump_tag(&req.source)
+            && s.dumps.iter().any(|c| c == tag)
+        {
+            s.dumps.retain(|c| c != tag);
+        } else if req.source == "folder:0" && s.folder {
+            s.folder = false;
+        } else {
             return Err(not_found(format!("no source {}", req.source)));
         }
-        let mut s = self.dev_state();
-        s.folder = false;
         s.diff = None;
         drop(s);
         Ok(self.sources_of(&req.target))
     }
 
+    fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases> {
+        self.dev_on(&req)?;
+        let on = self.dumps_on();
+        let cached = self.dev_state().dumps.clone();
+        let releases = DUMPS
+            .iter()
+            .map(|(tag, title, branch, published)| DumpRelease {
+                tag: tag.to_string(),
+                title: title.to_string(),
+                channel: "LIVE".into(),
+                branch: Some(branch.to_string()),
+                published: Some(published.to_string()),
+                cached: cached.iter().any(|c| c == tag),
+            })
+            .filter(|r| on || r.cached)
+            .collect();
+        Ok(DumpReleases {
+            releases,
+            error: None,
+        })
+    }
+
     fn dev_download_dump(
         &self,
-        req: ChannelRef,
-        _progress: Progress<'_>,
+        req: DevDumpRequest,
+        progress: Progress<'_>,
     ) -> CmdResult<Vec<DevSource>> {
-        self.dev_on(&req)?;
-        Err(dump_refusal(self.dumps_on()))
+        self.dev_on(&req.target)?;
+        if !self.dumps_on() {
+            return Err(dumps_off());
+        }
+        if !starorg_core::source::dump::valid_component(&req.tag) {
+            return Err(bad_dump_tag(&req.tag));
+        }
+        if !DUMPS.iter().any(|d| d.0 == req.tag) {
+            return Err(dump_not_published(
+                &req.tag,
+                &format!("no published build {}", req.tag),
+            ));
+        }
+        // The real backend's sequence: one "Asking" step, one per file, then "Checking".
+        let label = dump_label(&req.tag);
+        let files = dump_files(&req.tag);
+        let n = files.len();
+        let mut p = self.progress_job(
+            &format!("Asking GitHub for {label}"),
+            1,
+            &req.target.channel,
+            progress,
+        );
+        p.steps = n as u32 + 1;
+        for (i, (f, _)) in files.iter().enumerate() {
+            self.wait();
+            p.step = i as u32 + 1;
+            p.label = format!("Downloading {f} ({} of {n})", i + 1);
+            progress(p.clone());
+        }
+        p.step = n as u32 + 1;
+        p.label = format!("Checking {label}");
+        progress(p.clone());
+        {
+            let mut s = self.dev_state();
+            if !s.dumps.contains(&req.tag) {
+                s.dumps.push(req.tag.clone());
+            }
+            s.diff = None;
+        }
+        p.phase = JobPhase::Done;
+        p.label = format!("Downloaded {label}");
+        progress(p);
+        Ok(self.sources_of(&req.target))
     }
 
     fn dev_dataset(&self, req: DevDatasetRef) -> CmdResult<DatasetInfo> {
@@ -2074,5 +2211,6 @@ pub fn gen_file() -> Value {
         "makers": (MAKERS.iter().map(|(c, n)| (c.to_string(), Value::from(*n))).collect::<serde_json::Map<_, _>>()),
         "enhanced": (enhanced().iter().map(|(k, v)| (k.clone(), Value::from(v.clone()))).collect::<std::collections::BTreeMap<_, _>>()),
         "folder": { "label": FOLDER_LABEL, "path": FOLDER_PATH, "files": (folder_files().into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) },
+        "dumps": (DUMPS.iter().map(|(tag, title, branch, published)| json!({ "tag": tag, "title": title, "branch": branch, "published": published, "files": (dump_files(tag).into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) })).collect::<Vec<_>>()),
     })
 }

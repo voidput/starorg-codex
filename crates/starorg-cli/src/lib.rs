@@ -178,13 +178,6 @@ pub enum Command {
         /// Give up after this many seconds (exit 3).
         #[arg(long, value_name = "SECONDS")]
         timeout: Option<u64>,
-        /// Network (opt-in): use the published dump of this exact build when there is one,
-        /// verified by checksum; extract locally otherwise.
-        #[arg(long)]
-        use_published_data: bool,
-        /// Where downloaded dumps are cached (default: the app cache directory).
-        #[arg(long, value_name = "DIR")]
-        cache_dir: Option<PathBuf>,
     },
     /// Set up a channel: consent to write into it, and pick a starting profile.
     Setup {
@@ -947,16 +940,12 @@ where
             channel,
             out,
             timeout,
-            use_published_data,
-            cache_dir,
         } => gamedata_cmd::run(
             &cli.global,
             &gamedata_cmd::Args {
                 channel: &channel,
                 out: &out,
                 timeout,
-                use_published_data,
-                cache_dir,
             },
         ),
         Command::Setup {

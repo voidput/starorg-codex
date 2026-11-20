@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { STEPS, blocker, defaultPrefs, emptyDraft, prefsFrom, prefsSummary, withPrefs } from '../src/components/wizard/draft.svelte.ts';
+import { STEPS, blocker, defaultPrefs, emptyDraft, loadDraft, prefsFrom, prefsSummary, withPrefs } from '../src/components/wizard/draft.svelte.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const settings = samples.get_settings;
@@ -13,6 +13,35 @@ test('Preferences sits after Enhancements and before Review, and never blocks', 
   assert.deepEqual(ids.slice(ids.indexOf('enhancements'), ids.indexOf('enhancements') + 3), ['enhancements', 'prefs', 'review']);
   assert.equal(blocker('prefs', emptyDraft(), null), null);
   assert.equal(emptyDraft().prefs, null, 'seeded from Settings, not guessed');
+});
+
+test('no "Game data source" step: game data is always read on this computer', () => {
+  assert.deepEqual(
+    STEPS.map((s) => s.id),
+    ['install', 'channels', 'enhancements', 'prefs', 'review', 'apply'],
+  );
+  assert.ok(!('data_source' in emptyDraft()));
+});
+
+test('a draft saved with the old source step resumes at the same step', () => {
+  const store = new Map<string, string>();
+  const g = globalThis as { localStorage?: unknown };
+  const before = g.localStorage;
+  g.localStorage = { getItem: (k: string) => store.get(k) ?? null, setItem: (k: string, v: string) => void store.set(k, v), removeItem: (k: string) => void store.delete(k) };
+  try {
+    // Old order: install, channels, source, enhancements (3), prefs, review.
+    store.set('starorg:setup-draft', JSON.stringify({ ...emptyDraft(), data_source: 'published-dumps', reached: 3 }));
+    const d = loadDraft()!;
+    assert.equal(STEPS[d.reached]!.id, 'enhancements');
+    assert.ok(!('data_source' in d));
+    store.set('starorg:setup-draft', JSON.stringify({ ...emptyDraft(), data_source: 'local', reached: 1 }));
+    assert.equal(STEPS[loadDraft()!.reached]!.id, 'channels');
+    // A current draft is left as saved.
+    store.set('starorg:setup-draft', JSON.stringify({ ...emptyDraft(), reached: 3 }));
+    assert.equal(loadDraft()!.reached, 3);
+  } finally {
+    g.localStorage = before;
+  }
 });
 
 test('defaults keep every network switch off (docs/privacy.md)', () => {

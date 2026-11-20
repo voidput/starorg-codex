@@ -61,7 +61,7 @@ const recs = (dataset: string, table: string) => ({ target: live, dataset, table
 const f = (column: string, part: object) => ({ column, values: [], min: null, max: null, has: null, ...part });
 
 test('every dev sample of the Rust mock comes back equal from the TS mock', async () => {
-  const { m } = mock();
+  const { m, settings } = mock();
   const h = m.handlers;
   // Same order as dev_samples() in tests_dev.rs: state carries over between calls.
   const got: Record<string, unknown> = {};
@@ -139,6 +139,12 @@ test('every dev sample of the Rust mock comes back equal from the TS mock', asyn
   got.dev_status_compared = await h.dev_status({ req: live });
   got.dev_compare_clear = await h.dev_compare({ req: { target: live, other: null } });
   got.dev_close = await h.dev_close({ req: live });
+  // Published LIVE builds (addendum §1, Diff only).
+  got.dev_dump_releases_off = await h.dev_dump_releases({ req: live });
+  settings.dumps = true;
+  got.dev_dump_releases = await h.dev_dump_releases({ req: live });
+  got.dev_download_dump = await h.dev_download_dump({ req: { target: live, tag: data.dumps[1]!.tag } });
+  got.dev_dump_releases_cached = await h.dev_dump_releases({ req: live });
   for (const [k, v] of Object.entries(got)) assert.deepStrictEqual(JSON.parse(JSON.stringify(v)), samples[k], k);
 });
 
@@ -159,11 +165,42 @@ test('every dev command is refused while the setting is off', async () => {
   }
 });
 
-test('dumps need the switch, then are a labelled follow-up', async () => {
-  const { m, settings } = mock();
-  await assert.rejects(async () => m.handlers.dev_download_dump({ req: live }), (e: Fail) => e.code === 'network-off');
+test('published LIVE builds: switch, download as a job, diff old -> new, remove', async () => {
+  const { m, settings, events } = mock();
+  const h = m.handlers;
+  const [nw, old] = [data.dumps[0]!.tag, data.dumps[1]!.tag];
+  assert.deepEqual(await h.dev_dump_releases({ req: live }), { releases: [], error: null });
+  await assert.rejects(async () => h.dev_download_dump({ req: { target: live, tag: old } }), (e: Fail) => e.code === 'network-off');
   settings.dumps = true;
-  await assert.rejects(async () => m.handlers.dev_download_dump({ req: live }), (e: Fail) => e.code === 'not-implemented');
+  assert.deepEqual((await h.dev_dump_releases({ req: live })).releases.map((r) => r.tag), [nw, old]);
+  // Same codes and text as the real backend (contract/dev.rs dump_not_published, bad_dump_tag).
+  await assert.rejects(async () => h.dev_download_dump({ req: { target: live, tag: '9.9.9.9' } }), (e: Fail) => e.code === 'not-found' && e.message === 'Could not download LIVE 9.9.9.9: no published build 9.9.9.9');
+  await assert.rejects(async () => h.dev_download_dump({ req: { target: live, tag: '../x' } }), (e: Fail) => e.code === 'invalid' && e.message === 'bad build tag "../x"');
+  const before = events.length;
+  await h.dev_download_dump({ req: { target: live, tag: old } });
+  const seq = (events.slice(before) as { step: number; steps: number; label: string }[]).map((e) => [e.step, e.steps, e.label]);
+  assert.deepEqual(seq, [
+    [1, 1, `Asking GitHub for LIVE ${old}`],
+    [1, 3, 'Downloading game-ships.json (1 of 2)'],
+    [2, 3, 'Downloading game-weapons.json (2 of 2)'],
+    [3, 3, `Checking LIVE ${old}`],
+    [3, 3, `Downloaded LIVE ${old}`],
+  ]);
+  const src = await h.dev_download_dump({ req: { target: live, tag: nw } });
+  assert.deepEqual(src.filter((s) => s.kind === 'dump').map((s) => s.id), [`dump:${nw}`, `dump:${old}`]);
+  const jobs = (events as { kind: string; phase: string }[]).filter((e) => e.phase === 'done');
+  assert.ok(jobs.length >= 2 && jobs.every((e) => e.kind === 'dev'));
+  const sum = await h.dev_diff({ req: { target: live, a: `dump:${old}`, b: `dump:${nw}` } });
+  const w = sum.tables.find((t) => t.dataset === 'game-weapons.json' && t.table === 'shipWeapons')!;
+  assert.deepEqual([w.added, w.removed], [2, 2]);
+  assert.ok(w.changed > 0);
+  // Off again: still listed and readable, no download.
+  settings.dumps = false;
+  assert.equal((await h.dev_dump_releases({ req: live })).releases.length, 2);
+  await h.dev_rows({ req: rows(`dump:${old}`, 'game-weapons.json', 'shipWeapons') });
+  const after = await h.dev_remove_source({ req: { target: live, source: `dump:${old}` } });
+  assert.equal(after.filter((s) => s.kind === 'dump').length, 1);
+  await assert.rejects(async () => h.dev_rows({ req: rows(`dump:${old}`, 'game-weapons.json', 'shipWeapons') }), (e: Fail) => e.code === 'not-found');
 });
 
 test('open and diff report progress as dev jobs', async () => {

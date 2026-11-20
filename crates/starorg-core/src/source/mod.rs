@@ -1,10 +1,9 @@
 //! Where `GameData` and the stock `global.ini` come from (spec 3.4).
 //!
-//! Two sources: [`local::LocalExtraction`] (the worker process in spec 3.3) and
-//! [`dump::PublishedDump`] (addendum §1, behind network consent, default off;
-//! [`dump::DumpFirst`] picks between them). Dumps never contain the
-//! English text, so `base_ini` always comes from the local `Data.p4k`; a dump source loads
-//! only `GameData` itself and asks a local source for the text.
+//! One source feeds apply: [`local::LocalExtraction`] (the worker process in spec 3.3),
+//! from the channel's own `Data.p4k`. [`dump`] holds the published LIVE builds of
+//! `voidput/sc-gamedata-dumps`, which since 2026-11-17 serve only Developer mode's Diff
+//! (addendum §1) and are never turned into `GameData`.
 
 pub mod dump;
 pub mod local;
@@ -51,7 +50,8 @@ impl Budget {
 pub enum Origin {
     /// Extracted from the channel's `Data.p4k` by the worker process.
     LocalExtraction { starbreaker_commit: String },
-    /// Downloaded datasets for the exact build (addendum §1): `repo@tag (commit)`.
+    /// Downloaded datasets (addendum §1): `repo@tag (commit)`. No longer produced since
+    /// dumps were rescoped to Diff only (2026-11-17); kept so older records still read.
     PublishedDump { dataset: String },
 }
 

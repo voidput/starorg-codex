@@ -42,6 +42,12 @@
           what: 'Asks api.github.com for the release list (at most once a day, or when you press Check now). Sends only the app name and version. Installing an update downloads it from github.com.',
         },
     {
+      name: 'Published LIVE builds for Diff',
+      on: !!net?.published_dumps,
+      state: net?.published_dumps ? 'On (Developer mode)' : 'Off',
+      what: 'Developer mode only. The Datasets screen asks api.github.com for the release list of voidput/sc-gamedata-dumps; Download fetches that build from api.github.com and raw.githubusercontent.com, checked by checksum. Sends only the app name and version: no token, no install id. Used by Diff only; applying always reads Data.p4k on this computer.',
+    },
+    {
       name: `StarOrg Tools (${host})`,
       on: !!net?.starorg,
       state: net?.starorg ? (so?.auto_sync && anyStarOrg ? 'On, after game exit' : 'On') : 'Off',

@@ -247,15 +247,6 @@ pub enum Preset {
     Everything,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "kebab-case")]
-pub enum DataSource {
-    /// Read Data.p4k on this machine (default, no network).
-    Local,
-    /// Published dumps when one exists for the exact build (network opt-in, addendum §1).
-    PublishedDumps,
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ChannelConsent {
     pub channel: String,
@@ -268,7 +259,9 @@ pub struct ChannelConsent {
 pub struct SetupRequest {
     pub install: String,
     pub channels: Vec<ChannelConsent>,
-    pub data_source: DataSource,
+    // Game data is always read from Data.p4k on this machine: the old `data_source` field
+    // (local | published-dumps) is gone since 2026-11-17 and ignored when an older
+    // frontend still sends it.
     pub preset: Preset,
     pub fix_known_bugs: bool,
 }
@@ -1161,6 +1154,8 @@ pub struct Appearance {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct NetworkSettings {
     pub check_updates: bool,
+    /// "Download published LIVE builds for Diff": Developer mode's Diff may download past
+    /// LIVE builds from voidput/sc-gamedata-dumps (addendum §1). Never used by apply.
     pub published_dumps: bool,
     pub starorg: bool,
 }

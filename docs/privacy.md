@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 tags: [docs]
-updated: 2026-11-15
+updated: 2026-11-17
 ---
 
 # Privacy policy
@@ -48,7 +48,7 @@ Check for updates and Connect StarOrg Tools, with both off unless you switch the
 |---|---|
 | Check for updates (not in the Microsoft Store version) | One request to `api.github.com` for the list of releases, at most once a day plus when you press Check now. It sends only the app name and version as its user agent: no account, token or install id. Installing an update downloads the release files from `github.com`. |
 | Connect StarOrg Tools | Nothing until you sign in, and then only to the environment chosen in Settings -> StarOrg Tools: `starorg.tools` (Production, the default) or `dev.starorg.tools` (Dev, the test server). Details below. |
-| Use published game data (when available) | Downloads public data files for your exact game build from github.com; nothing about you is sent. |
+| Download published LIVE builds for Diff (Developer mode only) | Only for Developer mode's Diff, to compare an old LIVE build with a new one: the Datasets screen asks `api.github.com` for the release list of `voidput/sc-gamedata-dumps`, and **Download** fetches that one build's tag, file list and data files from `api.github.com` and `raw.githubusercontent.com`, each checked by checksum and read as data only. It sends only the app name and version as its user agent: nothing about you, no token, no install id. Downloaded builds stay in the app's cache until you delete them and work with the switch off. Applying never uses them: it always reads `Data.p4k` on this computer. |
 
 Like any web request, these reveal your IP address to the server (GitHub, StarOrg Tools). GitHub's
 privacy statement covers what GitHub logs.

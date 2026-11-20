@@ -197,7 +197,14 @@ For players who want to look things up in the game data. Read only on the game.
   default: the one fitted) and can include **Layer materials (experimental)**, the textures of
   each material's layers (bigger files; some surfaces may look wrong).
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
-- **Diff:** compare two builds or two dataset folders.
+- **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one.
+  To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for
+  Diff**, open **Datasets**, and press **Download** next to two builds under **Published LIVE
+  builds** (about 20-25 MB each, from github.com/voidput/sc-gamedata-dumps, checked by
+  checksum). Then on **Diff** pick the older one as **A** and the newer one as **B** (they are
+  listed as "LIVE <version>") and press **Compare**. Downloaded builds stay usable with the
+  switch off; the trash button deletes one. Applying never uses them: it always reads
+  `Data.p4k` on this computer.
 - **Files:** browse `Data.p4k`, preview textures and text, extract files.
 
 Exports are for your own use; the game's assets belong to Cloud Imperium. CLI: `starorg-codex dev`.

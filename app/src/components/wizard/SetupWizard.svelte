@@ -1,6 +1,6 @@
 <script lang="ts">
   /**
-   * First-run setup wizard (spec 9.4, issue #15): Find your game -> Channels (consent) -> Data source
+   * First-run setup wizard (spec 9.4, issue #15): Find your game -> Channels (consent)
    * -> Enhancements -> Preferences (update check, StarOrg Tools, theme) -> Review -> Apply. Apply
    * saves the preferences with save_settings before setup runs. Full window, on the tactical grid, chamfered frame.
    * Practice: few steps; Back/Next with the reason a step is blocked; review with jump-to-edit;
@@ -18,7 +18,6 @@
   import ApplyButton from '@/components/shell/ApplyButton.svelte';
   import StepInstall from './StepInstall.svelte';
   import StepChannels from './StepChannels.svelte';
-  import StepSource from './StepSource.svelte';
   import StepEnhancements from './StepEnhancements.svelte';
   import StepPrefs from './StepPrefs.svelte';
   import StepReview from './StepReview.svelte';
@@ -321,8 +320,6 @@
           <StepInstall {installs} {scanning} error={scanError} bind:value={draft.install} onscan={scan} onbrowse={browse} />
         {:else if cur.id === 'channels' && install}
           <StepChannels {install} {draft} />
-        {:else if cur.id === 'source'}
-          <StepSource {draft} />
         {:else if cur.id === 'enhancements'}
           <StepEnhancements {draft} target={firstTarget} {install} />
         {:else if cur.id === 'prefs' && draft.prefs}

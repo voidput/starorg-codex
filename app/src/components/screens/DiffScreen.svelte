@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
-   * Diff (addendum 7.6, 7.8): pick A and B among the dataset sources (two builds, two folders,
-   * or a folder against this build), then a summary per table (added / removed / changed /
+   * Diff (addendum 7.6, 7.8): pick A and B among the dataset sources (two builds, two downloaded
+   * published LIVE builds, two folders, or a folder against this build), then a summary per table (added / removed / changed /
    * same, largest first; tables on one side marked), the records of the picked table (changed
    * first; filter by state and by changed field; identity column override) and the field diff
    * of the picked record (old ► new, numbers with delta and percent). F6 cycles the panes.
@@ -413,12 +413,12 @@
       {#if summary}<span class="text-muted-foreground text-[12px]">{label(summary.a)} → {label(summary.b)} · {int(summary.tables.length)} tables · {summary.ms} ms</span>{/if}
     </div>
     {#if sources.length < 2}
-      <p class="text-muted-foreground text-[12.5px]">Two sources are needed: read another channel's game data (apply or a dry run), or add a dataset folder on the Datasets screen.</p>
+      <p class="text-muted-foreground text-[12.5px]">Two sources are needed: read another channel's game data (apply or a dry run), download two published LIVE builds, or add a dataset folder on the Datasets screen.</p>
     {/if}
     {#if error}
       <ErrorState title="Could not compare" {error} />
     {:else if !summary}
-      <FullEmpty icon={GitCompare} title="Pick A and B">Two builds (LIVE against PTU), two folders, or a folder against this build. Envelope fields like _extracted never count as a change.</FullEmpty>
+      <FullEmpty icon={GitCompare} title="Pick A and B">Two builds (LIVE against PTU), an old LIVE build against a new one (download them on the Datasets screen), two folders, or a folder against this build. Envelope fields like _extracted never count as a change.</FullEmpty>
     {:else}
       <div class="flex min-h-0 flex-1 gap-3">
         {#if railed}
