@@ -24,15 +24,15 @@
 
 {#if job}
   <div class={cn('flex min-w-0 items-center gap-2', compact ? 'w-60' : 'w-full', className)} data-job={job.job}>
-    <div class="grid min-w-0 flex-1 gap-1">
+    <div class="grid min-w-0 flex-1 grid-cols-1 gap-1">
       <div class="flex items-baseline justify-between gap-2 text-[12px]">
-        <span class="truncate">{job.label}</span>
+        <span class="truncate" title={job.label}>{job.label}</span>
         <span class="text-muted-foreground mono shrink-0">{job.step} of {job.steps}</span>
       </div>
       <Progress value={job.step} max={job.steps} class="h-1" aria-label={`${job.label}, step ${job.step} of ${job.steps}`} />
     </div>
     {#if job.cancellable}
-      <Button variant="outline" size="xs" disabled={stopping} onclick={stop} aria-label={`Stop: ${job.label}`}><Square aria-hidden="true" /> {stopping ? 'Stopping…' : 'Stop'}</Button>
+      <Button variant="outline" size="xs" class="shrink-0" disabled={stopping} onclick={stop} aria-label={`Stop: ${job.label}`}><Square aria-hidden="true" /> {stopping ? 'Stopping…' : 'Stop'}</Button>
     {/if}
   </div>
 {/if}

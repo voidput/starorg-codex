@@ -404,6 +404,13 @@ pub fn export_model(
     let opts = export_options(&ModelOptions { lod, ..o.clone() });
     let paint = o.paint().map(|tag| choose_paint(db, r, tag)).transpose()?;
     let mut stripped = 0;
+    // The bar's share for building the GLB: the print steps (solid, simplify, ...) can
+    // take longer than the GLB itself, so they get most of it.
+    let glb_share = match (o.stl || o.three_mf, o.preset == ModelPreset::PrintShell) {
+        (false, _) => 1.0,
+        (true, false) => 0.9,
+        (true, true) => 0.3,
+    };
     let bytes = crate::extract::guarded("model export", || {
         let idx = EntityIndex::new(db);
         let mut tree = resolve_loadout_indexed(&idx, r);
@@ -413,7 +420,8 @@ pub fn export_model(
         if o.no_weapons() {
             stripped = strip_weapons(db, &mut tree);
         }
-        let p = starbreaker_common::Progress::with_callback(progress);
+        let to_glb = |f: f32, s: &str| progress(glb_share * f, s);
+        let p = starbreaker_common::Progress::with_callback(&to_glb);
         let res = starbreaker_3d::assemble_glb_with_loadout_with_progress(
             db,
             a.p4k(),
@@ -454,11 +462,13 @@ pub fn export_model(
         lods,
     };
     if o.stl || o.three_mf {
-        if !progress(0.9, "Writing STL/3MF") {
+        if !progress(glb_share, "Writing STL/3MF") {
             return Err(AssetError::cancelled());
         }
-        let m =
-            super::print::write_meshes_with(&bytes, out, o, &|f, s| progress(0.9 + 0.1 * f, s))?;
+        let rest = 1.0 - glb_share;
+        let m = super::print::write_meshes_with(&bytes, out, o, &|f, s| {
+            progress(glb_share + rest * f, s)
+        })?;
         done.meshes = m.files;
         done.notes = m.notes;
     }

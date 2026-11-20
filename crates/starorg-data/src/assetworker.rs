@@ -374,12 +374,20 @@ fn reply(id: u64, r: AssetResult<Value>) -> Reply {
 }
 
 fn progress_line(id: u64, done: u32, total: u32) -> Reply {
+    staged_line(id, done, total, None)
+}
+
+fn staged_line(id: u64, done: u32, total: u32, stage: Option<&str>) -> Reply {
     Reply {
         id,
         ok: true,
         result: None,
         error: None,
-        progress: Some(ExportProgress { done, total }),
+        progress: Some(ExportProgress {
+            done,
+            total,
+            stage: stage.filter(|s| !s.is_empty()).map(str::to_owned),
+        }),
     }
 }
 
@@ -477,12 +485,12 @@ impl Server {
         };
         // Model progress (fractions from the export's threads), in MODEL_STEPS.
         let model_last = Mutex::new(Instant::now() - Duration::from_secs(1));
-        let tell = |f: f32, _stage: &str| {
+        let tell = |f: f32, stage: &str| {
             let mut l = lock(&model_last);
             if l.elapsed() >= Duration::from_millis(250) {
                 *l = Instant::now();
                 let done = ((f.clamp(0.0, 1.0) * MODEL_STEPS as f32) as u32).min(MODEL_STEPS - 1);
-                write_line(out, &progress_line(id, done, MODEL_STEPS));
+                write_line(out, &staged_line(id, done, MODEL_STEPS, Some(stage)));
             }
             !cancel.load(Ordering::SeqCst)
         };

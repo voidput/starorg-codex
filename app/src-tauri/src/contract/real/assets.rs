@@ -337,7 +337,11 @@ impl RealBackend {
                 let mut j = lock_or(&cell);
                 j.steps = p.total.max(1);
                 let label = if unit == "%" {
-                    format!("{label} {} %", p.done * 100 / p.total.max(1))
+                    let pct = p.done * 100 / p.total.max(1);
+                    match p.stage.as_deref() {
+                        Some(s) => format!("{label} {pct} % · {s}"),
+                        None => format!("{label} {pct} %"),
+                    }
                 } else {
                     format!("{} of {} {unit}", p.done, p.total)
                 };

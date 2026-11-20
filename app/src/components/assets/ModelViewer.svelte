@@ -315,11 +315,11 @@
       {#if busy}
         {#if phase === 'exporting'}
           <div class="flex w-60 min-w-0 items-center gap-2" data-own-job={ownJob ?? ''}>
-            <div class="grid min-w-0 flex-1 gap-1">
+            <div class="grid min-w-0 flex-1 grid-cols-1 gap-1">
               <span class="truncate text-[12px]">{ownProgress?.label ?? (stopWanted ? 'Stopping…' : 'Starting the export…')}</span>
               <Progress value={ownProgress?.step ?? 0} max={ownProgress?.steps ?? 1} class="h-1" aria-label="Model export" />
             </div>
-            <Button variant="outline" size="xs" disabled={stopWanted} onclick={stop}><Square aria-hidden="true" /> {stopWanted ? 'Stopping…' : 'Stop'}</Button>
+            <Button variant="outline" size="xs" class="shrink-0" disabled={stopWanted} onclick={stop}><Square aria-hidden="true" /> {stopWanted ? 'Stopping…' : 'Stop'}</Button>
           </div>
         {:else}
           <Button variant="outline" size="xs" onclick={stop} disabled={phase === 'building'}><Square aria-hidden="true" /> Stop</Button>
