@@ -354,6 +354,9 @@ export interface MissionSettings {
   reward_em: number;
 }
 
+/** How much the WHERE TO GET block says. */
+export type ObtainMode = 'short' | 'normal' | 'detailed';
+
 export interface Profile {
   preset: Preset | null;
   ships: boolean;
@@ -364,6 +367,11 @@ export interface Profile {
   missions: boolean;
   /** "Used in: <contract> · <system>" on items a mission spawns or a contract asks for. */
   quest_hints: boolean;
+  /** WHERE TO GET in item and commodity descriptions. */
+  obtain: boolean;
+  obtain_mode: ObtainMode;
+  /** Shop names from the user's UEX files in the block (never prices). */
+  obtain_shops: boolean;
   /** `<category>.<line>` keys from ProfileSchema. */
   lines_off: string[];
   stats_above: boolean;

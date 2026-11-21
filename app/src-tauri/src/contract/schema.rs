@@ -28,6 +28,13 @@ pub fn preset_profile(p: Preset) -> Profile {
         missiles: cats,
         missions: cats,
         quest_hints: cats,
+        obtain: true,
+        obtain_mode: match p {
+            Preset::Minimal => ObtainMode::Short,
+            Preset::Everything => ObtainMode::Detailed,
+            _ => ObtainMode::Normal,
+        },
+        obtain_shops: all,
         lines_off: Vec::new(),
         stats_above: false,
         header: "--- STATS ---".into(),

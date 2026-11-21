@@ -1082,6 +1082,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         &enhance_profile,
         &inputs.owned,
         inputs.ship_names.active(),
+        None,
     );
     r.warnings.extend(generated.warnings.iter().cloned());
     let gen_edits: Vec<merge::GenEdit> =

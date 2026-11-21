@@ -21,6 +21,13 @@ pub struct Profile {
     /// "Used in: <contract> · <system>" after the description of items a mission spawns or
     /// a contract asks for, from real record references only (addendum §13).
     pub quest_hints: bool,
+    /// "WHERE TO GET" block after item and commodity descriptions (spec obtain-hints): loot,
+    /// craft, contract rewards, mining places and ore quality.
+    pub obtain: bool,
+    /// How much the block says.
+    pub obtain_mode: ObtainMode,
+    /// Also list shops (only from UEX files the user supplied; names, never prices).
+    pub obtain_shops: bool,
     /// Stat lines switched off, as `<category>.<line>` (e.g. `ships.boost`, `components.signatures`).
     pub lines_off: BTreeSet<String>,
     /// "Stats above prose" (spec 5.1).
@@ -35,6 +42,19 @@ pub struct Profile {
     /// own tag, after [`COLOUR_TEST_KEY`] so the in-game look of every tag can be checked.
     /// Not in any preset; the next apply without it puts the stock text back.
     pub colour_test: bool,
+}
+
+/// How much the WHERE TO GET block says (spec obtain-hints).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ObtainMode {
+    /// One line: `Get: Loot (Rare) · Craft [BP]`.
+    Short,
+    /// A header and one line per source, top places, no odds.
+    #[default]
+    Normal,
+    /// Places with system, loot odds, quality spread and place overrides.
+    Detailed,
 }
 
 /// The one string the colour test writes to: the Contracts Manager's "Please select a
@@ -217,6 +237,9 @@ impl Default for Profile {
             missiles: true,
             missions: true,
             quest_hints: true,
+            obtain: true,
+            obtain_mode: ObtainMode::Normal,
+            obtain_shops: false,
             lines_off: BTreeSet::new(),
             stats_above: false,
             header: "--- STATS ---".into(),
@@ -249,6 +272,7 @@ impl Profile {
         ] {
             t.enabled = false;
         }
+        p.obtain = false;
         p
     }
 
@@ -262,6 +286,7 @@ impl Profile {
             missiles: false,
             missions: false,
             quest_hints: false,
+            obtain_mode: ObtainMode::Short,
             ..Self::default()
         }
     }
@@ -271,6 +296,8 @@ impl Profile {
         p.tags.short_names = true;
         p.tags.tool_size_tag = true;
         p.branding = true;
+        p.obtain_mode = ObtainMode::Detailed;
+        p.obtain_shops = true;
         p
     }
 
@@ -801,6 +828,53 @@ mod tests {
             ["enhance.ships"]
         );
         assert_eq!(m.keys().collect::<Vec<_>>(), ["missions"]);
+    }
+
+    #[test]
+    fn obtain_presets_toml_and_hash() {
+        let r = Profile::default();
+        assert!(r.obtain && r.obtain_mode == ObtainMode::Normal && !r.obtain_shops);
+        let m = Profile::minimal();
+        assert!(m.obtain && m.obtain_mode == ObtainMode::Short && !m.obtain_shops);
+        let e = Profile::everything();
+        assert!(e.obtain && e.obtain_mode == ObtainMode::Detailed && e.obtain_shops);
+        assert!(!Profile::off().obtain);
+        // New fields at their defaults leave the Recommended hash as it was.
+        assert_eq!(r.hash(), crate::fsutil::sha256_hex(b"{}"));
+        let p = Profile::from_toml(
+            "[enhance]\nobtain_mode = \"detailed\"\nobtain_shops = true\nlines_off = [\"obtain.loot\"]\n",
+        )
+        .unwrap();
+        assert_eq!(p.obtain_mode, ObtainMode::Detailed);
+        assert!(p.obtain_shops && !p.line_on("obtain", "loot") && p.line_on("obtain", "craft"));
+        assert_ne!(p.hash(), r.hash());
+        let mut q = p.clone();
+        q.obtain_shops = false;
+        assert_ne!(q.hash(), p.hash());
+        assert!(Profile::from_toml("[enhance]\nobtain_mode = \"verbose\"\n").is_err());
+        assert!(Profile::from_toml("[enhance]\nobtain = \"yes\"\n").is_err());
+        // Sparse over a preset and back.
+        let over = p.sparse_over(&r).unwrap();
+        assert_eq!(
+            over.keys().collect::<Vec<_>>(),
+            ["lines_off", "obtain_mode", "obtain_shops"]
+        );
+        let text = toml::to_string(&toml::Table::from_iter([(
+            "enhance".to_string(),
+            toml::Value::Table(over),
+        )]))
+        .unwrap();
+        assert_eq!(Profile::from_toml(&text).unwrap(), p);
+        let min = Profile::from_toml("preset = \"minimal\"\n[enhance]\nobtain_mode = \"normal\"\n")
+            .unwrap();
+        assert_eq!(min.obtain_mode, ObtainMode::Normal);
+        assert_eq!(
+            min.sparse_over(&Profile::minimal())
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            ["obtain_mode"]
+        );
     }
 
     #[test]

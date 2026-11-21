@@ -655,6 +655,11 @@ pub struct Profile {
     /// `Used in: <contract> · <system>` on items a mission spawns or a contract asks for
     /// (real record references only, addendum §13).
     pub quest_hints: bool,
+    /// WHERE TO GET in item and commodity descriptions (spec obtain-hints).
+    pub obtain: bool,
+    pub obtain_mode: ObtainMode,
+    /// Shop names from the user's UEX files in the block (never prices).
+    pub obtain_shops: bool,
     /// Stat lines switched off, as `<category>.<line>` (keys from [`ProfileSchema`]).
     pub lines_off: Vec<String>,
     pub stats_above: bool,
@@ -668,6 +673,15 @@ pub struct Profile {
     pub colour_test: bool,
     /// Patch ids switched off. "Fix known text bugs" off = every built-in id listed here.
     pub patches_disabled: Vec<String>,
+}
+
+/// How much the WHERE TO GET block says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ObtainMode {
+    Short,
+    Normal,
+    Detailed,
 }
 
 /// A stat line the user can switch off; `key` is what goes into `lines_off`.

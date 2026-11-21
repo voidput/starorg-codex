@@ -137,6 +137,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
         i.profile,
         i.owned,
         i.ship_names,
+        None,
     );
     let gen_edits: Vec<merge::GenEdit> =
         generated.edits.values().map(merge::GenEdit::from).collect();

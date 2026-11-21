@@ -15,6 +15,7 @@
 pub mod items;
 pub mod missions;
 pub mod namesake;
+pub mod obtain;
 pub mod quest;
 pub mod ships;
 
@@ -25,6 +26,9 @@ pub use items::{
 pub use missions::{
     Blueprint, BlueprintPool, BlueprintPoolEntry, BlueprintReward, BlueprintTier, Contract,
     ItemReward, KeySource, ReputationReward, ReputationStanding,
+};
+pub use obtain::{
+    ItemObtain, LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, ShopHint,
 };
 pub use quest::{QuestItem, QuestRef, QuestUse};
 pub use ships::{Armor, Flight, Hull, Loadout, LoadoutItem, Ship, ShipLoc, Totals};

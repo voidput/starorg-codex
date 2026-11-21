@@ -368,6 +368,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         &profile,
         owned_dyn,
         ship_names.as_ref(),
+        None,
     );
     let bytes = match enhance::render(&stock, &generated) {
         Ok(b) => b,

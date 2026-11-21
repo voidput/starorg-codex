@@ -12,6 +12,7 @@ pub mod check;
 pub mod format;
 pub mod items;
 pub mod missions;
+pub mod obtain;
 pub mod owned;
 pub mod profile;
 pub mod quest;
@@ -48,10 +49,13 @@ pub enum Category {
     ColourTest,
     /// "Used in" lines on quest items (`Profile::quest_hints`, addendum §13).
     QuestHints,
+    /// "WHERE TO GET" blocks on item and commodity descriptions (`Profile::obtain`, spec
+    /// obtain-hints). The only category that extends an edit another category owns.
+    ObtainHints,
 }
 
 impl Category {
-    pub const ALL: [Category; 14] = [
+    pub const ALL: [Category; 15] = [
         Self::Ships,
         Self::Components,
         Self::ShipWeapons,
@@ -66,6 +70,7 @@ impl Category {
         Self::ShipNames,
         Self::ColourTest,
         Self::QuestHints,
+        Self::ObtainHints,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -84,7 +89,14 @@ impl Category {
             Self::ShipNames => "ship-names",
             Self::ColourTest => "colour-test",
             Self::QuestHints => "quest-hints",
+            Self::ObtainHints => "obtain-hints",
         }
+    }
+
+    /// May append to a key another category already wrote (after its text), instead of
+    /// being left out as `owned-by-other`.
+    pub fn extends(&self) -> bool {
+        matches!(self, Self::ObtainHints)
     }
 }
 
@@ -106,6 +118,9 @@ pub struct GenEdit {
     /// Whole-value part in place of the stock part (a ship rename, addendum §6.5).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub replace: Option<String>,
+    /// Later categories that appended to `suffix` ([`Category::extends`]), in order.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub extended_by: Vec<Category>,
 }
 
 /// Drop trailing `\n` escapes, spaces and tabs.
@@ -345,8 +360,12 @@ impl Generated {
         e
     }
 
+    /// Keys category `c` wrote, its extensions of other categories' edits included.
     pub fn count(&self, c: Category) -> usize {
-        self.edits.values().filter(|e| e.category == c).count()
+        self.edits
+            .values()
+            .filter(|e| e.category == c || e.extended_by.contains(&c))
+            .count()
     }
 }
 
@@ -429,6 +448,9 @@ impl<'a> Engine<'a> {
             }
         };
         if self.out.edits.contains_key(&line) {
+            if let (true, Payload::Append(text)) = (cat.extends(), payload) {
+                return self.extend(cat, line, text);
+            }
             self.left(cat, Reason::OwnedByOther);
             return false;
         }
@@ -499,8 +521,55 @@ impl<'a> Engine<'a> {
                 suffix,
                 trim_stock,
                 replace,
+                extended_by: Vec::new(),
             },
         );
+        true
+    }
+
+    /// Append `text` to the suffix of the edit another category wrote on `line` (stock,
+    /// then that edit's text, then ours). The combined value is checked again; when it
+    /// fails, only the extension is dropped and the earlier edit stays as it was. A rename
+    /// or an untrimmed edit (a name tag) is never extended: `owned-by-other`.
+    fn extend(&mut self, cat: Category, line: usize, text: &str) -> bool {
+        let Some(e) = self.out.edits.get(&line) else {
+            return false;
+        };
+        if e.replace.is_some() || !e.trim_stock || e.extended_by.contains(&cat) {
+            self.left(cat, Reason::OwnedByOther);
+            return false;
+        }
+        let sv = self.stock.value_at(line).unwrap_or_default();
+        let stock_part = e.stock_part(sv);
+        let suffix = format!("{}{text}", e.suffix);
+        let stock_key = e.key.clone();
+        let prefix_len = e.prefix.len();
+        let len = prefix_len + stock_part.len() + suffix.len();
+        let checked = check::check_generated(sv, stock_part, &e.prefix, &suffix);
+        let open_tail = check::tokens(sv).open_tail;
+        if let Err(rule) = checked {
+            self.left(cat, Reason::DroppedByValidation);
+            self.out.warnings.push(Warning::new(
+                "dropped-edit",
+                format!("{stock_key}: {} dropped ({})", cat.name(), rule.name()),
+            ));
+            return false;
+        }
+        if len > check::WARN_LEN {
+            self.out.warnings.push(Warning::new(
+                "long-value",
+                format!("{stock_key}: {len} bytes"),
+            ));
+        }
+        let c = self.cov(cat);
+        c.written += 1;
+        if open_tail {
+            c.open_tail += 1;
+        }
+        if let Some(e) = self.out.edits.get_mut(&line) {
+            e.suffix = suffix;
+            e.extended_by.push(cat);
+        }
         true
     }
 
@@ -597,18 +666,21 @@ pub fn generate(
     profile: &Profile,
     owned: &dyn OwnedBlueprints,
 ) -> Generated {
-    generate_with(gd, stock, profile, owned, None)
+    generate_with(gd, stock, profile, owned, None, None)
 }
 
 /// [`generate`], then the `ship-names` category when `ship_names` is given (the channel's
 /// active settings, addendum §6.5). It runs last: any other generator that ever writes a
-/// ship name key owns it first.
+/// ship name key owns it first. `obtain` feeds the `obtain-hints` category (spec
+/// obtain-hints); without it only craft and reward lines from `gd` can be written, and only
+/// for classes the hints name a description key for, so `None` writes no obtain block.
 pub fn generate_with(
     gd: &GameData,
     stock: &StockIni,
     profile: &Profile,
     owned: &dyn OwnedBlueprints,
     ship_names: Option<&crate::fleet::store::ShipNames>,
+    obtain: Option<&crate::model::ObtainHints>,
 ) -> Generated {
     let mut en = Engine::new(stock, profile);
     let p = profile;
@@ -763,6 +835,12 @@ pub fn generate_with(
 
     if p.quest_hints {
         quest::generate(&mut en, gd);
+    }
+
+    // After every description generator: it extends their edits.
+    if p.obtain {
+        let empty = crate::model::ObtainHints::default();
+        obtain::generate(&mut en, gd, obtain.unwrap_or(&empty));
     }
 
     if p.branding {

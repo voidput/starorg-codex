@@ -11077,6 +11077,9 @@
       "variant_em": 4
     },
     "missions": true,
+    "obtain": true,
+    "obtain_mode": "normal",
+    "obtain_shops": false,
     "patches_disabled": [],
     "preset": "recommended",
     "quest_hints": true,

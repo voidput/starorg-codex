@@ -48,5 +48,6 @@ pub mod validate;
 /// 3 = same-named blueprints: ownership per blueprint, no false `[Owned]`/`[BP Owned]`;
 /// 4 = `[Owned]` coloured by default (EM4, the game's blue);
 /// 5 = quest items: `Used in:` hints from real mission references and the built-in
-/// `quest-items` patch (Vanduul-Tech Smugglers hints).
-pub const OUTPUT_VERSION: u32 = 5;
+/// `quest-items` patch (Vanduul-Tech Smugglers hints);
+/// 6 = obtain hints: WHERE TO GET blocks (on in Recommended), extending stat blocks.
+pub const OUTPUT_VERSION: u32 = 6;
