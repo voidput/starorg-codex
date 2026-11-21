@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/voidput/starorg-codex/compare/v1.3.0...v1.4.0) (2026-11-21)
+
+
+### Features
+
+* **explorer:** readable record view + combat card with weapon DPS ([#45](https://github.com/voidput/starorg-codex/issues/45)) ([8797161](https://github.com/voidput/starorg-codex/commit/87971613242b44a2423aa20a1cd303c4cfe57bfc))
+
 ## [1.3.0](https://github.com/voidput/starorg-codex/compare/v1.2.0...v1.3.0) (2026-11-20)
 
 
