@@ -326,6 +326,9 @@ pub struct ApplyCounts {
     pub fps_weapons: u32,
     pub missiles: u32,
     pub missions: u32,
+    /// Descriptions that got a WHERE TO GET block (spec obtain-hints).
+    #[serde(default)]
+    pub obtain_hints: u32,
     pub overrides: u32,
     pub dropped: u32,
 }
@@ -524,6 +527,8 @@ pub enum CategoryId {
     FpsWeapons,
     Missiles,
     Missions,
+    /// WHERE TO GET (spec obtain-hints): `Profile::obtain`, lines `obtain.<line>`.
+    Obtain,
 }
 
 /// Tag kinds of the Tag Builder (M2 `enhance::Tags` fields).
@@ -682,6 +687,27 @@ pub enum ObtainMode {
     Short,
     Normal,
     Detailed,
+}
+
+/// One UEX file the WHERE TO GET shop line reads.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UexFile {
+    /// `uex-item-prices.json`, `uex-terminals.json`.
+    pub name: String,
+    pub present: bool,
+    /// Last modified (RFC 3339 UTC), when present.
+    pub modified: Option<String>,
+}
+
+/// Where the shop names of WHERE TO GET come from (spec obtain-hints): UEX files the user
+/// put in `uex_folder`. StarOrg Codex downloads nothing and shows names only, never prices.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObtainStatus {
+    /// `<cache>/mcp/uex` (shared with the Sources card and the MCP server).
+    pub uex_folder: String,
+    pub files: Vec<UexFile>,
+    /// Every file is there: the shops line can say something.
+    pub shops_ready: bool,
 }
 
 /// A stat line the user can switch off; `key` is what goes into `lines_off`.

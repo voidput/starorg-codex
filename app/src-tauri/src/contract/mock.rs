@@ -166,12 +166,14 @@ fn counts_for(p: &Profile, overrides: u32) -> ApplyCounts {
         fps_weapons: n(p.fps_weapons, 318),
         missiles: n(p.missiles, 96),
         missions: n(p.missions, 2140),
+        obtain_hints: n(p.obtain, 3480),
         overrides,
         dropped: 0,
         changed: 0,
     };
     c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions)
         * 2
+        + c.obtain_hints
         + overrides
         + 1200;
     c
@@ -879,6 +881,7 @@ fn report(ch: &ChannelSummary, result: ApplyResult) -> ApplyReport {
             fps_weapons: 0,
             missiles: 0,
             missions: 0,
+            obtain_hints: 0,
             overrides: 0,
             dropped: 0,
         },
@@ -1823,6 +1826,26 @@ impl Backend for MockBackend {
 
     fn profile_schema(&self) -> CmdResult<ProfileSchema> {
         Ok(profile_schema())
+    }
+
+    fn obtain_status(&self) -> CmdResult<ObtainStatus> {
+        // The sample user put the item prices in but not the terminals.
+        Ok(ObtainStatus {
+            uex_folder: "/home/pilot/.cache/starorg-codex/mcp/uex".into(),
+            files: vec![
+                UexFile {
+                    name: "uex-item-prices.json".into(),
+                    present: true,
+                    modified: Some("2026-11-12T08:30:00Z".into()),
+                },
+                UexFile {
+                    name: "uex-terminals.json".into(),
+                    present: false,
+                    modified: None,
+                },
+            ],
+            shops_ready: false,
+        })
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
@@ -3319,6 +3342,9 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
             ),
         });
     }
+    if p.obtain {
+        out.extend(obtain_preview(p, &block));
+    }
     if p.colour_test {
         let prompt = "Please select a contract.";
         out.push(PreviewItem {
@@ -3327,6 +3353,122 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
             category: "ui".into(),
             original: prompt.into(),
             result: format!("{prompt}{}", starorg_core::enhance::COLOUR_TEST_LINE),
+        });
+    }
+    out
+}
+
+/// WHERE TO GET samples (spec obtain-hints): a rifle (after its stats block) and an ore,
+/// rendered by the core's own block text from synthetic sources, so mode and line switches
+/// show as they will in game.
+fn obtain_preview(p: &Profile, stats: &dyn Fn(&str, Vec<String>) -> String) -> Vec<PreviewItem> {
+    use starorg_core::enhance::obtain::{Crafted, Reward, block};
+    use starorg_core::model::{
+        Blueprint, ItemObtain, LootHint, MinedHint, QualityHint, QualityOverride, ShopHint,
+    };
+    let core = super::real::convert::profile_from(p);
+    let s = |v: &str| Some(v.to_string());
+    let loot = |contents: &str, rarity: &str, place: &str, odds: f64| LootHint {
+        contents: contents.into(),
+        size: None,
+        rarity: s(rarity),
+        place: s(place),
+        system: s("Stanton"),
+        odds: Some(odds),
+    };
+    let rifle = ItemObtain {
+        shops: vec![
+            ShopHint {
+                terminal: "Center Mass".into(),
+                place: s("Area18"),
+                system: s("Stanton"),
+            },
+            ShopHint {
+                terminal: "Skutters".into(),
+                place: s("GrimHEX"),
+                system: s("Stanton"),
+            },
+        ],
+        loot: vec![
+            loot("Weapons rack", "Rare", "Bunkers", 0.21),
+            loot("Weapon crate", "Uncommon", "Derelict outposts", 0.06),
+            loot("Locker", "Common", "Caves", 0.02),
+            loot("Footlocker", "Common", "Distribution centres", 0.01),
+        ],
+        loot_total: 6,
+        ..Default::default()
+    };
+    let bp = Blueprint::default();
+    let crafted = Crafted {
+        blueprints: vec![&bp],
+        rewards: vec![Reward {
+            title: "Synthetic Recovery".into(),
+            blueprint: true,
+        }],
+    };
+    let mut out = Vec::new();
+    let prose = "A synthetic laser rifle used for testing.";
+    let mut lines = Vec::new();
+    let line_on = |key: &str| !p.lines_off.iter().any(|l| l == key);
+    if p.fps_weapons {
+        for (key, l) in [
+            ("fps_weapons.damage", "Damage: 18 energy  |  DPS: 150"),
+            ("fps_weapons.rate", "Fire rate: 500 rpm"),
+            ("fps_weapons.magazine", "Magazine: 45"),
+        ] {
+            if line_on(key) {
+                lines.push(l.to_string());
+            }
+        }
+    }
+    if let Some(b) = block(&rifle, &crafted, &core) {
+        out.push(PreviewItem {
+            key: "item_DescSYN_Rifle".into(),
+            label: "Weapon (where to get)".into(),
+            category: "obtain-hints".into(),
+            original: prose.into(),
+            result: format!("{}\\n\\n{b}", stats(prose, lines)),
+        });
+    }
+    let m = |place: &str, kind: &str, lo: f64, hi: f64| MinedHint {
+        place: place.into(),
+        system: s(if place.starts_with("Pyro") {
+            "Pyro"
+        } else {
+            "Stanton"
+        }),
+        kind: s(kind),
+        min_pct: Some(lo),
+        max_pct: Some(hi),
+    };
+    let ore = ItemObtain {
+        mined: vec![
+            m("Lyria", "ship", 12.0, 30.0),
+            m("Aaron Halo", "ship", 8.0, 22.0),
+            m("Pyro I", "ship", 5.0, 18.0),
+            m("Wala", "ship", 4.0, 10.0),
+        ],
+        quality: Some(QualityHint {
+            min: 1.0,
+            max: 1000.0,
+            mean: 500.0,
+            stddev: Some(150.0),
+            overrides: vec![QualityOverride {
+                place: "Aaron Halo".into(),
+                min: 300.0,
+                max: 1000.0,
+            }],
+        }),
+        ..Default::default()
+    };
+    let ore_prose = "A synthetic unstable ore.";
+    if let Some(b) = block(&ore, &Crafted::default(), &core) {
+        out.push(PreviewItem {
+            key: "items_commodities_SYN_ore_desc".into(),
+            label: "Ore (where to get)".into(),
+            category: "obtain-hints".into(),
+            original: ore_prose.into(),
+            result: format!("{ore_prose}\\n\\n{b}"),
         });
     }
     out

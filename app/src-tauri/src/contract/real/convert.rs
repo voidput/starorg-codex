@@ -117,6 +117,7 @@ pub fn zero_counts() -> ApplyCounts {
         fps_weapons: 0,
         missiles: 0,
         missions: 0,
+        obtain_hints: 0,
         overrides: 0,
         dropped: 0,
     }
@@ -133,6 +134,7 @@ pub fn counts(v: &serde_json::Value) -> ApplyCounts {
         fps_weapons: n("fps_weapons"),
         missiles: n("missiles"),
         missions: n("missions"),
+        obtain_hints: n("obtain_hints"),
         overrides: n("overrides"),
         dropped: n("dropped"),
     }

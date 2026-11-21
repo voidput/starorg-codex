@@ -14,7 +14,7 @@
 //!   the matching "What to sync" switch are on.
 
 mod assets;
-mod convert;
+pub(crate) mod convert;
 mod dev;
 mod diag;
 pub mod dialogs;
@@ -62,6 +62,34 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use table::Table;
+
+/// The UEX files the WHERE TO GET shop line reads (`starorg_mcp` `Store::uex`).
+pub const UEX_FILES: &[&str] = &["uex-item-prices.json", "uex-terminals.json"];
+
+/// What is in a UEX folder: file metadata only, never the contents.
+pub fn obtain_status_in(dir: &Path) -> ObtainStatus {
+    let files: Vec<UexFile> = UEX_FILES
+        .iter()
+        .map(|name| {
+            let meta = std::fs::metadata(dir.join(name))
+                .ok()
+                .filter(|m| m.is_file());
+            UexFile {
+                name: (*name).into(),
+                present: meta.is_some(),
+                modified: meta
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| fsutil::rfc3339(d.as_secs())),
+            }
+        })
+        .collect();
+    ObtainStatus {
+        uex_folder: convert::path_text(dir),
+        shops_ready: files.iter().all(|f| f.present),
+        files,
+    }
+}
 
 /// Makes the game source for loads (extraction worker by default; a file in tests).
 pub trait SourceFactory: Send + Sync {
@@ -2250,6 +2278,13 @@ impl Backend for RealBackend {
 
     fn profile_schema(&self) -> CmdResult<ProfileSchema> {
         Ok(schema::profile_schema())
+    }
+
+    fn obtain_status(&self) -> CmdResult<ObtainStatus> {
+        // The folder `starorg_mcp::config_for` gives the Sources card's tools.
+        Ok(obtain_status_in(&starorg_mcp::tools::uex_dir(
+            &self.dirs().cache.join("mcp"),
+        )))
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {

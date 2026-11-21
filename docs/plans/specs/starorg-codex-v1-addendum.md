@@ -2,7 +2,7 @@
 title: StarOrg Codex v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-17
+updated: 2026-11-21
 ---
 
 # StarOrg Codex v1 — addendum (user requests 2026-11-14)
@@ -2720,5 +2720,7 @@ quietly `not-needed`), data `quest_items_from_spawns_and_hauling_orders` (fixtur
 contract, shared key with a `_debug` variant and with an unrelated datapad).
 
 **Open.** More hand-written packs as mission facts come in. Data Heist items name only the one
-broker mission with a plain title. Loot-table and shop sources ("where to find") stay with the
-MCP server.
+broker mission with a plain title. Loot-table and shop sources ("where to find") stayed with
+the MCP server until 2026-11-21: they are now in descriptions as a WHERE TO GET block (loot,
+craft, rewards, mining, ore quality, and shop names from the user's own UEX files), see
+[obtain hints](obtain-hints.md). Quest hints stay as they are; the block goes after them.

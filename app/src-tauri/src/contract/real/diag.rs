@@ -21,8 +21,20 @@ use starorg_core::usercfg;
 /// The key the `quest-items` patch preview shows (the Decryption Key's description).
 const QUEST_PATCH_SAMPLE: &str = "Kaboos_DecryptioKeycard1_desc";
 
+/// The row's result has a WHERE TO GET block (Normal, Detailed) or `Get:` line (Short)
+/// its stock text did not.
+fn has_obtain(r: &StringRow) -> bool {
+    let header = starorg_core::enhance::obtain::HEADER;
+    let new = |m: &str| r.result.contains(m) && !r.original.contains(m);
+    new(header) || new("Get:")
+}
+
 /// One changed row per category, as the in-game preview shows them.
 pub fn preview(t: &Table) -> Vec<PreviewItem> {
+    preview_rows(&t.rows)
+}
+
+fn preview_rows(rows: &[StringRow]) -> Vec<PreviewItem> {
     const WANT: &[(&str, &str)] = &[
         ("ships", "Ship description"),
         ("components", "Ship component"),
@@ -41,15 +53,14 @@ pub fn preview(t: &Table) -> Vec<PreviewItem> {
     let changed = |r: &&StringRow| r.source != StringSource::Unmodified;
     let mut out = Vec::new();
     for (cat, label) in WANT {
-        if let Some(r) = t.rows.iter().filter(changed).find(|r| r.category == *cat) {
+        if let Some(r) = rows.iter().filter(changed).find(|r| r.category == *cat) {
             out.push(item(r, label, cat));
         }
     }
     // A contract with a blueprint list, so the marker colours show; one with an
     // `[Owned]` line first.
     let lists = || {
-        t.rows
-            .iter()
+        rows.iter()
             .filter(changed)
             .filter(|r| r.category == "missions" && r.result.contains("BLUEPRINTS"))
     };
@@ -62,20 +73,37 @@ pub fn preview(t: &Table) -> Vec<PreviewItem> {
     }
     // Quest items: an automatic `Used in:` hint and the hand-written mission hint of the
     // `quest-items` patch (the Decryption Key; addendum §13).
-    if let Some(r) = t.rows.iter().filter(changed).find(|r| {
+    if let Some(r) = rows.iter().filter(changed).find(|r| {
         r.category == "items" && r.source == StringSource::Enhanced && r.result.contains("Used in:")
     }) {
         out.push(item(r, "Quest item", "quest-hints"));
     }
-    if let Some(r) = t.rows.iter().filter(changed).find(|r| {
+    if let Some(r) = rows.iter().filter(changed).find(|r| {
         r.source == StringSource::Patched
             && starorg_core::ini::strip_flag_suffix(&r.key).eq_ignore_ascii_case(QUEST_PATCH_SAMPLE)
     }) {
         out.push(item(r, "Quest item (mission hint)", "quest-hints"));
     }
+    // Where to get (spec obtain-hints): a personal weapon whose WHERE TO GET block follows
+    // its stats, then an ore or commodity (its block owns the key: category `items`).
+    let obtain = |r: &&StringRow| r.source == StringSource::Enhanced && has_obtain(r);
+    for (cat, label, extra) in [
+        ("fps-weapons", "Weapon (where to get)", None),
+        ("items", "Ore (where to get)", Some("Mined")),
+    ] {
+        let pick = |strict: bool| {
+            rows.iter().filter(changed).filter(obtain).find(|r| {
+                r.category == cat
+                    && extra.is_none_or(|x| !strict || r.result.contains(x))
+                    && !out.iter().any(|x: &PreviewItem| x.key == r.key)
+            })
+        };
+        if let Some(r) = pick(true).or_else(|| pick(false)) {
+            out.push(item(r, label, "obtain-hints"));
+        }
+    }
     let test = starorg_core::enhance::profile::COLOUR_TEST_KEY;
-    if let Some(r) = t
-        .rows
+    if let Some(r) = rows
         .iter()
         .filter(changed)
         .find(|r| starorg_core::ini::strip_flag_suffix(&r.key).eq_ignore_ascii_case(test))
@@ -536,5 +564,84 @@ pub fn diagnostics(b: &RealBackend) -> Diagnostics {
         file_name: format!("starorg-codex-diagnostics-{stamp}.txt"),
         text,
         redacted,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::preview_rows;
+    use crate::contract::types::{StringRow, StringSource};
+
+    fn row(key: &str, category: &str, original: &str, result: &str) -> StringRow {
+        StringRow {
+            key: key.into(),
+            original: original.into(),
+            result: result.into(),
+            source: StringSource::Enhanced,
+            category: category.into(),
+            group: String::new(),
+            group_label: String::new(),
+            manufacturer: None,
+            size: None,
+            owner: None,
+            owners: 0,
+            other_owners: None,
+        }
+    }
+
+    #[test]
+    fn preview_has_a_weapon_and_an_ore_with_where_to_get() {
+        let stats = "A rifle.\\n\\n--- STATS ---\\nDamage: 18";
+        let rows = vec![
+            row("item_DescA", "fps-weapons", "A rifle.", stats),
+            row(
+                "item_DescB",
+                "fps-weapons",
+                "B rifle.",
+                &format!("{stats}\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Loot:</EM4> Locker"),
+            ),
+            row(
+                "items_commodities_box_desc",
+                "items",
+                "A box.",
+                "A box.\\n\\n<EM4>Get:</EM4> Loot (Rare)",
+            ),
+            row(
+                "items_commodities_ore_desc",
+                "items",
+                "An ore.",
+                "An ore.\\n\\nWHERE TO GET\\nMined: Lyria",
+            ),
+        ];
+        let p = preview_rows(&rows);
+        let got: Vec<(&str, &str)> = p
+            .iter()
+            .filter(|i| i.category == "obtain-hints")
+            .map(|i| (i.key.as_str(), i.label.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("item_DescB", "Weapon (where to get)"),
+                ("items_commodities_ore_desc", "Ore (where to get)"),
+            ]
+        );
+        // The plain personal-weapon sample stays the first fps row.
+        assert!(
+            p.iter()
+                .any(|i| i.key == "item_DescA" && i.category == "fps-weapons")
+        );
+        // No ore: any item with a block; stock text with the words is no block.
+        let rows = vec![
+            row("item_DescC", "items", "Get: it", "Get: it\\n\\nstats"),
+            rows[2].clone(),
+        ];
+        let p = preview_rows(&rows);
+        let keys: Vec<&str> = p
+            .iter()
+            .filter(|i| i.category == "obtain-hints")
+            .map(|i| i.key.as_str())
+            .collect();
+        assert_eq!(keys, ["items_commodities_box_desc"]);
     }
 }

@@ -37,7 +37,7 @@
       "id": 4,
       "job": "apply",
       "level": "warn",
-      "message": "Applied: 11254 strings changed, 1 warning(s)",
+      "message": "Applied: 14734 strings changed, 1 warning(s)",
       "time": "2026-11-14T21:30:05Z"
     }
   ],
@@ -61,12 +61,13 @@
     },
     "channel": "LIVE",
     "counts": {
-      "changed": 11254,
+      "changed": 14734,
       "components": 1840,
       "dropped": 0,
       "fps_weapons": 318,
       "missiles": 96,
       "missions": 2140,
+      "obtain_hints": 3480,
       "overrides": 0,
       "ship_weapons": 402,
       "ships": 231
@@ -2862,6 +2863,20 @@
       "label": "Quest item",
       "original": "A synthetic access chip.",
       "result": "A synthetic access chip.\\n\\n<EM4>Used in:</EM4> Synthetic Recovery · Stanton"
+    },
+    {
+      "category": "obtain-hints",
+      "key": "item_DescSYN_Rifle",
+      "label": "Weapon (where to get)",
+      "original": "A synthetic laser rifle used for testing.",
+      "result": "A synthetic laser rifle used for testing.\\n\\n--- STATS ---\\nDamage: 18 energy  |  DPS: 150\\nFire rate: 500 rpm\\nMagazine: 45\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Buy:</EM4> Center Mass (Area18, Stanton)  |  Skutters (GrimHEX, Stanton)\\n<EM4>Loot:</EM4> Weapons rack (Rare) at Bunkers, Stanton · 21%  |  Weapon crate (Uncommon) at Derelict outposts, Stanton · 6%  |  Locker (Common) at Caves, Stanton · 2%  |  +3\\n<EM4>Craft:</EM4> from blueprint\\n<EM4>Reward:</EM4> Synthetic Recovery [BP]"
+    },
+    {
+      "category": "obtain-hints",
+      "key": "items_commodities_SYN_ore_desc",
+      "label": "Ore (where to get)",
+      "original": "A synthetic unstable ore.",
+      "result": "A synthetic unstable ore.\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Mined:</EM4> Lyria, Stanton (ship) 12–30%  |  Aaron Halo, Stanton (ship) 8–22%  |  Pyro I, Pyro (ship) 5–18%  |  +1\\n<EM4>Quality:</EM4> 1–1,000, most near 500 ± 150; Aaron Halo 300–1,000"
     }
   ],
   "channel_status": {
@@ -2887,7 +2902,7 @@
     "language": "english",
     "language_value": "english",
     "last_apply": {
-      "changed": 11254,
+      "changed": 14734,
       "dropped": 0,
       "duration_ms": 1830,
       "result": "applied",
@@ -10065,7 +10080,7 @@
   "export_diagnostics": {
     "file_name": "starorg-codex-diagnostics-20261114-213005.txt",
     "redacted": 5,
-    "text": "StarOrg Codex diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 11 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 0 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import (dry run): 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 11254 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
+    "text": "StarOrg Codex diagnostics\n\n## Installs\n[ok] Install found by LUG Helper config (~/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n[info] Second install found by Lutris game entry (/mnt/library/sc-test/drive_c/Program Files/Roberts Space Industries/StarCitizen)\n\n## Paths\n[ok] LIVE/Data/Localization/english is writable\n[info] LIVE/USER.cfg is a symlink (-> ~/Games/star-citizen/shared/USER.cfg)\n\n## Other tools\n[warn] Smart Citizen stamp in LIVE global.ini (Frontend_PU_Version)\n[warn] Empty Data/languages.ini (0 bytes) (Use the launcher's Verify files to restore it.)\n\n## Graphics\n[info] NVIDIA on Wayland (KDE): explicit sync disabled for the window\n\n## Recent log\n2026-11-14T21:30:05Z info Pushed 11 owned blueprints to StarOrg (Synthetic Org)\n2026-11-14T21:30:05Z info Pulled from StarOrg (Synthetic Org): 2 added, 1 already known\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 0 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import: 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Fleet import (dry run): 4 hulls, 1 unmatched, 1 ambiguous\n2026-11-14T21:30:05Z info Added patch Sample label fix\n2026-11-14T21:30:05Z warn Applied: 14734 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z warn Applied: 14734 strings changed, 1 warning(s)\n2026-11-14T21:30:05Z info Set up LIVE, HOTFIX (skipped: PTU)\n2026-11-14T21:30:05Z info Found 2 installs: LUG Helper config, Lutris game entry\n\n## Characters\n<character> (geid <geid>) active on LIVE\nStarOrg user: <starorg-user>\n"
   },
   "export_user_patch": {
     "file_name": "user-sample-label-fix.patch.toml",
@@ -11441,6 +11456,22 @@
     "stop_percent": 90,
     "total_bytes": 34359738368
   },
+  "obtain_status": {
+    "files": [
+      {
+        "modified": "2026-11-12T08:30:00Z",
+        "name": "uex-item-prices.json",
+        "present": true
+      },
+      {
+        "modified": null,
+        "name": "uex-terminals.json",
+        "present": false
+      }
+    ],
+    "shops_ready": false,
+    "uex_folder": "/home/pilot/.cache/starorg-codex/mcp/uex"
+  },
   "open_link": null,
   "overview": {
     "active_install": "inst-7f3a",
@@ -11474,7 +11505,7 @@
             "language": "english",
             "language_value": "english",
             "last_apply": {
-              "changed": 11254,
+              "changed": 14734,
               "dropped": 0,
               "duration_ms": 1830,
               "result": "applied",
@@ -11827,12 +11858,13 @@
         "backup_dir": "~/.local/share/starorg-codex/channels/inst-7f3a/LIVE/backups",
         "channel": "LIVE",
         "counts": {
-          "changed": 11106,
+          "changed": 14586,
           "components": 1840,
           "dropped": 0,
           "fps_weapons": 318,
           "missiles": 96,
           "missions": 2140,
+          "obtain_hints": 3480,
           "overrides": 0,
           "ship_weapons": 402,
           "ships": 231
@@ -11848,12 +11880,13 @@
         "backup_dir": "~/.local/share/starorg-codex/channels/inst-7f3a/PTU/backups",
         "channel": "PTU",
         "counts": {
-          "changed": 11143,
+          "changed": 14623,
           "components": 1840,
           "dropped": 0,
           "fps_weapons": 318,
           "missiles": 96,
           "missions": 2140,
+          "obtain_hints": 3480,
           "overrides": 0,
           "ship_weapons": 402,
           "ships": 231
@@ -12126,6 +12159,37 @@
         "id": "missions",
         "label": "Missions",
         "lines": []
+      },
+      {
+        "blurb": "A WHERE TO GET block in item and commodity descriptions: shops, loot, crafting, rewards and mining.",
+        "id": "obtain",
+        "label": "Where to get",
+        "lines": [
+          {
+            "key": "obtain.shops",
+            "label": "Shops (from your UEX files)"
+          },
+          {
+            "key": "obtain.loot",
+            "label": "Loot containers"
+          },
+          {
+            "key": "obtain.craft",
+            "label": "Crafting from a blueprint"
+          },
+          {
+            "key": "obtain.rewards",
+            "label": "Contract rewards"
+          },
+          {
+            "key": "obtain.mined",
+            "label": "Mining places"
+          },
+          {
+            "key": "obtain.quality",
+            "label": "Ore quality"
+          }
+        ]
       }
     ],
     "tag_kinds": [
@@ -13839,6 +13903,7 @@
       "fps_weapons": 0,
       "missiles": 0,
       "missions": 0,
+      "obtain_hints": 0,
       "overrides": 0,
       "ship_weapons": 0,
       "ships": 0

@@ -185,6 +185,21 @@ pub fn profile_schema() -> ProfileSchema {
                 "missions",
                 &[],
             ),
+            // Line ids = `starorg_core::enhance::obtain::LINES` (a test compares them).
+            cat(
+                CategoryId::Obtain,
+                "Where to get",
+                "A WHERE TO GET block in item and commodity descriptions: shops, loot, crafting, rewards and mining.",
+                "obtain",
+                &[
+                    ("shops", "Shops (from your UEX files)"),
+                    ("loot", "Loot containers"),
+                    ("craft", "Crafting from a blueprint"),
+                    ("rewards", "Contract rewards"),
+                    ("mined", "Mining places"),
+                    ("quality", "Ore quality"),
+                ],
+            ),
         ],
         tag_kinds: vec![
             TagKindSchema {

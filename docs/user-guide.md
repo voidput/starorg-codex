@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-17
+updated: 2026-11-21
 ---
 
 # User guide
@@ -84,6 +84,25 @@ for a sample of each, with the game's own colours (EM styles) where they apply.
   built-in `quest-items` text pack with hand-written hints, starting with Vanduul-Tech Smugglers
   (Nyx): where the access card, the decryption keys and the passcode disk are found and where to
   use them. Each hint is skipped when CIG changes that item's text.
+- **Where to get:** a WHERE TO GET block after the description (and after its stats block) of
+  items and commodities, from the game files: loot containers, crafting from a blueprint,
+  contract rewards, mining places and ore quality. Names are never changed.
+  - *Detail*: **Short** is one line, `Get: Loot (Rare) · Craft [BP] · Reward`; **Normal** is the
+    header and one line per source with the top 3 places, `+N` for the rest
+    (`Loot: Weapons rack (Rare) at Bunkers, Locker (Common) at Caves +3`); **Detailed** adds
+    star systems, rough odds per box (`· 21%`, estimates), the quality spread and places with
+    their own quality range.
+  - Each line (*Loot containers*, *Crafting from a blueprint*, *Contract rewards*, *Mining
+    places*, *Ore quality*) can be switched off; a line with nothing to say is left out, and an
+    item with no source gets no block.
+  - *Add shops from my UEX files* (off by default): shop stock is in no game file, so shop names
+    come only from the UEX files you put in the UEX folder yourself (`uex-item-prices.json` and
+    `uex-terminals.json`; the tab shows the folder and each file's age). StarOrg Codex downloads
+    nothing. Names only, never prices: prices go stale between applies.
+  - Presets: Recommended has it on in Normal, Minimal in Short, Everything in Detailed with the
+    shops on.
+  - The first apply per game build extracts a few datasets from `Data.p4k` (seconds; the
+    Explorer Sources card and the MCP server share that cache), later applies reuse them.
 
 Colours marked "look not verified" are our guess of how the game draws that style: switch on
 the colour test line, check in game and tell us (Support). **Save** keeps the settings, **Save &

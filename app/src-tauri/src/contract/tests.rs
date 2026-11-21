@@ -278,6 +278,7 @@ fn samples() -> Value {
     let (mcp_off, mcp_on) = mcp_samples();
     v["mcp_status"] = json!(mcp_off);
     v["set_mcp_enabled"] = json!(mcp_on);
+    v["obtain_status"] = json!(b.obtain_status().unwrap());
     let m = MockBackend::default();
     v["memory_status"] = json!(m.memory_status().unwrap());
     v["set_memory_limit"] = json!(
@@ -652,6 +653,7 @@ fn ts_unions_list_every_variant() {
                 CategoryId::FpsWeapons,
                 CategoryId::Missiles,
                 CategoryId::Missions,
+                CategoryId::Obtain,
             ]),
         ),
         (
@@ -1673,6 +1675,99 @@ fn preview_follows_profile_switches() {
         })
         .unwrap();
     assert_eq!(without[0].result, without[0].original);
+}
+
+#[test]
+fn preview_has_where_to_get_samples_that_follow_mode_and_lines() {
+    let b = MockBackend::default();
+    let get = |p: &Profile| {
+        b.build_preview(PreviewRequest {
+            target: live(),
+            profile: Some(p.clone()),
+            preset: None,
+        })
+        .unwrap()
+        .into_iter()
+        .filter(|i| i.category == "obtain-hints")
+        .collect::<Vec<_>>()
+    };
+    let mut p = b.preset_profile(Preset::Recommended).unwrap();
+    let s = get(&p);
+    assert_eq!(s.len(), 2, "{s:?}");
+    let (gun, ore) = (&s[0].result, &s[1].result);
+    // After the stats block; Normal: header, no odds, no shops (off by default).
+    let stats = gun.find("--- STATS ---").unwrap();
+    let block = gun.find("<EM3>WHERE TO GET</EM3>").unwrap();
+    assert!(stats < block, "{gun}");
+    assert!(
+        gun.contains("<EM4>Loot:</EM4> Weapons rack (Rare) at Bunkers"),
+        "{gun}"
+    );
+    assert!(!gun.contains('%') && !gun.contains("Center Mass"), "{gun}");
+    assert!(gun.contains("<EM4>Craft:</EM4>") && gun.contains("Synthetic Recovery [BP]"));
+    assert!(ore.contains("<EM4>Mined:</EM4> Lyria") && ore.contains("<EM4>Quality:</EM4>"));
+    // Short: one Get: line.
+    p.obtain_mode = ObtainMode::Short;
+    let s = get(&p);
+    assert!(
+        s[0].result
+            .contains("<EM4>Get:</EM4> Loot (Rare) · Craft [BP] · Reward")
+    );
+    assert!(!s[0].result.contains("WHERE TO GET"));
+    // Detailed with shops: odds and shop names, never prices.
+    p.obtain_mode = ObtainMode::Detailed;
+    p.obtain_shops = true;
+    let s = get(&p);
+    assert!(
+        s[0].result
+            .contains("<EM4>Buy:</EM4> Center Mass (Area18, Stanton)")
+    );
+    assert!(s[0].result.contains("21%") && !s[0].result.contains("aUEC"));
+    // Line toggles: loot off leaves the line out; every line off drops the sample.
+    p.lines_off = vec!["obtain.loot".into()];
+    assert!(!get(&p)[0].result.contains("Loot:"));
+    p.lines_off = starorg_core::enhance::obtain::LINES
+        .iter()
+        .map(|l| format!("obtain.{l}"))
+        .collect();
+    assert!(get(&p).is_empty());
+    p.lines_off.clear();
+    p.obtain = false;
+    assert!(get(&p).is_empty());
+}
+
+#[test]
+fn obtain_schema_lines_are_the_core_lines() {
+    let s = MockBackend::default().profile_schema().unwrap();
+    let c = s
+        .categories
+        .iter()
+        .find(|c| c.id == CategoryId::Obtain)
+        .unwrap();
+    let want: Vec<String> = starorg_core::enhance::obtain::LINES
+        .iter()
+        .map(|l| format!("{}.{l}", starorg_core::enhance::obtain::LINE_CATEGORY))
+        .collect();
+    let got: Vec<String> = c.lines.iter().map(|l| l.key.clone()).collect();
+    assert_eq!(got, want);
+}
+
+#[test]
+fn obtain_status_lists_the_uex_files_without_reading_them() {
+    let dir = std::env::temp_dir().join(format!("starorg-uex-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let st = super::real::obtain_status_in(&dir);
+    assert!(!st.shops_ready);
+    assert_eq!(st.files.len(), 2);
+    assert!(st.files.iter().all(|f| !f.present && f.modified.is_none()));
+    for f in super::real::UEX_FILES {
+        std::fs::write(dir.join(f), "not json").unwrap();
+    }
+    let st = super::real::obtain_status_in(&dir);
+    assert!(st.shops_ready, "{st:?}");
+    assert!(st.files.iter().all(|f| f.modified.is_some()));
+    let _ = std::fs::remove_dir_all(&dir);
 }
 
 #[test]

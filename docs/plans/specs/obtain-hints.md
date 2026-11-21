@@ -1,7 +1,7 @@
 ---
 title: "Obtain hints: where to get it, in item and commodity descriptions"
 tags: [docs, plans, specs]
-status: draft
+status: active
 updated: 2026-11-21
 ---
 
@@ -78,6 +78,22 @@ pub struct ItemObtain {
   CLI (`apply`, `build`, hooks with the remaining budget as the worker timeout) and the app
   (apply; the preview reads only cached datasets) pass `ToolsObtain` over the same cache and
   memory limit as the Sources card. `Report::obtain` carries time and item count.
+
+### As built (phase 3)
+
+- **Schema:** `CategoryId::Obtain` (`obtain`, label *Where to get*), lines = core
+  `obtain::LINES` (a contract test compares them).
+- **Tab:** Enhancements -> *Where to get*, last (after Quest items): master switch, Detail
+  (Short / Normal / Detailed, one example each, `lib/obtain.ts` `OBTAIN_MODES`), line toggles,
+  and a Shops card. The shops switch is `obtain_shops` plus the `obtain.shops` line (turning it
+  on clears that line). New contract command `obtain_status` (file metadata only): the UEX
+  folder `<cache>/mcp/uex` and the age of `uex-item-prices.json` / `uex-terminals.json`.
+- **Preview:** real backend picks a personal weapon whose result gained a WHERE TO GET / `Get:`
+  block, then an `items` row with `Mined` (else any item block), as category `obtain-hints`.
+  The Rust mock renders core `obtain::block` over synthetic sources (rifle after its stats,
+  ore); the TS mock (`obtainPreview`) is tested equal to it on the Everything sample.
+- **Counts:** `obtain_hints` in apply `counts` (core JSON, app `ApplyCounts`, wizard review,
+  CLI apply line), extensions of other categories' edits included.
 
 ## Text
 

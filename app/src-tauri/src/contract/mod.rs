@@ -69,6 +69,9 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn build_preview(&self, req: PreviewRequest) -> CmdResult<Vec<PreviewItem>>;
     /// Labels for the core's stat line and tag element ids.
     fn profile_schema(&self) -> CmdResult<ProfileSchema>;
+    /// The UEX folder and files the WHERE TO GET shop line reads (spec obtain-hints). Reads
+    /// only file metadata; nothing is downloaded.
+    fn obtain_status(&self) -> CmdResult<ObtainStatus>;
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile>;
     fn preset_profile(&self, preset: Preset) -> CmdResult<Profile>;
     fn save_profile(&self, req: SaveProfileRequest) -> CmdResult<Profile>;
@@ -232,6 +235,7 @@ commands! {
     cancel_job(job: String) -> ();
     build_preview(req: PreviewRequest) -> Vec<PreviewItem>;
     profile_schema() -> ProfileSchema;
+    obtain_status() -> ObtainStatus;
     get_profile(req: ChannelRef) -> Profile;
     preset_profile(preset: Preset) -> Profile;
     save_profile(req: SaveProfileRequest) -> Profile;
@@ -330,6 +334,7 @@ macro_rules! contract_handler {
             $crate::contract::cancel_job,
             $crate::contract::build_preview,
             $crate::contract::profile_schema,
+            $crate::contract::obtain_status,
             $crate::contract::get_profile,
             $crate::contract::preset_profile,
             $crate::contract::save_profile,
@@ -462,6 +467,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "cancel_job",
     "build_preview",
     "profile_schema",
+    "obtain_status",
     "get_profile",
     "preset_profile",
     "save_profile",

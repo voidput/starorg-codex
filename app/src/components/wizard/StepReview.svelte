@@ -174,7 +174,7 @@
           {#if !bad}
           <dt class="text-muted-foreground">Counts</dt>
           <dd class="mono text-muted-foreground">
-            ships {int(c.counts.ships)} · components {int(c.counts.components)} · ship weapons {int(c.counts.ship_weapons)} · FPS {int(c.counts.fps_weapons)} · missiles {int(c.counts.missiles)} · missions {int(c.counts.missions)}
+            ships {int(c.counts.ships)} · components {int(c.counts.components)} · ship weapons {int(c.counts.ship_weapons)} · FPS {int(c.counts.fps_weapons)} · missiles {int(c.counts.missiles)} · missions {int(c.counts.missions)}{#if c.counts.obtain_hints} · where to get {int(c.counts.obtain_hints)}{/if}
           </dd>
           {/if}
         </dl>

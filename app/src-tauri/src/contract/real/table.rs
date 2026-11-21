@@ -164,6 +164,8 @@ pub fn build(i: &Inputs<'_>) -> Table {
         fps_weapons: n(&[Category::FpsWeapons]),
         missiles: n(&[Category::Missiles, Category::MissileTags]),
         missions: n(&[Category::MissionTitles, Category::MissionDescriptions]),
+        // Counted with its extensions: most blocks go after another category's stats.
+        obtain_hints: n(&[Category::ObtainHints]),
         overrides: c.overrides as u32,
         dropped: c.dropped as u32,
     };

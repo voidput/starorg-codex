@@ -614,6 +614,7 @@ fn counts_json(c: &Counts, g: &crate::enhance::Generated) -> serde_json::Value {
         "missiles": n(&[C::Missiles, C::MissileTags]),
         "missions": n(&[C::MissionTitles, C::MissionDescriptions]),
         "ship_names": n(&[C::ShipNames]),
+        "obtain_hints": n(&[C::ObtainHints]),
         "generated": c.generated,
         "loc_patches": c.loc_patches,
         "overrides": c.overrides, "dropped": c.dropped,

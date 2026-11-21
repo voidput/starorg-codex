@@ -229,7 +229,8 @@ pub(crate) fn print_reports(
             );
             if let Some(o) = &r.obtain {
                 println!(
-                    "  where to get: sources for {} items in {:.1} s",
+                    "  where to get: {} descriptions, sources for {} items in {:.1} s",
+                    r.counts["obtain_hints"],
                     o.items,
                     o.ms as f64 / 1000.0
                 );

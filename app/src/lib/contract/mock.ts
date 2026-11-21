@@ -29,6 +29,7 @@
 import { clampGb, memoryView } from '../memory';
 import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
 import { prettyKey } from '../strowner';
+import { obtainPreview } from '../obtain';
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
 import samples from './samples.gen.json';
@@ -64,6 +65,7 @@ const SAMPLES = samples as unknown as {
   set_mcp_enabled: T.McpStatus;
   memory_status: T.MemoryStatus;
   set_memory_limit: T.MemoryStatus;
+  obtain_status: T.ObtainStatus;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -237,11 +239,12 @@ function counts(p: T.Profile, overrides: number): T.ApplyCounts {
     fps_weapons: n(p.fps_weapons, 318),
     missiles: n(p.missiles, 96),
     missions: n(p.missions, 2140),
+    obtain_hints: n(p.obtain, 3480),
     overrides,
     dropped: 0,
     changed: 0,
   };
-  c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions) * 2 + overrides + 1200;
+  c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions) * 2 + c.obtain_hints + overrides + 1200;
   return c;
 }
 
@@ -325,7 +328,7 @@ function emptyReport(s: T.ChannelSummary, result: T.ApplyResult): T.ApplyReport 
     result,
     reason: null,
     build: clone(s.build),
-    counts: { changed: 0, ships: 0, components: 0, ship_weapons: 0, fps_weapons: 0, missiles: 0, missions: 0, overrides: 0, dropped: 0 },
+    counts: { changed: 0, ships: 0, components: 0, ship_weapons: 0, fps_weapons: 0, missiles: 0, missions: 0, obtain_hints: 0, overrides: 0, dropped: 0 },
     patches: [],
     warnings: [],
     user_cfg: { changed: false, path: null, link_target: null, shared_with: [], line: null },
@@ -410,6 +413,7 @@ export function preview(p: T.Profile): T.PreviewItem[] {
     const chip = 'A synthetic access chip.';
     out.push({ key: 'item_DescSYN_Chip', label: 'Quest item', category: 'quest-hints', original: chip, result: `${chip}\\n\\n${em(m.label_em, 'Used in:')} Synthetic Recovery · Stanton` });
   }
+  out.push(...obtainPreview(p, block));
   if (p.colour_test) {
     const prompt = 'Please select a contract.';
     out.push({ key: 'mG_ContractsMgr_Select', label: 'Colour test', category: 'ui', original: prompt, result: prompt + COLOUR_TEST_LINE });
@@ -970,6 +974,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     // Like the real backend: no game data read for the channel yet -> an empty list.
     build_preview: ({ req }) => (previewNoData && !dataRead.has(id(req.target)) ? [] : preview(req.profile ?? (req.preset ? presetProfile(req.preset) : chan(req.target).profile))),
     profile_schema: () => clone(SAMPLES.profile_schema),
+    obtain_status: () => clone(SAMPLES.obtain_status),
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),
     save_profile: ({ req }) => {

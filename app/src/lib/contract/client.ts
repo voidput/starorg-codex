@@ -29,6 +29,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   cancel_job: [{ job: string }, null];
   build_preview: [{ req: T.PreviewRequest }, T.PreviewItem[]];
   profile_schema: [Record<string, never>, T.ProfileSchema];
+  obtain_status: [Record<string, never>, T.ObtainStatus];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
   preset_profile: [{ preset: T.Preset }, T.Profile];
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
@@ -111,6 +112,7 @@ export const COMMANDS = [
   'cancel_job',
   'build_preview',
   'profile_schema',
+  'obtain_status',
   'get_profile',
   'preset_profile',
   'save_profile',
@@ -330,6 +332,8 @@ export const api = {
   cancelJob: (job: string) => call('cancel_job', { job }),
   buildPreview: (req: T.PreviewRequest) => call('build_preview', { req }),
   profileSchema: () => call('profile_schema', none),
+  /** The UEX folder and files the WHERE TO GET shop line reads (metadata only). */
+  obtainStatus: () => call('obtain_status', none),
   getProfile: (req: T.ChannelRef) => call('get_profile', { req }),
   presetProfile: (preset: T.Preset) => call('preset_profile', { preset }),
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),

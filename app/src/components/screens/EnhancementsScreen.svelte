@@ -2,8 +2,8 @@
   /**
    * Enhancements (spec 9.4): a list (General, the generator categories, Name tags), the switches of
    * M2's profile with labels from `profile_schema`, the Tag Builder, mission options, the
-   * blueprint markers (their own tab: [Owned] / [Missing] / [BP Owned] and their colours) and a live
-   * preview. Settings are per channel; Save writes profile.toml, Save & apply also applies.
+   * blueprint markers (their own tab: [Owned] / [Missing] / [BP Owned] and their colours), Where to
+   * get (WHERE TO GET blocks, spec obtain-hints) and a live preview. Settings are per channel; Save writes profile.toml, Save & apply also applies.
    *
    * The draft survives refreshes (the load effect is keyed on the install/channel string only).
    * While it differs from the saved profile it is registered as `app.draft`, so switching channel,
@@ -28,7 +28,8 @@
   import PreviewPanel from '@/components/enhancements/PreviewPanel.svelte';
   import InGamePreview from '@/components/common/InGamePreview.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
-  import type { CategoryId, ChannelRef, PatchView, PreviewItem, Preset, Profile, ProfileSchema, TagKind, TagKindSettings } from '@/lib/contract/types';
+  import type { CategoryId, ChannelRef, ObtainMode, ObtainStatus, PatchView, PreviewItem, Preset, Profile, ProfileSchema, TagKind, TagKindSettings } from '@/lib/contract/types';
+  import { OBTAIN_MODES, fileAge } from '@/lib/obtain';
   import { app } from '@/lib/stores/app.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
@@ -180,13 +181,14 @@
   }
 
   // Category on/off and stat lines.
-  const CAT_FIELD: Record<CategoryId, 'ships' | 'components' | 'ship_weapons' | 'fps_weapons' | 'missiles' | 'missions'> = {
+  const CAT_FIELD: Record<CategoryId, 'ships' | 'components' | 'ship_weapons' | 'fps_weapons' | 'missiles' | 'missions' | 'obtain'> = {
     ships: 'ships',
     components: 'components',
     'ship-weapons': 'ship_weapons',
     'fps-weapons': 'fps_weapons',
     missiles: 'missiles',
     missions: 'missions',
+    obtain: 'obtain',
   };
   const SWITCH_LABEL: Record<CategoryId, string> = {
     ships: 'Add a stats block to ship descriptions',
@@ -195,6 +197,7 @@
     'fps-weapons': 'Add stats to personal weapon descriptions',
     missiles: 'Add stats to missile and bomb descriptions',
     missions: 'Add tags and sections to contracts',
+    obtain: 'Add WHERE TO GET to item and commodity descriptions',
   };
   const TAG_FIELD: Record<TagKind, 'components' | 'ship_weapons' | 'missiles'> = { components: 'components', 'ship-weapons': 'ship_weapons', missiles: 'missiles' };
   const isOn = (p: Profile, c: CategoryId) => p[CAT_FIELD[c]];
@@ -226,16 +229,37 @@
     return [
       { id: 'general' as Tab, label: 'General', on: null },
       ...schema.categories.flatMap((c) => {
+        // Where to get goes last, after Quest items: both add to item descriptions.
+        if (c.id === 'obtain') return [];
         const tab = { id: c.id as Tab, label: c.label, on: isOn(d, c.id) };
         // Blueprint markers sit right after Missions: they are part of the contract texts.
         return c.id === 'missions' ? [tab, { id: 'blueprints' as Tab, label: 'Blueprints', on: d.missions && (d.mission.blueprints || d.mission.title_blueprint) }] : [tab];
       }),
       { id: 'name-tags' as Tab, label: 'Name tags', on: d.tags.components.enabled || d.tags.ship_weapons.enabled || d.tags.missiles.enabled },
       { id: 'quest-items' as Tab, label: 'Quest items', on: d.quest_hints || questPackOn },
+      ...schema.categories.filter((c) => c.id === 'obtain').map((c) => ({ id: c.id as Tab, label: c.label, on: d.obtain })),
     ];
   });
   const cat = $derived(schema?.categories.find((c) => c.id === selected) ?? null);
-  const previewFocus = $derived(selected === 'quest-items' ? 'quest-hints' : selected === 'name-tags' || selected === 'general' ? 'components' : selected);
+  const previewFocus = $derived(selected === 'quest-items' ? 'quest-hints' : selected === 'obtain' ? 'obtain-hints' : selected === 'name-tags' || selected === 'general' ? 'components' : selected);
+
+  // Where to get: the UEX folder and files, read when the tab opens ("Check again" re-reads).
+  let uex = $state<ObtainStatus | null>(null);
+  let uexError = $state<string | null>(null);
+  let uexSeq = $state(0);
+  $effect(() => {
+    if (selected !== 'obtain') return;
+    void uexSeq;
+    let stale = false;
+    untrack(() => {
+      uexError = null;
+      api
+        .obtainStatus()
+        .then((s) => !stale && (uex = s))
+        .catch((e) => !stale && (uexError = toContractError(e).message));
+    });
+    return () => (stale = true);
+  });
   const jumpTab = (t: Tab) => {
     selected = t;
     document.getElementById(`cat-tab-${t}`)?.focus();
@@ -431,6 +455,94 @@
                   onchange={setQuestPack}
                 />
               {/if}
+            </Card.Content>
+          </Card.Root>
+        {:else if selected === 'obtain' && cat}
+          {@const off = !d.obtain}
+          {@const shopLine = cat.lines.find((l) => l.key === 'obtain.shops')}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Where to get</Card.Title>
+              <Card.Description>{cat.blurb} Names are never changed; the block goes after the stats.</Card.Description>
+            </Card.Header>
+            <Card.Content class="grid gap-3">
+              <SwitchRow
+                id="cat-on"
+                label={SWITCH_LABEL.obtain}
+                hint="From the game files: loot containers, blueprints, contract rewards, mining places and ore quality. The first apply per game build extracts a few datasets (seconds, cached after that)."
+                checked={d.obtain}
+                onchange={(v) => edit((p) => (p.obtain = v))}
+              />
+              <div class="grid gap-2 border-t pt-3">
+                <div class="flex flex-wrap items-center gap-3">
+                  <span class="w-28" id="obtain-mode">Detail</span>
+                  <Segmented
+                    ariaLabel="How much WHERE TO GET says"
+                    options={OBTAIN_MODES.map((m) => ({ id: m.id, label: m.label }))}
+                    value={d.obtain_mode}
+                    disabled={off}
+                    onchange={(v: ObtainMode) => edit((p) => (p.obtain_mode = v))}
+                  />
+                </div>
+                <ul class="grid gap-1 text-[12.5px]" aria-label="Examples per mode">
+                  {#each OBTAIN_MODES as m (m.id)}
+                    <li class={cn('flex flex-wrap gap-x-2', m.id === d.obtain_mode ? 'text-foreground' : 'text-muted-foreground')}>
+                      <span class="w-16 shrink-0 font-medium">{m.label}</span>
+                      <span class="mono min-w-0 break-words">{m.example}</span>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+              <div class="grid gap-0.5 border-t pt-2 @min-[560px]:grid-cols-2" role="group" aria-label="Where to get: lines">
+                {#each cat.lines.filter((l) => l.key !== 'obtain.shops') as l (l.key)}
+                  <SwitchRow id="line-{l.key}" size="sm" label={l.label} disabled={off} checked={lineOn(d, l.key)} onchange={(v) => setLine(l.key, v)} />
+                {/each}
+              </div>
+              <p class="text-muted-foreground text-[12px]">A line with nothing to say is left out; an item with no source gets no block. Odds are estimates and show only in Detailed.</p>
+            </Card.Content>
+          </Card.Root>
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Shops</Card.Title>
+              <Card.Description>Shop stock is in no game file. Shop names come only from UEX files you put in the UEX folder yourself; StarOrg Codex downloads nothing. Names only, never prices: prices go stale between applies.</Card.Description>
+            </Card.Header>
+            <Card.Content class="grid gap-2">
+              <SwitchRow
+                id="obtain-shops"
+                label="Add shops from my UEX files"
+                hint="Off by default. Without the files the Buy line is left out."
+                disabled={off}
+                checked={d.obtain_shops && (!shopLine || lineOn(d, shopLine.key))}
+                onchange={(v) =>
+                  edit((p) => {
+                    p.obtain_shops = v;
+                    if (v && shopLine) p.lines_off = p.lines_off.filter((k) => k !== shopLine.key);
+                  })}
+              />
+              <div class="bg-muted/40 grid gap-1.5 rounded-md border p-3 text-[12.5px]" role="status" aria-live="polite">
+                {#if uexError}
+                  <span class="text-destructive">{uexError}</span>
+                {:else if !uex}
+                  <Skeleton class="h-4 w-64" />
+                {:else}
+                  <span>
+                    UEX folder: <span class="mono select-all break-all">{uex.uex_folder}</span>
+                  </span>
+                  <ul class="grid gap-0.5">
+                    {#each uex.files as f (f.name)}
+                      <li class="flex flex-wrap items-center gap-x-2">
+                        {#if f.present}<CircleCheck class="text-success size-3" aria-hidden="true" />{:else}<Circle class="text-muted-foreground size-3" aria-hidden="true" />{/if}
+                        <span class="mono">{f.name}</span>
+                        <span class="text-muted-foreground">{f.present ? (fileAge(f.modified) ?? 'present') : 'missing'}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                  <span class="text-muted-foreground">
+                    {uex.shops_ready ? 'Both files are there; apply again after you replace them.' : 'Put both files (the sc-gamedata fetch output) in this folder, then apply. The Explorer Sources card reads the same files.'}
+                  </span>
+                  <div><Button variant="ghost" size="sm" onclick={() => uexSeq++}>Check again</Button></div>
+                {/if}
+              </div>
             </Card.Content>
           </Card.Root>
         {:else if cat}

@@ -164,6 +164,8 @@ export interface ApplyCounts {
   fps_weapons: number;
   missiles: number;
   missions: number;
+  /** Descriptions that got a WHERE TO GET block. */
+  obtain_hints: number;
   overrides: number;
   dropped: number;
 }
@@ -298,7 +300,7 @@ export interface PreviewRequest {
 
 // Enhancements profile (M2 enhance::Profile, field for field) ---------------------------
 
-export type CategoryId = 'ships' | 'components' | 'ship-weapons' | 'fps-weapons' | 'missiles' | 'missions';
+export type CategoryId = 'ships' | 'components' | 'ship-weapons' | 'fps-weapons' | 'missiles' | 'missions' | 'obtain';
 export type TagKind = 'components' | 'ship-weapons' | 'missiles';
 export type TagStyle = 'short' | 'medium' | 'long';
 export type TagSeparator = 'dash' | 'none' | 'space' | 'underscore' | 'dot' | 'slash' | 'pipe';
@@ -384,6 +386,21 @@ export interface Profile {
   colour_test: boolean;
   /** "Fix known text bugs" off = every built-in patch id here. */
   patches_disabled: string[];
+}
+
+/** One UEX file the WHERE TO GET shop line reads. */
+export interface UexFile {
+  name: string;
+  present: boolean;
+  /** RFC 3339 UTC, when present. */
+  modified: string | null;
+}
+
+/** Shop names come only from UEX files the user put in `uex_folder`; nothing is downloaded, prices never shown. */
+export interface ObtainStatus {
+  uex_folder: string;
+  files: UexFile[];
+  shops_ready: boolean;
 }
 
 export interface LineSchema {
