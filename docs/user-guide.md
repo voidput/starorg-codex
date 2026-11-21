@@ -168,7 +168,7 @@ For players who want to look things up in the game data. Read only on the game.
 
 - **Explorer:** the item finder (sections such as Ships & vehicles, Ship weapons, Armor & clothing;
   search with prefixes like `type:cooler maker:alpha`, typo-tolerant; quick filters such as
-  *Player-usable*, *Has model*, *Has sounds*; grouping and compare), the record's JSON with
+  *Player-usable*, *Has model*, *Has sounds*; grouping and compare), the record's data with
   readable references, its sounds (play or export) and **Export model** (GLB; with the
   **Print shell** preset optionally an STL and, experimental, a 3MF for slicers such as
   PrusaSlicer, Bambu Studio and Cura, in real size in metres and Z-up). **Save as…** asks where
@@ -196,6 +196,20 @@ For players who want to look things up in the game data. Read only on the game.
   A **Full** export can wear any paint the ship has (**Paint**, listed with their in-game names;
   default: the one fitted) and can include **Layer materials (experimental)**, the textures of
   each material's layers (bigger files; some surfaces may look wrong).
+  The record's **Data** tab has two views, and the one you pick is remembered. **Readable**
+  (the default) shows the fields in sections with plain names ("Max health" for `maxHealth`):
+  numbers with their unit, Yes/No, references as links to the record they name, `@keys` as
+  their text (click to open it in Strings). DataCore's wrappers (`_RecordValue_`, `_Type_`)
+  are left out; a section's type is the grey text beside its title. Empty values (none, blank,
+  no text) are hidden until **Show empty**, right-click copies a field's raw value, and
+  **Show IDs** puts the raw key and value beside each field. **Raw** is the JSON tree as
+  stored, for exact keys and values.
+  Ships, weapons and missiles also get a **Combat** card at the top of the Data tab (in both
+  views), once the build's game data has been read: a ship's total weapon DPS and its stock
+  guns (size, count, mount or turret, DPS each and in total) and missiles (rack, damage), with
+  a total row; a weapon's DPS, alpha, fire rate, range, projectile speed, ammo, power, heat
+  and EM/IR, plus its fire modes; a missile's damage, lock range and lock time. Names link to
+  their record. Click the title to fold the card away; it stays folded until you open it again.
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
 - **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one.
   To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for

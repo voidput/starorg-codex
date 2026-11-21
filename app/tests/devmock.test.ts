@@ -78,6 +78,11 @@ test('every dev sample of the Rust mock comes back equal from the TS mock', asyn
   got.dev_record = await h.dev_record({ req: { target: live, what: '51000000-0000-4000-8000-000000000001', pointer: '', depth: null } });
   got.dev_record_cut = await h.dev_record({ req: { target: live, what: data.huge.guid, pointer: '', depth: 2 } });
   got.dev_record_pointer = await h.dev_record({ req: { target: live, what: 'SYN_cooler_004', pointer: '/_RecordValue_/Ship', depth: null } });
+  const cat = (display: string) => data.known.find((k) => k.display === display)!.guid!;
+  got.dev_record_combat_ship = await h.dev_record_combat({ req: { target: live, guid: cat('Alpha Kestrel') } });
+  got.dev_record_combat_weapon = await h.dev_record_combat({ req: { target: live, guid: cat('Torrent Cannon S3').toUpperCase() } });
+  got.dev_record_combat_missile = await h.dev_record_combat({ req: { target: live, guid: cat('Hammer Torpedo') } });
+  got.dev_record_combat_none = await h.dev_record_combat({ req: { target: live, guid: '51000000-0000-4000-8000-000000000001' } });
   got.dev_export_record = await h.dev_export_record({ req: { target: live, what: 'SYN_Ship_001' } });
   got.dev_export_type = await h.dev_export_type({ req: { target: live, type_name: 'SynComponent', main_only: true } });
   got.dev_sources = await h.dev_sources({ req: live });

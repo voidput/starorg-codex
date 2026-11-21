@@ -29,6 +29,8 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import JobProgress from '@/components/common/JobProgress.svelte';
   import JsonTree from '@/components/dev/JsonTree.svelte';
+  import RecordSheet from '@/components/dev/RecordSheet.svelte';
+  import CombatCard from '@/components/dev/CombatCard.svelte';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
   import AssetPanel from '@/components/assets/AssetPanel.svelte';
   import TriggerPanel from '@/components/assets/TriggerPanel.svelte';
@@ -41,6 +43,7 @@
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { guidOf, treeKey, treeRows, typeahead, bytes, type Loaded } from '@/lib/devnav';
   import type { Json, RefInfo } from '@/lib/jsontree';
+  import { loadSheetMode, saveSheetMode, type SheetMode } from '@/lib/recordsheet';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
@@ -316,6 +319,8 @@
   let rec = $state<RecordView | null>(null);
   /** The record pane's tab: its data, or (entities) the Model tab's 3D view (addendum 7.20). */
   let recTab = $state<'data' | 'model'>('data');
+  /** The Data tab reads as sections of named fields, or as the raw JSON tree; kept per viewer. */
+  let dataView = $state<SheetMode>(loadSheetMode(store));
   /** three.js and the viewer load the first time the Model tab opens (a chunk of their own). */
   let viewer: Promise<typeof import('@/components/assets/ModelViewer.svelte')> | null = null;
   const loadViewer = () => (viewer ??= import('@/components/assets/ModelViewer.svelte'));
@@ -501,7 +506,7 @@
     if (!rootEl) return [];
     const tree = rootEl.querySelector<HTMLElement>('[data-pane=tree] [role=tree]');
     const list = rootEl.querySelector<HTMLElement>('[data-pane=list] [role=listbox]');
-    const detail = rootEl.querySelector<HTMLElement>('[data-pane=detail] [role=tree]');
+    const detail = rootEl.querySelector<HTMLElement>('[data-pane=detail] [role=tree], [data-pane=detail] [data-pane-stop]');
     return [tree, list, detail].filter((x): x is HTMLElement => !!x && x.offsetParent !== null);
   }
   function onKey(e: KeyboardEvent) {
@@ -866,7 +871,25 @@
           {:else}
             {@const tabbed = !!target && hasModel(h.type)}
             <div id={tabbed ? 'rec-panel-data' : undefined} role={tabbed ? 'tabpanel' : undefined} aria-labelledby={tabbed ? 'rec-tab-data' : undefined} class="flex min-h-0 flex-1 flex-col">
-              <JsonTree id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="flex-1" />
+              <div class="flex items-center gap-2 border-b px-2 py-1.5">
+                <Segmented
+                  size="sm"
+                  ariaLabel="Record data view"
+                  options={[
+                    { id: 'readable', label: 'Readable', hint: 'Named fields in sections, empty values hidden' },
+                    { id: 'raw', label: 'Raw', hint: 'The DataCore JSON tree as stored' },
+                  ]}
+                  bind:value={dataView}
+                  onchange={(m: SheetMode) => saveSheetMode(store, m)}
+                />
+              </div>
+              <!-- Combat numbers come from GameData, not the JSON: the same card in both views. -->
+              <CombatCard {target} guid={h.guid} onopen={(g) => void openRecord(g)} class="max-h-[45%]" />
+              {#if dataView === 'readable'}
+                <RecordSheet id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="min-h-0 flex-1" />
+              {:else}
+                <JsonTree id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="flex-1" />
+              {/if}
             </div>
           {/if}
         {:else}

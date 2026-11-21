@@ -117,6 +117,14 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         })
         .unwrap()
     };
+    let combat = |guid: String| {
+        b.dev_record_combat(DevRecordCombatRequest {
+            target: live(),
+            guid,
+        })
+        .unwrap()
+    };
+    let cat = |d: &str| mock_dev::catalogue_guid(mock_dev::catalogue_row(d));
     let sources = b.dev_sources(live()).unwrap();
     let added = b.dev_add_source(live()).unwrap();
     let mut sorted_rows = rows("build:LIVE", "gamedata.json", "components");
@@ -454,6 +462,22 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
             json!(record("SYN_cooler_004".into(), "/_RecordValue_/Ship", None)),
         ),
         (
+            "dev_record_combat_ship",
+            json!(combat(cat("Alpha Kestrel"))),
+        ),
+        (
+            "dev_record_combat_weapon",
+            json!(combat(cat("Torrent Cannon S3").to_uppercase())),
+        ),
+        (
+            "dev_record_combat_missile",
+            json!(combat(cat("Hammer Torpedo"))),
+        ),
+        (
+            "dev_record_combat_none",
+            json!(combat(mock_dev::ship_guid(1))),
+        ),
+        (
             "dev_export_record",
             json!(
                 b.dev_export_record(DevExportRecordRequest {
@@ -653,6 +677,13 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
                 what: "x".into(),
                 pointer: String::new(),
                 depth: None,
+            })),
+        ),
+        (
+            "dev_record_combat",
+            j(b.dev_record_combat(DevRecordCombatRequest {
+                target: live(),
+                guid: "x".into(),
             })),
         ),
         (
@@ -1048,6 +1079,10 @@ fn dev_unions_in_dev_ts_list_every_variant() {
             ]),
         ),
         ("Change", names(&[Change::Added, Change::Changed])),
+        (
+            "CombatKind",
+            names(&[CombatKind::Ship, CombatKind::Weapon, CombatKind::Missile]),
+        ),
         (
             "Matching",
             names(&[Matching::Exact, Matching::Typo, Matching::Abbreviation]),

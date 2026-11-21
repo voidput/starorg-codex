@@ -4,10 +4,11 @@
 //! Keyed by record GUID (lower case), so the app joins them onto the worker's list rows.
 
 use super::Stat;
-use crate::model::GameData;
+use crate::model::{GameData, Missile};
 use std::collections::HashMap;
 
-fn stat(key: &str, label: &str, value: Option<f64>, unit: Option<&str>) -> Option<Stat> {
+/// A stat rounded to 2 decimals; `None` for a missing or non-finite value.
+pub(crate) fn stat(key: &str, label: &str, value: Option<f64>, unit: Option<&str>) -> Option<Stat> {
     let v = value.filter(|v| v.is_finite())?;
     Some(Stat {
         key: key.into(),
@@ -85,14 +86,16 @@ pub fn by_guid(gd: &GameData) -> HashMap<String, Vec<Stat>> {
         put(&c.item.id, v);
     }
     for m in &gd.missiles {
-        put(
-            &m.item.id,
-            vec![
-                stat("damage", "Damage", m.damage_total, None),
-                stat("lock", "Lock range", m.lock_range_max, Some("m")),
-                stat("lockTime", "Lock time", m.lock_time, Some("s")),
-            ],
-        );
+        put(&m.item.id, missile_stats(m));
     }
     out
+}
+
+/// A missile's headline stats: damage, lock range and lock time (also the combat card's).
+pub(crate) fn missile_stats(m: &Missile) -> Vec<Option<Stat>> {
+    vec![
+        stat("damage", "Damage", m.damage_total, None),
+        stat("lock", "Lock range", m.lock_range_max, Some("m")),
+        stat("lockTime", "Lock time", m.lock_time, Some("s")),
+    ]
 }

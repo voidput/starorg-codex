@@ -29,7 +29,7 @@ export interface DevMockData {
   /** The section index's input (7.17): facts per entry, the table's result per entry. */
   facts: (Facts | null)[];
   sections: SectionsData;
-  catalogue: { stats: Record<string, D.Stat[]>; marks: [string, D.Change][]; geometry: [string, string][] };
+  catalogue: { stats: Record<string, D.Stat[]>; combat: Record<string, D.Combat>; marks: [string, D.Change][]; geometry: [string, string][] };
 }
 
 export interface DevMockCtx {
@@ -1604,6 +1604,11 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       return { ...compared };
     },
     dev_search: ({ req }) => explorer(req.target).search(req.query, req.limit),
+    // The combat cards come from the Rust mock's synthetic GameData (no worker needed).
+    dev_record_combat: ({ req }) => {
+      on(req.target);
+      return data.catalogue.combat[req.guid.trim().toLowerCase()] ?? null;
+    },
     dev_record: ({ req }) => {
       const ix = explorer(req.target);
       const i = ix.find(req.what) ?? ctx.fail('not-found', `no record "${req.what}"`);
