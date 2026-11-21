@@ -2,6 +2,7 @@
 //! dataset viewer and the dataset diff. Pure and read only; the explorer worker
 //! (`starorg-data::dev`) and the app's mock fill these from their own records.
 
+pub mod combat;
 pub mod dataset;
 pub mod diff;
 pub mod explorer;

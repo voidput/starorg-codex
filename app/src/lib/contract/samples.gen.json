@@ -7006,6 +7006,243 @@
     "pointer": "",
     "truncated": false
   },
+  "dev_record_combat_missile": {
+    "facts": [
+      {
+        "label": "Kind",
+        "text": "Missile"
+      },
+      {
+        "label": "Damage type",
+        "text": "physical"
+      },
+      {
+        "label": "Tracking",
+        "text": "Infrared"
+      }
+    ],
+    "kind": "missile",
+    "missiles": [],
+    "modes": [],
+    "stats": [
+      {
+        "key": "damage",
+        "label": "Damage",
+        "unit": null,
+        "value": 9000.0
+      },
+      {
+        "key": "lock",
+        "label": "Lock range",
+        "unit": "m",
+        "value": 12000.0
+      },
+      {
+        "key": "lockTime",
+        "label": "Lock time",
+        "unit": "s",
+        "value": 6.0
+      },
+      {
+        "key": "speed",
+        "label": "Speed",
+        "unit": "m/s",
+        "value": 800.0
+      }
+    ],
+    "weapons": []
+  },
+  "dev_record_combat_none": null,
+  "dev_record_combat_ship": {
+    "facts": [],
+    "kind": "ship",
+    "missiles": [
+      {
+        "count": 1.0,
+        "each": 9000.0,
+        "item": {
+          "guid": "54000000-0000-4000-8000-000000000017",
+          "item": "SYN_Hammer_Torpedo",
+          "name": "Hammer Torpedo"
+        },
+        "mount": {
+          "guid": "54000000-0000-4000-8000-000000000018",
+          "item": "SYN_Quiver_Missile_Rack",
+          "name": "Quiver Missile Rack"
+        },
+        "size": 3.0,
+        "total": 9000.0
+      },
+      {
+        "count": 2.0,
+        "each": 1800.0,
+        "item": {
+          "guid": "54000000-0000-4000-8000-000000000016",
+          "item": "SYN_Wasp_Missile",
+          "name": "Wasp Missile"
+        },
+        "mount": {
+          "guid": "54000000-0000-4000-8000-000000000018",
+          "item": "SYN_Quiver_Missile_Rack",
+          "name": "Quiver Missile Rack"
+        },
+        "size": 1.0,
+        "total": 3600.0
+      }
+    ],
+    "modes": [],
+    "stats": [
+      {
+        "key": "dps",
+        "label": "Weapon DPS",
+        "unit": null,
+        "value": 900.0
+      },
+      {
+        "key": "weapons",
+        "label": "Guns",
+        "unit": null,
+        "value": 3.0
+      },
+      {
+        "key": "missiles",
+        "label": "Missiles",
+        "unit": null,
+        "value": 3.0
+      },
+      {
+        "key": "missileDamage",
+        "label": "Missile damage",
+        "unit": null,
+        "value": 12600.0
+      }
+    ],
+    "weapons": [
+      {
+        "count": 2.0,
+        "each": 240.0,
+        "item": {
+          "guid": "54000000-0000-4000-8000-000000000009",
+          "item": "SYN_Ember_Repeater_S2",
+          "name": "Ember Repeater S2"
+        },
+        "mount": {
+          "guid": null,
+          "item": "SYN_Gimbal_Mount_S2",
+          "name": "SYN_Gimbal_Mount_S2"
+        },
+        "size": 2.0,
+        "total": 480.0
+      },
+      {
+        "count": 1.0,
+        "each": 420.0,
+        "item": {
+          "guid": "54000000-0000-4000-8000-00000000000a",
+          "item": "SYN_Torrent_Cannon_S3",
+          "name": "Torrent Cannon S3"
+        },
+        "mount": {
+          "guid": null,
+          "item": "SYN_Nose_Turret",
+          "name": "SYN_Nose_Turret"
+        },
+        "size": 3.0,
+        "total": 420.0
+      }
+    ]
+  },
+  "dev_record_combat_weapon": {
+    "facts": [
+      {
+        "label": "Class",
+        "text": "Ship weapon"
+      },
+      {
+        "label": "Damage type",
+        "text": "physical"
+      }
+    ],
+    "kind": "weapon",
+    "missiles": [],
+    "modes": [
+      {
+        "alpha": 140.0,
+        "charge_time": null,
+        "dps": 280.0,
+        "heat_per_shot": 1.2,
+        "label": "Semi",
+        "pellets": null,
+        "rate": 120.0
+      },
+      {
+        "alpha": 140.0,
+        "charge_time": null,
+        "dps": 420.0,
+        "heat_per_shot": 3.0,
+        "label": "Burst 3",
+        "pellets": null,
+        "rate": 180.0
+      }
+    ],
+    "stats": [
+      {
+        "key": "dps",
+        "label": "DPS",
+        "unit": null,
+        "value": 420.0
+      },
+      {
+        "key": "alpha",
+        "label": "Alpha",
+        "unit": null,
+        "value": 140.0
+      },
+      {
+        "key": "rate",
+        "label": "Fire rate",
+        "unit": "rpm",
+        "value": 180.0
+      },
+      {
+        "key": "range",
+        "label": "Range",
+        "unit": "m",
+        "value": 3600.0
+      },
+      {
+        "key": "speed",
+        "label": "Speed",
+        "unit": "m/s",
+        "value": 1200.0
+      },
+      {
+        "key": "ammo",
+        "label": "Ammo",
+        "unit": null,
+        "value": 120.0
+      },
+      {
+        "key": "power",
+        "label": "Power",
+        "unit": null,
+        "value": 5.0
+      },
+      {
+        "key": "heat",
+        "label": "Heat/shot",
+        "unit": null,
+        "value": 3.0
+      },
+      {
+        "key": "em",
+        "label": "EM",
+        "unit": null,
+        "value": 200.0
+      }
+    ],
+    "weapons": []
+  },
   "dev_record_cut": {
     "header": {
       "bytes": 1585236,

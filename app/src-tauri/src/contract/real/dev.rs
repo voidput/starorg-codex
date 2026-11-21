@@ -1301,6 +1301,23 @@ impl DevBackend for RealBackend {
         Ok(v)
     }
 
+    fn dev_record_combat(&self, req: DevRecordCombatRequest) -> CmdResult<Option<Combat>> {
+        self.dev_on()?;
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?.clone();
+        // GameData as cached; nothing is extracted for this.
+        let Ok(data) = self.loaded(&f, &ch, false) else {
+            return Ok(None);
+        };
+        let l = self.lookup_for(&req.target, &req.target.channel);
+        let l: &dyn Lookup = l.as_deref().map_or(&NoLookup, |l| l);
+        Ok(starorg_core::dev::combat::combat_of(
+            &data.game_data,
+            l,
+            &req.guid,
+        ))
+    }
+
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult> {
         let w = self.worker(&req.target, None)?;
         let view: RecordView = w.call(&Request::Record {

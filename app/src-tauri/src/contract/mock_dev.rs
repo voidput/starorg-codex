@@ -10,13 +10,15 @@ use super::dev::*;
 use super::mock::MockBackend;
 use super::types::*;
 use serde_json::{Value, json};
+use starorg_core::dev::combat;
 use starorg_core::dev::dataset::{self, Dataset, RowsQuery};
 use starorg_core::dev::diff::{self, TableDiff};
 use starorg_core::dev::explorer::{Entry, ExplorerIndex, MAX_PAGE};
 use starorg_core::dev::readable::{self, KnownRecord, LabelKind, MapLookup};
 use starorg_core::dev::record;
 use starorg_core::dev::sections::{Facts, SectionIndex};
-use std::collections::HashMap;
+use starorg_core::model::GameData;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::{Arc, OnceLock};
 
 pub const SHIPS: u32 = 40;
@@ -929,6 +931,261 @@ pub fn catalogue_stats() -> HashMap<String, Vec<Stat>> {
         .collect()
 }
 
+/// The catalogue row of a display name.
+pub fn catalogue_row(display: &str) -> usize {
+    CATALOGUE
+        .iter()
+        .position(|r| r.5 == display)
+        .expect("catalogue row")
+}
+
+/// Synthetic GameData of the catalogue's guns, missiles and armed ships, for the combat card
+/// (the real backend reads the build's). Numbers are made up; no CIG data.
+pub fn catalogue_gamedata() -> GameData {
+    use starorg_core::model::{
+        Damage, FireKind, FireMode, ItemIdentity, Loadout, LoadoutItem, Missile, Ship, Totals,
+        Weapon, WeaponAmmo, WeaponClass,
+    };
+    let ident = |n: usize| ItemIdentity {
+        record_name: format!("{E}.{}", catalogue_name(n)),
+        id: catalogue_guid(n),
+        size: Some(CATALOGUE[n].3),
+        manufacturer: Some(CATALOGUE[n].4.into()),
+        ..ItemIdentity::default()
+    };
+    let mode =
+        |kind: FireKind, name: &str, rate: f64, shots: Option<f64>, sustained: Option<f64>| {
+            FireMode {
+                name: name.into(),
+                kind,
+                fire_rate: Some(rate),
+                shot_count: shots,
+                sustained_fire_rate: sustained,
+                heat_per_shot: Some(rate / 100.0),
+                ..FireMode::default()
+            }
+        };
+    /// A synthetic gun of the catalogue.
+    struct Gun {
+        display: &'static str,
+        class: WeaponClass,
+        per_shot: f64,
+        energy: bool,
+        speed: f64,
+        range: f64,
+        magazine: f64,
+        power: Option<f64>,
+        modes: Vec<FireMode>,
+    }
+    let guns = [
+        Gun {
+            display: "Ember Repeater S1",
+            class: WeaponClass::Ship,
+            per_shot: 12.0,
+            energy: true,
+            speed: 1800.0,
+            range: 2700.0,
+            magazine: 0.0,
+            power: Some(2.0),
+            modes: vec![mode(FireKind::Rapid, "Rapid", 900.0, None, None)],
+        },
+        Gun {
+            display: "Ember Repeater S2",
+            class: WeaponClass::Ship,
+            per_shot: 18.0,
+            energy: true,
+            speed: 1750.0,
+            range: 2600.0,
+            magazine: 0.0,
+            power: Some(3.0),
+            modes: vec![mode(FireKind::Rapid, "Rapid", 800.0, None, None)],
+        },
+        Gun {
+            display: "Torrent Cannon S3",
+            class: WeaponClass::Ship,
+            per_shot: 140.0,
+            energy: false,
+            speed: 1200.0,
+            range: 3600.0,
+            magazine: 120.0,
+            power: Some(5.0),
+            modes: vec![
+                mode(FireKind::Single, "Single", 120.0, None, None),
+                mode(FireKind::Burst, "Burst", 300.0, Some(3.0), Some(180.0)),
+            ],
+        },
+        Gun {
+            display: "Breaker Scattergun S4",
+            class: WeaponClass::Ship,
+            per_shot: 30.0,
+            energy: false,
+            speed: 900.0,
+            range: 1100.0,
+            magazine: 60.0,
+            power: Some(6.0),
+            modes: vec![mode(FireKind::Single, "Single", 90.0, None, None)],
+        },
+        Gun {
+            display: "Viper Rifle",
+            class: WeaponClass::Fps,
+            per_shot: 25.0,
+            energy: false,
+            speed: 650.0,
+            range: 260.0,
+            magazine: 30.0,
+            power: None,
+            modes: vec![
+                mode(FireKind::Single, "Single", 300.0, None, None),
+                mode(FireKind::Rapid, "Rapid", 600.0, None, None),
+            ],
+        },
+    ];
+    let weapons = guns
+        .into_iter()
+        .map(|g| {
+            let mut modes = g.modes;
+            for m in &mut modes {
+                m.finish(Some(g.per_shot));
+            }
+            let mut damage = Damage::default();
+            damage.set(if g.energy { "energy" } else { "physical" }, g.per_shot);
+            let mut w = Weapon {
+                item: ident(catalogue_row(g.display)),
+                class: g.class,
+                power: g.power,
+                em: g.power.map(|p| p * 40.0),
+                ammo: Some(WeaponAmmo {
+                    speed: Some(g.speed),
+                    range: Some(g.range),
+                    damage: Some(damage),
+                    damage_per_shot: Some(g.per_shot),
+                    capacity: Some(g.magazine),
+                    ..WeaponAmmo::default()
+                }),
+                modes,
+                ..Weapon::default()
+            };
+            w.derive_headline();
+            w
+        })
+        .collect::<Vec<_>>();
+    let missile = |d: &str, damage: f64, range: f64, time: f64| Missile {
+        item: ident(catalogue_row(d)),
+        damage_total: Some(damage),
+        damage_type: Some("physical".into()),
+        tracking_signal: Some("Infrared".into()),
+        lock_time: Some(time),
+        lock_range_max: Some(range),
+        speed: Some(800.0),
+        ..Missile::default()
+    };
+    let missiles = vec![
+        missile("Wasp Missile", 1800.0, 5000.0, 2.0),
+        missile("Hammer Torpedo", 9000.0, 12000.0, 6.0),
+    ];
+    let gun = |d: &str, count: f64, mount: Option<&str>| {
+        let n = catalogue_row(d);
+        LoadoutItem {
+            item: catalogue_name(n),
+            size: Some(CATALOGUE[n].3 as f64),
+            count: (count != 1.0).then_some(count),
+            item_type: Some("WeaponGun".into()),
+            mount: mount.map(str::to_string),
+            dps: weapons
+                .iter()
+                .find(|w| w.item.id == catalogue_guid(n))
+                .and_then(|w| w.dps),
+            ..LoadoutItem::default()
+        }
+    };
+    let rack = catalogue_name(catalogue_row("Quiver Missile Rack"));
+    let msl = |d: &str, count: f64| {
+        let n = catalogue_row(d);
+        LoadoutItem {
+            item: catalogue_name(n),
+            size: Some(CATALOGUE[n].3 as f64),
+            count: (count != 1.0).then_some(count),
+            rack: Some(rack.clone()),
+            damage: missiles
+                .iter()
+                .find(|m| m.item.id == catalogue_guid(n))
+                .and_then(|m| m.damage_total),
+            ..LoadoutItem::default()
+        }
+    };
+    let ship = |d: &str, weapons: Vec<LoadoutItem>, missiles: Vec<LoadoutItem>| {
+        let n = catalogue_row(d);
+        let dps: f64 = weapons
+            .iter()
+            .map(|w| w.dps.unwrap_or(0.0) * w.count())
+            .sum();
+        let guns: f64 = weapons.iter().map(LoadoutItem::count).sum();
+        let mcount: f64 = missiles.iter().map(LoadoutItem::count).sum();
+        let mdmg: f64 = missiles
+            .iter()
+            .map(|m| m.damage.unwrap_or(0.0) * m.count())
+            .sum();
+        Ship {
+            record_name: format!("{E}.{}", catalogue_name(n)),
+            id: catalogue_guid(n),
+            totals: Some(Totals {
+                weapon_dps: Some(dps),
+                weapons: Some(guns),
+                missiles: (mcount > 0.0).then_some(mcount),
+                missile_damage: (mdmg > 0.0).then_some(mdmg),
+                ..Totals::default()
+            }),
+            loadout: Some(Loadout {
+                weapons,
+                missiles,
+                ..Loadout::default()
+            }),
+            ..Ship::default()
+        }
+    };
+    let ships = vec![
+        ship(
+            "Alpha Sparrow",
+            vec![gun("Ember Repeater S1", 2.0, Some("SYN_Gimbal_Mount_S1"))],
+            vec![msl("Wasp Missile", 4.0)],
+        ),
+        ship(
+            "Alpha Kestrel",
+            vec![
+                gun("Ember Repeater S2", 2.0, Some("SYN_Gimbal_Mount_S2")),
+                gun("Torrent Cannon S3", 1.0, Some("SYN_Nose_Turret")),
+            ],
+            vec![msl("Wasp Missile", 2.0), msl("Hammer Torpedo", 1.0)],
+        ),
+        ship(
+            "Gamma Carrier",
+            vec![gun("Breaker Scattergun S4", 4.0, Some("SYN_Turret_Remote"))],
+            vec![],
+        ),
+    ];
+    GameData {
+        weapons,
+        missiles,
+        ships,
+        ..GameData::default()
+    }
+}
+
+/// The combat cards of the catalogue by lower-case GUID (both mocks serve these).
+pub fn catalogue_combat() -> &'static BTreeMap<String, Combat> {
+    static C: OnceLock<BTreeMap<String, Combat>> = OnceLock::new();
+    C.get_or_init(|| {
+        let gd = catalogue_gamedata();
+        let l = lookup(false);
+        (0..CATALOGUE.len())
+            .filter_map(|n| {
+                let g = catalogue_guid(n);
+                combat::combat_of(&gd, &l, &g).map(|c| (g, c))
+            })
+            .collect()
+    })
+}
+
 /// Archive files the catalogue's models are (for "Open owning record"). The first ships use
 /// the mock archive's own `syn_ship_00n.skin` files, so Files can open them.
 pub fn catalogue_geometry(n: usize) -> Option<String> {
@@ -1802,6 +2059,13 @@ impl DevBackend for MockBackend {
     }
 
     /// No native dialog in the mock: always "cancelled", nothing written.
+    fn dev_record_combat(&self, req: DevRecordCombatRequest) -> CmdResult<Option<Combat>> {
+        self.dev_on(&req.target)?;
+        Ok(catalogue_combat()
+            .get(&req.guid.trim().to_lowercase())
+            .cloned())
+    }
+
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult> {
         let c = self.explorer(&req.target)?;
         c.index
@@ -2207,7 +2471,7 @@ pub fn gen_file() -> Value {
             "labels": starorg_core::dev::sections::rules::VALUE_LABELS,
             "records": ((0..c.index.len()).map(|i| json!([c.sections.section_id(i), c.sections.is_variant(i)])).collect::<Vec<_>>()),
         },
-        "catalogue": { "stats": catalogue_stats().into_iter().collect::<std::collections::BTreeMap<_, _>>(), "marks": catalogue_marks(), "geometry": ((0..CATALOGUE.len()).filter_map(|n| catalogue_geometry(n).map(|g| json!([g, catalogue_guid(n)]))).collect::<Vec<_>>()) },
+        "catalogue": { "stats": catalogue_stats().into_iter().collect::<std::collections::BTreeMap<_, _>>(), "combat": catalogue_combat(), "marks": catalogue_marks(), "geometry": ((0..CATALOGUE.len()).filter_map(|n| catalogue_geometry(n).map(|g| json!([g, catalogue_guid(n)]))).collect::<Vec<_>>()) },
         "makers": (MAKERS.iter().map(|(c, n)| (c.to_string(), Value::from(*n))).collect::<serde_json::Map<_, _>>()),
         "enhanced": (enhanced().iter().map(|(k, v)| (k.clone(), Value::from(v.clone()))).collect::<std::collections::BTreeMap<_, _>>()),
         "folder": { "label": FOLDER_LABEL, "path": FOLDER_PATH, "files": (folder_files().into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) },

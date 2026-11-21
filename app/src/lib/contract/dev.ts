@@ -284,6 +284,62 @@ export interface DevRecordRequest {
   depth: number | null;
 }
 
+/** The combat card of an explorer record, from the build's GameData (never the P4K). */
+export interface DevRecordCombatRequest {
+  target: ChannelRef;
+  guid: string;
+}
+
+export type CombatKind = 'ship' | 'weapon' | 'missile';
+
+/** A record a combat row names: the raw short name, what it reads as, its GUID when known. */
+export interface CombatRef {
+  item: string;
+  name: string;
+  guid: string | null;
+}
+
+/** One kind of stock gun or missile (identical siblings counted). */
+export interface CombatRow {
+  item: CombatRef;
+  size: number | null;
+  count: number;
+  /** Guns: the mount or turret; missiles: the rack. */
+  mount: CombatRef | null;
+  /** Guns: DPS of one; missiles: damage of one. */
+  each: number | null;
+  /** `each` × `count`. */
+  total: number | null;
+}
+
+export interface CombatMode {
+  label: string;
+  /** Rounds per minute (a burst's sustained rate when it has one). */
+  rate: number | null;
+  alpha: number | null;
+  dps: number | null;
+  heat_per_shot: number | null;
+  charge_time: number | null;
+  pellets: number | null;
+}
+
+export interface CombatFact {
+  label: string;
+  text: string;
+}
+
+export interface Combat {
+  kind: CombatKind;
+  stats: Stat[];
+  facts: CombatFact[];
+  /** Ships: stock guns, highest total DPS first. */
+  weapons: CombatRow[];
+  /** Ships: stock missiles, highest total damage first. */
+  missiles: CombatRow[];
+  /** Weapons: their fire modes. */
+  modes: CombatMode[];
+}
+
 export interface DevExportRecordRequest {
   target: ChannelRef;
   what: string;
@@ -712,6 +768,7 @@ export interface DevCommandMap {
   dev_compare: [{ req: DevCompareRequest }, DevCompare | null];
   dev_search: [{ req: DevSearchRequest }, SearchPage];
   dev_record: [{ req: DevRecordRequest }, RecordView];
+  dev_record_combat: [{ req: DevRecordCombatRequest }, Combat | null];
   dev_export_record: [{ req: DevExportRecordRequest }, DevExportResult];
   dev_export_type: [{ req: DevExportTypeRequest }, DevExportResult];
   dev_sources: [{ req: ChannelRef }, DevSource[]];
@@ -744,6 +801,7 @@ export const DEV_COMMANDS = [
   'dev_compare',
   'dev_search',
   'dev_record',
+  'dev_record_combat',
   'dev_export_record',
   'dev_export_type',
   'dev_sources',
@@ -775,6 +833,8 @@ export const devApi = {
   compare: (req: DevCompareRequest) => call('dev_compare', { req }),
   search: (req: DevSearchRequest) => call('dev_search', { req }),
   record: (req: DevRecordRequest) => call('dev_record', { req }),
+  /** `null` while the build's GameData was not read or the record is no ship, weapon or missile. */
+  recordCombat: (req: DevRecordCombatRequest) => call('dev_record_combat', { req }),
   /** Native save dialog (Rust side); `cancelled` when closed. */
   exportRecord: (req: DevExportRecordRequest) => call('dev_export_record', { req }),
   exportType: (req: DevExportTypeRequest) => call('dev_export_type', { req }),

@@ -94,6 +94,10 @@ interface Samples {
   dev_record: T.RecordView;
   dev_record_cut: T.RecordView;
   dev_record_pointer: T.RecordView;
+  dev_record_combat_ship: T.Combat | null;
+  dev_record_combat_weapon: T.Combat | null;
+  dev_record_combat_missile: T.Combat | null;
+  dev_record_combat_none: T.Combat | null;
   dev_export_record: T.DevExportResult;
   dev_export_type: T.DevExportResult;
   dev_sources: T.DevSource[];

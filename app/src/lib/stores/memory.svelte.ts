@@ -14,7 +14,10 @@ let loading: Promise<MemoryStatus | null> | null = null;
 export function loadMemory(): Promise<MemoryStatus | null> {
   loading ??= api
     .memoryStatus()
-    .then((s) => (memory.status = s))
+    .then((s) => {
+      memory.status = s;
+      return s;
+    })
     .catch(() => memory.status)
     .finally(() => (loading = null));
   return loading;

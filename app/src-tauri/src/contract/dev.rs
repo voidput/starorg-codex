@@ -13,6 +13,9 @@ use super::{BackendState, Progress, run};
 use serde::{Deserialize, Serialize};
 use tauri::Emitter;
 
+pub use starorg_core::dev::combat::{
+    Combat, CombatFact, CombatKind, CombatMode, CombatRef, CombatRow,
+};
 pub use starorg_core::dev::dataset::{
     ColType, Column, DatasetInfo, Fact, Row, RowFilter, RowSort, RowsPage, TableInfo, TableKind,
     TableSummary, ValueCount,
@@ -139,6 +142,14 @@ pub struct DevRecordRequest {
     pub pointer: String,
     /// Cut deeper nodes (expand loads them); `None` = whole when it fits in 1 MiB.
     pub depth: Option<u32>,
+}
+
+/// The combat card of an explorer record: from the build's GameData, never the P4K.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevRecordCombatRequest {
+    pub target: ChannelRef,
+    /// The record's GUID.
+    pub guid: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -478,6 +489,9 @@ pub trait DevBackend {
     fn dev_compare(&self, req: DevCompareRequest) -> CmdResult<Option<DevCompare>>;
     fn dev_search(&self, req: DevSearchRequest) -> CmdResult<SearchPage>;
     fn dev_record(&self, req: DevRecordRequest) -> CmdResult<RecordView>;
+    /// A ship's guns and missiles, a weapon's or missile's numbers; `None` while the build's
+    /// GameData was not read or the record is none of these.
+    fn dev_record_combat(&self, req: DevRecordCombatRequest) -> CmdResult<Option<Combat>>;
     /// Native save dialog, then pretty JSON in StarBreaker's form.
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult>;
     /// Native save dialog, then one JSON array, streamed; `cancel_job` stops it.
@@ -599,6 +613,7 @@ dev_commands! {
     dev_compare(req: DevCompareRequest) -> Option<DevCompare>;
     dev_search(req: DevSearchRequest) -> SearchPage;
     dev_record(req: DevRecordRequest) -> RecordView;
+    dev_record_combat(req: DevRecordCombatRequest) -> Option<Combat>;
     dev_export_record(req: DevExportRecordRequest) -> DevExportResult;
     dev_sources(req: ChannelRef) -> Vec<DevSource>;
     dev_add_source(req: ChannelRef) -> Vec<DevSource>;
