@@ -507,7 +507,7 @@ fn gamedata_dataset(gd: &starorg_core::model::GameData) -> Dataset {
 impl RealBackend {
     /// The Sources card's tools for an install, built on first use. Datasets are extracted
     /// by this binary started as `mcp-extract-worker`, under the memory limit.
-    fn origin_tools(&self, f: &Found) -> CmdResult<Arc<starorg_mcp::tools::Tools>> {
+    pub(super) fn origin_tools(&self, f: &Found) -> CmdResult<Arc<starorg_mcp::tools::Tools>> {
         let id = f.ui_id();
         let mut g = lock_or(&self.dev.origin);
         if let Some((k, t)) = g.as_ref()
@@ -528,6 +528,21 @@ impl RealBackend {
         *g = Some((id, t.clone()));
         Ok(t)
     }
+    /// Where apply and the preview get obtain hints (spec obtain-hints): the Sources card's
+    /// tools, so both share one dataset cache and one memory limit. `extract`: extract a
+    /// dataset not cached yet (apply), else read only the cache. `None` for test sources.
+    pub(super) fn obtain_provider(
+        &self,
+        f: &Found,
+        extract: bool,
+    ) -> Option<starorg_core::apply::ObtainProvider> {
+        if !self.cfg.source.obtain_hints() {
+            return None;
+        }
+        let tools = self.origin_tools(f).ok()?;
+        Some(starorg_mcp::hints::ToolsObtain::provider(tools, extract))
+    }
+
     pub fn with_dev_spawner(self, s: Arc<dyn DevSpawner>) -> Self {
         self.dev.set_spawner(s);
         self

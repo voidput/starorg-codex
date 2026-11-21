@@ -7,7 +7,7 @@
 use serde::{Deserialize, Serialize};
 use starorg_gamedata::query::mined::area_place;
 pub use starorg_gamedata::query::mined::{MinedBelt, MinedReport, MinedSpot};
-use starorg_gamedata::query::obtain::{ObtainReport, SpawnKind, area_label};
+use starorg_gamedata::query::obtain::{AreaSummary, ObtainReport, SpawnKind, area_label};
 pub use starorg_gamedata::query::quality::{
     OreQuality, QualityOverride, QualityRange, QualityStep,
 };
@@ -161,6 +161,35 @@ fn kind_name(k: SpawnKind) -> &'static str {
     }
 }
 
+/// One card row: the best spawn of an area that holds the item.
+pub fn loot_container(a: &AreaSummary) -> LootContainer {
+    let h = &a.best;
+    let rarity = tag(&h.spawn_tags, "LootRarity").or_else(|| {
+        h.config.as_deref().and_then(|c| {
+            let last = c.rsplit(' ').next()?;
+            RARITIES
+                .iter()
+                .find(|r| r.eq_ignore_ascii_case(last))
+                .map(|r| (*r).to_string())
+        })
+    });
+    LootContainer {
+        area: area_label(&a.area),
+        place: area_place(&a.area).map(str::to_string),
+        spawn_point: h.config.clone(),
+        kind: kind_name(h.kind).into(),
+        container: h.entity_name.clone().unwrap_or_else(|| h.entity.clone()),
+        contents: tag(&h.spawn_tags, "LootContents"),
+        size: tag(&h.spawn_tags, "LootSize"),
+        rarity,
+        slot_share: h.slot_share,
+        odds_per_box: h.score,
+        per_roll: h.per_roll,
+        table: h.table.clone(),
+        configs: a.configs,
+    }
+}
+
 /// The loot half of the card from an obtain report, keeping at most `max_containers` rows
 /// and `max_tables` tables.
 pub fn loot_sources(r: &ObtainReport, max_containers: usize, max_tables: usize) -> LootSources {
@@ -168,33 +197,7 @@ pub fn loot_sources(r: &ObtainReport, max_containers: usize, max_tables: usize) 
         .areas
         .iter()
         .take(max_containers)
-        .map(|a| {
-            let h = &a.best;
-            let rarity = tag(&h.spawn_tags, "LootRarity").or_else(|| {
-                h.config.as_deref().and_then(|c| {
-                    let last = c.rsplit(' ').next()?;
-                    RARITIES
-                        .iter()
-                        .find(|r| r.eq_ignore_ascii_case(last))
-                        .map(|r| (*r).to_string())
-                })
-            });
-            LootContainer {
-                area: area_label(&a.area),
-                place: area_place(&a.area).map(str::to_string),
-                spawn_point: h.config.clone(),
-                kind: kind_name(h.kind).into(),
-                container: h.entity_name.clone().unwrap_or_else(|| h.entity.clone()),
-                contents: tag(&h.spawn_tags, "LootContents"),
-                size: tag(&h.spawn_tags, "LootSize"),
-                rarity,
-                slot_share: h.slot_share,
-                odds_per_box: h.score,
-                per_roll: h.per_roll,
-                table: h.table.clone(),
-                configs: a.configs,
-            }
-        })
+        .map(loot_container)
         .collect();
     LootSources {
         name: r.item.name.clone(),

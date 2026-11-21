@@ -349,6 +349,8 @@ pub struct Ctx<'a> {
     pub store: &'a Store,
     pub ch: &'a ChannelSource,
     pub dir: PathBuf,
+    /// Extract a dataset that is not cached yet (else answer that it is missing).
+    pub extract: bool,
 }
 
 impl<'a> Ctx<'a> {
@@ -363,11 +365,12 @@ impl<'a> Ctx<'a> {
             store,
             ch,
             dir: store.build_dir(ch),
+            extract: true,
         })
     }
 
     fn json(&self, name: &str) -> ToolResult<Arc<Value>> {
-        self.store.json(self.ch, name)
+        self.store.json_in(self.ch, &self.dir, name, self.extract)
     }
 
     fn items(&self) -> ToolResult<Arc<Items>> {
@@ -496,12 +499,23 @@ impl<'a> Ctx<'a> {
 }
 
 impl Ctx<'_> {
-    /// [`where_mined`] over the build's mining spawns and loot areas.
-    pub fn mined(&self, q: &str) -> ToolResult<Vec<MinedReport>> {
-        let spawns = self.store.typed(&self.dir, "mining-spawns", || {
+    fn mining_spawns(&self) -> ToolResult<Arc<MiningSpawns>> {
+        self.store.typed(&self.dir, "mining-spawns", || {
             serde_json::from_value::<MiningSpawns>((*self.json("game-mining-spawns")?).clone())
                 .map_err(|e| ToolError(format!("game-mining-spawns: {e}")))
-        })?;
+        })
+    }
+
+    fn commodities(&self) -> ToolResult<Arc<Commodities>> {
+        self.store.typed(&self.dir, "commodities-quality", || {
+            serde_json::from_value::<Commodities>((*self.json("game-commodities")?).clone())
+                .map_err(|e| ToolError(format!("game-commodities: {e}")))
+        })
+    }
+
+    /// [`where_mined`] over the build's mining spawns and loot areas.
+    pub fn mined(&self, q: &str) -> ToolResult<Vec<MinedReport>> {
+        let spawns = self.mining_spawns()?;
         let areas = self.store.typed(&self.dir, "loot-areas", || {
             field::<Vec<LootArea>>(&*self.json("game-item-sources")?, "areas")
         })?;
@@ -510,10 +524,7 @@ impl Ctx<'_> {
 
     /// [`quality_for`] the record or the ores of `mined`, over the build's commodities.
     pub fn quality(&self, record: &str, mined: &[MinedReport]) -> ToolResult<Vec<OreQuality>> {
-        let c = self.store.typed(&self.dir, "commodities-quality", || {
-            serde_json::from_value::<Commodities>((*self.json("game-commodities")?).clone())
-                .map_err(|e| ToolError(format!("game-commodities: {e}")))
-        })?;
+        let c = self.commodities()?;
         let ores: Vec<String> = mined.iter().map(|m| m.ore.clone()).collect();
         Ok(quality_for(&c, record, &ores))
     }
@@ -1797,6 +1808,43 @@ impl Tools {
         })
     }
 
+    /// Obtain hints for `global.ini` descriptions (spec obtain-hints): for every item of
+    /// item-tags its loot containers and (UEX files present) shops, and for every resource
+    /// with a quality spread where it is mined and its quality. Keyed by lower-case class
+    /// and resource name; `desc` is left for the caller (apply fills it from its own
+    /// `GameData`). The first call per build extracts item-tags, loot, item-sources,
+    /// mining-spawns and commodities; a group that fails leaves its lines out and says so
+    /// in `warnings`. Kept in memory per build once complete (a partial answer is built
+    /// again next time, so a raised memory limit takes effect).
+    pub fn obtain_hints(&self, channel: &str) -> ToolResult<Arc<crate::hints::BuiltHints>> {
+        self.obtain_hints_with(channel, true)
+    }
+
+    /// [`Self::obtain_hints`]; with `extract` false only datasets already cached on disk
+    /// are read (a missing one is a warning, as a failed one is).
+    pub fn obtain_hints_with(
+        &self,
+        channel: &str,
+        extract: bool,
+    ) -> ToolResult<Arc<crate::hints::BuiltHints>> {
+        let mut ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        ctx.extract = extract;
+        let mut partial = None;
+        let r = ctx.store.typed(&ctx.dir, "obtain-hints", || {
+            let b = build_hints(&ctx);
+            if b.warnings.is_empty() {
+                Ok(b)
+            } else {
+                partial = Some(b);
+                tool_err("partial")
+            }
+        });
+        match (r, partial) {
+            (_, Some(p)) => Ok(Arc::new(p)),
+            (r, None) => r,
+        }
+    }
+
     pub fn call(&self, name: &str, args: &Map<String, Value>) -> ToolResult<Value> {
         let a = Args(args);
         if name == "status" {
@@ -1817,6 +1865,93 @@ impl Tools {
             other => tool_err(format!("unknown tool {other}")),
         }
     }
+}
+
+fn build_hints(ctx: &Ctx<'_>) -> crate::hints::BuiltHints {
+    use crate::hints::{MAX_LOOT, MAX_SHOPS, loot_hints, mined_hints, quality_hint, shop_hints};
+    use starorg_core::model::ItemObtain;
+    use starorg_gamedata::query::obtain::BulkObtain;
+    let mut out = crate::hints::BuiltHints::default();
+    let items = &mut out.hints.items;
+    // Loot and shops: loot needs loot + item-sources; without them, shops alone.
+    let corpus = match ctx.corpus(true, false) {
+        Ok(c) => Some(c),
+        Err(e) => match ctx.corpus(false, false) {
+            Ok(c) => {
+                out.warnings.push(format!("loot lines left out: {e}"));
+                Some(c)
+            }
+            Err(e) => {
+                out.warnings
+                    .push(format!("loot and shop lines left out: {e}"));
+                None
+            }
+        },
+    };
+    if let Some(c) = &corpus {
+        let bulk = BulkObtain::new(&c.d, c.index.as_ref());
+        let list: Vec<_> = c.d.items.iter().filter(|i| !i.template()).collect();
+        let all_areas = bulk.areas_all(&list);
+        for (item, areas) in list.into_iter().zip(all_areas) {
+            let (loot, loot_total) = loot_hints(&areas, MAX_LOOT);
+            let o = ItemObtain {
+                shops: if c.shops_loaded {
+                    shop_hints(&bulk.shops(item), MAX_SHOPS)
+                } else {
+                    Vec::new()
+                },
+                loot,
+                loot_total,
+                ..Default::default()
+            };
+            if !o.is_empty() {
+                items.insert(item.class_name.to_ascii_lowercase(), o);
+            }
+        }
+    }
+    // Mining and quality, per resource with a quality spread.
+    let mining = (|| -> ToolResult<()> {
+        let c = ctx.commodities()?;
+        let spawns = ctx.mining_spawns()?;
+        let bodies: std::collections::HashMap<String, String> = spawns
+            .ore_spawns
+            .iter()
+            .filter_map(|s| Some((s.location.to_ascii_lowercase(), s.body.clone()?)))
+            .collect();
+        let body_of = |loc: &str| bodies.get(&loc.to_ascii_lowercase()).cloned();
+        let rock_kind = |rock: &str| {
+            spawns
+                .rocks
+                .iter()
+                .find(|r| r.rock.eq_ignore_ascii_case(rock))
+                .and_then(|r| r.kind.clone())
+        };
+        for r in c.resources.iter().filter(|r| r.quality.is_some()) {
+            let mined = ctx.mined(&r.record_name)?;
+            let quality = ctx.quality(&r.record_name, &mined)?;
+            let o = ItemObtain {
+                mined: mined
+                    .iter()
+                    .flat_map(|m| mined_hints(m, body_of, rock_kind))
+                    .collect(),
+                quality: quality
+                    .iter()
+                    .find(|q| q.resource.eq_ignore_ascii_case(&r.record_name))
+                    .and_then(quality_hint),
+                ..Default::default()
+            };
+            if !o.is_empty() {
+                items.insert(r.name.to_ascii_lowercase(), o);
+            }
+        }
+        Ok(())
+    })();
+    if let Err(e) = mining {
+        out.warnings
+            .push(format!("mining and quality lines left out: {e}"));
+    }
+    out.items = out.hints.items.len();
+    out
 }
 
 /// Paths a test or caller may want: the UEX folder under a cache dir.

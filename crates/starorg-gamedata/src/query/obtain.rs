@@ -514,7 +514,7 @@ pub struct RollPath {
 /// Pool sizes already counted, by (table, slot, entry, filter, extra layers, the choices
 /// the item satisfies in each layer). Areas that roll the same table the same way share a
 /// pool, so one report counts each once.
-pub type PoolMemo = std::cell::RefCell<HashMap<PoolKey, usize>>;
+pub type PoolMemo = std::sync::Mutex<HashMap<PoolKey, usize>>;
 pub type PoolKey = (String, usize, usize, usize, usize, Vec<Vec<usize>>);
 
 #[derive(Default, Clone, Copy)]
@@ -525,7 +525,14 @@ pub struct RollContext<'a> {
     pub pool: Option<&'a [ItemTags]>,
     /// Optional cache of pool sizes (the answer is the same with or without it).
     pub memo: Option<&'a PoolMemo>,
+    /// Optional cache of the lootable `pool` items each (table, slot, entry) picks; with
+    /// it a pool size counts only those (same answer, far fewer tests over many items).
+    pub entry_pools: Option<&'a EntryPools>,
 }
+
+/// Indices into the pool of the lootable items one (table, slot, entry) picks and its
+/// archetype does not exclude, by (table address, slot, entry).
+pub type EntryPools = std::sync::Mutex<HashMap<(usize, usize, usize), std::sync::Arc<Vec<usize>>>>;
 
 /// Every way one roll of a table can produce the item.
 pub fn table_rolls(
@@ -553,6 +560,15 @@ pub fn table_rolls(
             continue;
         };
         if slot.weight <= 0.0 || archetype.excluded.iter().any(|t| has_tag(&item.tags, t)) {
+            continue;
+        }
+        // Cheapest test first: no primary entry picks the item, no path (the answer is the
+        // same; most tables pick most items nowhere).
+        if !archetype
+            .primary
+            .iter()
+            .any(|e| e.weight > 0.0 && selects_sel(e, &item.tags))
+        {
             continue;
         }
         let layers: Vec<&Layer> = archetype.layers.iter().chain(ctx.extra_layers).collect();
@@ -604,25 +620,45 @@ pub fn table_rolls(
                     )
                 });
                 if let (Some(m), Some(k)) = (ctx.memo, &key)
-                    && let Some(n) = m.borrow().get(k)
+                    && let Some(n) = m.lock().unwrap_or_else(|e| e.into_inner()).get(k)
                 {
                     return *n;
                 }
-                let n = pool
-                    .iter()
-                    .filter(|c| {
-                        loot_eligibility(&c.tags).can_loot == Some(true)
-                            && selects_sel(entry, &c.tags)
-                            && !archetype.excluded.iter().any(|t| has_tag(&c.tags, t))
-                            && ctx.filter.is_none_or(|f| f.test(&c.tags))
-                            && item_choices.iter().enumerate().all(|(i, choices)| {
-                                layers[i].choices.is_empty()
-                                    || choices.iter().any(|ch| selects_sel(ch, &c.tags))
-                            })
-                    })
-                    .count();
+                let picked = |c: &ItemTags| {
+                    loot_eligibility(&c.tags).can_loot == Some(true)
+                        && selects_sel(entry, &c.tags)
+                        && !archetype.excluded.iter().any(|t| has_tag(&c.tags, t))
+                };
+                let rest = |c: &ItemTags| {
+                    ctx.filter.is_none_or(|f| f.test(&c.tags))
+                        && item_choices.iter().enumerate().all(|(i, choices)| {
+                            layers[i].choices.is_empty()
+                                || choices.iter().any(|ch| selects_sel(ch, &c.tags))
+                        })
+                };
+                let n = match ctx.entry_pools {
+                    Some(ep) => {
+                        let k = (table as *const Table as usize, slot_ix, entry_ix);
+                        let hit = ep
+                            .lock()
+                            .unwrap_or_else(|e| e.into_inner())
+                            .get(&k)
+                            .cloned();
+                        let ix = hit.unwrap_or_else(|| {
+                            let v: std::sync::Arc<Vec<usize>> = std::sync::Arc::new(
+                                (0..pool.len()).filter(|&i| picked(&pool[i])).collect(),
+                            );
+                            ep.lock()
+                                .unwrap_or_else(|e| e.into_inner())
+                                .insert(k, v.clone());
+                            v
+                        });
+                        ix.iter().filter(|&&i| rest(&pool[i])).count()
+                    }
+                    None => pool.iter().filter(|c| picked(c) && rest(c)).count(),
+                };
                 if let (Some(m), Some(k)) = (ctx.memo, key) {
-                    m.borrow_mut().insert(k, n);
+                    m.lock().unwrap_or_else(|e| e.into_inner()).insert(k, n);
                 }
                 n
             });
@@ -768,6 +804,7 @@ fn spawn_hits_memo(
                         extra_layers: slot_layers(index, loot),
                         pool: Some(&datasets.items),
                         memo,
+                        entry_pools: None,
                     },
                 );
                 if paths.is_empty() {
@@ -879,6 +916,315 @@ fn other_tables_memo(
     }
     sort_desc(&mut out, |p| p.per_roll);
     out
+}
+
+// ---------------------------------------------------------------- bulk
+
+/// Where a slot is: area, config and slot positions (the order [`spawn_hits`] visits).
+type SlotPos = (usize, usize, usize);
+
+/// A loot slot of one area spawn, with what scores it.
+struct LootSlot<'a> {
+    pos: SlotPos,
+    slot_share: f64,
+    fill: f64,
+    loot: &'a SpawnLoot,
+}
+
+/// The area spawns and shop rows of many items, for answering every item of a build at
+/// once (the obtain hints of `global.ini` descriptions). Same answers as [`spawn_hits`] +
+/// [`rank_areas`] and the shop rows of [`obtain`], built so one item costs only what can
+/// hold it: loose and fixed slots are looked up by class, loot slots that roll the same
+/// way are rolled once per item, pool sizes are counted once for every item, and shop rows
+/// are found by id or name.
+pub struct BulkObtain<'a> {
+    datasets: &'a Datasets,
+    index: Option<&'a LootIndex>,
+    /// Lower-case class -> slots that are the item (loose).
+    loose: HashMap<String, Vec<SlotPos>>,
+    /// Lower-case class -> slots whose loadout holds the item (fixed).
+    fixed: HashMap<String, Vec<SlotPos>>,
+    /// Loot slots by (table, pool filter, secondary choices): one roll per group.
+    loot: Vec<Vec<LootSlot<'a>>>,
+    /// The items random loot can roll: the only ones a pool size counts.
+    lootable: Vec<ItemTags>,
+    /// Pool sizes and entry pools, shared by every item and thread.
+    memo: PoolMemo,
+    entry_pools: EntryPools,
+    shops_by_id: HashMap<&'a str, Vec<usize>>,
+    shops_by_name: HashMap<String, Vec<usize>>,
+}
+
+impl<'a> BulkObtain<'a> {
+    pub fn new(datasets: &'a Datasets, index: Option<&'a LootIndex>) -> Self {
+        let mut loose: HashMap<String, Vec<SlotPos>> = HashMap::new();
+        let mut fixed: HashMap<String, Vec<SlotPos>> = HashMap::new();
+        let mut groups: HashMap<(&str, Option<&str>, Option<&str>), usize> = HashMap::new();
+        let mut loot: Vec<Vec<LootSlot>> = Vec::new();
+        for (ai, area) in datasets.areas.iter().flatten().enumerate() {
+            for (ci, config) in area.configs.iter().enumerate() {
+                let total: f64 = config.slots.iter().map(|s| s.weight).sum();
+                if total <= 0.0 {
+                    continue;
+                }
+                let fill = config.fill_chance.unwrap_or(1.0);
+                for (si, slot) in config.slots.iter().enumerate() {
+                    let slot_share = slot.weight / total;
+                    if slot_share <= 0.0 {
+                        continue;
+                    }
+                    let pos = (ai, ci, si);
+                    loose
+                        .entry(slot.entity.to_lowercase())
+                        .or_default()
+                        .push(pos);
+                    let mut held: Vec<String> = slot
+                        .contains
+                        .iter()
+                        .flatten()
+                        .map(|c| c.to_lowercase())
+                        .collect();
+                    held.dedup();
+                    for c in held {
+                        let v = fixed.entry(c).or_default();
+                        if v.last() != Some(&pos) {
+                            v.push(pos);
+                        }
+                    }
+                    if let Some(l) = &slot.loot {
+                        let key = (
+                            l.table.as_str(),
+                            l.pool_filter.as_deref(),
+                            l.secondary_choices.as_deref(),
+                        );
+                        let g = *groups.entry(key).or_insert_with(|| {
+                            loot.push(Vec::new());
+                            loot.len() - 1
+                        });
+                        loot[g].push(LootSlot {
+                            pos,
+                            slot_share,
+                            fill,
+                            loot: l,
+                        });
+                    }
+                }
+            }
+        }
+        let mut shops_by_id: HashMap<&str, Vec<usize>> = HashMap::new();
+        let mut shops_by_name: HashMap<String, Vec<usize>> = HashMap::new();
+        for (i, p) in datasets.shops.iter().flatten().enumerate() {
+            match p.item_uuid.as_deref().filter(|u| !u.is_empty()) {
+                Some(u) => shops_by_id.entry(u).or_default().push(i),
+                None => {
+                    if let Some(n) = p.item_name.as_deref() {
+                        shops_by_name.entry(n.to_lowercase()).or_default().push(i);
+                    }
+                }
+            }
+        }
+        Self {
+            datasets,
+            index,
+            loose,
+            fixed,
+            loot,
+            lootable: datasets
+                .items
+                .iter()
+                .filter(|c| loot_eligibility(&c.tags).can_loot == Some(true))
+                .cloned()
+                .collect(),
+            memo: PoolMemo::default(),
+            entry_pools: EntryPools::default(),
+            shops_by_id,
+            shops_by_name,
+        }
+    }
+
+    fn slot(
+        &self,
+        (ai, ci, si): SlotPos,
+    ) -> (
+        &'a LootArea,
+        &'a super::types::SpawnConfig,
+        &'a super::types::SpawnSlot,
+    ) {
+        let area = &self.datasets.areas.as_deref().unwrap_or_default()[ai];
+        let config = &area.configs[ci];
+        (area, config, &config.slots[si])
+    }
+
+    /// How each loot group rolls the item: (group, paths, odds per roll). Depends on the
+    /// item's tags only, so items with the same tags share it.
+    fn loot_rolls(&self, item: &ItemTags) -> Vec<(usize, Vec<RollPath>, f64)> {
+        let Some(index) = self.index else {
+            return Vec::new();
+        };
+        if loot_eligibility(&item.tags).can_loot != Some(true) {
+            return Vec::new();
+        }
+        let mut out = Vec::new();
+        for (g, group) in self.loot.iter().enumerate() {
+            let Some(first) = group.first() else { continue };
+            let loot = first.loot;
+            let filter = loot
+                .pool_filter
+                .as_deref()
+                .and_then(|f| index.filters.get(&f.to_lowercase()));
+            if filter.is_some_and(|f| !f.test(&item.tags)) {
+                continue;
+            }
+            let paths = table_rolls(
+                index,
+                &loot.table,
+                item,
+                RollContext {
+                    filter,
+                    extra_layers: slot_layers(index, loot),
+                    pool: Some(&self.lootable),
+                    memo: Some(&self.memo),
+                    entry_pools: Some(&self.entry_pools),
+                },
+            );
+            if paths.is_empty() {
+                continue;
+            }
+            let per_roll = paths.iter().map(|p| p.per_roll).sum::<f64>().min(1.0);
+            out.push((g, paths, per_roll));
+        }
+        out
+    }
+
+    /// Spawn hits from the rolls; `paths: false` leaves [`SpawnHit::paths`] out (callers
+    /// that only rank areas do not read them).
+    fn hits_with(
+        &self,
+        item: &ItemTags,
+        rolls: &[(usize, Vec<RollPath>, f64)],
+        paths_too: bool,
+    ) -> Vec<SpawnHit> {
+        let cls = item.class_name.to_lowercase();
+        let mut hits: Vec<(SlotPos, SpawnHit)> = Vec::new();
+        let base = |pos: SlotPos, kind, score| {
+            let (area, config, slot) = self.slot(pos);
+            let total: f64 = config.slots.iter().map(|s| s.weight).sum();
+            SpawnHit {
+                area: area.name.clone(),
+                config: config.name.clone(),
+                spawn_tags: config.spawn_tags.clone(),
+                entity: slot.entity.clone(),
+                entity_name: slot.entity_name.clone(),
+                slot_share: slot.weight / total,
+                kind,
+                table: None,
+                per_roll: None,
+                max_results: None,
+                score,
+                paths: None,
+            }
+        };
+        let fill = |pos: SlotPos| self.slot(pos).1.fill_chance.unwrap_or(1.0);
+        let share = |pos: SlotPos| {
+            let (_, config, slot) = self.slot(pos);
+            slot.weight / config.slots.iter().map(|s| s.weight).sum::<f64>()
+        };
+        let mut taken: HashSet<SlotPos> = HashSet::new();
+        for &pos in self.loose.get(&cls).into_iter().flatten() {
+            taken.insert(pos);
+            hits.push((pos, base(pos, SpawnKind::Loose, share(pos) * fill(pos))));
+        }
+        for &pos in self.fixed.get(&cls).into_iter().flatten() {
+            if taken.insert(pos) {
+                hits.push((pos, base(pos, SpawnKind::Fixed, share(pos) * fill(pos))));
+            }
+        }
+        for (g, paths, per_roll) in rolls {
+            for ls in &self.loot[*g] {
+                if taken.contains(&ls.pos) {
+                    continue;
+                }
+                let l = ls.loot;
+                let rolls = l.max_results.unwrap_or(1.0).max(1.0);
+                let chance = l.chance.unwrap_or(1.0);
+                let mut hit = base(
+                    ls.pos,
+                    SpawnKind::Loot,
+                    ls.slot_share * ls.fill * chance * (1.0 - (1.0 - per_roll).powf(rolls)),
+                );
+                hit.table = Some(l.table.clone());
+                hit.per_roll = Some(*per_roll);
+                hit.max_results = l.max_results;
+                if paths_too {
+                    hit.paths = Some(paths.clone());
+                }
+                hits.push((ls.pos, hit));
+            }
+        }
+        hits.sort_by_key(|(pos, _)| *pos);
+        let mut out: Vec<SpawnHit> = hits.into_iter().map(|(_, h)| h).collect();
+        sort_desc(&mut out, |h| h.score);
+        out
+    }
+
+    /// [`spawn_hits`] of one item.
+    pub fn spawn_hits(&self, item: &ItemTags) -> Vec<SpawnHit> {
+        self.hits_with(item, &self.loot_rolls(item), true)
+    }
+
+    /// Areas that hold the item, best first ([`rank_areas`] of [`Self::spawn_hits`]).
+    pub fn areas(&self, item: &ItemTags) -> Vec<AreaSummary> {
+        rank_areas(&self.spawn_hits(item))
+    }
+
+    /// [`Self::areas`] of every item, in parallel, without the roll paths of each best
+    /// spawn (`best.paths` is `None`); the rolls of items with the same tags are worked out
+    /// once per worker thread.
+    pub fn areas_all(&self, items: &[&ItemTags]) -> Vec<Vec<AreaSummary>> {
+        use rayon::prelude::*;
+        type Rolls = std::sync::Arc<Vec<(usize, Vec<RollPath>, f64)>>;
+        items
+            .par_iter()
+            .map_init(HashMap::<Vec<String>, Rolls>::new, |seen, item| {
+                let rolls = seen
+                    .entry(item.tags.clone())
+                    .or_insert_with(|| std::sync::Arc::new(self.loot_rolls(item)))
+                    .clone();
+                rank_areas(&self.hits_with(item, &rolls, false))
+            })
+            .collect()
+    }
+
+    /// The item's shop rows, placed and dated (the `shops` of [`obtain`] without `at`).
+    pub fn shops(&self, item: &ItemTags) -> Vec<LocatedShop> {
+        let Some(all) = self.datasets.shops.as_deref() else {
+            return Vec::new();
+        };
+        let mut ix: Vec<usize> = self
+            .shops_by_id
+            .get(item.id.as_str())
+            .cloned()
+            .unwrap_or_default();
+        if !item.template()
+            && let Some(v) = self.shops_by_name.get(&item.name.to_lowercase())
+        {
+            ix.extend(v);
+        }
+        if ix.is_empty() {
+            return Vec::new();
+        }
+        ix.sort_unstable();
+        let rows: Vec<&ShopPrice> = ix.iter().map(|&i| &all[i]).collect();
+        locate_shops(
+            &rows,
+            &LocateOptions {
+                terminals: self.datasets.terminals.as_deref().unwrap_or(&[]),
+                as_of: self.datasets.shops_as_of.clone(),
+                stale_days: None,
+                at: None,
+            },
+        )
+    }
 }
 
 // ---------------------------------------------------------------- lookup
@@ -1717,6 +2063,7 @@ mod tests {
             extra_layers: layers,
             pool: Some(&pool),
             memo: None,
+            entry_pools: None,
         };
         assert!(close(
             table_rolls(&index, "V3_Weapons", &verdict(), ctx)[0].share,
@@ -2112,5 +2459,44 @@ mod tests {
         assert_eq!(pct(0.0005), "0.050%");
         assert_eq!(pct(0.0000123), "0.0012%");
         assert_eq!(pct(0.0), "0%");
+    }
+
+    #[test]
+    fn bulk_answers_as_one_report_per_item() {
+        let mut d = datasets();
+        let row = |uuid: Option<&str>, name: Option<&str>, buy: f64| ShopPrice {
+            item_uuid: uuid.map(str::to_string),
+            item_name: name.map(str::to_string),
+            terminal_name: Some("Shop".into()),
+            price_buy: Some(buy),
+            ..Default::default()
+        };
+        let first = d.items[0].clone();
+        d.shops = Some(vec![
+            row(Some(&first.id), None, 10.0),
+            row(None, Some(&first.name.to_uppercase()), 12.0),
+            row(Some("someone-else"), Some(&first.name), 9.0),
+        ]);
+        let index = build_loot_index(d.loot.as_ref().unwrap());
+        let bulk = BulkObtain::new(&d, Some(&index));
+        let mut any = 0;
+        for item in &d.items {
+            let r = obtain(&d, item, Some(&index), &ObtainOptions::default());
+            assert_eq!(bulk.spawn_hits(item), r.spawns, "{}", item.class_name);
+            assert_eq!(bulk.areas(item), r.areas, "{}", item.class_name);
+            assert_eq!(bulk.shops(item), r.shops, "{}", item.class_name);
+            any += r.spawns.len();
+        }
+        assert!(any > 0);
+        assert_eq!(bulk.shops(&first).len(), 2);
+        let all: Vec<&ItemTags> = d.items.iter().collect();
+        let areas = bulk.areas_all(&all);
+        for (item, a) in all.iter().zip(&areas) {
+            let mut want = bulk.areas(item);
+            for w in &mut want {
+                w.best.paths = None;
+            }
+            assert_eq!(*a, want);
+        }
     }
 }

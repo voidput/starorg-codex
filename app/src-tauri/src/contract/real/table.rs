@@ -93,6 +93,7 @@ pub fn category_of(generator: &str) -> &'static str {
         "branding" | "colour-test" => "ui",
         "ship-names" => "ships",
         "quest-hints" => "items",
+        "obtain-hints" => "items",
         _ => "other",
     }
 }
@@ -127,6 +128,9 @@ pub struct Inputs<'a> {
     pub owners: &'a Arc<OwnerIndex>,
     /// The channel's active ship-name settings (addendum §6.5).
     pub ship_names: Option<&'a starorg_core::fleet::store::ShipNames>,
+    /// Obtain hints with their description keys filled (spec obtain-hints), when the
+    /// profile asks for them and the datasets could be read.
+    pub obtain: Option<&'a starorg_core::model::ObtainHints>,
 }
 
 pub fn build(i: &Inputs<'_>) -> Table {
@@ -137,7 +141,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
         i.profile,
         i.owned,
         i.ship_names,
-        None,
+        i.obtain,
     );
     let gen_edits: Vec<merge::GenEdit> =
         generated.edits.values().map(merge::GenEdit::from).collect();

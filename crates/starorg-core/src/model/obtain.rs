@@ -24,6 +24,37 @@ pub struct ObtainHints {
     pub desc: BTreeMap<String, String>,
 }
 
+impl ObtainHints {
+    /// Fill [`Self::desc`] from the build's own description keys ([`super::GameData`]
+    /// `item_descs` and `resource_descs`), keeping entries already there.
+    ///
+    /// A resource owns its description key: entities that reuse it (the mineable rock, the
+    /// hand-held mineral, the cargo box of `items_commodities_aphorite_desc`) are left out,
+    /// so the resource's mining and quality lines are not contested by an entity's loot.
+    pub fn fill_descs(&mut self, gd: &super::GameData) {
+        use crate::ini::fold_key;
+        let folded = |r: &str| super::loc_key(r).map(fold_key);
+        let resource_keys: std::collections::HashSet<String> = gd
+            .resource_descs
+            .values()
+            .filter_map(|r| folded(r))
+            .collect();
+        for (res, r) in &gd.resource_descs {
+            self.desc
+                .entry(res.to_ascii_lowercase())
+                .or_insert_with(|| r.clone());
+        }
+        for (class, r) in &gd.item_descs {
+            if folded(r).is_some_and(|k| resource_keys.contains(&k)) {
+                continue;
+            }
+            self.desc
+                .entry(class.to_ascii_lowercase())
+                .or_insert_with(|| r.clone());
+        }
+    }
+}
+
 /// Every source of one class.
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -157,5 +188,36 @@ mod tests {
         i.loot_total = 4;
         assert!(!i.is_empty());
         assert_eq!(i.loot_count(), 4);
+    }
+
+    #[test]
+    fn fill_descs_gives_resources_their_own_keys() {
+        let gd = crate::model::GameData {
+            item_descs: BTreeMap::from([
+                (
+                    "behr_rifle_ballistic_01".into(),
+                    "@item_DescBEHR_Rifle".into(),
+                ),
+                (
+                    "mineablerock_fps_aphorite".into(),
+                    "@items_commodities_aphorite_desc".into(),
+                ),
+                ("kept".into(), "@kept_desc".into()),
+            ]),
+            resource_descs: BTreeMap::from([(
+                "aphorite".into(),
+                "@Items_Commodities_Aphorite_Desc".into(),
+            )]),
+            ..Default::default()
+        };
+        let mut h = ObtainHints {
+            desc: BTreeMap::from([("kept".to_string(), "@already".to_string())]),
+            ..Default::default()
+        };
+        h.fill_descs(&gd);
+        assert_eq!(h.desc["behr_rifle_ballistic_01"], "@item_DescBEHR_Rifle");
+        assert_eq!(h.desc["aphorite"], "@Items_Commodities_Aphorite_Desc");
+        assert_eq!(h.desc["kept"], "@already");
+        assert!(!h.desc.contains_key("mineablerock_fps_aphorite"));
     }
 }

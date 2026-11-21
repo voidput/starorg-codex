@@ -57,6 +57,28 @@ pub struct ItemObtain {
 - A missing dataset (memory gate, extraction error) drops only the lines it feeds, with a
   warning in the apply report.
 
+### As built (phase 2)
+
+- **Desc keys live in `GameData`, not in a dataset.** Pass 6 of `starorg-data` reads
+  `AttachDef.Localization.Description` of every `EntityClassDefinition` (about 10k of 30k on
+  LIVE 4.10 have a real one) into `item_descs`, and walks the one `ResourceTypeDatabase`
+  record (now listed by struct type) into `resource_descs` (resource name, lower case:
+  `raw_quantainium`). The `commodities` dataset is unchanged, so no MCP cache goes stale.
+  `ObtainHints::fill_descs` merges both at apply time; a resource owns its key, so the
+  rock, hand-held mineral and cargo box entities that reuse `items_commodities_*_desc` do
+  not contest it.
+- **Filler:** `Tools::obtain_hints` (`starorg-mcp/src/hints.rs`), items from item-tags (loot
+  areas and UEX shops) and resources with a quality spread (belts, spots, quality).
+  `BulkObtain` in `query::obtain` answers every item at once (same rows as `obtain`; a
+  shared pool-size memo, entry pools, rayon): 0.6 s for 4,047 sourced classes on LIVE 4.10
+  (32 threads; about 5 s on one), first extraction of the five datasets about 7 s. Loot rows
+  are one per container kind with two readable places (`Weapons rack (Common) at ASD
+  facilities / Kaboos`).
+- **Wiring:** `ApplyOpts::obtain` (`apply::ObtainSource`), asked only with `obtain` on; the
+  CLI (`apply`, `build`, hooks with the remaining budget as the worker timeout) and the app
+  (apply; the preview reads only cached datasets) pass `ToolsObtain` over the same cache and
+  memory limit as the Sources card. `Report::obtain` carries time and item count.
+
 ## Text
 
 Header and labels use the mission EM styles (`mission.header_em`, `label_em`). Lines:

@@ -75,6 +75,8 @@ export const priceText = (v: number): string => `${Math.round(v).toLocaleString(
 /** "201–1000, most near 201 (± 298)"; a dash when the curve is unknown. */
 export function qualityText(r: QualityRange): string {
   const span = r.min !== null && r.max !== null ? `${r.min}–${r.max}` : null;
-  const peak = r.mean !== null ? `most near ${Math.round(r.mean)}${r.stddev ? ` (± ${Math.round(r.stddev)})` : ''}` : null;
+  // A curve cut at its minimum has its mean below it (501–1000, mean 500): keep it inside.
+  const mean = r.mean === null ? null : Math.min(Math.max(r.mean, r.min ?? r.mean), r.max ?? r.mean);
+  const peak = mean !== null ? `most near ${Math.round(mean)}${r.stddev ? ` (± ${Math.round(r.stddev)})` : ''}` : null;
   return [span, peak].filter(Boolean).join(', ') || '–';
 }

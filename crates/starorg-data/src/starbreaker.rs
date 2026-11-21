@@ -142,6 +142,10 @@ const SELECTED_PATHS: [&str; 10] = [
     "missionbroker/",
 ];
 
+/// Struct types listed wherever their records are, besides `EntityClassDefinition`: the
+/// resource types (commodities) live in one `ResourceTypeDatabase` record.
+const SELECTED_TYPES: [&str; 1] = ["ResourceTypeDatabase"];
+
 /// A parsed DataCore exposed as a [`RecordStore`]: main records only, each exported on
 /// demand with StarBreaker's compact JSON exporter.
 pub struct DataCoreStore<'a> {
@@ -155,7 +159,8 @@ impl<'a> DataCoreStore<'a> {
     /// Parse DataCore bytes. May panic on malformed data; run under `catch_unwind`.
     ///
     /// Every main `EntityClassDefinition` is listed (loadouts and blueprints reference
-    /// entities anywhere by name or path); other records only below [`SELECTED_PATHS`].
+    /// entities anywhere by name or path) and every record of [`SELECTED_TYPES`]; other
+    /// records only below [`SELECTED_PATHS`].
     pub fn parse(bytes: &'a [u8]) -> Result<Self, String> {
         let db = starbreaker_datacore::Database::from_bytes(bytes).map_err(|e| e.to_string())?;
         let mut metas = Vec::new();
@@ -169,6 +174,7 @@ impl<'a> DataCoreStore<'a> {
                 continue;
             };
             if struct_type != "EntityClassDefinition"
+                && !SELECTED_TYPES.contains(&struct_type)
                 && !SELECTED_PATHS.iter().any(|p| path.contains(p))
             {
                 continue;

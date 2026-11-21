@@ -13,6 +13,7 @@ mod gamedata_cmd;
 mod hook_cmds;
 mod mcp_cmd;
 mod mem_opts;
+mod obtain_src;
 mod sync_cmds;
 mod version_cmd;
 
@@ -66,6 +67,11 @@ pub struct GlobalOpts {
     #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "FILE")]
     pub test_gamedata: Option<PathBuf>,
+    /// Test hook: obtain hints (ObtainHints JSON) instead of the MCP datasets; a file that
+    /// cannot be read is the warning a failed dataset gives.
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, global = true, hide = true, value_name = "FILE")]
+    pub test_obtain_hints: Option<PathBuf>,
     /// Test hook: sleep this many milliseconds between writing global.ini and recording it.
     #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "MS")]
@@ -93,6 +99,14 @@ impl GlobalOpts {
     pub fn test_gamedata(&self) -> Option<&std::path::Path> {
         #[cfg(feature = "test-hooks")]
         return self.test_gamedata.as_deref();
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
+
+    /// `--test-obtain-hints` (only in builds with the `test-hooks` feature).
+    pub fn test_obtain_hints(&self) -> Option<&std::path::Path> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_obtain_hints.as_deref();
         #[cfg(not(feature = "test-hooks"))]
         None
     }

@@ -227,6 +227,13 @@ pub(crate) fn print_reports(
                 r.counts["loc_patches"],
                 r.counts["dropped"]
             );
+            if let Some(o) = &r.obtain {
+                println!(
+                    "  where to get: sources for {} items in {:.1} s",
+                    o.items,
+                    o.ms as f64 / 1000.0
+                );
+            }
             for p in &r.patches {
                 println!("  patch {}: {}", p.id, p.state);
             }
@@ -444,6 +451,7 @@ pub fn apply(
             .unwrap_or_default(),
         profile_file: profile,
         character,
+        obtain: crate::obtain_src::provider(g, &i, &c.dirs, None),
     };
     let (reports, skipped) =
         match apply_channels(g, &c, &i, &id, &names, sel.all, &opts, src.as_ref()) {

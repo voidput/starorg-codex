@@ -66,6 +66,12 @@ use table::Table;
 /// Makes the game source for loads (extraction worker by default; a file in tests).
 pub trait SourceFactory: Send + Sync {
     fn source(&self, dirs: &AppDirs) -> Result<Box<dyn GameSource>, String>;
+    /// Whether apply and the preview read obtain hints from the MCP datasets (spec
+    /// obtain-hints; the real worker only: a test source has no `Data.p4k` to read them
+    /// from).
+    fn obtain_hints(&self) -> bool {
+        false
+    }
 }
 
 /// The extraction worker: this binary, `extract-worker` subcommand.
@@ -78,6 +84,10 @@ impl SourceFactory for WorkerSource {
         let mut s = LocalExtraction::new(exe).with_keyrefs();
         s.work_root = Some(dirs.cache.join("work"));
         Ok(Box::new(s))
+    }
+
+    fn obtain_hints(&self) -> bool {
+        true
     }
 }
 
@@ -914,6 +924,22 @@ impl RealBackend {
                 inp.patches.clone(),
             ),
         };
+        let provider = self.obtain_provider(f, extract);
+        let (hints, hint_warnings, _) =
+            apply::obtain_hints(&d.game_data, &eprof, provider.as_ref(), &ch.name);
+        if extract && let Some(w) = hint_warnings.first() {
+            self.log(
+                LogLevel::Warn,
+                Some(JobKind::Apply),
+                Some(&ch.name),
+                &format!("{}: {}", ch.name, w.detail),
+            );
+        }
+        let hints_tag = format!(
+            "{}:{}",
+            hints.as_ref().map_or(0, |h| h.items.len()),
+            hint_warnings.len()
+        );
         let key = fsutil::sha256_parts(&[
             d.key.as_bytes(),
             eprof.hash().as_bytes(),
@@ -921,6 +947,7 @@ impl RealBackend {
             inp.overrides_hash.as_bytes(),
             inp.owned.hash.as_bytes(),
             inp.ship_names_hash.as_bytes(),
+            hints_tag.as_bytes(),
         ]);
         let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
         if profile.is_none()
@@ -940,6 +967,7 @@ impl RealBackend {
             groups: &d.groups,
             owners: d.owners(),
             ship_names: inp.ship_names.active(),
+            obtain: hints.as_ref(),
         }));
         if profile.is_none() {
             self.mem().tables.insert(slot, (key, tbl.clone()));
@@ -1942,6 +1970,7 @@ impl Backend for RealBackend {
         let t = Target::new(&f.install, Some(id.clone()), ch);
         let opts = ApplyOpts {
             dry_run: req.dry_run,
+            obtain: self.obtain_provider(&f, true),
             ..ApplyOpts::default()
         };
         let r = {
@@ -1949,6 +1978,18 @@ impl Backend for RealBackend {
             let _reading = self.reads.lock().unwrap_or_else(|e| e.into_inner());
             apply::apply(self.ctx(), &t, &opts, src.as_ref())
         };
+        if let Some(o) = &r.obtain {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Apply),
+                Some(&name),
+                &format!(
+                    "{name}: where to get: sources for {} items in {:.1} s",
+                    o.items,
+                    o.ms as f64 / 1000.0
+                ),
+            );
+        }
         let data = t.data_dir(self.dirs());
         let out = convert::report(&r, Some(&backup::backups_dir(&data)));
         if out.result == ApplyResult::Applied

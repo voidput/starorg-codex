@@ -1038,3 +1038,85 @@ fn sources_card_is_typed_and_exact() {
     let none = t.sources("LIVE", "behr_lmg_ballistic").unwrap();
     assert!(none.loot.is_none() && none.mined.is_empty());
 }
+
+#[test]
+fn obtain_hints_cover_items_and_mined_resources() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    let b = t.obtain_hints("LIVE").unwrap();
+    assert!(b.warnings.is_empty(), "{:?}", b.warnings);
+    let h = &b.hints;
+    assert!(h.desc.is_empty(), "apply fills desc from its own GameData");
+    // The gun: one container kind in the caves (loot and the fixed rack merge into one
+    // place row each), shops from the UEX files, cheapest first, names only.
+    let fs9 = &h.items["behr_lmg_ballistic_01"];
+    assert_eq!(fs9.loot_count(), fs9.loot.len());
+    assert!(
+        fs9.loot.iter().all(|l| l.place.as_deref() == Some("Caves")),
+        "{:?}",
+        fs9.loot
+    );
+    assert!(fs9.loot.iter().any(|l| l.contents == "Weapons Crate"));
+    assert!(
+        fs9.loot
+            .iter()
+            .all(|l| l.odds.is_some_and(|o| o > 0.0 && o <= 1.0))
+    );
+    let shops: Vec<&str> = fs9.shops.iter().map(|s| s.terminal.as_str()).collect();
+    assert_eq!(shops, ["Dumper's GrimHEX", "Guns Ruin"]);
+    assert_eq!(fs9.shops[0].system.as_deref(), Some("Stanton"));
+    assert!(fs9.mined.is_empty() && fs9.quality.is_none());
+    // An item with no source has no entry; a non-lootable one neither.
+    assert!(!h.items.contains_key("door_01"));
+    assert!(!h.items.contains_key("behr_lmg_ballistic_01_mag"));
+    // Resources by lower-case name: belts (body, system, kind) and spots, quality.
+    let q = &h.items["raw_quantainium"];
+    assert_eq!(q.mined[0].place, "Hurston");
+    assert_eq!(q.mined[0].system.as_deref(), Some("Stanton"));
+    assert_eq!(q.mined[0].kind.as_deref(), Some("ship"));
+    let qh = q.quality.as_ref().unwrap();
+    assert_eq!((qh.min, qh.max, qh.mean), (0.0, 1000.0, 500.0));
+    assert_eq!(qh.overrides[0].place, "Pyro System");
+    let s = &h.items["sadaryx"];
+    assert_eq!(s.mined[0].place, "Rock Cracker, Nyx");
+    assert_eq!(s.mined[0].kind.as_deref(), Some("hand"));
+    assert_eq!(s.quality.as_ref().unwrap().mean, 201.0);
+    // Kept in memory: no second extraction.
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let again = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(again.items, b.items);
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+}
+
+#[test]
+fn obtain_hints_keep_what_did_not_fail() {
+    // Mining spawns cannot be extracted: loot and shops stay, mining lines go, and the
+    // partial answer is not kept (the next call tries again).
+    struct NoMining(Arc<FakeExtractor>);
+    impl Extractor for NoMining {
+        fn extract(&self, p4k: &Path, d: &str, out: &Path) -> Result<Measurement, String> {
+            if d == "game-mining-spawns" {
+                return Err("Extracting game-mining-spawns may need about 1.4 GB".into());
+            }
+            self.0.extract(p4k, d, out)
+        }
+    }
+    let w = World::new();
+    let mut cfg = w.config();
+    cfg.extractor = Arc::new(NoMining(w.fake.clone()));
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(cfg));
+    let b = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(b.warnings.len(), 1, "{:?}", b.warnings);
+    assert!(b.warnings[0].starts_with("mining and quality lines left out"));
+    assert!(b.hints.items.contains_key("behr_lmg_ballistic_01"));
+    assert!(!b.hints.items.contains_key("raw_quantainium"));
+    // Only the cache: a dataset never extracted is a warning, not an extraction.
+    let w2 = World::new();
+    let t2 = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w2.config()));
+    let c = t2.obtain_hints_with("LIVE", false).unwrap();
+    assert_eq!(w2.fake.runs.load(Ordering::SeqCst), 0);
+    assert!(c.hints.items.is_empty());
+    assert_eq!(c.warnings.len(), 2, "{:?}", c.warnings);
+    // An unknown channel is an error.
+    assert!(t.obtain_hints("NOPE").is_err());
+}

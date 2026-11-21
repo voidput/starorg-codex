@@ -95,5 +95,6 @@ test('prices read as aUEC; missing UEX files still show the Buy note', () => {
 test('quality reads as the range and where most rolls land', () => {
   assert.equal(qualityText({ min: 201, max: 1000, mean: 201, stddev: 298 }), '201–1000, most near 201 (± 298)');
   assert.equal(qualityText({ min: 0, max: 500, mean: null, stddev: null }), '0–500');
+  assert.equal(qualityText({ min: 501, max: 1000, mean: 500, stddev: 203 }), '501–1000, most near 501 (± 203)');
   assert.equal(qualityText({ min: null, max: null, mean: null, stddev: null }), '–');
 });

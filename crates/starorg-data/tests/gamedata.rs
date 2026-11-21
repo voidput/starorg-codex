@@ -477,3 +477,38 @@ fn quest_items_from_spawns_and_hauling_orders() {
             .any(|c| c.debug_name == "TEST_Contract_Haul")
     );
 }
+
+#[test]
+fn description_keys_of_entities_and_resources() {
+    let (gd, warnings) = fixture_gamedata();
+    // Every entity with a real AttachDef description, by lower-case class.
+    assert_eq!(
+        gd.item_descs.get("test_repeater_s3").map(String::as_str),
+        Some("@item_DescTEST_Repeater_S3")
+    );
+    // A paint variant keeps its own (shared) reference; the namesake rule decides later.
+    assert_eq!(
+        gd.item_descs
+            .get("test_repeater_s3_black")
+            .map(String::as_str),
+        Some("@item_DescTEST_Repeater_S3")
+    );
+    assert!(gd.item_descs.keys().all(|k| *k == k.to_ascii_lowercase()));
+    assert!(gd.item_descs.values().all(|v| v.starts_with('@')));
+    // Resources: nested groups walked, nulls and placeholders skipped.
+    assert_eq!(
+        gd.resource_descs.get("test_gem").map(String::as_str),
+        Some("@items_commodities_test_gem_desc")
+    );
+    assert_eq!(
+        gd.resource_descs.get("raw_test_ore").map(String::as_str),
+        Some("@items_commodities_test_ore_raw_desc")
+    );
+    assert!(!gd.resource_descs.contains_key("test_blank"));
+    assert!(
+        !warnings
+            .iter()
+            .any(|w| w.detail.contains("description keys")),
+        "{warnings:?}"
+    );
+}

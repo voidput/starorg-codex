@@ -35,13 +35,16 @@ pub use ships::{Armor, Flight, Hull, Loadout, LoadoutItem, Ship, ShipLoc, Totals
 
 use crate::build::BuildInfo;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Layout version of [`GameData`].
 ///
 /// - 1: M0, build identity and DataCore counts only.
 /// - 2: M2, items, ships, ammo, contracts, blueprints, reputation.
 /// - 3: quest items and the missions that reference them (addendum §13).
-pub const GAMEDATA_SCHEMA: u32 = 3;
+/// - 4: description keys of every entity class and resource type (`item_descs`,
+///   `resource_descs`), for the obtain hints (spec obtain-hints).
+pub const GAMEDATA_SCHEMA: u32 = 4;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -76,6 +79,15 @@ pub struct GameData {
     /// Items missions spawn or contracts ask for (addendum §13). Local extraction only.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub quest_items: Vec<QuestItem>,
+    /// Description loc reference (with `@`) of every entity class whose `AttachDef` has a
+    /// real one, by class (lower case): the stock key an obtain hint is appended to (spec
+    /// obtain-hints). Local extraction only.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub item_descs: BTreeMap<String, String>,
+    /// Description loc reference of every resource type (commodity) in the
+    /// `ResourceTypeDatabase`, by resource name (lower case, `raw_quantainium`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub resource_descs: BTreeMap<String, String>,
 }
 
 impl Default for GameData {
@@ -94,6 +106,8 @@ impl Default for GameData {
             blueprint_pools: Vec::new(),
             reputation_standings: Vec::new(),
             quest_items: Vec::new(),
+            item_descs: BTreeMap::new(),
+            resource_descs: BTreeMap::new(),
         }
     }
 }

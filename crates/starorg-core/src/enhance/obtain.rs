@@ -273,12 +273,18 @@ fn mined_place(m: &MinedHint, detailed: bool) -> String {
     s
 }
 
+/// Where most rolls land: the curve's mean, kept inside min-max (a curve cut at its minimum
+/// has its mean below it, e.g. 501-1000 with mean 500).
+fn peak(q: &QualityHint) -> f64 {
+    q.mean.clamp(q.min, q.max.max(q.min))
+}
+
 fn quality(q: &QualityHint, detailed: bool) -> String {
     let mut s = format!(
-        "{}–{}, avg {}",
+        "{}–{}, most near {}",
         format::int(q.min),
         format::int(q.max),
-        format::int(q.mean)
+        format::int(peak(q))
     );
     if !detailed {
         return s;
@@ -366,7 +372,7 @@ pub fn block(info: &ItemObtain, crafted: &Crafted, p: &Profile) -> Option<String
             parts.push(format!("{head} at {}", top(&places, 0, ", ")));
         }
         if let Some(q) = quality_hint {
-            parts.push(format!("Quality avg {}", format::int(q.mean)));
+            parts.push(format!("Quality most near {}", format::int(peak(q))));
         }
         if parts.is_empty() {
             return None;
@@ -675,14 +681,16 @@ mod tests {
         let none = Crafted::default();
         assert_eq!(
             block(&ore(), &none, &profile(ObtainMode::Short)).as_deref(),
-            Some("<EM4>Get:</EM4> Mined (hand) at Lyria, Pyro I, Aberdeen +1 · Quality avg 500")
+            Some(
+                "<EM4>Get:</EM4> Mined (hand) at Lyria, Pyro I, Aberdeen +1 · Quality most near 500"
+            )
         );
         assert_eq!(
             block(&ore(), &none, &profile(ObtainMode::Normal)).as_deref(),
             Some(
                 "<EM3>WHERE TO GET</EM3>\\n\
                  <EM4>Mined:</EM4> Lyria, Pyro I, Aberdeen +1 (hand)\\n\
-                 <EM4>Quality:</EM4> 1–900, avg 500"
+                 <EM4>Quality:</EM4> 1–900, most near 500"
             )
         );
         assert_eq!(
@@ -690,7 +698,7 @@ mod tests {
             Some(
                 "<EM3>WHERE TO GET</EM3>\\n\
                  <EM4>Mined:</EM4> Lyria, Stanton (hand) 12–30%  |  Pyro I, Pyro (hand) 5%  |  Aberdeen, Stanton (hand) 1–8%  |  +1\\n\
-                 <EM4>Quality:</EM4> 1–900, avg 500 ± 120; Lyria 600–900"
+                 <EM4>Quality:</EM4> 1–900, most near 500 ± 120; Lyria 600–900"
             )
         );
         for mode in [ObtainMode::Short, ObtainMode::Normal, ObtainMode::Detailed] {
@@ -728,7 +736,7 @@ mod tests {
         p.mission.label_em = 0;
         assert_eq!(
             block(&ore(), &Crafted::default(), &p).as_deref(),
-            Some("Get: Mined (hand) at Lyria, Pyro I, Aberdeen +1 · Quality avg 500")
+            Some("Get: Mined (hand) at Lyria, Pyro I, Aberdeen +1 · Quality most near 500")
         );
     }
 
@@ -935,5 +943,17 @@ mod tests {
                 .left_for(Reason::OwnedByOther),
             1
         );
+    }
+
+    #[test]
+    fn quality_peak_stays_inside_the_range() {
+        let q = QualityHint {
+            min: 501.0,
+            max: 1000.0,
+            mean: 500.0,
+            stddev: Some(203.0),
+            overrides: Vec::new(),
+        };
+        assert_eq!(quality(&q, false), "501–1,000, most near 501");
     }
 }

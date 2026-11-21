@@ -1,5 +1,5 @@
 {
-  "schema": 3,
+  "schema": 4,
   "build": null,
   "datacore": null,
   "components": [
@@ -638,5 +638,17 @@
         }
       ]
     }
-  ]
+  ],
+  "itemDescs": {
+    "test_datapad_a": "@item_DescTEST_CommonPad",
+    "test_datapad_b": "@item_DescTEST_CommonPad",
+    "test_questchip": "@item_DescTEST_QuestChip",
+    "test_questchip_debug": "@item_DescTEST_QuestChip",
+    "test_repeater_s3": "@item_DescTEST_Repeater_S3",
+    "test_repeater_s3_black": "@item_DescTEST_Repeater_S3"
+  },
+  "resourceDescs": {
+    "raw_test_ore": "@items_commodities_test_ore_raw_desc",
+    "test_gem": "@items_commodities_test_gem_desc"
+  }
 }

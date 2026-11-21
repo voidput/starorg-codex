@@ -357,18 +357,30 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     };
 
     let stock = StockIni::parse(loaded.base_ini);
-    let gen_started = Instant::now();
     let owned_dyn: &dyn OwnedBlueprints = match &owned {
         Some(o) => o,
         None => &NoneOwned,
     };
+    let obtain_src = if a.no_enhancements {
+        None
+    } else {
+        starorg_core::appdirs::AppDirs::from_env()
+            .and_then(|dirs| crate::obtain_src::provider(g, install, &dirs, None))
+    };
+    let (hints, obtain_warnings, obtain_stats) = starorg_core::apply::obtain_hints(
+        &loaded.game_data,
+        &profile,
+        obtain_src.as_ref(),
+        &ch.name,
+    );
+    let gen_started = Instant::now();
     let generated = enhance::generate_with(
         &loaded.game_data,
         &stock,
         &profile,
         owned_dyn,
         ship_names.as_ref(),
-        None,
+        hints.as_ref(),
     );
     let bytes = match enhance::render(&stock, &generated) {
         Ok(b) => b,
@@ -416,6 +428,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     }
 
     let mut warnings = loaded.warnings.clone();
+    warnings.extend(obtain_warnings);
     warnings.extend(profile_warnings);
     warnings.extend(ship_name_warnings);
     warnings.extend(generated.warnings.iter().cloned());
@@ -460,6 +473,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
                 "coverage_threshold_failures": thresholds,
                 "origin": loaded.origin,
                 "warnings": warnings,
+                "obtain": obtain_stats,
                 "duration_ms": started.elapsed().as_millis() as u64,
                 "generate_ms": gen_ms,
             })
@@ -478,6 +492,13 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
             b.map(|b| b.version.as_str()).unwrap_or("unknown build"),
             started.elapsed().as_secs_f64()
         );
+        if let Some(o) = &obtain_stats {
+            println!(
+                "  where to get: sources for {} items in {:.1} s",
+                o.items,
+                o.ms as f64 / 1000.0
+            );
+        }
         if !generated.edits.is_empty() {
             println!(
                 "  {:<22} {:>9} {:>8} {:>8}  LEFT AS STOCK",
