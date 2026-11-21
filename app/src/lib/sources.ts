@@ -4,7 +4,7 @@
  * `dev_record_sources` (shops from UEX files the user supplied, loot containers from the
  * loot tables, mining places from the mining spawns).
  */
-import type { MinedBelt, MinedSpot, RecordSources } from './contract/dev';
+import type { MinedBelt, MinedSpot, QualityRange, RecordSources } from './contract/dev';
 
 /**
  * Closed unless this viewer opened it ([`loadOpen`](./cardopen.ts) default false): the first
@@ -66,7 +66,15 @@ export const isEmpty = (s: RecordSources): boolean =>
   s.buy?.loaded !== false &&
   !s.loot?.containers.length &&
   !s.loot?.tables.length &&
-  !(Array.isArray(s.mined) && s.mined.length);
+  !(Array.isArray(s.mined) && s.mined.length) &&
+  !(Array.isArray(s.quality) && s.quality.length);
 
 /** "6,900 aUEC". */
 export const priceText = (v: number): string => `${Math.round(v).toLocaleString('en-US')} aUEC`;
+
+/** "201–1000, most near 201 (± 298)"; a dash when the curve is unknown. */
+export function qualityText(r: QualityRange): string {
+  const span = r.min !== null && r.max !== null ? `${r.min}–${r.max}` : null;
+  const peak = r.mean !== null ? `most near ${Math.round(r.mean)}${r.stddev ? ` (± ${Math.round(r.stddev)})` : ''}` : null;
+  return [span, peak].filter(Boolean).join(', ') || '–';
+}

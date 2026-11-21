@@ -69,7 +69,7 @@ previous page as `cursor`. Answers are compact JSON.
 | `item` | one item or ship: identity, tags, loot eligibility, stats | item-tags; the stats dataset of its type (fps-weapons, weapons, armor, ship-components, consumables) or ships |
 | `where_to_buy` | shops for an item (cheapest first), or what a place sells | item-tags + UEX files, if you supplied them |
 | `where_found` | loot spawns: best areas with place, container, contents, size and rarity, odds per box, fixed racks, other tables | item-tags, loot, item-sources |
-| `where_mined` | where an ore is mined: bodies and belts that roll a rock with it (most common first), and loot-area spots (caves, asteroid bases, the Rock Cracker) that place one | mining-spawns, item-sources |
+| `where_mined` | where an ore is mined: bodies and belts that roll a rock with it (most common first), and loot-area spots (caves, asteroid bases, the Rock Cracker) that place one, and the quality it comes in (range, place overrides, the values the game shows with estimated shares) | mining-spawns, item-sources, commodities |
 | `how_to_obtain` | every source, easiest first: buy, contract/Wikelo reward, craft, loot; `owned_by` marks blueprints a character owns | item-tags, loot, item-sources, blueprints, wikelo-trades, UEX; the owned-blueprint store |
 | `mission` | missions and contracts by name, giver, type, with the blueprints and items contracts award | missions, blueprints, item-sources |
 | `compare` | 2 to 4 items or ships side by side, every numeric stat they share | as `item` |

@@ -10,6 +10,7 @@ import {
   isEmpty,
   pctText,
   priceText,
+  qualityText,
   sourcesSummary,
   spotPlace,
 } from '../src/lib/sources.ts';
@@ -71,6 +72,8 @@ test('mock samples: a gun in loot, an ore only at the Rock Cracker, a ship with 
   const ore: RecordSources = samples.dev_record_sources_ore;
   assert.equal(ore.loot, null);
   assert.equal(ore.buy, null);
+  assert.equal(ore.quality[0]!.steps[0]!.shown, 348);
+  assert.equal(samples.dev_record_sources_loot.quality.length, 0);
   assert.equal(ore.mined[0]!.name, 'Sadaryx');
   assert.equal(ore.mined[0]!.belts.length, 0);
   assert.equal(spotPlace(ore.mined[0]!.spots[0]!), 'Rock Cracker, Nyx');
@@ -84,7 +87,13 @@ test('mock samples: a gun in loot, an ore only at the Rock Cracker, a ship with 
 test('prices read as aUEC; missing UEX files still show the Buy note', () => {
   assert.equal(priceText(6900), '6,900 aUEC');
   assert.equal(priceText(78261.6), '78,262 aUEC');
-  const none: RecordSources = { buy: { loaded: false, folder: '/c/uex', offers: [], total: 0 }, loot: null, mined: [] };
+  const none: RecordSources = { buy: { loaded: false, folder: '/c/uex', offers: [], total: 0 }, loot: null, mined: [], quality: [] };
   assert.ok(!isEmpty(none));
   assert.ok(isEmpty({ ...none, buy: { ...none.buy!, loaded: true } }));
+});
+
+test('quality reads as the range and where most rolls land', () => {
+  assert.equal(qualityText({ min: 201, max: 1000, mean: 201, stddev: 298 }), '201–1000, most near 201 (± 298)');
+  assert.equal(qualityText({ min: 0, max: 500, mean: null, stddev: null }), '0–500');
+  assert.equal(qualityText({ min: null, max: null, mean: null, stddev: null }), '–');
 });

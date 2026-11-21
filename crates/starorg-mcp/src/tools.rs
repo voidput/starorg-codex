@@ -10,7 +10,7 @@
 //! | `item` | item-tags; ships, or the one detail dataset of the item's type |
 //! | `where_to_buy` | item-tags + the user's UEX files, if any |
 //! | `where_found` | item-tags, loot, item-sources |
-//! | `where_mined` | mining-spawns, item-sources |
+//! | `where_mined` | mining-spawns, item-sources, commodities |
 //!
 //! `game-item-tags` lists only the ship weapons and components that carry loot tags (7 of
 //! 241 ship guns on LIVE 4.10), so a name it does not hold is looked up in
@@ -36,6 +36,7 @@ use starorg_gamedata::query::obtain::{
     BlueprintLike, Datasets, LootData, LootIndex, ObtainOptions, ObtainReport, WikeloTradeLike,
     build_loot_index, find_items, obtain,
 };
+use starorg_gamedata::query::quality::{Commodities, OreQuality, quality_for};
 use starorg_gamedata::query::shops::{
     AsOf, SHOP_ITEM_LIMIT, ShopInputs, ShopPrice, UexTerminal, limit_shop, shop_inventory,
 };
@@ -151,7 +152,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
         d(
             "where_mined",
             "Where it is mined",
-            "Where an ore is mined: the bodies and belts whose spawn tables roll a rock holding it (most common first; kind ship, vehicle or hand), and the loot areas (caves, asteroid bases, events such as the Rock Cracker) whose spawn slots place such a rock. Some ores (Sadaryx) come only from those spots.",
+            "Where an ore is mined: the bodies and belts whose spawn tables roll a rock holding it (most common first; kind ship, vehicle or hand), and the loot areas (caves, asteroid bases, events such as the Rock Cracker) whose spawn slots place such a rock. Some ores (Sadaryx) come only from those spots. Also the quality it comes in: range, place overrides, and the values the game shows with estimated shares.",
             schema(
                 channels,
                 merge(
@@ -505,6 +506,16 @@ impl Ctx<'_> {
             field::<Vec<LootArea>>(&*self.json("game-item-sources")?, "areas")
         })?;
         Ok(mined_query(&spawns, &areas, q))
+    }
+
+    /// [`quality_for`] the record or the ores of `mined`, over the build's commodities.
+    pub fn quality(&self, record: &str, mined: &[MinedReport]) -> ToolResult<Vec<OreQuality>> {
+        let c = self.store.typed(&self.dir, "commodities-quality", || {
+            serde_json::from_value::<Commodities>((*self.json("game-commodities")?).clone())
+                .map_err(|e| ToolError(format!("game-commodities: {e}")))
+        })?;
+        let ores: Vec<String> = mined.iter().map(|m| m.ore.clone()).collect();
+        Ok(quality_for(&c, record, &ores))
     }
 }
 
@@ -1056,12 +1067,14 @@ fn where_mined(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
     let reports = ctx.mined(q)?;
     let mut out = Vec::new();
     for r in &reports {
+        let quality = ctx.quality(&r.ore, std::slice::from_ref(r))?;
         out.push(json!({
             "ore": r.ore,
             "name": r.name,
             "rocks": r.rocks,
             "belts": camel(page(&r.belts, a)?),
             "spots": camel(page(&r.spots, a)?),
+            "quality": camel(json!(quality.first())),
         }));
     }
     Ok(with_header(
@@ -1069,7 +1082,7 @@ fn where_mined(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
         json!({
             "matches": out.len(),
             "results": out,
-            "note": "belt spawnShare is a weight comparable only between rows of one kind; spots are loot areas whose slots can place the rock",
+            "note": "belt spawnShare is a weight comparable only between rows of one kind; spots are loot areas whose slots can place the rock; quality steps are the values the game shows, with shares estimated from a normal curve cut to min-max",
         }),
     ))
 }
@@ -1746,6 +1759,7 @@ impl Tools {
         let ctx = Ctx::for_channel(&self.store, Some(channel))?;
         let short = record.rsplit('.').next().unwrap_or(record).trim();
         let mined = ctx.mined(record)?;
+        let quality = ctx.quality(record, &mined)?;
         let items = ctx.items()?;
         let item = items
             .list
@@ -1775,7 +1789,12 @@ impl Tools {
             }
             None => (None, None),
         };
-        Ok(crate::sources::RecordSources { buy, loot, mined })
+        Ok(crate::sources::RecordSources {
+            buy,
+            loot,
+            mined,
+            quality,
+        })
     }
 
     pub fn call(&self, name: &str, args: &Map<String, Value>) -> ToolResult<Value> {

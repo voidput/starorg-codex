@@ -1613,7 +1613,7 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     dev_record_sources: ({ req }) => {
       on(req.target);
       const hit = data.catalogue.sources[(req.name.split('.').pop() ?? '').trim().toLowerCase()];
-      return hit ? structuredClone(hit) : { buy: null, loot: null, mined: [] };
+      return hit ? structuredClone(hit) : { buy: null, loot: null, mined: [], quality: [] };
     },
     dev_record: ({ req }) => {
       const ix = explorer(req.target);

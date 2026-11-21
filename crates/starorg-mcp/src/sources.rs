@@ -1,6 +1,6 @@
 //! Where a record comes from, typed for the app's explorer Sources card: the shops that
 //! sell the item (UEX files the user supplied), the loot containers that can hold it (type,
-//! size, rarity, rough odds) and where the ore it names is mined. [`crate::tools::Tools::sources`] fills it from the same datasets the
+//! size, rarity, rough odds), where the ore it names is mined and the quality it comes in. [`crate::tools::Tools::sources`] fills it from the same datasets the
 //! `where_found` and `where_mined` tools read, and `where_found` answers with these rows too
 //! (keys in camelCase there, as every tool answers).
 
@@ -8,6 +8,9 @@ use serde::{Deserialize, Serialize};
 use starorg_gamedata::query::mined::area_place;
 pub use starorg_gamedata::query::mined::{MinedBelt, MinedReport, MinedSpot};
 use starorg_gamedata::query::obtain::{ObtainReport, SpawnKind, area_label};
+pub use starorg_gamedata::query::quality::{
+    OreQuality, QualityOverride, QualityRange, QualityStep,
+};
 use starorg_gamedata::query::shops::LocatedShop;
 
 /// The card's caps: at most this many container rows (the rest are counted in
@@ -25,6 +28,8 @@ pub struct RecordSources {
     pub loot: Option<LootSources>,
     /// Where the ores the record names are mined; empty when it names none.
     pub mined: Vec<MinedReport>,
+    /// The quality the record (a resource) or its mined ores come in; empty for others.
+    pub quality: Vec<OreQuality>,
 }
 
 /// Shops that sell the item. Shop stock is server-side and in no game file: the rows are

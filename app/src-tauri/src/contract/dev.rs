@@ -37,6 +37,7 @@ pub use starorg_mcp::sources::{
     BuySources, LootContainer, LootSources, LootTableOdds, RecordSources, ShopOffer,
 };
 pub use starorg_mcp::sources::{MinedBelt, MinedReport, MinedSpot};
+pub use starorg_mcp::sources::{OreQuality, QualityOverride, QualityRange, QualityStep};
 
 /// Records above this count get a size warning in the export dialog (7.4).
 pub const EXPORT_WARN_RECORDS: u32 = 5_000;

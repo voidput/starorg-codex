@@ -1042,7 +1042,49 @@ fn mock_sources(name: &str) -> RecordSources {
     } else {
         Vec::new()
     };
-    RecordSources { buy, loot, mined }
+    let quality = mined
+        .iter()
+        .map(|m| {
+            let range = |mean: f64| QualityRange {
+                min: Some(201.0),
+                max: Some(1000.0),
+                mean: Some(mean),
+                stddev: Some(298.0),
+            };
+            let step = |start: f64, end: f64, shown: f64, share: f64| QualityStep {
+                start,
+                end,
+                shown,
+                share: Some(share),
+            };
+            OreQuality {
+                resource: format!("ResourceType.{}", m.name),
+                name: m.name.clone(),
+                tier: Some("FPSMineable".into()),
+                range: range(201.0),
+                overrides: if m.name == "Aphorite" {
+                    vec![QualityOverride {
+                        location: "Pyro System".into(),
+                        range: range(209.0),
+                    }]
+                } else {
+                    Vec::new()
+                },
+                steps: vec![
+                    step(0.0, 399.0, 348.0, 0.499),
+                    step(400.0, 599.0, 523.0, 0.326),
+                    step(600.0, 799.0, 717.0, 0.137),
+                    step(800.0, 1000.0, 916.0, 0.038),
+                ],
+            }
+        })
+        .collect();
+    RecordSources {
+        buy,
+        loot,
+        mined,
+        quality,
+    }
 }
 
 /// Ore records the mock knows by name, beside the catalogue (Sources card only).

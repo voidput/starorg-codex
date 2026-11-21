@@ -101,6 +101,18 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         ]}),
     );
     d.insert(
+        "game-commodities",
+        json!({"resources": [
+            {"name": "Sadaryx", "recordName": "ResourceType.Sadaryx", "quality": {"tier": "FPSMineable",
+             "distribution": {"min": 201, "max": 1000, "mean": 201, "stddev": 298},
+             "bands": [{"start": 0, "end": 399, "value": 258}, {"start": 400, "end": 1000, "value": 700}]}},
+            {"name": "Raw_Quantainium", "recordName": "ResourceType.Raw_Quantainium", "quality": {"tier": "Legendary",
+             "distribution": {"min": 0, "max": 1000, "mean": 500, "stddev": 100},
+             "locationOverrides": [{"location": "Pyro System", "min": 0, "max": 1000, "mean": 600, "stddev": 100}],
+             "bands": [{"start": 0, "end": 499, "value": 250}, {"start": 500, "end": 1000, "value": 750}]}}
+        ]}),
+    );
+    d.insert(
         "game-missions",
         json!({"missions": [
             {"name": "Eliminate the Boss", "recordName": "MissionBrokerEntry.PU_EliminateBoss", "id": "m1", "title": "Eliminate the Boss", "giver": "Bounty Hunters Guild", "type": "mercenary", "reward": 14000, "currency": "UEC", "lawful": true},
@@ -576,6 +588,11 @@ fn where_to_buy_found_and_how_to_obtain() {
     assert_eq!(r["spots"]["rows"][0]["slotShare"], 1.0);
     let q = ok(&s, "where_mined", json!({"ore": "quantainium"}));
     assert_eq!(q["results"][0]["belts"]["rows"][0]["body"], "Hurston");
+    let ql = &q["results"][0]["quality"];
+    assert_eq!(ql["tier"], "Legendary");
+    assert_eq!(ql["overrides"][0]["location"], "Pyro System");
+    assert_eq!(ql["steps"][1]["shown"], 750.0);
+    assert!((ql["steps"][0]["share"].as_f64().unwrap() - 0.5).abs() < 0.01);
     assert_eq!(
         ok(&s, "where_mined", json!({"ore": "FS-9 LMG"}))["matches"],
         0
@@ -1010,6 +1027,9 @@ fn sources_card_is_typed_and_exact() {
     assert_eq!(buy.offers[1].location, "Ruin Station, Terminus, Pyro");
     let ore = t.sources("LIVE", "ResourceType.Sadaryx").unwrap();
     assert!(ore.loot.is_none() && ore.buy.is_none());
+    assert_eq!(ore.quality.len(), 1);
+    assert_eq!(ore.quality[0].steps[0].shown, 258.0);
+    assert!(gun.quality.is_empty());
     assert_eq!(
         ore.mined[0].spots[0].place.as_deref(),
         Some("Rock Cracker, Nyx")

@@ -7391,12 +7391,14 @@
         }
       ]
     },
-    "mined": []
+    "mined": [],
+    "quality": []
   },
   "dev_record_sources_none": {
     "buy": null,
     "loot": null,
-    "mined": []
+    "mined": [],
+    "quality": []
   },
   "dev_record_sources_ore": {
     "buy": null,
@@ -7420,6 +7422,46 @@
             "slot_share": 1.0
           }
         ]
+      }
+    ],
+    "quality": [
+      {
+        "name": "Sadaryx",
+        "overrides": [],
+        "range": {
+          "max": 1000.0,
+          "mean": 201.0,
+          "min": 201.0,
+          "stddev": 298.0
+        },
+        "resource": "ResourceType.Sadaryx",
+        "steps": [
+          {
+            "end": 399.0,
+            "share": 0.499,
+            "shown": 348.0,
+            "start": 0.0
+          },
+          {
+            "end": 599.0,
+            "share": 0.326,
+            "shown": 523.0,
+            "start": 400.0
+          },
+          {
+            "end": 799.0,
+            "share": 0.137,
+            "shown": 717.0,
+            "start": 600.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.038,
+            "shown": 916.0,
+            "start": 800.0
+          }
+        ],
+        "tier": "FPSMineable"
       }
     ]
   },

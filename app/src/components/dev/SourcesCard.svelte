@@ -3,14 +3,24 @@
    * Where the Explorer record comes from: the shops that sell it (UEX prices the user put in
    * the cache, cheapest first), the loot containers that can hold it (area, type, size,
    * rarity, rough odds per box) and, for an ore, the bodies and belts that spawn it and
-   * the spots in caves, asteroid bases and events that place it. Closed until the viewer opens
+   * the spots in caves, asteroid bases and events that place it, and the quality it comes in. Closed until the viewer opens
    * it: the first open per build extracts the loot and mining data (shared with the MCP
    * server's cache). Kept open or closed per viewer.
    */
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
   import { devApi, type LootContainer, type RecordSources } from '@/lib/contract/dev';
   import type { ChannelRef } from '@/lib/contract/types';
-  import { SOURCES_OPEN_KEY, beltBars, beltPlace, isEmpty, pctText, priceText, sourcesSummary, spotPlace } from '@/lib/sources';
+  import {
+    SOURCES_OPEN_KEY,
+    beltBars,
+    beltPlace,
+    isEmpty,
+    pctText,
+    priceText,
+    qualityText,
+    sourcesSummary,
+    spotPlace,
+  } from '@/lib/sources';
   import { cn } from '@/lib/utils';
   import CollapsibleCard from './CollapsibleCard.svelte';
 
@@ -75,7 +85,7 @@
   <CollapsibleCard
     id="sources"
     title="Sources"
-    subtitle="Shops, loot containers and where it is mined"
+    subtitle="Shops, loot containers, where it is mined and its quality"
     storageKey={SOURCES_OPEN_KEY}
     defaultOpen={false}
     bind:open
@@ -195,6 +205,39 @@
                   </span>
                   <span role="cell" class="text-muted-foreground min-w-0 truncate" title={s.configs.join(', ')}>{s.configs.join(', ')}</span>
                   <span role="cell" class="text-right tabular-nums">{pctText(s.slot_share)}</span>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
+      {/each}
+      {#each Array.isArray(sources.quality) ? sources.quality : [] as q (q.resource)}
+        {@const top = Math.max(0, ...q.steps.map((st) => st.share ?? 0))}
+        <div class="flex flex-col gap-1">
+          <p class="m-0 font-medium">
+            Quality: {q.name}
+            {#if q.tier}<span class="text-muted-foreground ml-1 text-[11px] font-normal">{q.tier}</span>{/if}
+          </p>
+          <p class="m-0 text-[11.5px]">
+            Rolls {qualityText(q.range)}
+            {#each q.overrides as o (o.location)}<span class="text-muted-foreground"> · {o.location}: {qualityText(o.range)}</span>{/each}
+          </p>
+          {#if q.steps.length}
+            <div role="table" aria-label="Quality values the game shows for {q.name}">
+              <div role="row" class="text-muted-foreground grid grid-cols-[4rem_6rem_minmax(4rem,1fr)_3.5rem] gap-x-2 border-b py-1 text-[11px]">
+                <span role="columnheader">Shows</span>
+                <span role="columnheader">Rolled</span>
+                <span role="columnheader" title="Estimated from the curve, assuming a normal curve cut to its range">Share (est.)</span>
+                <span role="columnheader"></span>
+              </div>
+              {#each q.steps as st (st.start)}
+                <div role="row" class="grid grid-cols-[4rem_6rem_minmax(4rem,1fr)_3.5rem] items-center gap-x-2 py-0.5">
+                  <span role="cell" class="font-medium tabular-nums">{st.shown}</span>
+                  <span role="cell" class="text-muted-foreground tabular-nums">{st.start}–{st.end}</span>
+                  <span role="cell" class="bg-muted h-1.5 overflow-hidden rounded-full" aria-hidden="true">
+                    <span class="bg-primary/70 block h-full rounded-full" style:width="{top > 0 ? Math.round(((st.share ?? 0) / top) * 100) : 0}%"></span>
+                  </span>
+                  <span role="cell" class="text-right tabular-nums">{pctText(st.share)}</span>
                 </div>
               {/each}
             </div>

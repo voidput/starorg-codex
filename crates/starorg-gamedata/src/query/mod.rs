@@ -13,6 +13,7 @@
 //! | [`shops`] | `query/shops.ts` (UEX rows placed, dated, filtered by place; shop inventory) |
 //! | [`obtain`] | `query/obtain.ts` (loot model, spawns, blueprints, awards, shops) |
 //! | [`mined`] | (ours) where an ore is mined: belts and bodies, and spots in loot areas |
+//! | [`quality`] | (ours) the quality curve, place overrides and shown steps of a resource |
 //! | [`where_`] | `query/where.ts` (one row per source, easiest first) |
 //!
 //! JavaScript semantics kept where answers depend on them: stable sorts, `Map` insertion
@@ -22,6 +23,7 @@
 pub mod fuzzy;
 pub mod mined;
 pub mod obtain;
+pub mod quality;
 pub mod shops;
 pub mod types;
 pub mod where_;

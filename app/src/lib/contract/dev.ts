@@ -440,11 +440,45 @@ export interface BuySources {
   total: number;
 }
 
+/** A quality curve (0-1000). */
+export interface QualityRange {
+  min: number | null;
+  max: number | null;
+  mean: number | null;
+  stddev: number | null;
+}
+
+export interface QualityOverride {
+  location: string;
+  range: QualityRange;
+}
+
+/** Every roll in start..end shows as `shown`. */
+export interface QualityStep {
+  start: number;
+  end: number;
+  shown: number;
+  /** Estimated share of rolls (0..1), assuming a normal curve cut to min-max. */
+  share: number | null;
+}
+
+export interface OreQuality {
+  resource: string;
+  name: string;
+  tier: string | null;
+  range: QualityRange;
+  overrides: QualityOverride[];
+  /** Lowest first; only steps a roll can reach. */
+  steps: QualityStep[];
+}
+
 export interface RecordSources {
   /** Null when the record is no item. */
   buy: BuySources | null;
   loot: LootSources | null;
   mined: MinedReport[];
+  /** The quality the record (a resource) or its mined ores come in. */
+  quality: OreQuality[];
 }
 
 export interface DevExportRecordRequest {

@@ -222,7 +222,12 @@ For players who want to look things up in the game data. Read only on the game.
   ore it lists where the ore is mined:
   - the bodies and belts whose spawn tables roll a rock that holds it, with the mining kind
     (ship, vehicle or hand), the tier and a spawn weight;
-  - the spots in caves, asteroid bases and events that place such a rock.
+  - the spots in caves, asteroid bases and events that place such a rock;
+  - the quality it comes in: the range it rolls in and where most rolls land, places with
+    their own curve (Pyro System), and the values the game actually shows. A roll snaps to
+    one of a few shown values (Aphorite rolled anywhere in 201–399 shows as 348), each with
+    an estimated share. The share is an estimate: the game files give the curve's numbers but
+    not how the game samples it.
 
   Some ores, such as Sadaryx, are in no body's spawn table. They come only from those spots:
   for Sadaryx, the Rock Cracker in Nyx. The first time you open the card for a build, the app
