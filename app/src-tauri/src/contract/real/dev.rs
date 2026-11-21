@@ -410,6 +410,9 @@ pub struct DevState {
     compared: Mutex<Option<(Weak<Worker>, DevCompare)>>,
     /// How published LIVE builds are reached (tests: an in-memory one).
     dumps: Mutex<Arc<dyn DumpTransport + Send + Sync>>,
+    /// The Sources card's dataset store, per install UI id: the MCP server's tools over the
+    /// same cache folder, so either one's extraction serves both.
+    origin: Mutex<Option<(String, Arc<starorg_mcp::tools::Tools>)>>,
 }
 
 impl Default for DevState {
@@ -426,6 +429,7 @@ impl Default for DevState {
             stats: Mutex::new(None),
             compared: Mutex::new(None),
             dumps: Mutex::new(Arc::new(starorg_net::GitHubTransport::new())),
+            origin: Mutex::new(None),
         }
     }
 }
@@ -501,6 +505,29 @@ fn gamedata_dataset(gd: &starorg_core::model::GameData) -> Dataset {
 }
 
 impl RealBackend {
+    /// The Sources card's tools for an install, built on first use. Datasets are extracted
+    /// by this binary started as `mcp-extract-worker`, under the memory limit.
+    fn origin_tools(&self, f: &Found) -> CmdResult<Arc<starorg_mcp::tools::Tools>> {
+        let id = f.ui_id();
+        let mut g = lock_or(&self.dev.origin);
+        if let Some((k, t)) = g.as_ref()
+            && *k == id
+        {
+            return Ok(t.clone());
+        }
+        let exe = std::env::current_exe()
+            .map_err(|e| internal(format!("cannot find own binary: {e}")))?;
+        let cfg = starorg_mcp::config_for(
+            Some(&f.install),
+            self.dirs(),
+            Arc::new(starorg_mcp::worker::ProcessExtractor::new(exe).with_limit(self.mcp_limit())),
+        );
+        let t = Arc::new(starorg_mcp::tools::Tools::new(
+            starorg_mcp::store::Store::new(cfg),
+        ));
+        *g = Some((id, t.clone()));
+        Ok(t)
+    }
     pub fn with_dev_spawner(self, s: Arc<dyn DevSpawner>) -> Self {
         self.dev.set_spawner(s);
         self
@@ -1316,6 +1343,29 @@ impl DevBackend for RealBackend {
             l,
             &req.guid,
         ))
+    }
+
+    fn dev_record_sources(&self, req: DevRecordSourcesRequest) -> CmdResult<RecordSources> {
+        self.dev_on()?;
+        let f = self.resolve(&req.target)?;
+        let tools = self.origin_tools(&f)?;
+        let t = Instant::now();
+        let r = tools
+            .sources(&req.target.channel, &req.name)
+            .map_err(|e| err(ErrorCode::Internal, e.0))?;
+        if t.elapsed() > Duration::from_secs(5) {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Dev),
+                None,
+                &format!(
+                    "Read the loot and mining data of {} in {:.0} s (once per build)",
+                    req.target.channel,
+                    t.elapsed().as_secs_f64()
+                ),
+            );
+        }
+        Ok(r)
     }
 
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult> {

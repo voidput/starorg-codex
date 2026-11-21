@@ -340,6 +340,113 @@ export interface Combat {
   modes: CombatMode[];
 }
 
+/** The Sources card of an explorer record: loot containers and where its ore is mined. */
+export interface DevRecordSourcesRequest {
+  target: ChannelRef;
+  /** The record's name (`Type.ShortName` or the short name). */
+  name: string;
+}
+
+/** A loot area whose spawn can hold the item (its best spawn). */
+export interface LootContainer {
+  /** Readable area (`caves: loot caves occupied rock`). */
+  area: string;
+  /** The place when the records do not name it (`Rock Cracker, Nyx`). */
+  place: string | null;
+  /** The spawn config (`Weapons Large Rare`). */
+  spawn_point: string | null;
+  /** "loot" rolls a table, "fixed" always holds it, "loose" lies there. */
+  kind: string;
+  container: string;
+  contents: string | null;
+  size: string | null;
+  rarity: string | null;
+  /** Share of the spawn config's slots that are this container (0..1). */
+  slot_share: number;
+  /** Rough odds one spawned container holds it (0..1). */
+  odds_per_box: number;
+  per_roll: number | null;
+  table: string | null;
+  configs: number;
+}
+
+export interface LootTableOdds {
+  table: string;
+  per_roll: number;
+}
+
+export interface LootSources {
+  name: string;
+  can_loot: boolean | null;
+  reason: string | null;
+  rarity: string | null;
+  /** One row per area, best first; at most 60 (`container_total` counts all). */
+  containers: LootContainer[];
+  container_total: number;
+  /** Tables that roll it but no area spawns (enemies, bosses). */
+  tables: LootTableOdds[];
+  table_total: number;
+}
+
+/** A body or belt whose spawn table rolls a rock holding the ore. */
+export interface MinedBelt {
+  location: string;
+  system: string | null;
+  body: string | null;
+  rock: string;
+  kind: string | null;
+  tier: string | null;
+  /** Spawn weight; comparable only between rows of one kind. */
+  spawn_share: number | null;
+  min_percent: number | null;
+  max_percent: number | null;
+}
+
+/** A loot area whose spawn slots place a rock holding the ore. */
+export interface MinedSpot {
+  area: string;
+  place: string | null;
+  configs: string[];
+  rock: string;
+  slot_share: number;
+}
+
+export interface MinedReport {
+  ore: string;
+  name: string;
+  rocks: string[];
+  belts: MinedBelt[];
+  spots: MinedSpot[];
+}
+
+/** One shop selling the item: UEX (player-reported) prices, not game files. */
+export interface ShopOffer {
+  terminal: string;
+  location: string;
+  price_buy: number;
+  /** YYYY-MM-DD the row was last confirmed. */
+  updated: string | null;
+  /** Older than 30 days. */
+  stale: boolean;
+  not_on_live: boolean;
+}
+
+export interface BuySources {
+  /** False when the UEX files are missing from `folder`. */
+  loaded: boolean;
+  folder: string | null;
+  /** Cheapest first. */
+  offers: ShopOffer[];
+  total: number;
+}
+
+export interface RecordSources {
+  /** Null when the record is no item. */
+  buy: BuySources | null;
+  loot: LootSources | null;
+  mined: MinedReport[];
+}
+
 export interface DevExportRecordRequest {
   target: ChannelRef;
   what: string;
@@ -769,6 +876,7 @@ export interface DevCommandMap {
   dev_search: [{ req: DevSearchRequest }, SearchPage];
   dev_record: [{ req: DevRecordRequest }, RecordView];
   dev_record_combat: [{ req: DevRecordCombatRequest }, Combat | null];
+  dev_record_sources: [{ req: DevRecordSourcesRequest }, RecordSources];
   dev_export_record: [{ req: DevExportRecordRequest }, DevExportResult];
   dev_export_type: [{ req: DevExportTypeRequest }, DevExportResult];
   dev_sources: [{ req: ChannelRef }, DevSource[]];
@@ -802,6 +910,7 @@ export const DEV_COMMANDS = [
   'dev_search',
   'dev_record',
   'dev_record_combat',
+  'dev_record_sources',
   'dev_export_record',
   'dev_export_type',
   'dev_sources',
@@ -835,6 +944,7 @@ export const devApi = {
   record: (req: DevRecordRequest) => call('dev_record', { req }),
   /** `null` while the build's GameData was not read or the record is no ship, weapon or missile. */
   recordCombat: (req: DevRecordCombatRequest) => call('dev_record_combat', { req }),
+  recordSources: (req: DevRecordSourcesRequest) => call('dev_record_sources', { req }),
   /** Native save dialog (Rust side); `cancelled` when closed. */
   exportRecord: (req: DevExportRecordRequest) => call('dev_export_record', { req }),
   exportType: (req: DevExportTypeRequest) => call('dev_export_type', { req }),

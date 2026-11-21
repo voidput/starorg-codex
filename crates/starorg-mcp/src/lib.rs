@@ -7,6 +7,7 @@
 //!   cached as JSON under the app cache directory;
 //! - [`worker`]: that extraction worker (`mcp-extract-worker`), with its own RSS measurement;
 //! - [`owned`]: owned blueprints from the app's store, for `how_to_obtain`;
+//! - [`sources`]: the app explorer's Sources card (loot containers, where an ore is mined);
 //! - [`stdio`] (the CLI's `starorg-codex mcp`) and `http` (feature `http`, the app's
 //!   loopback server) transports;
 //! - [`rss`]: resident memory of this process.
@@ -17,6 +18,7 @@
 pub mod owned;
 pub mod protocol;
 pub mod rss;
+pub mod sources;
 pub mod stdio;
 pub mod store;
 pub mod tools;

@@ -98,6 +98,9 @@ interface Samples {
   dev_record_combat_weapon: T.Combat | null;
   dev_record_combat_missile: T.Combat | null;
   dev_record_combat_none: T.Combat | null;
+  dev_record_sources_loot: T.RecordSources;
+  dev_record_sources_ore: T.RecordSources;
+  dev_record_sources_none: T.RecordSources;
   dev_export_record: T.DevExportResult;
   dev_export_type: T.DevExportResult;
   dev_sources: T.DevSource[];

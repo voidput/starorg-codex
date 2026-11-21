@@ -176,6 +176,7 @@ export const COMMANDS = [
   'dev_search',
   'dev_record',
   'dev_record_combat',
+  'dev_record_sources',
   'dev_export_record',
   'dev_export_type',
   'dev_sources',

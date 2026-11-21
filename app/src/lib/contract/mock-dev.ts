@@ -29,7 +29,7 @@ export interface DevMockData {
   /** The section index's input (7.17): facts per entry, the table's result per entry. */
   facts: (Facts | null)[];
   sections: SectionsData;
-  catalogue: { stats: Record<string, D.Stat[]>; combat: Record<string, D.Combat>; marks: [string, D.Change][]; geometry: [string, string][] };
+  catalogue: { stats: Record<string, D.Stat[]>; combat: Record<string, D.Combat>; sources: Record<string, D.RecordSources>; marks: [string, D.Change][]; geometry: [string, string][] };
 }
 
 export interface DevMockCtx {
@@ -1608,6 +1608,12 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     dev_record_combat: ({ req }) => {
       on(req.target);
       return data.catalogue.combat[req.guid.trim().toLowerCase()] ?? null;
+    },
+    // The Rust mock's cards by lower-case short record name (catalogue guns and coolers, two ores).
+    dev_record_sources: ({ req }) => {
+      on(req.target);
+      const hit = data.catalogue.sources[(req.name.split('.').pop() ?? '').trim().toLowerCase()];
+      return hit ? structuredClone(hit) : { buy: null, loot: null, mined: [] };
     },
     dev_record: ({ req }) => {
       const ix = explorer(req.target);

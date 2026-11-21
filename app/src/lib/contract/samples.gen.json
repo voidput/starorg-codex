@@ -7306,6 +7306,123 @@
     "pointer": "/_RecordValue_/Ship",
     "truncated": false
   },
+  "dev_record_sources_loot": {
+    "buy": {
+      "folder": "~/.cache/starorg-codex/mcp/uex",
+      "loaded": true,
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader, Stanton",
+          "not_on_live": false,
+          "price_buy": 6900.0,
+          "stale": true,
+          "terminal": "Dumper's GrimHEX",
+          "updated": "2026-09-01"
+        },
+        {
+          "location": "Ruin Station, Terminus, Pyro",
+          "not_on_live": false,
+          "price_buy": 7029.0,
+          "stale": false,
+          "terminal": "Guns Ruin",
+          "updated": "2026-11-14"
+        }
+      ],
+      "total": 2
+    },
+    "loot": {
+      "can_loot": true,
+      "container_total": 3,
+      "containers": [
+        {
+          "area": "v3slotpreset rockcracker",
+          "configs": 3,
+          "container": "Large Container",
+          "contents": "Weapons",
+          "kind": "loot",
+          "odds_per_box": 0.21,
+          "per_roll": 0.0525,
+          "place": "Rock Cracker, Nyx",
+          "rarity": "Rare",
+          "size": "Large",
+          "slot_share": 1.0,
+          "spawn_point": "Weapons Large Rare",
+          "table": "v3loottable_ship_weapons"
+        },
+        {
+          "area": "asteroidbases: asteroidbase dungeon 001",
+          "configs": 3,
+          "container": "Medium Container",
+          "contents": "Weapons",
+          "kind": "loot",
+          "odds_per_box": 0.084,
+          "per_roll": 0.021,
+          "place": null,
+          "rarity": "Rare",
+          "size": "Medium",
+          "slot_share": 1.0,
+          "spawn_point": "Weapons Medium Rare",
+          "table": "v3loottable_ship_weapons"
+        },
+        {
+          "area": "caves: loot caves occupied rock pyro",
+          "configs": 3,
+          "container": "Small Container",
+          "contents": "Weapons",
+          "kind": "loot",
+          "odds_per_box": 0.0123,
+          "per_roll": 0.003075,
+          "place": null,
+          "rarity": "Uncommon",
+          "size": "Small",
+          "slot_share": 1.0,
+          "spawn_point": "Weapons Small Uncommon",
+          "table": "v3loottable_ship_weapons"
+        }
+      ],
+      "name": "Ember Repeater S1",
+      "rarity": "Rare",
+      "reason": null,
+      "table_total": 1,
+      "tables": [
+        {
+          "per_roll": 0.0042,
+          "table": "V3LootTable_Actor_LargeAmmo_RockCracker_Boss"
+        }
+      ]
+    },
+    "mined": []
+  },
+  "dev_record_sources_none": {
+    "buy": null,
+    "loot": null,
+    "mined": []
+  },
+  "dev_record_sources_ore": {
+    "buy": null,
+    "loot": null,
+    "mined": [
+      {
+        "belts": [],
+        "name": "Sadaryx",
+        "ore": "minableelement_fps_sadaryx",
+        "rocks": [
+          "MineableRock_FPS_Sadaryx"
+        ],
+        "spots": [
+          {
+            "area": "v3slotpreset rockcracker",
+            "configs": [
+              "Sadaryx minable"
+            ],
+            "place": "Rock Cracker, Nyx",
+            "rock": "MineableRock_FPS_Sadaryx",
+            "slot_share": 1.0
+          }
+        ]
+      }
+    ]
+  },
   "dev_row": {
     "json": "{\"name\":\"Test Repeater 1\",\"recordName\":\"SYN_Laser_S2_01\",\"id\":\"51000000-0000-4000-8000-000000000001\",\"size\":2,\"type\":\"Cannon\",\"dps\":112.75,\"modes\":[{\"name\":\"Auto\",\"rpm\":601}]}",
     "labels": {

@@ -53,7 +53,7 @@ impl Server {
         Self {
             instructions: format!(
                 "Read-only Star Citizen game data from this computer's install (channels: {}; default {default}). \
-                 Start with `search` to find keys, then `item`, `how_to_obtain`, `where_found`, `where_to_buy`, \
+                 Start with `search` to find keys, then `item`, `how_to_obtain`, `where_found`, `where_mined`, `where_to_buy`, \
                  `mission`, `compare`, `string` or `diff`. The first question about a build extracts the datasets \
                  it needs from Data.p4k (seconds to a minute, once per build). Shop prices are UEX data (player-reported) \
                  and only present when the user supplied them.",

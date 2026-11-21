@@ -210,6 +210,25 @@ For players who want to look things up in the game data. Read only on the game.
   a total row; a weapon's DPS, alpha, fire rate, range, projectile speed, ammo, power, heat
   and EM/IR, plus its fire modes; a missile's damage, lock range and lock time. Names link to
   their record. Click the title to fold the card away; it stays folded until you open it again.
+  Items, commodities and ores also get a **Sources** card, closed until you open it. For an
+  item it first lists the shops that sell it, cheapest first, with the location, the price and
+  the day the price was last confirmed (flagged when older than 30 days). Shop stock is in no
+  game file, so these are UEX (player-reported) prices. StarOrg Codex downloads nothing: put
+  `uex-item-prices.json` and `uex-terminals.json` in the folder the card names
+  (`<cache>/mcp/uex`). Without them the card says so. It then lists
+  the loot containers that can hold the item, one row per area: the place, the container, what
+  it is for (Weapons, Armour...), its size and rarity, and rough odds per box. It also lists
+  the loot tables that roll the item but that no container uses (enemies, bosses). For an
+  ore it lists where the ore is mined:
+  - the bodies and belts whose spawn tables roll a rock that holds it, with the mining kind
+    (ship, vehicle or hand), the tier and a spawn weight;
+  - the spots in caves, asteroid bases and events that place such a rock.
+
+  Some ores, such as Sadaryx, are in no body's spawn table. They come only from those spots:
+  for Sadaryx, the Rock Cracker in Nyx. The first time you open the card for a build, the app
+  reads the loot and mining data from Data.p4k, which takes a minute or two and about 1.3 GB
+  of memory. That data is cached and shared with the MCP server. The odds assume an even pick
+  inside a loot pool, which the game data does not state.
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
 - **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one.
   To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for

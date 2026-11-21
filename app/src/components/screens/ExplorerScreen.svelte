@@ -31,6 +31,8 @@
   import JsonTree from '@/components/dev/JsonTree.svelte';
   import RecordSheet from '@/components/dev/RecordSheet.svelte';
   import CombatCard from '@/components/dev/CombatCard.svelte';
+  import SourcesCard from '@/components/dev/SourcesCard.svelte';
+  import { hasSources } from '@/lib/sources';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
   import AssetPanel from '@/components/assets/AssetPanel.svelte';
   import TriggerPanel from '@/components/assets/TriggerPanel.svelte';
@@ -885,6 +887,9 @@
               </div>
               <!-- Combat numbers come from GameData, not the JSON: the same card in both views. -->
               <CombatCard {target} guid={h.guid} onopen={(g) => void openRecord(g)} class="max-h-[45%]" />
+              {#if hasSources(h.type)}
+                <SourcesCard {target} name={`${h.type}.${h.name}`} class="max-h-[45%]" />
+              {/if}
               {#if dataView === 'readable'}
                 <RecordSheet id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="min-h-0 flex-1" />
               {:else}

@@ -125,6 +125,13 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
         .unwrap()
     };
     let cat = |d: &str| mock_dev::catalogue_guid(mock_dev::catalogue_row(d));
+    let origin = |name: String| {
+        b.dev_record_sources(DevRecordSourcesRequest {
+            target: live(),
+            name,
+        })
+        .unwrap()
+    };
     let sources = b.dev_sources(live()).unwrap();
     let added = b.dev_add_source(live()).unwrap();
     let mut sorted_rows = rows("build:LIVE", "gamedata.json", "components");
@@ -478,6 +485,23 @@ pub(super) fn dev_samples() -> Vec<(&'static str, Value)> {
             json!(combat(mock_dev::ship_guid(1))),
         ),
         (
+            "dev_record_sources_loot",
+            json!(origin(format!(
+                "EntityClassDefinition.{}",
+                mock_dev::catalogue_name(mock_dev::catalogue_row("Ember Repeater S1"))
+            ))),
+        ),
+        (
+            "dev_record_sources_ore",
+            json!(origin("ResourceType.Sadaryx".into())),
+        ),
+        (
+            "dev_record_sources_none",
+            json!(origin(mock_dev::catalogue_name(mock_dev::catalogue_row(
+                "Alpha Kestrel"
+            )))),
+        ),
+        (
             "dev_export_record",
             json!(
                 b.dev_export_record(DevExportRecordRequest {
@@ -684,6 +708,13 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
             j(b.dev_record_combat(DevRecordCombatRequest {
                 target: live(),
                 guid: "x".into(),
+            })),
+        ),
+        (
+            "dev_record_sources",
+            j(b.dev_record_sources(DevRecordSourcesRequest {
+                target: live(),
+                name: "x".into(),
             })),
         ),
         (

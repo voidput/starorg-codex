@@ -33,6 +33,10 @@ pub use starorg_core::dev::sections::{
     Change, FacetCounts, FacetValue, Filters, GroupHead, ListGroup, ListItem, ListPage, ListQuery,
     Matching, SectionStats, SortKey, Stat, TreeOpts, VariantRef,
 };
+pub use starorg_mcp::sources::{
+    BuySources, LootContainer, LootSources, LootTableOdds, RecordSources, ShopOffer,
+};
+pub use starorg_mcp::sources::{MinedBelt, MinedReport, MinedSpot};
 
 /// Records above this count get a size warning in the export dialog (7.4).
 pub const EXPORT_WARN_RECORDS: u32 = 5_000;
@@ -150,6 +154,15 @@ pub struct DevRecordCombatRequest {
     pub target: ChannelRef,
     /// The record's GUID.
     pub guid: String,
+}
+
+/// The Sources card of an explorer record: loot containers and where its ore is mined,
+/// from datasets extracted once per build into the app cache (shared with the MCP server).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevRecordSourcesRequest {
+    pub target: ChannelRef,
+    /// The record's name (`Type.ShortName` or the short name).
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -492,6 +505,7 @@ pub trait DevBackend {
     /// A ship's guns and missiles, a weapon's or missile's numbers; `None` while the build's
     /// GameData was not read or the record is none of these.
     fn dev_record_combat(&self, req: DevRecordCombatRequest) -> CmdResult<Option<Combat>>;
+    fn dev_record_sources(&self, req: DevRecordSourcesRequest) -> CmdResult<RecordSources>;
     /// Native save dialog, then pretty JSON in StarBreaker's form.
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult>;
     /// Native save dialog, then one JSON array, streamed; `cancel_job` stops it.
@@ -614,6 +628,7 @@ dev_commands! {
     dev_search(req: DevSearchRequest) -> SearchPage;
     dev_record(req: DevRecordRequest) -> RecordView;
     dev_record_combat(req: DevRecordCombatRequest) -> Option<Combat>;
+    dev_record_sources(req: DevRecordSourcesRequest) -> RecordSources;
     dev_export_record(req: DevExportRecordRequest) -> DevExportResult;
     dev_sources(req: ChannelRef) -> Vec<DevSource>;
     dev_add_source(req: ChannelRef) -> Vec<DevSource>;

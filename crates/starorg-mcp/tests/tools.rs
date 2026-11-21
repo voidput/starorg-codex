@@ -74,7 +74,9 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         json!({"areas": [
             {"name": "caves/loot_caves", "configs": [{"name": "Weapons Small", "spawnTags": [], "slots": [
                 {"entity": "crate_small", "entityName": "Weapons Crate", "weight": 3, "loot": {"table": "Crate_Weapons", "version": "v1", "maxResults": 2}},
-                {"entity": "rack_fs9", "weight": 1, "contains": ["behr_lmg_ballistic_01"]}]}]}
+                {"entity": "rack_fs9", "weight": 1, "contains": ["behr_lmg_ballistic_01"]}]}]},
+            {"name": "v3slotpreset_rockcracker", "configs": [{"name": "Sadaryx minable", "spawnTags": [], "slots": [
+                {"entity": "mineablerock_fps_sadaryx", "weight": 1}]}]}
         ], "contractAwards": [
             {"generator": "TheCollector", "contract": "TheCollector_FS9", "item": "behr_lmg_ballistic_01", "amount": 1}
         ]}),
@@ -88,6 +90,16 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         ]}),
     );
     d.insert("game-wikelo-trades", json!({"trades": []}));
+    d.insert(
+        "game-mining-spawns",
+        json!({"rocks": [
+            {"rock": "MineableRock_FPS_Sadaryx", "kind": "hand", "ores": [{"element": "minableelement_fps_sadaryx"}]},
+            {"rock": "MineableRock_AsteroidRare_Quantainium", "kind": "ship", "ores": [{"element": "quantainium_raw"}]}
+        ], "oreSpawns": [
+            {"ore": "quantainium_raw", "location": "Stanton1", "system": "Stanton", "body": "Hurston",
+             "rock": "MineableRock_AsteroidRare_Quantainium", "kind": "ship", "spawnShare": 0.12}
+        ]}),
+    );
     d.insert(
         "game-missions",
         json!({"missions": [
@@ -320,6 +332,7 @@ fn lifecycle_and_schemas() {
             "item",
             "where_to_buy",
             "where_found",
+            "where_mined",
             "how_to_obtain",
             "mission",
             "compare",
@@ -550,6 +563,24 @@ fn where_to_buy_found_and_how_to_obtain() {
     assert_eq!(areas[0]["kind"], "loot");
     assert_eq!(areas[0]["container"], "Weapons Crate");
     assert_eq!(areas[0]["oddsPerBox"], 0.5625);
+    assert_eq!(areas[0]["spawnPoint"], "Weapons Small");
+    assert_eq!(areas[0]["slotShare"], 0.75);
+    assert!(areas[0].get("spawn_point").is_none(), "keys are camelCase");
+
+    // Sadaryx has no spawn table: only the Rock Cracker spot places it.
+    let mined = ok(&s, "where_mined", json!({"ore": "Sadaryx"}));
+    let r = &mined["results"][0];
+    assert_eq!(r["name"], "Sadaryx");
+    assert_eq!(r["belts"]["total"], 0);
+    assert_eq!(r["spots"]["rows"][0]["place"], "Rock Cracker, Nyx");
+    assert_eq!(r["spots"]["rows"][0]["slotShare"], 1.0);
+    let q = ok(&s, "where_mined", json!({"ore": "quantainium"}));
+    assert_eq!(q["results"][0]["belts"]["rows"][0]["body"], "Hurston");
+    assert_eq!(
+        ok(&s, "where_mined", json!({"ore": "FS-9 LMG"}))["matches"],
+        0
+    );
+    assert!(call(&s, "where_mined", json!({})).0);
 
     let how = ok(
         &s,
@@ -955,4 +986,35 @@ mod http {
         drop(srv);
         assert!(TcpStream::connect(addr).is_err());
     }
+}
+
+#[test]
+fn sources_card_is_typed_and_exact() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    let gun = t
+        .sources("LIVE", "EntityClassDefinition.behr_lmg_ballistic_01")
+        .unwrap();
+    let loot = gun.loot.unwrap();
+    assert_eq!(loot.name, "FS-9 LMG");
+    assert_eq!(loot.container_total, 1);
+    assert_eq!(loot.containers[0].container, "Weapons Crate");
+    assert_eq!(loot.containers[0].kind, "loot");
+    assert_eq!(loot.containers[0].odds_per_box, 0.5625);
+    assert!(gun.mined.is_empty());
+    let buy = gun.buy.unwrap();
+    assert!(buy.loaded && buy.folder.is_some());
+    assert_eq!(buy.total, 2);
+    assert_eq!(buy.offers[0].terminal, "Dumper's GrimHEX");
+    assert_eq!(buy.offers[0].price_buy, 6900.0);
+    assert_eq!(buy.offers[1].location, "Ruin Station, Terminus, Pyro");
+    let ore = t.sources("LIVE", "ResourceType.Sadaryx").unwrap();
+    assert!(ore.loot.is_none() && ore.buy.is_none());
+    assert_eq!(
+        ore.mined[0].spots[0].place.as_deref(),
+        Some("Rock Cracker, Nyx")
+    );
+    // No fuzzy match: a near name is no item.
+    let none = t.sources("LIVE", "behr_lmg_ballistic").unwrap();
+    assert!(none.loot.is_none() && none.mined.is_empty());
 }

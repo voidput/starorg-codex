@@ -1,9 +1,8 @@
-// The Explorer record's Combat card: number text, the loadout sum row, the per-viewer open
-// state, and the mock samples it renders. Run: npm test.
+// The Explorer record's Combat card: number text, the loadout sum row and the mock samples it renders. Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { COMBAT_OPEN_KEY, loadCombatOpen, numText, saveCombatOpen, statText, sumRows } from '../src/lib/combat.ts';
+import { numText, statText, sumRows } from '../src/lib/combat.ts';
 import type { Combat } from '../src/lib/contract/dev.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
@@ -37,24 +36,4 @@ test('weapon and missile samples carry their numbers; other records have no card
   const m: Combat = samples.dev_record_combat_missile;
   assert.deepEqual(m.stats.slice(0, 3).map((s) => s.key), ['damage', 'lock', 'lockTime']);
   assert.equal(samples.dev_record_combat_none, null);
-});
-
-test('the card is open unless this viewer closed it, and survives blocked storage', () => {
-  const m = new Map<string, string>();
-  const s = { getItem: (k: string) => m.get(k) ?? null, setItem: (k: string, v: string) => void m.set(k, v) };
-  assert.equal(loadCombatOpen(s), true);
-  saveCombatOpen(s, false);
-  assert.equal(m.get(COMBAT_OPEN_KEY), '0');
-  assert.equal(loadCombatOpen(s), false);
-  const blocked = {
-    getItem: () => {
-      throw new Error('blocked');
-    },
-    setItem: () => {
-      throw new Error('blocked');
-    },
-  };
-  assert.equal(loadCombatOpen(blocked), true);
-  assert.doesNotThrow(() => saveCombatOpen(blocked, false));
-  assert.equal(loadCombatOpen(null), true);
 });

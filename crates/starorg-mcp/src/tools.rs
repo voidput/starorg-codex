@@ -10,6 +10,7 @@
 //! | `item` | item-tags; ships, or the one detail dataset of the item's type |
 //! | `where_to_buy` | item-tags + the user's UEX files, if any |
 //! | `where_found` | item-tags, loot, item-sources |
+//! | `where_mined` | mining-spawns, item-sources |
 //!
 //! `game-item-tags` lists only the ship weapons and components that carry loot tags (7 of
 //! 241 ship guns on LIVE 4.10), so a name it does not hold is looked up in
@@ -24,11 +25,13 @@
 //! | `status` | none (what is cached, memory) |
 
 use crate::owned;
+use crate::sources::{MAX_CONTAINERS, MAX_SHOPS, MAX_TABLES, buy_sources, loot_sources};
 use crate::store::{ChannelSource, Store, ToolError, ToolResult, tool_err};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use starorg_core::ini::StockIni;
 use starorg_gamedata::query::fuzzy::{self, Entry, EntryKind};
+use starorg_gamedata::query::mined::{MinedReport, MiningSpawns, where_mined as mined_query};
 use starorg_gamedata::query::obtain::{
     BlueprintLike, Datasets, LootData, LootIndex, ObtainOptions, ObtainReport, WikeloTradeLike,
     build_loot_index, find_items, obtain,
@@ -143,6 +146,19 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
                 channels,
                 merge(json!({"item": item_arg.clone()}), paging()),
                 &["item"],
+            ),
+        ),
+        d(
+            "where_mined",
+            "Where it is mined",
+            "Where an ore is mined: the bodies and belts whose spawn tables roll a rock holding it (most common first; kind ship, vehicle or hand), and the loot areas (caves, asteroid bases, events such as the Rock Cracker) whose spawn slots place such a rock. Some ores (Sadaryx) come only from those spots.",
+            schema(
+                channels,
+                merge(
+                    json!({"ore": {"type": "string", "description": "Ore, commodity, rock or element name or key, e.g. \"Sadaryx\", \"quantainium\", \"MineableRock_FPS_Aphorite\"."}}),
+                    paging(),
+                ),
+                &["ore"],
             ),
         ),
         d(
@@ -336,7 +352,12 @@ pub struct Ctx<'a> {
 
 impl<'a> Ctx<'a> {
     pub fn new(store: &'a Store, args: &Args<'_>) -> ToolResult<Self> {
-        let ch = store.channel(args.str("channel"))?;
+        Self::for_channel(store, args.str("channel"))
+    }
+
+    /// A named channel, else the default one.
+    pub fn for_channel(store: &'a Store, channel: Option<&str>) -> ToolResult<Self> {
+        let ch = store.channel(channel)?;
         Ok(Self {
             store,
             ch,
@@ -470,6 +491,20 @@ impl<'a> Ctx<'a> {
                 shops_loaded,
             })
         })
+    }
+}
+
+impl Ctx<'_> {
+    /// [`where_mined`] over the build's mining spawns and loot areas.
+    pub fn mined(&self, q: &str) -> ToolResult<Vec<MinedReport>> {
+        let spawns = self.store.typed(&self.dir, "mining-spawns", || {
+            serde_json::from_value::<MiningSpawns>((*self.json("game-mining-spawns")?).clone())
+                .map_err(|e| ToolError(format!("game-mining-spawns: {e}")))
+        })?;
+        let areas = self.store.typed(&self.dir, "loot-areas", || {
+            field::<Vec<LootArea>>(&*self.json("game-item-sources")?, "areas")
+        })?;
+        Ok(mined_query(&spawns, &areas, q))
     }
 }
 
@@ -996,36 +1031,14 @@ fn where_found(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
     let (n, reports, marker) = first_report(ctx, &corpus, a.need("item")?, None)?;
     let mut out = Vec::new();
     for r in &reports {
-        let areas: Vec<Value> = r
-            .areas
-            .iter()
-            .map(|x| {
-                let h = &x.best;
-                json!({
-                    "area": starorg_gamedata::query::obtain::area_label(&x.area),
-                    "spawnPoint": h.config,
-                    "kind": h.kind,
-                    "container": h.entity_name.as_deref().unwrap_or(&h.entity),
-                    "slotShare": h.slot_share,
-                    "perRoll": h.per_roll,
-                    "oddsPerBox": h.score,
-                    "table": h.table,
-                    "configs": x.configs,
-                })
-            })
-            .collect();
-        let tables: Vec<Value> = r
-            .other_tables
-            .iter()
-            .take(10)
-            .map(|t| json!({"table": t.table, "perRoll": t.per_roll}))
-            .collect();
+        // The explorer Sources card's rows: area, place, container, contents, size, rarity.
+        let l = loot_sources(r, usize::MAX, 10);
         out.push(json!({
             "item": {"key": r.item.class_name, "name": r.item.name},
             "loot": r.eligibility,
-            "areas": page(&areas, a)?,
-            "otherTables": tables,
-            "otherTableCount": r.other_tables.len(),
+            "areas": camel(page(&l.containers, a)?),
+            "otherTables": camel(serde_json::to_value(&l.tables).unwrap_or_default()),
+            "otherTableCount": l.table_total,
         }));
     }
     let mut v = with_header(
@@ -1036,6 +1049,57 @@ fn where_found(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
         v["inexact"] = m;
     }
     Ok(v)
+}
+
+fn where_mined(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
+    let q = a.need("ore")?;
+    let reports = ctx.mined(q)?;
+    let mut out = Vec::new();
+    for r in &reports {
+        out.push(json!({
+            "ore": r.ore,
+            "name": r.name,
+            "rocks": r.rocks,
+            "belts": camel(page(&r.belts, a)?),
+            "spots": camel(page(&r.spots, a)?),
+        }));
+    }
+    Ok(with_header(
+        ctx,
+        json!({
+            "matches": out.len(),
+            "results": out,
+            "note": "belt spawnShare is a weight comparable only between rows of one kind; spots are loot areas whose slots can place the rock",
+        }),
+    ))
+}
+
+/// Object keys from `snake_case` (the app contract's types) to `camelCase` (every tool's
+/// answer), all the way down.
+fn camel(v: Value) -> Value {
+    match v {
+        Value::Object(m) => Value::Object(
+            m.into_iter()
+                .map(|(k, v)| {
+                    let mut out = String::with_capacity(k.len());
+                    let mut up = false;
+                    for c in k.chars() {
+                        if c == '_' {
+                            up = true;
+                        } else if up {
+                            out.extend(c.to_uppercase());
+                            up = false;
+                        } else {
+                            out.push(c);
+                        }
+                    }
+                    (out, camel(v))
+                })
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.into_iter().map(camel).collect()),
+        other => other,
+    }
 }
 
 fn how_to_obtain(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
@@ -1669,6 +1733,51 @@ impl Tools {
         definitions(&self.store.channel_names())
     }
 
+    /// The explorer's Sources card for a record (`Type.ShortName` or the short name): the
+    /// loot containers of the item with exactly that class name, and where the ore it names
+    /// is mined. No fuzzy matching: a record that is neither answers an empty card. The
+    /// first call per build extracts the datasets it reads (item-tags, loot, item-sources,
+    /// mining-spawns), as the tools do.
+    pub fn sources(
+        &self,
+        channel: &str,
+        record: &str,
+    ) -> ToolResult<crate::sources::RecordSources> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        let short = record.rsplit('.').next().unwrap_or(record).trim();
+        let mined = ctx.mined(record)?;
+        let items = ctx.items()?;
+        let item = items
+            .list
+            .iter()
+            .find(|i| i.class_name.eq_ignore_ascii_case(short))
+            .cloned();
+        let (buy, loot) = match item {
+            Some(i) => {
+                let corpus = ctx.corpus(true, false)?;
+                let r = obtain(
+                    &corpus.d,
+                    &i,
+                    corpus.index.as_ref(),
+                    &ObtainOptions::default(),
+                );
+                let folder = self.store.cfg.uex_dir.as_ref();
+                let folder = folder.map(|d| d.display().to_string());
+                (
+                    Some(buy_sources(
+                        &r.shops,
+                        corpus.shops_loaded,
+                        folder,
+                        MAX_SHOPS,
+                    )),
+                    Some(loot_sources(&r, MAX_CONTAINERS, MAX_TABLES)),
+                )
+            }
+            None => (None, None),
+        };
+        Ok(crate::sources::RecordSources { buy, loot, mined })
+    }
+
     pub fn call(&self, name: &str, args: &Map<String, Value>) -> ToolResult<Value> {
         let a = Args(args);
         if name == "status" {
@@ -1680,6 +1789,7 @@ impl Tools {
             "item" => item(&ctx, &a),
             "where_to_buy" => where_to_buy(&ctx, &a),
             "where_found" => where_found(&ctx, &a),
+            "where_mined" => where_mined(&ctx, &a),
             "how_to_obtain" => how_to_obtain(&ctx, &a),
             "mission" => mission(&ctx, &a),
             "compare" => compare(&ctx, &a),
