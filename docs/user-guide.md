@@ -60,7 +60,11 @@ From the command line: `starorg-codex apply --all --if-stale`.
 ## Enhancements
 
 Enhancements -> one tab per area; the **in-game preview** on the right shows before and after
-for a sample of each, with the game's own colours (EM styles) where they apply.
+for the open tab's samples only, with the game's own colours (EM styles) where they apply
+("No example for ... with these settings" when that tab has none). It needs the build's game
+data: when it is not read yet or the cache is from an older version (footer `cache stale`),
+press **Read game data** in the preview (about 10 s; reads `Data.p4k` into the cache and
+writes nothing to the game), no apply needed.
 
 - **Ships, Components, Ship weapons, FPS weapons, Missiles:** a stats block in descriptions
   (speeds, shields, damage, fire rate, range, ...). Each line can be switched on or off.

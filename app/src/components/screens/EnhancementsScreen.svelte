@@ -97,9 +97,11 @@
 
   // Preview follows the draft (debounced); the backend renders it with the real generators.
   const draftJson = $derived(draft ? JSON.stringify(draft) : '');
+  let previewSeq = $state(0);
   $effect(() => {
     const j = draftJson;
     const k = app.targetKey;
+    void previewSeq;
     if (!j || !k) return;
     let stale = false;
     previewing = true;
@@ -243,7 +245,23 @@
     ];
   });
   const cat = $derived(schema?.categories.find((c) => c.id === selected) ?? null);
-  const previewFocus = $derived(selected === 'quest-items' ? 'quest-hints' : selected === 'obtain' ? 'obtain-hints' : selected === 'name-tags' || selected === 'general' ? 'components' : selected);
+  const sectionLabel = $derived(tabs.find((t) => t.id === selected)?.label ?? 'this section');
+
+  // "Read game data": the preview's examples without an apply (nothing goes into the game folder).
+  let reading = $state(false);
+  async function readGameData() {
+    if (!app.target) return;
+    reading = true;
+    try {
+      await api.readGameData($state.snapshot(app.target));
+      previewSeq++;
+      await app.refresh();
+    } catch (e) {
+      toast('error', 'Could not read the game data', toContractError(e).message);
+    } finally {
+      reading = false;
+    }
+  }
 
   // Where to get: the UEX folder and files, read when the tab opens ("Check again" re-reads).
   let uex = $state<ObtainStatus | null>(null);
@@ -364,7 +382,7 @@
       </div>
 
       <div id="cat-panel" role="tabpanel" aria-labelledby="cat-tab-{selected}" class="grid min-w-0 gap-4 self-start">
-        <div class="sticky top-0 z-10 min-w-0 @min-[880px]:hidden"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} strip /></div>
+        <div class="sticky top-0 z-10 min-w-0 @min-[880px]:hidden"><PreviewPanel items={preview} loading={previewing} section={selected} {sectionLabel} canRead={!!app.channel?.set_up} {reading} onread={readGameData} strip /></div>
 
         {#if selected === 'general'}
           <Card.Root>
@@ -696,7 +714,7 @@
         {/if}
       </div>
 
-      <div class="sticky top-0 hidden max-h-[calc(100dvh-9rem)] min-w-0 self-start overflow-y-auto @min-[880px]:block"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} /></div>
+      <div class="sticky top-0 hidden max-h-[calc(100dvh-9rem)] min-w-0 self-start overflow-y-auto @min-[880px]:block"><PreviewPanel items={preview} loading={previewing} section={selected} {sectionLabel} canRead={!!app.channel?.set_up} {reading} onread={readGameData} /></div>
     </div>
   </div>
 {/if}

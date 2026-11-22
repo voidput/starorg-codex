@@ -3,7 +3,7 @@
  * the blueprint lines of a contract, [BP] / [BP Owned] after its title), summed up for the
  * Blueprints screen, and the order of the Enhancements preview on its Blueprints tab. Pure.
  */
-import type { PreviewItem, Profile } from './contract/types';
+import type { Profile } from './contract/types';
 
 /** An EM tag number as a word: 0 = plain text. EM3/EM4 are the looks verified in game. */
 export function emWord(n: number): string {
@@ -41,15 +41,3 @@ export const markerLine = (p: Pick<Profile, 'missions' | 'mission'>) =>
   markerSummary(p)
     .map((s) => `${s.label} ${s.text}`)
     .join(' · ');
-
-const hasList = (it: PreviewItem) => it.category === 'missions' && /\[(Owned|Missing)\]|BLUEPRINTS/.test(it.result);
-
-/**
- * Preview examples, the open tab's first. `blueprints` puts a contract with a blueprint list
- * first (its [Owned] / [Missing] lines), then the other contract examples.
- */
-export function previewOrder(items: PreviewItem[] | null | undefined, focus: string | null): PreviewItem[] {
-  if (!Array.isArray(items)) return [];
-  const rank = (it: PreviewItem) => (focus === 'blueprints' ? (hasList(it) ? 2 : it.category === 'missions' ? 1 : 0) : Number(it.category === focus));
-  return [...items].sort((a, b) => rank(b) - rank(a));
-}

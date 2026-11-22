@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { fileAge, obtainPreview, OBTAIN_MODES, uexFilesText, uexTokenText } from '../src/lib/obtain.ts';
-import { previewOrder } from '../src/lib/bpmarkers.ts';
+import { sectionPreview } from '../src/lib/previewsection.ts';
 import type { ObtainStatus, PreviewItem, Profile, UexTokenStatus } from '../src/lib/contract/types.ts';
 import samples from '../src/lib/contract/samples.gen.json' with { type: 'json' };
 
@@ -50,9 +50,9 @@ test('modes, shops and line switches change the block', () => {
   assert.deepEqual(OBTAIN_MODES.map((m) => m.id), ['short', 'normal', 'detailed']);
 });
 
-test('the Where to get tab puts its samples first', () => {
+test('the Where to get tab shows only its samples', () => {
   const items = samples.build_preview as PreviewItem[];
-  assert.equal(previewOrder(items, 'obtain-hints')[0]!.category, 'obtain-hints');
+  assert.deepEqual(sectionPreview(items, 'obtain').map((i) => i.label), ['Weapon (where to get)', 'Ore (where to get)']);
 });
 
 test('UEX file age', () => {
