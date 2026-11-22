@@ -25,8 +25,9 @@ Names are never touched.
   extend step: a later category may add to an existing edit's suffix, re-checked by
   `check_generated`. Order: stock text, stats block (or stats above with `stats_above`),
   then WHERE TO GET.
-- **Shops only from UEX files the user supplied**, names only, never prices (prices go stale
-  between applies). Off by default. Nothing is downloaded.
+- **Shops only from UEX files**, names only, never prices (prices go stale between applies).
+  Off by default. Originally nothing was downloaded; since `feat/uex-fetch` the app can fetch
+  both files itself, opt-in (see Open).
 - **Odds only in Detailed** (they are estimates).
 
 ## Data path
@@ -138,6 +139,12 @@ all means no block.
 3. App tab, preview, docs (user guide, addendum note), changelog.
 
 ## Open
+
+- UEX download (done on `feat/uex-fetch`): Settings -> Network -> "Download UEX market data"
+  (`network.uex`, off) with an optional token (keyring entry `uex` or `uex.token`, never sent
+  to the webview). `fetch_uex` writes both files in sc-gamedata's exact shape
+  (`starorg_net::uex`), `uex_token_status` / `set_uex_token` manage the token. Still open: no
+  automatic refresh (only Fetch now), and the commodity price fetch below.
 
 - Commodity kiosks' best sell prices (top 3) stay in the app card; they need a new
   `uex-commodity-prices` fetch in sc-gamedata first.

@@ -96,9 +96,10 @@ for a sample of each, with the game's own colours (EM styles) where they apply.
     places*, *Ore quality*) can be switched off; a line with nothing to say is left out, and an
     item with no source gets no block.
   - *Add shops from my UEX files* (off by default): shop stock is in no game file, so shop names
-    come only from the UEX files you put in the UEX folder yourself (`uex-item-prices.json` and
-    `uex-terminals.json`; the tab shows the folder and each file's age). StarOrg Codex downloads
-    nothing. Names only, never prices: prices go stale between applies.
+    come from UEX files in the UEX folder (`uex-item-prices.json` and `uex-terminals.json`; the
+    tab shows the folder and each file's age). They are downloaded when you turn on Settings ->
+    Network -> *Download UEX market data* and press **Fetch now** (there or on this tab), or you
+    put them there yourself. Names only, never prices: prices go stale between applies.
   - Presets: Recommended has it on in Normal, Minimal in Short, Everything in Detailed with the
     shops on.
   - The first apply per game build extracts a few datasets from `Data.p4k` (seconds; the
@@ -171,7 +172,15 @@ that for you: run Remove first ([uninstall](uninstall.md)).
 
 - **Appearance:** dark (default) or light theme, accent colour and palette.
 - **Network:** every switch is off by default: *Check for updates* ([updates](updates.md)),
-  *Connect StarOrg Tools*. With them off the app makes no network request.
+  *Connect StarOrg Tools*, *Download UEX market data*. With them off the app makes no network
+  request.
+- **Download UEX market data:** **Fetch now** downloads where items are sold (UEX Corp,
+  player-reported) from `api.uexcorp.space` into the UEX folder (`<cache>/mcp/uex`), for the
+  Buy line of Where to get, the Explorer Sources card and the MCP shop tools. Both files are
+  public, so a token is optional; to use yours, sign in at uexcorp.space -> My Apps, paste the
+  token and press Save. It is kept in the system keyring (or a private file when there is none),
+  never shown again and sent only to `api.uexcorp.space`. **Remove** deletes it. Apply again
+  after a fetch.
 - **Launch hooks** (Linux): install, update or remove the LUG Helper hook blocks.
 - **Advanced -> Developer mode:** adds the Dev group (below). **Memory limit** caps each
   Developer mode and MCP worker (default 5 GB or half the RAM, minimum 1.5 GB; a worker stops
@@ -232,9 +241,10 @@ For players who want to look things up in the game data. Read only on the game.
   Items, commodities and ores also get a **Sources** card, closed until you open it. For an
   item it first lists the shops that sell it, cheapest first, with the location, the price and
   the day the price was last confirmed (flagged when older than 30 days). Shop stock is in no
-  game file, so these are UEX (player-reported) prices. StarOrg Codex downloads nothing: put
-  `uex-item-prices.json` and `uex-terminals.json` in the folder the card names
-  (`<cache>/mcp/uex`). Without them the card says so. It then lists
+  game file, so these are UEX (player-reported) prices: turn on Settings -> Network ->
+  *Download UEX market data* and press **Fetch now**, or put `uex-item-prices.json` and
+  `uex-terminals.json` in the folder the card names (`<cache>/mcp/uex`). Without them the card
+  says so. It then lists
   the loot containers that can hold the item, one row per area: the place, the container, what
   it is for (Weapons, Armour...), its size and rarity, and rough odds per box. It also lists
   the loot tables that roll the item but that no container uses (enemies, bosses). For an

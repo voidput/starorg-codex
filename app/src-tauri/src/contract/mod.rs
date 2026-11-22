@@ -70,7 +70,7 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     /// Labels for the core's stat line and tag element ids.
     fn profile_schema(&self) -> CmdResult<ProfileSchema>;
     /// The UEX folder and files the WHERE TO GET shop line reads (spec obtain-hints). Reads
-    /// only file metadata; nothing is downloaded.
+    /// only file metadata; nothing is downloaded (that is `fetch_uex`).
     fn obtain_status(&self) -> CmdResult<ObtainStatus>;
     /// Whether a UEX API token is saved (keyring or file); never the token.
     fn uex_token_status(&self) -> CmdResult<UexTokenStatus>;

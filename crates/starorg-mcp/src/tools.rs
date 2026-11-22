@@ -126,7 +126,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
         d(
             "where_to_buy",
             "Where to buy",
-            "Shops selling an item, cheapest first, or what the shops at a place sell. Prices are UEX data (player-reported) and only available when the user put UEX files in the app cache; nothing is downloaded.",
+            "Shops selling an item, cheapest first, or what the shops at a place sell. Prices are UEX data (player-reported) and only available when the UEX files are in the app cache (the app downloads them when the user turns that on, or the user puts them there); this tool downloads nothing.",
             schema(
                 channels,
                 merge(

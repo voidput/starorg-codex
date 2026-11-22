@@ -56,7 +56,7 @@ impl Server {
                  Start with `search` to find keys, then `item`, `how_to_obtain`, `where_found`, `where_mined`, `where_to_buy`, \
                  `mission`, `compare`, `string` or `diff`. The first question about a build extracts the datasets \
                  it needs from Data.p4k (seconds to a minute, once per build). Shop prices are UEX data (player-reported) \
-                 and only present when the user supplied them.",
+                 and only present when the UEX files are in the app cache.",
                 tools.store.channel_names().join(", ")
             ),
             tools,

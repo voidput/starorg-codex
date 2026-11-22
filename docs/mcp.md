@@ -1,7 +1,7 @@
 ---
 title: Local MCP server (experimental)
 tags: [docs, mcp, experimental]
-updated: 2026-11-15
+updated: 2026-11-21
 ---
 
 # Local MCP server (experimental)
@@ -67,7 +67,7 @@ previous page as `cursor`. Answers are compact JSON.
 |---|---|---|
 | `search` | items, ship weapons and components, and ships by name, class, maker, type (fuzzy, typos allowed) | `game-search-index` (from item-tags + ships), ship-components |
 | `item` | one item or ship: identity, tags, loot eligibility, stats | item-tags; the stats dataset of its type (fps-weapons, weapons, armor, ship-components, consumables) or ships |
-| `where_to_buy` | shops for an item (cheapest first), or what a place sells | item-tags + UEX files, if you supplied them |
+| `where_to_buy` | shops for an item (cheapest first), or what a place sells | item-tags + UEX files, if there |
 | `where_found` | loot spawns: best areas with place, container, contents, size and rarity, odds per box, fixed racks, other tables | item-tags, loot, item-sources |
 | `where_mined` | where an ore is mined: bodies and belts that roll a rock with it (most common first), and loot-area spots (caves, asteroid bases, the Rock Cracker) that place one, and the quality it comes in (range, place overrides, the values the game shows with estimated shares) | mining-spawns, item-sources, commodities |
 | `how_to_obtain` | every source, easiest first: buy, contract/Wikelo reward, craft, loot; `owned_by` marks blueprints a character owns | item-tags, loot, item-sources, blueprints, wikelo-trades, UEX; the owned-blueprint store |
@@ -107,10 +107,12 @@ estimates: an even pick inside a loot pool is assumed; the game data does not sa
 ### Shop prices
 
 Shop stock is server-side and in no game file. Prices come only from UEX (player-reported)
-files you put in the cache folder yourself, `<cache>/mcp/uex/uex-item-prices.json` and
-`uex-terminals.json` (the files `sc-gamedata fetch uex-item-prices uex-terminals` writes; the
-`status` tool prints the folder). StarOrg Codex never downloads them. Without them, the shop
-tools say so and the other sources still answer.
+files in the cache folder, `<cache>/mcp/uex/uex-item-prices.json` and `uex-terminals.json`
+(the `status` tool prints the folder). The app downloads them when Settings -> Network ->
+*Download UEX market data* is on and you press **Fetch now**; or put the files
+`sc-gamedata fetch uex-item-prices uex-terminals` writes there yourself (same shape). The MCP
+server itself never downloads anything; it reads a file again once it changed. Without them,
+the shop tools say so and the other sources still answer.
 
 ## Data, cache and memory
 
