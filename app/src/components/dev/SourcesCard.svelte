@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * Where the Explorer record comes from: the shops that sell it (UEX prices the user put in
-   * the cache, cheapest first), the loot containers that can hold it (area, type, size,
+   * the cache, cheapest first), for a commodity the kiosks that pay most for it (top 3, UEX
+   * commodity prices), the loot containers that can hold it (area, type, size,
    * rarity, rough odds per box) and, for an ore, the bodies and belts that spawn it and
    * the spots in caves, asteroid bases and events that place it, and the quality it comes in. Closed until the viewer opens
    * it: the first open per build extracts the loot and mining data (shared with the MCP
@@ -14,10 +15,12 @@
     SOURCES_OPEN_KEY,
     beltBars,
     beltPlace,
+    fetchedText,
     isEmpty,
     pctText,
     priceText,
     qualityText,
+    scuPriceText,
     sourcesSummary,
     spotPlace,
   } from '@/lib/sources';
@@ -70,6 +73,7 @@
   const LOOT_GRID = 'grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.8fr)_3.5rem_4.5rem_4.5rem] gap-x-2';
   const BELT_GRID = 'grid grid-cols-[minmax(0,1.3fr)_3.5rem_4rem_minmax(0,1fr)_minmax(4rem,6rem)] gap-x-2';
   const SHOP_GRID = 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_6rem_5.5rem] gap-x-2';
+  const SELL_GRID = 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_7.5rem_5.5rem] gap-x-2';
   const SPOT_GRID = 'grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.2fr)_4.5rem] gap-x-2';
 
   const RARITY: Record<string, string> = {
@@ -85,7 +89,7 @@
   <CollapsibleCard
     id="sources"
     title="Sources"
-    subtitle="Shops, loot containers, where it is mined and its quality"
+    subtitle="Shops, where it sells best, loot containers, where it is mined and its quality"
     storageKey={SOURCES_OPEN_KEY}
     defaultOpen={false}
     bind:open
@@ -109,7 +113,7 @@
         {#if sources.loot?.can_loot === false}
           Not loot: {sources.loot.reason ?? 'the game bars it from loot tables'}.
         {:else}
-          Not sold in any shop, not in any loot container or loot table, and not a mined ore.
+          Not sold in any shop, bought at no commodity kiosk, not in any loot container or loot table, and not a mined ore.
         {/if}
       </p>
     {:else if sources}
@@ -154,6 +158,49 @@
             {/if}
           {:else}
             <p class="text-muted-foreground m-0 text-[11.5px]">No shop in the UEX data sells it.</p>
+          {/if}
+        </div>
+      {/if}
+      {#if sources.sell}
+        {@const s = sources.sell}
+        {@const when = fetchedText(s.fetched)}
+        <div class="flex flex-col gap-1">
+          <p class="m-0 font-medium">
+            Sell
+            <span class="text-muted-foreground ml-1 text-[11px] font-normal">best commodity kiosk prices for {s.name}, UEX, player-reported{when ? `, ${when}` : ''}</span>
+          </p>
+          {#if !s.loaded}
+            <p class="text-muted-foreground m-0 text-[11.5px]">
+              No kiosk prices: they are in no game file. Turn on "Download UEX market data" in Settings -> Network and press Fetch now, or put
+              <span class="mono">uex-commodity-prices.json</span> and <span class="mono">uex-terminals.json</span> in
+              <span class="mono select-all">{s.folder ?? 'the UEX folder'}</span>.
+            </p>
+          {:else if s.offers.length}
+            <div role="table" aria-label="Commodity kiosks that buy {s.name}, best price first">
+              <div role="row" class={cn(SELL_GRID, 'text-muted-foreground border-b py-1 text-[11px]')}>
+                <span role="columnheader">Kiosk</span>
+                <span role="columnheader">Location</span>
+                <span role="columnheader" class="text-right">Pays</span>
+                <span role="columnheader" class="text-right" title="Day UEX last confirmed the price">Updated</span>
+              </div>
+              {#each s.offers as o, i (i)}
+                <div role="row" class={cn(SELL_GRID, 'items-baseline py-0.5')}>
+                  <span role="cell" class="min-w-0 truncate" title={o.terminal}>{o.terminal}</span>
+                  <span role="cell" class="text-muted-foreground min-w-0 truncate" title={o.location}>{o.location}</span>
+                  <span role="cell" class="text-right font-medium tabular-nums" title={o.scu_stock !== null ? `Holds ${o.scu_stock} SCU` : undefined}>{scuPriceText(o.price_sell)}</span>
+                  <span
+                    role="cell"
+                    class={cn('text-right tabular-nums', o.stale ? 'text-muted-foreground/70' : 'text-muted-foreground')}
+                    title={o.stale ? 'Not confirmed for over 30 days' : undefined}>{o.updated ?? '–'}{o.stale ? ' ⚠' : ''}</span
+                  >
+                </div>
+              {/each}
+            </div>
+            {#if s.total > s.offers.length}
+              <p class="text-muted-foreground m-0 text-[11px]">{s.total - s.offers.length} kiosks paying less not shown.</p>
+            {/if}
+          {:else}
+            <p class="text-muted-foreground m-0 text-[11.5px]">No commodity kiosk in the UEX data buys it.</p>
           {/if}
         </div>
       {/if}

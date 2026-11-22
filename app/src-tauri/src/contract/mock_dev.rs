@@ -1079,8 +1079,43 @@ fn mock_sources(name: &str) -> RecordSources {
             }
         })
         .collect();
+    // Kiosks buying the ore: Aphorite sells, nobody buys Sadaryx (an empty, loaded card).
+    let sell = mined.first().map(|m| {
+        let offer = |terminal: &str, location: &str, price: f64, stock: f64| SellOffer {
+            terminal: terminal.into(),
+            location: location.into(),
+            price_sell: price,
+            scu_stock: Some(stock),
+            updated: Some("2026-11-20".into()),
+            stale: false,
+        };
+        let offers = if m.name == "Aphorite" {
+            vec![
+                offer(
+                    "HUR-L2",
+                    "HUR-L2 Faithful Dream Station, Stanton",
+                    9612.0,
+                    4.0,
+                ),
+                offer("Rod's Fuel", "Rod's Fuel 'N Supplies, Pyro", 9180.0, 952.0),
+                offer("TDD Area 18", "Area 18, ArcCorp, Stanton", 9000.0, 124.0),
+            ]
+        } else {
+            Vec::new()
+        };
+        SellSources {
+            loaded: true,
+            folder: Some("~/.cache/starorg-codex/mcp/uex".into()),
+            resource: format!("ResourceType.{}", m.name),
+            name: m.name.clone(),
+            total: if offers.is_empty() { 0 } else { 7 },
+            offers,
+            fetched: Some(super::mock::MOCK_UEX_FETCHED.into()),
+        }
+    });
     RecordSources {
         buy,
+        sell,
         loot,
         mined,
         quality,

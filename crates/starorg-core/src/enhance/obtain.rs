@@ -5,8 +5,13 @@
 //!
 //! The block goes after everything else on the key: when a stat block (or a quest hint)
 //! already owns it, the Engine extends that edit ([`super::Category::extends`]). Lines
-//! (`lines_off = ["obtain.loot", ...]`): `shops`, `loot`, `craft`, `rewards`, `mined`,
-//! `quality`. A line with nothing to say is left out; nothing at all means no block.
+//! (`lines_off = ["obtain.loot", ...]`): `shops`, `sell`, `loot`, `craft`, `rewards`,
+//! `mined`, `quality`. A line with nothing to say is left out; nothing at all means no block.
+//!
+//! The `sell` line is the only one with prices (commodity kiosks, from UEX). Prices go stale
+//! between applies, so it needs its own switch (`obtain_prices`, on only in Everything), the
+//! price is rounded (`~6.2k aUEC/SCU`) and the line is stamped with the day the prices were
+//! fetched (`UEX, 21 Nov`).
 //!
 //! Text from the hints is data, not markup: EM tags, `~` variables, `%` and control
 //! characters are taken out before it is placed, so a place name cannot break the checks.
@@ -15,15 +20,19 @@ use super::profile::{ObtainMode, Profile, em};
 use super::{Category, Claim, Engine, Payload, format};
 use crate::ini::{IniError, StockIni};
 use crate::model::{
-    Blueprint, GameData, ItemObtain, LootHint, MinedHint, ObtainHints, QualityHint, ShopHint,
-    loc_key,
+    Blueprint, GameData, ItemObtain, LootHint, MinedHint, ObtainHints, QualityHint, SellHint,
+    ShopHint, loc_key,
 };
 use std::collections::BTreeMap;
 
 /// The `lines_off` category of this block.
 pub const LINE_CATEGORY: &str = "obtain";
 /// Line names, in block order.
-pub const LINES: &[&str] = &["shops", "loot", "craft", "rewards", "mined", "quality"];
+pub const LINES: &[&str] = &[
+    "shops", "sell", "loot", "craft", "rewards", "mined", "quality",
+];
+/// The unit of a commodity price.
+pub const PRICE_UNIT: &str = "aUEC/SCU";
 /// Places listed per line before `+N`.
 pub const TOP: usize = 3;
 /// The block header (Normal and Detailed).
@@ -224,6 +233,96 @@ fn duration(secs: f64) -> String {
     }
 }
 
+/// A price rounded to two significant digits, with `k` / `M`: `~6.2k`, `~12k`, `~1.5M`,
+/// `~850`, `~3.8`. Player-reported prices move, so the text never claims more.
+pub fn rough_price(v: f64) -> String {
+    if !v.is_finite() || v <= 0.0 {
+        return "~0".into();
+    }
+    let mag = v.log10().floor() as i32;
+    let step = 10f64.powi(mag - 1);
+    let r = (v / step).round() * step;
+    let (n, unit) = if r >= 1e6 {
+        (r / 1e6, "M")
+    } else if r >= 1e3 {
+        (r / 1e3, "k")
+    } else {
+        (r, "")
+    };
+    let digits = if n >= 10.0 {
+        format::int(n)
+    } else if n >= 1.0 {
+        format::d1(n)
+    } else {
+        format::sig2(n)
+    };
+    format!("~{digits}{unit}")
+}
+
+/// `21 Nov` for an RFC 3339 time (`2026-11-21T09:00:00Z`); `None` when unreadable.
+pub fn short_day(iso: &str) -> Option<String> {
+    const MONTHS: [&str; 12] = [
+        "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+    ];
+    let month: usize = iso.get(5..7)?.parse().ok()?;
+    let day: u32 = iso.get(8..10)?.parse().ok()?;
+    let m = MONTHS.get(month.checked_sub(1)?)?;
+    (1..=31).contains(&day).then(|| format!("{day} {m}"))
+}
+
+/// `(UEX, 21 Nov)`: where the prices are from and when they were fetched.
+fn price_stamp(fetched: Option<&str>) -> String {
+    match fetched.and_then(short_day) {
+        Some(d) => format!("(UEX, {d})"),
+        None => "(UEX)".into(),
+    }
+}
+
+/// Lower case, letters and digits only.
+fn plain_key(s: &str) -> String {
+    s.chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|c| c.to_ascii_lowercase())
+        .collect()
+}
+
+/// `HUR-L2`, or in Detailed `TDD Area 18 (Stanton)` / `HUR-L2 (HUR-L2 Faithful Dream
+/// Station, Stanton)`: a place or system the terminal's name already holds is not repeated
+/// (`Pyro Gateway (Nyx)`).
+fn sell_place(s: &SellHint, detailed: bool) -> String {
+    let terminal = clean(&s.terminal);
+    if !detailed {
+        return terminal;
+    }
+    let named = plain_key(&terminal);
+    let inner = [opt(&s.place), opt(&s.system)]
+        .into_iter()
+        .flatten()
+        .filter(|p| !named.contains(&plain_key(p)));
+    with_paren(terminal, distinct(inner))
+}
+
+/// Each kiosk with its rounded price, the first carrying the unit:
+/// `~9.6k aUEC/SCU at HUR-L2`, `~9.2k at Rod's Fuel`.
+fn sell_entries(sells: &[&SellHint], detailed: bool) -> Vec<String> {
+    sells
+        .iter()
+        .enumerate()
+        .map(|(i, s)| {
+            let unit = if i == 0 {
+                format!(" {PRICE_UNIT}")
+            } else {
+                String::new()
+            };
+            format!(
+                "{}{unit} at {}",
+                rough_price(s.price),
+                sell_place(s, detailed)
+            )
+        })
+        .collect()
+}
+
 fn shop(s: &ShopHint, detailed: bool) -> String {
     let mut inner: Vec<String> = opt(&s.place).into_iter().collect();
     if detailed {
@@ -316,7 +415,13 @@ fn quality(q: &QualityHint, detailed: bool) -> String {
 
 /// The block for one class, `None` when no line has anything to say. Starts at the header
 /// (Normal, Detailed) or the `Get:` line (Short); the caller puts it after the stock text.
-pub fn block(info: &ItemObtain, crafted: &Crafted, p: &Profile) -> Option<String> {
+/// `prices_fetched` ([`ObtainHints::prices_fetched`]) stamps the sell line.
+pub fn block(
+    info: &ItemObtain,
+    crafted: &Crafted,
+    p: &Profile,
+    prices_fetched: Option<&str>,
+) -> Option<String> {
     let on = |line: &str| p.line_on(LINE_CATEGORY, line);
     let detailed = p.obtain_mode == ObtainMode::Detailed;
     let label = |t: &str| em(p.mission.label_em, &format!("{t}:"));
@@ -325,6 +430,20 @@ pub fn block(info: &ItemObtain, crafted: &Crafted, p: &Profile) -> Option<String
     } else {
         Vec::new()
     };
+    let sells: Vec<&SellHint> = if p.obtain_prices && on("sell") {
+        info.sells
+            .iter()
+            .filter(|s| s.price.is_finite() && s.price > 0.0 && !clean(&s.terminal).is_empty())
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let sells_extra = if sells.is_empty() {
+        0
+    } else {
+        info.sells_count().saturating_sub(info.sells.len())
+    };
+    let stamp = price_stamp(prices_fetched);
     let loot_all: Vec<String> = if on("loot") {
         distinct(info.loot.iter().map(|l| loot(l, detailed)))
     } else {
@@ -360,6 +479,9 @@ pub fn block(info: &ItemObtain, crafted: &Crafted, p: &Profile) -> Option<String
         if !shops.is_empty() {
             parts.push("Buy".into());
         }
+        if let Some(best) = sell_entries(&sells[..sells.len().min(1)], false).first() {
+            parts.push(format!("Sell {best} {stamp}"));
+        }
         if !loot_all.is_empty() || loot_extra > 0 {
             let rarity = info.loot.iter().find_map(|l| opt(&l.rarity));
             parts.push(with_paren("Loot".into(), rarity.into_iter().collect()));
@@ -387,6 +509,14 @@ pub fn block(info: &ItemObtain, crafted: &Crafted, p: &Profile) -> Option<String
     let list_sep = if detailed { format::SEP } else { ", " };
     if !shops.is_empty() {
         lines.push(format!("{} {}", label("Buy"), top(&shops, 0, list_sep)));
+    }
+    if !sells.is_empty() {
+        let entries = sell_entries(&sells, detailed);
+        lines.push(format!(
+            "{} {} {stamp}",
+            label("Sell"),
+            top(&entries, sells_extra, list_sep)
+        ));
     }
     if !loot_all.is_empty() {
         lines.push(format!(
@@ -460,7 +590,12 @@ pub fn generate(en: &mut Engine, gd: &GameData, hints: &ObtainHints) {
             }
             let class = class.to_ascii_lowercase();
             let info = hints.items.get(&class).unwrap_or(&empty);
-            let text = block(info, &idx.crafted(&class), p)?;
+            let text = block(
+                info,
+                &idx.crafted(&class),
+                p,
+                hints.prices_fetched.as_deref(),
+            )?;
             Some(Claim {
                 record: class,
                 key: key.clone(),
@@ -644,11 +779,11 @@ mod tests {
             ]
         );
         assert_eq!(
-            block(&gun(), &c, &profile(ObtainMode::Short)).as_deref(),
+            block(&gun(), &c, &profile(ObtainMode::Short), None).as_deref(),
             Some("<EM4>Get:</EM4> Buy · Loot (Rare) · Craft [BP] · Reward")
         );
         assert_eq!(
-            block(&gun(), &c, &profile(ObtainMode::Normal)).as_deref(),
+            block(&gun(), &c, &profile(ObtainMode::Normal), None).as_deref(),
             Some(
                 "<EM3>WHERE TO GET</EM3>\\n\
                  <EM4>Buy:</EM4> Center Mass (Area18), Live Fire Weapons (Port Olisar)\\n\
@@ -658,7 +793,7 @@ mod tests {
             )
         );
         assert_eq!(
-            block(&gun(), &c, &profile(ObtainMode::Detailed)).as_deref(),
+            block(&gun(), &c, &profile(ObtainMode::Detailed), None).as_deref(),
             Some(
                 "<EM3>WHERE TO GET</EM3>\\n\
                  <EM4>Buy:</EM4> Center Mass (Area18, Stanton)  |  Live Fire Weapons (Port Olisar)\\n\
@@ -669,7 +804,7 @@ mod tests {
         );
         // Every mode passes the generated-value checks after a stock description.
         for mode in [ObtainMode::Short, ObtainMode::Normal, ObtainMode::Detailed] {
-            let b = block(&gun(), &c, &profile(mode)).unwrap();
+            let b = block(&gun(), &c, &profile(mode), None).unwrap();
             let suffix = format!("\\n\\n{b}");
             assert_eq!(
                 check::check_generated("A rifle.", "A rifle.", "", &suffix),
@@ -683,13 +818,13 @@ mod tests {
     fn ore_text_per_mode() {
         let none = Crafted::default();
         assert_eq!(
-            block(&ore(), &none, &profile(ObtainMode::Short)).as_deref(),
+            block(&ore(), &none, &profile(ObtainMode::Short), None).as_deref(),
             Some(
                 "<EM4>Get:</EM4> Mined (hand) at Lyria, Pyro I, Aberdeen +1 · Quality most near 500"
             )
         );
         assert_eq!(
-            block(&ore(), &none, &profile(ObtainMode::Normal)).as_deref(),
+            block(&ore(), &none, &profile(ObtainMode::Normal), None).as_deref(),
             Some(
                 "<EM3>WHERE TO GET</EM3>\\n\
                  <EM4>Mined:</EM4> Lyria, Pyro I, Aberdeen +1 (hand)\\n\
@@ -697,7 +832,7 @@ mod tests {
             )
         );
         assert_eq!(
-            block(&ore(), &none, &profile(ObtainMode::Detailed)).as_deref(),
+            block(&ore(), &none, &profile(ObtainMode::Detailed), None).as_deref(),
             Some(
                 "<EM3>WHERE TO GET</EM3>\\n\
                  <EM4>Mined:</EM4> Lyria, Stanton (hand) 12–30%  |  Pyro I, Pyro (hand) 5%  |  Aberdeen, Stanton (hand) 1–8%  |  +1\\n\
@@ -705,7 +840,7 @@ mod tests {
             )
         );
         for mode in [ObtainMode::Short, ObtainMode::Normal, ObtainMode::Detailed] {
-            let b = block(&ore(), &none, &profile(mode)).unwrap();
+            let b = block(&ore(), &none, &profile(mode), None).unwrap();
             let suffix = format!("\\n\\n{b}");
             assert_eq!(
                 check::check_generated("Ore.", "Ore.", "", &suffix),
@@ -725,20 +860,20 @@ mod tests {
             p.lines_off.insert(format!("obtain.{l}"));
         }
         assert_eq!(
-            block(&gun(), &c, &p).as_deref(),
+            block(&gun(), &c, &p, None).as_deref(),
             Some("<EM3>WHERE TO GET</EM3>\\n<EM4>Reward:</EM4> Bunker Clearing [BP], Cargo Run")
         );
         for l in LINES {
             p.lines_off.insert(format!("obtain.{l}"));
         }
         p.obtain_shops = true;
-        assert_eq!(block(&gun(), &c, &p), None);
-        assert_eq!(block(&ore(), &c, &p), None);
+        assert_eq!(block(&gun(), &c, &p, None), None);
+        assert_eq!(block(&ore(), &c, &p, None), None);
         // Colours off: plain labels.
         let mut p = profile(ObtainMode::Short);
         p.mission.label_em = 0;
         assert_eq!(
-            block(&ore(), &Crafted::default(), &p).as_deref(),
+            block(&ore(), &Crafted::default(), &p, None).as_deref(),
             Some("Get: Mined (hand) at Lyria, Pyro I, Aberdeen +1 · Quality most near 500")
         );
     }
@@ -747,7 +882,12 @@ mod tests {
     fn empty_sources_give_no_block() {
         for mode in [ObtainMode::Short, ObtainMode::Normal, ObtainMode::Detailed] {
             assert_eq!(
-                block(&ItemObtain::default(), &Crafted::default(), &profile(mode)),
+                block(
+                    &ItemObtain::default(),
+                    &Crafted::default(),
+                    &profile(mode),
+                    None
+                ),
                 None
             );
         }
@@ -760,11 +900,196 @@ mod tests {
             block(
                 &only_count,
                 &Crafted::default(),
-                &profile(ObtainMode::Normal)
+                &profile(ObtainMode::Normal),
+                None
             )
             .as_deref(),
             Some("<EM3>WHERE TO GET</EM3>\\n<EM4>Loot:</EM4> 4 containers")
         );
+    }
+
+    /// Refined laranite: five kiosks that buy it, best first, and one that pays nothing.
+    fn laranite() -> ItemObtain {
+        let k = |t: &str, place: Option<&str>, sys: &str, price: f64| SellHint {
+            terminal: t.into(),
+            place: place.map(str::to_string),
+            system: Some(sys.into()),
+            price,
+        };
+        ItemObtain {
+            sells: vec![
+                k(
+                    "HUR-L2",
+                    Some("HUR-L2 Faithful Dream Station"),
+                    "Stanton",
+                    9612.0,
+                ),
+                k("Rod's Fuel", Some("Rod's Fuel 'N Supplies"), "Pyro", 9180.0),
+                k("TDD Area 18", Some("Area 18"), "Stanton", 9000.0),
+                k("TDD New Babbage", Some("New Babbage"), "Stanton", 8900.0),
+                k("Ruin Station", None, "Pyro", 8700.0),
+                k("Free kiosk", None, "Pyro", 0.0),
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn prices(mode: ObtainMode) -> Profile {
+        Profile {
+            obtain_prices: true,
+            ..profile(mode)
+        }
+    }
+
+    const FETCHED: Option<&str> = Some("2026-11-21T09:00:00.000Z");
+
+    #[test]
+    fn sell_line_per_mode() {
+        let none = Crafted::default();
+        let b = |mode| block(&laranite(), &none, &prices(mode), FETCHED);
+        assert_eq!(
+            b(ObtainMode::Short).as_deref(),
+            Some("<EM4>Get:</EM4> Sell ~9.6k aUEC/SCU at HUR-L2 (UEX, 21 Nov)")
+        );
+        assert_eq!(
+            b(ObtainMode::Normal).as_deref(),
+            Some(
+                "<EM3>WHERE TO GET</EM3>\\n\
+                 <EM4>Sell:</EM4> ~9.6k aUEC/SCU at HUR-L2, ~9.2k at Rod's Fuel, ~9k at TDD Area 18 +2 (UEX, 21 Nov)"
+            )
+        );
+        assert_eq!(
+            b(ObtainMode::Detailed).as_deref(),
+            Some(
+                "<EM3>WHERE TO GET</EM3>\\n\
+                 <EM4>Sell:</EM4> ~9.6k aUEC/SCU at HUR-L2 (HUR-L2 Faithful Dream Station, Stanton)  |  ~9.2k at Rod's Fuel (Rod's Fuel 'N Supplies, Pyro)  |  ~9k at TDD Area 18 (Stanton)  |  +2 (UEX, 21 Nov)"
+            )
+        );
+        for mode in [ObtainMode::Short, ObtainMode::Normal, ObtainMode::Detailed] {
+            let suffix = format!("\\n\\n{}", b(mode).unwrap());
+            assert_eq!(
+                check::check_generated("Ore.", "Ore.", "", &suffix),
+                Ok(()),
+                "{suffix}"
+            );
+        }
+        // Only the top 3 kept, 12 in all: the rest are counted.
+        let mut cut = laranite();
+        cut.sells.truncate(3);
+        cut.sells_total = 12;
+        assert!(
+            block(&cut, &none, &prices(ObtainMode::Normal), FETCHED)
+                .unwrap()
+                .ends_with("~9k at TDD Area 18 +9 (UEX, 21 Nov)")
+        );
+        // A system the terminal's name holds is not said twice.
+        cut.sells = vec![SellHint {
+            terminal: "Pyro Gateway (Nyx)".into(),
+            place: Some("Pyro Gateway".into()),
+            system: Some("Nyx".into()),
+            price: 31_000.0,
+        }];
+        cut.sells_total = 0;
+        assert!(
+            block(&cut, &none, &prices(ObtainMode::Detailed), FETCHED)
+                .unwrap()
+                .ends_with("~31k aUEC/SCU at Pyro Gateway (Nyx) (UEX, 21 Nov)")
+        );
+        // No fetch day known: still says where the prices are from.
+        assert!(
+            block(&laranite(), &none, &prices(ObtainMode::Normal), None)
+                .unwrap()
+                .ends_with("+2 (UEX)")
+        );
+        // Sells come after shops and before the rest.
+        let mut both = gun();
+        both.sells = laranite().sells;
+        let g = gd();
+        let s = stock();
+        let n = block(
+            &both,
+            &crafted(&g, &s),
+            &prices(ObtainMode::Normal),
+            FETCHED,
+        )
+        .unwrap();
+        let at = |l: &str| n.find(l).unwrap();
+        assert!(at("Buy:") < at("Sell:") && at("Sell:") < at("Loot:"), "{n}");
+        let short = block(&both, &crafted(&g, &s), &prices(ObtainMode::Short), FETCHED).unwrap();
+        assert!(
+            short.contains("Buy · Sell ~9.6k aUEC/SCU at HUR-L2 (UEX, 21 Nov) · Loot (Rare)"),
+            "{short}"
+        );
+    }
+
+    #[test]
+    fn sell_line_needs_its_switch_and_its_line() {
+        let none = Crafted::default();
+        // Off by default (Recommended and Minimal); on in Everything.
+        assert!(!Profile::default().obtain_prices && !Profile::minimal().obtain_prices);
+        assert!(Profile::everything().obtain_prices);
+        assert_eq!(
+            block(&laranite(), &none, &profile(ObtainMode::Normal), FETCHED),
+            None
+        );
+        let mut p = prices(ObtainMode::Normal);
+        p.lines_off.insert("obtain.sell".into());
+        assert_eq!(block(&laranite(), &none, &p, FETCHED), None);
+        // Only kiosks that pay: nothing to say without one.
+        let free = ItemObtain {
+            sells: vec![laranite().sells[5].clone()],
+            ..Default::default()
+        };
+        assert_eq!(
+            block(&free, &none, &prices(ObtainMode::Normal), FETCHED),
+            None
+        );
+        // The mined line is untouched by the sell switch.
+        let mut ore_sold = ore();
+        ore_sold.sells = laranite().sells;
+        let off = block(&ore_sold, &none, &profile(ObtainMode::Normal), FETCHED).unwrap();
+        assert!(!off.contains("Sell") && off.contains("Mined:"), "{off}");
+        // A place that is the system is said once.
+        let one = ItemObtain {
+            sells: vec![SellHint {
+                terminal: "Ruin Station".into(),
+                place: Some("Pyro".into()),
+                system: Some("Pyro".into()),
+                price: 8700.0,
+            }],
+            ..Default::default()
+        };
+        assert!(
+            block(&one, &none, &prices(ObtainMode::Detailed), FETCHED)
+                .unwrap()
+                .ends_with("<EM4>Sell:</EM4> ~8.7k aUEC/SCU at Ruin Station (Pyro) (UEX, 21 Nov)")
+        );
+    }
+
+    #[test]
+    fn prices_round_and_days_read_short() {
+        for (v, want) in [
+            (6240.0, "~6.2k"),
+            (9000.0, "~9k"),
+            (9612.0, "~9.6k"),
+            (12_345.0, "~12k"),
+            (123_456.0, "~120k"),
+            (999_999.0, "~1M"),
+            (1_540_000.0, "~1.5M"),
+            (845.0, "~850"),
+            (38.0, "~38"),
+            (3.84, "~3.8"),
+            (0.456, "~0.46"),
+        ] {
+            assert_eq!(rough_price(v), want, "{v}");
+        }
+        assert_eq!(
+            short_day("2026-11-21T09:00:00.000Z").as_deref(),
+            Some("21 Nov")
+        );
+        assert_eq!(short_day("2026-01-05").as_deref(), Some("5 Jan"));
+        assert_eq!(short_day("2026-13-05"), None);
+        assert_eq!(short_day("soon"), None);
     }
 
     #[test]
@@ -781,7 +1106,13 @@ mod tests {
             }],
             ..Default::default()
         };
-        let b = block(&info, &Crafted::default(), &profile(ObtainMode::Normal)).unwrap();
+        let b = block(
+            &info,
+            &Crafted::default(),
+            &profile(ObtainMode::Normal),
+            None,
+        )
+        .unwrap();
         assert_eq!(
             check::check_generated("x", "x", "", &format!("\\n\\n{b}")),
             Ok(())
@@ -818,6 +1149,7 @@ mod tests {
                 ("other".to_string(), "@item_DescOther".to_string()),
                 ("missing".to_string(), "@item_DescMissing".to_string()),
             ]),
+            prices_fetched: None,
         }
     }
 

@@ -97,15 +97,24 @@ writes nothing to the game), no apply needed.
     star systems, rough odds per box (`· 21%`, estimates), the quality spread and places with
     their own quality range.
   - Each line (*Loot containers*, *Crafting from a blueprint*, *Contract rewards*, *Mining
-    places*, *Ore quality*) can be switched off; a line with nothing to say is left out, and an
+    places*, *Ore quality*, and the shops and sell prices below) can be switched off; a line with nothing to say is left out, and an
     item with no source gets no block.
   - *Add shops from my UEX files* (off by default): shop stock is in no game file, so shop names
     come from UEX files in the UEX folder (`uex-item-prices.json` and `uex-terminals.json`; the
     tab shows the folder and each file's age). They are downloaded when you turn on Settings ->
     Network -> *Download UEX market data* and press **Fetch now** (there or on this tab), or you
-    put them there yourself. Names only, never prices: prices go stale between applies.
+    put them there yourself. Names only, never prices.
+  - *Add best sell prices for commodities* (off by default, on in Everything): a **Sell** line on
+    commodity and resource descriptions with the top 3 commodity kiosks that pay most, from
+    `uex-commodity-prices.json` (downloaded by the same **Fetch now**):
+    `Sell: ~9.6k aUEC/SCU at HUR-L2, ~9.2k at Rod's Fuel, ~9k at TDD Area 18 +4 (UEX, 21 Nov)`.
+    Kiosk prices are player-reported and move every day, so the price is rounded to two digits
+    and the line carries the day the prices were fetched; fetch and apply again for fresh ones.
+    Kiosks that pay nothing, and kiosks UEX marks as not on LIVE, are left out. **Short** says
+    only the best (`Get: Sell ~9.6k aUEC/SCU at HUR-L2 (UEX, 21 Nov)`), **Detailed** adds each
+    kiosk's place and system.
   - Presets: Recommended has it on in Normal, Minimal in Short, Everything in Detailed with the
-    shops on.
+    shops and sell prices on.
   - The first apply per game build extracts a few datasets from `Data.p4k` (seconds; the
     Explorer Sources card and the MCP server share that cache), later applies reuse them.
 
@@ -212,11 +221,13 @@ that for you: run Remove first ([uninstall](uninstall.md)).
 - **Network:** every switch is off by default: *Check for updates* ([updates](updates.md)),
   *Connect StarOrg Tools*, *Download UEX market data*. With them off the app makes no network
   request.
-- **Download UEX market data:** **Fetch now** downloads where items are sold (UEX Corp,
-  player-reported) from `api.uexcorp.space` into the UEX folder (`<cache>/mcp/uex`), for the
-  Buy line of Where to get, the Shops screen, the Explorer Sources card and the MCP shop
-  tools. Both files are public, so a token is optional; to use yours, sign in at
-  uexcorp.space -> My Apps, paste the token and press Save. It is kept in the system keyring (or a private file when there is none),
+- **Download UEX market data:** **Fetch now** downloads where items are sold and what
+  commodity kiosks pay (UEX Corp, player-reported) from `api.uexcorp.space` into the UEX folder
+  (`<cache>/mcp/uex`: `uex-item-prices.json`, `uex-commodity-prices.json`, `uex-terminals.json`),
+  for the Buy and Sell lines of Where to get, the Shops screen, the Explorer Sources card and
+  the MCP shop tools. All three are public, so a token is optional; to use yours, sign in at
+  uexcorp.space -> My Apps, paste the token and press Save. It is kept in the system keyring
+  (or a private file when there is none),
   never shown again and sent only to `api.uexcorp.space`. **Remove** deletes it. Apply again
   after a fetch.
 - **Launch hooks** (Linux): install, update or remove the LUG Helper hook blocks.
@@ -282,7 +293,10 @@ For players who want to look things up in the game data. Read only on the game.
   game file, so these are UEX (player-reported) prices: turn on Settings -> Network ->
   *Download UEX market data* and press **Fetch now**, or put `uex-item-prices.json` and
   `uex-terminals.json` in the folder the card names (`<cache>/mcp/uex`). Without them the card
-  says so. It then lists
+  says so. For a commodity or resource (or a cargo box holding one, or a rock whose ore UEX
+  lists) a **Sell** section follows: the 3 commodity kiosks that pay most, with the location,
+  the price per SCU, the day it was last confirmed and the day the prices were fetched, from
+  `uex-commodity-prices.json` in the same folder. It then lists
   the loot containers that can hold the item, one row per area: the place, the container, what
   it is for (Weapons, Armour...), its size and rarity, and rough odds per box. It also lists
   the loot tables that roll the item but that no container uses (enemies, bosses). For an

@@ -3,21 +3,26 @@
 //! the WHERE TO GET generator reads. [`crate::tools::Tools::obtain_hints`] fills them for
 //! every item and mined resource of a build.
 //!
-//! Only short place names and labels are kept, never prices: shop prices go stale between
-//! applies, and the text of a description should stay true until the next build.
+//! Only short place names and labels are kept, never shop prices. The one exception is the
+//! commodity sell line (the best kiosk prices per SCU): it carries prices, and the generator
+//! rounds them and stamps the line with the day they were fetched, as they go stale.
 
 use crate::sources::{LootContainer, MinedReport, OreQuality};
 use starorg_core::apply::{ObtainFetch, ObtainProvider, ObtainSource};
 use starorg_core::model::{
-    LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, ShopHint,
+    LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, SellHint, ShopHint,
 };
 use starorg_gamedata::query::obtain::AreaSummary;
+use starorg_gamedata::query::sells::{MatchStats, SellRow};
 use starorg_gamedata::query::shops::LocatedShop;
 
 /// Loot rows kept per item (the rest are counted in `loot_total`).
 pub const MAX_LOOT: usize = 12;
 /// Shop rows kept per item.
 pub const MAX_SHOPS: usize = 12;
+/// Kiosk rows kept per commodity: the text lists the top 3 and counts the rest
+/// (`sells_total`).
+pub const MAX_SELLS: usize = 3;
 
 /// The hints of one build, with what could not be read.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -28,6 +33,9 @@ pub struct BuiltHints {
     pub warnings: Vec<String>,
     /// Items and resources with at least one source.
     pub items: usize,
+    /// How the UEX commodity names matched the build's resources, when the commodity prices
+    /// were there.
+    pub sell_match: Option<MatchStats>,
 }
 
 /// [`crate::tools::Tools::obtain_hints`] as apply's obtain-hints source (the CLI and the
@@ -311,6 +319,27 @@ pub fn shop_hints(shops: &[LocatedShop], max: usize) -> Vec<ShopHint> {
     out
 }
 
+/// Kiosks that buy the commodity, best price first (as [`best_sells`] ranked them: only
+/// kiosks that pay, none UEX marks off LIVE), with a short place.
+///
+/// [`best_sells`]: starorg_gamedata::query::sells::best_sells
+pub fn sell_hints(rows: &[SellRow], max: usize) -> Vec<SellHint> {
+    rows.iter()
+        .take(max)
+        .map(|r| SellHint {
+            terminal: r.terminal.clone(),
+            place: r
+                .location
+                .split(',')
+                .map(str::trim)
+                .find(|p| !p.is_empty() && *p != r.terminal)
+                .map(str::to_string),
+            system: r.system.clone(),
+            price: r.price_sell,
+        })
+        .collect()
+}
+
 /// A real star system name for a mining location's `system` field, which is the location
 /// key's stem (`Stanton2c`, `Aaronhalo`, `Lagrange`).
 pub fn system_name(system: Option<&str>, location: &str) -> Option<String> {
@@ -491,6 +520,32 @@ mod tests {
             Some("Stanton")
         );
         assert_eq!(system_name(Some("Lagrange"), "Lagrange_A"), None);
+    }
+
+    #[test]
+    fn sell_hints_keep_order_price_and_a_short_place() {
+        let row = |t: &str, loc: &str, p: f64| SellRow {
+            terminal: t.into(),
+            location: loc.into(),
+            system: Some("Stanton".into()),
+            price_sell: p,
+            scu_stock: None,
+            updated: None,
+            stale: false,
+        };
+        let rows = [
+            row("HUR-L2", "HUR-L2 Faithful Dream Station, Stanton", 9612.0),
+            row("TDD Area 18", "Area 18, ArcCorp, Stanton", 9000.0),
+            row("Ruin Station", "Ruin Station, Pyro", 8700.0),
+        ];
+        let h = sell_hints(&rows, 2);
+        assert_eq!(h.len(), 2);
+        assert_eq!(h[0].terminal, "HUR-L2");
+        assert_eq!(h[0].place.as_deref(), Some("HUR-L2 Faithful Dream Station"));
+        assert_eq!(h[1].place.as_deref(), Some("Area 18"));
+        assert_eq!(h[1].price, 9000.0);
+        // A place that is the terminal's own name is skipped.
+        assert_eq!(sell_hints(&rows[2..], 5)[0].place.as_deref(), Some("Pyro"));
     }
 
     #[test]

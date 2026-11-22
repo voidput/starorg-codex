@@ -112,7 +112,8 @@ files in the cache folder, `<cache>/mcp/uex/uex-item-prices.json` and `uex-termi
 (the `status` tool prints the folder). The app downloads them when Settings -> Network ->
 *Download UEX market data* is on and you press **Fetch now**; or put the files
 `sc-gamedata fetch uex-item-prices uex-terminals` writes there yourself (same shape). The MCP
-server itself never downloads anything; it reads a file again once it changed. Without them,
+server itself never downloads anything; it reads a file again once it changed, and answers
+built from the files (shop rows, the app's WHERE TO GET hints) are rebuilt then too. Without them,
 the shop tools say so and the other sources still answer.
 
 `shop_inventory` sorts each row into one of nine categories (`fps-weapons`, `fps-attachments`,
@@ -123,6 +124,12 @@ stores (`item_uuid`), else by a name only one item has. `terminal` takes an id, 
 (`Dumper's GrimHEX`, or UEX's full name), or words of a shop or its place; when several shops
 fit, the answer lists them (`shops`, with `id`, up to 25) and a note to call again with one id.
 The app's **Shops** screen shows the same rows ([user guide](user-guide.md#shops)).
+
+The same **Fetch now** also writes `uex-commodity-prices.json` (UEX `commodities_prices_all`:
+what each commodity kiosk asks and pays per SCU, `{ _source, _fetched, prices, summary }` like
+the item prices; sc-gamedata has no fetch for it yet). The app's Sources card and the WHERE TO
+GET sell line read it through this server's store (matched to the game's resources by name);
+no MCP tool answers from it yet.
 
 ## Data, cache and memory
 

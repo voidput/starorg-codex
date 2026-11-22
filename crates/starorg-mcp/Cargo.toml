@@ -24,6 +24,8 @@ http = ["dep:getrandom"]
 
 [dev-dependencies]
 tempfile.workspace = true
+# Tests write the UEX files with the real fetch code (a fake transport, no network).
+starorg-net.workspace = true
 starorg-mcp = { path = ".", features = ["http"] }
 
 [lints]

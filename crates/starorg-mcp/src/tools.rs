@@ -27,7 +27,9 @@
 
 use crate::owned;
 use crate::shops::{ShopCategory, ShopDirectory, ShopIndex, ShopItems, index_from_files};
-use crate::sources::{MAX_CONTAINERS, MAX_SHOPS, MAX_TABLES, buy_sources, loot_sources};
+use crate::sources::{
+    MAX_CONTAINERS, MAX_SHOPS, MAX_TABLES, SellSources, buy_sources, loot_sources, sell_sources,
+};
 use crate::store::{ChannelSource, Store, ToolError, ToolResult, tool_err};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -38,7 +40,10 @@ use starorg_gamedata::query::obtain::{
     BlueprintLike, Datasets, LootData, LootIndex, ObtainOptions, ObtainReport, WikeloTradeLike,
     build_loot_index, find_items, obtain,
 };
-use starorg_gamedata::query::quality::{Commodities, OreQuality, quality_for};
+use starorg_gamedata::query::quality::{Commodities, OreQuality, QualityResource, quality_for};
+use starorg_gamedata::query::sells::{
+    CommodityPrice, MatchStats, SellRow, best_sells, by_resource,
+};
 use starorg_gamedata::query::shops::{
     AsOf, SHOP_ITEM_LIMIT, ShopInputs, ShopPrice, UexTerminal, limit_shop, shop_inventory,
 };
@@ -48,6 +53,9 @@ use starorg_gamedata::{search_index, strings};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+
+/// The UEX commodity kiosk prices (`starorg_net::uex::COMMODITY_PRICES_FILE`).
+pub const COMMODITY_PRICES_FILE: &str = "uex-commodity-prices.json";
 
 pub const DEFAULT_LIMIT: usize = 10;
 pub const MAX_LIMIT: usize = 50;
@@ -477,7 +485,7 @@ impl<'a> Ctx<'a> {
             (true, false) => "corpus-loot",
             (false, _) => "corpus-shops",
         };
-        self.store.typed(&self.dir, name, || {
+        self.store.typed_uex(&self.dir, name, || {
             let items = self.items()?;
             let mut d = Datasets {
                 items: items.list.clone(),
@@ -531,6 +539,39 @@ impl Ctx<'_> {
         })
     }
 
+    /// The commodity kiosk prices (`uex-commodity-prices.json` rows and `_fetched`) and the
+    /// terminals that place them; `None` when either file is missing or unreadable. Read
+    /// through [`Store::uex`] on every call, so a fresh "Fetch now" counts at once.
+    pub fn commodity_prices(&self) -> Option<CommodityPrices> {
+        let p = self.store.uex(COMMODITY_PRICES_FILE)?;
+        let t = self.store.uex("uex-terminals.json")?;
+        Some(CommodityPrices {
+            rows: serde_json::from_value(p.get("prices")?.clone()).ok()?,
+            fetched: p
+                .get("_fetched")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            terminals: serde_json::from_value(t.get("terminals")?.clone()).ok()?,
+        })
+    }
+
+    /// The card's sell section for a resource; `loaded` false without the UEX files.
+    fn sell(&self, resources: &[QualityResource], res: &QualityResource) -> SellSources {
+        let folder = self
+            .store
+            .cfg
+            .uex_dir
+            .as_ref()
+            .map(|d| d.display().to_string());
+        match self.commodity_prices() {
+            Some(cp) => {
+                let ranked = cp.ranked(resources).remove(&res.name.to_ascii_lowercase());
+                sell_sources(&ranked.unwrap_or_default(), res, true, folder, cp.fetched)
+            }
+            None => sell_sources(&[], res, false, folder, None),
+        }
+    }
+
     /// [`where_mined`] over the build's mining spawns and loot areas.
     pub fn mined(&self, q: &str) -> ToolResult<Vec<MinedReport>> {
         let spawns = self.mining_spawns()?;
@@ -545,6 +586,39 @@ impl Ctx<'_> {
         let c = self.commodities()?;
         let ores: Vec<String> = mined.iter().map(|m| m.ore.clone()).collect();
         Ok(quality_for(&c, record, &ores))
+    }
+}
+
+/// `uex-commodity-prices.json` with the terminals that place it.
+pub struct CommodityPrices {
+    pub rows: Vec<CommodityPrice>,
+    /// The file's `_fetched` (RFC 3339).
+    pub fetched: Option<String>,
+    pub terminals: Vec<UexTerminal>,
+}
+
+impl CommodityPrices {
+    /// Kiosks buying each resource (by `name`, lower case), best price first.
+    pub fn ranked(
+        &self,
+        resources: &[QualityResource],
+    ) -> std::collections::BTreeMap<String, Vec<SellRow>> {
+        self.ranked_with_stats(resources).0
+    }
+
+    /// [`Self::ranked`], with how the names matched.
+    pub fn ranked_with_stats(
+        &self,
+        resources: &[QualityResource],
+    ) -> (std::collections::BTreeMap<String, Vec<SellRow>>, MatchStats) {
+        let as_of = self.fetched.clone().map(AsOf::Iso);
+        let (by, stats) = by_resource(&self.rows, resources);
+        let ranked = by
+            .into_iter()
+            .map(|(k, rows)| (k, best_sells(&rows, &self.terminals, as_of.as_ref())))
+            .filter(|(_, r)| !r.is_empty())
+            .collect();
+        (ranked, stats)
     }
 }
 
@@ -1930,8 +2004,17 @@ impl Tools {
             }
             None => (None, None),
         };
+        // A resource, cargo holding one, or a mined ore's resource: where it sells best.
+        let c = ctx.commodities()?;
+        let res = c.resource_of(record).or_else(|| {
+            quality
+                .iter()
+                .find_map(|q| c.resources.iter().find(|r| r.record_name == q.resource))
+        });
+        let sell = res.map(|r| ctx.sell(&c.resources, r));
         Ok(crate::sources::RecordSources {
             buy,
+            sell,
             loot,
             mined,
             quality,
@@ -1939,12 +2022,14 @@ impl Tools {
     }
 
     /// Obtain hints for `global.ini` descriptions (spec obtain-hints): for every item of
-    /// item-tags its loot containers and (UEX files present) shops, and for every resource
+    /// item-tags its loot containers and (UEX files present) shops, for every resource the
+    /// best commodity kiosk prices (UEX commodity prices present), and for every resource
     /// with a quality spread where it is mined and its quality. Keyed by lower-case class
     /// and resource name; `desc` is left for the caller (apply fills it from its own
     /// `GameData`). The first call per build extracts item-tags, loot, item-sources,
     /// mining-spawns and commodities; a group that fails leaves its lines out and says so
-    /// in `warnings`. Kept in memory per build once complete (a partial answer is built
+    /// in `warnings`. Kept in memory per build once complete, until a UEX file changes
+    /// ([`Store::typed_uex`]; a partial answer is built
     /// again next time, so a raised memory limit takes effect).
     pub fn obtain_hints(&self, channel: &str) -> ToolResult<Arc<crate::hints::BuiltHints>> {
         self.obtain_hints_with(channel, true)
@@ -1960,7 +2045,7 @@ impl Tools {
         let mut ctx = Ctx::for_channel(&self.store, Some(channel))?;
         ctx.extract = extract;
         let mut partial = None;
-        let r = ctx.store.typed(&ctx.dir, "obtain-hints", || {
+        let r = ctx.store.typed_uex(&ctx.dir, "obtain-hints", || {
             let b = build_hints(&ctx);
             if b.warnings.is_empty() {
                 Ok(b)
@@ -2081,8 +2166,28 @@ fn build_hints(ctx: &Ctx<'_>) -> crate::hints::BuiltHints {
         out.warnings
             .push(format!("mining and quality lines left out: {e}"));
     }
+    add_sells(ctx, &mut out);
     out.items = out.hints.items.len();
     out
+}
+
+/// Adds the commodity sell lines from the UEX commodity prices to `out`, keyed by resource
+/// name like the mining lines; `None` (nothing added) when the prices or the commodities
+/// dataset are not there, which leaves the sell lines out.
+fn add_sells(ctx: &Ctx<'_>, out: &mut crate::hints::BuiltHints) -> Option<()> {
+    use crate::hints::{MAX_SELLS, sell_hints};
+    let cp = ctx.commodity_prices()?;
+    let c = ctx.commodities().ok()?;
+    let (ranked, stats) = cp.ranked_with_stats(&c.resources);
+    for (resource, rows) in ranked {
+        let item = out.hints.items.entry(resource).or_default();
+        item.sells = sell_hints(&rows, MAX_SELLS);
+        item.sells_total = rows.len();
+    }
+    out.hints.prices_fetched = cp.fetched;
+    out.items = out.hints.items.len();
+    out.sell_match = Some(stats);
+    Some(())
 }
 
 /// Paths a test or caller may want: the UEX folder under a cache dir.

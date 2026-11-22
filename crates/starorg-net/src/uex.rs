@@ -1,15 +1,19 @@
-//! UEX Corp market data (spec obtain-hints): the two files WHERE TO GET's shop line and the
-//! MCP shop tools read, fetched from `api.uexcorp.space` while Settings -> Network ->
-//! "Download UEX market data" is on.
+//! UEX Corp market data (spec obtain-hints): the three files WHERE TO GET's shop and sell
+//! lines, the Sources card and the MCP shop tools read, fetched from `api.uexcorp.space`
+//! while Settings -> Network -> "Download UEX market data" is on.
 //!
-//! The output matches sibling `sc-gamedata`'s `fetch` exactly (`src/domains/uex-market.ts`):
+//! The first two match sibling `sc-gamedata`'s `fetch` exactly (`src/domains/uex-market.ts`);
+//! the third follows the same conventions (sc-gamedata has no fetch for it yet):
 //!
 //! - `uex-terminals.json`: `{ _source, _fetched, terminals: [...], summary: { terminals } }`,
 //!   rows cut to [`TERMINAL_KEYS`] ([`trim_terminal`]);
 //! - `uex-item-prices.json`: `{ _source, _fetched, prices: [...], summary: { prices, items } }`,
-//!   rows cut to [`ITEM_PRICE_KEYS`] ([`trim_item_price`]).
+//!   rows cut to [`ITEM_PRICE_KEYS`] ([`trim_item_price`]);
+//! - `uex-commodity-prices.json` (`commodities_prices_all`, aUEC per SCU at commodity
+//!   kiosks): `{ _source, _fetched, prices: [...], summary: { prices, commodities } }`, rows
+//!   cut to [`COMMODITY_PRICE_KEYS`] ([`trim_commodity_price`]).
 //!
-//! Both endpoints are public. The user's token, when one is set, is sent as
+//! All three endpoints are public. The user's token, when one is set, is sent as
 //! `Authorization: Bearer` to this host and nowhere else; a wrong token is an error (UEX
 //! denies it even on public endpoints). Error text never contains the token.
 
@@ -27,7 +31,11 @@ pub const BASE: &str = "https://api.uexcorp.space/2.0";
 pub const SOURCE: &str = "UEX Corp API (https://uexcorp.space)";
 pub const TERMINALS_FILE: &str = "uex-terminals.json";
 pub const PRICES_FILE: &str = "uex-item-prices.json";
-/// Largest response read. `items_prices_all` is about 6.4 MB (Nov 2026), `terminals` 1 MB.
+pub const COMMODITY_PRICES_FILE: &str = "uex-commodity-prices.json";
+/// Every file [`fetch_market`] writes.
+pub const FILES: &[&str] = &[PRICES_FILE, COMMODITY_PRICES_FILE, TERMINALS_FILE];
+/// Largest response read. `items_prices_all` is about 6.4 MB (Nov 2026), `terminals` 1 MB,
+/// `commodities_prices_all` 1.1 MB.
 pub const MAX_BYTES: u64 = 64 * 1024 * 1024;
 
 /// The columns a terminal row keeps: what places it.
@@ -63,6 +71,21 @@ pub const ITEM_PRICE_KEYS: &[&str] = &[
     "date_modified",
 ];
 
+/// The columns a commodity price row keeps. Prices are aUEC per SCU; `scu_sell_stock` is
+/// what the kiosk holds and `status_sell` UEX's 1-7 stock level. The rest is averages,
+/// container sizes and history.
+pub const COMMODITY_PRICE_KEYS: &[&str] = &[
+    "commodity_name",
+    "id_commodity",
+    "terminal_name",
+    "id_terminal",
+    "price_buy",
+    "price_sell",
+    "scu_sell_stock",
+    "status_sell",
+    "date_modified",
+];
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum UexError {
     /// No answer (DNS, TLS, timeout, connection).
@@ -83,7 +106,7 @@ impl std::fmt::Display for UexError {
             Self::Network(m) => write!(f, "UEX could not be reached: {m}"),
             Self::Token(m) => write!(
                 f,
-                "UEX refused the token ({m}). Check it in Settings -> Network, or remove it: both files are public."
+                "UEX refused the token ({m}). Check it in Settings -> Network, or remove it: every file is public."
             ),
             Self::Refused(m) => write!(f, "UEX answered with an error: {m}"),
             Self::Bad(m) => write!(f, "UEX sent something unexpected: {m}"),
@@ -264,8 +287,20 @@ pub fn trim_terminal(row: &Value) -> Value {
 /// `trimItemPriceRow`: the keys of [`ITEM_PRICE_KEYS`] in that order, without null, blank
 /// and zero.
 pub fn trim_item_price(row: &Value) -> Value {
+    trim_nonzero(row, ITEM_PRICE_KEYS)
+}
+
+/// A commodity price row cut like an item price row: the keys of [`COMMODITY_PRICE_KEYS`]
+/// in that order, without null, blank and zero (a kiosk that does not buy the commodity
+/// has no `price_sell`).
+pub fn trim_commodity_price(row: &Value) -> Value {
+    trim_nonzero(row, COMMODITY_PRICE_KEYS)
+}
+
+/// The keys of `keys` in that order, without null, blank and zero.
+fn trim_nonzero(row: &Value, keys: &[&str]) -> Value {
     let mut out = Map::new();
-    for key in ITEM_PRICE_KEYS {
+    for key in keys {
         let Some(v) = row.get(*key) else { continue };
         if blank(v) || is_zero(v) {
             continue;
@@ -319,20 +354,44 @@ pub fn prices_file(fetched: &str, rows: &[Value]) -> Value {
     )
 }
 
+/// `uex-commodity-prices.json` from the rows of `commodities_prices_all`. `commodities`
+/// counts distinct `id_commodity` values, a missing one counting once.
+pub fn commodity_prices_file(fetched: &str, rows: &[Value]) -> Value {
+    let rows: Vec<Value> = rows.iter().map(trim_commodity_price).collect();
+    let commodities: HashSet<String> = rows
+        .iter()
+        .map(|r| {
+            r.get("id_commodity")
+                .map(Value::to_string)
+                .unwrap_or_default()
+        })
+        .collect();
+    let n = rows.len();
+    file_body(
+        fetched,
+        "prices",
+        rows,
+        serde_json::json!({ "prices": n, "commodities": commodities.len() }),
+    )
+}
+
 /// What [`fetch_market`] wrote.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FetchReport {
     pub terminals: usize,
     pub prices: usize,
     pub items: usize,
-    /// Bytes written, both files.
+    /// Commodity price rows, and the distinct commodities in them.
+    pub commodity_prices: usize,
+    pub commodities: usize,
+    /// Bytes written, all files.
     pub bytes: u64,
     pub fetched: String,
 }
 
-/// Fetches both endpoints, then writes both files into `dir` (each atomically: temp file,
-/// then rename). Nothing is written unless both answers are good, so a failure keeps the
-/// files that were there.
+/// Fetches the three endpoints, then writes the three files ([`FILES`]) into `dir` (each
+/// atomically: temp file, then rename). Nothing is written unless every answer is good, so
+/// a failure keeps the files that were there.
 pub fn fetch_market(
     t: &dyn UexTransport,
     dir: &Path,
@@ -344,11 +403,17 @@ pub fn fetch_market(
         &t.get("items_prices_all", token)?,
         token,
     )?;
-    if terminals.is_empty() || prices.is_empty() {
+    let commodity = rows_of(
+        "commodities_prices_all",
+        &t.get("commodities_prices_all", token)?,
+        token,
+    )?;
+    if terminals.is_empty() || prices.is_empty() || commodity.is_empty() {
         return Err(UexError::Bad(format!(
-            "{} terminals and {} prices; keeping the files there were",
+            "{} terminals, {} item prices and {} commodity prices; keeping the files there were",
             terminals.len(),
-            prices.len()
+            prices.len(),
+            commodity.len()
         )));
     }
     let ms = std::time::SystemTime::now()
@@ -358,16 +423,23 @@ pub fn fetch_market(
     let fetched = iso_millis(ms);
     let tf = terminals_file(&fetched, &terminals);
     let pf = prices_file(&fetched, &prices);
+    let cf = commodity_prices_file(&fetched, &commodity);
     let count = |v: &Value, k: &str| v["summary"][k].as_u64().unwrap_or(0) as usize;
     let report = FetchReport {
         terminals: count(&tf, "terminals"),
         prices: count(&pf, "prices"),
         items: count(&pf, "items"),
+        commodity_prices: count(&cf, "prices"),
+        commodities: count(&cf, "commodities"),
         bytes: 0,
         fetched,
     };
     let mut bytes = 0;
-    for (name, v) in [(TERMINALS_FILE, &tf), (PRICES_FILE, &pf)] {
+    for (name, v) in [
+        (TERMINALS_FILE, &tf),
+        (PRICES_FILE, &pf),
+        (COMMODITY_PRICES_FILE, &cf),
+    ] {
         let b = serde_json::to_vec_pretty(v).map_err(|e| UexError::Io(e.to_string()))?;
         bytes += b.len() as u64;
         fsutil::write_atomic(&dir.join(name), &b)
@@ -473,6 +545,49 @@ mod tests {
         assert_eq!(keys[7], "date_modified");
     }
 
+    /// A real `commodities_prices_all` row (Nov 2026), `price_sell` swapped in.
+    fn commodity_row(id: u64, terminal: u64, sell: f64) -> Value {
+        json!({
+            "id": 2, "id_commodity": id, "id_terminal": terminal, "price_buy": 0,
+            "price_buy_avg": 0, "price_sell": sell, "price_sell_avg": 3800, "scu_buy": 0,
+            "scu_buy_avg": 0, "scu_sell_stock": 5, "scu_sell_stock_avg": 85, "scu_sell": 0,
+            "scu_sell_avg": 593, "status_buy": 0, "status_sell": 1,
+            "container_sizes": "1,2,4,8,16,24,32", "quality": 0, "date_added": 1703514825,
+            "date_modified": 1795227950, "commodity_name": "Aluminum",
+            "terminal_name": "TDD Area 18"
+        })
+    }
+
+    #[test]
+    fn commodity_rows_keep_price_place_and_date() {
+        let c = trim_commodity_price(&commodity_row(5, 12, 3800.0));
+        assert_eq!(
+            c,
+            json!({
+                "commodity_name": "Aluminum", "id_commodity": 5, "terminal_name": "TDD Area 18",
+                "id_terminal": 12, "price_sell": 3800.0, "scu_sell_stock": 5, "status_sell": 1,
+                "date_modified": 1795227950
+            })
+        );
+        let keys: Vec<&str> = c.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(keys[0], "commodity_name");
+        assert_eq!(keys[7], "date_modified");
+        // A kiosk that does not buy it: no price_sell at all.
+        let none = trim_commodity_price(&commodity_row(5, 12, 0.0));
+        assert!(none.get("price_sell").is_none(), "{none}");
+        let f = commodity_prices_file(
+            "x",
+            &[
+                commodity_row(5, 1, 1.0),
+                commodity_row(5, 2, 2.0),
+                commodity_row(7, 1, 3.0),
+            ],
+        );
+        let keys: Vec<&str> = f.as_object().unwrap().keys().map(String::as_str).collect();
+        assert_eq!(keys, ["_source", "_fetched", "prices", "summary"]);
+        assert_eq!(f["summary"], json!({ "prices": 3, "commodities": 2 }));
+    }
+
     #[test]
     fn files_carry_source_fetched_rows_and_summary() {
         let rows = [
@@ -556,7 +671,7 @@ mod tests {
     }
 
     #[test]
-    fn fetch_writes_both_files_and_sends_the_token_given() {
+    fn fetch_writes_every_file_and_sends_the_token_given() {
         let dir = tempfile::tempdir().unwrap();
         let fake = Fake {
             answers: vec![
@@ -566,16 +681,19 @@ mod tests {
                     200,
                     ok(json!([price_row(Some("a")), price_row(Some("b"))])),
                 ),
+                (
+                    "commodities_prices_all",
+                    200,
+                    ok(json!([commodity_row(5, 1, 3800.0)])),
+                ),
             ],
             seen: Mutex::default(),
         };
         let r = fetch_market(&fake, dir.path(), Some("tok")).unwrap();
         assert_eq!((r.terminals, r.prices, r.items), (1, 2, 2));
+        assert_eq!((r.commodity_prices, r.commodities), (1, 1));
         assert!(r.bytes > 0);
-        assert_eq!(
-            *fake.seen.lock().unwrap(),
-            [Some("tok".to_string()), Some("tok".to_string())]
-        );
+        assert_eq!(*fake.seen.lock().unwrap(), vec![Some("tok".to_string()); 3]);
         let read = |n: &str| -> Value {
             serde_json::from_slice(&std::fs::read(dir.path().join(n)).unwrap()).unwrap()
         };
@@ -583,12 +701,34 @@ mod tests {
         assert_eq!(p["_fetched"], r.fetched);
         assert_eq!(p["prices"].as_array().unwrap().len(), 2);
         assert_eq!(read(TERMINALS_FILE)["terminals"][0]["id"], 1);
+        let c = read(COMMODITY_PRICES_FILE);
+        assert_eq!(c["_fetched"], r.fetched);
+        assert_eq!(c["prices"][0]["price_sell"], 3800.0);
         // No temp files left behind.
-        let names: Vec<_> = std::fs::read_dir(dir.path())
+        let mut names: Vec<_> = std::fs::read_dir(dir.path())
             .unwrap()
             .map(|e| e.unwrap().file_name().into_string().unwrap())
             .collect();
-        assert_eq!(names.len(), 2, "{names:?}");
+        names.sort();
+        let mut want: Vec<_> = FILES.iter().map(|s| s.to_string()).collect();
+        want.sort();
+        assert_eq!(names, want);
+    }
+
+    #[test]
+    fn an_empty_commodity_answer_writes_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Fake {
+            answers: vec![
+                ("terminals", 200, ok(json!([terminal_row()]))),
+                ("items_prices_all", 200, ok(json!([price_row(Some("a"))]))),
+                ("commodities_prices_all", 200, ok(json!([]))),
+            ],
+            seen: Mutex::default(),
+        };
+        let e = fetch_market(&fake, dir.path(), None).unwrap_err();
+        assert!(matches!(e, UexError::Bad(_)), "{e:?}");
+        assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 0);
     }
 
     #[test]
@@ -612,7 +752,7 @@ mod tests {
         assert_eq!(*fake.seen.lock().unwrap(), [None, None]);
     }
 
-    /// Real network, no token: both files fetch and parse.
+    /// Real network, no token: every file fetches and parses.
     #[test]
     #[ignore = "network"]
     fn live_fetch() {
@@ -622,6 +762,6 @@ mod tests {
         let t = std::time::Instant::now();
         let r = fetch_market(&HttpTransport::new(), &dir, None).unwrap();
         eprintln!("{r:?} in {:?}", t.elapsed());
-        assert!(r.terminals > 100 && r.prices > 1000);
+        assert!(r.terminals > 100 && r.prices > 1000 && r.commodity_prices > 1000);
     }
 }

@@ -677,6 +677,9 @@ pub struct Profile {
     pub obtain_mode: ObtainMode,
     /// Shop names from the user's UEX files in the block (never prices).
     pub obtain_shops: bool,
+    /// The `sell` line: the best commodity kiosks with a rounded price per SCU and the day
+    /// the UEX prices were fetched. Off by default, on in Everything.
+    pub obtain_prices: bool,
     /// Names for items whose name key stock lacks (spec missing-names): adds keys, never
     /// edits a stock line.
     pub missing_names: bool,
@@ -707,23 +710,25 @@ pub enum ObtainMode {
 /// One UEX file the WHERE TO GET shop line reads.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct UexFile {
-    /// `uex-item-prices.json`, `uex-terminals.json`.
+    /// `uex-item-prices.json`, `uex-commodity-prices.json`, `uex-terminals.json`.
     pub name: String,
     pub present: bool,
     /// Last modified (RFC 3339 UTC), when present.
     pub modified: Option<String>,
 }
 
-/// Where the shop names of WHERE TO GET come from (spec obtain-hints): UEX files in
-/// `uex_folder`, downloaded by `fetch_uex` while "Download UEX market data" is on or put
-/// there by the user. Shows names only, never prices.
+/// Where the shop names and sell prices of WHERE TO GET come from (spec obtain-hints): UEX
+/// files in `uex_folder`, downloaded by `fetch_uex` while "Download UEX market data" is on
+/// or put there by the user. Shops are names only; the sell line has rounded prices.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObtainStatus {
     /// `<cache>/mcp/uex` (shared with the Sources card and the MCP server).
     pub uex_folder: String,
     pub files: Vec<UexFile>,
-    /// Every file is there: the shops line can say something.
+    /// Item prices and terminals are there: the shops line can say something.
     pub shops_ready: bool,
+    /// Commodity prices and terminals are there: the sell line can say something.
+    pub prices_ready: bool,
 }
 
 /// Whether a UEX API token is saved, and where. Never the token itself.

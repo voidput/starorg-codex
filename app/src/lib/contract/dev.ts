@@ -472,9 +472,40 @@ export interface OreQuality {
   steps: QualityStep[];
 }
 
+/** One commodity kiosk that buys the resource: UEX (player-reported) prices, not game files. */
+export interface SellOffer {
+  terminal: string;
+  location: string;
+  /** aUEC per SCU. */
+  price_sell: number;
+  /** SCU the kiosk holds, when UEX knows. */
+  scu_stock: number | null;
+  /** YYYY-MM-DD the row was last confirmed. */
+  updated: string | null;
+  /** Older than 30 days. */
+  stale: boolean;
+}
+
+export interface SellSources {
+  /** False when uex-commodity-prices.json or uex-terminals.json is missing from `folder`. */
+  loaded: boolean;
+  folder: string | null;
+  /** `ResourceType.Laranite` and its shown name. */
+  resource: string;
+  name: string;
+  /** Best price first, at most 3. */
+  offers: SellOffer[];
+  /** Kiosks that buy it in all. */
+  total: number;
+  /** When the prices were fetched (RFC 3339). */
+  fetched: string | null;
+}
+
 export interface RecordSources {
   /** Null when the record is no item. */
   buy: BuySources | null;
+  /** Where it sells best; null when the record is no resource (or cargo holding one). */
+  sell: SellSources | null;
   loot: LootSources | null;
   mined: MinedReport[];
   /** The quality the record (a resource) or its mined ores come in. */

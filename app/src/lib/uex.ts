@@ -6,7 +6,7 @@ import { api, toContractError } from '@/lib/contract/client';
 import type * as T from '@/lib/contract/types';
 import { toast } from '@/lib/stores/toast.svelte';
 
-/** Downloads both UEX files; the new folder status, or null when it failed (toast says why). */
+/** Downloads the UEX files; the new folder status, or null when it failed (toast says why). */
 export async function fetchUexNow(): Promise<T.ObtainStatus | null> {
   try {
     const s = await api.fetchUex();

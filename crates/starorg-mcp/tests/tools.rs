@@ -109,7 +109,10 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
             {"name": "Raw_Quantainium", "recordName": "ResourceType.Raw_Quantainium", "quality": {"tier": "Legendary",
              "distribution": {"min": 0, "max": 1000, "mean": 500, "stddev": 100},
              "locationOverrides": [{"location": "Pyro System", "min": 0, "max": 1000, "mean": 600, "stddev": 100}],
-             "bands": [{"start": 0, "end": 499, "value": 250}, {"start": 500, "end": 1000, "value": 750}]}}
+             "bands": [{"start": 0, "end": 499, "value": 250}, {"start": 500, "end": 1000, "value": 750}]}},
+            {"name": "Laranite", "recordName": "ResourceType.Laranite", "displayName": "Laranite"}
+        ], "items": [
+            {"name": "Laranite_Cargo_1SCU", "resource": "Laranite", "displayName": "Laranite"}
         ]}),
     );
     d.insert(
@@ -218,6 +221,19 @@ impl World {
             json!({"terminals": [
                 {"id": 1, "nickname": "Guns Ruin", "displayname": "Ruin Station", "orbit_name": "Terminus", "star_system_name": "Pyro"},
                 {"id": 2, "nickname": "Dumper's GrimHEX", "displayname": "Grim HEX", "moon_name": "Yela", "orbit_name": "Crusader", "star_system_name": "Stanton"}
+            ]})
+            .to_string(),
+        )
+        .unwrap();
+        // Commodity kiosk prices: three buy laranite, one pays nothing, one name is unknown.
+        std::fs::write(
+            uex.join("uex-commodity-prices.json"),
+            json!({"_fetched": "2026-11-21T09:00:00.000Z", "prices": [
+                {"commodity_name": "Laranite", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 8700, "date_modified": 1794268800},
+                {"commodity_name": "Laranite", "id_terminal": 2, "terminal_name": "Dumper's GrimHEX", "price_sell": 9612, "date_modified": 1794268800},
+                {"commodity_name": "Laranite", "id_terminal": 3, "terminal_name": "TDD Area 18", "price_buy": 9900},
+                {"commodity_name": "Sadaryx", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 41},
+                {"commodity_name": "Unobtainium", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 5}
             ]})
             .to_string(),
         )
@@ -1147,6 +1163,41 @@ fn sources_card_is_typed_and_exact() {
     // No fuzzy match: a near name is no item.
     let none = t.sources("LIVE", "behr_lmg_ballistic").unwrap();
     assert!(none.loot.is_none() && none.mined.is_empty());
+    // Sell prices: only for a resource (or cargo holding one), best first.
+    assert!(gun.sell.is_none() && none.sell.is_none());
+    let lar = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert!(lar.loaded);
+    assert_eq!(
+        (lar.resource.as_str(), lar.name.as_str()),
+        ("ResourceType.Laranite", "Laranite")
+    );
+    let got: Vec<(&str, f64)> = lar
+        .offers
+        .iter()
+        .map(|o| (o.terminal.as_str(), o.price_sell))
+        .collect();
+    assert_eq!(got, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.total, 2);
+    assert_eq!(lar.offers[1].location, "Ruin Station, Terminus, Pyro");
+    assert_eq!(lar.fetched.as_deref(), Some("2026-11-21T09:00:00.000Z"));
+    let cargo = t
+        .sources("LIVE", "EntityClassDefinition.Laranite_Cargo_1SCU")
+        .unwrap();
+    assert_eq!(cargo.sell.unwrap().offers.len(), 2);
+    let sad = ore.sell.unwrap();
+    assert_eq!(sad.offers[0].price_sell, 41.0);
+    // Without the file: the section says so.
+    std::fs::remove_file(w.root.join("cache/uex/uex-commodity-prices.json")).unwrap();
+    let gone = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert!(!gone.loaded && gone.offers.is_empty());
 }
 
 #[test]
@@ -1191,11 +1242,62 @@ fn obtain_hints_cover_items_and_mined_resources() {
     assert_eq!(s.mined[0].place, "Rock Cracker, Nyx");
     assert_eq!(s.mined[0].kind.as_deref(), Some("hand"));
     assert_eq!(s.quality.as_ref().unwrap().mean, 201.0);
+    // Sell lines per resource, best first, with the fetch time; the match rate.
+    let lar = &h.items["laranite"];
+    let sells: Vec<(&str, f64)> = lar
+        .sells
+        .iter()
+        .map(|s| (s.terminal.as_str(), s.price))
+        .collect();
+    assert_eq!(sells, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.sells[0].place.as_deref(), Some("Grim HEX"));
+    assert_eq!(lar.sells[0].system.as_deref(), Some("Stanton"));
+    assert_eq!(lar.sells_count(), 2);
+    assert_eq!(h.items["sadaryx"].sells[0].price, 41.0);
+    assert!(fs9.sells.is_empty());
+    assert_eq!(
+        h.prices_fetched.as_deref(),
+        Some("2026-11-21T09:00:00.000Z")
+    );
+    let m = b.sell_match.as_ref().unwrap();
+    assert_eq!((m.commodities, m.matched), (3, 2));
+    assert_eq!(m.unmatched, ["Unobtainium"]);
     // Kept in memory: no second extraction.
     let runs = w.fake.runs.load(Ordering::SeqCst);
     let again = t.obtain_hints("LIVE").unwrap();
     assert_eq!(again.items, b.items);
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // A fresh price file counts at once, though the rest stays cached.
+    let f = w.root.join("cache/uex/uex-commodity-prices.json");
+    std::fs::write(&f, json!({"_fetched": "2026-11-22T09:00:00.000Z", "prices": [
+        {"commodity_name": "Laranite", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 9999}
+    ]}).to_string()).unwrap();
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    std::fs::File::options()
+        .write(true)
+        .open(&f)
+        .unwrap()
+        .set_modified(later)
+        .unwrap();
+    let fresh = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(fresh.hints.items["laranite"].sells[0].price, 9999.0);
+    assert_eq!(
+        fresh.hints.prices_fetched.as_deref(),
+        Some("2026-11-22T09:00:00.000Z")
+    );
+    assert!(
+        !fresh
+            .hints
+            .items
+            .get("sadaryx")
+            .is_some_and(|s| !s.sells.is_empty())
+    );
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // Without the file: no sell lines, the rest as before.
+    std::fs::remove_file(&f).unwrap();
+    let none = t.obtain_hints("LIVE").unwrap();
+    assert!(none.hints.items.values().all(|i| i.sells.is_empty()));
+    assert!(none.hints.prices_fetched.is_none() && none.sell_match.is_none());
 }
 
 #[test]
@@ -1229,4 +1331,82 @@ fn obtain_hints_keep_what_did_not_fail() {
     assert_eq!(c.warnings.len(), 2, "{:?}", c.warnings);
     // An unknown channel is an error.
     assert!(t.obtain_hints("NOPE").is_err());
+}
+
+/// UEX answers for `starorg_net::uex::fetch_market`: Dumper's renamed, Laranite repriced.
+struct FakeUex;
+
+impl starorg_net::uex::UexTransport for FakeUex {
+    fn get(
+        &self,
+        endpoint: &str,
+        _token: Option<&str>,
+    ) -> Result<starorg_net::uex::Answer, starorg_net::uex::UexError> {
+        let data = match endpoint {
+            "terminals" => json!([
+                {"id": 1, "nickname": "Guns Ruin", "displayname": "Ruin Station", "orbit_name": "Terminus", "star_system_name": "Pyro", "is_available": 1, "is_available_live": 1},
+                {"id": 2, "nickname": "Dumper's Depot", "displayname": "Grim HEX", "moon_name": "Yela", "orbit_name": "Crusader", "star_system_name": "Stanton", "is_available": 1, "is_available_live": 1}
+            ]),
+            "items_prices_all" => json!([
+                {"item_name": "FS-9 LMG", "item_uuid": "id-fs9", "id_terminal": 2, "terminal_name": "Dumper's Depot", "price_buy": 6500, "date_modified": 1794268800}
+            ]),
+            "commodities_prices_all" => json!([
+                {"commodity_name": "Laranite", "id_terminal": 2, "terminal_name": "Dumper's Depot", "price_sell": 12000, "date_modified": 1794268800}
+            ]),
+            other => panic!("unexpected endpoint {other}"),
+        };
+        Ok(starorg_net::uex::Answer {
+            status: 200,
+            body: serde_json::to_vec(&json!({"status": "ok", "data": data})).unwrap(),
+        })
+    }
+}
+
+#[test]
+fn a_fetch_while_the_tools_run_refreshes_every_uex_answer() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    let gun = "EntityClassDefinition.behr_lmg_ballistic_01";
+    let before = t.sources("LIVE", gun).unwrap().buy.unwrap();
+    assert_eq!(before.offers[0].terminal, "Dumper's GrimHEX");
+    let h = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(
+        h.hints.items["behr_lmg_ballistic_01"].shops[0].terminal,
+        "Dumper's GrimHEX"
+    );
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    // "Fetch now" with the app's own code, then a newer modified time (a coarse clock may
+    // give the old second).
+    let uex = w.root.join("cache/uex");
+    starorg_net::uex::fetch_market(&FakeUex, &uex, None).unwrap();
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    for f in starorg_net::uex::FILES {
+        std::fs::File::options()
+            .write(true)
+            .open(uex.join(f))
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+    }
+    // Same Tools: the card, the shop tool and the in-game hints all see the new names.
+    let buy = t.sources("LIVE", gun).unwrap().buy.unwrap();
+    assert_eq!(buy.total, 1);
+    assert_eq!(buy.offers[0].terminal, "Dumper's Depot");
+    assert_eq!(buy.offers[0].price_buy, 6500.0);
+    let lar = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert_eq!(lar.offers[0].terminal, "Dumper's Depot");
+    let h = t.obtain_hints("LIVE").unwrap();
+    let fs9 = &h.hints.items["behr_lmg_ballistic_01"];
+    let shops: Vec<&str> = fs9.shops.iter().map(|s| s.terminal.as_str()).collect();
+    assert_eq!(shops, ["Dumper's Depot"]);
+    assert_eq!(h.hints.items["laranite"].sells[0].price, 12000.0);
+    let args = json!({"item": "FS-9 LMG"});
+    let found = t.call("where_to_buy", args.as_object().unwrap()).unwrap();
+    assert!(found.to_string().contains("Dumper's Depot"), "{found}");
+    // Nothing extracted again: only the UEX-derived values were rebuilt.
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
 }

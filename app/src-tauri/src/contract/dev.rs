@@ -34,7 +34,8 @@ pub use starorg_core::dev::sections::{
     Matching, SectionStats, SortKey, Stat, TreeOpts, VariantRef,
 };
 pub use starorg_mcp::sources::{
-    BuySources, LootContainer, LootSources, LootTableOdds, RecordSources, ShopOffer,
+    BuySources, LootContainer, LootSources, LootTableOdds, RecordSources, SellOffer, SellSources,
+    ShopOffer,
 };
 pub use starorg_mcp::sources::{MinedBelt, MinedReport, MinedSpot};
 pub use starorg_mcp::sources::{OreQuality, QualityOverride, QualityRange, QualityStep};

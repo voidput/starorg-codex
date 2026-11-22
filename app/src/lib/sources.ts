@@ -1,8 +1,8 @@
 /**
  * The Explorer record's Sources card, as pure functions: which records get one, percent
  * and price text, place names and the card's storage key. The data comes from
- * `dev_record_sources` (shops from UEX files the user supplied, loot containers from the
- * loot tables, mining places from the mining spawns).
+ * `dev_record_sources` (shops and commodity kiosks from UEX files the user supplied, loot
+ * containers from the loot tables, mining places from the mining spawns).
  */
 import type { MinedBelt, MinedSpot, QualityRange, RecordSources } from './contract/dev';
 
@@ -47,12 +47,14 @@ export function beltBars(belts: MinedBelt[]): number[] {
   });
 }
 
-/** The header's summary: "2 shops · 12 loot areas · 3 mining places", or null when empty. */
+/** The header's summary: "2 shops · 5 kiosks buy it · 12 loot areas · 3 mining places", or null when empty. */
 export function sourcesSummary(s: RecordSources | null): string | null {
   if (!s) return null;
   const parts: string[] = [];
   const b = s.buy?.total ?? 0;
   if (b) parts.push(`${b} shop${b === 1 ? '' : 's'}`);
+  const k = s.sell?.total ?? 0;
+  if (k) parts.push(`${k} kiosk${k === 1 ? '' : 's'} buy${k === 1 ? 's' : ''} it`);
   const c = s.loot?.container_total ?? 0;
   if (c) parts.push(`${c} loot area${c === 1 ? '' : 's'}`);
   const m = Array.isArray(s.mined) ? s.mined.reduce((n, r) => n + r.belts.length + r.spots.length, 0) : 0;
@@ -60,10 +62,12 @@ export function sourcesSummary(s: RecordSources | null): string | null {
   return parts.length ? parts.join(' · ') : null;
 }
 
-/** Nothing to show: no shop row, loot row or mining place. Missing UEX files still show a note. */
+/** Nothing to show: no shop or kiosk row, loot row or mining place. Missing UEX files still show a note. */
 export const isEmpty = (s: RecordSources): boolean =>
   !s.buy?.offers.length &&
   s.buy?.loaded !== false &&
+  !s.sell?.offers.length &&
+  s.sell?.loaded !== false &&
   !s.loot?.containers.length &&
   !s.loot?.tables.length &&
   !(Array.isArray(s.mined) && s.mined.length) &&
@@ -71,6 +75,16 @@ export const isEmpty = (s: RecordSources): boolean =>
 
 /** "6,900 aUEC". */
 export const priceText = (v: number): string => `${Math.round(v).toLocaleString('en-US')} aUEC`;
+
+/** "9,612 aUEC/SCU": a commodity kiosk's price. */
+export const scuPriceText = (v: number): string => `${priceText(v)}/SCU`;
+
+/** "fetched 21 Nov 2026" for the UEX file's `_fetched`; null when unknown. */
+export function fetchedText(iso: string | null | undefined): string | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (Number.isNaN(t)) return null;
+  return `fetched ${new Date(t).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' })}`;
+}
 
 /** "201–1000, most near 201 (± 298)"; a dash when the curve is unknown. */
 export function qualityText(r: QualityRange): string {

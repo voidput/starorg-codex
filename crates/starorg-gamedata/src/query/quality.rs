@@ -55,11 +55,42 @@ pub struct QualityResource {
     pub quality: Option<QualityIn>,
 }
 
+/// One `game-commodities` `items` row (a cargo entity), as far as this reads it.
+#[derive(Debug, Clone, PartialEq, Default, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CommodityItem {
+    /// The entity class (`Procyon_canister_damage`).
+    pub name: String,
+    /// The resource it holds (`ProcyonCanister_Damage`).
+    pub resource: Option<String>,
+}
+
 /// The parts of `game-commodities` this reads.
 #[derive(Debug, Clone, PartialEq, Default, Deserialize)]
 #[serde(default)]
 pub struct Commodities {
     pub resources: Vec<QualityResource>,
+    pub items: Vec<CommodityItem>,
+}
+
+impl Commodities {
+    /// The resource a record is or holds: `ResourceType.Laranite` or `Laranite`, else a
+    /// cargo entity (`EntityClassDefinition.<class>`) holding one.
+    pub fn resource_of(&self, record: &str) -> Option<&QualityResource> {
+        let short = record.rsplit('.').next().unwrap_or(record).trim();
+        let by_name = |n: &str| {
+            self.resources.iter().find(|r| {
+                r.record_name.eq_ignore_ascii_case(record) || r.name.eq_ignore_ascii_case(n)
+            })
+        };
+        by_name(short).or_else(|| {
+            let item = self
+                .items
+                .iter()
+                .find(|i| i.name.eq_ignore_ascii_case(short))?;
+            by_name(item.resource.as_deref()?)
+        })
+    }
 }
 
 /// A place whose curve differs from the resource's own.
@@ -230,6 +261,23 @@ mod tests {
             "{:?}",
             s[0].share
         );
+    }
+
+    #[test]
+    fn records_name_their_resource_or_the_one_their_cargo_holds() {
+        let mut c = data();
+        c.items = vec![CommodityItem {
+            name: "Gold_Cargo_1SCU".into(),
+            resource: Some("Gold".into()),
+        }];
+        let of = |r: &str| c.resource_of(r).map(|x| x.name.clone());
+        assert_eq!(of("ResourceType.Aphorite").as_deref(), Some("Aphorite"));
+        assert_eq!(of("raw_quantainium").as_deref(), Some("Raw_Quantainium"));
+        assert_eq!(
+            of("EntityClassDefinition.gold_cargo_1scu").as_deref(),
+            Some("Gold")
+        );
+        assert_eq!(of("EntityClassDefinition.rifle"), None);
     }
 
     #[test]
