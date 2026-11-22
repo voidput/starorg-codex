@@ -555,7 +555,7 @@ pub struct Corpus {
 }
 
 /// Item rows for the `game-ship-components` records `base` (item-tags) does not hold.
-fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
+pub fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
     let mut ids: HashSet<String> = base.iter().map(|i| i.id.clone()).collect();
     let mut classes: HashSet<String> = base
         .iter()
@@ -1822,17 +1822,21 @@ impl Tools {
         {
             return Some(c.index.clone());
         }
+        let mut ship_items = false;
         let (label, list) = match items {
             Some((l, base, extra)) => {
                 let mut v = base.list.clone();
                 if let Some(x) = extra {
+                    ship_items = true;
                     v.extend(x.list.iter().cloned());
                 }
                 (Some(l), v)
             }
             None => (None, Vec::new()),
         };
-        let index = Arc::new(index_from_files(&prices, &terminals, &list, label));
+        let mut index = index_from_files(&prices, &terminals, &list, label);
+        index.ship_items = ship_items;
+        let index = Arc::new(index);
         *g = Some(ShopCache {
             prices,
             terminals,
@@ -1857,6 +1861,17 @@ impl Tools {
             Some(ix) => ix.directory(self.uex_folder()),
             None => crate::shops::missing_directory(self.uex_folder()),
         }
+    }
+
+    /// Extract what the Shops screen links rows with, for the channel's current build:
+    /// `game-item-tags` and `game-ship-components` (the ship guns, missiles and components
+    /// item-tags lacks). Each runs in the extraction worker under the memory limit; a cached
+    /// one is not extracted again. The app's "Read game data" calls this.
+    pub fn warm_shop_links(&self, channel: &str) -> ToolResult<()> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        ctx.items()?;
+        ctx.extra_items()?;
+        Ok(())
     }
 
     /// One shop's rows for the Shops screen.

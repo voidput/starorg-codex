@@ -22,6 +22,7 @@
  * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
  * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
  * not read yet). MCP: `&mcp=on` (the local MCP server running, with sample requests).
+ * UEX market data: `&uex=fetched` (both files there; the default with `state=ready`), `&uex=missing`.
  * Blueprints: `&bphint=larger` (auto mode, another character owns far more: the warning),
  * `&bpnotice=1` (two characters share a name: the notice).
  * Memory limit: `&memory=1.5` (that limit in GB instead of the default).
@@ -71,8 +72,10 @@ const SAMPLES = samples as unknown as {
   fetch_uex: T.ObtainStatus;
   shop_inventory: T.ShopDirectory;
   shop_inventory_missing: T.ShopDirectory;
+  shop_inventory_linked: T.ShopDirectory;
   shop_items: T.ShopItems;
   shop_items_all: T.ShopItems[];
+  shop_items_all_linked: T.ShopItems[];
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -539,8 +542,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
   // The mock's machine: 32 GB, 18.4 GB free (the samples). `?memory=1.5` starts at that limit.
   let memory: T.MemoryStatus = memoryView(SAMPLES.memory_status, Number(params.get('memory')) || null);
-  // `?uex=fetched`: both UEX files there (as after "Fetch now").
-  let uex: T.ObtainStatus = clone(params.get('uex') === 'fetched' ? SAMPLES.fetch_uex : SAMPLES.obtain_status);
+  // `?uex=fetched` (and `?state=ready` unless `&uex=missing`): both UEX files there (as after "Fetch now").
+  let uex: T.ObtainStatus = clone(params.get('uex') === 'fetched' || (startReady && params.get('uex') !== 'missing') ? SAMPLES.fetch_uex : SAMPLES.obtain_status);
   let uexToken: T.UexTokenStatus = clone(SAMPLES.uex_token_status);
   const log: T.LogEntry[] = [];
   let nextLog = 1;
@@ -1030,10 +1033,13 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       return clone(uex);
     },
     // The Rust mock's synthetic shops once both UEX files are there (`?uex=fetched` or Fetch now).
-    shop_inventory: () => clone(uex.shops_ready ? SAMPLES.shop_inventory : SAMPLES.shop_inventory_missing),
+    // Ship items link once the channel's game data was read (Read game data), as in Rust.
+    shop_inventory: ({ req }) =>
+      clone(!uex.shops_ready ? SAMPLES.shop_inventory_missing : req.target && dataRead.has(id(req.target)) ? SAMPLES.shop_inventory_linked : SAMPLES.shop_inventory),
     shop_items: ({ req }) => {
       if (!uex.shops_ready) return { state: 'missing', folder: SAMPLES.shop_inventory_missing.folder, fetched: null, shop: null, items: [], linked: null };
-      const hit = SAMPLES.shop_items_all.find((s) => s.shop?.id === req.terminal);
+      const all = req.target && dataRead.has(id(req.target)) ? SAMPLES.shop_items_all_linked : SAMPLES.shop_items_all;
+      const hit = all.find((s) => s.shop?.id === req.terminal);
       return clone(hit ?? { ...SAMPLES.shop_items, shop: null, items: [] });
     },
     get_profile: ({ req }) => clone(chan(req).profile),

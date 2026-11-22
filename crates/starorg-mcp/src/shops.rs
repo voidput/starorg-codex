@@ -293,6 +293,10 @@ pub struct ShopDirectory {
     /// The build whose item data linked rows to records (`LIVE 4.10.201.48085`); `None` when
     /// no item data was cached: names are UEX's then and nothing links.
     pub linked: Option<String>,
+    /// The build's ship items (`game-ship-components`: the ship guns, missiles and components
+    /// item-tags lacks) linked rows too. False: most of those rows keep UEX's name, unlinked,
+    /// until the channel's game data is read (`read_game_data`).
+    pub ship_items: bool,
 }
 
 /// `shop_items`: one shop's rows.
@@ -328,6 +332,8 @@ pub struct ShopIndex {
     /// Price rows kept (with a price, at a terminal with an id).
     pub rows: usize,
     pub linked: Option<String>,
+    /// See [`ShopDirectory::ship_items`]; set by the caller that knows the item data.
+    pub ship_items: bool,
 }
 
 fn words(s: &str) -> Vec<String> {
@@ -493,7 +499,9 @@ pub fn build_index(
             shops.len() - 1
         });
         let record = lookup.find(row);
-        let game_name = record.filter(|x| !x.template()).map(|x| x.name.clone());
+        let game_name = record
+            .filter(|x| !x.template())
+            .map(|x| x.name.trim().to_string());
         let uex = row
             .item_name
             .clone()
@@ -545,6 +553,7 @@ pub fn build_index(
         shops,
         rows,
         linked,
+        ship_items: false,
     }
 }
 
@@ -583,6 +592,7 @@ impl ShopIndex {
             shop_count: self.shops.len(),
             item_count: self.rows,
             linked: self.linked.clone(),
+            ship_items: self.ship_items,
         }
     }
 
@@ -651,6 +661,7 @@ pub fn missing_directory(folder: Option<String>) -> ShopDirectory {
         shop_count: 0,
         item_count: 0,
         linked: None,
+        ship_items: false,
     }
 }
 
@@ -906,9 +917,14 @@ mod tests {
         let dir = std::path::PathBuf::from(std::env::var_os("STARORG_UEX_DIR").unwrap());
         let p = read(dir.join("uex-item-prices.json"));
         let t = read(dir.join("uex-terminals.json"));
-        let items: Vec<ItemTags> = std::env::var_os("STARORG_ITEM_TAGS")
+        let mut items: Vec<ItemTags> = std::env::var_os("STARORG_ITEM_TAGS")
             .map(|f| serde_json::from_value(read(f.into())["items"].clone()).unwrap())
             .unwrap_or_default();
+        if let Some(f) = std::env::var_os("STARORG_SHIP_COMPONENTS") {
+            let extra = crate::tools::extra_from_components(&items, &read(f.into()));
+            eprintln!("ship-components adds {} items", extra.len());
+            items.extend(extra);
+        }
         let prices: Vec<ShopPrice> = serde_json::from_value(p["prices"].clone()).unwrap();
         let terms: Vec<UexTerminal> = serde_json::from_value(t["terminals"].clone()).unwrap();
         let t0 = std::time::Instant::now();

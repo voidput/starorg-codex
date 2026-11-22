@@ -186,10 +186,12 @@ line at the top says how old the data is ("UEX data from 21 Nov").
   category; *Filter items* narrows by name. **Buy** is what you pay, **Sell** what the shop pays
   you, **Updated** the day UEX last confirmed the row (⚠ after 30 days).
 - An item the game data knows carries the game's name (UEX's name below it when it differs);
-  with Developer mode on, the name opens its record in the Explorer. Items link once the
-  channel's game data has been read (any apply or dry run); before that the names are UEX's.
-  UEX also lists ship guns, mining lasers and tractor beams the game's item list lacks; they get
-  a category but no link.
+  with Developer mode on, the name opens its record in the Explorer. Personal items link once
+  the channel's game data has been read (any apply or dry run). Ship guns, missiles and
+  components come from a second dataset: while it is missing the screen says so and offers
+  **Read game data** (the same job as in Enhancements; nothing is written to the game, the
+  first read of a build takes a minute or two, under the memory limit). Rows no record matches
+  still get their category from UEX.
 
 To find which shops sell one item, open it in the Explorer (Sources card, Buy rows) or ask the
 MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.

@@ -206,6 +206,17 @@ impl RealBackend {
         (tools.clone(), None)
     }
 
+    /// `read_game_data`'s last step: extract what the Shops screen links rows with (item-tags,
+    /// ship-components) through the Sources card's tools, so the same worker, memory limit
+    /// and dataset cache. Skipped for test sources, which have no `Data.p4k` to read.
+    pub(super) fn warm_shop_links(&self, f: &Found, channel: &str) -> Result<(), String> {
+        if !self.cfg.source.obtain_hints() {
+            return Ok(());
+        }
+        let tools = self.origin_tools(f).map_err(|e| e.message)?;
+        tools.warm_shop_links(channel).map_err(|e| e.0)
+    }
+
     pub(super) fn shop_directory(&self, req: ShopInventoryRequest) -> ShopDirectory {
         let (tools, ch) = self.shop_tools(req.target.as_ref());
         tools.shop_directory(ch.as_deref())

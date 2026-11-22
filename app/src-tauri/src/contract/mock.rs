@@ -100,6 +100,9 @@ struct MockState {
     uex_token: Option<TokenStoreKind>,
     /// When "Fetch now" last wrote both UEX files.
     uex_fetched: Option<String>,
+    /// Channels (`install/channel`) whose game data `read_game_data` read: their ship items
+    /// link on the Shops screen.
+    shop_read: BTreeSet<String>,
 }
 
 /// Synthetic, stateful backend. `delay` slows long jobs so progress can be seen in the UI;
@@ -391,6 +394,7 @@ impl MockBackend {
             ship_names: Default::default(),
             uex_token: None,
             uex_fetched: None,
+            shop_read: BTreeSet::new(),
         };
         let me = Self {
             state: Mutex::new(state),
@@ -472,6 +476,17 @@ impl MockBackend {
 
     fn lock(&self) -> MutexGuard<'_, MockState> {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The Shops screen's state: both UEX files there, and the target's game data read (ship
+    /// items link).
+    fn shop_state(&self, target: Option<&ChannelRef>) -> (bool, bool) {
+        let s = self.lock();
+        let ship = target.is_some_and(|t| {
+            s.shop_read
+                .contains(&format!("{}/{}", t.install, t.channel))
+        });
+        (s.uex_fetched.is_some(), ship)
     }
 
     fn log(&self, level: LogLevel, job: Option<JobKind>, channel: Option<&str>, msg: &str) {
@@ -1868,6 +1883,9 @@ impl Backend for MockBackend {
             c.summary.cache = CacheState::Fresh;
             Ok(c.summary.clone())
         })?;
+        self.lock()
+            .shop_read
+            .insert(format!("{}/{}", req.target.install, req.target.channel));
         self.log(
             LogLevel::Info,
             Some(JobKind::Extract),
@@ -1947,14 +1965,14 @@ impl Backend for MockBackend {
 
     /// The synthetic shops of `mock_shops` once "Fetch now" ran (the sample user's folder
     /// lacks the terminals file before that): `missing` until then.
-    fn shop_inventory(&self, _req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {
-        let ready = self.lock().uex_fetched.is_some();
-        Ok(super::mock_shops::mock_directory(ready))
+    fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {
+        let (ready, ship) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_shops::mock_directory(ready, ship))
     }
 
     fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems> {
-        let ready = self.lock().uex_fetched.is_some();
-        Ok(super::mock_shops::mock_items(ready, req.terminal))
+        let (ready, ship) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_shops::mock_items(ready, ship, req.terminal))
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {

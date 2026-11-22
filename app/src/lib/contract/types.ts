@@ -482,6 +482,8 @@ export interface ShopDirectory {
   item_count: number;
   /** The build whose item data linked rows ("LIVE 4.10.201.48085"); null = UEX names, no links. */
   linked: string | null;
+  /** Ship guns, missiles and components (game-ship-components) link too; false until the channel's game data is read. */
+  ship_items: boolean;
 }
 
 /** The game record a row is: the Explorer opens it by GUID. */

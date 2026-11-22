@@ -1806,11 +1806,19 @@ fn shop_samples() -> Vec<(&'static str, Value)> {
             terminal: first,
         })
         .unwrap();
+    // After "Read game data" on LIVE: ship items link too.
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let linked = b.shop_inventory(req()).unwrap();
+    use super::mock_shops::mock_all_items;
     vec![
         ("shop_inventory_missing", json!(missing)),
         ("shop_inventory", json!(ready)),
+        ("shop_inventory_linked", json!(linked)),
         ("shop_items", json!(items)),
-        ("shop_items_all", json!(super::mock_shops::mock_all_items())),
+        ("shop_items_all", json!(mock_all_items(false))),
+        ("shop_items_all_linked", json!(mock_all_items(true))),
     ]
 }
 
@@ -1856,6 +1864,29 @@ fn shops_on_the_mock_group_categorise_and_link() {
         })
         .unwrap();
     assert_eq!(items.items.len(), dumper.items);
+    // Before the channel's game data is read only item-tags links: Dumper's sells ship items,
+    // so its ship guns, missiles and components do not link yet; every row has its category.
+    assert!(!d.ship_items);
+    assert!(items.items.iter().all(|i| i.record.is_none()
+        || !matches!(
+            i.category,
+            ShopCategory::ShipWeapons | ShopCategory::Missiles | ShopCategory::ShipComponents
+        )));
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let d = b
+        .shop_inventory(ShopInventoryRequest {
+            target: Some(live()),
+        })
+        .unwrap();
+    assert!(d.ship_items);
+    let items = b
+        .shop_items(ShopItemsRequest {
+            target: Some(live()),
+            terminal: dumper.id,
+        })
+        .unwrap();
     // Catalogue rows link to their record; the extra repeater does not, and is a ship gun.
     let rep = items
         .items

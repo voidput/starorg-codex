@@ -11,6 +11,7 @@
   import Search from '@lucide/svelte/icons/search';
   import Settings from '@lucide/svelte/icons/settings';
   import Download from '@lucide/svelte/icons/download';
+  import DatabaseZap from '@lucide/svelte/icons/database-zap';
   import Info from '@lucide/svelte/icons/info';
   import ExternalLink from '@lucide/svelte/icons/external-link';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
@@ -26,6 +27,7 @@
   import { int } from '@/lib/format';
   import { CATEGORY_LABEL, categoryChips, filterShops, firstShop, groupItems, hasShop, textFiltered, topCategories, uexAgeDays, uexAgeText } from '@/lib/shops';
   import { fetchUexNow } from '@/lib/uex';
+  import { toast } from '@/lib/stores/toast.svelte';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
   import { cn } from '@/lib/utils';
@@ -122,6 +124,22 @@
     if (s) tick++;
   }
 
+  // "Read game data" (a JobKind::Extract job): GameData, the Where to get datasets and the
+  // ship item data the links need, under the memory limit; then the lists reload.
+  let reading = $state(false);
+  async function readGameData() {
+    if (!app.target) return;
+    reading = true;
+    try {
+      await api.readGameData($state.snapshot(app.target));
+      await app.refresh();
+    } catch (e) {
+      toast('error', 'Could not read the game data', toContractError(e).message);
+    } finally {
+      reading = false;
+    }
+  }
+
   const ROW = 'grid grid-cols-[minmax(0,1fr)_7.5rem_7.5rem_6rem] items-baseline gap-3';
 </script>
 
@@ -152,10 +170,6 @@
       <span>{int(dir.shop_count)} shops, {int(dir.item_count)} items</span>
       <span aria-hidden="true">·</span>
       <span>Prices are player-reported; a date is the day UEX last confirmed the row</span>
-      {#if !dir.linked}
-        <span aria-hidden="true">·</span>
-        <span>Item names are UEX's: read the game data (Apply, or a dry run) to link items to their records</span>
-      {/if}
       {#if uexOn}
         <Button variant="ghost" size="sm" class="ml-auto h-6" onclick={fetchNow} disabled={fetching}>
           {#if fetching}<LoaderCircle class="animate-spin motion-reduce:animate-none" aria-hidden="true" />{:else}<Download aria-hidden="true" />{/if}
@@ -163,6 +177,23 @@
         </Button>
       {/if}
     </p>
+    {#if !dir.ship_items && app.target}
+      <div class="bg-muted/30 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-md border px-3 py-2 text-[12px]" role="note">
+        <DatabaseZap class="text-muted-foreground size-4 shrink-0" aria-hidden="true" />
+        <span class="min-w-0 flex-1">
+          {#if dir.linked}
+            Ship weapons, missiles and components keep UEX's names and do not link to their records until the ship item data of {app.target.channel} is read.
+          {:else}
+            Item names are UEX's and nothing links to its record until the game data of {app.target.channel} is read.
+          {/if}
+          {#if !app.channel?.set_up}Set up {app.target.channel} first.{:else}Nothing is written to the game; the first read of a build takes a minute or two.{/if}
+        </span>
+        <Button size="sm" variant="outline" disabled={reading || !app.channel?.set_up} onclick={readGameData}>
+          <DatabaseZap class={cn(reading && 'animate-pulse motion-reduce:animate-none')} aria-hidden="true" />
+          {reading ? 'Reading game data…' : 'Read game data'}
+        </Button>
+      </div>
+    {/if}
 
     <div class="grid items-start gap-3 lg:grid-cols-[minmax(15rem,21rem)_minmax(0,1fr)]">
       <section class="bg-card flex min-h-0 flex-col rounded-lg border" aria-labelledby="shops-list-title">

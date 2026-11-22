@@ -628,6 +628,25 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
         i.items
     );
     assert!(i.linked.is_some());
+    // Ship-components not cached yet: the cannon keeps UEX's name, unlinked.
+    let cannon = |i: &starorg_mcp::shops::ShopItems| {
+        i.items
+            .iter()
+            .find(|r| r.name == "M5A Cannon")
+            .unwrap()
+            .record
+            .clone()
+    };
+    assert!(cannon(&i).is_none());
+    assert!(!t.shop_directory(Some("LIVE")).ship_items);
+    // "Read game data" warms it; then the cannon links.
+    t.warm_shop_links("LIVE").unwrap();
+    assert!(t.shop_directory(Some("LIVE")).ship_items);
+    assert_eq!(
+        cannon(&t.shop_items(Some("LIVE"), 2)).unwrap().class_name,
+        "BEHR_LaserCannon_S3"
+    );
+    assert!(t.warm_shop_links("NOPE").is_err());
     // No channel at all: still the shops.
     assert_eq!(t.shop_directory(Some("NOPE")).shop_count, 2);
     std::fs::remove_file(w.root.join("cache/uex/uex-item-prices.json")).unwrap();

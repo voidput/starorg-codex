@@ -22,7 +22,7 @@ import type { ShopDirectory, ShopItemRow, ShopItems } from '../src/lib/contract/
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const dir = samples.shop_inventory as ShopDirectory;
-const all = samples.shop_items_all as ShopItems[];
+const all = samples.shop_items_all_linked as ShopItems[];
 
 const row = (o: Partial<ShopItemRow>): ShopItemRow => ({
   name: 'X',
@@ -142,4 +142,13 @@ test('the missing sample says where the files go', () => {
   assert.equal(m.state, 'missing');
   assert.ok(m.folder?.endsWith('/uex'));
   assert.deepEqual(m.systems, []);
+});
+
+test('ship items link only after the game data is read', () => {
+  assert.equal((samples.shop_inventory as ShopDirectory).ship_items, false);
+  assert.equal((samples.shop_inventory_linked as ShopDirectory).ship_items, true);
+  const ship = new Set(['ship-weapons', 'missiles', 'ship-components']);
+  const linked = (list: ShopItems[]) => list.flatMap((s) => s.items).filter((i) => ship.has(i.category) && i.record).length;
+  assert.equal(linked(samples.shop_items_all as ShopItems[]), 0);
+  assert.ok(linked(all) > 10);
 });

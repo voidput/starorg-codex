@@ -237,10 +237,26 @@ fn price_rows() -> Value {
     Value::Array(rows)
 }
 
-/// The catalogue as item-tags rows (what the real backend reads from `game-item-tags`).
-fn items() -> Vec<ItemTags> {
+/// Item types `game-item-tags` mostly lacks on LIVE (they come from `game-ship-components`).
+const SHIP_TYPES: &[&str] = &[
+    "WeaponGun",
+    "WeaponDefensive",
+    "Cooler",
+    "PowerPlant",
+    "Shield",
+    "QuantumDrive",
+    "Missile",
+    "MissileLauncher",
+    "WeaponMining",
+    "MiningModifier",
+];
+
+/// The catalogue as item rows: item-tags alone (`ship: false`), or with the ship items of
+/// ship-components too (after "Read game data").
+fn items(ship: bool) -> Vec<ItemTags> {
     sold()
         .into_iter()
+        .filter(|&n| ship || !SHIP_TYPES.contains(&CATALOGUE[n].1))
         .map(|n| {
             let r = &CATALOGUE[n];
             ItemTags {
@@ -255,41 +271,44 @@ fn items() -> Vec<ItemTags> {
         .collect()
 }
 
-/// The mock's shop index, built once.
-pub fn mock_shop_index() -> &'static ShopIndex {
-    static S: OnceLock<ShopIndex> = OnceLock::new();
-    S.get_or_init(|| {
-        index_from_files(
+/// The mock's shop index without and with the ship items, each built once.
+pub fn mock_shop_index(ship: bool) -> &'static ShopIndex {
+    static S: [OnceLock<ShopIndex>; 2] = [OnceLock::new(), OnceLock::new()];
+    S[usize::from(ship)].get_or_init(|| {
+        let mut ix = index_from_files(
             &json!({"_fetched": super::mock::MOCK_UEX_FETCHED, "prices": price_rows()}),
             &json!({"terminals": terminal_rows()}),
-            &items(),
+            &items(ship),
             Some("LIVE 4.10.200.58746".into()),
-        )
+        );
+        ix.ship_items = ship;
+        ix
     })
 }
 
-/// `shop_inventory` with the files there (`ready`) or not (`missing`).
-pub fn mock_directory(ready: bool) -> ShopDirectory {
+/// `shop_inventory` with the files there (`ready`) or not (`missing`); `ship`: the channel's
+/// game data was read (ship items link).
+pub fn mock_directory(ready: bool, ship: bool) -> ShopDirectory {
     if ready {
-        mock_shop_index().directory(Some(MOCK_UEX_FOLDER.into()))
+        mock_shop_index(ship).directory(Some(MOCK_UEX_FOLDER.into()))
     } else {
         starorg_mcp::shops::missing_directory(Some(MOCK_UEX_FOLDER.into()))
     }
 }
 
-pub fn mock_items(ready: bool, terminal: u64) -> ShopItems {
+pub fn mock_items(ready: bool, ship: bool, terminal: u64) -> ShopItems {
     if ready {
-        mock_shop_index().items(terminal, Some(MOCK_UEX_FOLDER.into()))
+        mock_shop_index(ship).items(terminal, Some(MOCK_UEX_FOLDER.into()))
     } else {
         starorg_mcp::shops::missing_items(Some(MOCK_UEX_FOLDER.into()))
     }
 }
 
 /// Every mock shop's items, in directory order (the TS mock serves `shop_items` from these).
-pub fn mock_all_items() -> Vec<ShopItems> {
-    mock_shop_index()
+pub fn mock_all_items(ship: bool) -> Vec<ShopItems> {
+    mock_shop_index(ship)
         .shops
         .iter()
-        .map(|s| mock_items(true, s.summary.id))
+        .map(|s| mock_items(true, ship, s.summary.id))
         .collect()
 }
