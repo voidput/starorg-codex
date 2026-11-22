@@ -50,6 +50,11 @@
   <div id="{uid}-body" class={cn('grid gap-4 p-4', strip && 'max-h-64 overflow-y-auto', strip && !open && 'hidden')}>
     {#if !items}
       <Skeleton class="h-24 w-full" /><Skeleton class="h-12 w-full" />
+    {:else if !shown.length}
+      <p class="text-muted-foreground text-[12.5px]">
+        No examples yet: this build's game data has not been read, or the cached copy is from an older StarOrg Codex
+        (footer: <span class="mono">cache stale</span>). Apply reads it; the examples show after that.
+      </p>
     {:else if strip}
       {#each shown.slice(0, 1) as it (it.key)}{@render sample(it)}{/each}
       {#if shown.length > 1}<p class="text-muted-foreground text-[12px]">{shown.length - 1} more example{shown.length === 2 ? '' : 's'} in a wider window.</p>{/if}
