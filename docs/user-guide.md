@@ -112,7 +112,8 @@ writes nothing to the game), no apply needed.
 - **Fix missing item names** (General, on in every preset): some items show a code such as
   `@item_Name_nvs_pilot_flightsuit_01_01_02` instead of a name, because CIG's text file lacks
   that key. This adds the key with a name: the name its variants share when they all agree,
-  else a readable one made from the code (`NVS Pilot Flightsuit 01-01-02`). No existing text
+  else the base item's name with the variant (`P4-AR Rifle (LR01)`, `... Magazine`), else a
+  readable one made from the code (`NVS Pilot Flightsuit 01-01-02`). No existing text
   changes. Whatever the switch, our own text never shows a raw `@key` or a placeholder.
 
 Colours marked "look not verified" are our guess of how the game draws that style: switch on

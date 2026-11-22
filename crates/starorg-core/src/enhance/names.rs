@@ -7,9 +7,12 @@
 //! 1. **variant**: entities of the same `AttachDef` type whose record name differs only by
 //!    a trailing `_NN` / `_sfNN` / `_tintNN` / `_lrNN` (or is the bare base name) all
 //!    resolve to exactly one real name;
-//! 2. **description**: entities sharing the description key all resolve to exactly one
+//! 2. **base**: the record name ends in a variant segment and the base entity (segment
+//!    dropped, same type) has a real name: `<base name> (<SEGMENT>)`, as
+//!    `P4-AR Rifle (LR01)`; a `_mag` of a weapon is `<weapon name> Magazine`;
+//! 3. **description**: entities sharing the description key all resolve to exactly one
 //!    real name;
-//! 3. **readable**: words from the key (or the record name): known prefixes dropped,
+//! 4. **readable**: words from the key (or the record name): known prefixes dropped,
 //!    `_` and camel case split, words title-cased, manufacturer codes and short codes
 //!    upper-cased, runs of numbers joined with `-` so variants stay distinct.
 //!
@@ -48,6 +51,7 @@ const PREFIXES: &[&str] = &[
 
 /// Rule names, as [`super::AddedKey::rule`] and the counts report them.
 pub const RULE_VARIANT: &str = "variant";
+pub const RULE_BASE: &str = "base";
 pub const RULE_DESCRIPTION: &str = "description";
 pub const RULE_READABLE: &str = "readable";
 
@@ -179,10 +183,16 @@ pub fn plan(gd: &GameData, stock: &StockIni) -> BTreeMap<String, Found> {
     // (type, variant base) -> real names of its members; description key -> real names.
     let mut by_base: HashMap<(&str, &str), BTreeSet<&str>> = HashMap::new();
     let mut by_desc: HashMap<String, BTreeSet<&str>> = HashMap::new();
+    // Class -> (type, real name), for the base rule.
+    let mut by_class: HashMap<&str, Vec<(&str, &str)>> = HashMap::new();
     for n in &gd.item_names {
         let Some(v) = good(n) else { continue };
-        let base = variant_base(&n.class).unwrap_or(&n.class);
-        by_base.entry((&n.kind, base)).or_default().insert(v);
+        by_class.entry(&n.class).or_default().push((&n.kind, v));
+        // A member of its base's family, and the bare base of its own variants.
+        if let Some(base) = variant_base(&n.class) {
+            by_base.entry((&n.kind, base)).or_default().insert(v);
+        }
+        by_base.entry((&n.kind, &n.class)).or_default().insert(v);
         if let Some(d) = n.desc.as_deref().and_then(loc_key)
             && !super::is_sentinel_key(d)
         {
@@ -208,24 +218,44 @@ pub fn plan(gd: &GameData, stock: &StockIni) -> BTreeMap<String, Found> {
             let base = variant_base(&n.class)?;
             only(by_base.get(&(n.kind.as_str(), base))?.iter().copied())
         }));
+        let base = || {
+            let found: Vec<String> = ents
+                .iter()
+                .filter_map(|n| {
+                    let (b, last) = n.class.rsplit_once('_')?;
+                    let named = by_class.get(b)?;
+                    if last == "mag" {
+                        let weapon = |k: &str| k.starts_with("Weapon") && k != "WeaponAttachment";
+                        let v = only(named.iter().filter(|(k, _)| weapon(k)).map(|(_, v)| *v))?;
+                        return Some(format!("{v} Magazine"));
+                    }
+                    if !is_variant_segment(last) {
+                        return None;
+                    }
+                    let v = only(named.iter().filter(|(k, _)| *k == n.kind).map(|(_, v)| *v))?;
+                    Some(format!("{v} ({})", last.to_ascii_uppercase()))
+                })
+                .collect();
+            only(found.iter().map(String::as_str)).map(str::to_string)
+        };
         let desc = || {
             only(ents.iter().filter_map(|n| {
                 let d = fold_key(loc_key(n.desc.as_deref()?)?);
                 only(by_desc.get(&d)?.iter().copied())
             }))
         };
-        let (value, rule) = match variant {
-            Some(v) => (v.to_string(), RULE_VARIANT),
-            None => match desc() {
-                Some(v) => (v.to_string(), RULE_DESCRIPTION),
-                None => {
-                    let mut r = readable(key, &makers);
-                    if r.is_empty() {
-                        r = readable(&ents[0].class, &makers);
-                    }
-                    (r, RULE_READABLE)
-                }
-            },
+        let (value, rule) = if let Some(v) = variant {
+            (v.to_string(), RULE_VARIANT)
+        } else if let Some(v) = base() {
+            (v, RULE_BASE)
+        } else if let Some(v) = desc() {
+            (v.to_string(), RULE_DESCRIPTION)
+        } else {
+            let mut r = readable(key, &makers);
+            if r.is_empty() {
+                r = readable(&ents[0].class, &makers);
+            }
+            (r, RULE_READABLE)
         };
         if value.trim().is_empty() {
             continue;
@@ -395,6 +425,65 @@ mod tests {
                 ("items_commodities_iron_box", "Iron", RULE_DESCRIPTION),
             ]
         );
+    }
+
+    #[test]
+    fn base_rule_names_a_variant_after_its_base() {
+        let mut v = BOM.to_vec();
+        v.extend_from_slice(
+            b"item_Name_rifle_01=P4-AR Rifle\r\n\
+              item_Name_rifle_01_tint01=P4-AR Rifle Black\r\n\
+              item_Name_gun_01=G1\r\n\
+              item_Name_box_01=Box\r\n\
+              item_Name_sniper_01=Scope\r\n",
+        );
+        let s = StockIni::parse(v);
+        let w = "WeaponPersonal";
+        let gd = GameData {
+            item_names: vec![
+                named("rifle_01", "@item_Name_rifle_01", None, w),
+                named("rifle_01_tint01", "@item_Name_rifle_01_tint01", None, w),
+                // Siblings disagree, so no variant: the base's name with the segment.
+                named("rifle_01_lr01", "@item_Name_rifle_01_lr01", None, w),
+                // A weapon's magazine (another type) is named after the weapon.
+                named(
+                    "rifle_01_mag",
+                    "@item_Name_rifle_01_mag",
+                    None,
+                    "WeaponAttachment",
+                ),
+                // One sibling only: the strict variant rule still wins.
+                named("gun_01", "@item_Name_gun_01", None, w),
+                named("gun_01_lr01", "@item_Name_gun_01_lr01", None, w),
+                // Not a weapon's magazine, and a base of another type: readable.
+                named("box_01", "@item_Name_box_01", None, "Cargo"),
+                named("box_01_mag", "@item_Name_box_01_mag", None, "Misc"),
+                named(
+                    "sniper_01",
+                    "@item_Name_sniper_01",
+                    None,
+                    "WeaponAttachment",
+                ),
+                named("sniper_01_sf01", "@item_Name_sniper_01_sf01", None, w),
+            ],
+            ..GameData::default()
+        };
+        let got: Vec<(String, String, &str)> = plan(&gd, &s)
+            .into_values()
+            .map(|f| (f.key, f.value, f.rule))
+            .collect();
+        let want = [
+            ("item_Name_box_01_mag", "Box 01 Mag", RULE_READABLE),
+            ("item_Name_gun_01_lr01", "G1", RULE_VARIANT),
+            ("item_Name_rifle_01_lr01", "P4-AR Rifle (LR01)", RULE_BASE),
+            ("item_Name_rifle_01_mag", "P4-AR Rifle Magazine", RULE_BASE),
+            ("item_Name_sniper_01_sf01", "Sniper 01 SF01", RULE_READABLE),
+        ];
+        let want: Vec<(String, String, &str)> = want
+            .iter()
+            .map(|(k, v, r)| (k.to_string(), v.to_string(), *r))
+            .collect();
+        assert_eq!(got, want);
     }
 
     #[test]
