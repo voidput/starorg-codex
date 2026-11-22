@@ -59,6 +59,12 @@
       ],
     },
     {
+      name: 'UEX market data (api.uexcorp.space)',
+      on: !!net?.uex,
+      state: net?.uex ? 'On, when you press Fetch now' : 'Off',
+      what: 'Downloads where items are sold (UEX Corp, player-reported) when you press Fetch now, into the UEX folder for the Buy line. Sends the app name and version, and your UEX token if you saved one (kept in the system keyring or a private file, sent only to api.uexcorp.space). Nothing else: no install id, no game data.',
+    },
+    {
       name: 'Import blueprints from Game.log',
       on: !!so?.import_game_log,
       state: so?.import_game_log ? 'On (local)' : 'Off',
@@ -117,7 +123,7 @@
         {/each}
       </ul>
       <p class="text-muted-foreground text-[12.5px]">
-        Like any web request, the GitHub and StarOrg Tools ones show your IP address to that server. Diagnostics exports
+        Like any web request, the GitHub, StarOrg Tools and UEX ones show your IP address to that server. Diagnostics exports
         are files you save and share yourself, with your user name and paths replaced. Full policy:
         <span class="mono">docs/privacy.md</span> in the GitHub repository.
       </p>

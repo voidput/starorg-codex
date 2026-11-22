@@ -25,6 +25,9 @@ interface Samples {
   remove_changes: T.ApplyReport;
   profile_schema: T.ProfileSchema;
   obtain_status: T.ObtainStatus;
+  uex_token_status: T.UexTokenStatus;
+  set_uex_token: T.UexTokenStatus;
+  fetch_uex: T.ObtainStatus;
   list_overrides: T.OverrideEntry[];
   add_user_patch: T.PatchView;
   export_user_patch: T.PatchExport;

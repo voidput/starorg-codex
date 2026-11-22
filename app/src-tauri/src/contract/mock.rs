@@ -96,6 +96,10 @@ struct MockState {
     /// `fleet.json` and the shared `ship-names.toml`, in memory.
     fleet: starorg_core::fleet::store::FleetFile,
     ship_names: starorg_core::fleet::store::ShipNames,
+    /// Where the UEX token was saved (the mock keeps no value).
+    uex_token: Option<TokenStoreKind>,
+    /// When "Fetch now" last wrote both UEX files.
+    uex_fetched: Option<String>,
 }
 
 /// Synthetic, stateful backend. `delay` slows long jobs so progress can be seen in the UI;
@@ -112,6 +116,27 @@ pub struct MockBackend {
     mcp: crate::mcp::McpHost,
     /// The saved memory limit, GB (`None` = the default).
     memory_gb: Mutex<Option<f64>>,
+}
+
+/// When the mock's "Fetch now" wrote the UEX files (fixed, for the samples).
+pub const MOCK_UEX_FETCHED: &str = "2026-11-21T09:00:00Z";
+
+/// `fetch_uex` while "Download UEX market data" is off.
+pub const UEX_OFF: &str = "Turn on \"Download UEX market data\" under Settings -> Network first.";
+
+fn mock_uex_fetched(t: &str) -> ObtainStatus {
+    ObtainStatus {
+        uex_folder: "/home/pilot/.cache/starorg-codex/mcp/uex".into(),
+        files: ["uex-item-prices.json", "uex-terminals.json"]
+            .into_iter()
+            .map(|n| UexFile {
+                name: n.into(),
+                present: true,
+                modified: Some(t.into()),
+            })
+            .collect(),
+        shops_ready: true,
+    }
 }
 
 /// The mock's machine: 32 GB of RAM, 18.4 GB free (fixed, for the samples).
@@ -313,6 +338,7 @@ impl MockBackend {
                     check_updates: false,
                     published_dumps: false,
                     starorg: false,
+                    uex: false,
                 },
                 default_channel: None,
                 safe_gpu: false,
@@ -361,6 +387,8 @@ impl MockBackend {
             patch_files: Vec::new(),
             fleet: Default::default(),
             ship_names: Default::default(),
+            uex_token: None,
+            uex_fetched: None,
         };
         let me = Self {
             state: Mutex::new(state),
@@ -1829,6 +1857,9 @@ impl Backend for MockBackend {
     }
 
     fn obtain_status(&self) -> CmdResult<ObtainStatus> {
+        if let Some(t) = self.lock().uex_fetched.clone() {
+            return Ok(mock_uex_fetched(&t));
+        }
         // The sample user put the item prices in but not the terminals.
         Ok(ObtainStatus {
             uex_folder: "/home/pilot/.cache/starorg-codex/mcp/uex".into(),
@@ -1846,6 +1877,47 @@ impl Backend for MockBackend {
             ],
             shops_ready: false,
         })
+    }
+
+    fn uex_token_status(&self) -> CmdResult<UexTokenStatus> {
+        let store = self.lock().uex_token;
+        Ok(UexTokenStatus {
+            set: store.is_some(),
+            store,
+        })
+    }
+
+    fn set_uex_token(&self, req: UexTokenRequest) -> CmdResult<UexTokenStatus> {
+        let token = starorg_net::uex::clean_token(req.token.as_deref().unwrap_or(""))
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        let saved = token.is_some();
+        self.lock().uex_token = token.map(|_| TokenStoreKind::Keyring);
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Uex),
+            None,
+            if saved {
+                "UEX token saved (keyring)"
+            } else {
+                "UEX token removed"
+            },
+        );
+        self.uex_token_status()
+    }
+
+    /// No network here: both files appear with a fixed time.
+    fn fetch_uex(&self) -> CmdResult<ObtainStatus> {
+        if !self.lock().settings.network.uex {
+            return Err(AppError::new(ErrorCode::NetworkOff, UEX_OFF.to_string()));
+        }
+        self.lock().uex_fetched = Some(MOCK_UEX_FETCHED.into());
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Uex),
+            None,
+            "Downloaded UEX market data: 24,146 prices for 2,438 items at 826 terminals (7.0 MB)",
+        );
+        self.obtain_status()
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {

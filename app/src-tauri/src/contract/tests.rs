@@ -279,6 +279,10 @@ fn samples() -> Value {
     v["mcp_status"] = json!(mcp_off);
     v["set_mcp_enabled"] = json!(mcp_on);
     v["obtain_status"] = json!(b.obtain_status().unwrap());
+    let (token_off, token_on, fetched) = uex_samples();
+    v["uex_token_status"] = json!(token_off);
+    v["set_uex_token"] = json!(token_on);
+    v["fetch_uex"] = json!(fetched);
     let m = MockBackend::default();
     v["memory_status"] = json!(m.memory_status().unwrap());
     v["set_memory_limit"] = json!(
@@ -601,6 +605,7 @@ fn ts_unions_list_every_variant() {
                 JobKind::Hook,
                 JobKind::Dev,
                 JobKind::Mcp,
+                JobKind::Uex,
             ]),
         ),
         (
@@ -1752,6 +1757,65 @@ fn obtain_schema_lines_are_the_core_lines() {
     assert_eq!(got, want);
 }
 
+/// Token not set, then saved; "Fetch now" with the switch on (the mock writes nothing).
+fn uex_samples() -> (UexTokenStatus, UexTokenStatus, ObtainStatus) {
+    let b = MockBackend::default();
+    let off = b.uex_token_status().unwrap();
+    let on = b
+        .set_uex_token(UexTokenRequest {
+            token: Some("sample-token".into()),
+        })
+        .unwrap();
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    (off, on, b.fetch_uex().unwrap())
+}
+
+#[test]
+fn uex_on_the_mock_needs_its_switch_and_never_returns_the_token() {
+    let b = MockBackend::default();
+    let e = b.fetch_uex().unwrap_err();
+    assert_eq!(e.code, ErrorCode::NetworkOff);
+    assert!(!b.obtain_status().unwrap().shops_ready);
+    let (off, on, fetched) = uex_samples();
+    assert_eq!(
+        off,
+        UexTokenStatus {
+            set: false,
+            store: None
+        }
+    );
+    assert!(on.set);
+    assert!(!json!(on).to_string().contains("sample-token"));
+    assert!(fetched.shops_ready);
+    // An empty token removes it; spaces inside are refused.
+    assert!(
+        !b.set_uex_token(UexTokenRequest {
+            token: Some("  ".into())
+        })
+        .unwrap()
+        .set
+    );
+    assert_eq!(
+        b.set_uex_token(UexTokenRequest {
+            token: Some("a b".into())
+        })
+        .unwrap_err()
+        .code,
+        ErrorCode::Invalid
+    );
+    // Over IPC: the request takes `token`, the status never has one.
+    assert_eq!(
+        ipc("set_uex_token", json!({ "req": { "token": "t-1" } })).unwrap(),
+        json!({ "set": true, "store": "keyring" })
+    );
+    assert_eq!(
+        ipc("fetch_uex", json!({})).unwrap_err()["code"],
+        "network-off"
+    );
+}
+
 #[test]
 fn obtain_status_lists_the_uex_files_without_reading_them() {
     let dir = std::env::temp_dir().join(format!("starorg-uex-{}", std::process::id()));
@@ -2273,10 +2337,12 @@ fn open_link_takes_only_allowlisted_links() {
         ExternalLink::Patreon.url(),
         "https://www.patreon.com/cw/StarOrgTools"
     );
+    assert_eq!(ExternalLink::Uex.url(), "https://uexcorp.space");
     for l in [
         ExternalLink::Support,
         ExternalLink::Donate,
         ExternalLink::Patreon,
+        ExternalLink::Uex,
     ] {
         assert!(l.url().starts_with("https://"));
         assert!(
@@ -2294,6 +2360,10 @@ fn open_link_takes_only_allowlisted_links() {
     );
     assert_eq!(
         ipc("open_link", json!({ "link": "patreon" })).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        ipc("open_link", json!({ "link": "uex" })).unwrap(),
         Value::Null
     );
     // Never a URL, never an unknown name.

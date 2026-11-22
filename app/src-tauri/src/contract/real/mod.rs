@@ -21,11 +21,13 @@ pub mod dialogs;
 mod memory;
 mod starorg;
 mod table;
+mod uex;
 
 pub use assets::{AssetSpawner, AssetWorkerSpawner};
 pub use dev::{DevSpawner, WorkerSpawner};
 pub use dialogs::{DialogSlot, Dialogs, FileFilter, TauriDialogs};
 pub use starorg::{Browser, StarOrgDeps};
+pub use uex::UexDeps;
 
 use super::types::*;
 use super::{Backend, Progress, schema};
@@ -167,6 +169,9 @@ struct AppFile {
     /// StarOrg Tools account card per environment (no token; see `starorg`).
     #[serde(default)]
     starorg: BTreeMap<String, starorg::Account>,
+    /// Where the UEX token is (no token; see `uex`).
+    #[serde(default)]
+    uex_token: Option<TokenStoreKind>,
 }
 
 const APP_JSON: &str = "app.json";
@@ -336,6 +341,7 @@ pub struct RealBackend {
     mcp: crate::mcp::McpHost,
     starorg: starorg::StarOrgDeps,
     starorg_mem: starorg::StarOrgMem,
+    uex: uex::UexDeps,
 }
 
 /// Longest header line accepted (the core has no limit; the line goes into every block).
@@ -450,7 +456,14 @@ impl RealBackend {
             mcp: crate::mcp::McpHost::default(),
             starorg,
             starorg_mem: starorg::StarOrgMem::default(),
+            uex: uex::UexDeps::default(),
         }
+    }
+
+    /// Swap how UEX market data is downloaded (tests: a fake transport).
+    pub fn with_uex(mut self, deps: UexDeps) -> Self {
+        self.uex = deps;
+        self
     }
 
     /// Swap the StarOrg Tools hosts, token store and browser (tests: a loopback mock).
@@ -1146,7 +1159,8 @@ impl RealBackend {
             network: NetworkSettings {
                 check_updates: a.network.as_ref().is_some_and(|n| n.check_updates),
                 published_dumps: a.network.as_ref().is_some_and(|n| n.published_dumps),
-                starorg: a.network.map(|n| n.starorg).unwrap_or(false),
+                starorg: a.network.as_ref().is_some_and(|n| n.starorg),
+                uex: a.network.as_ref().is_some_and(|n| n.uex),
             },
             default_channel: self.config().default_channel,
             safe_gpu: a.safe_gpu,
@@ -2282,9 +2296,19 @@ impl Backend for RealBackend {
 
     fn obtain_status(&self) -> CmdResult<ObtainStatus> {
         // The folder `starorg_mcp::config_for` gives the Sources card's tools.
-        Ok(obtain_status_in(&starorg_mcp::tools::uex_dir(
-            &self.dirs().cache.join("mcp"),
-        )))
+        Ok(self.obtain_status_now())
+    }
+
+    fn uex_token_status(&self) -> CmdResult<UexTokenStatus> {
+        Ok(self.uex_token_view())
+    }
+
+    fn set_uex_token(&self, req: UexTokenRequest) -> CmdResult<UexTokenStatus> {
+        self.save_uex_token(req)
+    }
+
+    fn fetch_uex(&self) -> CmdResult<ObtainStatus> {
+        self.run_fetch_uex()
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {

@@ -4,7 +4,7 @@
  * over the same synthetic sources as `mock::obtain_preview` in Rust (a test compares them
  * with samples.gen.json), so mode, shops and line switches show as they will in game.
  */
-import type { ObtainMode, PreviewItem, Profile } from './contract/types';
+import type { ObtainMode, ObtainStatus, PreviewItem, Profile, UexTokenStatus } from './contract/types';
 
 /** One example per mode, as the block starts in game (labels without colour). */
 export const OBTAIN_MODES: { id: ObtainMode; label: string; example: string }[] = [
@@ -21,6 +21,20 @@ export function fileAge(iso: string | null | undefined, now: Date = new Date()):
   const days = Math.floor((now.getTime() - t) / 86_400_000);
   if (days <= 0) return 'today';
   return days === 1 ? '1 day old' : `${days} days old`;
+}
+
+const UEX_LABEL: Record<string, string> = { 'uex-item-prices.json': 'Item prices', 'uex-terminals.json': 'Terminals' };
+
+/** `Item prices today · Terminals missing`: each UEX file's age, for Settings and the Shops card. */
+export function uexFilesText(s: ObtainStatus, now: Date = new Date()): string {
+  return s.files.map((f) => `${UEX_LABEL[f.name] ?? f.name} ${f.present ? (fileAge(f.modified, now) ?? 'present') : 'missing'}`).join(' · ');
+}
+
+/** Where the UEX token is, never its value. */
+export function uexTokenText(t: UexTokenStatus | null): string {
+  if (!t) return 'Token status unknown';
+  if (!t.set) return 'No token saved: the two endpoints are public, so none is needed';
+  return `Token saved (${t.store ?? 'keyring'})`;
 }
 
 const TOP = 3;

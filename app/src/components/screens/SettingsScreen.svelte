@@ -20,6 +20,7 @@
   import HooksCard from '@/components/settings/HooksCard.svelte';
   import DoctorCard from '@/components/settings/DoctorCard.svelte';
   import UpdatesSection from '@/components/settings/UpdatesSection.svelte';
+  import UexSection from '@/components/settings/UexSection.svelte';
   import McpCard from '@/components/settings/McpCard.svelte';
   import AssetCacheRow from '@/components/settings/AssetCacheRow.svelte';
   import MemoryLimitRow from '@/components/settings/MemoryLimitRow.svelte';
@@ -175,6 +176,7 @@
         <UpdatesSection checked={s.network.check_updates} onchange={(v) => patch((x) => (x.network.check_updates = v))} />
         <SwitchRow id="net-dumps" label="Download published LIVE builds for Diff" hint="Developer mode only: downloads the data of past LIVE builds from github.com/voidput/sc-gamedata-dumps so Diff can compare old vs new. Checked by checksum, read as data only. Applying always reads Data.p4k on this computer." checked={s.network.published_dumps} onchange={(v) => patch((x) => (x.network.published_dumps = v))} />
         <SwitchRow id="net-starorg" label="Connect StarOrg Tools" hint="Lets you sign in to StarOrg Tools (starorg.tools, or dev.starorg.tools below) in your browser. Nothing is sent until you sign in, and then only what you turn on under StarOrg Tools -> What to sync." checked={s.network.starorg} onchange={(v) => patch((x) => (x.network.starorg = v))} />
+        <UexSection checked={s.network.uex} onchange={(v) => patch((x) => (x.network.uex = v))} />
         <p class="text-muted-foreground mt-2 text-[12px]">No telemetry, crash upload or analytics exists in the app. On Windows the window is drawn by Microsoft's WebView2 runtime, which has its own update traffic that the app cannot fully switch off. On Linux the window loads only the app's own pages.</p>
       </Card.Content>
     </Card.Root>

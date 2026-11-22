@@ -66,6 +66,9 @@ const SAMPLES = samples as unknown as {
   memory_status: T.MemoryStatus;
   set_memory_limit: T.MemoryStatus;
   obtain_status: T.ObtainStatus;
+  uex_token_status: T.UexTokenStatus;
+  set_uex_token: T.UexTokenStatus;
+  fetch_uex: T.ObtainStatus;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -501,7 +504,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     }
   }
   const defaultSync = (): T.StarOrgSettings => ({ environment: 'production', import_game_log: true, push_blueprints: false, pull_blueprints: false, pull_fleet: false, auto_sync: false });
-  let settings: T.Settings = { ...clone(SAMPLES.get_settings), network: { check_updates: false, published_dumps: false, starorg: false }, starorg: defaultSync() };
+  let settings: T.Settings = { ...clone(SAMPLES.get_settings), network: { check_updates: false, published_dumps: false, starorg: false, uex: false }, starorg: defaultSync() };
   const signedOut = { connected: false, user: null, guild: null, guild_id: null, guilds: [] as T.StarOrgGuild[], expires: null, token_store: null };
   const starorg: T.StarOrgStatus = { ...clone(SAMPLES.starorg_status), ...signedOut, expired: false, sync_characters: [] };
   const signIn = () =>
@@ -514,6 +517,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
   // The mock's machine: 32 GB, 18.4 GB free (the samples). `?memory=1.5` starts at that limit.
   let memory: T.MemoryStatus = memoryView(SAMPLES.memory_status, Number(params.get('memory')) || null);
+  // `?uex=fetched`: both UEX files there (as after "Fetch now").
+  let uex: T.ObtainStatus = clone(params.get('uex') === 'fetched' ? SAMPLES.fetch_uex : SAMPLES.obtain_status);
+  let uexToken: T.UexTokenStatus = clone(SAMPLES.uex_token_status);
   const log: T.LogEntry[] = [];
   let nextLog = 1;
   let nextJob = 1;
@@ -974,7 +980,23 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     // Like the real backend: no game data read for the channel yet -> an empty list.
     build_preview: ({ req }) => (previewNoData && !dataRead.has(id(req.target)) ? [] : preview(req.profile ?? (req.preset ? presetProfile(req.preset) : chan(req.target).profile))),
     profile_schema: () => clone(SAMPLES.profile_schema),
-    obtain_status: () => clone(SAMPLES.obtain_status),
+    obtain_status: () => clone(uex),
+    // The mock keeps no token value, only that one was saved (like the real backend's status).
+    uex_token_status: () => clone(uexToken),
+    set_uex_token: ({ req }) => {
+      const t = (req.token ?? '').trim();
+      if (/[^\x21-\x7e]/.test(t) || t.length > 512) fail('invalid', 'The token has spaces or characters a UEX token does not have.');
+      uexToken = t ? clone(SAMPLES.set_uex_token) : clone(SAMPLES.uex_token_status);
+      addLog('info', 'uex', null, t ? 'UEX token saved (keyring)' : 'UEX token removed');
+      return clone(uexToken);
+    },
+    // No network here: both files appear with the sample's time.
+    fetch_uex: () => {
+      if (!settings.network.uex) fail('network-off', 'Turn on "Download UEX market data" under Settings -> Network first.');
+      uex = clone(SAMPLES.fetch_uex);
+      addLog('info', 'uex', null, 'Downloaded UEX market data: 24,146 prices for 2,438 items at 826 terminals (7.0 MB)');
+      return clone(uex);
+    },
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),
     save_profile: ({ req }) => {
@@ -1466,7 +1488,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     // No system browser in the mock: the activity log records the click.
     open_link: ({ link }) => {
-      addLog('info', null, null, `Opened the ${link === 'support' ? 'Support' : link === 'patreon' ? 'Patreon' : 'Buy me a coffee'} link`);
+      const names: Record<T.ExternalLink, string> = { support: 'Support', donate: 'Buy me a coffee', patreon: 'Patreon', uex: 'UEX Corp' };
+      addLog('info', null, null, `Opened the ${names[link]} link`);
       return null;
     },
     ...createUpdateMock(() => settings, params),

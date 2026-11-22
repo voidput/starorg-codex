@@ -72,6 +72,13 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     /// The UEX folder and files the WHERE TO GET shop line reads (spec obtain-hints). Reads
     /// only file metadata; nothing is downloaded.
     fn obtain_status(&self) -> CmdResult<ObtainStatus>;
+    /// Whether a UEX API token is saved (keyring or file); never the token.
+    fn uex_token_status(&self) -> CmdResult<UexTokenStatus>;
+    /// Save the UEX token; `null` or empty removes it.
+    fn set_uex_token(&self, req: UexTokenRequest) -> CmdResult<UexTokenStatus>;
+    /// "Fetch now": download both UEX files into the UEX folder (`network-off` while
+    /// "Download UEX market data" is off).
+    fn fetch_uex(&self) -> CmdResult<ObtainStatus>;
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile>;
     fn preset_profile(&self, preset: Preset) -> CmdResult<Profile>;
     fn save_profile(&self, req: SaveProfileRequest) -> CmdResult<Profile>;
@@ -236,6 +243,9 @@ commands! {
     build_preview(req: PreviewRequest) -> Vec<PreviewItem>;
     profile_schema() -> ProfileSchema;
     obtain_status() -> ObtainStatus;
+    uex_token_status() -> UexTokenStatus;
+    set_uex_token(req: UexTokenRequest) -> UexTokenStatus;
+    fetch_uex() -> ObtainStatus;
     get_profile(req: ChannelRef) -> Profile;
     preset_profile(preset: Preset) -> Profile;
     save_profile(req: SaveProfileRequest) -> Profile;
@@ -335,6 +345,9 @@ macro_rules! contract_handler {
             $crate::contract::build_preview,
             $crate::contract::profile_schema,
             $crate::contract::obtain_status,
+            $crate::contract::uex_token_status,
+            $crate::contract::set_uex_token,
+            $crate::contract::fetch_uex,
             $crate::contract::get_profile,
             $crate::contract::preset_profile,
             $crate::contract::save_profile,
@@ -468,6 +481,9 @@ pub const COMMAND_NAMES: &[&str] = &[
     "build_preview",
     "profile_schema",
     "obtain_status",
+    "uex_token_status",
+    "set_uex_token",
+    "fetch_uex",
     "get_profile",
     "preset_profile",
     "save_profile",

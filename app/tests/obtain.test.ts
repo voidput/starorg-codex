@@ -2,9 +2,9 @@
 // line switches, UEX file age. Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { fileAge, obtainPreview, OBTAIN_MODES } from '../src/lib/obtain.ts';
+import { fileAge, obtainPreview, OBTAIN_MODES, uexFilesText, uexTokenText } from '../src/lib/obtain.ts';
 import { previewOrder } from '../src/lib/bpmarkers.ts';
-import type { PreviewItem, Profile } from '../src/lib/contract/types.ts';
+import type { ObtainStatus, PreviewItem, Profile, UexTokenStatus } from '../src/lib/contract/types.ts';
 import samples from '../src/lib/contract/samples.gen.json' with { type: 'json' };
 
 // samples.build_preview is the Rust mock with the Everything preset.
@@ -62,4 +62,14 @@ test('UEX file age', () => {
   assert.equal(fileAge('2026-11-21T08:00:00Z', now), 'today');
   assert.equal(fileAge('2026-11-20T08:00:00Z', now), '1 day old');
   assert.equal(fileAge('2026-11-12T08:30:00Z', now), '9 days old');
+});
+
+test('UEX file ages and token status read without the token', () => {
+  const now = new Date('2026-11-21T12:00:00Z');
+  assert.equal(uexFilesText(samples.obtain_status as ObtainStatus, now), 'Item prices 9 days old · Terminals missing');
+  assert.equal(uexFilesText(samples.fetch_uex as ObtainStatus, now), 'Item prices today · Terminals today');
+  assert.match(uexTokenText(samples.uex_token_status as UexTokenStatus), /No token saved/);
+  assert.equal(uexTokenText(samples.set_uex_token as UexTokenStatus), 'Token saved (keyring)');
+  assert.equal(uexTokenText({ set: true, store: 'file' }), 'Token saved (file)');
+  assert.ok(!JSON.stringify(samples.set_uex_token).includes('sample-token'));
 });

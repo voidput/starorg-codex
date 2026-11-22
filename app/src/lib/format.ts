@@ -116,6 +116,7 @@ export const JOB_LABEL: Record<JobKind, string> = {
   dev: 'Developer',
   hook: 'Launch hook',
   mcp: 'MCP server',
+  uex: 'UEX market data',
 };
 
 export const BACKUP_REASON: Record<BackupReason, string> = {

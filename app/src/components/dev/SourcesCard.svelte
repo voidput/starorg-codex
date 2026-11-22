@@ -122,8 +122,8 @@
           </p>
           {#if !b.loaded}
             <p class="text-muted-foreground m-0 text-[11.5px]">
-              No shop data: shop stock is in no game file, and StarOrg Codex downloads nothing. Put
-              <span class="mono">uex-item-prices.json</span> and <span class="mono">uex-terminals.json</span> in
+              No shop data: shop stock is in no game file. Turn on "Download UEX market data" in Settings -> Network and
+              press Fetch now, or put <span class="mono">uex-item-prices.json</span> and <span class="mono">uex-terminals.json</span> in
               <span class="mono select-all">{b.folder ?? 'the UEX folder'}</span>.
             </p>
           {:else if b.offers.length}

@@ -210,6 +210,8 @@ pub enum JobKind {
     Dev,
     /// The experimental local MCP server (started, stopped, a dataset extracted for it).
     Mcp,
+    /// UEX market data downloaded (Settings -> Network -> "Download UEX market data").
+    Uex,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -699,8 +701,9 @@ pub struct UexFile {
     pub modified: Option<String>,
 }
 
-/// Where the shop names of WHERE TO GET come from (spec obtain-hints): UEX files the user
-/// put in `uex_folder`. StarOrg Codex downloads nothing and shows names only, never prices.
+/// Where the shop names of WHERE TO GET come from (spec obtain-hints): UEX files in
+/// `uex_folder`, downloaded by `fetch_uex` while "Download UEX market data" is on or put
+/// there by the user. Shows names only, never prices.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ObtainStatus {
     /// `<cache>/mcp/uex` (shared with the Sources card and the MCP server).
@@ -708,6 +711,28 @@ pub struct ObtainStatus {
     pub files: Vec<UexFile>,
     /// Every file is there: the shops line can say something.
     pub shops_ready: bool,
+}
+
+/// Whether a UEX API token is saved, and where. Never the token itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UexTokenStatus {
+    pub set: bool,
+    pub store: Option<TokenStoreKind>,
+}
+
+/// Save (`token`) or remove (`null` or empty) the UEX API token.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UexTokenRequest {
+    pub token: Option<String>,
+}
+
+/// Never prints the token.
+impl std::fmt::Debug for UexTokenRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UexTokenRequest")
+            .field("token", &self.token.as_ref().map(|_| "[redacted]"))
+            .finish()
+    }
 }
 
 /// A stat line the user can switch off; `key` is what goes into `lines_off`.
@@ -1198,6 +1223,10 @@ pub struct NetworkSettings {
     /// LIVE builds from voidput/sc-gamedata-dumps (addendum §1). Never used by apply.
     pub published_dumps: bool,
     pub starorg: bool,
+    /// "Download UEX market data": "Fetch now" may download the two UEX files WHERE TO GET's
+    /// shop line reads from api.uexcorp.space. Missing in older saved settings = off.
+    #[serde(default)]
+    pub uex: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -2063,6 +2092,8 @@ pub enum ExternalLink {
     Donate,
     /// StarOrg Tools on Patreon.
     Patreon,
+    /// UEX Corp, where a UEX API token is made (My Apps).
+    Uex,
 }
 
 impl ExternalLink {
@@ -2071,6 +2102,7 @@ impl ExternalLink {
             Self::Support => "https://discord.gg/GCkYhbFYNq",
             Self::Donate => "https://buymeacoffee.com/zedwil",
             Self::Patreon => "https://www.patreon.com/cw/StarOrgTools",
+            Self::Uex => "https://uexcorp.space",
         }
     }
 
@@ -2079,6 +2111,7 @@ impl ExternalLink {
             Self::Support => "Support",
             Self::Donate => "Buy me a coffee",
             Self::Patreon => "Patreon",
+            Self::Uex => "UEX Corp",
         }
     }
 }

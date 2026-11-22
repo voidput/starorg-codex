@@ -97,7 +97,7 @@ export interface ChannelRef {
 
 // Jobs ----------------------------------------------------------------------------------
 
-export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook' | 'dev' | 'mcp';
+export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook' | 'dev' | 'mcp' | 'uex';
 export type JobPhase = 'running' | 'done' | 'failed' | 'cancelled';
 
 export interface JobProgress {
@@ -396,11 +396,22 @@ export interface UexFile {
   modified: string | null;
 }
 
-/** Shop names come only from UEX files the user put in `uex_folder`; nothing is downloaded, prices never shown. */
+/** Shop names come from UEX files in `uex_folder`: downloaded by `fetch_uex` (opt-in) or put there by the user. Prices never shown. */
 export interface ObtainStatus {
   uex_folder: string;
   files: UexFile[];
   shops_ready: boolean;
+}
+
+/** Whether a UEX API token is saved, and where. Never the token itself. */
+export interface UexTokenStatus {
+  set: boolean;
+  store: TokenStoreKind | null;
+}
+
+/** Save (`token`) or remove (`null` or empty) the UEX API token. */
+export interface UexTokenRequest {
+  token: string | null;
 }
 
 export interface LineSchema {
@@ -660,6 +671,8 @@ export interface NetworkSettings {
   /** "Download published LIVE builds for Diff" (Developer mode only; never used by apply). */
   published_dumps: boolean;
   starorg: boolean;
+  /** "Download UEX market data": `fetch_uex` may download the two UEX files from api.uexcorp.space. */
+  uex: boolean;
 }
 
 export interface Settings {
@@ -1207,7 +1220,7 @@ export interface UpdateCheckRequest {
 }
 
 /** Footer / About links; the URL for each lives in Rust (`ExternalLink::url`). */
-export type ExternalLink = 'support' | 'donate' | 'patreon';
+export type ExternalLink = 'support' | 'donate' | 'patreon' | 'uex';
 
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';

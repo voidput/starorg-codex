@@ -16,6 +16,7 @@
   import Check from '@lucide/svelte/icons/check';
   import Circle from '@lucide/svelte/icons/circle';
   import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import Download from '@lucide/svelte/icons/download';
   import { Button } from '@/components/ui/button';
   import { Input } from '@/components/ui/input';
   import { Skeleton } from '@/components/ui/skeleton';
@@ -34,6 +35,7 @@
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
   import { LINKS, openLink } from '@/lib/links';
+  import { fetchUexNow } from '@/lib/uex';
 
   type Tab = 'general' | CategoryId | 'blueprints' | 'name-tags' | 'quest-items';
 
@@ -260,6 +262,18 @@
     });
     return () => (stale = true);
   });
+  const uexOn = $derived(!!app.settings?.network.uex);
+  let uexFetching = $state(false);
+  async function fetchUex() {
+    uexFetching = true;
+    const s = await fetchUexNow();
+    if (s) uex = s;
+    uexFetching = false;
+  }
+  function uexSettings() {
+    app.settingsSection = 'network';
+    app.go('settings');
+  }
   const jumpTab = (t: Tab) => {
     selected = t;
     document.getElementById(`cat-tab-${t}`)?.focus();
@@ -504,7 +518,7 @@
           <Card.Root>
             <Card.Header>
               <Card.Title>Shops</Card.Title>
-              <Card.Description>Shop stock is in no game file. Shop names come only from UEX files you put in the UEX folder yourself; StarOrg Codex downloads nothing. Names only, never prices: prices go stale between applies.</Card.Description>
+              <Card.Description>Shop stock is in no game file. Shop names come from UEX files: downloaded when you turn it on in Settings, or put there yourself. Names only, never prices: prices go stale between applies.</Card.Description>
             </Card.Header>
             <Card.Content class="grid gap-2">
               <SwitchRow
@@ -538,9 +552,16 @@
                     {/each}
                   </ul>
                   <span class="text-muted-foreground">
-                    {uex.shops_ready ? 'Both files are there; apply again after you replace them.' : 'Put both files (the sc-gamedata fetch output) in this folder, then apply. The Explorer Sources card reads the same files.'}
+                    {uex.shops_ready ? 'Both files are there; apply again after you replace them.' : uexOn ? 'Fetch now downloads both, then apply. The Explorer Sources card reads the same files.' : 'Turn on "Download UEX market data" in Settings, or put both files (the sc-gamedata fetch output) in this folder, then apply. The Explorer Sources card reads the same files.'}
                   </span>
-                  <div><Button variant="ghost" size="sm" onclick={() => uexSeq++}>Check again</Button></div>
+                  <div class="flex flex-wrap gap-1.5">
+                    {#if uexOn}
+                      <Button variant="outline" size="sm" disabled={uexFetching} onclick={fetchUex}><Download class={cn(uexFetching && 'animate-pulse')} aria-hidden="true" /> {uexFetching ? 'Downloading…' : 'Fetch now'}</Button>
+                    {:else}
+                      <Button variant="outline" size="sm" onclick={uexSettings}>Open Network settings</Button>
+                    {/if}
+                    <Button variant="ghost" size="sm" onclick={() => uexSeq++}>Check again</Button>
+                  </div>
                 {/if}
               </div>
             </Card.Content>

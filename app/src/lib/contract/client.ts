@@ -30,6 +30,9 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   build_preview: [{ req: T.PreviewRequest }, T.PreviewItem[]];
   profile_schema: [Record<string, never>, T.ProfileSchema];
   obtain_status: [Record<string, never>, T.ObtainStatus];
+  uex_token_status: [Record<string, never>, T.UexTokenStatus];
+  set_uex_token: [{ req: T.UexTokenRequest }, T.UexTokenStatus];
+  fetch_uex: [Record<string, never>, T.ObtainStatus];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
   preset_profile: [{ preset: T.Preset }, T.Profile];
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
@@ -113,6 +116,9 @@ export const COMMANDS = [
   'build_preview',
   'profile_schema',
   'obtain_status',
+  'uex_token_status',
+  'set_uex_token',
+  'fetch_uex',
   'get_profile',
   'preset_profile',
   'save_profile',
@@ -334,6 +340,12 @@ export const api = {
   profileSchema: () => call('profile_schema', none),
   /** The UEX folder and files the WHERE TO GET shop line reads (metadata only). */
   obtainStatus: () => call('obtain_status', none),
+  /** Whether a UEX token is saved (keyring or file); never the token. */
+  uexTokenStatus: () => call('uex_token_status', none),
+  /** Save the UEX token; null or empty removes it. */
+  setUexToken: (token: string | null) => call('set_uex_token', { req: { token } }),
+  /** "Fetch now": download both UEX files (network-off unless "Download UEX market data" is on). */
+  fetchUex: () => call('fetch_uex', none),
   getProfile: (req: T.ChannelRef) => call('get_profile', { req }),
   presetProfile: (preset: T.Preset) => call('preset_profile', { preset }),
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),

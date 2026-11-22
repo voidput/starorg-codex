@@ -9,7 +9,7 @@
 use starorg_codex_app::contract::Backend;
 use starorg_codex_app::contract::real::UPDATE_JSON;
 use starorg_codex_app::contract::real::{
-    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory, StarOrgDeps,
+    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory, StarOrgDeps, UexDeps,
 };
 use starorg_codex_app::contract::types::*;
 use starorg_codex_app::update::{ReleaseFetch, Updater};
@@ -118,6 +118,8 @@ struct Fake {
     pick: Arc<Mutex<Option<PathBuf>>>,
     /// The folder the last file picker was asked to open in (`None` = Downloads).
     pick_dir: Arc<Mutex<Option<Option<PathBuf>>>>,
+    /// UEX at a scripted fake: no test ever reaches api.uexcorp.space.
+    uex: Arc<FakeUex>,
 }
 
 fn manifest(branch: &str, change: u64, version: &str) -> String {
@@ -196,6 +198,8 @@ impl Fake {
             starorg_base,
             Arc::new(starorg_net::starorg::mock::fake_browser),
         ));
+        let uex = Arc::new(FakeUex::default());
+        let backend = backend.with_uex(UexDeps::with(uex.clone()));
         Self {
             _t: t,
             base,
@@ -204,6 +208,7 @@ impl Fake {
             backend,
             pick,
             pick_dir,
+            uex,
         }
     }
 
@@ -1887,6 +1892,42 @@ fn fleet_import_order_and_ship_names_through_apply() {
 }
 
 /// GitHub's release list, scripted; counts requests.
+/// UEX answers: `refuse` = what an invalid token gets; every call's token is kept.
+#[derive(Default)]
+struct FakeUex {
+    refuse: std::sync::atomic::AtomicBool,
+    tokens: Mutex<Vec<Option<String>>>,
+}
+
+impl starorg_net::uex::UexTransport for FakeUex {
+    fn get(
+        &self,
+        endpoint: &str,
+        token: Option<&str>,
+    ) -> Result<starorg_net::uex::Answer, starorg_net::uex::UexError> {
+        self.tokens.lock().unwrap().push(token.map(str::to_string));
+        let body = if self.refuse.load(std::sync::atomic::Ordering::SeqCst) {
+            serde_json::json!({ "status": "invalid_token", "data": null })
+        } else if endpoint == "terminals" {
+            serde_json::json!({ "status": "ok", "data": [
+                { "id": 7, "name": "Shop - Test", "displayname": "Test Station", "type": "item",
+                  "star_system_name": "Stanton", "space_station_name": "Test Station",
+                  "is_available": 1, "is_available_live": 1, "screenshot": "https://cdn/x.jpg" }
+            ]})
+        } else {
+            serde_json::json!({ "status": "ok", "data": [
+                { "id": 1, "item_name": "Fake Rifle Kestrel", "item_uuid": "u-rifle", "id_item": 3,
+                  "id_terminal": 7, "terminal_name": "Shop - Test", "price_buy": 1200,
+                  "price_sell": 0, "date_modified": 1788031806 }
+            ]})
+        };
+        Ok(starorg_net::uex::Answer {
+            status: 200,
+            body: serde_json::to_vec(&body).unwrap(),
+        })
+    }
+}
+
 #[derive(Default)]
 struct FakeGitHub {
     calls: Arc<std::sync::atomic::AtomicUsize>,
@@ -2228,4 +2269,128 @@ fn schema1_profile_migrates_once_with_one_activity_line() {
     f.backend.overview().unwrap();
     assert_eq!(lines("could not be updated to the new format").len(), 1);
     assert_eq!(lines("Profile updated").len(), 1);
+}
+
+#[test]
+fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_both_files() {
+    let f = Fake::new();
+    let secret = "uex-test-secret-4242";
+    // Off: refused, nothing asked.
+    assert_eq!(
+        f.backend.fetch_uex().unwrap_err().code,
+        ErrorCode::NetworkOff
+    );
+    assert!(f.uex.tokens.lock().unwrap().is_empty());
+    let mut s = f.backend.get_settings().unwrap();
+    assert!(!s.network.uex);
+    s.network.uex = true;
+    assert!(f.backend.save_settings(s).unwrap().network.uex);
+
+    // No token: both public endpoints, no Authorization.
+    let st = f.backend.fetch_uex().unwrap();
+    assert!(st.shops_ready, "{st:?}");
+    assert_eq!(*f.uex.tokens.lock().unwrap(), [None, None]);
+    let dir = f.dirs.cache.join("mcp/uex");
+    let prices: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("uex-item-prices.json")).unwrap()).unwrap();
+    assert_eq!(prices["_source"], "UEX Corp API (https://uexcorp.space)");
+    assert_eq!(prices["prices"][0]["item_uuid"], "u-rifle");
+    assert!(prices["prices"][0].get("price_sell").is_none());
+    let terms: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("uex-terminals.json")).unwrap()).unwrap();
+    assert_eq!(terms["summary"]["terminals"], 1);
+    assert!(terms["terminals"][0].get("screenshot").is_none());
+
+    // A token: saved, never shown, sent.
+    assert_eq!(
+        f.backend.uex_token_status().unwrap(),
+        UexTokenStatus {
+            set: false,
+            store: None
+        }
+    );
+    assert_eq!(
+        f.backend
+            .set_uex_token(UexTokenRequest {
+                token: Some("has space".into())
+            })
+            .unwrap_err()
+            .code,
+        ErrorCode::Invalid
+    );
+    let t = f
+        .backend
+        .set_uex_token(UexTokenRequest {
+            token: Some(format!(" {secret} ")),
+        })
+        .unwrap();
+    assert!(t.set && t.store.is_some());
+    assert!(
+        !format!(
+            "{:?}",
+            UexTokenRequest {
+                token: Some(secret.into())
+            }
+        )
+        .contains(secret)
+    );
+    f.backend.fetch_uex().unwrap();
+    assert_eq!(
+        f.uex.tokens.lock().unwrap()[2..],
+        [Some(secret.to_string()), Some(secret.to_string())]
+    );
+
+    // A refused token: an error that does not hold it; the files stay.
+    f.uex
+        .refuse
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let e = f.backend.fetch_uex().unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(
+        e.message.contains("token") && !e.message.contains(secret),
+        "{}",
+        e.message
+    );
+    assert!(f.backend.obtain_status().unwrap().shops_ready);
+
+    // Nowhere else: not in app.json, config.toml, Activity or diagnostics.
+    for p in [
+        f.dirs.config.join("app.json"),
+        f.dirs.config.join("config.toml"),
+    ] {
+        if let Ok(text) = std::fs::read_to_string(&p) {
+            assert!(!text.contains(secret), "{} holds the token", p.display());
+        }
+    }
+    let log = f.backend.activity(100).unwrap();
+    assert!(log.iter().any(
+        |l| l.job == Some(JobKind::Uex) && l.message.starts_with("Downloaded UEX market data")
+    ));
+    assert!(log.iter().any(|l| l.message == "UEX token saved (keyring)"));
+    assert!(log.iter().all(|l| !l.message.contains(secret)));
+    assert!(
+        !f.backend
+            .export_diagnostics()
+            .unwrap()
+            .text
+            .contains(secret)
+    );
+
+    // Removed: status says so and the next fetch sends none.
+    f.uex
+        .refuse
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    let t = f
+        .backend
+        .set_uex_token(UexTokenRequest { token: None })
+        .unwrap();
+    assert_eq!(
+        t,
+        UexTokenStatus {
+            set: false,
+            store: None
+        }
+    );
+    f.backend.fetch_uex().unwrap();
+    assert_eq!(f.uex.tokens.lock().unwrap().last().unwrap(), &None);
 }

@@ -10086,6 +10086,22 @@
     "file_name": "user-sample-label-fix.patch.toml",
     "text": "schema = 1\nid = \"user-sample-label-fix\"\ntitle = \"Sample label fix\"\ndescription = \"Synthetic user patch.\"\n\n[[loc]]\nkey = \"ui_SYN_Label_00007\"\nop = \"replace\"\nfind = \"Label\"\nvalue = \"Sign\"\n"
   },
+  "fetch_uex": {
+    "files": [
+      {
+        "modified": "2026-11-21T09:00:00Z",
+        "name": "uex-item-prices.json",
+        "present": true
+      },
+      {
+        "modified": "2026-11-21T09:00:00Z",
+        "name": "uex-terminals.json",
+        "present": true
+      }
+    ],
+    "shops_ready": true,
+    "uex_folder": "/home/pilot/.cache/starorg-codex/mcp/uex"
+  },
   "fleet_clear": {
     "catalog": [
       {
@@ -11156,7 +11172,8 @@
     "network": {
       "check_updates": false,
       "published_dumps": false,
-      "starorg": true
+      "starorg": true,
+      "uex": false
     },
     "safe_gpu": false,
     "starorg": {
@@ -14499,6 +14516,10 @@
     "token_store": "keyring",
     "user": "pilot_a_discord"
   },
+  "set_uex_token": {
+    "set": true,
+    "store": "keyring"
+  },
   "setup": {
     "install": "inst-7f3a",
     "set_up": [
@@ -14718,6 +14739,10 @@
       "size": null,
       "source": "patched"
     }
+  },
+  "uex_token_status": {
+    "set": false,
+    "store": null
   },
   "update_status": {
     "check": {
