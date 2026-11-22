@@ -1,7 +1,7 @@
 ---
 title: StarOrg Codex docs
 tags: [docs]
-updated: 2026-11-17
+updated: 2026-11-22
 ---
 
 # StarOrg Codex docs
@@ -29,6 +29,7 @@ updated: 2026-11-17
 - [v1 addendum: dumps, LUG hooks, Smart Citizen import, StarOrg Tools sync, fleet and ships, dev mode (explorer item finder, assets, memory limit), strings grouping and owners, gamedata port, local MCP server, stale reasons, blueprint markers, quest item hints](plans/specs/starorg-codex-v1-addendum.md)
 - [Model export: 3D print processing (experimental)](plans/specs/model-print.md)
 - [Obtain hints: where to get it, in descriptions](plans/specs/obtain-hints.md)
+- [Missing names: names for item keys stock lacks, and a raw-key guard](plans/specs/missing-names.md)
 - Decisions: [Tauri + Svelte UI](decisions/tauri-svelte-ui.md) · [StarBreaker as a library](decisions/starbreaker-as-library.md) · [Own patch format](decisions/own-patch-format.md) · [Rename to starorg-codex (0.3.0)](decisions/rename-to-starorg-codex.md)
 - [Now](plans/now/todo.md) · [Next](plans/next/backlog.md) · [Later](plans/later/ideas.md)
 

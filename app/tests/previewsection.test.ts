@@ -19,8 +19,9 @@ test('every section maps to examples the mock gives', () => {
   assert.deepEqual(labels('name-tags'), ['Component name']);
   assert.deepEqual(labels('quest-items'), ['Quest item']);
   assert.deepEqual(labels('obtain'), ['Weapon (where to get)', 'Ore (where to get)']);
-  // General: one stats-block example (its header line), plus the colour test when on.
-  assert.deepEqual(labels('general'), ['Ship description']);
+  // General: one stats-block example (its header line), a fixed missing name, plus the
+  // colour test when on.
+  assert.deepEqual(labels('general'), ['Ship description', 'Item name (missing in stock)']);
 });
 
 test('Blueprints puts the contract with a blueprint list first', () => {
@@ -35,7 +36,7 @@ test('a section with nothing to show is empty; null shows all', () => {
   assert.deepEqual(sectionPreview(null, 'ships'), []);
   assert.equal(sectionPreview(items, null).length, items.length);
   const ui: PreviewItem = { key: 'mG_ContractsMgr_Select', label: 'Colour test', category: 'ui', original: 'a', result: 'b' };
-  assert.deepEqual(sectionPreview([...items, ui], 'general').map((i) => i.label), ['Ship description', 'Colour test']);
+  assert.deepEqual(sectionPreview([...items, ui], 'general').map((i) => i.label), ['Ship description', 'Item name (missing in stock)', 'Colour test']);
 });
 
 test('name keys as the Rust side reads them', () => {

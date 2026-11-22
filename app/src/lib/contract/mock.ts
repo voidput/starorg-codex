@@ -195,6 +195,7 @@ function presetProfile(p: T.Preset): T.Profile {
     obtain: true,
     obtain_mode: p === 'minimal' ? 'short' : all ? 'detailed' : 'normal',
     obtain_shops: all,
+    missing_names: true,
     lines_off: [],
     stats_above: false,
     header: '--- STATS ---',
@@ -243,11 +244,12 @@ function counts(p: T.Profile, overrides: number): T.ApplyCounts {
     missiles: n(p.missiles, 96),
     missions: n(p.missions, 2140),
     obtain_hints: n(p.obtain, 3480),
+    missing_names: n(p.missing_names, 421),
     overrides,
     dropped: 0,
     changed: 0,
   };
-  c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions) * 2 + c.obtain_hints + overrides + 1200;
+  c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions) * 2 + c.obtain_hints + c.missing_names + overrides + 1200;
   return c;
 }
 
@@ -331,7 +333,7 @@ function emptyReport(s: T.ChannelSummary, result: T.ApplyResult): T.ApplyReport 
     result,
     reason: null,
     build: clone(s.build),
-    counts: { changed: 0, ships: 0, components: 0, ship_weapons: 0, fps_weapons: 0, missiles: 0, missions: 0, obtain_hints: 0, overrides: 0, dropped: 0 },
+    counts: { changed: 0, ships: 0, components: 0, ship_weapons: 0, fps_weapons: 0, missiles: 0, missions: 0, obtain_hints: 0, missing_names: 0, overrides: 0, dropped: 0 },
     patches: [],
     warnings: [],
     user_cfg: { changed: false, path: null, link_target: null, shared_with: [], line: null },
@@ -429,6 +431,10 @@ export function preview(p: T.Profile): T.PreviewItem[] {
     out.push({ key: 'item_DescSYN_Chip', label: 'Quest item', category: 'quest-hints', original: chip, result: `${chip}\\n\\n${em(m.label_em, 'Used in:')} Synthetic Recovery · Stanton` });
   }
   out.push(...obtainPreview(p, block));
+  if (p.missing_names) {
+    const key = 'item_Name_syn_flightsuit_01_01_02';
+    out.push({ key, label: 'Item name (missing in stock)', category: 'missing-names', original: `@${key}`, result: 'Synthetic Flightsuit' });
+  }
   if (p.colour_test) {
     const prompt = 'Please select a contract.';
     out.push({ key: 'mG_ContractsMgr_Select', label: 'Colour test', category: 'ui', original: prompt, result: prompt + COLOUR_TEST_LINE });

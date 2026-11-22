@@ -192,6 +192,7 @@ fn counts_for(p: &Profile, overrides: u32) -> ApplyCounts {
         missiles: n(p.missiles, 96),
         missions: n(p.missions, 2140),
         obtain_hints: n(p.obtain, 3480),
+        missing_names: n(p.missing_names, 421),
         overrides,
         dropped: 0,
         changed: 0,
@@ -199,6 +200,7 @@ fn counts_for(p: &Profile, overrides: u32) -> ApplyCounts {
     c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions)
         * 2
         + c.obtain_hints
+        + c.missing_names
         + overrides
         + 1200;
     c
@@ -910,6 +912,7 @@ fn report(ch: &ChannelSummary, result: ApplyResult) -> ApplyReport {
             missiles: 0,
             missions: 0,
             obtain_hints: 0,
+            missing_names: 0,
             overrides: 0,
             dropped: 0,
         },
@@ -3511,6 +3514,15 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
     }
     if p.obtain {
         out.extend(obtain_preview(p, &block));
+    }
+    if p.missing_names {
+        out.push(PreviewItem {
+            key: "item_Name_syn_flightsuit_01_01_02".into(),
+            label: "Item name (missing in stock)".into(),
+            category: "missing-names".into(),
+            original: "@item_Name_syn_flightsuit_01_01_02".into(),
+            result: "Synthetic Flightsuit".into(),
+        });
     }
     if p.colour_test {
         let prompt = "Please select a contract.";

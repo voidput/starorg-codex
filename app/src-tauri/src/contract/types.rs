@@ -331,6 +331,9 @@ pub struct ApplyCounts {
     /// Descriptions that got a WHERE TO GET block (spec obtain-hints).
     #[serde(default)]
     pub obtain_hints: u32,
+    /// Name keys stock lacks that got a name (spec missing-names).
+    #[serde(default)]
+    pub missing_names: u32,
     pub overrides: u32,
     pub dropped: u32,
 }
@@ -674,6 +677,9 @@ pub struct Profile {
     pub obtain_mode: ObtainMode,
     /// Shop names from the user's UEX files in the block (never prices).
     pub obtain_shops: bool,
+    /// Names for items whose name key stock lacks (spec missing-names): adds keys, never
+    /// edits a stock line.
+    pub missing_names: bool,
     /// Stat lines switched off, as `<category>.<line>` (keys from [`ProfileSchema`]).
     pub lines_off: Vec<String>,
     pub stats_above: bool,
@@ -1028,10 +1034,14 @@ pub enum OverrideRule {
     FormatKey,
     PercentRule,
     TooLong,
+    /// Generated text only (an override is never refused for it): a raw `@key`.
+    RawLocKey,
+    /// Generated text only: "PLACEHOLDER".
+    PlaceholderText,
 }
 
 impl OverrideRule {
-    pub const ALL: [OverrideRule; 8] = [
+    pub const ALL: [OverrideRule; 10] = [
         OverrideRule::ControlCharacter,
         OverrideRule::AddedEmUnbalanced,
         OverrideRule::EmSignature,
@@ -1040,6 +1050,8 @@ impl OverrideRule {
         OverrideRule::FormatKey,
         OverrideRule::PercentRule,
         OverrideRule::TooLong,
+        OverrideRule::RawLocKey,
+        OverrideRule::PlaceholderText,
     ];
 }
 

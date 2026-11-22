@@ -134,6 +134,20 @@ fn preview_rows(rows: &[StringRow]) -> Vec<PreviewItem> {
             out.push(item(r, label, "obtain-hints"));
         }
     }
+    // Missing names (spec missing-names): a key stock lacks, shown as the game showed it.
+    if let Some(r) = rows
+        .iter()
+        .filter(changed)
+        .find(|r| r.original.is_empty() && r.category == "items" && is_name(&r.key))
+    {
+        out.push(PreviewItem {
+            key: r.key.clone(),
+            label: "Item name (missing in stock)".into(),
+            category: "missing-names".into(),
+            original: format!("@{}", r.key),
+            result: r.result.clone(),
+        });
+    }
     let test = starorg_core::enhance::profile::COLOUR_TEST_KEY;
     if let Some(r) = rows
         .iter()
@@ -676,6 +690,28 @@ mod tests {
             .map(|i| i.key.as_str())
             .collect();
         assert_eq!(keys, ["items_commodities_box_desc"]);
+    }
+
+    #[test]
+    fn preview_shows_an_added_name_against_its_raw_key() {
+        let rows = vec![
+            row("item_NameStock", "items", "Stock", "Stock"),
+            row("item_Name_suit_01_02", "items", "", "Pilot Suit"),
+        ];
+        let p = preview_rows(&rows);
+        let got: Vec<(&str, &str, &str)> = p
+            .iter()
+            .filter(|i| i.category == "missing-names")
+            .map(|i| (i.key.as_str(), i.original.as_str(), i.result.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [(
+                "item_Name_suit_01_02",
+                "@item_Name_suit_01_02",
+                "Pilot Suit"
+            )]
+        );
     }
 }
 

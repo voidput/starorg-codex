@@ -118,6 +118,7 @@ pub fn zero_counts() -> ApplyCounts {
         missiles: 0,
         missions: 0,
         obtain_hints: 0,
+        missing_names: 0,
         overrides: 0,
         dropped: 0,
     }
@@ -135,6 +136,7 @@ pub fn counts(v: &serde_json::Value) -> ApplyCounts {
         missiles: n("missiles"),
         missions: n("missions"),
         obtain_hints: n("obtain_hints"),
+        missing_names: n("missing_names"),
         overrides: n("overrides"),
         dropped: n("dropped"),
     }
@@ -392,6 +394,7 @@ pub fn profile_to(core: &ep::Profile, disabled: Vec<String>) -> CmdResult<Profil
             ep::ObtainMode::Detailed => ObtainMode::Detailed,
         },
         obtain_shops: core.obtain_shops,
+        missing_names: core.missing_names,
         lines_off: core.lines_off.iter().cloned().collect(),
         stats_above: core.stats_above,
         header: core.header.clone(),
@@ -447,6 +450,7 @@ pub fn profile_from(p: &Profile) -> ep::Profile {
             ObtainMode::Detailed => ep::ObtainMode::Detailed,
         },
         obtain_shops: p.obtain_shops,
+        missing_names: p.missing_names,
         lines_off: p.lines_off.iter().cloned().collect(),
         stats_above: p.stats_above,
         header: p.header.clone(),

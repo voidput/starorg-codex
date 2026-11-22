@@ -2,7 +2,7 @@
  * Which in-game preview examples belong to which Enhancements section (spec 9.4): the
  * preview shows only the open section's. Categories are the ones `preview_rows`
  * (contract/real/diag.rs) and both mocks give: ships, components, ship-weapons,
- * fps-weapons, missiles, missions, quest-hints, obtain-hints, ui.
+ * fps-weapons, missiles, missions, quest-hints, obtain-hints, missing-names, ui.
  */
 import type { CategoryId, PreviewItem } from './contract/types';
 
@@ -24,11 +24,12 @@ const cat = (c: string) => (it: PreviewItem) => it.category === c;
 
 /** Per section: which examples, in which order. */
 const RULES: Record<Section, (items: PreviewItem[]) => PreviewItem[]> = {
-  // The stats-block format and header line (one example) and the colour test.
+  // The stats-block format and header line (one example), a fixed missing name and the
+  // colour test.
   general: (items) => {
     const stat = items.filter((it) => STATS.includes(it.category) && !isNameKey(it.key));
     const sample = stat.find((it) => it.result !== it.original) ?? stat[0];
-    return [...(sample ? [sample] : []), ...items.filter(cat('ui'))];
+    return [...(sample ? [sample] : []), ...items.filter(cat('missing-names')), ...items.filter(cat('ui'))];
   },
   ships: (items) => items.filter(cat('ships')),
   // Stats sections show descriptions; tagged names are Name tags'.

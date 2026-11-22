@@ -166,6 +166,8 @@ export interface ApplyCounts {
   missions: number;
   /** Descriptions that got a WHERE TO GET block. */
   obtain_hints: number;
+  /** Item name keys stock lacks that got a name. */
+  missing_names: number;
   overrides: number;
   dropped: number;
 }
@@ -379,6 +381,8 @@ export interface Profile {
   obtain_mode: ObtainMode;
   /** Shop names from the user's UEX files in the block (never prices). */
   obtain_shops: boolean;
+  /** Names for items whose name key stock lacks (adds keys, never edits a stock line). */
+  missing_names: boolean;
   /** `<category>.<line>` keys from ProfileSchema. */
   lines_off: string[];
   stats_above: boolean;
@@ -573,7 +577,7 @@ export interface OverrideRequest {
 }
 
 /** M1 `validate::Rule::name()`. */
-export type OverrideRule = 'control-character' | 'added-em-unbalanced' | 'em-signature' | 'variable-tokens' | 'format-specifiers' | 'format-key' | 'percent-rule' | 'too-long';
+export type OverrideRule = 'control-character' | 'added-em-unbalanced' | 'em-signature' | 'variable-tokens' | 'format-specifiers' | 'format-key' | 'percent-rule' | 'too-long' | 'raw-loc-key' | 'placeholder-text';
 
 export interface OverrideResult {
   accepted: boolean;

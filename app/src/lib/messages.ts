@@ -15,6 +15,8 @@ export const RULE_TEXT: Record<OverrideRule, { check: string; label: string; mes
   'format-key': { check: 'Percent in format text', label: 'Plain % in a format text', message: 'This key is a format string; write a plain % as %%.' },
   'percent-rule': { check: 'Percent signs', label: 'Lone percent sign', message: 'A % must be followed by the end of the text, \\n, or two spaces.' },
   'too-long': { check: 'Length', label: 'Too long', message: 'The text is longer than the game shows.' },
+  'raw-loc-key': { check: 'No raw keys', label: 'Raw text key', message: 'Generated text may not show a raw @key the original does not have.' },
+  'placeholder-text': { check: 'No placeholders', label: 'Placeholder text', message: 'Generated text may not say PLACEHOLDER where the original does not.' },
 };
 
 export function ruleText(rule: string | null | undefined): { check: string; label: string; message: string } {

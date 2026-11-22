@@ -1,7 +1,7 @@
 ---
 title: StarOrg Codex
 tags: [docs]
-updated: 2026-11-17
+updated: 2026-11-22
 ---
 
 # StarOrg Codex
@@ -26,6 +26,7 @@ updated: 2026-11-17
 - [[plans/specs/starorg-codex-v1-addendum|v1 addendum: dumps, LUG hooks, Smart Citizen import, StarOrg Tools sync, fleet and ships, dev mode (explorer item finder, assets, memory limit), strings grouping and owners, gamedata port, local MCP server, stale reasons, blueprint markers, quest item hints]] ([plain](plans/specs/starorg-codex-v1-addendum.md))
 - [[plans/specs/model-print|Model export: 3D print processing (experimental)]] ([plain](plans/specs/model-print.md))
 - [[plans/specs/obtain-hints|Obtain hints: where to get it, in descriptions]] ([plain](plans/specs/obtain-hints.md))
+- [[plans/specs/missing-names|Missing names: names for item keys stock lacks, and a raw-key guard]] ([plain](plans/specs/missing-names.md))
 
 ## Repo (outside the vault, plain links only)
 - [README](../README.md) · [Contributing](../CONTRIBUTING.md) · [Agent and repo guide](../AGENTS.md) · [Patches and pull requests](../PATCH.md) · [Code of Conduct](../CODE_OF_CONDUCT.md) · [Security policy](../SECURITY.md)

@@ -35,6 +35,7 @@ pub fn preset_profile(p: Preset) -> Profile {
             _ => ObtainMode::Normal,
         },
         obtain_shops: all,
+        missing_names: true,
         lines_off: Vec::new(),
         stats_above: false,
         header: "--- STATS ---".into(),

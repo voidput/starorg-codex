@@ -94,6 +94,7 @@ pub fn category_of(generator: &str) -> &'static str {
         "ship-names" => "ships",
         "quest-hints" => "items",
         "obtain-hints" => "items",
+        "missing-names" => "items",
         _ => "other",
     }
 }
@@ -143,8 +144,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
         i.ship_names,
         i.obtain,
     );
-    let gen_edits: Vec<merge::GenEdit> =
-        generated.edits.values().map(merge::GenEdit::from).collect();
+    let gen_edits = merge::gen_edits(&generated);
     let merged = merge::merge(
         i.stock,
         i.game_data,
@@ -166,6 +166,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
         missions: n(&[Category::MissionTitles, Category::MissionDescriptions]),
         // Counted with its extensions: most blocks go after another category's stats.
         obtain_hints: n(&[Category::ObtainHints]),
+        missing_names: n(&[Category::MissingNames]),
         overrides: c.overrides as u32,
         dropped: c.dropped as u32,
     };
@@ -238,6 +239,43 @@ pub fn build(i: &Inputs<'_>) -> Table {
         );
         info.push(RowInfo {
             generated: generated_v,
+            source,
+        });
+    }
+    // Keys stock lacks (spec missing-names): rows after the stock ones, empty original.
+    let finals_added: HashMap<String, &str> = merged
+        .edits
+        .added()
+        .map(|(k, v)| (starorg_core::ini::fold_key(k), v))
+        .collect();
+    for (folded, a) in &generated.added {
+        let Some(result) = finals_added.get(folded) else {
+            continue;
+        };
+        let source = merged.added_provenance.get(folded).cloned();
+        let src = match source {
+            Some(Source::Override) => StringSource::Edited,
+            _ => StringSource::Enhanced,
+        };
+        index.insert(a.key.to_ascii_lowercase(), rows.len());
+        let g = i.groups.group(usize::MAX);
+        rows.push(StringRow {
+            key: a.key.clone(),
+            original: String::new(),
+            result: result.to_string(),
+            source: src,
+            category: category_of(a.category.name()).to_string(),
+            group: g.id.to_string(),
+            group_label: g.label.to_string(),
+            manufacturer: None,
+            size: None,
+            owner: None,
+            owners: 0,
+            other_owners: None,
+        });
+        also.push(Vec::new());
+        info.push(RowInfo {
+            generated: Some((a.category.name().to_string(), a.value.clone())),
             source,
         });
     }

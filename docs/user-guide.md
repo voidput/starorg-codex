@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-21
+updated: 2026-11-22
 ---
 
 # User guide
@@ -108,6 +108,12 @@ writes nothing to the game), no apply needed.
     shops on.
   - The first apply per game build extracts a few datasets from `Data.p4k` (seconds; the
     Explorer Sources card and the MCP server share that cache), later applies reuse them.
+
+- **Fix missing item names** (General, on in every preset): some items show a code such as
+  `@item_Name_nvs_pilot_flightsuit_01_01_02` instead of a name, because CIG's text file lacks
+  that key. This adds the key with a name: the name its variants share when they all agree,
+  else a readable one made from the code (`NVS Pilot Flightsuit 01-01-02`). No existing text
+  changes. Whatever the switch, our own text never shows a raw `@key` or a placeholder.
 
 Colours marked "look not verified" are our guess of how the game draws that style: switch on
 the colour test line, check in game and tell us (Support). **Save** keeps the settings, **Save &
