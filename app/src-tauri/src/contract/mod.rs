@@ -67,6 +67,10 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn cancel_job(&self, job: String) -> CmdResult<()>;
 
     fn build_preview(&self, req: PreviewRequest) -> CmdResult<Vec<PreviewItem>>;
+    /// Extract the channel's game data (and the Where to get datasets) into the cache, as
+    /// apply would, without writing to the game folder. A job (`extract`); `needs-decision`
+    /// for a channel that is not set up. Returns the channel's summary (cache `fresh`).
+    fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary>;
     /// Labels for the core's stat line and tag element ids.
     fn profile_schema(&self) -> CmdResult<ProfileSchema>;
     /// The UEX folder and files the WHERE TO GET shop line reads (spec obtain-hints). Reads
@@ -241,6 +245,7 @@ commands! {
     delete_backup(req: BackupRef) -> BackupList;
     cancel_job(job: String) -> ();
     build_preview(req: PreviewRequest) -> Vec<PreviewItem>;
+    read_game_data(req: ReadGameDataRequest) -> ChannelSummary;
     profile_schema() -> ProfileSchema;
     obtain_status() -> ObtainStatus;
     uex_token_status() -> UexTokenStatus;
@@ -343,6 +348,7 @@ macro_rules! contract_handler {
             $crate::contract::delete_backup,
             $crate::contract::cancel_job,
             $crate::contract::build_preview,
+            $crate::contract::read_game_data,
             $crate::contract::profile_schema,
             $crate::contract::obtain_status,
             $crate::contract::uex_token_status,
@@ -479,6 +485,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "delete_backup",
     "cancel_job",
     "build_preview",
+    "read_game_data",
     "profile_schema",
     "obtain_status",
     "uex_token_status",

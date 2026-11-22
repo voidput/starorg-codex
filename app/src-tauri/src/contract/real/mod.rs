@@ -2290,6 +2290,45 @@ impl Backend for RealBackend {
         Ok(diag::preview(&tbl))
     }
 
+    fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let job = self.job_start(JobKind::Extract, Some(&ch.name), 2, "Reading game data");
+        let r = (|| {
+            let d = self.loaded(&f, ch, true)?;
+            // Where to get: extract its datasets whatever the saved profile says, so the
+            // preview of an unsaved "obtain on" has them too. A failure is only a warning.
+            let mut job = job.clone();
+            self.job_step(&mut job, 2, "Reading Where to get data", None);
+            let prof = starorg_core::enhance::profile::Profile {
+                obtain: true,
+                ..Default::default()
+            };
+            let provider = self.obtain_provider(&f, true);
+            let (_, warnings, _) =
+                apply::obtain_hints(&d.game_data, &prof, provider.as_ref(), &ch.name);
+            if let Some(w) = warnings.first() {
+                self.log(
+                    LogLevel::Warn,
+                    Some(JobKind::Extract),
+                    Some(&ch.name),
+                    &format!("{}: {}", ch.name, w.detail),
+                );
+            }
+            Ok::<_, AppError>(())
+        })();
+        match &r {
+            Ok(()) => {
+                let msg = format!("Read the game data of {}", ch.name);
+                self.log(LogLevel::Info, Some(JobKind::Extract), Some(&ch.name), &msg);
+                self.job_end(job, JobPhase::Done, &msg, None);
+            }
+            Err(e) => self.job_end(job, JobPhase::Failed, &e.message, None),
+        }
+        r?;
+        Ok(self.summary(&f, ch))
+    }
+
     fn profile_schema(&self) -> CmdResult<ProfileSchema> {
         Ok(schema::profile_schema())
     }

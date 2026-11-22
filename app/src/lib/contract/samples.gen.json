@@ -2844,6 +2844,34 @@
       "result": "[Industrial-S2-A] Sample Cooler"
     },
     {
+      "category": "components",
+      "key": "item_DescSYN_Cooler_S2",
+      "label": "Ship component",
+      "original": "A synthetic cooler.",
+      "result": "A synthetic cooler.\\n\\n--- STATS ---\\nCooling: 1,200/s\\nHealth: 900"
+    },
+    {
+      "category": "ship-weapons",
+      "key": "item_DescSYN_Cannon_S3",
+      "label": "Ship weapon",
+      "original": "A synthetic laser cannon.",
+      "result": "A synthetic laser cannon.\\n\\n--- STATS ---\\nDamage: 260 energy  |  DPS: 780\\nFire rate: 180 rpm"
+    },
+    {
+      "category": "fps-weapons",
+      "key": "item_DescSYN_Pistol",
+      "label": "Personal weapon",
+      "original": "A synthetic pistol.",
+      "result": "A synthetic pistol.\\n\\n--- STATS ---\\nDamage: 12 energy  |  DPS: 60\\nMagazine: 20"
+    },
+    {
+      "category": "missiles",
+      "key": "item_DescSYN_Missile_S2",
+      "label": "Missile",
+      "original": "A synthetic heat-seeking missile.",
+      "result": "A synthetic heat-seeking missile.\\n\\n--- STATS ---\\nDamage: 2,400\\nLock range: 4,000 m"
+    },
+    {
       "category": "missions",
       "key": "mission_TitleSYN_Recovery",
       "label": "Mission title",
@@ -13901,6 +13929,31 @@
       }
     ],
     "total": 11375
+  },
+  "read_game_data": {
+    "applied_build": null,
+    "build": {
+      "branch": "sc-alpha-4.10.0",
+      "change": 13165946,
+      "game_version": "4.10.0",
+      "version": "4.10.200.58746"
+    },
+    "build_error": null,
+    "cache": "fresh",
+    "channel": "LIVE",
+    "foreign_file": true,
+    "foreign_tool": "Smart Citizen",
+    "game_running": false,
+    "interrupted_apply": false,
+    "language": "english",
+    "language_value": "english",
+    "last_apply": null,
+    "p4k_time": "2026-11-12T18:04:31Z",
+    "set_up": true,
+    "status": {
+      "state": "changed-by-another-tool",
+      "tool": "Smart Citizen"
+    }
   },
   "read_string_groups": "exact",
   "remove_changes": {

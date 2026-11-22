@@ -29,19 +29,27 @@ fn has_obtain(r: &StringRow) -> bool {
     new(header) || new("Get:")
 }
 
-/// One changed row per category, as the in-game preview shows them.
+/// A name key (`item_NameX`, `vehicle_NameX_short`), where name tags and ship names land.
+fn is_name(key: &str) -> bool {
+    let k = starorg_core::ini::strip_flag_suffix(key).to_ascii_lowercase();
+    k.contains("_name") && !k.contains("_desc")
+}
+
+/// A few changed rows per category (at most two: a description and a name), as the in-game
+/// preview shows them; the UI shows those of the open section.
 pub fn preview(t: &Table) -> Vec<PreviewItem> {
     preview_rows(&t.rows)
 }
 
 fn preview_rows(rows: &[StringRow]) -> Vec<PreviewItem> {
-    const WANT: &[(&str, &str)] = &[
-        ("ships", "Ship description"),
-        ("components", "Ship component"),
-        ("ship-weapons", "Ship weapon"),
-        ("fps-weapons", "Personal weapon"),
-        ("missiles", "Missile"),
-        ("missions", "Contract"),
+    // Category, description label, name label (Name tags and ship names).
+    const WANT: &[(&str, &str, Option<&str>)] = &[
+        ("ships", "Ship description", Some("Ship name")),
+        ("components", "Ship component", Some("Component name")),
+        ("ship-weapons", "Ship weapon", Some("Ship weapon name")),
+        ("fps-weapons", "Personal weapon", None),
+        ("missiles", "Missile", Some("Missile name")),
+        ("missions", "Contract", None),
     ];
     let item = |r: &StringRow, label: &str, cat: &str| PreviewItem {
         key: r.key.clone(),
@@ -52,9 +60,25 @@ fn preview_rows(rows: &[StringRow]) -> Vec<PreviewItem> {
     };
     let changed = |r: &&StringRow| r.source != StringSource::Unmodified;
     let mut out = Vec::new();
-    for (cat, label) in WANT {
-        if let Some(r) = rows.iter().filter(changed).find(|r| r.category == *cat) {
+    for (cat, label, name) in WANT {
+        let first = |want_name: bool| {
+            rows.iter()
+                .filter(changed)
+                .find(|r| r.category == *cat && is_name(&r.key) == want_name)
+        };
+        // Contracts: any changed row (titles are names too); the rest a description first.
+        let desc = if name.is_some() || *cat == "fps-weapons" {
+            first(false)
+        } else {
+            rows.iter().filter(changed).find(|r| r.category == *cat)
+        };
+        if let Some(r) = desc {
             out.push(item(r, label, cat));
+        }
+        if let Some(n) = name
+            && let Some(r) = first(true)
+        {
+            out.push(item(r, n, cat));
         }
     }
     // A contract with a blueprint list, so the marker colours show; one with an
@@ -635,6 +659,7 @@ mod tests {
             ]
         );
         // The plain personal-weapon sample stays the first fps row.
+        assert!(super::is_name("item_NameA,P") && !super::is_name("item_DescA"));
         assert!(
             p.iter()
                 .any(|i| i.key == "item_DescA" && i.category == "fps-weapons")
@@ -651,5 +676,49 @@ mod tests {
             .map(|i| i.key.as_str())
             .collect();
         assert_eq!(keys, ["items_commodities_box_desc"]);
+    }
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::preview_rows;
+    use crate::contract::types::{StringRow, StringSource};
+
+    fn row(key: &str, category: &str) -> StringRow {
+        StringRow {
+            key: key.into(),
+            original: "a".into(),
+            result: "b".into(),
+            source: StringSource::Enhanced,
+            category: category.into(),
+            group: String::new(),
+            group_label: String::new(),
+            manufacturer: None,
+            size: None,
+            owner: None,
+            owners: 0,
+            other_owners: None,
+        }
+    }
+
+    #[test]
+    fn tagged_categories_get_a_description_and_a_name() {
+        let rows = vec![
+            row("item_NameCooler", "components"),
+            row("item_DescCooler", "components"),
+            row("item_NameGun", "ship-weapons"),
+            row("vehicle_DescFighter", "ships"),
+        ];
+        let got: Vec<(String, String)> = preview_rows(&rows)
+            .into_iter()
+            .map(|i| (i.key, i.label))
+            .collect();
+        let want = [
+            ("vehicle_DescFighter", "Ship description"),
+            ("item_DescCooler", "Ship component"),
+            ("item_NameCooler", "Component name"),
+            ("item_NameGun", "Ship weapon name"),
+        ];
+        assert_eq!(got, want.map(|(k, l)| (k.to_string(), l.to_string())));
     }
 }

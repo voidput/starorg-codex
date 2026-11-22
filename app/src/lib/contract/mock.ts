@@ -409,9 +409,21 @@ export function preview(p: T.Profile): T.PreviewItem[] {
   const out: T.PreviewItem[] = [
     { key: 'vehicle_DescSYN_Fighter', label: 'Ship description', category: 'ships', original: shipProse, result: block(shipProse, lines) },
     { key: 'item_NameSYN_Cooler_S2', label: 'Component name', category: 'components', original: name, result: tagged },
+  ];
+  // One stats-block description per kind (same in mock.rs), left out while it is off.
+  const stats: [boolean, string, string, string, string, [string, string][]][] = [
+    [p.components, 'item_DescSYN_Cooler_S2', 'Ship component', 'components', 'A synthetic cooler.', [['components.cooling', 'Cooling: 1,200/s'], ['components.health', 'Health: 900']]],
+    [p.ship_weapons, 'item_DescSYN_Cannon_S3', 'Ship weapon', 'ship-weapons', 'A synthetic laser cannon.', [['ship_weapons.damage', 'Damage: 260 energy  |  DPS: 780'], ['ship_weapons.rate', 'Fire rate: 180 rpm']]],
+    [p.fps_weapons, 'item_DescSYN_Pistol', 'Personal weapon', 'fps-weapons', 'A synthetic pistol.', [['fps_weapons.damage', 'Damage: 12 energy  |  DPS: 60'], ['fps_weapons.magazine', 'Magazine: 20']]],
+    [p.missiles, 'item_DescSYN_Missile_S2', 'Missile', 'missiles', 'A synthetic heat-seeking missile.', [['missiles.damage', 'Damage: 2,400'], ['missiles.lock_range', 'Lock range: 4,000 m']]],
+  ];
+  for (const [on, key, label, category, prose, ls] of stats) {
+    if (on) out.push({ key, label, category, original: prose, result: block(prose, ls.filter(([k]) => lineOn(k)).map(([, l]) => l)) });
+  }
+  out.push(
     { key: 'mission_TitleSYN_Recovery', label: 'Mission title', category: 'missions', original: title, result: tt },
     { key: 'mission_DescSYN_Recovery', label: 'Contract description', category: 'missions', original: prose, result: body.length ? `${prose}\\n\\n${body.join('\\n\\n')}` : prose },
-  ];
+  );
   if (p.quest_hints) {
     const chip = 'A synthetic access chip.';
     out.push({ key: 'item_DescSYN_Chip', label: 'Quest item', category: 'quest-hints', original: chip, result: `${chip}\\n\\n${em(m.label_em, 'Used in:')} Synthetic Recovery · Stanton` });
@@ -979,6 +991,16 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     // Like the real backend: no game data read for the channel yet -> an empty list.
     build_preview: ({ req }) => (previewNoData && !dataRead.has(id(req.target)) ? [] : preview(req.profile ?? (req.preset ? presetProfile(req.preset) : chan(req.target).profile))),
+    // `&preview=nodata`: until this runs (or plan_setup), the preview stays empty.
+    read_game_data: async ({ req }) => {
+      const c = chan(req.target);
+      if (!c.summary.set_up) fail('needs-decision', `${req.target.channel} is not set up yet`);
+      await sleep(Math.min(delay, 1500));
+      dataRead.add(id(req.target));
+      c.summary.cache = 'fresh';
+      addLog('info', 'extract', req.target.channel, `Read the game data of ${req.target.channel}`);
+      return clone(c.summary);
+    },
     profile_schema: () => clone(SAMPLES.profile_schema),
     obtain_status: () => clone(uex),
     // The mock keeps no token value, only that one was saved (like the real backend's status).

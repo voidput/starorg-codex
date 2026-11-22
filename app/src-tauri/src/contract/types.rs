@@ -515,6 +515,13 @@ pub struct PreviewRequest {
     pub preset: Option<Preset>,
 }
 
+/// Read a set-up channel's game data into the cache (Enhancements' "Read game data"), so
+/// the preview has examples without an apply. Writes nothing into the game folder.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReadGameDataRequest {
+    pub target: ChannelRef,
+}
+
 // ---------------------------------------------------------------------------------------
 // Enhancements profile (spec 4.7, 5, 6)
 // ---------------------------------------------------------------------------------------

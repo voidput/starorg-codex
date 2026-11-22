@@ -28,6 +28,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   delete_backup: [{ req: T.BackupRef }, T.BackupList];
   cancel_job: [{ job: string }, null];
   build_preview: [{ req: T.PreviewRequest }, T.PreviewItem[]];
+  read_game_data: [{ req: T.ReadGameDataRequest }, T.ChannelSummary];
   profile_schema: [Record<string, never>, T.ProfileSchema];
   obtain_status: [Record<string, never>, T.ObtainStatus];
   uex_token_status: [Record<string, never>, T.UexTokenStatus];
@@ -114,6 +115,7 @@ export const COMMANDS = [
   'delete_backup',
   'cancel_job',
   'build_preview',
+  'read_game_data',
   'profile_schema',
   'obtain_status',
   'uex_token_status',
@@ -337,6 +339,8 @@ export const api = {
   deleteBackup: (req: T.BackupRef) => call('delete_backup', { req }),
   cancelJob: (job: string) => call('cancel_job', { job }),
   buildPreview: (req: T.PreviewRequest) => call('build_preview', { req }),
+  /** Extract the channel's game data (and Where to get datasets) so the preview has examples; a job. */
+  readGameData: (target: T.ChannelRef) => call('read_game_data', { req: { target } }),
   profileSchema: () => call('profile_schema', none),
   /** The UEX folder and files the WHERE TO GET shop line reads (metadata only). */
   obtainStatus: () => call('obtain_status', none),

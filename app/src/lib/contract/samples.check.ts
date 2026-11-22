@@ -32,6 +32,7 @@ interface Samples {
   add_user_patch: T.PatchView;
   export_user_patch: T.PatchExport;
   build_preview: T.PreviewItem[];
+  read_game_data: T.ChannelSummary;
   get_profile: T.Profile;
   query_strings: T.StringsPage;
   query_strings_by_size: T.StringsPage;

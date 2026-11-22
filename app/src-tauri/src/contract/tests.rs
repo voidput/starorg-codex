@@ -279,6 +279,12 @@ fn samples() -> Value {
     v["mcp_status"] = json!(mcp_off);
     v["set_mcp_enabled"] = json!(mcp_on);
     v["obtain_status"] = json!(b.obtain_status().unwrap());
+    let r = MockBackend::default();
+    set_up(&r);
+    v["read_game_data"] = json!(
+        r.read_game_data(ReadGameDataRequest { target: live() })
+            .unwrap()
+    );
     let (token_off, token_on, fetched) = uex_samples();
     v["uex_token_status"] = json!(token_off);
     v["set_uex_token"] = json!(token_on);
@@ -1770,6 +1776,24 @@ fn uex_samples() -> (UexTokenStatus, UexTokenStatus, ObtainStatus) {
     s.network.uex = true;
     b.save_settings(s).unwrap();
     (off, on, b.fetch_uex().unwrap())
+}
+
+#[test]
+fn read_game_data_on_the_mock_needs_setup_and_freshens_the_cache() {
+    let b = MockBackend::default();
+    let e = b
+        .read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::NeedsDecision);
+    set_up(&b);
+    let s = b
+        .read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    assert_eq!(s.cache, CacheState::Fresh);
+    assert_eq!(
+        ipc("read_game_data", json!({ "req": { "target": live() } })).unwrap_err()["code"],
+        "needs-decision"
+    );
 }
 
 #[test]

@@ -1852,6 +1852,28 @@ impl Backend for MockBackend {
         Ok(preview(&profile))
     }
 
+    /// No worker here: a set-up channel's cache turns fresh.
+    fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary> {
+        let name = req.target.channel.clone();
+        let s = self.with_channel(&req.target, |c, _| {
+            if !c.summary.set_up {
+                return Err(AppError::new(
+                    ErrorCode::NeedsDecision,
+                    format!("{name} is not set up yet"),
+                ));
+            }
+            c.summary.cache = CacheState::Fresh;
+            Ok(c.summary.clone())
+        })?;
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Extract),
+            Some(&s.channel),
+            &format!("Read the game data of {}", s.channel),
+        );
+        Ok(s)
+    }
+
     fn profile_schema(&self) -> CmdResult<ProfileSchema> {
         Ok(profile_schema())
     }
@@ -3325,6 +3347,79 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
         original: name.into(),
         result: tagged,
     });
+
+    // One stats-block description per kind (same in mock.ts), left out while it is off.
+    type Stat<'a> = (
+        bool,
+        &'a str,
+        &'a str,
+        &'a str,
+        &'a str,
+        &'a [(&'a str, &'a str)],
+    );
+    let stat_samples: [Stat; 4] = [
+        (
+            p.components,
+            "item_DescSYN_Cooler_S2",
+            "Ship component",
+            "components",
+            "A synthetic cooler.",
+            &[
+                ("components.cooling", "Cooling: 1,200/s"),
+                ("components.health", "Health: 900"),
+            ],
+        ),
+        (
+            p.ship_weapons,
+            "item_DescSYN_Cannon_S3",
+            "Ship weapon",
+            "ship-weapons",
+            "A synthetic laser cannon.",
+            &[
+                ("ship_weapons.damage", "Damage: 260 energy  |  DPS: 780"),
+                ("ship_weapons.rate", "Fire rate: 180 rpm"),
+            ],
+        ),
+        (
+            p.fps_weapons,
+            "item_DescSYN_Pistol",
+            "Personal weapon",
+            "fps-weapons",
+            "A synthetic pistol.",
+            &[
+                ("fps_weapons.damage", "Damage: 12 energy  |  DPS: 60"),
+                ("fps_weapons.magazine", "Magazine: 20"),
+            ],
+        ),
+        (
+            p.missiles,
+            "item_DescSYN_Missile_S2",
+            "Missile",
+            "missiles",
+            "A synthetic heat-seeking missile.",
+            &[
+                ("missiles.damage", "Damage: 2,400"),
+                ("missiles.lock_range", "Lock range: 4,000 m"),
+            ],
+        ),
+    ];
+    for (on, key, label, category, prose, lines) in stat_samples {
+        if !on {
+            continue;
+        }
+        let l = lines
+            .iter()
+            .filter(|(k, _)| line_on(k))
+            .map(|(_, l)| l.to_string())
+            .collect();
+        out.push(PreviewItem {
+            key: key.into(),
+            label: label.into(),
+            category: category.into(),
+            original: prose.into(),
+            result: block(prose, l),
+        });
+    }
 
     let m = &p.mission;
     let em = |n: u8, t: &str| {

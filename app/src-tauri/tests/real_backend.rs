@@ -672,6 +672,52 @@ fn preview_is_empty_until_the_dry_run_reads_the_game_data() {
     assert!(!f.ini("LIVE").exists(), "nothing written to the game");
 }
 
+/// Enhancements' "Read game data": a new build (cache missing) is read without an apply,
+/// as an `extract` job, and nothing in the game folder changes.
+#[test]
+fn read_game_data_fills_the_cache_without_touching_the_game() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let found = ChannelRef {
+        install: f.install_id(),
+        channel: "LIVE".into(),
+    };
+    assert_eq!(
+        f.backend
+            .read_game_data(ReadGameDataRequest { target: found })
+            .unwrap_err()
+            .code,
+        ErrorCode::NeedsDecision,
+        "not set up"
+    );
+    f.setup_live();
+    let ini = std::fs::read(f.ini("LIVE")).ok();
+    // A patch: another Data.p4k, so the cache is for an old build.
+    std::fs::write(f.lib.join("LIVE/Data.p4k"), b"fake archive, next build").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let cache = |f: &Fake| f.backend.channel_status(f.live()).unwrap().cache;
+    assert_ne!(cache(&f), CacheState::Fresh);
+    let s = f
+        .backend
+        .read_game_data(ReadGameDataRequest { target: f.live() })
+        .unwrap();
+    assert_eq!(s.cache, CacheState::Fresh);
+    assert_eq!(cache(&f), CacheState::Fresh);
+    assert_eq!(
+        std::fs::read(f.ini("LIVE")).ok(),
+        ini,
+        "game text unchanged"
+    );
+    let log = f.backend.activity(20).unwrap();
+    assert!(
+        log.iter()
+            .any(|l| l.job == Some(JobKind::Extract) && l.message == "Read the game data of LIVE")
+    );
+    assert!(f.backend.overview().unwrap().job.is_none());
+}
+
 /// Review asks again while the wizard's first read still runs (a choice changed, or Enhancements'
 /// "Read game data now" was still going): the second plan_setup waits for the first read and
 /// uses it, instead of skipping with "another extraction is running" and zero counts.

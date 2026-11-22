@@ -298,6 +298,11 @@ export interface PreviewRequest {
   preset: Preset | null;
 }
 
+/** Read a set-up channel's game data into the cache ("Read game data"); nothing goes into the game folder. */
+export interface ReadGameDataRequest {
+  target: ChannelRef;
+}
+
 // Enhancements profile (M2 enhance::Profile, field for field) ---------------------------
 
 export type CategoryId = 'ships' | 'components' | 'ship-weapons' | 'fps-weapons' | 'missiles' | 'missions' | 'obtain';
