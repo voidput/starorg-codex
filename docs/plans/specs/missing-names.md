@@ -106,7 +106,9 @@ placeholder line; missing-names renames that line instead.
   `crates/starorg-core/patches/missing-names.patch.toml` gives one, per key, for items whose
   name a public source confirms (each entry carries a comment with the URL). No source, no
   entry: the readable fallback stays. Paints get `<Ship> <Livery> Livery` only when the
-  livery's name is confirmed for that exact paint.
+  livery's name is confirmed for that exact paint (by class or UUID on the wiki's paints
+  page): `Reclaimer_Paint_Showdown=Reclaimer Showdown Livery`. The wiki lists the three
+  unnamed Perseus paints as "(tba)" and has none of the other ten, so they stay readable.
 - Engine (`patch.rs`): a loc entry with `fill_name = true` (`set` only). Stock lacks the
   key: it targets the added key (`LocTarget::Added`, `Snapshot::added_value`), `no-data` when
   nothing added it (the switch is off). Stock holds a placeholder: it sets that line

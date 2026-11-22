@@ -35,3 +35,15 @@ key = "item_Nameksar_lmg_energy_01"
 op = "set"
 value = "Verdict LMG"
 fill_name = true
+
+# Paint_Reclaimer_Showdown (UUID e256e698-54ad-455e-af5c-d2bda150ce6a), the IAE 2949
+# "Best In Show" Reclaimer paint. The wiki lists this class and UUID under "Showdown" and
+# notes the full name "Reclaimer Showdown Livery". Other paints we leave unnamed: the wiki
+# lists the Perseus ones as "(tba)" and has none of the rest.
+# Source: https://starcitizen.tools/Reclaimer_series/Paints
+[[loc]]
+id = "reclaimer-showdown-livery"
+key = "item_NameReclaimer_Paint_Showdown"
+op = "set"
+value = "Reclaimer Showdown Livery"
+fill_name = true
