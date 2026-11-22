@@ -22,6 +22,9 @@ pub struct ObtainHints {
     /// stock key gets the block. A class with sources but no entry here gets nothing; a
     /// class here without sources still gets its craft and reward lines from `GameData`.
     pub desc: BTreeMap<String, String>,
+    /// When the commodity prices behind [`ItemObtain::sells`] were fetched (the UEX file's
+    /// `_fetched`, RFC 3339); the sell line is stamped with its day.
+    pub prices_fetched: Option<String>,
 }
 
 impl ObtainHints {
@@ -61,6 +64,10 @@ impl ObtainHints {
 pub struct ItemObtain {
     /// Shops selling it, cheapest first (from UEX files the user supplied; names only).
     pub shops: Vec<ShopHint>,
+    /// Commodity kiosks buying it, best price first (UEX commodity prices, per SCU).
+    pub sells: Vec<SellHint>,
+    /// How many kiosks buy it in all (`sells` may be cut short); 0 means `sells.len()`.
+    pub sells_total: usize,
     /// Loot containers holding it, best first (highest odds).
     pub loot: Vec<LootHint>,
     /// How many containers hold it in all (`loot` may be cut short); 0 means `loot.len()`.
@@ -72,6 +79,11 @@ pub struct ItemObtain {
 }
 
 impl ItemObtain {
+    /// Kiosks in all: `sells_total`, never fewer than the listed ones.
+    pub fn sells_count(&self) -> usize {
+        self.sells_total.max(self.sells.len())
+    }
+
     /// Containers in all: `loot_total`, never fewer than the listed ones.
     pub fn loot_count(&self) -> usize {
         self.loot_total.max(self.loot.len())
@@ -79,6 +91,7 @@ impl ItemObtain {
 
     pub fn is_empty(&self) -> bool {
         self.shops.is_empty()
+            && self.sells.is_empty()
             && self.loot.is_empty()
             && self.loot_total == 0
             && self.mined.is_empty()
@@ -96,6 +109,20 @@ pub struct ShopHint {
     pub place: Option<String>,
     /// Star system (`Stanton`), when known.
     pub system: Option<String>,
+}
+
+/// A commodity kiosk that buys the resource.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SellHint {
+    /// Terminal name (`TDD Area 18`).
+    pub terminal: String,
+    /// Short place (`Area 18`), when known.
+    pub place: Option<String>,
+    /// Star system, when known.
+    pub system: Option<String>,
+    /// What the kiosk pays, aUEC per SCU (player-reported; the text rounds it).
+    pub price: f64,
 }
 
 /// A loot container kind holding the item.
@@ -173,10 +200,16 @@ mod tests {
                         mean: 500.0,
                         ..Default::default()
                     }),
+                    sells: vec![SellHint {
+                        terminal: "TDD Area 18".into(),
+                        price: 6240.0,
+                        ..Default::default()
+                    }],
                     ..Default::default()
                 },
             )]),
             desc: BTreeMap::from([("agri".to_string(), "@items_commodities_agri_desc".into())]),
+            prices_fetched: Some("2026-11-21T09:00:00.000Z".into()),
         };
         let s = serde_json::to_string(&h).unwrap();
         let back: ObtainHints = serde_json::from_str(&s).unwrap();

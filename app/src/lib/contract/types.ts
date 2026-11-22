@@ -381,6 +381,8 @@ export interface Profile {
   obtain_mode: ObtainMode;
   /** Shop names from the user's UEX files in the block (never prices). */
   obtain_shops: boolean;
+  /** The `sell` line: best commodity kiosks, rounded price per SCU, stamped with the UEX fetch day. Off by default, on in Everything. */
+  obtain_prices: boolean;
   /** Names for items whose name key stock lacks (adds keys, never edits a stock line). */
   missing_names: boolean;
   /** `<category>.<line>` keys from ProfileSchema. */
@@ -397,7 +399,7 @@ export interface Profile {
   patches_disabled: string[];
 }
 
-/** One UEX file the WHERE TO GET shop line reads. */
+/** One UEX file WHERE TO GET's shop and sell lines read. */
 export interface UexFile {
   name: string;
   present: boolean;
@@ -405,11 +407,14 @@ export interface UexFile {
   modified: string | null;
 }
 
-/** Shop names come from UEX files in `uex_folder`: downloaded by `fetch_uex` (opt-in) or put there by the user. Prices never shown. */
+/** Shop names and sell prices come from UEX files in `uex_folder`: downloaded by `fetch_uex` (opt-in) or put there by the user. Shops are names only; the sell line has rounded prices. */
 export interface ObtainStatus {
   uex_folder: string;
   files: UexFile[];
+  /** Item prices and terminals are there. */
   shops_ready: boolean;
+  /** Commodity prices and terminals are there. */
+  prices_ready: boolean;
 }
 
 /** Whether a UEX API token is saved, and where. Never the token itself. */

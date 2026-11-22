@@ -5,7 +5,7 @@
 //! - The token lives in [`crate::tokens`] (keyring entry `uex`, or `uex.token`); `app.json`
 //!   keeps only where it is, so the status never touches the keyring. The token is never
 //!   returned, logged or put in an error.
-//! - Both files land in the UEX folder `obtain_status` reports (`<cache>/mcp/uex`), the one
+//! - All three files land in the UEX folder `obtain_status` reports (`<cache>/mcp/uex`), the one
 //!   WHERE TO GET, the Sources card and the MCP server read.
 
 use super::convert::err;
@@ -134,9 +134,11 @@ impl RealBackend {
         match r {
             Ok(rep) => {
                 let msg = format!(
-                    "Downloaded UEX market data: {} prices for {} items at {} terminals ({:.1} MB, {:.1} s)",
+                    "Downloaded UEX market data: {} prices for {} items, {} for {} commodities, at {} terminals ({:.1} MB, {:.1} s)",
                     group(rep.prices),
                     group(rep.items),
+                    group(rep.commodity_prices),
+                    group(rep.commodities),
                     group(rep.terminals),
                     rep.bytes as f64 / 1_000_000.0,
                     started.elapsed().as_secs_f64()

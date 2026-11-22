@@ -2,7 +2,7 @@
 title: "Obtain hints: where to get it, in item and commodity descriptions"
 tags: [docs, plans, specs]
 status: active
-updated: 2026-11-21
+updated: 2026-11-22
 ---
 
 # Obtain hints: where to get it, in item and commodity descriptions
@@ -28,6 +28,13 @@ Names are never touched.
 - **Shops only from UEX files**, names only, never prices (prices go stale between applies).
   Off by default. Originally nothing was downloaded; since `feat/uex-fetch` the app can fetch
   both files itself, opt-in (see Open).
+- **Commodity sell prices in game after all** (user choice 2026-11-22, reverses "never
+  prices in-game" for this one line): a `sell` line with the top 3 commodity kiosks that pay
+  most. Mitigations for prices going stale: its own switch `obtain_prices`, off by default
+  and on only in Everything; the price rounded to two significant digits (`~6.2k aUEC/SCU`);
+  the line stamped with the day the prices were fetched (`(UEX, 21 Nov)`); kiosks that pay
+  nothing or that UEX marks off LIVE left out. Shop lines stay names only. See *As built
+  (phase 4)*.
 - **Odds only in Detailed** (they are estimates).
 
 ## Data path
@@ -96,10 +103,40 @@ pub struct ItemObtain {
 - **Counts:** `obtain_hints` in apply `counts` (core JSON, app `ApplyCounts`, wizard review,
   CLI apply line), extensions of other categories' edits included.
 
+### As built (phase 4): commodity sell prices
+
+- **Data:** `starorg_net::uex::fetch_market` fetches a third endpoint,
+  `commodities_prices_all` (public, about 1.1 MB, 2,598 rows for 124 commodities on
+  2026-11-22), into `uex-commodity-prices.json` beside the other two: `{ _source, _fetched,
+  prices, summary: { prices, commodities } }`, rows cut to `commodity_name`, `id_commodity`,
+  `terminal_name`, `id_terminal`, `price_buy`, `price_sell`, `scu_sell_stock`, `status_sell`,
+  `date_modified` (zero and blank dropped, as for item prices). Nothing is written unless all
+  three answers are good. `obtain_status` lists the three files, with `shops_ready` (item
+  prices + terminals) and the new `prices_ready` (commodity prices + terminals).
+- **Matching** (`starorg_gamedata::query::sells`): UEX names no game id, so a row matches a
+  `ResourceType` by name, display name first, then record name, both lower case with letters
+  and digits only, and only when exactly one resource has that name. On LIVE 4.10 all 124
+  UEX commodity names match (114 of them have a kiosk that buys). Ranking: highest
+  `price_sell` first, no zero or missing price, no kiosk UEX marks off LIVE, one row per
+  terminal and place, placed through `uex-terminals.json` like shop rows.
+- **Card:** `RecordSources.sell` (`SellSources`: loaded, folder, resource, name, top 3
+  offers, total, fetched) for a resource, a cargo entity holding one (`game-commodities`
+  `items[].resource`) or a record whose quality names one. Missing files: a note, as Buy.
+- **In game:** `ItemObtain.sells` (`SellHint`: terminal, place, system, price) per resource
+  (lower-case resource name, like the mining lines), `ObtainHints.prices_fetched`. The prices
+  are added to the cached hints on every `obtain_hints` call (not cached with them), so a
+  fresh Fetch now counts at the next apply. `OUTPUT_VERSION` 7 -> 8.
+
+| Mode | Sell line |
+|---|---|
+| Short | `Get: Sell ~9.6k aUEC/SCU at HUR-L2 (UEX, 21 Nov) · Mined ...` |
+| Normal | `Sell: ~9.6k aUEC/SCU at HUR-L2, ~9.2k at Rod's Fuel, ~9k at TDD Area 18 +4 (UEX, 21 Nov)` |
+| Detailed | `Sell: ~9.6k aUEC/SCU at HUR-L2 (HUR-L2 Faithful Dream Station, Stanton)  \|  ...  \|  +4 (UEX, 21 Nov)` |
+
 ## Text
 
 Header and labels use the mission EM styles (`mission.header_em`, `label_em`). Lines:
-`shops`, `loot`, `craft`, `rewards`, `mined`, `quality`, each switchable
+`shops`, `sell`, `loot`, `craft`, `rewards`, `mined`, `quality`, each switchable
 (`lines_off = ["obtain.loot", ...]`). A line with nothing to say is left out; no sources at
 all means no block.
 
@@ -111,9 +148,11 @@ all means no block.
 
 ## Profile
 
-- `obtain: bool`, `obtain_mode: short | normal | detailed`, `obtain_shops: bool`.
+- `obtain: bool`, `obtain_mode: short | normal | detailed`, `obtain_shops: bool`,
+  `obtain_prices: bool`.
 - Presets: Recommended `obtain = true, normal`; Minimal `obtain = true, short`; Everything
-  `detailed, obtain_shops = true`; Off false. `obtain_shops` default false.
+  `detailed, obtain_shops = true, obtain_prices = true`; Off false. `obtain_shops` and
+  `obtain_prices` default false.
 - `OUTPUT_VERSION` 5 -> 6 (Recommended output changes).
 
 ## App
@@ -144,7 +183,8 @@ all means no block.
   (`network.uex`, off) with an optional token (keyring entry `uex` or `uex.token`, never sent
   to the webview). `fetch_uex` writes both files in sc-gamedata's exact shape
   (`starorg_net::uex`), `uex_token_status` / `set_uex_token` manage the token. Still open: no
-  automatic refresh (only Fetch now), and the commodity price fetch below.
+  automatic refresh (only Fetch now).
 
-- Commodity kiosks' best sell prices (top 3) stay in the app card; they need a new
-  `uex-commodity-prices` fetch in sc-gamedata first.
+- Commodity kiosks' best sell prices (top 3): done on `feat/kiosk-prices`, in the card and
+  in game (phase 4). Still open: sc-gamedata has no `uex-commodity-prices` fetch yet (the
+  file shape here is ours), and no MCP tool answers from it.

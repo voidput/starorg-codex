@@ -2905,7 +2905,7 @@
       "key": "items_commodities_SYN_ore_desc",
       "label": "Ore (where to get)",
       "original": "A synthetic unstable ore.",
-      "result": "A synthetic unstable ore.\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Mined:</EM4> Lyria, Stanton (ship) 12–30%  |  Aaron Halo, Stanton (ship) 8–22%  |  Pyro I, Pyro (ship) 5–18%  |  +1\\n<EM4>Quality:</EM4> 1–1,000, most near 500 ± 150; Aaron Halo 300–1,000"
+      "result": "A synthetic unstable ore.\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Sell:</EM4> ~9.6k aUEC/SCU at HUR-L2 (HUR-L2 Faithful Dream Station, Stanton)  |  ~9.2k at Rod's Fuel (Rod's Fuel 'N Supplies, Pyro)  |  ~9k at TDD Area 18 (Stanton)  |  +1 (UEX, 21 Nov)\\n<EM4>Mined:</EM4> Lyria, Stanton (ship) 12–30%  |  Aaron Halo, Stanton (ship) 8–22%  |  Pyro I, Pyro (ship) 5–18%  |  +1\\n<EM4>Quality:</EM4> 1–1,000, most near 500 ± 150; Aaron Halo 300–1,000"
     },
     {
       "category": "missing-names",
@@ -7443,13 +7443,15 @@
       ]
     },
     "mined": [],
-    "quality": []
+    "quality": [],
+    "sell": null
   },
   "dev_record_sources_none": {
     "buy": null,
     "loot": null,
     "mined": [],
-    "quality": []
+    "quality": [],
+    "sell": null
   },
   "dev_record_sources_ore": {
     "buy": null,
@@ -7514,7 +7516,16 @@
         ],
         "tier": "FPSMineable"
       }
-    ]
+    ],
+    "sell": {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "~/.cache/starorg-codex/mcp/uex",
+      "loaded": true,
+      "name": "Sadaryx",
+      "offers": [],
+      "resource": "ResourceType.Sadaryx",
+      "total": 0
+    }
   },
   "dev_row": {
     "json": "{\"name\":\"Test Repeater 1\",\"recordName\":\"SYN_Laser_S2_01\",\"id\":\"51000000-0000-4000-8000-000000000001\",\"size\":2,\"type\":\"Cannon\",\"dps\":112.75,\"modes\":[{\"name\":\"Auto\",\"rpm\":601}]}",
@@ -10131,10 +10142,16 @@
       },
       {
         "modified": "2026-11-21T09:00:00Z",
+        "name": "uex-commodity-prices.json",
+        "present": true
+      },
+      {
+        "modified": "2026-11-21T09:00:00Z",
         "name": "uex-terminals.json",
         "present": true
       }
     ],
+    "prices_ready": true,
     "shops_ready": true,
     "uex_folder": "/home/pilot/.cache/starorg-codex/mcp/uex"
   },
@@ -11147,6 +11164,7 @@
     "missions": true,
     "obtain": true,
     "obtain_mode": "normal",
+    "obtain_prices": false,
     "obtain_shops": false,
     "patches_disabled": [],
     "preset": "recommended",
@@ -11519,10 +11537,16 @@
       },
       {
         "modified": null,
+        "name": "uex-commodity-prices.json",
+        "present": false
+      },
+      {
+        "modified": null,
         "name": "uex-terminals.json",
         "present": false
       }
     ],
+    "prices_ready": false,
     "shops_ready": false,
     "uex_folder": "/home/pilot/.cache/starorg-codex/mcp/uex"
   },
@@ -12217,13 +12241,17 @@
         "lines": []
       },
       {
-        "blurb": "A WHERE TO GET block in item and commodity descriptions: shops, loot, crafting, rewards and mining.",
+        "blurb": "A WHERE TO GET block in item and commodity descriptions: shops, sell prices, loot, crafting, rewards and mining.",
         "id": "obtain",
         "label": "Where to get",
         "lines": [
           {
             "key": "obtain.shops",
             "label": "Shops (from your UEX files)"
+          },
+          {
+            "key": "obtain.sell",
+            "label": "Best sell prices (from your UEX files)"
           },
           {
             "key": "obtain.loot",

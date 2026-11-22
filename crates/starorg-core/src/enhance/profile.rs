@@ -28,6 +28,10 @@ pub struct Profile {
     pub obtain_mode: ObtainMode,
     /// Also list shops (only from UEX files the user supplied; names, never prices).
     pub obtain_shops: bool,
+    /// Also say where a commodity sells best: the top commodity kiosks with a rounded price
+    /// per SCU, stamped with the day the UEX prices were fetched (the `sell` line). Off by
+    /// default, on in Everything: prices go stale between applies.
+    pub obtain_prices: bool,
     /// Give items whose name key stock lacks a name, so the game does not show the raw
     /// `@item_Name…` key (spec missing-names). Adds keys; never edits a stock line.
     pub missing_names: bool,
@@ -243,6 +247,7 @@ impl Default for Profile {
             obtain: true,
             obtain_mode: ObtainMode::Normal,
             obtain_shops: false,
+            obtain_prices: false,
             missing_names: true,
             lines_off: BTreeSet::new(),
             stats_above: false,
@@ -303,6 +308,7 @@ impl Profile {
         p.branding = true;
         p.obtain_mode = ObtainMode::Detailed;
         p.obtain_shops = true;
+        p.obtain_prices = true;
         p
     }
 
@@ -854,6 +860,7 @@ mod tests {
         assert!(m.obtain && m.obtain_mode == ObtainMode::Short && !m.obtain_shops);
         let e = Profile::everything();
         assert!(e.obtain && e.obtain_mode == ObtainMode::Detailed && e.obtain_shops);
+        assert!(e.obtain_prices && !r.obtain_prices && !m.obtain_prices);
         assert!(!Profile::off().obtain);
         // New fields at their defaults leave the Recommended hash as it was.
         assert_eq!(r.hash(), crate::fsutil::sha256_hex(b"{}"));

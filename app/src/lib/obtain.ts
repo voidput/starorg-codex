@@ -2,7 +2,8 @@
  * Where to get (spec obtain-hints): the Enhancements tab's mode examples, the UEX file age
  * and the mock preview samples. The samples follow `starorg_core::enhance::obtain::block`
  * over the same synthetic sources as `mock::obtain_preview` in Rust (a test compares them
- * with samples.gen.json), so mode, shops and line switches show as they will in game.
+ * with samples.gen.json), so mode, shops, sell prices and line switches show as they will
+ * in game.
  */
 import type { ObtainMode, ObtainStatus, PreviewItem, Profile, UexTokenStatus } from './contract/types';
 
@@ -23,9 +24,13 @@ export function fileAge(iso: string | null | undefined, now: Date = new Date()):
   return days === 1 ? '1 day old' : `${days} days old`;
 }
 
-const UEX_LABEL: Record<string, string> = { 'uex-item-prices.json': 'Item prices', 'uex-terminals.json': 'Terminals' };
+const UEX_LABEL: Record<string, string> = {
+  'uex-item-prices.json': 'Item prices',
+  'uex-commodity-prices.json': 'Commodity prices',
+  'uex-terminals.json': 'Terminals',
+};
 
-/** `Item prices today · Terminals missing`: each UEX file's age, for Settings and the Shops card. */
+/** `Item prices today · Commodity prices missing · Terminals today`: each UEX file's age, for Settings and the Shops card. */
 export function uexFilesText(s: ObtainStatus, now: Date = new Date()): string {
   return s.files.map((f) => `${UEX_LABEL[f.name] ?? f.name} ${f.present ? (fileAge(f.modified, now) ?? 'present') : 'missing'}`).join(' · ');
 }
@@ -33,9 +38,36 @@ export function uexFilesText(s: ObtainStatus, now: Date = new Date()): string {
 /** Where the UEX token is, never its value. */
 export function uexTokenText(t: UexTokenStatus | null): string {
   if (!t) return 'Token status unknown';
-  if (!t.set) return 'No token saved: the two endpoints are public, so none is needed';
+  if (!t.set) return 'No token saved: the endpoints are public, so none is needed';
   return `Token saved (${t.store ?? 'keyring'})`;
 }
+
+/**
+ * A price rounded to two significant digits with k / M, as the sell line writes it
+ * (`starorg_core::enhance::obtain::rough_price`): `~6.2k`, `~12k`, `~1.5M`, `~850`.
+ */
+export function roughPrice(v: number): string {
+  if (!Number.isFinite(v) || v <= 0) return '~0';
+  const step = 10 ** (Math.floor(Math.log10(v)) - 1);
+  const r = Math.round(v / step) * step;
+  const [n, unit] = r >= 1e6 ? [r / 1e6, 'M'] : r >= 1e3 ? [r / 1e3, 'k'] : [r, ''];
+  const digits = n >= 10 ? String(Math.round(n)) : n >= 1 ? String(Number(n.toFixed(1))) : String(Number(n.toPrecision(2)));
+  return `~${digits}${unit}`;
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** `21 Nov` for `2026-11-21T09:00:00Z` (the date as written, no time zone); null when unreadable. */
+export function shortDay(iso: string | null | undefined): string | null {
+  const m = /^\d{4}-(\d{2})-(\d{2})/.exec(iso ?? '');
+  if (!m) return null;
+  const month = MONTHS[Number(m[1]) - 1];
+  const day = Number(m[2]);
+  return month && day >= 1 && day <= 31 ? `${day} ${month}` : null;
+}
+
+/** When the mock's "Fetch now" wrote the UEX files (`mock::MOCK_UEX_FETCHED`). */
+const MOCK_FETCHED = '2026-11-21T09:00:00Z';
 
 const TOP = 3;
 const SEP = '  |  ';
@@ -107,7 +139,14 @@ export function obtainPreview(p: Profile, stats: Stats): PreviewItem[] {
     out.push({ key: 'item_DescSYN_Rifle', label: 'Weapon (where to get)', category: 'obtain-hints', original: prose, result: `${stats(prose, sl)}\\n\\n${gun}` });
   }
 
-  // Ore: four ship-mined places and a quality spread with one place override.
+  // Ore: four kiosks that buy it, four ship-mined places and a quality spread with one
+  // place override.
+  const kiosks: [string, string, string, number][] = [
+    ['HUR-L2', 'HUR-L2 Faithful Dream Station', 'Stanton', 9612],
+    ["Rod's Fuel", "Rod's Fuel 'N Supplies", 'Pyro', 9180],
+    ['TDD Area 18', 'Area 18', 'Stanton', 9000],
+    ['Ruin Station', 'Pyro', 'Pyro', 8700],
+  ];
   const spots: [string, string, number, number][] = [
     ['Lyria', 'Stanton', 12, 30],
     ['Aaron Halo', 'Stanton', 8, 22],
@@ -116,6 +155,17 @@ export function obtainPreview(p: Profile, stats: Stats): PreviewItem[] {
   ];
   const oreParts: string[] = [];
   const oreLines: string[] = [];
+  if (p.obtain_prices && on('sell')) {
+    const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const where = ([t, place, sys]: [string, string, string, number]) => {
+      const inner = [...new Set([place, sys].filter((x) => !key(t).includes(key(x))))];
+      return detailed ? `${t} (${inner.join(', ')})` : t;
+    };
+    const entries = kiosks.map((k, i) => `${roughPrice(k[3])}${i === 0 ? ' aUEC/SCU' : ''} at ${where(k)}`);
+    const stamp = `(UEX, ${shortDay(MOCK_FETCHED)})`;
+    oreParts.push(`Sell ${roughPrice(kiosks[0]![3])} aUEC/SCU at ${kiosks[0]![0]} ${stamp}`);
+    oreLines.push(`${label('Sell')} ${top(entries, 0, sep)} ${stamp}`);
+  }
   if (on('mined')) {
     const places = spots.map(([pl]) => pl);
     oreParts.push(`Mined (ship) at ${top(places, 0, ', ')}`);

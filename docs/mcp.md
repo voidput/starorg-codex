@@ -1,7 +1,7 @@
 ---
 title: Local MCP server (experimental)
 tags: [docs, mcp, experimental]
-updated: 2026-11-21
+updated: 2026-11-22
 ---
 
 # Local MCP server (experimental)
@@ -113,6 +113,12 @@ files in the cache folder, `<cache>/mcp/uex/uex-item-prices.json` and `uex-termi
 `sc-gamedata fetch uex-item-prices uex-terminals` writes there yourself (same shape). The MCP
 server itself never downloads anything; it reads a file again once it changed. Without them,
 the shop tools say so and the other sources still answer.
+
+The same **Fetch now** also writes `uex-commodity-prices.json` (UEX `commodities_prices_all`:
+what each commodity kiosk asks and pays per SCU, `{ _source, _fetched, prices, summary }` like
+the item prices; sc-gamedata has no fetch for it yet). The app's Sources card and the WHERE TO
+GET sell line read it through this server's store (matched to the game's resources by name);
+no MCP tool answers from it yet.
 
 ## Data, cache and memory
 

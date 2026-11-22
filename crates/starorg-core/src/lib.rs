@@ -51,5 +51,6 @@ pub mod validate;
 /// `quest-items` patch (Vanduul-Tech Smugglers hints);
 /// 6 = obtain hints: WHERE TO GET blocks (on in Recommended), extending stat blocks;
 /// 7 = missing names: added keys for entity names stock lacks, and generated text never
-/// brings a raw `@key` or a placeholder.
-pub const OUTPUT_VERSION: u32 = 7;
+/// brings a raw `@key` or a placeholder;
+/// 8 = commodity sell prices: the WHERE TO GET `sell` line (on in Everything).
+pub const OUTPUT_VERSION: u32 = 8;

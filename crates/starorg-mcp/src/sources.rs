@@ -1,5 +1,6 @@
 //! Where a record comes from, typed for the app's explorer Sources card: the shops that
-//! sell the item (UEX files the user supplied), the loot containers that can hold it (type,
+//! sell the item (UEX files the user supplied), the commodity kiosks that pay best for a
+//! resource (UEX commodity prices), the loot containers that can hold it (type,
 //! size, rarity, rough odds), where the ore it names is mined and the quality it comes in. [`crate::tools::Tools::sources`] fills it from the same datasets the
 //! `where_found` and `where_mined` tools read, and `where_found` answers with these rows too
 //! (keys in camelCase there, as every tool answers).
@@ -8,9 +9,11 @@ use serde::{Deserialize, Serialize};
 use starorg_gamedata::query::mined::area_place;
 pub use starorg_gamedata::query::mined::{MinedBelt, MinedReport, MinedSpot};
 use starorg_gamedata::query::obtain::{AreaSummary, ObtainReport, SpawnKind, area_label};
+use starorg_gamedata::query::quality::QualityResource;
 pub use starorg_gamedata::query::quality::{
     OreQuality, QualityOverride, QualityRange, QualityStep,
 };
+use starorg_gamedata::query::sells::SellRow;
 use starorg_gamedata::query::shops::LocatedShop;
 
 /// The card's caps: at most this many container rows (the rest are counted in
@@ -24,6 +27,10 @@ pub const MAX_SHOPS: usize = 40;
 pub struct RecordSources {
     /// `None` when the record is no item the item data knows.
     pub buy: Option<BuySources>,
+    /// Where it sells best at commodity kiosks; `None` when the record is no resource (or
+    /// cargo holding one).
+    #[serde(default)]
+    pub sell: Option<SellSources>,
     /// `None` when the record is no item the loot data knows.
     pub loot: Option<LootSources>,
     /// Where the ores the record names are mined; empty when it names none.
@@ -88,6 +95,76 @@ pub fn buy_sources(
         folder,
         offers,
         total,
+    }
+}
+
+/// Kiosks listed per commodity (the card and the in-game sell line).
+pub const MAX_SELLS: usize = 3;
+
+/// Commodity kiosks that buy the resource: UEX (player-reported) prices per SCU, read only
+/// from `uex-commodity-prices.json` and `uex-terminals.json` in `folder`.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct SellSources {
+    /// False when either file is missing: `offers` is then empty for that reason.
+    pub loaded: bool,
+    pub folder: Option<String>,
+    /// The resource (`ResourceType.Laranite`) and its name as shown (`Laranite`).
+    pub resource: String,
+    pub name: String,
+    /// Best price first, at most [`MAX_SELLS`].
+    pub offers: Vec<SellOffer>,
+    /// Kiosks that buy it in all.
+    pub total: usize,
+    /// When the prices were fetched (the file's `_fetched`).
+    pub fetched: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct SellOffer {
+    /// The terminal (`TDD Area 18`).
+    pub terminal: String,
+    /// Place, moon or orbit, planet, system.
+    pub location: String,
+    /// What the kiosk pays, aUEC per SCU.
+    pub price_sell: f64,
+    /// SCU the kiosk holds, when UEX knows.
+    pub scu_stock: Option<f64>,
+    /// Day UEX last confirmed the row (YYYY-MM-DD).
+    pub updated: Option<String>,
+    /// Older than 30 days.
+    pub stale: bool,
+}
+
+/// The card's sell section from ranked rows ([`starorg_gamedata::query::sells::best_sells`]).
+pub fn sell_sources(
+    rows: &[SellRow],
+    resource: &QualityResource,
+    loaded: bool,
+    folder: Option<String>,
+    fetched: Option<String>,
+) -> SellSources {
+    SellSources {
+        loaded,
+        folder,
+        resource: resource.record_name.clone(),
+        name: resource
+            .display_name
+            .clone()
+            .unwrap_or_else(|| resource.name.clone()),
+        offers: rows
+            .iter()
+            .take(MAX_SELLS)
+            .map(|r| SellOffer {
+                terminal: r.terminal.clone(),
+                location: r.location.clone(),
+                price_sell: r.price_sell,
+                scu_stock: r.scu_stock,
+                updated: r.updated.clone(),
+                stale: r.stale,
+            })
+            .collect(),
+        total: rows.len(),
+        fetched,
     }
 }
 

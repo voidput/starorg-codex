@@ -35,6 +35,7 @@ pub fn preset_profile(p: Preset) -> Profile {
             _ => ObtainMode::Normal,
         },
         obtain_shops: all,
+        obtain_prices: all,
         missing_names: true,
         lines_off: Vec::new(),
         stats_above: false,
@@ -190,10 +191,11 @@ pub fn profile_schema() -> ProfileSchema {
             cat(
                 CategoryId::Obtain,
                 "Where to get",
-                "A WHERE TO GET block in item and commodity descriptions: shops, loot, crafting, rewards and mining.",
+                "A WHERE TO GET block in item and commodity descriptions: shops, sell prices, loot, crafting, rewards and mining.",
                 "obtain",
                 &[
                     ("shops", "Shops (from your UEX files)"),
+                    ("sell", "Best sell prices (from your UEX files)"),
                     ("loot", "Loot containers"),
                     ("craft", "Crafting from a blueprint"),
                     ("rewards", "Contract rewards"),

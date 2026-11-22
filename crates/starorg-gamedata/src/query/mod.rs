@@ -3,8 +3,8 @@
 //!
 //! Like the TypeScript, this layer reads parsed datasets (`game-item-tags`, `game-loot`,
 //! `game-item-sources`, `game-blueprints`, `game-wikelo-trades`, and the third-party UEX
-//! `uex-item-prices` / `uex-terminals` when a caller has them), never game files, and does
-//! no I/O itself. The local MCP server is its caller.
+//! `uex-item-prices` / `uex-commodity-prices` / `uex-terminals` when a caller has them),
+//! never game files, and does no I/O itself. The local MCP server is its caller.
 //!
 //! | Module | Ports |
 //! |---|---|
@@ -14,6 +14,7 @@
 //! | [`obtain`] | `query/obtain.ts` (loot model, spawns, blueprints, awards, shops) |
 //! | [`mined`] | (ours) where an ore is mined: belts and bodies, and spots in loot areas |
 //! | [`quality`] | (ours) the quality curve, place overrides and shown steps of a resource |
+//! | [`sells`] | (ours) where a commodity sells best: UEX kiosk prices matched to resources |
 //! | [`where_`] | `query/where.ts` (one row per source, easiest first) |
 //!
 //! JavaScript semantics kept where answers depend on them: stable sorts, `Map` insertion
@@ -24,6 +25,7 @@ pub mod fuzzy;
 pub mod mined;
 pub mod obtain;
 pub mod quality;
+pub mod sells;
 pub mod shops;
 pub mod types;
 pub mod where_;

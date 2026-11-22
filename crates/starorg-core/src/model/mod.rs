@@ -28,7 +28,7 @@ pub use missions::{
     ItemReward, KeySource, ReputationReward, ReputationStanding,
 };
 pub use obtain::{
-    ItemObtain, LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, ShopHint,
+    ItemObtain, LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, SellHint, ShopHint,
 };
 pub use quest::{QuestItem, QuestRef, QuestUse};
 pub use ships::{Armor, Flight, Hull, Loadout, LoadoutItem, Ship, ShipLoc, Totals};

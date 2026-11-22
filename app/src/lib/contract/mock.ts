@@ -195,6 +195,7 @@ function presetProfile(p: T.Preset): T.Profile {
     obtain: true,
     obtain_mode: p === 'minimal' ? 'short' : all ? 'detailed' : 'normal',
     obtain_shops: all,
+    obtain_prices: all,
     missing_names: true,
     lines_off: [],
     stats_above: false,
@@ -535,7 +536,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
   // The mock's machine: 32 GB, 18.4 GB free (the samples). `?memory=1.5` starts at that limit.
   let memory: T.MemoryStatus = memoryView(SAMPLES.memory_status, Number(params.get('memory')) || null);
-  // `?uex=fetched`: both UEX files there (as after "Fetch now").
+  // `?uex=fetched`: every UEX file there (as after "Fetch now").
   let uex: T.ObtainStatus = clone(params.get('uex') === 'fetched' ? SAMPLES.fetch_uex : SAMPLES.obtain_status);
   let uexToken: T.UexTokenStatus = clone(SAMPLES.uex_token_status);
   const log: T.LogEntry[] = [];
@@ -1018,11 +1019,11 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       addLog('info', 'uex', null, t ? 'UEX token saved (keyring)' : 'UEX token removed');
       return clone(uexToken);
     },
-    // No network here: both files appear with the sample's time.
+    // No network here: the three files appear with the sample's time.
     fetch_uex: () => {
       if (!settings.network.uex) fail('network-off', 'Turn on "Download UEX market data" under Settings -> Network first.');
       uex = clone(SAMPLES.fetch_uex);
-      addLog('info', 'uex', null, 'Downloaded UEX market data: 24,146 prices for 2,438 items at 826 terminals (7.0 MB)');
+      addLog('info', 'uex', null, 'Downloaded UEX market data: 24,146 prices for 2,438 items, 2,598 for 124 commodities, at 826 terminals (7.9 MB)');
       return clone(uex);
     },
     get_profile: ({ req }) => clone(chan(req).profile),

@@ -499,6 +499,7 @@
         {:else if selected === 'obtain' && cat}
           {@const off = !d.obtain}
           {@const shopLine = cat.lines.find((l) => l.key === 'obtain.shops')}
+          {@const sellLine = cat.lines.find((l) => l.key === 'obtain.sell')}
           <Card.Root>
             <Card.Header>
               <Card.Title>Where to get</Card.Title>
@@ -533,7 +534,7 @@
                 </ul>
               </div>
               <div class="grid gap-0.5 border-t pt-2 @min-[560px]:grid-cols-2" role="group" aria-label="Where to get: lines">
-                {#each cat.lines.filter((l) => l.key !== 'obtain.shops') as l (l.key)}
+                {#each cat.lines.filter((l) => l.key !== 'obtain.shops' && l.key !== 'obtain.sell') as l (l.key)}
                   <SwitchRow id="line-{l.key}" size="sm" label={l.label} disabled={off} checked={lineOn(d, l.key)} onchange={(v) => setLine(l.key, v)} />
                 {/each}
               </div>
@@ -542,8 +543,8 @@
           </Card.Root>
           <Card.Root>
             <Card.Header>
-              <Card.Title>Shops</Card.Title>
-              <Card.Description>Shop stock is in no game file. Shop names come from UEX files: downloaded when you turn it on in Settings, or put there yourself. Names only, never prices: prices go stale between applies.</Card.Description>
+              <Card.Title>Shops and sell prices</Card.Title>
+              <Card.Description>Shop stock and kiosk prices are in no game file: they come from UEX files, downloaded when you turn it on in Settings, or put there yourself. Shops are names only. Sell prices go stale between applies, so they are rounded and stamped with the day they were fetched.</Card.Description>
             </Card.Header>
             <Card.Content class="grid gap-2">
               <SwitchRow
@@ -556,6 +557,18 @@
                   edit((p) => {
                     p.obtain_shops = v;
                     if (v && shopLine) p.lines_off = p.lines_off.filter((k) => k !== shopLine.key);
+                  })}
+              />
+              <SwitchRow
+                id="obtain-prices"
+                label="Add best sell prices for commodities"
+                hint="Off by default, on in Everything. The top 3 commodity kiosks, e.g. Sell: ~9.6k aUEC/SCU at HUR-L2, ~9.2k at Rod's Fuel, ~9k at TDD Area 18 (UEX, 21 Nov). Without the files the Sell line is left out."
+                disabled={off}
+                checked={d.obtain_prices && (!sellLine || lineOn(d, sellLine.key))}
+                onchange={(v) =>
+                  edit((p) => {
+                    p.obtain_prices = v;
+                    if (v && sellLine) p.lines_off = p.lines_off.filter((k) => k !== sellLine.key);
                   })}
               />
               <div class="bg-muted/40 grid gap-1.5 rounded-md border p-3 text-[12.5px]" role="status" aria-live="polite">
@@ -577,7 +590,7 @@
                     {/each}
                   </ul>
                   <span class="text-muted-foreground">
-                    {uex.shops_ready ? 'Both files are there; apply again after you replace them.' : uexOn ? 'Fetch now downloads both, then apply. The Explorer Sources card reads the same files.' : 'Turn on "Download UEX market data" in Settings, or put both files (the sc-gamedata fetch output) in this folder, then apply. The Explorer Sources card reads the same files.'}
+                    {uex.shops_ready && uex.prices_ready ? 'Every file is there; apply again after you replace them.' : uexOn ? 'Fetch now downloads all three, then apply. The Explorer Sources card reads the same files.' : 'Turn on "Download UEX market data" in Settings, or put the files in this folder (item prices and terminals: the sc-gamedata fetch output), then apply. The Explorer Sources card reads the same files.'}
                   </span>
                   <div class="flex flex-wrap gap-1.5">
                     {#if uexOn}

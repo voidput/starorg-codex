@@ -2,7 +2,7 @@
   /**
    * Settings -> Network -> Download UEX market data (spec obtain-hints). The switch is the
    * consent; with it on: the optional UEX token (saved in the keyring or a private file, never
-   * shown again), "Fetch now" and the age of both files in the UEX folder.
+   * shown again), "Fetch now" and the age of the three files in the UEX folder.
    */
   import Download from '@lucide/svelte/icons/download';
   import { Button } from '@/components/ui/button';
@@ -62,7 +62,7 @@
 <SwitchRow
   id="net-uex"
   label="Download UEX market data"
-  hint="Lets Fetch now download where items are sold from api.uexcorp.space (UEX Corp, player-reported) into the UEX folder, for the Buy line of Where to get. Sends the app's name and version, and your UEX token if you save one; nothing else. Shop names only go into the game text, never prices."
+  hint="Lets Fetch now download where items are sold and what commodity kiosks pay from api.uexcorp.space (UEX Corp, player-reported) into the UEX folder, for the Buy and Sell lines of Where to get. Sends the app's name and version, and your UEX token if you save one; nothing else. Shop names go into the game text without prices; sell prices only when you turn them on (rounded, with the fetch day)."
   {checked}
   {onchange}
 />

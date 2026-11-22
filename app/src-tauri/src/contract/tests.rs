@@ -1846,14 +1846,20 @@ fn obtain_status_lists_the_uex_files_without_reading_them() {
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
     let st = super::real::obtain_status_in(&dir);
-    assert!(!st.shops_ready);
-    assert_eq!(st.files.len(), 2);
+    assert!(!st.shops_ready && !st.prices_ready);
+    assert_eq!(st.files.len(), 3);
     assert!(st.files.iter().all(|f| !f.present && f.modified.is_none()));
+    // Terminals and item prices: the shops line can work, the sell line not yet.
+    for f in ["uex-terminals.json", "uex-item-prices.json"] {
+        std::fs::write(dir.join(f), "not json").unwrap();
+    }
+    let st = super::real::obtain_status_in(&dir);
+    assert!(st.shops_ready && !st.prices_ready, "{st:?}");
     for f in super::real::UEX_FILES {
         std::fs::write(dir.join(f), "not json").unwrap();
     }
     let st = super::real::obtain_status_in(&dir);
-    assert!(st.shops_ready, "{st:?}");
+    assert!(st.shops_ready && st.prices_ready, "{st:?}");
     assert!(st.files.iter().all(|f| f.modified.is_some()));
     let _ = std::fs::remove_dir_all(&dir);
 }

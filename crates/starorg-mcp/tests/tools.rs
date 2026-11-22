@@ -109,7 +109,10 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
             {"name": "Raw_Quantainium", "recordName": "ResourceType.Raw_Quantainium", "quality": {"tier": "Legendary",
              "distribution": {"min": 0, "max": 1000, "mean": 500, "stddev": 100},
              "locationOverrides": [{"location": "Pyro System", "min": 0, "max": 1000, "mean": 600, "stddev": 100}],
-             "bands": [{"start": 0, "end": 499, "value": 250}, {"start": 500, "end": 1000, "value": 750}]}}
+             "bands": [{"start": 0, "end": 499, "value": 250}, {"start": 500, "end": 1000, "value": 750}]}},
+            {"name": "Laranite", "recordName": "ResourceType.Laranite", "displayName": "Laranite"}
+        ], "items": [
+            {"name": "Laranite_Cargo_1SCU", "resource": "Laranite", "displayName": "Laranite"}
         ]}),
     );
     d.insert(
@@ -218,6 +221,19 @@ impl World {
             json!({"terminals": [
                 {"id": 1, "nickname": "Guns Ruin", "displayname": "Ruin Station", "orbit_name": "Terminus", "star_system_name": "Pyro"},
                 {"id": 2, "nickname": "Dumper's GrimHEX", "displayname": "Grim HEX", "moon_name": "Yela", "orbit_name": "Crusader", "star_system_name": "Stanton"}
+            ]})
+            .to_string(),
+        )
+        .unwrap();
+        // Commodity kiosk prices: three buy laranite, one pays nothing, one name is unknown.
+        std::fs::write(
+            uex.join("uex-commodity-prices.json"),
+            json!({"_fetched": "2026-11-21T09:00:00.000Z", "prices": [
+                {"commodity_name": "Laranite", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 8700, "date_modified": 1794268800},
+                {"commodity_name": "Laranite", "id_terminal": 2, "terminal_name": "Dumper's GrimHEX", "price_sell": 9612, "date_modified": 1794268800},
+                {"commodity_name": "Laranite", "id_terminal": 3, "terminal_name": "TDD Area 18", "price_buy": 9900},
+                {"commodity_name": "Sadaryx", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 41},
+                {"commodity_name": "Unobtainium", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 5}
             ]})
             .to_string(),
         )
@@ -1037,6 +1053,41 @@ fn sources_card_is_typed_and_exact() {
     // No fuzzy match: a near name is no item.
     let none = t.sources("LIVE", "behr_lmg_ballistic").unwrap();
     assert!(none.loot.is_none() && none.mined.is_empty());
+    // Sell prices: only for a resource (or cargo holding one), best first.
+    assert!(gun.sell.is_none() && none.sell.is_none());
+    let lar = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert!(lar.loaded);
+    assert_eq!(
+        (lar.resource.as_str(), lar.name.as_str()),
+        ("ResourceType.Laranite", "Laranite")
+    );
+    let got: Vec<(&str, f64)> = lar
+        .offers
+        .iter()
+        .map(|o| (o.terminal.as_str(), o.price_sell))
+        .collect();
+    assert_eq!(got, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.total, 2);
+    assert_eq!(lar.offers[1].location, "Ruin Station, Terminus, Pyro");
+    assert_eq!(lar.fetched.as_deref(), Some("2026-11-21T09:00:00.000Z"));
+    let cargo = t
+        .sources("LIVE", "EntityClassDefinition.Laranite_Cargo_1SCU")
+        .unwrap();
+    assert_eq!(cargo.sell.unwrap().offers.len(), 2);
+    let sad = ore.sell.unwrap();
+    assert_eq!(sad.offers[0].price_sell, 41.0);
+    // Without the file: the section says so.
+    std::fs::remove_file(w.root.join("cache/uex/uex-commodity-prices.json")).unwrap();
+    let gone = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert!(!gone.loaded && gone.offers.is_empty());
 }
 
 #[test]
@@ -1081,11 +1132,62 @@ fn obtain_hints_cover_items_and_mined_resources() {
     assert_eq!(s.mined[0].place, "Rock Cracker, Nyx");
     assert_eq!(s.mined[0].kind.as_deref(), Some("hand"));
     assert_eq!(s.quality.as_ref().unwrap().mean, 201.0);
+    // Sell lines per resource, best first, with the fetch time; the match rate.
+    let lar = &h.items["laranite"];
+    let sells: Vec<(&str, f64)> = lar
+        .sells
+        .iter()
+        .map(|s| (s.terminal.as_str(), s.price))
+        .collect();
+    assert_eq!(sells, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.sells[0].place.as_deref(), Some("Grim HEX"));
+    assert_eq!(lar.sells[0].system.as_deref(), Some("Stanton"));
+    assert_eq!(lar.sells_count(), 2);
+    assert_eq!(h.items["sadaryx"].sells[0].price, 41.0);
+    assert!(fs9.sells.is_empty());
+    assert_eq!(
+        h.prices_fetched.as_deref(),
+        Some("2026-11-21T09:00:00.000Z")
+    );
+    let m = b.sell_match.as_ref().unwrap();
+    assert_eq!((m.commodities, m.matched), (3, 2));
+    assert_eq!(m.unmatched, ["Unobtainium"]);
     // Kept in memory: no second extraction.
     let runs = w.fake.runs.load(Ordering::SeqCst);
     let again = t.obtain_hints("LIVE").unwrap();
     assert_eq!(again.items, b.items);
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // A fresh price file counts at once, though the rest stays cached.
+    let f = w.root.join("cache/uex/uex-commodity-prices.json");
+    std::fs::write(&f, json!({"_fetched": "2026-11-22T09:00:00.000Z", "prices": [
+        {"commodity_name": "Laranite", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 9999}
+    ]}).to_string()).unwrap();
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    std::fs::File::options()
+        .write(true)
+        .open(&f)
+        .unwrap()
+        .set_modified(later)
+        .unwrap();
+    let fresh = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(fresh.hints.items["laranite"].sells[0].price, 9999.0);
+    assert_eq!(
+        fresh.hints.prices_fetched.as_deref(),
+        Some("2026-11-22T09:00:00.000Z")
+    );
+    assert!(
+        !fresh
+            .hints
+            .items
+            .get("sadaryx")
+            .is_some_and(|s| !s.sells.is_empty())
+    );
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // Without the file: no sell lines, the rest as before.
+    std::fs::remove_file(&f).unwrap();
+    let none = t.obtain_hints("LIVE").unwrap();
+    assert!(none.hints.items.values().all(|i| i.sells.is_empty()));
+    assert!(none.hints.prices_fetched.is_none() && none.sell_match.is_none());
 }
 
 #[test]

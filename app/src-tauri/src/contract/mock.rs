@@ -127,15 +127,16 @@ pub const UEX_OFF: &str = "Turn on \"Download UEX market data\" under Settings -
 fn mock_uex_fetched(t: &str) -> ObtainStatus {
     ObtainStatus {
         uex_folder: "/home/pilot/.cache/starorg-codex/mcp/uex".into(),
-        files: ["uex-item-prices.json", "uex-terminals.json"]
-            .into_iter()
+        files: starorg_net::uex::FILES
+            .iter()
             .map(|n| UexFile {
-                name: n.into(),
+                name: (*n).into(),
                 present: true,
                 modified: Some(t.into()),
             })
             .collect(),
         shops_ready: true,
+        prices_ready: true,
     }
 }
 
@@ -1895,12 +1896,18 @@ impl Backend for MockBackend {
                     modified: Some("2026-11-12T08:30:00Z".into()),
                 },
                 UexFile {
+                    name: "uex-commodity-prices.json".into(),
+                    present: false,
+                    modified: None,
+                },
+                UexFile {
                     name: "uex-terminals.json".into(),
                     present: false,
                     modified: None,
                 },
             ],
             shops_ready: false,
+            prices_ready: false,
         })
     }
 
@@ -1930,7 +1937,7 @@ impl Backend for MockBackend {
         self.uex_token_status()
     }
 
-    /// No network here: both files appear with a fixed time.
+    /// No network here: the three files appear with a fixed time.
     fn fetch_uex(&self) -> CmdResult<ObtainStatus> {
         if !self.lock().settings.network.uex {
             return Err(AppError::new(ErrorCode::NetworkOff, UEX_OFF.to_string()));
@@ -1940,7 +1947,7 @@ impl Backend for MockBackend {
             LogLevel::Info,
             Some(JobKind::Uex),
             None,
-            "Downloaded UEX market data: 24,146 prices for 2,438 items at 826 terminals (7.0 MB)",
+            "Downloaded UEX market data: 24,146 prices for 2,438 items, 2,598 for 124 commodities, at 826 terminals (7.9 MB)",
         );
         self.obtain_status()
     }
@@ -3543,7 +3550,8 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
 fn obtain_preview(p: &Profile, stats: &dyn Fn(&str, Vec<String>) -> String) -> Vec<PreviewItem> {
     use starorg_core::enhance::obtain::{Crafted, Reward, block};
     use starorg_core::model::{
-        Blueprint, ItemObtain, LootHint, MinedHint, QualityHint, QualityOverride, ShopHint,
+        Blueprint, ItemObtain, LootHint, MinedHint, QualityHint, QualityOverride, SellHint,
+        ShopHint,
     };
     let core = super::real::convert::profile_from(p);
     let s = |v: &str| Some(v.to_string());
@@ -3601,7 +3609,7 @@ fn obtain_preview(p: &Profile, stats: &dyn Fn(&str, Vec<String>) -> String) -> V
             }
         }
     }
-    if let Some(b) = block(&rifle, &crafted, &core) {
+    if let Some(b) = block(&rifle, &crafted, &core, None) {
         out.push(PreviewItem {
             key: "item_DescSYN_Rifle".into(),
             label: "Weapon (where to get)".into(),
@@ -3621,6 +3629,12 @@ fn obtain_preview(p: &Profile, stats: &dyn Fn(&str, Vec<String>) -> String) -> V
         min_pct: Some(lo),
         max_pct: Some(hi),
     };
+    let sell = |terminal: &str, place: &str, system: &str, price: f64| SellHint {
+        terminal: terminal.into(),
+        place: s(place),
+        system: s(system),
+        price,
+    };
     let ore = ItemObtain {
         mined: vec![
             m("Lyria", "ship", 12.0, 30.0),
@@ -3639,10 +3653,16 @@ fn obtain_preview(p: &Profile, stats: &dyn Fn(&str, Vec<String>) -> String) -> V
                 max: 1000.0,
             }],
         }),
+        sells: vec![
+            sell("HUR-L2", "HUR-L2 Faithful Dream Station", "Stanton", 9612.0),
+            sell("Rod's Fuel", "Rod's Fuel 'N Supplies", "Pyro", 9180.0),
+            sell("TDD Area 18", "Area 18", "Stanton", 9000.0),
+            sell("Ruin Station", "Pyro", "Pyro", 8700.0),
+        ],
         ..Default::default()
     };
     let ore_prose = "A synthetic unstable ore.";
-    if let Some(b) = block(&ore, &Crafted::default(), &core) {
+    if let Some(b) = block(&ore, &Crafted::default(), &core, Some(MOCK_UEX_FETCHED)) {
         out.push(PreviewItem {
             key: "items_commodities_SYN_ore_desc".into(),
             label: "Ore (where to get)".into(),

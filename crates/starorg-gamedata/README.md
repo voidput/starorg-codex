@@ -29,7 +29,8 @@ in this build's DataCore. Ours is the LIVE data.
 
 Not ported:
 
-- `uex-item-prices.json` / `uex-terminals.json`: third-party UEX API data, not game files.
+- `uex-item-prices.json` / `uex-terminals.json` (and our `uex-commodity-prices.json`, read by
+  `query::sells`): third-party UEX API data, not game files.
 - The HTTP download itself in `sources/overlays.ts`. The registry, validation, the
   user `overlay-sources.json`, file naming, installed-pack lookup and loading are in
   `overlays`; `fetch_source` takes the download as a function (the TypeScript takes

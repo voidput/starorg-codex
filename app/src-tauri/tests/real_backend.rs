@@ -1960,6 +1960,12 @@ impl starorg_net::uex::UexTransport for FakeUex {
                   "star_system_name": "Stanton", "space_station_name": "Test Station",
                   "is_available": 1, "is_available_live": 1, "screenshot": "https://cdn/x.jpg" }
             ]})
+        } else if endpoint == "commodities_prices_all" {
+            serde_json::json!({ "status": "ok", "data": [
+                { "id": 2, "id_commodity": 5, "commodity_name": "Aluminum", "id_terminal": 7,
+                  "terminal_name": "Shop - Test", "price_buy": 0, "price_sell": 3800,
+                  "price_sell_avg": 3800, "container_sizes": "1,2", "date_modified": 1795227950 }
+            ]})
         } else {
             serde_json::json!({ "status": "ok", "data": [
                 { "id": 1, "item_name": "Fake Rifle Kestrel", "item_uuid": "u-rifle", "id_item": 3,
@@ -2318,7 +2324,7 @@ fn schema1_profile_migrates_once_with_one_activity_line() {
 }
 
 #[test]
-fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_both_files() {
+fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_every_file() {
     let f = Fake::new();
     let secret = "uex-test-secret-4242";
     // Off: refused, nothing asked.
@@ -2332,10 +2338,12 @@ fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_both_files() {
     s.network.uex = true;
     assert!(f.backend.save_settings(s).unwrap().network.uex);
 
-    // No token: both public endpoints, no Authorization.
+    // No token: the three public endpoints, no Authorization.
     let st = f.backend.fetch_uex().unwrap();
-    assert!(st.shops_ready, "{st:?}");
-    assert_eq!(*f.uex.tokens.lock().unwrap(), [None, None]);
+    assert!(st.shops_ready && st.prices_ready, "{st:?}");
+    assert_eq!(st.files.len(), 3);
+    assert!(st.files.iter().all(|f| f.present && f.modified.is_some()));
+    assert_eq!(*f.uex.tokens.lock().unwrap(), [None, None, None]);
     let dir = f.dirs.cache.join("mcp/uex");
     let prices: serde_json::Value =
         serde_json::from_slice(&std::fs::read(dir.join("uex-item-prices.json")).unwrap()).unwrap();
@@ -2346,6 +2354,15 @@ fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_both_files() {
         serde_json::from_slice(&std::fs::read(dir.join("uex-terminals.json")).unwrap()).unwrap();
     assert_eq!(terms["summary"]["terminals"], 1);
     assert!(terms["terminals"][0].get("screenshot").is_none());
+    let sells: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("uex-commodity-prices.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        sells["summary"],
+        serde_json::json!({ "prices": 1, "commodities": 1 })
+    );
+    assert_eq!(sells["prices"][0]["price_sell"], 3800);
+    assert!(sells["prices"][0].get("container_sizes").is_none());
 
     // A token: saved, never shown, sent.
     assert_eq!(
@@ -2382,8 +2399,12 @@ fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_both_files() {
     );
     f.backend.fetch_uex().unwrap();
     assert_eq!(
-        f.uex.tokens.lock().unwrap()[2..],
-        [Some(secret.to_string()), Some(secret.to_string())]
+        f.uex.tokens.lock().unwrap()[3..],
+        [
+            Some(secret.to_string()),
+            Some(secret.to_string()),
+            Some(secret.to_string())
+        ]
     );
 
     // A refused token: an error that does not hold it; the files stay.

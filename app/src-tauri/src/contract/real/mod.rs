@@ -65,8 +65,9 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use table::Table;
 
-/// The UEX files the WHERE TO GET shop line reads (`starorg_mcp` `Store::uex`).
-pub const UEX_FILES: &[&str] = &["uex-item-prices.json", "uex-terminals.json"];
+/// The UEX files WHERE TO GET's shop and sell lines read (`starorg_mcp` `Store::uex`), as
+/// `fetch_uex` writes them.
+pub const UEX_FILES: &[&str] = starorg_net::uex::FILES;
 
 /// What is in a UEX folder: file metadata only, never the contents.
 pub fn obtain_status_in(dir: &Path) -> ObtainStatus {
@@ -86,9 +87,16 @@ pub fn obtain_status_in(dir: &Path) -> ObtainStatus {
             }
         })
         .collect();
+    use starorg_net::uex;
+    let ready = |names: &[&str]| {
+        names
+            .iter()
+            .all(|n| files.iter().any(|f| f.name == *n && f.present))
+    };
     ObtainStatus {
         uex_folder: convert::path_text(dir),
-        shops_ready: files.iter().all(|f| f.present),
+        shops_ready: ready(&[uex::PRICES_FILE, uex::TERMINALS_FILE]),
+        prices_ready: ready(&[uex::COMMODITY_PRICES_FILE, uex::TERMINALS_FILE]),
         files,
     }
 }

@@ -6,11 +6,13 @@ import { readFileSync } from 'node:fs';
 import {
   beltBars,
   beltPlace,
+  fetchedText,
   hasSources,
   isEmpty,
   pctText,
   priceText,
   qualityText,
+  scuPriceText,
   sourcesSummary,
   spotPlace,
 } from '../src/lib/sources.ts';
@@ -78,6 +80,10 @@ test('mock samples: a gun in loot, an ore only at the Rock Cracker, a ship with 
   assert.equal(ore.mined[0]!.belts.length, 0);
   assert.equal(spotPlace(ore.mined[0]!.spots[0]!), 'Rock Cracker, Nyx');
   assert.equal(sourcesSummary(ore), '1 mining place');
+  // Nobody buys Sadaryx: a loaded, empty sell section; a gun has none.
+  assert.ok(ore.sell?.loaded && ore.sell.offers.length === 0);
+  assert.equal(ore.sell.resource, 'ResourceType.Sadaryx');
+  assert.equal(gun.sell, null);
   const none: RecordSources = samples.dev_record_sources_none;
   assert.ok(isEmpty(none));
   assert.equal(sourcesSummary(none), null);
@@ -87,9 +93,25 @@ test('mock samples: a gun in loot, an ore only at the Rock Cracker, a ship with 
 test('prices read as aUEC; missing UEX files still show the Buy note', () => {
   assert.equal(priceText(6900), '6,900 aUEC');
   assert.equal(priceText(78261.6), '78,262 aUEC');
-  const none: RecordSources = { buy: { loaded: false, folder: '/c/uex', offers: [], total: 0 }, loot: null, mined: [], quality: [] };
+  const none: RecordSources = { buy: { loaded: false, folder: '/c/uex', offers: [], total: 0 }, sell: null, loot: null, mined: [], quality: [] };
   assert.ok(!isEmpty(none));
   assert.ok(isEmpty({ ...none, buy: { ...none.buy!, loaded: true } }));
+});
+
+test('sell prices read per SCU with the fetch day; a missing file still shows the Sell note', () => {
+  assert.equal(scuPriceText(9612), '9,612 aUEC/SCU');
+  assert.equal(fetchedText('2026-11-21T09:00:00Z'), 'fetched 21 Nov 2026');
+  assert.equal(fetchedText(null), null);
+  assert.equal(fetchedText('soon'), null);
+  const sell = { loaded: true, folder: '/c/uex', resource: 'ResourceType.Laranite', name: 'Laranite', offers: [], total: 0, fetched: null };
+  const base: RecordSources = { buy: null, sell, loot: null, mined: [], quality: [] };
+  assert.ok(isEmpty(base));
+  assert.ok(!isEmpty({ ...base, sell: { ...sell, loaded: false } }));
+  const offer = { terminal: 'HUR-L2', location: 'HUR-L2 Faithful Dream Station, Stanton', price_sell: 9612, scu_stock: 4, updated: '2026-11-20', stale: false };
+  const sold: RecordSources = { ...base, sell: { ...sell, offers: [offer], total: 5 } };
+  assert.ok(!isEmpty(sold));
+  assert.equal(sourcesSummary(sold), '5 kiosks buy it');
+  assert.equal(sourcesSummary({ ...base, sell: { ...sell, offers: [offer], total: 1 } }), '1 kiosk buys it');
 });
 
 test('quality reads as the range and where most rolls land', () => {
