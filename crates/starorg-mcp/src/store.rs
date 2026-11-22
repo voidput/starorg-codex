@@ -506,7 +506,11 @@ mod tests {
     fn store(dir: &Path, fake: Arc<Fake>) -> Store {
         let p4k = dir.join("LIVE/Data.p4k");
         std::fs::create_dir_all(p4k.parent().unwrap()).unwrap();
-        std::fs::write(&p4k, b"p4k").unwrap();
+        // Written once: a second store over the same dir must see the same archive (the
+        // fingerprint keys on its modified second; rewriting it could cross a second).
+        if !p4k.exists() {
+            std::fs::write(&p4k, b"p4k").unwrap();
+        }
         Store::new(StoreConfig {
             channels: vec![
                 ChannelSource {

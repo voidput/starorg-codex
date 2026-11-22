@@ -1833,7 +1833,7 @@ SOFTWARE.
 ### MIT License
 
 Used by:
-- form_urlencoded 1.2.2
+- form_urlencoded 1.2.3
 
 ```text
 Copyright (c) 2013-2016 The rust-url developers
@@ -1870,7 +1870,7 @@ Used by:
 - data-url 0.3.2
 - idna 1.1.0
 - percent-encoding 2.3.2
-- url 2.5.8
+- url 2.5.9
 
 ```text
 Copyright (c) 2013-2025 The rust-url developers
@@ -10412,12 +10412,12 @@ SOFTWARE.
 ### MIT
 
 Used by:
-- tailwind-variants 4.0.2
+- tailwind-variants 3.3.1
 
 ```text
 MIT License
 
-Copyright (c) 2020 Tailwind Variants
+Copyright (c) 2020 Tailwid Variants
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
