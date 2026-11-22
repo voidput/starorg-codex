@@ -227,6 +227,9 @@ pub(crate) fn print_reports(
                 r.counts["loc_patches"],
                 r.counts["dropped"]
             );
+            if r.counts["missing_names"].as_u64().unwrap_or(0) > 0 {
+                println!("  missing names: {} keys added", r.counts["missing_names"]);
+            }
             if let Some(o) = &r.obtain {
                 println!(
                     "  where to get: {} descriptions, sources for {} items in {:.1} s",

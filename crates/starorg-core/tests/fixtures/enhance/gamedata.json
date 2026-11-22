@@ -647,6 +647,28 @@
    "titleKey": "@zeta_missing_title"
   }
  ],
+ "itemNames": [
+  {
+   "class": "zeta_suit_01_01_01",
+   "kind": "Char_Armor_Torso",
+   "name": "@item_Name_zeta_suit_01_01_01"
+  },
+  {
+   "class": "zeta_suit_01_01_02",
+   "kind": "Char_Armor_Torso",
+   "name": "@item_Name_zeta_suit_01_01_02"
+  },
+  {
+   "class": "zeta_crate_s4",
+   "kind": "Cargo",
+   "name": "@item_NameZetaCrate_S4"
+  },
+  {
+   "class": "zeta_panel",
+   "kind": "ControlPanel",
+   "name": "@item_Name_zeta_panel"
+  }
+ ],
  "missiles": [
   {
    "damage": {

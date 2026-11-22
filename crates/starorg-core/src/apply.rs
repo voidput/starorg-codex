@@ -615,6 +615,7 @@ fn counts_json(c: &Counts, g: &crate::enhance::Generated) -> serde_json::Value {
         "missions": n(&[C::MissionTitles, C::MissionDescriptions]),
         "ship_names": n(&[C::ShipNames]),
         "obtain_hints": n(&[C::ObtainHints]),
+        "missing_names": n(&[C::MissingNames]),
         "generated": c.generated,
         "loc_patches": c.loc_patches,
         "overrides": c.overrides, "dropped": c.dropped,
@@ -1172,8 +1173,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         hints.as_ref(),
     );
     r.warnings.extend(generated.warnings.iter().cloned());
-    let gen_edits: Vec<merge::GenEdit> =
-        generated.edits.values().map(merge::GenEdit::from).collect();
+    let gen_edits = merge::gen_edits(&generated);
     let merged = merge::merge(
         &stock,
         &loaded.game_data,
@@ -1189,7 +1189,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
 
     // 6. Validate the whole file.
     let out = stock.render(&merged.edits);
-    if let Err(e) = validate::check_file(&stock, &out) {
+    if let Err(e) = validate::check_file_with(&stock, &out, merged.edits.added_len()) {
         return fail(r, format!("whole-file validation failed (writer bug): {e}"));
     }
     let out_sha = fsutil::sha256_hex(&out);

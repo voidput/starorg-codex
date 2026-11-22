@@ -6,7 +6,7 @@
 //!
 //! Regenerate the golden file with `UPDATE_GOLDEN=1 cargo test -p starorg-core --test enhance`.
 
-use starorg_core::enhance::check::check_file;
+use starorg_core::enhance::check::check_file_with;
 use starorg_core::enhance::owned::{NoneOwned, OwnedList};
 use starorg_core::enhance::profile::Profile;
 use starorg_core::enhance::{Category, Generated, Reason, generate, render};
@@ -63,6 +63,17 @@ fn golden_snapshot() {
             e.record.as_deref().unwrap_or("-"),
             e.key,
             e.value(stock.value_at(e.line).unwrap())
+        ));
+    }
+    for a in g.added.values() {
+        text.push_str(&format!(
+            "[{}] {} <- {} (added, {})\n{}={}\n\n",
+            a.category.name(),
+            a.key,
+            a.record.as_deref().unwrap_or("-"),
+            a.rule,
+            a.key,
+            a.value
         ));
     }
     text.push_str(&serde_json::to_string_pretty(&g.coverage).unwrap());
@@ -518,10 +529,18 @@ fn chances_print_percent_at_line_end() {
 fn render_keeps_the_file_shape() {
     let (g, stock) = run(&Profile::everything());
     let bytes = render(&stock, &g).unwrap();
-    assert_eq!(check_file(&stock, &bytes), Ok(()));
+    assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
     let text = std::str::from_utf8(&bytes).unwrap();
     assert!(text.starts_with('\u{feff}'));
     assert!(text.contains("\r\nui_unrelated,P=Unrelated filler\r\n"));
+    // Missing names: new keys after the last stock line, stock lines untouched.
+    assert!(
+        text.ends_with(
+            "\r\nitem_Name_zeta_suit_01_01_02=Filler Suit\r\nitem_NameZetaCrate_S4=Zeta Crate S4\r\n"
+        ),
+        "{}",
+        &text[text.len() - 200..]
+    );
     // Branding is on in Everything.
     assert!(
         text.contains("Frontend_PU_Version=Filler version\\nText enhanced with StarOrg Codex v")
@@ -691,7 +710,7 @@ fn colour_test_line() {
     let (plain, _) = run(&Profile::default());
     assert_eq!(g.edits.len(), plain.edits.len() + 1);
     let bytes = render(&stock, &g).unwrap();
-    assert_eq!(check_file(&stock, &bytes), Ok(()));
+    assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
 }
 
 #[test]
@@ -732,7 +751,7 @@ fn every_colour_setting_writes_valid_markup() {
                     assert_eq!(cov.left_for(Reason::DroppedByValidation), 0, "{n} {c:?}");
                 }
                 let bytes = render(&stock, &g).unwrap();
-                assert_eq!(check_file(&stock, &bytes), Ok(()));
+                assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
             }
         }
     }
@@ -847,5 +866,5 @@ fn quest_hints_on_and_off() {
     assert_eq!(off.edits.len(), g.edits.len() - 2);
     assert!(!Profile::minimal().quest_hints);
     let bytes = render(&stock, &g).unwrap();
-    assert_eq!(check_file(&stock, &bytes), Ok(()));
+    assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
 }

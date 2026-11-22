@@ -1,5 +1,5 @@
 {
-  "schema": 4,
+  "schema": 5,
   "build": null,
   "datacore": null,
   "components": [
@@ -650,5 +650,78 @@
   "resourceDescs": {
     "raw_test_ore": "@items_commodities_test_ore_raw_desc",
     "test_gem": "@items_commodities_test_gem_desc"
-  }
+  },
+  "itemNames": [
+    {
+      "class": "test_armor",
+      "name": "@item_NameTEST_Armor",
+      "kind": "Armor"
+    },
+    {
+      "class": "test_armor_arms",
+      "name": "@item_NameTEST_Armor_Arms",
+      "kind": "Char_Armor_Arms"
+    },
+    {
+      "class": "test_datapad_a",
+      "name": "@item_NameTEST_Datapad_A",
+      "desc": "@item_DescTEST_CommonPad",
+      "kind": "Misc"
+    },
+    {
+      "class": "test_datapad_b",
+      "name": "@item_NameTEST_Datapad_B",
+      "desc": "@item_DescTEST_CommonPad",
+      "kind": "Misc"
+    },
+    {
+      "class": "test_missile_s2",
+      "name": "@item_NameTEST_Missile_S2",
+      "kind": "Missile"
+    },
+    {
+      "class": "test_power_s1",
+      "name": "@item_NameTEST_Power_S1",
+      "kind": "PowerPlant"
+    },
+    {
+      "class": "test_questchip",
+      "name": "@item_NameTEST_QuestChip",
+      "desc": "@item_DescTEST_QuestChip",
+      "kind": "RemovableChip"
+    },
+    {
+      "class": "test_questchip_debug",
+      "name": "@item_NameTEST_QuestChip_debug",
+      "desc": "@item_DescTEST_QuestChip",
+      "kind": "RemovableChip"
+    },
+    {
+      "class": "test_rack_s3",
+      "name": "@item_NameTEST_Rack_S3",
+      "kind": "MissileLauncher"
+    },
+    {
+      "class": "test_repeater_s3",
+      "name": "@item_NameTEST_Repeater_S3",
+      "desc": "@item_DescTEST_Repeater_S3",
+      "kind": "WeaponGun"
+    },
+    {
+      "class": "test_repeater_s3_black",
+      "name": "@item_NameTEST_Repeater_S3",
+      "desc": "@item_DescTEST_Repeater_S3",
+      "kind": "WeaponGun"
+    },
+    {
+      "class": "test_rifle",
+      "name": "@item_NameTEST_Rifle",
+      "kind": "WeaponPersonal"
+    },
+    {
+      "class": "test_shield_s1",
+      "name": "@item_NameTEST_Shield_S1",
+      "kind": "Shield"
+    }
+  ]
 }

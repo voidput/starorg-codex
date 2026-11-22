@@ -394,7 +394,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         }
     };
     let gen_ms = gen_started.elapsed().as_millis() as u64;
-    if generated.edits.is_empty() && bytes != stock.as_bytes() {
+    if generated.edits.is_empty() && generated.added.is_empty() && bytes != stock.as_bytes() {
         return fail(
             g,
             exit::ERROR,
@@ -411,7 +411,13 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         );
     }
     let coverage = &generated.coverage;
-    let edits: Vec<&enhance::GenEdit> = generated.edits.values().collect();
+    // Stock-line edits, then added keys (`rule` tells them apart).
+    let edits: Vec<serde_json::Value> = generated
+        .edits
+        .values()
+        .map(|e| json!(e))
+        .chain(generated.added.values().map(|a| json!(a)))
+        .collect();
     for (path, text) in [
         (&a.coverage_out, serde_json::to_vec_pretty(coverage)),
         (&a.edits_out, serde_json::to_vec_pretty(&edits)),
@@ -446,7 +452,16 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     let b = ch.build.as_ref();
     if g.json {
         let mut counts = counts;
-        counts.insert("changed".into(), json!(generated.edits.len()));
+        counts.insert(
+            "changed".into(),
+            json!(generated.edits.len() + generated.added.len()),
+        );
+        let mut by_rule = serde_json::Map::new();
+        for a in generated.added.values() {
+            let n = by_rule.entry(a.rule).or_insert(json!(0));
+            *n = json!(n.as_u64().unwrap_or(0) + 1);
+        }
+        counts.insert("missing_names_by_rule".into(), by_rule.into());
         counts.insert("dropped".into(), json!(dropped));
         counts.insert(
             "owned_blueprints".into(),
@@ -487,7 +502,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
             out_abs.display(),
             bytes.len(),
             stock.key_count(),
-            generated.edits.len(),
+            generated.edits.len() + generated.added.len(),
             ch.name,
             b.map(|b| b.version.as_str()).unwrap_or("unknown build"),
             started.elapsed().as_secs_f64()
@@ -499,7 +514,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
                 o.ms as f64 / 1000.0
             );
         }
-        if !generated.edits.is_empty() {
+        if !generated.edits.is_empty() || !generated.added.is_empty() {
             println!(
                 "  {:<22} {:>9} {:>8} {:>8}  LEFT AS STOCK",
                 "CATEGORY", "CANDIDATE", "WRITTEN", "SHARE"

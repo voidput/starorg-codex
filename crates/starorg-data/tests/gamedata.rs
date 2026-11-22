@@ -479,6 +479,26 @@ fn quest_items_from_spawns_and_hauling_orders() {
 }
 
 #[test]
+fn name_keys_of_entities() {
+    let (gd, _) = fixture_gamedata();
+    let n = gd
+        .item_names
+        .iter()
+        .find(|n| n.class == "test_repeater_s3_black")
+        .expect("paint variant listed");
+    assert_eq!(n.name, "@item_NameTEST_Repeater_S3");
+    assert_eq!(n.desc.as_deref(), Some("@item_DescTEST_Repeater_S3"));
+    assert_eq!(n.kind, "WeaponGun");
+    // Sorted by class, lower case, real `@` references only.
+    assert!(gd.item_names.windows(2).all(|w| w[0].class <= w[1].class));
+    assert!(
+        gd.item_names
+            .iter()
+            .all(|n| n.class == n.class.to_ascii_lowercase() && n.name.starts_with('@'))
+    );
+}
+
+#[test]
 fn description_keys_of_entities_and_resources() {
     let (gd, warnings) = fixture_gamedata();
     // Every entity with a real AttachDef description, by lower-case class.

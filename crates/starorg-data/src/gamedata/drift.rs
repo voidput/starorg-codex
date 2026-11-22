@@ -73,6 +73,11 @@ pub fn check(gd: &GameData, present: Option<&dyn Fn(&str) -> bool>) -> Vec<Warni
             "resource description keys",
             "WHERE TO GET blocks on commodities",
         ),
+        (
+            gd.item_names.len(),
+            "item name keys",
+            "names for items whose name key stock lacks",
+        ),
     ]);
     for (n, what, feeds) in empties {
         if n == 0 {

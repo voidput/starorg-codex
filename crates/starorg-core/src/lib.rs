@@ -49,5 +49,7 @@ pub mod validate;
 /// 4 = `[Owned]` coloured by default (EM4, the game's blue);
 /// 5 = quest items: `Used in:` hints from real mission references and the built-in
 /// `quest-items` patch (Vanduul-Tech Smugglers hints);
-/// 6 = obtain hints: WHERE TO GET blocks (on in Recommended), extending stat blocks.
-pub const OUTPUT_VERSION: u32 = 6;
+/// 6 = obtain hints: WHERE TO GET blocks (on in Recommended), extending stat blocks;
+/// 7 = missing names: added keys for entity names stock lacks, and generated text never
+/// brings a raw `@key` or a placeholder.
+pub const OUTPUT_VERSION: u32 = 7;

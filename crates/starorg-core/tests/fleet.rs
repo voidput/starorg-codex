@@ -152,7 +152,7 @@ fn an_override_on_the_hull_key_wins() {
     let (gd, stock) = data();
     let p = Profile::preset("minimal").unwrap();
     let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&settings()), None);
-    let gen_edits: Vec<merge::GenEdit> = g.edits.values().map(merge::GenEdit::from).collect();
+    let gen_edits = merge::gen_edits(&g);
     let overrides = vec![Override {
         line: 1,
         key: "vehicle_NameSYN_Bravo".into(),

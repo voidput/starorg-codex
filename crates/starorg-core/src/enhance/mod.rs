@@ -12,6 +12,7 @@ pub mod check;
 pub mod format;
 pub mod items;
 pub mod missions;
+pub mod names;
 pub mod obtain;
 pub mod owned;
 pub mod profile;
@@ -52,10 +53,13 @@ pub enum Category {
     /// "WHERE TO GET" blocks on item and commodity descriptions (`Profile::obtain`, spec
     /// obtain-hints). The only category that extends an edit another category owns.
     ObtainHints,
+    /// Names for entity name keys stock lacks (`Profile::missing_names`, spec
+    /// missing-names). The only category that adds keys instead of editing stock lines.
+    MissingNames,
 }
 
 impl Category {
-    pub const ALL: [Category; 15] = [
+    pub const ALL: [Category; 16] = [
         Self::Ships,
         Self::Components,
         Self::ShipWeapons,
@@ -71,6 +75,7 @@ impl Category {
         Self::ColourTest,
         Self::QuestHints,
         Self::ObtainHints,
+        Self::MissingNames,
     ];
 
     pub fn name(&self) -> &'static str {
@@ -90,6 +95,7 @@ impl Category {
             Self::ColourTest => "colour-test",
             Self::QuestHints => "quest-hints",
             Self::ObtainHints => "obtain-hints",
+            Self::MissingNames => "missing-names",
         }
     }
 
@@ -199,6 +205,8 @@ pub enum Reason {
     DroppedByValidation,
     /// Another generator already owns the key.
     OwnedByOther,
+    /// A key offered as new is in stock after all.
+    InStock,
 }
 
 impl Reason {
@@ -211,6 +219,7 @@ impl Reason {
             Self::FormatKey => "format-key",
             Self::DroppedByValidation => "dropped-by-validation",
             Self::OwnedByOther => "owned-by-other",
+            Self::InStock => "in-stock",
         }
     }
 }
@@ -339,11 +348,27 @@ impl Coverage {
     }
 }
 
+/// A key stock lacks, with the whole value we give it ([`Engine::add`]).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct AddedKey {
+    /// The key as the record references it (no `@`).
+    pub key: String,
+    pub category: Category,
+    /// Record short name whose data produced the value.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub record: Option<String>,
+    pub value: String,
+    /// How the value was found (`variant`, `description`, `readable` for missing names).
+    pub rule: &'static str,
+}
+
 /// Output of [`generate`].
 #[derive(Debug, Clone, Default)]
 pub struct Generated {
     /// By stock line.
     pub edits: BTreeMap<usize, GenEdit>,
+    /// Keys stock lacks, by folded key; rendered after the stock lines.
+    pub added: BTreeMap<String, AddedKey>,
     pub coverage: Coverage,
     pub warnings: Vec<Warning>,
 }
@@ -357,15 +382,21 @@ impl Generated {
             // Values were checked in `offer`; set() matches by key again.
             let _ = e.set(stock, &g.key, g.value(sv));
         }
+        for a in self.added.values() {
+            // Checked in `add`.
+            let _ = e.add(stock, &a.key, a.value.clone());
+        }
         e
     }
 
-    /// Keys category `c` wrote, its extensions of other categories' edits included.
+    /// Keys category `c` wrote, its extensions of other categories' edits and its added
+    /// keys included.
     pub fn count(&self, c: Category) -> usize {
         self.edits
             .values()
             .filter(|e| e.category == c || e.extended_by.contains(&c))
             .count()
+            + self.added.values().filter(|a| a.category == c).count()
     }
 }
 
@@ -522,6 +553,56 @@ impl<'a> Engine<'a> {
                 trim_stock,
                 replace,
                 extended_by: Vec::new(),
+            },
+        );
+        true
+    }
+
+    /// Add a key stock lacks with a whole value (a name CIG references but never wrote,
+    /// spec missing-names). Counts the outcome; returns true when added. The value goes
+    /// through the generated whole-value rules with an empty stock value, so it can bring
+    /// no variables, format specifiers, open tags, raw `@` keys or placeholders.
+    pub fn add(
+        &mut self,
+        cat: Category,
+        key: &str,
+        record: Option<String>,
+        value: &str,
+        rule: &'static str,
+    ) -> bool {
+        self.cov(cat).candidates += 1;
+        let key = key.strip_prefix('@').unwrap_or(key);
+        let folded = fold_key(key);
+        if !matches!(self.stock.find(key), Err(IniError::UnknownKey(_))) {
+            self.left(cat, Reason::InStock);
+            return false;
+        }
+        if self.out.added.contains_key(&folded) {
+            self.left(cat, Reason::OwnedByOther);
+            return false;
+        }
+        let checked = if value.trim().is_empty() || !crate::ini::is_addable_key(key) {
+            Err(check::Rule::ControlChar)
+        } else {
+            check::check_added(value)
+        };
+        if let Err(rule) = checked {
+            self.left(cat, Reason::DroppedByValidation);
+            self.out.warnings.push(Warning::new(
+                "dropped-edit",
+                format!("{key}: added value dropped ({})", rule.name()),
+            ));
+            return false;
+        }
+        self.cov(cat).written += 1;
+        self.out.added.insert(
+            folded,
+            AddedKey {
+                key: key.to_string(),
+                category: cat,
+                record,
+                value: value.to_string(),
+                rule,
             },
         );
         true
@@ -843,6 +924,11 @@ pub fn generate_with(
         obtain::generate(&mut en, gd, obtain.unwrap_or(&empty));
     }
 
+    // New keys only: touches no stock line, so its place in the order changes nothing.
+    if p.missing_names {
+        names::generate(&mut en, gd);
+    }
+
     if p.branding {
         let text = format!(
             "\\nText enhanced with StarOrg Codex v{}",
@@ -891,8 +977,9 @@ pub const COLOUR_TEST_LINE: &str =
 
 /// Render the generated edits and run the whole-file checks.
 pub fn render(stock: &StockIni, g: &Generated) -> Result<Vec<u8>, check::FileError> {
-    let bytes = stock.render(&g.to_edits(stock));
-    check::check_file(stock, &bytes)?;
+    let edits = g.to_edits(stock);
+    let bytes = stock.render(&edits);
+    check::check_file_with(stock, &bytes, edits.added_len())?;
     Ok(bytes)
 }
 

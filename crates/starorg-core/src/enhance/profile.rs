@@ -28,6 +28,9 @@ pub struct Profile {
     pub obtain_mode: ObtainMode,
     /// Also list shops (only from UEX files the user supplied; names, never prices).
     pub obtain_shops: bool,
+    /// Give items whose name key stock lacks a name, so the game does not show the raw
+    /// `@item_Name…` key (spec missing-names). Adds keys; never edits a stock line.
+    pub missing_names: bool,
     /// Stat lines switched off, as `<category>.<line>` (e.g. `ships.boost`, `components.signatures`).
     pub lines_off: BTreeSet<String>,
     /// "Stats above prose" (spec 5.1).
@@ -240,6 +243,7 @@ impl Default for Profile {
             obtain: true,
             obtain_mode: ObtainMode::Normal,
             obtain_shops: false,
+            missing_names: true,
             lines_off: BTreeSet::new(),
             stats_above: false,
             header: "--- STATS ---".into(),
@@ -273,6 +277,7 @@ impl Profile {
             t.enabled = false;
         }
         p.obtain = false;
+        p.missing_names = false;
         p
     }
 
@@ -828,6 +833,17 @@ mod tests {
             ["enhance.ships"]
         );
         assert_eq!(m.keys().collect::<Vec<_>>(), ["missions"]);
+    }
+
+    #[test]
+    fn missing_names_on_in_every_preset_but_off() {
+        for name in PRESETS {
+            assert!(Profile::preset(name).unwrap().missing_names, "{name}");
+        }
+        assert!(!Profile::off().missing_names);
+        let p = Profile::from_toml("[enhance]\nmissing_names = false\n").unwrap();
+        assert!(!p.missing_names);
+        assert_ne!(p.hash(), Profile::default().hash());
     }
 
     #[test]

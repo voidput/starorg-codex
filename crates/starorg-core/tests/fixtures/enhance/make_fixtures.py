@@ -319,9 +319,22 @@ k("Frontend_PU_Version", "Filler version")
 k("ui_unrelated,P", "Unrelated filler")
 k("mG_ContractsMgr_Select,P", "Filler select prompt.")
 
+# Missing names (spec missing-names): entity name keys, two without a stock line.
+names = []
+def iname(cls, name, kind, desc=None):
+    n = {"class": cls.lower(), "name": "@" + name, "kind": kind}
+    if desc:
+        n["desc"] = "@" + desc
+    names.append(n)
+k("item_Name_zeta_suit_01_01_01", "Filler Suit")
+iname("zeta_suit_01_01_01", "item_Name_zeta_suit_01_01_01", "Char_Armor_Torso")
+iname("zeta_suit_01_01_02", "item_Name_zeta_suit_01_01_02", "Char_Armor_Torso")  # variant
+iname("ZETA_Crate_S4", "item_NameZetaCrate_S4", "Cargo")  # readable
+iname("zeta_panel", "item_Name_zeta_panel", "ControlPanel")  # hidden type: left alone
+
 gd = {"schema": 3, "build": None, "components": comps, "weapons": weapons, "missiles": missiles, "ships": ships,
       "contracts": contracts, "blueprints": blueprints, "blueprintPools": pools, "reputationStandings": standings,
-      "questItems": quest}
+      "questItems": quest, "itemNames": names}
 json.dump(gd, open(os.path.join(out, "gamedata.json"), "w"), indent=1, sort_keys=True)
 body = "; synthetic stock strings for enhance golden tests (made-up filler, no CIG text)\r\n"
 body += "".join(f"{a}={b}\r\n" for a, b in ini)

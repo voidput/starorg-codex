@@ -19,6 +19,10 @@ pub enum IniError {
     AmbiguousKey { key: String, lines: Vec<usize> },
     #[error("value for {0} contains a raw CR or LF")]
     LineBreakInValue(String),
+    #[error("key {0} is already in stock; it cannot be added")]
+    KeyInStock(String),
+    #[error("{0:?} is not a valid key to add")]
+    BadKey(String),
 }
 
 /// One physical line of the file.
@@ -202,10 +206,26 @@ impl StockIni {
         self.value_at(self.find(key).ok()?)
     }
 
+    /// Line ending for lines we add: CRLF when stock has any (the game's own file), else LF.
+    pub fn added_line_ending(&self) -> &'static [u8] {
+        if self.lines.is_empty() || self.crlf_count() > 0 {
+            b"\r\n"
+        } else {
+            b"\n"
+        }
+    }
+
     /// Render the file with the given new values. With no edits the output equals the input
-    /// byte for byte. No key is added, removed or reordered.
+    /// byte for byte. No stock key is removed or reordered; added keys ([`Edits::add`]) go
+    /// after the last stock line, in key order, each ending in [`Self::added_line_ending`]
+    /// (a last stock line without an ending gets one first).
     pub fn render(&self, edits: &Edits) -> Vec<u8> {
-        let extra: usize = edits.values.values().map(String::len).sum();
+        let extra: usize = edits.values.values().map(String::len).sum::<usize>()
+            + edits
+                .added
+                .values()
+                .map(|(k, v)| k.len() + v.len() + 3)
+                .sum::<usize>();
         let mut out = Vec::with_capacity(self.bytes.len() + extra);
         let body_start = if self.has_bom { BOM.len() } else { 0 };
         out.extend_from_slice(&self.bytes[..body_start]);
@@ -219,14 +239,38 @@ impl StockIni {
                 _ => out.extend_from_slice(&self.bytes[l.start..l.end]),
             }
         }
+        if !edits.added.is_empty() {
+            let nl = self.added_line_ending();
+            if self.lines.last().is_some_and(|l| l.content_end == l.end) {
+                out.extend_from_slice(nl);
+            }
+            for (key, value) in edits.added.values() {
+                out.extend_from_slice(key.as_bytes());
+                out.push(b'=');
+                out.extend_from_slice(value.as_bytes());
+                out.extend_from_slice(nl);
+            }
+        }
         out
     }
 }
 
-/// New values, by stock line. Build with [`Edits::set`] so keys are matched and checked.
+/// A key we may add: ASCII letters, digits, `_`, `-` and `.`, not empty. Stock keys are
+/// identifiers of that shape (the game resolves `@key` references by them).
+pub fn is_addable_key(key: &str) -> bool {
+    !key.is_empty()
+        && key
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'_' | b'-' | b'.'))
+}
+
+/// New values, by stock line, and keys stock lacks. Build with [`Edits::set`] and
+/// [`Edits::add`] so keys are matched and checked.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct Edits {
     values: BTreeMap<usize, String>,
+    /// Folded key -> (key as written, value): new lines after the stock ones.
+    added: BTreeMap<String, (String, String)>,
 }
 
 impl Edits {
@@ -235,11 +279,48 @@ impl Edits {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.values.is_empty() && self.added.is_empty()
     }
 
+    /// Changed stock lines plus added keys.
     pub fn len(&self) -> usize {
-        self.values.len()
+        self.values.len() + self.added.len()
+    }
+
+    /// Number of added keys.
+    pub fn added_len(&self) -> usize {
+        self.added.len()
+    }
+
+    /// Iterate `(key, value)` of the added keys, in render order.
+    pub fn added(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.added.values().map(|(k, v)| (k.as_str(), v.as_str()))
+    }
+
+    /// Add a key stock does not have (a name CIG references but never wrote). Refused when
+    /// stock has it (under the folding rule), when the key is not a plain identifier
+    /// ([`is_addable_key`]) or the value holds a raw CR or LF. Adding the same key again
+    /// replaces its value.
+    pub fn add(
+        &mut self,
+        stock: &StockIni,
+        key: &str,
+        value: impl Into<String>,
+    ) -> Result<(), IniError> {
+        let key = key.strip_prefix('@').unwrap_or(key);
+        if !is_addable_key(key) {
+            return Err(IniError::BadKey(key.to_string()));
+        }
+        match stock.find(key) {
+            Err(IniError::UnknownKey(_)) => {}
+            _ => return Err(IniError::KeyInStock(key.to_string())),
+        }
+        let value = value.into();
+        if value.contains(['\r', '\n']) {
+            return Err(IniError::LineBreakInValue(key.to_string()));
+        }
+        self.added.insert(fold_key(key), (key.to_string(), value));
+        Ok(())
     }
 
     /// Set the value of stock line `line` directly (the caller found it with
@@ -383,6 +464,55 @@ mod tests {
         // Comments are not keys even when they contain '='.
         let ini = StockIni::parse(b";x=1\r\nx=2\r\n".to_vec());
         assert_eq!(ini.key_count(), 1);
+    }
+
+    #[test]
+    fn added_keys_go_after_stock_with_stock_line_endings() {
+        let ini = StockIni::parse(sample());
+        let mut edits = Edits::new();
+        edits.add(&ini, "@item_NameNew_B", "Bee").unwrap();
+        edits.add(&ini, "item_NameNew_A", "Ay").unwrap();
+        assert_eq!(edits.len(), 2);
+        assert_eq!(edits.added_len(), 2);
+        let out = ini.render(&edits);
+        let text = std::str::from_utf8(&out[3..]).unwrap();
+        // The last stock line had no ending: it gets one, then the keys in folded order.
+        assert!(
+            text.ends_with("last_no_newline=end\r\nitem_NameNew_A=Ay\r\nitem_NameNew_B=Bee\r\n"),
+            "{text}"
+        );
+        let again = StockIni::parse(out);
+        assert_eq!(again.line_count(), ini.line_count() + 2);
+        assert_eq!(again.value("item_namenew_b"), Some("Bee"));
+        // LF-only stock gets LF lines.
+        let lf = StockIni::parse(b"a=1\nb=2\n".to_vec());
+        let mut e = Edits::new();
+        e.add(&lf, "c", "3").unwrap();
+        assert_eq!(lf.render(&e), b"a=1\nb=2\nc=3\n");
+    }
+
+    #[test]
+    fn adding_refuses_stock_keys_bad_keys_and_line_breaks() {
+        let ini = StockIni::parse(sample());
+        let mut edits = Edits::new();
+        assert_eq!(
+            edits.add(&ini, "ITEM_NAMEA", "x"),
+            Err(IniError::KeyInStock("ITEM_NAMEA".into()))
+        );
+        for bad in ["", "a=b", "a b", ";c", "x,P"] {
+            assert_eq!(edits.add(&ini, bad, "x"), Err(IniError::BadKey(bad.into())));
+        }
+        assert_eq!(
+            edits.add(&ini, "new_key", "a\rb"),
+            Err(IniError::LineBreakInValue("new_key".into()))
+        );
+        assert!(edits.is_empty());
+        // A colliding pair is in stock too.
+        let ini = StockIni::parse(b"Key=1\r\nkey,P=2\r\n".to_vec());
+        assert!(matches!(
+            edits.add(&ini, "key", "x"),
+            Err(IniError::KeyInStock(_))
+        ));
     }
 
     #[test]

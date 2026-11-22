@@ -26,6 +26,32 @@ pub struct GenEdit {
     pub whole: Option<String>,
     /// The stock part loses its trailing `\n` escapes and spaces (spec 5.1, 6.2).
     pub trim_stock: bool,
+    /// A key stock lacks ([`crate::enhance::AddedKey`]): `whole` is its value, added after
+    /// the stock lines.
+    pub added: bool,
+}
+
+impl From<&crate::enhance::AddedKey> for GenEdit {
+    fn from(a: &crate::enhance::AddedKey) -> Self {
+        Self {
+            key: a.key.clone(),
+            generator: a.category.name().to_string(),
+            prefix: String::new(),
+            suffix: String::new(),
+            whole: Some(a.value.clone()),
+            trim_stock: false,
+            added: true,
+        }
+    }
+}
+
+/// Every edit of a generator run in merge form: stock-line edits, then added keys.
+pub fn gen_edits(g: &crate::enhance::Generated) -> Vec<GenEdit> {
+    g.edits
+        .values()
+        .map(GenEdit::from)
+        .chain(g.added.values().map(GenEdit::from))
+        .collect()
 }
 
 impl From<&crate::enhance::GenEdit> for GenEdit {
@@ -47,6 +73,7 @@ impl From<&crate::enhance::GenEdit> for GenEdit {
             },
             whole: e.replace.as_ref().map(|_| e.value("")),
             trim_stock: e.trim_stock,
+            added: false,
         }
     }
 }
@@ -73,6 +100,8 @@ pub struct Counts {
 pub struct Merged {
     pub edits: Edits,
     pub provenance: BTreeMap<usize, Source>,
+    /// Where each added key's value came from, by folded key.
+    pub added_provenance: BTreeMap<String, Source>,
     pub counts: Counts,
     pub warnings: Vec<Warning>,
     pub patch_outcomes: Vec<EntryOutcome>,
@@ -122,7 +151,32 @@ pub fn merge(
     // 1. Generated, validated first so loc patches read only values that survive.
     let mut gen_values: BTreeMap<usize, (String, String)> = BTreeMap::new();
     let mut gen_src: BTreeMap<usize, String> = BTreeMap::new();
-    for g in generated {
+    // Added keys: folded key -> (key, value, generator).
+    let mut added: BTreeMap<String, (String, String, String)> = BTreeMap::new();
+    for g in generated.iter().filter(|g| g.added) {
+        let value = g.whole.clone().unwrap_or_default();
+        let checked = if stock.find(&g.key).is_ok() {
+            Err("in-stock".to_string())
+        } else {
+            crate::enhance::check::check_added(&value).map_err(|r| r.name().to_string())
+        };
+        match checked {
+            Ok(()) => {
+                added.insert(
+                    crate::ini::fold_key(&g.key),
+                    (g.key.clone(), value, g.generator.clone()),
+                );
+            }
+            Err(rule) => {
+                m.counts.dropped += 1;
+                m.warnings.push(Warning::new(
+                    "dropped-edit",
+                    format!("{}: added value dropped ({rule})", g.key),
+                ));
+            }
+        }
+    }
+    for g in generated.iter().filter(|g| !g.added) {
         let Ok(line) = stock.find(&g.key) else {
             continue;
         };
@@ -206,11 +260,24 @@ pub fn merge(
         }
     }
 
-    // 3. Overrides replace the whole value.
+    // 3. Overrides replace the whole value (an added key's too).
     let mut ovr_values: BTreeMap<usize, String> = BTreeMap::new();
+    let mut ovr_added: BTreeMap<String, String> = BTreeMap::new();
     for o in overrides {
         let line = match stock.find(&o.key) {
             Ok(l) => l,
+            Err(_) if added.contains_key(&crate::ini::fold_key(&o.key)) => {
+                match validate::check_value("", &o.value, Op::Override, &[]) {
+                    Ok(()) => {
+                        ovr_added.insert(crate::ini::fold_key(&o.key), o.value.clone());
+                    }
+                    Err(rule) => {
+                        m.counts.dropped += 1;
+                        m.warnings.push(drop_warning(&o.key, "override", &rule));
+                    }
+                }
+                continue;
+            }
             Err(e) => {
                 m.warnings.push(Warning::new(
                     "override-ignored",
@@ -271,6 +338,22 @@ pub fn merge(
         let _ = m.edits.set_line(line, &key, value);
         m.provenance.insert(line, source);
     }
+    for (folded, (key, value, generator)) in added {
+        let (value, source) = match ovr_added.remove(&folded) {
+            Some(v) => {
+                m.counts.overrides += 1;
+                (v, Source::Override)
+            }
+            None => {
+                m.counts.generated += 1;
+                (value, Source::Generated { generator })
+            }
+        };
+        // Checked above: a new, plain key and a value without line breaks.
+        if m.edits.add(stock, &key, value).is_ok() {
+            m.added_provenance.insert(folded, source);
+        }
+    }
     m.counts.changed = m.edits.len();
     m
 }
@@ -298,6 +381,7 @@ mod tests {
                 suffix: String::new(),
                 whole: None,
                 trim_stock: false,
+                added: false,
             },
             GenEdit {
                 key: "f".into(),
@@ -306,6 +390,7 @@ mod tests {
                 suffix: " x".into(),
                 whole: None,
                 trim_stock: false,
+                added: false,
             },
         ];
         let text = "schema = 1\nid = \"p\"\ntitle = \"t\"\n[[loc]]\nkey = \"a\"\nop = \"append\"\nvalue = \" <EM4>bad\"\n";
@@ -356,6 +441,56 @@ mod tests {
     }
 
     #[test]
+    fn added_keys_merge_after_stock_and_an_override_wins() {
+        let s = stock();
+        let add = |key: &str, value: &str| GenEdit {
+            key: key.into(),
+            generator: "missing-names".into(),
+            prefix: String::new(),
+            suffix: String::new(),
+            whole: Some(value.into()),
+            trim_stock: false,
+            added: true,
+        };
+        let g = [
+            add("new_one", "First"),
+            add("new_two", "Second"),
+            add("bad_one", "<= PLACEHOLDER =>"),
+            add("A", "in stock"),
+        ];
+        let overrides = vec![Override {
+            line: 1,
+            key: "NEW_TWO".into(),
+            value: "Mine".into(),
+        }];
+        let m = merge(
+            &s,
+            &GameData::default(),
+            None,
+            &g,
+            &PatchSet::default(),
+            &overrides,
+        );
+        let out = s.render(&m.edits);
+        assert_eq!(
+            validate::check_file_with(&s, &out, m.edits.added_len()),
+            Ok(())
+        );
+        let text = String::from_utf8(out).unwrap();
+        assert!(
+            text.ends_with("f=%i dmg\r\nnew_one=First\r\nnew_two=Mine\r\n"),
+            "{text:?}"
+        );
+        assert_eq!(m.counts.changed, 2);
+        assert_eq!(
+            (m.counts.generated, m.counts.overrides, m.counts.dropped),
+            (1, 1, 2)
+        );
+        assert_eq!(m.added_provenance["new_two"], Source::Override);
+        assert!(!m.warnings.iter().any(|w| w.kind == "override-ignored"));
+    }
+
+    #[test]
     fn trim_stock_drops_the_stock_tail() {
         let s = StockIni::parse(b"\xEF\xBB\xBFd=Prose\\n\\n  \r\n".to_vec());
         let g = [GenEdit {
@@ -365,6 +500,7 @@ mod tests {
             suffix: "\\n\\nStats".into(),
             whole: None,
             trim_stock: true,
+            added: false,
         }];
         let m = merge(
             &s,
