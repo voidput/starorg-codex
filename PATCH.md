@@ -43,6 +43,13 @@ Optional on any `[[loc]]` entry: `expect_sha256` (SHA-256 of the stock value; on
 entry is skipped as `target-changed`), `requires` (the `id` of a `[[data]]` entry in the same
 file), `optional = true` (a key missing from the build is `not-needed`, not a warning).
 
+`added_key = true` (with `op = "set"` only, no `expect_sha256` or `optional`): the key is one
+stock lacks and *Fix missing item names* added; the entry replaces that added name. When stock
+has the key it is `not-needed` (the game names it now, stock wins); when nothing added it (the
+switch is off) it is `no-data`. Built-in names of this kind live in `missing-names.patch.toml`,
+one entry per key with a comment naming the source of the name. Never guess a name: an item
+without a verifiable name keeps the readable fallback.
+
 `[[data]]` entries: `id`, exactly one of `record` (short record name) or `guid`, optional
 `contract` (then `record` is the generator), `field`, `expect` (the loc key it has now) and
 `set`. `field` is one of `name_key`, `short_name_key`, `desc_key`, `title_key`,
@@ -98,7 +105,7 @@ XDG_CONFIG_HOME=$R/config XDG_DATA_HOME=$R/data XDG_CACHE_HOME=$R/cache \
   target/debug/starorg-codex patches
 ```
 
-Output: the three built-in patches, then
+Output: the four built-in patches, then
 `my-first-fix  enabled  Example: add a note to one text key`. A file whose name does not match
 its id is listed as `error in <file>: file name <file> does not match id <id>`. Add `--json`
 for the full list with `errors`.
@@ -111,8 +118,8 @@ open the Patches screen. `patches` reads only a cached extraction, which an earl
 
 ### Guard it
 
-A loc-only built-in patch must guard every entry with `expect_sha256` (test
-`builtin_patches_parse`). Hash the exact stock value, the text after `=` on the key's line,
+A loc-only built-in patch must guard every entry with `expect_sha256`, or be an `added_key`
+entry, which is guarded by stock lacking the key (test `builtin_patches_parse`). Hash the exact stock value, the text after `=` on the key's line,
 with `\n` as two characters:
 
 ```sh

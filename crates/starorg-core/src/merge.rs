@@ -8,7 +8,7 @@
 use crate::build::BuildInfo;
 use crate::ini::{Edits, StockIni};
 use crate::model::GameData;
-use crate::patch::{self, EntryOutcome, PatchSet, Snapshot};
+use crate::patch::{self, EntryOutcome, LocTarget, PatchSet, Snapshot};
 use crate::source::Warning;
 use crate::state::Override;
 use crate::validate::{self, Op, WARN_LEN};
@@ -110,6 +110,8 @@ pub struct Merged {
 struct Snap<'a> {
     stock: &'a StockIni,
     generated: &'a BTreeMap<usize, (String, String)>,
+    /// Added keys: folded key -> (key, value, generator).
+    added: &'a BTreeMap<String, (String, String, String)>,
 }
 
 impl Snapshot for Snap<'_> {
@@ -127,6 +129,11 @@ impl Snapshot for Snap<'_> {
             Some((v, _)) => v.clone(),
             None => self.stock.value_at(line).unwrap_or_default().to_string(),
         }
+    }
+    fn added_value(&self, key: &str) -> Option<String> {
+        self.added
+            .get(&crate::ini::fold_key(key))
+            .map(|(_, v, _)| v.clone())
     }
 }
 
@@ -223,6 +230,7 @@ pub fn merge(
     let snap = Snap {
         stock,
         generated: &gen_values,
+        added: &added,
     };
     let (loc_edits, outcomes, notes) = patch::run(patches, game_data, &snap, build);
     for n in notes {
@@ -244,13 +252,34 @@ pub fn merge(
     }
     m.patch_outcomes = outcomes;
     let mut loc_values: BTreeMap<usize, (String, String)> = BTreeMap::new();
+    // Added keys a loc patch names: folded key -> (value, patch).
+    let mut loc_added: BTreeMap<String, (String, String)> = BTreeMap::new();
     for e in loc_edits {
-        let key = stock.key_at(e.line).unwrap_or_default();
-        let sv = stock.value_at(e.line).unwrap_or_default();
+        let line = match e.target {
+            LocTarget::Line(line) => line,
+            LocTarget::Added(folded) => {
+                // The generated name's own rules: no raw `@key`, no placeholder (spec
+                // missing-names).
+                match crate::enhance::check::check_added(&e.value) {
+                    Ok(()) => {
+                        loc_added.insert(folded, (e.value, e.patch));
+                    }
+                    Err(rule) => {
+                        let key = added.get(&folded).map(|a| a.0.as_str()).unwrap_or(&folded);
+                        m.counts.dropped += 1;
+                        m.warnings
+                            .push(drop_warning(key, &format!("patch {}", e.patch), &rule));
+                    }
+                }
+                continue;
+            }
+        };
+        let key = stock.key_at(line).unwrap_or_default();
+        let sv = stock.value_at(line).unwrap_or_default();
         let added: Vec<&str> = e.added.iter().map(String::as_str).collect();
         match validate::check_value(sv, &e.value, e.op, &added) {
             Ok(()) => {
-                loc_values.insert(e.line, (e.value, e.patch));
+                loc_values.insert(line, (e.value, e.patch));
             }
             Err(rule) => {
                 m.counts.dropped += 1;
@@ -339,15 +368,15 @@ pub fn merge(
         m.provenance.insert(line, source);
     }
     for (folded, (key, value, generator)) in added {
-        let (value, source) = match ovr_added.remove(&folded) {
-            Some(v) => {
-                m.counts.overrides += 1;
-                (v, Source::Override)
-            }
-            None => {
-                m.counts.generated += 1;
-                (value, Source::Generated { generator })
-            }
+        let (value, source) = if let Some(v) = ovr_added.remove(&folded) {
+            m.counts.overrides += 1;
+            (v, Source::Override)
+        } else if let Some((v, patch)) = loc_added.remove(&folded) {
+            m.counts.loc_patches += 1;
+            (v, Source::LocPatch { patch })
+        } else {
+            m.counts.generated += 1;
+            (value, Source::Generated { generator })
         };
         // Checked above: a new, plain key and a value without line breaks.
         if m.edits.add(stock, &key, value).is_ok() {
@@ -488,6 +517,83 @@ mod tests {
         );
         assert_eq!(m.added_provenance["new_two"], Source::Override);
         assert!(!m.warnings.iter().any(|w| w.kind == "override-ignored"));
+    }
+
+    #[test]
+    fn a_loc_patch_names_an_added_key_below_an_override() {
+        let s = stock();
+        let add = |key: &str, value: &str| GenEdit {
+            key: key.into(),
+            generator: "missing-names".into(),
+            prefix: String::new(),
+            suffix: String::new(),
+            whole: Some(value.into()),
+            trim_stock: false,
+            added: true,
+        };
+        let g = [
+            add("item_Name_one", "Readable One"),
+            add("item_Name_two", "Readable Two"),
+            add("item_Name_three", "Readable Three"),
+        ];
+        let text = "schema = 1\nid = \"names\"\ntitle = \"t\"\n\
+            [[loc]]\nkey = \"item_name_one\"\nop = \"set\"\nvalue = \"Real One\"\nadded_key = true\n\
+            [[loc]]\nkey = \"item_Name_two\"\nop = \"set\"\nvalue = \"Real Two\"\nadded_key = true\n\
+            [[loc]]\nkey = \"item_Name_three\"\nop = \"set\"\nvalue = \"[PLACEHOLDER]\"\nadded_key = true\n\
+            [[loc]]\nkey = \"a\"\nop = \"set\"\nvalue = \"Not Alpha\"\nadded_key = true\n";
+        let set = PatchSet {
+            patches: vec![LoadedPatch {
+                file: parse_patch("names", text).unwrap(),
+                origin: PatchOrigin::Builtin,
+                sha256: String::new(),
+                enabled: true,
+            }],
+            errors: vec![],
+        };
+        let overrides = vec![Override {
+            line: 1,
+            key: "item_name_two".into(),
+            value: "Mine".into(),
+        }];
+        let m = merge(&s, &GameData::default(), None, &g, &set, &overrides);
+        let out = s.render(&m.edits);
+        assert_eq!(
+            validate::check_file_with(&s, &out, m.edits.added_len()),
+            Ok(())
+        );
+        let text = String::from_utf8(out).unwrap();
+        // The patch names one; the override wins over the patch; a placeholder from a patch
+        // is dropped and the generated name stays; a stock key is never touched.
+        assert!(
+            text.ends_with(
+                "f=%i dmg\r\nitem_Name_one=Real One\r\nitem_Name_three=Readable Three\r\nitem_Name_two=Mine\r\n"
+            ),
+            "{text:?}"
+        );
+        assert!(text.contains("a=Alpha\r\n"));
+        assert_eq!(
+            m.added_provenance["item_name_one"],
+            Source::LocPatch {
+                patch: "names".into()
+            }
+        );
+        assert_eq!(m.added_provenance["item_name_two"], Source::Override);
+        assert_eq!(
+            (
+                m.counts.loc_patches,
+                m.counts.overrides,
+                m.counts.generated,
+                m.counts.dropped
+            ),
+            (1, 1, 1, 1)
+        );
+        let state = |k: &str| {
+            m.patch_outcomes
+                .iter()
+                .find(|o| o.entry == k)
+                .map(|o| o.state)
+        };
+        assert_eq!(state("loc:3"), Some(patch::EntryState::NotNeeded));
     }
 
     #[test]

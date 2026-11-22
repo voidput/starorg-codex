@@ -255,6 +255,7 @@ pub fn build(i: &Inputs<'_>) -> Table {
         let source = merged.added_provenance.get(folded).cloned();
         let src = match source {
             Some(Source::Override) => StringSource::Edited,
+            Some(Source::LocPatch { .. }) => StringSource::Patched,
             _ => StringSource::Enhanced,
         };
         index.insert(a.key.to_ascii_lowercase(), rows.len());

@@ -9,6 +9,9 @@
 //!   after generators and before any loc entry writes.
 //! - **Guards never contain CIG's text**: a guard on prose is `expect_sha256` of the stock
 //!   value.
+//! - **Added keys**: a loc `set` with `added_key = true` replaces the value a generator gave a
+//!   key stock lacks (Fix missing item names). The guard is that stock still lacks the key: once
+//!   the game names it, the entry retires as `not-needed` and stock wins.
 
 use crate::appdirs::AppDirs;
 use crate::build::{BuildInfo, GameVersion};
@@ -32,6 +35,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
     (
         "hockrow-recoveritem-desc.patch.toml",
         include_str!("../patches/hockrow-recoveritem-desc.patch.toml"),
+    ),
+    (
+        "missing-names.patch.toml",
+        include_str!("../patches/missing-names.patch.toml"),
     ),
     (
         "quest-items.patch.toml",
@@ -121,6 +128,12 @@ pub struct LocEntry {
     /// it is not in stock the entry is `not-needed`, not `missing`, and does not warn.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
+    /// The key is one stock lacks and a generator added (Fix missing item names): `set`
+    /// replaces the added value. When stock has the key the entry is `not-needed` (the game
+    /// names it now); when no generator added it, `no-data`. Only `set`, without
+    /// `expect_sha256` (there is no stock value to hash) or `optional`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub added_key: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -229,6 +242,16 @@ pub fn parse_patch(name: &str, text: &str) -> Result<PatchFile, String> {
                         "{name}: append_from must carry requires or expect_sha256"
                     ));
                 }
+            }
+        }
+        if l.added_key {
+            if l.op != LocOp::Set {
+                return Err(format!("{name}: added_key works with op \"set\" only"));
+            }
+            if l.expect_sha256.is_some() || l.optional {
+                return Err(format!(
+                    "{name}: added_key takes no expect_sha256 or optional (stock lacks the key)"
+                ));
             }
         }
         if let Some(r) = &l.requires
@@ -382,12 +405,21 @@ pub trait Snapshot {
     fn generated_part(&self, line: usize) -> String;
     /// Value after generators (stock when nothing was generated).
     fn final_value(&self, line: usize) -> String;
+    /// Value a generator gave a key stock lacks (`None` when no generator added it).
+    fn added_value(&self, key: &str) -> Option<String>;
+}
+
+/// What a loc edit writes: a stock line, or a key a generator added (by folded key).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LocTarget {
+    Line(usize),
+    Added(String),
 }
 
 /// One loc edit the engine wants to make.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocEdit {
-    pub line: usize,
+    pub target: LocTarget,
     pub patch: String,
     pub value: String,
     pub op: Op,
@@ -678,9 +710,9 @@ pub fn run(
         for (i, l) in p.file.loc.iter().enumerate() {
             let name = loc_name(i, l);
             let (state, detail, edit) = eval_loc(l, stock, snap, &data_states, &writers);
-            if let Some((line, value, op, added)) = edit {
+            if let Some((target, value, op, added)) = edit {
                 edits.push(LocEdit {
-                    line,
+                    target,
                     patch: pid.clone(),
                     value,
                     op,
@@ -693,7 +725,74 @@ pub fn run(
     (edits, outcomes, notes)
 }
 
-type Planned = Option<(usize, String, Op, Vec<String>)>;
+type Planned = Option<(LocTarget, String, Op, Vec<String>)>;
+
+/// The state of the data entry a loc entry `requires`; `None` when it applies.
+fn required(
+    l: &LocEntry,
+    data_states: &BTreeMap<&str, EntryState>,
+) -> Option<(EntryState, String, Planned)> {
+    let r = l.requires.as_ref()?;
+    match data_states.get(r.as_str()) {
+        Some(EntryState::NotNeeded) => {
+            Some((EntryState::NotNeeded, format!("{r} is not needed"), None))
+        }
+        Some(EntryState::Applies) => None,
+        Some(other) => Some((*other, format!("required entry {r} is {other:?}"), None)),
+        None => Some((
+            EntryState::Missing,
+            format!("required entry {r} not found"),
+            None,
+        )),
+    }
+}
+
+/// A `set` on a key a generator added because stock lacks it.
+fn eval_added(
+    l: &LocEntry,
+    stock: &StockIni,
+    snap: &dyn Snapshot,
+    data_states: &BTreeMap<&str, EntryState>,
+) -> (EntryState, String, Planned) {
+    match stock.find(&l.key) {
+        Ok(_) => {
+            return (
+                EntryState::NotNeeded,
+                format!("{} is in stock: the game names it now", l.key),
+                None,
+            );
+        }
+        Err(crate::ini::IniError::UnknownKey(_)) => {}
+        Err(e) => return (EntryState::Missing, e.to_string(), None),
+    }
+    if let Some(out) = required(l, data_states) {
+        return out;
+    }
+    let Some(current) = snap.added_value(&l.key) else {
+        return (
+            EntryState::NoData,
+            format!(
+                "no generator added {} (Fix missing item names off, or no item uses it)",
+                l.key
+            ),
+            None,
+        );
+    };
+    let value = l.value.clone().unwrap_or_default();
+    if current == value {
+        return (EntryState::NotNeeded, String::new(), None);
+    }
+    (
+        EntryState::Applies,
+        String::new(),
+        Some((
+            LocTarget::Added(fold_key(&l.key)),
+            value,
+            Op::Set,
+            Vec::new(),
+        )),
+    )
+}
 
 fn eval_loc(
     l: &LocEntry,
@@ -714,6 +813,9 @@ fn eval_loc(
             None,
         );
     }
+    if l.added_key {
+        return eval_added(l, stock, snap, data_states);
+    }
     let line = match stock.find(&l.key) {
         Ok(line) => line,
         Err(crate::ini::IniError::UnknownKey(_)) if l.optional => {
@@ -726,21 +828,8 @@ fn eval_loc(
         Err(e) => return (EntryState::Missing, e.to_string(), None),
     };
     let stock_value = stock.value_at(line).unwrap_or_default();
-    if let Some(r) = &l.requires {
-        match data_states.get(r.as_str()) {
-            Some(EntryState::NotNeeded) => {
-                return (EntryState::NotNeeded, format!("{r} is not needed"), None);
-            }
-            Some(EntryState::Applies) => {}
-            Some(other) => return (*other, format!("required entry {r} is {other:?}"), None),
-            None => {
-                return (
-                    EntryState::Missing,
-                    format!("required entry {r} not found"),
-                    None,
-                );
-            }
-        }
+    if let Some(out) = required(l, data_states) {
+        return out;
     }
     let value = l.value.clone().unwrap_or_default();
     let not_needed = match l.op {
@@ -809,7 +898,7 @@ fn eval_loc(
     (
         EntryState::Applies,
         String::new(),
-        Some((line, planned.0, planned.1, planned.2)),
+        Some((LocTarget::Line(line), planned.0, planned.1, planned.2)),
     )
 }
 
@@ -867,6 +956,8 @@ mod tests {
     struct Snap {
         stock: StockIni,
         generated: BTreeMap<usize, String>,
+        /// Keys a generator added, by folded key.
+        added: BTreeMap<String, String>,
     }
     impl Snapshot for Snap {
         fn stock(&self) -> &StockIni {
@@ -882,6 +973,9 @@ mod tests {
                 self.generated_part(line)
             )
         }
+        fn added_value(&self, key: &str) -> Option<String> {
+            self.added.get(&fold_key(key)).cloned()
+        }
     }
 
     fn snap() -> Snap {
@@ -891,7 +985,11 @@ mod tests {
         );
         let mut generated = BTreeMap::new();
         generated.insert(1, "\\n\\nGEN BODY".to_string());
-        Snap { stock, generated }
+        Snap {
+            stock,
+            generated,
+            added: BTreeMap::new(),
+        }
     }
 
     fn set_of(texts: &[&str]) -> PatchSet {
@@ -1037,17 +1135,159 @@ mod tests {
     }
 
     #[test]
+    fn added_key_entries_replace_an_added_value_and_retire_in_stock() {
+        let mut s = snap();
+        s.added
+            .insert(fold_key("item_Name_gun_01"), "Gun 01".to_string());
+        s.added
+            .insert(fold_key("item_Name_same"), "Same Name".to_string());
+        let entry = |id: &str, key: &str, value: &str| {
+            format!(
+                "{HDR}id = \"{id}\"\n[[loc]]\nkey = \"{key}\"\nop = \"set\"\nvalue = \"{value}\"\nadded_key = true\n"
+            )
+        };
+        let set = set_of(&[
+            // Added by a generator: replaced (key case does not matter).
+            &entry("a", "ITEM_NAME_GUN_01", "Real Gun"),
+            // In stock now (the game names it): retired, stock wins.
+            &entry("b", "name_a", "Mine"),
+            // Neither in stock nor added (the category is off): nothing to judge.
+            &entry("c", "item_Name_other", "Other"),
+            // Already what we would write.
+            &entry("d", "item_Name_same", "Same Name"),
+        ]);
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        let st: Vec<_> = outcomes.iter().map(|o| o.state).collect();
+        assert_eq!(
+            st,
+            vec![
+                EntryState::Applies,
+                EntryState::NotNeeded,
+                EntryState::NoData,
+                EntryState::NotNeeded
+            ]
+        );
+        assert!(st.iter().all(|s| !s.warns()));
+        assert_eq!(edits.len(), 1);
+        assert_eq!(
+            edits[0].target,
+            LocTarget::Added(fold_key("item_Name_gun_01"))
+        );
+        assert_eq!(
+            (edits[0].value.as_str(), edits[0].op),
+            ("Real Gun", Op::Set)
+        );
+        // Without the flag a set on a key stock lacks is still `missing`.
+        let plain = set_of(&[&format!(
+            "{HDR}id = \"e\"\n[[loc]]\nkey = \"item_Name_gun_01\"\nop = \"set\"\nvalue = \"x\"\n"
+        )]);
+        let (edits, outcomes, _) = run(&plain, &GameData::default(), &s, None);
+        assert_eq!(outcomes[0].state, EntryState::Missing);
+        assert!(edits.is_empty());
+        // Two entries on one added key: a conflict, like on a stock key.
+        let two = set_of(&[
+            &entry("f", "item_Name_gun_01", "A"),
+            &entry("g", "item_name_gun_01", "B"),
+        ]);
+        let (edits, outcomes, _) = run(&two, &GameData::default(), &s, None);
+        assert!(outcomes.iter().all(|o| o.state == EntryState::Conflict));
+        assert!(edits.is_empty());
+    }
+
+    #[test]
+    fn added_key_is_set_only_and_unguarded() {
+        for (extra, why) in [
+            ("op = \"append\"\nvalue = \"x\"\n", "set only"),
+            (
+                "op = \"set\"\nvalue = \"x\"\nexpect_sha256 = \"00\"\n",
+                "no stock value to hash",
+            ),
+            (
+                "op = \"set\"\nvalue = \"x\"\noptional = true\n",
+                "not optional",
+            ),
+        ] {
+            let text = format!("{HDR}id = \"a\"\n[[loc]]\nkey = \"k\"\nadded_key = true\n{extra}");
+            assert!(parse_patch("x", &text).is_err(), "{why}");
+        }
+    }
+
+    #[test]
     fn builtin_patches_parse() {
         for (name, text) in BUILTIN {
             let p = parse_patch(name, text).unwrap_or_else(|e| panic!("{name}: {e}"));
             assert!(!p.data.is_empty() || !p.loc.is_empty(), "{name}");
-            // A loc-only patch guards every entry by the stock text it was written for.
+            // A loc-only patch guards every entry by the stock text it was written for, or
+            // (an added key) by stock lacking the key.
             if p.data.is_empty() {
                 for l in &p.loc {
-                    assert!(l.expect_sha256.is_some(), "{name}: {:?}", l.id);
+                    assert!(
+                        l.expect_sha256.is_some() || l.added_key,
+                        "{name}: {:?}",
+                        l.id
+                    );
                 }
             }
         }
+    }
+
+    /// The curated names: every entry names an added key, carries its source and applies only
+    /// while stock lacks the key.
+    #[test]
+    fn missing_names_pack_names_added_keys_only() {
+        let (name, text) = BUILTIN
+            .iter()
+            .find(|(n, _)| *n == "missing-names.patch.toml")
+            .unwrap();
+        let file = parse_patch(name, text).unwrap();
+        assert!(!file.loc.is_empty() && file.data.is_empty());
+        for l in &file.loc {
+            assert!(l.added_key && l.op == LocOp::Set, "{:?}", l.id);
+        }
+        // Each entry is preceded by a `# Source: https://...` comment.
+        let blocks: Vec<&str> = text.split("[[loc]]").skip(1).collect();
+        let heads: Vec<&str> = text.split("[[loc]]").collect();
+        assert_eq!(blocks.len(), file.loc.len());
+        for (i, head) in heads.iter().take(blocks.len()).enumerate() {
+            let last = head
+                .trim_end()
+                .lines()
+                .rev()
+                .take_while(|l| l.starts_with('#'));
+            assert!(
+                last.into_iter()
+                    .any(|l| l.starts_with("# Source: https://")),
+                "entry {i} ({:?}) has no source comment",
+                file.loc[i].id
+            );
+        }
+        let set = PatchSet {
+            patches: vec![LoadedPatch {
+                sha256: fsutil::sha256_hex(text.as_bytes()),
+                file: file.clone(),
+                origin: PatchOrigin::Builtin,
+                enabled: true,
+            }],
+            errors: Vec::new(),
+        };
+        let first = &file.loc[0];
+        let mut s = Snap {
+            stock: StockIni::parse(b"\xEF\xBB\xBFother=x\r\n".to_vec()),
+            generated: BTreeMap::new(),
+            added: BTreeMap::new(),
+        };
+        s.added
+            .insert(fold_key(&first.key), "Readable Fallback".to_string());
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        assert_eq!(outcomes[0].state, EntryState::Applies);
+        assert!(outcomes[1..].iter().all(|o| o.state == EntryState::NoData));
+        assert_eq!(edits.len(), 1);
+        assert_eq!(Some(&edits[0].value), first.value.as_ref());
+        // CIG ships the key: stock wins.
+        s.stock = StockIni::parse(format!("\u{feff}{}=CIG Name\r\n", first.key).into_bytes());
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        assert_eq!(outcomes[0].state, EntryState::NotNeeded);
+        assert!(edits.is_empty());
     }
 
     /// The quest-items pack against a stock file holding the LIVE texts it was written for,
@@ -1077,6 +1317,7 @@ mod tests {
         let snap_of = |text: &str| Snap {
             stock: StockIni::parse(format!("\u{feff}{text}").into_bytes()),
             generated: BTreeMap::new(),
+            added: BTreeMap::new(),
         };
         let s = snap_of(live);
         let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
@@ -1087,7 +1328,12 @@ mod tests {
         assert_eq!(edits.len(), 4);
         let by_key = |k: &str| {
             let line = s.stock.find(k).unwrap();
-            edits.iter().find(|e| e.line == line).unwrap().value.clone()
+            edits
+                .iter()
+                .find(|e| e.target == LocTarget::Line(line))
+                .unwrap()
+                .value
+                .clone()
         };
         assert_eq!(by_key("Kaboos_DecryptioKeycard1"), "Decryption Key (QV)");
         let key = by_key("Kaboos_DecryptioKeycard1_desc");

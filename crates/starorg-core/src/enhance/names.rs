@@ -40,12 +40,19 @@ pub const HIDDEN_TYPES: &[&str] = &[
 /// Key prefixes dropped for the readable name, tried in order (case-insensitive).
 const PREFIXES: &[&str] = &[
     "text_ui_charactercustomizer_item_",
+    "actor_species_creature_",
     "items_commodities_",
+    "item_commodities_",
     "crafting_machinename_",
     "item_name_",
     "item_name",
     "item_type_",
     "item_type",
+    // A description key used as the name (`item_Descbehr_rifle_ballistic_1`).
+    "item_description_",
+    "item_description",
+    "item_desc_",
+    "item_desc",
     "item_",
 ];
 
@@ -91,13 +98,15 @@ fn camel_split(t: &str) -> Vec<&str> {
     out
 }
 
-/// One word of a readable name.
-fn word(t: &str, makers: &HashSet<String>) -> String {
+/// One word of a readable name. `maker_ok`: the word may be a manufacturer code (it is the
+/// first word or written in capitals), so `grey` in a colour list stays a word although `GREY`
+/// is Grey's Market.
+fn word(t: &str, makers: &HashSet<String>, maker_ok: bool) -> String {
     let upper = t.to_ascii_uppercase();
     if t.bytes().all(|b| b.is_ascii_digit()) {
         return t.to_string();
     }
-    if t.len() <= 5 && makers.contains(&upper) {
+    if maker_ok && t.len() <= 5 && makers.contains(&upper) {
         return upper;
     }
     let letters = t.bytes().take_while(u8::is_ascii_alphabetic).count();
@@ -123,29 +132,51 @@ fn word(t: &str, makers: &HashSet<String>) -> String {
 
 /// Readable name from a loc key (or a record name): `item_NameAmmoCrate_S4` ->
 /// `Ammo Crate S4`, `item_Name_nvs_pilot_flightsuit_01_01_02` ->
-/// `NVS Pilot Flightsuit 01-01-02`. `makers` holds manufacturer codes (upper case).
+/// `NVS Pilot Flightsuit 01-01-02`. `makers` holds manufacturer codes (upper case); a code
+/// counts only as the first word or written in capitals. A word repeated across a camel-case
+/// split (`Mining_MiningLaser`, `itemPort_port`) is written once, a trailing `_Name` dropped.
 /// Empty when nothing readable is left.
 pub fn readable(key: &str, makers: &HashSet<String>) -> String {
     let k = key.strip_prefix('@').unwrap_or(key);
     let lower = k.to_ascii_lowercase();
-    let rest = PREFIXES
+    let mut rest = PREFIXES
         .iter()
         .find_map(|p| lower.starts_with(p).then(|| &k[p.len()..]))
         .unwrap_or(k);
-    let tokens: Vec<&str> = rest
-        .split(['_', ' ', '-', '.'])
-        .filter(|t| !t.is_empty())
-        .flat_map(camel_split)
-        .filter(|t| t.bytes().any(|b| b.is_ascii_alphanumeric()))
-        .collect();
+    if let Some(head) = rest.len().checked_sub("_name".len())
+        && rest.is_char_boundary(head)
+        && rest[head..].eq_ignore_ascii_case("_name")
+    {
+        rest = &rest[..head];
+    }
+    // (word, is a number, came from a camel-case split of a longer token)
+    let mut words: Vec<(String, bool, bool)> = Vec::new();
+    for tok in rest.split(['_', ' ', '-', '.']).filter(|t| !t.is_empty()) {
+        let parts: Vec<&str> = camel_split(tok)
+            .into_iter()
+            .filter(|t| t.bytes().any(|b| b.is_ascii_alphanumeric()))
+            .collect();
+        let split = parts.len() > 1;
+        for t in parts {
+            let maker_ok = words.is_empty() || t.bytes().all(|b| !b.is_ascii_lowercase());
+            let w = word(t, makers, maker_ok);
+            if let Some((prev, _, prev_split)) = words.last()
+                && (split || *prev_split)
+                && prev.eq_ignore_ascii_case(&w)
+            {
+                continue;
+            }
+            let num = t.bytes().all(|b| b.is_ascii_digit());
+            words.push((w, num, split));
+        }
+    }
     let mut out = String::new();
     let mut prev_num = false;
-    for t in tokens {
-        let num = t.bytes().all(|b| b.is_ascii_digit());
+    for (w, num, _) in words {
         if !out.is_empty() {
             out.push(if num && prev_num { '-' } else { ' ' });
         }
-        out.push_str(&word(t, makers));
+        out.push_str(&w);
         prev_num = num;
     }
     out
@@ -294,7 +325,10 @@ mod tests {
     use crate::ini::BOM;
 
     fn makers() -> HashSet<String> {
-        ["RSI", "BEHR"].iter().map(|s| s.to_string()).collect()
+        ["RSI", "BEHR", "GREY", "GAMA"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect()
     }
 
     #[test]
@@ -325,6 +359,30 @@ mod tests {
                 "Fabricator Standard",
             ),
             ("@item_TypeSeatDashboard", "Seat Dashboard"),
+            // A maker code that is also a word (GREY: Grey's Market) is a word unless it is
+            // first or in capitals; repeated colours stay.
+            (
+                "@item_NamePerseus_Paint_black_grey_grey",
+                "Perseus Paint Black Grey Grey",
+            ),
+            ("@item_Name_grey_box", "GREY Box"),
+            ("@item_NameBox_GREY", "Box GREY"),
+            // A word repeated across a camel-case split, and the key's trailing `_Name`.
+            (
+                "@item_Mining_MiningLaser_GAMA_Hyun_S1_Name",
+                "Mining Laser GAMA Hyun S1",
+            ),
+            ("@itemPort_port_SalvageArmR", "Item Port Salvage Arm R"),
+            (
+                "@item_NameGalaxy_Paint_Black_Red_Red",
+                "Galaxy Paint Black Red Red",
+            ),
+            // A description key used as the name.
+            ("@item_Descbehr_rifle_ballistic_1", "BEHR Rifle Ballistic 1"),
+            ("@item_Desc_box_01", "Box 01"),
+            ("@item_commodities_ventslug", "Ventslug"),
+            ("@actor_species_creature_valakkar_apex", "Valakkar Apex"),
+            ("@item_Name_name", "Name"),
         ] {
             assert_eq!(readable(key, &m), want, "{key}");
         }

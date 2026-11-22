@@ -113,8 +113,10 @@ writes nothing to the game), no apply needed.
   `@item_Name_nvs_pilot_flightsuit_01_01_02` instead of a name, because CIG's text file lacks
   that key. This adds the key with a name: the name its variants share when they all agree,
   else the base item's name with the variant (`P4-AR Rifle (LR01)`, `... Magazine`), else a
-  readable one made from the code (`NVS Pilot Flightsuit 01-01-02`). No existing text
-  changes. Whatever the switch, our own text never shows a raw `@key` or a placeholder.
+  readable one made from the code (`NVS Pilot Flightsuit 01-01-02`). Where a public source
+  confirms the real name, the built-in patch *Real names for items the game leaves unnamed*
+  uses it instead (Patches screen; it retires by itself once the game names the item). No
+  existing text changes. Whatever the switch, our own text never shows a raw `@key` or a placeholder.
 
 Colours marked "look not verified" are our guess of how the game draws that style: switch on
 the colour test line, check in game and tell us (Support). **Save** keeps the settings, **Save &

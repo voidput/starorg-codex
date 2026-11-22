@@ -35,7 +35,8 @@ placeholder ourselves.
   rendered file: every stock line keeps its key and ending, each added line is a plain
   identifier stock lacks, once. `Engine::add` / `Generated::added` / `AddedKey` carry them
   through generation; `merge` keeps them (`GenEdit::added`, `merge::gen_edits`) and an
-  `overrides.ini` line on an added key replaces its value. Loc patches cannot target them.
+  `overrides.ini` line on an added key replaces its value. A loc `set` with
+  `added_key = true` replaces it too (below the override): see *Curated names*.
 - **Value, in order** (`enhance/names.rs`):
   1. *variant*: entities of the same `AttachDef.Type` whose record name differs only by a
      trailing `_NN` / `_sfNN` / `_tintNN` / `_lrNN` (or is the bare base, even one that ends
@@ -51,7 +52,13 @@ placeholder ourselves.
      `item_` dropped, `_` and camel case split, words title-cased, manufacturer codes (from
      stock `manufacturer_Name*`) and short vowel-less codes upper-cased, `S4` / `LR01` kept
      as codes, runs of numbers joined with `-` so variants stay distinct
-     (`NVS Pilot Flightsuit 01-01-02`, `Ammo Crate S4`, `Piercing Ball`).
+     (`NVS Pilot Flightsuit 01-01-02`, `Ammo Crate S4`, `Piercing Ball`). Tidy-ups: a
+     manufacturer code counts only as the first word or when the key writes it in capitals
+     (`Perseus_Paint_black_grey_grey` is `... Black Grey Grey`, not `GREY`: Grey's Market); a
+     word repeated across a camel-case split is written once (`Mining_MiningLaser` ->
+     `Mining Laser`, `itemPort_port` -> `Item Port`), a trailing `_Name` is dropped, and
+     description keys used as names lose `item_Desc` (`item_Descbehr_rifle_ballistic_1` ->
+     `BEHR Rifle Ballistic 1`); also dropped: `item_commodities_`, `actor_species_creature_`.
   "Real" = exists, not empty, not a placeholder (`model::is_placeholder_name`).
 - **No loose sibling guessing.** Taking any sibling's name after stripping trailing segments
   was measured wrong (an iron box named "Agricium (Ore)", a flight suit and the Redeemer armor
@@ -62,6 +69,24 @@ placeholder ourselves.
   `dropped-edit` warning like any other rule. `is_placeholder_name`, which every name lookup
   of the generators uses (`enhance::stock_name`, quest titles, rewards, blueprints, owners,
   fleet), also treats a value with an embedded `@key` as missing.
+
+## Curated names
+
+- The readable rule cannot know a real name. Built-in patch
+  `crates/starorg-core/patches/missing-names.patch.toml` gives one, per key, for items whose
+  name a public source confirms (each entry carries a comment with the URL). No source, no
+  entry: the readable fallback stays. Paints get `<Ship> <Livery> Livery` only when the
+  livery's name is confirmed for that exact paint.
+- Engine (`patch.rs`): a loc entry with `added_key = true` (`set` only) targets an added key
+  (`LocTarget::Added`); the snapshot gives the added value (`Snapshot::added_value`). States:
+  `applies` when a generator added the key; `not-needed` when stock has it (CIG named it; the
+  entry retires, stock wins) or the value is already ours; `no-data` when nothing added it
+  (the switch is off). The value goes through `check_added`; `merge` layers it
+  `generated < loc patch < override`, provenance `LocPatch` (Strings source *Patched*).
+- Why a loc patch and not a hook inside missing-names: the patch engine already gives
+  per-entry outcomes, build ranges, per-channel switch-off, the patch-set hash in the applied
+  state and retirement when CIG fixes the data; the generator stays a pure function of game
+  data and stock, and `build` (generators only, no patches) still shows the raw fallback.
 
 ## Profile and data
 
@@ -90,8 +115,26 @@ placeholder ourselves.
   (`P8-SC SMG`, `Scalpel Sniper Rifle`).
 - `item_Name_nvs_pilot_flightsuit_01_01_02=OMNI-AFS-Sapphire Armored Flight Suit` (variant).
 - No output line holds a `@word_` reference or PLACEHOLDER its stock value lacks.
+- Curated names (2026-11-22, same build, Recommended, generators then the built-in patches
+  through `merge`): the rule counts stay 13 variant, 11 base, 59 readable; the
+  `missing-names` patch applies 2 entries (`item_commodities_ventslug=Vent Slug`,
+  `item_Nameksar_lmg_energy_01=Verdict LMG`), so 57 keys keep a readable name. 0 dropped,
+  0 warnings. The tidy-ups changed 7 readable names, e.g. `Perseus Paint Black Grey Grey`,
+  `Mining Laser GAMA Hyun S1`, `BEHR Rifle Ballistic 1`, `Item Port Salvage Arm R`.
+- Researched and left out (no source ties a name to that exact item): the `asad_rifle_energy_01`
+  family, the `ksar_pistol_energy_01` family (the roadmap's Kastak "Hellion" pistol matches
+  only by elimination) and the Verdict's `_mag` / tints, all 18 paints (their classes are on no
+  wiki paint page; `Reclaimer_Paint_Showdown` is borrowed by `paint_redeemer_template`), the
+  Hyun mining laser and pod, Polaris and Idris radars, Perseus torpedo racks, Starlifter bomb
+  racks, the Long Look Mk2 radar (wiki title only, not the in-game string), Valakkar apex,
+  hide and pearls, LNA clothes, the holiday present, the GRIN cutter (the wiki says its name
+  is a placeholder), the dashboard bobblehead and the collector/mag/mr01 weapon variants.
 
 ## Open
+
+- A curated base name does not reach its variants: patches run after generators, so
+  `ksar_lmg_energy_01_tint01` stays readable although the base is now `Verdict LMG`. Feeding
+  patch names into the base rule would need the generator to read patches (rejected above).
 
 - Still readable: weapons whose base key is missing too (the whole `ksar_lmg_energy_01`,
   `ksar_pistol_energy_01` and `asad_rifle_energy_01` families, with their `_mag`s), paints,

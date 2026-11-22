@@ -50,6 +50,7 @@ pub mod validate;
 /// 5 = quest items: `Used in:` hints from real mission references and the built-in
 /// `quest-items` patch (Vanduul-Tech Smugglers hints);
 /// 6 = obtain hints: WHERE TO GET blocks (on in Recommended), extending stat blocks;
-/// 7 = missing names: added keys for entity names stock lacks, and generated text never
+/// 7 = missing names: added keys for entity names stock lacks (curated names from the
+/// built-in `missing-names` patch, a tidier readable fallback), and generated text never
 /// brings a raw `@key` or a placeholder.
 pub const OUTPUT_VERSION: u32 = 7;

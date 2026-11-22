@@ -1,12 +1,13 @@
 ---
 title: Our own patch format for CIG data bugs
 tags: [docs, decisions]
-updated: 2026-11-15
+updated: 2026-11-22
 ---
 
 # Our own patch format for CIG data bugs
 
-Status: accepted (2026-11-14), revised the same day after review
+Status: accepted (2026-11-14), revised the same day after review; extended 2026-11-22
+(loc `set` on added keys)
 
 ## Context
 
@@ -40,6 +41,16 @@ A patch is a TOML file (`<id>.patch.toml`, `schema = 1`) with two kinds of entry
 
 Guards: a data entry carries `expect` (a loc key). A loc entry carries `expect_sha256` of the
 stock value. Patch files never contain CIG's prose.
+
+**Added keys** (2026-11-22). *Fix missing item names* adds keys stock lacks, and its last rule
+makes a name from the key (`KSAR Pistol Energy 01`). A curated name is a loc `set` with
+`added_key = true`: it replaces the value a generator gave that key, from the same snapshot as
+every other loc entry, and goes through the added-key value rules (no raw `@key`, no
+placeholder). Its guard is that stock still lacks the key: once CIG ships the key the entry is
+`not-needed` and stock wins; when no generator added it (the switch is off, or no item uses
+it any more) it is `no-data`. Only `set`, never `expect_sha256` (no stock text to hash) or
+`optional`. Without the flag a loc entry on a key stock lacks stays `missing`, so a typo never
+adds a key. Overrides still win over the patch.
 
 The engine reports one state per entry and never fails the build:
 

@@ -1,0 +1,35 @@
+# Built-in patch (spec missing-names, "Curated names"). Keys and item names only.
+# Fix missing item names adds every item name key the stock global.ini lacks; for keys where it
+# finds no real name it makes one from the key ("KSAR Pistol Energy 01"). Each entry below gives
+# the real name instead, for an item whose name a public source confirms; the comment above the
+# entry names that source. No source, no entry: the readable fallback stays.
+# `added_key`: the entry replaces only the name we added. When CIG adds the key to global.ini
+# the entry retires (not-needed) and the game's own name wins. Checked against LIVE
+# 4.10.201.48085 (`build`, 2026-11-22).
+schema = 1
+id = "missing-names"
+title = "Real names for items the game leaves unnamed"
+description = "Gives the real name to items whose name key is missing from the game's text file, where Fix missing item names would otherwise make one from the key. Only names confirmed by a public source (wiki, RSI, UEX); the source is noted per entry."
+builds = { game_min = "4.10.0" }
+
+# Food_Vent_Slug. The wiki page shows this class (and our raw desc key); name from an
+# in-game survey (Alpha 3.22.1). UEX Foods lists "Vent Slug" too.
+# Source: https://starcitizen.tools/Vent_Slug
+[[loc]]
+id = "vent-slug"
+key = "item_commodities_ventslug"
+op = "set"
+value = "Vent Slug"
+added_key = true
+
+# ksar_lmg_energy_01, the base Kastak Arms energy LMG. Its stock sibling
+# ksar_lmg_energy_01_store01 is named Verdict "Derivation" LMG; the wiki ties that class to
+# the Verdict, and the roadmap card names the Kastak Arms "Verdict" LMG.
+# Source: https://starcitizen.tools/Verdict_LMG
+# Source: https://robertsspaceindustries.com/api/roadmap/v1/cards/1582
+[[loc]]
+id = "verdict-lmg"
+key = "item_Nameksar_lmg_energy_01"
+op = "set"
+value = "Verdict LMG"
+added_key = true
