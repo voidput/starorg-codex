@@ -470,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn added_keys_merge_after_stock_and_an_override_wins() {
+    fn fill_names_merge_after_stock_and_an_override_wins() {
         let s = stock();
         let add = |key: &str, value: &str| GenEdit {
             key: key.into(),
@@ -520,7 +520,7 @@ mod tests {
     }
 
     #[test]
-    fn a_loc_patch_names_an_added_key_below_an_override() {
+    fn a_loc_patch_names_an_fill_name_below_an_override() {
         let s = stock();
         let add = |key: &str, value: &str| GenEdit {
             key: key.into(),
@@ -537,10 +537,10 @@ mod tests {
             add("item_Name_three", "Readable Three"),
         ];
         let text = "schema = 1\nid = \"names\"\ntitle = \"t\"\n\
-            [[loc]]\nkey = \"item_name_one\"\nop = \"set\"\nvalue = \"Real One\"\nadded_key = true\n\
-            [[loc]]\nkey = \"item_Name_two\"\nop = \"set\"\nvalue = \"Real Two\"\nadded_key = true\n\
-            [[loc]]\nkey = \"item_Name_three\"\nop = \"set\"\nvalue = \"[PLACEHOLDER]\"\nadded_key = true\n\
-            [[loc]]\nkey = \"a\"\nop = \"set\"\nvalue = \"Not Alpha\"\nadded_key = true\n";
+            [[loc]]\nkey = \"item_name_one\"\nop = \"set\"\nvalue = \"Real One\"\nfill_name = true\n\
+            [[loc]]\nkey = \"item_Name_two\"\nop = \"set\"\nvalue = \"Real Two\"\nfill_name = true\n\
+            [[loc]]\nkey = \"item_Name_three\"\nop = \"set\"\nvalue = \"[PLACEHOLDER]\"\nfill_name = true\n\
+            [[loc]]\nkey = \"a\"\nop = \"set\"\nvalue = \"Not Alpha\"\nfill_name = true\n";
         let set = PatchSet {
             patches: vec![LoadedPatch {
                 file: parse_patch("names", text).unwrap(),

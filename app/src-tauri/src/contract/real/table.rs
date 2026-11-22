@@ -136,13 +136,16 @@ pub struct Inputs<'a> {
 
 pub fn build(i: &Inputs<'_>) -> Table {
     let patched = patch::data_overlay(i.patches, i.game_data, i.build);
-    let generated = enhance::generate_with(
+    // Curated names from the same patch set merge applies (as `apply` does).
+    let curated = patch::curated_names(i.patches, i.game_data, i.build);
+    let generated = enhance::generate_named(
         patched.as_ref().unwrap_or(i.game_data),
         i.stock,
         i.profile,
         i.owned,
         i.ship_names,
         i.obtain,
+        &curated,
     );
     let gen_edits = merge::gen_edits(&generated);
     let merged = merge::merge(

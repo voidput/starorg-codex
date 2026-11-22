@@ -457,8 +457,14 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
             json!(generated.edits.len() + generated.added.len()),
         );
         let mut by_rule = serde_json::Map::new();
-        for a in generated.added.values() {
-            let n = by_rule.entry(a.rule).or_insert(json!(0));
+        // Added keys and renamed placeholder names.
+        let rules = generated
+            .added
+            .values()
+            .map(|a| a.rule)
+            .chain(generated.edits.values().filter_map(|e| e.rule));
+        for r in rules {
+            let n = by_rule.entry(r).or_insert(json!(0));
             *n = json!(n.as_u64().unwrap_or(0) + 1);
         }
         counts.insert("missing_names_by_rule".into(), by_rule.into());

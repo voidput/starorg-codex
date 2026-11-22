@@ -868,3 +868,49 @@ fn quest_hints_on_and_off() {
     let bytes = render(&stock, &g).unwrap();
     assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
 }
+
+/// Mission rewards read item names through the name chain (spec missing-names): a reward
+/// whose stock name is a placeholder shows the generated name, and a curated one when the
+/// patch set has it; the placeholder line itself is renamed.
+#[test]
+fn rewards_use_the_name_chain() {
+    let (mut gd, stock) = fixture();
+    let text = String::from_utf8(stock.as_bytes().to_vec()).unwrap();
+    let stock = StockIni::parse(
+        text.replace(
+            "item_NameZETA_Scrip=Filler Scrip",
+            "item_NameZETA_Scrip=<= PLACEHOLDER =>",
+        )
+        .into_bytes(),
+    );
+    gd.item_names.push(starorg_core::model::ItemName {
+        class: "ZETA_Scrip".into(),
+        name: "@item_NameZETA_Scrip".into(),
+        desc: None,
+        kind: "Misc".into(),
+    });
+    let p = Profile::default();
+    let rewards = |g: &Generated| {
+        let v = value(g, &stock, "zeta_haul_desc").unwrap();
+        v.split("ITEM REWARDS")
+            .nth(1)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let g = generate(&gd, &stock, &p, &owned());
+    assert!(rewards(&g).contains("ZETA Scrip"), "{}", rewards(&g));
+    assert_eq!(
+        value(&g, &stock, "item_NameZETA_Scrip").as_deref(),
+        Some("ZETA Scrip")
+    );
+    let curated = [("item_namezeta_scrip".to_string(), "Zeta Credit".to_string())]
+        .into_iter()
+        .collect();
+    let g = starorg_core::enhance::generate_named(&gd, &stock, &p, &owned(), None, None, &curated);
+    assert!(rewards(&g).contains("Zeta Credit"), "{}", rewards(&g));
+    // Its own line keeps the generated name: the patch replaces it in merge.
+    assert_eq!(
+        value(&g, &stock, "item_NameZETA_Scrip").as_deref(),
+        Some("ZETA Scrip")
+    );
+}

@@ -127,6 +127,9 @@ pub struct GenEdit {
     /// Later categories that appended to `suffix` ([`Category::extends`]), in order.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub extended_by: Vec<Category>,
+    /// How a renamed placeholder name was found (missing names, [`Engine::rename`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rule: Option<&'static str>,
 }
 
 /// Drop trailing `\n` escapes, spaces and tabs.
@@ -553,6 +556,77 @@ impl<'a> Engine<'a> {
                 trim_stock,
                 replace,
                 extended_by: Vec::new(),
+                rule: None,
+            },
+        );
+        true
+    }
+
+    /// Replace a stock name whose value is a placeholder (`<= PLACEHOLDER =>`,
+    /// `Placeholder - ...`, empty) with a whole value (spec missing-names): no CIG text is
+    /// lost. Counts the outcome; returns true when written. A real stock name is never
+    /// replaced (`in-stock`).
+    pub fn rename(
+        &mut self,
+        cat: Category,
+        key: &str,
+        record: Option<String>,
+        value: &str,
+        rule: &'static str,
+    ) -> bool {
+        self.cov(cat).candidates += 1;
+        let line = match self.stock.find(key) {
+            Ok(l) => l,
+            Err(IniError::AmbiguousKey { .. }) => {
+                self.left(cat, Reason::Collision);
+                return false;
+            }
+            Err(_) => {
+                self.left(cat, Reason::NotInStock);
+                return false;
+            }
+        };
+        if self.out.edits.contains_key(&line) {
+            self.left(cat, Reason::OwnedByOther);
+            return false;
+        }
+        let stock_key = self.stock.key_at(line).unwrap_or_default().to_string();
+        let sv = self.stock.value_at(line).unwrap_or_default();
+        if !is_placeholder_name(Some(sv.trim())) {
+            self.left(cat, Reason::InStock);
+            return false;
+        }
+        if is_sentinel_key(&stock_key) {
+            self.left(cat, Reason::Placeholder);
+            return false;
+        }
+        let checked = if value.trim().is_empty() {
+            Err(check::Rule::ControlChar)
+        } else {
+            check::check_replaced(sv, value)
+        };
+        if let Err(rule) = checked {
+            self.left(cat, Reason::DroppedByValidation);
+            self.out.warnings.push(Warning::new(
+                "dropped-edit",
+                format!("{stock_key}: generated value dropped ({})", rule.name()),
+            ));
+            return false;
+        }
+        self.cov(cat).written += 1;
+        self.out.edits.insert(
+            line,
+            GenEdit {
+                key: stock_key,
+                line,
+                category: cat,
+                record,
+                prefix: String::new(),
+                suffix: String::new(),
+                trim_stock: false,
+                replace: Some(value.to_string()),
+                extended_by: Vec::new(),
+                rule: Some(rule),
             },
         );
         true
@@ -763,6 +837,30 @@ pub fn generate_with(
     ship_names: Option<&crate::fleet::store::ShipNames>,
     obtain: Option<&crate::model::ObtainHints>,
 ) -> Generated {
+    generate_named(
+        gd,
+        stock,
+        profile,
+        owned,
+        ship_names,
+        obtain,
+        &names::Curated::new(),
+    )
+}
+
+/// [`generate_with`] with curated names (`patch::curated_names` of the active patch set):
+/// the first tier of the name chain every generator reads ([`names::Resolver`]). `apply`
+/// and the app pass the same patch set they merge; `build` (no patches) passes none.
+pub fn generate_named(
+    gd: &GameData,
+    stock: &StockIni,
+    profile: &Profile,
+    owned: &dyn OwnedBlueprints,
+    ship_names: Option<&crate::fleet::store::ShipNames>,
+    obtain: Option<&crate::model::ObtainHints>,
+    curated: &names::Curated,
+) -> Generated {
+    let names = names::Resolver::new(gd, stock, curated, profile.missing_names);
     let mut en = Engine::new(stock, profile);
     let p = profile;
     let item_placeholder = |name: Option<&str>| stock_name(stock, name).is_none();
@@ -911,7 +1009,7 @@ pub fn generate_with(
     }
 
     if p.missions {
-        missions::generate(&mut en, gd, owned);
+        missions::generate(&mut en, gd, owned, &names);
     }
 
     if p.quest_hints {
@@ -926,7 +1024,7 @@ pub fn generate_with(
 
     // New keys only: touches no stock line, so its place in the order changes nothing.
     if p.missing_names {
-        names::generate(&mut en, gd);
+        names::generate(&mut en, &names);
     }
 
     if p.branding {

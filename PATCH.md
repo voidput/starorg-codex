@@ -43,10 +43,12 @@ Optional on any `[[loc]]` entry: `expect_sha256` (SHA-256 of the stock value; on
 entry is skipped as `target-changed`), `requires` (the `id` of a `[[data]]` entry in the same
 file), `optional = true` (a key missing from the build is `not-needed`, not a warning).
 
-`added_key = true` (with `op = "set"` only, no `expect_sha256` or `optional`): the key is one
-stock lacks and *Fix missing item names* added; the entry replaces that added name. When stock
-has the key it is `not-needed` (the game names it now, stock wins); when nothing added it (the
-switch is off) it is `no-data`. Built-in names of this kind live in `missing-names.patch.toml`,
+`fill_name = true` (with `op = "set"` only, no `expect_sha256` or `optional`): a curated item
+name where the stock name is missing or a placeholder. Stock lacks the key: the entry replaces
+the name *Fix missing item names* added (`no-data` when nothing added it, the switch is off).
+Stock holds a placeholder: it sets that line. Stock holds a real name: `not-needed` (the game
+names it now, stock wins). The generators read the same names, so a curated base names its
+variants and magazine (`apply` and the app; `build` runs no patches). Built-in names of this kind live in `missing-names.patch.toml`,
 one entry per key with a comment naming the source of the name. Never guess a name: an item
 without a verifiable name keeps the readable fallback.
 
@@ -118,8 +120,9 @@ open the Patches screen. `patches` reads only a cached extraction, which an earl
 
 ### Guard it
 
-A loc-only built-in patch must guard every entry with `expect_sha256`, or be an `added_key`
-entry, which is guarded by stock lacking the key (test `builtin_patches_parse`). Hash the exact stock value, the text after `=` on the key's line,
+A loc-only built-in patch must guard every entry with `expect_sha256`, or be a `fill_name`
+entry, which is guarded by the stock name being missing or a placeholder (test
+`builtin_patches_parse`). Hash the exact stock value, the text after `=` on the key's line,
 with `\n` as two characters:
 
 ```sh

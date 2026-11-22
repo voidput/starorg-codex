@@ -1164,13 +1164,16 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         obtain_hints(gd, &enhance_profile, opts.obtain.as_ref(), &t.channel.name);
     r.warnings.extend(obtain_warnings);
     r.obtain = obtain_stats;
-    let generated = crate::enhance::generate_with(
+    // Curated names from the same patch set merge applies (spec missing-names, tier 1).
+    let curated = patch::curated_names(&inputs.patches, &loaded.game_data, t.build());
+    let generated = crate::enhance::generate_named(
         gd,
         &stock,
         &enhance_profile,
         &inputs.owned,
         inputs.ship_names.active(),
         hints.as_ref(),
+        &curated,
     );
     r.warnings.extend(generated.warnings.iter().cloned());
     let gen_edits = merge::gen_edits(&generated);
