@@ -17,9 +17,14 @@
 //! [`starorg`] is the StarOrg Tools client (sign-in and blueprint/hangar sync), used by the
 //! app only while Settings -> Network -> "Connect StarOrg Tools" is on. It talks to
 //! `starorg.tools` or `dev.starorg.tools` and sends the user's token there and nowhere else.
+//!
+//! [`uex`] downloads UEX Corp market data (`api.uexcorp.space`, two public endpoints) into
+//! the folder WHERE TO GET reads, only while Settings -> Network -> "Download UEX market
+//! data" is on. It sends the user's UEX token, when one is set, there and nowhere else.
 
 pub mod releases;
 pub mod starorg;
+pub mod uex;
 
 use serde::Deserialize;
 use starorg_core::source::SourceError;

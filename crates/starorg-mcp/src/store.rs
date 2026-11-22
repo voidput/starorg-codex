@@ -70,8 +70,8 @@ pub struct StoreConfig {
     pub default_channel: Option<String>,
     /// `<app cache>/mcp`.
     pub cache_dir: PathBuf,
-    /// Optional UEX price files (`uex-item-prices.json`, `uex-terminals.json`) the user put
-    /// there; never fetched.
+    /// Optional UEX price files (`uex-item-prices.json`, `uex-terminals.json`): downloaded by
+    /// the app when the user turns that on, or put there by the user; never fetched here.
     pub uex_dir: Option<PathBuf>,
     /// SHA-256 of every `global.ini` StarOrg Codex wrote (`outputs.json`), to tell our
     /// applied text from another tool's.
@@ -87,6 +87,8 @@ struct Mem {
     typed: HashMap<(PathBuf, &'static str), Typed>,
     /// Build folders, most recent last.
     recent: Vec<PathBuf>,
+    /// Modified time of each UEX file in `json` when it was read.
+    uex_modified: HashMap<(PathBuf, String), Option<std::time::SystemTime>>,
 }
 
 /// Called with a line worth showing in the app's Activity (extractions).
@@ -384,19 +386,27 @@ impl Store {
         Ok(v)
     }
 
-    /// Optional UEX file (`uex-item-prices.json` / `uex-terminals.json`), never fetched.
+    /// Optional UEX file (`uex-item-prices.json` / `uex-terminals.json`), never fetched
+    /// here. The app may replace it while this store runs (Settings -> "Download UEX market
+    /// data"), so a file whose modified time changed is read again.
     pub fn uex(&self, file: &str) -> Option<Arc<Value>> {
         let dir = self.cfg.uex_dir.as_ref()?;
         let path = dir.join(file);
-        if !path.is_file() {
-            return None;
-        }
+        let meta = std::fs::metadata(&path).ok().filter(|m| m.is_file())?;
+        let modified = meta.modified().ok();
         let key = (dir.clone(), file.to_string());
-        if let Some(v) = lock(&self.mem).json.get(&key) {
-            return Some(v.clone());
+        {
+            let m = lock(&self.mem);
+            if let Some(v) = m.json.get(&key)
+                && m.uex_modified.get(&key) == Some(&modified)
+            {
+                return Some(v.clone());
+            }
         }
         let v = Self::read_json(&path).ok()?;
-        lock(&self.mem).json.insert(key, v.clone());
+        let mut m = lock(&self.mem);
+        m.json.insert(key.clone(), v.clone());
+        m.uex_modified.insert(key, modified);
         Some(v)
     }
 
@@ -484,6 +494,29 @@ mod tests {
         s2.json(s2.channel(Some("LIVE")).unwrap(), "game-missions")
             .unwrap();
         assert_eq!(fake.0.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn a_replaced_uex_file_is_read_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = store(dir.path(), Arc::new(Fake(AtomicUsize::new(0))));
+        let uex = dir.path().join("uex");
+        std::fs::create_dir_all(&uex).unwrap();
+        s.cfg.uex_dir = Some(uex.clone());
+        assert!(s.uex("uex-terminals.json").is_none());
+        let f = uex.join("uex-terminals.json");
+        std::fs::write(&f, r#"{"n": 1}"#).unwrap();
+        assert_eq!(s.uex("uex-terminals.json").unwrap()["n"], 1);
+        std::fs::write(&f, r#"{"n": 2}"#).unwrap();
+        // Same second on a coarse clock: set a later time so the change is seen.
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        std::fs::File::options()
+            .write(true)
+            .open(&f)
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+        assert_eq!(s.uex("uex-terminals.json").unwrap()["n"], 2);
     }
 
     #[test]

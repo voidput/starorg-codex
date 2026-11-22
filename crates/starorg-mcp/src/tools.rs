@@ -583,7 +583,7 @@ fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
     out
 }
 
-const NO_UEX: &str = "no shop data: StarOrg Codex downloads nothing; put uex-item-prices.json and uex-terminals.json (sc-gamedata `fetch` output) in the UEX folder named by the status tool to answer shop questions";
+const NO_UEX: &str = "no shop data: uex-item-prices.json and uex-terminals.json are not in the UEX folder named by the status tool; the app downloads them while Settings -> Network -> \"Download UEX market data\" is on (Fetch now), or put sc-gamedata `fetch` output there";
 
 /// The items a name resolved to, and the `inexact` marker when only fuzzy ranking found them.
 struct Resolved {
