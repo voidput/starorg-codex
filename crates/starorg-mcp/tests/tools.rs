@@ -1374,6 +1374,16 @@ fn a_fetch_while_the_tools_run_refreshes_every_uex_answer() {
         h.hints.items["behr_lmg_ballistic_01"].shops[0].terminal,
         "Dumper's GrimHEX"
     );
+    let shop_names = |t: &starorg_mcp::tools::Tools| -> Vec<String> {
+        t.shop_directory(Some("LIVE"))
+            .systems
+            .iter()
+            .flat_map(|s| &s.locations)
+            .flat_map(|l| &l.shops)
+            .map(|s| s.name.clone())
+            .collect()
+    };
+    assert!(shop_names(&t).contains(&"Dumper's GrimHEX".to_string()));
     let runs = w.fake.runs.load(Ordering::SeqCst);
     // "Fetch now" with the app's own code, then a newer modified time (a coarse clock may
     // give the old second).
@@ -1407,6 +1417,15 @@ fn a_fetch_while_the_tools_run_refreshes_every_uex_answer() {
     let args = json!({"item": "FS-9 LMG"});
     let found = t.call("where_to_buy", args.as_object().unwrap()).unwrap();
     assert!(found.to_string().contains("Dumper's Depot"), "{found}");
+    // The Shops screen's index follows the same stamp.
+    let names = shop_names(&t);
+    assert!(names.contains(&"Dumper's Depot".to_string()), "{names:?}");
+    assert!(
+        !names.contains(&"Dumper's GrimHEX".to_string()),
+        "{names:?}"
+    );
+    let items = t.shop_items(Some("LIVE"), 2);
+    assert_eq!(items.shop.unwrap().name, "Dumper's Depot");
     // Nothing extracted again: only the UEX-derived values were rebuilt.
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
 }

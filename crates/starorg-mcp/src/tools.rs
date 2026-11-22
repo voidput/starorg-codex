@@ -1840,9 +1840,10 @@ pub struct Tools {
 
 /// The shop index of one pair of UEX files (the store's parsed values: a replaced file is a
 /// new value) and one set of item data.
+/// The shop index with what it was built from: the UEX files' stamp ([`Store::uex_stamp`],
+/// the one rule every UEX-derived cache follows) and the item data that linked it.
 struct ShopCache {
-    prices: Arc<Value>,
-    terminals: Arc<Value>,
+    stamp: crate::store::UexStamp,
     linked: Option<String>,
     index: Arc<ShopIndex>,
 }
@@ -1868,6 +1869,8 @@ impl Tools {
     /// whose item data names and links rows (item-tags, plus the ship items of
     /// ship-components when that is there); with `ctx.extract` false only cached data is read.
     pub fn shop_index(&self, ctx: Option<&Ctx<'_>>) -> Option<Arc<ShopIndex>> {
+        // Taken before the files are read: a fetch in between only costs one more rebuild.
+        let stamp = self.store.uex_stamp();
         let prices = self.store.uex(PRICES_FILE)?;
         let terminals = self.store.uex(TERMINALS_FILE)?;
         // (build label, item-tags, ship items item-tags lacks)
@@ -1890,8 +1893,7 @@ impl Tools {
         });
         let mut g = self.shops.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(c) = g.as_ref()
-            && Arc::ptr_eq(&c.prices, &prices)
-            && Arc::ptr_eq(&c.terminals, &terminals)
+            && c.stamp == stamp
             && c.linked == linked
         {
             return Some(c.index.clone());
@@ -1912,8 +1914,7 @@ impl Tools {
         index.ship_items = ship_items;
         let index = Arc::new(index);
         *g = Some(ShopCache {
-            prices,
-            terminals,
+            stamp,
             linked,
             index: index.clone(),
         });

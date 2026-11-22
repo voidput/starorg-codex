@@ -130,7 +130,9 @@ pub struct ItemObtain {
   (shop rows of the Sources card and the shop tools) and the obtain hints use it, so a Fetch
   now while the app runs counts at the next card, tool call, preview or apply without a
   restart (before, shop names stayed as first read until the app restarted). Datasets are not
-  extracted again. Any later UEX-derived cache (a shops index) uses the same call.
+  extracted again. The Shops screen's index (`Tools::shop_index`, kept per Tools with the
+  item data that links it) compares the same stamp, so every UEX-derived cache follows one
+  rule.
 
 | Mode | Sell line |
 |---|---|
