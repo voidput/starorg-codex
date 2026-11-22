@@ -1222,3 +1222,81 @@ fn obtain_hints_keep_what_did_not_fail() {
     // An unknown channel is an error.
     assert!(t.obtain_hints("NOPE").is_err());
 }
+
+/// UEX answers for `starorg_net::uex::fetch_market`: Dumper's renamed, Laranite repriced.
+struct FakeUex;
+
+impl starorg_net::uex::UexTransport for FakeUex {
+    fn get(
+        &self,
+        endpoint: &str,
+        _token: Option<&str>,
+    ) -> Result<starorg_net::uex::Answer, starorg_net::uex::UexError> {
+        let data = match endpoint {
+            "terminals" => json!([
+                {"id": 1, "nickname": "Guns Ruin", "displayname": "Ruin Station", "orbit_name": "Terminus", "star_system_name": "Pyro", "is_available": 1, "is_available_live": 1},
+                {"id": 2, "nickname": "Dumper's Depot", "displayname": "Grim HEX", "moon_name": "Yela", "orbit_name": "Crusader", "star_system_name": "Stanton", "is_available": 1, "is_available_live": 1}
+            ]),
+            "items_prices_all" => json!([
+                {"item_name": "FS-9 LMG", "item_uuid": "id-fs9", "id_terminal": 2, "terminal_name": "Dumper's Depot", "price_buy": 6500, "date_modified": 1794268800}
+            ]),
+            "commodities_prices_all" => json!([
+                {"commodity_name": "Laranite", "id_terminal": 2, "terminal_name": "Dumper's Depot", "price_sell": 12000, "date_modified": 1794268800}
+            ]),
+            other => panic!("unexpected endpoint {other}"),
+        };
+        Ok(starorg_net::uex::Answer {
+            status: 200,
+            body: serde_json::to_vec(&json!({"status": "ok", "data": data})).unwrap(),
+        })
+    }
+}
+
+#[test]
+fn a_fetch_while_the_tools_run_refreshes_every_uex_answer() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    let gun = "EntityClassDefinition.behr_lmg_ballistic_01";
+    let before = t.sources("LIVE", gun).unwrap().buy.unwrap();
+    assert_eq!(before.offers[0].terminal, "Dumper's GrimHEX");
+    let h = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(
+        h.hints.items["behr_lmg_ballistic_01"].shops[0].terminal,
+        "Dumper's GrimHEX"
+    );
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    // "Fetch now" with the app's own code, then a newer modified time (a coarse clock may
+    // give the old second).
+    let uex = w.root.join("cache/uex");
+    starorg_net::uex::fetch_market(&FakeUex, &uex, None).unwrap();
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    for f in starorg_net::uex::FILES {
+        std::fs::File::options()
+            .write(true)
+            .open(uex.join(f))
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+    }
+    // Same Tools: the card, the shop tool and the in-game hints all see the new names.
+    let buy = t.sources("LIVE", gun).unwrap().buy.unwrap();
+    assert_eq!(buy.total, 1);
+    assert_eq!(buy.offers[0].terminal, "Dumper's Depot");
+    assert_eq!(buy.offers[0].price_buy, 6500.0);
+    let lar = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert_eq!(lar.offers[0].terminal, "Dumper's Depot");
+    let h = t.obtain_hints("LIVE").unwrap();
+    let fs9 = &h.hints.items["behr_lmg_ballistic_01"];
+    let shops: Vec<&str> = fs9.shops.iter().map(|s| s.terminal.as_str()).collect();
+    assert_eq!(shops, ["Dumper's Depot"]);
+    assert_eq!(h.hints.items["laranite"].sells[0].price, 12000.0);
+    let args = json!({"item": "FS-9 LMG"});
+    let found = t.call("where_to_buy", args.as_object().unwrap()).unwrap();
+    assert!(found.to_string().contains("Dumper's Depot"), "{found}");
+    // Nothing extracted again: only the UEX-derived values were rebuilt.
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+}

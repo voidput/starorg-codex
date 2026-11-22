@@ -4850,6 +4850,7 @@ dependencies = [
  "starorg-core",
  "starorg-gamedata",
  "starorg-mcp",
+ "starorg-net",
  "tempfile",
 ]
 

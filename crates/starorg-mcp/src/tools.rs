@@ -467,7 +467,7 @@ impl<'a> Ctx<'a> {
             (true, false) => "corpus-loot",
             (false, _) => "corpus-shops",
         };
-        self.store.typed(&self.dir, name, || {
+        self.store.typed_uex(&self.dir, name, || {
             let items = self.items()?;
             let mut d = Datasets {
                 items: items.list.clone(),
@@ -1898,7 +1898,8 @@ impl Tools {
     /// and resource name; `desc` is left for the caller (apply fills it from its own
     /// `GameData`). The first call per build extracts item-tags, loot, item-sources,
     /// mining-spawns and commodities; a group that fails leaves its lines out and says so
-    /// in `warnings`. Kept in memory per build once complete (a partial answer is built
+    /// in `warnings`. Kept in memory per build once complete, until a UEX file changes
+    /// ([`Store::typed_uex`]; a partial answer is built
     /// again next time, so a raised memory limit takes effect).
     pub fn obtain_hints(&self, channel: &str) -> ToolResult<Arc<crate::hints::BuiltHints>> {
         self.obtain_hints_with(channel, true)
@@ -1914,7 +1915,7 @@ impl Tools {
         let mut ctx = Ctx::for_channel(&self.store, Some(channel))?;
         ctx.extract = extract;
         let mut partial = None;
-        let r = ctx.store.typed(&ctx.dir, "obtain-hints", || {
+        let r = ctx.store.typed_uex(&ctx.dir, "obtain-hints", || {
             let b = build_hints(&ctx);
             if b.warnings.is_empty() {
                 Ok(b)
@@ -1923,16 +1924,10 @@ impl Tools {
                 tool_err("partial")
             }
         });
-        let built = match (r, partial) {
-            (_, Some(p)) => Arc::new(p),
-            (r, None) => r?,
-        };
-        // Sell prices are added on every call, not kept with the rest: the UEX file may
-        // have been fetched again since.
-        Ok(match with_sells(&ctx, &built) {
-            Some(b) => Arc::new(b),
-            None => built,
-        })
+        match (r, partial) {
+            (_, Some(p)) => Ok(Arc::new(p)),
+            (r, None) => r,
+        }
     }
 
     pub fn call(&self, name: &str, args: &Map<String, Value>) -> ToolResult<Value> {
@@ -2040,19 +2035,19 @@ fn build_hints(ctx: &Ctx<'_>) -> crate::hints::BuiltHints {
         out.warnings
             .push(format!("mining and quality lines left out: {e}"));
     }
+    add_sells(ctx, &mut out);
     out.items = out.hints.items.len();
     out
 }
 
-/// `built` with the commodity sell lines from the UEX commodity prices, keyed by resource
-/// name like the mining lines; `None` when the prices (or the commodities dataset) are not
-/// there, which leaves the sell lines out.
-fn with_sells(ctx: &Ctx<'_>, built: &crate::hints::BuiltHints) -> Option<crate::hints::BuiltHints> {
+/// Adds the commodity sell lines from the UEX commodity prices to `out`, keyed by resource
+/// name like the mining lines; `None` (nothing added) when the prices or the commodities
+/// dataset are not there, which leaves the sell lines out.
+fn add_sells(ctx: &Ctx<'_>, out: &mut crate::hints::BuiltHints) -> Option<()> {
     use crate::hints::{MAX_SELLS, sell_hints};
     let cp = ctx.commodity_prices()?;
     let c = ctx.commodities().ok()?;
     let (ranked, stats) = cp.ranked_with_stats(&c.resources);
-    let mut out = built.clone();
     for (resource, rows) in ranked {
         let item = out.hints.items.entry(resource).or_default();
         item.sells = sell_hints(&rows, MAX_SELLS);
@@ -2061,7 +2056,7 @@ fn with_sells(ctx: &Ctx<'_>, built: &crate::hints::BuiltHints) -> Option<crate::
     out.hints.prices_fetched = cp.fetched;
     out.items = out.hints.items.len();
     out.sell_match = Some(stats);
-    Some(out)
+    Some(())
 }
 
 /// Paths a test or caller may want: the UEX folder under a cache dir.

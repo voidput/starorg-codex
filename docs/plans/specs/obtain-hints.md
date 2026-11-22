@@ -124,8 +124,13 @@ pub struct ItemObtain {
   `items[].resource`) or a record whose quality names one. Missing files: a note, as Buy.
 - **In game:** `ItemObtain.sells` (`SellHint`: terminal, place, system, price) per resource
   (lower-case resource name, like the mining lines), `ObtainHints.prices_fetched`. The prices
-  are added to the cached hints on every `obtain_hints` call (not cached with them), so a
-  fresh Fetch now counts at the next apply. `OUTPUT_VERSION` 7 -> 8.
+  are part of the cached hints. `OUTPUT_VERSION` 7 -> 8.
+- **UEX-derived caches follow the files:** `Store::typed_uex` keys a cached value on
+  `Store::uex_stamp()` (modified time and size of the three UEX files). The obtain corpus
+  (shop rows of the Sources card and the shop tools) and the obtain hints use it, so a Fetch
+  now while the app runs counts at the next card, tool call, preview or apply without a
+  restart (before, shop names stayed as first read until the app restarted). Datasets are not
+  extracted again. Any later UEX-derived cache (a shops index) uses the same call.
 
 | Mode | Sell line |
 |---|---|

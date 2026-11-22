@@ -26,6 +26,28 @@ pub const KEEP_BUILDS: usize = 3;
 /// Parsed builds kept in memory.
 const MEM_BUILDS: usize = 2;
 
+/// The UEX files a store reads ([`Store::uex`]), as the app's "Fetch now" writes them
+/// (`starorg_net::uex::FILES`).
+pub const UEX_FILES: &[&str] = &[
+    "uex-item-prices.json",
+    "uex-commodity-prices.json",
+    "uex-terminals.json",
+];
+
+/// What a file looked like on disk: modified time and size (`None` when missing). A
+/// replaced file (Fetch now writes a temp file and renames it) has a new stamp.
+pub type FileStamp = Option<(Option<std::time::SystemTime>, u64)>;
+
+fn file_stamp(path: &Path) -> FileStamp {
+    let m = std::fs::metadata(path).ok().filter(|m| m.is_file())?;
+    Some((m.modified().ok(), m.len()))
+}
+
+/// The stamps of every [`UEX_FILES`] entry, in that order: a value derived from UEX files
+/// is current while the stamp it was built under equals [`Store::uex_stamp`].
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct UexStamp(pub Vec<FileStamp>);
+
 /// One channel the server can answer for.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ChannelSource {
@@ -85,10 +107,12 @@ type Typed = Arc<dyn Any + Send + Sync>;
 struct Mem {
     json: HashMap<(PathBuf, String), Arc<Value>>,
     typed: HashMap<(PathBuf, &'static str), Typed>,
+    /// The UEX stamp each [`Store::typed_uex`] value was built under.
+    typed_uex: HashMap<(PathBuf, &'static str), UexStamp>,
     /// Build folders, most recent last.
     recent: Vec<PathBuf>,
     /// Modified time of each UEX file in `json` when it was read.
-    uex_modified: HashMap<(PathBuf, String), Option<std::time::SystemTime>>,
+    uex_modified: HashMap<(PathBuf, String), FileStamp>,
 }
 
 /// Called with a line worth showing in the app's Activity (extractions).
@@ -257,6 +281,7 @@ impl Store {
             let old = m.recent.remove(0);
             m.json.retain(|(d, _), _| *d != old);
             m.typed.retain(|(d, _), _| *d != old);
+            m.typed_uex.retain(|(d, _), _| *d != old);
         }
     }
 
@@ -386,14 +411,44 @@ impl Store {
         Ok(v)
     }
 
-    /// Optional UEX file (`uex-item-prices.json` / `uex-terminals.json`), never fetched
-    /// here. The app may replace it while this store runs (Settings -> "Download UEX market
-    /// data"), so a file whose modified time changed is read again.
+    /// The current [`UexStamp`] (file metadata only; empty without a UEX folder).
+    pub fn uex_stamp(&self) -> UexStamp {
+        match self.cfg.uex_dir.as_ref() {
+            Some(dir) => UexStamp(UEX_FILES.iter().map(|f| file_stamp(&dir.join(f))).collect()),
+            None => UexStamp::default(),
+        }
+    }
+
+    /// [`Self::typed`] for a value derived from UEX files (shop rows, obtain hints, a shops
+    /// index): built again once any UEX file changed since ([`Self::uex_stamp`]), so a
+    /// "Fetch now" while this store runs counts at the next call, no restart needed.
+    pub fn typed_uex<T: Any + Send + Sync>(
+        &self,
+        dir: &Path,
+        name: &'static str,
+        build: impl FnOnce() -> ToolResult<T>,
+    ) -> ToolResult<Arc<T>> {
+        let stamp = self.uex_stamp();
+        let key = (dir.to_path_buf(), name);
+        let current = lock(&self.mem).typed_uex.get(&key) == Some(&stamp);
+        if !current {
+            let mut m = lock(&self.mem);
+            m.typed.remove(&key);
+            m.typed_uex.remove(&key);
+        }
+        let v = self.typed(dir, name, build)?;
+        lock(&self.mem).typed_uex.insert(key, stamp);
+        Ok(v)
+    }
+
+    /// Optional UEX file ([`UEX_FILES`]), never fetched here. The app may replace it while
+    /// this store runs (Settings -> "Download UEX market data"), so a file whose modified
+    /// time or size changed is read again.
     pub fn uex(&self, file: &str) -> Option<Arc<Value>> {
         let dir = self.cfg.uex_dir.as_ref()?;
         let path = dir.join(file);
-        let meta = std::fs::metadata(&path).ok().filter(|m| m.is_file())?;
-        let modified = meta.modified().ok();
+        let modified = file_stamp(&path);
+        modified?;
         let key = (dir.clone(), file.to_string());
         {
             let m = lock(&self.mem);
@@ -517,6 +572,53 @@ mod tests {
             .set_modified(later)
             .unwrap();
         assert_eq!(s.uex("uex-terminals.json").unwrap()["n"], 2);
+    }
+
+    #[test]
+    fn uex_derived_values_are_built_again_once_a_uex_file_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut s = store(dir.path(), Arc::new(Fake(AtomicUsize::new(0))));
+        let uex = dir.path().join("uex");
+        std::fs::create_dir_all(&uex).unwrap();
+        s.cfg.uex_dir = Some(uex.clone());
+        let builds = AtomicUsize::new(0);
+        let get = || {
+            *s.typed_uex(
+                dir.path(),
+                "x",
+                || Ok(builds.fetch_add(1, Ordering::SeqCst)),
+            )
+            .unwrap()
+        };
+        assert_eq!(get(), 0);
+        assert_eq!(get(), 0, "unchanged files: kept");
+        // A file appears, then is replaced: built again each time.
+        let f = uex.join("uex-commodity-prices.json");
+        std::fs::write(&f, "{}").unwrap();
+        assert_eq!(get(), 1);
+        assert_eq!(get(), 1);
+        std::fs::write(&f, "{\"a\": 1}").unwrap();
+        assert_eq!(get(), 2, "a new size counts even within the same second");
+        let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+        std::fs::File::options()
+            .write(true)
+            .open(&f)
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+        assert_eq!(get(), 3);
+        std::fs::remove_file(&f).unwrap();
+        assert_eq!(get(), 4);
+        // Plain typed values do not care.
+        let n = AtomicUsize::new(0);
+        let plain = || {
+            *s.typed(dir.path(), "y", || Ok(n.fetch_add(1, Ordering::SeqCst)))
+                .unwrap()
+        };
+        assert_eq!(plain(), 0);
+        std::fs::write(&f, "{}").unwrap();
+        assert_eq!(plain(), 0);
+        assert_eq!(s.uex_stamp().0.len(), UEX_FILES.len());
     }
 
     #[test]

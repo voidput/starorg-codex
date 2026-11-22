@@ -111,7 +111,8 @@ files in the cache folder, `<cache>/mcp/uex/uex-item-prices.json` and `uex-termi
 (the `status` tool prints the folder). The app downloads them when Settings -> Network ->
 *Download UEX market data* is on and you press **Fetch now**; or put the files
 `sc-gamedata fetch uex-item-prices uex-terminals` writes there yourself (same shape). The MCP
-server itself never downloads anything; it reads a file again once it changed. Without them,
+server itself never downloads anything; it reads a file again once it changed, and answers
+built from the files (shop rows, the app's WHERE TO GET hints) are rebuilt then too. Without them,
 the shop tools say so and the other sources still answer.
 
 The same **Fetch now** also writes `uex-commodity-prices.json` (UEX `commodities_prices_all`:
