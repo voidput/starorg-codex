@@ -1,10 +1,10 @@
 /**
  * Sidebar layout (spec 9.3, addendum §6.6, §7.8): Home · Customize (Enhancements, Strings, Patches,
- * Blueprints, Ships) · Game (Backups, Activity) · Dev (Explorer, Datasets, Diff, Files; only with
+ * Blueprints, Ships) · Game (Shops, Backups, Activity) · Dev (Explorer, Datasets, Diff, Files; only with
  * Settings > Advanced > Developer mode on) · Settings. With Developer mode on, Alt+9 opens the
  * Explorer and Settings moves to Alt+0 (Q-D6: Datasets and Diff through Ctrl+K).
  */
-export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'backups' | 'activity' | 'settings' | DevScreenId;
+export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'shops' | 'backups' | 'activity' | 'settings' | DevScreenId;
 export type DevScreenId = 'explorer' | 'datasets' | 'diff' | 'files';
 
 export interface NavItem {
@@ -35,6 +35,7 @@ export const NAV: NavGroup[] = [
   {
     label: 'Game',
     items: [
+      { id: 'shops', label: 'Shops', description: 'What each shop sells, by category, from UEX market data', key: '' },
       { id: 'backups', label: 'Backups', description: 'Restore or remove applied changes', key: '7' },
       { id: 'activity', label: 'Activity', description: 'Applies, launch hooks and warnings', key: '8' },
     ],

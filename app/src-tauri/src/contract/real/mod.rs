@@ -2293,7 +2293,7 @@ impl Backend for RealBackend {
     fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary> {
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
-        let job = self.job_start(JobKind::Extract, Some(&ch.name), 2, "Reading game data");
+        let job = self.job_start(JobKind::Extract, Some(&ch.name), 3, "Reading game data");
         let r = (|| {
             let d = self.loaded(&f, ch, true)?;
             // Where to get: extract its datasets whatever the saved profile says, so the
@@ -2313,6 +2313,18 @@ impl Backend for RealBackend {
                     Some(JobKind::Extract),
                     Some(&ch.name),
                     &format!("{}: {}", ch.name, w.detail),
+                );
+            }
+            // Shops: the ship items item-tags lacks (ship-components), so the Shops screen
+            // links ship guns, missiles and components. Same worker and memory limit as the
+            // Where to get datasets; a failure is only a warning.
+            self.job_step(&mut job, 3, "Reading ship item data for Shops", None);
+            if let Err(e) = self.warm_shop_links(&f, &ch.name) {
+                self.log(
+                    LogLevel::Warn,
+                    Some(JobKind::Extract),
+                    Some(&ch.name),
+                    &format!("{}: shop item links: {e}", ch.name),
                 );
             }
             Ok::<_, AppError>(())
@@ -2348,6 +2360,14 @@ impl Backend for RealBackend {
 
     fn fetch_uex(&self) -> CmdResult<ObtainStatus> {
         self.run_fetch_uex()
+    }
+
+    fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {
+        Ok(self.shop_directory(req))
+    }
+
+    fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems> {
+        Ok(self.shop_items_of(req))
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {

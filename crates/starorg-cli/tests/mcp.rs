@@ -79,7 +79,7 @@ fn stdio_server_lists_tools_and_answers_from_the_cache() {
     );
     assert_eq!(answers[0]["result"]["serverInfo"]["name"], "starorg-codex");
     let tools = answers[1]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), 11);
+    assert_eq!(tools.len(), 12);
     assert_eq!(
         tools[0]["inputSchema"]["properties"]["channel"]["enum"],
         json!(["LIVE", "HOTFIX", "PTU"])

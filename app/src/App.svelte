@@ -21,6 +21,7 @@
   import ShipsScreen from '@/components/screens/ShipsScreen.svelte';
   import BackupsScreen from '@/components/screens/BackupsScreen.svelte';
   import ActivityScreen from '@/components/screens/ActivityScreen.svelte';
+  import ShopsScreen from '@/components/screens/ShopsScreen.svelte';
   import SetupWizard from '@/components/wizard/SetupWizard.svelte';
   import UnsavedDialog from '@/components/common/UnsavedDialog.svelte';
   import ReplaceDialog from '@/components/common/ReplaceDialog.svelte';
@@ -122,6 +123,8 @@
             <BlueprintsScreen />
           {:else if screen === 'ships'}
             <ShipsScreen />
+          {:else if screen === 'shops'}
+            <ShopsScreen />
           {:else if screen === 'backups'}
             <BackupsScreen />
           {:else if screen === 'activity'}

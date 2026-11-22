@@ -14595,6 +14595,2960 @@
       "PTU"
     ]
   },
+  "shop_inventory": {
+    "fetched": "2026-11-21T09:00:00Z",
+    "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+    "item_count": 81,
+    "linked": "LIVE 4.10.200.58746",
+    "ship_items": false,
+    "shop_count": 7,
+    "state": "ready",
+    "systems": [
+      {
+        "locations": [
+          {
+            "name": "Levski, Delamar",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "mining",
+                    "count": 3
+                  },
+                  {
+                    "category": "consumables",
+                    "count": 3
+                  },
+                  {
+                    "category": "other",
+                    "count": 2
+                  }
+                ],
+                "id": 107,
+                "items": 8,
+                "location": "Levski, Delamar",
+                "name": "Levski Admin",
+                "not_on_live": true,
+                "system": "Nyx",
+                "updated": "2026-11-20"
+              }
+            ]
+          }
+        ],
+        "name": "Nyx"
+      },
+      {
+        "locations": [
+          {
+            "name": "Ruin Station, Terminus",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "fps-weapons",
+                    "count": 3
+                  },
+                  {
+                    "category": "fps-attachments",
+                    "count": 3
+                  },
+                  {
+                    "category": "ship-weapons",
+                    "count": 5
+                  },
+                  {
+                    "category": "missiles",
+                    "count": 3
+                  }
+                ],
+                "id": 105,
+                "items": 14,
+                "location": "Ruin Station, Terminus",
+                "name": "Guns Ruin",
+                "not_on_live": false,
+                "system": "Pyro",
+                "updated": "2026-11-20"
+              },
+              {
+                "categories": [
+                  {
+                    "category": "ship-weapons",
+                    "count": 5
+                  },
+                  {
+                    "category": "missiles",
+                    "count": 3
+                  },
+                  {
+                    "category": "ship-components",
+                    "count": 9
+                  }
+                ],
+                "id": 106,
+                "items": 17,
+                "location": "Ruin Station, Terminus",
+                "name": "Platinum Bay Ruin",
+                "not_on_live": false,
+                "system": "Pyro",
+                "updated": "2026-10-10"
+              }
+            ]
+          }
+        ],
+        "name": "Pyro"
+      },
+      {
+        "locations": [
+          {
+            "name": "Area 18, ArcCorp",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "fps-weapons",
+                    "count": 3
+                  },
+                  {
+                    "category": "fps-attachments",
+                    "count": 3
+                  },
+                  {
+                    "category": "armour",
+                    "count": 3
+                  }
+                ],
+                "id": 104,
+                "items": 9,
+                "location": "Area 18, ArcCorp",
+                "name": "CenterMass Area 18",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              }
+            ]
+          },
+          {
+            "name": "Grim HEX, Yela, Crusader",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "ship-weapons",
+                    "count": 6
+                  },
+                  {
+                    "category": "missiles",
+                    "count": 3
+                  },
+                  {
+                    "category": "ship-components",
+                    "count": 9
+                  },
+                  {
+                    "category": "mining",
+                    "count": 3
+                  }
+                ],
+                "id": 101,
+                "items": 21,
+                "location": "Grim HEX, Yela, Crusader",
+                "name": "Dumper's GrimHEX",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              },
+              {
+                "categories": [
+                  {
+                    "category": "fps-weapons",
+                    "count": 3
+                  },
+                  {
+                    "category": "fps-attachments",
+                    "count": 3
+                  },
+                  {
+                    "category": "armour",
+                    "count": 3
+                  }
+                ],
+                "id": 102,
+                "items": 9,
+                "location": "Grim HEX, Yela, Crusader",
+                "name": "Skutters Grim",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              }
+            ]
+          },
+          {
+            "name": "Lorville, Hurston",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "consumables",
+                    "count": 3
+                  }
+                ],
+                "id": 103,
+                "items": 3,
+                "location": "Lorville, Hurston",
+                "name": "Cafe Lorville",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              }
+            ]
+          }
+        ],
+        "name": "Stanton"
+      }
+    ]
+  },
+  "shop_inventory_linked": {
+    "fetched": "2026-11-21T09:00:00Z",
+    "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+    "item_count": 81,
+    "linked": "LIVE 4.10.200.58746",
+    "ship_items": true,
+    "shop_count": 7,
+    "state": "ready",
+    "systems": [
+      {
+        "locations": [
+          {
+            "name": "Levski, Delamar",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "mining",
+                    "count": 3
+                  },
+                  {
+                    "category": "consumables",
+                    "count": 3
+                  },
+                  {
+                    "category": "other",
+                    "count": 2
+                  }
+                ],
+                "id": 107,
+                "items": 8,
+                "location": "Levski, Delamar",
+                "name": "Levski Admin",
+                "not_on_live": true,
+                "system": "Nyx",
+                "updated": "2026-11-20"
+              }
+            ]
+          }
+        ],
+        "name": "Nyx"
+      },
+      {
+        "locations": [
+          {
+            "name": "Ruin Station, Terminus",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "fps-weapons",
+                    "count": 3
+                  },
+                  {
+                    "category": "fps-attachments",
+                    "count": 3
+                  },
+                  {
+                    "category": "ship-weapons",
+                    "count": 5
+                  },
+                  {
+                    "category": "missiles",
+                    "count": 3
+                  }
+                ],
+                "id": 105,
+                "items": 14,
+                "location": "Ruin Station, Terminus",
+                "name": "Guns Ruin",
+                "not_on_live": false,
+                "system": "Pyro",
+                "updated": "2026-11-20"
+              },
+              {
+                "categories": [
+                  {
+                    "category": "ship-weapons",
+                    "count": 5
+                  },
+                  {
+                    "category": "missiles",
+                    "count": 3
+                  },
+                  {
+                    "category": "ship-components",
+                    "count": 9
+                  }
+                ],
+                "id": 106,
+                "items": 17,
+                "location": "Ruin Station, Terminus",
+                "name": "Platinum Bay Ruin",
+                "not_on_live": false,
+                "system": "Pyro",
+                "updated": "2026-10-10"
+              }
+            ]
+          }
+        ],
+        "name": "Pyro"
+      },
+      {
+        "locations": [
+          {
+            "name": "Area 18, ArcCorp",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "fps-weapons",
+                    "count": 3
+                  },
+                  {
+                    "category": "fps-attachments",
+                    "count": 3
+                  },
+                  {
+                    "category": "armour",
+                    "count": 3
+                  }
+                ],
+                "id": 104,
+                "items": 9,
+                "location": "Area 18, ArcCorp",
+                "name": "CenterMass Area 18",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              }
+            ]
+          },
+          {
+            "name": "Grim HEX, Yela, Crusader",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "ship-weapons",
+                    "count": 6
+                  },
+                  {
+                    "category": "missiles",
+                    "count": 3
+                  },
+                  {
+                    "category": "ship-components",
+                    "count": 9
+                  },
+                  {
+                    "category": "mining",
+                    "count": 3
+                  }
+                ],
+                "id": 101,
+                "items": 21,
+                "location": "Grim HEX, Yela, Crusader",
+                "name": "Dumper's GrimHEX",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              },
+              {
+                "categories": [
+                  {
+                    "category": "fps-weapons",
+                    "count": 3
+                  },
+                  {
+                    "category": "fps-attachments",
+                    "count": 3
+                  },
+                  {
+                    "category": "armour",
+                    "count": 3
+                  }
+                ],
+                "id": 102,
+                "items": 9,
+                "location": "Grim HEX, Yela, Crusader",
+                "name": "Skutters Grim",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              }
+            ]
+          },
+          {
+            "name": "Lorville, Hurston",
+            "shops": [
+              {
+                "categories": [
+                  {
+                    "category": "consumables",
+                    "count": 3
+                  }
+                ],
+                "id": 103,
+                "items": 3,
+                "location": "Lorville, Hurston",
+                "name": "Cafe Lorville",
+                "not_on_live": false,
+                "system": "Stanton",
+                "updated": "2026-11-20"
+              }
+            ]
+          }
+        ],
+        "name": "Stanton"
+      }
+    ]
+  },
+  "shop_inventory_missing": {
+    "fetched": null,
+    "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+    "item_count": 0,
+    "linked": null,
+    "ship_items": false,
+    "shop_count": 0,
+    "state": "missing",
+    "systems": []
+  },
+  "shop_items": {
+    "fetched": "2026-11-21T09:00:00Z",
+    "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+    "items": [
+      {
+        "category": "mining",
+        "name": "Drill Head S1",
+        "price_buy": 25960.0,
+        "price_sell": null,
+        "record": null,
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-18"
+      },
+      {
+        "category": "mining",
+        "name": "Focus Module",
+        "price_buy": 27280.0,
+        "price_sell": null,
+        "record": null,
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-17"
+      },
+      {
+        "category": "mining",
+        "name": "Tracker Gadget",
+        "price_buy": 22000.0,
+        "price_sell": null,
+        "record": {
+          "class_name": "SYN_Tracker_Gadget",
+          "guid": "54000000-0000-4000-8000-00000000001c"
+        },
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-16"
+      },
+      {
+        "category": "consumables",
+        "name": "Fizz Can",
+        "price_buy": 10.0,
+        "price_sell": null,
+        "record": {
+          "class_name": "SYN_Fizz_Can",
+          "guid": "54000000-0000-4000-8000-000000000024"
+        },
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-20"
+      },
+      {
+        "category": "consumables",
+        "name": "Mend Pen",
+        "price_buy": 10.0,
+        "price_sell": null,
+        "record": {
+          "class_name": "SYN_Mend_Pen",
+          "guid": "54000000-0000-4000-8000-000000000025"
+        },
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-19"
+      },
+      {
+        "category": "consumables",
+        "name": "Ration Bar",
+        "price_buy": 9.0,
+        "price_sell": null,
+        "record": {
+          "class_name": "SYN_Ration_Bar",
+          "guid": "54000000-0000-4000-8000-000000000023"
+        },
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-15"
+      },
+      {
+        "category": "other",
+        "name": "Copper Crate",
+        "price_buy": 182.0,
+        "price_sell": null,
+        "record": {
+          "class_name": "SYN_Copper_Crate",
+          "guid": "54000000-0000-4000-8000-000000000028"
+        },
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-16"
+      },
+      {
+        "category": "other",
+        "name": "Synthetic Hull Patch",
+        "price_buy": 75.0,
+        "price_sell": null,
+        "record": null,
+        "stale": false,
+        "uex_name": null,
+        "updated": "2026-11-17"
+      }
+    ],
+    "linked": "LIVE 4.10.200.58746",
+    "shop": {
+      "categories": [
+        {
+          "category": "mining",
+          "count": 3
+        },
+        {
+          "category": "consumables",
+          "count": 3
+        },
+        {
+          "category": "other",
+          "count": 2
+        }
+      ],
+      "id": 107,
+      "items": 8,
+      "location": "Levski, Delamar",
+      "name": "Levski Admin",
+      "not_on_live": true,
+      "system": "Nyx",
+      "updated": "2026-11-20"
+    },
+    "state": "ready"
+  },
+  "shop_items_all": [
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "mining",
+          "name": "Drill Head S1",
+          "price_buy": 25960.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "mining",
+          "name": "Focus Module",
+          "price_buy": 27280.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "mining",
+          "name": "Tracker Gadget",
+          "price_buy": 22000.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Tracker_Gadget",
+            "guid": "54000000-0000-4000-8000-00000000001c"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "consumables",
+          "name": "Fizz Can",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Fizz_Can",
+            "guid": "54000000-0000-4000-8000-000000000024"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "consumables",
+          "name": "Mend Pen",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Mend_Pen",
+            "guid": "54000000-0000-4000-8000-000000000025"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "consumables",
+          "name": "Ration Bar",
+          "price_buy": 9.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ration_Bar",
+            "guid": "54000000-0000-4000-8000-000000000023"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "other",
+          "name": "Copper Crate",
+          "price_buy": 182.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Copper_Crate",
+            "guid": "54000000-0000-4000-8000-000000000028"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "other",
+          "name": "Synthetic Hull Patch",
+          "price_buy": 75.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "mining",
+            "count": 3
+          },
+          {
+            "category": "consumables",
+            "count": 3
+          },
+          {
+            "category": "other",
+            "count": 2
+          }
+        ],
+        "id": 107,
+        "items": 8,
+        "location": "Levski, Delamar",
+        "name": "Levski Admin",
+        "not_on_live": true,
+        "system": "Nyx",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "fps-weapons",
+          "name": "Hornet Pistol",
+          "price_buy": 5897.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hornet_Pistol",
+            "guid": "54000000-0000-4000-8000-00000000001a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Thumper Launcher",
+          "price_buy": 6169.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Thumper_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000001b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Viper Rifle",
+          "price_buy": 5625.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Rifle",
+            "guid": "54000000-0000-4000-8000-000000000019"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Clear Scope 4x",
+          "price_buy": 913.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Clear_Scope_4x",
+            "guid": "54000000-0000-4000-8000-000000000021"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Hush Suppressor",
+          "price_buy": 870.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hush_Suppressor",
+            "guid": "54000000-0000-4000-8000-000000000020"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Viper Magazine",
+          "price_buy": 955.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Magazine",
+            "guid": "54000000-0000-4000-8000-000000000022"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Breaker Scattergun S4",
+          "price_buy": 78666.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Chaff Launcher",
+          "price_buy": 82472.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S1",
+          "price_buy": 67246.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S2",
+          "price_buy": 71053.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Torrent Cannon S3",
+          "price_buy": 74859.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "missiles",
+          "name": "Hammer",
+          "price_buy": 2155.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "missiles",
+          "name": "Quiver Missile Rack",
+          "price_buy": 2270.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "missiles",
+          "name": "Wasp",
+          "price_buy": 2039.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "fps-weapons",
+            "count": 3
+          },
+          {
+            "category": "fps-attachments",
+            "count": 3
+          },
+          {
+            "category": "ship-weapons",
+            "count": 5
+          },
+          {
+            "category": "missiles",
+            "count": 3
+          }
+        ],
+        "id": 105,
+        "items": 14,
+        "location": "Ruin Station, Terminus",
+        "name": "Guns Ruin",
+        "not_on_live": false,
+        "system": "Pyro",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "ship-weapons",
+          "name": "Breaker Scattergun S4",
+          "price_buy": 81691.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Chaff Launcher",
+          "price_buy": 85644.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S1",
+          "price_buy": 69833.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S2",
+          "price_buy": 73786.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Torrent Cannon S3",
+          "price_buy": 77738.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "missiles",
+          "name": "Hammer",
+          "price_buy": 2238.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "missiles",
+          "name": "Quiver Missile Rack",
+          "price_buy": 2358.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "missiles",
+          "name": "Wasp",
+          "price_buy": 2118.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Aegis Shell Shield",
+          "price_buy": 47247.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Bastion Shield",
+          "price_buy": 49650.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Dynamo Power Plant",
+          "price_buy": 44845.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Frost Cooler",
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Glacier Cooler",
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive",
+          "price_buy": 52052.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive Template",
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Spark Power Plant",
+          "price_buy": 42442.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Vault Quantum Drive",
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "record": null,
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "ship-weapons",
+            "count": 5
+          },
+          {
+            "category": "missiles",
+            "count": 3
+          },
+          {
+            "category": "ship-components",
+            "count": 9
+          }
+        ],
+        "id": 106,
+        "items": 17,
+        "location": "Ruin Station, Terminus",
+        "name": "Platinum Bay Ruin",
+        "not_on_live": false,
+        "system": "Pyro",
+        "updated": "2026-10-10"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "fps-weapons",
+          "name": "Hornet Pistol",
+          "price_buy": 5678.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hornet_Pistol",
+            "guid": "54000000-0000-4000-8000-00000000001a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Thumper Launcher",
+          "price_buy": 5940.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Thumper_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000001b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Viper Rifle",
+          "price_buy": 5416.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Rifle",
+            "guid": "54000000-0000-4000-8000-000000000019"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Clear Scope 4x",
+          "price_buy": 879.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Clear_Scope_4x",
+            "guid": "54000000-0000-4000-8000-000000000021"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Hush Suppressor",
+          "price_buy": 838.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hush_Suppressor",
+            "guid": "54000000-0000-4000-8000-000000000020"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Viper Magazine",
+          "price_buy": 919.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Magazine",
+            "guid": "54000000-0000-4000-8000-000000000022"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Core",
+          "price_buy": 3378.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Core",
+            "guid": "54000000-0000-4000-8000-00000000001e"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Helmet",
+          "price_buy": 3197.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Helmet",
+            "guid": "54000000-0000-4000-8000-00000000001d"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "armour",
+          "name": "Trail Boots",
+          "price_buy": 3559.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Trail_Boots",
+            "guid": "54000000-0000-4000-8000-00000000001f"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "fps-weapons",
+            "count": 3
+          },
+          {
+            "category": "fps-attachments",
+            "count": 3
+          },
+          {
+            "category": "armour",
+            "count": 3
+          }
+        ],
+        "id": 104,
+        "items": 9,
+        "location": "Area 18, ArcCorp",
+        "name": "CenterMass Area 18",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "ship-weapons",
+          "name": "Breaker Scattergun S4",
+          "price_buy": 75640.0,
+          "price_sell": 30256.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Chaff Launcher",
+          "price_buy": 79300.0,
+          "price_sell": 31720.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S1",
+          "price_buy": 64660.0,
+          "price_sell": 25864.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S2",
+          "price_buy": 68320.0,
+          "price_sell": 27328.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "SYN-9 Repeater",
+          "price_buy": 48500.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Torrent Cannon S3",
+          "price_buy": 71980.0,
+          "price_sell": 28792.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "missiles",
+          "name": "Hammer",
+          "price_buy": 2072.0,
+          "price_sell": 829.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "missiles",
+          "name": "Quiver Missile Rack",
+          "price_buy": 2183.0,
+          "price_sell": 873.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "missiles",
+          "name": "Wasp",
+          "price_buy": 1961.0,
+          "price_sell": 784.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "ship-components",
+          "name": "Aegis Shell Shield",
+          "price_buy": 45430.0,
+          "price_sell": 18172.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "ship-components",
+          "name": "Bastion Shield",
+          "price_buy": 47740.0,
+          "price_sell": 19096.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-components",
+          "name": "Dynamo Power Plant",
+          "price_buy": 43120.0,
+          "price_sell": 17248.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "ship-components",
+          "name": "Frost Cooler",
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "ship-components",
+          "name": "Glacier Cooler",
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive",
+          "price_buy": 50050.0,
+          "price_sell": 20020.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive Template",
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-components",
+          "name": "Spark Power Plant",
+          "price_buy": 40810.0,
+          "price_sell": 16324.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-components",
+          "name": "Vault Quantum Drive",
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "mining",
+          "name": "Drill Head S1",
+          "price_buy": 26998.0,
+          "price_sell": 10799.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "mining",
+          "name": "Focus Module",
+          "price_buy": 28371.0,
+          "price_sell": 11348.0,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "mining",
+          "name": "Tracker Gadget",
+          "price_buy": 22880.0,
+          "price_sell": 9152.0,
+          "record": {
+            "class_name": "SYN_Tracker_Gadget",
+            "guid": "54000000-0000-4000-8000-00000000001c"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "ship-weapons",
+            "count": 6
+          },
+          {
+            "category": "missiles",
+            "count": 3
+          },
+          {
+            "category": "ship-components",
+            "count": 9
+          },
+          {
+            "category": "mining",
+            "count": 3
+          }
+        ],
+        "id": 101,
+        "items": 21,
+        "location": "Grim HEX, Yela, Crusader",
+        "name": "Dumper's GrimHEX",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "fps-weapons",
+          "name": "Hornet Pistol",
+          "price_buy": 5460.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hornet_Pistol",
+            "guid": "54000000-0000-4000-8000-00000000001a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Thumper Launcher",
+          "price_buy": 5712.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Thumper_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000001b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Viper Rifle",
+          "price_buy": 5208.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Rifle",
+            "guid": "54000000-0000-4000-8000-000000000019"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Clear Scope 4x",
+          "price_buy": 845.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Clear_Scope_4x",
+            "guid": "54000000-0000-4000-8000-000000000021"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Hush Suppressor",
+          "price_buy": 806.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hush_Suppressor",
+            "guid": "54000000-0000-4000-8000-000000000020"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Viper Magazine",
+          "price_buy": 884.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Magazine",
+            "guid": "54000000-0000-4000-8000-000000000022"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Core",
+          "price_buy": 3248.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Core",
+            "guid": "54000000-0000-4000-8000-00000000001e"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Helmet",
+          "price_buy": 3074.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Helmet",
+            "guid": "54000000-0000-4000-8000-00000000001d"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "armour",
+          "name": "Trail Boots",
+          "price_buy": 3422.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Trail_Boots",
+            "guid": "54000000-0000-4000-8000-00000000001f"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "fps-weapons",
+            "count": 3
+          },
+          {
+            "category": "fps-attachments",
+            "count": 3
+          },
+          {
+            "category": "armour",
+            "count": 3
+          }
+        ],
+        "id": 102,
+        "items": 9,
+        "location": "Grim HEX, Yela, Crusader",
+        "name": "Skutters Grim",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "consumables",
+          "name": "Fizz Can",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Fizz_Can",
+            "guid": "54000000-0000-4000-8000-000000000024"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "consumables",
+          "name": "Mend Pen",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Mend_Pen",
+            "guid": "54000000-0000-4000-8000-000000000025"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "consumables",
+          "name": "Ration Bar",
+          "price_buy": 9.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ration_Bar",
+            "guid": "54000000-0000-4000-8000-000000000023"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "consumables",
+            "count": 3
+          }
+        ],
+        "id": 103,
+        "items": 3,
+        "location": "Lorville, Hurston",
+        "name": "Cafe Lorville",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    }
+  ],
+  "shop_items_all_linked": [
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "mining",
+          "name": "Drill Head S1",
+          "price_buy": 25960.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Drill_Head_S1",
+            "guid": "54000000-0000-4000-8000-000000000026"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "mining",
+          "name": "Focus Module",
+          "price_buy": 27280.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Focus_Module",
+            "guid": "54000000-0000-4000-8000-000000000027"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "mining",
+          "name": "Tracker Gadget",
+          "price_buy": 22000.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Tracker_Gadget",
+            "guid": "54000000-0000-4000-8000-00000000001c"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "consumables",
+          "name": "Fizz Can",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Fizz_Can",
+            "guid": "54000000-0000-4000-8000-000000000024"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "consumables",
+          "name": "Mend Pen",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Mend_Pen",
+            "guid": "54000000-0000-4000-8000-000000000025"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "consumables",
+          "name": "Ration Bar",
+          "price_buy": 9.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ration_Bar",
+            "guid": "54000000-0000-4000-8000-000000000023"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "other",
+          "name": "Copper Crate",
+          "price_buy": 182.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Copper_Crate",
+            "guid": "54000000-0000-4000-8000-000000000028"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "other",
+          "name": "Synthetic Hull Patch",
+          "price_buy": 75.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "mining",
+            "count": 3
+          },
+          {
+            "category": "consumables",
+            "count": 3
+          },
+          {
+            "category": "other",
+            "count": 2
+          }
+        ],
+        "id": 107,
+        "items": 8,
+        "location": "Levski, Delamar",
+        "name": "Levski Admin",
+        "not_on_live": true,
+        "system": "Nyx",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "fps-weapons",
+          "name": "Hornet Pistol",
+          "price_buy": 5897.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hornet_Pistol",
+            "guid": "54000000-0000-4000-8000-00000000001a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Thumper Launcher",
+          "price_buy": 6169.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Thumper_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000001b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Viper Rifle",
+          "price_buy": 5625.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Rifle",
+            "guid": "54000000-0000-4000-8000-000000000019"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Clear Scope 4x",
+          "price_buy": 913.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Clear_Scope_4x",
+            "guid": "54000000-0000-4000-8000-000000000021"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Hush Suppressor",
+          "price_buy": 870.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hush_Suppressor",
+            "guid": "54000000-0000-4000-8000-000000000020"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Viper Magazine",
+          "price_buy": 955.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Magazine",
+            "guid": "54000000-0000-4000-8000-000000000022"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Breaker Scattergun S4",
+          "price_buy": 78666.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Breaker_Scattergun_S4",
+            "guid": "54000000-0000-4000-8000-00000000000b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Chaff Launcher",
+          "price_buy": 82472.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Chaff_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000000c"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S1",
+          "price_buy": 67246.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ember_Repeater_S1",
+            "guid": "54000000-0000-4000-8000-000000000008"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S2",
+          "price_buy": 71053.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ember_Repeater_S2",
+            "guid": "54000000-0000-4000-8000-000000000009"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Torrent Cannon S3",
+          "price_buy": 74859.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Torrent_Cannon_S3",
+            "guid": "54000000-0000-4000-8000-00000000000a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "missiles",
+          "name": "Hammer Torpedo",
+          "price_buy": 2155.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hammer_Torpedo",
+            "guid": "54000000-0000-4000-8000-000000000017"
+          },
+          "stale": false,
+          "uex_name": "Hammer",
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "missiles",
+          "name": "Quiver Missile Rack",
+          "price_buy": 2270.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Quiver_Missile_Rack",
+            "guid": "54000000-0000-4000-8000-000000000018"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "missiles",
+          "name": "Wasp Missile",
+          "price_buy": 2039.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Wasp_Missile",
+            "guid": "54000000-0000-4000-8000-000000000016"
+          },
+          "stale": false,
+          "uex_name": "Wasp",
+          "updated": "2026-11-16"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "fps-weapons",
+            "count": 3
+          },
+          {
+            "category": "fps-attachments",
+            "count": 3
+          },
+          {
+            "category": "ship-weapons",
+            "count": 5
+          },
+          {
+            "category": "missiles",
+            "count": 3
+          }
+        ],
+        "id": 105,
+        "items": 14,
+        "location": "Ruin Station, Terminus",
+        "name": "Guns Ruin",
+        "not_on_live": false,
+        "system": "Pyro",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "ship-weapons",
+          "name": "Breaker Scattergun S4",
+          "price_buy": 81691.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Breaker_Scattergun_S4",
+            "guid": "54000000-0000-4000-8000-00000000000b"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Chaff Launcher",
+          "price_buy": 85644.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Chaff_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000000c"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S1",
+          "price_buy": 69833.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ember_Repeater_S1",
+            "guid": "54000000-0000-4000-8000-000000000008"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S2",
+          "price_buy": 73786.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ember_Repeater_S2",
+            "guid": "54000000-0000-4000-8000-000000000009"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Torrent Cannon S3",
+          "price_buy": 77738.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Torrent_Cannon_S3",
+            "guid": "54000000-0000-4000-8000-00000000000a"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "missiles",
+          "name": "Hammer Torpedo",
+          "price_buy": 2238.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hammer_Torpedo",
+            "guid": "54000000-0000-4000-8000-000000000017"
+          },
+          "stale": true,
+          "uex_name": "Hammer",
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "missiles",
+          "name": "Quiver Missile Rack",
+          "price_buy": 2358.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Quiver_Missile_Rack",
+            "guid": "54000000-0000-4000-8000-000000000018"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "missiles",
+          "name": "Wasp Missile",
+          "price_buy": 2118.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Wasp_Missile",
+            "guid": "54000000-0000-4000-8000-000000000016"
+          },
+          "stale": true,
+          "uex_name": "Wasp",
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Aegis Shell Shield",
+          "price_buy": 47247.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Aegis_Shell_Shield",
+            "guid": "54000000-0000-4000-8000-000000000011"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Bastion Shield",
+          "price_buy": 49650.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Bastion_Shield",
+            "guid": "54000000-0000-4000-8000-000000000012"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Dynamo Power Plant",
+          "price_buy": 44845.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Dynamo_Power_Plant",
+            "guid": "54000000-0000-4000-8000-000000000010"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Frost Cooler",
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Frost_Cooler",
+            "guid": "54000000-0000-4000-8000-00000000000d"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Glacier Cooler",
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Glacier_Cooler",
+            "guid": "54000000-0000-4000-8000-00000000000e"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive",
+          "price_buy": 52052.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Leap_Quantum_Drive",
+            "guid": "54000000-0000-4000-8000-000000000013"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive Template",
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Leap_Quantum_Drive_Template",
+            "guid": "54000000-0000-4000-8000-000000000015"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Spark Power Plant",
+          "price_buy": 42442.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Spark_Power_Plant",
+            "guid": "54000000-0000-4000-8000-00000000000f"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        },
+        {
+          "category": "ship-components",
+          "name": "Vault Quantum Drive",
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Vault_Quantum_Drive",
+            "guid": "54000000-0000-4000-8000-000000000014"
+          },
+          "stale": true,
+          "uex_name": null,
+          "updated": "2026-10-10"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "ship-weapons",
+            "count": 5
+          },
+          {
+            "category": "missiles",
+            "count": 3
+          },
+          {
+            "category": "ship-components",
+            "count": 9
+          }
+        ],
+        "id": 106,
+        "items": 17,
+        "location": "Ruin Station, Terminus",
+        "name": "Platinum Bay Ruin",
+        "not_on_live": false,
+        "system": "Pyro",
+        "updated": "2026-10-10"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "fps-weapons",
+          "name": "Hornet Pistol",
+          "price_buy": 5678.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hornet_Pistol",
+            "guid": "54000000-0000-4000-8000-00000000001a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Thumper Launcher",
+          "price_buy": 5940.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Thumper_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000001b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Viper Rifle",
+          "price_buy": 5416.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Rifle",
+            "guid": "54000000-0000-4000-8000-000000000019"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Clear Scope 4x",
+          "price_buy": 879.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Clear_Scope_4x",
+            "guid": "54000000-0000-4000-8000-000000000021"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Hush Suppressor",
+          "price_buy": 838.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hush_Suppressor",
+            "guid": "54000000-0000-4000-8000-000000000020"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Viper Magazine",
+          "price_buy": 919.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Magazine",
+            "guid": "54000000-0000-4000-8000-000000000022"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Core",
+          "price_buy": 3378.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Core",
+            "guid": "54000000-0000-4000-8000-00000000001e"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Helmet",
+          "price_buy": 3197.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Helmet",
+            "guid": "54000000-0000-4000-8000-00000000001d"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "armour",
+          "name": "Trail Boots",
+          "price_buy": 3559.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Trail_Boots",
+            "guid": "54000000-0000-4000-8000-00000000001f"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "fps-weapons",
+            "count": 3
+          },
+          {
+            "category": "fps-attachments",
+            "count": 3
+          },
+          {
+            "category": "armour",
+            "count": 3
+          }
+        ],
+        "id": 104,
+        "items": 9,
+        "location": "Area 18, ArcCorp",
+        "name": "CenterMass Area 18",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "ship-weapons",
+          "name": "Breaker Scattergun S4",
+          "price_buy": 75640.0,
+          "price_sell": 30256.0,
+          "record": {
+            "class_name": "SYN_Breaker_Scattergun_S4",
+            "guid": "54000000-0000-4000-8000-00000000000b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Chaff Launcher",
+          "price_buy": 79300.0,
+          "price_sell": 31720.0,
+          "record": {
+            "class_name": "SYN_Chaff_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000000c"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S1",
+          "price_buy": 64660.0,
+          "price_sell": 25864.0,
+          "record": {
+            "class_name": "SYN_Ember_Repeater_S1",
+            "guid": "54000000-0000-4000-8000-000000000008"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Ember Repeater S2",
+          "price_buy": 68320.0,
+          "price_sell": 27328.0,
+          "record": {
+            "class_name": "SYN_Ember_Repeater_S2",
+            "guid": "54000000-0000-4000-8000-000000000009"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "SYN-9 Repeater",
+          "price_buy": 48500.0,
+          "price_sell": null,
+          "record": null,
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-weapons",
+          "name": "Torrent Cannon S3",
+          "price_buy": 71980.0,
+          "price_sell": 28792.0,
+          "record": {
+            "class_name": "SYN_Torrent_Cannon_S3",
+            "guid": "54000000-0000-4000-8000-00000000000a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "missiles",
+          "name": "Hammer Torpedo",
+          "price_buy": 2072.0,
+          "price_sell": 829.0,
+          "record": {
+            "class_name": "SYN_Hammer_Torpedo",
+            "guid": "54000000-0000-4000-8000-000000000017"
+          },
+          "stale": false,
+          "uex_name": "Hammer",
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "missiles",
+          "name": "Quiver Missile Rack",
+          "price_buy": 2183.0,
+          "price_sell": 873.0,
+          "record": {
+            "class_name": "SYN_Quiver_Missile_Rack",
+            "guid": "54000000-0000-4000-8000-000000000018"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "missiles",
+          "name": "Wasp Missile",
+          "price_buy": 1961.0,
+          "price_sell": 784.0,
+          "record": {
+            "class_name": "SYN_Wasp_Missile",
+            "guid": "54000000-0000-4000-8000-000000000016"
+          },
+          "stale": false,
+          "uex_name": "Wasp",
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "ship-components",
+          "name": "Aegis Shell Shield",
+          "price_buy": 45430.0,
+          "price_sell": 18172.0,
+          "record": {
+            "class_name": "SYN_Aegis_Shell_Shield",
+            "guid": "54000000-0000-4000-8000-000000000011"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "ship-components",
+          "name": "Bastion Shield",
+          "price_buy": 47740.0,
+          "price_sell": 19096.0,
+          "record": {
+            "class_name": "SYN_Bastion_Shield",
+            "guid": "54000000-0000-4000-8000-000000000012"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "ship-components",
+          "name": "Dynamo Power Plant",
+          "price_buy": 43120.0,
+          "price_sell": 17248.0,
+          "record": {
+            "class_name": "SYN_Dynamo_Power_Plant",
+            "guid": "54000000-0000-4000-8000-000000000010"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "ship-components",
+          "name": "Frost Cooler",
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "record": {
+            "class_name": "SYN_Frost_Cooler",
+            "guid": "54000000-0000-4000-8000-00000000000d"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "ship-components",
+          "name": "Glacier Cooler",
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "record": {
+            "class_name": "SYN_Glacier_Cooler",
+            "guid": "54000000-0000-4000-8000-00000000000e"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive",
+          "price_buy": 50050.0,
+          "price_sell": 20020.0,
+          "record": {
+            "class_name": "SYN_Leap_Quantum_Drive",
+            "guid": "54000000-0000-4000-8000-000000000013"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "ship-components",
+          "name": "Leap Quantum Drive Template",
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "record": {
+            "class_name": "SYN_Leap_Quantum_Drive_Template",
+            "guid": "54000000-0000-4000-8000-000000000015"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-components",
+          "name": "Spark Power Plant",
+          "price_buy": 40810.0,
+          "price_sell": 16324.0,
+          "record": {
+            "class_name": "SYN_Spark_Power_Plant",
+            "guid": "54000000-0000-4000-8000-00000000000f"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "ship-components",
+          "name": "Vault Quantum Drive",
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "record": {
+            "class_name": "SYN_Vault_Quantum_Drive",
+            "guid": "54000000-0000-4000-8000-000000000014"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "mining",
+          "name": "Drill Head S1",
+          "price_buy": 26998.0,
+          "price_sell": 10799.0,
+          "record": {
+            "class_name": "SYN_Drill_Head_S1",
+            "guid": "54000000-0000-4000-8000-000000000026"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "mining",
+          "name": "Focus Module",
+          "price_buy": 28371.0,
+          "price_sell": 11348.0,
+          "record": {
+            "class_name": "SYN_Focus_Module",
+            "guid": "54000000-0000-4000-8000-000000000027"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "mining",
+          "name": "Tracker Gadget",
+          "price_buy": 22880.0,
+          "price_sell": 9152.0,
+          "record": {
+            "class_name": "SYN_Tracker_Gadget",
+            "guid": "54000000-0000-4000-8000-00000000001c"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "ship-weapons",
+            "count": 6
+          },
+          {
+            "category": "missiles",
+            "count": 3
+          },
+          {
+            "category": "ship-components",
+            "count": 9
+          },
+          {
+            "category": "mining",
+            "count": 3
+          }
+        ],
+        "id": 101,
+        "items": 21,
+        "location": "Grim HEX, Yela, Crusader",
+        "name": "Dumper's GrimHEX",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "fps-weapons",
+          "name": "Hornet Pistol",
+          "price_buy": 5460.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hornet_Pistol",
+            "guid": "54000000-0000-4000-8000-00000000001a"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Thumper Launcher",
+          "price_buy": 5712.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Thumper_Launcher",
+            "guid": "54000000-0000-4000-8000-00000000001b"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-weapons",
+          "name": "Viper Rifle",
+          "price_buy": 5208.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Rifle",
+            "guid": "54000000-0000-4000-8000-000000000019"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Clear Scope 4x",
+          "price_buy": 845.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Clear_Scope_4x",
+            "guid": "54000000-0000-4000-8000-000000000021"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-17"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Hush Suppressor",
+          "price_buy": 806.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Hush_Suppressor",
+            "guid": "54000000-0000-4000-8000-000000000020"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-18"
+        },
+        {
+          "category": "fps-attachments",
+          "name": "Viper Magazine",
+          "price_buy": 884.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Viper_Magazine",
+            "guid": "54000000-0000-4000-8000-000000000022"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-16"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Core",
+          "price_buy": 3248.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Core",
+            "guid": "54000000-0000-4000-8000-00000000001e"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "armour",
+          "name": "Sentinel Helmet",
+          "price_buy": 3074.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Sentinel_Helmet",
+            "guid": "54000000-0000-4000-8000-00000000001d"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        },
+        {
+          "category": "armour",
+          "name": "Trail Boots",
+          "price_buy": 3422.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Trail_Boots",
+            "guid": "54000000-0000-4000-8000-00000000001f"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "fps-weapons",
+            "count": 3
+          },
+          {
+            "category": "fps-attachments",
+            "count": 3
+          },
+          {
+            "category": "armour",
+            "count": 3
+          }
+        ],
+        "id": 102,
+        "items": 9,
+        "location": "Grim HEX, Yela, Crusader",
+        "name": "Skutters Grim",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    },
+    {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "items": [
+        {
+          "category": "consumables",
+          "name": "Fizz Can",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Fizz_Can",
+            "guid": "54000000-0000-4000-8000-000000000024"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-20"
+        },
+        {
+          "category": "consumables",
+          "name": "Mend Pen",
+          "price_buy": 10.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Mend_Pen",
+            "guid": "54000000-0000-4000-8000-000000000025"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-19"
+        },
+        {
+          "category": "consumables",
+          "name": "Ration Bar",
+          "price_buy": 9.0,
+          "price_sell": null,
+          "record": {
+            "class_name": "SYN_Ration_Bar",
+            "guid": "54000000-0000-4000-8000-000000000023"
+          },
+          "stale": false,
+          "uex_name": null,
+          "updated": "2026-11-15"
+        }
+      ],
+      "linked": "LIVE 4.10.200.58746",
+      "shop": {
+        "categories": [
+          {
+            "category": "consumables",
+            "count": 3
+          }
+        ],
+        "id": 103,
+        "items": 3,
+        "location": "Lorville, Hurston",
+        "name": "Cafe Lorville",
+        "not_on_live": false,
+        "system": "Stanton",
+        "updated": "2026-11-20"
+      },
+      "state": "ready"
+    }
+  ],
   "starorg_pull": {
     "added": [
       "Sample Medical Gun",

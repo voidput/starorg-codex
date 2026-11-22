@@ -2318,6 +2318,42 @@ fn schema1_profile_migrates_once_with_one_activity_line() {
 }
 
 #[test]
+fn shops_list_the_fetched_uex_files_without_extracting_anything() {
+    let f = Fake::new();
+    let req = |target| ShopInventoryRequest { target };
+    let d = f.backend.shop_inventory(req(Some(f.live()))).unwrap();
+    assert_eq!(d.state, ShopDataState::Missing);
+    assert!(d.folder.as_deref().unwrap().ends_with("uex"), "{d:?}");
+    let mut s = f.backend.get_settings().unwrap();
+    s.network.uex = true;
+    f.backend.save_settings(s).unwrap();
+    f.backend.fetch_uex().unwrap();
+    // With the channel (its item data is not cached: UEX names) and without one.
+    for target in [Some(f.live()), None] {
+        let d = f.backend.shop_inventory(req(target.clone())).unwrap();
+        assert_eq!(d.state, ShopDataState::Ready);
+        assert_eq!((d.shop_count, d.item_count), (1, 1));
+        assert!(d.linked.is_none());
+        let shop = &d.systems[0].locations[0].shops[0];
+        assert_eq!(d.systems[0].name, "Stanton");
+        assert_eq!(d.systems[0].locations[0].name, "Test Station");
+        assert_eq!(shop.id, 7);
+        let items = f
+            .backend
+            .shop_items(ShopItemsRequest {
+                target,
+                terminal: 7,
+            })
+            .unwrap();
+        assert_eq!(items.items[0].name, "Fake Rifle Kestrel");
+        assert_eq!(items.items[0].price_buy, Some(1200.0));
+        assert!(items.items[0].record.is_none());
+    }
+    // Nothing was extracted for it.
+    assert!(!f.dirs.cache.join("mcp/LIVE").exists());
+}
+
+#[test]
 fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_both_files() {
     let f = Fake::new();
     let secret = "uex-test-secret-4242";

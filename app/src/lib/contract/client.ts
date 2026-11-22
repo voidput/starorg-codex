@@ -34,6 +34,8 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   uex_token_status: [Record<string, never>, T.UexTokenStatus];
   set_uex_token: [{ req: T.UexTokenRequest }, T.UexTokenStatus];
   fetch_uex: [Record<string, never>, T.ObtainStatus];
+  shop_inventory: [{ req: T.ShopInventoryRequest }, T.ShopDirectory];
+  shop_items: [{ req: T.ShopItemsRequest }, T.ShopItems];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
   preset_profile: [{ preset: T.Preset }, T.Profile];
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
@@ -121,6 +123,8 @@ export const COMMANDS = [
   'uex_token_status',
   'set_uex_token',
   'fetch_uex',
+  'shop_inventory',
+  'shop_items',
   'get_profile',
   'preset_profile',
   'save_profile',
@@ -350,6 +354,10 @@ export const api = {
   setUexToken: (token: string | null) => call('set_uex_token', { req: { token } }),
   /** "Fetch now": download both UEX files (network-off unless "Download UEX market data" is on). */
   fetchUex: () => call('fetch_uex', none),
+  /** The Shops screen: every UEX item terminal by system and place (`state: missing` without the files). */
+  shopInventory: (target: T.ChannelRef | null) => call('shop_inventory', { req: { target } }),
+  /** One shop's items by category, linked to records through the channel's cached item data. */
+  shopItems: (target: T.ChannelRef | null, terminal: number) => call('shop_items', { req: { target, terminal } }),
   getProfile: (req: T.ChannelRef) => call('get_profile', { req }),
   presetProfile: (preset: T.Preset) => call('preset_profile', { preset }),
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),

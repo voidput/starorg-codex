@@ -9,6 +9,7 @@
 //! | `search` | `game-search-index` (from item-tags + ships) + ship-components |
 //! | `item` | item-tags; ships, or the one detail dataset of the item's type |
 //! | `where_to_buy` | item-tags + the user's UEX files, if any |
+//! | `shop_inventory` | the user's UEX files; item-tags (+ ship-components) to name and link rows |
 //! | `where_found` | item-tags, loot, item-sources |
 //! | `where_mined` | mining-spawns, item-sources, commodities |
 //!
@@ -25,6 +26,7 @@
 //! | `status` | none (what is cached, memory) |
 
 use crate::owned;
+use crate::shops::{ShopCategory, ShopDirectory, ShopIndex, ShopItems, index_from_files};
 use crate::sources::{MAX_CONTAINERS, MAX_SHOPS, MAX_TABLES, buy_sources, loot_sources};
 use crate::store::{ChannelSource, Store, ToolError, ToolResult, tool_err};
 use serde::Serialize;
@@ -137,6 +139,22 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
                     paging(),
                 ),
                 &[],
+            ),
+        ),
+        d(
+            "shop_inventory",
+            "What a shop sells",
+            "Everything one shop (a UEX item terminal) sells, by category (FPS weapons, FPS attachments, armour & clothing, ship weapons, missiles & torpedoes, ship components, mining & salvage, consumables, other), with buy and sell prices, the day UEX last confirmed each row, and the game class name when the row is linked to a record. A name that fits several shops (a place such as \"grim hex\") answers the list of shops with their ids. Prices are UEX data (player-reported), read from the UEX files in the app cache; this tool downloads nothing.",
+            schema(
+                channels,
+                merge(
+                    json!({
+                        "terminal": {"type": "string", "description": "Shop: UEX terminal id (from a previous answer) or name, e.g. \"Dumper's GrimHEX\", \"Cousin Crow's\"."},
+                        "category": {"type": "string", "enum": ShopCategory::ALL.iter().map(|c| c.key()).collect::<Vec<_>>(), "description": "Only rows of this category."}
+                    }),
+                    paging(),
+                ),
+                &["terminal"],
             ),
         ),
         d(
@@ -438,8 +456,8 @@ impl<'a> Ctx<'a> {
         Option<Vec<UexTerminal>>,
         Option<AsOf>,
     ) {
-        let prices = self.store.uex("uex-item-prices.json");
-        let terms = self.store.uex("uex-terminals.json");
+        let prices = self.store.uex(PRICES_FILE);
+        let terms = self.store.uex(TERMINALS_FILE);
         let rows = prices
             .as_ref()
             .and_then(|p| serde_json::from_value(p.get("prices")?.clone()).ok());
@@ -537,7 +555,7 @@ pub struct Corpus {
 }
 
 /// Item rows for the `game-ship-components` records `base` (item-tags) does not hold.
-fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
+pub fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
     let mut ids: HashSet<String> = base.iter().map(|i| i.id.clone()).collect();
     let mut classes: HashSet<String> = base
         .iter()
@@ -1734,7 +1752,7 @@ fn status(store: &Store) -> ToolResult<Value> {
         "channels": channels,
         "server": {"rss": crate::rss::now(), "loaded": store.loaded()},
         "uexFolder": store.cfg.uex_dir.as_ref().map(|d| d.display().to_string()),
-        "uexPresent": store.uex("uex-item-prices.json").is_some(),
+        "uexPresent": store.uex(PRICES_FILE).is_some(),
         "network": "none: this server makes no network request and listens on this computer only",
     }))
 }
@@ -1743,6 +1761,16 @@ fn status(store: &Store) -> ToolResult<Value> {
 pub struct Tools {
     pub store: Store,
     applied: AppliedCache,
+    shops: Mutex<Option<ShopCache>>,
+}
+
+/// The shop index of one pair of UEX files (the store's parsed values: a replaced file is a
+/// new value) and one set of item data.
+struct ShopCache {
+    prices: Arc<Value>,
+    terminals: Arc<Value>,
+    linked: Option<String>,
+    index: Arc<ShopIndex>,
 }
 
 impl Tools {
@@ -1750,6 +1778,108 @@ impl Tools {
         Self {
             store,
             applied: Mutex::new(None),
+            shops: Mutex::new(None),
+        }
+    }
+
+    fn uex_folder(&self) -> Option<String> {
+        self.store
+            .cfg
+            .uex_dir
+            .as_ref()
+            .map(|d| d.display().to_string())
+    }
+
+    /// The shop index over the UEX files, `None` while either is missing. `ctx`: the build
+    /// whose item data names and links rows (item-tags, plus the ship items of
+    /// ship-components when that is there); with `ctx.extract` false only cached data is read.
+    pub fn shop_index(&self, ctx: Option<&Ctx<'_>>) -> Option<Arc<ShopIndex>> {
+        let prices = self.store.uex(PRICES_FILE)?;
+        let terminals = self.store.uex(TERMINALS_FILE)?;
+        // (build label, item-tags, ship items item-tags lacks)
+        let items = ctx.and_then(|c| {
+            let base = c.items().ok()?;
+            let label = format!(
+                "{} {}",
+                c.ch.name,
+                c.ch.build.as_deref().unwrap_or("unknown build")
+            );
+            Some((label, base, c.extra_items().ok()))
+        });
+        // The cache key: which build, and how many items it had.
+        let linked = items.as_ref().map(|(l, b, x)| {
+            format!(
+                "{l}/{}/{}",
+                b.list.len(),
+                x.as_ref().map_or(0, |x| x.list.len())
+            )
+        });
+        let mut g = self.shops.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = g.as_ref()
+            && Arc::ptr_eq(&c.prices, &prices)
+            && Arc::ptr_eq(&c.terminals, &terminals)
+            && c.linked == linked
+        {
+            return Some(c.index.clone());
+        }
+        let mut ship_items = false;
+        let (label, list) = match items {
+            Some((l, base, extra)) => {
+                let mut v = base.list.clone();
+                if let Some(x) = extra {
+                    ship_items = true;
+                    v.extend(x.list.iter().cloned());
+                }
+                (Some(l), v)
+            }
+            None => (None, Vec::new()),
+        };
+        let mut index = index_from_files(&prices, &terminals, &list, label);
+        index.ship_items = ship_items;
+        let index = Arc::new(index);
+        *g = Some(ShopCache {
+            prices,
+            terminals,
+            linked,
+            index: index.clone(),
+        });
+        Some(index)
+    }
+
+    /// The item data of a channel as cached (nothing is extracted); `None` without one.
+    fn cached_ctx(&self, channel: Option<&str>) -> Option<Ctx<'_>> {
+        let mut ctx = Ctx::for_channel(&self.store, channel).ok()?;
+        ctx.extract = false;
+        Some(ctx)
+    }
+
+    /// The app's Shops screen: every shop by system and place. Reads the UEX files and the
+    /// channel's cached item data only.
+    pub fn shop_directory(&self, channel: Option<&str>) -> ShopDirectory {
+        let ctx = self.cached_ctx(channel);
+        match self.shop_index(ctx.as_ref()) {
+            Some(ix) => ix.directory(self.uex_folder()),
+            None => crate::shops::missing_directory(self.uex_folder()),
+        }
+    }
+
+    /// Extract what the Shops screen links rows with, for the channel's current build:
+    /// `game-item-tags` and `game-ship-components` (the ship guns, missiles and components
+    /// item-tags lacks). Each runs in the extraction worker under the memory limit; a cached
+    /// one is not extracted again. The app's "Read game data" calls this.
+    pub fn warm_shop_links(&self, channel: &str) -> ToolResult<()> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        ctx.items()?;
+        ctx.extra_items()?;
+        Ok(())
+    }
+
+    /// One shop's rows for the Shops screen.
+    pub fn shop_items(&self, channel: Option<&str>, terminal: u64) -> ShopItems {
+        let ctx = self.cached_ctx(channel);
+        match self.shop_index(ctx.as_ref()) {
+            Some(ix) => ix.items(terminal, self.uex_folder()),
+            None => crate::shops::missing_items(self.uex_folder()),
         }
     }
 
@@ -1855,6 +1985,7 @@ impl Tools {
             "search" => search(&ctx, &a),
             "item" => item(&ctx, &a),
             "where_to_buy" => where_to_buy(&ctx, &a),
+            "shop_inventory" => self.shop_tool(&ctx, &a),
             "where_found" => where_found(&ctx, &a),
             "where_mined" => where_mined(&ctx, &a),
             "how_to_obtain" => how_to_obtain(&ctx, &a),
@@ -1957,4 +2088,118 @@ fn build_hints(ctx: &Ctx<'_>) -> crate::hints::BuiltHints {
 /// Paths a test or caller may want: the UEX folder under a cache dir.
 pub fn uex_dir(cache: &Path) -> PathBuf {
     cache.join("uex")
+}
+
+/// The UEX files in [`uex_dir`] (as `starorg_net::uex` writes them).
+pub const PRICES_FILE: &str = "uex-item-prices.json";
+pub const TERMINALS_FILE: &str = "uex-terminals.json";
+
+/// A `shop_inventory` row: [`crate::shops::ShopItemRow`] with camelCase keys, as every tool
+/// answers.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ShopToolRow<'a> {
+    name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    uex_name: Option<&'a str>,
+    category: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price_buy: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price_sell: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    updated: Option<&'a str>,
+    stale: bool,
+    /// The game class name, when linked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key: Option<&'a str>,
+}
+
+/// Shops listed when a name fits several.
+const SHOP_CHOICES: usize = 25;
+
+impl Tools {
+    /// `shop_inventory`: one shop's rows, by category, paged.
+    fn shop_tool(&self, ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
+        let q = a.need("terminal")?;
+        let category = match a.str("category") {
+            None => None,
+            Some(c) => Some(ShopCategory::parse(c).ok_or_else(|| {
+                ToolError(format!(
+                    "category must be one of {}, not {c:?}",
+                    ShopCategory::ALL.map(|c| c.key()).join(", ")
+                ))
+            })?),
+        };
+        let Some(ix) = self.shop_index(Some(ctx)) else {
+            return Ok(with_header(ctx, json!({"terminal": q, "notes": [NO_UEX]})));
+        };
+        let found = ix.find(q);
+        let source = "UEX (player-reported), not game files";
+        let shop = match found.as_slice() {
+            [] => {
+                return tool_err(format!(
+                    "no shop matches {q:?}; give a UEX terminal name or id (where_to_buy with a place lists what the shops there sell)"
+                ));
+            }
+            [one] => *one,
+            many => {
+                let shops: Vec<Value> = many
+                    .iter()
+                    .take(SHOP_CHOICES)
+                    .map(|s| {
+                        let m = &s.summary;
+                        json!({"id": m.id, "name": m.name, "location": m.location, "system": m.system, "items": m.items})
+                    })
+                    .collect();
+                return Ok(with_header(
+                    ctx,
+                    json!({"terminal": q, "matches": many.len(), "shops": shops, "source": source,
+                           "notes": ["more than one shop matches; call again with one shop's id as `terminal`"]}),
+                ));
+            }
+        };
+        let m = &shop.summary;
+        let rows: Vec<ShopToolRow<'_>> = shop
+            .items
+            .iter()
+            .filter(|i| category.is_none_or(|c| i.category == c))
+            .map(|i| ShopToolRow {
+                name: &i.name,
+                uex_name: i.uex_name.as_deref(),
+                category: i.category.key(),
+                price_buy: i.price_buy,
+                price_sell: i.price_sell,
+                updated: i.updated.as_deref(),
+                stale: i.stale,
+                key: i.record.as_ref().map(|r| r.class_name.as_str()),
+            })
+            .collect();
+        let categories: Vec<Value> = m
+            .categories
+            .iter()
+            .map(|c| json!({"category": c.category.key(), "label": c.category.label(), "count": c.count}))
+            .collect();
+        let mut v = with_header(
+            ctx,
+            json!({
+                "shop": {"id": m.id, "name": m.name, "location": m.location, "system": m.system,
+                         "items": m.items, "notOnLive": m.not_on_live, "updated": m.updated},
+                "categories": categories,
+                "items": page(&rows, a)?,
+                "fetched": ix.fetched,
+                "linkedWith": ix.linked,
+                "source": source,
+            }),
+        );
+        if let Some(c) = category {
+            v["category"] = json!(c.key());
+        }
+        if ix.linked.is_none() {
+            v["notes"] = json!([
+                "no item data for this build: names are UEX's and no row carries a class name"
+            ]);
+        }
+        Ok(v)
+    }
 }

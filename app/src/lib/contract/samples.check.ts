@@ -28,6 +28,12 @@ interface Samples {
   uex_token_status: T.UexTokenStatus;
   set_uex_token: T.UexTokenStatus;
   fetch_uex: T.ObtainStatus;
+  shop_inventory: T.ShopDirectory;
+  shop_inventory_missing: T.ShopDirectory;
+  shop_inventory_linked: T.ShopDirectory;
+  shop_items: T.ShopItems;
+  shop_items_all: T.ShopItems[];
+  shop_items_all_linked: T.ShopItems[];
   list_overrides: T.OverrideEntry[];
   add_user_patch: T.PatchView;
   export_user_patch: T.PatchExport;
