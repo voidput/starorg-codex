@@ -1945,6 +1945,18 @@ impl Backend for MockBackend {
         self.obtain_status()
     }
 
+    /// The synthetic shops of `mock_shops` once "Fetch now" ran (the sample user's folder
+    /// lacks the terminals file before that): `missing` until then.
+    fn shop_inventory(&self, _req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {
+        let ready = self.lock().uex_fetched.is_some();
+        Ok(super::mock_shops::mock_directory(ready))
+    }
+
+    fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems> {
+        let ready = self.lock().uex_fetched.is_some();
+        Ok(super::mock_shops::mock_items(ready, req.terminal))
+    }
+
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
         self.with_channel(&req, |c, _| Ok(c.profile.clone()))
     }

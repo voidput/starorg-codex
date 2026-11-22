@@ -2350,6 +2350,14 @@ impl Backend for RealBackend {
         self.run_fetch_uex()
     }
 
+    fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {
+        Ok(self.shop_directory(req))
+    }
+
+    fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems> {
+        Ok(self.shop_items_of(req))
+    }
+
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
         let f = self.resolve(&req)?;
         let ch = f.channel(&req.channel)?;

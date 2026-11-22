@@ -289,6 +289,9 @@ fn samples() -> Value {
     v["uex_token_status"] = json!(token_off);
     v["set_uex_token"] = json!(token_on);
     v["fetch_uex"] = json!(fetched);
+    for (k, x) in shop_samples() {
+        v[k] = x;
+    }
     let m = MockBackend::default();
     v["memory_status"] = json!(m.memory_status().unwrap());
     v["set_memory_limit"] = json!(
@@ -797,6 +800,11 @@ fn ts_unions_list_every_variant() {
         (
             "PatchOrigin",
             names(&[PatchOrigin::BuiltIn, PatchOrigin::User]),
+        ),
+        ("ShopCategory", names(&ShopCategory::ALL)),
+        (
+            "ShopDataState",
+            names(&[ShopDataState::Ready, ShopDataState::Missing]),
         ),
         (
             "LogLevel",
@@ -1776,6 +1784,105 @@ fn uex_samples() -> (UexTokenStatus, UexTokenStatus, ObtainStatus) {
     s.network.uex = true;
     b.save_settings(s).unwrap();
     (off, on, b.fetch_uex().unwrap())
+}
+
+/// The Shops screen before "Fetch now" (`missing`), after it, one shop's items, and every
+/// shop's (the TS mock serves `shop_items` from that list).
+fn shop_samples() -> Vec<(&'static str, Value)> {
+    let b = MockBackend::default();
+    let req = || ShopInventoryRequest {
+        target: Some(live()),
+    };
+    let missing = b.shop_inventory(req()).unwrap();
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let ready = b.shop_inventory(req()).unwrap();
+    let first = ready.systems[0].locations[0].shops[0].id;
+    let items = b
+        .shop_items(ShopItemsRequest {
+            target: Some(live()),
+            terminal: first,
+        })
+        .unwrap();
+    vec![
+        ("shop_inventory_missing", json!(missing)),
+        ("shop_inventory", json!(ready)),
+        ("shop_items", json!(items)),
+        ("shop_items_all", json!(super::mock_shops::mock_all_items())),
+    ]
+}
+
+#[test]
+fn shops_on_the_mock_group_categorise_and_link() {
+    let b = MockBackend::default();
+    let req = ShopInventoryRequest { target: None };
+    let d = b.shop_inventory(req.clone()).unwrap();
+    assert_eq!(d.state, ShopDataState::Missing);
+    assert!(d.systems.is_empty() && d.folder.is_some());
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let d = b.shop_inventory(req).unwrap();
+    assert_eq!(d.state, ShopDataState::Ready);
+    assert_eq!(d.fetched.as_deref(), Some(super::mock::MOCK_UEX_FETCHED));
+    let systems: Vec<&str> = d.systems.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(systems, ["Nyx", "Pyro", "Stanton"]);
+    assert_eq!(d.shop_count, 7);
+    let all: Vec<&ShopSummary> = d
+        .systems
+        .iter()
+        .flat_map(|s| s.locations.iter().flat_map(|l| l.shops.iter()))
+        .collect();
+    let dumper = all.iter().find(|s| s.name == "Dumper's GrimHEX").unwrap();
+    assert_eq!(dumper.location, "Grim HEX, Yela, Crusader");
+    let cats: Vec<ShopCategory> = dumper.categories.iter().map(|c| c.category).collect();
+    assert_eq!(
+        cats,
+        [
+            ShopCategory::ShipWeapons,
+            ShopCategory::Missiles,
+            ShopCategory::ShipComponents,
+            ShopCategory::Mining
+        ]
+    );
+    assert!(all.iter().any(|s| s.not_on_live));
+    let items = b
+        .shop_items(ShopItemsRequest {
+            target: None,
+            terminal: dumper.id,
+        })
+        .unwrap();
+    assert_eq!(items.items.len(), dumper.items);
+    // Catalogue rows link to their record; the extra repeater does not, and is a ship gun.
+    let rep = items
+        .items
+        .iter()
+        .find(|i| i.name == "SYN-9 Repeater")
+        .unwrap();
+    assert!(rep.record.is_none() && rep.category == ShopCategory::ShipWeapons);
+    let linked = items.items.iter().filter(|i| i.record.is_some()).count();
+    assert_eq!(linked, items.items.len() - 1);
+    assert!(
+        items
+            .items
+            .iter()
+            .filter(|i| i.record.is_some())
+            .all(|i| i.price_sell.is_some())
+    );
+    // A missile's UEX name lacks the kind word.
+    assert!(items.items.iter().any(|i| i.uex_name.is_some()));
+    assert!(
+        b.shop_items(ShopItemsRequest {
+            target: None,
+            terminal: 1
+        })
+        .unwrap()
+        .shop
+        .is_none()
+    );
 }
 
 #[test]

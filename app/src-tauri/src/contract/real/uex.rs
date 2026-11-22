@@ -9,6 +9,7 @@
 //!   WHERE TO GET, the Sources card and the MCP server read.
 
 use super::convert::err;
+use super::dev::lock_or;
 use super::*;
 use crate::tokens::Slot;
 use starorg_net::uex::{self, UexError, UexTransport};
@@ -18,6 +19,8 @@ pub struct UexDeps {
     pub transport: Arc<dyn UexTransport>,
     /// Held while a fetch runs: a second one is `busy`.
     pub running: Mutex<()>,
+    /// The Shops screen's tools when no install is known (UEX files only, nothing linked).
+    bare: Mutex<Option<Arc<starorg_mcp::tools::Tools>>>,
 }
 
 impl Default for UexDeps {
@@ -31,7 +34,22 @@ impl UexDeps {
         Self {
             transport,
             running: Mutex::new(()),
+            bare: Mutex::new(None),
         }
+    }
+}
+
+/// The bare shop tools never extract (no channel, and the Shops screen reads the cache only).
+struct NoExtract;
+
+impl starorg_mcp::worker::Extractor for NoExtract {
+    fn extract(
+        &self,
+        _p4k: &Path,
+        dataset: &str,
+        _out: &Path,
+    ) -> Result<starorg_mcp::worker::Measurement, String> {
+        Err(format!("{dataset}: not extracted for the Shops screen"))
     }
 }
 
@@ -161,6 +179,41 @@ impl RealBackend {
 
     pub(super) fn obtain_status_now(&self) -> ObtainStatus {
         obtain_status_in(&self.uex_dir())
+    }
+
+    /// The Shops screen's tools and channel: the install's (the Sources card's, sharing its
+    /// dataset cache) when `target` resolves, else tools over the UEX folder alone.
+    fn shop_tools(
+        &self,
+        target: Option<&ChannelRef>,
+    ) -> (Arc<starorg_mcp::tools::Tools>, Option<String>) {
+        if let Some(t) = target
+            && let Ok(f) = self.resolve(t)
+            && let Ok(tools) = self.origin_tools(&f)
+        {
+            return (tools, Some(t.channel.clone()));
+        }
+        let mut g = lock_or(&self.uex.bare);
+        let tools = g.get_or_insert_with(|| {
+            Arc::new(starorg_mcp::tools::Tools::new(
+                starorg_mcp::store::Store::new(starorg_mcp::config_for(
+                    None,
+                    self.dirs(),
+                    Arc::new(NoExtract),
+                )),
+            ))
+        });
+        (tools.clone(), None)
+    }
+
+    pub(super) fn shop_directory(&self, req: ShopInventoryRequest) -> ShopDirectory {
+        let (tools, ch) = self.shop_tools(req.target.as_ref());
+        tools.shop_directory(ch.as_deref())
+    }
+
+    pub(super) fn shop_items_of(&self, req: ShopItemsRequest) -> ShopItems {
+        let (tools, ch) = self.shop_tools(req.target.as_ref());
+        tools.shop_items(ch.as_deref(), req.terminal)
     }
 }
 

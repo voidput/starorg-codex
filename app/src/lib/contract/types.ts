@@ -423,6 +423,98 @@ export interface UexTokenRequest {
   token: string | null;
 }
 
+/** Readable bucket of what a shop sells (`starorg_mcp::shops::ShopCategory`), in display order. */
+export type ShopCategory = 'fps-weapons' | 'fps-attachments' | 'armour' | 'ship-weapons' | 'missiles' | 'ship-components' | 'mining' | 'consumables' | 'other';
+
+/** `missing`: one or both UEX files are not there (Settings -> Network -> Fetch now). */
+export type ShopDataState = 'ready' | 'missing';
+
+/** `target`: the channel whose cached item data names rows and links them to records; nothing is extracted. */
+export interface ShopInventoryRequest {
+  target: ChannelRef | null;
+}
+
+export interface ShopItemsRequest {
+  target: ChannelRef | null;
+  /** A `ShopSummary.id`. */
+  terminal: number;
+}
+
+export interface CategoryCount {
+  category: ShopCategory;
+  count: number;
+}
+
+/** One shop (a UEX item terminal). */
+export interface ShopSummary {
+  /** UEX terminal id. */
+  id: number;
+  name: string;
+  /** The place without the system ("Grim HEX, Yela, Crusader"). */
+  location: string;
+  system: string | null;
+  /** Item rows with a price. */
+  items: number;
+  categories: CategoryCount[];
+  not_on_live: boolean;
+  /** Newest day UEX confirmed a row (YYYY-MM-DD). */
+  updated: string | null;
+}
+
+export interface ShopPlaceGroup {
+  name: string;
+  shops: ShopSummary[];
+}
+
+export interface ShopSystem {
+  name: string;
+  locations: ShopPlaceGroup[];
+}
+
+/** Every shop by system, then place. */
+export interface ShopDirectory {
+  state: ShopDataState;
+  folder: string | null;
+  /** When the UEX files were fetched (ISO 8601). */
+  fetched: string | null;
+  systems: ShopSystem[];
+  shop_count: number;
+  item_count: number;
+  /** The build whose item data linked rows ("LIVE 4.10.201.48085"); null = UEX names, no links. */
+  linked: string | null;
+}
+
+/** The game record a row is: the Explorer opens it by GUID. */
+export interface ItemRecord {
+  guid: string;
+  class_name: string;
+}
+
+export interface ShopItemRow {
+  /** The game's name when linked, else UEX's. */
+  name: string;
+  /** UEX's name when it differs. */
+  uex_name: string | null;
+  category: ShopCategory;
+  price_buy: number | null;
+  /** What the shop pays for it. */
+  price_sell: number | null;
+  updated: string | null;
+  /** Not confirmed in 30 days. */
+  stale: boolean;
+  record: ItemRecord | null;
+}
+
+/** One shop's rows, by category then name. */
+export interface ShopItems {
+  state: ShopDataState;
+  folder: string | null;
+  fetched: string | null;
+  shop: ShopSummary | null;
+  items: ShopItemRow[];
+  linked: string | null;
+}
+
 export interface LineSchema {
   key: string;
   label: string;

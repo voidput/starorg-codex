@@ -171,6 +171,29 @@ the ships of that import (with their names, groups and places), and the check li
 before anything is removed. CLI: `starorg-codex fleet import|list|match|clear` (`--prune` for
 the same).
 
+## Shops
+
+**Shops** (Game group, or Ctrl+K) shows what each shop sells. Shop stock is in no game file, so
+the list is UEX market data (player-reported): turn on *Download UEX market data* in Settings
+-> Network and press **Fetch now** (the screen offers both while the files are missing). The
+line at the top says how old the data is ("UEX data from 21 Nov").
+
+- **Left:** every shop by star system, then place, with how many items it lists and what it
+  mostly sells. Search by shop or place name (`grim hex`, `area 18`, `ruin`), or pick a system.
+- **Right:** the picked shop's items by category: FPS weapons, FPS attachments, armour &
+  clothing, ship weapons, missiles & torpedoes, ship components (shields, coolers, power
+  plants, quantum drives, ...), mining & salvage, consumables, other. The chips keep one
+  category; *Filter items* narrows by name. **Buy** is what you pay, **Sell** what the shop pays
+  you, **Updated** the day UEX last confirmed the row (⚠ after 30 days).
+- An item the game data knows carries the game's name (UEX's name below it when it differs);
+  with Developer mode on, the name opens its record in the Explorer. Items link once the
+  channel's game data has been read (any apply or dry run); before that the names are UEX's.
+  UEX also lists ship guns, mining lasers and tractor beams the game's item list lacks; they get
+  a category but no link.
+
+To find which shops sell one item, open it in the Explorer (Sources card, Buy rows) or ask the
+MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,
@@ -187,9 +210,9 @@ that for you: run Remove first ([uninstall](uninstall.md)).
   request.
 - **Download UEX market data:** **Fetch now** downloads where items are sold (UEX Corp,
   player-reported) from `api.uexcorp.space` into the UEX folder (`<cache>/mcp/uex`), for the
-  Buy line of Where to get, the Explorer Sources card and the MCP shop tools. Both files are
-  public, so a token is optional; to use yours, sign in at uexcorp.space -> My Apps, paste the
-  token and press Save. It is kept in the system keyring (or a private file when there is none),
+  Buy line of Where to get, the Shops screen, the Explorer Sources card and the MCP shop
+  tools. Both files are public, so a token is optional; to use yours, sign in at
+  uexcorp.space -> My Apps, paste the token and press Save. It is kept in the system keyring (or a private file when there is none),
   never shown again and sent only to `api.uexcorp.space`. **Remove** deletes it. Apply again
   after a fetch.
 - **Launch hooks** (Linux): install, update or remove the LUG Helper hook blocks.

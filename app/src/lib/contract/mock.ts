@@ -69,6 +69,10 @@ const SAMPLES = samples as unknown as {
   uex_token_status: T.UexTokenStatus;
   set_uex_token: T.UexTokenStatus;
   fetch_uex: T.ObtainStatus;
+  shop_inventory: T.ShopDirectory;
+  shop_inventory_missing: T.ShopDirectory;
+  shop_items: T.ShopItems;
+  shop_items_all: T.ShopItems[];
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -1024,6 +1028,13 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       uex = clone(SAMPLES.fetch_uex);
       addLog('info', 'uex', null, 'Downloaded UEX market data: 24,146 prices for 2,438 items at 826 terminals (7.0 MB)');
       return clone(uex);
+    },
+    // The Rust mock's synthetic shops once both UEX files are there (`?uex=fetched` or Fetch now).
+    shop_inventory: () => clone(uex.shops_ready ? SAMPLES.shop_inventory : SAMPLES.shop_inventory_missing),
+    shop_items: ({ req }) => {
+      if (!uex.shops_ready) return { state: 'missing', folder: SAMPLES.shop_inventory_missing.folder, fetched: null, shop: null, items: [], linked: null };
+      const hit = SAMPLES.shop_items_all.find((s) => s.shop?.id === req.terminal);
+      return clone(hit ?? { ...SAMPLES.shop_items, shop: null, items: [] });
     },
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),

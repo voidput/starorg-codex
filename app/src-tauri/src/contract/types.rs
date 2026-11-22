@@ -739,6 +739,28 @@ pub struct UexTokenRequest {
     pub token: Option<String>,
 }
 
+// The Shops screen (`shop_inventory`, `shop_items`): what each UEX terminal sells, from the
+// same UEX files, typed in `starorg_mcp::shops` (the MCP `shop_inventory` tool reads them too).
+pub use starorg_mcp::shops::{
+    CategoryCount, ItemRecord, ShopCategory, ShopDataState, ShopDirectory, ShopItemRow, ShopItems,
+    ShopPlaceGroup, ShopSummary, ShopSystem,
+};
+
+/// Every shop. `target`: the channel whose cached item data names the rows and links them to
+/// records (`None`, or a channel without that data: UEX names, no links). Nothing is
+/// extracted or downloaded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopInventoryRequest {
+    pub target: Option<ChannelRef>,
+}
+
+/// One shop's items; `terminal` is a [`ShopSummary::id`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopItemsRequest {
+    pub target: Option<ChannelRef>,
+    pub terminal: u64,
+}
+
 /// Never prints the token.
 impl std::fmt::Debug for UexTokenRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
