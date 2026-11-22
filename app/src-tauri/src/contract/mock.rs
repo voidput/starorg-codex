@@ -3373,7 +3373,8 @@ fn obtain_preview(p: &Profile, stats: &dyn Fn(&str, Vec<String>) -> String) -> V
         size: None,
         rarity: s(rarity),
         place: s(place),
-        system: s("Stanton"),
+        // Loot areas (Bunkers, Caves) span systems: the real hints carry none.
+        system: None,
         odds: Some(odds),
     };
     let rifle = ItemObtain {

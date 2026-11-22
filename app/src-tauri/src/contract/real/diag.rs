@@ -98,7 +98,15 @@ fn preview_rows(rows: &[StringRow]) -> Vec<PreviewItem> {
                     && !out.iter().any(|x: &PreviewItem| x.key == r.key)
             })
         };
-        if let Some(r) = pick(true).or_else(|| pick(false)) {
+        // No mined ore in the cached data (commodities not extracted yet): any item, named as such.
+        if let Some(r) = pick(true) {
+            out.push(item(r, label, "obtain-hints"));
+        } else if let Some(r) = pick(false) {
+            let label = if extra.is_some() {
+                "Item (where to get)"
+            } else {
+                label
+            };
             out.push(item(r, label, "obtain-hints"));
         }
     }

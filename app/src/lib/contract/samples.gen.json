@@ -2869,7 +2869,7 @@
       "key": "item_DescSYN_Rifle",
       "label": "Weapon (where to get)",
       "original": "A synthetic laser rifle used for testing.",
-      "result": "A synthetic laser rifle used for testing.\\n\\n--- STATS ---\\nDamage: 18 energy  |  DPS: 150\\nFire rate: 500 rpm\\nMagazine: 45\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Buy:</EM4> Center Mass (Area18, Stanton)  |  Skutters (GrimHEX, Stanton)\\n<EM4>Loot:</EM4> Weapons rack (Rare) at Bunkers, Stanton · 21%  |  Weapon crate (Uncommon) at Derelict outposts, Stanton · 6%  |  Locker (Common) at Caves, Stanton · 2%  |  +3\\n<EM4>Craft:</EM4> from blueprint\\n<EM4>Reward:</EM4> Synthetic Recovery [BP]"
+      "result": "A synthetic laser rifle used for testing.\\n\\n--- STATS ---\\nDamage: 18 energy  |  DPS: 150\\nFire rate: 500 rpm\\nMagazine: 45\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Buy:</EM4> Center Mass (Area18, Stanton)  |  Skutters (GrimHEX, Stanton)\\n<EM4>Loot:</EM4> Weapons rack (Rare) at Bunkers · 21%  |  Weapon crate (Uncommon) at Derelict outposts · 6%  |  Locker (Common) at Caves · 2%  |  +3\\n<EM4>Craft:</EM4> from blueprint\\n<EM4>Reward:</EM4> Synthetic Recovery [BP]"
     },
     {
       "category": "obtain-hints",

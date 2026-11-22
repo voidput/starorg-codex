@@ -188,10 +188,13 @@ fn top(items: &[String], extra: usize, sep: &str) -> String {
     s
 }
 
-/// A percent the checks accept anywhere a line or `  |  ` follows: `21%`, `0.5%`.
+/// A percent the checks accept anywhere a line or `  |  ` follows: `21%`, `0.5%`, and
+/// `under 0.1%` for odds that would round to `0%`.
 fn odds(fraction: f64) -> String {
     let v = fraction * 100.0;
-    if v < 10.0 {
+    if v < 0.05 {
+        "under 0.1%".into()
+    } else if v < 10.0 {
         format!("{}%", format::d1(v))
     } else {
         format::pct(v)
@@ -794,6 +797,7 @@ mod tests {
         assert_eq!(duration(7500.0), "2h 5m");
         assert_eq!(odds(0.005), "0.5%");
         assert_eq!(odds(0.214), "21%");
+        assert_eq!(odds(0.0004), "under 0.1%");
         assert_eq!(pct_range(Some(5.0), Some(5.0)).as_deref(), Some("5%"));
         assert_eq!(pct_range(None, None), None);
     }

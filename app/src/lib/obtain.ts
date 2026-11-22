@@ -10,7 +10,7 @@ import type { ObtainMode, PreviewItem, Profile } from './contract/types';
 export const OBTAIN_MODES: { id: ObtainMode; label: string; example: string }[] = [
   { id: 'short', label: 'Short', example: 'Get: Loot (Rare) · Craft [BP] · Reward' },
   { id: 'normal', label: 'Normal', example: 'WHERE TO GET, then a line per source: Loot: Weapons rack (Rare) at Bunkers, Locker (Common) at Caves +3' },
-  { id: 'detailed', label: 'Detailed', example: 'Systems and odds per box: Loot: Weapons rack (Rare) at Bunkers, Stanton · 21%  |  …' },
+  { id: 'detailed', label: 'Detailed', example: 'Adds odds per box, systems, craft time and quality spread: Loot: Weapons rack (Rare) at Bunkers · 21%  |  …' },
 ];
 
 /** `today`, `1 day old`, `12 days old` for an RFC 3339 time; null when unknown. */
@@ -60,7 +60,7 @@ export function obtainPreview(p: Profile, stats: Stats): PreviewItem[] {
     ['Locker', 'Common', 'Caves', 2],
     ['Footlocker', 'Common', 'Distribution centres', 1],
   ];
-  const loot = on('loot') ? boxes.map(([c, r, at, o]) => `${c} (${r}) at ${at}${detailed ? `, Stanton · ${o}%` : ''}`) : [];
+  const loot = on('loot') ? boxes.map(([c, r, at, o]) => `${c} (${r}) at ${at}${detailed ? ` · ${o}%` : ''}`) : [];
   const craft = on('craft');
   const rewards = on('rewards') ? ['Synthetic Recovery [BP]'] : [];
   const parts: string[] = [];
