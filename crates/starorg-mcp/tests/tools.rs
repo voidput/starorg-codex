@@ -343,6 +343,7 @@ fn lifecycle_and_schemas() {
             "search",
             "item",
             "where_to_buy",
+            "shop_inventory",
             "where_found",
             "where_mined",
             "how_to_obtain",
@@ -544,6 +545,96 @@ fn ship_weapons_and_components_item_tags_lacks() {
     let dps = rows.iter().find(|r| r["field"] == "dps").unwrap();
     assert_eq!(dps["values"], json!([683.63, 512.5]));
     assert!(c.get("inexact").is_none());
+}
+
+#[test]
+fn shop_inventory_lists_one_shop_by_category() {
+    let w = World::new();
+    let s = w.server();
+    let v = ok(
+        &s,
+        "shop_inventory",
+        json!({"terminal": "Dumper's GrimHEX"}),
+    );
+    assert_eq!(v["shop"]["id"], 2);
+    assert_eq!(v["shop"]["location"], "Grim HEX, Yela, Crusader");
+    assert_eq!(v["shop"]["system"], "Stanton");
+    // The cannon is in ship-components only: linked there, a ship weapon.
+    let rows = &v["items"]["rows"];
+    assert_eq!(v["items"]["total"], 2);
+    assert_eq!(rows[0]["name"], "FS-9 LMG");
+    assert_eq!(rows[0]["category"], "fps-weapons");
+    assert_eq!(rows[0]["key"], "behr_lmg_ballistic_01");
+    assert_eq!(rows[0]["priceBuy"], 6900);
+    assert_eq!(rows[1]["category"], "ship-weapons");
+    assert_eq!(rows[1]["key"], "BEHR_LaserCannon_S3");
+    assert_eq!(v["categories"][1]["label"], "Ship weapons");
+    assert!(
+        v["linkedWith"]
+            .as_str()
+            .unwrap()
+            .starts_with("LIVE 4.10.200.58746")
+    );
+    assert!(v.get("notes").is_none());
+    // A category, an id.
+    let g = ok(
+        &s,
+        "shop_inventory",
+        json!({"terminal": "2", "category": "Ship weapons"}),
+    );
+    assert_eq!(g["items"]["total"], 1);
+    assert_eq!(g["category"], "ship-weapons");
+    assert!(
+        call(
+            &s,
+            "shop_inventory",
+            json!({"terminal": "2", "category": "boats"})
+        )
+        .0
+    );
+    // A word of the place.
+    let many = ok(&s, "shop_inventory", json!({"terminal": "ruin"}));
+    assert_eq!(many["shop"]["name"], "Guns Ruin");
+    assert!(call(&s, "shop_inventory", json!({"terminal": "nowhere at all"})).0);
+    assert!(call(&s, "shop_inventory", json!({})).0);
+
+    // Without the UEX files: a note, not an error.
+    std::fs::remove_file(w.root.join("cache/uex/uex-terminals.json")).unwrap();
+    let none = ok(&s, "shop_inventory", json!({"terminal": "Guns Ruin"}));
+    assert!(none["notes"][0].as_str().unwrap().contains("no shop data"));
+}
+
+#[test]
+fn shop_directory_for_the_app_reads_only_cached_item_data() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing extracted yet: UEX names, no links, nothing extracted for this.
+    let d = t.shop_directory(Some("LIVE"));
+    assert_eq!(serde_json::to_value(d.state).unwrap(), json!("ready"));
+    assert_eq!((d.shop_count, d.item_count), (2, 3));
+    assert!(d.linked.is_none());
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    let names: Vec<&str> = d.systems.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(names, ["Pyro", "Stanton"]);
+    // After a tool extracted item-tags, rows link.
+    let s = starorg_mcp::server(w.config(), None);
+    ok(&s, "item", json!({"key": "behr_lmg_ballistic_01"}));
+    let i = t.shop_items(Some("LIVE"), 2);
+    assert_eq!(i.shop.as_ref().unwrap().name, "Dumper's GrimHEX");
+    assert_eq!(
+        i.items[0].record.as_ref().unwrap().guid,
+        "id-fs9",
+        "{:?}",
+        i.items
+    );
+    assert!(i.linked.is_some());
+    // No channel at all: still the shops.
+    assert_eq!(t.shop_directory(Some("NOPE")).shop_count, 2);
+    std::fs::remove_file(w.root.join("cache/uex/uex-item-prices.json")).unwrap();
+    let gone = t.shop_directory(Some("LIVE"));
+    assert_eq!(serde_json::to_value(gone.state).unwrap(), json!("missing"));
+    assert!(gone.folder.unwrap().ends_with("uex"));
+    assert!(t.shop_items(None, 2).shop.is_none());
 }
 
 #[test]

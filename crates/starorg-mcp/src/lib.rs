@@ -8,6 +8,7 @@
 //! - [`worker`]: that extraction worker (`mcp-extract-worker`), with its own RSS measurement;
 //! - [`owned`]: owned blueprints from the app's store, for `how_to_obtain`;
 //! - [`sources`]: the app explorer's Sources card (loot containers, where an ore is mined);
+//! - [`shops`]: the shop browser (what each UEX terminal sells, by category);
 //! - [`hints`]: the same rows as obtain hints for `global.ini` descriptions;
 //! - [`stdio`] (the CLI's `starorg-codex mcp`) and `http` (feature `http`, the app's
 //!   loopback server) transports;
@@ -20,6 +21,7 @@ pub mod hints;
 pub mod owned;
 pub mod protocol;
 pub mod rss;
+pub mod shops;
 pub mod sources;
 pub mod stdio;
 pub mod store;

@@ -1,7 +1,7 @@
 ---
 title: Local MCP server (experimental)
 tags: [docs, mcp, experimental]
-updated: 2026-11-21
+updated: 2026-11-22
 ---
 
 # Local MCP server (experimental)
@@ -68,6 +68,7 @@ previous page as `cursor`. Answers are compact JSON.
 | `search` | items, ship weapons and components, and ships by name, class, maker, type (fuzzy, typos allowed) | `game-search-index` (from item-tags + ships), ship-components |
 | `item` | one item or ship: identity, tags, loot eligibility, stats | item-tags; the stats dataset of its type (fps-weapons, weapons, armor, ship-components, consumables) or ships |
 | `where_to_buy` | shops for an item (cheapest first), or what a place sells | item-tags + UEX files, if there |
+| `shop_inventory` | everything one shop sells (`terminal`: a UEX terminal name or id), by category, with buy and sell prices, the day UEX last confirmed each row and the class name when linked; `category` keeps one category. A name several shops fit (a place) answers their list with ids | UEX files; item-tags (+ ship-components) to name and link rows |
 | `where_found` | loot spawns: best areas with place, container, contents, size and rarity, odds per box, fixed racks, other tables | item-tags, loot, item-sources |
 | `where_mined` | where an ore is mined: bodies and belts that roll a rock with it (most common first), and loot-area spots (caves, asteroid bases, the Rock Cracker) that place one, and the quality it comes in (range, place overrides, the values the game shows with estimated shares) | mining-spawns, item-sources, commodities |
 | `how_to_obtain` | every source, easiest first: buy, contract/Wikelo reward, craft, loot; `owned_by` marks blueprints a character owns | item-tags, loot, item-sources, blueprints, wikelo-trades, UEX; the owned-blueprint store |
@@ -113,6 +114,15 @@ files in the cache folder, `<cache>/mcp/uex/uex-item-prices.json` and `uex-termi
 `sc-gamedata fetch uex-item-prices uex-terminals` writes there yourself (same shape). The MCP
 server itself never downloads anything; it reads a file again once it changed. Without them,
 the shop tools say so and the other sources still answer.
+
+`shop_inventory` sorts each row into one of nine categories (`fps-weapons`, `fps-attachments`,
+`armour`, `ship-weapons`, `missiles`, `ship-components`, `mining`, `consumables`, `other`): by
+the game's item type when the row is linked to a record, else by the UEX category id every
+price row carries (`starorg_mcp::shops::categorise`). A row links by the game item id UEX
+stores (`item_uuid`), else by a name only one item has. `terminal` takes an id, a terminal name
+(`Dumper's GrimHEX`, or UEX's full name), or words of a shop or its place; when several shops
+fit, the answer lists them (`shops`, with `id`, up to 25) and a note to call again with one id.
+The app's **Shops** screen shows the same rows ([user guide](user-guide.md#shops)).
 
 ## Data, cache and memory
 
