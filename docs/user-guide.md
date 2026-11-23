@@ -129,6 +129,13 @@ writes nothing to the game), no apply needed.
   and its variants follow it (`Verdict LMG Magazine`). It is on the Patches screen and
   retires by itself once the game names the item. Mission rewards and blueprint lists show
   the same names. Whatever the switch, our own text never shows a raw `@key` or a placeholder.
+  The switch is labelled **Fix missing item names and descriptions**: it also fills a
+  description the file lacks (`@item_Desc_alb_jumpsuit_01_01_04`, mostly new colour variants
+  of clothes and armour) with a sibling variant's real description from the game, without its
+  last colour line (`The CFP edition is a deep fjord blue.`), so it never names the wrong
+  colour. An item with no such sibling, or whose siblings' text names their own colour, keeps
+  the code: the switch never invents a description. Stats and WHERE TO GET go on the filled
+  text like on any other description.
 
 Colours marked "look not verified" are our guess of how the game draws that style: switch on
 the colour test line, check in game and tell us (Support). **Save** keeps the settings, **Save &

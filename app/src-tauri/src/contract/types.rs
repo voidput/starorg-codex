@@ -331,7 +331,8 @@ pub struct ApplyCounts {
     /// Descriptions that got a WHERE TO GET block (spec obtain-hints).
     #[serde(default)]
     pub obtain_hints: u32,
-    /// Name keys stock lacks that got a name (spec missing-names).
+    /// Name keys stock lacks that got a name, and description keys stock lacks (or holds as a
+    /// placeholder) that got a sibling's description (spec missing-names).
     #[serde(default)]
     pub missing_names: u32,
     pub overrides: u32,
@@ -680,8 +681,9 @@ pub struct Profile {
     /// The `sell` line: the best commodity kiosks with a rounded price per SCU and the day
     /// the UEX prices were fetched. Off by default, on in Everything.
     pub obtain_prices: bool,
-    /// Names for items whose name key stock lacks (spec missing-names): adds keys, never
-    /// edits a stock line.
+    /// Names for items whose name key stock lacks, and a sibling's description for items whose
+    /// description key stock lacks (spec missing-names): adds keys; only placeholder stock
+    /// lines are replaced.
     pub missing_names: bool,
     /// Stat lines switched off, as `<category>.<line>` (keys from [`ProfileSchema`]).
     pub lines_off: Vec<String>,

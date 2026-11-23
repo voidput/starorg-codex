@@ -133,7 +133,8 @@ placeholder line; missing-names renames that line instead.
 
 ## App
 
-- Enhancements -> General -> *Fixes and stamp*: **Fix missing item names**.
+- Enhancements -> General -> *Fixes and stamp*: **Fix missing item names and descriptions**
+  (one switch, `missing_names`; descriptions: see *Descriptions*).
 - Strings: added keys are rows after the stock ones, with an empty original.
 - Preview (General): one added name, shown against the raw `@key` the game showed.
 - Contract: `Profile.missing_names`, `ApplyCounts.missing_names`, the two new rule names.
@@ -173,6 +174,84 @@ placeholder line; missing-names renames that line instead.
   racks, the Long Look Mk2 radar (wiki title only, not the in-game string), Valakkar apex,
   hide and pearls, LNA clothes, the holiday present, the GRIN cutter (the wiki says its name
   is a placeholder), the dashboard bobblehead and the collector/mag/mr01 weapon variants.
+
+## Descriptions
+
+Same bug, other key: on PTU 5.0 (5.0.202.10025) 117 named, visible items show a raw key such
+as `@item_Desc_alb_jumpsuit_01_01_04` as their description (mostly new colour variants of
+clothes and armour); LIVE 4.10 has one. Fix missing item names (same switch, now labelled
+*Fix missing item names and descriptions*) fills them with a **sibling's real stock
+description**, never invented prose (`enhance/descs.rs`, rule `sibling-description`).
+
+- **Who**: every entity of a visible type (not `HIDDEN_TYPES`) with a name through the name
+  chain, whose description key is missing from stock or holds placeholder text
+  (`PLACEHOLDER - …`, `<= … =>`, a raw `@key`; an empty value is not a placeholder: an item
+  may have a blank description). `LOC_*` sentinels, keys that are not plain identifiers and
+  keys some entity uses as its name are left alone.
+- **Sibling, in order**: (1) same `AttachDef.Type`, same `names::variant_base` (the base
+  entity itself first, then by record name), with real stock text; the first whose text
+  survives the colour cut wins. (2) *Edition*: a record name with an edition segment and no
+  usable sibling (`cds_undersuit_01_01_iae2022`, `cds_armor_heavy_core_01_iae2022_01`,
+  `fio_pants_01_01_scientist`, `behr_rifle_ballistic_03_mr01`) borrows from its model and
+  the model's plain variants (`…_01_01`, `…_01_01_NN`, `…_01_NN_NN`, same type), only when
+  all of them that survive the cut give the same text. A sibling whose description we filled
+  never counts (only stock text is read).
+- **Colour cut**: paragraphs split at `\n\n` (the two-character escape twice); a last
+  paragraph is a variant line when it starts with `The` / `This` and has `edition`,
+  `version`, `variant`, `color scheme` / `colour scheme` or `colorway` within its first six
+  words; it is dropped. Seen in stock (PTU, last paragraphs of `item_Desc*`): 580 `The …
+  edition …` lines (`The "Lumen" edition is matte white.`, `The CFP edition is a deep fjord
+  blue with black accents.`, `The AA Defense edition features a gray, urban camo pattern…`),
+  62 `The … version …` (`The Grime version is dyed…`, `The Packrat version comes in…`), `This
+  version features a gray finish…`, `The Packrat color scheme complements…`, `The Poacher
+  variant combines rust red…`. Body paragraphs that only mention a version later on (`The
+  Omnisky IX is the size three version of…`, `The Falston jumpsuit has…`) are kept by the
+  six-word limit. The rest is used only when it still has prose (a line that is not
+  `Label: value`) and names none of the sibling's own colour words: words (3+ letters) of the
+  sibling's name the entity's name lacks (`Bannock Jumpsuit Blue` for `… Green`: no
+  `blue` anywhere in the text). Most clothing descriptions on PTU have no colour line at
+  all; the check guards those that name the colour inside the body (`The Molten version is
+  dyed a deep red…`). Raw control characters (a stray CR in CIG's text) are dropped, trailing
+  `\n` escapes trimmed.
+- **One text per key**: every visible, named entity referencing the key must get the same
+  text, else the key is left alone (`differ`). This is also why a description shared by
+  unrelated items is never written from one item's family.
+- **Engine** (`Engine::fill`): a missing key is added (`Engine::add`, `AddedKey { fill }`),
+  a placeholder line renamed (`Engine::rename`, `GenEdit { fill }`). It runs **before** the
+  description generators, which then build on the filled text as on a stock value
+  (`Engine::offer` -> `build_added` / `build_fill`): the first category (stats) owns it, an
+  extending one (WHERE TO GET) appends, any other is `owned-by-other`; each is listed in
+  `extended_by` and counted in its own category. A built value is checked again
+  (`check_added` / `check_replaced`); a failing build is dropped, the fill stays.
+  `obtain::generate` offers a filled key although stock lacks it. Category `missing-names`
+  (counts `missing_names` include descriptions), `OUTPUT_VERSION` 8 -> 9.
+- **Skip reasons** (`descs::Skip`): `no-sibling`, `colour` (every sibling's text names its
+  colour or is only stat lines), `differ`, `name-key`.
+
+Validation (2026-11-22, `build` and `apply --dry-run`, Recommended, cached
+`gamedata.json`/`base.ini`; `cargo test -p starorg-core --test descs_real -- --ignored
+--nocapture` prints the plan):
+
+- **PTU 5.0.202.10025**: 107 keys written (104 added, 3 placeholder lines renamed), 115
+  entities. Of the 117 named items with a raw description key, **110 get one** and 7 are
+  skipped: `basebuilding_interactables_itemfabricator_vehicle_drak_kit_01` and the three
+  `rrs_specialist_heavy_*_04_02_01` Pyrotechnic Horizon pieces (no described sibling of the
+  same type and base), and the three Aril Arms Red Alert pieces sharing one key
+  (`differ`: the Aril arm variants have two different stock texts, with and without "fully
+  enclosed helmet"). 32 of the filled descriptions also got a WHERE TO GET block. 0
+  dropped, 0 warnings.
+- **LIVE 4.10.201.48085**: 24 keys (all for items whose name is generated too, mostly
+  weapon `_lr01` / `_sf01` variants borrowing the base weapon's text, and the 3 CFP
+  placeholders); the one named item (`cds_armor_heavy_helmet_03_01_01`) has no described
+  sibling. 0 dropped.
+- Examples (PTU): `alb_jumpsuit_01_01_04` Bannock Jumpsuit Green <- `_01_01_01` (`Carrying
+  Capacity: 1K µSCU\n\nThe Bannock jumpsuit combines comfort and durability…`);
+  `cba_boots_02_01_03` Pampero Boots Brown <- `_01` plus its WHERE TO GET block;
+  `cds_undersuit_01_01_iae2022` TCS-4 Undersuit Red Alert <- `cds_undersuit_01_01_01`
+  (edition); `cds_armor_heavy_core_01_iae2022_01` ADP-mk4 Core Red Alert <-
+  `cds_armor_heavy_core_01_01_01` (edition); `dmc_frontier_jacket_01_02_11` (stock
+  `PLACEHOLDER - dmc_frontier_jacket_01_02_11`) <- `_01_02_01` with `The CFP edition is a
+  deep, fjord blue…` cut.
 
 ## Name fixes (swapped stock names)
 

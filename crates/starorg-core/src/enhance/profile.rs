@@ -32,8 +32,10 @@ pub struct Profile {
     /// per SCU, stamped with the day the UEX prices were fetched (the `sell` line). Off by
     /// default, on in Everything: prices go stale between applies.
     pub obtain_prices: bool,
-    /// Give items whose name key stock lacks a name, so the game does not show the raw
-    /// `@item_Name…` key (spec missing-names). Adds keys; never edits a stock line.
+    /// Give items whose name key stock lacks a name, and items whose description key stock
+    /// lacks a sibling's description, so the game does not show the raw `@item_Name…` /
+    /// `@item_Desc…` key (spec missing-names). Adds keys; only placeholder stock lines are
+    /// replaced.
     pub missing_names: bool,
     /// Stat lines switched off, as `<category>.<line>` (e.g. `ships.boost`, `components.signatures`).
     pub lines_off: BTreeSet<String>,

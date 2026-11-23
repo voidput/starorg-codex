@@ -440,8 +440,8 @@
               />
               <SwitchRow
                 id="missing-names"
-                label="Fix missing item names"
-                hint="Some items show a code such as @item_Name_… instead of a name, because the game's text file lacks it. This adds a name: a sibling variant's, or one made from the code. No existing text changes."
+                label="Fix missing item names and descriptions"
+                hint="Some items show a code such as @item_Name_… or @item_Desc_… instead of a name or description, because the game's text file lacks it. This adds a name (a sibling variant's, or one made from the code) and a sibling variant's description without its colour line. No existing text changes."
                 checked={d.missing_names}
                 onchange={(v) => edit((p) => (p.missing_names = v))}
               />

@@ -53,5 +53,7 @@ pub mod validate;
 /// 7 = missing names: added keys for entity names stock lacks (curated names from the
 /// built-in `missing-names` patch, a tidier readable fallback), and generated text never
 /// brings a raw `@key` or a placeholder;
-/// 8 = commodity sell prices: the WHERE TO GET `sell` line (on in Everything).
-pub const OUTPUT_VERSION: u32 = 8;
+/// 8 = commodity sell prices: the WHERE TO GET `sell` line (on in Everything);
+/// 9 = missing descriptions: a sibling's stock description (colour paragraph cut) for
+/// description keys stock lacks or holds as a placeholder, with stats and WHERE TO GET on it.
+pub const OUTPUT_VERSION: u32 = 9;
