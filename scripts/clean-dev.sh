@@ -26,7 +26,7 @@ gone() {
 echo "Disk use before:"
 size target .tmp tmp .claude/worktrees || true
 
-if command -v cargo-sweep >/dev/null; then
+if cargo sweep --version >/dev/null 2>&1; then
   if $yes; then cargo sweep --time "$days"; else cargo sweep --dry-run --time "$days"; fi
 else
   # Without cargo-sweep only incremental data goes: an old file in deps/ or build/ can still
