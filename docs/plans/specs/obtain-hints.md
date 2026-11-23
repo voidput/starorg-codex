@@ -184,6 +184,18 @@ all means no block.
    wiring (apply.rs, table.rs preview, CLI build).
 3. App tab, preview, docs (user guide, addendum note), changelog.
 
+### Disk cache and speed (2026-11-22)
+
+- A complete answer of `Tools::obtain_hints` is kept as `obtain-hints.json` in the build
+  folder, tagged with `HINTS_CODE` (`starorg-mcp/build.rs`: a hash of the gamedata, data, mcp
+  and core sources) and the UEX stamp; a restart reads it instead of building again. A
+  partial answer (a dataset group failed) is never written.
+- The dataset cache keys on `DATASET_CODE` (gamedata and data sources), not the app version.
+- Debug builds optimise dependencies and the extraction and hints crates (`opt-level = 2`).
+- A stock description with CIG's own stray control character (PTU 5.0: bare CR mid-line in
+  93 descriptions) no longer drops its stats and WHERE TO GET: `check_value` fails only on a
+  control character the value has more often than stock.
+
 ## Open
 
 - UEX download (done on `feat/uex-fetch`): Settings -> Network -> "Download UEX market data"

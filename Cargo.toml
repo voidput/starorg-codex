@@ -65,3 +65,7 @@ opt-level = 2
 
 [profile.dev.package.starorg-gamedata]
 opt-level = 2
+
+# Builds the obtain hints over the datasets (20 s unoptimised on PTU, well under 1 s optimised).
+[profile.dev.package.starorg-mcp]
+opt-level = 2

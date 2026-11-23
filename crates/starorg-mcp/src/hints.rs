@@ -25,7 +25,7 @@ pub const MAX_SHOPS: usize = 12;
 pub const MAX_SELLS: usize = 3;
 
 /// The hints of one build, with what could not be read.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct BuiltHints {
     pub hints: ObtainHints,
     /// One line per dataset group that failed (memory gate, extraction error): the lines it

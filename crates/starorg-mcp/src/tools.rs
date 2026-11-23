@@ -2047,8 +2047,14 @@ impl Tools {
         ctx.extract = extract;
         let mut partial = None;
         let r = ctx.store.typed_uex(&ctx.dir, "obtain-hints", || {
+            // A complete answer is kept on disk too, so a restart does not build it again.
+            let tag = hints_tag(&ctx);
+            if let Some(b) = read_hints(&ctx.dir, &tag) {
+                return Ok(b);
+            }
             let b = build_hints(&ctx);
             if b.warnings.is_empty() {
+                write_hints(&ctx.dir, &tag, &b);
                 Ok(b)
             } else {
                 partial = Some(b);
@@ -2081,6 +2087,42 @@ impl Tools {
             "diff" => diff(&ctx, &a),
             other => tool_err(format!("unknown tool {other}")),
         }
+    }
+}
+
+/// File of [`Tools::obtain_hints`]' complete answer in the build folder.
+const HINTS_FILE: &str = "obtain-hints.json";
+
+/// What the hints on disk were built from: the code that builds them (`HINTS_CODE`, see
+/// `build.rs`) and the UEX files' stamp. Any difference builds them again.
+fn hints_tag(ctx: &Ctx<'_>) -> String {
+    format!("{}:{:?}", env!("HINTS_CODE"), ctx.store.uex_stamp())
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct HintsOnDisk {
+    tag: String,
+    hints: crate::hints::BuiltHints,
+}
+
+fn read_hints(dir: &Path, tag: &str) -> Option<crate::hints::BuiltHints> {
+    let bytes = std::fs::read(dir.join(HINTS_FILE)).ok()?;
+    let d: HintsOnDisk = serde_json::from_slice(&bytes).ok()?;
+    (d.tag == tag && d.hints.warnings.is_empty()).then_some(d.hints)
+}
+
+/// Best effort: a folder that cannot be written only costs the next start a rebuild.
+fn write_hints(dir: &Path, tag: &str, hints: &crate::hints::BuiltHints) {
+    let d = HintsOnDisk {
+        tag: tag.to_string(),
+        hints: hints.clone(),
+    };
+    let Ok(bytes) = serde_json::to_vec(&d) else {
+        return;
+    };
+    let tmp = dir.join(format!("{HINTS_FILE}.tmp"));
+    if std::fs::write(&tmp, bytes).is_ok() && std::fs::rename(&tmp, dir.join(HINTS_FILE)).is_err() {
+        let _ = std::fs::remove_file(&tmp);
     }
 }
 

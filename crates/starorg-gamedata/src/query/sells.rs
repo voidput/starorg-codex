@@ -62,7 +62,7 @@ pub struct SellRow {
 }
 
 /// How the price rows matched the resources.
-#[derive(Debug, Clone, PartialEq, Default, Serialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct MatchStats {
     /// Distinct commodity names in the rows.
     pub commodities: usize,

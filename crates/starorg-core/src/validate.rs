@@ -5,7 +5,7 @@
 //! time; whole-file rules stop the apply before anything is written.
 
 use crate::ini::{BOM, StockIni};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Changed values longer than this get a warning (stock ships one of 16,026 bytes; Q9).
 pub const WARN_LEN: usize = 16_000;
@@ -240,6 +240,26 @@ pub fn tokens(s: &str) -> Tokens<'_> {
     t
 }
 
+/// `value` holds a control character (tab aside) more often than `stock` does. CIG's own
+/// stray ones (PTU 5.0 has descriptions with a bare CR mid-line) stay as they were; only
+/// one we would add fails.
+fn adds_control_chars(stock: &str, value: &str) -> bool {
+    let mut have: HashMap<char, usize> = HashMap::new();
+    for c in stock.chars().filter(|c| c.is_control() && *c != '\t') {
+        *have.entry(c).or_default() += 1;
+    }
+    value
+        .chars()
+        .filter(|c| c.is_control() && *c != '\t')
+        .any(|c| match have.get_mut(&c) {
+            Some(n) if *n > 0 => {
+                *n -= 1;
+                false
+            }
+            _ => true,
+        })
+}
+
 /// `a` contains all of `b` in order (as a subsequence).
 fn has_in_order(a: &[&str], b: &[&str]) -> bool {
     let mut it = a.iter();
@@ -252,7 +272,7 @@ pub fn check_value(stock: &str, value: &str, op: Op, added: &[&str]) -> Result<(
     if value.len() > MAX_LEN {
         return Err(Rule::TooLong);
     }
-    if value.chars().any(|c| c.is_control() && c != '\t') {
+    if adds_control_chars(stock, value) {
         return Err(Rule::ControlChar);
     }
     let st = tokens(stock);
@@ -496,6 +516,21 @@ mod tests {
         assert_eq!(
             check_value(s, "a\tb ~mission(Location)", Op::Override, &[]),
             Ok(())
+        );
+        // CIG's own stray CR stays (PTU 5.0 descriptions); one more of ours does not.
+        let cr = "Gloves.\r\\n\\nCamo.";
+        assert_eq!(
+            check_value(
+                cr,
+                &format!("{cr}\\n\\nA: 1"),
+                Op::GeneratedParts,
+                &["\\n\\nA: 1"]
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            check_value(cr, &format!("{cr}\r"), Op::GeneratedParts, &["\r"]),
+            Err(Rule::ControlChar)
         );
         assert_eq!(
             check_value(s, "Go now", Op::Override, &[]),

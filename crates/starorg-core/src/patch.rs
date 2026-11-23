@@ -43,6 +43,10 @@ pub const BUILTIN: &[(&str, &str)] = &[
         include_str!("../patches/missing-names.patch.toml"),
     ),
     (
+        "name-fixes.patch.toml",
+        include_str!("../patches/name-fixes.patch.toml"),
+    ),
+    (
         "quest-items.patch.toml",
         include_str!("../patches/quest-items.patch.toml"),
     ),
@@ -844,6 +848,43 @@ pub fn curated_names(
             if crate::enhance::check::check_added(v).is_ok() {
                 out.insert(folded, v.clone());
             }
+        }
+    }
+    out
+}
+
+/// Item names the built-in patches give, as the blueprint catalog should read them: a
+/// `fill_name` entry where stock has no real name, and a `set` entry on an `item_Name` key
+/// whose stock value still matches its `expect_sha256` (a swapped name CIG has not fixed).
+/// Keys folded. Only built-in patches: the catalog names blueprints the same for everyone.
+pub fn builtin_item_names(stock: &StockIni) -> HashMap<String, String> {
+    static PARSED: std::sync::OnceLock<Vec<PatchFile>> = std::sync::OnceLock::new();
+    let files = PARSED.get_or_init(|| {
+        BUILTIN
+            .iter()
+            .filter_map(|(n, t)| parse_patch(n, t).ok())
+            .collect()
+    });
+    let mut out = HashMap::new();
+    for l in files.iter().flat_map(|f| &f.loc) {
+        if l.op != LocOp::Set || l.requires.is_some() {
+            continue;
+        }
+        let Some(v) = &l.value else { continue };
+        let key = l.key.split(',').next().unwrap_or(&l.key);
+        let stock_value = stock.value(key).map(str::trim);
+        let applies = if l.fill_name {
+            crate::enhance::stock_name(stock, Some(key)).is_none()
+        } else {
+            key.to_ascii_lowercase().starts_with("item_name")
+                && l.expect_sha256.as_deref().is_some_and(|want| {
+                    stock.value(key).is_some_and(|sv| {
+                        want.eq_ignore_ascii_case(&fsutil::sha256_hex(sv.as_bytes()))
+                    })
+                })
+        };
+        if applies && stock_value != Some(v.as_str()) {
+            out.insert(fold_key(key), v.clone());
         }
     }
     out

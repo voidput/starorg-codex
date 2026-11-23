@@ -1,7 +1,8 @@
 //! `DATASET_CODE`: a hash of the code that writes the datasets (starorg-gamedata and
 //! starorg-data sources, StarBreaker pin included). The dataset cache keys on it instead of
 //! the app version, so a release that leaves extraction alone keeps the cached datasets,
-//! and any change to that code extracts again.
+//! and any change to that code extracts again. `HINTS_CODE` adds this crate and
+//! starorg-core: the obtain hints built from the datasets are kept on disk under it.
 
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -23,10 +24,10 @@ fn files(dir: &Path, out: &mut Vec<PathBuf>) {
     }
 }
 
-fn main() {
-    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+/// Hash of the sources and manifests of `names` (crates beside this one).
+fn hash(crates: &Path, names: &[&str]) -> String {
     let mut h = Sha256::new();
-    for name in ["starorg-gamedata", "starorg-data"] {
+    for name in names {
         let root = crates.join(name);
         for sub in ["src", "Cargo.toml"] {
             println!("cargo:rerun-if-changed={}", root.join(sub).display());
@@ -36,7 +37,7 @@ fn main() {
         all.sort();
         for f in all {
             let rel = f
-                .strip_prefix(&crates)
+                .strip_prefix(crates)
                 .unwrap_or(&f)
                 .to_string_lossy()
                 .replace('\\', "/");
@@ -49,9 +50,26 @@ fn main() {
             h.update(&text);
         }
     }
-    let hex: String = h.finalize()[..8]
+    h.finalize()[..8]
         .iter()
         .map(|b| format!("{b:02x}"))
-        .collect();
-    println!("cargo:rustc-env=DATASET_CODE={hex}");
+        .collect()
+}
+
+fn main() {
+    let crates = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let data = ["starorg-gamedata", "starorg-data"];
+    println!("cargo:rustc-env=DATASET_CODE={}", hash(&crates, &data));
+    println!(
+        "cargo:rustc-env=HINTS_CODE={}",
+        hash(
+            &crates,
+            &[
+                "starorg-gamedata",
+                "starorg-data",
+                "starorg-mcp",
+                "starorg-core"
+            ]
+        )
+    );
 }

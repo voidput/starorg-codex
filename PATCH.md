@@ -52,6 +52,12 @@ variants and magazine (`apply` and the app; `build` runs no patches). Built-in n
 one entry per key with a comment naming the source of the name. Never guess a name: an item
 without a verifiable name keeps the readable fallback.
 
+`name-fixes.patch.toml` (built in) fixes real stock names CIG copied from a sibling item
+(`set` with `expect_sha256` of the wrong stock name and `optional`, so a fixed or missing line
+retires the entry). The blueprint catalog reads these names and the curated ones too
+(`patch::builtin_item_names`), so a Smart Citizen import matches by the fixed name; re-import
+with `--replace` to drop links made under the old name.
+
 `[[data]]` entries: `id`, exactly one of `record` (short record name) or `guid`, optional
 `contract` (then `record` is the generator), `field`, `expect` (the loc key it has now) and
 `set`. `field` is one of `name_key`, `short_name_key`, `desc_key`, `title_key`,

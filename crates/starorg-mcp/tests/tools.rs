@@ -1267,6 +1267,29 @@ fn obtain_hints_cover_items_and_mined_resources() {
     let again = t.obtain_hints("LIVE").unwrap();
     assert_eq!(again.items, b.items);
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // Kept on disk: a new store (an app restart) reads the file, even where it could not
+    // build the hints again (mining cannot be extracted, yet no warning and no extraction).
+    let dir = w.root.join("cache/LIVE");
+    let file = std::fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path().join("obtain-hints.json"))
+        .find(|p| p.exists())
+        .expect("obtain-hints.json in the build folder");
+    struct NoExtract;
+    impl Extractor for NoExtract {
+        fn extract(&self, _: &Path, d: &str, _: &Path) -> Result<Measurement, String> {
+            Err(format!("{d}: no extraction expected"))
+        }
+    }
+    let mut cfg = w.config();
+    cfg.extractor = Arc::new(NoExtract);
+    let restarted = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(cfg))
+        .obtain_hints("LIVE")
+        .unwrap();
+    assert!(restarted.warnings.is_empty(), "{:?}", restarted.warnings);
+    assert_eq!(restarted.hints, b.hints);
+    assert!(file.exists());
     // A fresh price file counts at once, though the rest stays cached.
     let f = w.root.join("cache/uex/uex-commodity-prices.json");
     std::fs::write(&f, json!({"_fetched": "2026-11-22T09:00:00.000Z", "prices": [

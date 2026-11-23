@@ -174,6 +174,18 @@ placeholder line; missing-names renames that line instead.
   hide and pearls, LNA clothes, the holiday present, the GRIN cutter (the wiki says its name
   is a placeholder), the dashboard bobblehead and the collector/mag/mr01 weapon variants.
 
+## Name fixes (swapped stock names)
+
+- `name-fixes.patch.toml`: `qrt_specialist_heavy_helmet_01_01_12` is stock "Antium Core Jet"
+  (the core's name) and `qrt_specialist_heavy_arms_01_01_13` is "Antium Helmet Jet"; the
+  patch names them Antium Helmet Jet and Antium Arms Maroon (set pattern, wiki pages per
+  UUID). Guarded by `expect_sha256` of the wrong name and `optional`.
+- The blueprint catalog (`GameDataCatalog`) names blueprints through stock plus
+  `patch::builtin_item_names` (curated names for missing ones, these fixes), so the
+  owned-blueprint match no longer sees "Antium Core Jet" twice. The S2 `BroadSpec_Lite` and
+  S3 `BroudSpec` radars share one name key (`item_Name_RADR_CHCO_S02_BroadSpec`), so no
+  text fix can tell them apart; "BroadSpec" stays ambiguous.
+
 ## Open
 
 - A family named only through its bare base gets the base's name on every tint
