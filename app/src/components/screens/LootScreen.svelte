@@ -2,13 +2,19 @@
   /**
    * Loot: what drops where, from the channel's cached loot data. Two views: by area (caves,
    * derelicts, ...: what can drop there) and by item (every area it drops in), each likeliest
-   * first with rough odds per spawned box. Lazy: nothing loads before the screen opens; the
-   * list call returns summaries only and a row's drops load when it is picked (stale answers
-   * are ignored). Both lists are windowed. The backend builds the index once per build.
+   * first with rough odds per spawned box. Each list is a collapsible tree built here from the
+   * rows' paths (kind of place or category -> a middle level -> the row), collapsed until
+   * opened (remembered per viewer) and open wherever a search matches; it is windowed, so only
+   * the visible rows render. Lazy: nothing loads before the screen opens; the list call returns
+   * summaries only and a row's drops load when it is picked (stale answers are ignored), with
+   * a server-side filter that reaches drops past the first 2,000. The backend builds the index
+   * once per build.
    */
-  import { untrack } from 'svelte';
+  import { tick as nextTick, untrack } from 'svelte';
   import PackageOpen from '@lucide/svelte/icons/package-open';
   import Search from '@lucide/svelte/icons/search';
+  import ListFilter from '@lucide/svelte/icons/list-filter';
+  import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import DatabaseZap from '@lucide/svelte/icons/database-zap';
   import Info from '@lucide/svelte/icons/info';
   import ExternalLink from '@lucide/svelte/icons/external-link';
@@ -22,7 +28,10 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { LootDetail, LootList, LootSummary, LootView } from '@/lib/contract/types';
-  import { dropWhere, filterSummaries, groupsOf, listEntries, listed, oddsText, type ListEntry } from '@/lib/loot';
+  import { dropWhere, groupsOf, listed, oddsText } from '@/lib/loot';
+  import { ancestorsOf, leafId, openKey, parseOpen, searching, toggled, visibleTree, whereText, type TreeRow } from '@/lib/loottree';
+  import { keyAction } from '@/lib/grouptree';
+  import { guard } from '@/lib/loadstate';
   import { int } from '@/lib/format';
   import { toast } from '@/lib/stores/toast.svelte';
   import { app } from '@/lib/stores/app.svelte';
@@ -44,6 +53,20 @@
       /* storage blocked: the view still switches for this session */
     }
   }
+  function loadOpen(v: LootView): Set<string> {
+    try {
+      return new Set(parseOpen(localStorage.getItem(openKey(v))));
+    } catch {
+      return new Set();
+    }
+  }
+  function saveOpen(v: LootView, ids: ReadonlySet<string>) {
+    try {
+      localStorage.setItem(openKey(v), JSON.stringify([...ids]));
+    } catch {
+      /* storage blocked: the tree still opens for this session */
+    }
+  }
 
   let view = $state<LootView>(loadView());
   let tick = $state(0);
@@ -53,13 +76,28 @@
   let query = $state('');
   let group = $state('');
   let picked = $state<Record<LootView, string | null>>({ areas: null, items: null });
-  let detail = $state.raw<LootDetail | null>(null);
+  // Expanded branches per view (remembered per viewer), and those closed during the current search.
+  let open = $state.raw<Record<LootView, Set<string>>>({ areas: loadOpen('areas'), items: loadOpen('items') });
+  let closedInSearch = $state.raw<Set<string>>(new Set());
+  // The tree row with the keyboard focus, and a counter that asks the list to scroll to it.
+  let focusId = $state<string | null>(null);
+  let revealSeq = $state(0);
+  // A row to open and show once its view's list is there (a jump from the drops table).
+  let pendingReveal = $state<string | null>(null);
+
+  // The drops filter: typed, and the value sent (after a pause).
+  let dropFilter = $state('');
+  let sentFilter = $state('');
+  // The last detail answer with what it was asked for.
+  let detail = $state.raw<{ view: LootView; id: string; filter: string; d: LootDetail } | null>(null);
   let detailError = $state<ContractError | null>(null);
   let detailLoading = $state(false);
+  const detailGuard = guard();
 
   const devOn = $derived(!!app.settings?.advanced.developer_mode);
   const stamp = $derived(`${app.targetKey}|${app.rev}|${tick}`);
   const list = $derived(lists[view]?.stamp === stamp ? lists[view]!.list : null);
+  const hasList = $derived(list !== null);
   const ready = $derived(list?.state === 'ready');
 
   // Keyed on primitives only: the view and the stamp (channel key, refresh counter, Reload).
@@ -80,62 +118,166 @@
     return () => (stale = true);
   });
 
-  const rows = $derived(filterSummaries(list?.rows, query, group));
-  const entries = $derived<ListEntry[]>(listEntries(rows, view));
+  const tree = $derived(visibleTree(list?.rows, query, group, open[view], closedInSearch));
   const groups = $derived([{ id: '', label: view === 'areas' ? 'All places' : 'All categories' }, ...groupsOf(list?.rows).map((g) => ({ id: g.group, label: `${g.group} (${g.count})` }))]);
-  // The picked row while it is listed (a filter can hide it).
+  // The picked row while it is listed (a refresh can drop it).
   const current = $derived(listed(Array.isArray(list?.rows) ? list.rows : [], picked[view]));
   const currentRow = $derived<LootSummary | null>(current === null ? null : (list?.rows.find((r) => r.id === current) ?? null));
+  // The row that takes Tab into the tree: the focused one, else the pick, else the first.
+  const tabId = $derived.by(() => {
+    const rows = tree.rows;
+    if (focusId !== null && rows.some((r) => r.id === focusId)) return focusId;
+    if (current !== null && rows.some((r) => r.id === leafId(current))) return leafId(current);
+    return rows[0]?.id ?? '';
+  });
+  const revealIndex = $derived(tree.rows.findIndex((r) => r.id === tabId));
 
-  // Keyed on primitives only: the view, the picked id, readiness and the stamp. A newer pick
-  // marks the older request stale, so a slow answer never replaces a newer one.
+  // A new search starts with every branch open again.
+  $effect(() => {
+    void query;
+    closedInSearch = new Set();
+  });
+
+  // Keyed on primitives only: the row to show, the view and whether its list is there.
+  $effect(() => {
+    const id = pendingReveal;
+    const v = view;
+    if (id === null || !hasList) return;
+    untrack(() => {
+      pendingReveal = null;
+      const row = lists[v]?.list.rows.find((r) => r.id === id);
+      if (!row) return;
+      const up = ancestorsOf(row);
+      if (up.some((a) => !open[v].has(a))) setOpen(v, new Set([...open[v], ...up]));
+      focusId = leafId(id);
+      revealSeq++;
+    });
+  });
+
+  // The typed filter is sent after a short pause.
+  $effect(() => {
+    const f = dropFilter.trim();
+    const t = setTimeout(() => (sentFilter = f), 220);
+    return () => clearTimeout(t);
+  });
+
+  // Keyed on primitives only: the view, the picked id, the sent filter, readiness and the
+  // stamp. A newer pick or filter makes the older request stale, so a slow answer never
+  // replaces a newer one.
   $effect(() => {
     const v = view;
     const id = current;
+    const f = sentFilter;
     void stamp;
     if (id === null || !ready) {
+      detailGuard.drop();
       detail = null;
       detailLoading = false;
       return;
     }
-    let stale = false;
+    const fresh = detailGuard.next();
     const target = untrack(() => (app.target ? $state.snapshot(app.target) : null));
     detailLoading = true;
     detailError = null;
     api
-      .lootDetail(target, v, id)
+      .lootDetail(target, v, id, f || null)
       .then((d) => {
-        if (stale) return;
-        detail = d;
+        if (fresh()) detail = { view: v, id, filter: f, d };
       })
-      .catch((e) => !stale && (detailError = toContractError(e)))
-      .finally(() => !stale && (detailLoading = false));
-    return () => (stale = true);
+      .catch((e) => fresh() && (detailError = toContractError(e)))
+      .finally(() => fresh() && (detailLoading = false));
+    return () => detailGuard.drop();
   });
 
-  // The detail of the current pick only (never an older answer).
-  const shownDetail = $derived(detail && detail.view === view && detail.entry?.id === current ? detail : null);
+  // The answer for the current pick (an older filter's while a newer one loads, never another row's).
+  const shownDetail = $derived(detail && detail.view === view && detail.id === current ? detail.d : null);
+  // An answer that knows nothing of the row (the data went missing, or a refresh dropped it).
+  const emptyAnswer = $derived(!!shownDetail && (shownDetail.state !== 'ready' || shownDetail.entry === null));
 
   function setView(v: LootView) {
     view = v;
     query = '';
     group = '';
+    focusId = null;
+    resetDropFilter();
     saveView(v);
   }
-  function pick(id: string) {
-    picked = { ...picked, [view]: id };
+  function resetDropFilter() {
+    dropFilter = '';
+    sentFilter = '';
   }
-  /** Jump to the other view with that row picked (its name in the search, so it is in view). */
-  function jump(id: string, name: string) {
+  function pick(id: string) {
+    if (picked[view] !== id) resetDropFilter();
+    picked = { ...picked, [view]: id };
+    focusId = leafId(id);
+  }
+  function setOpen(v: LootView, ids: Set<string>) {
+    open = { ...open, [v]: ids };
+    saveOpen(v, ids);
+  }
+  /** Open or close a branch: while searching only for this search, else remembered. */
+  function setBranch(id: string, on: boolean) {
+    if (searching(query)) closedInSearch = toggled(closedInSearch, id, !on);
+    else setOpen(view, toggled(open[view], id, on));
+  }
+  /** Jump to the other view with that row picked, its branches opened and in view. */
+  function jump(id: string) {
     const other: LootView = view === 'areas' ? 'items' : 'areas';
     picked = { ...picked, [other]: id };
     view = other;
     group = '';
-    query = name;
+    query = '';
+    resetDropFilter();
+    pendingReveal = id;
     saveView(other);
   }
   function openRecord(guid: string) {
     dev.openRecord(guid, () => app.go('explorer'));
+  }
+
+  let treeEl = $state<HTMLElement | null>(null);
+  let typed = '';
+  let typedAt = 0;
+  async function focusRow(id: string) {
+    focusId = id;
+    revealSeq++;
+    await nextTick();
+    treeEl?.querySelector<HTMLElement>(`[data-tree-id="${CSS.escape(id)}"]`)?.focus();
+  }
+  function activate(r: TreeRow) {
+    if (r.node.kind === 'branch') setBranch(r.id, !r.expanded);
+    else pick(r.node.row.id);
+  }
+  function onTreeKey(e: KeyboardEvent) {
+    if (e.altKey || e.metaKey) return;
+    const rows = tree.rows;
+    if (!rows.length) return;
+    let buf = '';
+    if (e.key.length === 1 && e.key !== ' ' && !e.ctrlKey) {
+      const now = Date.now();
+      typed = now - typedAt > 700 ? e.key : typed + e.key;
+      typedAt = now;
+      buf = typed;
+    }
+    const a = keyAction(rows, tabId, e.key, e.ctrlKey, buf);
+    switch (a.kind) {
+      case 'focus':
+        void focusRow(a.id);
+        break;
+      case 'expand':
+      case 'collapse':
+        setBranch(a.id, a.kind === 'expand');
+        break;
+      case 'select-only':
+      case 'toggle': {
+        const r = rows.find((x) => x.id === a.id);
+        if (r) activate(r);
+        break;
+      }
+      default:
+        return;
+    }
+    e.preventDefault();
   }
 
   // "Read game data" (a JobKind::Extract job): the Where to get datasets the loot index is built from.
@@ -153,7 +295,8 @@
     }
   }
 
-  const LROW = 44;
+  const unit = (n: number, one: string, many: string) => `${int(n)} ${n === 1 ? one : many}`;
+  const LROW = 34;
   const DROW = 40;
   const DGRID = 'grid grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_5.5rem] items-center gap-3';
 </script>
@@ -208,47 +351,71 @@
           </div>
           <div class="flex items-center gap-2 text-[12px]">
             <SelectField ariaLabel={view === 'areas' ? 'Kind of place' : 'Category'} options={groups} value={group} onchange={(v) => (group = v)} class="min-w-36 flex-1" />
-            {#if list}<span class="text-muted-foreground shrink-0" aria-live="polite">{int(rows.length)} of {int(list.rows.length)}</span>{/if}
+            {#if list}<span class="text-muted-foreground shrink-0" aria-live="polite">{int(tree.matched)} of {int(list.rows.length)}</span>{/if}
           </div>
         </div>
         {#if !list}
           <div class="grid gap-1.5 p-2.5" aria-busy="true" aria-label="Loading">
-            {#each Array.from({ length: 10 }, (_, i) => i) as i (i)}<Skeleton class="h-8 w-full" />{/each}
+            {#each Array.from({ length: 10 }, (_, i) => i) as i (i)}<Skeleton class="h-7 w-full" />{/each}
           </div>
-        {:else if !rows.length}
+        {:else if !tree.rows.length}
           <p class="text-muted-foreground px-3 py-6 text-center text-[12px]">{list.rows.length ? `Nothing matches${query ? ` "${query}"` : ''}.` : view === 'areas' ? 'No loot area in this build.' : 'No item drops in a loot area in this build.'}</p>
         {:else}
-          <VirtualList
-            items={entries}
-            rowHeight={LROW}
-            label={view === 'areas' ? 'Loot areas by kind of place' : 'Items that drop in loot'}
-            resetKey={`${view}|${query}|${group}`}
-            key={(e) => (e.kind === 'group' ? `g:${e.group}` : e.row.id)}
-            class="h-[calc(100vh-19rem)] min-h-64 py-1"
-          >
-            {#snippet row(e)}
-              {#if e.kind === 'group'}
-                <h3 class="eyebrow text-muted-foreground flex h-full items-end px-3 pb-1.5">{e.group} <span class="mono ml-1.5 font-normal">{e.count}</span></h3>
-              {:else}
-                {@const r = e.row}
-                <button
-                  type="button"
-                  aria-current={r.id === current ? 'true' : undefined}
+          <div bind:this={treeEl} class="contents">
+            <VirtualList
+              items={tree.rows}
+              rowHeight={LROW}
+              role="tree"
+              label={view === 'areas' ? 'Loot areas by kind of place' : 'Items that drop in loot, by category'}
+              resetKey={`${view}|${query}|${group}`}
+              reveal={revealIndex}
+              revealKey={revealSeq}
+              key={(r) => r.id}
+              onkeydown={onTreeKey}
+              class="h-[calc(100vh-19rem)] min-h-64 py-1"
+            >
+              {#snippet row(r)}
+                {@const leaf = r.node.kind === 'leaf' ? r.node.row : null}
+                {@const branch = r.node.kind === 'branch' ? r.node : null}
+                {@const on = leaf !== null && leaf.id === current}
+                <!-- Keys are handled once on the tree (onTreeKey). -->
+                <!-- svelte-ignore a11y_click_events_have_key_events -->
+                <div
+                  role="treeitem"
+                  data-tree-id={r.id}
+                  aria-level={r.level}
+                  aria-setsize={r.size}
+                  aria-posinset={r.pos}
+                  aria-expanded={branch ? r.expanded : undefined}
+                  aria-selected={leaf ? on : undefined}
+                  aria-label={branch ? `${r.label}, ${unit(branch.count, view === 'areas' ? 'area' : 'item', view === 'areas' ? 'areas' : 'items')}` : undefined}
+                  tabindex={r.id === tabId ? 0 : -1}
                   class={cn(
-                    'focus-visible:ring-ring/60 grid h-full w-full grid-cols-[minmax(0,1fr)_auto] content-center gap-x-2 px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset',
-                    r.id === current ? 'bg-primary/15 text-foreground' : 'hover:bg-muted',
+                    'focus-visible:ring-ring/60 flex h-full cursor-pointer items-center gap-1.5 pr-3 outline-none select-none focus-visible:ring-2 focus-visible:ring-inset',
+                    on ? 'bg-primary/15 text-foreground' : 'hover:bg-muted',
                   )}
-                  onclick={() => pick(r.id)}
+                  style="padding-left: {0.375 + (r.level - 1) * 1}rem"
+                  onclick={() => {
+                    focusId = r.id;
+                    activate(r);
+                  }}
+                  onfocus={() => (focusId = r.id)}
                 >
-                  <span class={cn('truncate text-[13px]', r.id === current && 'font-medium')} title={r.name}>{r.name}</span>
-                  <span class="mono text-muted-foreground text-[11px]" title="Best rough odds per box">{oddsText(r.best)}</span>
-                  <span class="text-muted-foreground col-span-2 truncate text-[11px]">
-                    {view === 'areas' ? `${int(r.count)} item${r.count === 1 ? '' : 's'}` : `${r.group} · ${int(r.count)} area${r.count === 1 ? '' : 's'}`}
-                  </span>
-                </button>
-              {/if}
-            {/snippet}
-          </VirtualList>
+                  {#if branch}
+                    <ChevronRight class={cn('text-muted-foreground size-3.5 shrink-0 transition-transform motion-reduce:transition-none', r.expanded && 'rotate-90')} aria-hidden="true" />
+                    <span class={cn('min-w-0 flex-1 truncate text-[13px]', r.level === 1 && 'font-medium')} title={r.label}>{r.label}</span>
+                    <span class="mono text-muted-foreground shrink-0 text-[11px]" title={unit(branch.count, view === 'areas' ? 'area' : 'item', view === 'areas' ? 'areas' : 'items')}>{int(branch.count)}</span>
+                    <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds per box below">{oddsText(branch.best)}</span>
+                  {:else if leaf}
+                    <span class="size-3.5 shrink-0" aria-hidden="true"></span>
+                    <span class={cn('min-w-0 flex-1 truncate text-[13px]', on && 'font-medium')} title={leaf.name}>{leaf.name}</span>
+                    <span class="text-muted-foreground shrink-0 text-[11px]">{view === 'areas' ? unit(leaf.count, 'item', 'items') : unit(leaf.count, 'area', 'areas')}</span>
+                    <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds per box">{oddsText(leaf.best)}</span>
+                  {/if}
+                </div>
+              {/snippet}
+            </VirtualList>
+          </div>
         {/if}
       </section>
 
@@ -258,9 +425,10 @@
         {:else}
           <header class="flex flex-wrap items-start gap-x-3 gap-y-1">
             <div class="grid min-w-0 flex-1 gap-0.5">
+              <p class="text-muted-foreground truncate text-[11.5px]">{whereText(currentRow)}</p>
               <h2 id="loot-title" class="text-[16px] font-semibold">{currentRow.name}</h2>
               <p class="text-muted-foreground text-[12px]">
-                {currentRow.group} · {view === 'areas' ? `${int(currentRow.count)} item${currentRow.count === 1 ? '' : 's'} can drop here` : `drops in ${int(currentRow.count)} area${currentRow.count === 1 ? '' : 's'}`} · best {oddsText(currentRow.best)} per box
+                {view === 'areas' ? `${unit(currentRow.count, 'item', 'items')} can drop here` : `drops in ${unit(currentRow.count, 'area', 'areas')}`} · best {oddsText(currentRow.best)} per box
                 <span class="mono block truncate text-[11px]" title={currentRow.id}>{currentRow.id}</span>
               </p>
             </div>
@@ -277,7 +445,21 @@
           </header>
           {#if detailError}
             <ErrorState title="Could not read the drops" error={detailError} onretry={() => tick++} />
+          {:else if emptyAnswer}
+            <p class="text-muted-foreground py-6 text-center text-[12px]">No drops listed.</p>
           {:else}
+            <div class="relative">
+              <ListFilter class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
+              <Input
+                type="search"
+                aria-label={view === 'areas' ? 'Filter the items' : 'Filter the areas'}
+                placeholder={view === 'areas' ? 'Filter items, containers, rarity' : 'Filter areas, containers, rarity'}
+                class="h-8 pl-8"
+                value={dropFilter}
+                oninput={(e) => (dropFilter = (e.currentTarget as HTMLInputElement).value)}
+                onkeydown={(e) => e.key === 'Escape' && dropFilter && (e.preventDefault(), resetDropFilter())}
+              />
+            </div>
             <div role="table" aria-label={view === 'areas' ? `What can drop in ${currentRow.name}` : `Where ${currentRow.name} drops`} class="text-[12.5px]">
               <div role="rowgroup">
                 <div role="row" class={cn(DGRID, 'text-muted-foreground border-b px-1 py-1 text-[11px]')}>
@@ -291,9 +473,17 @@
                   {#each Array.from({ length: Math.min(8, Math.max(3, currentRow.count)) }, (_, i) => i) as i (i)}<Skeleton class="h-7 w-full" />{/each}
                 </div>
               {:else if !shownDetail.rows.length}
-                <p class="text-muted-foreground py-6 text-center text-[12px]">No drops listed.</p>
+                <p class="text-muted-foreground py-6 text-center text-[12px]">{detail?.filter ? `No drop matches "${detail.filter}".` : 'No drops listed.'}</p>
               {:else}
-                <VirtualList items={shownDetail.rows} rowHeight={DROW} role="rowgroup" label="Drops, likeliest first" resetKey={`${view}|${current}`} key={(d, i) => `${d.id}/${i}`} class="max-h-[calc(100vh-21rem)] min-h-48">
+                <VirtualList
+                  items={shownDetail.rows}
+                  rowHeight={DROW}
+                  role="rowgroup"
+                  label="Drops, likeliest first"
+                  resetKey={`${view}|${current}|${detail?.filter ?? ''}`}
+                  key={(d, i) => `${d.id}/${i}`}
+                  class="max-h-[calc(100vh-24rem)] min-h-48"
+                >
                   {#snippet row(d)}
                     <div role="row" class={cn(DGRID, 'border-border/50 h-full border-b px-1')}>
                       <span role="cell" class="grid min-w-0">
@@ -301,18 +491,24 @@
                           type="button"
                           class="text-primary focus-visible:ring-ring/60 truncate rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2"
                           title={view === 'areas' ? `Where else ${d.name} drops` : `What else drops in ${d.name}`}
-                          onclick={() => jump(d.id, d.name)}>{d.name}</button
+                          onclick={() => jump(d.id)}>{d.name}</button
                         >
-                        <span class="text-muted-foreground truncate text-[11px]">{d.group}</span>
+                        <span class="text-muted-foreground truncate text-[11px]" title={d.group}>{d.group}</span>
                       </span>
                       <span role="cell" class="text-muted-foreground truncate" title={dropWhere(d)}>{dropWhere(d)}</span>
                       <span role="cell" class="text-right font-medium tabular-nums">{oddsText(d.odds)}</span>
                     </div>
                   {/snippet}
                 </VirtualList>
-                {#if shownDetail.total > shownDetail.rows.length}
-                  <p class="text-muted-foreground pt-2 text-[11.5px]">The likeliest {int(shownDetail.rows.length)} of {int(shownDetail.total)} shown.</p>
-                {/if}
+              {/if}
+              {#if shownDetail && (detail?.filter || shownDetail.total > shownDetail.rows.length)}
+                <p class="text-muted-foreground pt-2 text-[11.5px]" aria-live="polite">
+                  {#if detail?.filter}
+                    {int(shownDetail.total)} of {int(shownDetail.all)} drops match{shownDetail.total > shownDetail.rows.length ? `; the likeliest ${int(shownDetail.rows.length)} shown` : ''}.
+                  {:else if shownDetail.total > shownDetail.rows.length}
+                    The likeliest {int(shownDetail.rows.length)} of {int(shownDetail.total)} shown; filter to reach the rest.
+                  {/if}
+                </p>
               {/if}
             </div>
           {/if}

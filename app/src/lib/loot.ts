@@ -1,9 +1,8 @@
 /**
- * The Loot screen's pure helpers: rough-odds text, the list search and group filter, the
- * grouped areas list as flat rows (headers and areas, for one windowed list), the visible
- * window of a long list, and labels for how an item is there.
+ * The Loot screen's pure helpers: rough-odds text, the list search and group filter, and
+ * labels for how an item is there. The lists' trees are in loottree.ts.
  */
-import type { LootDrop, LootDropKind, LootSummary, LootView } from './contract/types';
+import type { LootDrop, LootDropKind, LootSummary } from './contract/types';
 
 /** Rough odds per spawned box as a percentage, as the WHERE TO GET line writes them (`pct` in where_.rs). */
 export function oddsText(n: number): string {
@@ -17,20 +16,21 @@ export function oddsText(n: number): string {
 /** Lower-case words of a query. */
 export const queryWords = (q: string): string[] => q.toLowerCase().split(/\s+/).filter(Boolean);
 
-/** Rows whose name, group or id hold every word of `query`, in `group` when set. */
-export function filterSummaries(rows: LootSummary[] | null | undefined, query: string, group: string): LootSummary[] {
+/** Rows whose name, tree path, group or id hold every word of `query`, in `group` when set. */
+export function filterSummaries(rows: readonly LootSummary[] | null | undefined, query: string, group: string): LootSummary[] {
   if (!Array.isArray(rows)) return [];
   const words = queryWords(query);
   return rows.filter((r) => {
     if (group && r.group !== group) return false;
     if (!words.length) return true;
-    const hay = `${r.name} ${r.group} ${r.id}`.toLowerCase();
+    const path = Array.isArray(r.path) ? r.path.join(' ') : '';
+    const hay = `${r.name} ${path} ${r.group} ${r.id}`.toLowerCase();
     return words.every((w) => hay.includes(w));
   });
 }
 
 /** The groups of a list with their sizes, by name with `Other` last (the filter's options). */
-export function groupsOf(rows: LootSummary[] | null | undefined): { group: string; count: number }[] {
+export function groupsOf(rows: readonly LootSummary[] | null | undefined): { group: string; count: number }[] {
   const out: { group: string; count: number }[] = [];
   if (!Array.isArray(rows)) return out;
   const at = new Map<string, number>();
@@ -44,24 +44,6 @@ export function groupsOf(rows: LootSummary[] | null | undefined): { group: strin
   return out.sort((a, b) => Number(a.group === 'Other') - Number(b.group === 'Other') || a.group.localeCompare(b.group));
 }
 
-export type ListEntry = { kind: 'group'; group: string; count: number } | { kind: 'row'; row: LootSummary };
-
-/** One windowed list: the areas view gets a header before each group (rows arrive grouped); items are flat. */
-export function listEntries(rows: LootSummary[], view: LootView): ListEntry[] {
-  if (view === 'items') return rows.map((row) => ({ kind: 'row', row }));
-  const out: ListEntry[] = [];
-  let head: { kind: 'group'; group: string; count: number } | null = null;
-  for (const row of rows) {
-    if (!head || head.group !== row.group) {
-      head = { kind: 'group', group: row.group, count: 0 };
-      out.push(head);
-    }
-    head.count++;
-    out.push({ kind: 'row', row });
-  }
-  return out;
-}
-
 /** How the item is there, beside the container: a rack always holds it (a loot roll or a loose spot, whose container says "Lying loose", needs no word). */
 export const KIND_LABEL: Record<LootDropKind, string> = { loot: '', fixed: 'always in it', loose: '' };
 
@@ -71,4 +53,4 @@ export function dropWhere(d: Pick<LootDrop, 'container' | 'rarity' | 'kind'>): s
 }
 
 /** The id still listed, else null (a pick hidden by the filter or gone after a refresh). */
-export const listed = (rows: LootSummary[], id: string | null): string | null => (id !== null && rows.some((r) => r.id === id) ? id : null);
+export const listed = (rows: readonly LootSummary[], id: string | null): string | null => (id !== null && rows.some((r) => r.id === id) ? id : null);

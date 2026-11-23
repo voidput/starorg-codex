@@ -762,11 +762,15 @@ pub struct LootListRequest {
 }
 
 /// One area's items or one item's areas; `id` is a [`LootSummary::id`] of that view.
+/// `filter`: only the drops holding every word of it (name, path, container, rarity, id),
+/// so the drops past `MAX_DROPS` are reachable; the answer is still capped.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LootDetailRequest {
     pub target: Option<ChannelRef>,
     pub view: LootView,
     pub id: String,
+    #[serde(default)]
+    pub filter: Option<String>,
 }
 
 // The Shops screen (`shop_inventory`, `shop_items`): what each UEX terminal sells, from the

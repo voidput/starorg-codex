@@ -450,6 +450,8 @@ export interface LootDetailRequest {
   view: LootView;
   /** A `LootSummary.id` of that view. */
   id: string;
+  /** Only the drops holding every word (name, path, container, rarity, id); still capped. */
+  filter?: string | null;
 }
 
 /** One row of a Loot list: an area or an item (summary only). */
@@ -459,13 +461,15 @@ export interface LootSummary {
   name: string;
   /** Kind of place ("Caves") or item category ("FPS weapons"). */
   group: string;
+  /** Its place in the list's tree, top first, without the row (["Caves", "Occupied"]); empty for a top-level row. */
+  path: string[];
   /** Areas: items that can drop there. Items: areas it drops in. */
   count: number;
   /** Best rough odds per spawned box, 0 to 1. */
   best: number;
 }
 
-/** `loot_list`: areas by group then name, or items by name. */
+/** `loot_list`: areas by group (Other last), path then name, or items by name. */
 export interface LootList {
   state: LootDataState;
   view: LootView;
@@ -478,6 +482,7 @@ export interface LootList {
 export interface LootDrop {
   id: string;
   name: string;
+  /** Where the row sits in its list's tree ("Caves › Occupied", "FPS weapons › Rifles"). */
   group: string;
   /** Rough odds one spawned box holds the item, 0 to 1. */
   odds: number;
@@ -487,7 +492,7 @@ export interface LootDrop {
   kind: LootDropKind;
 }
 
-/** `loot_detail`: likeliest first, at most 2000 rows (`total` counts all). */
+/** `loot_detail`: likeliest first, at most 2000 rows; `total` counts the drops matching the filter, `all` every drop. */
 export interface LootDetail {
   state: LootDataState;
   view: LootView;
@@ -497,6 +502,7 @@ export interface LootDetail {
   record: ItemRecord | null;
   rows: LootDrop[];
   total: number;
+  all: number;
 }
 
 /** Readable bucket of what a shop sells (`starorg_mcp::shops::ShopCategory`), in display order. */

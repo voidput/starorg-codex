@@ -38,10 +38,15 @@ fn list(b: &MockBackend, target: Option<ChannelRef>, view: LootView) -> LootList
 }
 
 fn detail(b: &MockBackend, view: LootView, id: &str) -> LootDetail {
+    filtered(b, view, id, None)
+}
+
+fn filtered(b: &MockBackend, view: LootView, id: &str, filter: Option<&str>) -> LootDetail {
     b.loot_detail(LootDetailRequest {
         target: Some(live()),
         view,
         id: id.into(),
+        filter: filter.map(str::to_string),
     })
     .unwrap()
 }
@@ -119,6 +124,71 @@ fn loot_on_the_mock_is_missing_until_the_game_data_is_read() {
 }
 
 #[test]
+fn loot_rows_carry_tree_paths_and_details_filter() {
+    let b = MockBackend::default();
+    read_live(&b);
+    let areas = list(&b, Some(live()), LootView::Areas);
+    let at = |id: &str| areas.rows.iter().find(|r| r.id == id).unwrap();
+    let path = |id: &str| {
+        let r = at(id);
+        let mut p = r.path.clone();
+        p.push(r.name.clone());
+        p.join(" > ")
+    };
+    assert_eq!(
+        path("caves/loot_caves_occupied_sand_pyro"),
+        "Caves > Occupied > Sand Pyro"
+    );
+    assert_eq!(path("caves/loot_caves_unoccupied"), "Caves > Unoccupied");
+    assert_eq!(
+        path("distributioncentre_multiconfig_cargowing"),
+        "Distribution centres > Cargo wing > General"
+    );
+    assert_eq!(
+        path("v3slotpreset_distributioncentres_highsecurity"),
+        "Distribution centres > High security"
+    );
+    assert_eq!(
+        path("lootgeneration_multislotpreset_kareah"),
+        "Security Post Kareah > General (multi)"
+    );
+    // Alone in its place: a top-level row.
+    assert_eq!(
+        path("lootgeneration_slotpreset_ugfs"),
+        "Underground facilities"
+    );
+    let items = list(&b, Some(live()), LootView::Items);
+    assert!(items.rows.iter().all(|r| r.path.len() <= 2));
+    assert!(items.rows.iter().any(|r| r.path.len() == 2));
+
+    // The filter: every word, still likeliest first; `all` counts every drop.
+    let id = "caves/loot_caves_occupied_rock";
+    let full = detail(&b, LootView::Areas, id);
+    let f = filtered(&b, LootView::Areas, id, Some("pathfinder"));
+    assert!(!f.rows.is_empty() && f.rows.len() < full.rows.len());
+    assert!(f.rows.iter().all(|r| r.name.contains("Pathfinder")));
+    assert_eq!((f.total, f.all), (f.rows.len(), full.total));
+    assert!(f.rows.windows(2).all(|w| w[0].odds >= w[1].odds));
+    let n = filtered(&b, LootView::Areas, id, Some("zzz"));
+    assert!(n.entry.is_some() && n.rows.is_empty() && n.total == 0);
+    // An area drop names where it sits in the tree.
+    let gun = &items
+        .rows
+        .iter()
+        .find(|r| r.group == "FPS weapons")
+        .unwrap()
+        .id;
+    let d = detail(&b, LootView::Items, gun);
+    assert!(
+        d.rows
+            .iter()
+            .any(|r| r.group.contains(starorg_mcp::loot::PATH_SEP)),
+        "{:?}",
+        d.rows
+    );
+}
+
+#[test]
 fn loot_unions_match_types_ts() {
     let ts = std::fs::read_to_string(app_src().join("types.ts")).unwrap();
     for (name, want) in [
@@ -151,6 +221,13 @@ fn loot_commands_answer_over_ipc() {
     )
     .unwrap();
     assert_eq!(d["state"], "missing");
+    // With a filter too.
+    let d = ipc(
+        "loot_detail",
+        json!({"req": {"target": null, "view": "areas", "id": "x", "filter": "gun"}}),
+    )
+    .unwrap();
+    assert_eq!(d["all"], 0);
 }
 
 /// `mock-loot.gen.json`: every list and detail of the mock, read by the TS mock.

@@ -695,10 +695,10 @@ fn loot_screen_reads_only_cached_data() {
     let items = t.loot_list(Some("LIVE"), LootView::Items);
     let names: Vec<&str> = items.rows.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(names, ["FS-9 LMG", "Verdict LMG"]);
-    let cave = t.loot_detail(Some("LIVE"), LootView::Areas, "caves/loot_caves");
+    let cave = t.loot_detail(Some("LIVE"), LootView::Areas, "caves/loot_caves", None);
     assert_eq!(cave.total, 2);
     assert!(cave.rows[0].odds >= cave.rows[1].odds);
-    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01");
+    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01", None);
     assert_eq!(fs9.record.unwrap().guid, "id-fs9");
     assert_eq!(fs9.rows[0].name, "Caves");
     // Reading the lists again extracts nothing more.

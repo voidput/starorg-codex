@@ -9,10 +9,11 @@
 //! even pick inside each tag pool. Loot tables no area places (corpses, events) are not
 //! listed.
 //!
-//! The list answers ([`LootList`]) carry summaries only; [`LootDetail`] is one area's or one
-//! item's drops.
+//! The list answers ([`LootList`]) carry summaries only, each with its place in the screen's
+//! trees ([`crate::loot_tree`]: kind of place or category, a middle level, the row);
+//! [`LootDetail`] is one area's or one item's drops, optionally filtered.
 
-use crate::hints::{AREA_PLACES, loot_hint};
+use crate::hints::loot_hint;
 use crate::shops::{ItemRecord, by_game_type};
 use serde::{Deserialize, Serialize};
 use starorg_gamedata::query::obtain::{AreaSummary, BulkObtain, Datasets, LootIndex, SpawnKind};
@@ -27,8 +28,12 @@ pub mod input {
     };
 }
 
-/// Drops kept per detail answer (the rest are counted in [`LootDetail::total`]).
+/// Drops kept per detail answer (the rest are counted in [`LootDetail::total`]; a filter
+/// reaches them).
 pub const MAX_DROPS: usize = 2000;
+
+/// Separator of [`LootDrop::group`]'s tree path.
+pub const PATH_SEP: &str = " › ";
 
 /// `ready`, or `missing` while the build's loot data is not cached (Read game data).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -70,10 +75,14 @@ impl From<SpawnKind> for LootDropKind {
 pub struct LootSummary {
     /// The area's slot preset path, or the item's class name (what `loot_detail` takes).
     pub id: String,
-    /// Readable name.
+    /// Readable name, unique among the rows of the same `path`.
     pub name: String,
     /// Kind of place (`Caves`) or item category (`FPS weapons`).
     pub group: String,
+    /// The row's place in the list's tree, top first, without the row itself
+    /// (`["Caves", "Occupied"]`, `["FPS weapons", "Rifles"]`); empty when the row is a
+    /// kind of place or category of its own ([`crate::loot_tree`]).
+    pub path: Vec<String>,
     /// Areas: items that can drop there. Items: areas it can drop in.
     pub count: usize,
     /// The best rough odds per spawned box, 0 to 1.
@@ -87,7 +96,7 @@ pub struct LootList {
     pub view: LootView,
     /// The build the data is of (`LIVE 4.10.201.48085`).
     pub build: Option<String>,
-    /// Areas by group then name; items by name.
+    /// Areas by group (`Other` last), path then name; items by name.
     pub rows: Vec<LootSummary>,
 }
 
@@ -97,6 +106,7 @@ pub struct LootDrop {
     /// The item's class name, or the area's id.
     pub id: String,
     pub name: String,
+    /// Where the row sits in its list's tree (`Caves › Occupied`, `FPS weapons › Rifles`).
     pub group: String,
     /// Rough odds one spawned box holds the item, 0 to 1.
     pub odds: f64,
@@ -115,9 +125,12 @@ pub struct LootDetail {
     pub entry: Option<LootSummary>,
     /// Items: the game record (what the Explorer opens).
     pub record: Option<ItemRecord>,
-    /// Likeliest first, at most [`MAX_DROPS`].
+    /// Likeliest first, those matching the filter, at most [`MAX_DROPS`].
     pub rows: Vec<LootDrop>,
+    /// Drops matching the filter (all of them without one).
     pub total: usize,
+    /// Every drop of the entry, filter or not.
+    pub all: usize,
 }
 
 /// One (item, area) pair, by index.
@@ -148,68 +161,11 @@ pub struct LootScreen {
     item_ix: HashMap<String, usize>,
 }
 
-/// Slot preset words that say nothing about the place.
-const NOISE: &[&str] = &[
-    "lootgeneration",
-    "slotpreset",
-    "multislotpreset",
-    "v3slotpreset",
-    "multiconfig",
-    "harvestable",
-    "slotpresets",
-    "loot",
-];
-
 /// Test presets: not places a player reaches.
 pub fn hidden_area(area: &str) -> bool {
     area.to_ascii_lowercase()
         .split(['/', '_'])
         .any(|w| w.starts_with("test"))
-}
-
-/// An area's words without the preset words, and its kind of place: the first
-/// [`AREA_PLACES`] entry a word starts with (the words naming it dropped), else the mined
-/// place ([`starorg_gamedata::query::mined::area_place`]). Unlike
-/// [`crate::hints::area_place_name`], a word that merely contains `test`
-/// (`contestedzone`) does not hide the place; [`hidden_area`] leaves out test presets.
-fn split_area(area: &str) -> (Vec<&str>, Option<String>) {
-    let words: Vec<&str> = area
-        .split(['/', '_', '-'])
-        .filter(|w| !w.is_empty() && !NOISE.contains(&w.to_ascii_lowercase().as_str()))
-        .collect();
-    let lower: Vec<String> = words.iter().map(|w| w.to_ascii_lowercase()).collect();
-    let hit = AREA_PLACES
-        .iter()
-        .find(|(k, _)| lower.iter().any(|w| w.starts_with(k)));
-    let place = hit
-        .map(|(_, label)| (*label).to_string())
-        .or_else(|| starorg_gamedata::query::mined::area_place(area).map(str::to_string));
-    let mut kept: Vec<&str> = Vec::new();
-    for (w, lw) in words.into_iter().zip(&lower) {
-        if hit.is_some_and(|(k, _)| lw.starts_with(k)) {
-            continue;
-        }
-        if kept.last().is_some_and(|l| l.eq_ignore_ascii_case(w)) {
-            continue;
-        }
-        kept.push(w);
-    }
-    (kept, place)
-}
-
-/// A readable area name beside its kind of place ([`area_group`]): preset words and the
-/// word naming the kind of place dropped, the rest title-cased
-/// (`caves/loot_caves_occupied_rock_stanton` -> `Occupied Rock Stanton`); the kind of place
-/// itself when nothing else is left (`lootgeneration_slotpreset_derelictoutpost` ->
-/// `Derelict outposts`).
-pub fn area_name(area: &str) -> String {
-    let (words, place) = split_area(area);
-    let name = starorg_core::enhance::names::readable(&words.join("_"), &HashSet::new());
-    match (name.trim().is_empty(), place) {
-        (false, _) => name,
-        (true, Some(p)) => p,
-        (true, None) => area.to_string(),
-    }
 }
 
 /// Manufacturer codes as class names start (`behr_lmg_01` -> `BEHR`): the first word of
@@ -256,9 +212,9 @@ pub fn item_group(item: &ItemTags) -> String {
         .to_string()
 }
 
-/// The area's kind of place (`Caves`), else `Other`.
+/// The area's kind of place (`Caves`), else `Other` ([`crate::loot_tree`]).
 pub fn area_group(area: &str) -> String {
-    split_area(area).1.unwrap_or_else(|| "Other".into())
+    crate::loot_tree::area_place(area)
 }
 
 fn intern(labels: &mut Vec<String>, ix: &mut HashMap<String, u32>, s: String) -> u32 {
@@ -336,25 +292,28 @@ impl LootScreen {
                 kept_items.push((item, item_name(item, &makers), pairs));
             }
         }
-        // Items by name; areas by group, then name.
+        // Items by name; areas by group (`Other` last), path, then name.
         kept_items.sort_by(|(a, an, _), (b, bn, _)| {
             cmp_name(an, bn).then_with(|| a.class_name.cmp(&b.class_name))
         });
-        let mut area_order: Vec<(String, String, u32)> = area_names
-            .iter()
+        let ids: Vec<&str> = area_names.iter().map(String::as_str).collect();
+        let tree = crate::loot_tree::area_tree(&ids);
+        let mut area_order: Vec<(String, Vec<String>, String, u32)> = tree
+            .into_iter()
             .enumerate()
-            .map(|(i, a)| (area_group(a), area_name(a), i as u32))
+            .map(|(i, (path, name))| (area_group(&area_names[i]), path, name, i as u32))
             .collect();
         area_order.sort_by(|a, b| {
-            let other = |g: &str| g == "Other";
+            let other = |g: &str| g == crate::loot_tree::OTHER;
             other(&a.0)
                 .cmp(&other(&b.0))
                 .then_with(|| cmp_name(&a.0, &b.0))
-                .then_with(|| cmp_name(&a.1, &b.1))
-                .then_with(|| area_names[a.2 as usize].cmp(&area_names[b.2 as usize]))
+                .then_with(|| cmp_path(&a.1, &b.1))
+                .then_with(|| cmp_name(&a.2, &b.2))
+                .then_with(|| area_names[a.3 as usize].cmp(&area_names[b.3 as usize]))
         });
         let mut renumber = vec![0u32; area_names.len()];
-        for (new, (group, name, old)) in area_order.into_iter().enumerate() {
+        for (new, (group, path, name, old)) in area_order.into_iter().enumerate() {
             renumber[old as usize] = new as u32;
             let id = area_names[old as usize].clone();
             s.area_ix.insert(id.to_ascii_lowercase(), new);
@@ -362,12 +321,22 @@ impl LootScreen {
                 id,
                 name,
                 group,
+                path,
                 count: 0,
                 best: 0.0,
             });
         }
+        let kinds: Vec<(String, Option<String>)> = kept_items
+            .iter()
+            .map(|(item, _, _)| (item_group(item), crate::loot_tree::item_kind(item)))
+            .collect();
+        let item_paths = crate::loot_tree::item_paths(&kinds);
         s.by_area = vec![Vec::new(); s.areas.len()];
-        for (ii, (item, name, pairs)) in kept_items.into_iter().enumerate() {
+        for (ii, ((item, name, pairs), ((group, _), path))) in kept_items
+            .into_iter()
+            .zip(kinds.into_iter().zip(item_paths))
+            .enumerate()
+        {
             s.item_ix.insert(item.class_name.to_ascii_lowercase(), ii);
             let mut mine = Vec::with_capacity(pairs.len());
             let mut best = 0.0f64;
@@ -384,7 +353,8 @@ impl LootScreen {
             s.items.push(LootSummary {
                 id: item.class_name.clone(),
                 name,
-                group: item_group(item),
+                group,
+                path,
                 count: mine.len(),
                 best,
             });
@@ -415,7 +385,10 @@ impl LootScreen {
         }
     }
 
-    pub fn detail(&self, view: LootView, id: &str) -> LootDetail {
+    /// One area's items or one item's areas, likeliest first. `filter`: only the drops
+    /// holding every word of it (in the name, tree path, container, rarity or id), so the
+    /// tail past [`MAX_DROPS`] is reachable; still at most [`MAX_DROPS`] rows.
+    pub fn detail(&self, view: LootView, id: &str, filter: Option<&str>) -> LootDetail {
         let key = id.trim().to_ascii_lowercase();
         let found = match view {
             LootView::Areas => self.area_ix.get(&key),
@@ -429,6 +402,7 @@ impl LootScreen {
                 record: None,
                 rows: Vec::new(),
                 total: 0,
+                all: 0,
             };
         };
         let (entry, record, list) = match view {
@@ -439,35 +413,89 @@ impl LootScreen {
                 &self.by_item[i],
             ),
         };
-        let rows = list
-            .iter()
-            .take(MAX_DROPS)
-            .map(|&pi| {
-                let p = &self.pairs[pi as usize];
-                let other = match view {
-                    LootView::Areas => &self.items[p.item as usize],
-                    LootView::Items => &self.areas[p.area as usize],
-                };
-                LootDrop {
-                    id: other.id.clone(),
-                    name: other.name.clone(),
-                    group: other.group.clone(),
-                    odds: p.odds,
-                    container: self.labels[p.container as usize].clone(),
-                    rarity: p.rarity.map(|r| self.labels[r as usize].clone()),
-                    kind: p.kind,
-                }
-            })
+        let words: Vec<String> = filter
+            .unwrap_or("")
+            .split_whitespace()
+            .map(str::to_lowercase)
             .collect();
+        let drop_of = |pi: u32| {
+            let p = &self.pairs[pi as usize];
+            let other = match view {
+                LootView::Areas => &self.items[p.item as usize],
+                LootView::Items => &self.areas[p.area as usize],
+            };
+            LootDrop {
+                id: other.id.clone(),
+                name: other.name.clone(),
+                group: where_label(other),
+                odds: p.odds,
+                container: self.labels[p.container as usize].clone(),
+                rarity: p.rarity.map(|r| self.labels[r as usize].clone()),
+                kind: p.kind,
+            }
+        };
+        let mut total = 0;
+        let mut rows = Vec::new();
+        for &pi in list {
+            if words.is_empty() {
+                if rows.len() < MAX_DROPS {
+                    rows.push(drop_of(pi));
+                }
+                total += 1;
+                continue;
+            }
+            let d = drop_of(pi);
+            if drop_matches(&d, &words) {
+                total += 1;
+                if rows.len() < MAX_DROPS {
+                    rows.push(d);
+                }
+            }
+        }
         LootDetail {
             state: LootDataState::Ready,
             view,
             entry: Some(entry),
             record,
             rows,
-            total: list.len(),
+            total,
+            all: list.len(),
         }
     }
+}
+
+/// Where a row sits: its tree path (`Caves › Occupied`), or its group when it is a kind of
+/// place or category of its own.
+fn where_label(r: &LootSummary) -> String {
+    if r.path.is_empty() {
+        r.group.clone()
+    } else {
+        r.path.join(PATH_SEP)
+    }
+}
+
+/// Whether a drop holds every (lower-case) word.
+fn drop_matches(d: &LootDrop, words: &[String]) -> bool {
+    let hay = format!(
+        "{} {} {} {} {}",
+        d.name,
+        d.group,
+        d.container,
+        d.rarity.as_deref().unwrap_or(""),
+        d.id
+    )
+    .to_lowercase();
+    words.iter().all(|w| hay.contains(w.as_str()))
+}
+
+fn cmp_path(a: &[String], b: &[String]) -> std::cmp::Ordering {
+    for (x, y) in a.iter().zip(b) {
+        let o = cmp_name(x, y);
+        if o.is_ne() {
+            return o;
+        }
+    }
+    a.len().cmp(&b.len())
 }
 
 /// The lists while the loot data is not there.
@@ -488,6 +516,7 @@ pub fn missing_detail(view: LootView) -> LootDetail {
         record: None,
         rows: Vec::new(),
         total: 0,
+        all: 0,
     }
 }
 
@@ -495,7 +524,7 @@ pub fn missing_detail(view: LootView) -> LootDetail {
 mod tests {
     use super::*;
     use serde_json::json;
-    use starorg_gamedata::query::obtain::{LootData, build_loot_index};
+    use starorg_gamedata::query::obtain::{LootData, SpawnHit, build_loot_index};
     use starorg_gamedata::query::types::{LootArea, SpawnConfig, SpawnLoot, SpawnSlot};
 
     const CAN: &str = "LootGeneration/CanGenerateAsLoot";
@@ -607,12 +636,6 @@ mod tests {
 
     #[test]
     fn names_are_readable() {
-        assert_eq!(area_name("caves/loot_caves_occupied_rock"), "Occupied Rock");
-        assert_eq!(
-            area_name("lootgeneration_slotpreset_derelictoutpost"),
-            "Derelict outposts"
-        );
-        assert_eq!(area_name("v3slotpreset_loot_generic"), "Generic");
         assert_eq!(
             area_group("lootgeneration_slotpreset_derelictoutpost"),
             "Derelict outposts"
@@ -621,10 +644,6 @@ mod tests {
         assert_eq!(
             area_group("contestedzone_vault_executive"),
             "Contested zones"
-        );
-        assert_eq!(
-            area_name("contestedzone_vault_executive"),
-            "Vault Executive"
         );
         assert_eq!(area_group("v3slotpreset_rockcracker"), "Rock Cracker, Nyx");
         assert!(hidden_area("test_slotpreset_caves"));
@@ -669,10 +688,17 @@ mod tests {
             ]
         );
         assert_eq!(areas.rows[0].group, "Caves");
+        // Each alone in its place: a top-level row named by the place (and its words).
+        assert!(areas.rows[0].path.is_empty());
+        assert_eq!(areas.rows[0].name, "Caves: Occupied");
+        assert_eq!(areas.rows[1].name, "Derelict outposts");
         assert_eq!(areas.rows[0].count, 2);
         let items = s.list(LootView::Items);
         let names: Vec<&str> = items.rows.iter().map(|r| r.name.as_str()).collect();
         assert_eq!(names, ["Arclight Pistol", "FS-9 LMG", "RSI Helmet 01"]);
+        // Two FPS weapons of different kinds: no kind level; the helmet is its category.
+        assert_eq!(items.rows[0].path, ["FPS weapons"]);
+        assert!(items.rows[2].path.is_empty());
         assert_eq!(items.rows[1].count, 2);
         // LMG weight 3 of 4 in a crate that fills every spawn.
         assert!((items.rows[1].best - 0.75).abs() < 1e-9);
@@ -681,15 +707,16 @@ mod tests {
     #[test]
     fn details_are_likeliest_first() {
         let s = screen();
-        let cave = s.detail(LootView::Areas, "CAVES/loot_caves_occupied");
-        assert_eq!(cave.entry.as_ref().unwrap().name, "Occupied");
+        let cave = s.detail(LootView::Areas, "CAVES/loot_caves_occupied", None);
+        assert_eq!(cave.entry.as_ref().unwrap().name, "Caves: Occupied");
         let names: Vec<&str> = cave.rows.iter().map(|r| r.name.as_str()).collect();
         assert_eq!(names, ["FS-9 LMG", "Arclight Pistol"]);
         assert_eq!(cave.rows[0].container, "Large weapons crate");
         assert_eq!(cave.rows[0].kind, LootDropKind::Loot);
-        assert_eq!(cave.total, 2);
+        assert_eq!((cave.total, cave.all), (2, 2));
+        assert_eq!(cave.rows[0].group, "FPS weapons");
 
-        let lmg = s.detail(LootView::Items, "behr_lmg_01");
+        let lmg = s.detail(LootView::Items, "behr_lmg_01", None);
         assert_eq!(lmg.record.as_ref().unwrap().guid, "guid-behr_lmg_01");
         // Caves: 0.75 per box; the derelict outpost's crate is 3 of 4 spawns: 0.5625.
         let odds: Vec<f64> = lmg.rows.iter().map(|r| r.odds).collect();
@@ -697,12 +724,92 @@ mod tests {
         assert_eq!(lmg.rows[0].id, "caves/loot_caves_occupied");
         assert!((lmg.rows[1].odds - 0.5625).abs() < 1e-9);
 
-        let helmet = s.detail(LootView::Items, "rsi_helmet_01");
+        let helmet = s.detail(LootView::Items, "rsi_helmet_01", None);
         assert_eq!(helmet.rows[0].kind, LootDropKind::Fixed);
         assert!((helmet.rows[0].odds - 0.25).abs() < 1e-9);
 
-        let none = s.detail(LootView::Items, "store_only");
+        let none = s.detail(LootView::Items, "store_only", None);
         assert!(none.entry.is_none() && none.rows.is_empty());
+    }
+
+    #[test]
+    fn detail_filter_reaches_every_drop() {
+        let s = screen();
+        // Every word must match (name, path, container, rarity or id), any case.
+        let d = s.detail(
+            LootView::Areas,
+            "caves/loot_caves_occupied",
+            Some("  ARC  "),
+        );
+        let names: Vec<&str> = d.rows.iter().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["Arclight Pistol"]);
+        assert_eq!((d.total, d.all), (1, 2));
+        let d = s.detail(
+            LootView::Areas,
+            "caves/loot_caves_occupied",
+            Some("weapons ksar"),
+        );
+        assert_eq!(d.rows[0].id, "ksar_pistol_01");
+        let d = s.detail(
+            LootView::Areas,
+            "caves/loot_caves_occupied",
+            Some("nothing"),
+        );
+        assert!(d.entry.is_some() && d.rows.is_empty());
+        assert_eq!((d.total, d.all), (0, 2));
+        let d = s.detail(LootView::Items, "behr_lmg_01", Some("derelict"));
+        assert_eq!(d.rows.len(), 1);
+        assert_eq!(d.rows[0].id, "lootgeneration_slotpreset_derelictoutpost");
+        // A blank filter is none.
+        assert_eq!(s.detail(LootView::Items, "behr_lmg_01", Some(" ")).total, 2);
+    }
+
+    /// More drops than [`MAX_DROPS`]: the list stops there, a filter reaches the tail.
+    #[test]
+    fn detail_is_capped_and_the_filter_reaches_the_tail() {
+        let n = MAX_DROPS + 5;
+        let items: Vec<ItemTags> = (0..n)
+            .map(|i| {
+                item(
+                    &format!("gun_{i:05}"),
+                    &format!("Gun {i:05}"),
+                    "WeaponPersonal",
+                    &[],
+                )
+            })
+            .collect();
+        let refs: Vec<&ItemTags> = items.iter().collect();
+        let all: Vec<Vec<AreaSummary>> = (0..n)
+            .map(|i| {
+                let area = "caves/loot_caves_occupied".to_string();
+                vec![AreaSummary {
+                    area: area.clone(),
+                    best: SpawnHit {
+                        area,
+                        config: None,
+                        spawn_tags: Vec::new(),
+                        entity: "crate_weapons".into(),
+                        entity_name: None,
+                        slot_share: 1.0,
+                        kind: SpawnKind::Loot,
+                        table: None,
+                        per_roll: None,
+                        max_results: None,
+                        score: 1.0 - i as f64 / (n as f64 * 2.0),
+                        paths: None,
+                    },
+                    configs: 1,
+                }]
+            })
+            .collect();
+        let s = LootScreen::from_areas(&refs, &all, None);
+        let d = s.detail(LootView::Areas, "caves/loot_caves_occupied", None);
+        assert_eq!((d.rows.len(), d.total, d.all), (MAX_DROPS, n, n));
+        let last = format!("gun_{:05}", n - 1);
+        assert!(d.rows.iter().all(|r| r.id != last));
+        let d = s.detail(LootView::Areas, "caves/loot_caves_occupied", Some(&last));
+        assert_eq!(d.rows.len(), 1);
+        assert_eq!(d.rows[0].id, last);
     }
 
     #[test]

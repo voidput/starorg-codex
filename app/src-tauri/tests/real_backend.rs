@@ -2452,6 +2452,7 @@ fn loot_is_missing_until_read_and_extracts_nothing() {
                     target: target.clone(),
                     view,
                     id: "caves/loot_caves".into(),
+                    filter: None,
                 })
                 .unwrap();
             assert!(d.entry.is_none() && d.rows.is_empty());

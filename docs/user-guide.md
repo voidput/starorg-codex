@@ -262,15 +262,33 @@ tables and where they spawn). It reads only what is already read: while the loot
 is missing the screen says so and offers **Read game data** (the same job as in Enhancements and
 Shops; nothing is written to the game). Nothing loads before you open the screen.
 
-- **By area:** every loot area by kind of place (caves, derelicts, distribution centres,
-  outposts, junk sites, ...), with how many items can drop there and the best odds. Pick one to
-  see every item that can drop there, likeliest first, with the spot it is in (`Large weapons
-  crate`, `Weapons rack · always in it`, `Lying loose`) and its rarity.
-- **By item:** every item that drops in some area, searchable by name or class, with a category
-  filter. Pick one to see every area it drops in, likeliest first. With Developer mode on,
-  **Open in Explorer** opens its record.
-- A name in the drops list jumps to the other view with that row picked (an item's other areas,
-  an area's other items).
+Both lists are collapsible trees, closed until you open a branch (the app remembers which
+branches you opened, per list). Each branch shows how many rows it holds and the best odds
+below it. Typing in the search filters the tree and opens every branch with a match; the
+category filter keeps one kind of place or category. Up/Down move, Right opens a branch (or
+enters it), Left closes it (or goes to its parent), Enter opens a branch or picks a row, and
+typing a few letters jumps to the next row starting with them.
+
+- **By area:** kind of place (Caves, ASD facilities, Distribution centres, Outposts, Stations,
+  ...) -> a middle level from the area's id where several areas share one (a cave's planet or
+  `Occupied`, a distribution-centre wing such as `Cargo wing`, `Colonial` outposts, the `Rund`
+  station) -> the areas. A place with a single area is a row of its own (`Battaglia`). Names
+  never show the game's preset words (`lootgeneration`, `v3slotpreset`); run-together and
+  misspelt words are fixed (`Highsecurtiy` -> `High security`, `Foodanddrink` -> `Food and
+  drink`), and an area with nothing more to say is `General`. Two areas that would read the
+  same are told apart by their preset family: `General (v3)`, `General (multi)`, `General
+  (classic)` are different slot presets of the same place. Pick an area to see every item that
+  can drop there, likeliest first, with the spot it is in (`Large weapons crate`, `Weapons rack
+  · always in it`, `Lying loose`) and its rarity.
+- **By item:** category (FPS weapons, FPS attachments, Armour & clothing, Consumables, Ship
+  components, ...) -> what kind of thing (Rifles, Pistols, Magazines, Helmets, Jackets & coats,
+  Power plants, ...) -> the items, searchable by name or class. Pick one to see every area it
+  drops in, likeliest first. With Developer mode on, **Open in Explorer** opens its record.
+- A name in the drops list jumps to the other view with that row picked, its branches opened
+  and scrolled into view (an item's other areas, an area's other items).
+- **Filter** above the drops narrows them by item or area name, tree path, container, rarity or
+  id. A detail lists at most the 2,000 likeliest drops; the filter searches all of them, so the
+  rest are reachable.
 - **Per box** is a rough estimate: the chance one spawned crate, rack or loose spot of that kind
   holds the item, assuming an even pick inside each loot pool (the game data does not say how
   the pick is weighted). The WHERE TO GET line, the Explorer Sources card and the MCP
@@ -280,7 +298,8 @@ Shops; nothing is written to the game). Nothing loads before you open the screen
   words from its class name.
 
 The index is built once per game build and kept in memory while the app runs, so switching views
-or screens does not rebuild it. A detail lists at most the 2,000 likeliest rows.
+or screens does not rebuild it. The lists carry only each row's summary and tree path; the
+drops load when you pick a row.
 
 ## Backups and restore
 

@@ -232,6 +232,20 @@ fn mock_areas(items: &[ItemTags]) -> Vec<LootArea> {
             ],
         ),
         area("caves/loot_caves_unoccupied", vec![mixed("Medium", 0.6)]),
+        // Two occupied caves: an `Occupied` level in the tree.
+        area(
+            "caves/loot_caves_occupied_sand_pyro",
+            vec![weapons("Medium", 0.7), armour("Medium")],
+        ),
+        // A wing with and without a security level: a `Cargo wing` level.
+        area(
+            "distributioncentre_multiconfig_cargowing",
+            vec![mixed("Large", 1.0)],
+        ),
+        area(
+            "distributioncentre_multiconfig_cargowing_high",
+            vec![weapons("Medium", 1.0), mixed("Small", 0.5)],
+        ),
         area(
             "lootgeneration_slotpreset_derelictoutpost",
             vec![
@@ -276,6 +290,11 @@ fn mock_areas(items: &[ItemTags]) -> Vec<LootArea> {
                 vec![rack(3.0), crate_slot("Mock_Crate_Weapons", 1.0, 2.0)],
             )],
         ),
+        // The same place in another preset family: `General (multi)` beside `(classic)`.
+        area(
+            "lootgeneration_multislotpreset_kareah",
+            vec![armour("Medium"), mixed("Small", 1.0)],
+        ),
         area(
             "contestedzone_vault_executive",
             vec![weapons("XLarge", 1.0), armour("Large")],
@@ -311,9 +330,9 @@ pub fn mock_loot_list(ready: bool, view: LootView) -> LootList {
     }
 }
 
-pub fn mock_loot_detail(ready: bool, view: LootView, id: &str) -> LootDetail {
+pub fn mock_loot_detail(ready: bool, view: LootView, id: &str, filter: Option<&str>) -> LootDetail {
     if ready {
-        mock_loot_screen().detail(view, id)
+        mock_loot_screen().detail(view, id, filter)
     } else {
         starorg_mcp::loot::missing_detail(view)
     }
@@ -326,7 +345,7 @@ pub fn gen_file() -> Value {
         s.list(view)
             .rows
             .iter()
-            .map(|r| s.detail(view, &r.id))
+            .map(|r| s.detail(view, &r.id, None))
             .collect()
     };
     json!({

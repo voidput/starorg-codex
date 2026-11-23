@@ -1995,7 +1995,12 @@ impl Backend for MockBackend {
 
     fn loot_detail(&self, req: LootDetailRequest) -> CmdResult<LootDetail> {
         let (_, read) = self.shop_state(req.target.as_ref());
-        Ok(super::mock_loot::mock_loot_detail(read, req.view, &req.id))
+        Ok(super::mock_loot::mock_loot_detail(
+            read,
+            req.view,
+            &req.id,
+            req.filter.as_deref(),
+        ))
     }
 
     /// The synthetic shops of `mock_shops` once "Fetch now" ran (the sample user's folder

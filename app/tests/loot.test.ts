@@ -1,16 +1,16 @@
-// The Loot screen's pure helpers (odds text, search and group filter, grouped list rows, drop
-// labels) and the TS mock's answers, on the Rust mock's data
-// (mock-loot.gen.json). Run: npm test.
+// The Loot screen's pure helpers (odds text, search and group filter, drop labels) and the TS
+// mock's answers, on the Rust mock's data (mock-loot.gen.json). The trees: loottree.test.ts.
+// Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dropWhere, filterSummaries, groupsOf, listEntries, listed, oddsText, queryWords } from '../src/lib/loot.ts';
+import { dropWhere, filterSummaries, groupsOf, listed, oddsText, queryWords } from '../src/lib/loot.ts';
 import { mockLootDetail, mockLootList, type LootMockData } from '../src/lib/contract/mock-loot.ts';
 import type { LootSummary } from '../src/lib/contract/types.ts';
 
 const data = JSON.parse(readFileSync(new URL('../src/lib/contract/mock-loot.gen.json', import.meta.url), 'utf8')) as LootMockData;
 
-const row = (id: string, name: string, group: string, best = 0.1, count = 1): LootSummary => ({ id, name, group, best, count });
+const row = (id: string, name: string, group: string, path: string[] = [group], best = 0.1, count = 1): LootSummary => ({ id, name, group, path, best, count });
 
 test('odds read like the WHERE TO GET line', () => {
   assert.equal(oddsText(0.75), '75.0%');
@@ -38,20 +38,25 @@ test('search needs every word in the name, group or id; the group filter is exac
   assert.deepEqual(filterSummaries(null, 'x', ''), []);
 });
 
-test('groups sort by name with Other last; the areas list gets a header per group', () => {
+test('groups sort by name with Other last', () => {
   const rows = [row('a', 'A', 'Caves'), row('b', 'B', 'Caves'), row('c', 'C', 'Other'), row('d', 'D', 'Asteroid bases')];
   assert.deepEqual(groupsOf(rows), [
     { group: 'Asteroid bases', count: 1 },
     { group: 'Caves', count: 2 },
     { group: 'Other', count: 1 },
   ]);
-  const sorted = [rows[0]!, rows[1]!, rows[2]!];
-  const e = listEntries(sorted, 'areas');
+});
+
+test('search matches the tree path too', () => {
+  const rows = [row('caves/loot_caves_occupied_rock', 'Rock', 'Caves', ['Caves', 'Occupied']), row('cave_aberdeen_rich', 'Rich', 'Caves', ['Caves', 'Aberdeen'])];
   assert.deepEqual(
-    e.map((x) => (x.kind === 'group' ? `#${x.group}:${x.count}` : x.row.id)),
-    ['#Caves:2', 'a', 'b', '#Other:1', 'c'],
+    filterSummaries(rows, 'occupied', '').map((r) => r.name),
+    ['Rock'],
   );
-  assert.ok(listEntries(sorted, 'items').every((x) => x.kind === 'row'));
+  assert.deepEqual(
+    filterSummaries(rows, 'aberdeen rich', 'Caves').map((r) => r.id),
+    ['cave_aberdeen_rich'],
+  );
 });
 
 test('a drop says what the spot is, its rarity and how the item is there', () => {
@@ -70,8 +75,8 @@ test('the TS mock serves the Rust mock: missing until read, then lists and likel
   const items = mockLootList(data, true, 'items');
   assert.equal(areas.state, 'ready');
   assert.ok(areas.rows.length >= 10 && items.rows.length >= 40);
-  // Summaries only: no drops in a list row.
-  assert.deepEqual(Object.keys(areas.rows[0]!).sort(), ['best', 'count', 'group', 'id', 'name']);
+  // Summaries only (with their tree path): no drops in a list row.
+  assert.deepEqual(Object.keys(areas.rows[0]!).sort(), ['best', 'count', 'group', 'id', 'name', 'path']);
   for (const r of areas.rows) {
     const d = mockLootDetail(data, true, 'areas', r.id.toUpperCase());
     assert.equal(d.entry?.id, r.id);
@@ -83,6 +88,13 @@ test('the TS mock serves the Rust mock: missing until read, then lists and likel
   assert.ok(d.record?.guid);
   assert.equal(mockLootDetail(data, true, 'items', 'nothing').entry, null);
   assert.equal(mockLootDetail(data, false, 'items', gun.id).state, 'missing');
+  // The filter: every word, `all` still counts every drop.
+  const f = mockLootDetail(data, true, 'items', gun.id, '  CAVES ');
+  assert.ok(f.rows.length > 0 && f.rows.every((r) => `${r.name} ${r.group} ${r.id}`.toLowerCase().includes('caves')));
+  assert.equal(f.total, f.rows.length);
+  assert.equal(f.all, d.all);
+  assert.equal(mockLootDetail(data, true, 'items', gun.id, 'zzz').rows.length, 0);
+  assert.equal(mockLootDetail(data, true, 'items', gun.id, 'zzz').entry?.id, gun.id);
   // Answers are copies: editing one does not change the next.
   d.rows.length = 0;
   assert.ok(mockLootDetail(data, true, 'items', gun.id).rows.length > 0);

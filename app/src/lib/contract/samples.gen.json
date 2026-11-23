@@ -15098,12 +15098,14 @@
     }
   ],
   "loot_detail": {
+    "all": 61,
     "entry": {
       "best": 0.22131200000000018,
       "count": 61,
       "group": "Asteroid bases",
       "id": "v3slotpreset_asteroidbase",
-      "name": "Asteroid bases"
+      "name": "Asteroid bases",
+      "path": []
     },
     "record": null,
     "rows": [
@@ -15145,7 +15147,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Consumables",
+        "group": "Consumables › Food",
         "id": "SYN_Ration_Bar",
         "kind": "loot",
         "name": "Ration Bar",
@@ -15154,7 +15156,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Consumables",
+        "group": "Consumables › Food",
         "id": "syn_food_ration_berry",
         "kind": "loot",
         "name": "Ration Bar (Berry)",
@@ -15163,7 +15165,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Consumables",
+        "group": "Consumables › Food",
         "id": "syn_food_ration_chili",
         "kind": "loot",
         "name": "Ration Bar (Chili)",
@@ -15172,7 +15174,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Consumables",
+        "group": "Consumables › Food",
         "id": "syn_food_ration_citrus",
         "kind": "loot",
         "name": "Ration Bar (Citrus)",
@@ -15181,7 +15183,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Consumables",
+        "group": "Consumables › Food",
         "id": "syn_food_ration_mint",
         "kind": "loot",
         "name": "Ration Bar (Mint)",
@@ -15190,7 +15192,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Consumables",
+        "group": "Consumables › Food",
         "id": "syn_food_ration_smoked",
         "kind": "loot",
         "name": "Ration Bar (Smoked)",
@@ -15199,7 +15201,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Consumables",
+        "group": "Consumables › Food",
         "id": "syn_food_ration_vanilla",
         "kind": "loot",
         "name": "Ration Bar (Vanilla)",
@@ -15217,7 +15219,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Shields",
         "id": "SYN_Aegis_Shell_Shield",
         "kind": "loot",
         "name": "Aegis Shell Shield",
@@ -15235,7 +15237,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Power plants",
         "id": "SYN_Dynamo_Power_Plant",
         "kind": "loot",
         "name": "Dynamo Power Plant",
@@ -15253,7 +15255,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Coolers",
         "id": "SYN_Frost_Cooler",
         "kind": "loot",
         "name": "Frost Cooler",
@@ -15262,7 +15264,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Coolers",
         "id": "SYN_Glacier_Cooler",
         "kind": "loot",
         "name": "Glacier Cooler",
@@ -15271,7 +15273,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Quantum drives",
         "id": "SYN_Leap_Quantum_Drive",
         "kind": "loot",
         "name": "Leap Quantum Drive",
@@ -15289,7 +15291,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Quantum drives",
         "id": "SYN_Vault_Quantum_Drive",
         "kind": "loot",
         "name": "Vault Quantum Drive",
@@ -15298,7 +15300,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Shields",
         "id": "SYN_Bastion_Shield",
         "kind": "loot",
         "name": "Bastion Shield",
@@ -15316,7 +15318,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Quantum drives",
         "id": "SYN_Leap_Quantum_Drive_Template",
         "kind": "loot",
         "name": "Leap Quantum Drive Template",
@@ -15325,7 +15327,7 @@
       },
       {
         "container": "Ship component crate S2",
-        "group": "Ship components",
+        "group": "Ship components › Power plants",
         "id": "SYN_Spark_Power_Plant",
         "kind": "loot",
         "name": "Spark Power Plant",
@@ -15334,7 +15336,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Arm armour",
         "id": "syn_armour_arms_night",
         "kind": "loot",
         "name": "Pathfinder Arms (Night)",
@@ -15343,7 +15345,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Backpacks",
         "id": "syn_armour_backpack_night",
         "kind": "loot",
         "name": "Pathfinder Backpack (Night)",
@@ -15352,7 +15354,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Torso armour",
         "id": "syn_armour_core_night",
         "kind": "loot",
         "name": "Pathfinder Core (Night)",
@@ -15361,7 +15363,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Helmets",
         "id": "syn_armour_helmet_night",
         "kind": "loot",
         "name": "Pathfinder Helmet (Night)",
@@ -15370,7 +15372,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Leg armour",
         "id": "syn_armour_legs_night",
         "kind": "loot",
         "name": "Pathfinder Legs (Night)",
@@ -15379,7 +15381,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Undersuits",
         "id": "syn_armour_undersuit_night",
         "kind": "loot",
         "name": "Pathfinder Undersuit (Night)",
@@ -15388,7 +15390,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Arm armour",
         "id": "syn_armour_arms_ash",
         "kind": "loot",
         "name": "Pathfinder Arms (Ash)",
@@ -15397,7 +15399,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Arm armour",
         "id": "syn_armour_arms_crimson",
         "kind": "loot",
         "name": "Pathfinder Arms (Crimson)",
@@ -15406,7 +15408,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Arm armour",
         "id": "syn_armour_arms_desert",
         "kind": "loot",
         "name": "Pathfinder Arms (Desert)",
@@ -15415,7 +15417,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Arm armour",
         "id": "syn_armour_arms_forest",
         "kind": "loot",
         "name": "Pathfinder Arms (Forest)",
@@ -15424,7 +15426,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Arm armour",
         "id": "syn_armour_arms_storm",
         "kind": "loot",
         "name": "Pathfinder Arms (Storm)",
@@ -15433,7 +15435,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Backpacks",
         "id": "syn_armour_backpack_ash",
         "kind": "loot",
         "name": "Pathfinder Backpack (Ash)",
@@ -15442,7 +15444,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Backpacks",
         "id": "syn_armour_backpack_crimson",
         "kind": "loot",
         "name": "Pathfinder Backpack (Crimson)",
@@ -15451,7 +15453,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Backpacks",
         "id": "syn_armour_backpack_desert",
         "kind": "loot",
         "name": "Pathfinder Backpack (Desert)",
@@ -15460,7 +15462,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Backpacks",
         "id": "syn_armour_backpack_forest",
         "kind": "loot",
         "name": "Pathfinder Backpack (Forest)",
@@ -15469,7 +15471,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Backpacks",
         "id": "syn_armour_backpack_storm",
         "kind": "loot",
         "name": "Pathfinder Backpack (Storm)",
@@ -15478,7 +15480,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Torso armour",
         "id": "syn_armour_core_ash",
         "kind": "loot",
         "name": "Pathfinder Core (Ash)",
@@ -15487,7 +15489,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Torso armour",
         "id": "syn_armour_core_crimson",
         "kind": "loot",
         "name": "Pathfinder Core (Crimson)",
@@ -15496,7 +15498,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Torso armour",
         "id": "syn_armour_core_desert",
         "kind": "loot",
         "name": "Pathfinder Core (Desert)",
@@ -15505,7 +15507,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Torso armour",
         "id": "syn_armour_core_forest",
         "kind": "loot",
         "name": "Pathfinder Core (Forest)",
@@ -15514,7 +15516,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Torso armour",
         "id": "syn_armour_core_storm",
         "kind": "loot",
         "name": "Pathfinder Core (Storm)",
@@ -15523,7 +15525,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Helmets",
         "id": "syn_armour_helmet_ash",
         "kind": "loot",
         "name": "Pathfinder Helmet (Ash)",
@@ -15532,7 +15534,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Helmets",
         "id": "syn_armour_helmet_crimson",
         "kind": "loot",
         "name": "Pathfinder Helmet (Crimson)",
@@ -15541,7 +15543,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Helmets",
         "id": "syn_armour_helmet_desert",
         "kind": "loot",
         "name": "Pathfinder Helmet (Desert)",
@@ -15550,7 +15552,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Helmets",
         "id": "syn_armour_helmet_forest",
         "kind": "loot",
         "name": "Pathfinder Helmet (Forest)",
@@ -15559,7 +15561,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Helmets",
         "id": "syn_armour_helmet_storm",
         "kind": "loot",
         "name": "Pathfinder Helmet (Storm)",
@@ -15568,7 +15570,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Leg armour",
         "id": "syn_armour_legs_ash",
         "kind": "loot",
         "name": "Pathfinder Legs (Ash)",
@@ -15577,7 +15579,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Leg armour",
         "id": "syn_armour_legs_crimson",
         "kind": "loot",
         "name": "Pathfinder Legs (Crimson)",
@@ -15586,7 +15588,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Leg armour",
         "id": "syn_armour_legs_desert",
         "kind": "loot",
         "name": "Pathfinder Legs (Desert)",
@@ -15595,7 +15597,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Leg armour",
         "id": "syn_armour_legs_forest",
         "kind": "loot",
         "name": "Pathfinder Legs (Forest)",
@@ -15604,7 +15606,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Undersuits",
         "id": "syn_armour_undersuit_ash",
         "kind": "loot",
         "name": "Pathfinder Undersuit (Ash)",
@@ -15613,7 +15615,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Undersuits",
         "id": "syn_armour_undersuit_crimson",
         "kind": "loot",
         "name": "Pathfinder Undersuit (Crimson)",
@@ -15622,7 +15624,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Undersuits",
         "id": "syn_armour_undersuit_desert",
         "kind": "loot",
         "name": "Pathfinder Undersuit (Desert)",
@@ -15631,7 +15633,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Undersuits",
         "id": "syn_armour_undersuit_forest",
         "kind": "loot",
         "name": "Pathfinder Undersuit (Forest)",
@@ -15640,7 +15642,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Undersuits",
         "id": "syn_armour_undersuit_storm",
         "kind": "loot",
         "name": "Pathfinder Undersuit (Storm)",
@@ -15649,7 +15651,7 @@
       },
       {
         "container": "Large crate",
-        "group": "Armour & clothing",
+        "group": "Armour & clothing › Leg armour",
         "id": "syn_armour_legs_storm",
         "kind": "loot",
         "name": "SYN Armour Legs Storm",
@@ -15662,12 +15664,17 @@
     "view": "areas"
   },
   "loot_detail_item": {
+    "all": 2,
     "entry": {
       "best": 0.0888888888888889,
       "count": 2,
       "group": "Ship components",
       "id": "SYN_Aegis_Shell_Shield",
-      "name": "Aegis Shell Shield"
+      "name": "Aegis Shell Shield",
+      "path": [
+        "Ship components",
+        "Shields"
+      ]
     },
     "record": {
       "class_name": "SYN_Aegis_Shell_Shield",
@@ -15688,7 +15695,7 @@
         "group": "Derelicts",
         "id": "v3slotpreset_spacederelict_large",
         "kind": "loot",
-        "name": "Large",
+        "name": "Derelicts: Space large",
         "odds": 0.0888888888888889,
         "rarity": null
       }
@@ -15705,84 +15712,150 @@
         "count": 61,
         "group": "Asteroid bases",
         "id": "v3slotpreset_asteroidbase",
-        "name": "Asteroid bases"
-      },
-      {
-        "best": 0.51,
-        "count": 51,
-        "group": "Caves",
-        "id": "caves/loot_caves_occupied_rock",
-        "name": "Occupied Rock"
+        "name": "Asteroid bases",
+        "path": []
       },
       {
         "best": 0.1327872000000001,
         "count": 48,
         "group": "Caves",
         "id": "caves/loot_caves_unoccupied",
-        "name": "Unoccupied"
+        "name": "Unoccupied",
+        "path": [
+          "Caves"
+        ]
+      },
+      {
+        "best": 0.51,
+        "count": 51,
+        "group": "Caves",
+        "id": "caves/loot_caves_occupied_rock",
+        "name": "Rock",
+        "path": [
+          "Caves",
+          "Occupied"
+        ]
+      },
+      {
+        "best": 0.357,
+        "count": 42,
+        "group": "Caves",
+        "id": "caves/loot_caves_occupied_sand_pyro",
+        "name": "Sand Pyro",
+        "path": [
+          "Caves",
+          "Occupied"
+        ]
       },
       {
         "best": 0.51,
         "count": 42,
         "group": "Contested zones",
         "id": "contestedzone_vault_executive",
-        "name": "Vault Executive"
+        "name": "Contested zones: Vault executive",
+        "path": []
       },
       {
         "best": 0.3333333333333333,
         "count": 51,
         "group": "Derelict outposts",
         "id": "lootgeneration_slotpreset_derelictoutpost",
-        "name": "Derelict outposts"
+        "name": "Derelict outposts",
+        "path": []
       },
       {
         "best": 0.0888888888888889,
         "count": 13,
         "group": "Derelicts",
         "id": "v3slotpreset_spacederelict_large",
-        "name": "Large"
+        "name": "Derelicts: Space large",
+        "path": []
       },
       {
         "best": 0.51,
         "count": 42,
         "group": "Distribution centres",
         "id": "v3slotpreset_distributioncentres_highsecurity",
-        "name": "Highsecurity"
+        "name": "High security",
+        "path": [
+          "Distribution centres"
+        ]
       },
       {
         "best": 0.22131200000000018,
         "count": 48,
         "group": "Distribution centres",
         "id": "v3slotpreset_distributioncentres_lowsecurity",
-        "name": "Lowsecurity"
+        "name": "Low security",
+        "path": [
+          "Distribution centres"
+        ]
+      },
+      {
+        "best": 0.22131200000000018,
+        "count": 48,
+        "group": "Distribution centres",
+        "id": "distributioncentre_multiconfig_cargowing",
+        "name": "General",
+        "path": [
+          "Distribution centres",
+          "Cargo wing"
+        ]
+      },
+      {
+        "best": 0.51,
+        "count": 51,
+        "group": "Distribution centres",
+        "id": "distributioncentre_multiconfig_cargowing_high",
+        "name": "High security",
+        "path": [
+          "Distribution centres",
+          "Cargo wing"
+        ]
       },
       {
         "best": 0.11065600000000009,
         "count": 48,
         "group": "Junk sites",
         "id": "lootgeneration_slotpreset_junksites",
-        "name": "Junk sites"
+        "name": "Junk sites",
+        "path": []
       },
       {
         "best": 0.75,
         "count": 6,
         "group": "Security Post Kareah",
         "id": "lootgeneration_slotpreset_kareah",
-        "name": "Security Post Kareah"
+        "name": "General (classic)",
+        "path": [
+          "Security Post Kareah"
+        ]
+      },
+      {
+        "best": 0.22131200000000018,
+        "count": 48,
+        "group": "Security Post Kareah",
+        "id": "lootgeneration_multislotpreset_kareah",
+        "name": "General (multi)",
+        "path": [
+          "Security Post Kareah"
+        ]
       },
       {
         "best": 0.40800000000000003,
         "count": 6,
         "group": "Underground facilities",
         "id": "lootgeneration_slotpreset_ugfs",
-        "name": "Underground facilities"
+        "name": "Underground facilities",
+        "path": []
       },
       {
         "best": 0.22131200000000018,
         "count": 48,
         "group": "Other",
         "id": "v3slotpreset_loot_generic",
-        "name": "Generic"
+        "name": "Other: Generic",
+        "path": []
       }
     ],
     "state": "ready",

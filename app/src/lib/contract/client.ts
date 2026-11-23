@@ -374,7 +374,7 @@ export const api = {
   /** The Loot screen's list: every loot area or every item that drops in one, summaries only (`state: missing` until the game data is read). */
   lootList: (target: T.ChannelRef | null, view: T.LootView) => call('loot_list', { req: { target, view } }),
   /** One area's items or one item's areas, likeliest first (rough odds per spawned box). */
-  lootDetail: (target: T.ChannelRef | null, view: T.LootView, id: string) => call('loot_detail', { req: { target, view, id } }),
+  lootDetail: (target: T.ChannelRef | null, view: T.LootView, id: string, filter: string | null = null) => call('loot_detail', { req: { target, view, id, filter } }),
   /** The Shops screen: every UEX item terminal by system and place (`state: missing` without the files). */
   shopInventory: (target: T.ChannelRef | null) => call('shop_inventory', { req: { target } }),
   /** One shop's items by category, linked to records through the channel's cached item data. */
