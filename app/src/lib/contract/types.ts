@@ -166,7 +166,7 @@ export interface ApplyCounts {
   missions: number;
   /** Descriptions that got a WHERE TO GET block. */
   obtain_hints: number;
-  /** Item name keys stock lacks that got a name. */
+  /** Item name keys stock lacks that got a name, and description keys that got a sibling's description. */
   missing_names: number;
   overrides: number;
   dropped: number;
@@ -383,7 +383,7 @@ export interface Profile {
   obtain_shops: boolean;
   /** The `sell` line: best commodity kiosks, rounded price per SCU, stamped with the UEX fetch day. Off by default, on in Everything. */
   obtain_prices: boolean;
-  /** Names for items whose name key stock lacks (adds keys, never edits a stock line). */
+  /** Names (and sibling descriptions) for items whose name (description) key stock lacks; only placeholder stock lines are replaced. */
   missing_names: boolean;
   /** `<category>.<line>` keys from ProfileSchema. */
   lines_off: string[];

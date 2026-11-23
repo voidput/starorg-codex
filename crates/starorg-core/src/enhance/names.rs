@@ -67,7 +67,7 @@ pub const RULE_DESCRIPTION: &str = "description";
 pub const RULE_READABLE: &str = "readable";
 
 /// A trailing variant segment: `01`, `sf02`, `tint03`, `lr01` (lower case).
-fn is_variant_segment(seg: &str) -> bool {
+pub(crate) fn is_variant_segment(seg: &str) -> bool {
     let digits = |s: &str| !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit());
     digits(seg)
         || ["sf", "tint", "lr"]

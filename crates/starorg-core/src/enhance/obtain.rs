@@ -574,7 +574,7 @@ pub fn block(
 }
 
 /// Offer a block for every class the hints give a description key for (and that key is in
-/// stock); the namesake rule decides shared keys, and an owned key is extended.
+/// stock, or filled by missing-names); the namesake rule decides shared keys, and an owned key is extended.
 pub fn generate(en: &mut Engine, gd: &GameData, hints: &ObtainHints) {
     let stock = en.stock;
     let p = en.profile;
@@ -585,7 +585,10 @@ pub fn generate(en: &mut Engine, gd: &GameData, hints: &ObtainHints) {
         .iter()
         .filter_map(|(class, key)| {
             let k = loc_key(key)?;
-            if matches!(stock.find(k), Err(e) if !matches!(e, IniError::AmbiguousKey { .. })) {
+            // A description stock lacks counts once missing-names filled it.
+            if matches!(stock.find(k), Err(e) if !matches!(e, IniError::AmbiguousKey { .. }))
+                && !en.is_filled(k)
+            {
                 return None;
             }
             let class = class.to_ascii_lowercase();

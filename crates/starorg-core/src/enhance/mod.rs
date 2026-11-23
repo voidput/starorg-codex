@@ -9,6 +9,7 @@
 //! exactly which text we added and nothing ever has to be stripped from a previous run.
 
 pub mod check;
+pub mod descs;
 pub mod format;
 pub mod items;
 pub mod missions;
@@ -53,8 +54,9 @@ pub enum Category {
     /// "WHERE TO GET" blocks on item and commodity descriptions (`Profile::obtain`, spec
     /// obtain-hints). The only category that extends an edit another category owns.
     ObtainHints,
-    /// Names for entity name keys stock lacks (`Profile::missing_names`, spec
-    /// missing-names). The only category that adds keys instead of editing stock lines.
+    /// Names for entity name keys stock lacks, and sibling descriptions for description keys
+    /// stock lacks (`Profile::missing_names`, spec missing-names). The only category that
+    /// adds keys instead of editing stock lines.
     MissingNames,
 }
 
@@ -130,6 +132,10 @@ pub struct GenEdit {
     /// How a renamed placeholder name was found (missing names, [`Engine::rename`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rule: Option<&'static str>,
+    /// A filled description ([`Engine::fill`]): `replace` is the text the description
+    /// generators build on (as on a stock value), `extended_by` the ones that did.
+    #[serde(skip)]
+    pub fill: bool,
 }
 
 /// Drop trailing `\n` escapes, spaces and tabs.
@@ -361,8 +367,15 @@ pub struct AddedKey {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub record: Option<String>,
     pub value: String,
-    /// How the value was found (`variant`, `description`, `readable` for missing names).
+    /// How the value was found (`variant`, `description`, `readable` for missing names,
+    /// `sibling-description` for a filled description).
     pub rule: &'static str,
+    /// A filled description ([`Engine::fill`]): the description generators build on
+    /// `value` as on a stock value and are listed in `extended_by`.
+    #[serde(skip)]
+    pub fill: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub extended_by: Vec<Category>,
 }
 
 /// Output of [`generate`].
@@ -399,7 +412,11 @@ impl Generated {
             .values()
             .filter(|e| e.category == c || e.extended_by.contains(&c))
             .count()
-            + self.added.values().filter(|a| a.category == c).count()
+            + self
+                .added
+                .values()
+                .filter(|a| a.category == c || a.extended_by.contains(&c))
+                .count()
     }
 }
 
@@ -477,11 +494,18 @@ impl<'a> Engine<'a> {
                 return false;
             }
             Err(_) => {
+                let folded = fold_key(key.strip_prefix('@').unwrap_or(key));
+                if self.out.added.get(&folded).is_some_and(|a| a.fill) {
+                    return self.build_added(cat, &folded, payload);
+                }
                 self.left(cat, Reason::NotInStock);
                 return false;
             }
         };
-        if self.out.edits.contains_key(&line) {
+        if let Some(e) = self.out.edits.get(&line) {
+            if e.fill {
+                return self.build_fill(cat, line, payload);
+            }
             if let (true, Payload::Append(text)) = (cat.extends(), payload) {
                 return self.extend(cat, line, text);
             }
@@ -557,6 +581,7 @@ impl<'a> Engine<'a> {
                 replace,
                 extended_by: Vec::new(),
                 rule: None,
+                fill: false,
             },
         );
         true
@@ -627,6 +652,7 @@ impl<'a> Engine<'a> {
                 replace: Some(value.to_string()),
                 extended_by: Vec::new(),
                 rule: Some(rule),
+                fill: false,
             },
         );
         true
@@ -677,8 +703,154 @@ impl<'a> Engine<'a> {
                 record,
                 value: value.to_string(),
                 rule,
+                fill: false,
+                extended_by: Vec::new(),
             },
         );
+        true
+    }
+
+    /// Fill a description key whose stock text is missing or a placeholder with a whole
+    /// value (spec missing-names, "Descriptions"): added when stock lacks the key
+    /// ([`Self::add`]), renamed when stock holds a placeholder ([`Self::rename`]). Counts
+    /// the outcome; returns true when written. Description generators offered the key
+    /// afterwards build on the filled text as on a stock value: the first one as if it owned
+    /// the line, later ones only when they extend ([`Category::extends`]).
+    pub fn fill(
+        &mut self,
+        cat: Category,
+        key: &str,
+        record: Option<String>,
+        value: &str,
+        rule: &'static str,
+    ) -> bool {
+        let key = key.strip_prefix('@').unwrap_or(key);
+        let line = match self.stock.find(key) {
+            Ok(line) => line,
+            Err(IniError::UnknownKey(_)) => {
+                let added = self.add(cat, key, record, value, rule);
+                if added && let Some(a) = self.out.added.get_mut(&fold_key(key)) {
+                    a.fill = true;
+                }
+                return added;
+            }
+            Err(_) => {
+                self.cov(cat).candidates += 1;
+                self.left(cat, Reason::Collision);
+                return false;
+            }
+        };
+        let renamed = self.rename(cat, key, record, value, rule);
+        if renamed && let Some(e) = self.out.edits.get_mut(&line) {
+            e.fill = true;
+            e.trim_stock = true;
+        }
+        renamed
+    }
+
+    /// Is `key` a description [`Self::fill`] added (stock lacks it)?
+    pub fn is_filled(&self, key: &str) -> bool {
+        let key = key.strip_prefix('@').unwrap_or(key);
+        self.out.added.get(&fold_key(key)).is_some_and(|a| a.fill)
+    }
+
+    /// The parts a description generator writes around a filled text: the payload's parts
+    /// when nothing built on it yet, else the earlier parts plus an extension.
+    fn fill_parts(
+        &mut self,
+        cat: Category,
+        payload: &Payload,
+        base: &str,
+        prior: Option<(&str, &str, &[Category])>,
+    ) -> Option<(String, String)> {
+        match prior {
+            None => {
+                let (prefix, suffix, _) = self.parts(payload, base);
+                Some((prefix, suffix))
+            }
+            Some((prefix, suffix, by)) => match (cat.extends(), payload) {
+                (true, Payload::Append(text)) if !by.contains(&cat) => {
+                    Some((prefix.to_string(), format!("{suffix}{text}")))
+                }
+                _ => {
+                    self.left(cat, Reason::OwnedByOther);
+                    None
+                }
+            },
+        }
+    }
+
+    /// Record a dropped value on a filled description.
+    fn drop_fill(&mut self, cat: Category, key: &str, rule: check::Rule) {
+        self.left(cat, Reason::DroppedByValidation);
+        self.out.warnings.push(Warning::new(
+            "dropped-edit",
+            format!("{key}: {} dropped ({})", cat.name(), rule.name()),
+        ));
+    }
+
+    /// Build on a renamed placeholder description ([`Self::fill`]): the whole value is
+    /// `prefix + filled text + suffix`, checked against the stock placeholder.
+    fn build_fill(&mut self, cat: Category, line: usize, payload: &Payload) -> bool {
+        let Some(e) = self.out.edits.get(&line) else {
+            return false;
+        };
+        let base = e.replace.clone().unwrap_or_default();
+        let key = e.key.clone();
+        let (p0, s0, by) = (e.prefix.clone(), e.suffix.clone(), e.extended_by.clone());
+        let prior = (!by.is_empty()).then_some((p0.as_str(), s0.as_str(), by.as_slice()));
+        let Some((prefix, suffix)) = self.fill_parts(cat, payload, &base, prior) else {
+            return false;
+        };
+        let value = format!("{prefix}{base}{suffix}");
+        let sv = self.stock.value_at(line).unwrap_or_default();
+        if let Err(rule) = check::check_replaced(sv, &value) {
+            self.drop_fill(cat, &key, rule);
+            return false;
+        }
+        if value.len() > check::WARN_LEN {
+            self.out.warnings.push(Warning::new(
+                "long-value",
+                format!("{key}: {} bytes", value.len()),
+            ));
+        }
+        self.cov(cat).written += 1;
+        if let Some(e) = self.out.edits.get_mut(&line) {
+            e.prefix = prefix;
+            e.suffix = suffix;
+            e.extended_by.push(cat);
+        }
+        true
+    }
+
+    /// Build on an added description ([`Self::fill`]): the new whole value goes through the
+    /// added-value rules again; when it fails, the filled text stays as it was.
+    fn build_added(&mut self, cat: Category, folded: &str, payload: &Payload) -> bool {
+        let Some(a) = self.out.added.get(folded) else {
+            return false;
+        };
+        let (key, current, by) = (a.key.clone(), a.value.clone(), a.extended_by.clone());
+        // Nothing built yet: `current` is the filled text; else the parts are inside it.
+        let prior = (!by.is_empty()).then_some(("", "", by.as_slice()));
+        let Some((prefix, suffix)) = self.fill_parts(cat, payload, &current, prior) else {
+            return false;
+        };
+        let value = format!("{prefix}{current}{suffix}");
+        if let Err(rule) = check::check_added(&value) {
+            self.drop_fill(cat, &key, rule);
+            return false;
+        }
+        if value.len() > check::WARN_LEN {
+            self.out.warnings.push(Warning::new(
+                "long-value",
+                format!("{key}: {} bytes", value.len()),
+            ));
+        }
+        self.cov(cat).written += 1;
+        if let Some(a) = self.out.added.get_mut(folded) {
+            a.value = value;
+            a.extended_by.push(cat);
+        }
         true
     }
 
@@ -865,6 +1037,11 @@ pub fn generate_named(
     let p = profile;
     let item_placeholder = |name: Option<&str>| stock_name(stock, name).is_none();
 
+    // Before every description generator: they build on a filled description as on stock.
+    if p.missing_names {
+        descs::generate(&mut en, gd, &names);
+    }
+
     if p.ships {
         let claims = gd
             .ships
@@ -1022,7 +1199,7 @@ pub fn generate_named(
         obtain::generate(&mut en, gd, obtain.unwrap_or(&empty));
     }
 
-    // New keys only: touches no stock line, so its place in the order changes nothing.
+    // Name keys: no description generator writes them, so its place changes nothing.
     if p.missing_names {
         names::generate(&mut en, &names);
     }
