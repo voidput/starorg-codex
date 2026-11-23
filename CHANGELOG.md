@@ -1,5 +1,67 @@
 # Changelog
 
+## [1.5.0](https://github.com/voidput/starorg-codex/compare/v1.4.0...v1.5.0) (2026-11-23)
+
+
+### Features
+
+* **app:** Backups and Activity move to an App group with Settings ([8d3334b](https://github.com/voidput/starorg-codex/commit/8d3334b4408dad5fffb5d8a5426c7b119d1aec82))
+* **app:** Commodities tab with lazy list and per-resource detail ([e5c3f1f](https://github.com/voidput/starorg-codex/commit/e5c3f1f1c3243ddf7b4e857110e82e2b874b64c1))
+* **app:** Fix missing item names switch, counts, preview and docs ([f3d5a24](https://github.com/voidput/starorg-codex/commit/f3d5a241ff54936230658c01d16eba506760b4b4))
+* **app:** link ship items on the Shops screen after Read game data ([b20e362](https://github.com/voidput/starorg-codex/commit/b20e362207eaf6ec408c07e5a721d59b0367fc78))
+* **app:** Loot screen with what drops where ([c98aa8b](https://github.com/voidput/starorg-codex/commit/c98aa8b304abb59580a02645801851a3e29ba070))
+* **app:** preview shows the open section's examples and can read game data ([2ee7c65](https://github.com/voidput/starorg-codex/commit/2ee7c65f7d8aa70af726e42a6330e1b842311cdc))
+* **app:** read_game_data command and preview examples per section ([a68df95](https://github.com/voidput/starorg-codex/commit/a68df95d62e6207aa840e78a57cac08af28a37c1))
+* **app:** Shops screen listing what each shop sells ([95f02ac](https://github.com/voidput/starorg-codex/commit/95f02ac10fe77785d7d5849432284f2852bac4c6))
+* **app:** UEX token in Settings and Fetch now for UEX market data ([cd20aab](https://github.com/voidput/starorg-codex/commit/cd20aabc472cef34f1da2e5bf1bfb171ea921d51))
+* **app:** Where to get tab, obtain preview samples, UEX status, counts and docs ([622fbfd](https://github.com/voidput/starorg-codex/commit/622fbfd6a0b9dc8c0e8bead1ec472fd1a8b81fdd))
+* Commodities and Loot, trade calculator, WHERE TO GET, Shops, missing names, disk limits, faster loading ([304418e](https://github.com/voidput/starorg-codex/commit/304418e017210cd56a3ffb15d1192a6c07c7de6c))
+* **commodities:** buy/sell trade calculator in the commodity detail ([ffd8add](https://github.com/voidput/starorg-codex/commit/ffd8addd175922596cab96fd7c01c2df1f54fa33))
+* **enhance:** fix missing item names and guard generated text against raw keys ([c5e7c3d](https://github.com/voidput/starorg-codex/commit/c5e7c3d4c933a23e3f03f4240d5496e2439337e9))
+* **enhance:** name missing variants after their base item ([19b9bc6](https://github.com/voidput/starorg-codex/commit/19b9bc6793d3564b79aa01095ab42d23e95eb0c7))
+* **enhance:** obtain hints core: WHERE TO GET generator, engine extend, profile modes ([349932b](https://github.com/voidput/starorg-codex/commit/349932b726551162c69093bf8d2f9a4acb56f422))
+* **enhance:** obtain hints data: desc keys pass, bulk obtain filler, apply/CLI/app wiring ([5dd400a](https://github.com/voidput/starorg-codex/commit/5dd400a817dee6aed0c5d50d4d03eeb2c22a4535))
+* **enhance:** one name chain for items; curated names feed variants ([565b3cd](https://github.com/voidput/starorg-codex/commit/565b3cd526a431148f7f22a3891eac610ca99548))
+* **enhance:** sibling descriptions for description keys stock lacks ([591e87f](https://github.com/voidput/starorg-codex/commit/591e87fea05541995d14786756f1c906df3e513a))
+* **explorer:** ore quality ranges on the Sources card and where_mined ([f380be7](https://github.com/voidput/starorg-codex/commit/f380be7de0a947c0120e4d5578cf77b6b4dd6c15))
+* **explorer:** Sources card with shops, loot containers and mining places ([f8b71c6](https://github.com/voidput/starorg-codex/commit/f8b71c666aeba241f3eb963eb4e0d3ee69264fc5))
+* **fleet:** cargo grid SCU per hull in fleet_view ([f129d49](https://github.com/voidput/starorg-codex/commit/f129d490935d42900c53cf1d7e8e69b4710b4a8f))
+* **loot:** collapsible area and item trees, readable unique area names, drops filter ([e0c08db](https://github.com/voidput/starorg-codex/commit/e0c08db10ca83abc7811dc1fc326665cfbf78a30))
+* **loot:** group detail drops by where in it or place, lazy per-group rows ([98832ef](https://github.com/voidput/starorg-codex/commit/98832ef798be9355bbe73eecf7d9e0191d34c125))
+* **mcp:** shop_inventory tool over a categorised UEX shop index ([c7f99e6](https://github.com/voidput/starorg-codex/commit/c7f99e627a84d701cfe97ca57ed5d951acce06a2))
+* **net:** UEX market data client writing the files WHERE TO GET reads ([457f4b0](https://github.com/voidput/starorg-codex/commit/457f4b0f309880b14760e863ee5d75ddc8c7e028))
+* **obtain:** best commodity sell prices in the Sources card and in game ([bea1829](https://github.com/voidput/starorg-codex/commit/bea18297e281fb1164e4166392f22ddf02e6d758))
+* **patch:** curated names for added keys and a tidier readable fallback ([c1afbfa](https://github.com/voidput/starorg-codex/commit/c1afbfa2533c0d325ce06e8ca4299551b8dd4e16))
+* **patches:** real name for the Reclaimer Showdown paint ([6eb5930](https://github.com/voidput/starorg-codex/commit/6eb5930526be581105b6b101b45beceb3d2db783))
+* **patches:** real names for the OMNI-AFS-Sapphire flight suit colours ([0183d4c](https://github.com/voidput/starorg-codex/commit/0183d4cdeb91193242819a13f56869fb2cceceb2))
+* **storage:** bound what the app keeps on disk ([df63e68](https://github.com/voidput/starorg-codex/commit/df63e68433740a5f3ec676aae00e877315690279))
+
+
+### Bug Fixes
+
+* **app:** finder waits for a running list_characters log scan ([6daecc1](https://github.com/voidput/starorg-codex/commit/6daecc1c959d7d1d278709ad53e564bd51e4f12d))
+* **app:** preview says why it is empty (game data not read or cache stale) ([b0266bb](https://github.com/voidput/starorg-codex/commit/b0266bbb08d70ace79c9f89429230121381df4fc))
+* **commodities:** hide the game's default density of 1, label density ([8e7abac](https://github.com/voidput/starorg-codex/commit/8e7abac3d5ed6a355103c92443bee33d6aee40fd))
+* **deps:** bump url to 2.5.9 (RUSTSEC-2026-0592) ([dedaf31](https://github.com/voidput/starorg-codex/commit/dedaf31690167fefaa025ea800aaa4518c2f5b06))
+* **deps:** cookie 0.18.3 (RUSTSEC-2026-0594) ([d8a3b4d](https://github.com/voidput/starorg-codex/commit/d8a3b4de2287b8b8e1fb0f1ba075b55d3bf0cf06))
+* **explorer:** clear record spinner when channel switch drops in-flight load ([1c1dbdb](https://github.com/voidput/starorg-codex/commit/1c1dbdb8d85ac7dde09c2b544353d701dd7a2192))
+* **loot:** a failed group load closes the group so reopening retries; blocked storage never throws ([d2baab3](https://github.com/voidput/starorg-codex/commit/d2baab3328ae92c86ef228c1e2f8079dd180b186))
+* **mcp:** rebuild UEX-derived caches when the UEX files change ([c88ce40](https://github.com/voidput/starorg-codex/commit/c88ce405df391f784284f5618d72bfc0e3a46fb3))
+* **memlimit:** first usage look before the worker starts ([577dd48](https://github.com/voidput/starorg-codex/commit/577dd4841c997d9cae29582d26925c557de011fb))
+* **obtain:** Detailed shows what real data has ([bf1fc31](https://github.com/voidput/starorg-codex/commit/bf1fc31bea8111a22a7811badd24ce984b87270a))
+* swapped Antium names, blueprint catalog uses patched names, obtain hints on disk ([ecd99c8](https://github.com/voidput/starorg-codex/commit/ecd99c886d169369dae06c8bbd201f420cfc4bee))
+
+
+### Performance Improvements
+
+* **app:** cache Strings queries, table inputs, discovery; Patches list first ([cee6bbc](https://github.com/voidput/starorg-codex/commit/cee6bbcc9a1cef1c49038ba19a0005925db6097b))
+* **app:** Enhancements shows before the patch states; optimise core in debug builds ([465d677](https://github.com/voidput/starorg-codex/commit/465d6778c8dea90641ad89937df0a18a5e2a1c91))
+* **app:** keep release list, storage sizes and blueprint scans warm ([8d024ba](https://github.com/voidput/starorg-codex/commit/8d024ba04b95a39055900a3da111cfac8c82e6f2))
+* **app:** keep the last 3 preview tables, so toggling an option back does not rebuild ([e509917](https://github.com/voidput/starorg-codex/commit/e50991750cde2b983a6189094ab1ba89e6d8a259))
+* **app:** lazy-open Explorer/Files workers, stale guards, windowed Diff/Files lists ([4e149da](https://github.com/voidput/starorg-codex/commit/4e149da6bb2575320cb77ba33fab0b4851adffd2))
+* **core:** remember the global.ini hash by length and mtime in status ([a08f59d](https://github.com/voidput/starorg-codex/commit/a08f59d103ac544240dd4385fa1c8b9e2826bc06))
+* optimise extraction in debug builds; key the dataset cache on extraction code, not the app version ([11b67b2](https://github.com/voidput/starorg-codex/commit/11b67b2f26b9ecadbd935de9e37a54c8fa66044e))
+
 ## [1.4.0](https://github.com/voidput/starorg-codex/compare/v1.3.0...v1.4.0) (2026-11-21)
 
 
