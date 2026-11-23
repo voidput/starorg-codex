@@ -3170,6 +3170,10 @@ impl Backend for MockBackend {
         Ok(self.storage_view())
     }
 
+    fn storage_measure(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_view())
+    }
+
     fn storage_clear_assets(&self) -> CmdResult<StorageStatus> {
         super::assets::AssetBackend::asset_cache_clear(self)?;
         Ok(self.storage_view())

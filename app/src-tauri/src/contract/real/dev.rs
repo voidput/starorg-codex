@@ -52,6 +52,8 @@ const EXPORT_GAP: Duration = Duration::from_secs(300);
 pub const MAX_FOLDERS: usize = 5;
 /// Parsed folder datasets kept (7.5).
 const KEEP_DATASETS: usize = 2;
+/// How long GitHub's LIVE release list is reused before a visit asks again.
+pub const RELEASES_TTL: Duration = Duration::from_secs(15 * 60);
 /// Label lookups kept, one per channel build (7.14).
 const KEEP_LOOKUPS: usize = 3;
 /// The dataset name of a build's GameData.
@@ -410,6 +412,9 @@ pub struct DevState {
     compared: Mutex<Option<(Weak<Worker>, DevCompare)>>,
     /// How published LIVE builds are reached (tests: an in-memory one).
     dumps: Mutex<Arc<dyn DumpTransport + Send + Sync>>,
+    /// GitHub's LIVE release list and when it was fetched: reused for [`RELEASES_TTL`] so a
+    /// visit or channel switch makes no request (unauthenticated API: 60 per hour).
+    releases: Mutex<Option<(Instant, Vec<dumps::ReleaseInfo>)>>,
     /// The Sources card's dataset store, per install UI id: the MCP server's tools over the
     /// same cache folder, so either one's extraction serves both.
     origin: Mutex<Option<(String, Arc<starorg_mcp::tools::Tools>)>>,
@@ -429,6 +434,7 @@ impl Default for DevState {
             stats: Mutex::new(None),
             compared: Mutex::new(None),
             dumps: Mutex::new(Arc::new(starorg_net::GitHubTransport::new())),
+            releases: Mutex::new(None),
             origin: Mutex::new(None),
         }
     }
@@ -441,6 +447,7 @@ impl DevState {
 
     pub fn set_dump_transport(&self, t: Arc<dyn DumpTransport + Send + Sync>) {
         *lock_or(&self.dumps) = t;
+        *lock_or(&self.releases) = None;
     }
 
     /// Stop the worker (Developer mode off, or `dev_close`).
@@ -869,6 +876,19 @@ impl RealBackend {
 
     fn dump_transport(&self) -> Arc<dyn DumpTransport + Send + Sync> {
         lock_or(&self.dev.dumps).clone()
+    }
+
+    /// GitHub's LIVE releases, from memory while younger than [`RELEASES_TTL`]. A failed
+    /// request is not remembered, so the next visit asks again.
+    fn live_releases(&self) -> Result<Vec<dumps::ReleaseInfo>, starorg_core::source::SourceError> {
+        if let Some((at, l)) = lock_or(&self.dev.releases).as_ref()
+            && at.elapsed() < RELEASES_TTL
+        {
+            return Ok(l.clone());
+        }
+        let l = dumps::live_releases(self.dump_transport().as_ref())?;
+        *lock_or(&self.dev.releases) = Some((Instant::now(), l.clone()));
+        Ok(l)
     }
 
     /// The downloaded build of a `dump:<tag>` source.
@@ -1529,7 +1549,9 @@ impl DevBackend for RealBackend {
         if req.source.starts_with("dump:") {
             let tag = dump_tag(&req.source)
                 .ok_or_else(|| err(ErrorCode::NotFound, format!("no source {}", req.source)))?;
-            if !self.dump_cache().remove(tag).map_err(io)? {
+            let removed = self.dump_cache().remove(tag);
+            self.sizes_changed();
+            if !removed.map_err(io)? {
                 return Err(err(
                     ErrorCode::NotFound,
                     format!("no source {}", req.source),
@@ -1574,7 +1596,7 @@ impl DevBackend for RealBackend {
                 error: None,
             });
         }
-        let live = match dumps::live_releases(self.dump_transport().as_ref()) {
+        let live = match self.live_releases() {
             Ok(l) => l,
             // Offline or rate limited: the downloaded builds, and why the rest is missing.
             Err(e) => {
@@ -1609,6 +1631,12 @@ impl DevBackend for RealBackend {
             releases: out,
             error: None,
         })
+    }
+
+    fn dev_refresh_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases> {
+        // Forget the remembered list; the rest (checks, the "off" answer) is the plain call's.
+        *lock_or(&self.dev.releases) = None;
+        self.dev_dump_releases(req)
     }
 
     fn dev_download_dump(

@@ -64,7 +64,7 @@
     target: ChannelRef;
     /** Channel names of the install, in its order. */
     channels: string[];
-    /** Bumped after an import, pull or rescan. */
+    /** Changes after an import, pull or rescan (not on every app refresh): the finder reloads. */
     rev: string;
     /** The first picked character (the import dialog starts there). */
     picked?: string | null;
@@ -102,7 +102,8 @@
   const fetchKey = $derived(prefsFor === tkey ? `${tkey}/${scopeAll ? '*' : target.channel}/${rev}` : '');
   $effect(() => {
     if (!fetchKey) return;
-    const req = { install: target.install, channels: scopeAll ? [] : [target.channel] };
+    // Keyed on `fetchKey` only: `target` is a new object after every app refresh.
+    const req = untrack(() => ({ install: target.install, channels: scopeAll ? [] : [target.channel] }));
     let stale = false;
     failed = null;
     api

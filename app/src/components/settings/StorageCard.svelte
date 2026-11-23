@@ -20,10 +20,11 @@
   let s = $state<StorageStatus | null>(null);
   let busy = $state(false);
 
-  async function load() {
+  /** `again`: "Measure again" walks the folders now; otherwise sizes kept from earlier serve. */
+  async function load(again = false) {
     busy = true;
     try {
-      s = await api.storageStatus();
+      s = await (again ? api.storageMeasure() : api.storageStatus());
     } catch (e) {
       toast('error', 'Reading storage sizes failed', toContractError(e).message);
     } finally {
@@ -77,7 +78,7 @@
       {#if s.asset_busy}<p class="text-muted-foreground text-[12px]" role="status">{s.asset_busy}</p>{/if}
     {/if}
     <div class="flex flex-wrap gap-1.5">
-      <Button variant="outline" size="xs" disabled={busy} onclick={() => void load()}><RefreshCw aria-hidden="true" /> Measure again</Button>
+      <Button variant="outline" size="xs" disabled={busy} onclick={() => void load(true)}><RefreshCw aria-hidden="true" /> Measure again</Button>
       {#if s && assets}
         <ConfirmButton disabled={busy || assets.files === 0 || !!s.asset_busy} confirmLabel={`Delete ${sizeText(assets.bytes)}?`} onconfirm={() => void clearAssets()}><Trash aria-hidden="true" /> Clear asset cache</ConfirmButton>
       {/if}

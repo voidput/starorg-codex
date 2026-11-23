@@ -100,6 +100,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   memory_status: [Record<string, never>, T.MemoryStatus];
   set_memory_limit: [{ req: T.MemoryLimitRequest }, T.MemoryStatus];
   storage_status: [Record<string, never>, T.StorageStatus];
+  storage_measure: [Record<string, never>, T.StorageStatus];
   storage_clear_assets: [Record<string, never>, T.StorageStatus];
 }
 
@@ -209,6 +210,7 @@ export const COMMANDS = [
   'dev_add_source',
   'dev_remove_source',
   'dev_dump_releases',
+  'dev_refresh_dump_releases',
   'dev_download_dump',
   'dev_dataset',
   'dev_table',
@@ -247,6 +249,7 @@ export const COMMANDS = [
   'memory_status',
   'set_memory_limit',
   'storage_status',
+  'storage_measure',
   'storage_clear_assets',
 ] as const satisfies readonly Command[];
 
@@ -450,6 +453,8 @@ export const api = {
   setMemoryLimit: (gb: number | null) => call('set_memory_limit', { req: { gb } }),
   /** Settings > Storage: sizes per area and the cache folder's cap. */
   storageStatus: () => call('storage_status', none),
+  /** "Measure again": walks the folders now instead of the sizes kept from earlier. */
+  storageMeasure: () => call('storage_measure', none),
   /** "Clear asset cache"; `busy` while an asset job runs. */
   storageClearAssets: () => call('storage_clear_assets', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),

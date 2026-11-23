@@ -222,8 +222,11 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus>;
 
     // Storage (Settings > Storage; docs/user-guide.md#storage).
-    /// Sizes per area and the cache folder's cap. Walks the folders (read only).
+    /// Sizes per area and the cache folder's cap. Walks the folders (read only); the real
+    /// backend keeps the sizes until something may have changed them (or 5 minutes).
     fn storage_status(&self) -> CmdResult<StorageStatus>;
+    /// "Measure again": `storage_status`, walking the folders now.
+    fn storage_measure(&self) -> CmdResult<StorageStatus>;
     /// "Clear asset cache": `busy` while an asset export or preview is running.
     fn storage_clear_assets(&self) -> CmdResult<StorageStatus>;
 }
@@ -351,6 +354,7 @@ commands! {
     memory_status() -> MemoryStatus;
     set_memory_limit(req: MemoryLimitRequest) -> MemoryStatus;
     storage_status() -> StorageStatus;
+    storage_measure() -> StorageStatus;
     storage_clear_assets() -> StorageStatus;
 }
 
@@ -476,6 +480,7 @@ macro_rules! contract_handler {
             $crate::contract::dev::dev_add_source,
             $crate::contract::dev::dev_remove_source,
             $crate::contract::dev::dev_dump_releases,
+            $crate::contract::dev::dev_refresh_dump_releases,
             $crate::contract::dev::dev_download_dump,
             $crate::contract::dev::dev_dataset,
             $crate::contract::dev::dev_table,
@@ -514,6 +519,7 @@ macro_rules! contract_handler {
             $crate::contract::memory_status,
             $crate::contract::set_memory_limit,
             $crate::contract::storage_status,
+            $crate::contract::storage_measure,
             $crate::contract::storage_clear_assets,
         ]
     };
@@ -622,6 +628,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "dev_add_source",
     "dev_remove_source",
     "dev_dump_releases",
+    "dev_refresh_dump_releases",
     "dev_download_dump",
     "dev_dataset",
     "dev_table",
@@ -660,6 +667,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "memory_status",
     "set_memory_limit",
     "storage_status",
+    "storage_measure",
     "storage_clear_assets",
 ];
 

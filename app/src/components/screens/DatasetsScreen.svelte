@@ -18,6 +18,7 @@
   import FolderPlus from '@lucide/svelte/icons/folder-plus';
   import Download from '@lucide/svelte/icons/download';
   import Trash from '@lucide/svelte/icons/trash-2';
+  import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import Columns from '@lucide/svelte/icons/columns-3';
   import Funnel from '@lucide/svelte/icons/funnel';
   import X from '@lucide/svelte/icons/x';
@@ -100,18 +101,26 @@
   let relNote = $state<string | null>(null);
   let relLoading = $state(true);
   let downloading = $state<string | null>(null);
-  async function loadReleases() {
+  let relSeq = 0;
+  /**
+   * The backend remembers GitHub's list for 15 minutes, so a visit or channel switch answers at
+   * once from it plus the downloaded builds; `fresh` (the Refresh button) asks GitHub again.
+   */
+  async function loadReleases(fresh = false) {
     if (!target) return;
+    const me = ++relSeq;
     relLoading = true;
     try {
-      const r = await devApi.dumpReleases($state.snapshot(target));
+      const t = $state.snapshot(target);
+      const r = await (fresh ? devApi.refreshDumpReleases(t) : devApi.dumpReleases(t));
+      if (me !== relSeq) return;
       releases = Array.isArray(r?.releases) ? r.releases : [];
       relNote = r?.error ?? null;
       relError = null;
     } catch (e) {
-      relError = toContractError(e);
+      if (me === relSeq) relError = toContractError(e);
     } finally {
-      relLoading = false;
+      if (me === relSeq) relLoading = false;
     }
   }
   $effect(() => {
@@ -613,7 +622,11 @@
         <section class="mt-3 grid gap-1 border-t pt-2" aria-labelledby="dump-head">
           <div class="flex items-center gap-1.5 px-1.5">
             <h3 id="dump-head" class="eyebrow text-muted-foreground flex-1">Published LIVE builds</h3>
-            {#if !dumpsOn}<ToneBadge tone="muted" label="Off" hint="Settings > Network" />{/if}
+            {#if !dumpsOn}
+              <ToneBadge tone="muted" label="Off" hint="Settings > Network" />
+            {:else}
+              <Button variant="ghost" size="icon-xs" aria-label="Refresh the published builds" title="Ask GitHub again (the list is otherwise reused for 15 minutes)" disabled={relLoading} onclick={() => void loadReleases(true)}><RefreshCw aria-hidden="true" class={cn(relLoading && 'animate-spin')} /></Button>
+            {/if}
           </div>
           {#if !dumpsOn}
             <p class="text-muted-foreground px-1.5 text-[11.5px]">
