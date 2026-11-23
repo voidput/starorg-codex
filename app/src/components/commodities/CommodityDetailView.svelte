@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * One resource in full (`commodity_detail`): forms, quality, volatility and cargo damage,
-   * cargo items, where it is mined, and UEX kiosk prices. A section the data does not cover
-   * says so in one quiet line; nothing here is an error.
+   * cargo items, where it is mined, UEX kiosk prices and a buy/sell calculator. A section the
+   * data does not cover says so in one quiet line; nothing here is an error.
    */
   import Download from '@lucide/svelte/icons/download';
   import LoaderCircle from '@lucide/svelte/icons/loader-circle';
@@ -12,6 +12,7 @@
   import { beltBars, beltPlace, fetchedText, pctText, qualityText, scuPriceText, spotPlace } from '@/lib/sources';
   import { explosionText, numText, scuText } from '@/lib/commodities';
   import { cn } from '@/lib/utils';
+  import CommodityCalculator from './CommodityCalculator.svelte';
 
   interface Props {
     c: CommodityDetail;
@@ -261,4 +262,8 @@
       </div>
     {/if}
   </section>
+
+  {#if c.market.loaded && (c.market.buy.length || c.market.sell.length)}
+    <CommodityCalculator {c} {when} />
+  {/if}
 </article>

@@ -236,6 +236,15 @@ game). Ship-system placeholders (heat, power, life support) are left out.
 - Kiosk prices are UEX data (player-reported), read from the same UEX files as Shops: with
   *Download UEX market data* on, **Fetch now** gets them; the top line says how old they are.
   Anything the data does not cover shows a quiet "Not known" line.
+- **Trade calculator** (under the kiosk prices, when UEX has any for the resource): type an
+  amount in SCU, or pick one of your ships (the fleet the Ships tab lists) to fill in its stock
+  cargo grid. A ship whose cargo the game data does not give shows without a number and leaves
+  the amount alone. Pick the buy and the sell kiosk (the cheapest and the best paying of the
+  listed ones by default) to see the cost, revenue, profit, profit per SCU and margin (profit as
+  a share of the cost). Prices are UEX (player-reported), as old as the line above says. The
+  amount is not capped: the UEX files have no stock to buy or demand to sell. Your fleet loads
+  only when you first use the calculator; the last amount and ship are remembered on this
+  computer.
 
 The list carries names and groups only; a resource's detail loads when you pick it. Both come
 from the build's cached data, built once per build, so switching screens does not rebuild.
