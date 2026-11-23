@@ -262,7 +262,14 @@ fn a_panic_becomes_an_error_reply_and_the_worker_keeps_serving() {
         r#"{"id":1,"op":"test-panic"}"#.to_string(),
         r#"{"id":2,"op":"status"}"#.to_string(),
     ];
-    let replies = run_lines(&db, &lines, Hooks { panic_op: true });
+    let replies = run_lines(
+        &db,
+        &lines,
+        Hooks {
+            panic_op: true,
+            ..Hooks::default()
+        },
+    );
     assert_eq!(replies[0]["ok"], false);
     assert_eq!(replies[0]["error"]["code"], "internal");
     assert!(
@@ -301,7 +308,12 @@ fn exports_over_the_protocol_report_progress_and_can_be_refused() {
             q(&one)
         ),
     ];
-    let replies = run_lines(&db, &lines, Hooks::default());
+    // Each step first waits for a request, so id 2 always lands while id 1 is running.
+    let hooks = Hooks {
+        line_wait: Some(std::time::Duration::from_millis(200)),
+        ..Hooks::default()
+    };
+    let replies = run_lines(&db, &lines, hooks);
     let of = |id: u64| -> Vec<&Value> { replies.iter().filter(|r| r["id"] == id).collect() };
     let first = of(1);
     assert_eq!(first[0]["progress"]["done"], 0);
