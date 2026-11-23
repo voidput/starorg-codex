@@ -43,6 +43,7 @@
   let saved = $state<string>('');
   let draft = $state<Profile | null>(null);
   let patches = $state<PatchView[]>([]);
+  let patchesLoaded = $state(false);
   let error = $state<ContractError | null>(null);
   let preview = $state<PreviewItem[] | null>(null);
   let previewing = $state(false);
@@ -82,15 +83,26 @@
     untrack(() => {
       error = null;
       const target = refOf(k);
-      Promise.all([api.getProfile(target), schema ? Promise.resolve(schema) : api.profileSchema(), api.listPatches(target)])
-        .then(([p, s, ps]) => {
+      // The page shows once the profile and schema are in. The patch list comes after: its
+      // states build the whole output table (seconds on a first visit), and only the two
+      // switches that name built-in patches wait for it.
+      patchesLoaded = false;
+      Promise.all([api.getProfile(target), schema ? Promise.resolve(schema) : api.profileSchema()])
+        .then(([p, s]) => {
           if (stale) return;
           schema = s;
-          patches = ps;
           draft = p;
           saved = JSON.stringify(p);
         })
         .catch((e) => !stale && (error = toContractError(e)));
+      api
+        .listPatches(target)
+        .then((ps) => {
+          if (stale) return;
+          patches = ps;
+          patchesLoaded = true;
+        })
+        .catch((e) => !stale && toast('error', 'Patches not read', toContractError(e).message));
     });
     return () => (stale = true);
   });
@@ -421,8 +433,9 @@
               <SwitchRow
                 id="fix-bugs"
                 label="Fix known CIG text bugs"
-                hint={fixesOff && fixesOff < builtin.length ? `${fixesOff} of ${builtin.length} fixes are off; see Patches.` : 'Built-in patches; each can be turned off under Patches.'}
-                checked={fixesOff < builtin.length}
+                hint={!patchesLoaded ? 'Reading the built-in patches…' : fixesOff && fixesOff < builtin.length ? `${fixesOff} of ${builtin.length} fixes are off; see Patches.` : 'Built-in patches; each can be turned off under Patches.'}
+                checked={!patchesLoaded || fixesOff < builtin.length}
+                disabled={!patchesLoaded}
                 onchange={setFixes}
               />
               <SwitchRow

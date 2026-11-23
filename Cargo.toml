@@ -69,3 +69,8 @@ opt-level = 2
 # Builds the obtain hints over the datasets (20 s unoptimised on PTU, well under 1 s optimised).
 [profile.dev.package.starorg-mcp]
 opt-level = 2
+
+# The generators: the app's preview, patch states and apply build the whole output table
+# (about 3 s per build unoptimised).
+[profile.dev.package.starorg-core]
+opt-level = 2
