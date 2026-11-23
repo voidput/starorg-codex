@@ -77,6 +77,12 @@ const SAMPLES = samples as unknown as {
   shop_items: T.ShopItems;
   shop_items_all: T.ShopItems[];
   shop_items_all_linked: T.ShopItems[];
+  commodity_list_not_read: T.CommodityDirectory;
+  commodity_list: T.CommodityDirectory;
+  commodity_list_priced: T.CommodityDirectory;
+  commodity_detail: T.CommodityInfo;
+  commodity_details_all: T.CommodityDetail[];
+  commodity_details_all_priced: T.CommodityDetail[];
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -1060,6 +1066,21 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const all = req.target && dataRead.has(id(req.target)) ? SAMPLES.shop_items_all_linked : SAMPLES.shop_items_all;
       const hit = all.find((s) => s.shop?.id === req.terminal);
       return clone(hit ?? { ...SAMPLES.shop_items, shop: null, items: [] });
+    },
+    // The Rust mock's synthetic commodities once the channel's game data was read; kiosk
+    // prices once the commodity prices are there. A detail takes a moment (the skeleton shows).
+    commodity_list: ({ req }) => {
+      if (!req.target) return { ...clone(SAMPLES.commodity_list_not_read), state: 'no-channel' as const };
+      if (!dataRead.has(id(req.target))) return clone(SAMPLES.commodity_list_not_read);
+      return clone(uex.prices_ready ? SAMPLES.commodity_list_priced : SAMPLES.commodity_list);
+    },
+    commodity_detail: async ({ req }) => {
+      await sleep(Math.min(delay, 300));
+      if (!req.target) return { state: 'no-channel' as const, commodity: null };
+      if (!dataRead.has(id(req.target))) return { state: 'not-read' as const, commodity: null };
+      const all = uex.prices_ready ? SAMPLES.commodity_details_all_priced : SAMPLES.commodity_details_all;
+      const hit = all.find((c) => c.id.toLowerCase() === req.id.toLowerCase());
+      return { state: 'ready' as const, commodity: hit ? clone(hit) : null };
     },
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),

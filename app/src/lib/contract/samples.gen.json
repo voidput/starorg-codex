@@ -3021,6 +3021,3590 @@
     },
     "skipped_version": null
   },
+  "commodity_detail": {
+    "commodity": {
+      "cargo": [
+        {
+          "capacity_scu": 0.01,
+          "class_name": "fixtanium_raw",
+          "kind": "Mineral",
+          "name": "Fixtanium (Raw)"
+        }
+      ],
+      "damage": [
+        {
+          "configs": [
+            "CommodityDamageConfigBase",
+            "CommodityDamageConfigMole"
+          ],
+          "explosion_damage": 375.0,
+          "explosion_max_radius": 2.1,
+          "explosion_min_radius": 0.1,
+          "grace_period": 10.0,
+          "minimum_speed": 15.0
+        }
+      ],
+      "density": 1.0,
+      "description": "An unstable test mineral.",
+      "group": "Mineral",
+      "id": "ResourceType.Raw_Fixtanium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Ruin Station, Terminus, Pyro",
+            "price": 10900.0,
+            "scu_stock": 1090.0,
+            "stale": false,
+            "system": "Pyro",
+            "terminal": "Guns Ruin",
+            "updated": "2026-11-19"
+          }
+        ],
+        "sell_total": 1
+      },
+      "mined": [
+        {
+          "belts": [
+            {
+              "body": "Aaron Halo",
+              "kind": "ship",
+              "location": "StantonBelt_Aaron",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.08,
+              "system": "Stanton",
+              "tier": null
+            },
+            {
+              "body": "Pyro I",
+              "kind": "ship",
+              "location": "Pyro1",
+              "max_percent": null,
+              "min_percent": null,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.05,
+              "system": "Pyro",
+              "tier": null
+            }
+          ],
+          "name": "Fixtanium",
+          "ore": "fixtanium_raw",
+          "rocks": [
+            "MineableRock_Asteroid_Fixtanium"
+          ],
+          "spots": []
+        }
+      ],
+      "name": "Fixtanium (Raw)",
+      "quality": {
+        "name": "Fixtanium (Raw)",
+        "overrides": [
+          {
+            "location": "Nyx System",
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 225.0
+            }
+          }
+        ],
+        "range": {
+          "max": 1000.0,
+          "mean": 500.0,
+          "min": 501.0,
+          "stddev": 203.0
+        },
+        "resource": "ResourceType.Raw_Fixtanium",
+        "steps": [
+          {
+            "end": 599.0,
+            "share": 0.3799504360577891,
+            "shown": 514.0,
+            "start": 0.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.5840984509581552,
+            "shown": 762.0,
+            "start": 600.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.03595111298405574,
+            "shown": 974.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "Legendary"
+      },
+      "raw_sources": [],
+      "refined": {
+        "id": "ResourceType.Fixtanium",
+        "name": "Fixtanium"
+      },
+      "subgroup": "Raw Minerals",
+      "volatility": {
+        "decay_per_second": 0.0675,
+        "volatility": 1.0
+      }
+    },
+    "state": "ready"
+  },
+  "commodity_details_all": [
+    {
+      "cargo": [
+        {
+          "capacity_scu": 1.0,
+          "class_name": "hydrogen",
+          "kind": "Gas",
+          "name": "Hydrogen"
+        }
+      ],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Gas",
+      "id": "ResourceType.Hydrogen",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Hydrogen",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [
+        {
+          "configs": [
+            "CommodityDamageConfigBase",
+            "CommodityDamageConfigMole"
+          ],
+          "explosion_damage": 375.0,
+          "explosion_max_radius": 2.1,
+          "explosion_min_radius": 0.1,
+          "grace_period": 10.0,
+          "minimum_speed": 15.0
+        }
+      ],
+      "density": 1.0,
+      "description": null,
+      "group": "Gas",
+      "id": "ResourceType.Testium_Gas",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Testium Gas",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": {
+        "decay_per_second": null,
+        "volatility": 0.5
+      }
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Metal",
+      "id": "ResourceType.Mockite",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": null,
+      "name": "Mockite",
+      "quality": null,
+      "raw_sources": [
+        {
+          "id": "ResourceType.Ore_Mockite",
+          "name": "Mockite (Ore)"
+        }
+      ],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 0.01,
+          "class_name": "synthium",
+          "kind": "Metal",
+          "name": "Synthium"
+        }
+      ],
+      "damage": [],
+      "density": 7.9,
+      "description": "A synthetic test metal.",
+      "group": "Metal",
+      "id": "ResourceType.Synthium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": null,
+      "name": "Synthium",
+      "quality": null,
+      "raw_sources": [
+        {
+          "id": "ResourceType.Ore_Synthium",
+          "name": "Synthium (Ore)"
+        }
+      ],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Metal",
+      "id": "ResourceType.Ore_Mockite",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [
+        {
+          "belts": [
+            {
+              "body": "Lyria",
+              "kind": "vehicle",
+              "location": "Stanton3a",
+              "max_percent": null,
+              "min_percent": null,
+              "rock": "MineableRock_GroundVehicle_Mockite",
+              "spawn_share": 0.3,
+              "system": "Stanton",
+              "tier": null
+            }
+          ],
+          "name": "Mockite",
+          "ore": "mockite_ore",
+          "rocks": [
+            "MineableRock_GroundVehicle_Mockite"
+          ],
+          "spots": []
+        }
+      ],
+      "name": "Mockite (Ore)",
+      "quality": {
+        "name": "Mockite (Ore)",
+        "overrides": [],
+        "range": {
+          "max": 1000.0,
+          "mean": 500.0,
+          "min": 200.0,
+          "stddev": 200.0
+        },
+        "resource": "ResourceType.Ore_Mockite",
+        "steps": [
+          {
+            "end": 399.0,
+            "share": 0.2600678176816384,
+            "shown": 300.0,
+            "start": 0.0
+          },
+          {
+            "end": 699.0,
+            "share": 0.5748435364080496,
+            "shown": 560.0,
+            "start": 400.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.14705944198454643,
+            "shown": 800.0,
+            "start": 700.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.018029203925765402,
+            "shown": 950.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "Rare"
+      },
+      "raw_sources": [],
+      "refined": {
+        "id": "ResourceType.Mockite",
+        "name": "Mockite"
+      },
+      "subgroup": "Unrefined Ores",
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 0.01,
+          "class_name": "synthium_ore",
+          "kind": "Metal",
+          "name": "Synthium (Ore)"
+        }
+      ],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Metal",
+      "id": "ResourceType.Ore_Synthium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [
+        {
+          "belts": [
+            {
+              "body": "Hurston",
+              "kind": "ship",
+              "location": "Stanton1",
+              "max_percent": 45.0,
+              "min_percent": 20.0,
+              "rock": "MineableRock_Synthium",
+              "spawn_share": 0.4,
+              "system": "Stanton",
+              "tier": null
+            },
+            {
+              "body": "Yela",
+              "kind": "ship",
+              "location": "Stanton2c",
+              "max_percent": null,
+              "min_percent": null,
+              "rock": "MineableRock_Synthium",
+              "spawn_share": 0.25,
+              "system": "Stanton",
+              "tier": null
+            }
+          ],
+          "name": "Synthium",
+          "ore": "synthium_ore",
+          "rocks": [
+            "MineableRock_Synthium"
+          ],
+          "spots": []
+        }
+      ],
+      "name": "Synthium (Ore)",
+      "quality": {
+        "name": "Synthium (Ore)",
+        "overrides": [],
+        "range": {
+          "max": 1000.0,
+          "mean": 400.0,
+          "min": 0.0,
+          "stddev": 180.0
+        },
+        "resource": "ResourceType.Ore_Synthium",
+        "steps": [
+          {
+            "end": 399.0,
+            "share": 0.49248273617269167,
+            "shown": 300.0,
+            "start": 0.0
+          },
+          {
+            "end": 699.0,
+            "share": 0.45922453511258426,
+            "shown": 560.0,
+            "start": 400.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.04592556235972366,
+            "shown": 800.0,
+            "start": 700.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.002367166355000461,
+            "shown": 950.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "Common"
+      },
+      "raw_sources": [],
+      "refined": {
+        "id": "ResourceType.Synthium",
+        "name": "Synthium"
+      },
+      "subgroup": "Unrefined Ores",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Mineral",
+      "id": "ResourceType.Fixtanium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": null,
+      "name": "Fixtanium",
+      "quality": null,
+      "raw_sources": [
+        {
+          "id": "ResourceType.Raw_Fixtanium",
+          "name": "Fixtanium (Raw)"
+        }
+      ],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 0.01,
+          "class_name": "fixtanium_raw",
+          "kind": "Mineral",
+          "name": "Fixtanium (Raw)"
+        }
+      ],
+      "damage": [
+        {
+          "configs": [
+            "CommodityDamageConfigBase",
+            "CommodityDamageConfigMole"
+          ],
+          "explosion_damage": 375.0,
+          "explosion_max_radius": 2.1,
+          "explosion_min_radius": 0.1,
+          "grace_period": 10.0,
+          "minimum_speed": 15.0
+        }
+      ],
+      "density": 1.0,
+      "description": "An unstable test mineral.",
+      "group": "Mineral",
+      "id": "ResourceType.Raw_Fixtanium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [
+        {
+          "belts": [
+            {
+              "body": "Aaron Halo",
+              "kind": "ship",
+              "location": "StantonBelt_Aaron",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.08,
+              "system": "Stanton",
+              "tier": null
+            },
+            {
+              "body": "Pyro I",
+              "kind": "ship",
+              "location": "Pyro1",
+              "max_percent": null,
+              "min_percent": null,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.05,
+              "system": "Pyro",
+              "tier": null
+            }
+          ],
+          "name": "Fixtanium",
+          "ore": "fixtanium_raw",
+          "rocks": [
+            "MineableRock_Asteroid_Fixtanium"
+          ],
+          "spots": []
+        }
+      ],
+      "name": "Fixtanium (Raw)",
+      "quality": {
+        "name": "Fixtanium (Raw)",
+        "overrides": [
+          {
+            "location": "Nyx System",
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 225.0
+            }
+          }
+        ],
+        "range": {
+          "max": 1000.0,
+          "mean": 500.0,
+          "min": 501.0,
+          "stddev": 203.0
+        },
+        "resource": "ResourceType.Raw_Fixtanium",
+        "steps": [
+          {
+            "end": 599.0,
+            "share": 0.3799504360577891,
+            "shown": 514.0,
+            "start": 0.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.5840984509581552,
+            "shown": 762.0,
+            "start": 600.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.03595111298405574,
+            "shown": 974.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "Legendary"
+      },
+      "raw_sources": [],
+      "refined": {
+        "id": "ResourceType.Fixtanium",
+        "name": "Fixtanium"
+      },
+      "subgroup": "Raw Minerals",
+      "volatility": {
+        "decay_per_second": 0.0675,
+        "volatility": 1.0
+      }
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Mineral",
+      "id": "ResourceType.Stubbite",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [
+        {
+          "belts": [],
+          "name": "Stubbite",
+          "ore": "minableelement_fps_stubbite",
+          "rocks": [
+            "MineableRock_FPS_Stubbite"
+          ],
+          "spots": [
+            {
+              "area": "events: rockcracker mineables",
+              "configs": [
+                "Event rocks"
+              ],
+              "place": "Rock Cracker, Nyx",
+              "rock": "MineableRock_FPS_Stubbite",
+              "slot_share": 1.0
+            },
+            {
+              "area": "caves: loot caves occupied",
+              "configs": [
+                "FPS mineables"
+              ],
+              "place": null,
+              "rock": "MineableRock_FPS_Stubbite",
+              "slot_share": 0.75
+            }
+          ]
+        }
+      ],
+      "name": "Stubbite",
+      "quality": {
+        "name": "Stubbite",
+        "overrides": [],
+        "range": {
+          "max": 1000.0,
+          "mean": 201.0,
+          "min": 201.0,
+          "stddev": 298.0
+        },
+        "resource": "ResourceType.Stubbite",
+        "steps": [
+          {
+            "end": 399.0,
+            "share": 0.49897043997272045,
+            "shown": 300.0,
+            "start": 0.0
+          },
+          {
+            "end": 699.0,
+            "share": 0.4134436706184463,
+            "shown": 560.0,
+            "start": 400.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.07573413855234679,
+            "shown": 800.0,
+            "start": 700.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.011851750856486466,
+            "shown": 950.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "FPSMineable"
+      },
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Raw Minerals",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Nonmetal",
+      "id": "ResourceType.Fluorine",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Fluorine",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Halogen",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Organic",
+      "id": "ResourceType.Glowcap",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Glowcap Mushrooms",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Organic",
+      "id": "ResourceType.Mock_Rations",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Mock Rations",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Food",
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 1.0,
+          "class_name": "medical_mocks",
+          "kind": "Medical",
+          "name": "Medical Supplies"
+        }
+      ],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Medical_Mocks",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Medical Supplies",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_01",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 01",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_02",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 02",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_03",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 03",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_04",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 04",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_05",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 05",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_06",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 06",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_07",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 07",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_08",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 08",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_09",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 09",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_10",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 10",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_11",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 11",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_12",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 12",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_13",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 13",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_14",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 14",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_15",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 15",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_16",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 16",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_17",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 17",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_18",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 18",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_19",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 19",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_20",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 20",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_21",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 21",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_22",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 22",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_23",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 23",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_24",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 24",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Mock_Fabric",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Mock Fabric",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Synthetic Materials",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Mock_Stims",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Mock Stims",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Vice",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Waste",
+      "id": "ResourceType.Scrap",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": null,
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": false,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Scrap",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    }
+  ],
+  "commodity_details_all_priced": [
+    {
+      "cargo": [
+        {
+          "capacity_scu": 1.0,
+          "class_name": "hydrogen",
+          "kind": "Gas",
+          "name": "Hydrogen"
+        }
+      ],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Gas",
+      "id": "ResourceType.Hydrogen",
+      "market": {
+        "buy": [
+          {
+            "location": "Lorville, Hurston, Stanton",
+            "price": 92.0,
+            "scu_stock": null,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "Cafe Lorville",
+            "updated": "2026-11-18"
+          },
+          {
+            "location": "Grim HEX, Yela, Crusader, Stanton",
+            "price": 98.0,
+            "scu_stock": null,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "Dumper's GrimHEX",
+            "updated": "2026-11-18"
+          }
+        ],
+        "buy_total": 2,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Grim HEX, Yela, Crusader, Stanton",
+            "price": 105.0,
+            "scu_stock": 11.0,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "Dumper's GrimHEX",
+            "updated": "2026-11-18"
+          }
+        ],
+        "sell_total": 1
+      },
+      "mined": [],
+      "name": "Hydrogen",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [
+        {
+          "configs": [
+            "CommodityDamageConfigBase",
+            "CommodityDamageConfigMole"
+          ],
+          "explosion_damage": 375.0,
+          "explosion_max_radius": 2.1,
+          "explosion_min_radius": 0.1,
+          "grace_period": 10.0,
+          "minimum_speed": 15.0
+        }
+      ],
+      "density": 1.0,
+      "description": null,
+      "group": "Gas",
+      "id": "ResourceType.Testium_Gas",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Testium Gas",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": {
+        "decay_per_second": null,
+        "volatility": 0.5
+      }
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Metal",
+      "id": "ResourceType.Mockite",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": null,
+      "name": "Mockite",
+      "quality": null,
+      "raw_sources": [
+        {
+          "id": "ResourceType.Ore_Mockite",
+          "name": "Mockite (Ore)"
+        }
+      ],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 0.01,
+          "class_name": "synthium",
+          "kind": "Metal",
+          "name": "Synthium"
+        }
+      ],
+      "damage": [],
+      "density": 7.9,
+      "description": "A synthetic test metal.",
+      "group": "Metal",
+      "id": "ResourceType.Synthium",
+      "market": {
+        "buy": [
+          {
+            "location": "Area 18, ArcCorp, Stanton",
+            "price": 2700.0,
+            "scu_stock": null,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "CenterMass Area 18",
+            "updated": "2026-11-17"
+          }
+        ],
+        "buy_total": 1,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Lorville, Hurston, Stanton",
+            "price": 3120.0,
+            "scu_stock": 312.0,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "Cafe Lorville",
+            "updated": "2026-11-18"
+          },
+          {
+            "location": "Grim HEX, Yela, Crusader, Stanton",
+            "price": 2950.0,
+            "scu_stock": 295.0,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "Dumper's GrimHEX",
+            "updated": "2026-11-19"
+          }
+        ],
+        "sell_total": 2
+      },
+      "mined": null,
+      "name": "Synthium",
+      "quality": null,
+      "raw_sources": [
+        {
+          "id": "ResourceType.Ore_Synthium",
+          "name": "Synthium (Ore)"
+        }
+      ],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Metal",
+      "id": "ResourceType.Ore_Mockite",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [
+        {
+          "belts": [
+            {
+              "body": "Lyria",
+              "kind": "vehicle",
+              "location": "Stanton3a",
+              "max_percent": null,
+              "min_percent": null,
+              "rock": "MineableRock_GroundVehicle_Mockite",
+              "spawn_share": 0.3,
+              "system": "Stanton",
+              "tier": null
+            }
+          ],
+          "name": "Mockite",
+          "ore": "mockite_ore",
+          "rocks": [
+            "MineableRock_GroundVehicle_Mockite"
+          ],
+          "spots": []
+        }
+      ],
+      "name": "Mockite (Ore)",
+      "quality": {
+        "name": "Mockite (Ore)",
+        "overrides": [],
+        "range": {
+          "max": 1000.0,
+          "mean": 500.0,
+          "min": 200.0,
+          "stddev": 200.0
+        },
+        "resource": "ResourceType.Ore_Mockite",
+        "steps": [
+          {
+            "end": 399.0,
+            "share": 0.2600678176816384,
+            "shown": 300.0,
+            "start": 0.0
+          },
+          {
+            "end": 699.0,
+            "share": 0.5748435364080496,
+            "shown": 560.0,
+            "start": 400.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.14705944198454643,
+            "shown": 800.0,
+            "start": 700.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.018029203925765402,
+            "shown": 950.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "Rare"
+      },
+      "raw_sources": [],
+      "refined": {
+        "id": "ResourceType.Mockite",
+        "name": "Mockite"
+      },
+      "subgroup": "Unrefined Ores",
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 0.01,
+          "class_name": "synthium_ore",
+          "kind": "Metal",
+          "name": "Synthium (Ore)"
+        }
+      ],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Metal",
+      "id": "ResourceType.Ore_Synthium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Lorville, Hurston, Stanton",
+            "price": 1480.0,
+            "scu_stock": 148.0,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "Cafe Lorville",
+            "updated": "2026-11-19"
+          }
+        ],
+        "sell_total": 1
+      },
+      "mined": [
+        {
+          "belts": [
+            {
+              "body": "Hurston",
+              "kind": "ship",
+              "location": "Stanton1",
+              "max_percent": 45.0,
+              "min_percent": 20.0,
+              "rock": "MineableRock_Synthium",
+              "spawn_share": 0.4,
+              "system": "Stanton",
+              "tier": null
+            },
+            {
+              "body": "Yela",
+              "kind": "ship",
+              "location": "Stanton2c",
+              "max_percent": null,
+              "min_percent": null,
+              "rock": "MineableRock_Synthium",
+              "spawn_share": 0.25,
+              "system": "Stanton",
+              "tier": null
+            }
+          ],
+          "name": "Synthium",
+          "ore": "synthium_ore",
+          "rocks": [
+            "MineableRock_Synthium"
+          ],
+          "spots": []
+        }
+      ],
+      "name": "Synthium (Ore)",
+      "quality": {
+        "name": "Synthium (Ore)",
+        "overrides": [],
+        "range": {
+          "max": 1000.0,
+          "mean": 400.0,
+          "min": 0.0,
+          "stddev": 180.0
+        },
+        "resource": "ResourceType.Ore_Synthium",
+        "steps": [
+          {
+            "end": 399.0,
+            "share": 0.49248273617269167,
+            "shown": 300.0,
+            "start": 0.0
+          },
+          {
+            "end": 699.0,
+            "share": 0.45922453511258426,
+            "shown": 560.0,
+            "start": 400.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.04592556235972366,
+            "shown": 800.0,
+            "start": 700.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.002367166355000461,
+            "shown": 950.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "Common"
+      },
+      "raw_sources": [],
+      "refined": {
+        "id": "ResourceType.Synthium",
+        "name": "Synthium"
+      },
+      "subgroup": "Unrefined Ores",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Mineral",
+      "id": "ResourceType.Fixtanium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Ruin Station, Terminus, Pyro",
+            "price": 22400.0,
+            "scu_stock": 2240.0,
+            "stale": true,
+            "system": "Pyro",
+            "terminal": "Guns Ruin",
+            "updated": "2026-10-11"
+          },
+          {
+            "location": "Area 18, ArcCorp, Stanton",
+            "price": 21000.0,
+            "scu_stock": 2100.0,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "CenterMass Area 18",
+            "updated": "2026-11-19"
+          }
+        ],
+        "sell_total": 2
+      },
+      "mined": null,
+      "name": "Fixtanium",
+      "quality": null,
+      "raw_sources": [
+        {
+          "id": "ResourceType.Raw_Fixtanium",
+          "name": "Fixtanium (Raw)"
+        }
+      ],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 0.01,
+          "class_name": "fixtanium_raw",
+          "kind": "Mineral",
+          "name": "Fixtanium (Raw)"
+        }
+      ],
+      "damage": [
+        {
+          "configs": [
+            "CommodityDamageConfigBase",
+            "CommodityDamageConfigMole"
+          ],
+          "explosion_damage": 375.0,
+          "explosion_max_radius": 2.1,
+          "explosion_min_radius": 0.1,
+          "grace_period": 10.0,
+          "minimum_speed": 15.0
+        }
+      ],
+      "density": 1.0,
+      "description": "An unstable test mineral.",
+      "group": "Mineral",
+      "id": "ResourceType.Raw_Fixtanium",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Ruin Station, Terminus, Pyro",
+            "price": 10900.0,
+            "scu_stock": 1090.0,
+            "stale": false,
+            "system": "Pyro",
+            "terminal": "Guns Ruin",
+            "updated": "2026-11-19"
+          }
+        ],
+        "sell_total": 1
+      },
+      "mined": [
+        {
+          "belts": [
+            {
+              "body": "Aaron Halo",
+              "kind": "ship",
+              "location": "StantonBelt_Aaron",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.08,
+              "system": "Stanton",
+              "tier": null
+            },
+            {
+              "body": "Pyro I",
+              "kind": "ship",
+              "location": "Pyro1",
+              "max_percent": null,
+              "min_percent": null,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.05,
+              "system": "Pyro",
+              "tier": null
+            }
+          ],
+          "name": "Fixtanium",
+          "ore": "fixtanium_raw",
+          "rocks": [
+            "MineableRock_Asteroid_Fixtanium"
+          ],
+          "spots": []
+        }
+      ],
+      "name": "Fixtanium (Raw)",
+      "quality": {
+        "name": "Fixtanium (Raw)",
+        "overrides": [
+          {
+            "location": "Nyx System",
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 225.0
+            }
+          }
+        ],
+        "range": {
+          "max": 1000.0,
+          "mean": 500.0,
+          "min": 501.0,
+          "stddev": 203.0
+        },
+        "resource": "ResourceType.Raw_Fixtanium",
+        "steps": [
+          {
+            "end": 599.0,
+            "share": 0.3799504360577891,
+            "shown": 514.0,
+            "start": 0.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.5840984509581552,
+            "shown": 762.0,
+            "start": 600.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.03595111298405574,
+            "shown": 974.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "Legendary"
+      },
+      "raw_sources": [],
+      "refined": {
+        "id": "ResourceType.Fixtanium",
+        "name": "Fixtanium"
+      },
+      "subgroup": "Raw Minerals",
+      "volatility": {
+        "decay_per_second": 0.0675,
+        "volatility": 1.0
+      }
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Mineral",
+      "id": "ResourceType.Stubbite",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [
+        {
+          "belts": [],
+          "name": "Stubbite",
+          "ore": "minableelement_fps_stubbite",
+          "rocks": [
+            "MineableRock_FPS_Stubbite"
+          ],
+          "spots": [
+            {
+              "area": "events: rockcracker mineables",
+              "configs": [
+                "Event rocks"
+              ],
+              "place": "Rock Cracker, Nyx",
+              "rock": "MineableRock_FPS_Stubbite",
+              "slot_share": 1.0
+            },
+            {
+              "area": "caves: loot caves occupied",
+              "configs": [
+                "FPS mineables"
+              ],
+              "place": null,
+              "rock": "MineableRock_FPS_Stubbite",
+              "slot_share": 0.75
+            }
+          ]
+        }
+      ],
+      "name": "Stubbite",
+      "quality": {
+        "name": "Stubbite",
+        "overrides": [],
+        "range": {
+          "max": 1000.0,
+          "mean": 201.0,
+          "min": 201.0,
+          "stddev": 298.0
+        },
+        "resource": "ResourceType.Stubbite",
+        "steps": [
+          {
+            "end": 399.0,
+            "share": 0.49897043997272045,
+            "shown": 300.0,
+            "start": 0.0
+          },
+          {
+            "end": 699.0,
+            "share": 0.4134436706184463,
+            "shown": 560.0,
+            "start": 400.0
+          },
+          {
+            "end": 899.0,
+            "share": 0.07573413855234679,
+            "shown": 800.0,
+            "start": 700.0
+          },
+          {
+            "end": 1000.0,
+            "share": 0.011851750856486466,
+            "shown": 950.0,
+            "start": 900.0
+          }
+        ],
+        "tier": "FPSMineable"
+      },
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Raw Minerals",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Nonmetal",
+      "id": "ResourceType.Fluorine",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Fluorine",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Halogen",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Organic",
+      "id": "ResourceType.Glowcap",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Glowcap Mushrooms",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Organic",
+      "id": "ResourceType.Mock_Rations",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Mock Rations",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Food",
+      "volatility": null
+    },
+    {
+      "cargo": [
+        {
+          "capacity_scu": 1.0,
+          "class_name": "medical_mocks",
+          "kind": "Medical",
+          "name": "Medical Supplies"
+        }
+      ],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Medical_Mocks",
+      "market": {
+        "buy": [
+          {
+            "location": "Area 18, ArcCorp, Stanton",
+            "price": 1610.0,
+            "scu_stock": null,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "CenterMass Area 18",
+            "updated": "2026-11-19"
+          }
+        ],
+        "buy_total": 1,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Ruin Station, Terminus, Pyro",
+            "price": 2010.0,
+            "scu_stock": 201.0,
+            "stale": false,
+            "system": "Pyro",
+            "terminal": "Platinum Bay Ruin",
+            "updated": "2026-11-11"
+          },
+          {
+            "location": "Area 18, ArcCorp, Stanton",
+            "price": 1850.0,
+            "scu_stock": 185.0,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "CenterMass Area 18",
+            "updated": "2026-11-19"
+          }
+        ],
+        "sell_total": 2
+      },
+      "mined": [],
+      "name": "Medical Supplies",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_01",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 01",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_02",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 02",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_03",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 03",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_04",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 04",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_05",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 05",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_06",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 06",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_07",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 07",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_08",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 08",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_09",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 09",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_10",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 10",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_11",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 11",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_12",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 12",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_13",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 13",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_14",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 14",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_15",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 15",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_16",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 16",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_17",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 17",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_18",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 18",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_19",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 19",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_20",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 20",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_21",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 21",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_22",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 22",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_23",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 23",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Bulk_Good_24",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Bulk Good 24",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Bulk Supplies",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Mock_Fabric",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Mock Fabric",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Synthetic Materials",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Processed Goods",
+      "id": "ResourceType.Mock_Stims",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [],
+        "sell_total": 0
+      },
+      "mined": [],
+      "name": "Mock Stims",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": "Vice",
+      "volatility": null
+    },
+    {
+      "cargo": [],
+      "damage": [],
+      "density": 1.0,
+      "description": null,
+      "group": "Waste",
+      "id": "ResourceType.Scrap",
+      "market": {
+        "buy": [],
+        "buy_total": 0,
+        "fetched": "2026-11-21T09:00:00Z",
+        "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+        "loaded": true,
+        "sell": [
+          {
+            "location": "Grim HEX, Yela, Crusader, Stanton",
+            "price": 140.0,
+            "scu_stock": 14.0,
+            "stale": false,
+            "system": "Stanton",
+            "terminal": "Skutters Grim",
+            "updated": "2026-11-17"
+          }
+        ],
+        "sell_total": 1
+      },
+      "mined": [],
+      "name": "Scrap",
+      "quality": null,
+      "raw_sources": [],
+      "refined": null,
+      "subgroup": null,
+      "volatility": null
+    }
+  ],
+  "commodity_list": {
+    "build": "LIVE 4.10.201.48085",
+    "commodities": [
+      {
+        "group": "Gas",
+        "id": "ResourceType.Hydrogen",
+        "name": "Hydrogen",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Gas",
+        "id": "ResourceType.Testium_Gas",
+        "name": "Testium Gas",
+        "raw": false,
+        "subgroup": null,
+        "volatile": true
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Mockite",
+        "name": "Mockite",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Synthium",
+        "name": "Synthium",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Ore_Mockite",
+        "name": "Mockite (Ore)",
+        "raw": true,
+        "subgroup": "Unrefined Ores",
+        "volatile": false
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Ore_Synthium",
+        "name": "Synthium (Ore)",
+        "raw": true,
+        "subgroup": "Unrefined Ores",
+        "volatile": false
+      },
+      {
+        "group": "Mineral",
+        "id": "ResourceType.Fixtanium",
+        "name": "Fixtanium",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Mineral",
+        "id": "ResourceType.Raw_Fixtanium",
+        "name": "Fixtanium (Raw)",
+        "raw": true,
+        "subgroup": "Raw Minerals",
+        "volatile": true
+      },
+      {
+        "group": "Mineral",
+        "id": "ResourceType.Stubbite",
+        "name": "Stubbite",
+        "raw": false,
+        "subgroup": "Raw Minerals",
+        "volatile": false
+      },
+      {
+        "group": "Nonmetal",
+        "id": "ResourceType.Fluorine",
+        "name": "Fluorine",
+        "raw": false,
+        "subgroup": "Halogen",
+        "volatile": false
+      },
+      {
+        "group": "Organic",
+        "id": "ResourceType.Glowcap",
+        "name": "Glowcap Mushrooms",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Organic",
+        "id": "ResourceType.Mock_Rations",
+        "name": "Mock Rations",
+        "raw": false,
+        "subgroup": "Food",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Medical_Mocks",
+        "name": "Medical Supplies",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_01",
+        "name": "Bulk Good 01",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_02",
+        "name": "Bulk Good 02",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_03",
+        "name": "Bulk Good 03",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_04",
+        "name": "Bulk Good 04",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_05",
+        "name": "Bulk Good 05",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_06",
+        "name": "Bulk Good 06",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_07",
+        "name": "Bulk Good 07",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_08",
+        "name": "Bulk Good 08",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_09",
+        "name": "Bulk Good 09",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_10",
+        "name": "Bulk Good 10",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_11",
+        "name": "Bulk Good 11",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_12",
+        "name": "Bulk Good 12",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_13",
+        "name": "Bulk Good 13",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_14",
+        "name": "Bulk Good 14",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_15",
+        "name": "Bulk Good 15",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_16",
+        "name": "Bulk Good 16",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_17",
+        "name": "Bulk Good 17",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_18",
+        "name": "Bulk Good 18",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_19",
+        "name": "Bulk Good 19",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_20",
+        "name": "Bulk Good 20",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_21",
+        "name": "Bulk Good 21",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_22",
+        "name": "Bulk Good 22",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_23",
+        "name": "Bulk Good 23",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_24",
+        "name": "Bulk Good 24",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Mock_Fabric",
+        "name": "Mock Fabric",
+        "raw": false,
+        "subgroup": "Synthetic Materials",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Mock_Stims",
+        "name": "Mock Stims",
+        "raw": false,
+        "subgroup": "Vice",
+        "volatile": false
+      },
+      {
+        "group": "Waste",
+        "id": "ResourceType.Scrap",
+        "name": "Scrap",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      }
+    ],
+    "market": {
+      "fetched": null,
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "loaded": false
+    },
+    "state": "ready"
+  },
+  "commodity_list_not_read": {
+    "build": null,
+    "commodities": [],
+    "market": {
+      "fetched": null,
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "loaded": false
+    },
+    "state": "not-read"
+  },
+  "commodity_list_priced": {
+    "build": "LIVE 4.10.201.48085",
+    "commodities": [
+      {
+        "group": "Gas",
+        "id": "ResourceType.Hydrogen",
+        "name": "Hydrogen",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Gas",
+        "id": "ResourceType.Testium_Gas",
+        "name": "Testium Gas",
+        "raw": false,
+        "subgroup": null,
+        "volatile": true
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Mockite",
+        "name": "Mockite",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Synthium",
+        "name": "Synthium",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Ore_Mockite",
+        "name": "Mockite (Ore)",
+        "raw": true,
+        "subgroup": "Unrefined Ores",
+        "volatile": false
+      },
+      {
+        "group": "Metal",
+        "id": "ResourceType.Ore_Synthium",
+        "name": "Synthium (Ore)",
+        "raw": true,
+        "subgroup": "Unrefined Ores",
+        "volatile": false
+      },
+      {
+        "group": "Mineral",
+        "id": "ResourceType.Fixtanium",
+        "name": "Fixtanium",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Mineral",
+        "id": "ResourceType.Raw_Fixtanium",
+        "name": "Fixtanium (Raw)",
+        "raw": true,
+        "subgroup": "Raw Minerals",
+        "volatile": true
+      },
+      {
+        "group": "Mineral",
+        "id": "ResourceType.Stubbite",
+        "name": "Stubbite",
+        "raw": false,
+        "subgroup": "Raw Minerals",
+        "volatile": false
+      },
+      {
+        "group": "Nonmetal",
+        "id": "ResourceType.Fluorine",
+        "name": "Fluorine",
+        "raw": false,
+        "subgroup": "Halogen",
+        "volatile": false
+      },
+      {
+        "group": "Organic",
+        "id": "ResourceType.Glowcap",
+        "name": "Glowcap Mushrooms",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Organic",
+        "id": "ResourceType.Mock_Rations",
+        "name": "Mock Rations",
+        "raw": false,
+        "subgroup": "Food",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Medical_Mocks",
+        "name": "Medical Supplies",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_01",
+        "name": "Bulk Good 01",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_02",
+        "name": "Bulk Good 02",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_03",
+        "name": "Bulk Good 03",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_04",
+        "name": "Bulk Good 04",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_05",
+        "name": "Bulk Good 05",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_06",
+        "name": "Bulk Good 06",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_07",
+        "name": "Bulk Good 07",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_08",
+        "name": "Bulk Good 08",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_09",
+        "name": "Bulk Good 09",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_10",
+        "name": "Bulk Good 10",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_11",
+        "name": "Bulk Good 11",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_12",
+        "name": "Bulk Good 12",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_13",
+        "name": "Bulk Good 13",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_14",
+        "name": "Bulk Good 14",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_15",
+        "name": "Bulk Good 15",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_16",
+        "name": "Bulk Good 16",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_17",
+        "name": "Bulk Good 17",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_18",
+        "name": "Bulk Good 18",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_19",
+        "name": "Bulk Good 19",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_20",
+        "name": "Bulk Good 20",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_21",
+        "name": "Bulk Good 21",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_22",
+        "name": "Bulk Good 22",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_23",
+        "name": "Bulk Good 23",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Bulk_Good_24",
+        "name": "Bulk Good 24",
+        "raw": false,
+        "subgroup": "Bulk Supplies",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Mock_Fabric",
+        "name": "Mock Fabric",
+        "raw": false,
+        "subgroup": "Synthetic Materials",
+        "volatile": false
+      },
+      {
+        "group": "Processed Goods",
+        "id": "ResourceType.Mock_Stims",
+        "name": "Mock Stims",
+        "raw": false,
+        "subgroup": "Vice",
+        "volatile": false
+      },
+      {
+        "group": "Waste",
+        "id": "ResourceType.Scrap",
+        "name": "Scrap",
+        "raw": false,
+        "subgroup": null,
+        "volatile": false
+      }
+    ],
+    "market": {
+      "fetched": "2026-11-21T09:00:00Z",
+      "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+      "loaded": true
+    },
+    "state": "ready"
+  },
   "contract": 1,
   "dev_add_source": [
     {

@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-22
+updated: 2026-11-23
 ---
 
 # User guide
@@ -217,6 +217,29 @@ line at the top says how old the data is ("UEX data from 21 Nov").
 To find which shops sell one item, open it in the Explorer (Sources card, Buy rows) or ask the
 MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.
 
+## Commodities
+
+**Commodities** (Game group, or Ctrl+K) lists every tradable resource of the channel's build
+(ore, refined metal, gas, processed goods, ...), from its game data. Until that data is read
+the screen offers **Read game data** (the same job as in Shops; nothing is written to the
+game). Ship-system placeholders (heat, power, life support) are left out.
+
+- **Left:** the resources by group (`Metal`, `Metal > Unrefined Ores`, `Mineral > Raw
+  Minerals`, ...), searchable by name, record or group, with a chip per top group. *volatile*
+  marks volatile cargo, *raw* a form that refines into something. Arrow keys move the pick.
+- **Right:** the picked resource: what it refines into and what refines into it (both
+  clickable), its quality (range, place overrides and the values the game shows, with
+  estimated shares), volatility and what impacts and explosions do to volatile cargo, the
+  cargo items that hold it (with SCU), where it is mined (bodies and belts, and spots in caves,
+  asteroid bases and events) and the commodity kiosks that buy (**Sell**) and sell (**Buy**)
+  it, per SCU. A refined form points at its raw form for where it is mined.
+- Kiosk prices are UEX data (player-reported), read from the same UEX files as Shops: with
+  *Download UEX market data* on, **Fetch now** gets them; the top line says how old they are.
+  Anything the data does not cover shows a quiet "Not known" line.
+
+The list carries names and groups only; a resource's detail loads when you pick it. Both come
+from the build's cached data, built once per build, so switching screens does not rebuild.
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,
@@ -260,7 +283,7 @@ again (a re-read of `Data.p4k`).
 - **Download UEX market data:** **Fetch now** downloads where items are sold and what
   commodity kiosks pay (UEX Corp, player-reported) from `api.uexcorp.space` into the UEX folder
   (`<cache>/mcp/uex`: `uex-item-prices.json`, `uex-commodity-prices.json`, `uex-terminals.json`),
-  for the Buy and Sell lines of Where to get, the Shops screen, the Explorer Sources card and
+  for the Buy and Sell lines of Where to get, the Shops and Commodities screens, the Explorer Sources card and
   the MCP shop tools. All three are public, so a token is optional; to use yours, sign in at
   uexcorp.space -> My Apps, paste the token and press Save. It is kept in the system keyring
   (or a private file when there is none),

@@ -1133,6 +1133,81 @@ mod http {
 }
 
 #[test]
+fn commodities_for_the_app_read_only_cached_data_and_build_once() {
+    use starorg_mcp::commodities::CommodityDataState as S;
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing cached: not read, and nothing is extracted for it.
+    let d = t.commodity_list(Some("LIVE"));
+    assert_eq!(d.state, S::NotRead);
+    assert!(d.commodities.is_empty() && d.market.loaded);
+    assert_eq!(
+        d.market.fetched.as_deref(),
+        Some("2026-11-21T09:00:00.000Z")
+    );
+    assert_eq!(
+        t.commodity_detail(Some("LIVE"), "Laranite").state,
+        S::NotRead
+    );
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    assert_eq!(t.commodity_list(None).state, S::NoChannel);
+    assert_eq!(t.commodity_list(Some("NOPE")).state, S::NoChannel);
+    // "Read game data" (here: the hints, which read the same datasets) fills the cache.
+    t.obtain_hints("LIVE").unwrap();
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let d = t.commodity_list(Some("LIVE"));
+    assert_eq!(d.state, S::Ready);
+    assert!(d.build.as_deref().unwrap().starts_with("LIVE "));
+    let names: Vec<&str> = d.commodities.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["Laranite", "Raw_Quantainium", "Sadaryx"]);
+    assert!(d.commodities.iter().all(|c| c.group == "Other"));
+    // Laranite: cargo and prices on both sides; not mined anywhere the data knows.
+    let lar = t
+        .commodity_detail(Some("LIVE"), "ResourceType.Laranite")
+        .commodity
+        .unwrap();
+    assert_eq!(lar.cargo[0].class_name, "Laranite_Cargo_1SCU");
+    let sells: Vec<(&str, f64)> = lar
+        .market
+        .sell
+        .iter()
+        .map(|k| (k.terminal.as_str(), k.price))
+        .collect();
+    assert_eq!(sells, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.market.buy[0].price, 9900.0);
+    assert_eq!(lar.mined, Some(Vec::new()));
+    // Sadaryx: quality and loot-area spots.
+    let sad = t
+        .commodity_detail(Some("LIVE"), "Sadaryx")
+        .commodity
+        .unwrap();
+    assert_eq!(sad.quality.unwrap().steps[0].shown, 258.0);
+    assert!(!sad.mined.unwrap()[0].spots.is_empty());
+    let q = t
+        .commodity_detail(Some("LIVE"), "ResourceType.Raw_Quantainium")
+        .commodity
+        .unwrap();
+    assert_eq!(
+        q.mined.unwrap()[0].belts[0].body.as_deref(),
+        Some("Hurston")
+    );
+    // Unknown id: ready, but no commodity.
+    let none = t.commodity_detail(Some("LIVE"), "Unobtainium");
+    assert!(none.state == S::Ready && none.commodity.is_none());
+    // Nothing was extracted for the screen.
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // Without the commodity prices: the market says so, the rest stays.
+    std::fs::remove_file(w.root.join("cache/uex/uex-commodity-prices.json")).unwrap();
+    let gone = t
+        .commodity_detail(Some("LIVE"), "Laranite")
+        .commodity
+        .unwrap();
+    assert!(!gone.market.loaded && gone.market.sell.is_empty());
+    assert!(!gone.cargo.is_empty());
+    assert!(!t.commodity_list(Some("LIVE")).market.loaded);
+}
+
+#[test]
 fn sources_card_is_typed_and_exact() {
     let w = World::new();
     let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));

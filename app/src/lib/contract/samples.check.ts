@@ -34,6 +34,12 @@ interface Samples {
   shop_items: T.ShopItems;
   shop_items_all: T.ShopItems[];
   shop_items_all_linked: T.ShopItems[];
+  commodity_list_not_read: T.CommodityDirectory;
+  commodity_list: T.CommodityDirectory;
+  commodity_list_priced: T.CommodityDirectory;
+  commodity_detail: T.CommodityInfo;
+  commodity_details_all: T.CommodityDetail[];
+  commodity_details_all_priced: T.CommodityDetail[];
   list_overrides: T.OverrideEntry[];
   add_user_patch: T.PatchView;
   export_user_patch: T.PatchExport;

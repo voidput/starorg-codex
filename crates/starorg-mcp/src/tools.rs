@@ -1958,6 +1958,115 @@ impl Tools {
         }
     }
 
+    /// Whether the UEX commodity files are there, read through [`Store::uex`] (parsed once
+    /// per file version).
+    fn market_meta(&self) -> crate::commodities::MarketMeta {
+        let prices = self.store.uex(COMMODITY_PRICES_FILE);
+        let terminals = self.store.uex(TERMINALS_FILE);
+        crate::commodities::MarketMeta {
+            loaded: prices.is_some() && terminals.is_some(),
+            fetched: prices
+                .as_ref()
+                .and_then(|p| p.get("_fetched")?.as_str().map(str::to_string)),
+            folder: self.uex_folder(),
+        }
+    }
+
+    /// The build's commodities as the browser reads them, parsed once per build; `None`
+    /// while `game-commodities` is not cached (nothing is extracted here).
+    fn commodity_data(
+        &self,
+        ctx: &Ctx<'_>,
+    ) -> Option<Arc<starorg_gamedata::query::commodities::CommodityData>> {
+        ctx.store
+            .typed(&ctx.dir, "commodity-data", || {
+                serde_json::from_value((*ctx.json("game-commodities")?).clone())
+                    .map_err(|e| ToolError(format!("game-commodities: {e}")))
+            })
+            .ok()
+    }
+
+    /// The app's Commodities screen: every tradable resource of the channel's build, as
+    /// list rows only. Reads cached data only; the rows are built once per build.
+    pub fn commodity_list(&self, channel: Option<&str>) -> crate::commodities::CommodityDirectory {
+        use crate::commodities::{CommodityDataState, commodity_list, empty_directory};
+        let market = self.market_meta();
+        let Some(ctx) = channel.and_then(|c| self.cached_ctx(Some(c))) else {
+            return empty_directory(CommodityDataState::NoChannel, market);
+        };
+        let Some(data) = self.commodity_data(&ctx) else {
+            return empty_directory(CommodityDataState::NotRead, market);
+        };
+        let rows = ctx
+            .store
+            .typed(&ctx.dir, "commodity-list", || Ok(commodity_list(&data)))
+            .map(|r| (*r).clone())
+            .unwrap_or_default();
+        crate::commodities::CommodityDirectory {
+            state: CommodityDataState::Ready,
+            build: Some(format!(
+                "{} {}",
+                ctx.ch.name,
+                ctx.ch.build.as_deref().unwrap_or("unknown build")
+            )),
+            commodities: rows,
+            market,
+        }
+    }
+
+    /// One resource in full for the Commodities screen: forms, quality, volatility, cargo,
+    /// where it is mined (cached mining data only) and kiosk prices (UEX files, ranked once
+    /// per set of files and build).
+    pub fn commodity_detail(
+        &self,
+        channel: Option<&str>,
+        id: &str,
+    ) -> crate::commodities::CommodityInfo {
+        use crate::commodities::{CommodityDataState, CommodityInfo, Kiosks, kiosks_from_files};
+        let Some(ctx) = channel.and_then(|c| self.cached_ctx(Some(c))) else {
+            return CommodityInfo {
+                state: CommodityDataState::NoChannel,
+                commodity: None,
+            };
+        };
+        let Some(data) = self.commodity_data(&ctx) else {
+            return CommodityInfo {
+                state: CommodityDataState::NotRead,
+                commodity: None,
+            };
+        };
+        let kiosks = ctx
+            .store
+            .typed_uex(&ctx.dir, "commodity-kiosks", || {
+                let folder = self.uex_folder();
+                Ok(
+                    match (
+                        self.store.uex(COMMODITY_PRICES_FILE),
+                        self.store.uex(TERMINALS_FILE),
+                    ) {
+                        (Some(p), Some(t)) => kiosks_from_files(
+                            &p,
+                            &t,
+                            &starorg_gamedata::query::commodities::quality_resources(&data),
+                            folder,
+                        ),
+                        _ => Kiosks::missing(folder),
+                    },
+                )
+            })
+            .unwrap_or_else(|_| Arc::new(Kiosks::missing(self.uex_folder())));
+        let commodity = starorg_gamedata::query::commodities::commodity_detail(
+            &data,
+            id,
+            |q| ctx.mined(q).ok(),
+            |r| kiosks.market(&r.name),
+        );
+        CommodityInfo {
+            state: CommodityDataState::Ready,
+            commodity,
+        }
+    }
+
     pub fn definitions(&self) -> Vec<ToolDef> {
         definitions(&self.store.channel_names())
     }

@@ -103,7 +103,7 @@ const TERMINALS: &[Term] = &[
     ),
 ];
 
-fn terminal_rows() -> Value {
+pub fn terminal_rows() -> Value {
     Value::Array(
         TERMINALS
             .iter()

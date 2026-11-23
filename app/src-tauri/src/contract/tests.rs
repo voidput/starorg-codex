@@ -292,6 +292,9 @@ fn samples() -> Value {
     for (k, x) in shop_samples() {
         v[k] = x;
     }
+    for (k, x) in commodity_samples() {
+        v[k] = x;
+    }
     let m = MockBackend::default();
     v["memory_status"] = json!(m.memory_status().unwrap());
     v["set_memory_limit"] = json!(
@@ -850,6 +853,14 @@ fn ts_unions_list_every_variant() {
             names(&[PatchOrigin::BuiltIn, PatchOrigin::User]),
         ),
         ("ShopCategory", names(&ShopCategory::ALL)),
+        (
+            "CommodityDataState",
+            names(&[
+                CommodityDataState::Ready,
+                CommodityDataState::NotRead,
+                CommodityDataState::NoChannel,
+            ]),
+        ),
         (
             "ShopDataState",
             names(&[ShopDataState::Ready, ShopDataState::Missing]),
@@ -1868,6 +1879,116 @@ fn shop_samples() -> Vec<(&'static str, Value)> {
         ("shop_items_all", json!(mock_all_items(false))),
         ("shop_items_all_linked", json!(mock_all_items(true))),
     ]
+}
+
+/// The Commodities screen: before "Read game data" (`not-read`), after it without and with
+/// the UEX files, and every resource's detail both ways (the TS mock serves
+/// `commodity_detail` from those lists).
+fn commodity_samples() -> Vec<(&'static str, Value)> {
+    let b = MockBackend::default();
+    let req = || CommodityListRequest {
+        target: Some(live()),
+    };
+    let not_read = b.commodity_list(req()).unwrap();
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let ready = b.commodity_list(req()).unwrap();
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let priced = b.commodity_list(req()).unwrap();
+    let detail = b
+        .commodity_detail(CommodityDetailRequest {
+            target: Some(live()),
+            id: "ResourceType.Raw_Fixtanium".into(),
+        })
+        .unwrap();
+    use super::mock_commodities::mock_all_details;
+    vec![
+        ("commodity_list_not_read", json!(not_read)),
+        ("commodity_list", json!(ready)),
+        ("commodity_list_priced", json!(priced)),
+        ("commodity_detail", json!(detail)),
+        ("commodity_details_all", json!(mock_all_details(false))),
+        (
+            "commodity_details_all_priced",
+            json!(mock_all_details(true)),
+        ),
+    ]
+}
+
+#[test]
+fn commodities_on_the_mock_list_summaries_and_detail_on_request() {
+    let b = MockBackend::default();
+    let none = b
+        .commodity_list(CommodityListRequest { target: None })
+        .unwrap();
+    assert_eq!(none.state, CommodityDataState::NoChannel);
+    let req = || CommodityListRequest {
+        target: Some(live()),
+    };
+    let unread = b.commodity_list(req()).unwrap();
+    assert_eq!(unread.state, CommodityDataState::NotRead);
+    assert!(unread.commodities.is_empty());
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let l = b.commodity_list(req()).unwrap();
+    assert_eq!(l.state, CommodityDataState::Ready);
+    assert!(!l.market.loaded);
+    // Placeholders are left out; groups read as words.
+    assert!(l.commodities.iter().all(|c| c.group != "Heat Placeholder"));
+    let ore = l
+        .commodities
+        .iter()
+        .find(|c| c.id == "ResourceType.Ore_Synthium")
+        .unwrap();
+    assert_eq!(
+        (ore.group.as_str(), ore.subgroup.as_deref()),
+        ("Metal", Some("Unrefined Ores"))
+    );
+    assert!(ore.raw && !ore.volatile);
+    let d = |id: &str| {
+        b.commodity_detail(CommodityDetailRequest {
+            target: Some(live()),
+            id: id.into(),
+        })
+        .unwrap()
+        .commodity
+        .unwrap()
+    };
+    let raw = d("ResourceType.Raw_Fixtanium");
+    assert_eq!(raw.refined.as_ref().unwrap().name, "Fixtanium");
+    assert!(raw.volatility.is_some() && raw.damage.len() == 1);
+    let mined = raw.mined.as_ref().unwrap();
+    assert_eq!(mined[0].belts.len(), 2);
+    assert!(!raw.market.loaded);
+    let stub = d("Stubbite");
+    assert_eq!(stub.mined.as_ref().unwrap()[0].spots.len(), 2);
+    let refined = d("ResourceType.Synthium");
+    assert!(refined.mined.is_none());
+    assert_eq!(refined.raw_sources[0].id, "ResourceType.Ore_Synthium");
+    // After "Fetch now": prices on both sides.
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let h = d("ResourceType.Hydrogen");
+    assert!(h.market.loaded);
+    // Levski Admin (112) is not on LIVE: left out.
+    assert_eq!(h.market.sell[0].price, 105.0);
+    assert_eq!(h.market.buy[0].price, 92.0);
+    assert!(
+        b.commodity_detail(CommodityDetailRequest {
+            target: Some(live()),
+            id: "Nope".into()
+        })
+        .unwrap()
+        .commodity
+        .is_none()
+    );
 }
 
 #[test]

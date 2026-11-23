@@ -8,6 +8,7 @@
 //!
 //! | Module | Ports |
 //! |---|---|
+//! | [`commodities`] | (ours) the commodity browser: resource list, one resource in full, kiosk prices |
 //! | [`types`] | `query/types.ts` (the dataset shapes it reads) |
 //! | [`fuzzy`] | `query/fuzzy.ts` (scorer, ranking; entries come from [`crate::search_index`]) |
 //! | [`shops`] | `query/shops.ts` (UEX rows placed, dated, filtered by place; shop inventory) |
@@ -21,6 +22,7 @@
 //! order, `toLocaleString("en-US")` prices, `Date.parse` / `toISOString` dates, UTF-16
 //! lengths in the fuzzy tie-breaks.
 
+pub mod commodities;
 pub mod fuzzy;
 pub mod mined;
 pub mod obtain;

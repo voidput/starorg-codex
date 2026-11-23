@@ -228,6 +228,18 @@ impl RealBackend {
         let (tools, ch) = self.shop_tools(req.target.as_ref());
         tools.shop_items(ch.as_deref(), req.terminal)
     }
+
+    /// The Commodities screen's list, through the same tools (and so the same per-build
+    /// dataset cache) as Shops and the Sources card; cached data only.
+    pub(super) fn commodity_list_of(&self, req: CommodityListRequest) -> CommodityDirectory {
+        let (tools, ch) = self.shop_tools(req.target.as_ref());
+        tools.commodity_list(ch.as_deref())
+    }
+
+    pub(super) fn commodity_detail_of(&self, req: CommodityDetailRequest) -> CommodityInfo {
+        let (tools, ch) = self.shop_tools(req.target.as_ref());
+        tools.commodity_detail(ch.as_deref(), &req.id)
+    }
 }
 
 /// `24,146`.
