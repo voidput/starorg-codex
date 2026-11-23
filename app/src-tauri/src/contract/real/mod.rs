@@ -358,6 +358,10 @@ pub struct RealBackend {
     reads: Mutex<()>,
     /// Held while an install is saved to config.toml (`register`).
     registering: Mutex<()>,
+    /// Held across a blueprint log scan in this process (and `list_characters` noting the
+    /// channel it scanned): a second caller waits for the running scan instead of losing the
+    /// store lock and reading the store mid-scan.
+    scans: Mutex<()>,
     update: crate::update::Updater,
     dev: dev::DevState,
     assets: assets::AssetState,
@@ -473,6 +477,7 @@ impl RealBackend {
             mem: Mutex::new(Mem::default()),
             reads: Mutex::new(()),
             registering: Mutex::new(()),
+            scans: Mutex::new(()),
             update,
             dev: dev::DevState::default(),
             assets: assets::AssetState::default(),
@@ -1229,9 +1234,19 @@ impl RealBackend {
         lock::try_lock(&p).map_err(|e| busy_or(e, &format!("{} blueprint store", ch.name)))
     }
 
-    /// Read new log lines into the store (registered installs only; skipped while another
-    /// scan holds the lock).
+    /// Read new log lines into the store (registered installs only; waits for a scan running
+    /// in this app, skipped while another process holds the store lock).
     fn scan(&self, f: &Found, ch: &Channel) {
+        let _one = self.scans_lock();
+        self.scan_held(f, ch);
+    }
+
+    fn scans_lock(&self) -> MutexGuard<'_, ()> {
+        self.scans.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// [`Self::scan`] with `scans` already held by the caller.
+    fn scan_held(&self, f: &Found, ch: &Channel) {
         let Some(id) = &f.id else { return };
         let Ok(_l) = self.blueprint_lock(id, ch) else {
             return;
@@ -1353,9 +1368,13 @@ impl RealBackend {
         }
         let data = self.data_dir(f, ch);
         // Reading never creates folders: only a channel that already has blueprint data gets
-        // the incremental log scan, unless `list_characters` scanned it a moment ago.
-        if blueprints::dir(&data).is_dir() && !self.just_listed(f, ch) {
-            self.scan(f, ch);
+        // the incremental log scan, unless `list_characters` scanned it a moment ago. Held
+        // across the check, so a `list_characters` scan running now is waited for and reused.
+        if blueprints::dir(&data).is_dir() {
+            let _one = self.scans_lock();
+            if !self.just_listed(f, ch) {
+                self.scan_held(f, ch);
+            }
         }
         inp.characters = blueprints::load_characters(&data).unwrap_or_default();
         for g in inp.characters.characters.keys() {
@@ -2896,9 +2915,14 @@ impl Backend for RealBackend {
     fn list_characters(&self, req: ChannelRef) -> CmdResult<CharactersView> {
         let f = self.resolve(&req)?;
         let ch = f.channel(&req.channel)?;
-        self.scan(&f, ch);
-        if let Some(id) = &f.id {
-            self.mem().listed = Some(((id.clone(), ch.name.clone()), std::time::Instant::now()));
+        {
+            // Scan and memo under one hold: a finder read waiting on it then skips its scan.
+            let _one = self.scans_lock();
+            self.scan_held(&f, ch);
+            if let Some(id) = &f.id {
+                self.mem().listed =
+                    Some(((id.clone(), ch.name.clone()), std::time::Instant::now()));
+            }
         }
         self.characters_view(&f, ch)
     }

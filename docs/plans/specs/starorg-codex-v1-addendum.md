@@ -1950,7 +1950,10 @@ whose file lacks its geid is read as its file name says and logged. A channel wh
 not read has no catalogue: only what is owned there is listed, with a note. Reading creates
 nothing: the incremental log scan runs only for channels that already have a `blueprints/`
 folder (the current channel is scanned by `list_characters`), so "All channels" no longer makes
-empty folders or `scan.json` files for PTU/HOTFIX.
+empty folders or `scan.json` files for PTU/HOTFIX. **2026-11-23:** the finder skips its scan of a channel
+`list_characters` scanned less than 10 s ago; scans in the app run one at a time (an in-process
+lock held across the scan and that note), so a finder read sent with `list_characters` waits for
+its scan and reads the scanned store, never one mid-scan.
 
 TODO (after `blueprints-windows-fix` lands): `Characters.aliases` / `repair::consolidate` should
 canonicalise geids in the All-channels character merge (marked `TODO(aliases)` in `finder.rs`).

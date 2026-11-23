@@ -2577,3 +2577,62 @@ fn the_finder_reuses_the_scan_list_characters_just_did() {
         2
     );
 }
+
+#[test]
+fn the_finder_and_list_characters_opened_together_both_see_the_new_scan() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let log = f.lib.join("LIVE/Game.log");
+    let mut text = format!(
+        "<2026-03-02T09:59:00.000Z> Log started\n{LOGIN}{}",
+        bp_line("2026-03-02T10:05:00.000Z", "Fake Rifle Kestrel"),
+    );
+    std::fs::write(&log, &text).unwrap();
+    f.setup_live();
+    f.backend.list_characters(f.live()).unwrap();
+    let req = || BlueprintFinderRequest {
+        install: f.live().install,
+        channels: vec!["LIVE".into()],
+    };
+    // Each round: a blueprint lands in the log (a play session), then the screen opens and
+    // asks for both at once, in either order; neither may read the store mid-scan.
+    for round in 0..8u32 {
+        // Past the scan memo: both callers want a fresh scan.
+        let mut other = f.live();
+        other.channel = "PTU".into();
+        f.backend.list_characters(other).unwrap();
+        text.push_str(&bp_line(
+            &format!("2026-03-02T10:{:02}:00.000Z", 10 + round),
+            &format!("Unknown Test Visor {round}"),
+        ));
+        std::fs::write(&log, &text).unwrap();
+        let want = 2 + round;
+        let gate = std::sync::Barrier::new(2);
+        let (listed, found) = std::thread::scope(|s| {
+            let a = s.spawn(|| {
+                if round % 2 == 0 {
+                    gate.wait();
+                }
+                let v = f.backend.list_characters(f.live()).unwrap();
+                v.characters[0].owned
+            });
+            let b = s.spawn(|| {
+                if round % 2 == 1 {
+                    gate.wait();
+                }
+                let r = f.backend.blueprint_finder(req()).unwrap();
+                r.channels
+                    .into_iter()
+                    .find(|c| c.channel == "LIVE")
+                    .unwrap()
+                    .owned
+            });
+            gate.wait();
+            (a.join().unwrap(), b.join().unwrap())
+        });
+        assert_eq!(listed, want, "round {round}: characters");
+        assert_eq!(found, want, "round {round}: finder");
+    }
+}
