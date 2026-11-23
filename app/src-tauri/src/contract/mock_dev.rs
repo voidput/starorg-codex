@@ -2423,6 +2423,11 @@ impl DevBackend for MockBackend {
         })
     }
 
+    fn dev_refresh_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases> {
+        // The mock's list is fixed: nothing remembered to forget.
+        self.dev_dump_releases(req)
+    }
+
     fn dev_download_dump(
         &self,
         req: DevDumpRequest,

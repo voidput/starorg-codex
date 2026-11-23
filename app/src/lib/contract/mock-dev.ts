@@ -1668,6 +1668,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
         .filter((r) => live || r.cached);
       return { releases, error: null };
     },
+    // The mock's list is fixed: nothing remembered to forget.
+    dev_refresh_dump_releases: ({ req }) => handlers.dev_dump_releases({ req }),
     dev_download_dump: async ({ req }) => {
       on(req.target);
       if (!ctx.dumpsOn()) ctx.fail('network-off', 'Turn on Settings > Network > "Download published LIVE builds for Diff" first.');

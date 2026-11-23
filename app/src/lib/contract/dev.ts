@@ -948,6 +948,7 @@ export interface DevCommandMap {
   dev_add_source: [{ req: ChannelRef }, DevSource[]];
   dev_remove_source: [{ req: DevSourceRef }, DevSource[]];
   dev_dump_releases: [{ req: ChannelRef }, DumpReleases];
+  dev_refresh_dump_releases: [{ req: ChannelRef }, DumpReleases];
   dev_download_dump: [{ req: DevDumpRequest }, DevSource[]];
   dev_dataset: [{ req: DevDatasetRef }, DatasetInfo];
   dev_table: [{ req: DevTableRef }, TableInfo];
@@ -982,6 +983,7 @@ export const DEV_COMMANDS = [
   'dev_add_source',
   'dev_remove_source',
   'dev_dump_releases',
+  'dev_refresh_dump_releases',
   'dev_download_dump',
   'dev_dataset',
   'dev_table',
@@ -1019,6 +1021,8 @@ export const devApi = {
   removeSource: (req: DevSourceRef) => call('dev_remove_source', { req }),
   /** Published LIVE builds, newest first; with the switch off only the downloaded ones. */
   dumpReleases: (req: ChannelRef) => call('dev_dump_releases', { req }),
+  /** The same, asking GitHub again instead of reusing the list remembered for 15 minutes. */
+  refreshDumpReleases: (req: ChannelRef) => call('dev_refresh_dump_releases', { req }),
   /** A job: downloads, verifies and caches one LIVE build. */
   downloadDump: (req: DevDumpRequest) => call('dev_download_dump', { req }),
   dataset: (req: DevDatasetRef) => call('dev_dataset', { req }),

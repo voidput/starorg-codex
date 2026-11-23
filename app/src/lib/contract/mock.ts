@@ -1579,6 +1579,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     memory_status: () => clone(memory),
     storage_status: () => storageView(),
+    storage_measure: () => storageView(),
     storage_clear_assets: () => {
       assets.handlers.asset_cache_clear({});
       addLog('info', 'dev', null, 'Asset cache cleared');

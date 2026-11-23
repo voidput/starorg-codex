@@ -522,8 +522,11 @@ pub trait DevBackend {
     fn dev_remove_source(&self, req: DevSourceRef) -> CmdResult<Vec<DevSource>>;
     /// The published LIVE builds, newest first. With "Download published LIVE builds for
     /// Diff" off: only the downloaded ones, and no request is made. When GitHub cannot be
-    /// reached: the downloaded ones with `error` set.
+    /// reached: the downloaded ones with `error` set. GitHub's list is remembered for 15
+    /// minutes (a failed request is not).
     fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases>;
+    /// `dev_dump_releases`, asking GitHub again instead of the remembered list.
+    fn dev_refresh_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases>;
     /// Download, verify and cache one LIVE build (a job); `network-off` while the switch is
     /// off. Returns the sources, now with `dump:<tag>`.
     fn dev_download_dump(
@@ -636,6 +639,7 @@ dev_commands! {
     dev_add_source(req: ChannelRef) -> Vec<DevSource>;
     dev_remove_source(req: DevSourceRef) -> Vec<DevSource>;
     dev_dump_releases(req: ChannelRef) -> DumpReleases;
+    dev_refresh_dump_releases(req: ChannelRef) -> DumpReleases;
     dev_dataset(req: DevDatasetRef) -> DatasetInfo;
     dev_table(req: DevTableRef) -> TableInfo;
     dev_rows(req: DevRowsRequest) -> RowsPage;

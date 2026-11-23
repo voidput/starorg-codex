@@ -959,6 +959,52 @@ impl DumpTransport for Down {
 }
 
 #[test]
+fn release_list_is_remembered_until_refresh() {
+    let f = fake(false);
+    f.dev_mode(true);
+    let live = f.live();
+    dumps_switch(&f, true);
+    let calls = || f.dumps.calls.load(Ordering::SeqCst);
+    let first = f.backend.dev_dump_releases(live.clone()).unwrap();
+    let n = calls();
+    assert!(n > 0);
+    // A later visit reuses the list: no request, same answer.
+    assert_eq!(f.backend.dev_dump_releases(live.clone()).unwrap(), first);
+    assert_eq!(calls(), n, "remembered");
+    // A download still shows at once as downloaded (read from disk, not the list).
+    f.backend
+        .dev_download_dump(dump_req(&live, OLD), &noop)
+        .unwrap();
+    let after = calls();
+    let rel = f.backend.dev_dump_releases(live.clone()).unwrap().releases;
+    assert_eq!(calls(), after);
+    assert!(rel.iter().any(|r| r.tag == OLD && r.cached));
+    assert!(rel.iter().any(|r| r.tag == NEW && !r.cached));
+    // Refresh asks again.
+    let fresh = f.backend.dev_refresh_dump_releases(live.clone()).unwrap();
+    assert_eq!(calls(), after + 1);
+    assert_eq!(fresh.releases, rel);
+    // Off: no request, even on refresh.
+    dumps_switch(&f, false);
+    f.backend.dev_refresh_dump_releases(live.clone()).unwrap();
+    assert_eq!(calls(), after + 1);
+    // A failed request is not remembered.
+    dumps_switch(&f, true);
+    f.backend.set_dump_transport(Arc::new(Down));
+    assert!(
+        f.backend
+            .dev_dump_releases(live.clone())
+            .unwrap()
+            .error
+            .is_some()
+    );
+    f.backend.set_dump_transport(f.dumps.clone());
+    let r = f.backend.dev_dump_releases(live.clone()).unwrap();
+    assert!(r.error.is_none());
+    assert_eq!(calls(), after + 2);
+}
+
+#[test]
 fn offline_keeps_downloaded_builds_listed_and_off_stops_a_download() {
     let f = fake(false);
     f.dev_mode(true);

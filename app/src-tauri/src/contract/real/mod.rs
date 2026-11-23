@@ -342,7 +342,14 @@ struct Mem {
     last_sc_pick: Option<((String, String), PathBuf)>,
     /// Channel data dirs whose `profile.toml` migration failed: warned about once.
     profile_migrate_failed: HashSet<PathBuf>,
+    /// The channel `list_characters` last scanned (install id, channel) and when: the
+    /// Blueprints screen's current channel. The finder skips its own log scan of it for
+    /// [`SCAN_FRESH`] and keeps its game data resident (see `bp_catalog`).
+    listed: Option<((String, String), std::time::Instant)>,
 }
+
+/// How long a log scan by `list_characters` stands in for the finder's scan of that channel.
+const SCAN_FRESH: std::time::Duration = std::time::Duration::from_secs(10);
 
 pub struct RealBackend {
     cfg: RealConfig,
@@ -605,6 +612,8 @@ impl RealBackend {
         p.phase = phase;
         p.step = p.steps;
         p.label = label.to_string();
+        // A job may have written to the cache or the backups: Settings measures again.
+        self.sizes_changed();
         {
             let mut m = self.mem();
             if m.job.as_ref().is_some_and(|j| j.job == p.job) {
@@ -1299,7 +1308,9 @@ impl RealBackend {
     /// The finder catalogue of a channel's build from cached game data only (never extracts).
     /// A build already in memory is reused; otherwise the cache entry is read, the catalogue
     /// kept and the game data dropped again, so "All channels" does not hold every build.
-    fn bp_catalog(&self, f: &Found, ch: &Channel) -> Option<BpCatalog> {
+    /// `current` (the channel the screens work on): read through `loaded`, so the build stays
+    /// in memory for Strings, Ships and Patches instead of being read from disk again.
+    fn bp_catalog(&self, f: &Found, ch: &Channel, current: bool) -> Option<BpCatalog> {
         let id = f.id.clone()?;
         let fp = ch.fingerprint().ok()?;
         let k = KeyInputs::local(&fp, &self.ctx().starbreaker_commit);
@@ -1313,6 +1324,7 @@ impl RealBackend {
         let resident = self.mem().data.get(&slot).filter(|d| d.key == key).cloned();
         let d = match resident {
             Some(d) => d,
+            None if current => self.loaded(f, ch, false).ok()?,
             None if self.ctx().use_cache => {
                 let l = cache::load(
                     &self.dirs().channel_cache(&id, &ch.name),
@@ -1331,7 +1343,7 @@ impl RealBackend {
 
     /// One channel's part of the finder: its catalogue and every character's owned set, read
     /// from the channel data folder as stored (ownership is per channel and per character).
-    fn finder_input(&self, f: &Found, ch: &Channel) -> bp_finder::ChannelInput {
+    fn finder_input(&self, f: &Found, ch: &Channel, current: bool) -> bp_finder::ChannelInput {
         let mut inp = bp_finder::ChannelInput {
             channel: ch.name.clone(),
             ..Default::default()
@@ -1341,8 +1353,8 @@ impl RealBackend {
         }
         let data = self.data_dir(f, ch);
         // Reading never creates folders: only a channel that already has blueprint data gets
-        // the incremental log scan (the current channel is scanned by `list_characters`).
-        if blueprints::dir(&data).is_dir() {
+        // the incremental log scan, unless `list_characters` scanned it a moment ago.
+        if blueprints::dir(&data).is_dir() && !self.just_listed(f, ch) {
             self.scan(f, ch);
         }
         inp.characters = blueprints::load_characters(&data).unwrap_or_default();
@@ -1373,8 +1385,26 @@ impl RealBackend {
             }
         }
         inp.unattributed = blueprints::load_unattributed(&data).ok();
-        inp.catalog = self.bp_catalog(f, ch).map(|c| c.as_ref().clone());
+        inp.catalog = self.bp_catalog(f, ch, current).map(|c| c.as_ref().clone());
         inp
+    }
+
+    /// `list_characters` scanned this channel's logs less than [`SCAN_FRESH`] ago.
+    fn just_listed(&self, f: &Found, ch: &Channel) -> bool {
+        let Some(id) = &f.id else { return false };
+        self.mem()
+            .listed
+            .as_ref()
+            .is_some_and(|((i, c), at)| i == id && *c == ch.name && at.elapsed() < SCAN_FRESH)
+    }
+
+    /// The channel `list_characters` last served (any age): the Blueprints screen's channel.
+    fn is_listed(&self, f: &Found, ch: &Channel) -> bool {
+        let Some(id) = &f.id else { return false };
+        self.mem()
+            .listed
+            .as_ref()
+            .is_some_and(|((i, c), _)| i == id && *c == ch.name)
     }
 
     /// After characters were merged: StarOrg push ticks that name a merged geid follow it.
@@ -2235,6 +2265,7 @@ impl Backend for RealBackend {
             &cur,
         )
         .map_err(io)?;
+        self.sizes_changed();
         let b = match made {
             Some(b) => b,
             // Same bytes as the newest backup: that one is the backup.
@@ -2271,7 +2302,9 @@ impl Backend for RealBackend {
                 "The file from before StarOrg Codex is kept; it cannot be deleted.",
             ));
         }
-        std::fs::remove_dir_all(&b.dir).map_err(io)?;
+        let gone = std::fs::remove_dir_all(&b.dir);
+        self.sizes_changed();
+        gone.map_err(io)?;
         self.log(
             LogLevel::Info,
             None,
@@ -2864,6 +2897,9 @@ impl Backend for RealBackend {
         let f = self.resolve(&req)?;
         let ch = f.channel(&req.channel)?;
         self.scan(&f, ch);
+        if let Some(id) = &f.id {
+            self.mem().listed = Some(((id.clone(), ch.name.clone()), std::time::Instant::now()));
+        }
         self.characters_view(&f, ch)
     }
 
@@ -2922,9 +2958,14 @@ impl Backend for RealBackend {
     fn blueprint_finder(&self, req: BlueprintFinderRequest) -> CmdResult<BlueprintFinder> {
         let f = self.find(&req.install)?;
         let names: Vec<String> = f.install.channels.iter().map(|c| c.name.clone()).collect();
+        // One channel asked for = the screen's channel; in "All" the one Blueprints lists.
+        let single = req.channels.len() == 1;
         let inputs = crate::contract::finder::pick(&names, &req.channels)?
             .into_iter()
-            .map(|n| f.channel(n).map(|ch| self.finder_input(&f, ch)))
+            .map(|n| {
+                f.channel(n)
+                    .map(|ch| self.finder_input(&f, ch, single || self.is_listed(&f, ch)))
+            })
             .collect::<CmdResult<Vec<_>>>()?;
         Ok(crate::contract::finder::contract(bp_finder::build(&inputs)))
     }
@@ -3541,6 +3582,10 @@ impl Backend for RealBackend {
 
     fn storage_status(&self) -> CmdResult<StorageStatus> {
         Ok(self.storage_view())
+    }
+
+    fn storage_measure(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_measure_now())
     }
 
     fn storage_clear_assets(&self) -> CmdResult<StorageStatus> {

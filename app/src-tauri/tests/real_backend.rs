@@ -2524,3 +2524,56 @@ fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_every_file() {
     f.backend.fetch_uex().unwrap();
     assert_eq!(f.uex.tokens.lock().unwrap().last().unwrap(), &None);
 }
+
+/// The finder does not scan the logs again for the channel `list_characters` scanned a moment
+/// ago (the Blueprints screen asks both at once); any other channel's scan is not skipped.
+#[test]
+fn the_finder_reuses_the_scan_list_characters_just_did() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let log = f.lib.join("LIVE/Game.log");
+    let head = format!(
+        "<2026-03-02T09:59:00.000Z> Log started\n{LOGIN}{}",
+        bp_line("2026-03-02T10:05:00.000Z", "Fake Rifle Kestrel"),
+    );
+    std::fs::write(&log, &head).unwrap();
+    f.setup_live();
+    assert_eq!(
+        f.backend.list_characters(f.live()).unwrap().characters[0].owned,
+        1
+    );
+    // A blueprint lands in the log right after the scan.
+    std::fs::write(
+        &log,
+        format!(
+            "{head}{}",
+            bp_line("2026-03-02T10:06:00.000Z", "Unknown Test Visor")
+        ),
+    )
+    .unwrap();
+    let finder = || {
+        f.backend
+            .blueprint_finder(BlueprintFinderRequest {
+                install: f.live().install,
+                channels: vec!["LIVE".into()],
+            })
+            .unwrap()
+            .channels
+            .into_iter()
+            .find(|c| c.channel == "LIVE")
+            .unwrap()
+            .owned
+    };
+    assert_eq!(finder(), 1, "the scan a moment ago stands in");
+    // Another channel listed since: LIVE's logs are scanned again.
+    let mut ptu = f.live();
+    ptu.channel = "PTU".into();
+    f.backend.list_characters(ptu).unwrap();
+    assert_eq!(finder(), 2);
+    assert_eq!(
+        f.backend.list_characters(f.live()).unwrap().characters[0].owned,
+        2
+    );
+}

@@ -81,14 +81,18 @@ pub struct AssetState {
     lods: Mutex<std::collections::HashMap<(String, String, String), Vec<u32>>>,
     /// Calls writing or reading the asset cache right now ("Clear asset cache" waits).
     in_use: std::sync::atomic::AtomicUsize,
+    /// Settings' measured folder sizes (see `storage.rs`).
+    pub(super) sizes: super::storage::Sizes,
 }
 
 /// Held while a call uses the asset cache (see [`RealBackend::asset_cache_in_use`]).
-pub struct AssetCacheUse<'a>(&'a std::sync::atomic::AtomicUsize);
+pub struct AssetCacheUse<'a>(&'a AssetState);
 
 impl Drop for AssetCacheUse<'_> {
     fn drop(&mut self) {
-        self.0.fetch_sub(1, Ordering::SeqCst);
+        self.0.in_use.fetch_sub(1, Ordering::SeqCst);
+        // The call may have written to the cache: Settings measures again.
+        self.0.sizes.changed();
     }
 }
 
@@ -103,6 +107,7 @@ impl Default for AssetState {
             previous: Mutex::new(None),
             lods: Mutex::new(Default::default()),
             in_use: Default::default(),
+            sizes: Default::default(),
         }
     }
 }
@@ -169,7 +174,7 @@ impl RealBackend {
     /// meanwhile. Public for tests.
     pub fn asset_cache_in_use(&self) -> AssetCacheUse<'_> {
         self.assets.in_use.fetch_add(1, Ordering::SeqCst);
-        AssetCacheUse(&self.assets.in_use)
+        AssetCacheUse(&self.assets)
     }
 
     /// Why the asset cache cannot be cleared now (an asset job uses it), else `None`.
@@ -410,14 +415,19 @@ impl RealBackend {
         let problem = assetcache::check_root(c.root(), &self.protected()).err();
         let default = assetcache::default_dir(self.dirs());
         let u = if problem.is_none() {
-            c.usage()
+            self.asset_usage(&c)
         } else {
             assetcache::Usage::default()
         };
         let previous = lock_or(&self.assets.previous)
             .clone()
             .filter(|p| p != c.root())
-            .map(|p| (p.clone(), AssetCache::new(&p, c.max_bytes()).usage()))
+            .map(|p| {
+                (
+                    p.clone(),
+                    self.asset_usage(&AssetCache::new(&p, c.max_bytes())),
+                )
+            })
             .filter(|(_, u)| u.files > 0)
             .map(|(p, u)| AssetCachePrevious {
                 path: p.display().to_string(),
@@ -446,6 +456,7 @@ impl RealBackend {
         let mut cfg = self.config_now();
         assetcache::set_configured_dir(&mut cfg, dir);
         cfg.save(self.dirs()).map_err(io)?;
+        self.sizes_changed();
         let after = assetcache::resolve(self.dirs(), &cfg, None)
             .root()
             .to_path_buf();
@@ -1363,7 +1374,9 @@ impl AssetBackend for RealBackend {
     }
 
     fn asset_cache_clear(&self) -> CmdResult<AssetCacheStatus> {
-        let u = self.asset_cache()?.clear().map_err(io)?;
+        let u = self.asset_cache()?.clear();
+        self.sizes_changed();
+        let u = u.map_err(io)?;
         self.log(
             LogLevel::Info,
             Some(JobKind::Dev),
@@ -1384,9 +1397,9 @@ impl AssetBackend for RealBackend {
         if prev == cur.root() {
             return Ok(self.cache_status());
         }
-        let u = AssetCache::new(&prev, cur.max_bytes())
-            .move_to(&cur)
-            .map_err(io)?;
+        let u = AssetCache::new(&prev, cur.max_bytes()).move_to(&cur);
+        self.sizes_changed();
+        let u = u.map_err(io)?;
         *lock_or(&self.assets.previous) = None;
         self.log(
             LogLevel::Info,

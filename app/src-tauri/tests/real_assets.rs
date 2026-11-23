@@ -783,3 +783,59 @@ fn storage_sizes_per_area_and_clear_refused_while_in_use() {
         "only the asset cache"
     );
 }
+
+/// Settings measures the folders once and keeps the sizes: a file another program adds shows
+/// after "Measure again"; the app's own changes (an asset call, Clear, a job) show at once.
+#[test]
+fn storage_sizes_are_kept_until_something_changes_them() {
+    let f = fake();
+    let dirs = AppDirs::under(&f.base.join("app"));
+    let put = |p: PathBuf, n: usize| {
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, vec![1u8; n]).unwrap();
+    };
+    let area =
+        |s: &StorageStatus, id: StorageAreaId| s.areas.iter().find(|a| a.id == id).unwrap().bytes;
+    put(dirs.cache.join("inst/LIVE/k1/base.ini.gz"), 1000);
+    let s = f.backend.storage_status().unwrap();
+    assert_eq!(area(&s, StorageAreaId::GameData), 1000);
+    // Written behind the app's back: the kept sizes answer, "Measure again" sees it.
+    put(dirs.cache.join("inst/LIVE/k2/base.ini.gz"), 500);
+    assert_eq!(f.backend.storage_status().unwrap(), s);
+    let s = f.backend.storage_measure().unwrap();
+    assert_eq!(area(&s, StorageAreaId::GameData), 1500);
+    // The asset cache row and the Storage card share one measurement.
+    let c = f.cache();
+    c.prepare("LIVE", "0000000000000000000000b1", Kind::Audio)
+        .unwrap();
+    put(
+        c.path("LIVE", "0000000000000000000000b1", Kind::Audio, "1", "ogg"),
+        200,
+    );
+    assert_eq!(f.backend.asset_cache_status().unwrap().files, 0, "kept");
+    // An asset call (it may write to the cache) makes both measure again.
+    drop(f.backend.asset_cache_in_use());
+    let a = f.backend.asset_cache_status().unwrap();
+    assert_eq!((a.files, a.bytes), (1, 200));
+    assert_eq!(
+        area(
+            &f.backend.storage_status().unwrap(),
+            StorageAreaId::AssetExports
+        ),
+        200
+    );
+    // Clear: both at once.
+    let s = f.backend.storage_clear_assets().unwrap();
+    assert_eq!(area(&s, StorageAreaId::AssetExports), 0);
+    assert_eq!(f.backend.asset_cache_status().unwrap().files, 0);
+    // While an asset call holds the cache every read measures (an export grows it).
+    let held = f.backend.asset_cache_in_use();
+    c.prepare("LIVE", "0000000000000000000000b1", Kind::Audio)
+        .unwrap();
+    put(
+        c.path("LIVE", "0000000000000000000000b1", Kind::Audio, "2", "ogg"),
+        300,
+    );
+    assert_eq!(f.backend.asset_cache_status().unwrap().bytes, 300);
+    drop(held);
+}

@@ -746,6 +746,10 @@ fn every_dev_command_is_refused_while_the_setting_is_off() {
         ),
         ("dev_dump_releases", j(b.dev_dump_releases(live()))),
         (
+            "dev_refresh_dump_releases",
+            j(b.dev_refresh_dump_releases(live())),
+        ),
+        (
             "dev_download_dump",
             j(b.dev_download_dump(
                 DevDumpRequest {

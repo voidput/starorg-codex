@@ -199,9 +199,12 @@ test('published LIVE builds: switch, download as a job, diff old -> new, remove'
   const w = sum.tables.find((t) => t.dataset === 'game-weapons.json' && t.table === 'shipWeapons')!;
   assert.deepEqual([w.added, w.removed], [2, 2]);
   assert.ok(w.changed > 0);
+  // Refresh answers what a plain listing does (the mock's list is fixed).
+  assert.deepEqual(await h.dev_refresh_dump_releases({ req: live }), await h.dev_dump_releases({ req: live }));
   // Off again: still listed and readable, no download.
   settings.dumps = false;
   assert.equal((await h.dev_dump_releases({ req: live })).releases.length, 2);
+  assert.equal((await h.dev_refresh_dump_releases({ req: live })).releases.length, 2);
   await h.dev_rows({ req: rows(`dump:${old}`, 'game-weapons.json', 'shipWeapons') });
   const after = await h.dev_remove_source({ req: { target: live, source: `dump:${old}` } });
   assert.equal(after.filter((s) => s.kind === 'dump').length, 1);
