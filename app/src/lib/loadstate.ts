@@ -36,6 +36,30 @@ export function latest<T, E>(set: (l: Load<T, E>) => void, toError: (e: unknown)
   };
 }
 
+/**
+ * A stale-answer guard for click-driven loads that set several fields (not one `Load`): each
+ * `next()` starts a run and returns its check, true only while no newer run started and
+ * `drop()` was not called. Click A, then B: A's slower answer finds its check false and is
+ * dropped instead of overwriting B.
+ */
+export interface Guard {
+  next(): () => boolean;
+  drop(): void;
+}
+
+export function guard(): Guard {
+  let seq = 0;
+  return {
+    next() {
+      const me = ++seq;
+      return () => me === seq;
+    },
+    drop() {
+      seq++;
+    },
+  };
+}
+
 /** Seconds since `since`, for "Reading game data… 12 s". */
 export function elapsed(since: number, now: number): number {
   return Math.max(0, Math.floor((now - since) / 1000));

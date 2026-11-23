@@ -6,7 +6,7 @@
    * spacer as tall as the whole list.
    */
   import type { Snippet } from 'svelte';
-  import { windowRange } from '@/lib/loot';
+  import { windowRange } from '@/lib/virtual';
   import { cn } from '@/lib/utils';
 
   let {

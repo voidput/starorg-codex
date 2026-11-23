@@ -4,8 +4,10 @@
    * come 500 at a time; search matches every word of the path. A file shows a preview: textures
    * as PNG (a mip at most 1024 px a side), CryXML and XML as text, WEM sounds with a play
    * button. Extract copies the selected file or the current folder to a folder you pick
-   * (optionally textures as PNG and CryXML as XML); never into the game folder. The asset
-   * worker starts when this screen first lists a folder and stops after 5 idle minutes.
+   * (optionally textures as PNG and CryXML as XML); never into the game folder. Opening the
+   * screen only asks for the asset worker's status: it starts on "Open game data" (or by itself
+   * when it was opened for this channel this session) and stops after 5 idle minutes. The
+   * listing is windowed (only the rows in view are drawn).
    * A geometry file (.cga/.cgf/.skin/.chr/.cdf) offers "Open owning record" (7.17): the
    * explorer's index knows which entities name it.
    */
@@ -25,6 +27,9 @@
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import JobProgress from '@/components/common/JobProgress.svelte';
+  import VirtualList from '@/components/common/VirtualList.svelte';
+  import { guard } from '@/lib/loadstate';
+  import { OPEN_COST, openPlan } from '@/lib/lazyopen';
   import { assetApi, bytesText, PERSONAL_USE, soundId, type AssetPreview, type AssetStatus, type FileEntry } from '@/lib/contract/assets';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { app } from '@/lib/stores/app.svelte';
@@ -40,6 +45,7 @@
   $effect(() => ensureMemory());
 
   const PAGE = 500;
+  const ROW = 28;
   const target = $derived(app.target);
   const tkey = $derived(app.targetKey);
 
@@ -90,11 +96,22 @@
     }
   }
 
+  // A folder click or a search drops the answer of the one before it (and a channel switch both).
+  const list = guard();
+  const prev = guard();
+  /** Not open and nothing asked for it: the "Open game data" button. */
+  let askOpen = $state(false);
+
   async function load(d: string, offset = 0) {
     if (!target) return;
+    const live = list.next();
+    const key = tkey;
+    askOpen = false;
     listing = true;
     try {
       const p = await assetApi.list({ target: $state.snapshot(target), dir: d, offset, limit: PAGE });
+      if (!live()) return;
+      dev.opened.add('files', key);
       dir = p.dir;
       rows = offset ? [...rows, ...p.entries] : p.entries;
       total = p.total;
@@ -102,17 +119,37 @@
       error = null;
       void refreshStatus();
     } catch (e) {
-      error = toContractError(e);
+      if (live()) error = toContractError(e);
     } finally {
-      listing = false;
+      if (live()) listing = false;
     }
+  }
+  /** On mount and channel switch: status only; list the root when the worker is open or was opened this session. */
+  async function check() {
+    if (!target) return;
+    const live = list.next();
+    const key = tkey;
+    askOpen = false;
+    listing = true;
+    rows = [];
+    total = 0;
+    dir = '';
+    error = null;
+    await refreshStatus();
+    if (!live()) return;
+    listing = false;
+    const plan = openPlan(status?.state, false, dev.opened.has('files', key));
+    if (plan === 'ask') askOpen = true;
+    else void load('');
   }
   $effect(() => {
     void tkey;
     untrack(() => {
+      prev.drop();
       selected = null;
       preview = null;
-      void load('');
+      previewing = false;
+      void check();
     });
   });
 
@@ -120,38 +157,46 @@
     const q = query.trim();
     if (!q) return void load(dir);
     if (!target) return;
+    const live = list.next();
+    askOpen = false;
     listing = true;
     try {
       const r = await assetApi.search({ target: $state.snapshot(target), query: q, limit: PAGE });
+      if (!live()) return;
+      dev.opened.add('files', tkey);
       rows = r.hits;
       total = r.total;
       searched = q;
       error = null;
     } catch (e) {
-      error = toContractError(e);
+      if (live()) error = toContractError(e);
     } finally {
-      listing = false;
+      if (live()) listing = false;
     }
   }
 
   async function select(f: FileEntry) {
     if (f.dir) {
+      prev.drop();
       query = '';
       selected = null;
       preview = null;
+      previewing = false;
       return void load(f.path);
     }
     selected = f;
     preview = null;
     previewError = null;
     if (!target) return;
+    const live = prev.next();
     previewing = true;
     try {
-      preview = await assetApi.preview({ target: $state.snapshot(target), path: f.path });
+      const p = await assetApi.preview({ target: $state.snapshot(target), path: f.path });
+      if (live()) preview = p;
     } catch (e) {
-      previewError = toContractError(e);
+      if (live()) previewError = toContractError(e);
     } finally {
-      previewing = false;
+      if (live()) previewing = false;
     }
   }
 
@@ -177,6 +222,7 @@
   async function close() {
     if (!target) return;
     player.stop();
+    dev.opened.forget('files', tkey);
     status = await assetApi.close($state.snapshot(target));
     toast('info', 'Asset browser closed', 'Its memory is returned; it opens again on the next request.');
   }
@@ -231,29 +277,33 @@
         {/if}
         {#if listing}<LoaderCircle class="text-muted-foreground ml-auto size-3.5 animate-spin motion-reduce:animate-none" aria-hidden="true" />{/if}
       </nav>
-      {#if error}
+      {#if askOpen}
+        <div class="grid justify-items-start gap-2 p-4 text-[12.5px]" role="status">
+          <p class="font-medium">The game files of {target?.channel ?? 'this channel'} are not open</p>
+          <p class="text-muted-foreground text-[12px]">The asset browser reads Data.p4k in a separate process ({OPEN_COST}; it closes after 5 idle minutes).</p>
+          <Button size="sm" onclick={() => void load('')}>Open game data</Button>
+        </div>
+      {:else if error}
         <div class="p-3"><ErrorState title="Could not read the game files" {error} onretry={() => void load(dir)} /></div>
+      {:else if !rows.length}
+        <p class="text-muted-foreground p-3 text-[12.5px]">{listing ? 'Reading…' : searched !== null ? 'No file matches.' : 'Empty folder.'}</p>
       {:else}
-        <ul class="min-h-0 flex-1 overflow-y-auto text-[12.5px]" aria-label="Folder contents">
-          {#each rows as f (f.path)}
-            <li>
-              <button
-                class={cn('hover:bg-accent/60 flex w-full items-center gap-2 px-3 py-1 text-left', selected?.path === f.path && 'bg-accent/70')}
-                title={f.path}
-                onclick={() => void select(f)}
-              >
-                {#if f.dir}<Folder class="text-primary size-3.5 shrink-0" aria-hidden="true" />{:else}<FileIcon class="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />{/if}
-                <span class="mono min-w-0 flex-1 truncate">{searched !== null ? f.path : f.name}</span>
-                {#if !f.dir}<span class="text-muted-foreground mono shrink-0 text-[11px]">{bytesText(f.size)}</span>{/if}
-              </button>
-            </li>
-          {:else}
-            <li class="text-muted-foreground p-3">{listing ? 'Reading…' : searched !== null ? 'No file matches.' : 'Empty folder.'}</li>
-          {/each}
-          {#if searched === null && rows.length < total}
-            <li class="p-2"><Button variant="outline" size="xs" onclick={() => void load(dir, rows.length)}>Show {Math.min(PAGE, total - rows.length)} more ({int(total - rows.length)} left)</Button></li>
-          {/if}
-        </ul>
+        <VirtualList items={rows} rowHeight={ROW} key={(f) => f.path} resetKey={`${dir}|${searched ?? ''}`} label="Folder contents" class="flex-1 text-[12.5px]">
+          {#snippet row(f)}
+            <button
+              class={cn('hover:bg-accent/60 flex h-full w-full items-center gap-2 px-3 text-left', selected?.path === f.path && 'bg-accent/70')}
+              title={f.path}
+              onclick={() => void select(f)}
+            >
+              {#if f.dir}<Folder class="text-primary size-3.5 shrink-0" aria-hidden="true" />{:else}<FileIcon class="text-muted-foreground size-3.5 shrink-0" aria-hidden="true" />{/if}
+              <span class="mono min-w-0 flex-1 truncate">{searched !== null ? f.path : f.name}</span>
+              {#if !f.dir}<span class="text-muted-foreground mono shrink-0 text-[11px]">{bytesText(f.size)}</span>{/if}
+            </button>
+          {/snippet}
+        </VirtualList>
+        {#if searched === null && rows.length < total}
+          <div class="border-t p-2"><Button variant="outline" size="xs" disabled={listing} onclick={() => void load(dir, rows.length)}>Show {Math.min(PAGE, total - rows.length)} more ({int(total - rows.length)} left)</Button></div>
+        {/if}
       {/if}
     </section>
 

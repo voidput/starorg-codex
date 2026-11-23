@@ -10,8 +10,9 @@
    * the record filter matches names and ids. A group tree on the left (addendum 7.15) groups
    * the changed records by dataset, table and the table's default grouping (readable labels),
    * with added / removed / changed counts; picking a node filters the tables and records.
+   * The records list is windowed (only the rows in view are drawn), so "Load more" stays smooth.
    */
-  import { untrack } from 'svelte';
+  import { tick, untrack } from 'svelte';
   import GitCompare from '@lucide/svelte/icons/git-compare';
   import Sheet_ from '@lucide/svelte/icons/sheet';
   import ListTree from '@lucide/svelte/icons/list-tree';
@@ -39,6 +40,8 @@
   import { app } from '@/lib/stores/app.svelte';
   import { int } from '@/lib/format';
   import { cn } from '@/lib/utils';
+  import { guard } from '@/lib/loadstate';
+  import { revealTop, windowRange } from '@/lib/virtual';
 
   const target = $derived(app.target);
   const tkey = $derived(app.targetKey);
@@ -49,21 +52,29 @@
   let error = $state<ContractError | null>(null);
   let running = $state(false);
 
+  // A channel switch drops the answers still coming for the channel before.
+  const mount = guard();
   $effect(() => {
     void tkey;
     untrack(async () => {
+      const live = mount.next();
       if (!target) return;
+      const t = $state.snapshot(target);
       try {
-        sources = (await devApi.sources($state.snapshot(target))).filter((s) => s.state === 'ready');
+        const got = (await devApi.sources(t)).filter((s) => s.state === 'ready');
+        if (!live()) return;
+        sources = got;
         a ??= sources[0]?.id ?? null;
         b ??= sources.find((s) => s.id !== a)?.id ?? null;
-        summary = await devApi.diffSummary($state.snapshot(target)).catch(() => null);
+        const sum = await devApi.diffSummary(t).catch(() => null);
+        if (!live()) return;
+        summary = sum;
         if (summary) {
           a = summary.a;
           b = summary.b;
         }
       } catch (e) {
-        error = toContractError(e);
+        if (live()) error = toContractError(e);
       }
     });
   });
@@ -108,6 +119,19 @@
   // Each new query bumps this, so a page that lands after a filter change is dropped.
   let recSeq = 0;
   const PAGE = 500;
+  /** Fixed record row height (two lines), so the list can be windowed. */
+  const DROW = 46;
+  let recScroller = $state<HTMLElement | null>(null);
+  let recTop = $state(0);
+  let recH = $state(400);
+  const recRange = $derived(windowRange(recTop, recH, DROW, records?.records.length ?? 0));
+  /** Scroll the records list so row `i` shows (it may not be drawn yet). */
+  async function revealRec(i: number) {
+    await tick();
+    if (!recScroller) return;
+    const t = revealTop(i, DROW, recScroller.scrollTop, recScroller.clientHeight);
+    if (t !== null) recTop = recScroller.scrollTop = t;
+  }
   async function loadRecords(more = false) {
     if (!target || !picked) return;
     const seq = more ? recSeq : ++recSeq;
@@ -128,6 +152,10 @@
       });
       if (seq !== recSeq) return;
       records = more && records ? { ...page, records: [...records.records, ...page.records] } : page;
+      if (!more) {
+        recTop = 0;
+        if (recScroller) recScroller.scrollTop = 0;
+      }
       recError = null;
       // A 'Match by' change re-diffs this table on the backend: keep its Tables row current.
       if (summary && !more) {
@@ -184,6 +212,7 @@
     recQueryDebounced = query;
     await loadRecords();
     recActive = Math.max(0, records?.records.findIndex((r) => r.id === id) ?? 0);
+    void revealRec(recActive);
     try {
       field = await devApi.diffRecord({ target: $state.snapshot(target), dataset, table, id, identity });
       return true;
@@ -231,6 +260,7 @@
     recQueryDebounced = q;
     await loadRecords();
     recActive = Math.max(0, records?.records.findIndex((r) => r.id === h.record.id) ?? 0);
+    void revealRec(recActive);
     await pickRecord(h.record.id);
   }
 
@@ -562,39 +592,49 @@
                     <p class="text-muted-foreground p-3 text-[12.5px]">No record differs here.</p>
                   {:else}
                     <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
-                    <ul
+                    <div
+                      bind:this={recScroller}
+                      bind:clientHeight={recH}
                       role="listbox"
                       aria-label="Changed records"
                       tabindex="0"
                       data-stop
                       aria-activedescendant="dr-{recActive}"
-                      class="focus-visible:ring-ring/60 min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
-                      onkeydown={(e) => listKey(e, records!.records.length, recActive, (i) => (recActive = i), (i) => void pickRecord(records!.records[i]!.id))}
+                      class="focus-visible:ring-ring/60 relative min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-2 focus-visible:ring-inset"
+                      onscroll={() => (recTop = recScroller?.scrollTop ?? 0)}
+                      onkeydown={(e) => {
+                        listKey(e, records!.records.length, recActive, (i) => (recActive = i), (i) => void pickRecord(records!.records[i]!.id));
+                        void revealRec(recActive);
+                      }}
                     >
-                      {#each records.records as r, i (r.id + r.state)}
-                        {@const t = titled(r.id, r.label, dev.showIds)}
-                        <!-- svelte-ignore a11y_click_events_have_key_events -->
-                        <li
-                          id="dr-{i}"
-                          data-i={i}
-                          role="option"
-                          aria-selected={field?.id === r.id}
-                          tabindex="-1"
-                          class={cn('hover:bg-accent/60 grid cursor-pointer gap-0.5 border-b border-border/60 px-3 py-1.5', i === recActive && 'bg-accent/70')}
-                          onclick={() => {
-                            recActive = i;
-                            void pickRecord(r.id);
-                          }}
-                        >
-                          <span class="flex min-w-0 items-baseline gap-2" title={r.label ? `${r.label}\n${r.id}` : r.id}>
-                            <span class={cn('shrink-0 rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
-                            <span class={cn('min-w-0 truncate text-[12px]', !t.secondary && 'mono', t.secondary && 'font-medium')}>{t.primary}</span>
-                            {#if t.secondary}<span class="text-muted-foreground mono min-w-0 shrink-[2] truncate text-[10.5px]">{t.secondary}</span>{/if}
-                          </span>
-                          {#if r.fields.length}<span class="text-muted-foreground mono truncate text-[11px]">{r.fields.join(', ')}</span>{/if}
-                        </li>
-                      {/each}
-                    </ul>
+                      <div role="presentation" class="relative" style="height: {records.records.length * DROW}px">
+                        {#each records.records.slice(recRange.first, recRange.end) as r, k (r.id + r.state)}
+                          {@const i = recRange.first + k}
+                          {@const t = titled(r.id, r.label, dev.showIds)}
+                          <!-- svelte-ignore a11y_click_events_have_key_events -->
+                          <div
+                            id="dr-{i}"
+                            data-i={i}
+                            role="option"
+                            aria-selected={field?.id === r.id}
+                            tabindex="-1"
+                            class={cn('hover:bg-accent/60 absolute right-0 left-0 grid cursor-pointer content-center gap-0.5 overflow-hidden border-b border-border/60 px-3', i === recActive && 'bg-accent/70')}
+                            style="top: {i * DROW}px; height: {DROW}px"
+                            onclick={() => {
+                              recActive = i;
+                              void pickRecord(r.id);
+                            }}
+                          >
+                            <span class="flex min-w-0 items-baseline gap-2" title={r.label ? `${r.label}\n${r.id}` : r.id}>
+                              <span class={cn('shrink-0 rounded px-1 text-[10.5px] font-semibold uppercase', r.state === 'added' ? 'bg-success/15 text-success' : r.state === 'removed' ? 'bg-destructive/15 text-destructive' : 'bg-warning/15 text-warning')}>{r.state}</span>
+                              <span class={cn('min-w-0 truncate text-[12px]', !t.secondary && 'mono', t.secondary && 'font-medium')}>{t.primary}</span>
+                              {#if t.secondary}<span class="text-muted-foreground mono min-w-0 shrink-[2] truncate text-[10.5px]">{t.secondary}</span>{/if}
+                            </span>
+                            {#if r.fields.length}<span class="text-muted-foreground mono truncate text-[11px]">{r.fields.join(', ')}</span>{/if}
+                          </div>
+                        {/each}
+                      </div>
+                    </div>
                     <div class="text-muted-foreground flex items-center justify-between gap-2 border-t px-3 py-1 text-[11.5px]">
                       <span>{int(records.records.length)} of {int(records.total)}</span>
                       {#if records.records.length < records.total}

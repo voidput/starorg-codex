@@ -3,7 +3,7 @@
 // answers out of order. Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { SLOW_AFTER_S, elapsed, fmtElapsed, latest, previewView, serial, type Load } from '../src/lib/loadstate.ts';
+import { SLOW_AFTER_S, elapsed, fmtElapsed, guard, latest, previewView, serial, type Load } from '../src/lib/loadstate.ts';
 
 const wait = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 /** A backend call that answers `value` after `ms`, or fails with `error`. */
@@ -92,4 +92,26 @@ test('reads run one at a time: a second waits for the first, a failure frees the
   assert.equal(await b, 'review');
   assert.equal(await c, 'apply');
   assert.deepEqual(log, ['start first read', 'end first read', 'start review', 'end review', 'start apply', 'end apply']);
+});
+
+test('a guard drops an older click once a newer one started', async () => {
+  const g = guard();
+  const shown: string[] = [];
+  const load = async (what: string, ms: number) => {
+    const live = g.next();
+    await wait(ms);
+    if (live()) shown.push(what);
+  };
+  await Promise.all([load('A', 30), load('B', 5)]);
+  assert.deepEqual(shown, ['B']);
+});
+
+test('a dropped guard ignores the run in flight', async () => {
+  const g = guard();
+  const live = g.next();
+  assert.equal(live(), true);
+  g.drop();
+  assert.equal(live(), false);
+  const again = g.next();
+  assert.equal(again(), true);
 });

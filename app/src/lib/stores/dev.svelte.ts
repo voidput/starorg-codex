@@ -8,6 +8,7 @@ import { toContractError, type ContractError } from '@/lib/contract/client';
 import type { ChannelRef } from '@/lib/contract/types';
 import { History } from '@/lib/devnav';
 import { loadShowIds, saveShowIds } from '@/lib/readable';
+import { Opened } from '@/lib/lazyopen';
 
 const storage = (): Storage | null => {
   try {
@@ -35,6 +36,8 @@ class DevState {
   history = new History();
   /** Bumped when the history changes (the class itself is not reactive). */
   histRev = $state(0);
+  /** Workers the viewer opened this session (Explorer, Files), so a revisit opens them again. */
+  opened = new Opened();
   /** "Show IDs" (7.14): raw ids instead of readable names, on all three screens; per viewer. */
   showIds = $state(loadShowIds(storage()));
 

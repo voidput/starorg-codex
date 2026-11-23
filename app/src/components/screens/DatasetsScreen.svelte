@@ -45,6 +45,7 @@
   import { devApi, type Column, type DatasetInfo, type DevRowDetail, type DevSource, type DumpRelease, type GroupPage, type Row, type RowFilter, type RowSort, type TableInfo } from '@/lib/contract/dev';
   import { toContractError, type ContractError } from '@/lib/contract/client';
   import { bytes } from '@/lib/devnav';
+  import { guard } from '@/lib/loadstate';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
   import { numberCell } from '@/lib/readable';
@@ -145,21 +146,27 @@
   let tableName = $state<string | null>(null);
   let table = $state<TableInfo | null>(null);
   let dsError = $state<ContractError | null>(null);
+  // Pick dataset A, then B (or table A, then B): the slower answer for A is dropped.
+  const dsSeq = guard();
+  const tblSeq = guard();
   $effect(() => {
     const p = pick;
     untrack(async () => {
+      const live = dsSeq.next();
       info = null;
       table = null;
       tableName = null;
       if (!p || !target) return;
       try {
-        info = await devApi.dataset({ target: $state.snapshot(target), ...p });
+        const got = await devApi.dataset({ target: $state.snapshot(target), ...p });
+        if (!live()) return;
+        info = got;
         const want = wantTable;
         wantTable = null;
-        tableName = want && info.tables.some((t) => t.name === want) ? want : (info.tables[0]?.name ?? null);
+        tableName = want && got.tables.some((t) => t.name === want) ? want : (got.tables[0]?.name ?? null);
         dsError = null;
       } catch (e) {
-        dsError = toContractError(e);
+        if (live()) dsError = toContractError(e);
       }
     });
   });
@@ -167,12 +174,17 @@
   $effect(() => {
     const k = tkeyTable;
     untrack(async () => {
+      const live = tblSeq.next();
       table = null;
       if (!k || !pick || !tableName || !target) return;
+      const p = { ...pick };
+      const name = tableName;
       try {
-        table = await devApi.table({ target: $state.snapshot(target), ...pick, table: tableName });
-        shownCols = readCols(k, table);
-        groupId = pickGroupBy(readPref(groupByKey(pick.dataset, tableName)), table.group_presets);
+        const got = await devApi.table({ target: $state.snapshot(target), ...p, table: name });
+        if (!live()) return;
+        table = got;
+        shownCols = readCols(k, got);
+        groupId = pickGroupBy(readPref(groupByKey(p.dataset, name)), got.group_presets);
         node = null;
         open = [];
         filters = [];
@@ -180,7 +192,7 @@
         search = '';
         debounced = '';
       } catch (e) {
-        dsError = toContractError(e);
+        if (live()) dsError = toContractError(e);
       }
     });
   });
