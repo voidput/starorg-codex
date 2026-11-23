@@ -768,6 +768,28 @@ pub struct ShopItemsRequest {
     pub terminal: u64,
 }
 
+// The Commodities screen (`commodity_list`, `commodity_detail`): every tradable resource of
+// the build's `game-commodities`, typed in `starorg_mcp::commodities`. The list is summaries
+// only; one resource in full comes from a second call.
+pub use starorg_mcp::commodities::{
+    CargoDamage, CargoItem, CommodityDataState, CommodityDetail, CommodityDirectory, CommodityInfo,
+    CommodityMarket, CommodityRef, CommoditySummary, CommodityVolatility, KioskPrice, MarketMeta,
+};
+
+/// Every tradable resource of `target`'s build, from its cached game data (nothing is
+/// extracted; `not-read` until "Read game data" ran). `None`: `no-channel`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommodityListRequest {
+    pub target: Option<ChannelRef>,
+}
+
+/// One resource; `id` is a [`CommoditySummary::id`] (`ResourceType.Gold`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommodityDetailRequest {
+    pub target: Option<ChannelRef>,
+    pub id: String,
+}
+
 /// Never prints the token.
 impl std::fmt::Debug for UexTokenRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -175,7 +175,8 @@ fn steps(bands: &[BandIn], r: &QualityRange) -> Vec<QualityStep> {
     out
 }
 
-fn report(r: &QualityResource, q: &QualityIn) -> OreQuality {
+/// The quality report of one resource with a quality curve.
+pub fn report(r: &QualityResource, q: &QualityIn) -> OreQuality {
     let range = q.distribution.clone().unwrap_or_default();
     OreQuality {
         resource: r.record_name.clone(),

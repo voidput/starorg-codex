@@ -20,6 +20,8 @@ pub mod mock;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_assets;
 #[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_commodities;
+#[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_dev;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_finder;
@@ -91,6 +93,12 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory>;
     /// One shop's items by category, with prices and the game record when linked.
     fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems>;
+    /// The Commodities screen: every tradable resource of the channel's build as list rows
+    /// (summaries only), from its cached game data; nothing is extracted or downloaded.
+    fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory>;
+    /// One resource in full: forms, quality, volatility, cargo, where it is mined and the
+    /// UEX kiosk prices when the UEX files are there.
+    fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo>;
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile>;
     fn preset_profile(&self, preset: Preset) -> CmdResult<Profile>;
     fn save_profile(&self, req: SaveProfileRequest) -> CmdResult<Profile>;
@@ -267,6 +275,8 @@ commands! {
     fetch_uex() -> ObtainStatus;
     shop_inventory(req: ShopInventoryRequest) -> ShopDirectory;
     shop_items(req: ShopItemsRequest) -> ShopItems;
+    commodity_list(req: CommodityListRequest) -> CommodityDirectory;
+    commodity_detail(req: CommodityDetailRequest) -> CommodityInfo;
     get_profile(req: ChannelRef) -> Profile;
     preset_profile(preset: Preset) -> Profile;
     save_profile(req: SaveProfileRequest) -> Profile;
@@ -374,6 +384,8 @@ macro_rules! contract_handler {
             $crate::contract::fetch_uex,
             $crate::contract::shop_inventory,
             $crate::contract::shop_items,
+            $crate::contract::commodity_list,
+            $crate::contract::commodity_detail,
             $crate::contract::get_profile,
             $crate::contract::preset_profile,
             $crate::contract::save_profile,
@@ -515,6 +527,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "fetch_uex",
     "shop_inventory",
     "shop_items",
+    "commodity_list",
+    "commodity_detail",
     "get_profile",
     "preset_profile",
     "save_profile",

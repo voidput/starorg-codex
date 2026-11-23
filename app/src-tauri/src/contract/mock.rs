@@ -1982,6 +1982,22 @@ impl Backend for MockBackend {
         Ok(super::mock_shops::mock_items(ready, ship, req.terminal))
     }
 
+    /// The synthetic commodities of `mock_commodities` once the target's game data was read
+    /// ("Read game data"); kiosk prices once "Fetch now" ran.
+    fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {
+        let (prices, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_commodity_list(read, prices))
+    }
+
+    fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo> {
+        let (prices, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_commodity_detail(
+            read, prices, &req.id,
+        ))
+    }
+
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
         self.with_channel(&req, |c, _| Ok(c.profile.clone()))
     }

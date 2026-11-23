@@ -36,6 +36,8 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   fetch_uex: [Record<string, never>, T.ObtainStatus];
   shop_inventory: [{ req: T.ShopInventoryRequest }, T.ShopDirectory];
   shop_items: [{ req: T.ShopItemsRequest }, T.ShopItems];
+  commodity_list: [{ req: T.CommodityListRequest }, T.CommodityDirectory];
+  commodity_detail: [{ req: T.CommodityDetailRequest }, T.CommodityInfo];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
   preset_profile: [{ preset: T.Preset }, T.Profile];
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
@@ -127,6 +129,8 @@ export const COMMANDS = [
   'fetch_uex',
   'shop_inventory',
   'shop_items',
+  'commodity_list',
+  'commodity_detail',
   'get_profile',
   'preset_profile',
   'save_profile',
@@ -362,6 +366,10 @@ export const api = {
   shopInventory: (target: T.ChannelRef | null) => call('shop_inventory', { req: { target } }),
   /** One shop's items by category, linked to records through the channel's cached item data. */
   shopItems: (target: T.ChannelRef | null, terminal: number) => call('shop_items', { req: { target, terminal } }),
+  /** The Commodities screen: every tradable resource of the channel's build, list rows only (`not-read` until "Read game data"). */
+  commodityList: (target: T.ChannelRef | null) => call('commodity_list', { req: { target } }),
+  /** One resource in full: forms, quality, volatility, cargo, where mined, UEX kiosk prices. */
+  commodityDetail: (target: T.ChannelRef | null, id: string) => call('commodity_detail', { req: { target, id } }),
   getProfile: (req: T.ChannelRef) => call('get_profile', { req }),
   presetProfile: (preset: T.Preset) => call('preset_profile', { preset }),
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),

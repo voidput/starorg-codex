@@ -7,6 +7,8 @@
  * Rules: snake_case fields, kebab-case values, `T | null` for Option (never omitted).
  */
 
+import type { MinedReport, OreQuality } from './dev';
+
 export const CONTRACT_VERSION = 1;
 export const JOB_EVENT = 'job-progress';
 
@@ -520,6 +522,126 @@ export interface ShopItems {
   shop: ShopSummary | null;
   items: ShopItemRow[];
   linked: string | null;
+}
+
+// The Commodities screen (`commodity_list`, `commodity_detail`), typed in
+// `starorg_mcp::commodities`: list rows only, one resource in full from a second call.
+
+/** `not-read`: the channel's game data was not read yet; `no-channel`: no install known. */
+export type CommodityDataState = 'ready' | 'not-read' | 'no-channel';
+
+export interface CommodityListRequest {
+  target: ChannelRef | null;
+}
+
+export interface CommodityDetailRequest {
+  target: ChannelRef | null;
+  /** A `CommoditySummary.id` (`ResourceType.Gold`). */
+  id: string;
+}
+
+export interface CommoditySummary {
+  /** The resource record (`ResourceType.Raw_Quantainium`). */
+  id: string;
+  name: string;
+  /** Top group, readable (`Metal`). */
+  group: string;
+  /** Groups below it (`Unrefined Ores`); null at the top level. */
+  subgroup: string | null;
+  volatile: boolean;
+  /** A raw form: it refines into something. */
+  raw: boolean;
+}
+
+/** Whether the UEX commodity files are there (prices are UEX data, player-reported). */
+export interface MarketMeta {
+  loaded: boolean;
+  fetched: string | null;
+  folder: string | null;
+}
+
+export interface CommodityDirectory {
+  state: CommodityDataState;
+  /** `LIVE 4.10.201.48085`. */
+  build: string | null;
+  commodities: CommoditySummary[];
+  market: MarketMeta;
+}
+
+export interface CommodityRef {
+  id: string;
+  name: string;
+}
+
+export interface CommodityVolatility {
+  volatility: number | null;
+  decay_per_second: number | null;
+}
+
+/** Cargo damage settings; configurations with the same numbers are one row. */
+export interface CargoDamage {
+  configs: string[];
+  /** m/s below which impacts do nothing. */
+  minimum_speed: number | null;
+  grace_period: number | null;
+  explosion_damage: number | null;
+  explosion_min_radius: number | null;
+  explosion_max_radius: number | null;
+}
+
+export interface CargoItem {
+  name: string;
+  class_name: string;
+  kind: string | null;
+  capacity_scu: number | null;
+}
+
+/** One kiosk price, aUEC per SCU (UEX, player-reported). */
+export interface KioskPrice {
+  terminal: string;
+  location: string;
+  system: string | null;
+  price: number;
+  scu_stock: number | null;
+  /** YYYY-MM-DD UEX last confirmed the row. */
+  updated: string | null;
+  stale: boolean;
+}
+
+export interface CommodityMarket {
+  loaded: boolean;
+  fetched: string | null;
+  folder: string | null;
+  /** Kiosks paying for it, highest first. */
+  sell: KioskPrice[];
+  sell_total: number;
+  /** Kiosks selling it, lowest first. */
+  buy: KioskPrice[];
+  buy_total: number;
+}
+
+export interface CommodityDetail {
+  id: string;
+  name: string;
+  group: string;
+  subgroup: string | null;
+  description: string | null;
+  density: number | null;
+  refined: CommodityRef | null;
+  raw_sources: CommodityRef[];
+  quality: OreQuality | null;
+  volatility: CommodityVolatility | null;
+  /** Only for volatile resources. */
+  damage: CargoDamage[];
+  cargo: CargoItem[];
+  /** null: mining data not read, or a refined form (see raw_sources). */
+  mined: MinedReport[] | null;
+  market: CommodityMarket;
+}
+
+export interface CommodityInfo {
+  state: CommodityDataState;
+  commodity: CommodityDetail | null;
 }
 
 export interface LineSchema {

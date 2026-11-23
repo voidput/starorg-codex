@@ -2406,6 +2406,14 @@ impl Backend for RealBackend {
         Ok(self.shop_items_of(req))
     }
 
+    fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {
+        Ok(self.commodity_list_of(req))
+    }
+
+    fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo> {
+        Ok(self.commodity_detail_of(req))
+    }
+
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
         let f = self.resolve(&req)?;
         let ch = f.channel(&req.channel)?;

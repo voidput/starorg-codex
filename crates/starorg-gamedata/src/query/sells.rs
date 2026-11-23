@@ -156,25 +156,80 @@ pub fn by_resource<'r>(
     (out, stats)
 }
 
-/// The kiosks that buy it, highest price first (ties in file order), one row per terminal
-/// and place. Rows without a positive, finite `price_sell` and kiosks UEX marks unavailable
-/// on LIVE are left out. `as_of` is the file's `_fetched` (for the stale flag).
+/// Which side of a kiosk price: what it pays players (`price_sell`) or what it asks of them
+/// (`price_buy`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Side {
+    Sell,
+    Buy,
+}
+
+/// One kiosk price of a commodity, placed (either side).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct KioskPrice {
+    /// The terminal as UEX names it (`TDD Area 18`).
+    pub terminal: String,
+    /// Place, moon or orbit, planet, system.
+    pub location: String,
+    pub system: Option<String>,
+    /// aUEC per SCU.
+    pub price: f64,
+    /// SCU the kiosk holds (sell side only, when UEX knows).
+    pub scu_stock: Option<f64>,
+    /// `date_modified` as YYYY-MM-DD (UTC).
+    pub updated: Option<String>,
+    /// Not confirmed for [`STALE_DAYS`].
+    pub stale: bool,
+}
+
+/// The kiosks that buy it, highest price first ([`kiosk_prices`] on the sell side).
 pub fn best_sells(
     rows: &[&CommodityPrice],
     terminals: &[UexTerminal],
     as_of: Option<&AsOf>,
 ) -> Vec<SellRow> {
+    kiosk_prices(rows, terminals, as_of, Side::Sell)
+        .into_iter()
+        .map(|k| SellRow {
+            terminal: k.terminal,
+            location: k.location,
+            system: k.system,
+            price_sell: k.price,
+            scu_stock: k.scu_stock,
+            updated: k.updated,
+            stale: k.stale,
+        })
+        .collect()
+}
+
+/// The kiosks on one side, best first: highest price for [`Side::Sell`], lowest for
+/// [`Side::Buy`] (ties in file order), one row per terminal and place. Rows without a
+/// positive, finite price on that side and kiosks UEX marks unavailable on LIVE are left
+/// out. `as_of` is the file's `_fetched` (for the stale flag).
+pub fn kiosk_prices(
+    rows: &[&CommodityPrice],
+    terminals: &[UexTerminal],
+    as_of: Option<&AsOf>,
+    side: Side,
+) -> Vec<KioskPrice> {
     let locator = Locator::new(terminals);
     let reference = reference_time(as_of);
     let mut ranked: Vec<(&CommodityPrice, f64)> = rows
         .iter()
         .filter_map(|r| {
-            let p = r.price_sell.filter(|p| p.is_finite() && *p > 0.0)?;
+            let p = match side {
+                Side::Sell => r.price_sell,
+                Side::Buy => r.price_buy,
+            };
+            let p = p.filter(|p| p.is_finite() && *p > 0.0)?;
             Some((*r, p))
         })
         .collect();
-    ranked.sort_by(|a, b| b.1.total_cmp(&a.1));
-    let mut out: Vec<SellRow> = Vec::new();
+    match side {
+        Side::Sell => ranked.sort_by(|a, b| b.1.total_cmp(&a.1)),
+        Side::Buy => ranked.sort_by(|a, b| a.1.total_cmp(&b.1)),
+    }
+    let mut out: Vec<KioskPrice> = Vec::new();
     for (row, price) in ranked {
         let loc = locator.locate(&ShopPrice {
             id_terminal: row.id_terminal,
@@ -191,12 +246,15 @@ pub fn best_sells(
             continue;
         }
         let (updated, stale) = price_age(row.date_modified, reference, STALE_DAYS);
-        out.push(SellRow {
+        out.push(KioskPrice {
             terminal: loc.terminal,
             location: loc.label,
             system: loc.system,
-            price_sell: price,
-            scu_stock: row.scu_sell_stock,
+            price,
+            scu_stock: match side {
+                Side::Sell => row.scu_sell_stock,
+                Side::Buy => None,
+            },
             updated,
             stale,
         });
@@ -321,6 +379,34 @@ mod tests {
         assert_eq!(s[0].updated.as_deref(), Some("2026-11-21"));
         assert!(!s[0].stale);
         assert!(best_sells(&[], &t, None).is_empty());
+    }
+
+    #[test]
+    fn buy_side_is_lowest_price_first_without_stock() {
+        let t = vec![
+            terminal(1.0, "TDD Area 18", "Area 18", 1.0),
+            terminal(2.0, "HUR-L2", "HUR-L2 Faithful Dream Station", 1.0),
+            terminal(3.0, "Old Kiosk", "Gone Station", 0.0),
+        ];
+        let mut rows = [
+            row("Laranite", 1.0, Some(9000.0)),
+            row("Laranite", 2.0, None),
+            row("Laranite", 3.0, None),
+            row("Laranite", 1.0, None),
+        ];
+        rows[0].price_buy = Some(31.0);
+        rows[0].scu_sell_stock = Some(40.0);
+        rows[1].price_buy = Some(27.5);
+        rows[2].price_buy = Some(1.0);
+        rows[3].price_buy = Some(0.0);
+        let refs: Vec<&CommodityPrice> = rows.iter().collect();
+        let b = kiosk_prices(&refs, &t, None, Side::Buy);
+        let got: Vec<(&str, f64)> = b.iter().map(|r| (r.terminal.as_str(), r.price)).collect();
+        assert_eq!(got, [("HUR-L2", 27.5), ("TDD Area 18", 31.0)]);
+        assert!(b.iter().all(|r| r.scu_stock.is_none()));
+        let s = kiosk_prices(&refs, &t, None, Side::Sell);
+        assert_eq!(s.len(), 1);
+        assert_eq!(s[0].scu_stock, Some(40.0));
     }
 
     #[test]

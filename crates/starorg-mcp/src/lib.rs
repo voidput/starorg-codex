@@ -9,6 +9,7 @@
 //! - [`owned`]: owned blueprints from the app's store, for `how_to_obtain`;
 //! - [`sources`]: the app explorer's Sources card (loot containers, where an ore is mined);
 //! - [`shops`]: the shop browser (what each UEX terminal sells, by category);
+//! - [`commodities`]: the commodity browser (every tradable resource, one in full on request);
 //! - [`hints`]: the same rows as obtain hints for `global.ini` descriptions;
 //! - [`stdio`] (the CLI's `starorg-codex mcp`) and `http` (feature `http`, the app's
 //!   loopback server) transports;
@@ -17,6 +18,7 @@
 //! Read-only throughout: no tool writes game files or app settings, and nothing here opens
 //! a network connection (the HTTP transport only listens on 127.0.0.1).
 
+pub mod commodities;
 pub mod hints;
 pub mod owned;
 pub mod protocol;
