@@ -2,7 +2,7 @@
 title: StarOrg Codex v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-21
+updated: 2026-11-23
 ---
 
 # StarOrg Codex v1 — addendum (user requests 2026-11-14)
@@ -1078,7 +1078,8 @@ command returns error code `dev-disabled` while the setting is off.
 | `dev_sources` | target ► sources (kind, label, build, state) with datasets (file, tables, row counts, bytes) |
 | `dev_add_source` / `dev_remove_source` | folder/file dialog ► updated sources |
 | `dev_download_dump` | target ► job id (refused with `network-off` when the switch is off). **2026-11-17:** `{ target, tag }` ► sources (a `dev` job) |
-| `dev_dump_releases` | **2026-11-17:** target ► `{ releases: [{ tag, title, channel, branch, published, cached }], error }`, newest first; switch off = only cached ones, no request; GitHub unreachable or rate limited = cached ones with `error` set (not a failure) |
+| `dev_dump_releases` | **2026-11-17:** target ► `{ releases: [{ tag, title, channel, branch, published, cached }], error }`, newest first; switch off = only cached ones, no request; GitHub unreachable or rate limited = cached ones with `error` set (not a failure). **2026-11-23:** GitHub's list is kept in memory for 15 minutes (a failed request is not) |
+| `dev_refresh_dump_releases` | **2026-11-23:** as `dev_dump_releases`, asking GitHub again (the Refresh button) |
 | `dev_table` | source, dataset, table ► columns (name, type, distinct values when at most 50), row count, identity column |
 | `dev_rows` | source, dataset, table, columns, search, filters, sort, offset, limit ► rows + total |
 | `dev_row` | source, dataset, table, row id ► JSON text + loc resolutions + explorer links |

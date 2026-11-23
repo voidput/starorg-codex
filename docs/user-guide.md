@@ -163,7 +163,9 @@ type and are written on the next apply.
 
 - **Finder:** every blueprint of the build and who owns it, per character and channel (PTU
   progress is not LIVE progress). Search (`/`), filters (category, type, manufacturer, size,
-  source, character), sort and group; groups and cards can be collapsed.
+  source, character), sort and group; groups and cards can be collapsed. It shows as soon as
+  the build's blueprints are read and does not wait for the character list or StarOrg Tools; it
+  reloads after an import, a pull or a re-scan.
 - **Where ownership comes from:**
   - **Game logs.** The game writes `Received Blueprint: ...` to `Game.log`. The app reads new
     lines when you open Blueprints; on Linux the post-exit hook does it after every session;
@@ -301,6 +303,13 @@ anything used in the last 5 minutes, UEX files and backups are never removed by 
 can stay over when everything left is in use. Whatever goes is rebuilt when it is needed
 again (a re-read of `Data.p4k`).
 
+The sizes (here and in Settings -> Advanced -> Asset cache) are measured once and kept while
+the app runs. They are measured again after the app changes those folders (a read, apply,
+import, restore, download or asset export; an asset preview; Clear, Browse, Reset or Move of
+the asset cache; a backup made or deleted) and when you press **Measure again**. What another
+program writes there (the MCP server, a launch hook, the CLI) shows within 5 minutes, or at
+once with **Measure again**.
+
 ## Settings worth knowing
 
 - **Appearance:** dark (default) or light theme, accent colour and palette.
@@ -410,7 +419,9 @@ For players who want to look things up in the game data. Read only on the game.
   builds** (about 20-25 MB each, from github.com/voidput/sc-gamedata-dumps, checked by
   checksum). Then on **Diff** pick the older one as **A** and the newer one as **B** (they are
   listed as "LIVE <version>") and press **Compare**. Downloaded builds stay usable with the
-  switch off; the trash button deletes one. Applying never uses them: it always reads
+  switch off; the trash button deletes one. The list from GitHub is kept for 15 minutes, so
+  opening Datasets again or switching channel asks GitHub nothing; the refresh button next to
+  **Published LIVE builds** asks again now. Applying never uses them: it always reads
   `Data.p4k` on this computer.
 - **Files:** browse `Data.p4k`, preview textures and text, extract files.
 
