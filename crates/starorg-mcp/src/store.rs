@@ -22,8 +22,9 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 /// Bumped when the cached layout or a dataset's meaning changes.
 pub const CACHE_FORMAT: u32 = 1;
 
-/// Builds kept on disk per channel (older ones are removed).
-pub const KEEP_BUILDS: usize = 3;
+/// Builds kept on disk per channel (older ones are removed; the app cache folder's cap,
+/// `starorg_core::storage`, can remove more).
+pub const KEEP_BUILDS: usize = 2;
 
 /// Parsed builds kept in memory.
 const MEM_BUILDS: usize = 2;
@@ -101,6 +102,9 @@ pub struct StoreConfig {
     /// applied text from another tool's.
     pub our_outputs: Vec<String>,
     pub extractor: Arc<dyn Extractor>,
+    /// The app cache folder's cap (`starorg_core::storage::enforce` on the folder above
+    /// `cache_dir`, after each extraction); `None`: no cap (tests).
+    pub cache_cap: Option<u64>,
 }
 
 type Typed = Arc<dyn Any + Send + Sync>;
@@ -339,6 +343,17 @@ impl Store {
             .extract(&ch.p4k, dataset, dir)
             .map_err(|e| ToolError(format!("{dataset}: {e}")))?;
         Self::record_measurement(dir, &m);
+        if let (Some(cap), Some(app_cache)) = (self.cfg.cache_cap, self.cfg.cache_dir.parent()) {
+            let e = starorg_core::storage::enforce(app_cache, cap, &[dir.to_path_buf()]);
+            if !e.removed.is_empty() {
+                self.say(format!(
+                    "Storage cap {} MB: removed {} older folder(s), {} MB",
+                    cap >> 20,
+                    e.removed.len(),
+                    (e.before - e.after) >> 20
+                ));
+            }
+        }
         self.say(format!(
             "MCP: {dataset} ready in {:.1} s{}",
             m.seconds,
@@ -391,6 +406,8 @@ impl Store {
             ));
         }
         let v = Self::read_json(&path)?;
+        // Last used, for the storage cap's LRU order.
+        starorg_core::fsutil::touch(&path);
         lock(&self.mem).json.insert(key, v.clone());
         Ok(v)
     }
@@ -536,6 +553,7 @@ mod tests {
             uex_dir: None,
             our_outputs: vec![],
             extractor: fake,
+            cache_cap: None,
         })
     }
 

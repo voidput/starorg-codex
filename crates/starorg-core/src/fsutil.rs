@@ -48,6 +48,13 @@ fn hex(bytes: &[u8]) -> String {
     s
 }
 
+/// Set a file's modification time to now (best effort: "last used", for the storage cap).
+pub fn touch(file: &Path) {
+    if let Ok(f) = std::fs::File::options().write(true).open(file) {
+        let _ = f.set_modified(std::time::SystemTime::now());
+    }
+}
+
 /// fsync a directory so a rename inside it is durable (Linux). A no-op elsewhere.
 pub fn fsync_dir(dir: &Path) -> std::io::Result<()> {
     #[cfg(unix)]

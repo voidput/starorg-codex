@@ -16,7 +16,10 @@
 //! - **Keyed by build.** A game patch changes the build key; the first write for the new
 //!   build removes that channel's other build folders.
 //! - **Bounded.** After each write the oldest files (by modification time; a hit touches its
-//!   file) are removed until the total is under the cap (2 GiB by default).
+//!   file) are removed until the total is under the cap (1 GiB by default). Files written or
+//!   used in the last [`IN_USE`] are never removed (the job that wrote or read them may still
+//!   need them; a second app instance or a CLI run included), nor are `.part` files being
+//!   written, so the total can stay above the cap until the next write after that.
 //! - **Only our files.** Eviction, clear and move touch only files of the layout above under a
 //!   root that holds the marker: channel names (`LIVE`), build keys (hex), our kind folders and
 //!   file names. No symlink is followed, for folders or files, and nothing outside the
@@ -27,8 +30,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
-/// Default size cap: 2 GiB.
-pub const DEFAULT_MAX_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+/// Default size cap: 1 GiB.
+pub const DEFAULT_MAX_BYTES: u64 = 1024 * 1024 * 1024;
+/// Files written or hit this recently are in use: eviction leaves them.
+pub const IN_USE: Duration = Duration::from_secs(300);
 /// The marker file at the cache root.
 pub const MARKER: &str = ".starorg-asset-cache";
 /// A file written but not yet moved into place (`<final>.part`).
@@ -430,9 +435,32 @@ impl AssetCache {
     }
 
     /// Remove the oldest files until the total is at most the cap; stale `.part` files go
-    /// first. Returns the bytes removed.
+    /// first. Files modified (written, or touched by a hit) in the last [`IN_USE`] stay.
+    /// Returns the bytes removed.
     pub fn evict(&self) -> io::Result<u64> {
-        let now = SystemTime::now();
+        self.evict_at(SystemTime::now())
+    }
+
+    /// Remove at least `need` bytes the same way (least recently used first, never a file in
+    /// use), for the overall storage cap ([`crate::storage::enforce`]). Returns the bytes
+    /// removed, which can be less when the rest is in use.
+    pub fn shrink(&self, need: u64) -> u64 {
+        let total: u64 = self
+            .walk()
+            .into_iter()
+            .filter(|(p, _, _)| !is_part(p))
+            .map(|f| f.1)
+            .sum();
+        self.evict_to_at(total.saturating_sub(need), SystemTime::now())
+            .unwrap_or(0)
+    }
+
+    /// [`AssetCache::evict`] as of `now`.
+    fn evict_at(&self, now: SystemTime) -> io::Result<u64> {
+        self.evict_to_at(self.max_bytes, now)
+    }
+
+    fn evict_to_at(&self, max_bytes: u64, now: SystemTime) -> io::Result<u64> {
         let mut files = self.walk();
         let mut removed = 0;
         files.retain(|(p, len, t)| {
@@ -445,8 +473,12 @@ impl AssetCache {
         });
         let mut total: u64 = files.iter().map(|f| f.1).sum();
         files.sort_by_key(|f| f.2);
-        for (p, len, _) in files {
-            if total <= self.max_bytes {
+        for (p, len, t) in files {
+            if total <= max_bytes {
+                break;
+            }
+            if now.duration_since(t).unwrap_or_default() < IN_USE {
+                // Sorted oldest first: everything after this is in use too.
                 break;
             }
             if std::fs::remove_file(&p).is_ok() {
@@ -570,7 +602,7 @@ pub fn set_configured_dir(cfg: &mut Config, dir: Option<&Path>) {
     }
 }
 
-/// `[dev] asset_cache_max_mb`, else 2 GiB.
+/// `[dev] asset_cache_max_mb`, else [`DEFAULT_MAX_BYTES`] (1 GiB).
 pub fn configured_max(cfg: &Config) -> u64 {
     dev_table(cfg)
         .and_then(|t| t.get(KEY_MAX))

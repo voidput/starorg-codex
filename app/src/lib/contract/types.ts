@@ -1399,3 +1399,33 @@ export interface MemoryLimitRequest {
   /** null = back to the default. */
   gb: number | null;
 }
+
+export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'backups';
+
+export interface StorageArea {
+  id: StorageAreaId;
+  label: string;
+  /** The folder shown for it. */
+  path: string;
+  bytes: number;
+  files: number;
+  /** Counted toward the cache folder's cap. */
+  in_cache: boolean;
+}
+
+/** Settings > Storage: what the app keeps on this PC and the cache folder's cap. */
+export interface StorageStatus {
+  cache_path: string;
+  cache_bytes: number;
+  /** Least recently used goes first above it (`[storage] cache_max_mb`, default 1 GiB). */
+  cap_bytes: number;
+  /** Cache folder + backups (+ the asset cache when it is in a folder of its own). */
+  total_bytes: number;
+  /** Game data, WHERE TO GET, UEX, asset exports, temporary, backups. */
+  areas: StorageArea[];
+  asset_cap_bytes: number;
+  backup_keep_newest: number;
+  backup_keep_builds: number;
+  /** Why "Clear asset cache" is refused right now, else null. */
+  asset_busy: string | null;
+}

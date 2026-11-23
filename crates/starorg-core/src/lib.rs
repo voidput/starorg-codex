@@ -18,6 +18,7 @@ pub mod enhance;
 pub mod fleet;
 pub mod fsutil;
 pub mod groups;
+pub mod gz;
 pub mod hooks;
 pub mod ini;
 pub mod legacy;
@@ -31,6 +32,7 @@ pub mod running;
 pub mod source;
 pub mod starorg;
 pub mod state;
+pub mod storage;
 pub mod usercfg;
 pub mod validate;
 

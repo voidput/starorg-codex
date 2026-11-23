@@ -725,3 +725,61 @@ fn the_model_view_reads_the_cache_per_lod_and_respects_the_memory_guard() {
         .unwrap_err();
     assert_eq!(e.code, ErrorCode::DevDisabled);
 }
+
+/// Settings > Storage on a temp folder: each area measured on its own, the cap, and "Clear
+/// asset cache" refused while an asset job holds the cache.
+#[test]
+fn storage_sizes_per_area_and_clear_refused_while_in_use() {
+    let f = fake();
+    let dirs = AppDirs::under(&f.base.join("app"));
+    let put = |p: PathBuf, n: usize| {
+        std::fs::create_dir_all(p.parent().unwrap()).unwrap();
+        std::fs::write(p, vec![1u8; n]).unwrap();
+    };
+    put(dirs.cache.join("inst/LIVE/k1/base.ini.gz"), 1000);
+    put(dirs.cache.join("mcp/LIVE/4.1-aa/game-ships.json"), 300);
+    put(dirs.cache.join("mcp/uex/uex-terminals.json"), 70);
+    put(dirs.cache.join("work/starorg-extract-x/out/base.ini"), 9);
+    put(
+        dirs.data
+            .join("channels/inst/LIVE/backups/1-manual/global.ini.gz"),
+        500,
+    );
+    let c = f.cache();
+    c.prepare("LIVE", "0000000000000000000000b1", Kind::Audio)
+        .unwrap();
+    put(
+        c.path("LIVE", "0000000000000000000000b1", Kind::Audio, "1", "ogg"),
+        200,
+    );
+    let area =
+        |s: &StorageStatus, id: StorageAreaId| s.areas.iter().find(|a| a.id == id).unwrap().bytes;
+    let s = f.backend.storage_status().unwrap();
+    assert_eq!(area(&s, StorageAreaId::GameData), 1000);
+    assert_eq!(area(&s, StorageAreaId::WhereToGet), 300);
+    assert_eq!(area(&s, StorageAreaId::Uex), 70);
+    assert_eq!(area(&s, StorageAreaId::Temporary), 9);
+    assert_eq!(area(&s, StorageAreaId::AssetExports), 200);
+    assert_eq!(area(&s, StorageAreaId::Backups), 500);
+    assert_eq!(s.cap_bytes, starorg_core::storage::DEFAULT_CAP);
+    assert_eq!(s.asset_cap_bytes, assetcache::DEFAULT_MAX_BYTES);
+    assert_eq!(s.backup_keep_newest, 5);
+    assert!(s.cache_bytes >= 1000 + 300 + 70 + 9 + 200);
+    assert_eq!(s.total_bytes, s.cache_bytes + 500);
+    assert_eq!(s.asset_busy, None);
+    // An asset job uses the cache: clearing is refused, nothing removed.
+    let held = f.backend.asset_cache_in_use();
+    let busy = f.backend.storage_status().unwrap();
+    assert!(busy.asset_busy.is_some());
+    let e = f.backend.storage_clear_assets().unwrap_err();
+    assert_eq!(e.code, ErrorCode::Busy);
+    assert_eq!(c.usage().files, 1);
+    drop(held);
+    let s = f.backend.storage_clear_assets().unwrap();
+    assert_eq!(area(&s, StorageAreaId::AssetExports), 0);
+    assert_eq!(
+        area(&s, StorageAreaId::GameData),
+        1000,
+        "only the asset cache"
+    );
+}

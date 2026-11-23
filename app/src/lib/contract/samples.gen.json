@@ -124,18 +124,18 @@
     "default_path": "/synthetic/cache/assets",
     "files": 0,
     "is_default": false,
-    "max_bytes": 2147483648,
+    "max_bytes": 1073741824,
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
     "previous": null,
     "problem": null
   },
   "asset_cache_move": {
-    "bytes": 809092911,
+    "bytes": 112819581,
     "default_path": "/synthetic/cache/assets",
-    "files": 11,
+    "files": 9,
     "is_default": false,
-    "max_bytes": 2147483648,
+    "max_bytes": 1073741824,
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
     "previous": null,
@@ -146,12 +146,12 @@
     "default_path": "/synthetic/cache/assets",
     "files": 0,
     "is_default": false,
-    "max_bytes": 2147483648,
+    "max_bytes": 1073741824,
     "other_drive": true,
     "path": "/synthetic/other-drive/asset-cache",
     "previous": {
-      "bytes": 809092915,
-      "files": 11,
+      "bytes": 112819587,
+      "files": 9,
       "path": "/synthetic/cache/assets"
     },
     "problem": null
@@ -161,7 +161,7 @@
     "default_path": "/synthetic/cache/assets",
     "files": 0,
     "is_default": true,
-    "max_bytes": 2147483648,
+    "max_bytes": 1073741824,
     "other_drive": false,
     "path": "/synthetic/cache/assets",
     "previous": null,
@@ -172,7 +172,7 @@
     "default_path": "/synthetic/cache/assets",
     "files": 0,
     "is_default": true,
-    "max_bytes": 2147483648,
+    "max_bytes": 1073741824,
     "other_drive": false,
     "path": "/synthetic/cache/assets",
     "previous": null,
@@ -396,7 +396,7 @@
         "uses": 4
       }
     ],
-    "max_bytes": 536870912,
+    "max_bytes": 268435456,
     "what": "51000000-0000-4000-8000-000000000004"
   },
   "asset_model_info_known": {
@@ -456,7 +456,7 @@
         "uses": 3
       }
     ],
-    "max_bytes": 536870912,
+    "max_bytes": 268435456,
     "what": "51000000-0000-4000-8000-000000000004"
   },
   "asset_model_paints": {
@@ -11341,7 +11341,7 @@
     "channel": "LIVE",
     "folder": "~/.local/share/starorg-codex/channels/inst-7f3a/LIVE/backups",
     "keep_builds": 3,
-    "keep_newest": 10,
+    "keep_newest": 5,
     "offers": {
       "remove": true,
       "remove_foreign": false,
@@ -17740,6 +17740,126 @@
     ],
     "skipped": [],
     "time": "2026-11-14T21:30:05Z"
+  },
+  "storage_clear_assets": {
+    "areas": [
+      {
+        "bytes": 11400000,
+        "files": 12,
+        "id": "game-data",
+        "in_cache": true,
+        "label": "Game data cache",
+        "path": "/synthetic/cache"
+      },
+      {
+        "bytes": 72000000,
+        "files": 46,
+        "id": "where-to-get",
+        "in_cache": true,
+        "label": "WHERE TO GET datasets",
+        "path": "/synthetic/cache/mcp"
+      },
+      {
+        "bytes": 7300000,
+        "files": 3,
+        "id": "uex",
+        "in_cache": true,
+        "label": "UEX market data",
+        "path": "/synthetic/cache/mcp/uex"
+      },
+      {
+        "bytes": 0,
+        "files": 0,
+        "id": "asset-exports",
+        "in_cache": true,
+        "label": "Asset exports",
+        "path": "/synthetic/cache/assets"
+      },
+      {
+        "bytes": 0,
+        "files": 0,
+        "id": "temporary",
+        "in_cache": true,
+        "label": "Temporary extraction folders",
+        "path": "/synthetic/cache/work"
+      },
+      {
+        "bytes": 37800000,
+        "files": 30,
+        "id": "backups",
+        "in_cache": false,
+        "label": "global.ini backups",
+        "path": "/synthetic/data/channels"
+      }
+    ],
+    "asset_busy": null,
+    "asset_cap_bytes": 1073741824,
+    "backup_keep_builds": 3,
+    "backup_keep_newest": 5,
+    "cache_bytes": 90700000,
+    "cache_path": "/synthetic/cache",
+    "cap_bytes": 1073741824,
+    "total_bytes": 128500000
+  },
+  "storage_status": {
+    "areas": [
+      {
+        "bytes": 11400000,
+        "files": 12,
+        "id": "game-data",
+        "in_cache": true,
+        "label": "Game data cache",
+        "path": "/synthetic/cache"
+      },
+      {
+        "bytes": 72000000,
+        "files": 46,
+        "id": "where-to-get",
+        "in_cache": true,
+        "label": "WHERE TO GET datasets",
+        "path": "/synthetic/cache/mcp"
+      },
+      {
+        "bytes": 7300000,
+        "files": 3,
+        "id": "uex",
+        "in_cache": true,
+        "label": "UEX market data",
+        "path": "/synthetic/cache/mcp/uex"
+      },
+      {
+        "bytes": 48000000,
+        "files": 1,
+        "id": "asset-exports",
+        "in_cache": true,
+        "label": "Asset exports",
+        "path": "/synthetic/cache/assets"
+      },
+      {
+        "bytes": 0,
+        "files": 0,
+        "id": "temporary",
+        "in_cache": true,
+        "label": "Temporary extraction folders",
+        "path": "/synthetic/cache/work"
+      },
+      {
+        "bytes": 37800000,
+        "files": 30,
+        "id": "backups",
+        "in_cache": false,
+        "label": "global.ini backups",
+        "path": "/synthetic/data/channels"
+      }
+    ],
+    "asset_busy": null,
+    "asset_cap_bytes": 1073741824,
+    "backup_keep_builds": 3,
+    "backup_keep_newest": 5,
+    "cache_bytes": 138700000,
+    "cache_path": "/synthetic/cache",
+    "cap_bytes": 1073741824,
+    "total_bytes": 176500000
   },
   "string_detail": {
     "also_used_by": [],

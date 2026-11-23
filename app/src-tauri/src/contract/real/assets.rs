@@ -79,6 +79,17 @@ pub struct AssetState {
     previous: Mutex<Option<PathBuf>>,
     /// The mesh LODs a model export read, per (channel, build, record): this session only.
     lods: Mutex<std::collections::HashMap<(String, String, String), Vec<u32>>>,
+    /// Calls writing or reading the asset cache right now ("Clear asset cache" waits).
+    in_use: std::sync::atomic::AtomicUsize,
+}
+
+/// Held while a call uses the asset cache (see [`RealBackend::asset_cache_in_use`]).
+pub struct AssetCacheUse<'a>(&'a std::sync::atomic::AtomicUsize);
+
+impl Drop for AssetCacheUse<'_> {
+    fn drop(&mut self) {
+        self.0.fetch_sub(1, Ordering::SeqCst);
+    }
 }
 
 impl Default for AssetState {
@@ -91,6 +102,7 @@ impl Default for AssetState {
             export: Mutex::new(None),
             previous: Mutex::new(None),
             lods: Mutex::new(Default::default()),
+            in_use: Default::default(),
         }
     }
 }
@@ -151,6 +163,25 @@ impl RealBackend {
 
     fn config_now(&self) -> Config {
         Config::load(self.dirs()).unwrap_or_default()
+    }
+
+    /// Mark the asset cache in use until the guard drops: "Clear asset cache" is refused
+    /// meanwhile. Public for tests.
+    pub fn asset_cache_in_use(&self) -> AssetCacheUse<'_> {
+        self.assets.in_use.fetch_add(1, Ordering::SeqCst);
+        AssetCacheUse(&self.assets.in_use)
+    }
+
+    /// Why the asset cache cannot be cleared now (an asset job uses it), else `None`.
+    pub(super) fn asset_cache_busy(&self) -> Option<String> {
+        let busy = self.assets.in_use.load(Ordering::SeqCst) > 0
+            || lock_or(&self.assets.export).is_some()
+            || lock_or(&self.assets.worker)
+                .as_ref()
+                .is_some_and(|w| w.busy.load(Ordering::SeqCst));
+        busy.then(|| {
+            "An asset export or preview is running; clear the asset cache when it ends.".into()
+        })
     }
 
     /// The asset cache, refused (`invalid`) when its folder lies in a game folder or its Wine
@@ -295,6 +326,7 @@ impl RealBackend {
         if lock_or(&self.assets.export).is_some() {
             return Err(err(ErrorCode::Busy, "Another asset export is running."));
         }
+        let _in_use = self.asset_cache_in_use();
         let mut job = self.job_start(JobKind::Dev, Some(channel), 1, label);
         job.cancellable = true;
         let job_id = job.job.clone();
@@ -350,6 +382,8 @@ impl RealBackend {
         );
         w.busy.store(false, Ordering::SeqCst);
         *lock_or(&self.assets.export) = None;
+        // The cache folder's overall cap (an export may have filled the asset cache).
+        starorg_core::storage::enforce_configured(self.dirs(), &[]);
         let job = cell.into_inner().unwrap_or_else(|p| p.into_inner());
         match &r {
             Ok(_) => self.job_end(
@@ -551,6 +585,7 @@ impl AssetBackend for RealBackend {
     }
 
     fn asset_preview(&self, req: AssetPathRequest) -> CmdResult<AssetPreview> {
+        let _in_use = self.asset_cache_in_use();
         let (_, key) = self.asset_target(&req.target)?;
         let c = self.asset_cache()?;
         let ext = starorg_data::assets::files::ext(&req.path);
@@ -611,6 +646,7 @@ impl AssetBackend for RealBackend {
         req: AssetExtractRequest,
         progress: Progress<'_>,
     ) -> CmdResult<AssetExportResult> {
+        let _in_use = self.asset_cache_in_use();
         if req.paths.is_empty() {
             return Err(err(ErrorCode::Invalid, "nothing selected"));
         }
@@ -730,6 +766,7 @@ impl AssetBackend for RealBackend {
     }
 
     fn asset_sound(&self, req: AssetSoundRequest) -> CmdResult<AssetAudio> {
+        let _in_use = self.asset_cache_in_use();
         let (_, key) = self.asset_target(&req.target)?;
         let c = self.asset_cache()?;
         let skey = req.sound.key();
@@ -808,6 +845,7 @@ impl AssetBackend for RealBackend {
         req: AssetExportSoundsRequest,
         progress: Progress<'_>,
     ) -> CmdResult<AssetExportResult> {
+        let _in_use = self.asset_cache_in_use();
         let (ch, key) = self.asset_target(&req.target)?;
         let picks = if req.sounds.is_empty() {
             let all = self.asset_sounds(AssetRecordRequest {
@@ -921,6 +959,7 @@ impl AssetBackend for RealBackend {
         req: AssetExportModelRequest,
         progress: Progress<'_>,
     ) -> CmdResult<AssetExportResult> {
+        let _in_use = self.asset_cache_in_use();
         let (ch, key) = self.asset_target(&req.target)?;
         // A LOD the mesh does not have is the one below it (known after a first export).
         let asked = req.lod.min(model::MAX_LOD);
@@ -1135,6 +1174,7 @@ impl AssetBackend for RealBackend {
         req: AssetModelViewRequest,
         progress: Progress<'_>,
     ) -> CmdResult<AssetModelView> {
+        let _in_use = self.asset_cache_in_use();
         let (ch, key) = self.asset_target(&req.target)?;
         let c = self.asset_cache()?;
         let name = if req.name.is_empty() {

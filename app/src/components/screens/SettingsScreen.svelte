@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Settings (spec 9.4): Game, Appearance, Network (all off by default, spec 11), StarOrg Tools,
-   * Launch hooks (Linux), Diagnostics, Advanced (Developer mode, addendum 7.8), Experimental
+   * Launch hooks (Linux), Diagnostics, Storage, Advanced (Developer mode, addendum 7.8), Experimental
    * (local MCP server), Command line. A section index on top jumps by anchor.
    */
   import Wand from '@lucide/svelte/icons/wand-sparkles';
@@ -19,6 +19,7 @@
   import StarOrgCard from '@/components/settings/StarOrgCard.svelte';
   import HooksCard from '@/components/settings/HooksCard.svelte';
   import DoctorCard from '@/components/settings/DoctorCard.svelte';
+  import StorageCard from '@/components/settings/StorageCard.svelte';
   import UpdatesSection from '@/components/settings/UpdatesSection.svelte';
   import UexSection from '@/components/settings/UexSection.svelte';
   import McpCard from '@/components/settings/McpCard.svelte';
@@ -34,6 +35,7 @@
     { id: 'starorg', label: 'StarOrg Tools' },
     { id: 'hooks', label: 'Launch hooks' },
     { id: 'diagnostics', label: 'Diagnostics' },
+    { id: 'storage', label: 'Storage' },
     { id: 'advanced', label: 'Advanced' },
     { id: 'experimental', label: 'Experimental' },
     { id: 'cli', label: 'Command line' },
@@ -183,6 +185,7 @@
     <StarOrgCard />
     <HooksCard />
     <DoctorCard />
+    <StorageCard />
     <Card.Root id="advanced">
       <Card.Header>
         <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Advanced</Card.Title>

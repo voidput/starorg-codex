@@ -20,6 +20,7 @@ mod diag;
 pub mod dialogs;
 mod memory;
 mod starorg;
+mod storage;
 mod table;
 mod uex;
 
@@ -3516,6 +3517,14 @@ impl Backend for RealBackend {
 
     fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus> {
         self.save_memory_limit(req)
+    }
+
+    fn storage_status(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_view())
+    }
+
+    fn storage_clear_assets(&self) -> CmdResult<StorageStatus> {
+        self.storage_clear_asset_cache()
     }
 }
 

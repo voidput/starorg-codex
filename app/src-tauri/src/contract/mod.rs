@@ -200,6 +200,12 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn memory_status(&self) -> CmdResult<MemoryStatus>;
     /// Save the limit (`config.toml` `[dev] memory_limit_gb`); `gb: None` resets it.
     fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus>;
+
+    // Storage (Settings > Storage; docs/user-guide.md#storage).
+    /// Sizes per area and the cache folder's cap. Walks the folders (read only).
+    fn storage_status(&self) -> CmdResult<StorageStatus>;
+    /// "Clear asset cache": `busy` while an asset export or preview is running.
+    fn storage_clear_assets(&self) -> CmdResult<StorageStatus>;
 }
 
 /// Managed state: the selected backend.
@@ -319,6 +325,8 @@ commands! {
     set_mcp_enabled(req: McpToggle) -> McpStatus;
     memory_status() -> MemoryStatus;
     set_memory_limit(req: MemoryLimitRequest) -> MemoryStatus;
+    storage_status() -> StorageStatus;
+    storage_clear_assets() -> StorageStatus;
 }
 
 /// Apply streams [`JOB_EVENT`] events while it runs.
@@ -475,6 +483,8 @@ macro_rules! contract_handler {
             $crate::contract::set_mcp_enabled,
             $crate::contract::memory_status,
             $crate::contract::set_memory_limit,
+            $crate::contract::storage_status,
+            $crate::contract::storage_clear_assets,
         ]
     };
 }
@@ -614,6 +624,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "set_mcp_enabled",
     "memory_status",
     "set_memory_limit",
+    "storage_status",
+    "storage_clear_assets",
 ];
 
 #[cfg(test)]

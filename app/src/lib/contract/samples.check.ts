@@ -190,6 +190,8 @@ interface Samples {
   set_mcp_enabled: T.McpStatus;
   memory_status: T.MemoryStatus;
   set_memory_limit: T.MemoryStatus;
+  storage_status: T.StorageStatus;
+  storage_clear_assets: T.StorageStatus;
   open_link: null;
 }
 

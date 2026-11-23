@@ -78,8 +78,12 @@ pub(crate) fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, Exi
             &format!("cannot find own binary: {e}"),
         )
     })?;
+    let work = c.dirs.cache.join("work");
+    // Leftovers of an earlier run that never cleaned up (older than an hour, no live
+    // load holds them; a parallel app or CLI run keeps its own).
+    starorg_core::source::local::sweep_work(&work, starorg_core::source::local::WORK_STALE);
     let mut s = LocalExtraction::new(exe);
-    s.work_root = Some(c.dirs.cache.join("work"));
+    s.work_root = Some(work);
     Ok(Box::new(s))
 }
 

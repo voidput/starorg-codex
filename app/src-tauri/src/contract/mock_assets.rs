@@ -20,7 +20,7 @@ pub const OGG_B64: &str = "T2dnUwACAAAAAAAAAAAYZqiwAAAAAGJ+OpUBHgF2b3JiaXMAAAAAA
 pub const EXPORTS: &str = "/synthetic/exports";
 pub const CACHE_DEFAULT: &str = "/synthetic/cache/assets";
 pub const CACHE_OTHER: &str = "/synthetic/other-drive/asset-cache";
-pub const CACHE_MAX: u64 = 2 * 1024 * 1024 * 1024;
+pub const CACHE_MAX: u64 = starorg_core::assetcache::DEFAULT_MAX_BYTES;
 /// The mock's STL and 3MF of a print-shell export: an AEGS_Javelin LOD 0's STL, and a 3MF a
 /// quarter of it (an RSI_Skylark's 3MF was 0.25 of its STL).
 pub const STL_BYTES: u64 = 183_149_634;

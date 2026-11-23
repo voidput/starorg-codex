@@ -298,7 +298,55 @@ fn samples() -> Value {
         m.set_memory_limit(MemoryLimitRequest { gb: Some(6.0) })
             .unwrap()
     );
+    let (storage, cleared) = storage_samples();
+    v["storage_status"] = json!(storage);
+    v["storage_clear_assets"] = json!(cleared);
     v
+}
+
+/// Settings > Storage on the mock: with a played sound in the asset cache, then cleared.
+fn storage_samples() -> (StorageStatus, StorageStatus) {
+    let m = MockBackend::default();
+    m.asset_state().cached.push(("sound:1".into(), 48_000_000));
+    let before = m.storage_status().unwrap();
+    let after = m.storage_clear_assets().unwrap();
+    (before, after)
+}
+
+#[test]
+fn storage_on_the_mock_lists_every_area_and_clears_assets() {
+    let (s, c) = storage_samples();
+    let ids: Vec<_> = s.areas.iter().map(|a| a.id).collect();
+    assert_eq!(
+        ids,
+        [
+            StorageAreaId::GameData,
+            StorageAreaId::WhereToGet,
+            StorageAreaId::Uex,
+            StorageAreaId::AssetExports,
+            StorageAreaId::Temporary,
+            StorageAreaId::Backups,
+        ]
+    );
+    let assets = |s: &StorageStatus| {
+        s.areas
+            .iter()
+            .find(|a| a.id == StorageAreaId::AssetExports)
+            .unwrap()
+            .bytes
+    };
+    assert_eq!(assets(&s), 48_000_000);
+    assert_eq!(assets(&c), 0);
+    assert_eq!(s.cache_bytes - c.cache_bytes, 48_000_000);
+    assert_eq!(s.cap_bytes, starorg_core::storage::DEFAULT_CAP);
+    assert_eq!(s.backup_keep_newest, 5);
+    let backups = s
+        .areas
+        .iter()
+        .find(|a| a.id == StorageAreaId::Backups)
+        .unwrap();
+    assert!(!backups.in_cache);
+    assert_eq!(s.total_bytes, s.cache_bytes + backups.bytes);
 }
 
 #[test]

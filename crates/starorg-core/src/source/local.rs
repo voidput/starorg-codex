@@ -23,6 +23,12 @@ const BASE_INI: &str = "base.ini";
 const GAMEDATA_JSON: &str = "gamedata.json";
 const META_JSON: &str = "meta.json";
 const KEYREFS_JSON: &str = "keyrefs.json";
+/// The prefix of a load's temp folder under `work_root` (`starorg-extract-XXXXXX`).
+pub const WORK_PREFIX: &str = "starorg-extract-";
+/// The lock file a running load holds inside its temp folder.
+const WORK_LOCK: &str = ".starorg-extract.lock";
+/// Temp folders with nothing newer than this are leftovers of a run that never cleaned up.
+pub const WORK_STALE: Duration = Duration::from_secs(3600);
 /// Keep at most this much of the worker's stderr for error messages.
 const STDERR_KEEP: usize = 4096;
 
@@ -157,6 +163,41 @@ impl LocalExtraction {
     }
 }
 
+/// Remove leftover `starorg-extract-*` folders in `work_root`: only those with nothing
+/// modified for `older_than` and whose lock no running load holds (a load holds it until it
+/// ends, so a second app instance or a CLI run in parallel keeps its folder). Returns the
+/// folders removed. Errors are skipped: a folder that cannot be removed now is tried again on
+/// the next start.
+pub fn sweep_work(work_root: &Path, older_than: Duration) -> Vec<PathBuf> {
+    let now = std::time::SystemTime::now();
+    let mut removed = Vec::new();
+    for e in std::fs::read_dir(work_root).into_iter().flatten().flatten() {
+        let name = e.file_name();
+        let Some(name) = name.to_str() else { continue };
+        let p = e.path();
+        let is_dir =
+            std::fs::symlink_metadata(&p).is_ok_and(|m| m.is_dir() && !m.file_type().is_symlink());
+        if !name.starts_with(WORK_PREFIX) || !is_dir {
+            continue;
+        }
+        let stale = crate::storage::newest_mtime(&p)
+            .is_some_and(|t| now.duration_since(t).unwrap_or_default() >= older_than);
+        if !stale {
+            continue;
+        }
+        // Taking the lock proves no live load holds it; release it before removing (Windows
+        // cannot remove an open file).
+        match crate::lock::try_lock(&p.join(WORK_LOCK)) {
+            Ok(l) => drop(l),
+            Err(_) => continue,
+        }
+        if std::fs::remove_dir_all(&p).is_ok() {
+            removed.push(p);
+        }
+    }
+    removed
+}
+
 fn describe_status(status: &std::process::ExitStatus) -> String {
     #[cfg(unix)]
     {
@@ -174,7 +215,7 @@ fn describe_status(status: &std::process::ExitStatus) -> String {
 impl GameSource for LocalExtraction {
     fn load(&self, channel: &Channel, budget: &Budget) -> Result<Loaded, SourceError> {
         let mut builder = tempfile::Builder::new();
-        builder.prefix("starorg-extract-");
+        builder.prefix(WORK_PREFIX);
         let tmp = match &self.work_root {
             Some(root) => {
                 std::fs::create_dir_all(root)?;
@@ -182,6 +223,9 @@ impl GameSource for LocalExtraction {
             }
             None => builder.tempdir()?,
         };
+        // Held for the whole load, so `sweep_work` in another process leaves this folder;
+        // declared after `tmp`, so it is released before the folder is removed.
+        let _held = crate::lock::try_lock(&tmp.path().join(WORK_LOCK)).ok();
         let out = tmp.path().join("out");
         self.run_worker(&channel.p4k, &out, budget)?;
 
@@ -210,3 +254,6 @@ impl GameSource for LocalExtraction {
         })
     }
 }
+
+#[cfg(test)]
+mod tests;
