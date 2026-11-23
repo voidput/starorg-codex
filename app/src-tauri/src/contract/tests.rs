@@ -292,7 +292,10 @@ fn samples() -> Value {
     for (k, x) in shop_samples() {
         v[k] = x;
     }
-    for (k, x) in commodity_samples() {
+    for (k, x) in commodity_samples()
+        .into_iter()
+        .chain(super::tests_loot::loot_samples())
+    {
         v[k] = x;
     }
     let m = MockBackend::default();

@@ -746,6 +746,29 @@ pub struct UexTokenRequest {
     pub token: Option<String>,
 }
 
+// The Loot screen (`loot_list`, `loot_detail`): every loot area with what drops there and
+// every item with where, from the channel's cached loot data, typed in `starorg_mcp::loot`.
+pub use starorg_mcp::loot::{
+    LootDataState, LootDetail, LootDrop, LootDropKind, LootList, LootSummary, LootView,
+};
+
+/// Every loot area (`view: areas`) or every item that drops in one (`items`), summaries
+/// only. `target`: the channel whose cached loot data is read (`None`: `missing`). Nothing
+/// is extracted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LootListRequest {
+    pub target: Option<ChannelRef>,
+    pub view: LootView,
+}
+
+/// One area's items or one item's areas; `id` is a [`LootSummary::id`] of that view.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LootDetailRequest {
+    pub target: Option<ChannelRef>,
+    pub view: LootView,
+    pub id: String,
+}
+
 // The Shops screen (`shop_inventory`, `shop_items`): what each UEX terminal sells, from the
 // same UEX files, typed in `starorg_mcp::shops` (the MCP `shop_inventory` tool reads them too).
 pub use starorg_mcp::shops::{

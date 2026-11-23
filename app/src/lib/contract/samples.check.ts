@@ -28,6 +28,10 @@ interface Samples {
   uex_token_status: T.UexTokenStatus;
   set_uex_token: T.UexTokenStatus;
   fetch_uex: T.ObtainStatus;
+  loot_list_missing: T.LootList;
+  loot_list: T.LootList;
+  loot_detail: T.LootDetail;
+  loot_detail_item: T.LootDetail;
   shop_inventory: T.ShopDirectory;
   shop_inventory_missing: T.ShopDirectory;
   shop_inventory_linked: T.ShopDirectory;

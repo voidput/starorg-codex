@@ -1836,6 +1836,9 @@ pub struct Tools {
     pub store: Store,
     applied: AppliedCache,
     shops: Mutex<Option<ShopCache>>,
+    /// Held while the Loot screen's index is looked up or built, so a list and a detail
+    /// asked at once build it once.
+    loot: Mutex<()>,
 }
 
 /// The shop index of one pair of UEX files (the store's parsed values: a replaced file is a
@@ -1854,6 +1857,7 @@ impl Tools {
             store,
             applied: Mutex::new(None),
             shops: Mutex::new(None),
+            loot: Mutex::new(()),
         }
     }
 
@@ -2069,6 +2073,56 @@ impl Tools {
 
     pub fn definitions(&self) -> Vec<ToolDef> {
         definitions(&self.store.channel_names())
+    }
+
+    /// The Loot screen of a channel's build ([`crate::loot::LootScreen`]), built once per
+    /// build from the cached loot corpus (nothing is extracted: "Read game data" does that)
+    /// and kept in the store's per-build cache; `None` while item-tags, loot or item-sources
+    /// is not cached.
+    fn loot_screen(&self, channel: Option<&str>) -> Option<Arc<crate::loot::LootScreen>> {
+        let ctx = self.cached_ctx(channel)?;
+        let _one = self.loot.lock().unwrap_or_else(|e| e.into_inner());
+        ctx.store
+            .typed(&ctx.dir, "loot-screen", || {
+                let c = ctx.corpus(true, false)?;
+                let label = format!(
+                    "{} {}",
+                    ctx.ch.name,
+                    ctx.ch.build.as_deref().unwrap_or("unknown build")
+                );
+                Ok(crate::loot::LootScreen::build(
+                    &c.d,
+                    c.index.as_ref(),
+                    Some(label),
+                ))
+            })
+            .ok()
+    }
+
+    /// The app's Loot screen list: every loot area or every item that drops in one, as
+    /// summaries (`missing` while the build's loot data is not cached).
+    pub fn loot_list(
+        &self,
+        channel: Option<&str>,
+        view: crate::loot::LootView,
+    ) -> crate::loot::LootList {
+        match self.loot_screen(channel) {
+            Some(s) => s.list(view),
+            None => crate::loot::missing_list(view),
+        }
+    }
+
+    /// One area's items or one item's areas for the Loot screen, likeliest first.
+    pub fn loot_detail(
+        &self,
+        channel: Option<&str>,
+        view: crate::loot::LootView,
+        id: &str,
+    ) -> crate::loot::LootDetail {
+        match self.loot_screen(channel) {
+            Some(s) => s.detail(view, id),
+            None => crate::loot::missing_detail(view),
+        }
     }
 
     /// The explorer's Sources card for a record (`Type.ShortName` or the short name): the

@@ -42,6 +42,8 @@ import { createDevMock, type DevMockData } from './mock-dev';
 import devData from './mock-dev.gen.json';
 import { createAssetMock, type AssetMockData } from './mock-assets';
 import assetData from './mock-assets.gen.json';
+import { mockLootDetail, mockLootList, type LootMockData } from './mock-loot';
+import lootData from './mock-loot.gen.json';
 
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
@@ -1056,6 +1058,16 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       uex = clone(SAMPLES.fetch_uex);
       addLog('info', 'uex', null, 'Downloaded UEX market data: 24,146 prices for 2,438 items, 2,598 for 124 commodities, at 826 terminals (7.9 MB)');
       return clone(uex);
+    },
+    // The Rust mock's synthetic loot once the channel's game data was read (setup or Read game data).
+    // The detail waits longer than the list, so its skeleton shows while the list is usable.
+    loot_list: async ({ req }) => {
+      await sleep(delay);
+      return mockLootList(lootData as unknown as LootMockData, !!req.target && dataRead.has(id(req.target)), req.view);
+    },
+    loot_detail: async ({ req }) => {
+      await sleep(delay * 2);
+      return mockLootDetail(lootData as unknown as LootMockData, !!req.target && dataRead.has(id(req.target)), req.view, req.id);
     },
     // The Rust mock's synthetic shops once both UEX files are there (`?uex=fetched` or Fetch now).
     // Ship items link once the channel's game data was read (Read game data), as in Rust.

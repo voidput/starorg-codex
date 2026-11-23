@@ -10,6 +10,7 @@
   import Archive from '@lucide/svelte/icons/archive';
   import Store from '@lucide/svelte/icons/store';
   import Boxes from '@lucide/svelte/icons/boxes';
+  import PackageOpen from '@lucide/svelte/icons/package-open';
   import BookOpenCheck from '@lucide/svelte/icons/book-open-check';
   import Rocket from '@lucide/svelte/icons/rocket';
   import ScrollText from '@lucide/svelte/icons/scroll-text';
@@ -26,7 +27,7 @@
 
   let { current = $bindable<ScreenId>('home'), version = '', dev = false }: { current: ScreenId; version?: string; dev?: boolean } = $props();
 
-  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, shops: Store, commodities: Boxes, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare, files: FolderTree } as const;
+  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, shops: Store, commodities: Boxes, loot: PackageOpen, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare, files: FolderTree } as const;
   const NAV = $derived(navGroups(dev));
   const NAV_ITEMS = $derived(navItems(dev));
   const MIN = 168;

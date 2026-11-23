@@ -26,6 +26,8 @@ pub mod mock_dev;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_finder;
 #[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_loot;
+#[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_shops;
 pub mod real;
 pub mod schema;
@@ -87,6 +89,12 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     /// "Fetch now": download both UEX files into the UEX folder (`network-off` while
     /// "Download UEX market data" is off).
     fn fetch_uex(&self) -> CmdResult<ObtainStatus>;
+    /// The Loot screen's list: every loot area or every item that drops in one, summaries
+    /// only (`state: missing` while the channel's loot data is not cached). Built once per
+    /// build from the cached datasets; nothing is extracted.
+    fn loot_list(&self, req: LootListRequest) -> CmdResult<LootList>;
+    /// One area's items or one item's areas, likeliest first (rough odds per spawned box).
+    fn loot_detail(&self, req: LootDetailRequest) -> CmdResult<LootDetail>;
     /// The Shops screen: every UEX item terminal by system and place, with what it sells
     /// (`state: missing` while the UEX files are not there). Reads the UEX files and the
     /// channel's cached item data; nothing is downloaded or extracted.
@@ -273,6 +281,8 @@ commands! {
     uex_token_status() -> UexTokenStatus;
     set_uex_token(req: UexTokenRequest) -> UexTokenStatus;
     fetch_uex() -> ObtainStatus;
+    loot_list(req: LootListRequest) -> LootList;
+    loot_detail(req: LootDetailRequest) -> LootDetail;
     shop_inventory(req: ShopInventoryRequest) -> ShopDirectory;
     shop_items(req: ShopItemsRequest) -> ShopItems;
     commodity_list(req: CommodityListRequest) -> CommodityDirectory;
@@ -382,6 +392,8 @@ macro_rules! contract_handler {
             $crate::contract::uex_token_status,
             $crate::contract::set_uex_token,
             $crate::contract::fetch_uex,
+            $crate::contract::loot_list,
+            $crate::contract::loot_detail,
             $crate::contract::shop_inventory,
             $crate::contract::shop_items,
             $crate::contract::commodity_list,
@@ -525,6 +537,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "uex_token_status",
     "set_uex_token",
     "fetch_uex",
+    "loot_list",
+    "loot_detail",
     "shop_inventory",
     "shop_items",
     "commodity_list",
@@ -648,3 +662,5 @@ mod tests;
 mod tests_assets;
 #[cfg(test)]
 mod tests_dev;
+#[cfg(test)]
+mod tests_loot;

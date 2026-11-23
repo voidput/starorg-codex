@@ -11,6 +11,7 @@
 //! - [`shops`]: the shop browser (what each UEX terminal sells, by category);
 //! - [`commodities`]: the commodity browser (every tradable resource, one in full on request);
 //! - [`hints`]: the same rows as obtain hints for `global.ini` descriptions;
+//! - [`loot`]: the Loot screen (every loot area with what drops there, every item with where);
 //! - [`stdio`] (the CLI's `starorg-codex mcp`) and `http` (feature `http`, the app's
 //!   loopback server) transports;
 //! - [`rss`]: resident memory of this process.
@@ -20,6 +21,7 @@
 
 pub mod commodities;
 pub mod hints;
+pub mod loot;
 pub mod owned;
 pub mod protocol;
 pub mod rss;

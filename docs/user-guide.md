@@ -240,6 +240,33 @@ game). Ship-system placeholders (heat, power, life support) are left out.
 The list carries names and groups only; a resource's detail loads when you pick it. Both come
 from the build's cached data, built once per build, so switching screens does not rebuild.
 
+## Loot
+
+**Loot** (Game group, or Ctrl+K) shows what drops where, from the channel's game data (loot
+tables and where they spawn). It reads only what is already read: while the loot data of a build
+is missing the screen says so and offers **Read game data** (the same job as in Enhancements and
+Shops; nothing is written to the game). Nothing loads before you open the screen.
+
+- **By area:** every loot area by kind of place (caves, derelicts, distribution centres,
+  outposts, junk sites, ...), with how many items can drop there and the best odds. Pick one to
+  see every item that can drop there, likeliest first, with the spot it is in (`Large weapons
+  crate`, `Weapons rack · always in it`, `Lying loose`) and its rarity.
+- **By item:** every item that drops in some area, searchable by name or class, with a category
+  filter. Pick one to see every area it drops in, likeliest first. With Developer mode on,
+  **Open in Explorer** opens its record.
+- A name in the drops list jumps to the other view with that row picked (an item's other areas,
+  an area's other items).
+- **Per box** is a rough estimate: the chance one spawned crate, rack or loose spot of that kind
+  holds the item, assuming an even pick inside each loot pool (the game data does not say how
+  the pick is weighted). The WHERE TO GET line, the Explorer Sources card and the MCP
+  `where_found` tool use the same estimate. Loot tables no area places (corpses, events) are not
+  listed; test presets are left out.
+- Item names are the game's; an item whose game name is missing or a placeholder shows readable
+  words from its class name.
+
+The index is built once per game build and kept in memory while the app runs, so switching views
+or screens does not rebuild it. A detail lists at most the 2,000 likeliest rows.
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,

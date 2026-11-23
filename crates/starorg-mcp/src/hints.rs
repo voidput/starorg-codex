@@ -68,6 +68,43 @@ impl ObtainSource for ToolsObtain {
     }
 }
 
+/// Slot preset words (a word starting with the key) and the kind of place they name, first
+/// match wins ([`area_place_name`]; the Loot screen drops the word from the area's name).
+pub const AREA_PLACES: &[(&str, &str)] = &[
+    ("cave", "Caves"),
+    ("distributioncentre", "Distribution centres"),
+    ("dcdelving", "Distribution centres"),
+    ("asddelving", "ASD facilities"),
+    ("colonialoutpost", "Outposts"),
+    ("techoutpost", "Outposts"),
+    ("derelictoutpost", "Derelict outposts"),
+    ("spacederelict", "Derelicts"),
+    ("derelict", "Derelicts"),
+    ("junksite", "Junk sites"),
+    ("asteroidbase", "Asteroid bases"),
+    ("contestedzone", "Contested zones"),
+    ("ghostarena", "Contested zones"),
+    ("ugfs", "Underground facilities"),
+    ("orbitalplatform", "Orbital platforms"),
+    ("dishalignmentfacility", "Orbital platforms"),
+    ("shippingcontainer", "Shipping containers"),
+    ("station", "Stations"),
+    ("kareah", "Security Post Kareah"),
+    ("covalex", "Covalex hub"),
+    ("jumptown", "Jumptown"),
+    ("floatingislands", "Floating islands"),
+    ("levski", "Levski"),
+    ("battaglia", "Battaglia"),
+    ("stormbreaker", "Stormbreaker"),
+    ("kaboos", "Kaboos"),
+    ("orbageddon", "Orbageddon"),
+    ("apexgeddon", "Apexgeddon"),
+    ("vanduulinc", "Vanduul incursion"),
+    ("welcometonyx", "Nyx"),
+    ("military", "Military sites"),
+    ("criminal", "Criminal hideouts"),
+];
+
 /// A readable kind of place for a loot area (a slot preset path such as
 /// `v3slotpreset_distributioncentres_highsecurtiy` or `caves/loot_caves_occupied_rock`):
 /// `Distribution centres`, `Caves`. `None` for presets that name a loot theme, not a place
@@ -94,40 +131,6 @@ pub fn area_place_name(area: &str) -> Option<String> {
         })
         .collect();
     let has = |k: &str| words.iter().any(|w| w.starts_with(k));
-    const PLACES: &[(&str, &str)] = &[
-        ("cave", "Caves"),
-        ("distributioncentre", "Distribution centres"),
-        ("dcdelving", "Distribution centres"),
-        ("asddelving", "ASD facilities"),
-        ("colonialoutpost", "Outposts"),
-        ("techoutpost", "Outposts"),
-        ("derelictoutpost", "Derelict outposts"),
-        ("spacederelict", "Derelicts"),
-        ("derelict", "Derelicts"),
-        ("junksite", "Junk sites"),
-        ("asteroidbase", "Asteroid bases"),
-        ("contestedzone", "Contested zones"),
-        ("ghostarena", "Contested zones"),
-        ("ugfs", "Underground facilities"),
-        ("orbitalplatform", "Orbital platforms"),
-        ("dishalignmentfacility", "Orbital platforms"),
-        ("shippingcontainer", "Shipping containers"),
-        ("station", "Stations"),
-        ("kareah", "Security Post Kareah"),
-        ("covalex", "Covalex hub"),
-        ("jumptown", "Jumptown"),
-        ("floatingislands", "Floating islands"),
-        ("levski", "Levski"),
-        ("battaglia", "Battaglia"),
-        ("stormbreaker", "Stormbreaker"),
-        ("kaboos", "Kaboos"),
-        ("orbageddon", "Orbageddon"),
-        ("apexgeddon", "Apexgeddon"),
-        ("vanduulinc", "Vanduul incursion"),
-        ("welcometonyx", "Nyx"),
-        ("military", "Military sites"),
-        ("criminal", "Criminal hideouts"),
-    ];
     if words
         .first()
         .is_some_and(|w| *w == "special" || w.contains("test"))
@@ -135,7 +138,7 @@ pub fn area_place_name(area: &str) -> Option<String> {
     {
         return None;
     }
-    PLACES
+    AREA_PLACES
         .iter()
         .find(|(k, _)| has(k))
         .map(|(_, v)| (*v).to_string())

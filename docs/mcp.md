@@ -1,7 +1,7 @@
 ---
 title: Local MCP server (experimental)
 tags: [docs, mcp, experimental]
-updated: 2026-11-22
+updated: 2026-11-23
 ---
 
 # Local MCP server (experimental)
@@ -103,7 +103,10 @@ not do this lookup, so for these items the MCP answers go beyond the parity chec
 The answers come from the ported sc-gamedata query layer (`starorg_gamedata::query`), which
 gives the same answers as sc-gamedata's own `find`/`obtain`/`where`/`shop` on the same data
 (`scripts/compare-query.sh`: 514 of 514 identical on LIVE 4.10.200.58746). Loot odds are
-estimates: an even pick inside a loot pool is assumed; the game data does not say so.
+estimates: an even pick inside a loot pool is assumed; the game data does not say so. The
+app's **Loot** screen inverts the same per-box odds for every item at once (every area with what
+drops there; [user guide](user-guide.md#loot)), from the same cached datasets
+(`starorg_mcp::loot`).
 
 ### Shop prices
 

@@ -2324,6 +2324,33 @@ fn schema1_profile_migrates_once_with_one_activity_line() {
 }
 
 #[test]
+fn loot_is_missing_until_read_and_extracts_nothing() {
+    let f = Fake::new();
+    for target in [Some(f.live()), None] {
+        for view in [LootView::Areas, LootView::Items] {
+            let l = f
+                .backend
+                .loot_list(LootListRequest {
+                    target: target.clone(),
+                    view,
+                })
+                .unwrap();
+            assert_eq!((l.state, l.view), (LootDataState::Missing, view));
+            let d = f
+                .backend
+                .loot_detail(LootDetailRequest {
+                    target: target.clone(),
+                    view,
+                    id: "caves/loot_caves".into(),
+                })
+                .unwrap();
+            assert!(d.entry.is_none() && d.rows.is_empty());
+        }
+    }
+    assert!(!f.dirs.cache.join("mcp/LIVE").exists());
+}
+
+#[test]
 fn shops_list_the_fetched_uex_files_without_extracting_anything() {
     let f = Fake::new();
     let req = |target| ShopInventoryRequest { target };
