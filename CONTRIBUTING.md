@@ -56,6 +56,13 @@ libraries` step in `.github/workflows/ci.yml`).
   `scripts/gen-notices.sh` (needs `cargo install cargo-about --locked --features cli` and
   `npm ci` in `app/`) and commit `THIRD_PARTY_NOTICES.md`. New dependencies must use a license
   allowed in `deny.toml`.
+- Screen loads in `app/src/`: keep `$effect` dependencies primitive (`app.targetKey`, ids), and
+  guard every async load that a click or a channel switch can start again against stale answers:
+  `latest()` for one `Load` value, `guard()` for loads that set several fields (both in
+  `app/src/lib/loadstate.ts`). Long lists are windowed: `VirtualList.svelte`, or `windowRange` /
+  `revealTop` from `app/src/lib/virtual.ts` for a list with its own keyboard handling. Heavy
+  Data.p4k workers start on a click, a hand-off or a repeat visit, never on mount alone
+  (`app/src/lib/lazyopen.ts`).
 - Docs live in `docs/` (an Obsidian-compatible vault): kebab-case file names, wikilinks only in
   the two index notes (always with a plain link next to them). Link new notes from `docs/Home.md`
   and `docs/README.md`, give them frontmatter with `python3 scripts/obsidian_frontmatter.py`, and

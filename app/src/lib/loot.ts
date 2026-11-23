@@ -62,15 +62,6 @@ export function listEntries(rows: LootSummary[], view: LootView): ListEntry[] {
   return out;
 }
 
-/** The rows a windowed list draws: `[first, end)` around the visible part, `overscan` rows either side. */
-export function windowRange(scrollTop: number, viewHeight: number, rowHeight: number, total: number, overscan = 6): { first: number; end: number } {
-  if (total <= 0 || rowHeight <= 0) return { first: 0, end: 0 };
-  const top = Math.max(0, scrollTop);
-  const first = Math.max(0, Math.floor(top / rowHeight) - overscan);
-  const end = Math.min(total, Math.ceil((top + Math.max(0, viewHeight)) / rowHeight) + overscan);
-  return { first: Math.min(first, end), end };
-}
-
 /** How the item is there, beside the container: a rack always holds it (a loot roll or a loose spot, whose container says "Lying loose", needs no word). */
 export const KIND_LABEL: Record<LootDropKind, string> = { loot: '', fixed: 'always in it', loose: '' };
 

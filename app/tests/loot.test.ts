@@ -1,10 +1,10 @@
-// The Loot screen's pure helpers (odds text, search and group filter, grouped list rows, the
-// visible window, drop labels) and the TS mock's answers, on the Rust mock's data
+// The Loot screen's pure helpers (odds text, search and group filter, grouped list rows, drop
+// labels) and the TS mock's answers, on the Rust mock's data
 // (mock-loot.gen.json). Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dropWhere, filterSummaries, groupsOf, listEntries, listed, oddsText, queryWords, windowRange } from '../src/lib/loot.ts';
+import { dropWhere, filterSummaries, groupsOf, listEntries, listed, oddsText, queryWords } from '../src/lib/loot.ts';
 import { mockLootDetail, mockLootList, type LootMockData } from '../src/lib/contract/mock-loot.ts';
 import type { LootSummary } from '../src/lib/contract/types.ts';
 
@@ -52,14 +52,6 @@ test('groups sort by name with Other last; the areas list gets a header per grou
     ['#Caves:2', 'a', 'b', '#Other:1', 'c'],
   );
   assert.ok(listEntries(sorted, 'items').every((x) => x.kind === 'row'));
-});
-
-test('the window covers the visible rows plus overscan, clamped to the list', () => {
-  assert.deepEqual(windowRange(0, 400, 40, 1000, 5), { first: 0, end: 15 });
-  assert.deepEqual(windowRange(4000, 400, 40, 1000, 5), { first: 95, end: 115 });
-  assert.deepEqual(windowRange(39_990, 400, 40, 1000, 5), { first: 994, end: 1000 });
-  assert.deepEqual(windowRange(100, 400, 40, 0), { first: 0, end: 0 });
-  assert.deepEqual(windowRange(-50, 80, 40, 10, 0), { first: 0, end: 2 });
 });
 
 test('a drop says what the spot is, its rarity and how the item is there', () => {
