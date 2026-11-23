@@ -1,7 +1,7 @@
 /**
  * Sidebar layout (spec 9.3, addendum §6.6, §7.8): Home · Customize (Enhancements, Strings, Patches,
- * Blueprints, Ships) · Game (Shops, Commodities, Loot, Backups, Activity) · Dev (Explorer, Datasets, Diff, Files; only with
- * Settings > Advanced > Developer mode on) · Settings. With Developer mode on, Alt+9 opens the
+ * Blueprints, Ships) · Game (Shops, Commodities, Loot) · Dev (Explorer, Datasets, Diff, Files; only with
+ * Settings > Advanced > Developer mode on) · App (Backups, Activity, Settings). With Developer mode on, Alt+9 opens the
  * Explorer and Settings moves to Alt+0 (Q-D6: Datasets and Diff through Ctrl+K).
  */
 export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'shops' | 'commodities' | 'loot' | 'backups' | 'activity' | 'settings' | DevScreenId;
@@ -38,11 +38,16 @@ export const NAV: NavGroup[] = [
       { id: 'shops', label: 'Shops', description: 'What each shop sells, by category, from UEX market data', key: '' },
       { id: 'commodities', label: 'Commodities', description: 'Every tradable resource: refined form, quality, where it is mined, kiosk prices', key: '' },
       { id: 'loot', label: 'Loot', description: 'What drops in each loot area, and where each item drops, with rough odds per box', key: '' },
-      { id: 'backups', label: 'Backups', description: 'Restore or remove applied changes', key: '7' },
-      { id: 'activity', label: 'Activity', description: 'Applies, launch hooks and warnings', key: '8' },
     ],
   },
-  { label: null, items: [{ id: 'settings', label: 'Settings', description: 'Game, appearance, network, StarOrg Tools, hooks, diagnostics', key: '9' }] },
+  {
+    label: 'App',
+    items: [
+      { id: 'backups', label: 'Backups', description: 'Restore or remove applied changes', key: '7' },
+      { id: 'activity', label: 'Activity', description: 'Applies, launch hooks and warnings', key: '8' },
+      { id: 'settings', label: 'Settings', description: 'Game, appearance, network, StarOrg Tools, hooks, diagnostics', key: '9' },
+    ],
+  },
 ];
 
 export const NAV_ITEMS = NAV.flatMap((g) => g.items);
@@ -60,11 +65,11 @@ export const DEV_GROUP: NavGroup = {
 export const DEV_SCREENS: readonly DevScreenId[] = ['explorer', 'datasets', 'diff', 'files'];
 export const isDevScreen = (s: ScreenId): s is DevScreenId => (DEV_SCREENS as readonly string[]).includes(s);
 
-/** The sidebar groups: the Dev group after Game when Developer mode is on. */
+/** The sidebar groups: the Dev group after Game when Developer mode is on; Settings then moves to Alt+0. */
 export function navGroups(dev: boolean): NavGroup[] {
   if (!dev) return NAV;
-  const settings = NAV[NAV.length - 1]!;
-  return [...NAV.slice(0, -1), DEV_GROUP, { label: null, items: settings.items.map((i) => ({ ...i, key: '0' })) }];
+  const app = NAV[NAV.length - 1]!;
+  return [...NAV.slice(0, -1), DEV_GROUP, { ...app, items: app.items.map((i) => (i.id === 'settings' ? { ...i, key: '0' } : i)) }];
 }
 
 export const navItems = (dev: boolean): NavItem[] => navGroups(dev).flatMap((g) => g.items);
