@@ -10,6 +10,7 @@
 //! - [`sources`]: the app explorer's Sources card (loot containers, where an ore is mined);
 //! - [`shops`]: the shop browser (what each UEX terminal sells, by category);
 //! - [`hints`]: the same rows as obtain hints for `global.ini` descriptions;
+//! - [`loot`]: the Loot screen (every loot area with what drops there, every item with where);
 //! - [`stdio`] (the CLI's `starorg-codex mcp`) and `http` (feature `http`, the app's
 //!   loopback server) transports;
 //! - [`rss`]: resident memory of this process.
@@ -18,6 +19,7 @@
 //! a network connection (the HTTP transport only listens on 127.0.0.1).
 
 pub mod hints;
+pub mod loot;
 pub mod owned;
 pub mod protocol;
 pub mod rss;

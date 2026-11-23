@@ -292,6 +292,9 @@ fn samples() -> Value {
     for (k, x) in shop_samples() {
         v[k] = x;
     }
+    for (k, x) in super::tests_loot::loot_samples() {
+        v[k] = x;
+    }
     let m = MockBackend::default();
     v["memory_status"] = json!(m.memory_status().unwrap());
     v["set_memory_limit"] = json!(

@@ -22,6 +22,7 @@
   import BackupsScreen from '@/components/screens/BackupsScreen.svelte';
   import ActivityScreen from '@/components/screens/ActivityScreen.svelte';
   import ShopsScreen from '@/components/screens/ShopsScreen.svelte';
+  import LootScreen from '@/components/screens/LootScreen.svelte';
   import SetupWizard from '@/components/wizard/SetupWizard.svelte';
   import UnsavedDialog from '@/components/common/UnsavedDialog.svelte';
   import ReplaceDialog from '@/components/common/ReplaceDialog.svelte';
@@ -125,6 +126,8 @@
             <ShipsScreen />
           {:else if screen === 'shops'}
             <ShopsScreen />
+          {:else if screen === 'loot'}
+            <LootScreen />
           {:else if screen === 'backups'}
             <BackupsScreen />
           {:else if screen === 'activity'}

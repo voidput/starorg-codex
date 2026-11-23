@@ -1970,6 +1970,18 @@ impl Backend for MockBackend {
         self.obtain_status()
     }
 
+    /// The synthetic loot of `mock_loot` once the channel's game data was read (Read game
+    /// data): `missing` until then, and without a channel.
+    fn loot_list(&self, req: LootListRequest) -> CmdResult<LootList> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_loot::mock_loot_list(read, req.view))
+    }
+
+    fn loot_detail(&self, req: LootDetailRequest) -> CmdResult<LootDetail> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_loot::mock_loot_detail(read, req.view, &req.id))
+    }
+
     /// The synthetic shops of `mock_shops` once "Fetch now" ran (the sample user's folder
     /// lacks the terminals file before that): `missing` until then.
     fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {

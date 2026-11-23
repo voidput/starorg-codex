@@ -34,6 +34,8 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   uex_token_status: [Record<string, never>, T.UexTokenStatus];
   set_uex_token: [{ req: T.UexTokenRequest }, T.UexTokenStatus];
   fetch_uex: [Record<string, never>, T.ObtainStatus];
+  loot_list: [{ req: T.LootListRequest }, T.LootList];
+  loot_detail: [{ req: T.LootDetailRequest }, T.LootDetail];
   shop_inventory: [{ req: T.ShopInventoryRequest }, T.ShopDirectory];
   shop_items: [{ req: T.ShopItemsRequest }, T.ShopItems];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
@@ -125,6 +127,8 @@ export const COMMANDS = [
   'uex_token_status',
   'set_uex_token',
   'fetch_uex',
+  'loot_list',
+  'loot_detail',
   'shop_inventory',
   'shop_items',
   'get_profile',
@@ -358,6 +362,10 @@ export const api = {
   setUexToken: (token: string | null) => call('set_uex_token', { req: { token } }),
   /** "Fetch now": download both UEX files (network-off unless "Download UEX market data" is on). */
   fetchUex: () => call('fetch_uex', none),
+  /** The Loot screen's list: every loot area or every item that drops in one, summaries only (`state: missing` until the game data is read). */
+  lootList: (target: T.ChannelRef | null, view: T.LootView) => call('loot_list', { req: { target, view } }),
+  /** One area's items or one item's areas, likeliest first (rough odds per spawned box). */
+  lootDetail: (target: T.ChannelRef | null, view: T.LootView, id: string) => call('loot_detail', { req: { target, view, id } }),
   /** The Shops screen: every UEX item terminal by system and place (`state: missing` without the files). */
   shopInventory: (target: T.ChannelRef | null) => call('shop_inventory', { req: { target } }),
   /** One shop's items by category, linked to records through the channel's cached item data. */

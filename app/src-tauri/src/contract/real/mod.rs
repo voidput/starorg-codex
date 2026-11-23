@@ -18,6 +18,7 @@ pub(crate) mod convert;
 mod dev;
 mod diag;
 pub mod dialogs;
+mod loot;
 mod memory;
 mod starorg;
 mod storage;
@@ -2396,6 +2397,14 @@ impl Backend for RealBackend {
 
     fn fetch_uex(&self) -> CmdResult<ObtainStatus> {
         self.run_fetch_uex()
+    }
+
+    fn loot_list(&self, req: LootListRequest) -> CmdResult<LootList> {
+        Ok(self.loot_list_of(req))
+    }
+
+    fn loot_detail(&self, req: LootDetailRequest) -> CmdResult<LootDetail> {
+        Ok(self.loot_detail_of(req))
     }
 
     fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {

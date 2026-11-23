@@ -428,6 +428,75 @@ export interface UexTokenRequest {
   token: string | null;
 }
 
+/** `missing`: the channel's loot data is not cached yet (Read game data). */
+export type LootDataState = 'ready' | 'missing';
+
+/** Which Loot list: loot areas, or items that drop in one. */
+export type LootView = 'areas' | 'items';
+
+/** How the item is there: rolled by a loot table, held by a rack, or lying loose. */
+export type LootDropKind = 'loot' | 'fixed' | 'loose';
+
+/** `target`: the channel whose cached loot data is read (null: `missing`); nothing is extracted. */
+export interface LootListRequest {
+  target: ChannelRef | null;
+  view: LootView;
+}
+
+export interface LootDetailRequest {
+  target: ChannelRef | null;
+  view: LootView;
+  /** A `LootSummary.id` of that view. */
+  id: string;
+}
+
+/** One row of a Loot list: an area or an item (summary only). */
+export interface LootSummary {
+  /** The area's slot preset path, or the item's class name. */
+  id: string;
+  name: string;
+  /** Kind of place ("Caves") or item category ("FPS weapons"). */
+  group: string;
+  /** Areas: items that can drop there. Items: areas it drops in. */
+  count: number;
+  /** Best rough odds per spawned box, 0 to 1. */
+  best: number;
+}
+
+/** `loot_list`: areas by group then name, or items by name. */
+export interface LootList {
+  state: LootDataState;
+  view: LootView;
+  /** The build the data is of ("LIVE 4.10.201.48085"). */
+  build: string | null;
+  rows: LootSummary[];
+}
+
+/** One drop: an item of an area, or an area of an item. */
+export interface LootDrop {
+  id: string;
+  name: string;
+  group: string;
+  /** Rough odds one spawned box holds the item, 0 to 1. */
+  odds: number;
+  /** What the spot is ("Large weapons crate", "Lying loose"). */
+  container: string;
+  rarity: string | null;
+  kind: LootDropKind;
+}
+
+/** `loot_detail`: likeliest first, at most 2000 rows (`total` counts all). */
+export interface LootDetail {
+  state: LootDataState;
+  view: LootView;
+  /** null when nothing has that id. */
+  entry: LootSummary | null;
+  /** Items: the game record (Explorer link). */
+  record: ItemRecord | null;
+  rows: LootDrop[];
+  total: number;
+}
+
 /** Readable bucket of what a shop sells (`starorg_mcp::shops::ShopCategory`), in display order. */
 export type ShopCategory = 'fps-weapons' | 'fps-attachments' | 'armour' | 'ship-weapons' | 'missiles' | 'ship-components' | 'mining' | 'consumables' | 'other';
 

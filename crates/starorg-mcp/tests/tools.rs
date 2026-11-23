@@ -674,6 +674,42 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
 }
 
 #[test]
+fn loot_screen_reads_only_cached_data() {
+    use starorg_mcp::loot::{LootDataState, LootView};
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing cached: missing, and nothing extracted for it.
+    let l = t.loot_list(Some("LIVE"), LootView::Areas);
+    assert_eq!(l.state, LootDataState::Missing);
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    // After a tool extracted the loot datasets (as "Read game data" does).
+    let s = starorg_mcp::server(w.config(), None);
+    ok(&s, "where_found", json!({"item": "FS-9 LMG"}));
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let areas = t.loot_list(Some("LIVE"), LootView::Areas);
+    assert_eq!(areas.state, LootDataState::Ready);
+    assert_eq!(areas.build.as_deref(), Some("LIVE 4.10.200.58746"));
+    assert_eq!(areas.rows.len(), 1, "{:?}", areas.rows);
+    assert_eq!(areas.rows[0].id, "caves/loot_caves");
+    assert_eq!(areas.rows[0].group, "Caves");
+    let items = t.loot_list(Some("LIVE"), LootView::Items);
+    let names: Vec<&str> = items.rows.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, ["FS-9 LMG", "Verdict LMG"]);
+    let cave = t.loot_detail(Some("LIVE"), LootView::Areas, "caves/loot_caves");
+    assert_eq!(cave.total, 2);
+    assert!(cave.rows[0].odds >= cave.rows[1].odds);
+    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01");
+    assert_eq!(fs9.record.unwrap().guid, "id-fs9");
+    assert_eq!(fs9.rows[0].name, "Caves");
+    // Reading the lists again extracts nothing more.
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    assert_eq!(
+        t.loot_list(Some("NOPE"), LootView::Items).state,
+        LootDataState::Missing
+    );
+}
+
+#[test]
 fn where_to_buy_found_and_how_to_obtain() {
     let w = World::new();
     let s = w.server();
