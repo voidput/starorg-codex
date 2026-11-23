@@ -1044,6 +1044,8 @@ pub struct StringsPage {
     pub all: u32,
     pub offset: u32,
     pub rows: Vec<StringRow>,
+    /// `sources`, `categories` and `groups` come with the first page (`offset` 0) only and
+    /// are empty on later pages of the same query.
     pub sources: Vec<FacetCount>,
     pub categories: Vec<FacetCount>,
     /// The tree of `group_by` (empty for `none`), in display order.
@@ -1165,6 +1167,8 @@ pub enum PatchState {
     Disabled,
     NoData,
     Retired,
+    /// Not worked out yet (the list came before the table): `patch_states` has it.
+    Checking,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

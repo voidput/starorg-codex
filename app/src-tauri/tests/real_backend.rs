@@ -1668,6 +1668,116 @@ fn network_switches_are_stored_and_setup_ignores_an_old_data_source() {
     );
 }
 
+/// Every file under `dir`, `age` old: the table cache trusts a stamp only once its files are
+/// older than two seconds, so a test that wants the quick path must not wait for it.
+fn backdate(dir: &std::path::Path, age: std::time::Duration) {
+    let t = std::time::SystemTime::now() - age;
+    for p in walk(dir) {
+        if p.is_file() {
+            std::fs::File::options()
+                .write(true)
+                .open(&p)
+                .unwrap()
+                .set_modified(t)
+                .unwrap();
+        }
+    }
+}
+
+/// The cached table and Strings queries follow their inputs: an override written outside the
+/// app (new file, then same length with another mtime), a profile saved in the app; the
+/// Patches list answers before the table exists and matches `patch_states` once it does;
+/// facets come with the first page only.
+#[test]
+fn table_cache_follows_edits_inside_and_outside_the_app() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    f.setup_live();
+    let old = std::time::Duration::from_secs(60);
+    // No game data read yet: the list answers at once, the states call says "no data".
+    let list = f.backend.list_patches(f.live()).unwrap();
+    assert!(!list.is_empty());
+    assert!(list.iter().all(|p| p.state
+        == if p.enabled {
+            PatchState::Checking
+        } else {
+            PatchState::Disabled
+        }));
+    let states = f.backend.patch_states(f.live()).unwrap();
+    assert!(states.iter().all(|p| p.state != PatchState::Checking));
+    f.apply(true);
+
+    let q = |search: &str, offset: u32| StringsQuery {
+        target: f.live(),
+        search: search.into(),
+        sources: vec![],
+        categories: vec![],
+        changed_only: false,
+        sort: StringSort::Key,
+        offset,
+        limit: 1,
+        groups: vec![],
+        manufacturers: vec![],
+        sizes: vec![],
+        group_by: GroupBy::Type,
+    };
+    let name_a = |f: &Fake| {
+        let p = f.backend.query_strings(q("item_namea", 0)).unwrap();
+        let r = p.rows.iter().find(|r| r.key == "item_NameA").unwrap();
+        (r.result.clone(), r.source)
+    };
+    // Paging: the same query, facets on the first page only.
+    let p0 = f.backend.query_strings(q("filler alpha", 0)).unwrap();
+    let p1 = f.backend.query_strings(q("filler alpha", 1)).unwrap();
+    assert_eq!((p0.total, p1.total), (2, 2));
+    assert_ne!(p0.rows[0].key, p1.rows[0].key);
+    assert!(!p0.sources.is_empty() && !p0.groups.is_empty());
+    assert!(p1.sources.is_empty() && p1.categories.is_empty() && p1.groups.is_empty());
+
+    let data = f.dirs.channel_dir(&f.install_id(), "LIVE");
+    let stock = name_a(&f);
+    assert_eq!(stock.1, StringSource::Unmodified);
+    // Settle the stamps, then read twice: the second answer comes from the stamped table.
+    backdate(&f.base.join("app"), old);
+    assert_eq!(name_a(&f), stock);
+    assert_eq!(name_a(&f), stock);
+    // Table cached and current: the list has the states at once, as the states call does.
+    let list = f.backend.list_patches(f.live()).unwrap();
+    assert_eq!(list, f.backend.patch_states(f.live()).unwrap());
+    assert!(list.iter().all(|p| p.state != PatchState::Checking));
+
+    // An editor writes overrides.ini.
+    std::fs::write(data.join("overrides.ini"), "item_NameA=Alpha One\n").unwrap();
+    backdate(&data, old);
+    assert_eq!(name_a(&f), ("Alpha One".to_string(), StringSource::Edited));
+    // Same length, another (old) mtime.
+    std::fs::write(data.join("overrides.ini"), "item_NameA=Alpha Two\n").unwrap();
+    backdate(&data, old / 2);
+    assert_eq!(name_a(&f), ("Alpha Two".to_string(), StringSource::Edited));
+    // Just written, same length again: not trusted until it settles, so it is seen.
+    std::fs::write(data.join("overrides.ini"), "item_NameA=Alpha 3rd\n").unwrap();
+    assert_eq!(name_a(&f), ("Alpha 3rd".to_string(), StringSource::Edited));
+    std::fs::remove_file(data.join("overrides.ini")).unwrap();
+    assert_eq!(name_a(&f), stock);
+
+    // A profile saved through the app switches a built-in fix off: the list shows it at once.
+    backdate(&f.base.join("app"), old);
+    assert_eq!(name_a(&f), stock);
+    let on = list.iter().find(|p| p.enabled).unwrap().clone();
+    f.backend
+        .set_patch_enabled(PatchToggle {
+            target: f.live(),
+            id: on.id.clone(),
+            enabled: false,
+        })
+        .unwrap();
+    let after = f.backend.list_patches(f.live()).unwrap();
+    let p = after.iter().find(|p| p.id == on.id).unwrap();
+    assert_eq!((p.enabled, p.state), (false, PatchState::Disabled));
+}
+
 #[test]
 fn unknown_patch_id_is_refused_and_not_saved() {
     let f = Fake::new();

@@ -2139,6 +2139,10 @@ impl Backend for MockBackend {
         self.with_channel(&req, |c, _| Ok(c.patches.clone()))
     }
 
+    fn patch_states(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>> {
+        self.list_patches(req)
+    }
+
     fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView> {
         self.with_channel(&req.target, |c, _| {
             let p = c

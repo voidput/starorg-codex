@@ -829,6 +829,7 @@ export interface StringsPage {
   all: number;
   offset: number;
   rows: StringRow[];
+  /** `sources`, `categories` and `groups`: first page (`offset` 0) only, empty after. */
   sources: FacetCount[];
   categories: FacetCount[];
   groups: GroupNode[];
@@ -884,7 +885,7 @@ export interface OverrideEntry {
 
 // Patches -------------------------------------------------------------------------------
 
-export type PatchState = 'applies' | 'not-needed' | 'target-changed' | 'nothing-to-add' | 'missing' | 'out-of-range' | 'conflict' | 'disabled' | 'no-data' | 'retired';
+export type PatchState = 'applies' | 'not-needed' | 'target-changed' | 'nothing-to-add' | 'missing' | 'out-of-range' | 'conflict' | 'disabled' | 'no-data' | 'retired' | 'checking';
 export type PatchOrigin = 'built-in' | 'user';
 
 export interface PatchView {

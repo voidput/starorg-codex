@@ -122,7 +122,11 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn reset_override(&self, req: KeyRequest) -> CmdResult<StringDetail>;
     fn list_overrides(&self, req: ChannelRef) -> CmdResult<Vec<OverrideEntry>>;
 
+    /// Answers at once: an enabled patch reads `checking` unless the channel's table is
+    /// already built; [`Backend::patch_states`] gives the states.
     fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>>;
+    /// [`Backend::list_patches`] with every state worked out (builds the table if needed).
+    fn patch_states(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>>;
     fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView>;
     fn patch_detail(&self, req: PatchRef) -> CmdResult<PatchDetail>;
     fn add_user_patch(&self, req: NewPatch) -> CmdResult<PatchView>;
@@ -298,6 +302,7 @@ commands! {
     reset_override(req: KeyRequest) -> StringDetail;
     list_overrides(req: ChannelRef) -> Vec<OverrideEntry>;
     list_patches(req: ChannelRef) -> Vec<PatchView>;
+    patch_states(req: ChannelRef) -> Vec<PatchView>;
     set_patch_enabled(req: PatchToggle) -> PatchView;
     patch_detail(req: PatchRef) -> PatchDetail;
     add_user_patch(req: NewPatch) -> PatchView;
@@ -409,6 +414,7 @@ macro_rules! contract_handler {
             $crate::contract::reset_override,
             $crate::contract::list_overrides,
             $crate::contract::list_patches,
+            $crate::contract::patch_states,
             $crate::contract::set_patch_enabled,
             $crate::contract::patch_detail,
             $crate::contract::add_user_patch,
@@ -554,6 +560,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "reset_override",
     "list_overrides",
     "list_patches",
+    "patch_states",
     "set_patch_enabled",
     "patch_detail",
     "add_user_patch",

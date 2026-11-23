@@ -1185,7 +1185,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         nodes = [...[...sizesSeen].sort((a, b) => a - b).map((s) => ({ id: String(s), parent: null, label: `Size ${s}`, ...(tree.get(String(s)) ?? zero) })), { id: 'none', parent: null, label: 'No size', ...(tree.get('none') ?? zero) }];
       }
       const group_state: T.GroupState = (c.exactGroups ?? c.summary.channel === 'LIVE') ? 'exact' : 'approximate';
-      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits).map(withFallback), sources: fc(srcCounts), categories: fc(catCounts), groups: nodes, group_state };
+      // Facets and the tree come with the first page only, as on the Rust side.
+      const first = req.offset === 0;
+      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits).map(withFallback), sources: first ? fc(srcCounts) : [], categories: first ? fc(catCounts) : [], groups: first ? nodes : [], group_state };
     },
     read_string_groups: async ({ req }): Promise<T.GroupState> => {
       const c = chan(req);
@@ -1211,6 +1213,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     list_overrides: ({ req }) => [...chan(req).overrides].map(([key, value]) => ({ key, value, original: table().find((r) => r.key === key)?.original ?? '' })),
     list_patches: ({ req }) => clone(chan(req).patches),
+    patch_states: ({ req }) => clone(chan(req).patches),
     set_patch_enabled: ({ req }) => {
       const c = chan(req.target);
       const p = c.patches.find((x) => x.id === req.id) ?? fail('not-found', `No patch ${req.id}`);
