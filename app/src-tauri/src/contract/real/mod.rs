@@ -1014,7 +1014,10 @@ impl RealBackend {
                 return Ok(t.clone());
             }
             if profile.is_some()
-                && let Some(i) = m.previews.iter().position(|(s, k, _)| *s == slot && *k == key)
+                && let Some(i) = m
+                    .previews
+                    .iter()
+                    .position(|(s, k, _)| *s == slot && *k == key)
             {
                 let hit = m.previews.remove(i).expect("position is in range");
                 let t = hit.2.clone();
