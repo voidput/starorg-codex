@@ -190,6 +190,8 @@ pub struct CommodityDetail {
     pub group: String,
     pub subgroup: Option<String>,
     pub description: Option<String>,
+    /// Grams per cm³; `None` when the game leaves the default 1 (most non-ores), which says
+    /// nothing about the resource.
     pub density: Option<f64>,
     /// What it refines into.
     pub refined: Option<CommodityRef>,
@@ -424,7 +426,7 @@ pub fn commodity_detail(
         group: top_group(r),
         subgroup: subgroup_of(r),
         description: r.description.clone().filter(|d| !d.trim().is_empty()),
-        density: r.density_grams_per_cc,
+        density: r.density_grams_per_cc.filter(|d| *d != 1.0),
         refined,
         raw_sources: raw,
         quality,
@@ -551,6 +553,27 @@ mod tests {
             ]
         }))
         .unwrap()
+    }
+
+    #[test]
+    fn default_density_of_one_is_not_shown() {
+        let d = data();
+        let density = |id: &str| {
+            commodity_detail(&d, id, |_| None, |_| CommodityMarket::default())
+                .unwrap()
+                .density
+        };
+        assert_eq!(density("ResourceType.Gold"), Some(19.3));
+        let mut one = data();
+        one.resources[3].density_grams_per_cc = Some(1.0);
+        let q = commodity_detail(
+            &one,
+            "ResourceType.Quantanium",
+            |_| None,
+            |_| CommodityMarket::default(),
+        )
+        .unwrap();
+        assert_eq!(q.density, None);
     }
 
     #[test]

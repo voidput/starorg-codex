@@ -78,7 +78,7 @@
   <header class="grid gap-1">
     <h2 id="commodity-title" class="text-[16px] font-semibold">{c.name}</h2>
     <p class="text-muted-foreground text-[12px]">
-      {c.group}{c.subgroup ? ` > ${c.subgroup}` : ''} · <span class="mono select-all">{c.id}</span>{c.density !== null ? ` · ${numText(c.density, 2)} g/cm³` : ''}
+      {c.group}{c.subgroup ? ` > ${c.subgroup}` : ''} · <span class="mono select-all">{c.id}</span>{c.density !== null ? ` · density ${numText(c.density, 2)} g/cm³` : ''}
     </p>
     {#if c.description}<p class="text-[12.5px] leading-relaxed">{c.description}</p>{/if}
   </header>

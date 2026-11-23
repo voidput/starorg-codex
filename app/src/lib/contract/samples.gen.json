@@ -3044,7 +3044,7 @@
           "minimum_speed": 15.0
         }
       ],
-      "density": 1.0,
+      "density": null,
       "description": "An unstable test mineral.",
       "group": "Mineral",
       "id": "ResourceType.Raw_Fixtanium",
@@ -3168,7 +3168,7 @@
         }
       ],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Gas",
       "id": "ResourceType.Hydrogen",
@@ -3204,7 +3204,7 @@
           "minimum_speed": 15.0
         }
       ],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Gas",
       "id": "ResourceType.Testium_Gas",
@@ -3231,7 +3231,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Metal",
       "id": "ResourceType.Mockite",
@@ -3296,7 +3296,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Metal",
       "id": "ResourceType.Ore_Mockite",
@@ -3389,7 +3389,7 @@
         }
       ],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Metal",
       "id": "ResourceType.Ore_Synthium",
@@ -3486,7 +3486,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Mineral",
       "id": "ResourceType.Fixtanium",
@@ -3534,7 +3534,7 @@
           "minimum_speed": 15.0
         }
       ],
-      "density": 1.0,
+      "density": null,
       "description": "An unstable test mineral.",
       "group": "Mineral",
       "id": "ResourceType.Raw_Fixtanium",
@@ -3638,7 +3638,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Mineral",
       "id": "ResourceType.Stubbite",
@@ -3728,7 +3728,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Nonmetal",
       "id": "ResourceType.Fluorine",
@@ -3752,7 +3752,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Organic",
       "id": "ResourceType.Glowcap",
@@ -3776,7 +3776,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Organic",
       "id": "ResourceType.Mock_Rations",
@@ -3807,7 +3807,7 @@
         }
       ],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Medical_Mocks",
@@ -3831,7 +3831,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_01",
@@ -3855,7 +3855,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_02",
@@ -3879,7 +3879,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_03",
@@ -3903,7 +3903,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_04",
@@ -3927,7 +3927,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_05",
@@ -3951,7 +3951,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_06",
@@ -3975,7 +3975,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_07",
@@ -3999,7 +3999,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_08",
@@ -4023,7 +4023,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_09",
@@ -4047,7 +4047,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_10",
@@ -4071,7 +4071,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_11",
@@ -4095,7 +4095,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_12",
@@ -4119,7 +4119,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_13",
@@ -4143,7 +4143,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_14",
@@ -4167,7 +4167,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_15",
@@ -4191,7 +4191,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_16",
@@ -4215,7 +4215,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_17",
@@ -4239,7 +4239,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_18",
@@ -4263,7 +4263,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_19",
@@ -4287,7 +4287,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_20",
@@ -4311,7 +4311,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_21",
@@ -4335,7 +4335,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_22",
@@ -4359,7 +4359,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_23",
@@ -4383,7 +4383,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_24",
@@ -4407,7 +4407,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Mock_Fabric",
@@ -4431,7 +4431,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Mock_Stims",
@@ -4455,7 +4455,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Waste",
       "id": "ResourceType.Scrap",
@@ -4488,7 +4488,7 @@
         }
       ],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Gas",
       "id": "ResourceType.Hydrogen",
@@ -4553,7 +4553,7 @@
           "minimum_speed": 15.0
         }
       ],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Gas",
       "id": "ResourceType.Testium_Gas",
@@ -4580,7 +4580,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Metal",
       "id": "ResourceType.Mockite",
@@ -4674,7 +4674,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Metal",
       "id": "ResourceType.Ore_Mockite",
@@ -4767,7 +4767,7 @@
         }
       ],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Metal",
       "id": "ResourceType.Ore_Synthium",
@@ -4874,7 +4874,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Mineral",
       "id": "ResourceType.Fixtanium",
@@ -4941,7 +4941,7 @@
           "minimum_speed": 15.0
         }
       ],
-      "density": 1.0,
+      "density": null,
       "description": "An unstable test mineral.",
       "group": "Mineral",
       "id": "ResourceType.Raw_Fixtanium",
@@ -5055,7 +5055,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Mineral",
       "id": "ResourceType.Stubbite",
@@ -5145,7 +5145,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Nonmetal",
       "id": "ResourceType.Fluorine",
@@ -5169,7 +5169,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Organic",
       "id": "ResourceType.Glowcap",
@@ -5193,7 +5193,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Organic",
       "id": "ResourceType.Mock_Rations",
@@ -5224,7 +5224,7 @@
         }
       ],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Medical_Mocks",
@@ -5277,7 +5277,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_01",
@@ -5301,7 +5301,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_02",
@@ -5325,7 +5325,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_03",
@@ -5349,7 +5349,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_04",
@@ -5373,7 +5373,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_05",
@@ -5397,7 +5397,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_06",
@@ -5421,7 +5421,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_07",
@@ -5445,7 +5445,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_08",
@@ -5469,7 +5469,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_09",
@@ -5493,7 +5493,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_10",
@@ -5517,7 +5517,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_11",
@@ -5541,7 +5541,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_12",
@@ -5565,7 +5565,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_13",
@@ -5589,7 +5589,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_14",
@@ -5613,7 +5613,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_15",
@@ -5637,7 +5637,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_16",
@@ -5661,7 +5661,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_17",
@@ -5685,7 +5685,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_18",
@@ -5709,7 +5709,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_19",
@@ -5733,7 +5733,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_20",
@@ -5757,7 +5757,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_21",
@@ -5781,7 +5781,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_22",
@@ -5805,7 +5805,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_23",
@@ -5829,7 +5829,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Bulk_Good_24",
@@ -5853,7 +5853,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Mock_Fabric",
@@ -5877,7 +5877,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Processed Goods",
       "id": "ResourceType.Mock_Stims",
@@ -5901,7 +5901,7 @@
     {
       "cargo": [],
       "damage": [],
-      "density": 1.0,
+      "density": null,
       "description": null,
       "group": "Waste",
       "id": "ResourceType.Scrap",
