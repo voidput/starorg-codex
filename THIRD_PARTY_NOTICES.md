@@ -3387,7 +3387,7 @@ THE SOFTWARE.
 ### MIT License
 
 Used by:
-- cookie 0.18.2
+- cookie 0.18.3
 
 ```text
 Copyright (c) 2017 Sergio Benitez
