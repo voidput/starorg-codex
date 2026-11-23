@@ -28,6 +28,15 @@ pub fn preset_profile(p: Preset) -> Profile {
         missiles: cats,
         missions: cats,
         quest_hints: cats,
+        obtain: true,
+        obtain_mode: match p {
+            Preset::Minimal => ObtainMode::Short,
+            Preset::Everything => ObtainMode::Detailed,
+            _ => ObtainMode::Normal,
+        },
+        obtain_shops: all,
+        obtain_prices: all,
+        missing_names: true,
         lines_off: Vec::new(),
         stats_above: false,
         header: "--- STATS ---".into(),
@@ -177,6 +186,22 @@ pub fn profile_schema() -> ProfileSchema {
                 "Tags in contract titles and sections in their descriptions.",
                 "missions",
                 &[],
+            ),
+            // Line ids = `starorg_core::enhance::obtain::LINES` (a test compares them).
+            cat(
+                CategoryId::Obtain,
+                "Where to get",
+                "A WHERE TO GET block in item and commodity descriptions: shops, sell prices, loot, crafting, rewards and mining.",
+                "obtain",
+                &[
+                    ("shops", "Shops (from your UEX files)"),
+                    ("sell", "Best sell prices (from your UEX files)"),
+                    ("loot", "Loot containers"),
+                    ("craft", "Crafting from a blueprint"),
+                    ("rewards", "Contract rewards"),
+                    ("mined", "Mining places"),
+                    ("quality", "Ore quality"),
+                ],
             ),
         ],
         tag_kinds: vec![

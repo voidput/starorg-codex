@@ -93,6 +93,8 @@ impl Bullet {
 /// Inputs the description body needs besides the contracts.
 pub struct Lookup<'a> {
     pub stock: &'a crate::ini::StockIni,
+    /// The name chain (curated, game, generated) for item and blueprint names.
+    pub names: &'a super::names::Resolver<'a>,
     pub pools: HashMap<String, Vec<&'a Blueprint>>,
     pub standings: HashMap<String, (Option<f64>, Option<&'a str>)>,
     /// Produced item short name (lower case) -> name tag text.
@@ -108,6 +110,7 @@ impl<'a> Lookup<'a> {
         stock: &'a crate::ini::StockIni,
         profile: &super::profile::Profile,
         owned: &'a dyn OwnedBlueprints,
+        names: &'a super::names::Resolver<'a>,
     ) -> Self {
         let bps: HashMap<String, &Blueprint> = gd
             .blueprints
@@ -116,7 +119,7 @@ impl<'a> Lookup<'a> {
             .collect();
         let mut by_name: HashMap<String, BTreeSet<&str>> = HashMap::new();
         for b in &gd.blueprints {
-            if let Some(n) = stock_name(stock, b.produces_name_key.as_deref()) {
+            if let Some(n) = names.name(b.produces_name_key.as_deref()) {
                 by_name
                     .entry(super::owned::normalize_name(n))
                     .or_default()
@@ -177,6 +180,7 @@ impl<'a> Lookup<'a> {
         }
         Self {
             stock,
+            names,
             pools,
             standings,
             item_tags,
@@ -195,7 +199,7 @@ impl<'a> Lookup<'a> {
             .into_iter()
             .flatten()
         {
-            let Some(name) = stock_name(self.stock, b.produces_name_key.as_deref()) else {
+            let Some(name) = self.names.name(b.produces_name_key.as_deref()) else {
                 continue;
             };
             let tag = b
@@ -409,7 +413,7 @@ pub fn description_body(
         let mut items: BTreeMap<String, (String, Vec<f64>)> = BTreeMap::new();
         for c in group {
             for r in &c.item_rewards {
-                let Some(name) = stock_name(lk.stock, r.name_key.as_deref()) else {
+                let Some(name) = lk.names.name(r.name_key.as_deref()) else {
                     continue;
                 };
                 let e = items
@@ -536,12 +540,17 @@ fn record_label(group: &[&Contract]) -> String {
 }
 
 /// Title tags and description bodies for all contracts (spec 6.2-6.4).
-pub fn generate(en: &mut Engine, gd: &GameData, owned: &dyn OwnedBlueprints) {
+pub fn generate(
+    en: &mut Engine,
+    gd: &GameData,
+    owned: &dyn OwnedBlueprints,
+    names: &super::names::Resolver,
+) {
     let p = en.profile;
     let contracts: Vec<&Contract> = gd.contracts.iter().filter(|c| usable(c)).collect();
     let titles = groups(&contracts, |c| c.title_key.as_ref());
     let m = &p.mission;
-    let lk = Lookup::new(gd, en.stock, p, owned);
+    let lk = Lookup::new(gd, en.stock, p, owned, names);
     if m.title_blueprint || m.title_reputation {
         for (key, group) in titles.values() {
             let all_owned = m.title_blueprint && m.title_owned && lk.all_owned(group);

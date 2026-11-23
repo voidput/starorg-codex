@@ -28,7 +28,18 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   delete_backup: [{ req: T.BackupRef }, T.BackupList];
   cancel_job: [{ job: string }, null];
   build_preview: [{ req: T.PreviewRequest }, T.PreviewItem[]];
+  read_game_data: [{ req: T.ReadGameDataRequest }, T.ChannelSummary];
   profile_schema: [Record<string, never>, T.ProfileSchema];
+  obtain_status: [Record<string, never>, T.ObtainStatus];
+  uex_token_status: [Record<string, never>, T.UexTokenStatus];
+  set_uex_token: [{ req: T.UexTokenRequest }, T.UexTokenStatus];
+  fetch_uex: [Record<string, never>, T.ObtainStatus];
+  loot_list: [{ req: T.LootListRequest }, T.LootList];
+  loot_detail: [{ req: T.LootDetailRequest }, T.LootDetail];
+  shop_inventory: [{ req: T.ShopInventoryRequest }, T.ShopDirectory];
+  shop_items: [{ req: T.ShopItemsRequest }, T.ShopItems];
+  commodity_list: [{ req: T.CommodityListRequest }, T.CommodityDirectory];
+  commodity_detail: [{ req: T.CommodityDetailRequest }, T.CommodityInfo];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
   preset_profile: [{ preset: T.Preset }, T.Profile];
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
@@ -40,6 +51,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   reset_override: [{ req: T.KeyRequest }, T.StringDetail];
   list_overrides: [{ req: T.ChannelRef }, T.OverrideEntry[]];
   list_patches: [{ req: T.ChannelRef }, T.PatchView[]];
+  patch_states: [{ req: T.ChannelRef }, T.PatchView[]];
   set_patch_enabled: [{ req: T.PatchToggle }, T.PatchView];
   patch_detail: [{ req: T.PatchRef }, T.PatchDetail];
   add_user_patch: [{ req: T.NewPatch }, T.PatchView];
@@ -87,6 +99,9 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   set_mcp_enabled: [{ req: T.McpToggle }, T.McpStatus];
   memory_status: [Record<string, never>, T.MemoryStatus];
   set_memory_limit: [{ req: T.MemoryLimitRequest }, T.MemoryStatus];
+  storage_status: [Record<string, never>, T.StorageStatus];
+  storage_measure: [Record<string, never>, T.StorageStatus];
+  storage_clear_assets: [Record<string, never>, T.StorageStatus];
 }
 
 export type Command = keyof CommandMap;
@@ -110,7 +125,18 @@ export const COMMANDS = [
   'delete_backup',
   'cancel_job',
   'build_preview',
+  'read_game_data',
   'profile_schema',
+  'obtain_status',
+  'uex_token_status',
+  'set_uex_token',
+  'fetch_uex',
+  'loot_list',
+  'loot_detail',
+  'shop_inventory',
+  'shop_items',
+  'commodity_list',
+  'commodity_detail',
   'get_profile',
   'preset_profile',
   'save_profile',
@@ -122,6 +148,7 @@ export const COMMANDS = [
   'reset_override',
   'list_overrides',
   'list_patches',
+  'patch_states',
   'set_patch_enabled',
   'patch_detail',
   'add_user_patch',
@@ -176,12 +203,14 @@ export const COMMANDS = [
   'dev_search',
   'dev_record',
   'dev_record_combat',
+  'dev_record_sources',
   'dev_export_record',
   'dev_export_type',
   'dev_sources',
   'dev_add_source',
   'dev_remove_source',
   'dev_dump_releases',
+  'dev_refresh_dump_releases',
   'dev_download_dump',
   'dev_dataset',
   'dev_table',
@@ -219,6 +248,9 @@ export const COMMANDS = [
   'set_mcp_enabled',
   'memory_status',
   'set_memory_limit',
+  'storage_status',
+  'storage_measure',
+  'storage_clear_assets',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -328,7 +360,30 @@ export const api = {
   deleteBackup: (req: T.BackupRef) => call('delete_backup', { req }),
   cancelJob: (job: string) => call('cancel_job', { job }),
   buildPreview: (req: T.PreviewRequest) => call('build_preview', { req }),
+  /** Extract the channel's game data (and Where to get datasets) so the preview has examples; a job. */
+  readGameData: (target: T.ChannelRef) => call('read_game_data', { req: { target } }),
   profileSchema: () => call('profile_schema', none),
+  /** The UEX folder and files the WHERE TO GET shop line reads (metadata only). */
+  obtainStatus: () => call('obtain_status', none),
+  /** Whether a UEX token is saved (keyring or file); never the token. */
+  uexTokenStatus: () => call('uex_token_status', none),
+  /** Save the UEX token; null or empty removes it. */
+  setUexToken: (token: string | null) => call('set_uex_token', { req: { token } }),
+  /** "Fetch now": download both UEX files (network-off unless "Download UEX market data" is on). */
+  fetchUex: () => call('fetch_uex', none),
+  /** The Loot screen's list: every loot area or every item that drops in one, summaries only (`state: missing` until the game data is read). */
+  lootList: (target: T.ChannelRef | null, view: T.LootView) => call('loot_list', { req: { target, view } }),
+  /** One area's items or one item's areas, likeliest first (rough odds per spawned box). */
+  lootDetail: (target: T.ChannelRef | null, view: T.LootView, id: string, filter: string | null = null, group_by: T.LootGroupBy | null = null, groups: string[] | null = null) =>
+    call('loot_detail', { req: { target, view, id, filter, group_by, groups } }),
+  /** The Shops screen: every UEX item terminal by system and place (`state: missing` without the files). */
+  shopInventory: (target: T.ChannelRef | null) => call('shop_inventory', { req: { target } }),
+  /** One shop's items by category, linked to records through the channel's cached item data. */
+  shopItems: (target: T.ChannelRef | null, terminal: number) => call('shop_items', { req: { target, terminal } }),
+  /** The Commodities screen: every tradable resource of the channel's build, list rows only (`not-read` until "Read game data"). */
+  commodityList: (target: T.ChannelRef | null) => call('commodity_list', { req: { target } }),
+  /** One resource in full: forms, quality, volatility, cargo, where mined, UEX kiosk prices. */
+  commodityDetail: (target: T.ChannelRef | null, id: string) => call('commodity_detail', { req: { target, id } }),
   getProfile: (req: T.ChannelRef) => call('get_profile', { req }),
   presetProfile: (preset: T.Preset) => call('preset_profile', { preset }),
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),
@@ -340,6 +395,7 @@ export const api = {
   resetOverride: (req: T.KeyRequest) => call('reset_override', { req }),
   listOverrides: (req: T.ChannelRef) => call('list_overrides', { req }),
   listPatches: (req: T.ChannelRef) => call('list_patches', { req }),
+  patchStates: (req: T.ChannelRef) => call('patch_states', { req }),
   setPatchEnabled: (req: T.PatchToggle) => call('set_patch_enabled', { req }),
   patchDetail: (req: T.PatchRef) => call('patch_detail', { req }),
   addUserPatch: (req: T.NewPatch) => call('add_user_patch', { req }),
@@ -396,5 +452,11 @@ export const api = {
   memoryStatus: () => call('memory_status', none),
   /** null resets to the default. */
   setMemoryLimit: (gb: number | null) => call('set_memory_limit', { req: { gb } }),
+  /** Settings > Storage: sizes per area and the cache folder's cap. */
+  storageStatus: () => call('storage_status', none),
+  /** "Measure again": walks the folders now instead of the sizes kept from earlier. */
+  storageMeasure: () => call('storage_measure', none),
+  /** "Clear asset cache"; `busy` while an asset job runs. */
+  storageClearAssets: () => call('storage_clear_assets', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
 };

@@ -6,8 +6,8 @@
 //! and `apply` run the same functions, so they keep exactly the same values.
 
 pub use crate::validate::{
-    FileError, MAX_LEN, Rule, Tokens, WARN_LEN, check_file, is_format_value, percent_rule_ok,
-    tokens,
+    FileError, MAX_LEN, Rule, Tokens, WARN_LEN, added_text_ok, check_file, check_file_with,
+    is_format_value, percent_rule_ok, raw_loc_refs, tokens,
 };
 use crate::validate::{Op, check_value};
 
@@ -45,10 +45,43 @@ pub fn check_replaced(stock: &str, value: &str) -> Result<(), Rule> {
     check_value(stock, value, Op::GeneratedWhole, &[value])
 }
 
+/// Check the value of a key we add (stock has no line for it): the whole-value rules
+/// against an empty stock value, so it holds no variables, format specifiers or EM tags out
+/// of balance, and no raw `@` key or placeholder ([`added_text_ok`]).
+pub fn check_added(value: &str) -> Result<(), Rule> {
+    check_value("", value, Op::GeneratedWhole, &[value])?;
+    if !percent_rule_ok(value, true) {
+        return Err(Rule::PercentRule);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::ini::{BOM, StockIni};
+
+    #[test]
+    fn generated_parts_and_added_values_never_bring_raw_keys_or_placeholders() {
+        assert_eq!(
+            check_generated("Gun", "Gun", "", " (@item_NameGun_01)"),
+            Err(Rule::RawLocKey)
+        );
+        assert_eq!(
+            check_generated("Gun", "Gun", "[PLACEHOLDER] ", ""),
+            Err(Rule::PlaceholderText)
+        );
+        assert_eq!(
+            check_replaced("Gun", "@vehicle_NameX_Y"),
+            Err(Rule::RawLocKey)
+        );
+        assert_eq!(check_added("Pressurized Ice"), Ok(()));
+        assert_eq!(check_added("@item_Name_x_1"), Err(Rule::RawLocKey));
+        assert_eq!(check_added("<= PLACEHOLDER =>"), Err(Rule::PlaceholderText));
+        assert_eq!(check_added("Box ~mission(Location)"), Err(Rule::Variables));
+        assert_eq!(check_added("%s crate"), Err(Rule::FormatSpecifiers));
+        assert_eq!(check_added("<EM4>Box"), Err(Rule::EmSignature));
+    }
 
     #[test]
     fn token_kinds() {

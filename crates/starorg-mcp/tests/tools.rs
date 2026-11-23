@@ -74,7 +74,9 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         json!({"areas": [
             {"name": "caves/loot_caves", "configs": [{"name": "Weapons Small", "spawnTags": [], "slots": [
                 {"entity": "crate_small", "entityName": "Weapons Crate", "weight": 3, "loot": {"table": "Crate_Weapons", "version": "v1", "maxResults": 2}},
-                {"entity": "rack_fs9", "weight": 1, "contains": ["behr_lmg_ballistic_01"]}]}]}
+                {"entity": "rack_fs9", "weight": 1, "contains": ["behr_lmg_ballistic_01"]}]}]},
+            {"name": "v3slotpreset_rockcracker", "configs": [{"name": "Sadaryx minable", "spawnTags": [], "slots": [
+                {"entity": "mineablerock_fps_sadaryx", "weight": 1}]}]}
         ], "contractAwards": [
             {"generator": "TheCollector", "contract": "TheCollector_FS9", "item": "behr_lmg_ballistic_01", "amount": 1}
         ]}),
@@ -88,6 +90,31 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         ]}),
     );
     d.insert("game-wikelo-trades", json!({"trades": []}));
+    d.insert(
+        "game-mining-spawns",
+        json!({"rocks": [
+            {"rock": "MineableRock_FPS_Sadaryx", "kind": "hand", "ores": [{"element": "minableelement_fps_sadaryx"}]},
+            {"rock": "MineableRock_AsteroidRare_Quantainium", "kind": "ship", "ores": [{"element": "quantainium_raw"}]}
+        ], "oreSpawns": [
+            {"ore": "quantainium_raw", "location": "Stanton1", "system": "Stanton", "body": "Hurston",
+             "rock": "MineableRock_AsteroidRare_Quantainium", "kind": "ship", "spawnShare": 0.12}
+        ]}),
+    );
+    d.insert(
+        "game-commodities",
+        json!({"resources": [
+            {"name": "Sadaryx", "recordName": "ResourceType.Sadaryx", "quality": {"tier": "FPSMineable",
+             "distribution": {"min": 201, "max": 1000, "mean": 201, "stddev": 298},
+             "bands": [{"start": 0, "end": 399, "value": 258}, {"start": 400, "end": 1000, "value": 700}]}},
+            {"name": "Raw_Quantainium", "recordName": "ResourceType.Raw_Quantainium", "quality": {"tier": "Legendary",
+             "distribution": {"min": 0, "max": 1000, "mean": 500, "stddev": 100},
+             "locationOverrides": [{"location": "Pyro System", "min": 0, "max": 1000, "mean": 600, "stddev": 100}],
+             "bands": [{"start": 0, "end": 499, "value": 250}, {"start": 500, "end": 1000, "value": 750}]}},
+            {"name": "Laranite", "recordName": "ResourceType.Laranite", "displayName": "Laranite"}
+        ], "items": [
+            {"name": "Laranite_Cargo_1SCU", "resource": "Laranite", "displayName": "Laranite"}
+        ]}),
+    );
     d.insert(
         "game-missions",
         json!({"missions": [
@@ -198,6 +225,19 @@ impl World {
             .to_string(),
         )
         .unwrap();
+        // Commodity kiosk prices: three buy laranite, one pays nothing, one name is unknown.
+        std::fs::write(
+            uex.join("uex-commodity-prices.json"),
+            json!({"_fetched": "2026-11-21T09:00:00.000Z", "prices": [
+                {"commodity_name": "Laranite", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 8700, "date_modified": 1794268800},
+                {"commodity_name": "Laranite", "id_terminal": 2, "terminal_name": "Dumper's GrimHEX", "price_sell": 9612, "date_modified": 1794268800},
+                {"commodity_name": "Laranite", "id_terminal": 3, "terminal_name": "TDD Area 18", "price_buy": 9900},
+                {"commodity_name": "Sadaryx", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 41},
+                {"commodity_name": "Unobtainium", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 5}
+            ]})
+            .to_string(),
+        )
+        .unwrap();
         Self { _t: t, root, fake }
     }
 
@@ -229,6 +269,7 @@ impl World {
             uex_dir: Some(self.root.join("cache/uex")),
             our_outputs: vec![sha],
             extractor: self.fake.clone(),
+            cache_cap: None,
         }
     }
 
@@ -319,7 +360,9 @@ fn lifecycle_and_schemas() {
             "search",
             "item",
             "where_to_buy",
+            "shop_inventory",
             "where_found",
+            "where_mined",
             "how_to_obtain",
             "mission",
             "compare",
@@ -522,6 +565,155 @@ fn ship_weapons_and_components_item_tags_lacks() {
 }
 
 #[test]
+fn shop_inventory_lists_one_shop_by_category() {
+    let w = World::new();
+    let s = w.server();
+    let v = ok(
+        &s,
+        "shop_inventory",
+        json!({"terminal": "Dumper's GrimHEX"}),
+    );
+    assert_eq!(v["shop"]["id"], 2);
+    assert_eq!(v["shop"]["location"], "Grim HEX, Yela, Crusader");
+    assert_eq!(v["shop"]["system"], "Stanton");
+    // The cannon is in ship-components only: linked there, a ship weapon.
+    let rows = &v["items"]["rows"];
+    assert_eq!(v["items"]["total"], 2);
+    assert_eq!(rows[0]["name"], "FS-9 LMG");
+    assert_eq!(rows[0]["category"], "fps-weapons");
+    assert_eq!(rows[0]["key"], "behr_lmg_ballistic_01");
+    assert_eq!(rows[0]["priceBuy"], 6900);
+    assert_eq!(rows[1]["category"], "ship-weapons");
+    assert_eq!(rows[1]["key"], "BEHR_LaserCannon_S3");
+    assert_eq!(v["categories"][1]["label"], "Ship weapons");
+    assert!(
+        v["linkedWith"]
+            .as_str()
+            .unwrap()
+            .starts_with("LIVE 4.10.200.58746")
+    );
+    assert!(v.get("notes").is_none());
+    // A category, an id.
+    let g = ok(
+        &s,
+        "shop_inventory",
+        json!({"terminal": "2", "category": "Ship weapons"}),
+    );
+    assert_eq!(g["items"]["total"], 1);
+    assert_eq!(g["category"], "ship-weapons");
+    assert!(
+        call(
+            &s,
+            "shop_inventory",
+            json!({"terminal": "2", "category": "boats"})
+        )
+        .0
+    );
+    // A word of the place.
+    let many = ok(&s, "shop_inventory", json!({"terminal": "ruin"}));
+    assert_eq!(many["shop"]["name"], "Guns Ruin");
+    assert!(call(&s, "shop_inventory", json!({"terminal": "nowhere at all"})).0);
+    assert!(call(&s, "shop_inventory", json!({})).0);
+
+    // Without the UEX files: a note, not an error.
+    std::fs::remove_file(w.root.join("cache/uex/uex-terminals.json")).unwrap();
+    let none = ok(&s, "shop_inventory", json!({"terminal": "Guns Ruin"}));
+    assert!(none["notes"][0].as_str().unwrap().contains("no shop data"));
+}
+
+#[test]
+fn shop_directory_for_the_app_reads_only_cached_item_data() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing extracted yet: UEX names, no links, nothing extracted for this.
+    let d = t.shop_directory(Some("LIVE"));
+    assert_eq!(serde_json::to_value(d.state).unwrap(), json!("ready"));
+    assert_eq!((d.shop_count, d.item_count), (2, 3));
+    assert!(d.linked.is_none());
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    let names: Vec<&str> = d.systems.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(names, ["Pyro", "Stanton"]);
+    // After a tool extracted item-tags, rows link.
+    let s = starorg_mcp::server(w.config(), None);
+    ok(&s, "item", json!({"key": "behr_lmg_ballistic_01"}));
+    let i = t.shop_items(Some("LIVE"), 2);
+    assert_eq!(i.shop.as_ref().unwrap().name, "Dumper's GrimHEX");
+    assert_eq!(
+        i.items[0].record.as_ref().unwrap().guid,
+        "id-fs9",
+        "{:?}",
+        i.items
+    );
+    assert!(i.linked.is_some());
+    // Ship-components not cached yet: the cannon keeps UEX's name, unlinked.
+    let cannon = |i: &starorg_mcp::shops::ShopItems| {
+        i.items
+            .iter()
+            .find(|r| r.name == "M5A Cannon")
+            .unwrap()
+            .record
+            .clone()
+    };
+    assert!(cannon(&i).is_none());
+    assert!(!t.shop_directory(Some("LIVE")).ship_items);
+    // "Read game data" warms it; then the cannon links.
+    t.warm_shop_links("LIVE").unwrap();
+    assert!(t.shop_directory(Some("LIVE")).ship_items);
+    assert_eq!(
+        cannon(&t.shop_items(Some("LIVE"), 2)).unwrap().class_name,
+        "BEHR_LaserCannon_S3"
+    );
+    assert!(t.warm_shop_links("NOPE").is_err());
+    // No channel at all: still the shops.
+    assert_eq!(t.shop_directory(Some("NOPE")).shop_count, 2);
+    std::fs::remove_file(w.root.join("cache/uex/uex-item-prices.json")).unwrap();
+    let gone = t.shop_directory(Some("LIVE"));
+    assert_eq!(serde_json::to_value(gone.state).unwrap(), json!("missing"));
+    assert!(gone.folder.unwrap().ends_with("uex"));
+    assert!(t.shop_items(None, 2).shop.is_none());
+}
+
+#[test]
+fn loot_screen_reads_only_cached_data() {
+    use starorg_mcp::loot::{LootDataState, LootView};
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing cached: missing, and nothing extracted for it.
+    let l = t.loot_list(Some("LIVE"), LootView::Areas);
+    assert_eq!(l.state, LootDataState::Missing);
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    // After a tool extracted the loot datasets (as "Read game data" does).
+    let s = starorg_mcp::server(w.config(), None);
+    ok(&s, "where_found", json!({"item": "FS-9 LMG"}));
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let areas = t.loot_list(Some("LIVE"), LootView::Areas);
+    assert_eq!(areas.state, LootDataState::Ready);
+    assert_eq!(areas.build.as_deref(), Some("LIVE 4.10.200.58746"));
+    assert_eq!(areas.rows.len(), 1, "{:?}", areas.rows);
+    assert_eq!(areas.rows[0].id, "caves/loot_caves");
+    assert_eq!(areas.rows[0].group, "Caves");
+    let items = t.loot_list(Some("LIVE"), LootView::Items);
+    let names: Vec<&str> = items.rows.iter().map(|r| r.name.as_str()).collect();
+    assert_eq!(names, ["FS-9 LMG", "Verdict LMG"]);
+    let q = starorg_mcp::loot::DetailQuery::default();
+    let cave = t.loot_detail(Some("LIVE"), LootView::Areas, "caves/loot_caves", &q);
+    assert_eq!(cave.total, 2);
+    let rows: Vec<_> = cave.rows().collect();
+    assert_eq!(rows.len(), 2, "{:?}", cave.groups);
+    assert!(cave.groups.windows(2).all(|w| w[0].best >= w[1].best));
+    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01", &q);
+    assert_eq!(fs9.record.as_ref().unwrap().guid, "id-fs9");
+    assert_eq!(fs9.rows().next().unwrap().name, "Caves");
+    assert_eq!(fs9.groups[0].label, "Caves");
+    // Reading the lists again extracts nothing more.
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    assert_eq!(
+        t.loot_list(Some("NOPE"), LootView::Items).state,
+        LootDataState::Missing
+    );
+}
+
+#[test]
 fn where_to_buy_found_and_how_to_obtain() {
     let w = World::new();
     let s = w.server();
@@ -550,6 +742,29 @@ fn where_to_buy_found_and_how_to_obtain() {
     assert_eq!(areas[0]["kind"], "loot");
     assert_eq!(areas[0]["container"], "Weapons Crate");
     assert_eq!(areas[0]["oddsPerBox"], 0.5625);
+    assert_eq!(areas[0]["spawnPoint"], "Weapons Small");
+    assert_eq!(areas[0]["slotShare"], 0.75);
+    assert!(areas[0].get("spawn_point").is_none(), "keys are camelCase");
+
+    // Sadaryx has no spawn table: only the Rock Cracker spot places it.
+    let mined = ok(&s, "where_mined", json!({"ore": "Sadaryx"}));
+    let r = &mined["results"][0];
+    assert_eq!(r["name"], "Sadaryx");
+    assert_eq!(r["belts"]["total"], 0);
+    assert_eq!(r["spots"]["rows"][0]["place"], "Rock Cracker, Nyx");
+    assert_eq!(r["spots"]["rows"][0]["slotShare"], 1.0);
+    let q = ok(&s, "where_mined", json!({"ore": "quantainium"}));
+    assert_eq!(q["results"][0]["belts"]["rows"][0]["body"], "Hurston");
+    let ql = &q["results"][0]["quality"];
+    assert_eq!(ql["tier"], "Legendary");
+    assert_eq!(ql["overrides"][0]["location"], "Pyro System");
+    assert_eq!(ql["steps"][1]["shown"], 750.0);
+    assert!((ql["steps"][0]["share"].as_f64().unwrap() - 0.5).abs() < 0.01);
+    assert_eq!(
+        ok(&s, "where_mined", json!({"ore": "FS-9 LMG"}))["matches"],
+        0
+    );
+    assert!(call(&s, "where_mined", json!({})).0);
 
     let how = ok(
         &s,
@@ -955,4 +1170,401 @@ mod http {
         drop(srv);
         assert!(TcpStream::connect(addr).is_err());
     }
+}
+
+#[test]
+fn commodities_for_the_app_read_only_cached_data_and_build_once() {
+    use starorg_mcp::commodities::CommodityDataState as S;
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing cached: not read, and nothing is extracted for it.
+    let d = t.commodity_list(Some("LIVE"));
+    assert_eq!(d.state, S::NotRead);
+    assert!(d.commodities.is_empty() && d.market.loaded);
+    assert_eq!(
+        d.market.fetched.as_deref(),
+        Some("2026-11-21T09:00:00.000Z")
+    );
+    assert_eq!(
+        t.commodity_detail(Some("LIVE"), "Laranite").state,
+        S::NotRead
+    );
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    assert_eq!(t.commodity_list(None).state, S::NoChannel);
+    assert_eq!(t.commodity_list(Some("NOPE")).state, S::NoChannel);
+    // "Read game data" (here: the hints, which read the same datasets) fills the cache.
+    t.obtain_hints("LIVE").unwrap();
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let d = t.commodity_list(Some("LIVE"));
+    assert_eq!(d.state, S::Ready);
+    assert!(d.build.as_deref().unwrap().starts_with("LIVE "));
+    let names: Vec<&str> = d.commodities.iter().map(|c| c.name.as_str()).collect();
+    assert_eq!(names, ["Laranite", "Raw_Quantainium", "Sadaryx"]);
+    assert!(d.commodities.iter().all(|c| c.group == "Other"));
+    // Laranite: cargo and prices on both sides; not mined anywhere the data knows.
+    let lar = t
+        .commodity_detail(Some("LIVE"), "ResourceType.Laranite")
+        .commodity
+        .unwrap();
+    assert_eq!(lar.cargo[0].class_name, "Laranite_Cargo_1SCU");
+    let sells: Vec<(&str, f64)> = lar
+        .market
+        .sell
+        .iter()
+        .map(|k| (k.terminal.as_str(), k.price))
+        .collect();
+    assert_eq!(sells, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.market.buy[0].price, 9900.0);
+    assert_eq!(lar.mined, Some(Vec::new()));
+    // Sadaryx: quality and loot-area spots.
+    let sad = t
+        .commodity_detail(Some("LIVE"), "Sadaryx")
+        .commodity
+        .unwrap();
+    assert_eq!(sad.quality.unwrap().steps[0].shown, 258.0);
+    assert!(!sad.mined.unwrap()[0].spots.is_empty());
+    let q = t
+        .commodity_detail(Some("LIVE"), "ResourceType.Raw_Quantainium")
+        .commodity
+        .unwrap();
+    assert_eq!(
+        q.mined.unwrap()[0].belts[0].body.as_deref(),
+        Some("Hurston")
+    );
+    // Unknown id: ready, but no commodity.
+    let none = t.commodity_detail(Some("LIVE"), "Unobtainium");
+    assert!(none.state == S::Ready && none.commodity.is_none());
+    // Nothing was extracted for the screen.
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // Without the commodity prices: the market says so, the rest stays.
+    std::fs::remove_file(w.root.join("cache/uex/uex-commodity-prices.json")).unwrap();
+    let gone = t
+        .commodity_detail(Some("LIVE"), "Laranite")
+        .commodity
+        .unwrap();
+    assert!(!gone.market.loaded && gone.market.sell.is_empty());
+    assert!(!gone.cargo.is_empty());
+    assert!(!t.commodity_list(Some("LIVE")).market.loaded);
+}
+
+#[test]
+fn sources_card_is_typed_and_exact() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    let gun = t
+        .sources("LIVE", "EntityClassDefinition.behr_lmg_ballistic_01")
+        .unwrap();
+    let loot = gun.loot.unwrap();
+    assert_eq!(loot.name, "FS-9 LMG");
+    assert_eq!(loot.container_total, 1);
+    assert_eq!(loot.containers[0].container, "Weapons Crate");
+    assert_eq!(loot.containers[0].kind, "loot");
+    assert_eq!(loot.containers[0].odds_per_box, 0.5625);
+    assert!(gun.mined.is_empty());
+    let buy = gun.buy.unwrap();
+    assert!(buy.loaded && buy.folder.is_some());
+    assert_eq!(buy.total, 2);
+    assert_eq!(buy.offers[0].terminal, "Dumper's GrimHEX");
+    assert_eq!(buy.offers[0].price_buy, 6900.0);
+    assert_eq!(buy.offers[1].location, "Ruin Station, Terminus, Pyro");
+    let ore = t.sources("LIVE", "ResourceType.Sadaryx").unwrap();
+    assert!(ore.loot.is_none() && ore.buy.is_none());
+    assert_eq!(ore.quality.len(), 1);
+    assert_eq!(ore.quality[0].steps[0].shown, 258.0);
+    assert!(gun.quality.is_empty());
+    assert_eq!(
+        ore.mined[0].spots[0].place.as_deref(),
+        Some("Rock Cracker, Nyx")
+    );
+    // No fuzzy match: a near name is no item.
+    let none = t.sources("LIVE", "behr_lmg_ballistic").unwrap();
+    assert!(none.loot.is_none() && none.mined.is_empty());
+    // Sell prices: only for a resource (or cargo holding one), best first.
+    assert!(gun.sell.is_none() && none.sell.is_none());
+    let lar = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert!(lar.loaded);
+    assert_eq!(
+        (lar.resource.as_str(), lar.name.as_str()),
+        ("ResourceType.Laranite", "Laranite")
+    );
+    let got: Vec<(&str, f64)> = lar
+        .offers
+        .iter()
+        .map(|o| (o.terminal.as_str(), o.price_sell))
+        .collect();
+    assert_eq!(got, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.total, 2);
+    assert_eq!(lar.offers[1].location, "Ruin Station, Terminus, Pyro");
+    assert_eq!(lar.fetched.as_deref(), Some("2026-11-21T09:00:00.000Z"));
+    let cargo = t
+        .sources("LIVE", "EntityClassDefinition.Laranite_Cargo_1SCU")
+        .unwrap();
+    assert_eq!(cargo.sell.unwrap().offers.len(), 2);
+    let sad = ore.sell.unwrap();
+    assert_eq!(sad.offers[0].price_sell, 41.0);
+    // Without the file: the section says so.
+    std::fs::remove_file(w.root.join("cache/uex/uex-commodity-prices.json")).unwrap();
+    let gone = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert!(!gone.loaded && gone.offers.is_empty());
+}
+
+#[test]
+fn obtain_hints_cover_items_and_mined_resources() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    let b = t.obtain_hints("LIVE").unwrap();
+    assert!(b.warnings.is_empty(), "{:?}", b.warnings);
+    let h = &b.hints;
+    assert!(h.desc.is_empty(), "apply fills desc from its own GameData");
+    // The gun: one container kind in the caves (loot and the fixed rack merge into one
+    // place row each), shops from the UEX files, cheapest first, names only.
+    let fs9 = &h.items["behr_lmg_ballistic_01"];
+    assert_eq!(fs9.loot_count(), fs9.loot.len());
+    assert!(
+        fs9.loot.iter().all(|l| l.place.as_deref() == Some("Caves")),
+        "{:?}",
+        fs9.loot
+    );
+    assert!(fs9.loot.iter().any(|l| l.contents == "Weapons Crate"));
+    assert!(
+        fs9.loot
+            .iter()
+            .all(|l| l.odds.is_some_and(|o| o > 0.0 && o <= 1.0))
+    );
+    let shops: Vec<&str> = fs9.shops.iter().map(|s| s.terminal.as_str()).collect();
+    assert_eq!(shops, ["Dumper's GrimHEX", "Guns Ruin"]);
+    assert_eq!(fs9.shops[0].system.as_deref(), Some("Stanton"));
+    assert!(fs9.mined.is_empty() && fs9.quality.is_none());
+    // An item with no source has no entry; a non-lootable one neither.
+    assert!(!h.items.contains_key("door_01"));
+    assert!(!h.items.contains_key("behr_lmg_ballistic_01_mag"));
+    // Resources by lower-case name: belts (body, system, kind) and spots, quality.
+    let q = &h.items["raw_quantainium"];
+    assert_eq!(q.mined[0].place, "Hurston");
+    assert_eq!(q.mined[0].system.as_deref(), Some("Stanton"));
+    assert_eq!(q.mined[0].kind.as_deref(), Some("ship"));
+    let qh = q.quality.as_ref().unwrap();
+    assert_eq!((qh.min, qh.max, qh.mean), (0.0, 1000.0, 500.0));
+    assert_eq!(qh.overrides[0].place, "Pyro System");
+    let s = &h.items["sadaryx"];
+    assert_eq!(s.mined[0].place, "Rock Cracker, Nyx");
+    assert_eq!(s.mined[0].kind.as_deref(), Some("hand"));
+    assert_eq!(s.quality.as_ref().unwrap().mean, 201.0);
+    // Sell lines per resource, best first, with the fetch time; the match rate.
+    let lar = &h.items["laranite"];
+    let sells: Vec<(&str, f64)> = lar
+        .sells
+        .iter()
+        .map(|s| (s.terminal.as_str(), s.price))
+        .collect();
+    assert_eq!(sells, [("Dumper's GrimHEX", 9612.0), ("Guns Ruin", 8700.0)]);
+    assert_eq!(lar.sells[0].place.as_deref(), Some("Grim HEX"));
+    assert_eq!(lar.sells[0].system.as_deref(), Some("Stanton"));
+    assert_eq!(lar.sells_count(), 2);
+    assert_eq!(h.items["sadaryx"].sells[0].price, 41.0);
+    assert!(fs9.sells.is_empty());
+    assert_eq!(
+        h.prices_fetched.as_deref(),
+        Some("2026-11-21T09:00:00.000Z")
+    );
+    let m = b.sell_match.as_ref().unwrap();
+    assert_eq!((m.commodities, m.matched), (3, 2));
+    assert_eq!(m.unmatched, ["Unobtainium"]);
+    // Kept in memory: no second extraction.
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let again = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(again.items, b.items);
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // Kept on disk: a new store (an app restart) reads the file, even where it could not
+    // build the hints again (mining cannot be extracted, yet no warning and no extraction).
+    let dir = w.root.join("cache/LIVE");
+    let file = std::fs::read_dir(&dir)
+        .unwrap()
+        .flatten()
+        .map(|e| e.path().join("obtain-hints.json"))
+        .find(|p| p.exists())
+        .expect("obtain-hints.json in the build folder");
+    struct NoExtract;
+    impl Extractor for NoExtract {
+        fn extract(&self, _: &Path, d: &str, _: &Path) -> Result<Measurement, String> {
+            Err(format!("{d}: no extraction expected"))
+        }
+    }
+    let mut cfg = w.config();
+    cfg.extractor = Arc::new(NoExtract);
+    let restarted = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(cfg))
+        .obtain_hints("LIVE")
+        .unwrap();
+    assert!(restarted.warnings.is_empty(), "{:?}", restarted.warnings);
+    assert_eq!(restarted.hints, b.hints);
+    assert!(file.exists());
+    // A fresh price file counts at once, though the rest stays cached.
+    let f = w.root.join("cache/uex/uex-commodity-prices.json");
+    std::fs::write(&f, json!({"_fetched": "2026-11-22T09:00:00.000Z", "prices": [
+        {"commodity_name": "Laranite", "id_terminal": 1, "terminal_name": "Guns Ruin", "price_sell": 9999}
+    ]}).to_string()).unwrap();
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    std::fs::File::options()
+        .write(true)
+        .open(&f)
+        .unwrap()
+        .set_modified(later)
+        .unwrap();
+    let fresh = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(fresh.hints.items["laranite"].sells[0].price, 9999.0);
+    assert_eq!(
+        fresh.hints.prices_fetched.as_deref(),
+        Some("2026-11-22T09:00:00.000Z")
+    );
+    assert!(
+        !fresh
+            .hints
+            .items
+            .get("sadaryx")
+            .is_some_and(|s| !s.sells.is_empty())
+    );
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    // Without the file: no sell lines, the rest as before.
+    std::fs::remove_file(&f).unwrap();
+    let none = t.obtain_hints("LIVE").unwrap();
+    assert!(none.hints.items.values().all(|i| i.sells.is_empty()));
+    assert!(none.hints.prices_fetched.is_none() && none.sell_match.is_none());
+}
+
+#[test]
+fn obtain_hints_keep_what_did_not_fail() {
+    // Mining spawns cannot be extracted: loot and shops stay, mining lines go, and the
+    // partial answer is not kept (the next call tries again).
+    struct NoMining(Arc<FakeExtractor>);
+    impl Extractor for NoMining {
+        fn extract(&self, p4k: &Path, d: &str, out: &Path) -> Result<Measurement, String> {
+            if d == "game-mining-spawns" {
+                return Err("Extracting game-mining-spawns may need about 1.4 GB".into());
+            }
+            self.0.extract(p4k, d, out)
+        }
+    }
+    let w = World::new();
+    let mut cfg = w.config();
+    cfg.extractor = Arc::new(NoMining(w.fake.clone()));
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(cfg));
+    let b = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(b.warnings.len(), 1, "{:?}", b.warnings);
+    assert!(b.warnings[0].starts_with("mining and quality lines left out"));
+    assert!(b.hints.items.contains_key("behr_lmg_ballistic_01"));
+    assert!(!b.hints.items.contains_key("raw_quantainium"));
+    // Only the cache: a dataset never extracted is a warning, not an extraction.
+    let w2 = World::new();
+    let t2 = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w2.config()));
+    let c = t2.obtain_hints_with("LIVE", false).unwrap();
+    assert_eq!(w2.fake.runs.load(Ordering::SeqCst), 0);
+    assert!(c.hints.items.is_empty());
+    assert_eq!(c.warnings.len(), 2, "{:?}", c.warnings);
+    // An unknown channel is an error.
+    assert!(t.obtain_hints("NOPE").is_err());
+}
+
+/// UEX answers for `starorg_net::uex::fetch_market`: Dumper's renamed, Laranite repriced.
+struct FakeUex;
+
+impl starorg_net::uex::UexTransport for FakeUex {
+    fn get(
+        &self,
+        endpoint: &str,
+        _token: Option<&str>,
+    ) -> Result<starorg_net::uex::Answer, starorg_net::uex::UexError> {
+        let data = match endpoint {
+            "terminals" => json!([
+                {"id": 1, "nickname": "Guns Ruin", "displayname": "Ruin Station", "orbit_name": "Terminus", "star_system_name": "Pyro", "is_available": 1, "is_available_live": 1},
+                {"id": 2, "nickname": "Dumper's Depot", "displayname": "Grim HEX", "moon_name": "Yela", "orbit_name": "Crusader", "star_system_name": "Stanton", "is_available": 1, "is_available_live": 1}
+            ]),
+            "items_prices_all" => json!([
+                {"item_name": "FS-9 LMG", "item_uuid": "id-fs9", "id_terminal": 2, "terminal_name": "Dumper's Depot", "price_buy": 6500, "date_modified": 1794268800}
+            ]),
+            "commodities_prices_all" => json!([
+                {"commodity_name": "Laranite", "id_terminal": 2, "terminal_name": "Dumper's Depot", "price_sell": 12000, "date_modified": 1794268800}
+            ]),
+            other => panic!("unexpected endpoint {other}"),
+        };
+        Ok(starorg_net::uex::Answer {
+            status: 200,
+            body: serde_json::to_vec(&json!({"status": "ok", "data": data})).unwrap(),
+        })
+    }
+}
+
+#[test]
+fn a_fetch_while_the_tools_run_refreshes_every_uex_answer() {
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    let gun = "EntityClassDefinition.behr_lmg_ballistic_01";
+    let before = t.sources("LIVE", gun).unwrap().buy.unwrap();
+    assert_eq!(before.offers[0].terminal, "Dumper's GrimHEX");
+    let h = t.obtain_hints("LIVE").unwrap();
+    assert_eq!(
+        h.hints.items["behr_lmg_ballistic_01"].shops[0].terminal,
+        "Dumper's GrimHEX"
+    );
+    let shop_names = |t: &starorg_mcp::tools::Tools| -> Vec<String> {
+        t.shop_directory(Some("LIVE"))
+            .systems
+            .iter()
+            .flat_map(|s| &s.locations)
+            .flat_map(|l| &l.shops)
+            .map(|s| s.name.clone())
+            .collect()
+    };
+    assert!(shop_names(&t).contains(&"Dumper's GrimHEX".to_string()));
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    // "Fetch now" with the app's own code, then a newer modified time (a coarse clock may
+    // give the old second).
+    let uex = w.root.join("cache/uex");
+    starorg_net::uex::fetch_market(&FakeUex, &uex, None).unwrap();
+    let later = std::time::SystemTime::now() + std::time::Duration::from_secs(5);
+    for f in starorg_net::uex::FILES {
+        std::fs::File::options()
+            .write(true)
+            .open(uex.join(f))
+            .unwrap()
+            .set_modified(later)
+            .unwrap();
+    }
+    // Same Tools: the card, the shop tool and the in-game hints all see the new names.
+    let buy = t.sources("LIVE", gun).unwrap().buy.unwrap();
+    assert_eq!(buy.total, 1);
+    assert_eq!(buy.offers[0].terminal, "Dumper's Depot");
+    assert_eq!(buy.offers[0].price_buy, 6500.0);
+    let lar = t
+        .sources("LIVE", "ResourceType.Laranite")
+        .unwrap()
+        .sell
+        .unwrap();
+    assert_eq!(lar.offers[0].terminal, "Dumper's Depot");
+    let h = t.obtain_hints("LIVE").unwrap();
+    let fs9 = &h.hints.items["behr_lmg_ballistic_01"];
+    let shops: Vec<&str> = fs9.shops.iter().map(|s| s.terminal.as_str()).collect();
+    assert_eq!(shops, ["Dumper's Depot"]);
+    assert_eq!(h.hints.items["laranite"].sells[0].price, 12000.0);
+    let args = json!({"item": "FS-9 LMG"});
+    let found = t.call("where_to_buy", args.as_object().unwrap()).unwrap();
+    assert!(found.to_string().contains("Dumper's Depot"), "{found}");
+    // The Shops screen's index follows the same stamp.
+    let names = shop_names(&t);
+    assert!(names.contains(&"Dumper's Depot".to_string()), "{names:?}");
+    assert!(
+        !names.contains(&"Dumper's GrimHEX".to_string()),
+        "{names:?}"
+    );
+    let items = t.shop_items(Some("LIVE"), 2);
+    assert_eq!(items.shop.unwrap().name, "Dumper's Depot");
+    // Nothing extracted again: only the UEX-derived values were rebuilt.
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
 }

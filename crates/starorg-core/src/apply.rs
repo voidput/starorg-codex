@@ -467,8 +467,8 @@ pub fn status(ctx: &Ctx, t: &Target<'_>, inputs: &Inputs) -> Result<Status, Stri
             applied,
         });
     }
-    let bytes = std::fs::read(&ini.real).map_err(|e| format!("{}: {e}", ini.real.display()))?;
-    let sha = fsutil::sha256_hex(&bytes);
+    let sha = fsutil::sha256_file_cached(&ini.real)
+        .map_err(|e| format!("{}: {e}", ini.real.display()))?;
     let outputs = Outputs::load(&ctx.dirs).map_err(|e| e.to_string())?;
     let state = match &applied {
         Some(a) if a.output_sha256 == sha => {
@@ -482,9 +482,14 @@ pub fn status(ctx: &Ctx, t: &Target<'_>, inputs: &Inputs) -> Result<Status, Stri
         _ if outputs.contains(&sha) => State::Stale {
             reasons: vec!["not the last recorded output".into()],
         },
-        _ => State::ChangedByAnotherTool {
-            tool: foreign_tool(&bytes, &t.channel.dir),
-        },
+        _ => {
+            // Only a file we did not write is read whole (to name the tool).
+            let bytes =
+                std::fs::read(&ini.real).map_err(|e| format!("{}: {e}", ini.real.display()))?;
+            State::ChangedByAnotherTool {
+                tool: foreign_tool(&bytes, &t.channel.dir),
+            }
+        }
     };
     Ok(Status {
         channel: t.channel.name.clone(),
@@ -554,6 +559,9 @@ pub struct Report {
     pub recovered: Option<String>,
     /// Owned blueprints used for `[Owned]` markers (addendum §3).
     pub owned: Option<blueprints::Selection>,
+    /// Obtain hints (spec obtain-hints), when the profile asked for them.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub obtain: Option<ObtainStats>,
     pub duration_ms: u64,
 }
 
@@ -582,6 +590,7 @@ impl Report {
             output_sha256: None,
             recovered: None,
             owned: None,
+            obtain: None,
             duration_ms: 0,
         }
     }
@@ -610,6 +619,8 @@ fn counts_json(c: &Counts, g: &crate::enhance::Generated) -> serde_json::Value {
         "missiles": n(&[C::Missiles, C::MissileTags]),
         "missions": n(&[C::MissionTitles, C::MissionDescriptions]),
         "ship_names": n(&[C::ShipNames]),
+        "obtain_hints": n(&[C::ObtainHints]),
+        "missing_names": n(&[C::MissingNames]),
         "generated": c.generated,
         "loc_patches": c.loc_patches,
         "overrides": c.overrides, "dropped": c.dropped,
@@ -829,6 +840,83 @@ pub struct ApplyOpts {
     pub profile_file: Option<PathBuf>,
     /// `--character <name|geid|auto|any>` for `[Owned]` markers.
     pub character: Option<String>,
+    /// Where the obtain hints come from (spec obtain-hints), asked only when the profile has
+    /// `obtain` on. `None`: no WHERE TO GET blocks beyond what `GameData` alone gives.
+    pub obtain: Option<ObtainProvider>,
+}
+
+/// What an obtain-hints source answered for one channel.
+#[derive(Debug, Clone, Default)]
+pub struct ObtainFetch {
+    /// `None` when nothing could be read; the blocks are then left out.
+    pub hints: Option<crate::model::ObtainHints>,
+    /// One line per dataset group that failed (its lines are left out).
+    pub warnings: Vec<String>,
+}
+
+/// A source of obtain hints: the caller that can run the dataset workers (the CLI and the
+/// app, over `starorg-mcp`). Core never names the datasets.
+pub trait ObtainSource: Send + Sync {
+    fn fetch(&self, channel: &str) -> ObtainFetch;
+}
+
+/// A shared [`ObtainSource`], for [`ApplyOpts`].
+#[derive(Clone)]
+pub struct ObtainProvider(pub std::sync::Arc<dyn ObtainSource>);
+
+impl std::fmt::Debug for ObtainProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("ObtainProvider")
+    }
+}
+
+/// How the obtain hints of an apply went: time spent (dataset extraction on the first
+/// apply of a build, then the cache) and how many classes have a source.
+#[derive(Debug, Clone, Default, PartialEq, Serialize)]
+pub struct ObtainStats {
+    pub ms: u64,
+    pub items: usize,
+}
+
+/// The obtain hints for `gd` under `profile`: asked from `source` only when the profile
+/// has `obtain` on, with `desc` filled from `gd` (the build's own description keys). A
+/// failure never stops the caller: it comes back as `obtain-hints` warnings and the
+/// blocks it feeds are left out.
+pub fn obtain_hints(
+    gd: &crate::model::GameData,
+    profile: &crate::enhance::profile::Profile,
+    source: Option<&ObtainProvider>,
+    channel: &str,
+) -> (
+    Option<crate::model::ObtainHints>,
+    Vec<Warning>,
+    Option<ObtainStats>,
+) {
+    let Some(src) = source.filter(|_| profile.obtain) else {
+        return (None, Vec::new(), None);
+    };
+    let t = Instant::now();
+    let fetched = src.0.fetch(channel);
+    let mut warnings: Vec<Warning> = fetched
+        .warnings
+        .iter()
+        .map(|w| Warning::new("obtain-hints", w.clone()))
+        .collect();
+    let hints = fetched.hints.map(|mut h| {
+        h.fill_descs(gd);
+        h
+    });
+    if hints.is_some() && gd.item_descs.is_empty() && gd.resource_descs.is_empty() {
+        warnings.push(Warning::new(
+            "obtain-hints",
+            "the game data has no description keys (an older extraction); WHERE TO GET left out",
+        ));
+    }
+    let stats = ObtainStats {
+        ms: t.elapsed().as_millis() as u64,
+        items: hints.as_ref().map_or(0, |h| h.items.len()),
+    };
+    (hints, warnings, Some(stats))
 }
 
 enum LoadErr {
@@ -875,9 +963,14 @@ fn load_stock(
     })?;
     if ctx.use_cache
         && let Some(inp) = inputs
-        && let Err(e) = cache::store(&cache_dir, inp, &loaded, ctx.min_stock_keys)
     {
-        warnings.push(Warning::new("cache", format!("not cached: {e}")));
+        match cache::store(&cache_dir, inp, &loaded, ctx.min_stock_keys) {
+            Err(e) => warnings.push(Warning::new("cache", format!("not cached: {e}"))),
+            // The cache folder's cap; this channel's new entry is in use.
+            Ok(()) => {
+                crate::storage::enforce_configured(&ctx.dirs, &[cache::entry_dir(&cache_dir, inp)]);
+            }
+        }
     }
     Ok(loaded)
 }
@@ -1076,16 +1169,24 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
     let patched = patch::data_overlay(&inputs.patches, &loaded.game_data, t.build());
     r.warnings
         .extend(inputs.ship_names.warnings.iter().cloned());
-    let generated = crate::enhance::generate_with(
-        patched.as_ref().unwrap_or(&loaded.game_data),
+    let gd = patched.as_ref().unwrap_or(&loaded.game_data);
+    let (hints, obtain_warnings, obtain_stats) =
+        obtain_hints(gd, &enhance_profile, opts.obtain.as_ref(), &t.channel.name);
+    r.warnings.extend(obtain_warnings);
+    r.obtain = obtain_stats;
+    // Curated names from the same patch set merge applies (spec missing-names, tier 1).
+    let curated = patch::curated_names(&inputs.patches, &loaded.game_data, t.build());
+    let generated = crate::enhance::generate_named(
+        gd,
         &stock,
         &enhance_profile,
         &inputs.owned,
         inputs.ship_names.active(),
+        hints.as_ref(),
+        &curated,
     );
     r.warnings.extend(generated.warnings.iter().cloned());
-    let gen_edits: Vec<merge::GenEdit> =
-        generated.edits.values().map(merge::GenEdit::from).collect();
+    let gen_edits = merge::gen_edits(&generated);
     let merged = merge::merge(
         &stock,
         &loaded.game_data,
@@ -1101,7 +1202,7 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
 
     // 6. Validate the whole file.
     let out = stock.render(&merged.edits);
-    if let Err(e) = validate::check_file(&stock, &out) {
+    if let Err(e) = validate::check_file_with(&stock, &out, merged.edits.added_len()) {
         return fail(r, format!("whole-file validation failed (writer bug): {e}"));
     }
     let out_sha = fsutil::sha256_hex(&out);
@@ -1700,7 +1801,7 @@ pub fn restore(ctx: &Ctx, t: &Target<'_>, backup_id: &str, allow_build_mismatch:
         return fail(r, e);
     }
     let want: Option<Vec<u8>> = if b.manifest.file.existed {
-        match std::fs::read(b.ini_path()) {
+        match b.read_ini() {
             Ok(bytes) if Some(fsutil::sha256_hex(&bytes)) == b.manifest.file.sha256 => Some(bytes),
             Ok(_) => return fail(r, format!("backup {} is damaged (hash mismatch)", b.id)),
             Err(e) => return fail(r, format!("backup {}: {e}", b.id)),
@@ -1782,5 +1883,49 @@ mod tests {
         assert_eq!(worst([5, 4, 6]), 6);
         assert_eq!(worst([5, 0]), 5);
         assert_eq!(worst([]), 0);
+    }
+
+    #[test]
+    fn obtain_hints_are_asked_only_when_on_and_get_their_desc_keys() {
+        use super::{ObtainFetch, ObtainProvider, ObtainSource, obtain_hints};
+        use crate::model::{GameData, ItemObtain, ObtainHints};
+        struct Fixed(Option<ObtainHints>, Vec<String>);
+        impl ObtainSource for Fixed {
+            fn fetch(&self, _: &str) -> ObtainFetch {
+                ObtainFetch {
+                    hints: self.0.clone(),
+                    warnings: self.1.clone(),
+                }
+            }
+        }
+        let gd = GameData {
+            item_descs: [("gun".to_string(), "@item_DescGun".to_string())].into(),
+            ..Default::default()
+        };
+        let hints = ObtainHints {
+            items: [("gun".to_string(), ItemObtain::default())].into(),
+            ..Default::default()
+        };
+        let src = ObtainProvider(std::sync::Arc::new(Fixed(Some(hints), vec![])));
+        let mut p = crate::enhance::profile::Profile {
+            obtain: true,
+            ..Default::default()
+        };
+        let (h, w, s) = obtain_hints(&gd, &p, Some(&src), "LIVE");
+        assert!(w.is_empty());
+        assert_eq!(h.unwrap().desc["gun"], "@item_DescGun");
+        assert_eq!(s.unwrap().items, 1);
+        // Off: not asked at all.
+        p.obtain = false;
+        assert_eq!(obtain_hints(&gd, &p, Some(&src), "LIVE").2, None);
+        // A failing source: warnings only.
+        p.obtain = true;
+        let bad = ObtainProvider(std::sync::Arc::new(Fixed(None, vec!["x failed".into()])));
+        let (h, w, _) = obtain_hints(&gd, &p, Some(&bad), "LIVE");
+        assert!(h.is_none());
+        assert_eq!(w[0].kind, "obtain-hints");
+        // Hints but a GameData without description keys (an old cache entry).
+        let (_, w, _) = obtain_hints(&GameData::default(), &p, Some(&src), "LIVE");
+        assert!(w[0].detail.contains("no description keys"), "{w:?}");
     }
 }

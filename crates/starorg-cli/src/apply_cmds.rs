@@ -78,8 +78,12 @@ pub(crate) fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, Exi
             &format!("cannot find own binary: {e}"),
         )
     })?;
+    let work = c.dirs.cache.join("work");
+    // Leftovers of an earlier run that never cleaned up (older than an hour, no live
+    // load holds them; a parallel app or CLI run keeps its own).
+    starorg_core::source::local::sweep_work(&work, starorg_core::source::local::WORK_STALE);
     let mut s = LocalExtraction::new(exe);
-    s.work_root = Some(c.dirs.cache.join("work"));
+    s.work_root = Some(work);
     Ok(Box::new(s))
 }
 
@@ -227,6 +231,20 @@ pub(crate) fn print_reports(
                 r.counts["loc_patches"],
                 r.counts["dropped"]
             );
+            if r.counts["missing_names"].as_u64().unwrap_or(0) > 0 {
+                println!(
+                    "  missing names and descriptions: {} keys added",
+                    r.counts["missing_names"]
+                );
+            }
+            if let Some(o) = &r.obtain {
+                println!(
+                    "  where to get: {} descriptions, sources for {} items in {:.1} s",
+                    r.counts["obtain_hints"],
+                    o.items,
+                    o.ms as f64 / 1000.0
+                );
+            }
             for p in &r.patches {
                 println!("  patch {}: {}", p.id, p.state);
             }
@@ -444,6 +462,7 @@ pub fn apply(
             .unwrap_or_default(),
         profile_file: profile,
         character,
+        obtain: crate::obtain_src::provider(g, &i, &c.dirs, None),
     };
     let (reports, skipped) =
         match apply_channels(g, &c, &i, &id, &names, sel.all, &opts, src.as_ref()) {

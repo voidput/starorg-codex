@@ -24,10 +24,31 @@ interface Samples {
   backup_now: T.BackupView;
   remove_changes: T.ApplyReport;
   profile_schema: T.ProfileSchema;
+  obtain_status: T.ObtainStatus;
+  uex_token_status: T.UexTokenStatus;
+  set_uex_token: T.UexTokenStatus;
+  fetch_uex: T.ObtainStatus;
+  loot_list_missing: T.LootList;
+  loot_list: T.LootList;
+  loot_detail: T.LootDetail;
+  loot_detail_item: T.LootDetail;
+  shop_inventory: T.ShopDirectory;
+  shop_inventory_missing: T.ShopDirectory;
+  shop_inventory_linked: T.ShopDirectory;
+  shop_items: T.ShopItems;
+  shop_items_all: T.ShopItems[];
+  shop_items_all_linked: T.ShopItems[];
+  commodity_list_not_read: T.CommodityDirectory;
+  commodity_list: T.CommodityDirectory;
+  commodity_list_priced: T.CommodityDirectory;
+  commodity_detail: T.CommodityInfo;
+  commodity_details_all: T.CommodityDetail[];
+  commodity_details_all_priced: T.CommodityDetail[];
   list_overrides: T.OverrideEntry[];
   add_user_patch: T.PatchView;
   export_user_patch: T.PatchExport;
   build_preview: T.PreviewItem[];
+  read_game_data: T.ChannelSummary;
   get_profile: T.Profile;
   query_strings: T.StringsPage;
   query_strings_by_size: T.StringsPage;
@@ -98,6 +119,9 @@ interface Samples {
   dev_record_combat_weapon: T.Combat | null;
   dev_record_combat_missile: T.Combat | null;
   dev_record_combat_none: T.Combat | null;
+  dev_record_sources_loot: T.RecordSources;
+  dev_record_sources_ore: T.RecordSources;
+  dev_record_sources_none: T.RecordSources;
   dev_export_record: T.DevExportResult;
   dev_export_type: T.DevExportResult;
   dev_sources: T.DevSource[];
@@ -176,6 +200,8 @@ interface Samples {
   set_mcp_enabled: T.McpStatus;
   memory_status: T.MemoryStatus;
   set_memory_limit: T.MemoryStatus;
+  storage_status: T.StorageStatus;
+  storage_clear_assets: T.StorageStatus;
   open_link: null;
 }
 

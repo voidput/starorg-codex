@@ -22,8 +22,13 @@ getrandom = { workspace = true, optional = true }
 # the CLI leaves it off and speaks stdio only (ci.yml checks the CLI's dependency tree).
 http = ["dep:getrandom"]
 
+[build-dependencies]
+sha2.workspace = true
+
 [dev-dependencies]
 tempfile.workspace = true
+# Tests write the UEX files with the real fetch code (a fake transport, no network).
+starorg-net.workspace = true
 starorg-mcp = { path = ".", features = ["http"] }
 
 [lints]

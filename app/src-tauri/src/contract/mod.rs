@@ -20,9 +20,15 @@ pub mod mock;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_assets;
 #[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_commodities;
+#[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_dev;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_finder;
+#[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_loot;
+#[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_shops;
 pub mod real;
 pub mod schema;
 pub mod strings_query;
@@ -67,8 +73,40 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn cancel_job(&self, job: String) -> CmdResult<()>;
 
     fn build_preview(&self, req: PreviewRequest) -> CmdResult<Vec<PreviewItem>>;
+    /// Extract the channel's game data (and the Where to get datasets) into the cache, as
+    /// apply would, without writing to the game folder. A job (`extract`); `needs-decision`
+    /// for a channel that is not set up. Returns the channel's summary (cache `fresh`).
+    fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary>;
     /// Labels for the core's stat line and tag element ids.
     fn profile_schema(&self) -> CmdResult<ProfileSchema>;
+    /// The UEX folder and files the WHERE TO GET shop line reads (spec obtain-hints). Reads
+    /// only file metadata; nothing is downloaded (that is `fetch_uex`).
+    fn obtain_status(&self) -> CmdResult<ObtainStatus>;
+    /// Whether a UEX API token is saved (keyring or file); never the token.
+    fn uex_token_status(&self) -> CmdResult<UexTokenStatus>;
+    /// Save the UEX token; `null` or empty removes it.
+    fn set_uex_token(&self, req: UexTokenRequest) -> CmdResult<UexTokenStatus>;
+    /// "Fetch now": download both UEX files into the UEX folder (`network-off` while
+    /// "Download UEX market data" is off).
+    fn fetch_uex(&self) -> CmdResult<ObtainStatus>;
+    /// The Loot screen's list: every loot area or every item that drops in one, summaries
+    /// only (`state: missing` while the channel's loot data is not cached). Built once per
+    /// build from the cached datasets; nothing is extracted.
+    fn loot_list(&self, req: LootListRequest) -> CmdResult<LootList>;
+    /// One area's items or one item's areas, likeliest first (rough odds per spawned box).
+    fn loot_detail(&self, req: LootDetailRequest) -> CmdResult<LootDetail>;
+    /// The Shops screen: every UEX item terminal by system and place, with what it sells
+    /// (`state: missing` while the UEX files are not there). Reads the UEX files and the
+    /// channel's cached item data; nothing is downloaded or extracted.
+    fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory>;
+    /// One shop's items by category, with prices and the game record when linked.
+    fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems>;
+    /// The Commodities screen: every tradable resource of the channel's build as list rows
+    /// (summaries only), from its cached game data; nothing is extracted or downloaded.
+    fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory>;
+    /// One resource in full: forms, quality, volatility, cargo, where it is mined and the
+    /// UEX kiosk prices when the UEX files are there.
+    fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo>;
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile>;
     fn preset_profile(&self, preset: Preset) -> CmdResult<Profile>;
     fn save_profile(&self, req: SaveProfileRequest) -> CmdResult<Profile>;
@@ -84,7 +122,11 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn reset_override(&self, req: KeyRequest) -> CmdResult<StringDetail>;
     fn list_overrides(&self, req: ChannelRef) -> CmdResult<Vec<OverrideEntry>>;
 
+    /// Answers at once: an enabled patch reads `checking` unless the channel's table is
+    /// already built; [`Backend::patch_states`] gives the states.
     fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>>;
+    /// [`Backend::list_patches`] with every state worked out (builds the table if needed).
+    fn patch_states(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>>;
     fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView>;
     fn patch_detail(&self, req: PatchRef) -> CmdResult<PatchDetail>;
     fn add_user_patch(&self, req: NewPatch) -> CmdResult<PatchView>;
@@ -178,6 +220,15 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn memory_status(&self) -> CmdResult<MemoryStatus>;
     /// Save the limit (`config.toml` `[dev] memory_limit_gb`); `gb: None` resets it.
     fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus>;
+
+    // Storage (Settings > Storage; docs/user-guide.md#storage).
+    /// Sizes per area and the cache folder's cap. Walks the folders (read only); the real
+    /// backend keeps the sizes until something may have changed them (or 5 minutes).
+    fn storage_status(&self) -> CmdResult<StorageStatus>;
+    /// "Measure again": `storage_status`, walking the folders now.
+    fn storage_measure(&self) -> CmdResult<StorageStatus>;
+    /// "Clear asset cache": `busy` while an asset export or preview is running.
+    fn storage_clear_assets(&self) -> CmdResult<StorageStatus>;
 }
 
 /// Managed state: the selected backend.
@@ -231,7 +282,18 @@ commands! {
     delete_backup(req: BackupRef) -> BackupList;
     cancel_job(job: String) -> ();
     build_preview(req: PreviewRequest) -> Vec<PreviewItem>;
+    read_game_data(req: ReadGameDataRequest) -> ChannelSummary;
     profile_schema() -> ProfileSchema;
+    obtain_status() -> ObtainStatus;
+    uex_token_status() -> UexTokenStatus;
+    set_uex_token(req: UexTokenRequest) -> UexTokenStatus;
+    fetch_uex() -> ObtainStatus;
+    loot_list(req: LootListRequest) -> LootList;
+    loot_detail(req: LootDetailRequest) -> LootDetail;
+    shop_inventory(req: ShopInventoryRequest) -> ShopDirectory;
+    shop_items(req: ShopItemsRequest) -> ShopItems;
+    commodity_list(req: CommodityListRequest) -> CommodityDirectory;
+    commodity_detail(req: CommodityDetailRequest) -> CommodityInfo;
     get_profile(req: ChannelRef) -> Profile;
     preset_profile(preset: Preset) -> Profile;
     save_profile(req: SaveProfileRequest) -> Profile;
@@ -243,6 +305,7 @@ commands! {
     reset_override(req: KeyRequest) -> StringDetail;
     list_overrides(req: ChannelRef) -> Vec<OverrideEntry>;
     list_patches(req: ChannelRef) -> Vec<PatchView>;
+    patch_states(req: ChannelRef) -> Vec<PatchView>;
     set_patch_enabled(req: PatchToggle) -> PatchView;
     patch_detail(req: PatchRef) -> PatchDetail;
     add_user_patch(req: NewPatch) -> PatchView;
@@ -290,6 +353,9 @@ commands! {
     set_mcp_enabled(req: McpToggle) -> McpStatus;
     memory_status() -> MemoryStatus;
     set_memory_limit(req: MemoryLimitRequest) -> MemoryStatus;
+    storage_status() -> StorageStatus;
+    storage_measure() -> StorageStatus;
+    storage_clear_assets() -> StorageStatus;
 }
 
 /// Apply streams [`JOB_EVENT`] events while it runs.
@@ -329,7 +395,18 @@ macro_rules! contract_handler {
             $crate::contract::delete_backup,
             $crate::contract::cancel_job,
             $crate::contract::build_preview,
+            $crate::contract::read_game_data,
             $crate::contract::profile_schema,
+            $crate::contract::obtain_status,
+            $crate::contract::uex_token_status,
+            $crate::contract::set_uex_token,
+            $crate::contract::fetch_uex,
+            $crate::contract::loot_list,
+            $crate::contract::loot_detail,
+            $crate::contract::shop_inventory,
+            $crate::contract::shop_items,
+            $crate::contract::commodity_list,
+            $crate::contract::commodity_detail,
             $crate::contract::get_profile,
             $crate::contract::preset_profile,
             $crate::contract::save_profile,
@@ -341,6 +418,7 @@ macro_rules! contract_handler {
             $crate::contract::reset_override,
             $crate::contract::list_overrides,
             $crate::contract::list_patches,
+            $crate::contract::patch_states,
             $crate::contract::set_patch_enabled,
             $crate::contract::patch_detail,
             $crate::contract::add_user_patch,
@@ -395,12 +473,14 @@ macro_rules! contract_handler {
             $crate::contract::dev::dev_search,
             $crate::contract::dev::dev_record,
             $crate::contract::dev::dev_record_combat,
+            $crate::contract::dev::dev_record_sources,
             $crate::contract::dev::dev_export_record,
             $crate::contract::dev::dev_export_type,
             $crate::contract::dev::dev_sources,
             $crate::contract::dev::dev_add_source,
             $crate::contract::dev::dev_remove_source,
             $crate::contract::dev::dev_dump_releases,
+            $crate::contract::dev::dev_refresh_dump_releases,
             $crate::contract::dev::dev_download_dump,
             $crate::contract::dev::dev_dataset,
             $crate::contract::dev::dev_table,
@@ -438,6 +518,9 @@ macro_rules! contract_handler {
             $crate::contract::set_mcp_enabled,
             $crate::contract::memory_status,
             $crate::contract::set_memory_limit,
+            $crate::contract::storage_status,
+            $crate::contract::storage_measure,
+            $crate::contract::storage_clear_assets,
         ]
     };
 }
@@ -460,7 +543,18 @@ pub const COMMAND_NAMES: &[&str] = &[
     "delete_backup",
     "cancel_job",
     "build_preview",
+    "read_game_data",
     "profile_schema",
+    "obtain_status",
+    "uex_token_status",
+    "set_uex_token",
+    "fetch_uex",
+    "loot_list",
+    "loot_detail",
+    "shop_inventory",
+    "shop_items",
+    "commodity_list",
+    "commodity_detail",
     "get_profile",
     "preset_profile",
     "save_profile",
@@ -472,6 +566,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "reset_override",
     "list_overrides",
     "list_patches",
+    "patch_states",
     "set_patch_enabled",
     "patch_detail",
     "add_user_patch",
@@ -526,12 +621,14 @@ pub const COMMAND_NAMES: &[&str] = &[
     "dev_search",
     "dev_record",
     "dev_record_combat",
+    "dev_record_sources",
     "dev_export_record",
     "dev_export_type",
     "dev_sources",
     "dev_add_source",
     "dev_remove_source",
     "dev_dump_releases",
+    "dev_refresh_dump_releases",
     "dev_download_dump",
     "dev_dataset",
     "dev_table",
@@ -569,6 +666,9 @@ pub const COMMAND_NAMES: &[&str] = &[
     "set_mcp_enabled",
     "memory_status",
     "set_memory_limit",
+    "storage_status",
+    "storage_measure",
+    "storage_clear_assets",
 ];
 
 #[cfg(test)]
@@ -577,3 +677,5 @@ mod tests;
 mod tests_assets;
 #[cfg(test)]
 mod tests_dev;
+#[cfg(test)]
+mod tests_loot;

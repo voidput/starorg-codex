@@ -6,7 +6,9 @@
    * references and loc text). Below 1,100 px the tree is a drawer. Each pane scrolls inside
    * itself. Keys: F6 / Shift+F6 cycle the panes, `/` or Ctrl+F focuses search, Esc returns to
    * the list, Alt+Left / Alt+Right (and the mouse's back/forward buttons) walk the history.
-   * The worker starts when the screen opens; a crash is a "stopped" banner with Retry.
+   * Opening the screen only asks for the worker's status: it starts on "Open game data", on a
+   * hand-off (Ctrl+K, "Open in Explorer") or by itself when it was opened for this channel this
+   * session. A crash is a "stopped" banner with Retry.
    */
   import { tick, untrack } from 'svelte';
   import Search from '@lucide/svelte/icons/search';
@@ -31,6 +33,8 @@
   import JsonTree from '@/components/dev/JsonTree.svelte';
   import RecordSheet from '@/components/dev/RecordSheet.svelte';
   import CombatCard from '@/components/dev/CombatCard.svelte';
+  import SourcesCard from '@/components/dev/SourcesCard.svelte';
+  import { hasSources } from '@/lib/sources';
   import ShowIdsToggle from '@/components/dev/ShowIdsToggle.svelte';
   import AssetPanel from '@/components/assets/AssetPanel.svelte';
   import TriggerPanel from '@/components/assets/TriggerPanel.svelte';
@@ -44,6 +48,8 @@
   import { guidOf, treeKey, treeRows, typeahead, bytes, type Loaded } from '@/lib/devnav';
   import type { Json, RefInfo } from '@/lib/jsontree';
   import { loadSheetMode, saveSheetMode, type SheetMode } from '@/lib/recordsheet';
+  import { guard } from '@/lib/loadstate';
+  import { OPEN_COST, openPlan } from '@/lib/lazyopen';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
@@ -102,19 +108,50 @@
 
   // --- Worker --------------------------------------------------------------------------
   let ready = $state(false);
+  /** Not open and nothing asked for it: the "Open game data" button. */
+  let askOpen = $state(false);
+  const boot = guard();
+  const handoff = () => dev.pendingSearch !== null || dev.pendingOpen !== null;
+  function opened(key: string) {
+    ready = true;
+    dev.opened.add('explorer', key);
+    void loadRoot();
+  }
+  /** Start the worker (the button, Retry, a hand-off). */
   async function start() {
     if (!target) return;
+    const live = boot.next();
+    const key = tkey;
     ready = false;
+    askOpen = false;
     const s = await dev.ensure($state.snapshot(target), true);
-    ready = s?.state === 'ready';
-    if (ready) void loadRoot();
+    if (!live()) return;
+    if (s?.state === 'ready') opened(key);
+  }
+  /** On mount and channel switch: status only, then open if a hand-off or an earlier open asks for it. */
+  async function check() {
+    if (!target) return;
+    const live = boot.next();
+    const key = tkey;
+    ready = false;
+    askOpen = false;
+    const s = await dev.ensure($state.snapshot(target), false);
+    if (!live()) return;
+    const plan = openPlan(s?.state, handoff(), dev.opened.has('explorer', key));
+    if (plan === 'ready') opened(key);
+    else if (plan === 'open') void start();
+    else askOpen = true;
   }
   $effect(() => {
     void tkey;
     untrack(() => {
+      tree.drop();
+      sel.drop();
+      recSeq.drop();
+      recLoading = false;
       loaded = new Map();
       open = new Set();
-      void start();
+      void check();
     });
   });
 
@@ -123,23 +160,31 @@
   let open = $state.raw(new Set<string>());
   let treeActive = $state('');
   let treeError = $state<ContractError | null>(null);
+  // Bumped by a new root (channel, By type/path, main only): older pages are dropped.
+  const tree = guard();
+  let treeLive = tree.next();
   async function fetchChildren(node: string, offset: number) {
     if (!target) return;
+    const live = treeLive;
     try {
       const r = await devApi.tree({ target: $state.snapshot(target), root, node, offset, limit: PAGE, main_only: mainOnly });
+      if (!live()) return;
       const prev = offset ? loaded.get(node)?.nodes ?? [] : [];
       const n = new Map(loaded);
       n.set(node, { nodes: [...prev, ...r.nodes], total: r.total });
       loaded = n;
       treeError = null;
     } catch (e) {
-      treeError = toContractError(e);
+      if (live()) treeError = toContractError(e);
     }
   }
   async function loadRoot() {
+    treeLive = tree.next();
+    const live = treeLive;
     loaded = new Map();
     open = new Set();
     await fetchChildren('', 0);
+    if (!live()) return;
     treeActive = loaded.get('')?.nodes[0]?.id ?? '';
   }
   $effect(() => {
@@ -252,25 +297,31 @@
         });
     });
   });
+  // Click type A, then B: A's slower page is dropped instead of listing A under B.
+  const sel = guard();
+  let selLive = sel.next();
   async function selectNode(n: TreeNode) {
     selected = n;
     search = '';
     debounced = '';
     listActive = 0;
     if (!target) return;
+    const live = (selLive = sel.next());
     try {
       const r = await devApi.tree({ target: $state.snapshot(target), root, node: n.id, offset: 0, limit: PAGE, main_only: mainOnly });
+      if (!live()) return;
       listNodes = r.nodes;
       listTotal = r.total;
       listError = null;
     } catch (e) {
-      listError = toContractError(e);
+      if (live()) listError = toContractError(e);
     }
   }
   async function moreList() {
     if (!target || !selected) return;
+    const live = selLive;
     const r = await devApi.tree({ target: $state.snapshot(target), root, node: selected.id, offset: listNodes.length, limit: PAGE, main_only: mainOnly });
-    listNodes = [...listNodes, ...r.nodes];
+    if (live()) listNodes = [...listNodes, ...r.nodes];
   }
   interface Item {
     guid: string | null;
@@ -326,18 +377,23 @@
   const loadViewer = () => (viewer ??= import('@/components/assets/ModelViewer.svelte'));
   let recError = $state<ContractError | null>(null);
   let recLoading = $state(false);
+  // Open record A, then B: A's slower answer is dropped (and not added to the history).
+  const recSeq = guard();
   async function show(what: string): Promise<boolean> {
     if (!target) return false;
+    const live = recSeq.next();
     recLoading = true;
     try {
-      rec = await devApi.record({ target: $state.snapshot(target), what, pointer: '', depth: null });
+      const r = await devApi.record({ target: $state.snapshot(target), what, pointer: '', depth: null });
+      if (!live()) return false;
+      rec = r;
       recError = null;
       return true;
     } catch (e) {
-      recError = toContractError(e);
+      if (live()) recError = toContractError(e);
       return false;
     } finally {
-      recLoading = false;
+      if (live()) recLoading = false;
     }
   }
   async function openRecord(what: string) {
@@ -437,6 +493,8 @@
     void dev.seq;
     const r = ready;
     untrack(() => {
+      // A hand-off while the button is showing opens the worker; the pending ask runs once ready.
+      if (!r && askOpen && handoff()) void start();
       if (!r) return;
       if (dev.pendingSearch !== null) {
         if (finding) finderQuery = dev.pendingSearch;
@@ -575,7 +633,7 @@
   {/if}
   <div bind:this={treeScroller} class="relative min-h-0 flex-1 overflow-auto" onscroll={() => (treeTop = treeScroller?.scrollTop ?? 0)}>
     {#if !loaded.has('')}
-      <div class="grid gap-1 p-2">{#each { length: 10 } as _, i (i)}<Skeleton class="h-5 w-full" />{/each}</div>
+      {#if !askOpen}<div class="grid gap-1 p-2">{#each { length: 10 } as _, i (i)}<Skeleton class="h-5 w-full" />{/each}</div>{/if}
     {:else}
       <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
       <div
@@ -685,6 +743,15 @@
           <div class="text-muted-foreground text-[12px]">{status?.error ?? dev.error?.message ?? 'It could not read the game data.'} The app is fine; only the explorer process ended.</div>
         </div>
         <Button variant="outline" size="sm" onclick={() => void start()}>Retry</Button>
+      </div>
+    {:else if askOpen}
+      <div class="bg-card flex flex-wrap items-center gap-3 rounded-lg border px-4 py-3" role="status">
+        <Binary class="text-muted-foreground size-4" aria-hidden="true" />
+        <div class="min-w-0 flex-1">
+          <div class="font-medium">The game data of {target.channel} is not open</div>
+          <div class="text-muted-foreground text-[12px]">The explorer reads Data.p4k in a separate process ({OPEN_COST}; it starts in about a second).</div>
+        </div>
+        <Button size="sm" onclick={() => void start()}>Open game data</Button>
       </div>
     {:else if !ready}
       <div class="text-muted-foreground flex items-center gap-2 text-[12.5px]" role="status">
@@ -885,6 +952,9 @@
               </div>
               <!-- Combat numbers come from GameData, not the JSON: the same card in both views. -->
               <CombatCard {target} guid={h.guid} onopen={(g) => void openRecord(g)} class="max-h-[45%]" />
+              {#if hasSources(h.type)}
+                <SourcesCard {target} name={`${h.type}.${h.name}`} class="max-h-[45%]" />
+              {/if}
               {#if dataView === 'readable'}
                 <RecordSheet id="rec" json={rec.json} label={h.name} loc={rec.loc} labels={rec.labels} onfollow={follow} onload={loadAt} onloc={openLoc} class="min-h-0 flex-1" />
               {:else}

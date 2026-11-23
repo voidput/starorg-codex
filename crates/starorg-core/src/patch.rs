@@ -9,6 +9,11 @@
 //!   after generators and before any loc entry writes.
 //! - **Guards never contain CIG's text**: a guard on prose is `expect_sha256` of the stock
 //!   value.
+//! - **Curated names**: a loc `set` with `fill_name = true` names an item whose stock name
+//!   is missing (it replaces the key Fix missing item names added) or a placeholder (it sets
+//!   that line). The guard is that stock has no real name: once the game names it, the entry
+//!   retires as `not-needed` and stock wins. [`curated_names`] gives the same values to the
+//!   generators, so a curated base names its variants.
 
 use crate::appdirs::AppDirs;
 use crate::build::{BuildInfo, GameVersion};
@@ -32,6 +37,14 @@ pub const BUILTIN: &[(&str, &str)] = &[
     (
         "hockrow-recoveritem-desc.patch.toml",
         include_str!("../patches/hockrow-recoveritem-desc.patch.toml"),
+    ),
+    (
+        "missing-names.patch.toml",
+        include_str!("../patches/missing-names.patch.toml"),
+    ),
+    (
+        "name-fixes.patch.toml",
+        include_str!("../patches/name-fixes.patch.toml"),
     ),
     (
         "quest-items.patch.toml",
@@ -121,6 +134,13 @@ pub struct LocEntry {
     /// it is not in stock the entry is `not-needed`, not `missing`, and does not warn.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub optional: bool,
+    /// A curated item name where the stock name is missing or a placeholder (spec
+    /// missing-names, tier 1): `set` replaces the key Fix missing item names added, or the
+    /// placeholder line. A real stock name makes it `not-needed` (the game names it now);
+    /// a missing key nobody added, `no-data`. Only `set`, without `expect_sha256` (the guard
+    /// is the stock name being bad) or `optional`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub fill_name: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -229,6 +249,16 @@ pub fn parse_patch(name: &str, text: &str) -> Result<PatchFile, String> {
                         "{name}: append_from must carry requires or expect_sha256"
                     ));
                 }
+            }
+        }
+        if l.fill_name {
+            if l.op != LocOp::Set {
+                return Err(format!("{name}: fill_name works with op \"set\" only"));
+            }
+            if l.expect_sha256.is_some() || l.optional {
+                return Err(format!(
+                    "{name}: fill_name takes no expect_sha256 or optional (its guard is the stock name)"
+                ));
             }
         }
         if let Some(r) = &l.requires
@@ -382,12 +412,21 @@ pub trait Snapshot {
     fn generated_part(&self, line: usize) -> String;
     /// Value after generators (stock when nothing was generated).
     fn final_value(&self, line: usize) -> String;
+    /// Value a generator gave a key stock lacks (`None` when no generator added it).
+    fn added_value(&self, key: &str) -> Option<String>;
+}
+
+/// What a loc edit writes: a stock line, or a key a generator added (by folded key).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LocTarget {
+    Line(usize),
+    Added(String),
 }
 
 /// One loc edit the engine wants to make.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LocEdit {
-    pub line: usize,
+    pub target: LocTarget,
     pub patch: String,
     pub value: String,
     pub op: Op,
@@ -678,9 +717,9 @@ pub fn run(
         for (i, l) in p.file.loc.iter().enumerate() {
             let name = loc_name(i, l);
             let (state, detail, edit) = eval_loc(l, stock, snap, &data_states, &writers);
-            if let Some((line, value, op, added)) = edit {
+            if let Some((target, value, op, added)) = edit {
                 edits.push(LocEdit {
-                    line,
+                    target,
                     patch: pid.clone(),
                     value,
                     op,
@@ -693,7 +732,163 @@ pub fn run(
     (edits, outcomes, notes)
 }
 
-type Planned = Option<(usize, String, Op, Vec<String>)>;
+type Planned = Option<(LocTarget, String, Op, Vec<String>)>;
+
+/// The state of the data entry a loc entry `requires`; `None` when it applies.
+fn required(
+    l: &LocEntry,
+    data_states: &BTreeMap<&str, EntryState>,
+) -> Option<(EntryState, String, Planned)> {
+    let r = l.requires.as_ref()?;
+    match data_states.get(r.as_str()) {
+        Some(EntryState::NotNeeded) => {
+            Some((EntryState::NotNeeded, format!("{r} is not needed"), None))
+        }
+        Some(EntryState::Applies) => None,
+        Some(other) => Some((*other, format!("required entry {r} is {other:?}"), None)),
+        None => Some((
+            EntryState::Missing,
+            format!("required entry {r} not found"),
+            None,
+        )),
+    }
+}
+
+/// A `fill_name` entry: a curated item name where the stock name is missing or bad.
+/// - stock lacks the key: replaces the value a generator added (`no-data` when none did);
+/// - stock holds a placeholder (`model::is_placeholder_name`): `set` on that line;
+/// - stock holds a real name: `not-needed` (the game names it; stock wins).
+fn eval_fill(
+    l: &LocEntry,
+    stock: &StockIni,
+    snap: &dyn Snapshot,
+    data_states: &BTreeMap<&str, EntryState>,
+) -> (EntryState, String, Planned) {
+    let value = l.value.clone().unwrap_or_default();
+    let (target, current) = match stock.find(&l.key) {
+        Ok(line) => {
+            let sv = stock.value_at(line).unwrap_or_default();
+            if !crate::model::is_placeholder_name(Some(sv.trim())) {
+                return (
+                    EntryState::NotNeeded,
+                    format!("{} has a real name in stock: the game names it now", l.key),
+                    None,
+                );
+            }
+            (LocTarget::Line(line), snap.final_value(line))
+        }
+        Err(crate::ini::IniError::UnknownKey(_)) => {
+            let Some(current) = snap.added_value(&l.key) else {
+                if let Some(out) = required(l, data_states) {
+                    return out;
+                }
+                return (
+                    EntryState::NoData,
+                    format!(
+                        "no generator added {} (Fix missing item names off, or no item uses it)",
+                        l.key
+                    ),
+                    None,
+                );
+            };
+            (LocTarget::Added(fold_key(&l.key)), current)
+        }
+        Err(e) => return (EntryState::Missing, e.to_string(), None),
+    };
+    if let Some(out) = required(l, data_states) {
+        return out;
+    }
+    if current == value {
+        return (EntryState::NotNeeded, String::new(), None);
+    }
+    (
+        EntryState::Applies,
+        String::new(),
+        Some((target, value, Op::Set, Vec::new())),
+    )
+}
+
+/// The names the generators read as curated (tier 1 of the name chain, spec missing-names):
+/// the `fill_name` values of every enabled, in-range patch, by folded key. An entry that
+/// conflicts with another, whose `requires` does not apply, or whose value the added-key
+/// rules refuse is left out, so the generators never lean on a name merge would drop.
+/// Whether stock still lacks a real name is the resolver's check, not this one.
+pub fn curated_names(
+    set: &PatchSet,
+    gd: &GameData,
+    build: Option<&BuildInfo>,
+) -> HashMap<String, String> {
+    let mut writers: HashMap<String, usize> = HashMap::new();
+    let active = || {
+        set.patches
+            .iter()
+            .filter(|p| p.enabled && in_range(&p.file.builds, build).0)
+    };
+    for p in active() {
+        for l in &p.file.loc {
+            *writers.entry(fold_key(&l.key)).or_default() += 1;
+        }
+    }
+    let mut out = HashMap::new();
+    for p in active() {
+        for l in p.file.loc.iter().filter(|l| l.fill_name) {
+            let folded = fold_key(&l.key);
+            if writers.get(&folded).copied().unwrap_or(0) > 1 {
+                continue;
+            }
+            if let Some(r) = &l.requires {
+                let Some(d) = p.file.data.iter().find(|d| &d.id == r) else {
+                    continue;
+                };
+                if data_state(gd, d).0 != EntryState::Applies {
+                    continue;
+                }
+            }
+            let Some(v) = &l.value else { continue };
+            if crate::enhance::check::check_added(v).is_ok() {
+                out.insert(folded, v.clone());
+            }
+        }
+    }
+    out
+}
+
+/// Item names the built-in patches give, as the blueprint catalog should read them: a
+/// `fill_name` entry where stock has no real name, and a `set` entry on an `item_Name` key
+/// whose stock value still matches its `expect_sha256` (a swapped name CIG has not fixed).
+/// Keys folded. Only built-in patches: the catalog names blueprints the same for everyone.
+pub fn builtin_item_names(stock: &StockIni) -> HashMap<String, String> {
+    static PARSED: std::sync::OnceLock<Vec<PatchFile>> = std::sync::OnceLock::new();
+    let files = PARSED.get_or_init(|| {
+        BUILTIN
+            .iter()
+            .filter_map(|(n, t)| parse_patch(n, t).ok())
+            .collect()
+    });
+    let mut out = HashMap::new();
+    for l in files.iter().flat_map(|f| &f.loc) {
+        if l.op != LocOp::Set || l.requires.is_some() {
+            continue;
+        }
+        let Some(v) = &l.value else { continue };
+        let key = l.key.split(',').next().unwrap_or(&l.key);
+        let stock_value = stock.value(key).map(str::trim);
+        let applies = if l.fill_name {
+            crate::enhance::stock_name(stock, Some(key)).is_none()
+        } else {
+            key.to_ascii_lowercase().starts_with("item_name")
+                && l.expect_sha256.as_deref().is_some_and(|want| {
+                    stock.value(key).is_some_and(|sv| {
+                        want.eq_ignore_ascii_case(&fsutil::sha256_hex(sv.as_bytes()))
+                    })
+                })
+        };
+        if applies && stock_value != Some(v.as_str()) {
+            out.insert(fold_key(key), v.clone());
+        }
+    }
+    out
+}
 
 fn eval_loc(
     l: &LocEntry,
@@ -714,6 +909,9 @@ fn eval_loc(
             None,
         );
     }
+    if l.fill_name {
+        return eval_fill(l, stock, snap, data_states);
+    }
     let line = match stock.find(&l.key) {
         Ok(line) => line,
         Err(crate::ini::IniError::UnknownKey(_)) if l.optional => {
@@ -726,21 +924,8 @@ fn eval_loc(
         Err(e) => return (EntryState::Missing, e.to_string(), None),
     };
     let stock_value = stock.value_at(line).unwrap_or_default();
-    if let Some(r) = &l.requires {
-        match data_states.get(r.as_str()) {
-            Some(EntryState::NotNeeded) => {
-                return (EntryState::NotNeeded, format!("{r} is not needed"), None);
-            }
-            Some(EntryState::Applies) => {}
-            Some(other) => return (*other, format!("required entry {r} is {other:?}"), None),
-            None => {
-                return (
-                    EntryState::Missing,
-                    format!("required entry {r} not found"),
-                    None,
-                );
-            }
-        }
+    if let Some(out) = required(l, data_states) {
+        return out;
     }
     let value = l.value.clone().unwrap_or_default();
     let not_needed = match l.op {
@@ -809,7 +994,7 @@ fn eval_loc(
     (
         EntryState::Applies,
         String::new(),
-        Some((line, planned.0, planned.1, planned.2)),
+        Some((LocTarget::Line(line), planned.0, planned.1, planned.2)),
     )
 }
 
@@ -867,6 +1052,8 @@ mod tests {
     struct Snap {
         stock: StockIni,
         generated: BTreeMap<usize, String>,
+        /// Keys a generator added, by folded key.
+        added: BTreeMap<String, String>,
     }
     impl Snapshot for Snap {
         fn stock(&self) -> &StockIni {
@@ -882,6 +1069,9 @@ mod tests {
                 self.generated_part(line)
             )
         }
+        fn added_value(&self, key: &str) -> Option<String> {
+            self.added.get(&fold_key(key)).cloned()
+        }
     }
 
     fn snap() -> Snap {
@@ -891,7 +1081,11 @@ mod tests {
         );
         let mut generated = BTreeMap::new();
         generated.insert(1, "\\n\\nGEN BODY".to_string());
-        Snap { stock, generated }
+        Snap {
+            stock,
+            generated,
+            added: BTreeMap::new(),
+        }
     }
 
     fn set_of(texts: &[&str]) -> PatchSet {
@@ -1037,17 +1231,229 @@ mod tests {
     }
 
     #[test]
+    fn fill_name_entries_replace_an_added_value_and_retire_in_stock() {
+        let mut s = snap();
+        s.added
+            .insert(fold_key("item_Name_gun_01"), "Gun 01".to_string());
+        s.added
+            .insert(fold_key("item_Name_same"), "Same Name".to_string());
+        let entry = |id: &str, key: &str, value: &str| {
+            format!(
+                "{HDR}id = \"{id}\"\n[[loc]]\nkey = \"{key}\"\nop = \"set\"\nvalue = \"{value}\"\nfill_name = true\n"
+            )
+        };
+        let set = set_of(&[
+            // Added by a generator: replaced (key case does not matter).
+            &entry("a", "ITEM_NAME_GUN_01", "Real Gun"),
+            // In stock now (the game names it): retired, stock wins.
+            &entry("b", "name_a", "Mine"),
+            // Neither in stock nor added (the category is off): nothing to judge.
+            &entry("c", "item_Name_other", "Other"),
+            // Already what we would write.
+            &entry("d", "item_Name_same", "Same Name"),
+        ]);
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        let st: Vec<_> = outcomes.iter().map(|o| o.state).collect();
+        assert_eq!(
+            st,
+            vec![
+                EntryState::Applies,
+                EntryState::NotNeeded,
+                EntryState::NoData,
+                EntryState::NotNeeded
+            ]
+        );
+        assert!(st.iter().all(|s| !s.warns()));
+        assert_eq!(edits.len(), 1);
+        assert_eq!(
+            edits[0].target,
+            LocTarget::Added(fold_key("item_Name_gun_01"))
+        );
+        assert_eq!(
+            (edits[0].value.as_str(), edits[0].op),
+            ("Real Gun", Op::Set)
+        );
+        // Without the flag a set on a key stock lacks is still `missing`.
+        let plain = set_of(&[&format!(
+            "{HDR}id = \"e\"\n[[loc]]\nkey = \"item_Name_gun_01\"\nop = \"set\"\nvalue = \"x\"\n"
+        )]);
+        let (edits, outcomes, _) = run(&plain, &GameData::default(), &s, None);
+        assert_eq!(outcomes[0].state, EntryState::Missing);
+        assert!(edits.is_empty());
+        // Two entries on one added key: a conflict, like on a stock key.
+        let two = set_of(&[
+            &entry("f", "item_Name_gun_01", "A"),
+            &entry("g", "item_name_gun_01", "B"),
+        ]);
+        let (edits, outcomes, _) = run(&two, &GameData::default(), &s, None);
+        assert!(outcomes.iter().all(|o| o.state == EntryState::Conflict));
+        assert!(edits.is_empty());
+    }
+
+    /// A curated name on a stock key whose value is a placeholder sets that line; on a real
+    /// stock name it is not needed.
+    #[test]
+    fn fill_name_sets_a_placeholder_stock_line() {
+        let stock = StockIni::parse(
+            b"\xEF\xBB\xBFitem_Name_boots=Placeholder - CBD Boots\r\nitem_Name_real=Real\r\n"
+                .to_vec(),
+        );
+        let mut generated = BTreeMap::new();
+        // What missing-names renamed the placeholder line to.
+        generated.insert(0, "CBD Boots".to_string());
+        let s = Snap {
+            stock,
+            generated,
+            added: BTreeMap::new(),
+        };
+        let entry = |id: &str, key: &str, value: &str| {
+            format!(
+                "{HDR}id = \"{id}\"\n[[loc]]\nkey = \"{key}\"\nop = \"set\"\nvalue = \"{value}\"\nfill_name = true\n"
+            )
+        };
+        let set = set_of(&[
+            &entry("a", "item_Name_boots", "Curated Boots"),
+            &entry("b", "item_Name_real", "Mine"),
+        ]);
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        assert_eq!(outcomes[0].state, EntryState::Applies);
+        assert_eq!(outcomes[1].state, EntryState::NotNeeded);
+        assert_eq!(edits.len(), 1);
+        assert_eq!(edits[0].target, LocTarget::Line(0));
+        assert_eq!(edits[0].value, "Curated Boots");
+    }
+
+    #[test]
+    fn curated_names_are_the_active_fill_name_values() {
+        let entry = |id: &str, key: &str, value: &str, extra: &str| {
+            format!(
+                "{HDR}id = \"{id}\"\n{extra}[[loc]]\nkey = \"{key}\"\nop = \"set\"\nvalue = \"{value}\"\nfill_name = true\n"
+            )
+        };
+        let mut set = set_of(&[
+            &entry("a", "item_Name_A", "Name A", ""),
+            &entry("b", "item_Name_b", "Name B", ""),
+            // Out of range on 4.10.
+            &entry(
+                "c",
+                "item_Name_c",
+                "Name C",
+                "builds = { game_min = \"5.0\" }\n",
+            ),
+            // Two writers: a conflict, neither counts.
+            &entry("d", "item_Name_d", "D1", ""),
+            &entry("e", "item_Name_d", "D2", ""),
+            // A value merge would drop.
+            &entry("f", "item_Name_f", "[PLACEHOLDER]", ""),
+            // Not a fill_name entry.
+            &format!("{HDR}id = \"g\"\n[[loc]]\nkey = \"name_a\"\nop = \"set\"\nvalue = \"x\"\n"),
+        ]);
+        set.patches[1].enabled = false; // switched off per channel
+        let build = BuildInfo::from_json(
+            br#"{"Data":{"Branch":"sc-alpha-4.10.0","RequestedP4ChangeNum":"1"}}"#,
+        )
+        .unwrap();
+        let got = curated_names(&set, &GameData::default(), Some(&build));
+        let want: HashMap<String, String> = [(fold_key("item_Name_a"), "Name A".to_string())]
+            .into_iter()
+            .collect();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn fill_name_is_set_only_and_unguarded() {
+        for (extra, why) in [
+            ("op = \"append\"\nvalue = \"x\"\n", "set only"),
+            (
+                "op = \"set\"\nvalue = \"x\"\nexpect_sha256 = \"00\"\n",
+                "no stock value to hash",
+            ),
+            (
+                "op = \"set\"\nvalue = \"x\"\noptional = true\n",
+                "not optional",
+            ),
+        ] {
+            let text = format!("{HDR}id = \"a\"\n[[loc]]\nkey = \"k\"\nfill_name = true\n{extra}");
+            assert!(parse_patch("x", &text).is_err(), "{why}");
+        }
+    }
+
+    #[test]
     fn builtin_patches_parse() {
         for (name, text) in BUILTIN {
             let p = parse_patch(name, text).unwrap_or_else(|e| panic!("{name}: {e}"));
             assert!(!p.data.is_empty() || !p.loc.is_empty(), "{name}");
-            // A loc-only patch guards every entry by the stock text it was written for.
+            // A loc-only patch guards every entry by the stock text it was written for, or
+            // (an added key) by stock lacking the key.
             if p.data.is_empty() {
                 for l in &p.loc {
-                    assert!(l.expect_sha256.is_some(), "{name}: {:?}", l.id);
+                    assert!(
+                        l.expect_sha256.is_some() || l.fill_name,
+                        "{name}: {:?}",
+                        l.id
+                    );
                 }
             }
         }
+    }
+
+    /// The curated names: every entry names an added key, carries its source and applies only
+    /// while stock lacks the key.
+    #[test]
+    fn missing_names_pack_names_fill_names_only() {
+        let (name, text) = BUILTIN
+            .iter()
+            .find(|(n, _)| *n == "missing-names.patch.toml")
+            .unwrap();
+        let file = parse_patch(name, text).unwrap();
+        assert!(!file.loc.is_empty() && file.data.is_empty());
+        for l in &file.loc {
+            assert!(l.fill_name && l.op == LocOp::Set, "{:?}", l.id);
+        }
+        // Each entry is preceded by a `# Source: https://...` comment.
+        let blocks: Vec<&str> = text.split("[[loc]]").skip(1).collect();
+        let heads: Vec<&str> = text.split("[[loc]]").collect();
+        assert_eq!(blocks.len(), file.loc.len());
+        for (i, head) in heads.iter().take(blocks.len()).enumerate() {
+            let last = head
+                .trim_end()
+                .lines()
+                .rev()
+                .take_while(|l| l.starts_with('#'));
+            assert!(
+                last.into_iter()
+                    .any(|l| l.starts_with("# Source: https://")),
+                "entry {i} ({:?}) has no source comment",
+                file.loc[i].id
+            );
+        }
+        let set = PatchSet {
+            patches: vec![LoadedPatch {
+                sha256: fsutil::sha256_hex(text.as_bytes()),
+                file: file.clone(),
+                origin: PatchOrigin::Builtin,
+                enabled: true,
+            }],
+            errors: Vec::new(),
+        };
+        let first = &file.loc[0];
+        let mut s = Snap {
+            stock: StockIni::parse(b"\xEF\xBB\xBFother=x\r\n".to_vec()),
+            generated: BTreeMap::new(),
+            added: BTreeMap::new(),
+        };
+        s.added
+            .insert(fold_key(&first.key), "Readable Fallback".to_string());
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        assert_eq!(outcomes[0].state, EntryState::Applies);
+        assert!(outcomes[1..].iter().all(|o| o.state == EntryState::NoData));
+        assert_eq!(edits.len(), 1);
+        assert_eq!(Some(&edits[0].value), first.value.as_ref());
+        // CIG ships the key: stock wins.
+        s.stock = StockIni::parse(format!("\u{feff}{}=CIG Name\r\n", first.key).into_bytes());
+        let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
+        assert_eq!(outcomes[0].state, EntryState::NotNeeded);
+        assert!(edits.is_empty());
     }
 
     /// The quest-items pack against a stock file holding the LIVE texts it was written for,
@@ -1077,6 +1483,7 @@ mod tests {
         let snap_of = |text: &str| Snap {
             stock: StockIni::parse(format!("\u{feff}{text}").into_bytes()),
             generated: BTreeMap::new(),
+            added: BTreeMap::new(),
         };
         let s = snap_of(live);
         let (edits, outcomes, _) = run(&set, &GameData::default(), &s, None);
@@ -1087,7 +1494,12 @@ mod tests {
         assert_eq!(edits.len(), 4);
         let by_key = |k: &str| {
             let line = s.stock.find(k).unwrap();
-            edits.iter().find(|e| e.line == line).unwrap().value.clone()
+            edits
+                .iter()
+                .find(|e| e.target == LocTarget::Line(line))
+                .unwrap()
+                .value
+                .clone()
         };
         assert_eq!(by_key("Kaboos_DecryptioKeycard1"), "Decryption Key (QV)");
         let key = by_key("Kaboos_DecryptioKeycard1_desc");

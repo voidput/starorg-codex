@@ -14,18 +14,23 @@
 //!   the matching "What to sync" switch are on.
 
 mod assets;
-mod convert;
+mod caches;
+pub(crate) mod convert;
 mod dev;
 mod diag;
 pub mod dialogs;
+mod loot;
 mod memory;
 mod starorg;
+mod storage;
 mod table;
+mod uex;
 
 pub use assets::{AssetSpawner, AssetWorkerSpawner};
 pub use dev::{DevSpawner, WorkerSpawner};
 pub use dialogs::{DialogSlot, Dialogs, FileFilter, TauriDialogs};
 pub use starorg::{Browser, StarOrgDeps};
+pub use uex::UexDeps;
 
 use super::types::*;
 use super::{Backend, Progress, schema};
@@ -63,9 +68,51 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use table::Table;
 
+/// The UEX files WHERE TO GET's shop and sell lines read (`starorg_mcp` `Store::uex`), as
+/// `fetch_uex` writes them.
+pub const UEX_FILES: &[&str] = starorg_net::uex::FILES;
+
+/// What is in a UEX folder: file metadata only, never the contents.
+pub fn obtain_status_in(dir: &Path) -> ObtainStatus {
+    let files: Vec<UexFile> = UEX_FILES
+        .iter()
+        .map(|name| {
+            let meta = std::fs::metadata(dir.join(name))
+                .ok()
+                .filter(|m| m.is_file());
+            UexFile {
+                name: (*name).into(),
+                present: meta.is_some(),
+                modified: meta
+                    .and_then(|m| m.modified().ok())
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| fsutil::rfc3339(d.as_secs())),
+            }
+        })
+        .collect();
+    use starorg_net::uex;
+    let ready = |names: &[&str]| {
+        names
+            .iter()
+            .all(|n| files.iter().any(|f| f.name == *n && f.present))
+    };
+    ObtainStatus {
+        uex_folder: convert::path_text(dir),
+        shops_ready: ready(&[uex::PRICES_FILE, uex::TERMINALS_FILE]),
+        prices_ready: ready(&[uex::COMMODITY_PRICES_FILE, uex::TERMINALS_FILE]),
+        files,
+    }
+}
+
 /// Makes the game source for loads (extraction worker by default; a file in tests).
 pub trait SourceFactory: Send + Sync {
     fn source(&self, dirs: &AppDirs) -> Result<Box<dyn GameSource>, String>;
+    /// Whether apply and the preview read obtain hints from the MCP datasets (spec
+    /// obtain-hints; the real worker only: a test source has no `Data.p4k` to read them
+    /// from).
+    fn obtain_hints(&self) -> bool {
+        false
+    }
 }
 
 /// The extraction worker: this binary, `extract-worker` subcommand.
@@ -78,6 +125,10 @@ impl SourceFactory for WorkerSource {
         let mut s = LocalExtraction::new(exe).with_keyrefs();
         s.work_root = Some(dirs.cache.join("work"));
         Ok(Box::new(s))
+    }
+
+    fn obtain_hints(&self) -> bool {
+        true
     }
 }
 
@@ -129,6 +180,9 @@ struct AppFile {
     /// StarOrg Tools account card per environment (no token; see `starorg`).
     #[serde(default)]
     starorg: BTreeMap<String, starorg::Account>,
+    /// Where the UEX token is (no token; see `uex`).
+    #[serde(default)]
+    uex_token: Option<TokenStoreKind>,
 }
 
 const APP_JSON: &str = "app.json";
@@ -220,18 +274,22 @@ struct LoadedData {
     groups: Arc<starorg_core::groups::GroupIndex>,
     /// Key owners of this build, built on the first Strings table (about 55 ms on LIVE).
     owners: std::sync::OnceLock<Arc<starorg_core::groups::owners::OwnerIndex>>,
+    /// Group state and manufacturer names for the Strings query, made once.
+    meta: strings_query::GroupMeta,
 }
 
 impl LoadedData {
     fn new(key: String, l: starorg_core::source::Loaded) -> Self {
         let stock = StockIni::parse(l.base_ini);
         let groups = starorg_core::groups::assign(&stock, &l.game_data, l.keyrefs.as_ref());
+        let meta = Self::meta_of(&groups);
         Self {
             key,
             stock: Arc::new(stock),
             game_data: Arc::new(l.game_data),
             groups: Arc::new(groups),
             owners: std::sync::OnceLock::new(),
+            meta,
         }
     }
 
@@ -244,15 +302,18 @@ impl LoadedData {
         })
     }
 
-    fn group_meta(&self) -> strings_query::GroupMeta {
+    fn group_meta(&self) -> &strings_query::GroupMeta {
+        &self.meta
+    }
+
+    fn meta_of(groups: &starorg_core::groups::GroupIndex) -> strings_query::GroupMeta {
         strings_query::GroupMeta {
-            state: if self.groups.exact {
+            state: if groups.exact {
                 GroupState::Exact
             } else {
                 GroupState::Approximate
             },
-            manufacturers: self
-                .groups
+            manufacturers: groups
                 .manufacturers
                 .iter()
                 .map(|m| (m.code.clone(), m.label.clone()))
@@ -264,6 +325,9 @@ impl LoadedData {
 /// One build's finder catalogue.
 type BpCatalog = Arc<Vec<bp_finder::CatalogItem>>;
 
+/// Draft-profile tables kept for the preview (each holds a channel's generated text).
+const PREVIEW_TABLES: usize = 3;
+
 #[derive(Default)]
 struct Mem {
     manual: Vec<PathBuf>,
@@ -273,6 +337,9 @@ struct Mem {
     job: Option<JobProgress>,
     data: HashMap<(String, String), Arc<LoadedData>>,
     tables: HashMap<(String, String), (String, Arc<Table>)>,
+    /// Tables of draft profiles (the Enhancements preview), newest last, at most
+    /// [`PREVIEW_TABLES`]: switching an option back and forth does not build again.
+    previews: VecDeque<((String, String), String, Arc<Table>)>,
     /// Blueprint finder catalogue per channel, by build key (a few hundred KB; addendum §7.19).
     bp_catalogs: HashMap<(String, String), (String, BpCatalog)>,
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
@@ -283,7 +350,20 @@ struct Mem {
     last_sc_pick: Option<((String, String), PathBuf)>,
     /// Channel data dirs whose `profile.toml` migration failed: warned about once.
     profile_migrate_failed: HashSet<PathBuf>,
+    /// What each entry of `tables` was built from, to reuse it without reading the inputs.
+    table_stamps: HashMap<(String, String), caches::TableStamp>,
+    /// Strings queries (sorted rows and facets) per table, so paging only slices.
+    strings: caches::StringsCache,
+    /// The last install discovery, reused for a few seconds.
+    installs: Option<caches::InstallsCache<Found>>,
+    /// The channel `list_characters` last scanned (install id, channel) and when: the
+    /// Blueprints screen's current channel. The finder skips its own log scan of it for
+    /// [`SCAN_FRESH`] and keeps its game data resident (see `bp_catalog`).
+    listed: Option<((String, String), std::time::Instant)>,
 }
+
+/// How long a log scan by `list_characters` stands in for the finder's scan of that channel.
+const SCAN_FRESH: std::time::Duration = std::time::Duration::from_secs(10);
 
 pub struct RealBackend {
     cfg: RealConfig,
@@ -292,12 +372,17 @@ pub struct RealBackend {
     reads: Mutex<()>,
     /// Held while an install is saved to config.toml (`register`).
     registering: Mutex<()>,
+    /// Held across a blueprint log scan in this process (and `list_characters` noting the
+    /// channel it scanned): a second caller waits for the running scan instead of losing the
+    /// store lock and reading the store mid-scan.
+    scans: Mutex<()>,
     update: crate::update::Updater,
     dev: dev::DevState,
     assets: assets::AssetState,
     mcp: crate::mcp::McpHost,
     starorg: starorg::StarOrgDeps,
     starorg_mem: starorg::StarOrgMem,
+    uex: uex::UexDeps,
 }
 
 /// Longest header line accepted (the core has no limit; the line goes into every block).
@@ -406,13 +491,21 @@ impl RealBackend {
             mem: Mutex::new(Mem::default()),
             reads: Mutex::new(()),
             registering: Mutex::new(()),
+            scans: Mutex::new(()),
             update,
             dev: dev::DevState::default(),
             assets: assets::AssetState::default(),
             mcp: crate::mcp::McpHost::default(),
             starorg,
             starorg_mem: starorg::StarOrgMem::default(),
+            uex: uex::UexDeps::default(),
         }
+    }
+
+    /// Swap how UEX market data is downloaded (tests: a fake transport).
+    pub fn with_uex(mut self, deps: UexDeps) -> Self {
+        self.uex = deps;
+        self
     }
 
     /// Swap the StarOrg Tools hosts, token store and browser (tests: a loopback mock).
@@ -538,6 +631,8 @@ impl RealBackend {
         p.phase = phase;
         p.step = p.steps;
         p.label = label.to_string();
+        // A job may have written to the cache or the backups: Settings measures again.
+        self.sizes_changed();
         {
             let mut m = self.mem();
             if m.job.as_ref().is_some_and(|j| j.job == p.job) {
@@ -594,8 +689,38 @@ impl RealBackend {
     }
 
     /// Every install: discovery, then saved installs discovery missed, then folders the
-    /// user picked this session. One entry per root.
+    /// user picked this session. One entry per root. Reused for [`caches::INSTALLS_TTL`]
+    /// while config.toml, outputs.json and the picked folders are unchanged.
     fn installs(&self) -> Vec<Found> {
+        let stamp = caches::Stamp::new()
+            .file(self.dirs().config_toml())
+            .file(self.dirs().outputs_json());
+        let manual = self.mem().manual.clone();
+        let now = std::time::Instant::now();
+        let hit = self
+            .mem()
+            .installs
+            .as_ref()
+            .and_then(|c| c.fresh(now, &stamp, &manual));
+        if let Some(list) = hit {
+            return list;
+        }
+        let list = self.discover_all();
+        self.mem().installs = Some(caches::InstallsCache {
+            at: now,
+            stamp,
+            manual,
+            list: list.clone(),
+        });
+        list
+    }
+
+    /// Drop the cached discovery (an install registered, a folder picked, setup ran).
+    fn forget_installs(&self) {
+        self.mem().installs = None;
+    }
+
+    fn discover_all(&self) -> Vec<Found> {
         let cfg = self.config();
         let outputs = Outputs::load(self.dirs()).unwrap_or_default();
         let mut out: Vec<Found> = Vec::new();
@@ -663,6 +788,7 @@ impl RealBackend {
         let outputs = Outputs::load(self.dirs()).unwrap_or_default();
         let (id, _) =
             config::register_install(self.dirs(), &mut cfg, &outputs, &f.install).map_err(io)?;
+        self.forget_installs();
         f.id = Some(id.clone());
         Ok(id)
     }
@@ -903,6 +1029,16 @@ impl RealBackend {
         extract: bool,
     ) -> CmdResult<Arc<Table>> {
         let d = self.loaded(f, ch, extract)?;
+        let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
+        // The saved inputs unchanged since the cached table was built: no need to read them
+        // (and obtain hints) again. Taken before they are read, so an edit while they are
+        // read shows as a change next time.
+        let stamp = profile.is_none().then(|| self.input_stamp(f, ch));
+        if let Some(s) = &stamp
+            && let Some(t) = self.stamped_table(&slot, &d.key, s)
+        {
+            return Ok(t);
+        }
         let t = Target::new(&f.install, f.id.clone(), ch);
         let inp = apply::current_inputs(self.ctx(), &t, None, None).map_err(internal)?;
         let (eprof, patches) = match profile {
@@ -914,6 +1050,22 @@ impl RealBackend {
                 inp.patches.clone(),
             ),
         };
+        let provider = self.obtain_provider(f, extract);
+        let (hints, hint_warnings, _) =
+            apply::obtain_hints(&d.game_data, &eprof, provider.as_ref(), &ch.name);
+        if extract && let Some(w) = hint_warnings.first() {
+            self.log(
+                LogLevel::Warn,
+                Some(JobKind::Apply),
+                Some(&ch.name),
+                &format!("{}: {}", ch.name, w.detail),
+            );
+        }
+        let hints_tag = format!(
+            "{}:{}",
+            hints.as_ref().map_or(0, |h| h.items.len()),
+            hint_warnings.len()
+        );
         let key = fsutil::sha256_parts(&[
             d.key.as_bytes(),
             eprof.hash().as_bytes(),
@@ -921,13 +1073,40 @@ impl RealBackend {
             inp.overrides_hash.as_bytes(),
             inp.owned.hash.as_bytes(),
             inp.ship_names_hash.as_bytes(),
+            hints_tag.as_bytes(),
         ]);
-        let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
-        if profile.is_none()
-            && let Some((k, t)) = self.mem().tables.get(&slot)
-            && *k == key
+        // Hints with warnings (a dataset not extracted yet) can change without any stamped
+        // file changing: those tables are checked the long way every time.
+        let stamp = stamp
+            .filter(|_| hint_warnings.is_empty())
+            .map(|files| caches::TableStamp {
+                data_key: d.key.clone(),
+                table_key: key.clone(),
+                files,
+            });
         {
-            return Ok(t.clone());
+            let mut m = self.mem();
+            if let Some((k, t)) = m.tables.get(&slot)
+                && *k == key
+            {
+                let t = t.clone();
+                match stamp {
+                    Some(s) => m.table_stamps.insert(slot, s),
+                    None => m.table_stamps.remove(&slot),
+                };
+                return Ok(t);
+            }
+            if profile.is_some()
+                && let Some(i) = m
+                    .previews
+                    .iter()
+                    .position(|(s, k, _)| *s == slot && *k == key)
+            {
+                let hit = m.previews.remove(i).expect("position is in range");
+                let t = hit.2.clone();
+                m.previews.push_back(hit);
+                return Ok(t);
+            }
         }
         let tbl = Arc::new(table::build(&table::Inputs {
             stock: &d.stock,
@@ -940,9 +1119,20 @@ impl RealBackend {
             groups: &d.groups,
             owners: d.owners(),
             ship_names: inp.ship_names.active(),
+            obtain: hints.as_ref(),
         }));
+        let mut m = self.mem();
         if profile.is_none() {
-            self.mem().tables.insert(slot, (key, tbl.clone()));
+            match stamp {
+                Some(s) => m.table_stamps.insert(slot.clone(), s),
+                None => m.table_stamps.remove(&slot),
+            };
+            m.tables.insert(slot, (key, tbl.clone()));
+        } else {
+            m.previews.push_back((slot, key, tbl.clone()));
+            while m.previews.len() > PREVIEW_TABLES {
+                m.previews.pop_front();
+            }
         }
         Ok(tbl)
     }
@@ -1002,7 +1192,78 @@ impl RealBackend {
 
     fn forget_tables(&self, f: &Found, ch: &Channel) {
         let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
-        self.mem().tables.remove(&slot);
+        let mut m = self.mem();
+        m.tables.remove(&slot);
+        m.table_stamps.remove(&slot);
+        m.previews.retain(|(s, _, _)| *s != slot);
+    }
+
+    /// The files a channel's table is built from (besides the game data): its data folder
+    /// (profile, overrides, state, applied.json), owned blueprints, the user patches, the
+    /// ship-name and fleet files and the UEX files WHERE TO GET reads.
+    fn input_stamp(&self, f: &Found, ch: &Channel) -> caches::Stamp {
+        let data = self.data_dir(f, ch);
+        caches::Stamp::new()
+            .dir(&data)
+            .dir(&blueprints::dir(&data))
+            .dir(&self.dirs().user_patches())
+            .file(self.dirs().ship_names_toml())
+            .file(self.dirs().fleet_json())
+            .dir(&self.uex_dir())
+    }
+
+    /// The cached table of `slot`, when the game data key and the stamped inputs are the
+    /// ones it was built from.
+    fn stamped_table(
+        &self,
+        slot: &(String, String),
+        data_key: &str,
+        now: &caches::Stamp,
+    ) -> Option<Arc<Table>> {
+        let m = self.mem();
+        let s = m.table_stamps.get(slot)?;
+        if s.data_key != data_key || !s.files.settled() || !s.files.same(now) {
+            return None;
+        }
+        m.tables
+            .get(slot)
+            .filter(|(k, _)| *k == s.table_key)
+            .map(|(_, t)| t.clone())
+    }
+
+    /// The channel's table only when it is in memory and current, without loading game
+    /// data or reading inputs (the Patches list, which fills states in a second call).
+    fn cached_table(&self, f: &Found, ch: &Channel) -> Option<Arc<Table>> {
+        let fp = ch.fingerprint().ok()?;
+        let key = KeyInputs::local(&fp, &self.ctx().starbreaker_commit).key();
+        let slot = (f.id.clone()?, ch.name.clone());
+        self.stamped_table(&slot, &key, &self.input_stamp(f, ch))
+    }
+
+    /// The patches with their state on this build. `build`: build the table when it is not
+    /// cached; otherwise an enabled patch reads `checking` until [`Backend::patch_states`].
+    fn patch_views(&self, req: &ChannelRef, build: bool) -> CmdResult<Vec<PatchView>> {
+        let f = self.resolve(req)?;
+        let ch = f.channel(&req.channel)?;
+        let disabled = self.profile_file(&f, ch)?.disabled_patches();
+        let set = patch::load_patches(self.dirs(), &disabled);
+        let tbl = if build {
+            self.build_table(&f, ch, None, false).ok()
+        } else {
+            self.cached_table(&f, ch)
+        };
+        let checking = !build && tbl.is_none();
+        Ok(set
+            .patches
+            .iter()
+            .map(|p| {
+                let mut v = diag::patch_view(p, tbl.as_deref());
+                if checking && v.state == PatchState::NoData {
+                    v.state = PatchState::Checking;
+                }
+                v
+            })
+            .collect())
     }
 
     // -----------------------------------------------------------------------------------
@@ -1090,7 +1351,8 @@ impl RealBackend {
             network: NetworkSettings {
                 check_updates: a.network.as_ref().is_some_and(|n| n.check_updates),
                 published_dumps: a.network.as_ref().is_some_and(|n| n.published_dumps),
-                starorg: a.network.map(|n| n.starorg).unwrap_or(false),
+                starorg: a.network.as_ref().is_some_and(|n| n.starorg),
+                uex: a.network.as_ref().is_some_and(|n| n.uex),
             },
             default_channel: self.config().default_channel,
             safe_gpu: a.safe_gpu,
@@ -1113,9 +1375,19 @@ impl RealBackend {
         lock::try_lock(&p).map_err(|e| busy_or(e, &format!("{} blueprint store", ch.name)))
     }
 
-    /// Read new log lines into the store (registered installs only; skipped while another
-    /// scan holds the lock).
+    /// Read new log lines into the store (registered installs only; waits for a scan running
+    /// in this app, skipped while another process holds the store lock).
     fn scan(&self, f: &Found, ch: &Channel) {
+        let _one = self.scans_lock();
+        self.scan_held(f, ch);
+    }
+
+    fn scans_lock(&self) -> MutexGuard<'_, ()> {
+        self.scans.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// [`Self::scan`] with `scans` already held by the caller.
+    fn scan_held(&self, f: &Found, ch: &Channel) {
         let Some(id) = &f.id else { return };
         let Ok(_l) = self.blueprint_lock(id, ch) else {
             return;
@@ -1192,7 +1464,9 @@ impl RealBackend {
     /// The finder catalogue of a channel's build from cached game data only (never extracts).
     /// A build already in memory is reused; otherwise the cache entry is read, the catalogue
     /// kept and the game data dropped again, so "All channels" does not hold every build.
-    fn bp_catalog(&self, f: &Found, ch: &Channel) -> Option<BpCatalog> {
+    /// `current` (the channel the screens work on): read through `loaded`, so the build stays
+    /// in memory for Strings, Ships and Patches instead of being read from disk again.
+    fn bp_catalog(&self, f: &Found, ch: &Channel, current: bool) -> Option<BpCatalog> {
         let id = f.id.clone()?;
         let fp = ch.fingerprint().ok()?;
         let k = KeyInputs::local(&fp, &self.ctx().starbreaker_commit);
@@ -1206,6 +1480,7 @@ impl RealBackend {
         let resident = self.mem().data.get(&slot).filter(|d| d.key == key).cloned();
         let d = match resident {
             Some(d) => d,
+            None if current => self.loaded(f, ch, false).ok()?,
             None if self.ctx().use_cache => {
                 let l = cache::load(
                     &self.dirs().channel_cache(&id, &ch.name),
@@ -1224,7 +1499,7 @@ impl RealBackend {
 
     /// One channel's part of the finder: its catalogue and every character's owned set, read
     /// from the channel data folder as stored (ownership is per channel and per character).
-    fn finder_input(&self, f: &Found, ch: &Channel) -> bp_finder::ChannelInput {
+    fn finder_input(&self, f: &Found, ch: &Channel, current: bool) -> bp_finder::ChannelInput {
         let mut inp = bp_finder::ChannelInput {
             channel: ch.name.clone(),
             ..Default::default()
@@ -1234,9 +1509,13 @@ impl RealBackend {
         }
         let data = self.data_dir(f, ch);
         // Reading never creates folders: only a channel that already has blueprint data gets
-        // the incremental log scan (the current channel is scanned by `list_characters`).
+        // the incremental log scan, unless `list_characters` scanned it a moment ago. Held
+        // across the check, so a `list_characters` scan running now is waited for and reused.
         if blueprints::dir(&data).is_dir() {
-            self.scan(f, ch);
+            let _one = self.scans_lock();
+            if !self.just_listed(f, ch) {
+                self.scan_held(f, ch);
+            }
         }
         inp.characters = blueprints::load_characters(&data).unwrap_or_default();
         for g in inp.characters.characters.keys() {
@@ -1266,8 +1545,26 @@ impl RealBackend {
             }
         }
         inp.unattributed = blueprints::load_unattributed(&data).ok();
-        inp.catalog = self.bp_catalog(f, ch).map(|c| c.as_ref().clone());
+        inp.catalog = self.bp_catalog(f, ch, current).map(|c| c.as_ref().clone());
         inp
+    }
+
+    /// `list_characters` scanned this channel's logs less than [`SCAN_FRESH`] ago.
+    fn just_listed(&self, f: &Found, ch: &Channel) -> bool {
+        let Some(id) = &f.id else { return false };
+        self.mem()
+            .listed
+            .as_ref()
+            .is_some_and(|((i, c), at)| i == id && *c == ch.name && at.elapsed() < SCAN_FRESH)
+    }
+
+    /// The channel `list_characters` last served (any age): the Blueprints screen's channel.
+    fn is_listed(&self, f: &Found, ch: &Channel) -> bool {
+        let Some(id) = &f.id else { return false };
+        self.mem()
+            .listed
+            .as_ref()
+            .is_some_and(|((i, c), _)| i == id && *c == ch.name)
     }
 
     /// After characters were merged: StarOrg push ticks that name a merged geid follow it.
@@ -1699,6 +1996,8 @@ impl Backend for RealBackend {
     }
 
     fn discover_installs(&self, _deep: bool) -> CmdResult<Vec<InstallSummary>> {
+        // A scan the user asked for looks again.
+        self.forget_installs();
         Ok(self
             .installs()
             .iter()
@@ -1723,6 +2022,7 @@ impl Backend for RealBackend {
             ));
         }
         self.mem().manual.push(dir.clone());
+        self.forget_installs();
         let found = self.installs();
         let f = self
             .discover_folder(&dir)
@@ -1872,6 +2172,7 @@ impl Backend for RealBackend {
             cfg.default_channel = Some(first.clone());
             cfg.save(self.dirs()).map_err(io)?;
         }
+        self.forget_installs();
         // Published game data is not built yet (plan_setup warns); nothing is stored for it.
         self.log(
             LogLevel::Info,
@@ -1942,6 +2243,7 @@ impl Backend for RealBackend {
         let t = Target::new(&f.install, Some(id.clone()), ch);
         let opts = ApplyOpts {
             dry_run: req.dry_run,
+            obtain: self.obtain_provider(&f, true),
             ..ApplyOpts::default()
         };
         let r = {
@@ -1949,6 +2251,18 @@ impl Backend for RealBackend {
             let _reading = self.reads.lock().unwrap_or_else(|e| e.into_inner());
             apply::apply(self.ctx(), &t, &opts, src.as_ref())
         };
+        if let Some(o) = &r.obtain {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Apply),
+                Some(&name),
+                &format!(
+                    "{name}: where to get: sources for {} items in {:.1} s",
+                    o.items,
+                    o.ms as f64 / 1000.0
+                ),
+            );
+        }
         let data = t.data_dir(self.dirs());
         let out = convert::report(&r, Some(&backup::backups_dir(&data)));
         if out.result == ApplyResult::Applied
@@ -2115,6 +2429,7 @@ impl Backend for RealBackend {
             &cur,
         )
         .map_err(io)?;
+        self.sizes_changed();
         let b = match made {
             Some(b) => b,
             // Same bytes as the newest backup: that one is the backup.
@@ -2151,7 +2466,9 @@ impl Backend for RealBackend {
                 "The file from before StarOrg Codex is kept; it cannot be deleted.",
             ));
         }
-        std::fs::remove_dir_all(&b.dir).map_err(io)?;
+        let gone = std::fs::remove_dir_all(&b.dir);
+        self.sizes_changed();
+        gone.map_err(io)?;
         self.log(
             LogLevel::Info,
             None,
@@ -2207,8 +2524,100 @@ impl Backend for RealBackend {
         Ok(diag::preview(&tbl))
     }
 
+    fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary> {
+        let f = self.resolve(&req.target)?;
+        let ch = f.channel(&req.target.channel)?;
+        let job = self.job_start(JobKind::Extract, Some(&ch.name), 3, "Reading game data");
+        let r = (|| {
+            let d = self.loaded(&f, ch, true)?;
+            // Where to get: extract its datasets whatever the saved profile says, so the
+            // preview of an unsaved "obtain on" has them too. A failure is only a warning.
+            let mut job = job.clone();
+            self.job_step(&mut job, 2, "Reading Where to get data", None);
+            let prof = starorg_core::enhance::profile::Profile {
+                obtain: true,
+                ..Default::default()
+            };
+            let provider = self.obtain_provider(&f, true);
+            let (_, warnings, _) =
+                apply::obtain_hints(&d.game_data, &prof, provider.as_ref(), &ch.name);
+            if let Some(w) = warnings.first() {
+                self.log(
+                    LogLevel::Warn,
+                    Some(JobKind::Extract),
+                    Some(&ch.name),
+                    &format!("{}: {}", ch.name, w.detail),
+                );
+            }
+            // Shops: the ship items item-tags lacks (ship-components), so the Shops screen
+            // links ship guns, missiles and components. Same worker and memory limit as the
+            // Where to get datasets; a failure is only a warning.
+            self.job_step(&mut job, 3, "Reading ship item data for Shops", None);
+            if let Err(e) = self.warm_shop_links(&f, &ch.name) {
+                self.log(
+                    LogLevel::Warn,
+                    Some(JobKind::Extract),
+                    Some(&ch.name),
+                    &format!("{}: shop item links: {e}", ch.name),
+                );
+            }
+            Ok::<_, AppError>(())
+        })();
+        match &r {
+            Ok(()) => {
+                let msg = format!("Read the game data of {}", ch.name);
+                self.log(LogLevel::Info, Some(JobKind::Extract), Some(&ch.name), &msg);
+                self.job_end(job, JobPhase::Done, &msg, None);
+            }
+            Err(e) => self.job_end(job, JobPhase::Failed, &e.message, None),
+        }
+        r?;
+        Ok(self.summary(&f, ch))
+    }
+
     fn profile_schema(&self) -> CmdResult<ProfileSchema> {
         Ok(schema::profile_schema())
+    }
+
+    fn obtain_status(&self) -> CmdResult<ObtainStatus> {
+        // The folder `starorg_mcp::config_for` gives the Sources card's tools.
+        Ok(self.obtain_status_now())
+    }
+
+    fn uex_token_status(&self) -> CmdResult<UexTokenStatus> {
+        Ok(self.uex_token_view())
+    }
+
+    fn set_uex_token(&self, req: UexTokenRequest) -> CmdResult<UexTokenStatus> {
+        self.save_uex_token(req)
+    }
+
+    fn fetch_uex(&self) -> CmdResult<ObtainStatus> {
+        self.run_fetch_uex()
+    }
+
+    fn loot_list(&self, req: LootListRequest) -> CmdResult<LootList> {
+        Ok(self.loot_list_of(req))
+    }
+
+    fn loot_detail(&self, req: LootDetailRequest) -> CmdResult<LootDetail> {
+        Ok(self.loot_detail_of(req))
+    }
+
+    fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {
+        Ok(self.shop_directory(req))
+    }
+
+    fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems> {
+        Ok(self.shop_items_of(req))
+    }
+
+    fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {
+        Ok(self.commodity_list_of(req))
+    }
+
+    fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo> {
+        Ok(self.commodity_detail_of(req))
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
@@ -2251,12 +2660,26 @@ impl Backend for RealBackend {
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
         let tbl = self.build_table(&f, ch, None, false)?;
-        let meta = self.loaded(&f, ch, false)?.group_meta();
-        Ok(strings_query::run(
-            tbl.rows.iter().map(std::borrow::Cow::Borrowed),
+        let d = self.loaded(&f, ch, false)?;
+        let meta = d.group_meta();
+        // Every page of one query shares its filtered, sorted rows: later pages only slice.
+        let key = strings_query::cache_key(&req);
+        let hit = self.mem().strings.get(&tbl, &key);
+        let prepared = match hit {
+            Some(p) => p,
+            None => {
+                let search = (!req.search.is_empty()).then(|| tbl.search_text());
+                let p = Arc::new(strings_query::prepare(&tbl.rows, search, &req, meta));
+                self.mem().strings.put(&tbl, key, p.clone());
+                p
+            }
+        };
+        Ok(strings_query::page(
+            &prepared,
+            &tbl.rows,
             tbl.rows.len() as u32,
             &req,
-            &meta,
+            meta.state,
         ))
     }
 
@@ -2286,6 +2709,8 @@ impl Backend for RealBackend {
         let mut m = self.mem();
         m.data.insert(slot.clone(), fresh);
         m.tables.remove(&slot);
+        m.table_stamps.remove(&slot);
+        m.previews.retain(|(s, _, _)| *s != slot);
         Ok(state)
     }
 
@@ -2408,16 +2833,11 @@ impl Backend for RealBackend {
     }
 
     fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>> {
-        let f = self.resolve(&req)?;
-        let ch = f.channel(&req.channel)?;
-        let disabled = self.profile_file(&f, ch)?.disabled_patches();
-        let set = patch::load_patches(self.dirs(), &disabled);
-        let tbl = self.build_table(&f, ch, None, false).ok();
-        Ok(set
-            .patches
-            .iter()
-            .map(|p| diag::patch_view(p, tbl.as_deref()))
-            .collect())
+        self.patch_views(&req, false)
+    }
+
+    fn patch_states(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>> {
+        self.patch_views(&req, true)
     }
 
     fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView> {
@@ -2444,7 +2864,7 @@ impl Backend for RealBackend {
             target: req.target.clone(),
             profile: p,
         })?;
-        self.list_patches(req.target)?
+        self.patch_states(req.target)?
             .into_iter()
             .find(|v| v.id == req.id)
             .ok_or_else(|| {
@@ -2507,7 +2927,7 @@ impl Backend for RealBackend {
             Some(&req.target.channel),
             &format!("Added patch {}", req.title.trim()),
         );
-        self.list_patches(req.target)?
+        self.patch_states(req.target)?
             .into_iter()
             .find(|v| v.id == id)
             .ok_or_else(|| internal("the new patch was not loaded"))
@@ -2548,7 +2968,7 @@ impl Backend for RealBackend {
             Some(&req.channel),
             &format!("Imported patch {}", p.id),
         );
-        self.list_patches(req)?
+        self.patch_states(req)?
             .into_iter()
             .find(|v| v.id == p.id)
             .ok_or_else(|| internal("the imported patch was not loaded"))
@@ -2603,7 +3023,7 @@ impl Backend for RealBackend {
             Some(&req.target.channel),
             &format!("Deleted patch {}", req.id),
         );
-        self.list_patches(req.target)
+        self.patch_states(req.target)
     }
 
     fn activity(&self, limit: u32) -> CmdResult<Vec<LogEntry>> {
@@ -2650,7 +3070,15 @@ impl Backend for RealBackend {
     fn list_characters(&self, req: ChannelRef) -> CmdResult<CharactersView> {
         let f = self.resolve(&req)?;
         let ch = f.channel(&req.channel)?;
-        self.scan(&f, ch);
+        {
+            // Scan and memo under one hold: a finder read waiting on it then skips its scan.
+            let _one = self.scans_lock();
+            self.scan_held(&f, ch);
+            if let Some(id) = &f.id {
+                self.mem().listed =
+                    Some(((id.clone(), ch.name.clone()), std::time::Instant::now()));
+            }
+        }
         self.characters_view(&f, ch)
     }
 
@@ -2709,9 +3137,14 @@ impl Backend for RealBackend {
     fn blueprint_finder(&self, req: BlueprintFinderRequest) -> CmdResult<BlueprintFinder> {
         let f = self.find(&req.install)?;
         let names: Vec<String> = f.install.channels.iter().map(|c| c.name.clone()).collect();
+        // One channel asked for = the screen's channel; in "All" the one Blueprints lists.
+        let single = req.channels.len() == 1;
         let inputs = crate::contract::finder::pick(&names, &req.channels)?
             .into_iter()
-            .map(|n| f.channel(n).map(|ch| self.finder_input(&f, ch)))
+            .map(|n| {
+                f.channel(n)
+                    .map(|ch| self.finder_input(&f, ch, single || self.is_listed(&f, ch)))
+            })
             .collect::<CmdResult<Vec<_>>>()?;
         Ok(crate::contract::finder::contract(bp_finder::build(&inputs)))
     }
@@ -3324,6 +3757,18 @@ impl Backend for RealBackend {
 
     fn set_memory_limit(&self, req: MemoryLimitRequest) -> CmdResult<MemoryStatus> {
         self.save_memory_limit(req)
+    }
+
+    fn storage_status(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_view())
+    }
+
+    fn storage_measure(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_measure_now())
+    }
+
+    fn storage_clear_assets(&self) -> CmdResult<StorageStatus> {
+        self.storage_clear_asset_cache()
     }
 }
 

@@ -9,7 +9,9 @@
 //! | `search` | `game-search-index` (from item-tags + ships) + ship-components |
 //! | `item` | item-tags; ships, or the one detail dataset of the item's type |
 //! | `where_to_buy` | item-tags + the user's UEX files, if any |
+//! | `shop_inventory` | the user's UEX files; item-tags (+ ship-components) to name and link rows |
 //! | `where_found` | item-tags, loot, item-sources |
+//! | `where_mined` | mining-spawns, item-sources, commodities |
 //!
 //! `game-item-tags` lists only the ship weapons and components that carry loot tags (7 of
 //! 241 ship guns on LIVE 4.10), so a name it does not hold is looked up in
@@ -24,14 +26,23 @@
 //! | `status` | none (what is cached, memory) |
 
 use crate::owned;
+use crate::shops::{ShopCategory, ShopDirectory, ShopIndex, ShopItems, index_from_files};
+use crate::sources::{
+    MAX_CONTAINERS, MAX_SHOPS, MAX_TABLES, SellSources, buy_sources, loot_sources, sell_sources,
+};
 use crate::store::{ChannelSource, Store, ToolError, ToolResult, tool_err};
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 use starorg_core::ini::StockIni;
 use starorg_gamedata::query::fuzzy::{self, Entry, EntryKind};
+use starorg_gamedata::query::mined::{MinedReport, MiningSpawns, where_mined as mined_query};
 use starorg_gamedata::query::obtain::{
     BlueprintLike, Datasets, LootData, LootIndex, ObtainOptions, ObtainReport, WikeloTradeLike,
     build_loot_index, find_items, obtain,
+};
+use starorg_gamedata::query::quality::{Commodities, OreQuality, QualityResource, quality_for};
+use starorg_gamedata::query::sells::{
+    CommodityPrice, MatchStats, SellRow, best_sells, by_resource,
 };
 use starorg_gamedata::query::shops::{
     AsOf, SHOP_ITEM_LIMIT, ShopInputs, ShopPrice, UexTerminal, limit_shop, shop_inventory,
@@ -42,6 +53,9 @@ use starorg_gamedata::{search_index, strings};
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+
+/// The UEX commodity kiosk prices (`starorg_net::uex::COMMODITY_PRICES_FILE`).
+pub const COMMODITY_PRICES_FILE: &str = "uex-commodity-prices.json";
 
 pub const DEFAULT_LIMIT: usize = 10;
 pub const MAX_LIMIT: usize = 50;
@@ -122,7 +136,7 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
         d(
             "where_to_buy",
             "Where to buy",
-            "Shops selling an item, cheapest first, or what the shops at a place sell. Prices are UEX data (player-reported) and only available when the user put UEX files in the app cache; nothing is downloaded.",
+            "Shops selling an item, cheapest first, or what the shops at a place sell. Prices are UEX data (player-reported) and only available when the UEX files are in the app cache (the app downloads them when the user turns that on, or the user puts them there); this tool downloads nothing.",
             schema(
                 channels,
                 merge(
@@ -136,6 +150,22 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
             ),
         ),
         d(
+            "shop_inventory",
+            "What a shop sells",
+            "Everything one shop (a UEX item terminal) sells, by category (FPS weapons, FPS attachments, armour & clothing, ship weapons, missiles & torpedoes, ship components, mining & salvage, consumables, other), with buy and sell prices, the day UEX last confirmed each row, and the game class name when the row is linked to a record. A name that fits several shops (a place such as \"grim hex\") answers the list of shops with their ids. Prices are UEX data (player-reported), read from the UEX files in the app cache; this tool downloads nothing.",
+            schema(
+                channels,
+                merge(
+                    json!({
+                        "terminal": {"type": "string", "description": "Shop: UEX terminal id (from a previous answer) or name, e.g. \"Dumper's GrimHEX\", \"Cousin Crow's\"."},
+                        "category": {"type": "string", "enum": ShopCategory::ALL.iter().map(|c| c.key()).collect::<Vec<_>>(), "description": "Only rows of this category."}
+                    }),
+                    paging(),
+                ),
+                &["terminal"],
+            ),
+        ),
+        d(
             "where_found",
             "Where it is found",
             "Loot spawns of an item: best areas with the container, spawn share and rough odds per box, fixed racks, and loot tables no area uses.",
@@ -143,6 +173,19 @@ pub fn definitions(channels: &[String]) -> Vec<ToolDef> {
                 channels,
                 merge(json!({"item": item_arg.clone()}), paging()),
                 &["item"],
+            ),
+        ),
+        d(
+            "where_mined",
+            "Where it is mined",
+            "Where an ore is mined: the bodies and belts whose spawn tables roll a rock holding it (most common first; kind ship, vehicle or hand), and the loot areas (caves, asteroid bases, events such as the Rock Cracker) whose spawn slots place such a rock. Some ores (Sadaryx) come only from those spots. Also the quality it comes in: range, place overrides, and the values the game shows with estimated shares.",
+            schema(
+                channels,
+                merge(
+                    json!({"ore": {"type": "string", "description": "Ore, commodity, rock or element name or key, e.g. \"Sadaryx\", \"quantainium\", \"MineableRock_FPS_Aphorite\"."}}),
+                    paging(),
+                ),
+                &["ore"],
             ),
         ),
         d(
@@ -332,20 +375,28 @@ pub struct Ctx<'a> {
     pub store: &'a Store,
     pub ch: &'a ChannelSource,
     pub dir: PathBuf,
+    /// Extract a dataset that is not cached yet (else answer that it is missing).
+    pub extract: bool,
 }
 
 impl<'a> Ctx<'a> {
     pub fn new(store: &'a Store, args: &Args<'_>) -> ToolResult<Self> {
-        let ch = store.channel(args.str("channel"))?;
+        Self::for_channel(store, args.str("channel"))
+    }
+
+    /// A named channel, else the default one.
+    pub fn for_channel(store: &'a Store, channel: Option<&str>) -> ToolResult<Self> {
+        let ch = store.channel(channel)?;
         Ok(Self {
             store,
             ch,
             dir: store.build_dir(ch),
+            extract: true,
         })
     }
 
     fn json(&self, name: &str) -> ToolResult<Arc<Value>> {
-        self.store.json(self.ch, name)
+        self.store.json_in(self.ch, &self.dir, name, self.extract)
     }
 
     fn items(&self) -> ToolResult<Arc<Items>> {
@@ -413,8 +464,8 @@ impl<'a> Ctx<'a> {
         Option<Vec<UexTerminal>>,
         Option<AsOf>,
     ) {
-        let prices = self.store.uex("uex-item-prices.json");
-        let terms = self.store.uex("uex-terminals.json");
+        let prices = self.store.uex(PRICES_FILE);
+        let terms = self.store.uex(TERMINALS_FILE);
         let rows = prices
             .as_ref()
             .and_then(|p| serde_json::from_value(p.get("prices")?.clone()).ok());
@@ -434,7 +485,7 @@ impl<'a> Ctx<'a> {
             (true, false) => "corpus-loot",
             (false, _) => "corpus-shops",
         };
-        self.store.typed(&self.dir, name, || {
+        self.store.typed_uex(&self.dir, name, || {
             let items = self.items()?;
             let mut d = Datasets {
                 items: items.list.clone(),
@@ -473,6 +524,104 @@ impl<'a> Ctx<'a> {
     }
 }
 
+impl Ctx<'_> {
+    fn mining_spawns(&self) -> ToolResult<Arc<MiningSpawns>> {
+        self.store.typed(&self.dir, "mining-spawns", || {
+            serde_json::from_value::<MiningSpawns>((*self.json("game-mining-spawns")?).clone())
+                .map_err(|e| ToolError(format!("game-mining-spawns: {e}")))
+        })
+    }
+
+    fn commodities(&self) -> ToolResult<Arc<Commodities>> {
+        self.store.typed(&self.dir, "commodities-quality", || {
+            serde_json::from_value::<Commodities>((*self.json("game-commodities")?).clone())
+                .map_err(|e| ToolError(format!("game-commodities: {e}")))
+        })
+    }
+
+    /// The commodity kiosk prices (`uex-commodity-prices.json` rows and `_fetched`) and the
+    /// terminals that place them; `None` when either file is missing or unreadable. Read
+    /// through [`Store::uex`] on every call, so a fresh "Fetch now" counts at once.
+    pub fn commodity_prices(&self) -> Option<CommodityPrices> {
+        let p = self.store.uex(COMMODITY_PRICES_FILE)?;
+        let t = self.store.uex("uex-terminals.json")?;
+        Some(CommodityPrices {
+            rows: serde_json::from_value(p.get("prices")?.clone()).ok()?,
+            fetched: p
+                .get("_fetched")
+                .and_then(Value::as_str)
+                .map(str::to_string),
+            terminals: serde_json::from_value(t.get("terminals")?.clone()).ok()?,
+        })
+    }
+
+    /// The card's sell section for a resource; `loaded` false without the UEX files.
+    fn sell(&self, resources: &[QualityResource], res: &QualityResource) -> SellSources {
+        let folder = self
+            .store
+            .cfg
+            .uex_dir
+            .as_ref()
+            .map(|d| d.display().to_string());
+        match self.commodity_prices() {
+            Some(cp) => {
+                let ranked = cp.ranked(resources).remove(&res.name.to_ascii_lowercase());
+                sell_sources(&ranked.unwrap_or_default(), res, true, folder, cp.fetched)
+            }
+            None => sell_sources(&[], res, false, folder, None),
+        }
+    }
+
+    /// [`where_mined`] over the build's mining spawns and loot areas.
+    pub fn mined(&self, q: &str) -> ToolResult<Vec<MinedReport>> {
+        let spawns = self.mining_spawns()?;
+        let areas = self.store.typed(&self.dir, "loot-areas", || {
+            field::<Vec<LootArea>>(&*self.json("game-item-sources")?, "areas")
+        })?;
+        Ok(mined_query(&spawns, &areas, q))
+    }
+
+    /// [`quality_for`] the record or the ores of `mined`, over the build's commodities.
+    pub fn quality(&self, record: &str, mined: &[MinedReport]) -> ToolResult<Vec<OreQuality>> {
+        let c = self.commodities()?;
+        let ores: Vec<String> = mined.iter().map(|m| m.ore.clone()).collect();
+        Ok(quality_for(&c, record, &ores))
+    }
+}
+
+/// `uex-commodity-prices.json` with the terminals that place it.
+pub struct CommodityPrices {
+    pub rows: Vec<CommodityPrice>,
+    /// The file's `_fetched` (RFC 3339).
+    pub fetched: Option<String>,
+    pub terminals: Vec<UexTerminal>,
+}
+
+impl CommodityPrices {
+    /// Kiosks buying each resource (by `name`, lower case), best price first.
+    pub fn ranked(
+        &self,
+        resources: &[QualityResource],
+    ) -> std::collections::BTreeMap<String, Vec<SellRow>> {
+        self.ranked_with_stats(resources).0
+    }
+
+    /// [`Self::ranked`], with how the names matched.
+    pub fn ranked_with_stats(
+        &self,
+        resources: &[QualityResource],
+    ) -> (std::collections::BTreeMap<String, Vec<SellRow>>, MatchStats) {
+        let as_of = self.fetched.clone().map(AsOf::Iso);
+        let (by, stats) = by_resource(&self.rows, resources);
+        let ranked = by
+            .into_iter()
+            .map(|(k, rows)| (k, best_sells(&rows, &self.terminals, as_of.as_ref())))
+            .filter(|(_, r)| !r.is_empty())
+            .collect();
+        (ranked, stats)
+    }
+}
+
 pub struct Corpus {
     d: Datasets,
     index: Option<LootIndex>,
@@ -480,7 +629,7 @@ pub struct Corpus {
 }
 
 /// Item rows for the `game-ship-components` records `base` (item-tags) does not hold.
-fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
+pub fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
     let mut ids: HashSet<String> = base.iter().map(|i| i.id.clone()).collect();
     let mut classes: HashSet<String> = base
         .iter()
@@ -526,7 +675,7 @@ fn extra_from_components(base: &[ItemTags], doc: &Value) -> Vec<ItemTags> {
     out
 }
 
-const NO_UEX: &str = "no shop data: StarOrg Codex downloads nothing; put uex-item-prices.json and uex-terminals.json (sc-gamedata `fetch` output) in the UEX folder named by the status tool to answer shop questions";
+const NO_UEX: &str = "no shop data: uex-item-prices.json and uex-terminals.json are not in the UEX folder named by the status tool; the app downloads them while Settings -> Network -> \"Download UEX market data\" is on (Fetch now), or put sc-gamedata `fetch` output there";
 
 /// The items a name resolved to, and the `inexact` marker when only fuzzy ranking found them.
 struct Resolved {
@@ -996,36 +1145,14 @@ fn where_found(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
     let (n, reports, marker) = first_report(ctx, &corpus, a.need("item")?, None)?;
     let mut out = Vec::new();
     for r in &reports {
-        let areas: Vec<Value> = r
-            .areas
-            .iter()
-            .map(|x| {
-                let h = &x.best;
-                json!({
-                    "area": starorg_gamedata::query::obtain::area_label(&x.area),
-                    "spawnPoint": h.config,
-                    "kind": h.kind,
-                    "container": h.entity_name.as_deref().unwrap_or(&h.entity),
-                    "slotShare": h.slot_share,
-                    "perRoll": h.per_roll,
-                    "oddsPerBox": h.score,
-                    "table": h.table,
-                    "configs": x.configs,
-                })
-            })
-            .collect();
-        let tables: Vec<Value> = r
-            .other_tables
-            .iter()
-            .take(10)
-            .map(|t| json!({"table": t.table, "perRoll": t.per_roll}))
-            .collect();
+        // The explorer Sources card's rows: area, place, container, contents, size, rarity.
+        let l = loot_sources(r, usize::MAX, 10);
         out.push(json!({
             "item": {"key": r.item.class_name, "name": r.item.name},
             "loot": r.eligibility,
-            "areas": page(&areas, a)?,
-            "otherTables": tables,
-            "otherTableCount": r.other_tables.len(),
+            "areas": camel(page(&l.containers, a)?),
+            "otherTables": camel(serde_json::to_value(&l.tables).unwrap_or_default()),
+            "otherTableCount": l.table_total,
         }));
     }
     let mut v = with_header(
@@ -1036,6 +1163,59 @@ fn where_found(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
         v["inexact"] = m;
     }
     Ok(v)
+}
+
+fn where_mined(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
+    let q = a.need("ore")?;
+    let reports = ctx.mined(q)?;
+    let mut out = Vec::new();
+    for r in &reports {
+        let quality = ctx.quality(&r.ore, std::slice::from_ref(r))?;
+        out.push(json!({
+            "ore": r.ore,
+            "name": r.name,
+            "rocks": r.rocks,
+            "belts": camel(page(&r.belts, a)?),
+            "spots": camel(page(&r.spots, a)?),
+            "quality": camel(json!(quality.first())),
+        }));
+    }
+    Ok(with_header(
+        ctx,
+        json!({
+            "matches": out.len(),
+            "results": out,
+            "note": "belt spawnShare is a weight comparable only between rows of one kind; spots are loot areas whose slots can place the rock; quality steps are the values the game shows, with shares estimated from a normal curve cut to min-max",
+        }),
+    ))
+}
+
+/// Object keys from `snake_case` (the app contract's types) to `camelCase` (every tool's
+/// answer), all the way down.
+fn camel(v: Value) -> Value {
+    match v {
+        Value::Object(m) => Value::Object(
+            m.into_iter()
+                .map(|(k, v)| {
+                    let mut out = String::with_capacity(k.len());
+                    let mut up = false;
+                    for c in k.chars() {
+                        if c == '_' {
+                            up = true;
+                        } else if up {
+                            out.extend(c.to_uppercase());
+                            up = false;
+                        } else {
+                            out.push(c);
+                        }
+                    }
+                    (out, camel(v))
+                })
+                .collect(),
+        ),
+        Value::Array(a) => Value::Array(a.into_iter().map(camel).collect()),
+        other => other,
+    }
 }
 
 fn how_to_obtain(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
@@ -1646,7 +1826,7 @@ fn status(store: &Store) -> ToolResult<Value> {
         "channels": channels,
         "server": {"rss": crate::rss::now(), "loaded": store.loaded()},
         "uexFolder": store.cfg.uex_dir.as_ref().map(|d| d.display().to_string()),
-        "uexPresent": store.uex("uex-item-prices.json").is_some(),
+        "uexPresent": store.uex(PRICES_FILE).is_some(),
         "network": "none: this server makes no network request and listens on this computer only",
     }))
 }
@@ -1655,6 +1835,20 @@ fn status(store: &Store) -> ToolResult<Value> {
 pub struct Tools {
     pub store: Store,
     applied: AppliedCache,
+    shops: Mutex<Option<ShopCache>>,
+    /// Held while the Loot screen's index is looked up or built, so a list and a detail
+    /// asked at once build it once.
+    loot: Mutex<()>,
+}
+
+/// The shop index of one pair of UEX files (the store's parsed values: a replaced file is a
+/// new value) and one set of item data.
+/// The shop index with what it was built from: the UEX files' stamp ([`Store::uex_stamp`],
+/// the one rule every UEX-derived cache follows) and the item data that linked it.
+struct ShopCache {
+    stamp: crate::store::UexStamp,
+    linked: Option<String>,
+    index: Arc<ShopIndex>,
 }
 
 impl Tools {
@@ -1662,11 +1856,381 @@ impl Tools {
         Self {
             store,
             applied: Mutex::new(None),
+            shops: Mutex::new(None),
+            loot: Mutex::new(()),
+        }
+    }
+
+    fn uex_folder(&self) -> Option<String> {
+        self.store
+            .cfg
+            .uex_dir
+            .as_ref()
+            .map(|d| d.display().to_string())
+    }
+
+    /// The shop index over the UEX files, `None` while either is missing. `ctx`: the build
+    /// whose item data names and links rows (item-tags, plus the ship items of
+    /// ship-components when that is there); with `ctx.extract` false only cached data is read.
+    pub fn shop_index(&self, ctx: Option<&Ctx<'_>>) -> Option<Arc<ShopIndex>> {
+        // Taken before the files are read: a fetch in between only costs one more rebuild.
+        let stamp = self.store.uex_stamp();
+        let prices = self.store.uex(PRICES_FILE)?;
+        let terminals = self.store.uex(TERMINALS_FILE)?;
+        // (build label, item-tags, ship items item-tags lacks)
+        let items = ctx.and_then(|c| {
+            let base = c.items().ok()?;
+            let label = format!(
+                "{} {}",
+                c.ch.name,
+                c.ch.build.as_deref().unwrap_or("unknown build")
+            );
+            Some((label, base, c.extra_items().ok()))
+        });
+        // The cache key: which build, and how many items it had.
+        let linked = items.as_ref().map(|(l, b, x)| {
+            format!(
+                "{l}/{}/{}",
+                b.list.len(),
+                x.as_ref().map_or(0, |x| x.list.len())
+            )
+        });
+        let mut g = self.shops.lock().unwrap_or_else(|e| e.into_inner());
+        if let Some(c) = g.as_ref()
+            && c.stamp == stamp
+            && c.linked == linked
+        {
+            return Some(c.index.clone());
+        }
+        let mut ship_items = false;
+        let (label, list) = match items {
+            Some((l, base, extra)) => {
+                let mut v = base.list.clone();
+                if let Some(x) = extra {
+                    ship_items = true;
+                    v.extend(x.list.iter().cloned());
+                }
+                (Some(l), v)
+            }
+            None => (None, Vec::new()),
+        };
+        let mut index = index_from_files(&prices, &terminals, &list, label);
+        index.ship_items = ship_items;
+        let index = Arc::new(index);
+        *g = Some(ShopCache {
+            stamp,
+            linked,
+            index: index.clone(),
+        });
+        Some(index)
+    }
+
+    /// The item data of a channel as cached (nothing is extracted); `None` without one.
+    fn cached_ctx(&self, channel: Option<&str>) -> Option<Ctx<'_>> {
+        let mut ctx = Ctx::for_channel(&self.store, channel).ok()?;
+        ctx.extract = false;
+        Some(ctx)
+    }
+
+    /// The app's Shops screen: every shop by system and place. Reads the UEX files and the
+    /// channel's cached item data only.
+    pub fn shop_directory(&self, channel: Option<&str>) -> ShopDirectory {
+        let ctx = self.cached_ctx(channel);
+        match self.shop_index(ctx.as_ref()) {
+            Some(ix) => ix.directory(self.uex_folder()),
+            None => crate::shops::missing_directory(self.uex_folder()),
+        }
+    }
+
+    /// Extract what the Shops screen links rows with, for the channel's current build:
+    /// `game-item-tags` and `game-ship-components` (the ship guns, missiles and components
+    /// item-tags lacks). Each runs in the extraction worker under the memory limit; a cached
+    /// one is not extracted again. The app's "Read game data" calls this.
+    pub fn warm_shop_links(&self, channel: &str) -> ToolResult<()> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        ctx.items()?;
+        ctx.extra_items()?;
+        Ok(())
+    }
+
+    /// One shop's rows for the Shops screen.
+    pub fn shop_items(&self, channel: Option<&str>, terminal: u64) -> ShopItems {
+        let ctx = self.cached_ctx(channel);
+        match self.shop_index(ctx.as_ref()) {
+            Some(ix) => ix.items(terminal, self.uex_folder()),
+            None => crate::shops::missing_items(self.uex_folder()),
+        }
+    }
+
+    /// Whether the UEX commodity files are there, read through [`Store::uex`] (parsed once
+    /// per file version).
+    fn market_meta(&self) -> crate::commodities::MarketMeta {
+        let prices = self.store.uex(COMMODITY_PRICES_FILE);
+        let terminals = self.store.uex(TERMINALS_FILE);
+        crate::commodities::MarketMeta {
+            loaded: prices.is_some() && terminals.is_some(),
+            fetched: prices
+                .as_ref()
+                .and_then(|p| p.get("_fetched")?.as_str().map(str::to_string)),
+            folder: self.uex_folder(),
+        }
+    }
+
+    /// The build's commodities as the browser reads them, parsed once per build; `None`
+    /// while `game-commodities` is not cached (nothing is extracted here).
+    fn commodity_data(
+        &self,
+        ctx: &Ctx<'_>,
+    ) -> Option<Arc<starorg_gamedata::query::commodities::CommodityData>> {
+        ctx.store
+            .typed(&ctx.dir, "commodity-data", || {
+                serde_json::from_value((*ctx.json("game-commodities")?).clone())
+                    .map_err(|e| ToolError(format!("game-commodities: {e}")))
+            })
+            .ok()
+    }
+
+    /// The app's Commodities screen: every tradable resource of the channel's build, as
+    /// list rows only. Reads cached data only; the rows are built once per build.
+    pub fn commodity_list(&self, channel: Option<&str>) -> crate::commodities::CommodityDirectory {
+        use crate::commodities::{CommodityDataState, commodity_list, empty_directory};
+        let market = self.market_meta();
+        let Some(ctx) = channel.and_then(|c| self.cached_ctx(Some(c))) else {
+            return empty_directory(CommodityDataState::NoChannel, market);
+        };
+        let Some(data) = self.commodity_data(&ctx) else {
+            return empty_directory(CommodityDataState::NotRead, market);
+        };
+        let rows = ctx
+            .store
+            .typed(&ctx.dir, "commodity-list", || Ok(commodity_list(&data)))
+            .map(|r| (*r).clone())
+            .unwrap_or_default();
+        crate::commodities::CommodityDirectory {
+            state: CommodityDataState::Ready,
+            build: Some(format!(
+                "{} {}",
+                ctx.ch.name,
+                ctx.ch.build.as_deref().unwrap_or("unknown build")
+            )),
+            commodities: rows,
+            market,
+        }
+    }
+
+    /// One resource in full for the Commodities screen: forms, quality, volatility, cargo,
+    /// where it is mined (cached mining data only) and kiosk prices (UEX files, ranked once
+    /// per set of files and build).
+    pub fn commodity_detail(
+        &self,
+        channel: Option<&str>,
+        id: &str,
+    ) -> crate::commodities::CommodityInfo {
+        use crate::commodities::{CommodityDataState, CommodityInfo, Kiosks, kiosks_from_files};
+        let Some(ctx) = channel.and_then(|c| self.cached_ctx(Some(c))) else {
+            return CommodityInfo {
+                state: CommodityDataState::NoChannel,
+                commodity: None,
+            };
+        };
+        let Some(data) = self.commodity_data(&ctx) else {
+            return CommodityInfo {
+                state: CommodityDataState::NotRead,
+                commodity: None,
+            };
+        };
+        let kiosks = ctx
+            .store
+            .typed_uex(&ctx.dir, "commodity-kiosks", || {
+                let folder = self.uex_folder();
+                Ok(
+                    match (
+                        self.store.uex(COMMODITY_PRICES_FILE),
+                        self.store.uex(TERMINALS_FILE),
+                    ) {
+                        (Some(p), Some(t)) => kiosks_from_files(
+                            &p,
+                            &t,
+                            &starorg_gamedata::query::commodities::quality_resources(&data),
+                            folder,
+                        ),
+                        _ => Kiosks::missing(folder),
+                    },
+                )
+            })
+            .unwrap_or_else(|_| Arc::new(Kiosks::missing(self.uex_folder())));
+        let commodity = starorg_gamedata::query::commodities::commodity_detail(
+            &data,
+            id,
+            |q| ctx.mined(q).ok(),
+            |r| kiosks.market(&r.name),
+        );
+        CommodityInfo {
+            state: CommodityDataState::Ready,
+            commodity,
         }
     }
 
     pub fn definitions(&self) -> Vec<ToolDef> {
         definitions(&self.store.channel_names())
+    }
+
+    /// The Loot screen of a channel's build ([`crate::loot::LootScreen`]), built once per
+    /// build from the cached loot corpus (nothing is extracted: "Read game data" does that)
+    /// and kept in the store's per-build cache; `None` while item-tags, loot or item-sources
+    /// is not cached.
+    fn loot_screen(&self, channel: Option<&str>) -> Option<Arc<crate::loot::LootScreen>> {
+        let ctx = self.cached_ctx(channel)?;
+        let _one = self.loot.lock().unwrap_or_else(|e| e.into_inner());
+        ctx.store
+            .typed(&ctx.dir, "loot-screen", || {
+                let c = ctx.corpus(true, false)?;
+                let label = format!(
+                    "{} {}",
+                    ctx.ch.name,
+                    ctx.ch.build.as_deref().unwrap_or("unknown build")
+                );
+                Ok(crate::loot::LootScreen::build(
+                    &c.d,
+                    c.index.as_ref(),
+                    Some(label),
+                ))
+            })
+            .ok()
+    }
+
+    /// The app's Loot screen list: every loot area or every item that drops in one, as
+    /// summaries (`missing` while the build's loot data is not cached).
+    pub fn loot_list(
+        &self,
+        channel: Option<&str>,
+        view: crate::loot::LootView,
+    ) -> crate::loot::LootList {
+        match self.loot_screen(channel) {
+            Some(s) => s.list(view),
+            None => crate::loot::missing_list(view),
+        }
+    }
+
+    /// One area's items or one item's areas for the Loot screen, in groups, likeliest
+    /// first; `q`: the filter, the grouping and the groups whose rows to answer
+    /// ([`crate::loot::LootScreen::detail`]).
+    pub fn loot_detail(
+        &self,
+        channel: Option<&str>,
+        view: crate::loot::LootView,
+        id: &str,
+        q: &crate::loot::DetailQuery,
+    ) -> crate::loot::LootDetail {
+        match self.loot_screen(channel) {
+            Some(s) => s.detail(view, id, q),
+            None => crate::loot::missing_detail(view),
+        }
+    }
+
+    /// The explorer's Sources card for a record (`Type.ShortName` or the short name): the
+    /// loot containers of the item with exactly that class name, and where the ore it names
+    /// is mined. No fuzzy matching: a record that is neither answers an empty card. The
+    /// first call per build extracts the datasets it reads (item-tags, loot, item-sources,
+    /// mining-spawns), as the tools do.
+    pub fn sources(
+        &self,
+        channel: &str,
+        record: &str,
+    ) -> ToolResult<crate::sources::RecordSources> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        let short = record.rsplit('.').next().unwrap_or(record).trim();
+        let mined = ctx.mined(record)?;
+        let quality = ctx.quality(record, &mined)?;
+        let items = ctx.items()?;
+        let item = items
+            .list
+            .iter()
+            .find(|i| i.class_name.eq_ignore_ascii_case(short))
+            .cloned();
+        let (buy, loot) = match item {
+            Some(i) => {
+                let corpus = ctx.corpus(true, false)?;
+                let r = obtain(
+                    &corpus.d,
+                    &i,
+                    corpus.index.as_ref(),
+                    &ObtainOptions::default(),
+                );
+                let folder = self.store.cfg.uex_dir.as_ref();
+                let folder = folder.map(|d| d.display().to_string());
+                (
+                    Some(buy_sources(
+                        &r.shops,
+                        corpus.shops_loaded,
+                        folder,
+                        MAX_SHOPS,
+                    )),
+                    Some(loot_sources(&r, MAX_CONTAINERS, MAX_TABLES)),
+                )
+            }
+            None => (None, None),
+        };
+        // A resource, cargo holding one, or a mined ore's resource: where it sells best.
+        let c = ctx.commodities()?;
+        let res = c.resource_of(record).or_else(|| {
+            quality
+                .iter()
+                .find_map(|q| c.resources.iter().find(|r| r.record_name == q.resource))
+        });
+        let sell = res.map(|r| ctx.sell(&c.resources, r));
+        Ok(crate::sources::RecordSources {
+            buy,
+            sell,
+            loot,
+            mined,
+            quality,
+        })
+    }
+
+    /// Obtain hints for `global.ini` descriptions (spec obtain-hints): for every item of
+    /// item-tags its loot containers and (UEX files present) shops, for every resource the
+    /// best commodity kiosk prices (UEX commodity prices present), and for every resource
+    /// with a quality spread where it is mined and its quality. Keyed by lower-case class
+    /// and resource name; `desc` is left for the caller (apply fills it from its own
+    /// `GameData`). The first call per build extracts item-tags, loot, item-sources,
+    /// mining-spawns and commodities; a group that fails leaves its lines out and says so
+    /// in `warnings`. Kept in memory per build once complete, until a UEX file changes
+    /// ([`Store::typed_uex`]; a partial answer is built
+    /// again next time, so a raised memory limit takes effect).
+    pub fn obtain_hints(&self, channel: &str) -> ToolResult<Arc<crate::hints::BuiltHints>> {
+        self.obtain_hints_with(channel, true)
+    }
+
+    /// [`Self::obtain_hints`]; with `extract` false only datasets already cached on disk
+    /// are read (a missing one is a warning, as a failed one is).
+    pub fn obtain_hints_with(
+        &self,
+        channel: &str,
+        extract: bool,
+    ) -> ToolResult<Arc<crate::hints::BuiltHints>> {
+        let mut ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        ctx.extract = extract;
+        let mut partial = None;
+        let r = ctx.store.typed_uex(&ctx.dir, "obtain-hints", || {
+            // A complete answer is kept on disk too, so a restart does not build it again.
+            let tag = hints_tag(&ctx);
+            if let Some(b) = read_hints(&ctx.dir, &tag) {
+                return Ok(b);
+            }
+            let b = build_hints(&ctx);
+            if b.warnings.is_empty() {
+                write_hints(&ctx.dir, &tag, &b);
+                Ok(b)
+            } else {
+                partial = Some(b);
+                tool_err("partial")
+            }
+        });
+        match (r, partial) {
+            (_, Some(p)) => Ok(Arc::new(p)),
+            (r, None) => r,
+        }
     }
 
     pub fn call(&self, name: &str, args: &Map<String, Value>) -> ToolResult<Value> {
@@ -1679,7 +2243,9 @@ impl Tools {
             "search" => search(&ctx, &a),
             "item" => item(&ctx, &a),
             "where_to_buy" => where_to_buy(&ctx, &a),
+            "shop_inventory" => self.shop_tool(&ctx, &a),
             "where_found" => where_found(&ctx, &a),
+            "where_mined" => where_mined(&ctx, &a),
             "how_to_obtain" => how_to_obtain(&ctx, &a),
             "mission" => mission(&ctx, &a),
             "compare" => compare(&ctx, &a),
@@ -1690,7 +2256,264 @@ impl Tools {
     }
 }
 
+/// File of [`Tools::obtain_hints`]' complete answer in the build folder.
+const HINTS_FILE: &str = "obtain-hints.json";
+
+/// What the hints on disk were built from: the code that builds them (`HINTS_CODE`, see
+/// `build.rs`) and the UEX files' stamp. Any difference builds them again.
+fn hints_tag(ctx: &Ctx<'_>) -> String {
+    format!("{}:{:?}", env!("HINTS_CODE"), ctx.store.uex_stamp())
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct HintsOnDisk {
+    tag: String,
+    hints: crate::hints::BuiltHints,
+}
+
+fn read_hints(dir: &Path, tag: &str) -> Option<crate::hints::BuiltHints> {
+    let bytes = std::fs::read(dir.join(HINTS_FILE)).ok()?;
+    let d: HintsOnDisk = serde_json::from_slice(&bytes).ok()?;
+    (d.tag == tag && d.hints.warnings.is_empty()).then_some(d.hints)
+}
+
+/// Best effort: a folder that cannot be written only costs the next start a rebuild.
+fn write_hints(dir: &Path, tag: &str, hints: &crate::hints::BuiltHints) {
+    let d = HintsOnDisk {
+        tag: tag.to_string(),
+        hints: hints.clone(),
+    };
+    let Ok(bytes) = serde_json::to_vec(&d) else {
+        return;
+    };
+    let tmp = dir.join(format!("{HINTS_FILE}.tmp"));
+    if std::fs::write(&tmp, bytes).is_ok() && std::fs::rename(&tmp, dir.join(HINTS_FILE)).is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+}
+
+fn build_hints(ctx: &Ctx<'_>) -> crate::hints::BuiltHints {
+    use crate::hints::{MAX_LOOT, MAX_SHOPS, loot_hints, mined_hints, quality_hint, shop_hints};
+    use starorg_core::model::ItemObtain;
+    use starorg_gamedata::query::obtain::BulkObtain;
+    let mut out = crate::hints::BuiltHints::default();
+    let items = &mut out.hints.items;
+    // Loot and shops: loot needs loot + item-sources; without them, shops alone.
+    let corpus = match ctx.corpus(true, false) {
+        Ok(c) => Some(c),
+        Err(e) => match ctx.corpus(false, false) {
+            Ok(c) => {
+                out.warnings.push(format!("loot lines left out: {e}"));
+                Some(c)
+            }
+            Err(e) => {
+                out.warnings
+                    .push(format!("loot and shop lines left out: {e}"));
+                None
+            }
+        },
+    };
+    if let Some(c) = &corpus {
+        let bulk = BulkObtain::new(&c.d, c.index.as_ref());
+        let list: Vec<_> = c.d.items.iter().filter(|i| !i.template()).collect();
+        let all_areas = bulk.areas_all(&list);
+        for (item, areas) in list.into_iter().zip(all_areas) {
+            let (loot, loot_total) = loot_hints(&areas, MAX_LOOT);
+            let o = ItemObtain {
+                shops: if c.shops_loaded {
+                    shop_hints(&bulk.shops(item), MAX_SHOPS)
+                } else {
+                    Vec::new()
+                },
+                loot,
+                loot_total,
+                ..Default::default()
+            };
+            if !o.is_empty() {
+                items.insert(item.class_name.to_ascii_lowercase(), o);
+            }
+        }
+    }
+    // Mining and quality, per resource with a quality spread.
+    let mining = (|| -> ToolResult<()> {
+        let c = ctx.commodities()?;
+        let spawns = ctx.mining_spawns()?;
+        let bodies: std::collections::HashMap<String, String> = spawns
+            .ore_spawns
+            .iter()
+            .filter_map(|s| Some((s.location.to_ascii_lowercase(), s.body.clone()?)))
+            .collect();
+        let body_of = |loc: &str| bodies.get(&loc.to_ascii_lowercase()).cloned();
+        let rock_kind = |rock: &str| {
+            spawns
+                .rocks
+                .iter()
+                .find(|r| r.rock.eq_ignore_ascii_case(rock))
+                .and_then(|r| r.kind.clone())
+        };
+        for r in c.resources.iter().filter(|r| r.quality.is_some()) {
+            let mined = ctx.mined(&r.record_name)?;
+            let quality = ctx.quality(&r.record_name, &mined)?;
+            let o = ItemObtain {
+                mined: mined
+                    .iter()
+                    .flat_map(|m| mined_hints(m, body_of, rock_kind))
+                    .collect(),
+                quality: quality
+                    .iter()
+                    .find(|q| q.resource.eq_ignore_ascii_case(&r.record_name))
+                    .and_then(quality_hint),
+                ..Default::default()
+            };
+            if !o.is_empty() {
+                items.insert(r.name.to_ascii_lowercase(), o);
+            }
+        }
+        Ok(())
+    })();
+    if let Err(e) = mining {
+        out.warnings
+            .push(format!("mining and quality lines left out: {e}"));
+    }
+    add_sells(ctx, &mut out);
+    out.items = out.hints.items.len();
+    out
+}
+
+/// Adds the commodity sell lines from the UEX commodity prices to `out`, keyed by resource
+/// name like the mining lines; `None` (nothing added) when the prices or the commodities
+/// dataset are not there, which leaves the sell lines out.
+fn add_sells(ctx: &Ctx<'_>, out: &mut crate::hints::BuiltHints) -> Option<()> {
+    use crate::hints::{MAX_SELLS, sell_hints};
+    let cp = ctx.commodity_prices()?;
+    let c = ctx.commodities().ok()?;
+    let (ranked, stats) = cp.ranked_with_stats(&c.resources);
+    for (resource, rows) in ranked {
+        let item = out.hints.items.entry(resource).or_default();
+        item.sells = sell_hints(&rows, MAX_SELLS);
+        item.sells_total = rows.len();
+    }
+    out.hints.prices_fetched = cp.fetched;
+    out.items = out.hints.items.len();
+    out.sell_match = Some(stats);
+    Some(())
+}
+
 /// Paths a test or caller may want: the UEX folder under a cache dir.
 pub fn uex_dir(cache: &Path) -> PathBuf {
     cache.join("uex")
+}
+
+/// The UEX files in [`uex_dir`] (as `starorg_net::uex` writes them).
+pub const PRICES_FILE: &str = "uex-item-prices.json";
+pub const TERMINALS_FILE: &str = "uex-terminals.json";
+
+/// A `shop_inventory` row: [`crate::shops::ShopItemRow`] with camelCase keys, as every tool
+/// answers.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct ShopToolRow<'a> {
+    name: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    uex_name: Option<&'a str>,
+    category: &'static str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price_buy: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    price_sell: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    updated: Option<&'a str>,
+    stale: bool,
+    /// The game class name, when linked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    key: Option<&'a str>,
+}
+
+/// Shops listed when a name fits several.
+const SHOP_CHOICES: usize = 25;
+
+impl Tools {
+    /// `shop_inventory`: one shop's rows, by category, paged.
+    fn shop_tool(&self, ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
+        let q = a.need("terminal")?;
+        let category = match a.str("category") {
+            None => None,
+            Some(c) => Some(ShopCategory::parse(c).ok_or_else(|| {
+                ToolError(format!(
+                    "category must be one of {}, not {c:?}",
+                    ShopCategory::ALL.map(|c| c.key()).join(", ")
+                ))
+            })?),
+        };
+        let Some(ix) = self.shop_index(Some(ctx)) else {
+            return Ok(with_header(ctx, json!({"terminal": q, "notes": [NO_UEX]})));
+        };
+        let found = ix.find(q);
+        let source = "UEX (player-reported), not game files";
+        let shop = match found.as_slice() {
+            [] => {
+                return tool_err(format!(
+                    "no shop matches {q:?}; give a UEX terminal name or id (where_to_buy with a place lists what the shops there sell)"
+                ));
+            }
+            [one] => *one,
+            many => {
+                let shops: Vec<Value> = many
+                    .iter()
+                    .take(SHOP_CHOICES)
+                    .map(|s| {
+                        let m = &s.summary;
+                        json!({"id": m.id, "name": m.name, "location": m.location, "system": m.system, "items": m.items})
+                    })
+                    .collect();
+                return Ok(with_header(
+                    ctx,
+                    json!({"terminal": q, "matches": many.len(), "shops": shops, "source": source,
+                           "notes": ["more than one shop matches; call again with one shop's id as `terminal`"]}),
+                ));
+            }
+        };
+        let m = &shop.summary;
+        let rows: Vec<ShopToolRow<'_>> = shop
+            .items
+            .iter()
+            .filter(|i| category.is_none_or(|c| i.category == c))
+            .map(|i| ShopToolRow {
+                name: &i.name,
+                uex_name: i.uex_name.as_deref(),
+                category: i.category.key(),
+                price_buy: i.price_buy,
+                price_sell: i.price_sell,
+                updated: i.updated.as_deref(),
+                stale: i.stale,
+                key: i.record.as_ref().map(|r| r.class_name.as_str()),
+            })
+            .collect();
+        let categories: Vec<Value> = m
+            .categories
+            .iter()
+            .map(|c| json!({"category": c.category.key(), "label": c.category.label(), "count": c.count}))
+            .collect();
+        let mut v = with_header(
+            ctx,
+            json!({
+                "shop": {"id": m.id, "name": m.name, "location": m.location, "system": m.system,
+                         "items": m.items, "notOnLive": m.not_on_live, "updated": m.updated},
+                "categories": categories,
+                "items": page(&rows, a)?,
+                "fetched": ix.fetched,
+                "linkedWith": ix.linked,
+                "source": source,
+            }),
+        );
+        if let Some(c) = category {
+            v["category"] = json!(c.key());
+        }
+        if ix.linked.is_none() {
+            v["notes"] = json!([
+                "no item data for this build: names are UEX's and no row carries a class name"
+            ]);
+        }
+        Ok(v)
+    }
 }

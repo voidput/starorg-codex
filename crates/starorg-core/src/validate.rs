@@ -5,7 +5,7 @@
 //! time; whole-file rules stop the apply before anything is written.
 
 use crate::ini::{BOM, StockIni};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 
 /// Changed values longer than this get a warning (stock ships one of 16,026 bytes; Q9).
 pub const WARN_LEN: usize = 16_000;
@@ -62,6 +62,10 @@ pub enum Rule {
     FormatKey,
     PercentRule,
     TooLong,
+    /// Generated text holds a raw loc reference (`@item_Name...`) stock does not have.
+    RawLocKey,
+    /// Generated text says "PLACEHOLDER" where stock does not.
+    PlaceholderText,
 }
 
 impl Rule {
@@ -75,6 +79,8 @@ impl Rule {
             Rule::FormatKey => "format-key",
             Rule::PercentRule => "percent-rule",
             Rule::TooLong => "too-long",
+            Rule::RawLocKey => "raw-loc-key",
+            Rule::PlaceholderText => "placeholder-text",
         }
     }
 }
@@ -234,6 +240,26 @@ pub fn tokens(s: &str) -> Tokens<'_> {
     t
 }
 
+/// `value` holds a control character (tab aside) more often than `stock` does. CIG's own
+/// stray ones (PTU 5.0 has descriptions with a bare CR mid-line) stay as they were; only
+/// one we would add fails.
+fn adds_control_chars(stock: &str, value: &str) -> bool {
+    let mut have: HashMap<char, usize> = HashMap::new();
+    for c in stock.chars().filter(|c| c.is_control() && *c != '\t') {
+        *have.entry(c).or_default() += 1;
+    }
+    value
+        .chars()
+        .filter(|c| c.is_control() && *c != '\t')
+        .any(|c| match have.get_mut(&c) {
+            Some(n) if *n > 0 => {
+                *n -= 1;
+                false
+            }
+            _ => true,
+        })
+}
+
 /// `a` contains all of `b` in order (as a subsequence).
 fn has_in_order(a: &[&str], b: &[&str]) -> bool {
     let mut it = a.iter();
@@ -246,7 +272,7 @@ pub fn check_value(stock: &str, value: &str, op: Op, added: &[&str]) -> Result<(
     if value.len() > MAX_LEN {
         return Err(Rule::TooLong);
     }
-    if value.chars().any(|c| c.is_control() && c != '\t') {
+    if adds_control_chars(stock, value) {
         return Err(Rule::ControlChar);
     }
     let st = tokens(stock);
@@ -285,6 +311,52 @@ pub fn check_value(stock: &str, value: &str, op: Op, added: &[&str]) -> Result<(
     }
     if op.generated() && added.iter().any(|a| !percent_rule_ok(a, true)) {
         return Err(Rule::PercentRule);
+    }
+    if op.generated() {
+        added_text_ok(stock, added)?;
+    }
+    Ok(())
+}
+
+/// Raw loc references in `s`: `@` followed by an identifier with at least one `_`
+/// (`@item_NameFoo`), the way the game shows a key it cannot resolve.
+pub fn raw_loc_refs(s: &str) -> Vec<&str> {
+    let b = s.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0;
+    while i < b.len() {
+        if b[i] == b'@' {
+            let len = b[i + 1..]
+                .iter()
+                .take_while(|c| c.is_ascii_alphanumeric() || **c == b'_')
+                .count();
+            let id = &s[i + 1..i + 1 + len];
+            if id.contains('_') && id.bytes().any(|c| c.is_ascii_alphanumeric()) {
+                out.push(&s[i..i + 1 + len]);
+            }
+            i += 1 + len;
+        } else {
+            i += 1;
+        }
+    }
+    out
+}
+
+/// Generated text must not show the player a raw loc key or a placeholder (spec
+/// missing-names): each `@key` and each "placeholder" (any case) in `added` must already be
+/// in the stock value.
+pub fn added_text_ok(stock: &str, added: &[&str]) -> Result<(), Rule> {
+    let stock_refs = raw_loc_refs(stock);
+    if added
+        .iter()
+        .flat_map(|a| raw_loc_refs(a))
+        .any(|r| !stock_refs.contains(&r))
+    {
+        return Err(Rule::RawLocKey);
+    }
+    let has_ph = |t: &str| t.to_ascii_lowercase().contains("placeholder");
+    if !has_ph(stock) && added.iter().any(|a| has_ph(a)) {
+        return Err(Rule::PlaceholderText);
     }
     Ok(())
 }
@@ -335,6 +407,8 @@ pub enum FileError {
     LineEnding(usize),
     #[error("line {0}: key differs from stock")]
     KeyChanged(usize),
+    #[error("line {0}: added line is not a new key")]
+    BadAddedLine(usize),
 }
 
 /// Whole-file rules on the rendered bytes.
@@ -342,6 +416,13 @@ pub enum FileError {
 /// The BOM rule holds whatever stock looks like (spec 7.3): the game's own file starts with
 /// one, so a stock without it means the input is wrong, and nothing is written.
 pub fn check_file(stock: &StockIni, out: &[u8]) -> Result<(), FileError> {
+    check_file_with(stock, out, 0)
+}
+
+/// [`check_file`] for an output with `added` new keys after the stock lines
+/// ([`crate::ini::Edits::add`]): every stock line keeps its key and ending (a last line
+/// without an ending may gain one), and each added line is a key stock lacks, once.
+pub fn check_file_with(stock: &StockIni, out: &[u8], added: usize) -> Result<(), FileError> {
     if !out.starts_with(BOM) {
         return Err(FileError::NoBom);
     }
@@ -349,18 +430,33 @@ pub fn check_file(stock: &StockIni, out: &[u8]) -> Result<(), FileError> {
         return Err(FileError::NotUtf8);
     }
     let rendered = StockIni::parse(out.to_vec());
-    if rendered.line_count() != stock.line_count() {
+    let n = stock.line_count();
+    if rendered.line_count() != n + added {
         return Err(FileError::LineCount {
             got: rendered.line_count(),
-            want: stock.line_count(),
+            want: n + added,
         });
     }
-    for i in 0..stock.line_count() {
-        if stock.line_ending(i) != rendered.line_ending(i) {
+    for i in 0..n {
+        let gained_ending = added > 0 && i + 1 == n && stock.line_ending(i) == Some(&[][..]);
+        if stock.line_ending(i) != rendered.line_ending(i) && !gained_ending {
             return Err(FileError::LineEnding(i + 1));
         }
         if stock.key_at(i) != rendered.key_at(i) {
             return Err(FileError::KeyChanged(i + 1));
+        }
+    }
+    let mut seen = std::collections::HashSet::new();
+    for i in n..n + added {
+        let ok = rendered.key_at(i).is_some_and(|k| {
+            crate::ini::is_addable_key(k)
+                && stock
+                    .find(k)
+                    .is_err_and(|e| matches!(e, crate::ini::IniError::UnknownKey(_)))
+                && seen.insert(crate::ini::fold_key(k))
+        });
+        if !ok {
+            return Err(FileError::BadAddedLine(i + 1));
         }
     }
     Ok(())
@@ -421,6 +517,21 @@ mod tests {
             check_value(s, "a\tb ~mission(Location)", Op::Override, &[]),
             Ok(())
         );
+        // CIG's own stray CR stays (PTU 5.0 descriptions); one more of ours does not.
+        let cr = "Gloves.\r\\n\\nCamo.";
+        assert_eq!(
+            check_value(
+                cr,
+                &format!("{cr}\\n\\nA: 1"),
+                Op::GeneratedParts,
+                &["\\n\\nA: 1"]
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            check_value(cr, &format!("{cr}\r"), Op::GeneratedParts, &["\r"]),
+            Err(Rule::ControlChar)
+        );
         assert_eq!(
             check_value(s, "Go now", Op::Override, &[]),
             Err(Rule::Variables)
@@ -473,6 +584,83 @@ mod tests {
         assert_eq!(
             check_value("a", &"x".repeat(MAX_LEN + 1), Op::Override, &[]),
             Err(Rule::TooLong)
+        );
+    }
+
+    #[test]
+    fn generated_text_never_adds_raw_keys_or_placeholders() {
+        assert_eq!(
+            raw_loc_refs("a @item_NameFoo_01, b@x c @LOC_EMPTY mail@host"),
+            vec!["@item_NameFoo_01", "@LOC_EMPTY"]
+        );
+        for added in [" [Owned] @item_NameX_1", "\\nGet: @items_commodities_ice"] {
+            assert_eq!(
+                check_value("p", &format!("p{added}"), Op::GeneratedParts, &[added]),
+                Err(Rule::RawLocKey),
+                "{added}"
+            );
+        }
+        assert_eq!(
+            check_value(
+                "p",
+                "<= PLACEHOLDER =>",
+                Op::GeneratedWhole,
+                &["<= PLACEHOLDER =>"]
+            ),
+            Err(Rule::PlaceholderText)
+        );
+        assert_eq!(
+            check_value(
+                "p",
+                "p - placeholder",
+                Op::GeneratedParts,
+                &[" - placeholder"]
+            ),
+            Err(Rule::PlaceholderText)
+        );
+        // What stock already has is not ours: kept.
+        let stock = "Use @ui_key_thing here";
+        assert_eq!(
+            check_value(
+                stock,
+                &format!("{stock} @ui_key_thing"),
+                Op::GeneratedParts,
+                &[" @ui_key_thing"]
+            ),
+            Ok(())
+        );
+        // A bare `@` or an address-like `@word` is fine; user layers are not checked.
+        assert_eq!(
+            check_value("p", "p @ 5", Op::GeneratedParts, &[" @ 5"]),
+            Ok(())
+        );
+        assert_eq!(check_value("p", "@item_NameX_1", Op::Override, &[]), Ok(()));
+    }
+
+    #[test]
+    fn added_lines_after_stock() {
+        let stock = StockIni::parse(b"\xEF\xBB\xBFa=1\r\nb,P=2".to_vec());
+        let ok = b"\xEF\xBB\xBFa=1\r\nb,P=2\r\nnew_key=x\r\n";
+        assert_eq!(check_file_with(&stock, ok, 1), Ok(()));
+        // Without the count it is a line-count failure.
+        assert!(matches!(
+            check_file(&stock, ok),
+            Err(FileError::LineCount { .. })
+        ));
+        // An added line that repeats a stock key, or a comment, is refused.
+        for bad in [
+            &b"\xEF\xBB\xBFa=1\r\nb,P=2\r\nA=x\r\n"[..],
+            &b"\xEF\xBB\xBFa=1\r\nb,P=2\r\n;c=x\r\n"[..],
+        ] {
+            assert_eq!(
+                check_file_with(&stock, bad, 1),
+                Err(FileError::BadAddedLine(3))
+            );
+        }
+        let twice = b"\xEF\xBB\xBFa=1\r\nb,P=2\r\nn=x\r\nN=y\r\n";
+        assert_eq!(
+            check_file_with(&stock, twice, 2),
+            Err(FileError::BadAddedLine(4))
         );
     }
 

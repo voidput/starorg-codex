@@ -13,7 +13,11 @@
 //!    loadout resolved against pass 2,
 //! 4. reputation standings, blueprint pools, blueprints, contract generators,
 //! 5. quest items: entities `MissionBrokerEntry` spawn descriptions and contract hauling
-//!    orders reference (addendum §13).
+//!    orders reference (addendum §13),
+//! 6. description keys of every entity class and resource type, for the obtain hints
+//!    (spec obtain-hints): the datasets that feed them name classes, not loc keys; and
+//!    the name key, description key and type of every named entity class, for the
+//!    missing names (spec missing-names).
 //!
 //! [`drift`] then turns empty categories and missing struct types into schema-drift
 //! warnings (spec 3.3 step 6).
@@ -28,9 +32,9 @@ pub mod store;
 use rayon::prelude::*;
 use serde_json::Value;
 use starorg_core::ini::StockIni;
-use starorg_core::model::{Ammo, GameData, QuestItem, WeaponClass};
+use starorg_core::model::{Ammo, GameData, ItemName, QuestItem, WeaponClass};
 use starorg_core::source::Warning;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Mutex;
 use store::{Index, RecordMeta, RecordStore};
 
@@ -102,6 +106,10 @@ pub const REQUIRED_TYPES: &[(&str, &str)] = &[
     ("BlueprintPoolRecord", "blueprint pools of contracts"),
     ("SReputationStandingParams", "required standing names"),
     ("SReputationRewardAmount", "contract reputation amounts"),
+    (
+        "ResourceTypeDatabase",
+        "commodity description keys (WHERE TO GET)",
+    ),
 ];
 
 /// What one extraction produced.
@@ -203,6 +211,85 @@ fn desc_key_of(entity: &Value) -> Option<String> {
     json::text_at(json::attach_def(entity), "Localization.Description")
         .and_then(starorg_core::model::loc_key)
         .map(starorg_core::ini::fold_key)
+}
+
+/// A description reference worth keeping: an `@` key, not empty or a placeholder.
+fn usable_desc(r: &str) -> Option<String> {
+    let k = starorg_core::model::loc_key(r.strip_prefix('@')?)?;
+    (!k.eq_ignore_ascii_case("LOC_PLACEHOLDER")).then(|| r.to_string())
+}
+
+/// Description keys of pass 6.
+struct DescKeys {
+    items: BTreeMap<String, String>,
+    resources: BTreeMap<String, String>,
+    names: Vec<ItemName>,
+}
+
+/// Pass 6: entity classes (lower case) -> `AttachDef` description reference, resource
+/// names (lower case) -> description reference from the `ResourceTypeDatabase` groups, and
+/// every entity class with a real name reference (one record read for both).
+fn desc_keys(store: &dyn RecordStore, index: &Index<'_>, errors: &Mutex<Vec<Warning>>) -> DescKeys {
+    let rows = load_all(
+        store,
+        index.of_type("EntityClassDefinition").collect(),
+        errors,
+        |m, _, v| {
+            let a = json::attach_def(v);
+            let class = m.short_name().to_ascii_lowercase();
+            let desc = json::text_at(a, "Localization.Description").and_then(usable_desc);
+            let name = json::text_at(a, "Localization.Name")
+                .filter(|r| r.starts_with('@'))
+                .filter(|r| starorg_core::model::loc_key(r).is_some())
+                .map(|name| ItemName {
+                    class: class.clone(),
+                    name: name.to_string(),
+                    desc: desc.clone(),
+                    kind: json::text_at(a, "Type").unwrap_or_default().to_string(),
+                });
+            (desc.is_some() || name.is_some()).then_some((class, desc, name))
+        },
+    );
+    let mut items = BTreeMap::new();
+    let mut names = Vec::new();
+    for (class, desc, name) in rows {
+        if let Some(d) = desc {
+            items.insert(class, d);
+        }
+        names.extend(name);
+    }
+    fn walk(group: &Value, out: &mut BTreeMap<String, String>) {
+        for r in json::array(group.get("resources")) {
+            let name = json::text(r.get("_RecordName_")).map(starorg_core::model::short_name);
+            let desc = json::text(r.get("description")).and_then(usable_desc);
+            if let (Some(n), Some(d)) = (name, desc) {
+                out.entry(n.to_ascii_lowercase()).or_insert(d);
+            }
+        }
+        for g in json::array(group.get("groups")) {
+            walk(g, out);
+        }
+    }
+    let mut resources = BTreeMap::new();
+    for found in load_all(
+        store,
+        index.of_type("ResourceTypeDatabase").collect(),
+        errors,
+        |_, _, v| {
+            let mut out = BTreeMap::new();
+            walk(v, &mut out);
+            Some(out)
+        },
+    ) {
+        for (k, v) in found {
+            resources.entry(k).or_insert(v);
+        }
+    }
+    DescKeys {
+        items,
+        resources,
+        names,
+    }
 }
 
 /// Pass 5: one [`QuestItem`] per referenced entity, with its loc keys, type and the other
@@ -521,6 +608,11 @@ pub fn extract(
             .flatten(),
         );
         gd.quest_items = quest_items(store, &index, links, &errors);
+
+        // Pass 6: description and name keys.
+        let keys = desc_keys(store, &index, &errors);
+        (gd.item_descs, gd.resource_descs, gd.item_names) =
+            (keys.items, keys.resources, keys.names);
     }
     gd.sort();
     let mut warnings = errors.into_inner().unwrap_or_default();

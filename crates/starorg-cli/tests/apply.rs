@@ -630,3 +630,97 @@ fn walk(p: &Path) -> Vec<(PathBuf, u64)> {
     out.sort();
     out
 }
+
+/// A stock file with a gun description, GameData naming its description key, and obtain
+/// hints for it (spec obtain-hints).
+fn obtain_fixture(f: &Fake) -> (PathBuf, PathBuf) {
+    let mut stock = stock_bytes("Star Citizen Alpha 4.10");
+    stock.extend_from_slice(
+        b"item_NameTEST_Gun=Filler Gun\r\nitem_DescTEST_Gun=Filler gun text.\r\n",
+    );
+    std::fs::write(&f.stock, stock).unwrap();
+    let gd = f.base.join("gamedata.json");
+    std::fs::write(
+        &gd,
+        serde_json::json!({"schema": 4, "itemDescs": {"test_gun": "@item_DescTEST_Gun"}})
+            .to_string(),
+    )
+    .unwrap();
+    let hints = f.base.join("hints.json");
+    std::fs::write(
+        &hints,
+        serde_json::json!({"items": {"test_gun": {"loot": [
+            {"contents": "Large weapons crate", "rarity": "Rare", "place": "Caves", "odds": 0.2},
+            {"contents": "Weapons rack", "place": "Stations"}
+        ]}}})
+        .to_string(),
+    )
+    .unwrap();
+    (gd, hints)
+}
+
+fn desc_line(f: &Fake) -> String {
+    let text = String::from_utf8_lossy(&std::fs::read(f.ini("LIVE")).unwrap()).to_string();
+    text.lines()
+        .find(|l| l.starts_with("item_DescTEST_Gun="))
+        .unwrap()
+        .to_string()
+}
+
+#[test]
+fn obtain_hints_reach_the_description_and_a_failure_only_drops_them() {
+    let f = Fake::new();
+    let (gd, hints) = obtain_fixture(&f);
+    f.setup("LIVE");
+    let gd = gd.to_str().unwrap();
+    let (code, v) = f.json(&[
+        "--test-gamedata",
+        gd,
+        "--test-obtain-hints",
+        hints.to_str().unwrap(),
+        "apply",
+        "--channel",
+        "LIVE",
+    ]);
+    assert_eq!(code, 0, "{v}");
+    let r = &v["channels"][0];
+    assert_eq!(r["result"], "applied");
+    assert_eq!(r["obtain"]["items"], 1, "{r}");
+    let line = desc_line(&f);
+    assert!(
+        line.starts_with("item_DescTEST_Gun=Filler gun text.\\n\\n"),
+        "{line}"
+    );
+    assert!(line.contains("WHERE TO GET"), "{line}");
+    assert!(
+        line.contains("Large weapons crate (Rare) at Caves, Weapons rack at Stations"),
+        "{line}"
+    );
+    // Normal mode: no odds.
+    assert!(!line.contains("20%"), "{line}");
+
+    // The hints cannot be read: applied with a warning, the block left out, nothing else.
+    let missing = f.base.join("nope.json");
+    let (code, v) = f.json(&[
+        "--test-gamedata",
+        gd,
+        "--test-obtain-hints",
+        missing.to_str().unwrap(),
+        "apply",
+        "--channel",
+        "LIVE",
+    ]);
+    assert_eq!(code, 5, "{v}");
+    let r = &v["channels"][0];
+    assert_eq!(r["result"], "applied");
+    let w = r["warnings"].as_array().unwrap();
+    assert!(
+        w.iter().any(|w| w["kind"] == "obtain-hints"
+            && w["detail"]
+                .as_str()
+                .unwrap()
+                .contains("WHERE TO GET left out")),
+        "{w:?}"
+    );
+    assert_eq!(desc_line(&f), "item_DescTEST_Gun=Filler gun text.");
+}

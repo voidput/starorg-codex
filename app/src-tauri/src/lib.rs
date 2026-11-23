@@ -49,6 +49,11 @@ fn backend() -> (BackendState, contract::real::DialogSlot, update::HostSlot) {
         cfg.dialogs = slot.clone();
         let b = std::sync::Arc::new(contract::real::RealBackend::new(cfg));
         b.log_folder_migration(&migration);
+        // Leftover extraction folders and the cache folder's cap, off the start-up path.
+        let house = b.clone();
+        let _ = std::thread::Builder::new()
+            .name("starorg-storage".into())
+            .spawn(move || house.storage_housekeeping());
         let host = b.update_host();
         // "Sync automatically after game exit" (Settings -> StarOrg Tools): a cheap check
         // every 20 s that does nothing unless that switch, the network switch and a sign-in

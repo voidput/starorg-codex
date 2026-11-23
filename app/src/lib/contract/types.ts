@@ -7,6 +7,8 @@
  * Rules: snake_case fields, kebab-case values, `T | null` for Option (never omitted).
  */
 
+import type { MinedReport, OreQuality } from './dev';
+
 export const CONTRACT_VERSION = 1;
 export const JOB_EVENT = 'job-progress';
 
@@ -97,7 +99,7 @@ export interface ChannelRef {
 
 // Jobs ----------------------------------------------------------------------------------
 
-export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook' | 'dev' | 'mcp';
+export type JobKind = 'discover' | 'extract' | 'apply' | 'remove' | 'restore' | 'import' | 'sync' | 'hook' | 'dev' | 'mcp' | 'uex';
 export type JobPhase = 'running' | 'done' | 'failed' | 'cancelled';
 
 export interface JobProgress {
@@ -164,6 +166,10 @@ export interface ApplyCounts {
   fps_weapons: number;
   missiles: number;
   missions: number;
+  /** Descriptions that got a WHERE TO GET block. */
+  obtain_hints: number;
+  /** Item name keys stock lacks that got a name, and description keys that got a sibling's description. */
+  missing_names: number;
   overrides: number;
   dropped: number;
 }
@@ -296,9 +302,14 @@ export interface PreviewRequest {
   preset: Preset | null;
 }
 
+/** Read a set-up channel's game data into the cache ("Read game data"); nothing goes into the game folder. */
+export interface ReadGameDataRequest {
+  target: ChannelRef;
+}
+
 // Enhancements profile (M2 enhance::Profile, field for field) ---------------------------
 
-export type CategoryId = 'ships' | 'components' | 'ship-weapons' | 'fps-weapons' | 'missiles' | 'missions';
+export type CategoryId = 'ships' | 'components' | 'ship-weapons' | 'fps-weapons' | 'missiles' | 'missions' | 'obtain';
 export type TagKind = 'components' | 'ship-weapons' | 'missiles';
 export type TagStyle = 'short' | 'medium' | 'long';
 export type TagSeparator = 'dash' | 'none' | 'space' | 'underscore' | 'dot' | 'slash' | 'pipe';
@@ -354,6 +365,9 @@ export interface MissionSettings {
   reward_em: number;
 }
 
+/** How much the WHERE TO GET block says. */
+export type ObtainMode = 'short' | 'normal' | 'detailed';
+
 export interface Profile {
   preset: Preset | null;
   ships: boolean;
@@ -364,6 +378,15 @@ export interface Profile {
   missions: boolean;
   /** "Used in: <contract> · <system>" on items a mission spawns or a contract asks for. */
   quest_hints: boolean;
+  /** WHERE TO GET in item and commodity descriptions. */
+  obtain: boolean;
+  obtain_mode: ObtainMode;
+  /** Shop names from the user's UEX files in the block (never prices). */
+  obtain_shops: boolean;
+  /** The `sell` line: best commodity kiosks, rounded price per SCU, stamped with the UEX fetch day. Off by default, on in Everything. */
+  obtain_prices: boolean;
+  /** Names (and sibling descriptions) for items whose name (description) key stock lacks; only placeholder stock lines are replaced. */
+  missing_names: boolean;
   /** `<category>.<line>` keys from ProfileSchema. */
   lines_off: string[];
   stats_above: boolean;
@@ -376,6 +399,346 @@ export interface Profile {
   colour_test: boolean;
   /** "Fix known text bugs" off = every built-in patch id here. */
   patches_disabled: string[];
+}
+
+/** One UEX file WHERE TO GET's shop and sell lines read. */
+export interface UexFile {
+  name: string;
+  present: boolean;
+  /** RFC 3339 UTC, when present. */
+  modified: string | null;
+}
+
+/** Shop names and sell prices come from UEX files in `uex_folder`: downloaded by `fetch_uex` (opt-in) or put there by the user. Shops are names only; the sell line has rounded prices. */
+export interface ObtainStatus {
+  uex_folder: string;
+  files: UexFile[];
+  /** Item prices and terminals are there. */
+  shops_ready: boolean;
+  /** Commodity prices and terminals are there. */
+  prices_ready: boolean;
+}
+
+/** Whether a UEX API token is saved, and where. Never the token itself. */
+export interface UexTokenStatus {
+  set: boolean;
+  store: TokenStoreKind | null;
+}
+
+/** Save (`token`) or remove (`null` or empty) the UEX API token. */
+export interface UexTokenRequest {
+  token: string | null;
+}
+
+/** `missing`: the channel's loot data is not cached yet (Read game data). */
+export type LootDataState = 'ready' | 'missing';
+
+/** Which Loot list: loot areas, or items that drop in one. */
+export type LootView = 'areas' | 'items';
+
+/** How the item is there: rolled by a loot table, held by a rack, or lying loose. */
+export type LootDropKind = 'loot' | 'fixed' | 'loose';
+
+/** How a detail's drops are grouped: by container ("Where in it"), by the top level of the other list's tree (an area's kind of place, an item's category), or one flat group. */
+export type LootGroupBy = 'container' | 'place' | 'none';
+
+/** `target`: the channel whose cached loot data is read (null: `missing`); nothing is extracted. */
+export interface LootListRequest {
+  target: ChannelRef | null;
+  view: LootView;
+}
+
+export interface LootDetailRequest {
+  target: ChannelRef | null;
+  view: LootView;
+  /** A `LootSummary.id` of that view. */
+  id: string;
+  /** Only the drops holding every word (name, path, container, rarity, id), over every drop. */
+  filter?: string | null;
+  /** null: the view's default (areas by container, items by place). */
+  group_by?: LootGroupBy | null;
+  /** Group keys whose rows to answer (opening a group); null: the default ones (the first and a few small ones, or a filter's matches). */
+  groups?: string[] | null;
+}
+
+/** One row of a Loot list: an area or an item (summary only). */
+export interface LootSummary {
+  /** The area's slot preset path, or the item's class name. */
+  id: string;
+  name: string;
+  /** Kind of place ("Caves") or item category ("FPS weapons"). */
+  group: string;
+  /** Its place in the list's tree, top first, without the row (["Caves", "Occupied"]); empty for a top-level row. */
+  path: string[];
+  /** Areas: items that can drop there. Items: areas it drops in. */
+  count: number;
+  /** Best rough odds per spawned box, 0 to 1. */
+  best: number;
+}
+
+/** `loot_list`: areas by group (Other last), path then name, or items by name. */
+export interface LootList {
+  state: LootDataState;
+  view: LootView;
+  /** The build the data is of ("LIVE 4.10.201.48085"). */
+  build: string | null;
+  rows: LootSummary[];
+}
+
+/** One drop: an item of an area, or an area of an item. */
+export interface LootDrop {
+  id: string;
+  name: string;
+  /** Where the row sits in its list's tree ("Caves › Occupied", "FPS weapons › Rifles"). */
+  group: string;
+  /** Rough odds one spawned box holds the item, 0 to 1. */
+  odds: number;
+  /** What the spot is ("Large weapons crate", "Lying loose"). */
+  container: string;
+  rarity: string | null;
+  kind: LootDropKind;
+}
+
+/** One group of a detail: its header over every matching drop, its rows when asked for. */
+export interface LootGroup {
+  /** What `groups` takes: the label, or "all" ungrouped. */
+  key: string;
+  /** "Weapons rack", "Caves", "FPS weapons"; "All drops" ungrouped. */
+  label: string;
+  /** Drops in the group matching the filter. */
+  count: number;
+  /** Best rough odds per box in the group. */
+  best: number;
+  /** Likeliest first, at most 500 (2000 ungrouped); null when not asked for. */
+  rows: LootDrop[] | null;
+}
+
+/** `loot_detail`: groups best odds first, then by name; `total` counts the drops matching the filter, `all` every drop. */
+export interface LootDetail {
+  state: LootDataState;
+  view: LootView;
+  /** null when nothing has that id. */
+  entry: LootSummary | null;
+  /** Items: the game record (Explorer link). */
+  record: ItemRecord | null;
+  group_by: LootGroupBy;
+  groups: LootGroup[];
+  total: number;
+  all: number;
+}
+
+/** Readable bucket of what a shop sells (`starorg_mcp::shops::ShopCategory`), in display order. */
+export type ShopCategory = 'fps-weapons' | 'fps-attachments' | 'armour' | 'ship-weapons' | 'missiles' | 'ship-components' | 'mining' | 'consumables' | 'other';
+
+/** `missing`: one or both UEX files are not there (Settings -> Network -> Fetch now). */
+export type ShopDataState = 'ready' | 'missing';
+
+/** `target`: the channel whose cached item data names rows and links them to records; nothing is extracted. */
+export interface ShopInventoryRequest {
+  target: ChannelRef | null;
+}
+
+export interface ShopItemsRequest {
+  target: ChannelRef | null;
+  /** A `ShopSummary.id`. */
+  terminal: number;
+}
+
+export interface CategoryCount {
+  category: ShopCategory;
+  count: number;
+}
+
+/** One shop (a UEX item terminal). */
+export interface ShopSummary {
+  /** UEX terminal id. */
+  id: number;
+  name: string;
+  /** The place without the system ("Grim HEX, Yela, Crusader"). */
+  location: string;
+  system: string | null;
+  /** Item rows with a price. */
+  items: number;
+  categories: CategoryCount[];
+  not_on_live: boolean;
+  /** Newest day UEX confirmed a row (YYYY-MM-DD). */
+  updated: string | null;
+}
+
+export interface ShopPlaceGroup {
+  name: string;
+  shops: ShopSummary[];
+}
+
+export interface ShopSystem {
+  name: string;
+  locations: ShopPlaceGroup[];
+}
+
+/** Every shop by system, then place. */
+export interface ShopDirectory {
+  state: ShopDataState;
+  folder: string | null;
+  /** When the UEX files were fetched (ISO 8601). */
+  fetched: string | null;
+  systems: ShopSystem[];
+  shop_count: number;
+  item_count: number;
+  /** The build whose item data linked rows ("LIVE 4.10.201.48085"); null = UEX names, no links. */
+  linked: string | null;
+  /** Ship guns, missiles and components (game-ship-components) link too; false until the channel's game data is read. */
+  ship_items: boolean;
+}
+
+/** The game record a row is: the Explorer opens it by GUID. */
+export interface ItemRecord {
+  guid: string;
+  class_name: string;
+}
+
+export interface ShopItemRow {
+  /** The game's name when linked, else UEX's. */
+  name: string;
+  /** UEX's name when it differs. */
+  uex_name: string | null;
+  category: ShopCategory;
+  price_buy: number | null;
+  /** What the shop pays for it. */
+  price_sell: number | null;
+  updated: string | null;
+  /** Not confirmed in 30 days. */
+  stale: boolean;
+  record: ItemRecord | null;
+}
+
+/** One shop's rows, by category then name. */
+export interface ShopItems {
+  state: ShopDataState;
+  folder: string | null;
+  fetched: string | null;
+  shop: ShopSummary | null;
+  items: ShopItemRow[];
+  linked: string | null;
+}
+
+// The Commodities screen (`commodity_list`, `commodity_detail`), typed in
+// `starorg_mcp::commodities`: list rows only, one resource in full from a second call.
+
+/** `not-read`: the channel's game data was not read yet; `no-channel`: no install known. */
+export type CommodityDataState = 'ready' | 'not-read' | 'no-channel';
+
+export interface CommodityListRequest {
+  target: ChannelRef | null;
+}
+
+export interface CommodityDetailRequest {
+  target: ChannelRef | null;
+  /** A `CommoditySummary.id` (`ResourceType.Gold`). */
+  id: string;
+}
+
+export interface CommoditySummary {
+  /** The resource record (`ResourceType.Raw_Quantainium`). */
+  id: string;
+  name: string;
+  /** Top group, readable (`Metal`). */
+  group: string;
+  /** Groups below it (`Unrefined Ores`); null at the top level. */
+  subgroup: string | null;
+  volatile: boolean;
+  /** A raw form: it refines into something. */
+  raw: boolean;
+}
+
+/** Whether the UEX commodity files are there (prices are UEX data, player-reported). */
+export interface MarketMeta {
+  loaded: boolean;
+  fetched: string | null;
+  folder: string | null;
+}
+
+export interface CommodityDirectory {
+  state: CommodityDataState;
+  /** `LIVE 4.10.201.48085`. */
+  build: string | null;
+  commodities: CommoditySummary[];
+  market: MarketMeta;
+}
+
+export interface CommodityRef {
+  id: string;
+  name: string;
+}
+
+export interface CommodityVolatility {
+  volatility: number | null;
+  decay_per_second: number | null;
+}
+
+/** Cargo damage settings; configurations with the same numbers are one row. */
+export interface CargoDamage {
+  configs: string[];
+  /** m/s below which impacts do nothing. */
+  minimum_speed: number | null;
+  grace_period: number | null;
+  explosion_damage: number | null;
+  explosion_min_radius: number | null;
+  explosion_max_radius: number | null;
+}
+
+export interface CargoItem {
+  name: string;
+  class_name: string;
+  kind: string | null;
+  capacity_scu: number | null;
+}
+
+/** One kiosk price, aUEC per SCU (UEX, player-reported). */
+export interface KioskPrice {
+  terminal: string;
+  location: string;
+  system: string | null;
+  price: number;
+  scu_stock: number | null;
+  /** YYYY-MM-DD UEX last confirmed the row. */
+  updated: string | null;
+  stale: boolean;
+}
+
+export interface CommodityMarket {
+  loaded: boolean;
+  fetched: string | null;
+  folder: string | null;
+  /** Kiosks paying for it, highest first. */
+  sell: KioskPrice[];
+  sell_total: number;
+  /** Kiosks selling it, lowest first. */
+  buy: KioskPrice[];
+  buy_total: number;
+}
+
+export interface CommodityDetail {
+  id: string;
+  name: string;
+  group: string;
+  subgroup: string | null;
+  description: string | null;
+  density: number | null;
+  refined: CommodityRef | null;
+  raw_sources: CommodityRef[];
+  quality: OreQuality | null;
+  volatility: CommodityVolatility | null;
+  /** Only for volatile resources. */
+  damage: CargoDamage[];
+  cargo: CargoItem[];
+  /** null: mining data not read, or a refined form (see raw_sources). */
+  mined: MinedReport[] | null;
+  market: CommodityMarket;
+}
+
+export interface CommodityInfo {
+  state: CommodityDataState;
+  commodity: CommodityDetail | null;
 }
 
 export interface LineSchema {
@@ -494,6 +857,7 @@ export interface StringsPage {
   all: number;
   offset: number;
   rows: StringRow[];
+  /** `sources`, `categories` and `groups`: first page (`offset` 0) only, empty after. */
   sources: FacetCount[];
   categories: FacetCount[];
   groups: GroupNode[];
@@ -532,7 +896,7 @@ export interface OverrideRequest {
 }
 
 /** M1 `validate::Rule::name()`. */
-export type OverrideRule = 'control-character' | 'added-em-unbalanced' | 'em-signature' | 'variable-tokens' | 'format-specifiers' | 'format-key' | 'percent-rule' | 'too-long';
+export type OverrideRule = 'control-character' | 'added-em-unbalanced' | 'em-signature' | 'variable-tokens' | 'format-specifiers' | 'format-key' | 'percent-rule' | 'too-long' | 'raw-loc-key' | 'placeholder-text';
 
 export interface OverrideResult {
   accepted: boolean;
@@ -549,7 +913,7 @@ export interface OverrideEntry {
 
 // Patches -------------------------------------------------------------------------------
 
-export type PatchState = 'applies' | 'not-needed' | 'target-changed' | 'nothing-to-add' | 'missing' | 'out-of-range' | 'conflict' | 'disabled' | 'no-data' | 'retired';
+export type PatchState = 'applies' | 'not-needed' | 'target-changed' | 'nothing-to-add' | 'missing' | 'out-of-range' | 'conflict' | 'disabled' | 'no-data' | 'retired' | 'checking';
 export type PatchOrigin = 'built-in' | 'user';
 
 export interface PatchView {
@@ -635,6 +999,8 @@ export interface NetworkSettings {
   /** "Download published LIVE builds for Diff" (Developer mode only; never used by apply). */
   published_dumps: boolean;
   starorg: boolean;
+  /** "Download UEX market data": `fetch_uex` may download the two UEX files from api.uexcorp.space. */
+  uex: boolean;
 }
 
 export interface Settings {
@@ -891,6 +1257,8 @@ export interface FleetHull {
   ground: boolean;
   /** Other records (AI, PU variants) that show the same name. */
   npc_shared: number;
+  /** Cargo grid SCU of the stock loadout; null when not known. */
+  cargo_scu: number | null;
 }
 
 export interface OwnedHull {
@@ -1182,7 +1550,7 @@ export interface UpdateCheckRequest {
 }
 
 /** Footer / About links; the URL for each lives in Rust (`ExternalLink::url`). */
-export type ExternalLink = 'support' | 'donate' | 'patreon';
+export type ExternalLink = 'support' | 'donate' | 'patreon' | 'uex';
 
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';
@@ -1252,4 +1620,34 @@ export interface MemoryStatus {
 export interface MemoryLimitRequest {
   /** null = back to the default. */
   gb: number | null;
+}
+
+export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'backups';
+
+export interface StorageArea {
+  id: StorageAreaId;
+  label: string;
+  /** The folder shown for it. */
+  path: string;
+  bytes: number;
+  files: number;
+  /** Counted toward the cache folder's cap. */
+  in_cache: boolean;
+}
+
+/** Settings > Storage: what the app keeps on this PC and the cache folder's cap. */
+export interface StorageStatus {
+  cache_path: string;
+  cache_bytes: number;
+  /** Least recently used goes first above it (`[storage] cache_max_mb`, default 1 GiB). */
+  cap_bytes: number;
+  /** Cache folder + backups (+ the asset cache when it is in a folder of its own). */
+  total_bytes: number;
+  /** Game data, WHERE TO GET, UEX, asset exports, temporary, backups. */
+  areas: StorageArea[];
+  asset_cap_bytes: number;
+  backup_keep_newest: number;
+  backup_keep_builds: number;
+  /** Why "Clear asset cache" is refused right now, else null. */
+  asset_busy: string | null;
 }

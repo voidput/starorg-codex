@@ -43,6 +43,21 @@ Optional on any `[[loc]]` entry: `expect_sha256` (SHA-256 of the stock value; on
 entry is skipped as `target-changed`), `requires` (the `id` of a `[[data]]` entry in the same
 file), `optional = true` (a key missing from the build is `not-needed`, not a warning).
 
+`fill_name = true` (with `op = "set"` only, no `expect_sha256` or `optional`): a curated item
+name where the stock name is missing or a placeholder. Stock lacks the key: the entry replaces
+the name *Fix missing item names* added (`no-data` when nothing added it, the switch is off).
+Stock holds a placeholder: it sets that line. Stock holds a real name: `not-needed` (the game
+names it now, stock wins). The generators read the same names, so a curated base names its
+variants and magazine (`apply` and the app; `build` runs no patches). Built-in names of this kind live in `missing-names.patch.toml`,
+one entry per key with a comment naming the source of the name. Never guess a name: an item
+without a verifiable name keeps the readable fallback.
+
+`name-fixes.patch.toml` (built in) fixes real stock names CIG copied from a sibling item
+(`set` with `expect_sha256` of the wrong stock name and `optional`, so a fixed or missing line
+retires the entry). The blueprint catalog reads these names and the curated ones too
+(`patch::builtin_item_names`), so a Smart Citizen import matches by the fixed name; re-import
+with `--replace` to drop links made under the old name.
+
 `[[data]]` entries: `id`, exactly one of `record` (short record name) or `guid`, optional
 `contract` (then `record` is the generator), `field`, `expect` (the loc key it has now) and
 `set`. `field` is one of `name_key`, `short_name_key`, `desc_key`, `title_key`,
@@ -98,7 +113,7 @@ XDG_CONFIG_HOME=$R/config XDG_DATA_HOME=$R/data XDG_CACHE_HOME=$R/cache \
   target/debug/starorg-codex patches
 ```
 
-Output: the three built-in patches, then
+Output: the four built-in patches, then
 `my-first-fix  enabled  Example: add a note to one text key`. A file whose name does not match
 its id is listed as `error in <file>: file name <file> does not match id <id>`. Add `--json`
 for the full list with `errors`.
@@ -111,7 +126,8 @@ open the Patches screen. `patches` reads only a cached extraction, which an earl
 
 ### Guard it
 
-A loc-only built-in patch must guard every entry with `expect_sha256` (test
+A loc-only built-in patch must guard every entry with `expect_sha256`, or be a `fill_name`
+entry, which is guarded by the stock name being missing or a placeholder (test
 `builtin_patches_parse`). Hash the exact stock value, the text after `=` on the key's line,
 with `\n` as two characters:
 

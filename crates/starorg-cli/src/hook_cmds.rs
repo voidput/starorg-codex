@@ -93,6 +93,9 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
         budget: Budget::with_timeout(remaining),
         profile_file: None,
         character: None,
+        // Datasets are cached after the first apply of a build; a first extraction that
+        // would outrun the hook's budget is stopped and only its lines are left out.
+        obtain: crate::obtain_src::provider(g, &i, &c.dirs, Some(remaining)),
     };
     let names: Vec<String> = i.channels.iter().map(|c| c.name.clone()).collect();
     let (reports, skipped) = match apply_channels(g, &c, &i, &id, &names, true, &opts, src.as_ref())

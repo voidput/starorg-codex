@@ -1,0 +1,35 @@
+# Built-in patch. Keys and item names only. Stock names CIG swapped between sibling items of
+# one set; each entry gives the name the rest of the set's pattern and the wiki confirm.
+# Guarded by the stock value's hash: when CIG fixes the line the entry retires (target-changed)
+# and the game's own name wins; a build without the key skips it (optional). Checked against LIVE 4.10.201.48085 (2026-11-22).
+# Why it matters beyond the text: owned blueprints are matched by name, and the helmet's
+# "Antium Core Jet" made that name match two blueprints (core and helmet), so neither was
+# marked [Owned].
+schema = 1
+id = "name-fixes"
+title = "Item names CIG swapped between siblings"
+description = "Fixes stock item names that repeat a sibling's name (Antium Jet helmet named 'Antium Core Jet', Antium Maroon arms named 'Antium Helmet Jet'). Only names a public source confirms; the source is noted per entry."
+builds = { game_min = "4.10.0" }
+
+# qrt_specialist_heavy_helmet_01_01_12 (UUID 4ddd8283-1b5c-422b-825d-5dee1e776fcf). Stock
+# "Antium Core Jet", the name of qrt_specialist_heavy_core_01_01_12. Siblings: Antium Helmet,
+# Helmet Storm, Helmet Maroon, Helmet Sand. The wiki page for this UUID: Antium Armor Helmet Jet.
+# Source: https://starcitizen.tools/Antium_Armor_Helmet_Jet
+[[loc]]
+id = "antium-helmet-jet"
+key = "item_Name_qrt_specialist_heavy_helmet_01_01_12"
+op = "set"
+value = "Antium Helmet Jet"
+expect_sha256 = "b6305533a484f3f662afb546f4f8621696faaf04934883b9a63a3007946591c4"
+optional = true
+
+# qrt_specialist_heavy_arms_01_01_13. Stock "Antium Helmet Jet"; the _13 siblings are Antium
+# Core Maroon and Antium Helmet Maroon. The wiki page for this class: Antium Armor Arms Maroon.
+# Source: https://starcitizen.tools/Antium_Armor_Arms_Maroon
+[[loc]]
+id = "antium-arms-maroon"
+key = "item_Name_qrt_specialist_heavy_arms_01_01_13"
+op = "set"
+value = "Antium Arms Maroon"
+expect_sha256 = "3e94a7ac216019bca17871f8e6b0fd5a4f3356c8262889aaac9892544f37e7c3"
+optional = true

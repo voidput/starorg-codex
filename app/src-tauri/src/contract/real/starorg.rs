@@ -251,7 +251,7 @@ impl RealBackend {
             self.drop_token(env, &mut acc);
             return Err(self.so_err(env, StarOrgError::Unauthorized("expired".into())));
         }
-        let token = match self.starorg.tokens.get(env) {
+        let token = match self.starorg.tokens.get(env.into()) {
             Ok(Some((t, _))) => t,
             Ok(None) => {
                 self.drop_token(env, &mut acc);
@@ -268,7 +268,7 @@ impl RealBackend {
     }
 
     fn drop_token(&self, env: StarOrgEnv, acc: &mut Account) {
-        let _ = self.starorg.tokens.delete(env);
+        let _ = self.starorg.tokens.delete(env.into());
         acc.signed_in = false;
         acc.expired = true;
         acc.token_store = None;
@@ -423,7 +423,7 @@ impl RealBackend {
         let store = self
             .starorg
             .tokens
-            .set(env, &grant.access_token)
+            .set(env.into(), &grant.access_token)
             .map_err(|e| {
                 err(
                     ErrorCode::Internal,
@@ -434,7 +434,7 @@ impl RealBackend {
         let me = match c.me() {
             // Refused on the first call: drop the token and save no signed-in card.
             Err(e @ StarOrgError::Unauthorized(_)) => {
-                let _ = self.starorg.tokens.delete(env);
+                let _ = self.starorg.tokens.delete(env.into());
                 return Err(self.so_err(env, e));
             }
             r => r,
@@ -486,13 +486,13 @@ impl RealBackend {
         let revoked = acc.signed_in
             && self.settings().network.starorg
             && match (
-                self.starorg.tokens.get(env),
+                self.starorg.tokens.get(env.into()),
                 Client::new(&(self.starorg.base)(env), &user_agent()),
             ) {
                 (Ok(Some((t, _))), Ok(c)) => c.with_token(t).logout().is_ok(),
                 _ => false,
             };
-        self.starorg.tokens.delete(env).map_err(|e| {
+        self.starorg.tokens.delete(env.into()).map_err(|e| {
             err(
                 ErrorCode::Internal,
                 format!("Cannot remove the sign-in token: {e}"),

@@ -19,3 +19,11 @@ description = "minisign/Tauri updater PUBLIC keys (base64 of 'untrusted comment:
 # Match on the whole line: generic-api-key may capture only part of the base64 string.
 regexTarget = "line"
 regexes = ['''dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6[A-Za-z0-9+/=]*''']
+
+[[allowlists]]
+description = "Fake UEX token in starorg-net's uex.rs tests (checks a refused token never shows in errors); not a credential"
+targetRules = ["generic-api-key"]
+regexTarget = "secret"
+condition = "AND"
+regexes = ['''^sekrit-0123456789$''']
+paths = ['''crates/starorg-net/src/uex\.rs''']

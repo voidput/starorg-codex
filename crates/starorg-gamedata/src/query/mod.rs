@@ -3,23 +3,31 @@
 //!
 //! Like the TypeScript, this layer reads parsed datasets (`game-item-tags`, `game-loot`,
 //! `game-item-sources`, `game-blueprints`, `game-wikelo-trades`, and the third-party UEX
-//! `uex-item-prices` / `uex-terminals` when a caller has them), never game files, and does
-//! no I/O itself. The local MCP server is its caller.
+//! `uex-item-prices` / `uex-commodity-prices` / `uex-terminals` when a caller has them),
+//! never game files, and does no I/O itself. The local MCP server is its caller.
 //!
 //! | Module | Ports |
 //! |---|---|
+//! | [`commodities`] | (ours) the commodity browser: resource list, one resource in full, kiosk prices |
 //! | [`types`] | `query/types.ts` (the dataset shapes it reads) |
 //! | [`fuzzy`] | `query/fuzzy.ts` (scorer, ranking; entries come from [`crate::search_index`]) |
 //! | [`shops`] | `query/shops.ts` (UEX rows placed, dated, filtered by place; shop inventory) |
 //! | [`obtain`] | `query/obtain.ts` (loot model, spawns, blueprints, awards, shops) |
+//! | [`mined`] | (ours) where an ore is mined: belts and bodies, and spots in loot areas |
+//! | [`quality`] | (ours) the quality curve, place overrides and shown steps of a resource |
+//! | [`sells`] | (ours) where a commodity sells best: UEX kiosk prices matched to resources |
 //! | [`where_`] | `query/where.ts` (one row per source, easiest first) |
 //!
 //! JavaScript semantics kept where answers depend on them: stable sorts, `Map` insertion
 //! order, `toLocaleString("en-US")` prices, `Date.parse` / `toISOString` dates, UTF-16
 //! lengths in the fuzzy tie-breaks.
 
+pub mod commodities;
 pub mod fuzzy;
+pub mod mined;
 pub mod obtain;
+pub mod quality;
+pub mod sells;
 pub mod shops;
 pub mod types;
 pub mod where_;

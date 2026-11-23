@@ -11,6 +11,7 @@ export const LINKS: Record<T.ExternalLink, { label: string; short: string; url: 
   support: { label: 'Support', short: 'Support', url: 'https://discord.gg/GCkYhbFYNq', title: 'Support on Discord (opens your browser)' },
   donate: { label: 'Buy me a coffee', short: 'Coffee', url: 'https://buymeacoffee.com/zedwil', title: 'Buy me a coffee (opens your browser)' },
   patreon: { label: 'Patreon', short: 'Patreon', url: 'https://www.patreon.com/cw/StarOrgTools', title: 'StarOrg Tools on Patreon (opens your browser)' },
+  uex: { label: 'UEX Corp', short: 'UEX', url: 'https://uexcorp.space', title: 'UEX Corp: sign in, then My Apps for a token (opens your browser)' },
 };
 
 export async function openLink(link: T.ExternalLink): Promise<void> {

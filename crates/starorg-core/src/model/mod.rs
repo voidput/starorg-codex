@@ -15,6 +15,7 @@
 pub mod items;
 pub mod missions;
 pub mod namesake;
+pub mod obtain;
 pub mod quest;
 pub mod ships;
 
@@ -26,18 +27,26 @@ pub use missions::{
     Blueprint, BlueprintPool, BlueprintPoolEntry, BlueprintReward, BlueprintTier, Contract,
     ItemReward, KeySource, ReputationReward, ReputationStanding,
 };
+pub use obtain::{
+    ItemObtain, LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, SellHint, ShopHint,
+};
 pub use quest::{QuestItem, QuestRef, QuestUse};
 pub use ships::{Armor, Flight, Hull, Loadout, LoadoutItem, Ship, ShipLoc, Totals};
 
 use crate::build::BuildInfo;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 /// Layout version of [`GameData`].
 ///
 /// - 1: M0, build identity and DataCore counts only.
 /// - 2: M2, items, ships, ammo, contracts, blueprints, reputation.
 /// - 3: quest items and the missions that reference them (addendum §13).
-pub const GAMEDATA_SCHEMA: u32 = 3;
+/// - 4: description keys of every entity class and resource type (`item_descs`,
+///   `resource_descs`), for the obtain hints (spec obtain-hints).
+/// - 5: name key, description key and `AttachDef` type of every entity class with a name
+///   (`item_names`), for the missing names (spec missing-names).
+pub const GAMEDATA_SCHEMA: u32 = 5;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -72,6 +81,35 @@ pub struct GameData {
     /// Items missions spawn or contracts ask for (addendum §13). Local extraction only.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub quest_items: Vec<QuestItem>,
+    /// Description loc reference (with `@`) of every entity class whose `AttachDef` has a
+    /// real one, by class (lower case): the stock key an obtain hint is appended to (spec
+    /// obtain-hints). Local extraction only.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub item_descs: BTreeMap<String, String>,
+    /// Description loc reference of every resource type (commodity) in the
+    /// `ResourceTypeDatabase`, by resource name (lower case, `raw_quantainium`).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub resource_descs: BTreeMap<String, String>,
+    /// Every entity class whose `AttachDef` names a real loc key, sorted by class: what
+    /// the missing-names category reads to name keys stock lacks. Local extraction only.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub item_names: Vec<ItemName>,
+}
+
+/// One entity class's `AttachDef.Localization` keys and type (spec missing-names).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ItemName {
+    /// Record short name, lower case (`nvs_pilot_flightsuit_01_01_02`).
+    pub class: String,
+    /// Name reference as DataCore gives it (with `@`).
+    pub name: String,
+    /// Description reference (with `@`), when a real one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub desc: Option<String>,
+    /// `AttachDef.Type` (`Char_Armor_Torso`, `Cargo`, ...), empty when none.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub kind: String,
 }
 
 impl Default for GameData {
@@ -90,6 +128,9 @@ impl Default for GameData {
             blueprint_pools: Vec::new(),
             reputation_standings: Vec::new(),
             quest_items: Vec::new(),
+            item_descs: BTreeMap::new(),
+            resource_descs: BTreeMap::new(),
+            item_names: Vec::new(),
         }
     }
 }
@@ -158,6 +199,7 @@ impl GameData {
             .sort_by(|a, b| a.record_name.cmp(&b.record_name));
         self.quest_items
             .sort_by(|a, b| a.record_name.cmp(&b.record_name));
+        self.item_names.sort_by(|a, b| a.class.cmp(&b.class));
         for q in &mut self.quest_items {
             q.uses.sort_by(|a, b| {
                 (&a.source, &a.mission, a.kind).cmp(&(&b.source, &b.mission, b.kind))
@@ -212,11 +254,13 @@ pub fn loc_key(reference: &str) -> Option<&str> {
     }
 }
 
-/// True for names the game shows as placeholders: unresolved `@…`, "placeholder", the
-/// `<= … =>` forms (also spaced, `< = TEST NAME = >`) and "test name" (spec 5.1).
+/// True for names the game shows as placeholders: unresolved `@…` (also inside the text,
+/// `Box @item_NameX_1`), "placeholder", the `<= … =>` forms (also spaced,
+/// `< = TEST NAME = >`) and "test name" (spec 5.1). Every name lookup of the generators
+/// goes through this, so such a value never reaches our text (spec missing-names).
 pub fn is_placeholder_name(name: Option<&str>) -> bool {
     let Some(name) = name else { return true };
-    if name.is_empty() || name.starts_with('@') {
+    if name.is_empty() || name.starts_with('@') || !crate::validate::raw_loc_refs(name).is_empty() {
         return true;
     }
     let lower = name.to_lowercase();
@@ -256,6 +300,8 @@ mod tests {
         assert!(is_placeholder_name(Some("<= PLACEHOLDER =>")));
         assert!(is_placeholder_name(Some("< = TEST NAME = >")));
         assert!(is_placeholder_name(Some("Placeholder gun")));
+        assert!(is_placeholder_name(Some("Crate of @items_commodities_ice")));
+        assert!(!is_placeholder_name(Some("Ammo @ 50%")));
         assert!(!is_placeholder_name(Some("Mantis GT-220 Gatling")));
     }
 

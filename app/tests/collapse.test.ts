@@ -6,8 +6,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { CARDS_KEY, GROUPS_KEY, arrowToggle, parseCollapsed, readCollapsed, withCollapsed, writeCollapsed } from '../src/lib/collapse.ts';
 import { DEFAULT_PREFS, hiddenMatches, pageRows, query, type FinderPrefs } from '../src/lib/bpfinder.ts';
-import { emWord, markerLine, markerSummary, previewOrder } from '../src/lib/bpmarkers.ts';
-import type { BlueprintFinder, BlueprintRow, PreviewItem, Profile } from '../src/lib/contract/types.ts';
+import { emWord, markerLine, markerSummary } from '../src/lib/bpmarkers.ts';
+import type { BlueprintFinder, BlueprintRow, Profile } from '../src/lib/contract/types.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const sample: BlueprintFinder = samples.blueprint_finder;
@@ -195,14 +195,3 @@ test('marker summary follows the switches and says why a marker is off', () => {
   assert.equal(markerLine(p), '[Owned] off (contracts off) · [Missing] off (contracts off) · [BP Owned] off (contracts off)');
 });
 
-test('the Blueprints tab preview puts the contract with a blueprint list first', () => {
-  const items: PreviewItem[] = samples.build_preview;
-  const first = previewOrder(items, 'blueprints')[0]!;
-  assert.equal(first.category, 'missions');
-  assert.match(first.result, /BLUEPRINTS/);
-  assert.match(first.result, /\[Owned\]/);
-  // Other tabs keep their own category first; nothing is lost.
-  assert.equal(previewOrder(items, 'ships')[0]!.category, 'ships');
-  assert.equal(previewOrder(items, 'blueprints').length, items.length);
-  assert.deepEqual(previewOrder(null, 'ships'), []);
-});

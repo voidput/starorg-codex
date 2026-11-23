@@ -52,6 +52,8 @@ const EXPORT_GAP: Duration = Duration::from_secs(300);
 pub const MAX_FOLDERS: usize = 5;
 /// Parsed folder datasets kept (7.5).
 const KEEP_DATASETS: usize = 2;
+/// How long GitHub's LIVE release list is reused before a visit asks again.
+pub const RELEASES_TTL: Duration = Duration::from_secs(15 * 60);
 /// Label lookups kept, one per channel build (7.14).
 const KEEP_LOOKUPS: usize = 3;
 /// The dataset name of a build's GameData.
@@ -410,6 +412,12 @@ pub struct DevState {
     compared: Mutex<Option<(Weak<Worker>, DevCompare)>>,
     /// How published LIVE builds are reached (tests: an in-memory one).
     dumps: Mutex<Arc<dyn DumpTransport + Send + Sync>>,
+    /// GitHub's LIVE release list and when it was fetched: reused for [`RELEASES_TTL`] so a
+    /// visit or channel switch makes no request (unauthenticated API: 60 per hour).
+    releases: Mutex<Option<(Instant, Vec<dumps::ReleaseInfo>)>>,
+    /// The Sources card's dataset store, per install UI id: the MCP server's tools over the
+    /// same cache folder, so either one's extraction serves both.
+    origin: Mutex<Option<(String, Arc<starorg_mcp::tools::Tools>)>>,
 }
 
 impl Default for DevState {
@@ -426,6 +434,8 @@ impl Default for DevState {
             stats: Mutex::new(None),
             compared: Mutex::new(None),
             dumps: Mutex::new(Arc::new(starorg_net::GitHubTransport::new())),
+            releases: Mutex::new(None),
+            origin: Mutex::new(None),
         }
     }
 }
@@ -437,6 +447,7 @@ impl DevState {
 
     pub fn set_dump_transport(&self, t: Arc<dyn DumpTransport + Send + Sync>) {
         *lock_or(&self.dumps) = t;
+        *lock_or(&self.releases) = None;
     }
 
     /// Stop the worker (Developer mode off, or `dev_close`).
@@ -501,6 +512,44 @@ fn gamedata_dataset(gd: &starorg_core::model::GameData) -> Dataset {
 }
 
 impl RealBackend {
+    /// The Sources card's tools for an install, built on first use. Datasets are extracted
+    /// by this binary started as `mcp-extract-worker`, under the memory limit.
+    pub(super) fn origin_tools(&self, f: &Found) -> CmdResult<Arc<starorg_mcp::tools::Tools>> {
+        let id = f.ui_id();
+        let mut g = lock_or(&self.dev.origin);
+        if let Some((k, t)) = g.as_ref()
+            && *k == id
+        {
+            return Ok(t.clone());
+        }
+        let exe = std::env::current_exe()
+            .map_err(|e| internal(format!("cannot find own binary: {e}")))?;
+        let cfg = starorg_mcp::config_for(
+            Some(&f.install),
+            self.dirs(),
+            Arc::new(starorg_mcp::worker::ProcessExtractor::new(exe).with_limit(self.mcp_limit())),
+        );
+        let t = Arc::new(starorg_mcp::tools::Tools::new(
+            starorg_mcp::store::Store::new(cfg),
+        ));
+        *g = Some((id, t.clone()));
+        Ok(t)
+    }
+    /// Where apply and the preview get obtain hints (spec obtain-hints): the Sources card's
+    /// tools, so both share one dataset cache and one memory limit. `extract`: extract a
+    /// dataset not cached yet (apply), else read only the cache. `None` for test sources.
+    pub(super) fn obtain_provider(
+        &self,
+        f: &Found,
+        extract: bool,
+    ) -> Option<starorg_core::apply::ObtainProvider> {
+        if !self.cfg.source.obtain_hints() {
+            return None;
+        }
+        let tools = self.origin_tools(f).ok()?;
+        Some(starorg_mcp::hints::ToolsObtain::provider(tools, extract))
+    }
+
     pub fn with_dev_spawner(self, s: Arc<dyn DevSpawner>) -> Self {
         self.dev.set_spawner(s);
         self
@@ -827,6 +876,19 @@ impl RealBackend {
 
     fn dump_transport(&self) -> Arc<dyn DumpTransport + Send + Sync> {
         lock_or(&self.dev.dumps).clone()
+    }
+
+    /// GitHub's LIVE releases, from memory while younger than [`RELEASES_TTL`]. A failed
+    /// request is not remembered, so the next visit asks again.
+    fn live_releases(&self) -> Result<Vec<dumps::ReleaseInfo>, starorg_core::source::SourceError> {
+        if let Some((at, l)) = lock_or(&self.dev.releases).as_ref()
+            && at.elapsed() < RELEASES_TTL
+        {
+            return Ok(l.clone());
+        }
+        let l = dumps::live_releases(self.dump_transport().as_ref())?;
+        *lock_or(&self.dev.releases) = Some((Instant::now(), l.clone()));
+        Ok(l)
     }
 
     /// The downloaded build of a `dump:<tag>` source.
@@ -1318,6 +1380,29 @@ impl DevBackend for RealBackend {
         ))
     }
 
+    fn dev_record_sources(&self, req: DevRecordSourcesRequest) -> CmdResult<RecordSources> {
+        self.dev_on()?;
+        let f = self.resolve(&req.target)?;
+        let tools = self.origin_tools(&f)?;
+        let t = Instant::now();
+        let r = tools
+            .sources(&req.target.channel, &req.name)
+            .map_err(|e| err(ErrorCode::Internal, e.0))?;
+        if t.elapsed() > Duration::from_secs(5) {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Dev),
+                None,
+                &format!(
+                    "Read the loot and mining data of {} in {:.0} s (once per build)",
+                    req.target.channel,
+                    t.elapsed().as_secs_f64()
+                ),
+            );
+        }
+        Ok(r)
+    }
+
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult> {
         let w = self.worker(&req.target, None)?;
         let view: RecordView = w.call(&Request::Record {
@@ -1464,7 +1549,9 @@ impl DevBackend for RealBackend {
         if req.source.starts_with("dump:") {
             let tag = dump_tag(&req.source)
                 .ok_or_else(|| err(ErrorCode::NotFound, format!("no source {}", req.source)))?;
-            if !self.dump_cache().remove(tag).map_err(io)? {
+            let removed = self.dump_cache().remove(tag);
+            self.sizes_changed();
+            if !removed.map_err(io)? {
                 return Err(err(
                     ErrorCode::NotFound,
                     format!("no source {}", req.source),
@@ -1509,7 +1596,7 @@ impl DevBackend for RealBackend {
                 error: None,
             });
         }
-        let live = match dumps::live_releases(self.dump_transport().as_ref()) {
+        let live = match self.live_releases() {
             Ok(l) => l,
             // Offline or rate limited: the downloaded builds, and why the rest is missing.
             Err(e) => {
@@ -1544,6 +1631,12 @@ impl DevBackend for RealBackend {
             releases: out,
             error: None,
         })
+    }
+
+    fn dev_refresh_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases> {
+        // Forget the remembered list; the rest (checks, the "off" answer) is the plain call's.
+        *lock_or(&self.dev.releases) = None;
+        self.dev_dump_releases(req)
     }
 
     fn dev_download_dump(

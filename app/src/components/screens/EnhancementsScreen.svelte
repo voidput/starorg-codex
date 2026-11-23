@@ -2,8 +2,8 @@
   /**
    * Enhancements (spec 9.4): a list (General, the generator categories, Name tags), the switches of
    * M2's profile with labels from `profile_schema`, the Tag Builder, mission options, the
-   * blueprint markers (their own tab: [Owned] / [Missing] / [BP Owned] and their colours) and a live
-   * preview. Settings are per channel; Save writes profile.toml, Save & apply also applies.
+   * blueprint markers (their own tab: [Owned] / [Missing] / [BP Owned] and their colours), Where to
+   * get (WHERE TO GET blocks, spec obtain-hints) and a live preview. Settings are per channel; Save writes profile.toml, Save & apply also applies.
    *
    * The draft survives refreshes (the load effect is keyed on the install/channel string only).
    * While it differs from the saved profile it is registered as `app.draft`, so switching channel,
@@ -16,6 +16,7 @@
   import Check from '@lucide/svelte/icons/check';
   import Circle from '@lucide/svelte/icons/circle';
   import CircleCheck from '@lucide/svelte/icons/circle-check';
+  import Download from '@lucide/svelte/icons/download';
   import { Button } from '@/components/ui/button';
   import { Input } from '@/components/ui/input';
   import { Skeleton } from '@/components/ui/skeleton';
@@ -28,11 +29,13 @@
   import PreviewPanel from '@/components/enhancements/PreviewPanel.svelte';
   import InGamePreview from '@/components/common/InGamePreview.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
-  import type { CategoryId, ChannelRef, PatchView, PreviewItem, Preset, Profile, ProfileSchema, TagKind, TagKindSettings } from '@/lib/contract/types';
+  import type { CategoryId, ChannelRef, ObtainMode, ObtainStatus, PatchView, PreviewItem, Preset, Profile, ProfileSchema, TagKind, TagKindSettings } from '@/lib/contract/types';
+  import { OBTAIN_MODES, fileAge } from '@/lib/obtain';
   import { app } from '@/lib/stores/app.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
   import { cn } from '@/lib/utils';
   import { LINKS, openLink } from '@/lib/links';
+  import { fetchUexNow } from '@/lib/uex';
 
   type Tab = 'general' | CategoryId | 'blueprints' | 'name-tags' | 'quest-items';
 
@@ -40,6 +43,7 @@
   let saved = $state<string>('');
   let draft = $state<Profile | null>(null);
   let patches = $state<PatchView[]>([]);
+  let patchesLoaded = $state(false);
   let error = $state<ContractError | null>(null);
   let preview = $state<PreviewItem[] | null>(null);
   let previewing = $state(false);
@@ -79,24 +83,37 @@
     untrack(() => {
       error = null;
       const target = refOf(k);
-      Promise.all([api.getProfile(target), schema ? Promise.resolve(schema) : api.profileSchema(), api.listPatches(target)])
-        .then(([p, s, ps]) => {
+      // The page shows once the profile and schema are in. The patch list comes after: its
+      // states build the whole output table (seconds on a first visit), and only the two
+      // switches that name built-in patches wait for it.
+      patchesLoaded = false;
+      Promise.all([api.getProfile(target), schema ? Promise.resolve(schema) : api.profileSchema()])
+        .then(([p, s]) => {
           if (stale) return;
           schema = s;
-          patches = ps;
           draft = p;
           saved = JSON.stringify(p);
         })
         .catch((e) => !stale && (error = toContractError(e)));
+      api
+        .listPatches(target)
+        .then((ps) => {
+          if (stale) return;
+          patches = ps;
+          patchesLoaded = true;
+        })
+        .catch((e) => !stale && toast('error', 'Patches not read', toContractError(e).message));
     });
     return () => (stale = true);
   });
 
   // Preview follows the draft (debounced); the backend renders it with the real generators.
   const draftJson = $derived(draft ? JSON.stringify(draft) : '');
+  let previewSeq = $state(0);
   $effect(() => {
     const j = draftJson;
     const k = app.targetKey;
+    void previewSeq;
     if (!j || !k) return;
     let stale = false;
     previewing = true;
@@ -180,13 +197,14 @@
   }
 
   // Category on/off and stat lines.
-  const CAT_FIELD: Record<CategoryId, 'ships' | 'components' | 'ship_weapons' | 'fps_weapons' | 'missiles' | 'missions'> = {
+  const CAT_FIELD: Record<CategoryId, 'ships' | 'components' | 'ship_weapons' | 'fps_weapons' | 'missiles' | 'missions' | 'obtain'> = {
     ships: 'ships',
     components: 'components',
     'ship-weapons': 'ship_weapons',
     'fps-weapons': 'fps_weapons',
     missiles: 'missiles',
     missions: 'missions',
+    obtain: 'obtain',
   };
   const SWITCH_LABEL: Record<CategoryId, string> = {
     ships: 'Add a stats block to ship descriptions',
@@ -195,6 +213,7 @@
     'fps-weapons': 'Add stats to personal weapon descriptions',
     missiles: 'Add stats to missile and bomb descriptions',
     missions: 'Add tags and sections to contracts',
+    obtain: 'Add WHERE TO GET to item and commodity descriptions',
   };
   const TAG_FIELD: Record<TagKind, 'components' | 'ship_weapons' | 'missiles'> = { components: 'components', 'ship-weapons': 'ship_weapons', missiles: 'missiles' };
   const isOn = (p: Profile, c: CategoryId) => p[CAT_FIELD[c]];
@@ -226,16 +245,65 @@
     return [
       { id: 'general' as Tab, label: 'General', on: null },
       ...schema.categories.flatMap((c) => {
+        // Where to get goes last, after Quest items: both add to item descriptions.
+        if (c.id === 'obtain') return [];
         const tab = { id: c.id as Tab, label: c.label, on: isOn(d, c.id) };
         // Blueprint markers sit right after Missions: they are part of the contract texts.
         return c.id === 'missions' ? [tab, { id: 'blueprints' as Tab, label: 'Blueprints', on: d.missions && (d.mission.blueprints || d.mission.title_blueprint) }] : [tab];
       }),
       { id: 'name-tags' as Tab, label: 'Name tags', on: d.tags.components.enabled || d.tags.ship_weapons.enabled || d.tags.missiles.enabled },
       { id: 'quest-items' as Tab, label: 'Quest items', on: d.quest_hints || questPackOn },
+      ...schema.categories.filter((c) => c.id === 'obtain').map((c) => ({ id: c.id as Tab, label: c.label, on: d.obtain })),
     ];
   });
   const cat = $derived(schema?.categories.find((c) => c.id === selected) ?? null);
-  const previewFocus = $derived(selected === 'quest-items' ? 'quest-hints' : selected === 'name-tags' || selected === 'general' ? 'components' : selected);
+  const sectionLabel = $derived(tabs.find((t) => t.id === selected)?.label ?? 'this section');
+
+  // "Read game data": the preview's examples without an apply (nothing goes into the game folder).
+  let reading = $state(false);
+  async function readGameData() {
+    if (!app.target) return;
+    reading = true;
+    try {
+      await api.readGameData($state.snapshot(app.target));
+      previewSeq++;
+      await app.refresh();
+    } catch (e) {
+      toast('error', 'Could not read the game data', toContractError(e).message);
+    } finally {
+      reading = false;
+    }
+  }
+
+  // Where to get: the UEX folder and files, read when the tab opens ("Check again" re-reads).
+  let uex = $state<ObtainStatus | null>(null);
+  let uexError = $state<string | null>(null);
+  let uexSeq = $state(0);
+  $effect(() => {
+    if (selected !== 'obtain') return;
+    void uexSeq;
+    let stale = false;
+    untrack(() => {
+      uexError = null;
+      api
+        .obtainStatus()
+        .then((s) => !stale && (uex = s))
+        .catch((e) => !stale && (uexError = toContractError(e).message));
+    });
+    return () => (stale = true);
+  });
+  const uexOn = $derived(!!app.settings?.network.uex);
+  let uexFetching = $state(false);
+  async function fetchUex() {
+    uexFetching = true;
+    const s = await fetchUexNow();
+    if (s) uex = s;
+    uexFetching = false;
+  }
+  function uexSettings() {
+    app.settingsSection = 'network';
+    app.go('settings');
+  }
   const jumpTab = (t: Tab) => {
     selected = t;
     document.getElementById(`cat-tab-${t}`)?.focus();
@@ -326,7 +394,7 @@
       </div>
 
       <div id="cat-panel" role="tabpanel" aria-labelledby="cat-tab-{selected}" class="grid min-w-0 gap-4 self-start">
-        <div class="sticky top-0 z-10 min-w-0 @min-[880px]:hidden"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} strip /></div>
+        <div class="sticky top-0 z-10 min-w-0 @min-[880px]:hidden"><PreviewPanel items={preview} loading={previewing} section={selected} {sectionLabel} canRead={!!app.channel?.set_up} {reading} onread={readGameData} strip /></div>
 
         {#if selected === 'general'}
           <Card.Root>
@@ -365,9 +433,17 @@
               <SwitchRow
                 id="fix-bugs"
                 label="Fix known CIG text bugs"
-                hint={fixesOff && fixesOff < builtin.length ? `${fixesOff} of ${builtin.length} fixes are off; see Patches.` : 'Built-in patches; each can be turned off under Patches.'}
-                checked={fixesOff < builtin.length}
+                hint={!patchesLoaded ? 'Reading the built-in patches…' : fixesOff && fixesOff < builtin.length ? `${fixesOff} of ${builtin.length} fixes are off; see Patches.` : 'Built-in patches; each can be turned off under Patches.'}
+                checked={!patchesLoaded || fixesOff < builtin.length}
+                disabled={!patchesLoaded}
                 onchange={setFixes}
+              />
+              <SwitchRow
+                id="missing-names"
+                label="Fix missing item names and descriptions"
+                hint="Some items show a code such as @item_Name_… or @item_Desc_… instead of a name or description, because the game's text file lacks it. This adds a name (a sibling variant's, or one made from the code) and a sibling variant's description without its colour line. No existing text changes."
+                checked={d.missing_names}
+                onchange={(v) => edit((p) => (p.missing_names = v))}
               />
               <SwitchRow id="branding" label="Add a small StarOrg Codex stamp" hint="One line at the end of the main menu version text. Off by default." checked={d.branding} onchange={(v) => edit((p) => (p.branding = v))} />
             </Card.Content>
@@ -431,6 +507,114 @@
                   onchange={setQuestPack}
                 />
               {/if}
+            </Card.Content>
+          </Card.Root>
+        {:else if selected === 'obtain' && cat}
+          {@const off = !d.obtain}
+          {@const shopLine = cat.lines.find((l) => l.key === 'obtain.shops')}
+          {@const sellLine = cat.lines.find((l) => l.key === 'obtain.sell')}
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Where to get</Card.Title>
+              <Card.Description>{cat.blurb} Names are never changed; the block goes after the stats.</Card.Description>
+            </Card.Header>
+            <Card.Content class="grid gap-3">
+              <SwitchRow
+                id="cat-on"
+                label={SWITCH_LABEL.obtain}
+                hint="From the game files: loot containers, blueprints, contract rewards, mining places and ore quality. The first apply per game build extracts a few datasets (seconds, cached after that)."
+                checked={d.obtain}
+                onchange={(v) => edit((p) => (p.obtain = v))}
+              />
+              <div class="grid gap-2 border-t pt-3">
+                <div class="flex flex-wrap items-center gap-3">
+                  <span class="w-28" id="obtain-mode">Detail</span>
+                  <Segmented
+                    ariaLabel="How much WHERE TO GET says"
+                    options={OBTAIN_MODES.map((m) => ({ id: m.id, label: m.label }))}
+                    value={d.obtain_mode}
+                    disabled={off}
+                    onchange={(v: ObtainMode) => edit((p) => (p.obtain_mode = v))}
+                  />
+                </div>
+                <ul class="grid gap-1 text-[12.5px]" aria-label="Examples per mode">
+                  {#each OBTAIN_MODES as m (m.id)}
+                    <li class={cn('flex flex-wrap gap-x-2', m.id === d.obtain_mode ? 'text-foreground' : 'text-muted-foreground')}>
+                      <span class="w-16 shrink-0 font-medium">{m.label}</span>
+                      <span class="mono min-w-0 break-words">{m.example}</span>
+                    </li>
+                  {/each}
+                </ul>
+              </div>
+              <div class="grid gap-0.5 border-t pt-2 @min-[560px]:grid-cols-2" role="group" aria-label="Where to get: lines">
+                {#each cat.lines.filter((l) => l.key !== 'obtain.shops' && l.key !== 'obtain.sell') as l (l.key)}
+                  <SwitchRow id="line-{l.key}" size="sm" label={l.label} disabled={off} checked={lineOn(d, l.key)} onchange={(v) => setLine(l.key, v)} />
+                {/each}
+              </div>
+              <p class="text-muted-foreground text-[12px]">A line with nothing to say is left out; an item with no source gets no block. Odds are estimates and show only in Detailed.</p>
+            </Card.Content>
+          </Card.Root>
+          <Card.Root>
+            <Card.Header>
+              <Card.Title>Shops and sell prices</Card.Title>
+              <Card.Description>Shop stock and kiosk prices are in no game file: they come from UEX files, downloaded when you turn it on in Settings, or put there yourself. Shops are names only. Sell prices go stale between applies, so they are rounded and stamped with the day they were fetched.</Card.Description>
+            </Card.Header>
+            <Card.Content class="grid gap-2">
+              <SwitchRow
+                id="obtain-shops"
+                label="Add shops from my UEX files"
+                hint="Off by default. Without the files the Buy line is left out."
+                disabled={off}
+                checked={d.obtain_shops && (!shopLine || lineOn(d, shopLine.key))}
+                onchange={(v) =>
+                  edit((p) => {
+                    p.obtain_shops = v;
+                    if (v && shopLine) p.lines_off = p.lines_off.filter((k) => k !== shopLine.key);
+                  })}
+              />
+              <SwitchRow
+                id="obtain-prices"
+                label="Add best sell prices for commodities"
+                hint="Off by default, on in Everything. The top 3 commodity kiosks, e.g. Sell: ~9.6k aUEC/SCU at HUR-L2, ~9.2k at Rod's Fuel, ~9k at TDD Area 18 (UEX, 21 Nov). Without the files the Sell line is left out."
+                disabled={off}
+                checked={d.obtain_prices && (!sellLine || lineOn(d, sellLine.key))}
+                onchange={(v) =>
+                  edit((p) => {
+                    p.obtain_prices = v;
+                    if (v && sellLine) p.lines_off = p.lines_off.filter((k) => k !== sellLine.key);
+                  })}
+              />
+              <div class="bg-muted/40 grid gap-1.5 rounded-md border p-3 text-[12.5px]" role="status" aria-live="polite">
+                {#if uexError}
+                  <span class="text-destructive">{uexError}</span>
+                {:else if !uex}
+                  <Skeleton class="h-4 w-64" />
+                {:else}
+                  <span>
+                    UEX folder: <span class="mono select-all break-all">{uex.uex_folder}</span>
+                  </span>
+                  <ul class="grid gap-0.5">
+                    {#each uex.files as f (f.name)}
+                      <li class="flex flex-wrap items-center gap-x-2">
+                        {#if f.present}<CircleCheck class="text-success size-3" aria-hidden="true" />{:else}<Circle class="text-muted-foreground size-3" aria-hidden="true" />{/if}
+                        <span class="mono">{f.name}</span>
+                        <span class="text-muted-foreground">{f.present ? (fileAge(f.modified) ?? 'present') : 'missing'}</span>
+                      </li>
+                    {/each}
+                  </ul>
+                  <span class="text-muted-foreground">
+                    {uex.shops_ready && uex.prices_ready ? 'Every file is there; apply again after you replace them.' : uexOn ? 'Fetch now downloads all three, then apply. The Explorer Sources card reads the same files.' : 'Turn on "Download UEX market data" in Settings, or put the files in this folder (item prices and terminals: the sc-gamedata fetch output), then apply. The Explorer Sources card reads the same files.'}
+                  </span>
+                  <div class="flex flex-wrap gap-1.5">
+                    {#if uexOn}
+                      <Button variant="outline" size="sm" disabled={uexFetching} onclick={fetchUex}><Download class={cn(uexFetching && 'animate-pulse')} aria-hidden="true" /> {uexFetching ? 'Downloading…' : 'Fetch now'}</Button>
+                    {:else}
+                      <Button variant="outline" size="sm" onclick={uexSettings}>Open Network settings</Button>
+                    {/if}
+                    <Button variant="ghost" size="sm" onclick={() => uexSeq++}>Check again</Button>
+                  </div>
+                {/if}
+              </div>
             </Card.Content>
           </Card.Root>
         {:else if cat}
@@ -563,7 +747,7 @@
         {/if}
       </div>
 
-      <div class="sticky top-0 hidden max-h-[calc(100dvh-9rem)] min-w-0 self-start overflow-y-auto @min-[880px]:block"><PreviewPanel items={preview} loading={previewing} focus={previewFocus} /></div>
+      <div class="sticky top-0 hidden max-h-[calc(100dvh-9rem)] min-w-0 self-start overflow-y-auto @min-[880px]:block"><PreviewPanel items={preview} loading={previewing} section={selected} {sectionLabel} canRead={!!app.channel?.set_up} {reading} onread={readGameData} /></div>
     </div>
   </div>
 {/if}

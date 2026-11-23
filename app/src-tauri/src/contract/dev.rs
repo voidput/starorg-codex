@@ -33,6 +33,12 @@ pub use starorg_core::dev::sections::{
     Change, FacetCounts, FacetValue, Filters, GroupHead, ListGroup, ListItem, ListPage, ListQuery,
     Matching, SectionStats, SortKey, Stat, TreeOpts, VariantRef,
 };
+pub use starorg_mcp::sources::{
+    BuySources, LootContainer, LootSources, LootTableOdds, RecordSources, SellOffer, SellSources,
+    ShopOffer,
+};
+pub use starorg_mcp::sources::{MinedBelt, MinedReport, MinedSpot};
+pub use starorg_mcp::sources::{OreQuality, QualityOverride, QualityRange, QualityStep};
 
 /// Records above this count get a size warning in the export dialog (7.4).
 pub const EXPORT_WARN_RECORDS: u32 = 5_000;
@@ -150,6 +156,15 @@ pub struct DevRecordCombatRequest {
     pub target: ChannelRef,
     /// The record's GUID.
     pub guid: String,
+}
+
+/// The Sources card of an explorer record: loot containers and where its ore is mined,
+/// from datasets extracted once per build into the app cache (shared with the MCP server).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DevRecordSourcesRequest {
+    pub target: ChannelRef,
+    /// The record's name (`Type.ShortName` or the short name).
+    pub name: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -492,6 +507,7 @@ pub trait DevBackend {
     /// A ship's guns and missiles, a weapon's or missile's numbers; `None` while the build's
     /// GameData was not read or the record is none of these.
     fn dev_record_combat(&self, req: DevRecordCombatRequest) -> CmdResult<Option<Combat>>;
+    fn dev_record_sources(&self, req: DevRecordSourcesRequest) -> CmdResult<RecordSources>;
     /// Native save dialog, then pretty JSON in StarBreaker's form.
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult>;
     /// Native save dialog, then one JSON array, streamed; `cancel_job` stops it.
@@ -506,8 +522,11 @@ pub trait DevBackend {
     fn dev_remove_source(&self, req: DevSourceRef) -> CmdResult<Vec<DevSource>>;
     /// The published LIVE builds, newest first. With "Download published LIVE builds for
     /// Diff" off: only the downloaded ones, and no request is made. When GitHub cannot be
-    /// reached: the downloaded ones with `error` set.
+    /// reached: the downloaded ones with `error` set. GitHub's list is remembered for 15
+    /// minutes (a failed request is not).
     fn dev_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases>;
+    /// `dev_dump_releases`, asking GitHub again instead of the remembered list.
+    fn dev_refresh_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases>;
     /// Download, verify and cache one LIVE build (a job); `network-off` while the switch is
     /// off. Returns the sources, now with `dump:<tag>`.
     fn dev_download_dump(
@@ -614,11 +633,13 @@ dev_commands! {
     dev_search(req: DevSearchRequest) -> SearchPage;
     dev_record(req: DevRecordRequest) -> RecordView;
     dev_record_combat(req: DevRecordCombatRequest) -> Option<Combat>;
+    dev_record_sources(req: DevRecordSourcesRequest) -> RecordSources;
     dev_export_record(req: DevExportRecordRequest) -> DevExportResult;
     dev_sources(req: ChannelRef) -> Vec<DevSource>;
     dev_add_source(req: ChannelRef) -> Vec<DevSource>;
     dev_remove_source(req: DevSourceRef) -> Vec<DevSource>;
     dev_dump_releases(req: ChannelRef) -> DumpReleases;
+    dev_refresh_dump_releases(req: ChannelRef) -> DumpReleases;
     dev_dataset(req: DevDatasetRef) -> DatasetInfo;
     dev_table(req: DevTableRef) -> TableInfo;
     dev_rows(req: DevRowsRequest) -> RowsPage;

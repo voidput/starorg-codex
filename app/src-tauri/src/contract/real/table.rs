@@ -3,6 +3,7 @@
 //! from. Used by the Strings screen, the previews, patch outcomes and plan counts. Writes
 //! nothing.
 
+use crate::contract::strings_query;
 use crate::contract::types::*;
 use starorg_core::blueprints::Selection;
 use starorg_core::build::BuildInfo;
@@ -36,6 +37,9 @@ pub struct Table {
     pub also: Vec<Vec<String>>,
     /// Owners per row (same order as `rows`), for the detail's full list.
     pub owners: Arc<OwnerIndex>,
+    /// Lower-case search text per row ([`strings_query::search_text`]), made on the first
+    /// Strings search of this table.
+    pub search: std::sync::OnceLock<Vec<Box<str>>>,
 }
 
 /// Names and makers of the secondary owners, lower case, for search (`None` when none).
@@ -93,6 +97,8 @@ pub fn category_of(generator: &str) -> &'static str {
         "branding" | "colour-test" => "ui",
         "ship-names" => "ships",
         "quest-hints" => "items",
+        "obtain-hints" => "items",
+        "missing-names" => "items",
         _ => "other",
     }
 }
@@ -127,19 +133,25 @@ pub struct Inputs<'a> {
     pub owners: &'a Arc<OwnerIndex>,
     /// The channel's active ship-name settings (addendum §6.5).
     pub ship_names: Option<&'a starorg_core::fleet::store::ShipNames>,
+    /// Obtain hints with their description keys filled (spec obtain-hints), when the
+    /// profile asks for them and the datasets could be read.
+    pub obtain: Option<&'a starorg_core::model::ObtainHints>,
 }
 
 pub fn build(i: &Inputs<'_>) -> Table {
     let patched = patch::data_overlay(i.patches, i.game_data, i.build);
-    let generated = enhance::generate_with(
+    // Curated names from the same patch set merge applies (as `apply` does).
+    let curated = patch::curated_names(i.patches, i.game_data, i.build);
+    let generated = enhance::generate_named(
         patched.as_ref().unwrap_or(i.game_data),
         i.stock,
         i.profile,
         i.owned,
         i.ship_names,
+        i.obtain,
+        &curated,
     );
-    let gen_edits: Vec<merge::GenEdit> =
-        generated.edits.values().map(merge::GenEdit::from).collect();
+    let gen_edits = merge::gen_edits(&generated);
     let merged = merge::merge(
         i.stock,
         i.game_data,
@@ -159,6 +171,9 @@ pub fn build(i: &Inputs<'_>) -> Table {
         fps_weapons: n(&[Category::FpsWeapons]),
         missiles: n(&[Category::Missiles, Category::MissileTags]),
         missions: n(&[Category::MissionTitles, Category::MissionDescriptions]),
+        // Counted with its extensions: most blocks go after another category's stats.
+        obtain_hints: n(&[Category::ObtainHints]),
+        missing_names: n(&[Category::MissingNames]),
         overrides: c.overrides as u32,
         dropped: c.dropped as u32,
     };
@@ -234,6 +249,44 @@ pub fn build(i: &Inputs<'_>) -> Table {
             source,
         });
     }
+    // Keys stock lacks (spec missing-names): rows after the stock ones, empty original.
+    let finals_added: HashMap<String, &str> = merged
+        .edits
+        .added()
+        .map(|(k, v)| (starorg_core::ini::fold_key(k), v))
+        .collect();
+    for (folded, a) in &generated.added {
+        let Some(result) = finals_added.get(folded) else {
+            continue;
+        };
+        let source = merged.added_provenance.get(folded).cloned();
+        let src = match source {
+            Some(Source::Override) => StringSource::Edited,
+            Some(Source::LocPatch { .. }) => StringSource::Patched,
+            _ => StringSource::Enhanced,
+        };
+        index.insert(a.key.to_ascii_lowercase(), rows.len());
+        let g = i.groups.group(usize::MAX);
+        rows.push(StringRow {
+            key: a.key.clone(),
+            original: String::new(),
+            result: result.to_string(),
+            source: src,
+            category: category_of(a.category.name()).to_string(),
+            group: g.id.to_string(),
+            group_label: g.label.to_string(),
+            manufacturer: None,
+            size: None,
+            owner: None,
+            owners: 0,
+            other_owners: None,
+        });
+        also.push(Vec::new());
+        info.push(RowInfo {
+            generated: Some((a.category.name().to_string(), a.value.clone())),
+            source,
+        });
+    }
     Table {
         rows,
         info,
@@ -242,10 +295,17 @@ pub fn build(i: &Inputs<'_>) -> Table {
         counts,
         also,
         owners: i.owners.clone(),
+        search: std::sync::OnceLock::new(),
     }
 }
 
 impl Table {
+    /// [`Self::search`], made on first use.
+    pub fn search_text(&self) -> &[Box<str>] {
+        self.search
+            .get_or_init(|| self.rows.iter().map(strings_query::search_text).collect())
+    }
+
     pub fn row(&self, key: &str) -> Option<(usize, &StringRow)> {
         let i = *self.index.get(&key.to_ascii_lowercase())?;
         Some((i, &self.rows[i]))

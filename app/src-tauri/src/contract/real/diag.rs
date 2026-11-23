@@ -21,15 +21,35 @@ use starorg_core::usercfg;
 /// The key the `quest-items` patch preview shows (the Decryption Key's description).
 const QUEST_PATCH_SAMPLE: &str = "Kaboos_DecryptioKeycard1_desc";
 
-/// One changed row per category, as the in-game preview shows them.
+/// The row's result has a WHERE TO GET block (Normal, Detailed) or `Get:` line (Short)
+/// its stock text did not.
+fn has_obtain(r: &StringRow) -> bool {
+    let header = starorg_core::enhance::obtain::HEADER;
+    let new = |m: &str| r.result.contains(m) && !r.original.contains(m);
+    new(header) || new("Get:")
+}
+
+/// A name key (`item_NameX`, `vehicle_NameX_short`), where name tags and ship names land.
+fn is_name(key: &str) -> bool {
+    let k = starorg_core::ini::strip_flag_suffix(key).to_ascii_lowercase();
+    k.contains("_name") && !k.contains("_desc")
+}
+
+/// A few changed rows per category (at most two: a description and a name), as the in-game
+/// preview shows them; the UI shows those of the open section.
 pub fn preview(t: &Table) -> Vec<PreviewItem> {
-    const WANT: &[(&str, &str)] = &[
-        ("ships", "Ship description"),
-        ("components", "Ship component"),
-        ("ship-weapons", "Ship weapon"),
-        ("fps-weapons", "Personal weapon"),
-        ("missiles", "Missile"),
-        ("missions", "Contract"),
+    preview_rows(&t.rows)
+}
+
+fn preview_rows(rows: &[StringRow]) -> Vec<PreviewItem> {
+    // Category, description label, name label (Name tags and ship names).
+    const WANT: &[(&str, &str, Option<&str>)] = &[
+        ("ships", "Ship description", Some("Ship name")),
+        ("components", "Ship component", Some("Component name")),
+        ("ship-weapons", "Ship weapon", Some("Ship weapon name")),
+        ("fps-weapons", "Personal weapon", None),
+        ("missiles", "Missile", Some("Missile name")),
+        ("missions", "Contract", None),
     ];
     let item = |r: &StringRow, label: &str, cat: &str| PreviewItem {
         key: r.key.clone(),
@@ -40,16 +60,31 @@ pub fn preview(t: &Table) -> Vec<PreviewItem> {
     };
     let changed = |r: &&StringRow| r.source != StringSource::Unmodified;
     let mut out = Vec::new();
-    for (cat, label) in WANT {
-        if let Some(r) = t.rows.iter().filter(changed).find(|r| r.category == *cat) {
+    for (cat, label, name) in WANT {
+        let first = |want_name: bool| {
+            rows.iter()
+                .filter(changed)
+                .find(|r| r.category == *cat && is_name(&r.key) == want_name)
+        };
+        // Contracts: any changed row (titles are names too); the rest a description first.
+        let desc = if name.is_some() || *cat == "fps-weapons" {
+            first(false)
+        } else {
+            rows.iter().filter(changed).find(|r| r.category == *cat)
+        };
+        if let Some(r) = desc {
             out.push(item(r, label, cat));
+        }
+        if let Some(n) = name
+            && let Some(r) = first(true)
+        {
+            out.push(item(r, n, cat));
         }
     }
     // A contract with a blueprint list, so the marker colours show; one with an
     // `[Owned]` line first.
     let lists = || {
-        t.rows
-            .iter()
+        rows.iter()
             .filter(changed)
             .filter(|r| r.category == "missions" && r.result.contains("BLUEPRINTS"))
     };
@@ -62,20 +97,59 @@ pub fn preview(t: &Table) -> Vec<PreviewItem> {
     }
     // Quest items: an automatic `Used in:` hint and the hand-written mission hint of the
     // `quest-items` patch (the Decryption Key; addendum §13).
-    if let Some(r) = t.rows.iter().filter(changed).find(|r| {
+    if let Some(r) = rows.iter().filter(changed).find(|r| {
         r.category == "items" && r.source == StringSource::Enhanced && r.result.contains("Used in:")
     }) {
         out.push(item(r, "Quest item", "quest-hints"));
     }
-    if let Some(r) = t.rows.iter().filter(changed).find(|r| {
+    if let Some(r) = rows.iter().filter(changed).find(|r| {
         r.source == StringSource::Patched
             && starorg_core::ini::strip_flag_suffix(&r.key).eq_ignore_ascii_case(QUEST_PATCH_SAMPLE)
     }) {
         out.push(item(r, "Quest item (mission hint)", "quest-hints"));
     }
+    // Where to get (spec obtain-hints): a personal weapon whose WHERE TO GET block follows
+    // its stats, then an ore or commodity (its block owns the key: category `items`).
+    let obtain = |r: &&StringRow| r.source == StringSource::Enhanced && has_obtain(r);
+    for (cat, label, extra) in [
+        ("fps-weapons", "Weapon (where to get)", None),
+        ("items", "Ore (where to get)", Some("Mined")),
+    ] {
+        let pick = |strict: bool| {
+            rows.iter().filter(changed).filter(obtain).find(|r| {
+                r.category == cat
+                    && extra.is_none_or(|x| !strict || r.result.contains(x))
+                    && !out.iter().any(|x: &PreviewItem| x.key == r.key)
+            })
+        };
+        // No mined ore in the cached data (commodities not extracted yet): any item, named as such.
+        if let Some(r) = pick(true) {
+            out.push(item(r, label, "obtain-hints"));
+        } else if let Some(r) = pick(false) {
+            let label = if extra.is_some() {
+                "Item (where to get)"
+            } else {
+                label
+            };
+            out.push(item(r, label, "obtain-hints"));
+        }
+    }
+    // Missing names (spec missing-names): a key stock lacks, shown as the game showed it.
+    if let Some(r) = rows
+        .iter()
+        .filter(changed)
+        .find(|r| r.original.is_empty() && r.category == "items" && is_name(&r.key))
+    {
+        out.push(PreviewItem {
+            key: r.key.clone(),
+            label: "Item name (missing in stock)".into(),
+            category: "missing-names".into(),
+            original: format!("@{}", r.key),
+            result: r.result.clone(),
+        });
+    }
     let test = starorg_core::enhance::profile::COLOUR_TEST_KEY;
-    if let Some(r) = t
-        .rows
+    if let Some(r) = rows
         .iter()
         .filter(changed)
         .find(|r| starorg_core::ini::strip_flag_suffix(&r.key).eq_ignore_ascii_case(test))
@@ -147,6 +221,7 @@ fn reason(s: PatchState) -> &'static str {
         PatchState::OutOfRange => "This build is outside the range the patch is written for.",
         PatchState::Conflict => "Another layer writes the same key; the patch was left out.",
         PatchState::Disabled => "Switched off in this channel's profile.",
+        PatchState::Checking => "Checking this build...",
         PatchState::NoData => {
             "Game data of this build has not been read yet; apply (or a dry run) shows the outcome."
         }
@@ -536,5 +611,151 @@ pub fn diagnostics(b: &RealBackend) -> Diagnostics {
         file_name: format!("starorg-codex-diagnostics-{stamp}.txt"),
         text,
         redacted,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::preview_rows;
+    use crate::contract::types::{StringRow, StringSource};
+
+    fn row(key: &str, category: &str, original: &str, result: &str) -> StringRow {
+        StringRow {
+            key: key.into(),
+            original: original.into(),
+            result: result.into(),
+            source: StringSource::Enhanced,
+            category: category.into(),
+            group: String::new(),
+            group_label: String::new(),
+            manufacturer: None,
+            size: None,
+            owner: None,
+            owners: 0,
+            other_owners: None,
+        }
+    }
+
+    #[test]
+    fn preview_has_a_weapon_and_an_ore_with_where_to_get() {
+        let stats = "A rifle.\\n\\n--- STATS ---\\nDamage: 18";
+        let rows = vec![
+            row("item_DescA", "fps-weapons", "A rifle.", stats),
+            row(
+                "item_DescB",
+                "fps-weapons",
+                "B rifle.",
+                &format!("{stats}\\n\\n<EM3>WHERE TO GET</EM3>\\n<EM4>Loot:</EM4> Locker"),
+            ),
+            row(
+                "items_commodities_box_desc",
+                "items",
+                "A box.",
+                "A box.\\n\\n<EM4>Get:</EM4> Loot (Rare)",
+            ),
+            row(
+                "items_commodities_ore_desc",
+                "items",
+                "An ore.",
+                "An ore.\\n\\nWHERE TO GET\\nMined: Lyria",
+            ),
+        ];
+        let p = preview_rows(&rows);
+        let got: Vec<(&str, &str)> = p
+            .iter()
+            .filter(|i| i.category == "obtain-hints")
+            .map(|i| (i.key.as_str(), i.label.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                ("item_DescB", "Weapon (where to get)"),
+                ("items_commodities_ore_desc", "Ore (where to get)"),
+            ]
+        );
+        // The plain personal-weapon sample stays the first fps row.
+        assert!(super::is_name("item_NameA,P") && !super::is_name("item_DescA"));
+        assert!(
+            p.iter()
+                .any(|i| i.key == "item_DescA" && i.category == "fps-weapons")
+        );
+        // No ore: any item with a block; stock text with the words is no block.
+        let rows = vec![
+            row("item_DescC", "items", "Get: it", "Get: it\\n\\nstats"),
+            rows[2].clone(),
+        ];
+        let p = preview_rows(&rows);
+        let keys: Vec<&str> = p
+            .iter()
+            .filter(|i| i.category == "obtain-hints")
+            .map(|i| i.key.as_str())
+            .collect();
+        assert_eq!(keys, ["items_commodities_box_desc"]);
+    }
+
+    #[test]
+    fn preview_shows_an_added_name_against_its_raw_key() {
+        let rows = vec![
+            row("item_NameStock", "items", "Stock", "Stock"),
+            row("item_Name_suit_01_02", "items", "", "Pilot Suit"),
+        ];
+        let p = preview_rows(&rows);
+        let got: Vec<(&str, &str, &str)> = p
+            .iter()
+            .filter(|i| i.category == "missing-names")
+            .map(|i| (i.key.as_str(), i.original.as_str(), i.result.as_str()))
+            .collect();
+        assert_eq!(
+            got,
+            [(
+                "item_Name_suit_01_02",
+                "@item_Name_suit_01_02",
+                "Pilot Suit"
+            )]
+        );
+    }
+}
+
+#[cfg(test)]
+mod name_tests {
+    use super::preview_rows;
+    use crate::contract::types::{StringRow, StringSource};
+
+    fn row(key: &str, category: &str) -> StringRow {
+        StringRow {
+            key: key.into(),
+            original: "a".into(),
+            result: "b".into(),
+            source: StringSource::Enhanced,
+            category: category.into(),
+            group: String::new(),
+            group_label: String::new(),
+            manufacturer: None,
+            size: None,
+            owner: None,
+            owners: 0,
+            other_owners: None,
+        }
+    }
+
+    #[test]
+    fn tagged_categories_get_a_description_and_a_name() {
+        let rows = vec![
+            row("item_NameCooler", "components"),
+            row("item_DescCooler", "components"),
+            row("item_NameGun", "ship-weapons"),
+            row("vehicle_DescFighter", "ships"),
+        ];
+        let got: Vec<(String, String)> = preview_rows(&rows)
+            .into_iter()
+            .map(|i| (i.key, i.label))
+            .collect();
+        let want = [
+            ("vehicle_DescFighter", "Ship description"),
+            ("item_DescCooler", "Ship component"),
+            ("item_NameCooler", "Component name"),
+            ("item_NameGun", "Ship weapon name"),
+        ];
+        assert_eq!(got, want.map(|(k, l)| (k.to_string(), l.to_string())));
     }
 }

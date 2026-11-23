@@ -1,7 +1,7 @@
 ---
 title: Local MCP server (experimental)
 tags: [docs, mcp, experimental]
-updated: 2026-11-15
+updated: 2026-11-23
 ---
 
 # Local MCP server (experimental)
@@ -67,8 +67,10 @@ previous page as `cursor`. Answers are compact JSON.
 |---|---|---|
 | `search` | items, ship weapons and components, and ships by name, class, maker, type (fuzzy, typos allowed) | `game-search-index` (from item-tags + ships), ship-components |
 | `item` | one item or ship: identity, tags, loot eligibility, stats | item-tags; the stats dataset of its type (fps-weapons, weapons, armor, ship-components, consumables) or ships |
-| `where_to_buy` | shops for an item (cheapest first), or what a place sells | item-tags + UEX files, if you supplied them |
-| `where_found` | loot spawns: best areas, container, odds per box, fixed racks, other tables | item-tags, loot, item-sources |
+| `where_to_buy` | shops for an item (cheapest first), or what a place sells | item-tags + UEX files, if there |
+| `shop_inventory` | everything one shop sells (`terminal`: a UEX terminal name or id), by category, with buy and sell prices, the day UEX last confirmed each row and the class name when linked; `category` keeps one category. A name several shops fit (a place) answers their list with ids | UEX files; item-tags (+ ship-components) to name and link rows |
+| `where_found` | loot spawns: best areas with place, container, contents, size and rarity, odds per box, fixed racks, other tables | item-tags, loot, item-sources |
+| `where_mined` | where an ore is mined: bodies and belts that roll a rock with it (most common first), and loot-area spots (caves, asteroid bases, the Rock Cracker) that place one, and the quality it comes in (range, place overrides, the values the game shows with estimated shares) | mining-spawns, item-sources, commodities |
 | `how_to_obtain` | every source, easiest first: buy, contract/Wikelo reward, craft, loot; `owned_by` marks blueprints a character owns | item-tags, loot, item-sources, blueprints, wikelo-trades, UEX; the owned-blueprint store |
 | `mission` | missions and contracts by name, giver, type, with the blueprints and items contracts award | missions, blueprints, item-sources |
 | `compare` | 2 to 4 items or ships side by side, every numeric stat they share | as `item` |
@@ -101,15 +103,36 @@ not do this lookup, so for these items the MCP answers go beyond the parity chec
 The answers come from the ported sc-gamedata query layer (`starorg_gamedata::query`), which
 gives the same answers as sc-gamedata's own `find`/`obtain`/`where`/`shop` on the same data
 (`scripts/compare-query.sh`: 514 of 514 identical on LIVE 4.10.200.58746). Loot odds are
-estimates: an even pick inside a loot pool is assumed; the game data does not say so.
+estimates: an even pick inside a loot pool is assumed; the game data does not say so. The
+app's **Loot** screen inverts the same per-box odds for every item at once (every area with what
+drops there; [user guide](user-guide.md#loot)), from the same cached datasets
+(`starorg_mcp::loot`).
 
 ### Shop prices
 
 Shop stock is server-side and in no game file. Prices come only from UEX (player-reported)
-files you put in the cache folder yourself, `<cache>/mcp/uex/uex-item-prices.json` and
-`uex-terminals.json` (the files `sc-gamedata fetch uex-item-prices uex-terminals` writes; the
-`status` tool prints the folder). StarOrg Codex never downloads them. Without them, the shop
-tools say so and the other sources still answer.
+files in the cache folder, `<cache>/mcp/uex/uex-item-prices.json` and `uex-terminals.json`
+(the `status` tool prints the folder). The app downloads them when Settings -> Network ->
+*Download UEX market data* is on and you press **Fetch now**; or put the files
+`sc-gamedata fetch uex-item-prices uex-terminals` writes there yourself (same shape). The MCP
+server itself never downloads anything; it reads a file again once it changed, and answers
+built from the files (shop rows, the app's WHERE TO GET hints) are rebuilt then too. Without them,
+the shop tools say so and the other sources still answer.
+
+`shop_inventory` sorts each row into one of nine categories (`fps-weapons`, `fps-attachments`,
+`armour`, `ship-weapons`, `missiles`, `ship-components`, `mining`, `consumables`, `other`): by
+the game's item type when the row is linked to a record, else by the UEX category id every
+price row carries (`starorg_mcp::shops::categorise`). A row links by the game item id UEX
+stores (`item_uuid`), else by a name only one item has. `terminal` takes an id, a terminal name
+(`Dumper's GrimHEX`, or UEX's full name), or words of a shop or its place; when several shops
+fit, the answer lists them (`shops`, with `id`, up to 25) and a note to call again with one id.
+The app's **Shops** screen shows the same rows ([user guide](user-guide.md#shops)).
+
+The same **Fetch now** also writes `uex-commodity-prices.json` (UEX `commodities_prices_all`:
+what each commodity kiosk asks and pays per SCU, `{ _source, _fetched, prices, summary }` like
+the item prices; sc-gamedata has no fetch for it yet). The app's Sources card and the WHERE TO
+GET sell line read it through this server's store (matched to the game's resources by name);
+no MCP tool answers from it yet.
 
 ## Data, cache and memory
 
@@ -118,8 +141,11 @@ extracts each needed dataset from `Data.p4k` (read only) in a **separate short-l
 process** (`starorg-codex mcp-extract-worker` / `starorg-codex-app mcp-extract-worker`, one
 dataset per process), which writes `<cache>/mcp/<CHANNEL>/<build>-<fingerprint>/<dataset>.json`
 and records its cost in `measurements.json` beside it. Later questions read the JSON. The
-fingerprint covers the archive's size and time and the app version, so a game patch or an app
-update never serves old answers; three builds per channel are kept.
+fingerprint covers the archive's size and time and a hash of the code that writes the datasets
+(`starorg-gamedata` and `starorg-data`, StarBreaker pin included), so a game patch or a change
+to extraction never serves old answers, while an app update that leaves extraction alone keeps
+the cache; two builds per channel are kept, and the app cache folder's cap (1 GB by default)
+can remove an older build's folder first ([storage](user-guide.md#storage)).
 
 `<cache>` is `~/.cache/starorg-codex` on Linux and `%LOCALAPPDATA%\StarOrg Tools\Codex\cache`
 on Windows. Nothing is written in the game folder (the worker refuses an output folder inside the

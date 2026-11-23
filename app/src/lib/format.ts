@@ -88,6 +88,8 @@ export function patchStateView(s: PatchState, enabled: boolean): ToneView {
       return { label: 'No data', tone: 'muted', hint: 'This game data source has no records of this kind, so nothing could be checked.', skipped: true };
     case 'retired':
       return { label: 'Retired', tone: 'muted', hint: 'Fixed upstream; kept for older builds.', skipped: true };
+    case 'checking':
+      return { label: 'Checking…', tone: 'muted', hint: 'Checking the patch against this build.' };
   }
 }
 
@@ -116,6 +118,7 @@ export const JOB_LABEL: Record<JobKind, string> = {
   dev: 'Developer',
   hook: 'Launch hook',
   mcp: 'MCP server',
+  uex: 'UEX market data',
 };
 
 export const BACKUP_REASON: Record<BackupReason, string> = {

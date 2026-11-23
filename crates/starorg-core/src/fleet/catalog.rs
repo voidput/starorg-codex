@@ -15,7 +15,7 @@ use crate::model::{GameData, is_placeholder_name, loc_key};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Hull {
     /// Hull id (= the long name key, stock spelling, no flag suffix).
     pub hull: String,
@@ -38,10 +38,14 @@ pub struct Hull {
     pub npc_shared: u32,
     /// A player-flyable record is named after this key (tie-break for same display names).
     pub namesake: bool,
+    /// Cargo grid SCU of the stock loadout: the namesake record's, else the one value all
+    /// player records agree on. `None` when no record has a cargo grid or they disagree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cargo_scu: Option<f64>,
 }
 
 /// Every hull of a build, sorted by stock name the way the preview sorts.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct Catalog {
     pub hulls: Vec<Hull>,
     index: BTreeMap<String, usize>,
@@ -112,6 +116,20 @@ impl ShortKeys {
     }
 }
 
+/// A record's stock cargo grid SCU, when it has a positive one.
+fn ship_cargo(s: &crate::model::Ship) -> Option<f64> {
+    s.totals
+        .as_ref()
+        .and_then(|t| t.cargo_scu)
+        .filter(|v| v.is_finite() && *v > 0.0)
+}
+
+/// The one value every entry has; `None` when empty or they differ.
+fn agreed(values: &[f64]) -> Option<f64> {
+    let first = *values.first()?;
+    values.iter().all(|v| *v == first).then_some(first)
+}
+
 impl Catalog {
     pub fn new(mut hulls: Vec<Hull>) -> Self {
         hulls.sort_by(|a, b| {
@@ -137,6 +155,9 @@ impl Catalog {
             ground: bool,
             npc: u32,
             namesake: bool,
+            /// Cargo SCU of the namesake record, and of every player record.
+            namesake_cargo: Option<f64>,
+            player_cargo: Vec<f64>,
         }
         let is_player = |s: &crate::model::Ship| !s.is_template && is_player_hull(s.short_name());
         // Keys a player-hull record names itself by, whatever their prefix, as long as they
@@ -174,13 +195,18 @@ impl Catalog {
                 ground: false,
                 npc: 0,
                 namesake: false,
+                namesake_cargo: None,
+                player_cargo: Vec::new(),
             });
             let player = is_player(s);
             if player {
                 a.flyable = true;
+                let cargo = ship_cargo(s);
                 if named_after(&a.hull, s.short_name()) {
                     a.namesake = true;
+                    a.namesake_cargo = a.namesake_cargo.or(cargo);
                 }
+                a.player_cargo.extend(cargo);
             } else {
                 a.npc += 1;
             }
@@ -217,6 +243,7 @@ impl Catalog {
                     ground: a.ground,
                     npc_shared: a.npc,
                     namesake: a.namesake,
+                    cargo_scu: a.namesake_cargo.or_else(|| agreed(&a.player_cargo)),
                 }
             })
             .collect();
@@ -308,6 +335,49 @@ mod tests {
         assert!(c.get("vehicle_NameORIG_890Jump").unwrap().namesake);
         assert!(!c.get("vehicle_NameORIG_890Jump_Hijacked").unwrap().namesake);
         assert!(c.get("vehicle_NameConcept").is_none());
+    }
+
+    #[test]
+    fn cargo_from_the_namesake_or_agreeing_player_records() {
+        use crate::model::Totals;
+        let stock = StockIni::parse(
+            b"vehicle_NameSYNA_Hauler=Synth Hauler\nvehicle_NameSYNA_Twin=Synth Twin\nvehicle_NameSYNA_Odd=Synth Odd\nvehicle_NameSYNA_Fighter=Synth Fighter\n"
+                .to_vec(),
+        );
+        let with = |record: &str, name: &str, scu: Option<f64>| Ship {
+            totals: Some(Totals {
+                cargo_scu: scu,
+                ..Default::default()
+            }),
+            ..ship(record, name, "syna")
+        };
+        let gd = GameData {
+            ships: vec![
+                with("SYNA_Hauler", "vehicle_NameSYNA_Hauler", Some(96.0)),
+                // An AI variant with another hold does not count.
+                with(
+                    "SYNA_Hauler_PU_AI_CIV",
+                    "vehicle_NameSYNA_Hauler",
+                    Some(12.0),
+                ),
+                with("SYNA_Twin_A", "vehicle_NameSYNA_Twin", Some(32.0)),
+                with("SYNA_Twin_B", "vehicle_NameSYNA_Twin", Some(32.0)),
+                with("SYNA_Odd_A", "vehicle_NameSYNA_Odd", Some(8.0)),
+                with("SYNA_Odd_B", "vehicle_NameSYNA_Odd", Some(16.0)),
+                with("SYNA_Fighter", "vehicle_NameSYNA_Fighter", Some(0.0)),
+            ],
+            ..Default::default()
+        };
+        let c = Catalog::build(&gd, &stock);
+        let scu = |id: &str| c.get(id).unwrap().cargo_scu;
+        assert_eq!(scu("vehicle_NameSYNA_Hauler"), Some(96.0));
+        assert_eq!(
+            scu("vehicle_NameSYNA_Twin"),
+            Some(32.0),
+            "no namesake, records agree"
+        );
+        assert_eq!(scu("vehicle_NameSYNA_Odd"), None, "records disagree");
+        assert_eq!(scu("vehicle_NameSYNA_Fighter"), None, "no cargo grid");
     }
 
     #[test]

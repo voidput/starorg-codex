@@ -18,6 +18,7 @@ pub mod enhance;
 pub mod fleet;
 pub mod fsutil;
 pub mod groups;
+pub mod gz;
 pub mod hooks;
 pub mod ini;
 pub mod legacy;
@@ -31,6 +32,7 @@ pub mod running;
 pub mod source;
 pub mod starorg;
 pub mod state;
+pub mod storage;
 pub mod usercfg;
 pub mod validate;
 
@@ -48,5 +50,12 @@ pub mod validate;
 /// 3 = same-named blueprints: ownership per blueprint, no false `[Owned]`/`[BP Owned]`;
 /// 4 = `[Owned]` coloured by default (EM4, the game's blue);
 /// 5 = quest items: `Used in:` hints from real mission references and the built-in
-/// `quest-items` patch (Vanduul-Tech Smugglers hints).
-pub const OUTPUT_VERSION: u32 = 5;
+/// `quest-items` patch (Vanduul-Tech Smugglers hints);
+/// 6 = obtain hints: WHERE TO GET blocks (on in Recommended), extending stat blocks;
+/// 7 = missing names: added keys for entity names stock lacks (curated names from the
+/// built-in `missing-names` patch, a tidier readable fallback), and generated text never
+/// brings a raw `@key` or a placeholder;
+/// 8 = commodity sell prices: the WHERE TO GET `sell` line (on in Everything);
+/// 9 = missing descriptions: a sibling's stock description (colour paragraph cut) for
+/// description keys stock lacks or holds as a placeholder, with stats and WHERE TO GET on it.
+pub const OUTPUT_VERSION: u32 = 9;

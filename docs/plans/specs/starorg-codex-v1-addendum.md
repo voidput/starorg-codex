@@ -2,7 +2,7 @@
 title: StarOrg Codex v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-17
+updated: 2026-11-23
 ---
 
 # StarOrg Codex v1 — addendum (user requests 2026-11-14)
@@ -444,7 +444,10 @@ change).
 - Fields: `hull`, `name` (stock long name), `short` (stock value of `<hull>_short` when that
   key exists), `maker` (most common manufacturer code of its records, a `_2025`-style year
   suffix dropped), `flyable` (at least one record passes `is_player_hull`), `ground`
-  (movement class), `npc_shared` (records that fail `is_player_hull`).
+  (movement class), `npc_shared` (records that fail `is_player_hull`), `cargo_scu` (stock
+  cargo grid SCU of the namesake player record, else the value all player records agree on;
+  none when no grid or they disagree; the Commodities trade calculator reads it through
+  `fleet_view`).
 - Only `flyable` hulls are offered in the UI and matched by the importer.
 
 ### 6.3 Import
@@ -1078,7 +1081,8 @@ command returns error code `dev-disabled` while the setting is off.
 | `dev_sources` | target ► sources (kind, label, build, state) with datasets (file, tables, row counts, bytes) |
 | `dev_add_source` / `dev_remove_source` | folder/file dialog ► updated sources |
 | `dev_download_dump` | target ► job id (refused with `network-off` when the switch is off). **2026-11-17:** `{ target, tag }` ► sources (a `dev` job) |
-| `dev_dump_releases` | **2026-11-17:** target ► `{ releases: [{ tag, title, channel, branch, published, cached }], error }`, newest first; switch off = only cached ones, no request; GitHub unreachable or rate limited = cached ones with `error` set (not a failure) |
+| `dev_dump_releases` | **2026-11-17:** target ► `{ releases: [{ tag, title, channel, branch, published, cached }], error }`, newest first; switch off = only cached ones, no request; GitHub unreachable or rate limited = cached ones with `error` set (not a failure). **2026-11-23:** GitHub's list is kept in memory for 15 minutes (a failed request is not) |
+| `dev_refresh_dump_releases` | **2026-11-23:** as `dev_dump_releases`, asking GitHub again (the Refresh button) |
 | `dev_table` | source, dataset, table ► columns (name, type, distinct values when at most 50), row count, identity column |
 | `dev_rows` | source, dataset, table, columns, search, filters, sort, offset, limit ► rows + total |
 | `dev_row` | source, dataset, table, row id ► JSON text + loc resolutions + explorer links |
@@ -1371,7 +1375,9 @@ previews (`previews/<path hash>.png`) under `<root>/<CHANNEL>/<build key>/`. The
 own, `<chosen>/StarOrg Codex asset cache/`, so nothing of the user's is ever inside the layout. The build key
 is the extraction cache key (p4k size, mtime, change number, StarBreaker rev), so a game patch
 misses; the first write for a new build removes the channel's older builds. LRU by modification
-time (a hit touches the file), 2 GiB cap (`[dev] asset_cache_max_mb`), files over a quarter of
+time (a hit touches the file), 1 GiB cap (`[dev] asset_cache_max_mb`; was 2 GiB before 1.5, see
+`starorg_core::storage` for the cache folder's overall cap; files used in the last 5 min are
+never evicted), files over a quarter of
 the cap are not kept, stale `.part` files go after an hour. A hit is answered without starting a
 worker (preview, play, sounds export without `.wem`, model export); a sound that is not converted
 is cached as its WEM (a cached WEM of a codec this build converts is not a hit: it is converted
@@ -1947,7 +1953,10 @@ whose file lacks its geid is read as its file name says and logged. A channel wh
 not read has no catalogue: only what is owned there is listed, with a note. Reading creates
 nothing: the incremental log scan runs only for channels that already have a `blueprints/`
 folder (the current channel is scanned by `list_characters`), so "All channels" no longer makes
-empty folders or `scan.json` files for PTU/HOTFIX.
+empty folders or `scan.json` files for PTU/HOTFIX. **2026-11-23:** the finder skips its scan of a channel
+`list_characters` scanned less than 10 s ago; scans in the app run one at a time (an in-process
+lock held across the scan and that note), so a finder read sent with `list_characters` waits for
+its scan and reads the scanned store, never one mid-scan.
 
 TODO (after `blueprints-windows-fix` lands): `Characters.aliases` / `repair::consolidate` should
 canonicalise geids in the All-channels character merge (marked `TODO(aliases)` in `finder.rs`).
@@ -2720,5 +2729,7 @@ quietly `not-needed`), data `quest_items_from_spawns_and_hauling_orders` (fixtur
 contract, shared key with a `_debug` variant and with an unrelated datapad).
 
 **Open.** More hand-written packs as mission facts come in. Data Heist items name only the one
-broker mission with a plain title. Loot-table and shop sources ("where to find") stay with the
-MCP server.
+broker mission with a plain title. Loot-table and shop sources ("where to find") stayed with
+the MCP server until 2026-11-21: they are now in descriptions as a WHERE TO GET block (loot,
+craft, rewards, mining, ore quality, and shop names from the user's own UEX files), see
+[obtain hints](obtain-hints.md). Quest hints stay as they are; the block goes after them.

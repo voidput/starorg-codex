@@ -81,7 +81,8 @@ Developer mode (optional) needs a little more:
   acceleration. On some older WebKitGTK builds, `--safe-gpu` can turn WebGL off; "Export .glb"
   still works.
 - **Memory and disk:** big datasets need several GB of RAM (Settings -> Advanced -> Memory
-  limit); the asset cache uses up to 2 GB by default.
+  limit); the app's cache folder is capped at 1 GB by default (least recently used goes
+  first; Settings -> Storage shows what is where).
 
 More detail: [Windows](docs/windows.md#requirements), [Linux](docs/linux.md#requirements).
 

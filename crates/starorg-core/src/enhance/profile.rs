@@ -21,6 +21,22 @@ pub struct Profile {
     /// "Used in: <contract> · <system>" after the description of items a mission spawns or
     /// a contract asks for, from real record references only (addendum §13).
     pub quest_hints: bool,
+    /// "WHERE TO GET" block after item and commodity descriptions (spec obtain-hints): loot,
+    /// craft, contract rewards, mining places and ore quality.
+    pub obtain: bool,
+    /// How much the block says.
+    pub obtain_mode: ObtainMode,
+    /// Also list shops (only from UEX files the user supplied; names, never prices).
+    pub obtain_shops: bool,
+    /// Also say where a commodity sells best: the top commodity kiosks with a rounded price
+    /// per SCU, stamped with the day the UEX prices were fetched (the `sell` line). Off by
+    /// default, on in Everything: prices go stale between applies.
+    pub obtain_prices: bool,
+    /// Give items whose name key stock lacks a name, and items whose description key stock
+    /// lacks a sibling's description, so the game does not show the raw `@item_Name…` /
+    /// `@item_Desc…` key (spec missing-names). Adds keys; only placeholder stock lines are
+    /// replaced.
+    pub missing_names: bool,
     /// Stat lines switched off, as `<category>.<line>` (e.g. `ships.boost`, `components.signatures`).
     pub lines_off: BTreeSet<String>,
     /// "Stats above prose" (spec 5.1).
@@ -35,6 +51,19 @@ pub struct Profile {
     /// own tag, after [`COLOUR_TEST_KEY`] so the in-game look of every tag can be checked.
     /// Not in any preset; the next apply without it puts the stock text back.
     pub colour_test: bool,
+}
+
+/// How much the WHERE TO GET block says (spec obtain-hints).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ObtainMode {
+    /// One line: `Get: Loot (Rare) · Craft [BP]`.
+    Short,
+    /// A header and one line per source, top places, no odds.
+    #[default]
+    Normal,
+    /// Places with system, loot odds, quality spread and place overrides.
+    Detailed,
 }
 
 /// The one string the colour test writes to: the Contracts Manager's "Please select a
@@ -217,6 +246,11 @@ impl Default for Profile {
             missiles: true,
             missions: true,
             quest_hints: true,
+            obtain: true,
+            obtain_mode: ObtainMode::Normal,
+            obtain_shops: false,
+            obtain_prices: false,
+            missing_names: true,
             lines_off: BTreeSet::new(),
             stats_above: false,
             header: "--- STATS ---".into(),
@@ -249,6 +283,8 @@ impl Profile {
         ] {
             t.enabled = false;
         }
+        p.obtain = false;
+        p.missing_names = false;
         p
     }
 
@@ -262,6 +298,7 @@ impl Profile {
             missiles: false,
             missions: false,
             quest_hints: false,
+            obtain_mode: ObtainMode::Short,
             ..Self::default()
         }
     }
@@ -271,6 +308,9 @@ impl Profile {
         p.tags.short_names = true;
         p.tags.tool_size_tag = true;
         p.branding = true;
+        p.obtain_mode = ObtainMode::Detailed;
+        p.obtain_shops = true;
+        p.obtain_prices = true;
         p
     }
 
@@ -801,6 +841,65 @@ mod tests {
             ["enhance.ships"]
         );
         assert_eq!(m.keys().collect::<Vec<_>>(), ["missions"]);
+    }
+
+    #[test]
+    fn missing_names_on_in_every_preset_but_off() {
+        for name in PRESETS {
+            assert!(Profile::preset(name).unwrap().missing_names, "{name}");
+        }
+        assert!(!Profile::off().missing_names);
+        let p = Profile::from_toml("[enhance]\nmissing_names = false\n").unwrap();
+        assert!(!p.missing_names);
+        assert_ne!(p.hash(), Profile::default().hash());
+    }
+
+    #[test]
+    fn obtain_presets_toml_and_hash() {
+        let r = Profile::default();
+        assert!(r.obtain && r.obtain_mode == ObtainMode::Normal && !r.obtain_shops);
+        let m = Profile::minimal();
+        assert!(m.obtain && m.obtain_mode == ObtainMode::Short && !m.obtain_shops);
+        let e = Profile::everything();
+        assert!(e.obtain && e.obtain_mode == ObtainMode::Detailed && e.obtain_shops);
+        assert!(e.obtain_prices && !r.obtain_prices && !m.obtain_prices);
+        assert!(!Profile::off().obtain);
+        // New fields at their defaults leave the Recommended hash as it was.
+        assert_eq!(r.hash(), crate::fsutil::sha256_hex(b"{}"));
+        let p = Profile::from_toml(
+            "[enhance]\nobtain_mode = \"detailed\"\nobtain_shops = true\nlines_off = [\"obtain.loot\"]\n",
+        )
+        .unwrap();
+        assert_eq!(p.obtain_mode, ObtainMode::Detailed);
+        assert!(p.obtain_shops && !p.line_on("obtain", "loot") && p.line_on("obtain", "craft"));
+        assert_ne!(p.hash(), r.hash());
+        let mut q = p.clone();
+        q.obtain_shops = false;
+        assert_ne!(q.hash(), p.hash());
+        assert!(Profile::from_toml("[enhance]\nobtain_mode = \"verbose\"\n").is_err());
+        assert!(Profile::from_toml("[enhance]\nobtain = \"yes\"\n").is_err());
+        // Sparse over a preset and back.
+        let over = p.sparse_over(&r).unwrap();
+        assert_eq!(
+            over.keys().collect::<Vec<_>>(),
+            ["lines_off", "obtain_mode", "obtain_shops"]
+        );
+        let text = toml::to_string(&toml::Table::from_iter([(
+            "enhance".to_string(),
+            toml::Value::Table(over),
+        )]))
+        .unwrap();
+        assert_eq!(Profile::from_toml(&text).unwrap(), p);
+        let min = Profile::from_toml("preset = \"minimal\"\n[enhance]\nobtain_mode = \"normal\"\n")
+            .unwrap();
+        assert_eq!(min.obtain_mode, ObtainMode::Normal);
+        assert_eq!(
+            min.sparse_over(&Profile::minimal())
+                .unwrap()
+                .keys()
+                .collect::<Vec<_>>(),
+            ["obtain_mode"]
+        );
     }
 
     #[test]

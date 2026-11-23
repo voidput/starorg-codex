@@ -74,7 +74,7 @@ fn value(stock: &StockIni, bytes: &[u8], key: &str) -> String {
 fn generator_prefixes_renames_and_keeps_key_spelling() {
     let (gd, stock) = data();
     let p = Profile::preset("minimal").unwrap();
-    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&settings()));
+    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&settings()), None);
     let bytes = render(&stock, &g).expect("whole-file rules pass");
     assert_eq!(
         value(&stock, &bytes, "vehicle_NameSYN_Charlie"),
@@ -125,11 +125,11 @@ fn style_none_renames_only_and_symbol_floats() {
     let p = Profile::preset("minimal").unwrap();
     let mut s = settings();
     s.style = Style::None;
-    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&s));
+    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&s), None);
     assert_eq!(g.count(Category::ShipNames), 2, "Bravo long + short");
     s.style = Style::Symbol;
     s.symbol = "!".into();
-    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&s));
+    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&s), None);
     let bytes = render(&stock, &g).unwrap();
     assert_eq!(
         value(&stock, &bytes, "vehicle_NameSYN_Charlie"),
@@ -151,8 +151,8 @@ fn renames_are_whole_value_and_checked() {
 fn an_override_on_the_hull_key_wins() {
     let (gd, stock) = data();
     let p = Profile::preset("minimal").unwrap();
-    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&settings()));
-    let gen_edits: Vec<merge::GenEdit> = g.edits.values().map(merge::GenEdit::from).collect();
+    let g = generate_with(&gd, &stock, &p, &NoneOwned, Some(&settings()), None);
+    let gen_edits = merge::gen_edits(&g);
     let overrides = vec![Override {
         line: 1,
         key: "vehicle_NameSYN_Bravo".into(),

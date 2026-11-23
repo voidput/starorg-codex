@@ -1,31 +1,14 @@
 /**
  * The Explorer record's Combat card, as pure functions: number text, the sum row of a loadout
- * table and the per-viewer open/closed state. The numbers themselves come from the build's
+ * table and the card's storage key. The numbers themselves come from the build's
  * GameData (`dev_record_combat`).
  */
 import type { CombatRow, Stat } from './contract/dev';
 import { numberCell } from './readable.ts';
 
+/** Open unless this viewer closed it ([`loadOpen`](./cardopen.ts) default true). */
 export const COMBAT_OPEN_KEY = 'starorg.dev.combatOpen';
 
-type Store = Pick<Storage, 'getItem' | 'setItem'>;
-
-/** Open unless this viewer closed it (open when storage is blocked or empty). */
-export function loadCombatOpen(s: Store | null): boolean {
-  try {
-    return s?.getItem(COMBAT_OPEN_KEY) !== '0';
-  } catch {
-    return true;
-  }
-}
-
-export function saveCombatOpen(s: Store | null, open: boolean): void {
-  try {
-    s?.setItem(COMBAT_OPEN_KEY, open ? '1' : '0');
-  } catch {
-    /* storage blocked: the card still opens and closes for this session */
-  }
-}
 
 /** A number as the Diff shows numbers ("1,537.5 m/s"); a dash when missing. */
 export function numText(v: number | null | undefined, unit: string | null = null): string {

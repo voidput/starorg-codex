@@ -5,6 +5,7 @@
    * Save stays off while a live check fails; the core's own refusal names the rule in words.
    * Closing with unsaved text asks first.
    */
+  import { untrack } from 'svelte';
   import Crown from '@lucide/svelte/icons/crown';
   import CircleCheck from '@lucide/svelte/icons/circle-check';
   import CircleX from '@lucide/svelte/icons/circle-x';
@@ -26,6 +27,7 @@
   import ErrorState from '@/components/common/ErrorState.svelte';
   import { type ContractError } from '@/lib/contract/client';
   import { toast } from '@/lib/stores/toast.svelte';
+  import { app } from '@/lib/stores/app.svelte';
   import { cn } from '@/lib/utils';
 
   let {
@@ -46,11 +48,15 @@
   const OWNERS_SHOWN = 8;
   let allOwners = $state(false);
 
+  // Keyed on primitives only (the channel key, the row key): `target` is a new object after every
+  // app.refresh(), which must not reset an open sheet or refetch it.
   $effect(() => {
     const k = rowKey;
+    const tk = app.targetKey;
     void retry;
-    if (!open || !k || !target) return;
-    const t = $state.snapshot(target);
+    if (!open || !k || !tk) return;
+    const t = untrack(() => (target ? $state.snapshot(target) : null));
+    if (!t) return;
     let stale = false;
     detail = null;
     allOwners = false;

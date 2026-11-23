@@ -29,7 +29,7 @@ export interface DevMockData {
   /** The section index's input (7.17): facts per entry, the table's result per entry. */
   facts: (Facts | null)[];
   sections: SectionsData;
-  catalogue: { stats: Record<string, D.Stat[]>; combat: Record<string, D.Combat>; marks: [string, D.Change][]; geometry: [string, string][] };
+  catalogue: { stats: Record<string, D.Stat[]>; combat: Record<string, D.Combat>; sources: Record<string, D.RecordSources>; marks: [string, D.Change][]; geometry: [string, string][] };
 }
 
 export interface DevMockCtx {
@@ -1609,6 +1609,12 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       on(req.target);
       return data.catalogue.combat[req.guid.trim().toLowerCase()] ?? null;
     },
+    // The Rust mock's cards by lower-case short record name (catalogue guns and coolers, two ores).
+    dev_record_sources: ({ req }) => {
+      on(req.target);
+      const hit = data.catalogue.sources[(req.name.split('.').pop() ?? '').trim().toLowerCase()];
+      return hit ? structuredClone(hit) : { buy: null, sell: null, loot: null, mined: [], quality: [] };
+    },
     dev_record: ({ req }) => {
       const ix = explorer(req.target);
       const i = ix.find(req.what) ?? ctx.fail('not-found', `no record "${req.what}"`);
@@ -1662,6 +1668,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
         .filter((r) => live || r.cached);
       return { releases, error: null };
     },
+    // The mock's list is fixed: nothing remembered to forget.
+    dev_refresh_dump_releases: ({ req }) => handlers.dev_dump_releases({ req }),
     dev_download_dump: async ({ req }) => {
       on(req.target);
       if (!ctx.dumpsOn()) ctx.fail('network-off', 'Turn on Settings > Network > "Download published LIVE builds for Diff" first.');

@@ -890,6 +890,274 @@ pub fn catalogue_guid(n: usize) -> String {
     format!("54000000-0000-4000-8000-{n:012x}")
 }
 
+/// The Sources card of a record by name: the catalogue's guns and coolers are sold in two
+/// shops and turn up in loot containers, and the Sadaryx and Aphorite records of [`MOCK_ORES`] are mined ores. Both
+/// mocks serve these through [`catalogue_sources`].
+fn mock_sources(name: &str) -> RecordSources {
+    let short = name.rsplit('.').next().unwrap_or(name);
+    let n = (0..CATALOGUE.len()).find(|&n| catalogue_name(n).eq_ignore_ascii_case(short));
+    let loot = n
+        .filter(|&n| matches!(CATALOGUE[n].1, "WeaponGun" | "Cooler"))
+        .map(|n| {
+            let gun = CATALOGUE[n].1 == "WeaponGun";
+            let (contents, table) = if gun {
+                ("Weapons", "v3loottable_ship_weapons")
+            } else {
+                ("Components", "v3loottable_components")
+            };
+            let row = |area: &str, place: Option<&str>, size: &str, rarity: &str, odds: f64| {
+                LootContainer {
+                    area: area.into(),
+                    place: place.map(str::to_string),
+                    spawn_point: Some(format!("{contents} {size} {rarity}")),
+                    kind: "loot".into(),
+                    container: format!("{size} Container"),
+                    contents: Some(contents.into()),
+                    size: Some(size.into()),
+                    rarity: Some(rarity.into()),
+                    slot_share: 1.0,
+                    odds_per_box: odds,
+                    per_roll: Some(odds / 4.0),
+                    table: Some(table.into()),
+                    configs: 3,
+                }
+            };
+            LootSources {
+                name: CATALOGUE[n].5.into(),
+                can_loot: Some(true),
+                reason: None,
+                rarity: Some(if gun { "Rare" } else { "Uncommon" }.into()),
+                containers: vec![
+                    row(
+                        "v3slotpreset rockcracker",
+                        Some("Rock Cracker, Nyx"),
+                        "Large",
+                        "Rare",
+                        0.21,
+                    ),
+                    row(
+                        "asteroidbases: asteroidbase dungeon 001",
+                        None,
+                        "Medium",
+                        "Rare",
+                        0.084,
+                    ),
+                    row(
+                        "caves: loot caves occupied rock pyro",
+                        None,
+                        "Small",
+                        "Uncommon",
+                        0.0123,
+                    ),
+                ],
+                container_total: 3,
+                tables: vec![LootTableOdds {
+                    table: "V3LootTable_Actor_LargeAmmo_RockCracker_Boss".into(),
+                    per_roll: 0.0042,
+                }],
+                table_total: 1,
+            }
+        });
+    let buy = n.map(|n| {
+        let sold = matches!(CATALOGUE[n].1, "WeaponGun" | "Cooler");
+        let offer =
+            |terminal: &str, location: &str, price: f64, updated: &str, stale: bool| ShopOffer {
+                terminal: terminal.into(),
+                location: location.into(),
+                price_buy: price,
+                updated: Some(updated.into()),
+                stale,
+                not_on_live: false,
+            };
+        let offers = if sold {
+            vec![
+                offer(
+                    "Dumper's GrimHEX",
+                    "Grim HEX, Yela, Crusader, Stanton",
+                    6900.0,
+                    "2026-09-01",
+                    true,
+                ),
+                offer(
+                    "Guns Ruin",
+                    "Ruin Station, Terminus, Pyro",
+                    7029.0,
+                    "2026-11-14",
+                    false,
+                ),
+            ]
+        } else {
+            Vec::new()
+        };
+        BuySources {
+            loaded: true,
+            folder: Some("~/.cache/starorg-codex/mcp/uex".into()),
+            total: offers.len(),
+            offers,
+        }
+    });
+    let lower = short.to_lowercase();
+    let mined = if lower.contains("sadaryx") {
+        vec![MinedReport {
+            ore: "minableelement_fps_sadaryx".into(),
+            name: "Sadaryx".into(),
+            rocks: vec!["MineableRock_FPS_Sadaryx".into()],
+            belts: Vec::new(),
+            spots: vec![MinedSpot {
+                area: "v3slotpreset rockcracker".into(),
+                place: Some("Rock Cracker, Nyx".into()),
+                configs: vec!["Sadaryx minable".into()],
+                rock: "MineableRock_FPS_Sadaryx".into(),
+                slot_share: 1.0,
+            }],
+        }]
+    } else if lower.contains("aphorite") {
+        let belt = |location: &str, system: &str, body: &str, share: f64| MinedBelt {
+            location: location.into(),
+            system: Some(system.into()),
+            body: Some(body.into()),
+            rock: "MineableRock_FPS_Aphorite".into(),
+            kind: Some("hand".into()),
+            tier: None,
+            spawn_share: Some(share),
+            min_percent: Some(50.0),
+            max_percent: Some(100.0),
+        };
+        vec![MinedReport {
+            ore: "minableelement_fps_aphorite".into(),
+            name: "Aphorite".into(),
+            rocks: vec!["MineableRock_FPS_Aphorite".into()],
+            belts: vec![
+                belt("Stanton3a", "Stanton", "Lyria", 15.275),
+                belt("Pyro1", "Pyro", "Pyro I", 9.5),
+            ],
+            spots: vec![MinedSpot {
+                area: "caves: loot caves occupied rock".into(),
+                place: None,
+                configs: vec!["FPS mineables".into()],
+                rock: "MineableRock_FPS_Aphorite".into(),
+                slot_share: 0.25,
+            }],
+        }]
+    } else {
+        Vec::new()
+    };
+    let quality = mined
+        .iter()
+        .map(|m| {
+            let range = |mean: f64| QualityRange {
+                min: Some(201.0),
+                max: Some(1000.0),
+                mean: Some(mean),
+                stddev: Some(298.0),
+            };
+            let step = |start: f64, end: f64, shown: f64, share: f64| QualityStep {
+                start,
+                end,
+                shown,
+                share: Some(share),
+            };
+            OreQuality {
+                resource: format!("ResourceType.{}", m.name),
+                name: m.name.clone(),
+                tier: Some("FPSMineable".into()),
+                range: range(201.0),
+                overrides: if m.name == "Aphorite" {
+                    vec![QualityOverride {
+                        location: "Pyro System".into(),
+                        range: range(209.0),
+                    }]
+                } else {
+                    Vec::new()
+                },
+                steps: vec![
+                    step(0.0, 399.0, 348.0, 0.499),
+                    step(400.0, 599.0, 523.0, 0.326),
+                    step(600.0, 799.0, 717.0, 0.137),
+                    step(800.0, 1000.0, 916.0, 0.038),
+                ],
+            }
+        })
+        .collect();
+    // Kiosks buying the ore: Aphorite sells, nobody buys Sadaryx (an empty, loaded card).
+    let sell = mined.first().map(|m| {
+        let offer = |terminal: &str, location: &str, price: f64, stock: f64| SellOffer {
+            terminal: terminal.into(),
+            location: location.into(),
+            price_sell: price,
+            scu_stock: Some(stock),
+            updated: Some("2026-11-20".into()),
+            stale: false,
+        };
+        let offers = if m.name == "Aphorite" {
+            vec![
+                offer(
+                    "HUR-L2",
+                    "HUR-L2 Faithful Dream Station, Stanton",
+                    9612.0,
+                    4.0,
+                ),
+                offer("Rod's Fuel", "Rod's Fuel 'N Supplies, Pyro", 9180.0, 952.0),
+                offer("TDD Area 18", "Area 18, ArcCorp, Stanton", 9000.0, 124.0),
+            ]
+        } else {
+            Vec::new()
+        };
+        SellSources {
+            loaded: true,
+            folder: Some("~/.cache/starorg-codex/mcp/uex".into()),
+            resource: format!("ResourceType.{}", m.name),
+            name: m.name.clone(),
+            total: if offers.is_empty() { 0 } else { 7 },
+            offers,
+            fetched: Some(super::mock::MOCK_UEX_FETCHED.into()),
+        }
+    });
+    RecordSources {
+        buy,
+        sell,
+        loot,
+        mined,
+        quality,
+    }
+}
+
+/// Ore records the mock knows by name, beside the catalogue (Sources card only).
+pub const MOCK_ORES: &[&str] = &[
+    "ResourceType.Sadaryx",
+    "MineableElement.MinableElement_FPS_Sadaryx",
+    "EntityClassDefinition.MineableRock_FPS_Sadaryx",
+    "ResourceType.Aphorite",
+    "EntityClassDefinition.MineableRock_FPS_Aphorite",
+];
+
+/// [`mock_sources`] by lower-case short record name, for every catalogue row and
+/// [`MOCK_ORES`] record with a card: the TypeScript mock looks names up here exactly.
+pub fn catalogue_sources() -> &'static BTreeMap<String, RecordSources> {
+    static S: OnceLock<BTreeMap<String, RecordSources>> = OnceLock::new();
+    S.get_or_init(|| {
+        (0..CATALOGUE.len())
+            .map(catalogue_name)
+            .chain(MOCK_ORES.iter().map(|s| (*s).to_string()))
+            .map(|k| {
+                let v = mock_sources(&k);
+                (short_key(&k), v)
+            })
+            .filter(|(_, v)| v.loot.is_some() || !v.mined.is_empty())
+            .collect()
+    })
+}
+
+/// The lower-case short name a record name is looked up by (`resourcetype.sadaryx` ->
+/// `sadaryx`).
+pub fn short_key(name: &str) -> String {
+    name.rsplit('.')
+        .next()
+        .unwrap_or(name)
+        .trim()
+        .to_lowercase()
+}
+
 /// The record name of catalogue row `n`: `SYN_Alpha_Kestrel_PU_AI_CIV`.
 pub fn catalogue_name(n: usize) -> String {
     format!("SYN_{}", CATALOGUE[n].5.replace([' ', '-'], "_"))
@@ -2066,6 +2334,14 @@ impl DevBackend for MockBackend {
             .cloned())
     }
 
+    fn dev_record_sources(&self, req: DevRecordSourcesRequest) -> CmdResult<RecordSources> {
+        self.dev_on(&req.target)?;
+        Ok(catalogue_sources()
+            .get(&short_key(&req.name))
+            .cloned()
+            .unwrap_or_default())
+    }
+
     fn dev_export_record(&self, req: DevExportRecordRequest) -> CmdResult<DevExportResult> {
         let c = self.explorer(&req.target)?;
         c.index
@@ -2145,6 +2421,11 @@ impl DevBackend for MockBackend {
             releases,
             error: None,
         })
+    }
+
+    fn dev_refresh_dump_releases(&self, req: ChannelRef) -> CmdResult<DumpReleases> {
+        // The mock's list is fixed: nothing remembered to forget.
+        self.dev_dump_releases(req)
     }
 
     fn dev_download_dump(
@@ -2471,7 +2752,7 @@ pub fn gen_file() -> Value {
             "labels": starorg_core::dev::sections::rules::VALUE_LABELS,
             "records": ((0..c.index.len()).map(|i| json!([c.sections.section_id(i), c.sections.is_variant(i)])).collect::<Vec<_>>()),
         },
-        "catalogue": { "stats": catalogue_stats().into_iter().collect::<std::collections::BTreeMap<_, _>>(), "combat": catalogue_combat(), "marks": catalogue_marks(), "geometry": ((0..CATALOGUE.len()).filter_map(|n| catalogue_geometry(n).map(|g| json!([g, catalogue_guid(n)]))).collect::<Vec<_>>()) },
+        "catalogue": { "stats": catalogue_stats().into_iter().collect::<std::collections::BTreeMap<_, _>>(), "combat": catalogue_combat(), "sources": catalogue_sources(), "marks": catalogue_marks(), "geometry": ((0..CATALOGUE.len()).filter_map(|n| catalogue_geometry(n).map(|g| json!([g, catalogue_guid(n)]))).collect::<Vec<_>>()) },
         "makers": (MAKERS.iter().map(|(c, n)| (c.to_string(), Value::from(*n))).collect::<serde_json::Map<_, _>>()),
         "enhanced": (enhanced().iter().map(|(k, v)| (k.clone(), Value::from(v.clone()))).collect::<std::collections::BTreeMap<_, _>>()),
         "folder": { "label": FOLDER_LABEL, "path": FOLDER_PATH, "files": (folder_files().into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) },

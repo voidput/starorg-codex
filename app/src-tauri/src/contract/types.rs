@@ -210,6 +210,8 @@ pub enum JobKind {
     Dev,
     /// The experimental local MCP server (started, stopped, a dataset extracted for it).
     Mcp,
+    /// UEX market data downloaded (Settings -> Network -> "Download UEX market data").
+    Uex,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -326,6 +328,13 @@ pub struct ApplyCounts {
     pub fps_weapons: u32,
     pub missiles: u32,
     pub missions: u32,
+    /// Descriptions that got a WHERE TO GET block (spec obtain-hints).
+    #[serde(default)]
+    pub obtain_hints: u32,
+    /// Name keys stock lacks that got a name, and description keys stock lacks (or holds as a
+    /// placeholder) that got a sibling's description (spec missing-names).
+    #[serde(default)]
+    pub missing_names: u32,
     pub overrides: u32,
     pub dropped: u32,
 }
@@ -510,6 +519,13 @@ pub struct PreviewRequest {
     pub preset: Option<Preset>,
 }
 
+/// Read a set-up channel's game data into the cache (Enhancements' "Read game data"), so
+/// the preview has examples without an apply. Writes nothing into the game folder.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ReadGameDataRequest {
+    pub target: ChannelRef,
+}
+
 // ---------------------------------------------------------------------------------------
 // Enhancements profile (spec 4.7, 5, 6)
 // ---------------------------------------------------------------------------------------
@@ -524,6 +540,8 @@ pub enum CategoryId {
     FpsWeapons,
     Missiles,
     Missions,
+    /// WHERE TO GET (spec obtain-hints): `Profile::obtain`, lines `obtain.<line>`.
+    Obtain,
 }
 
 /// Tag kinds of the Tag Builder (M2 `enhance::Tags` fields).
@@ -655,6 +673,18 @@ pub struct Profile {
     /// `Used in: <contract> · <system>` on items a mission spawns or a contract asks for
     /// (real record references only, addendum §13).
     pub quest_hints: bool,
+    /// WHERE TO GET in item and commodity descriptions (spec obtain-hints).
+    pub obtain: bool,
+    pub obtain_mode: ObtainMode,
+    /// Shop names from the user's UEX files in the block (never prices).
+    pub obtain_shops: bool,
+    /// The `sell` line: the best commodity kiosks with a rounded price per SCU and the day
+    /// the UEX prices were fetched. Off by default, on in Everything.
+    pub obtain_prices: bool,
+    /// Names for items whose name key stock lacks, and a sibling's description for items whose
+    /// description key stock lacks (spec missing-names): adds keys; only placeholder stock
+    /// lines are replaced.
+    pub missing_names: bool,
     /// Stat lines switched off, as `<category>.<line>` (keys from [`ProfileSchema`]).
     pub lines_off: Vec<String>,
     pub stats_above: bool,
@@ -668,6 +698,151 @@ pub struct Profile {
     pub colour_test: bool,
     /// Patch ids switched off. "Fix known text bugs" off = every built-in id listed here.
     pub patches_disabled: Vec<String>,
+}
+
+/// How much the WHERE TO GET block says.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ObtainMode {
+    Short,
+    Normal,
+    Detailed,
+}
+
+/// One UEX file the WHERE TO GET shop line reads.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UexFile {
+    /// `uex-item-prices.json`, `uex-commodity-prices.json`, `uex-terminals.json`.
+    pub name: String,
+    pub present: bool,
+    /// Last modified (RFC 3339 UTC), when present.
+    pub modified: Option<String>,
+}
+
+/// Where the shop names and sell prices of WHERE TO GET come from (spec obtain-hints): UEX
+/// files in `uex_folder`, downloaded by `fetch_uex` while "Download UEX market data" is on
+/// or put there by the user. Shops are names only; the sell line has rounded prices.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ObtainStatus {
+    /// `<cache>/mcp/uex` (shared with the Sources card and the MCP server).
+    pub uex_folder: String,
+    pub files: Vec<UexFile>,
+    /// Item prices and terminals are there: the shops line can say something.
+    pub shops_ready: bool,
+    /// Commodity prices and terminals are there: the sell line can say something.
+    pub prices_ready: bool,
+}
+
+/// Whether a UEX API token is saved, and where. Never the token itself.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UexTokenStatus {
+    pub set: bool,
+    pub store: Option<TokenStoreKind>,
+}
+
+/// Save (`token`) or remove (`null` or empty) the UEX API token.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UexTokenRequest {
+    pub token: Option<String>,
+}
+
+// The Loot screen (`loot_list`, `loot_detail`): every loot area with what drops there and
+// every item with where, from the channel's cached loot data, typed in `starorg_mcp::loot`.
+pub use starorg_mcp::loot::{
+    LootDataState, LootDetail, LootDrop, LootDropKind, LootGroup, LootGroupBy, LootList,
+    LootSummary, LootView,
+};
+
+/// Every loot area (`view: areas`) or every item that drops in one (`items`), summaries
+/// only. `target`: the channel whose cached loot data is read (`None`: `missing`). Nothing
+/// is extracted.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LootListRequest {
+    pub target: Option<ChannelRef>,
+    pub view: LootView,
+}
+
+/// One area's items or one item's areas in groups; `id` is a [`LootSummary::id`] of that
+/// view. `filter`: only the drops holding every word of it (name, path, container, rarity,
+/// id), over every drop. `group_by`: `None` for the view's default (areas by container,
+/// items by place). `groups`: the group keys whose rows to answer (opening a group); `None`
+/// answers the default ones (the first and a few small ones, or the matches of a filter).
+/// Every group's header covers all its drops; rows are capped per group.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LootDetailRequest {
+    pub target: Option<ChannelRef>,
+    pub view: LootView,
+    pub id: String,
+    #[serde(default)]
+    pub filter: Option<String>,
+    #[serde(default)]
+    pub group_by: Option<LootGroupBy>,
+    #[serde(default)]
+    pub groups: Option<Vec<String>>,
+}
+
+impl LootDetailRequest {
+    /// What [`starorg_mcp::loot::LootScreen::detail`] takes.
+    pub fn query(&self) -> starorg_mcp::loot::DetailQuery<'_> {
+        starorg_mcp::loot::DetailQuery {
+            filter: self.filter.as_deref(),
+            group_by: self.group_by,
+            groups: self.groups.as_deref(),
+        }
+    }
+}
+
+// The Shops screen (`shop_inventory`, `shop_items`): what each UEX terminal sells, from the
+// same UEX files, typed in `starorg_mcp::shops` (the MCP `shop_inventory` tool reads them too).
+pub use starorg_mcp::shops::{
+    CategoryCount, ItemRecord, ShopCategory, ShopDataState, ShopDirectory, ShopItemRow, ShopItems,
+    ShopPlaceGroup, ShopSummary, ShopSystem,
+};
+
+/// Every shop. `target`: the channel whose cached item data names the rows and links them to
+/// records (`None`, or a channel without that data: UEX names, no links). Nothing is
+/// extracted or downloaded.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopInventoryRequest {
+    pub target: Option<ChannelRef>,
+}
+
+/// One shop's items; `terminal` is a [`ShopSummary::id`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopItemsRequest {
+    pub target: Option<ChannelRef>,
+    pub terminal: u64,
+}
+
+// The Commodities screen (`commodity_list`, `commodity_detail`): every tradable resource of
+// the build's `game-commodities`, typed in `starorg_mcp::commodities`. The list is summaries
+// only; one resource in full comes from a second call.
+pub use starorg_mcp::commodities::{
+    CargoDamage, CargoItem, CommodityDataState, CommodityDetail, CommodityDirectory, CommodityInfo,
+    CommodityMarket, CommodityRef, CommoditySummary, CommodityVolatility, KioskPrice, MarketMeta,
+};
+
+/// Every tradable resource of `target`'s build, from its cached game data (nothing is
+/// extracted; `not-read` until "Read game data" ran). `None`: `no-channel`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommodityListRequest {
+    pub target: Option<ChannelRef>,
+}
+
+/// One resource; `id` is a [`CommoditySummary::id`] (`ResourceType.Gold`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CommodityDetailRequest {
+    pub target: Option<ChannelRef>,
+    pub id: String,
+}
+
+/// Never prints the token.
+impl std::fmt::Debug for UexTokenRequest {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UexTokenRequest")
+            .field("token", &self.token.as_ref().map(|_| "[redacted]"))
+            .finish()
+    }
 }
 
 /// A stat line the user can switch off; `key` is what goes into `lines_off`.
@@ -892,6 +1067,8 @@ pub struct StringsPage {
     pub all: u32,
     pub offset: u32,
     pub rows: Vec<StringRow>,
+    /// `sources`, `categories` and `groups` come with the first page (`offset` 0) only and
+    /// are empty on later pages of the same query.
     pub sources: Vec<FacetCount>,
     pub categories: Vec<FacetCount>,
     /// The tree of `group_by` (empty for `none`), in display order.
@@ -956,10 +1133,14 @@ pub enum OverrideRule {
     FormatKey,
     PercentRule,
     TooLong,
+    /// Generated text only (an override is never refused for it): a raw `@key`.
+    RawLocKey,
+    /// Generated text only: "PLACEHOLDER".
+    PlaceholderText,
 }
 
 impl OverrideRule {
-    pub const ALL: [OverrideRule; 8] = [
+    pub const ALL: [OverrideRule; 10] = [
         OverrideRule::ControlCharacter,
         OverrideRule::AddedEmUnbalanced,
         OverrideRule::EmSignature,
@@ -968,6 +1149,8 @@ impl OverrideRule {
         OverrideRule::FormatKey,
         OverrideRule::PercentRule,
         OverrideRule::TooLong,
+        OverrideRule::RawLocKey,
+        OverrideRule::PlaceholderText,
     ];
 }
 
@@ -1007,6 +1190,8 @@ pub enum PatchState {
     Disabled,
     NoData,
     Retired,
+    /// Not worked out yet (the list came before the table): `patch_states` has it.
+    Checking,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -1158,6 +1343,10 @@ pub struct NetworkSettings {
     /// LIVE builds from voidput/sc-gamedata-dumps (addendum §1). Never used by apply.
     pub published_dumps: bool,
     pub starorg: bool,
+    /// "Download UEX market data": "Fetch now" may download the two UEX files WHERE TO GET's
+    /// shop line reads from api.uexcorp.space. Missing in older saved settings = off.
+    #[serde(default)]
+    pub uex: bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1545,7 +1734,7 @@ pub struct ShipNamesSettings {
 }
 
 /// A player-flyable hull of the channel's build.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetHull {
     /// Hull id = the long name key (`vehicle_NameAEGS_Gladius`).
     pub hull: String,
@@ -1558,6 +1747,9 @@ pub struct FleetHull {
     pub ground: bool,
     /// Other records (AI, PU, unmanned variants) that show the same name.
     pub npc_shared: u32,
+    /// Cargo grid SCU of the stock loadout; `None` when the game data has none or the
+    /// records disagree.
+    pub cargo_scu: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1594,7 +1786,7 @@ pub struct FleetViewRequest {
 }
 
 /// Everything the Ships screen needs for one channel.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetView {
     pub channel: String,
     /// The build's game data has been read: `catalog` is the real list.
@@ -2023,6 +2215,8 @@ pub enum ExternalLink {
     Donate,
     /// StarOrg Tools on Patreon.
     Patreon,
+    /// UEX Corp, where a UEX API token is made (My Apps).
+    Uex,
 }
 
 impl ExternalLink {
@@ -2031,6 +2225,7 @@ impl ExternalLink {
             Self::Support => "https://discord.gg/GCkYhbFYNq",
             Self::Donate => "https://buymeacoffee.com/zedwil",
             Self::Patreon => "https://www.patreon.com/cw/StarOrgTools",
+            Self::Uex => "https://uexcorp.space",
         }
     }
 
@@ -2039,6 +2234,7 @@ impl ExternalLink {
             Self::Support => "Support",
             Self::Donate => "Buy me a coffee",
             Self::Patreon => "Patreon",
+            Self::Uex => "UEX Corp",
         }
     }
 }
@@ -2192,6 +2388,109 @@ impl MemoryStatus {
                 })
                 .collect(),
             note: m::low_ram_note(info.total),
+        }
+    }
+}
+
+/// One area of what the app keeps on this PC (Settings > Storage).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StorageAreaId {
+    /// Extracted game text and data per channel (`<cache>/<install>/<CHANNEL>/`).
+    GameData,
+    /// WHERE TO GET / MCP datasets (`<cache>/mcp/<CHANNEL>/`).
+    WhereToGet,
+    /// UEX market data (`<cache>/mcp/uex/`).
+    Uex,
+    /// Developer mode asset exports (the asset cache folder).
+    AssetExports,
+    /// Extraction temp folders (`<cache>/work/`).
+    Temporary,
+    /// `global.ini` backups (app data folder; not in the cache, not under its cap).
+    Backups,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StorageArea {
+    pub id: StorageAreaId,
+    pub label: String,
+    /// The folder shown for it.
+    pub path: String,
+    pub bytes: u64,
+    pub files: u64,
+    /// Counted toward the cache folder's cap.
+    pub in_cache: bool,
+}
+
+/// Settings > Storage: what the app keeps on this PC and the cache folder's cap.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StorageStatus {
+    /// The app's cache folder.
+    pub cache_path: String,
+    /// Everything in it now.
+    pub cache_bytes: u64,
+    /// Its cap (`[storage] cache_max_mb`, default 1 GiB): least recently used goes first.
+    pub cap_bytes: u64,
+    /// Cache folder + backups (+ the asset cache when it is in a folder of its own).
+    pub total_bytes: u64,
+    /// In a fixed order: game data, WHERE TO GET, UEX, asset exports, temporary, backups.
+    pub areas: Vec<StorageArea>,
+    /// The asset cache's own cap.
+    pub asset_cap_bytes: u64,
+    /// Backups kept per channel (plus the newest of each of the last `backup_keep_builds`
+    /// game builds and the one from before the app).
+    pub backup_keep_newest: u32,
+    pub backup_keep_builds: u32,
+    /// Why "Clear asset cache" is refused right now (an asset job is running), else `None`.
+    pub asset_busy: Option<String>,
+}
+
+impl StorageStatus {
+    /// From a measured report (`starorg_core::storage`).
+    pub fn build(
+        r: &starorg_core::storage::Report,
+        cap: u64,
+        asset_cap: u64,
+        assets_inside_cache: bool,
+        asset_busy: Option<String>,
+    ) -> Self {
+        use starorg_core::storage::Area;
+        let areas = r
+            .areas
+            .iter()
+            .map(|a| {
+                let (id, label) = match a.area {
+                    Area::GameData => (StorageAreaId::GameData, "Game data cache"),
+                    Area::WhereToGet => (StorageAreaId::WhereToGet, "WHERE TO GET datasets"),
+                    Area::Uex => (StorageAreaId::Uex, "UEX market data"),
+                    Area::AssetExports => (StorageAreaId::AssetExports, "Asset exports"),
+                    Area::Temporary => (StorageAreaId::Temporary, "Temporary extraction folders"),
+                    Area::Backups => (StorageAreaId::Backups, "global.ini backups"),
+                };
+                StorageArea {
+                    id,
+                    label: label.into(),
+                    path: a.path.display().to_string(),
+                    bytes: a.usage.bytes,
+                    files: a.usage.files,
+                    in_cache: match a.area {
+                        Area::Backups => false,
+                        Area::AssetExports => assets_inside_cache,
+                        _ => true,
+                    },
+                }
+            })
+            .collect();
+        StorageStatus {
+            cache_path: r.cache_path.display().to_string(),
+            cache_bytes: r.cache.bytes,
+            cap_bytes: cap,
+            total_bytes: r.total(assets_inside_cache).bytes,
+            areas,
+            asset_cap_bytes: asset_cap,
+            backup_keep_newest: starorg_core::backup::KEEP_NEWEST as u32,
+            backup_keep_builds: starorg_core::backup::KEEP_BUILDS as u32,
+            asset_busy,
         }
     }
 }

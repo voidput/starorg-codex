@@ -62,6 +62,23 @@ pub fn check(gd: &GameData, present: Option<&dyn Fn(&str) -> bool>) -> Vec<Warni
             "Requires: line",
         ),
     ];
+    let empties = empties.into_iter().chain([
+        (
+            gd.item_descs.len(),
+            "item description keys",
+            "WHERE TO GET blocks on items",
+        ),
+        (
+            gd.resource_descs.len(),
+            "resource description keys",
+            "WHERE TO GET blocks on commodities",
+        ),
+        (
+            gd.item_names.len(),
+            "item name keys",
+            "names for items whose name key stock lacks",
+        ),
+    ]);
     for (n, what, feeds) in empties {
         if n == 0 {
             warn(
@@ -182,6 +199,10 @@ mod tests {
         assert!(
             text.iter()
                 .any(|t| t.starts_with("contracts: query returned nothing"))
+        );
+        assert!(
+            text.iter()
+                .any(|t| t.starts_with("resource description keys: query returned nothing"))
         );
     }
 }

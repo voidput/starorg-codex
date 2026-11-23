@@ -42,6 +42,8 @@ sha1 = "0.11"
 sha2 = "0.11"
 getrandom = "0.4"
 memchr = "2"
+# gzip for backups and the game-data cache (pure Rust zlib-rs backend, already in the tree via zip).
+flate2 = { version = "1.1", default-features = false, features = ["zlib-rs"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -53,3 +55,33 @@ all = { level = "warn", priority = -1 }
 # Do not switch to "abort"; tests/release_profile.rs fails if this changes.
 [profile.release]
 panic = "unwind"
+
+# Debug info: line tables only for our crates (backtraces keep file:line; no full variable
+# info) and none for dependencies. Full debug info made target/debug grow to ~300 GB across
+# test binaries (one debug CLI binary was 643 MB). Set CARGO_PROFILE_DEV_DEBUG=full for a
+# debugger session.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+opt-level = 2
+debug = false
+
+# Debug builds (`tauri dev`, `cargo run`) still read a 100+ GB archive: optimise the
+# dependencies and the extraction crates, or a first extraction takes minutes instead of
+# seconds (dependencies: above). The rest of the workspace stays unoptimised for quick
+# rebuilds.
+[profile.dev.package.starorg-data]
+opt-level = 2
+
+[profile.dev.package.starorg-gamedata]
+opt-level = 2
+
+# Builds the obtain hints over the datasets (20 s unoptimised on PTU, well under 1 s optimised).
+[profile.dev.package.starorg-mcp]
+opt-level = 2
+
+# The generators: the app's preview, patch states and apply build the whole output table
+# (about 3 s per build unoptimised).
+[profile.dev.package.starorg-core]
+opt-level = 2

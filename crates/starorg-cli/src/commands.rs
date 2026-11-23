@@ -357,17 +357,30 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     };
 
     let stock = StockIni::parse(loaded.base_ini);
-    let gen_started = Instant::now();
     let owned_dyn: &dyn OwnedBlueprints = match &owned {
         Some(o) => o,
         None => &NoneOwned,
     };
+    let obtain_src = if a.no_enhancements {
+        None
+    } else {
+        starorg_core::appdirs::AppDirs::from_env()
+            .and_then(|dirs| crate::obtain_src::provider(g, install, &dirs, None))
+    };
+    let (hints, obtain_warnings, obtain_stats) = starorg_core::apply::obtain_hints(
+        &loaded.game_data,
+        &profile,
+        obtain_src.as_ref(),
+        &ch.name,
+    );
+    let gen_started = Instant::now();
     let generated = enhance::generate_with(
         &loaded.game_data,
         &stock,
         &profile,
         owned_dyn,
         ship_names.as_ref(),
+        hints.as_ref(),
     );
     let bytes = match enhance::render(&stock, &generated) {
         Ok(b) => b,
@@ -381,7 +394,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         }
     };
     let gen_ms = gen_started.elapsed().as_millis() as u64;
-    if generated.edits.is_empty() && bytes != stock.as_bytes() {
+    if generated.edits.is_empty() && generated.added.is_empty() && bytes != stock.as_bytes() {
         return fail(
             g,
             exit::ERROR,
@@ -398,7 +411,13 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         );
     }
     let coverage = &generated.coverage;
-    let edits: Vec<&enhance::GenEdit> = generated.edits.values().collect();
+    // Stock-line edits, then added keys (`rule` tells them apart).
+    let edits: Vec<serde_json::Value> = generated
+        .edits
+        .values()
+        .map(|e| json!(e))
+        .chain(generated.added.values().map(|a| json!(a)))
+        .collect();
     for (path, text) in [
         (&a.coverage_out, serde_json::to_vec_pretty(coverage)),
         (&a.edits_out, serde_json::to_vec_pretty(&edits)),
@@ -415,6 +434,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     }
 
     let mut warnings = loaded.warnings.clone();
+    warnings.extend(obtain_warnings);
     warnings.extend(profile_warnings);
     warnings.extend(ship_name_warnings);
     warnings.extend(generated.warnings.iter().cloned());
@@ -432,7 +452,22 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
     let b = ch.build.as_ref();
     if g.json {
         let mut counts = counts;
-        counts.insert("changed".into(), json!(generated.edits.len()));
+        counts.insert(
+            "changed".into(),
+            json!(generated.edits.len() + generated.added.len()),
+        );
+        let mut by_rule = serde_json::Map::new();
+        // Added keys and renamed placeholder names.
+        let rules = generated
+            .added
+            .values()
+            .map(|a| a.rule)
+            .chain(generated.edits.values().filter_map(|e| e.rule));
+        for r in rules {
+            let n = by_rule.entry(r).or_insert(json!(0));
+            *n = json!(n.as_u64().unwrap_or(0) + 1);
+        }
+        counts.insert("missing_names_by_rule".into(), by_rule.into());
         counts.insert("dropped".into(), json!(dropped));
         counts.insert(
             "owned_blueprints".into(),
@@ -459,6 +494,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
                 "coverage_threshold_failures": thresholds,
                 "origin": loaded.origin,
                 "warnings": warnings,
+                "obtain": obtain_stats,
                 "duration_ms": started.elapsed().as_millis() as u64,
                 "generate_ms": gen_ms,
             })
@@ -472,12 +508,19 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
             out_abs.display(),
             bytes.len(),
             stock.key_count(),
-            generated.edits.len(),
+            generated.edits.len() + generated.added.len(),
             ch.name,
             b.map(|b| b.version.as_str()).unwrap_or("unknown build"),
             started.elapsed().as_secs_f64()
         );
-        if !generated.edits.is_empty() {
+        if let Some(o) = &obtain_stats {
+            println!(
+                "  where to get: sources for {} items in {:.1} s",
+                o.items,
+                o.ms as f64 / 1000.0
+            );
+        }
+        if !generated.edits.is_empty() || !generated.added.is_empty() {
             println!(
                 "  {:<22} {:>9} {:>8} {:>8}  LEFT AS STOCK",
                 "CATEGORY", "CANDIDATE", "WRITTEN", "SHARE"

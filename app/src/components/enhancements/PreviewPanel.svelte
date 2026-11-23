@@ -1,18 +1,40 @@
 <script lang="ts">
   /**
-   * Live in-game preview of example texts, before and after (spec 9.4 Enhancements). Wide: a
-   * sticky side column. Narrow (`strip`): a sticky panel at the top that can be folded, showing
-   * the example for the open category first, so a switch change is visible without scrolling.
+   * Live in-game preview of example texts, before and after (spec 9.4 Enhancements), for the
+   * open section only (`sectionPreview`). Wide: a sticky side column. Narrow (`strip`): a sticky
+   * panel at the top that can be folded, showing the section's first example and "N more".
+   * With no game data read for the build, "Read game data" fills the cache (no apply).
    */
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import DatabaseZap from '@lucide/svelte/icons/database-zap';
   import InGamePreview from '@/components/common/InGamePreview.svelte';
+  import { Button } from '@/components/ui/button';
   import { Skeleton } from '@/components/ui/skeleton';
   import type { PreviewItem } from '@/lib/contract/types';
   import { cn } from '@/lib/utils';
-  import { previewOrder } from '@/lib/bpmarkers';
+  import { sectionPreview, type Section } from '@/lib/previewsection';
 
-  let { items, loading = false, focus = null, strip = false }: { items: PreviewItem[] | null; loading?: boolean; focus?: string | null; strip?: boolean } = $props();
-  const shown = $derived(previewOrder(items, focus));
+  let {
+    items,
+    loading = false,
+    section = null,
+    sectionLabel = 'this section',
+    canRead = false,
+    reading = false,
+    onread,
+    strip = false,
+  }: {
+    items: PreviewItem[] | null;
+    loading?: boolean;
+    section?: Section | null;
+    sectionLabel?: string;
+    /** The channel is set up, so its game data can be read. */
+    canRead?: boolean;
+    reading?: boolean;
+    onread?: () => void;
+    strip?: boolean;
+  } = $props();
+  const shown = $derived(sectionPreview(items, section));
   let open = $state(true);
   const uid = $props.id();
 </script>
@@ -50,9 +72,21 @@
   <div id="{uid}-body" class={cn('grid gap-4 p-4', strip && 'max-h-64 overflow-y-auto', strip && !open && 'hidden')}>
     {#if !items}
       <Skeleton class="h-24 w-full" /><Skeleton class="h-12 w-full" />
+    {:else if !items.length}
+      <div class="grid justify-items-start gap-2 text-[12.5px]">
+        <p class="text-muted-foreground">No game data read for this build yet, or the cache is from an older version (footer: <span class="mono">cache stale</span>).</p>
+        {#if canRead && onread}
+          <Button size="sm" disabled={reading} onclick={onread}><DatabaseZap class={cn(reading && 'animate-pulse')} aria-hidden="true" /> {reading ? 'Reading game data… about 10 s' : 'Read game data'}</Button>
+          <p class="text-muted-foreground text-[12px]">Reads Data.p4k into the cache; nothing is written to the game.</p>
+        {:else}
+          <p class="text-muted-foreground">Set up this channel first; Apply reads it.</p>
+        {/if}
+      </div>
+    {:else if !shown.length}
+      <p class="text-muted-foreground text-[12.5px]">No example for {sectionLabel} with these settings.</p>
     {:else if strip}
       {#each shown.slice(0, 1) as it (it.key)}{@render sample(it)}{/each}
-      {#if shown.length > 1}<p class="text-muted-foreground text-[12px]">{shown.length - 1} more example{shown.length === 2 ? '' : 's'} in a wider window.</p>{/if}
+      {#if shown.length > 1}<p class="text-muted-foreground text-[12px]">{shown.length - 1} more in a wider window.</p>{/if}
     {:else}
       {#each shown as it (it.key)}{@render sample(it)}{/each}
     {/if}

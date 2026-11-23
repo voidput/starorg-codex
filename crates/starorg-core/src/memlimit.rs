@@ -767,16 +767,23 @@ pub type OnStop = Box<dyn Fn(&str) + Send + 'static>;
 pub fn arm(limit: u64, exit_code: i32, on_stop: OnStop) -> Armed {
     let hard = hard_cap(limit);
     let stop_at = stop_at(limit);
+    // The first look happens here, before the caller starts its work: a worker that is over
+    // the limit from the start (or gets ready within one POLL, as optimised builds do) is
+    // stopped, not reported ready before the thread's first look.
+    let mut probe = UsageProbe::new();
+    if probe.read().is_some_and(|u| u >= stop_at) {
+        on_stop(&stopped_message(limit));
+        std::process::exit(exit_code);
+    }
     let _ = std::thread::Builder::new()
         .name("memory-watchdog".into())
         .spawn(move || {
-            let mut probe = UsageProbe::new();
             loop {
+                std::thread::sleep(POLL);
                 if probe.read().is_some_and(|u| u >= stop_at) {
                     on_stop(&stopped_message(limit));
                     std::process::exit(exit_code);
                 }
-                std::thread::sleep(POLL);
             }
         });
     Armed { limit, hard }

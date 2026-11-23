@@ -9,7 +9,7 @@
 use starorg_codex_app::contract::Backend;
 use starorg_codex_app::contract::real::UPDATE_JSON;
 use starorg_codex_app::contract::real::{
-    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory, StarOrgDeps,
+    DialogSlot, Dialogs, FileFilter, RealBackend, RealConfig, SourceFactory, StarOrgDeps, UexDeps,
 };
 use starorg_codex_app::contract::types::*;
 use starorg_codex_app::update::{ReleaseFetch, Updater};
@@ -118,6 +118,8 @@ struct Fake {
     pick: Arc<Mutex<Option<PathBuf>>>,
     /// The folder the last file picker was asked to open in (`None` = Downloads).
     pick_dir: Arc<Mutex<Option<Option<PathBuf>>>>,
+    /// UEX at a scripted fake: no test ever reaches api.uexcorp.space.
+    uex: Arc<FakeUex>,
 }
 
 fn manifest(branch: &str, change: u64, version: &str) -> String {
@@ -196,6 +198,8 @@ impl Fake {
             starorg_base,
             Arc::new(starorg_net::starorg::mock::fake_browser),
         ));
+        let uex = Arc::new(FakeUex::default());
+        let backend = backend.with_uex(UexDeps::with(uex.clone()));
         Self {
             _t: t,
             base,
@@ -204,6 +208,7 @@ impl Fake {
             backend,
             pick,
             pick_dir,
+            uex,
         }
     }
 
@@ -665,6 +670,52 @@ fn preview_is_empty_until_the_dry_run_reads_the_game_data() {
     // list itself may stay empty; the UI tells "not read" from "nothing to show" by the cache).
     f.backend.build_preview(req()).unwrap();
     assert!(!f.ini("LIVE").exists(), "nothing written to the game");
+}
+
+/// Enhancements' "Read game data": a new build (cache missing) is read without an apply,
+/// as an `extract` job, and nothing in the game folder changes.
+#[test]
+fn read_game_data_fills_the_cache_without_touching_the_game() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let found = ChannelRef {
+        install: f.install_id(),
+        channel: "LIVE".into(),
+    };
+    assert_eq!(
+        f.backend
+            .read_game_data(ReadGameDataRequest { target: found })
+            .unwrap_err()
+            .code,
+        ErrorCode::NeedsDecision,
+        "not set up"
+    );
+    f.setup_live();
+    let ini = std::fs::read(f.ini("LIVE")).ok();
+    // A patch: another Data.p4k, so the cache is for an old build.
+    std::fs::write(f.lib.join("LIVE/Data.p4k"), b"fake archive, next build").unwrap();
+    std::thread::sleep(std::time::Duration::from_millis(20));
+    let cache = |f: &Fake| f.backend.channel_status(f.live()).unwrap().cache;
+    assert_ne!(cache(&f), CacheState::Fresh);
+    let s = f
+        .backend
+        .read_game_data(ReadGameDataRequest { target: f.live() })
+        .unwrap();
+    assert_eq!(s.cache, CacheState::Fresh);
+    assert_eq!(cache(&f), CacheState::Fresh);
+    assert_eq!(
+        std::fs::read(f.ini("LIVE")).ok(),
+        ini,
+        "game text unchanged"
+    );
+    let log = f.backend.activity(20).unwrap();
+    assert!(
+        log.iter()
+            .any(|l| l.job == Some(JobKind::Extract) && l.message == "Read the game data of LIVE")
+    );
+    assert!(f.backend.overview().unwrap().job.is_none());
 }
 
 /// Review asks again while the wizard's first read still runs (a choice changed, or Enhancements'
@@ -1617,6 +1668,116 @@ fn network_switches_are_stored_and_setup_ignores_an_old_data_source() {
     );
 }
 
+/// Every file under `dir`, `age` old: the table cache trusts a stamp only once its files are
+/// older than two seconds, so a test that wants the quick path must not wait for it.
+fn backdate(dir: &std::path::Path, age: std::time::Duration) {
+    let t = std::time::SystemTime::now() - age;
+    for p in walk(dir) {
+        if p.is_file() {
+            std::fs::File::options()
+                .write(true)
+                .open(&p)
+                .unwrap()
+                .set_modified(t)
+                .unwrap();
+        }
+    }
+}
+
+/// The cached table and Strings queries follow their inputs: an override written outside the
+/// app (new file, then same length with another mtime), a profile saved in the app; the
+/// Patches list answers before the table exists and matches `patch_states` once it does;
+/// facets come with the first page only.
+#[test]
+fn table_cache_follows_edits_inside_and_outside_the_app() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    f.setup_live();
+    let old = std::time::Duration::from_secs(60);
+    // No game data read yet: the list answers at once, the states call says "no data".
+    let list = f.backend.list_patches(f.live()).unwrap();
+    assert!(!list.is_empty());
+    assert!(list.iter().all(|p| p.state
+        == if p.enabled {
+            PatchState::Checking
+        } else {
+            PatchState::Disabled
+        }));
+    let states = f.backend.patch_states(f.live()).unwrap();
+    assert!(states.iter().all(|p| p.state != PatchState::Checking));
+    f.apply(true);
+
+    let q = |search: &str, offset: u32| StringsQuery {
+        target: f.live(),
+        search: search.into(),
+        sources: vec![],
+        categories: vec![],
+        changed_only: false,
+        sort: StringSort::Key,
+        offset,
+        limit: 1,
+        groups: vec![],
+        manufacturers: vec![],
+        sizes: vec![],
+        group_by: GroupBy::Type,
+    };
+    let name_a = |f: &Fake| {
+        let p = f.backend.query_strings(q("item_namea", 0)).unwrap();
+        let r = p.rows.iter().find(|r| r.key == "item_NameA").unwrap();
+        (r.result.clone(), r.source)
+    };
+    // Paging: the same query, facets on the first page only.
+    let p0 = f.backend.query_strings(q("filler alpha", 0)).unwrap();
+    let p1 = f.backend.query_strings(q("filler alpha", 1)).unwrap();
+    assert_eq!((p0.total, p1.total), (2, 2));
+    assert_ne!(p0.rows[0].key, p1.rows[0].key);
+    assert!(!p0.sources.is_empty() && !p0.groups.is_empty());
+    assert!(p1.sources.is_empty() && p1.categories.is_empty() && p1.groups.is_empty());
+
+    let data = f.dirs.channel_dir(&f.install_id(), "LIVE");
+    let stock = name_a(&f);
+    assert_eq!(stock.1, StringSource::Unmodified);
+    // Settle the stamps, then read twice: the second answer comes from the stamped table.
+    backdate(&f.base.join("app"), old);
+    assert_eq!(name_a(&f), stock);
+    assert_eq!(name_a(&f), stock);
+    // Table cached and current: the list has the states at once, as the states call does.
+    let list = f.backend.list_patches(f.live()).unwrap();
+    assert_eq!(list, f.backend.patch_states(f.live()).unwrap());
+    assert!(list.iter().all(|p| p.state != PatchState::Checking));
+
+    // An editor writes overrides.ini.
+    std::fs::write(data.join("overrides.ini"), "item_NameA=Alpha One\n").unwrap();
+    backdate(&data, old);
+    assert_eq!(name_a(&f), ("Alpha One".to_string(), StringSource::Edited));
+    // Same length, another (old) mtime.
+    std::fs::write(data.join("overrides.ini"), "item_NameA=Alpha Two\n").unwrap();
+    backdate(&data, old / 2);
+    assert_eq!(name_a(&f), ("Alpha Two".to_string(), StringSource::Edited));
+    // Just written, same length again: not trusted until it settles, so it is seen.
+    std::fs::write(data.join("overrides.ini"), "item_NameA=Alpha 3rd\n").unwrap();
+    assert_eq!(name_a(&f), ("Alpha 3rd".to_string(), StringSource::Edited));
+    std::fs::remove_file(data.join("overrides.ini")).unwrap();
+    assert_eq!(name_a(&f), stock);
+
+    // A profile saved through the app switches a built-in fix off: the list shows it at once.
+    backdate(&f.base.join("app"), old);
+    assert_eq!(name_a(&f), stock);
+    let on = list.iter().find(|p| p.enabled).unwrap().clone();
+    f.backend
+        .set_patch_enabled(PatchToggle {
+            target: f.live(),
+            id: on.id.clone(),
+            enabled: false,
+        })
+        .unwrap();
+    let after = f.backend.list_patches(f.live()).unwrap();
+    let p = after.iter().find(|p| p.id == on.id).unwrap();
+    assert_eq!((p.enabled, p.state), (false, PatchState::Disabled));
+}
+
 #[test]
 fn unknown_patch_id_is_refused_and_not_saved() {
     let f = Fake::new();
@@ -1887,6 +2048,48 @@ fn fleet_import_order_and_ship_names_through_apply() {
 }
 
 /// GitHub's release list, scripted; counts requests.
+/// UEX answers: `refuse` = what an invalid token gets; every call's token is kept.
+#[derive(Default)]
+struct FakeUex {
+    refuse: std::sync::atomic::AtomicBool,
+    tokens: Mutex<Vec<Option<String>>>,
+}
+
+impl starorg_net::uex::UexTransport for FakeUex {
+    fn get(
+        &self,
+        endpoint: &str,
+        token: Option<&str>,
+    ) -> Result<starorg_net::uex::Answer, starorg_net::uex::UexError> {
+        self.tokens.lock().unwrap().push(token.map(str::to_string));
+        let body = if self.refuse.load(std::sync::atomic::Ordering::SeqCst) {
+            serde_json::json!({ "status": "invalid_token", "data": null })
+        } else if endpoint == "terminals" {
+            serde_json::json!({ "status": "ok", "data": [
+                { "id": 7, "name": "Shop - Test", "displayname": "Test Station", "type": "item",
+                  "star_system_name": "Stanton", "space_station_name": "Test Station",
+                  "is_available": 1, "is_available_live": 1, "screenshot": "https://cdn/x.jpg" }
+            ]})
+        } else if endpoint == "commodities_prices_all" {
+            serde_json::json!({ "status": "ok", "data": [
+                { "id": 2, "id_commodity": 5, "commodity_name": "Aluminum", "id_terminal": 7,
+                  "terminal_name": "Shop - Test", "price_buy": 0, "price_sell": 3800,
+                  "price_sell_avg": 3800, "container_sizes": "1,2", "date_modified": 1795227950 }
+            ]})
+        } else {
+            serde_json::json!({ "status": "ok", "data": [
+                { "id": 1, "item_name": "Fake Rifle Kestrel", "item_uuid": "u-rifle", "id_item": 3,
+                  "id_terminal": 7, "terminal_name": "Shop - Test", "price_buy": 1200,
+                  "price_sell": 0, "date_modified": 1788031806 }
+            ]})
+        };
+        Ok(starorg_net::uex::Answer {
+            status: 200,
+            body: serde_json::to_vec(&body).unwrap(),
+        })
+    }
+}
+
 #[derive(Default)]
 struct FakeGitHub {
     calls: Arc<std::sync::atomic::AtomicUsize>,
@@ -2228,4 +2431,321 @@ fn schema1_profile_migrates_once_with_one_activity_line() {
     f.backend.overview().unwrap();
     assert_eq!(lines("could not be updated to the new format").len(), 1);
     assert_eq!(lines("Profile updated").len(), 1);
+}
+
+#[test]
+fn loot_is_missing_until_read_and_extracts_nothing() {
+    let f = Fake::new();
+    for target in [Some(f.live()), None] {
+        for view in [LootView::Areas, LootView::Items] {
+            let l = f
+                .backend
+                .loot_list(LootListRequest {
+                    target: target.clone(),
+                    view,
+                })
+                .unwrap();
+            assert_eq!((l.state, l.view), (LootDataState::Missing, view));
+            let d = f
+                .backend
+                .loot_detail(LootDetailRequest {
+                    target: target.clone(),
+                    view,
+                    id: "caves/loot_caves".into(),
+                    filter: None,
+                    group_by: None,
+                    groups: None,
+                })
+                .unwrap();
+            assert!(d.entry.is_none() && d.groups.is_empty());
+        }
+    }
+    assert!(!f.dirs.cache.join("mcp/LIVE").exists());
+}
+
+#[test]
+fn shops_list_the_fetched_uex_files_without_extracting_anything() {
+    let f = Fake::new();
+    let req = |target| ShopInventoryRequest { target };
+    let d = f.backend.shop_inventory(req(Some(f.live()))).unwrap();
+    assert_eq!(d.state, ShopDataState::Missing);
+    assert!(d.folder.as_deref().unwrap().ends_with("uex"), "{d:?}");
+    let mut s = f.backend.get_settings().unwrap();
+    s.network.uex = true;
+    f.backend.save_settings(s).unwrap();
+    f.backend.fetch_uex().unwrap();
+    // With the channel (its item data is not cached: UEX names) and without one.
+    for target in [Some(f.live()), None] {
+        let d = f.backend.shop_inventory(req(target.clone())).unwrap();
+        assert_eq!(d.state, ShopDataState::Ready);
+        assert_eq!((d.shop_count, d.item_count), (1, 1));
+        assert!(d.linked.is_none());
+        let shop = &d.systems[0].locations[0].shops[0];
+        assert_eq!(d.systems[0].name, "Stanton");
+        assert_eq!(d.systems[0].locations[0].name, "Test Station");
+        assert_eq!(shop.id, 7);
+        let items = f
+            .backend
+            .shop_items(ShopItemsRequest {
+                target,
+                terminal: 7,
+            })
+            .unwrap();
+        assert_eq!(items.items[0].name, "Fake Rifle Kestrel");
+        assert_eq!(items.items[0].price_buy, Some(1200.0));
+        assert!(items.items[0].record.is_none());
+    }
+    // Nothing was extracted for it.
+    assert!(!f.dirs.cache.join("mcp/LIVE").exists());
+}
+
+#[test]
+fn uex_fetch_needs_its_switch_keeps_the_token_secret_and_writes_every_file() {
+    let f = Fake::new();
+    let secret = "uex-test-secret-4242";
+    // Off: refused, nothing asked.
+    assert_eq!(
+        f.backend.fetch_uex().unwrap_err().code,
+        ErrorCode::NetworkOff
+    );
+    assert!(f.uex.tokens.lock().unwrap().is_empty());
+    let mut s = f.backend.get_settings().unwrap();
+    assert!(!s.network.uex);
+    s.network.uex = true;
+    assert!(f.backend.save_settings(s).unwrap().network.uex);
+
+    // No token: the three public endpoints, no Authorization.
+    let st = f.backend.fetch_uex().unwrap();
+    assert!(st.shops_ready && st.prices_ready, "{st:?}");
+    assert_eq!(st.files.len(), 3);
+    assert!(st.files.iter().all(|f| f.present && f.modified.is_some()));
+    assert_eq!(*f.uex.tokens.lock().unwrap(), [None, None, None]);
+    let dir = f.dirs.cache.join("mcp/uex");
+    let prices: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("uex-item-prices.json")).unwrap()).unwrap();
+    assert_eq!(prices["_source"], "UEX Corp API (https://uexcorp.space)");
+    assert_eq!(prices["prices"][0]["item_uuid"], "u-rifle");
+    assert!(prices["prices"][0].get("price_sell").is_none());
+    let terms: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("uex-terminals.json")).unwrap()).unwrap();
+    assert_eq!(terms["summary"]["terminals"], 1);
+    assert!(terms["terminals"][0].get("screenshot").is_none());
+    let sells: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(dir.join("uex-commodity-prices.json")).unwrap())
+            .unwrap();
+    assert_eq!(
+        sells["summary"],
+        serde_json::json!({ "prices": 1, "commodities": 1 })
+    );
+    assert_eq!(sells["prices"][0]["price_sell"], 3800);
+    assert!(sells["prices"][0].get("container_sizes").is_none());
+
+    // A token: saved, never shown, sent.
+    assert_eq!(
+        f.backend.uex_token_status().unwrap(),
+        UexTokenStatus {
+            set: false,
+            store: None
+        }
+    );
+    assert_eq!(
+        f.backend
+            .set_uex_token(UexTokenRequest {
+                token: Some("has space".into())
+            })
+            .unwrap_err()
+            .code,
+        ErrorCode::Invalid
+    );
+    let t = f
+        .backend
+        .set_uex_token(UexTokenRequest {
+            token: Some(format!(" {secret} ")),
+        })
+        .unwrap();
+    assert!(t.set && t.store.is_some());
+    assert!(
+        !format!(
+            "{:?}",
+            UexTokenRequest {
+                token: Some(secret.into())
+            }
+        )
+        .contains(secret)
+    );
+    f.backend.fetch_uex().unwrap();
+    assert_eq!(
+        f.uex.tokens.lock().unwrap()[3..],
+        [
+            Some(secret.to_string()),
+            Some(secret.to_string()),
+            Some(secret.to_string())
+        ]
+    );
+
+    // A refused token: an error that does not hold it; the files stay.
+    f.uex
+        .refuse
+        .store(true, std::sync::atomic::Ordering::SeqCst);
+    let e = f.backend.fetch_uex().unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(
+        e.message.contains("token") && !e.message.contains(secret),
+        "{}",
+        e.message
+    );
+    assert!(f.backend.obtain_status().unwrap().shops_ready);
+
+    // Nowhere else: not in app.json, config.toml, Activity or diagnostics.
+    for p in [
+        f.dirs.config.join("app.json"),
+        f.dirs.config.join("config.toml"),
+    ] {
+        if let Ok(text) = std::fs::read_to_string(&p) {
+            assert!(!text.contains(secret), "{} holds the token", p.display());
+        }
+    }
+    let log = f.backend.activity(100).unwrap();
+    assert!(log.iter().any(
+        |l| l.job == Some(JobKind::Uex) && l.message.starts_with("Downloaded UEX market data")
+    ));
+    assert!(log.iter().any(|l| l.message == "UEX token saved (keyring)"));
+    assert!(log.iter().all(|l| !l.message.contains(secret)));
+    assert!(
+        !f.backend
+            .export_diagnostics()
+            .unwrap()
+            .text
+            .contains(secret)
+    );
+
+    // Removed: status says so and the next fetch sends none.
+    f.uex
+        .refuse
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    let t = f
+        .backend
+        .set_uex_token(UexTokenRequest { token: None })
+        .unwrap();
+    assert_eq!(
+        t,
+        UexTokenStatus {
+            set: false,
+            store: None
+        }
+    );
+    f.backend.fetch_uex().unwrap();
+    assert_eq!(f.uex.tokens.lock().unwrap().last().unwrap(), &None);
+}
+
+/// The finder does not scan the logs again for the channel `list_characters` scanned a moment
+/// ago (the Blueprints screen asks both at once); any other channel's scan is not skipped.
+#[test]
+fn the_finder_reuses_the_scan_list_characters_just_did() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let log = f.lib.join("LIVE/Game.log");
+    let head = format!(
+        "<2026-03-02T09:59:00.000Z> Log started\n{LOGIN}{}",
+        bp_line("2026-03-02T10:05:00.000Z", "Fake Rifle Kestrel"),
+    );
+    std::fs::write(&log, &head).unwrap();
+    f.setup_live();
+    assert_eq!(
+        f.backend.list_characters(f.live()).unwrap().characters[0].owned,
+        1
+    );
+    // A blueprint lands in the log right after the scan.
+    std::fs::write(
+        &log,
+        format!(
+            "{head}{}",
+            bp_line("2026-03-02T10:06:00.000Z", "Unknown Test Visor")
+        ),
+    )
+    .unwrap();
+    let finder = || {
+        f.backend
+            .blueprint_finder(BlueprintFinderRequest {
+                install: f.live().install,
+                channels: vec!["LIVE".into()],
+            })
+            .unwrap()
+            .channels
+            .into_iter()
+            .find(|c| c.channel == "LIVE")
+            .unwrap()
+            .owned
+    };
+    assert_eq!(finder(), 1, "the scan a moment ago stands in");
+    // Another channel listed since: LIVE's logs are scanned again.
+    let mut ptu = f.live();
+    ptu.channel = "PTU".into();
+    f.backend.list_characters(ptu).unwrap();
+    assert_eq!(finder(), 2);
+    assert_eq!(
+        f.backend.list_characters(f.live()).unwrap().characters[0].owned,
+        2
+    );
+}
+
+#[test]
+fn the_finder_and_list_characters_opened_together_both_see_the_new_scan() {
+    if elevated() {
+        return;
+    }
+    let f = Fake::new();
+    let log = f.lib.join("LIVE/Game.log");
+    let mut text = format!(
+        "<2026-03-02T09:59:00.000Z> Log started\n{LOGIN}{}",
+        bp_line("2026-03-02T10:05:00.000Z", "Fake Rifle Kestrel"),
+    );
+    std::fs::write(&log, &text).unwrap();
+    f.setup_live();
+    f.backend.list_characters(f.live()).unwrap();
+    let req = || BlueprintFinderRequest {
+        install: f.live().install,
+        channels: vec!["LIVE".into()],
+    };
+    // Each round: a blueprint lands in the log (a play session), then the screen opens and
+    // asks for both at once, in either order; neither may read the store mid-scan.
+    for round in 0..8u32 {
+        // Past the scan memo: both callers want a fresh scan.
+        let mut other = f.live();
+        other.channel = "PTU".into();
+        f.backend.list_characters(other).unwrap();
+        text.push_str(&bp_line(
+            &format!("2026-03-02T10:{:02}:00.000Z", 10 + round),
+            &format!("Unknown Test Visor {round}"),
+        ));
+        std::fs::write(&log, &text).unwrap();
+        let want = 2 + round;
+        let gate = std::sync::Barrier::new(2);
+        let (listed, found) = std::thread::scope(|s| {
+            let a = s.spawn(|| {
+                if round % 2 == 0 {
+                    gate.wait();
+                }
+                let v = f.backend.list_characters(f.live()).unwrap();
+                v.characters[0].owned
+            });
+            let b = s.spawn(|| {
+                if round % 2 == 1 {
+                    gate.wait();
+                }
+                let r = f.backend.blueprint_finder(req()).unwrap();
+                r.channels
+                    .into_iter()
+                    .find(|c| c.channel == "LIVE")
+                    .unwrap()
+                    .owned
+            });
+            gate.wait();
+            (a.join().unwrap(), b.join().unwrap())
+        });
+        assert_eq!(listed, want, "round {round}: characters");
+        assert_eq!(found, want, "round {round}: finder");
+    }
 }

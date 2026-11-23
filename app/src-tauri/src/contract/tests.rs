@@ -278,13 +278,81 @@ fn samples() -> Value {
     let (mcp_off, mcp_on) = mcp_samples();
     v["mcp_status"] = json!(mcp_off);
     v["set_mcp_enabled"] = json!(mcp_on);
+    v["obtain_status"] = json!(b.obtain_status().unwrap());
+    let r = MockBackend::default();
+    set_up(&r);
+    v["read_game_data"] = json!(
+        r.read_game_data(ReadGameDataRequest { target: live() })
+            .unwrap()
+    );
+    let (token_off, token_on, fetched) = uex_samples();
+    v["uex_token_status"] = json!(token_off);
+    v["set_uex_token"] = json!(token_on);
+    v["fetch_uex"] = json!(fetched);
+    for (k, x) in shop_samples() {
+        v[k] = x;
+    }
+    for (k, x) in commodity_samples()
+        .into_iter()
+        .chain(super::tests_loot::loot_samples())
+    {
+        v[k] = x;
+    }
     let m = MockBackend::default();
     v["memory_status"] = json!(m.memory_status().unwrap());
     v["set_memory_limit"] = json!(
         m.set_memory_limit(MemoryLimitRequest { gb: Some(6.0) })
             .unwrap()
     );
+    let (storage, cleared) = storage_samples();
+    v["storage_status"] = json!(storage);
+    v["storage_clear_assets"] = json!(cleared);
     v
+}
+
+/// Settings > Storage on the mock: with a played sound in the asset cache, then cleared.
+fn storage_samples() -> (StorageStatus, StorageStatus) {
+    let m = MockBackend::default();
+    m.asset_state().cached.push(("sound:1".into(), 48_000_000));
+    let before = m.storage_status().unwrap();
+    let after = m.storage_clear_assets().unwrap();
+    (before, after)
+}
+
+#[test]
+fn storage_on_the_mock_lists_every_area_and_clears_assets() {
+    let (s, c) = storage_samples();
+    let ids: Vec<_> = s.areas.iter().map(|a| a.id).collect();
+    assert_eq!(
+        ids,
+        [
+            StorageAreaId::GameData,
+            StorageAreaId::WhereToGet,
+            StorageAreaId::Uex,
+            StorageAreaId::AssetExports,
+            StorageAreaId::Temporary,
+            StorageAreaId::Backups,
+        ]
+    );
+    let assets = |s: &StorageStatus| {
+        s.areas
+            .iter()
+            .find(|a| a.id == StorageAreaId::AssetExports)
+            .unwrap()
+            .bytes
+    };
+    assert_eq!(assets(&s), 48_000_000);
+    assert_eq!(assets(&c), 0);
+    assert_eq!(s.cache_bytes - c.cache_bytes, 48_000_000);
+    assert_eq!(s.cap_bytes, starorg_core::storage::DEFAULT_CAP);
+    assert_eq!(s.backup_keep_newest, 5);
+    let backups = s
+        .areas
+        .iter()
+        .find(|a| a.id == StorageAreaId::Backups)
+        .unwrap();
+    assert!(!backups.in_cache);
+    assert_eq!(s.total_bytes, s.cache_bytes + backups.bytes);
 }
 
 #[test]
@@ -600,6 +668,7 @@ fn ts_unions_list_every_variant() {
                 JobKind::Hook,
                 JobKind::Dev,
                 JobKind::Mcp,
+                JobKind::Uex,
             ]),
         ),
         (
@@ -652,6 +721,7 @@ fn ts_unions_list_every_variant() {
                 CategoryId::FpsWeapons,
                 CategoryId::Missiles,
                 CategoryId::Missions,
+                CategoryId::Obtain,
             ]),
         ),
         (
@@ -779,11 +849,25 @@ fn ts_unions_list_every_variant() {
                 PatchState::Disabled,
                 PatchState::NoData,
                 PatchState::Retired,
+                PatchState::Checking,
             ]),
         ),
         (
             "PatchOrigin",
             names(&[PatchOrigin::BuiltIn, PatchOrigin::User]),
+        ),
+        ("ShopCategory", names(&ShopCategory::ALL)),
+        (
+            "CommodityDataState",
+            names(&[
+                CommodityDataState::Ready,
+                CommodityDataState::NotRead,
+                CommodityDataState::NoChannel,
+            ]),
+        ),
+        (
+            "ShopDataState",
+            names(&[ShopDataState::Ready, ShopDataState::Missing]),
         ),
         (
             "LogLevel",
@@ -1676,6 +1760,422 @@ fn preview_follows_profile_switches() {
 }
 
 #[test]
+fn preview_has_where_to_get_samples_that_follow_mode_and_lines() {
+    let b = MockBackend::default();
+    let get = |p: &Profile| {
+        b.build_preview(PreviewRequest {
+            target: live(),
+            profile: Some(p.clone()),
+            preset: None,
+        })
+        .unwrap()
+        .into_iter()
+        .filter(|i| i.category == "obtain-hints")
+        .collect::<Vec<_>>()
+    };
+    let mut p = b.preset_profile(Preset::Recommended).unwrap();
+    let s = get(&p);
+    assert_eq!(s.len(), 2, "{s:?}");
+    let (gun, ore) = (&s[0].result, &s[1].result);
+    // After the stats block; Normal: header, no odds, no shops (off by default).
+    let stats = gun.find("--- STATS ---").unwrap();
+    let block = gun.find("<EM3>WHERE TO GET</EM3>").unwrap();
+    assert!(stats < block, "{gun}");
+    assert!(
+        gun.contains("<EM4>Loot:</EM4> Weapons rack (Rare) at Bunkers"),
+        "{gun}"
+    );
+    assert!(!gun.contains('%') && !gun.contains("Center Mass"), "{gun}");
+    assert!(gun.contains("<EM4>Craft:</EM4>") && gun.contains("Synthetic Recovery [BP]"));
+    assert!(ore.contains("<EM4>Mined:</EM4> Lyria") && ore.contains("<EM4>Quality:</EM4>"));
+    // Short: one Get: line.
+    p.obtain_mode = ObtainMode::Short;
+    let s = get(&p);
+    assert!(
+        s[0].result
+            .contains("<EM4>Get:</EM4> Loot (Rare) · Craft [BP] · Reward")
+    );
+    assert!(!s[0].result.contains("WHERE TO GET"));
+    // Detailed with shops: odds and shop names, never prices.
+    p.obtain_mode = ObtainMode::Detailed;
+    p.obtain_shops = true;
+    let s = get(&p);
+    assert!(
+        s[0].result
+            .contains("<EM4>Buy:</EM4> Center Mass (Area18, Stanton)")
+    );
+    assert!(s[0].result.contains("21%") && !s[0].result.contains("aUEC"));
+    // Line toggles: loot off leaves the line out; every line off drops the sample.
+    p.lines_off = vec!["obtain.loot".into()];
+    assert!(!get(&p)[0].result.contains("Loot:"));
+    p.lines_off = starorg_core::enhance::obtain::LINES
+        .iter()
+        .map(|l| format!("obtain.{l}"))
+        .collect();
+    assert!(get(&p).is_empty());
+    p.lines_off.clear();
+    p.obtain = false;
+    assert!(get(&p).is_empty());
+}
+
+#[test]
+fn obtain_schema_lines_are_the_core_lines() {
+    let s = MockBackend::default().profile_schema().unwrap();
+    let c = s
+        .categories
+        .iter()
+        .find(|c| c.id == CategoryId::Obtain)
+        .unwrap();
+    let want: Vec<String> = starorg_core::enhance::obtain::LINES
+        .iter()
+        .map(|l| format!("{}.{l}", starorg_core::enhance::obtain::LINE_CATEGORY))
+        .collect();
+    let got: Vec<String> = c.lines.iter().map(|l| l.key.clone()).collect();
+    assert_eq!(got, want);
+}
+
+/// Token not set, then saved; "Fetch now" with the switch on (the mock writes nothing).
+fn uex_samples() -> (UexTokenStatus, UexTokenStatus, ObtainStatus) {
+    let b = MockBackend::default();
+    let off = b.uex_token_status().unwrap();
+    let on = b
+        .set_uex_token(UexTokenRequest {
+            token: Some("sample-token".into()),
+        })
+        .unwrap();
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    (off, on, b.fetch_uex().unwrap())
+}
+
+/// The Shops screen before "Fetch now" (`missing`), after it, one shop's items, and every
+/// shop's (the TS mock serves `shop_items` from that list).
+fn shop_samples() -> Vec<(&'static str, Value)> {
+    let b = MockBackend::default();
+    let req = || ShopInventoryRequest {
+        target: Some(live()),
+    };
+    let missing = b.shop_inventory(req()).unwrap();
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let ready = b.shop_inventory(req()).unwrap();
+    let first = ready.systems[0].locations[0].shops[0].id;
+    let items = b
+        .shop_items(ShopItemsRequest {
+            target: Some(live()),
+            terminal: first,
+        })
+        .unwrap();
+    // After "Read game data" on LIVE: ship items link too.
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let linked = b.shop_inventory(req()).unwrap();
+    use super::mock_shops::mock_all_items;
+    vec![
+        ("shop_inventory_missing", json!(missing)),
+        ("shop_inventory", json!(ready)),
+        ("shop_inventory_linked", json!(linked)),
+        ("shop_items", json!(items)),
+        ("shop_items_all", json!(mock_all_items(false))),
+        ("shop_items_all_linked", json!(mock_all_items(true))),
+    ]
+}
+
+/// The Commodities screen: before "Read game data" (`not-read`), after it without and with
+/// the UEX files, and every resource's detail both ways (the TS mock serves
+/// `commodity_detail` from those lists).
+fn commodity_samples() -> Vec<(&'static str, Value)> {
+    let b = MockBackend::default();
+    let req = || CommodityListRequest {
+        target: Some(live()),
+    };
+    let not_read = b.commodity_list(req()).unwrap();
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let ready = b.commodity_list(req()).unwrap();
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let priced = b.commodity_list(req()).unwrap();
+    let detail = b
+        .commodity_detail(CommodityDetailRequest {
+            target: Some(live()),
+            id: "ResourceType.Raw_Fixtanium".into(),
+        })
+        .unwrap();
+    use super::mock_commodities::mock_all_details;
+    vec![
+        ("commodity_list_not_read", json!(not_read)),
+        ("commodity_list", json!(ready)),
+        ("commodity_list_priced", json!(priced)),
+        ("commodity_detail", json!(detail)),
+        ("commodity_details_all", json!(mock_all_details(false))),
+        (
+            "commodity_details_all_priced",
+            json!(mock_all_details(true)),
+        ),
+    ]
+}
+
+#[test]
+fn commodities_on_the_mock_list_summaries_and_detail_on_request() {
+    let b = MockBackend::default();
+    let none = b
+        .commodity_list(CommodityListRequest { target: None })
+        .unwrap();
+    assert_eq!(none.state, CommodityDataState::NoChannel);
+    let req = || CommodityListRequest {
+        target: Some(live()),
+    };
+    let unread = b.commodity_list(req()).unwrap();
+    assert_eq!(unread.state, CommodityDataState::NotRead);
+    assert!(unread.commodities.is_empty());
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let l = b.commodity_list(req()).unwrap();
+    assert_eq!(l.state, CommodityDataState::Ready);
+    assert!(!l.market.loaded);
+    // Placeholders are left out; groups read as words.
+    assert!(l.commodities.iter().all(|c| c.group != "Heat Placeholder"));
+    let ore = l
+        .commodities
+        .iter()
+        .find(|c| c.id == "ResourceType.Ore_Synthium")
+        .unwrap();
+    assert_eq!(
+        (ore.group.as_str(), ore.subgroup.as_deref()),
+        ("Metal", Some("Unrefined Ores"))
+    );
+    assert!(ore.raw && !ore.volatile);
+    let d = |id: &str| {
+        b.commodity_detail(CommodityDetailRequest {
+            target: Some(live()),
+            id: id.into(),
+        })
+        .unwrap()
+        .commodity
+        .unwrap()
+    };
+    let raw = d("ResourceType.Raw_Fixtanium");
+    assert_eq!(raw.refined.as_ref().unwrap().name, "Fixtanium");
+    assert!(raw.volatility.is_some() && raw.damage.len() == 1);
+    let mined = raw.mined.as_ref().unwrap();
+    assert_eq!(mined[0].belts.len(), 2);
+    assert!(!raw.market.loaded);
+    let stub = d("Stubbite");
+    assert_eq!(stub.mined.as_ref().unwrap()[0].spots.len(), 2);
+    let refined = d("ResourceType.Synthium");
+    assert!(refined.mined.is_none());
+    assert_eq!(refined.raw_sources[0].id, "ResourceType.Ore_Synthium");
+    // After "Fetch now": prices on both sides.
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let h = d("ResourceType.Hydrogen");
+    assert!(h.market.loaded);
+    // Levski Admin (112) is not on LIVE: left out.
+    assert_eq!(h.market.sell[0].price, 105.0);
+    assert_eq!(h.market.buy[0].price, 92.0);
+    assert!(
+        b.commodity_detail(CommodityDetailRequest {
+            target: Some(live()),
+            id: "Nope".into()
+        })
+        .unwrap()
+        .commodity
+        .is_none()
+    );
+}
+
+#[test]
+fn shops_on_the_mock_group_categorise_and_link() {
+    let b = MockBackend::default();
+    let req = ShopInventoryRequest { target: None };
+    let d = b.shop_inventory(req.clone()).unwrap();
+    assert_eq!(d.state, ShopDataState::Missing);
+    assert!(d.systems.is_empty() && d.folder.is_some());
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let d = b.shop_inventory(req).unwrap();
+    assert_eq!(d.state, ShopDataState::Ready);
+    assert_eq!(d.fetched.as_deref(), Some(super::mock::MOCK_UEX_FETCHED));
+    let systems: Vec<&str> = d.systems.iter().map(|s| s.name.as_str()).collect();
+    assert_eq!(systems, ["Nyx", "Pyro", "Stanton"]);
+    assert_eq!(d.shop_count, 7);
+    let all: Vec<&ShopSummary> = d
+        .systems
+        .iter()
+        .flat_map(|s| s.locations.iter().flat_map(|l| l.shops.iter()))
+        .collect();
+    let dumper = all.iter().find(|s| s.name == "Dumper's GrimHEX").unwrap();
+    assert_eq!(dumper.location, "Grim HEX, Yela, Crusader");
+    let cats: Vec<ShopCategory> = dumper.categories.iter().map(|c| c.category).collect();
+    assert_eq!(
+        cats,
+        [
+            ShopCategory::ShipWeapons,
+            ShopCategory::Missiles,
+            ShopCategory::ShipComponents,
+            ShopCategory::Mining
+        ]
+    );
+    assert!(all.iter().any(|s| s.not_on_live));
+    let items = b
+        .shop_items(ShopItemsRequest {
+            target: None,
+            terminal: dumper.id,
+        })
+        .unwrap();
+    assert_eq!(items.items.len(), dumper.items);
+    // Before the channel's game data is read only item-tags links: Dumper's sells ship items,
+    // so its ship guns, missiles and components do not link yet; every row has its category.
+    assert!(!d.ship_items);
+    assert!(items.items.iter().all(|i| i.record.is_none()
+        || !matches!(
+            i.category,
+            ShopCategory::ShipWeapons | ShopCategory::Missiles | ShopCategory::ShipComponents
+        )));
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let d = b
+        .shop_inventory(ShopInventoryRequest {
+            target: Some(live()),
+        })
+        .unwrap();
+    assert!(d.ship_items);
+    let items = b
+        .shop_items(ShopItemsRequest {
+            target: Some(live()),
+            terminal: dumper.id,
+        })
+        .unwrap();
+    // Catalogue rows link to their record; the extra repeater does not, and is a ship gun.
+    let rep = items
+        .items
+        .iter()
+        .find(|i| i.name == "SYN-9 Repeater")
+        .unwrap();
+    assert!(rep.record.is_none() && rep.category == ShopCategory::ShipWeapons);
+    let linked = items.items.iter().filter(|i| i.record.is_some()).count();
+    assert_eq!(linked, items.items.len() - 1);
+    assert!(
+        items
+            .items
+            .iter()
+            .filter(|i| i.record.is_some())
+            .all(|i| i.price_sell.is_some())
+    );
+    // A missile's UEX name lacks the kind word.
+    assert!(items.items.iter().any(|i| i.uex_name.is_some()));
+    assert!(
+        b.shop_items(ShopItemsRequest {
+            target: None,
+            terminal: 1
+        })
+        .unwrap()
+        .shop
+        .is_none()
+    );
+}
+
+#[test]
+fn read_game_data_on_the_mock_needs_setup_and_freshens_the_cache() {
+    let b = MockBackend::default();
+    let e = b
+        .read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::NeedsDecision);
+    set_up(&b);
+    let s = b
+        .read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    assert_eq!(s.cache, CacheState::Fresh);
+    assert_eq!(
+        ipc("read_game_data", json!({ "req": { "target": live() } })).unwrap_err()["code"],
+        "needs-decision"
+    );
+}
+
+#[test]
+fn uex_on_the_mock_needs_its_switch_and_never_returns_the_token() {
+    let b = MockBackend::default();
+    let e = b.fetch_uex().unwrap_err();
+    assert_eq!(e.code, ErrorCode::NetworkOff);
+    assert!(!b.obtain_status().unwrap().shops_ready);
+    let (off, on, fetched) = uex_samples();
+    assert_eq!(
+        off,
+        UexTokenStatus {
+            set: false,
+            store: None
+        }
+    );
+    assert!(on.set);
+    assert!(!json!(on).to_string().contains("sample-token"));
+    assert!(fetched.shops_ready);
+    // An empty token removes it; spaces inside are refused.
+    assert!(
+        !b.set_uex_token(UexTokenRequest {
+            token: Some("  ".into())
+        })
+        .unwrap()
+        .set
+    );
+    assert_eq!(
+        b.set_uex_token(UexTokenRequest {
+            token: Some("a b".into())
+        })
+        .unwrap_err()
+        .code,
+        ErrorCode::Invalid
+    );
+    // Over IPC: the request takes `token`, the status never has one.
+    assert_eq!(
+        ipc("set_uex_token", json!({ "req": { "token": "t-1" } })).unwrap(),
+        json!({ "set": true, "store": "keyring" })
+    );
+    assert_eq!(
+        ipc("fetch_uex", json!({})).unwrap_err()["code"],
+        "network-off"
+    );
+}
+
+#[test]
+fn obtain_status_lists_the_uex_files_without_reading_them() {
+    let dir = std::env::temp_dir().join(format!("starorg-uex-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let st = super::real::obtain_status_in(&dir);
+    assert!(!st.shops_ready && !st.prices_ready);
+    assert_eq!(st.files.len(), 3);
+    assert!(st.files.iter().all(|f| !f.present && f.modified.is_none()));
+    // Terminals and item prices: the shops line can work, the sell line not yet.
+    for f in ["uex-terminals.json", "uex-item-prices.json"] {
+        std::fs::write(dir.join(f), "not json").unwrap();
+    }
+    let st = super::real::obtain_status_in(&dir);
+    assert!(st.shops_ready && !st.prices_ready, "{st:?}");
+    for f in super::real::UEX_FILES {
+        std::fs::write(dir.join(f), "not json").unwrap();
+    }
+    let st = super::real::obtain_status_in(&dir);
+    assert!(st.shops_ready && st.prices_ready, "{st:?}");
+    assert!(st.files.iter().all(|f| f.modified.is_some()));
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn preview_shows_marker_colours_and_the_colour_test() {
     let b = MockBackend::default();
     let mut p = b.preset_profile(Preset::Recommended).unwrap();
@@ -2178,10 +2678,12 @@ fn open_link_takes_only_allowlisted_links() {
         ExternalLink::Patreon.url(),
         "https://www.patreon.com/cw/StarOrgTools"
     );
+    assert_eq!(ExternalLink::Uex.url(), "https://uexcorp.space");
     for l in [
         ExternalLink::Support,
         ExternalLink::Donate,
         ExternalLink::Patreon,
+        ExternalLink::Uex,
     ] {
         assert!(l.url().starts_with("https://"));
         assert!(
@@ -2199,6 +2701,10 @@ fn open_link_takes_only_allowlisted_links() {
     );
     assert_eq!(
         ipc("open_link", json!({ "link": "patreon" })).unwrap(),
+        Value::Null
+    );
+    assert_eq!(
+        ipc("open_link", json!({ "link": "uex" })).unwrap(),
         Value::Null
     );
     // Never a URL, never an unknown name.

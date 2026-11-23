@@ -43,11 +43,14 @@ export type TreeAction =
   | { kind: 'clear' }
   | { kind: 'none' };
 
+/** What `keyAction` reads of an item: any flattened tree (Strings groups, the Loot lists). */
+export type NavItem = Pick<TreeItem, 'id' | 'label' | 'parent' | 'hasChildren' | 'expanded'>;
+
 /**
  * The action for a key on the focused item. `typed` is the typeahead buffer including this
  * key (the component resets it after a pause).
  */
-export function keyAction(items: TreeItem[], focused: string, key: string, ctrl: boolean, typed = ''): TreeAction {
+export function keyAction(items: readonly NavItem[], focused: string, key: string, ctrl: boolean, typed = ''): TreeAction {
   const i = Math.max(0, items.findIndex((x) => x.id === focused));
   const cur = items[i];
   if (!cur) return { kind: 'none' };

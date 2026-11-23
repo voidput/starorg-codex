@@ -205,6 +205,12 @@ item_DescZETA_Chip=Filler ZETA_Chip prose.\n\n<EM4>Used in:</EM4> Filler Heist �
 [quest-hints] item_DescZETA_Part_1_a <- ZETA_Part_1_a
 item_DescZETA_Part_1_a=Filler ZETA_Part_1_a prose.\n\n<EM4>Used in:</EM4>\n- Filler Haul · Stanton\n- Filler Patrol · Pyro, Stanton
 
+[missing-names] item_Name_zeta_suit_01_01_02 <- zeta_suit_01_01_02 (added, variant)
+item_Name_zeta_suit_01_01_02=Filler Suit
+
+[missing-names] item_NameZetaCrate_S4 <- zeta_crate_s4 (added, readable)
+item_NameZetaCrate_S4=Zeta Crate S4
+
 {
   "schema": 1,
   "categories": {
@@ -285,6 +291,13 @@ item_DescZETA_Part_1_a=Filler ZETA_Part_1_a prose.\n\n<EM4>Used in:</EM4>\n- Fil
       "case_folded": 0
     },
     "quest-hints": {
+      "candidates": 2,
+      "written": 2,
+      "left": {},
+      "open_tail": 0,
+      "case_folded": 0
+    },
+    "missing-names": {
       "candidates": 2,
       "written": 2,
       "left": {},

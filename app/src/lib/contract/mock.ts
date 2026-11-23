@@ -22,6 +22,7 @@
  * Ships screen: `&fleet=imported` (fleet imported, ship names off), `&fleet=grouped` (on, a group
  * and a rename), `&fleet=review` (imported, two rows still to match), `&fleet=nodata` (game data
  * not read yet). MCP: `&mcp=on` (the local MCP server running, with sample requests).
+ * UEX market data: `&uex=fetched` (both files there; the default with `state=ready`), `&uex=missing`.
  * Blueprints: `&bphint=larger` (auto mode, another character owns far more: the warning),
  * `&bpnotice=1` (two characters share a name: the notice).
  * Memory limit: `&memory=1.5` (that limit in GB instead of the default).
@@ -29,6 +30,7 @@
 import { clampGb, memoryView } from '../memory';
 import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
 import { prettyKey } from '../strowner';
+import { obtainPreview } from '../obtain';
 import type { Args, Command, Result, Transport } from './client';
 import { ContractError } from './client';
 import samples from './samples.gen.json';
@@ -40,6 +42,8 @@ import { createDevMock, type DevMockData } from './mock-dev';
 import devData from './mock-dev.gen.json';
 import { createAssetMock, type AssetMockData } from './mock-assets';
 import assetData from './mock-assets.gen.json';
+import { mockLootDetail, mockLootList, type LootMockData } from './mock-loot';
+import lootData from './mock-loot.gen.json';
 
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
@@ -64,6 +68,23 @@ const SAMPLES = samples as unknown as {
   set_mcp_enabled: T.McpStatus;
   memory_status: T.MemoryStatus;
   set_memory_limit: T.MemoryStatus;
+  storage_status: T.StorageStatus;
+  obtain_status: T.ObtainStatus;
+  uex_token_status: T.UexTokenStatus;
+  set_uex_token: T.UexTokenStatus;
+  fetch_uex: T.ObtainStatus;
+  shop_inventory: T.ShopDirectory;
+  shop_inventory_missing: T.ShopDirectory;
+  shop_inventory_linked: T.ShopDirectory;
+  shop_items: T.ShopItems;
+  shop_items_all: T.ShopItems[];
+  shop_items_all_linked: T.ShopItems[];
+  commodity_list_not_read: T.CommodityDirectory;
+  commodity_list: T.CommodityDirectory;
+  commodity_list_priced: T.CommodityDirectory;
+  commodity_detail: T.CommodityInfo;
+  commodity_details_all: T.CommodityDetail[];
+  commodity_details_all_priced: T.CommodityDetail[];
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -187,6 +208,11 @@ function presetProfile(p: T.Preset): T.Profile {
     missiles: cats,
     missions: cats,
     quest_hints: cats,
+    obtain: true,
+    obtain_mode: p === 'minimal' ? 'short' : all ? 'detailed' : 'normal',
+    obtain_shops: all,
+    obtain_prices: all,
+    missing_names: true,
     lines_off: [],
     stats_above: false,
     header: '--- STATS ---',
@@ -234,11 +260,13 @@ function counts(p: T.Profile, overrides: number): T.ApplyCounts {
     fps_weapons: n(p.fps_weapons, 318),
     missiles: n(p.missiles, 96),
     missions: n(p.missions, 2140),
+    obtain_hints: n(p.obtain, 3480),
+    missing_names: n(p.missing_names, 421),
     overrides,
     dropped: 0,
     changed: 0,
   };
-  c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions) * 2 + overrides + 1200;
+  c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions) * 2 + c.obtain_hints + c.missing_names + overrides + 1200;
   return c;
 }
 
@@ -322,7 +350,7 @@ function emptyReport(s: T.ChannelSummary, result: T.ApplyResult): T.ApplyReport 
     result,
     reason: null,
     build: clone(s.build),
-    counts: { changed: 0, ships: 0, components: 0, ship_weapons: 0, fps_weapons: 0, missiles: 0, missions: 0, overrides: 0, dropped: 0 },
+    counts: { changed: 0, ships: 0, components: 0, ship_weapons: 0, fps_weapons: 0, missiles: 0, missions: 0, obtain_hints: 0, missing_names: 0, overrides: 0, dropped: 0 },
     patches: [],
     warnings: [],
     user_cfg: { changed: false, path: null, link_target: null, shared_with: [], line: null },
@@ -400,12 +428,29 @@ export function preview(p: T.Profile): T.PreviewItem[] {
   const out: T.PreviewItem[] = [
     { key: 'vehicle_DescSYN_Fighter', label: 'Ship description', category: 'ships', original: shipProse, result: block(shipProse, lines) },
     { key: 'item_NameSYN_Cooler_S2', label: 'Component name', category: 'components', original: name, result: tagged },
+  ];
+  // One stats-block description per kind (same in mock.rs), left out while it is off.
+  const stats: [boolean, string, string, string, string, [string, string][]][] = [
+    [p.components, 'item_DescSYN_Cooler_S2', 'Ship component', 'components', 'A synthetic cooler.', [['components.cooling', 'Cooling: 1,200/s'], ['components.health', 'Health: 900']]],
+    [p.ship_weapons, 'item_DescSYN_Cannon_S3', 'Ship weapon', 'ship-weapons', 'A synthetic laser cannon.', [['ship_weapons.damage', 'Damage: 260 energy  |  DPS: 780'], ['ship_weapons.rate', 'Fire rate: 180 rpm']]],
+    [p.fps_weapons, 'item_DescSYN_Pistol', 'Personal weapon', 'fps-weapons', 'A synthetic pistol.', [['fps_weapons.damage', 'Damage: 12 energy  |  DPS: 60'], ['fps_weapons.magazine', 'Magazine: 20']]],
+    [p.missiles, 'item_DescSYN_Missile_S2', 'Missile', 'missiles', 'A synthetic heat-seeking missile.', [['missiles.damage', 'Damage: 2,400'], ['missiles.lock_range', 'Lock range: 4,000 m']]],
+  ];
+  for (const [on, key, label, category, prose, ls] of stats) {
+    if (on) out.push({ key, label, category, original: prose, result: block(prose, ls.filter(([k]) => lineOn(k)).map(([, l]) => l)) });
+  }
+  out.push(
     { key: 'mission_TitleSYN_Recovery', label: 'Mission title', category: 'missions', original: title, result: tt },
     { key: 'mission_DescSYN_Recovery', label: 'Contract description', category: 'missions', original: prose, result: body.length ? `${prose}\\n\\n${body.join('\\n\\n')}` : prose },
-  ];
+  );
   if (p.quest_hints) {
     const chip = 'A synthetic access chip.';
     out.push({ key: 'item_DescSYN_Chip', label: 'Quest item', category: 'quest-hints', original: chip, result: `${chip}\\n\\n${em(m.label_em, 'Used in:')} Synthetic Recovery · Stanton` });
+  }
+  out.push(...obtainPreview(p, block));
+  if (p.missing_names) {
+    const key = 'item_Name_syn_flightsuit_01_01_02';
+    out.push({ key, label: 'Item name (missing in stock)', category: 'missing-names', original: `@${key}`, result: 'Synthetic Flightsuit' });
   }
   if (p.colour_test) {
     const prompt = 'Please select a contract.';
@@ -494,7 +539,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     }
   }
   const defaultSync = (): T.StarOrgSettings => ({ environment: 'production', import_game_log: true, push_blueprints: false, pull_blueprints: false, pull_fleet: false, auto_sync: false });
-  let settings: T.Settings = { ...clone(SAMPLES.get_settings), network: { check_updates: false, published_dumps: false, starorg: false }, starorg: defaultSync() };
+  let settings: T.Settings = { ...clone(SAMPLES.get_settings), network: { check_updates: false, published_dumps: false, starorg: false, uex: false }, starorg: defaultSync() };
   const signedOut = { connected: false, user: null, guild: null, guild_id: null, guilds: [] as T.StarOrgGuild[], expires: null, token_store: null };
   const starorg: T.StarOrgStatus = { ...clone(SAMPLES.starorg_status), ...signedOut, expired: false, sync_characters: [] };
   const signIn = () =>
@@ -507,6 +552,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   let mcp: T.McpStatus = clone(params.get('mcp') === 'on' ? SAMPLES.set_mcp_enabled : SAMPLES.mcp_status);
   // The mock's machine: 32 GB, 18.4 GB free (the samples). `?memory=1.5` starts at that limit.
   let memory: T.MemoryStatus = memoryView(SAMPLES.memory_status, Number(params.get('memory')) || null);
+  // `?uex=fetched` (and `?state=ready` unless `&uex=missing`): every UEX file there (as after "Fetch now").
+  let uex: T.ObtainStatus = clone(params.get('uex') === 'fetched' || (startReady && params.get('uex') !== 'missing') ? SAMPLES.fetch_uex : SAMPLES.obtain_status);
+  let uexToken: T.UexTokenStatus = clone(SAMPLES.uex_token_status);
   const log: T.LogEntry[] = [];
   let nextLog = 1;
   let nextJob = 1;
@@ -748,6 +796,23 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     fail: (c, m) => fail(c, m),
   });
 
+  /** Settings > Storage: the samples' fixed areas, with the asset cache as it is now. */
+  const storageView = (): T.StorageStatus => {
+    const s = clone(SAMPLES.storage_status);
+    const a = assets.handlers.asset_cache_status({}) as T.AssetCacheStatus;
+    const area = s.areas.find((x) => x.id === 'asset-exports');
+    if (area) {
+      area.bytes = a.bytes;
+      area.files = a.files;
+      area.path = a.path;
+      area.in_cache = a.is_default;
+    }
+    const inCache = s.areas.filter((x) => x.in_cache);
+    s.cache_bytes = inCache.reduce((n, x) => n + x.bytes, 0);
+    s.total_bytes = s.cache_bytes + s.areas.filter((x) => !x.in_cache).reduce((n, x) => n + x.bytes, 0);
+    return s;
+  };
+
   // Developer mode assets (mock-assets.ts): the Rust mock's synthetic archive and sounds.
   const devEntries = (devData as unknown as DevMockData).entries;
   const assets = createAssetMock(assetData as unknown as AssetMockData, {
@@ -945,7 +1010,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     list_backups: ({ req }) => {
       const c = chan(req);
-      return { channel: req.channel, folder: `~/.local/share/starorg-codex/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 10, keep_builds: 3 };
+      return { channel: req.channel, folder: `~/.local/share/starorg-codex/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 5, keep_builds: 3 };
     },
     backup_now: ({ req }) => {
       const c = chan(req);
@@ -966,7 +1031,69 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     // Like the real backend: no game data read for the channel yet -> an empty list.
     build_preview: ({ req }) => (previewNoData && !dataRead.has(id(req.target)) ? [] : preview(req.profile ?? (req.preset ? presetProfile(req.preset) : chan(req.target).profile))),
+    // `&preview=nodata`: until this runs (or plan_setup), the preview stays empty.
+    read_game_data: async ({ req }) => {
+      const c = chan(req.target);
+      if (!c.summary.set_up) fail('needs-decision', `${req.target.channel} is not set up yet`);
+      await sleep(Math.min(delay, 1500));
+      dataRead.add(id(req.target));
+      c.summary.cache = 'fresh';
+      addLog('info', 'extract', req.target.channel, `Read the game data of ${req.target.channel}`);
+      return clone(c.summary);
+    },
     profile_schema: () => clone(SAMPLES.profile_schema),
+    obtain_status: () => clone(uex),
+    // The mock keeps no token value, only that one was saved (like the real backend's status).
+    uex_token_status: () => clone(uexToken),
+    set_uex_token: ({ req }) => {
+      const t = (req.token ?? '').trim();
+      if (/[^\x21-\x7e]/.test(t) || t.length > 512) fail('invalid', 'The token has spaces or characters a UEX token does not have.');
+      uexToken = t ? clone(SAMPLES.set_uex_token) : clone(SAMPLES.uex_token_status);
+      addLog('info', 'uex', null, t ? 'UEX token saved (keyring)' : 'UEX token removed');
+      return clone(uexToken);
+    },
+    // No network here: the three files appear with the sample's time.
+    fetch_uex: () => {
+      if (!settings.network.uex) fail('network-off', 'Turn on "Download UEX market data" under Settings -> Network first.');
+      uex = clone(SAMPLES.fetch_uex);
+      addLog('info', 'uex', null, 'Downloaded UEX market data: 24,146 prices for 2,438 items, 2,598 for 124 commodities, at 826 terminals (7.9 MB)');
+      return clone(uex);
+    },
+    // The Rust mock's synthetic loot once the channel's game data was read (setup or Read game data).
+    // The detail waits longer than the list, so its skeleton shows while the list is usable.
+    loot_list: async ({ req }) => {
+      await sleep(delay);
+      return mockLootList(lootData as unknown as LootMockData, !!req.target && dataRead.has(id(req.target)), req.view);
+    },
+    loot_detail: async ({ req }) => {
+      await sleep(delay * 2);
+      return mockLootDetail(lootData as unknown as LootMockData, !!req.target && dataRead.has(id(req.target)), req.view, req.id, req.filter ?? null, req.group_by ?? null, req.groups ?? null);
+    },
+    // The Rust mock's synthetic shops once both UEX files are there (`?uex=fetched` or Fetch now).
+    // Ship items link once the channel's game data was read (Read game data), as in Rust.
+    shop_inventory: ({ req }) =>
+      clone(!uex.shops_ready ? SAMPLES.shop_inventory_missing : req.target && dataRead.has(id(req.target)) ? SAMPLES.shop_inventory_linked : SAMPLES.shop_inventory),
+    shop_items: ({ req }) => {
+      if (!uex.shops_ready) return { state: 'missing', folder: SAMPLES.shop_inventory_missing.folder, fetched: null, shop: null, items: [], linked: null };
+      const all = req.target && dataRead.has(id(req.target)) ? SAMPLES.shop_items_all_linked : SAMPLES.shop_items_all;
+      const hit = all.find((s) => s.shop?.id === req.terminal);
+      return clone(hit ?? { ...SAMPLES.shop_items, shop: null, items: [] });
+    },
+    // The Rust mock's synthetic commodities once the channel's game data was read; kiosk
+    // prices once the commodity prices are there. A detail takes a moment (the skeleton shows).
+    commodity_list: ({ req }) => {
+      if (!req.target) return { ...clone(SAMPLES.commodity_list_not_read), state: 'no-channel' as const };
+      if (!dataRead.has(id(req.target))) return clone(SAMPLES.commodity_list_not_read);
+      return clone(uex.prices_ready ? SAMPLES.commodity_list_priced : SAMPLES.commodity_list);
+    },
+    commodity_detail: async ({ req }) => {
+      await sleep(Math.min(delay, 300));
+      if (!req.target) return { state: 'no-channel' as const, commodity: null };
+      if (!dataRead.has(id(req.target))) return { state: 'not-read' as const, commodity: null };
+      const all = uex.prices_ready ? SAMPLES.commodity_details_all_priced : SAMPLES.commodity_details_all;
+      const hit = all.find((c) => c.id.toLowerCase() === req.id.toLowerCase());
+      return { state: 'ready' as const, commodity: hit ? clone(hit) : null };
+    },
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),
     save_profile: ({ req }) => {
@@ -1058,7 +1185,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
         nodes = [...[...sizesSeen].sort((a, b) => a - b).map((s) => ({ id: String(s), parent: null, label: `Size ${s}`, ...(tree.get(String(s)) ?? zero) })), { id: 'none', parent: null, label: 'No size', ...(tree.get('none') ?? zero) }];
       }
       const group_state: T.GroupState = (c.exactGroups ?? c.summary.channel === 'LIVE') ? 'exact' : 'approximate';
-      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits).map(withFallback), sources: fc(srcCounts), categories: fc(catCounts), groups: nodes, group_state };
+      // Facets and the tree come with the first page only, as on the Rust side.
+      const first = req.offset === 0;
+      return { total, all: STRING_COUNT, offset: req.offset, rows: clone(hits).map(withFallback), sources: first ? fc(srcCounts) : [], categories: first ? fc(catCounts) : [], groups: first ? nodes : [], group_state };
     },
     read_string_groups: async ({ req }): Promise<T.GroupState> => {
       const c = chan(req);
@@ -1084,6 +1213,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     list_overrides: ({ req }) => [...chan(req).overrides].map(([key, value]) => ({ key, value, original: table().find((r) => r.key === key)?.original ?? '' })),
     list_patches: ({ req }) => clone(chan(req).patches),
+    patch_states: ({ req }) => clone(chan(req).patches),
     set_patch_enabled: ({ req }) => {
       const c = chan(req.target);
       const p = c.patches.find((x) => x.id === req.id) ?? fail('not-found', `No patch ${req.id}`);
@@ -1451,6 +1581,13 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       return clone(mcp);
     },
     memory_status: () => clone(memory),
+    storage_status: () => storageView(),
+    storage_measure: () => storageView(),
+    storage_clear_assets: () => {
+      assets.handlers.asset_cache_clear({});
+      addLog('info', 'dev', null, 'Asset cache cleared');
+      return storageView();
+    },
     set_memory_limit: ({ req }) => {
       memory = memoryView(SAMPLES.memory_status, req.gb === null ? null : clampGb(req.gb, memory));
       addLog('info', 'dev', null, req.gb === null ? `Memory limit back to the default (${memory.default_gb} GB)` : `Memory limit for Developer mode and MCP workers: ${memory.limit_gb} GB`);
@@ -1458,7 +1595,8 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     // No system browser in the mock: the activity log records the click.
     open_link: ({ link }) => {
-      addLog('info', null, null, `Opened the ${link === 'support' ? 'Support' : link === 'patreon' ? 'Patreon' : 'Buy me a coffee'} link`);
+      const names: Record<T.ExternalLink, string> = { support: 'Support', donate: 'Buy me a coffee', patreon: 'Patreon', uex: 'UEX Corp' };
+      addLog('info', null, null, `Opened the ${names[link]} link`);
       return null;
     },
     ...createUpdateMock(() => settings, params),

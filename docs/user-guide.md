@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-17
+updated: 2026-11-23
 ---
 
 # User guide
@@ -60,7 +60,11 @@ From the command line: `starorg-codex apply --all --if-stale`.
 ## Enhancements
 
 Enhancements -> one tab per area; the **in-game preview** on the right shows before and after
-for a sample of each, with the game's own colours (EM styles) where they apply.
+for the open tab's samples only, with the game's own colours (EM styles) where they apply
+("No example for ... with these settings" when that tab has none). It needs the build's game
+data: when it is not read yet or the cache is from an older version (footer `cache stale`),
+press **Read game data** in the preview (about 10 s; reads `Data.p4k` into the cache and
+writes nothing to the game), no apply needed.
 
 - **Ships, Components, Ship weapons, FPS weapons, Missiles:** a stats block in descriptions
   (speeds, shields, damage, fire rate, range, ...). Each line can be switched on or off.
@@ -84,6 +88,54 @@ for a sample of each, with the game's own colours (EM styles) where they apply.
   built-in `quest-items` text pack with hand-written hints, starting with Vanduul-Tech Smugglers
   (Nyx): where the access card, the decryption keys and the passcode disk are found and where to
   use them. Each hint is skipped when CIG changes that item's text.
+- **Where to get:** a WHERE TO GET block after the description (and after its stats block) of
+  items and commodities, from the game files: loot containers, crafting from a blueprint,
+  contract rewards, mining places and ore quality. Names are never changed.
+  - *Detail*: **Short** is one line, `Get: Loot (Rare) · Craft [BP] · Reward`; **Normal** is the
+    header and one line per source with the top 3 places, `+N` for the rest
+    (`Loot: Weapons rack (Rare) at Bunkers, Locker (Common) at Caves +3`); **Detailed** adds
+    star systems, rough odds per box (`· 21%`, estimates), the quality spread and places with
+    their own quality range.
+  - Each line (*Loot containers*, *Crafting from a blueprint*, *Contract rewards*, *Mining
+    places*, *Ore quality*, and the shops and sell prices below) can be switched off; a line with nothing to say is left out, and an
+    item with no source gets no block.
+  - *Add shops from my UEX files* (off by default): shop stock is in no game file, so shop names
+    come from UEX files in the UEX folder (`uex-item-prices.json` and `uex-terminals.json`; the
+    tab shows the folder and each file's age). They are downloaded when you turn on Settings ->
+    Network -> *Download UEX market data* and press **Fetch now** (there or on this tab), or you
+    put them there yourself. Names only, never prices.
+  - *Add best sell prices for commodities* (off by default, on in Everything): a **Sell** line on
+    commodity and resource descriptions with the top 3 commodity kiosks that pay most, from
+    `uex-commodity-prices.json` (downloaded by the same **Fetch now**):
+    `Sell: ~9.6k aUEC/SCU at HUR-L2, ~9.2k at Rod's Fuel, ~9k at TDD Area 18 +4 (UEX, 21 Nov)`.
+    Kiosk prices are player-reported and move every day, so the price is rounded to two digits
+    and the line carries the day the prices were fetched; fetch and apply again for fresh ones.
+    Kiosks that pay nothing, and kiosks UEX marks as not on LIVE, are left out. **Short** says
+    only the best (`Get: Sell ~9.6k aUEC/SCU at HUR-L2 (UEX, 21 Nov)`), **Detailed** adds each
+    kiosk's place and system.
+  - Presets: Recommended has it on in Normal, Minimal in Short, Everything in Detailed with the
+    shops and sell prices on.
+  - The first apply per game build extracts a few datasets from `Data.p4k` (seconds; the
+    Explorer Sources card and the MCP server share that cache), later applies reuse them.
+
+- **Fix missing item names** (General, on in every preset): some items show a code such as
+  `@item_Name_nvs_pilot_flightsuit_01_01_02` instead of a name, because CIG's text file lacks
+  that key. This adds the key with a name: the name its variants share when they all agree,
+  else the base item's name with the variant (`P4-AR Rifle (LR01)`, `... Magazine`), else a
+  readable one made from the code (`NVS Pilot Flightsuit 01-01-02`). Items whose name in the
+  file is a placeholder (`PLACEHOLDER - dmc_frontier_gloves_01_02_11`) get a name the same
+  way; a real name from the game is never replaced. Where a public source confirms the real
+  name, the built-in patch *Real names for items the game leaves unnamed* uses it instead,
+  and its variants follow it (`Verdict LMG Magazine`). It is on the Patches screen and
+  retires by itself once the game names the item. Mission rewards and blueprint lists show
+  the same names. Whatever the switch, our own text never shows a raw `@key` or a placeholder.
+  The switch is labelled **Fix missing item names and descriptions**: it also fills a
+  description the file lacks (`@item_Desc_alb_jumpsuit_01_01_04`, mostly new colour variants
+  of clothes and armour) with a sibling variant's real description from the game, without its
+  last colour line (`The CFP edition is a deep fjord blue.`), so it never names the wrong
+  colour. An item with no such sibling, or whose siblings' text names their own colour, keeps
+  the code: the switch never invents a description. Stats and WHERE TO GET go on the filled
+  text like on any other description.
 
 Colours marked "look not verified" are our guess of how the game draws that style: switch on
 the colour test line, check in game and tell us (Support). **Save** keeps the settings, **Save &
@@ -98,6 +150,10 @@ checks the original text first, so a fix CIG already made is skipped as *not nee
 changed text is skipped as *target changed* instead of overwritten. **Add patch** creates your
 own edit; patches can be exported to a file and imported again (patch packs).
 
+The list shows at once. Working out each patch's state needs the build's full text table, so on
+the first visit after a start or a change the badges read *Checking…* for a moment and then
+fill in.
+
 ## Strings
 
 Every text key of the build, its original and the result, with what each key belongs to
@@ -111,7 +167,9 @@ type and are written on the next apply.
 
 - **Finder:** every blueprint of the build and who owns it, per character and channel (PTU
   progress is not LIVE progress). Search (`/`), filters (category, type, manufacturer, size,
-  source, character), sort and group; groups and cards can be collapsed.
+  source, character), sort and group; groups and cards can be collapsed. It shows as soon as
+  the build's blueprints are read and does not wait for the character list or StarOrg Tools; it
+  reloads after an import, a pull or a re-scan.
 - **Where ownership comes from:**
   - **Game logs.** The game writes `Received Blueprint: ...` to `Game.log`. The app reads new
     lines when you open Blueprints; on Linux the post-exit hook does it after every session;
@@ -140,6 +198,119 @@ the ships of that import (with their names, groups and places), and the check li
 before anything is removed. CLI: `starorg-codex fleet import|list|match|clear` (`--prune` for
 the same).
 
+## Shops
+
+**Shops** (Game group, or Ctrl+K) shows what each shop sells. Shop stock is in no game file, so
+the list is UEX market data (player-reported): turn on *Download UEX market data* in Settings
+-> Network and press **Fetch now** (the screen offers both while the files are missing). The
+line at the top says how old the data is ("UEX data from 21 Nov").
+
+- **Left:** every shop by star system, then place, with how many items it lists and what it
+  mostly sells. Search by shop or place name (`grim hex`, `area 18`, `ruin`), or pick a system.
+- **Right:** the picked shop's items by category: FPS weapons, FPS attachments, armour &
+  clothing, ship weapons, missiles & torpedoes, ship components (shields, coolers, power
+  plants, quantum drives, ...), mining & salvage, consumables, other. The chips keep one
+  category; *Filter items* narrows by name. **Buy** is what you pay, **Sell** what the shop pays
+  you, **Updated** the day UEX last confirmed the row (⚠ after 30 days).
+- An item the game data knows carries the game's name (UEX's name below it when it differs);
+  with Developer mode on, the name opens its record in the Explorer. Personal items link once
+  the channel's game data has been read (any apply or dry run). Ship guns, missiles and
+  components come from a second dataset: while it is missing the screen says so and offers
+  **Read game data** (the same job as in Enhancements; nothing is written to the game, the
+  first read of a build takes a minute or two, under the memory limit). Rows no record matches
+  still get their category from UEX.
+
+To find which shops sell one item, open it in the Explorer (Sources card, Buy rows) or ask the
+MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.
+
+## Commodities
+
+**Commodities** (Game group, or Ctrl+K) lists every tradable resource of the channel's build
+(ore, refined metal, gas, processed goods, ...), from its game data. Until that data is read
+the screen offers **Read game data** (the same job as in Shops; nothing is written to the
+game). Ship-system placeholders (heat, power, life support) are left out.
+
+- **Left:** the resources by group (`Metal`, `Metal > Unrefined Ores`, `Mineral > Raw
+  Minerals`, ...), searchable by name, record or group, with a chip per top group. *volatile*
+  marks volatile cargo, *raw* a form that refines into something. Arrow keys move the pick.
+- **Right:** the picked resource: what it refines into and what refines into it (both
+  clickable), its quality (range, place overrides and the values the game shows, with
+  estimated shares), volatility and what impacts and explosions do to volatile cargo, the
+  cargo items that hold it (with SCU), where it is mined (bodies and belts, and spots in caves,
+  asteroid bases and events) and the commodity kiosks that buy (**Sell**) and sell (**Buy**)
+  it, per SCU. A refined form points at its raw form for where it is mined.
+- Kiosk prices are UEX data (player-reported), read from the same UEX files as Shops: with
+  *Download UEX market data* on, **Fetch now** gets them; the top line says how old they are.
+  Anything the data does not cover shows a quiet "Not known" line.
+- **Trade calculator** (under the kiosk prices, when UEX has any for the resource): type an
+  amount in SCU, or pick one of your ships (the fleet the Ships tab lists) to fill in its stock
+  cargo grid. A ship whose cargo the game data does not give shows without a number and leaves
+  the amount alone. Pick the buy and the sell kiosk (the cheapest and the best paying of the
+  listed ones by default) to see the cost, revenue, profit, profit per SCU and margin (profit as
+  a share of the cost). Prices are UEX (player-reported), as old as the line above says. The
+  amount is not capped: the UEX files have no stock to buy or demand to sell. Your fleet loads
+  only when you first use the calculator; the last amount and ship are remembered on this
+  computer.
+
+The list carries names and groups only; a resource's detail loads when you pick it. Both come
+from the build's cached data, built once per build, so switching screens does not rebuild.
+
+## Loot
+
+**Loot** (Game group, or Ctrl+K) shows what drops where, from the channel's game data (loot
+tables and where they spawn). It reads only what is already read: while the loot data of a build
+is missing the screen says so and offers **Read game data** (the same job as in Enhancements and
+Shops; nothing is written to the game). Nothing loads before you open the screen.
+
+Both lists are collapsible trees, closed until you open a branch (the app remembers which
+branches you opened, per list). Each branch shows how many rows it holds and the best odds
+below it. Typing in the search filters the tree and opens every branch with a match; the
+category filter keeps one kind of place or category. Up/Down move, Right opens a branch (or
+enters it), Left closes it (or goes to its parent), Enter opens a branch or picks a row, and
+typing a few letters jumps to the next row starting with them.
+
+- **By area:** kind of place (Caves, ASD facilities, Distribution centres, Outposts, Stations,
+  ...) -> a middle level from the area's id where several areas share one (a cave's planet or
+  `Occupied`, a distribution-centre wing such as `Cargo wing`, `Colonial` outposts, the `Rund`
+  station) -> the areas. A place with a single area is a row of its own (`Battaglia`). Names
+  never show the game's preset words (`lootgeneration`, `v3slotpreset`); run-together and
+  misspelt words are fixed (`Highsecurtiy` -> `High security`, `Foodanddrink` -> `Food and
+  drink`), and an area with nothing more to say is `General`. Two areas that would read the
+  same are told apart by their preset family: `General (v3)`, `General (multi)`, `General
+  (classic)` are different slot presets of the same place. Pick an area to see every item that
+  can drop there, grouped by where in it the item is (`Lying loose`, `Weapons rack`, `Large
+  mining crate`, `Medical crate`, ...), each row with its rarity and `always in it` for a rack.
+- **By item:** category (FPS weapons, FPS attachments, Armour & clothing, Consumables, Ship
+  components, ...) -> what kind of thing (Rifles, Pistols, Magazines, Helmets, Jackets & coats,
+  Power plants, ...) -> the items, searchable by name or class. Pick one to see every area it
+  drops in, grouped by kind of place (Caves, Outposts, Stations, ...). With Developer mode on,
+  **Open in Explorer** opens its record. Items that share a name (seven `Standard Container`s)
+  show their class name beside it, in the tree and in the drops.
+- **Group by** beside the filter picks how the drops are grouped: for an area **Where in it**
+  (the default) or **None** (one list, likeliest first); for an item **Place** (the default, the
+  top level of the area tree), **Where in it** or **None**. The app remembers the choice per
+  view. Each group is a header with its size and best odds, over all its drops; groups are
+  ordered by best odds, then by name, and the rows inside are likeliest first. Only the first
+  group (or the first few small ones) is open at first; opening another loads its rows. A group
+  shows at most its 500 likeliest drops (`N more in ...; filter to narrow`), an ungrouped list
+  the 2,000 likeliest.
+- A name in the drops list jumps to the other view with that row picked, its branches opened,
+  scrolled into view and focused (an item's other areas, an area's other items).
+- **Filter** above the drops narrows them by item or area name, tree path, container, rarity or
+  id, across every group and every drop, so the drops past a cap are reachable; the group
+  headers then count the matches, and the groups with matches open.
+- **Per box** is a rough estimate: the chance one spawned crate, rack or loose spot of that kind
+  holds the item, assuming an even pick inside each loot pool (the game data does not say how
+  the pick is weighted). The WHERE TO GET line, the Explorer Sources card and the MCP
+  `where_found` tool use the same estimate. Loot tables no area places (corpses, events) are not
+  listed; test presets are left out.
+- Item names are the game's; an item whose game name is missing or a placeholder shows readable
+  words from its class name.
+
+The index is built once per game build and kept in memory while the app runs, so switching views
+or screens does not rebuild it. The lists carry only each row's summary and tree path; the
+drops load when you pick a row.
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,
@@ -148,16 +319,61 @@ backup made for another game build asks first), and **Remove changes** (Home) or
 `starorg-codex remove --all` puts the game back to stock. Uninstalling the app does not do
 that for you: run Remove first ([uninstall](uninstall.md)).
 
+Kept per channel: the 5 newest backups, the newest one made under each of the last 3 game
+builds, and the file from before StarOrg Codex; older ones are deleted after an apply. Each is
+stored gzip-compressed (`global.ini.gz`, about a fifth of the 11 MB file); backups made by
+older versions (plain `global.ini`) restore the same way.
+
+## Storage
+
+Settings -> Storage shows how much the app keeps and where:
+
+| Area | Where (Linux; Windows: `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\`) | Bound |
+|---|---|---|
+| Game data cache | `~/.cache/starorg-codex/<install>/<CHANNEL>/` | one entry per channel, gzip (LIVE about 3.8 MB) |
+| WHERE TO GET datasets | `~/.cache/starorg-codex/mcp/<CHANNEL>/` | the last 2 builds per channel |
+| UEX market data | `~/.cache/starorg-codex/mcp/uex/` | 3 files, replaced on download |
+| Asset exports (Developer mode) | `~/.cache/starorg-codex/assets/` or your folder | 1 GB, least recently used first |
+| Temporary extraction folders | `~/.cache/starorg-codex/work/` | removed after each read; leftovers older than an hour at the next start |
+| Backups | `~/.local/share/starorg-codex/channels/<install>/<CHANNEL>/backups/` | see [Backups](#backups-and-restore) |
+
+**The cache folder's cap** (1 GB by default; `[storage] cache_max_mb` in `config.toml`):
+after the app or the CLI writes to it (game data read, a dataset extracted, an asset export)
+and at start, the least recently used goes first until it fits: asset exports, then folders
+of older builds, then another channel's WHERE TO GET datasets. A channel's current game data,
+anything used in the last 5 minutes, UEX files and backups are never removed by the cap, so it
+can stay over when everything left is in use. Whatever goes is rebuilt when it is needed
+again (a re-read of `Data.p4k`).
+
+The sizes (here and in Settings -> Advanced -> Asset cache) are measured once and kept while
+the app runs. They are measured again after the app changes those folders (a read, apply,
+import, restore, download or asset export; an asset preview; Clear, Browse, Reset or Move of
+the asset cache; a backup made or deleted) and when you press **Measure again**. What another
+program writes there (the MCP server, a launch hook, the CLI) shows within 5 minutes, or at
+once with **Measure again**.
+
 ## Settings worth knowing
 
 - **Appearance:** dark (default) or light theme, accent colour and palette.
 - **Network:** every switch is off by default: *Check for updates* ([updates](updates.md)),
-  *Connect StarOrg Tools*. With them off the app makes no network request.
+  *Connect StarOrg Tools*, *Download UEX market data*. With them off the app makes no network
+  request.
+- **Download UEX market data:** **Fetch now** downloads where items are sold and what
+  commodity kiosks pay (UEX Corp, player-reported) from `api.uexcorp.space` into the UEX folder
+  (`<cache>/mcp/uex`: `uex-item-prices.json`, `uex-commodity-prices.json`, `uex-terminals.json`),
+  for the Buy and Sell lines of Where to get, the Shops and Commodities screens, the Explorer Sources card and
+  the MCP shop tools. All three are public, so a token is optional; to use yours, sign in at
+  uexcorp.space -> My Apps, paste the token and press Save. It is kept in the system keyring
+  (or a private file when there is none),
+  never shown again and sent only to `api.uexcorp.space`. **Remove** deletes it. Apply again
+  after a fetch.
 - **Launch hooks** (Linux): install, update or remove the LUG Helper hook blocks.
 - **Advanced -> Developer mode:** adds the Dev group (below). **Memory limit** caps each
   Developer mode and MCP worker (default 5 GB or half the RAM, minimum 1.5 GB; a worker stops
-  at 90% of it). **Asset cache:** where decoded sounds, exported models and previews go (2 GB,
+  at 90% of it). **Asset cache:** where decoded sounds, exported models and previews go (1 GB,
   Clear, or a folder you choose).
+- **Storage:** what the app keeps on this PC, per area, and the cache folder's cap
+  ([below](#storage)); **Clear asset cache** (refused while an export runs).
 - **Local MCP server** (experimental, off): read-only game data tools for Claude Code or Claude
   Desktop ([mcp](mcp.md)).
 - **Diagnostics** (Activity): a report with user names and home paths replaced, for bug reports.
@@ -210,6 +426,34 @@ For players who want to look things up in the game data. Read only on the game.
   a total row; a weapon's DPS, alpha, fire rate, range, projectile speed, ammo, power, heat
   and EM/IR, plus its fire modes; a missile's damage, lock range and lock time. Names link to
   their record. Click the title to fold the card away; it stays folded until you open it again.
+  Items, commodities and ores also get a **Sources** card, closed until you open it. For an
+  item it first lists the shops that sell it, cheapest first, with the location, the price and
+  the day the price was last confirmed (flagged when older than 30 days). Shop stock is in no
+  game file, so these are UEX (player-reported) prices: turn on Settings -> Network ->
+  *Download UEX market data* and press **Fetch now**, or put `uex-item-prices.json` and
+  `uex-terminals.json` in the folder the card names (`<cache>/mcp/uex`). Without them the card
+  says so. For a commodity or resource (or a cargo box holding one, or a rock whose ore UEX
+  lists) a **Sell** section follows: the 3 commodity kiosks that pay most, with the location,
+  the price per SCU, the day it was last confirmed and the day the prices were fetched, from
+  `uex-commodity-prices.json` in the same folder. It then lists
+  the loot containers that can hold the item, one row per area: the place, the container, what
+  it is for (Weapons, Armour...), its size and rarity, and rough odds per box. It also lists
+  the loot tables that roll the item but that no container uses (enemies, bosses). For an
+  ore it lists where the ore is mined:
+  - the bodies and belts whose spawn tables roll a rock that holds it, with the mining kind
+    (ship, vehicle or hand), the tier and a spawn weight;
+  - the spots in caves, asteroid bases and events that place such a rock;
+  - the quality it comes in: the range it rolls in and where most rolls land, places with
+    their own curve (Pyro System), and the values the game actually shows. A roll snaps to
+    one of a few shown values (Aphorite rolled anywhere in 201–399 shows as 348), each with
+    an estimated share. The share is an estimate: the game files give the curve's numbers but
+    not how the game samples it.
+
+  Some ores, such as Sadaryx, are in no body's spawn table. They come only from those spots:
+  for Sadaryx, the Rock Cracker in Nyx. The first time you open the card for a build, the app
+  reads the loot and mining data from Data.p4k, which takes a minute or two and about 1.3 GB
+  of memory. That data is cached and shared with the MCP server. The odds assume an even pick
+  inside a loot pool, which the game data does not state.
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
 - **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one.
   To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for
@@ -217,9 +461,18 @@ For players who want to look things up in the game data. Read only on the game.
   builds** (about 20-25 MB each, from github.com/voidput/sc-gamedata-dumps, checked by
   checksum). Then on **Diff** pick the older one as **A** and the newer one as **B** (they are
   listed as "LIVE <version>") and press **Compare**. Downloaded builds stay usable with the
-  switch off; the trash button deletes one. Applying never uses them: it always reads
+  switch off; the trash button deletes one. The list from GitHub is kept for 15 minutes, so
+  opening Datasets again or switching channel asks GitHub nothing; the refresh button next to
+  **Published LIVE builds** asks again now. Applying never uses them: it always reads
   `Data.p4k` on this computer.
-- **Files:** browse `Data.p4k`, preview textures and text, extract files.
+- **Files:** browse `Data.p4k`, preview textures and text, extract files. Long folders and
+  searches scroll smoothly (only the rows in view are drawn); so does the Diff records list.
+
+Explorer and Files read `Data.p4k` in a separate process that uses about 0.5-1 GB of memory
+while open. Opening either screen does not start it: press **Open game data**. After that,
+coming back to the screen (for the same channel, until the app closes) opens it again by itself,
+and so does a hand-off such as Ctrl+K **Find record…** or **Open owning record**. Closing the
+asset browser by hand (the power button on Files) makes Files ask again next time.
 
 Exports are for your own use; the game's assets belong to Cloud Imperium. CLI: `starorg-codex dev`.
 

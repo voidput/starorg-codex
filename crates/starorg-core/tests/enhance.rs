@@ -6,7 +6,7 @@
 //!
 //! Regenerate the golden file with `UPDATE_GOLDEN=1 cargo test -p starorg-core --test enhance`.
 
-use starorg_core::enhance::check::check_file;
+use starorg_core::enhance::check::check_file_with;
 use starorg_core::enhance::owned::{NoneOwned, OwnedList};
 use starorg_core::enhance::profile::Profile;
 use starorg_core::enhance::{Category, Generated, Reason, generate, render};
@@ -63,6 +63,17 @@ fn golden_snapshot() {
             e.record.as_deref().unwrap_or("-"),
             e.key,
             e.value(stock.value_at(e.line).unwrap())
+        ));
+    }
+    for a in g.added.values() {
+        text.push_str(&format!(
+            "[{}] {} <- {} (added, {})\n{}={}\n\n",
+            a.category.name(),
+            a.key,
+            a.record.as_deref().unwrap_or("-"),
+            a.rule,
+            a.key,
+            a.value
         ));
     }
     text.push_str(&serde_json::to_string_pretty(&g.coverage).unwrap());
@@ -518,10 +529,18 @@ fn chances_print_percent_at_line_end() {
 fn render_keeps_the_file_shape() {
     let (g, stock) = run(&Profile::everything());
     let bytes = render(&stock, &g).unwrap();
-    assert_eq!(check_file(&stock, &bytes), Ok(()));
+    assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
     let text = std::str::from_utf8(&bytes).unwrap();
     assert!(text.starts_with('\u{feff}'));
     assert!(text.contains("\r\nui_unrelated,P=Unrelated filler\r\n"));
+    // Missing names: new keys after the last stock line, stock lines untouched.
+    assert!(
+        text.ends_with(
+            "\r\nitem_Name_zeta_suit_01_01_02=Filler Suit\r\nitem_NameZetaCrate_S4=Zeta Crate S4\r\n"
+        ),
+        "{}",
+        &text[text.len() - 200..]
+    );
     // Branding is on in Everything.
     assert!(
         text.contains("Frontend_PU_Version=Filler version\\nText enhanced with StarOrg Codex v")
@@ -691,7 +710,7 @@ fn colour_test_line() {
     let (plain, _) = run(&Profile::default());
     assert_eq!(g.edits.len(), plain.edits.len() + 1);
     let bytes = render(&stock, &g).unwrap();
-    assert_eq!(check_file(&stock, &bytes), Ok(()));
+    assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
 }
 
 #[test]
@@ -732,7 +751,7 @@ fn every_colour_setting_writes_valid_markup() {
                     assert_eq!(cov.left_for(Reason::DroppedByValidation), 0, "{n} {c:?}");
                 }
                 let bytes = render(&stock, &g).unwrap();
-                assert_eq!(check_file(&stock, &bytes), Ok(()));
+                assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
             }
         }
     }
@@ -847,5 +866,51 @@ fn quest_hints_on_and_off() {
     assert_eq!(off.edits.len(), g.edits.len() - 2);
     assert!(!Profile::minimal().quest_hints);
     let bytes = render(&stock, &g).unwrap();
-    assert_eq!(check_file(&stock, &bytes), Ok(()));
+    assert_eq!(check_file_with(&stock, &bytes, g.added.len()), Ok(()));
+}
+
+/// Mission rewards read item names through the name chain (spec missing-names): a reward
+/// whose stock name is a placeholder shows the generated name, and a curated one when the
+/// patch set has it; the placeholder line itself is renamed.
+#[test]
+fn rewards_use_the_name_chain() {
+    let (mut gd, stock) = fixture();
+    let text = String::from_utf8(stock.as_bytes().to_vec()).unwrap();
+    let stock = StockIni::parse(
+        text.replace(
+            "item_NameZETA_Scrip=Filler Scrip",
+            "item_NameZETA_Scrip=<= PLACEHOLDER =>",
+        )
+        .into_bytes(),
+    );
+    gd.item_names.push(starorg_core::model::ItemName {
+        class: "ZETA_Scrip".into(),
+        name: "@item_NameZETA_Scrip".into(),
+        desc: None,
+        kind: "Misc".into(),
+    });
+    let p = Profile::default();
+    let rewards = |g: &Generated| {
+        let v = value(g, &stock, "zeta_haul_desc").unwrap();
+        v.split("ITEM REWARDS")
+            .nth(1)
+            .unwrap_or_default()
+            .to_string()
+    };
+    let g = generate(&gd, &stock, &p, &owned());
+    assert!(rewards(&g).contains("ZETA Scrip"), "{}", rewards(&g));
+    assert_eq!(
+        value(&g, &stock, "item_NameZETA_Scrip").as_deref(),
+        Some("ZETA Scrip")
+    );
+    let curated = [("item_namezeta_scrip".to_string(), "Zeta Credit".to_string())]
+        .into_iter()
+        .collect();
+    let g = starorg_core::enhance::generate_named(&gd, &stock, &p, &owned(), None, None, &curated);
+    assert!(rewards(&g).contains("Zeta Credit"), "{}", rewards(&g));
+    // Its own line keeps the generated name: the patch replaces it in merge.
+    assert_eq!(
+        value(&g, &stock, "item_NameZETA_Scrip").as_deref(),
+        Some("ZETA Scrip")
+    );
 }

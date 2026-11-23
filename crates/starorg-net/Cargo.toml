@@ -1,6 +1,6 @@
 [package]
 name = "starorg-net"
-description = "HTTPS transport: published LIVE builds for Diff, the update check and the StarOrg Tools client (opt-in network features)"
+description = "HTTPS transport: published LIVE builds for Diff, the update check, the StarOrg Tools client and UEX market data (opt-in network features)"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,7 +12,8 @@ publish.workspace = true
 [dependencies]
 starorg-core.workspace = true
 serde.workspace = true
-serde_json.workspace = true
+# preserve_order: the UEX files keep sc-gamedata's key order.
+serde_json = { workspace = true, features = ["preserve_order"] }
 # The OS TLS stack and trust store (SChannel on Windows, OpenSSL on Linux); no bundled
 # certificate list.
 ureq = { version = "3", default-features = false, features = ["native-tls-no-default"] }
@@ -30,3 +31,4 @@ workspace = true
 
 [dev-dependencies]
 starorg-net = { path = ".", features = ["mock-server"] }
+tempfile.workspace = true

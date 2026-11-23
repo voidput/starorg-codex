@@ -7,6 +7,12 @@
 //!   cached as JSON under the app cache directory;
 //! - [`worker`]: that extraction worker (`mcp-extract-worker`), with its own RSS measurement;
 //! - [`owned`]: owned blueprints from the app's store, for `how_to_obtain`;
+//! - [`sources`]: the app explorer's Sources card (loot containers, where an ore is mined);
+//! - [`shops`]: the shop browser (what each UEX terminal sells, by category);
+//! - [`commodities`]: the commodity browser (every tradable resource, one in full on request);
+//! - [`hints`]: the same rows as obtain hints for `global.ini` descriptions;
+//! - [`loot`]: the Loot screen (every loot area with what drops there, every item with where);
+//!   [`loot_tree`] places each row in the screen's trees and names it there;
 //! - [`stdio`] (the CLI's `starorg-codex mcp`) and `http` (feature `http`, the app's
 //!   loopback server) transports;
 //! - [`rss`]: resident memory of this process.
@@ -14,9 +20,15 @@
 //! Read-only throughout: no tool writes game files or app settings, and nothing here opens
 //! a network connection (the HTTP transport only listens on 127.0.0.1).
 
+pub mod commodities;
+pub mod hints;
+pub mod loot;
+pub mod loot_tree;
 pub mod owned;
 pub mod protocol;
 pub mod rss;
+pub mod shops;
+pub mod sources;
 pub mod stdio;
 pub mod store;
 pub mod tools;
@@ -69,6 +81,7 @@ pub fn config_for(
     let cfg = Config::load(dirs).unwrap_or_default();
     let outputs = Outputs::load(dirs).unwrap_or_default();
     let cache_dir = dirs.cache.join("mcp");
+    let cache_cap = Some(starorg_core::storage::configured_cap(&cfg));
     StoreConfig {
         channels,
         default_channel: cfg.default_channel,
@@ -76,6 +89,7 @@ pub fn config_for(
         cache_dir,
         our_outputs: outputs.entries.into_iter().map(|e| e.sha256).collect(),
         extractor,
+        cache_cap,
     }
 }
 

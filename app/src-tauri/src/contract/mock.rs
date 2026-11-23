@@ -96,6 +96,13 @@ struct MockState {
     /// `fleet.json` and the shared `ship-names.toml`, in memory.
     fleet: starorg_core::fleet::store::FleetFile,
     ship_names: starorg_core::fleet::store::ShipNames,
+    /// Where the UEX token was saved (the mock keeps no value).
+    uex_token: Option<TokenStoreKind>,
+    /// When "Fetch now" last wrote the UEX files.
+    uex_fetched: Option<String>,
+    /// Channels (`install/channel`) whose game data `read_game_data` read: their ship items
+    /// link on the Shops screen.
+    shop_read: BTreeSet<String>,
 }
 
 /// Synthetic, stateful backend. `delay` slows long jobs so progress can be seen in the UI;
@@ -112,6 +119,28 @@ pub struct MockBackend {
     mcp: crate::mcp::McpHost,
     /// The saved memory limit, GB (`None` = the default).
     memory_gb: Mutex<Option<f64>>,
+}
+
+/// When the mock's "Fetch now" wrote the UEX files (fixed, for the samples).
+pub const MOCK_UEX_FETCHED: &str = "2026-11-21T09:00:00Z";
+
+/// `fetch_uex` while "Download UEX market data" is off.
+pub const UEX_OFF: &str = "Turn on \"Download UEX market data\" under Settings -> Network first.";
+
+fn mock_uex_fetched(t: &str) -> ObtainStatus {
+    ObtainStatus {
+        uex_folder: "/home/pilot/.cache/starorg-codex/mcp/uex".into(),
+        files: starorg_net::uex::FILES
+            .iter()
+            .map(|n| UexFile {
+                name: (*n).into(),
+                present: true,
+                modified: Some(t.into()),
+            })
+            .collect(),
+        shops_ready: true,
+        prices_ready: true,
+    }
 }
 
 /// The mock's machine: 32 GB of RAM, 18.4 GB free (fixed, for the samples).
@@ -166,12 +195,16 @@ fn counts_for(p: &Profile, overrides: u32) -> ApplyCounts {
         fps_weapons: n(p.fps_weapons, 318),
         missiles: n(p.missiles, 96),
         missions: n(p.missions, 2140),
+        obtain_hints: n(p.obtain, 3480),
+        missing_names: n(p.missing_names, 421),
         overrides,
         dropped: 0,
         changed: 0,
     };
     c.changed = (c.ships + c.components + c.ship_weapons + c.fps_weapons + c.missiles + c.missions)
         * 2
+        + c.obtain_hints
+        + c.missing_names
         + overrides
         + 1200;
     c
@@ -311,6 +344,7 @@ impl MockBackend {
                     check_updates: false,
                     published_dumps: false,
                     starorg: false,
+                    uex: false,
                 },
                 default_channel: None,
                 safe_gpu: false,
@@ -359,6 +393,9 @@ impl MockBackend {
             patch_files: Vec::new(),
             fleet: Default::default(),
             ship_names: Default::default(),
+            uex_token: None,
+            uex_fetched: None,
+            shop_read: BTreeSet::new(),
         };
         let me = Self {
             state: Mutex::new(state),
@@ -440,6 +477,17 @@ impl MockBackend {
 
     fn lock(&self) -> MutexGuard<'_, MockState> {
         self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// The Shops screen's state: the item prices and terminals there, and the target's game data read (ship
+    /// items link).
+    fn shop_state(&self, target: Option<&ChannelRef>) -> (bool, bool) {
+        let s = self.lock();
+        let ship = target.is_some_and(|t| {
+            s.shop_read
+                .contains(&format!("{}/{}", t.install, t.channel))
+        });
+        (s.uex_fetched.is_some(), ship)
     }
 
     fn log(&self, level: LogLevel, job: Option<JobKind>, channel: Option<&str>, msg: &str) {
@@ -879,6 +927,8 @@ fn report(ch: &ChannelSummary, result: ApplyResult) -> ApplyReport {
             fps_weapons: 0,
             missiles: 0,
             missions: 0,
+            obtain_hints: 0,
+            missing_names: 0,
             overrides: 0,
             dropped: 0,
         },
@@ -1202,6 +1252,21 @@ pub(crate) const MOCK_FLEET_FILE: &str = r#"[
  {"name":"Synthetic paint pack","entity_type":"skin"}
 ]"#;
 
+/// Made-up cargo grid SCU of the mock hulls; the rest have none (not known).
+fn mock_cargo(id: &str) -> Option<f64> {
+    match id {
+        "vehicle_NameORBW_Lantern" => Some(8.0),
+        "vehicle_NameORBW_Lantern_Pro" => Some(16.0),
+        "vehicle_NameRDGE_Hauler" => Some(96.0),
+        "vehicle_NameRDGE_Hauler_XL" => Some(192.0),
+        "vehicle_NameRDGE_Barge" => Some(576.0),
+        "vehicle_NameVLMR_Pike" => Some(32.0),
+        "vehicle_NameSOLN_Rover" => Some(2.0),
+        "vehicle_NameTRNE_Heron" => Some(46.0),
+        _ => None,
+    }
+}
+
 fn mock_catalog() -> starorg_core::fleet::Catalog {
     use starorg_core::fleet::Hull;
     starorg_core::fleet::Catalog::new(
@@ -1217,6 +1282,7 @@ fn mock_catalog() -> starorg_core::fleet::Catalog {
                 ground,
                 npc_shared: if ground { 0 } else { 2 },
                 namesake: true,
+                cargo_scu: mock_cargo(id),
             })
             .collect(),
     )
@@ -1768,7 +1834,7 @@ impl Backend for MockBackend {
                 ),
                 backups: c.backups.iter().rev().cloned().collect(),
                 offers: offers(c),
-                keep_newest: 10,
+                keep_newest: 5,
                 keep_builds: 3,
             })
         })
@@ -1821,8 +1887,148 @@ impl Backend for MockBackend {
         Ok(preview(&profile))
     }
 
+    /// No worker here: a set-up channel's cache turns fresh.
+    fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary> {
+        let name = req.target.channel.clone();
+        let s = self.with_channel(&req.target, |c, _| {
+            if !c.summary.set_up {
+                return Err(AppError::new(
+                    ErrorCode::NeedsDecision,
+                    format!("{name} is not set up yet"),
+                ));
+            }
+            c.summary.cache = CacheState::Fresh;
+            Ok(c.summary.clone())
+        })?;
+        self.lock()
+            .shop_read
+            .insert(format!("{}/{}", req.target.install, req.target.channel));
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Extract),
+            Some(&s.channel),
+            &format!("Read the game data of {}", s.channel),
+        );
+        Ok(s)
+    }
+
     fn profile_schema(&self) -> CmdResult<ProfileSchema> {
         Ok(profile_schema())
+    }
+
+    fn obtain_status(&self) -> CmdResult<ObtainStatus> {
+        if let Some(t) = self.lock().uex_fetched.clone() {
+            return Ok(mock_uex_fetched(&t));
+        }
+        // The sample user put the item prices in but not the terminals.
+        Ok(ObtainStatus {
+            uex_folder: "/home/pilot/.cache/starorg-codex/mcp/uex".into(),
+            files: vec![
+                UexFile {
+                    name: "uex-item-prices.json".into(),
+                    present: true,
+                    modified: Some("2026-11-12T08:30:00Z".into()),
+                },
+                UexFile {
+                    name: "uex-commodity-prices.json".into(),
+                    present: false,
+                    modified: None,
+                },
+                UexFile {
+                    name: "uex-terminals.json".into(),
+                    present: false,
+                    modified: None,
+                },
+            ],
+            shops_ready: false,
+            prices_ready: false,
+        })
+    }
+
+    fn uex_token_status(&self) -> CmdResult<UexTokenStatus> {
+        let store = self.lock().uex_token;
+        Ok(UexTokenStatus {
+            set: store.is_some(),
+            store,
+        })
+    }
+
+    fn set_uex_token(&self, req: UexTokenRequest) -> CmdResult<UexTokenStatus> {
+        let token = starorg_net::uex::clean_token(req.token.as_deref().unwrap_or(""))
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        let saved = token.is_some();
+        self.lock().uex_token = token.map(|_| TokenStoreKind::Keyring);
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Uex),
+            None,
+            if saved {
+                "UEX token saved (keyring)"
+            } else {
+                "UEX token removed"
+            },
+        );
+        self.uex_token_status()
+    }
+
+    /// No network here: the three files appear with a fixed time.
+    fn fetch_uex(&self) -> CmdResult<ObtainStatus> {
+        if !self.lock().settings.network.uex {
+            return Err(AppError::new(ErrorCode::NetworkOff, UEX_OFF.to_string()));
+        }
+        self.lock().uex_fetched = Some(MOCK_UEX_FETCHED.into());
+        self.log(
+            LogLevel::Info,
+            Some(JobKind::Uex),
+            None,
+            "Downloaded UEX market data: 24,146 prices for 2,438 items, 2,598 for 124 commodities, at 826 terminals (7.9 MB)",
+        );
+        self.obtain_status()
+    }
+
+    /// The synthetic loot of `mock_loot` once the channel's game data was read (Read game
+    /// data): `missing` until then, and without a channel.
+    fn loot_list(&self, req: LootListRequest) -> CmdResult<LootList> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_loot::mock_loot_list(read, req.view))
+    }
+
+    fn loot_detail(&self, req: LootDetailRequest) -> CmdResult<LootDetail> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_loot::mock_loot_detail(
+            read,
+            req.view,
+            &req.id,
+            &req.query(),
+        ))
+    }
+
+    /// The synthetic shops of `mock_shops` once "Fetch now" ran (the sample user's folder
+    /// lacks the terminals file before that): `missing` until then.
+    fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory> {
+        let (ready, ship) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_shops::mock_directory(ready, ship))
+    }
+
+    fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems> {
+        let (ready, ship) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_shops::mock_items(ready, ship, req.terminal))
+    }
+
+    /// The synthetic commodities of `mock_commodities` once the target's game data was read
+    /// ("Read game data"); kiosk prices once "Fetch now" ran.
+    fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {
+        let (prices, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_commodity_list(read, prices))
+    }
+
+    fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo> {
+        let (prices, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_commodity_detail(
+            read, prices, &req.id,
+        ))
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
@@ -1952,6 +2158,10 @@ impl Backend for MockBackend {
 
     fn list_patches(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>> {
         self.with_channel(&req, |c, _| Ok(c.patches.clone()))
+    }
+
+    fn patch_states(&self, req: ChannelRef) -> CmdResult<Vec<PatchView>> {
+        self.list_patches(req)
     }
 
     fn set_patch_enabled(&self, req: PatchToggle) -> CmdResult<PatchView> {
@@ -2930,6 +3140,7 @@ impl Backend for MockBackend {
                     uex_dir: None,
                     our_outputs: vec![],
                     extractor: std::sync::Arc::new(NoGameData),
+                    cache_cap: None,
                 })
             })
         } else {
@@ -2958,6 +3169,97 @@ impl Backend for MockBackend {
             },
         );
         self.memory_status()
+    }
+
+    fn storage_status(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_view())
+    }
+
+    fn storage_measure(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_view())
+    }
+
+    fn storage_clear_assets(&self) -> CmdResult<StorageStatus> {
+        super::assets::AssetBackend::asset_cache_clear(self)?;
+        Ok(self.storage_view())
+    }
+}
+
+/// Fixed sizes of the mock's areas (about the dev machine's after compression; see
+/// docs/user-guide.md#storage): game data of 3 channels, 2 WHERE TO GET builds, UEX files,
+/// no temp folders, 5 backups of 3 channels.
+pub const MOCK_STORAGE: [(starorg_core::storage::Area, &str, u64, u64); 5] = {
+    use starorg_core::storage::Area;
+    [
+        (Area::GameData, "/synthetic/cache", 11_400_000, 12),
+        (Area::WhereToGet, "/synthetic/cache/mcp", 72_000_000, 46),
+        (Area::Uex, "/synthetic/cache/mcp/uex", 7_300_000, 3),
+        (Area::Temporary, "/synthetic/cache/work", 0, 0),
+        (Area::Backups, "/synthetic/data/channels", 37_800_000, 30),
+    ]
+};
+
+impl MockBackend {
+    fn storage_view(&self) -> StorageStatus {
+        use starorg_core::assetcache::Usage;
+        use starorg_core::storage::{Area, AreaUsage, Report};
+        let (assets, custom) = {
+            let s = self.asset_state();
+            let u = Usage {
+                bytes: s.cached.iter().map(|c| c.1).sum(),
+                files: s.cached.len() as u64,
+            };
+            (u, s.custom_dir)
+        };
+        let mut areas: Vec<AreaUsage> = MOCK_STORAGE
+            .iter()
+            .map(|(area, path, bytes, files)| AreaUsage {
+                area: *area,
+                path: path.into(),
+                usage: Usage {
+                    bytes: *bytes,
+                    files: *files,
+                },
+            })
+            .collect();
+        areas.insert(
+            3,
+            AreaUsage {
+                area: Area::AssetExports,
+                path: if custom {
+                    super::mock_assets::CACHE_OTHER
+                } else {
+                    super::mock_assets::CACHE_DEFAULT
+                }
+                .into(),
+                usage: assets,
+            },
+        );
+        let in_cache: u64 = areas
+            .iter()
+            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .map(|a| a.usage.bytes)
+            .sum();
+        let files: u64 = areas
+            .iter()
+            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .map(|a| a.usage.files)
+            .sum();
+        let r = Report {
+            cache_path: "/synthetic/cache".into(),
+            cache: Usage {
+                bytes: in_cache,
+                files,
+            },
+            areas,
+        };
+        StorageStatus::build(
+            &r,
+            starorg_core::storage::DEFAULT_CAP,
+            super::mock_assets::CACHE_MAX,
+            !custom,
+            None,
+        )
     }
 }
 
@@ -3231,6 +3533,79 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
         result: tagged,
     });
 
+    // One stats-block description per kind (same in mock.ts), left out while it is off.
+    type Stat<'a> = (
+        bool,
+        &'a str,
+        &'a str,
+        &'a str,
+        &'a str,
+        &'a [(&'a str, &'a str)],
+    );
+    let stat_samples: [Stat; 4] = [
+        (
+            p.components,
+            "item_DescSYN_Cooler_S2",
+            "Ship component",
+            "components",
+            "A synthetic cooler.",
+            &[
+                ("components.cooling", "Cooling: 1,200/s"),
+                ("components.health", "Health: 900"),
+            ],
+        ),
+        (
+            p.ship_weapons,
+            "item_DescSYN_Cannon_S3",
+            "Ship weapon",
+            "ship-weapons",
+            "A synthetic laser cannon.",
+            &[
+                ("ship_weapons.damage", "Damage: 260 energy  |  DPS: 780"),
+                ("ship_weapons.rate", "Fire rate: 180 rpm"),
+            ],
+        ),
+        (
+            p.fps_weapons,
+            "item_DescSYN_Pistol",
+            "Personal weapon",
+            "fps-weapons",
+            "A synthetic pistol.",
+            &[
+                ("fps_weapons.damage", "Damage: 12 energy  |  DPS: 60"),
+                ("fps_weapons.magazine", "Magazine: 20"),
+            ],
+        ),
+        (
+            p.missiles,
+            "item_DescSYN_Missile_S2",
+            "Missile",
+            "missiles",
+            "A synthetic heat-seeking missile.",
+            &[
+                ("missiles.damage", "Damage: 2,400"),
+                ("missiles.lock_range", "Lock range: 4,000 m"),
+            ],
+        ),
+    ];
+    for (on, key, label, category, prose, lines) in stat_samples {
+        if !on {
+            continue;
+        }
+        let l = lines
+            .iter()
+            .filter(|(k, _)| line_on(k))
+            .map(|(_, l)| l.to_string())
+            .collect();
+        out.push(PreviewItem {
+            key: key.into(),
+            label: label.into(),
+            category: category.into(),
+            original: prose.into(),
+            result: block(prose, l),
+        });
+    }
+
     let m = &p.mission;
     let em = |n: u8, t: &str| {
         if n == 0 {
@@ -3319,6 +3694,18 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
             ),
         });
     }
+    if p.obtain {
+        out.extend(obtain_preview(p, &block));
+    }
+    if p.missing_names {
+        out.push(PreviewItem {
+            key: "item_Name_syn_flightsuit_01_01_02".into(),
+            label: "Item name (missing in stock)".into(),
+            category: "missing-names".into(),
+            original: "@item_Name_syn_flightsuit_01_01_02".into(),
+            result: "Synthetic Flightsuit".into(),
+        });
+    }
     if p.colour_test {
         let prompt = "Please select a contract.";
         out.push(PreviewItem {
@@ -3327,6 +3714,136 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
             category: "ui".into(),
             original: prompt.into(),
             result: format!("{prompt}{}", starorg_core::enhance::COLOUR_TEST_LINE),
+        });
+    }
+    out
+}
+
+/// WHERE TO GET samples (spec obtain-hints): a rifle (after its stats block) and an ore,
+/// rendered by the core's own block text from synthetic sources, so mode and line switches
+/// show as they will in game.
+fn obtain_preview(p: &Profile, stats: &dyn Fn(&str, Vec<String>) -> String) -> Vec<PreviewItem> {
+    use starorg_core::enhance::obtain::{Crafted, Reward, block};
+    use starorg_core::model::{
+        Blueprint, ItemObtain, LootHint, MinedHint, QualityHint, QualityOverride, SellHint,
+        ShopHint,
+    };
+    let core = super::real::convert::profile_from(p);
+    let s = |v: &str| Some(v.to_string());
+    let loot = |contents: &str, rarity: &str, place: &str, odds: f64| LootHint {
+        contents: contents.into(),
+        size: None,
+        rarity: s(rarity),
+        place: s(place),
+        // Loot areas (Bunkers, Caves) span systems: the real hints carry none.
+        system: None,
+        odds: Some(odds),
+    };
+    let rifle = ItemObtain {
+        shops: vec![
+            ShopHint {
+                terminal: "Center Mass".into(),
+                place: s("Area18"),
+                system: s("Stanton"),
+            },
+            ShopHint {
+                terminal: "Skutters".into(),
+                place: s("GrimHEX"),
+                system: s("Stanton"),
+            },
+        ],
+        loot: vec![
+            loot("Weapons rack", "Rare", "Bunkers", 0.21),
+            loot("Weapon crate", "Uncommon", "Derelict outposts", 0.06),
+            loot("Locker", "Common", "Caves", 0.02),
+            loot("Footlocker", "Common", "Distribution centres", 0.01),
+        ],
+        loot_total: 6,
+        ..Default::default()
+    };
+    let bp = Blueprint::default();
+    let crafted = Crafted {
+        blueprints: vec![&bp],
+        rewards: vec![Reward {
+            title: "Synthetic Recovery".into(),
+            blueprint: true,
+        }],
+    };
+    let mut out = Vec::new();
+    let prose = "A synthetic laser rifle used for testing.";
+    let mut lines = Vec::new();
+    let line_on = |key: &str| !p.lines_off.iter().any(|l| l == key);
+    if p.fps_weapons {
+        for (key, l) in [
+            ("fps_weapons.damage", "Damage: 18 energy  |  DPS: 150"),
+            ("fps_weapons.rate", "Fire rate: 500 rpm"),
+            ("fps_weapons.magazine", "Magazine: 45"),
+        ] {
+            if line_on(key) {
+                lines.push(l.to_string());
+            }
+        }
+    }
+    if let Some(b) = block(&rifle, &crafted, &core, None) {
+        out.push(PreviewItem {
+            key: "item_DescSYN_Rifle".into(),
+            label: "Weapon (where to get)".into(),
+            category: "obtain-hints".into(),
+            original: prose.into(),
+            result: format!("{}\\n\\n{b}", stats(prose, lines)),
+        });
+    }
+    let m = |place: &str, kind: &str, lo: f64, hi: f64| MinedHint {
+        place: place.into(),
+        system: s(if place.starts_with("Pyro") {
+            "Pyro"
+        } else {
+            "Stanton"
+        }),
+        kind: s(kind),
+        min_pct: Some(lo),
+        max_pct: Some(hi),
+    };
+    let sell = |terminal: &str, place: &str, system: &str, price: f64| SellHint {
+        terminal: terminal.into(),
+        place: s(place),
+        system: s(system),
+        price,
+    };
+    let ore = ItemObtain {
+        mined: vec![
+            m("Lyria", "ship", 12.0, 30.0),
+            m("Aaron Halo", "ship", 8.0, 22.0),
+            m("Pyro I", "ship", 5.0, 18.0),
+            m("Wala", "ship", 4.0, 10.0),
+        ],
+        quality: Some(QualityHint {
+            min: 1.0,
+            max: 1000.0,
+            mean: 500.0,
+            stddev: Some(150.0),
+            overrides: vec![QualityOverride {
+                place: "Aaron Halo".into(),
+                min: 300.0,
+                max: 1000.0,
+            }],
+        }),
+        sells: vec![
+            sell("HUR-L2", "HUR-L2 Faithful Dream Station", "Stanton", 9612.0),
+            sell("Rod's Fuel", "Rod's Fuel 'N Supplies", "Pyro", 9180.0),
+            sell("TDD Area 18", "Area 18", "Stanton", 9000.0),
+            sell("Ruin Station", "Pyro", "Pyro", 8700.0),
+        ],
+        ..Default::default()
+    };
+    let ore_prose = "A synthetic unstable ore.";
+    if let Some(b) = block(&ore, &Crafted::default(), &core, Some(MOCK_UEX_FETCHED)) {
+        out.push(PreviewItem {
+            key: "items_commodities_SYN_ore_desc".into(),
+            label: "Ore (where to get)".into(),
+            category: "obtain-hints".into(),
+            original: ore_prose.into(),
+            result: format!("{ore_prose}\\n\\n{b}"),
         });
     }
     out

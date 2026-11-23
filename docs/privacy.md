@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 tags: [docs]
-updated: 2026-11-17
+updated: 2026-11-22
 ---
 
 # Privacy policy
@@ -21,7 +21,10 @@ no crash upload and no account of its own.**
   (`%APPDATA%\StarOrg Tools\Codex\` and `%LOCALAPPDATA%\StarOrg Tools\Codex\` on Windows,
   `~/.config`, `~/.local/share` and `~/.cache` under `starorg-codex` on Linux).
 - None of this leaves your computer. Removing the app's folders and using **Remove** in the app
-  deletes everything it made.
+  deletes everything it made. Settings -> Storage lists what is kept where and how much: the
+  extracted game data cache, WHERE TO GET datasets, UEX market data, asset exports, temporary
+  extraction folders and `global.ini` backups (gzip-compressed; 5 per channel plus the newest of
+  each of the last 3 game builds). The cache folder is capped (1 GB by default).
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
   folder with placeholders.
 - Developer mode (Settings -> Advanced, off by default) only reads: `Data.p4k` (read only, as
@@ -31,7 +34,7 @@ no crash upload and no account of its own.**
   them; extracted files, sounds and models go only to a folder or file you pick, never into the
   game folder. Decoded sounds, exported models and texture previews are kept in an asset cache
   (`<cache>/assets`, or a `StarOrg Codex asset cache` subfolder of a folder you choose in
-  Settings -> Advanced; 2 GB at most; only its own files are ever removed) that
+  Settings -> Advanced; 1 GB at most; only its own files are ever removed) that
   "Clear" empties. These are Cloud Imperium's assets: for your own use, not to redistribute.
 - The memory limit of the Developer mode and MCP workers (Settings -> Advanced -> Memory limit,
   `[dev] memory_limit_gb` in `config.toml`) reads this computer's total and free RAM locally
@@ -48,10 +51,11 @@ Check for updates and Connect StarOrg Tools, with both off unless you switch the
 |---|---|
 | Check for updates (not in the Microsoft Store version) | One request to `api.github.com` for the list of releases, at most once a day plus when you press Check now. It sends only the app name and version as its user agent: no account, token or install id. Installing an update downloads the release files from `github.com`. |
 | Connect StarOrg Tools | Nothing until you sign in, and then only to the environment chosen in Settings -> StarOrg Tools: `starorg.tools` (Production, the default) or `dev.starorg.tools` (Dev, the test server). Details below. |
+| Download UEX market data | Nothing until you press **Fetch now** (Settings -> Network, or Enhancements -> Where to get -> Shops and sell prices). Then three requests to `api.uexcorp.space` (`terminals`, `items_prices_all`, `commodities_prices_all`: where items are sold and what commodity kiosks pay, player-reported), written to the UEX folder in the app's cache. They send the app name and version as the user agent and, only if you saved one, your UEX token (`Authorization: Bearer`); nothing else: no install id, no game data, no character. The token is kept in the system keyring (or, when there is none, a file only your user can read in the app's config folder), never in settings, logs or diagnostics, never shown again, and sent only to `api.uexcorp.space`. **Remove** deletes it. |
 | Download published LIVE builds for Diff (Developer mode only) | Only for Developer mode's Diff, to compare an old LIVE build with a new one: the Datasets screen asks `api.github.com` for the release list of `voidput/sc-gamedata-dumps`, and **Download** fetches that one build's tag, file list and data files from `api.github.com` and `raw.githubusercontent.com`, each checked by checksum and read as data only. It sends only the app name and version as its user agent: nothing about you, no token, no install id. Downloaded builds stay in the app's cache until you delete them and work with the switch off. Applying never uses them: it always reads `Data.p4k` on this computer. |
 
-Like any web request, these reveal your IP address to the server (GitHub, StarOrg Tools). GitHub's
-privacy statement covers what GitHub logs.
+Like any web request, these reveal your IP address to the server (GitHub, StarOrg Tools, UEX
+Corp). GitHub's privacy statement covers what GitHub logs; UEX Corp's covers `uexcorp.space`.
 
 ### StarOrg Tools
 
@@ -89,8 +93,9 @@ The Microsoft Store version never checks GitHub: the Store installs its updates.
 
 **Support, Buy me a coffee and Patreon** (footer and Footer -> About) open `discord.gg`,
 `buymeacoffee.com` or `patreon.com` in your browser, only when you click them. The app itself
-sends nothing: your browser loads the page, under that site's privacy terms. The app can open
-only these three fixed addresses.
+sends nothing: your browser loads the page, under that site's privacy terms. The **uexcorp.space**
+link next to the UEX token (Settings -> Network) works the same way. The app can open only these
+four fixed addresses.
 
 ## Local MCP server (experimental, off by default)
 
@@ -103,8 +108,9 @@ assistant on your computer ask read-only questions about your game data ([detail
 - Answers can include your owned blueprints and character names. They go only to the local
   client you connected. If that client is an assistant that runs in the cloud, it sends the
   answers to its provider as part of your conversation, under that provider's privacy terms.
-- It writes only its cache in the app's cache folder. Shop prices are used only if you put UEX
-  price files there yourself; the app never downloads them.
+- It writes only its cache in the app's cache folder. Shop and commodity prices are used only
+  if the UEX files are there: downloaded by the app's **Fetch now** (above), or put there by you. The MCP
+  server never downloads them.
 
 ## Things outside the app
 

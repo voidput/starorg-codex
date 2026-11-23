@@ -80,7 +80,7 @@ fn is_quest_item(q: &QuestItem, stock: &crate::ini::StockIni) -> bool {
 }
 
 /// Stock title text, plain: EM tags dropped, `None` unless it is real text.
-fn plain_title(stock: &crate::ini::StockIni, key: Option<&str>) -> Option<String> {
+pub(super) fn plain_title(stock: &crate::ini::StockIni, key: Option<&str>) -> Option<String> {
     let v = super::trim_tail(stock.value(loc_key(key?)?)?).trim();
     if v.is_empty()
         || is_placeholder_name(Some(v))
