@@ -243,7 +243,9 @@
         .then((d) => settle(loadedRows(d.groups)))
         .catch((e) => {
           if (!live()) return;
-          settle({});
+          // Close the groups again without rows, so opening one asks once more.
+          openGroups = new Set([...openGroups].filter((x) => !want.includes(x)));
+          loadingGroups = new Set([...loadingGroups].filter((x) => !want.includes(x)));
           toast('error', 'Could not read the drops', toContractError(e).message);
         });
     });

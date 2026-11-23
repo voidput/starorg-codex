@@ -37,18 +37,21 @@ export function parseGroupBy(view: LootView, raw: string | null): LootGroupBy {
 }
 
 /** The view's stored grouping (storage blocked or empty: the default). */
-export function loadGroupBy(view: LootView, storage: Pick<Storage, 'getItem'> | null = globalThis.localStorage ?? null): LootGroupBy {
+export function loadGroupBy(view: LootView, storage?: Pick<Storage, 'getItem'> | null): LootGroupBy {
   try {
-    return parseGroupBy(view, storage?.getItem(groupByKey(view)) ?? null);
+    // Inside the try: with site data blocked, even reading `localStorage` throws.
+    const s = storage === undefined ? (globalThis.localStorage ?? null) : storage;
+    return parseGroupBy(view, s?.getItem(groupByKey(view)) ?? null);
   } catch {
     return defaultGroupBy(view);
   }
 }
 
 /** Remember a view's grouping (storage blocked: it still applies for this session). */
-export function saveGroupBy(view: LootView, g: LootGroupBy, storage: Pick<Storage, 'setItem'> | null = globalThis.localStorage ?? null): void {
+export function saveGroupBy(view: LootView, g: LootGroupBy, storage?: Pick<Storage, 'setItem'> | null): void {
   try {
-    storage?.setItem(groupByKey(view), g);
+    const s = storage === undefined ? (globalThis.localStorage ?? null) : storage;
+    s?.setItem(groupByKey(view), g);
   } catch {
     /* storage blocked */
   }

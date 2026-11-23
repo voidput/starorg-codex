@@ -65,6 +65,23 @@ test('the choice is remembered per view, and blocked storage never throws', () =
   assert.equal(loadGroupBy('areas', null), 'container');
 });
 
+test('site data blocked: reading localStorage itself throws, the default applies', () => {
+  const before = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    get() {
+      throw new Error('SecurityError');
+    },
+  });
+  try {
+    assert.equal(loadGroupBy('items'), 'place');
+    assert.doesNotThrow(() => saveGroupBy('items', 'none'));
+  } finally {
+    if (before) Object.defineProperty(globalThis, 'localStorage', before);
+    else delete (globalThis as { localStorage?: unknown }).localStorage;
+  }
+});
+
 test('same names are found across the rows', () => {
   const rows = [drop('a1', 'Standard Container', 'Large crate', 0.5), drop('a2', 'Standard Container', 'Medium crate', 0.4), drop('b', 'Davlos Shirt', 'Large crate', 0.3)];
   assert.deepEqual([...dupNames(rows)], ['Standard Container']);
