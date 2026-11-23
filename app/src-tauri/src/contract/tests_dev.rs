@@ -1140,7 +1140,12 @@ fn dev_unions_in_dev_ts_list_every_variant() {
         ),
         (
             "SourceKind",
-            names(&[SourceKind::Build, SourceKind::Folder, SourceKind::Dump]),
+            names(&[
+                SourceKind::Build,
+                SourceKind::Folder,
+                SourceKind::Dump,
+                SourceKind::Cached,
+            ]),
         ),
         (
             "SourceState",

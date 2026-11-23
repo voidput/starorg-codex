@@ -193,12 +193,16 @@ pub struct DevExportResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SourceKind {
-    /// Our own GameData of a channel's build, from the extraction cache.
+    /// Our own GameData of a channel's build, from the extraction cache, plus the WHERE TO
+    /// GET datasets already extracted for that build (`game-*.json`).
     Build,
     /// A local folder (or one file) of `*.json`.
     Folder,
     /// A published LIVE build downloaded for Diff (addendum §1): `dump:<tag>`.
     Dump,
+    /// An older build of a channel still in the dataset cache (`<cache>/mcp/<CHANNEL>/`):
+    /// `cached:<CHANNEL>:<folder>`. Read only; never extracted into.
+    Cached,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -222,7 +226,7 @@ pub struct DevDatasetSummary {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevSource {
-    /// `build:<channel>`, `folder:<n>`, `dump:<tag>`.
+    /// `build:<channel>`, `cached:<channel>:<folder>`, `folder:<n>`, `dump:<tag>`.
     pub id: String,
     pub kind: SourceKind,
     pub label: String,

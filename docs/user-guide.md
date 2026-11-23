@@ -455,8 +455,13 @@ For players who want to look things up in the game data. Read only on the game.
   of memory. That data is cached and shared with the MCP server. The odds assume an even pick
   inside a loot pool, which the game data does not state.
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
-- **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one.
-  To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for
+- **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one;
+  or compare a channel's current build with the previous one the app read (kept in the cache).
+  That previous build is listed as "<CHANNEL> <version> (cached)" right after the channel's
+  build, newest first, and Diff starts with it as **A** and the current build as **B**. It
+  holds the WHERE TO GET datasets that were extracted for it (the last 2 builds per channel are
+  kept, see [Storage](#storage)); it is read only and never extracted into, and a build whose
+  cache was cut short shows on Datasets with the reason. To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for
   Diff**, open **Datasets**, and press **Download** next to two builds under **Published LIVE
   builds** (about 20-25 MB each, from github.com/voidput/sc-gamedata-dumps, checked by
   checksum). Then on **Diff** pick the older one as **A** and the newer one as **B** (they are

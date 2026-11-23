@@ -158,6 +158,82 @@ fn segment(s: &str) -> String {
     }
 }
 
+/// Held (an OS lock, see `starorg_core::lock`) by a reader of a cached build folder while it
+/// reads files there; pruning leaves a held folder alone.
+pub const READING_LOCK: &str = ".reading.lock";
+
+/// Take the reading lock of a cached build folder, `None` when the folder is gone or
+/// another reader holds it (that reader keeps it from pruning too). Never creates the folder.
+pub fn hold_build(dir: &Path) -> Option<starorg_core::lock::Lock> {
+    if !dir.is_dir() {
+        return None;
+    }
+    starorg_core::lock::try_lock(&dir.join(READING_LOCK)).ok()
+}
+
+/// Someone holds the folder's [`READING_LOCK`].
+fn being_read(dir: &Path) -> bool {
+    let lock = dir.join(READING_LOCK);
+    lock.is_file()
+        && matches!(
+            starorg_core::lock::try_lock(&lock),
+            Err(starorg_core::lock::LockError::Held(_))
+        )
+}
+
+/// The game version of a build folder name (`<build>-<fingerprint>`): the name without its
+/// 8-hex fingerprint, e.g. `4.10.200.58746-0a1b2c3d` -> `4.10.200.58746`.
+pub fn build_version(folder: &str) -> &str {
+    match folder.rsplit_once('-') {
+        Some((v, fp))
+            if !v.is_empty() && fp.len() == 8 && fp.bytes().all(|b| b.is_ascii_hexdigit()) =>
+        {
+            v
+        }
+        _ => folder,
+    }
+}
+
+/// Dotted numbers compared as numbers (`4.10` after `4.9`); a part that is not a number
+/// counts as 0.
+fn version_key(v: &str) -> Vec<u64> {
+    v.split(['.', '-', '_'])
+        .map(|p| p.parse().unwrap_or(0))
+        .collect()
+}
+
+/// A dataset file of a build folder: `game-*.json`, not the derived search index.
+pub fn is_dataset_file(name: &str) -> bool {
+    name.strip_suffix(".json")
+        .is_some_and(|n| n.starts_with("game-") && n != search_index::NAME)
+}
+
+/// Why a cached build folder is not complete, `None` when it is: a dataset its
+/// `measurements.json` says was extracted whose file is gone, or no dataset at all.
+pub fn incomplete(dir: &Path) -> Option<String> {
+    if !dir.is_dir() {
+        return Some("the cache folder is gone".into());
+    }
+    let missing: Vec<String> = Store::measurements(dir)
+        .into_keys()
+        .filter(|d| d != search_index::NAME && !dir.join(format!("{d}.json")).is_file())
+        .map(|d| format!("{d}.json"))
+        .collect();
+    if !missing.is_empty() {
+        return Some(format!(
+            "{} {} missing from the cache (removed after it was read)",
+            missing.join(", "),
+            if missing.len() == 1 { "is" } else { "are" }
+        ));
+    }
+    let any = std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|e| e.file_name().to_str().is_some_and(is_dataset_file));
+    (!any).then(|| "nothing was extracted for this build before it was replaced".into())
+}
+
 impl Store {
     pub fn new(cfg: StoreConfig) -> Self {
         Self {
@@ -272,9 +348,26 @@ impl Store {
         v.into_iter().map(|(_, n, p)| (n, p)).collect()
     }
 
+    /// The channel's cached builds other than its current one ([`Self::build_dir`]), newest
+    /// version first (folders of one version: most recently written first). Read only:
+    /// nothing is extracted into them.
+    pub fn older_builds(&self, ch: &ChannelSource) -> Vec<(String, PathBuf)> {
+        let current = self.build_dir(ch);
+        let mut v: Vec<(String, PathBuf)> = self
+            .cached_builds(ch)
+            .into_iter()
+            .filter(|(n, p)| *p != current && !n.contains(".tmp-"))
+            .collect();
+        // Stable: within one version the newest-written order of `cached_builds` stays.
+        v.sort_by_key(|(n, _)| std::cmp::Reverse(version_key(build_version(n))));
+        v
+    }
+
     fn prune_old_builds(&self, ch: &ChannelSource, current: &Path) {
         for (_, p) in self.cached_builds(ch).into_iter().skip(KEEP_BUILDS) {
-            if p != current {
+            // A folder read right now (an older build in the app's Diff) stays; the next
+            // new build prunes it.
+            if p != current && !being_read(&p) {
                 let _ = std::fs::remove_dir_all(&p);
             }
         }
@@ -644,6 +737,81 @@ mod tests {
         std::fs::write(&f, "{}").unwrap();
         assert_eq!(plain(), 0);
         assert_eq!(s.uex_stamp().0.len(), UEX_FILES.len());
+    }
+
+    #[test]
+    fn older_builds_leave_out_the_current_one_newest_version_first() {
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(dir.path(), Arc::new(Fake(AtomicUsize::new(0))));
+        let live = s.channel(Some("LIVE")).unwrap();
+        let current = s.build_dir(live);
+        let ch = s.channel_cache(live);
+        for d in [
+            current.clone(),
+            ch.join("4.9.0.100-0a1b2c3d"),
+            ch.join("4.10.197.2878-deadbeef"),
+            ch.join("x.tmp-1"),
+        ] {
+            std::fs::create_dir_all(&d).unwrap();
+        }
+        let names: Vec<String> = s.older_builds(live).into_iter().map(|b| b.0).collect();
+        assert_eq!(names, ["4.10.197.2878-deadbeef", "4.9.0.100-0a1b2c3d"]);
+        assert_eq!(build_version("4.10.197.2878-deadbeef"), "4.10.197.2878");
+        assert_eq!(build_version("unknown"), "unknown");
+        assert_eq!(build_version("a-b"), "a-b");
+    }
+
+    #[test]
+    fn incomplete_says_why_and_pruning_skips_a_folder_being_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let b = dir.path().join("b");
+        std::fs::create_dir_all(&b).unwrap();
+        assert!(incomplete(&b).unwrap().contains("nothing was extracted"));
+        std::fs::write(b.join("game-ships.json"), "{}").unwrap();
+        assert_eq!(incomplete(&b), None);
+        Store::record_measurement(
+            &b,
+            &Measurement {
+                dataset: "game-weapons".into(),
+                seconds: 1.0,
+                peak_rss_bytes: None,
+                bytes: 2,
+                warnings: 0,
+            },
+        );
+        assert!(
+            incomplete(&b)
+                .unwrap()
+                .starts_with("game-weapons.json is missing")
+        );
+        assert!(incomplete(&dir.path().join("gone")).is_some());
+        assert!(is_dataset_file("game-ships.json"));
+        assert!(!is_dataset_file("game-search-index.json"));
+        assert!(!is_dataset_file("measurements.json"));
+        // Held: pruning leaves it; released: it goes.
+        let fake = Arc::new(Fake(AtomicUsize::new(0)));
+        let s = store(dir.path(), fake);
+        let live = s.channel(Some("LIVE")).unwrap();
+        let ch = s.channel_cache(live);
+        let old = ch.join("4.9.0.1-00000000");
+        let older = ch.join("4.8.0.1-00000000");
+        std::fs::create_dir_all(&older).unwrap();
+        std::fs::create_dir_all(&old).unwrap();
+        // Both older folders held (which one is pruned goes by folder times): none goes.
+        let held = [hold_build(&older).unwrap(), hold_build(&old).unwrap()];
+        assert!(
+            hold_build(&older).is_none(),
+            "one reader at a time holds it"
+        );
+        assert!(hold_build(&dir.path().join("none")).is_none());
+        let current = s.build_dir(live);
+        std::fs::create_dir_all(&current).unwrap();
+        s.prune_old_builds(live, &current);
+        assert!(older.is_dir() && old.is_dir(), "being read");
+        drop(held);
+        s.prune_old_builds(live, &current);
+        assert_eq!(s.cached_builds(live).len(), KEEP_BUILDS);
+        assert!(current.is_dir());
     }
 
     #[test]

@@ -82,6 +82,37 @@ pub fn dump_files(tag: &str) -> Vec<(&'static str, Value)> {
     vec![("game-ships.json", ships), ("game-weapons.json", weapons)]
 }
 
+/// The mock dataset cache folder (shown in a cached build's detail).
+pub const CACHE_DIR: &str = "/synthetic/cache/mcp";
+
+/// The mock's older builds still in the dataset cache (channel, folder, version, complete),
+/// newest first: one complete, one cut short (an `error` source).
+pub const CACHED: [(&str, &str, &str, bool); 2] = [
+    ("PTU", "4.10.197.2878-5e1f0c2a", "4.10.197.2878", true),
+    ("PTU", "4.9.0.9000-0c0ffee0", "4.9.0.9000", false),
+];
+
+/// A mock cached build's detail, as the real backend words it.
+pub fn cached_detail(channel: &str, folder: &str, complete: bool) -> String {
+    if complete {
+        format!(
+            "An earlier {channel} build, kept in the cache (read only): {CACHE_DIR}/{channel}/{folder}"
+        )
+    } else {
+        "Incomplete: game-weapons.json is missing from the cache (removed after it was read)".into()
+    }
+}
+
+/// The datasets of a mock cached build: the older published build's, without
+/// `game-weapons.json` when it was cut short.
+pub fn cached_files(complete: bool) -> Vec<(&'static str, Value)> {
+    let mut v = dump_files(DUMPS[1].0);
+    if !complete {
+        v.retain(|f| f.0 != "game-weapons.json");
+    }
+    v
+}
+
 pub fn ship_guid(n: u32) -> String {
     format!("51000000-0000-4000-8000-{n:012x}")
 }
@@ -1995,26 +2026,51 @@ impl MockBackend {
     fn sources_of(&self, r: &ChannelRef) -> Vec<DevSource> {
         let mut chans = self.channel_names(&r.install);
         chans.sort_by_key(|c| *c != r.channel);
-        let mut out: Vec<DevSource> = chans
-            .iter()
-            .map(|c| {
-                let d = to_dataset(GAMEDATA, build_value(c));
-                DevSource {
-                    id: format!("build:{c}"),
-                    kind: SourceKind::Build,
-                    label: format!("{c} build"),
-                    build: Some("4.10.0-mock".into()),
-                    state: SourceState::Ready,
-                    detail: None,
-                    datasets: vec![DevDatasetSummary {
-                        file: GAMEDATA.into(),
-                        bytes: d.info.bytes,
-                        tables: d.tables.len() as u32,
-                        rows: d.tables.iter().map(|t| t.rows.len() as u32).sum(),
-                    }],
-                }
-            })
-            .collect();
+        let mut out: Vec<DevSource> = Vec::new();
+        for c in &chans {
+            let d = to_dataset(GAMEDATA, build_value(c));
+            out.push(DevSource {
+                id: format!("build:{c}"),
+                kind: SourceKind::Build,
+                label: format!("{c} build"),
+                build: Some("4.10.0-mock".into()),
+                state: SourceState::Ready,
+                detail: None,
+                datasets: vec![DevDatasetSummary {
+                    file: GAMEDATA.into(),
+                    bytes: d.info.bytes,
+                    tables: d.tables.len() as u32,
+                    rows: d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+                }],
+            });
+            // Its older builds still in the dataset cache, newest first.
+            for (ch, folder, version, complete) in CACHED.iter().filter(|x| x.0 == c) {
+                out.push(DevSource {
+                    id: format!("cached:{ch}:{folder}"),
+                    kind: SourceKind::Cached,
+                    label: format!("{ch} {version} (cached)"),
+                    build: Some(version.to_string()),
+                    state: if *complete {
+                        SourceState::Ready
+                    } else {
+                        SourceState::Error
+                    },
+                    detail: Some(cached_detail(ch, folder, *complete)),
+                    datasets: cached_files(*complete)
+                        .into_iter()
+                        .map(|(f, v)| {
+                            let d = to_dataset(f, v);
+                            DevDatasetSummary {
+                                file: f.into(),
+                                bytes: d.info.bytes,
+                                tables: d.tables.len() as u32,
+                                rows: d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+                            }
+                        })
+                        .collect(),
+                });
+            }
+        }
         if self.dev_state().folder {
             out.push(DevSource {
                 id: "folder:0".into(),
@@ -2072,6 +2128,16 @@ impl MockBackend {
                 GAMEDATA.into(),
                 Arc::new(to_dataset(GAMEDATA, build_value(c))),
             )]);
+        }
+        if let Some((ch, _, _, complete)) = CACHED
+            .iter()
+            .find(|x| format!("cached:{}:{}", x.0, x.1) == source)
+            && self.channel_names(&r.install).iter().any(|x| x == ch)
+        {
+            return Ok(cached_files(*complete)
+                .into_iter()
+                .map(|(f, v)| (f.to_string(), Arc::new(to_dataset(f, v))))
+                .collect());
         }
         if source == "folder:0" && self.dev_state().folder {
             return Ok(folder_files()
@@ -2757,5 +2823,7 @@ pub fn gen_file() -> Value {
         "enhanced": (enhanced().iter().map(|(k, v)| (k.clone(), Value::from(v.clone()))).collect::<std::collections::BTreeMap<_, _>>()),
         "folder": { "label": FOLDER_LABEL, "path": FOLDER_PATH, "files": (folder_files().into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) },
         "dumps": (DUMPS.iter().map(|(tag, title, branch, published)| json!({ "tag": tag, "title": title, "branch": branch, "published": published, "files": (dump_files(tag).into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) })).collect::<Vec<_>>()),
+        // Older builds in the dataset cache: their files are the older dump's (by name).
+        "cached": (CACHED.iter().map(|(ch, folder, version, complete)| json!({ "channel": ch, "folder": folder, "version": version, "complete": complete, "detail": cached_detail(ch, folder, *complete), "files": (cached_files(*complete).into_iter().map(|(f, _)| f).collect::<Vec<_>>()) })).collect::<Vec<_>>()),
     })
 }

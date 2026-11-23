@@ -6656,6 +6656,44 @@
       "state": "ready"
     },
     {
+      "build": "4.10.197.2878",
+      "datasets": [
+        {
+          "bytes": 496,
+          "file": "game-ships.json",
+          "rows": 5,
+          "tables": 1
+        },
+        {
+          "bytes": 2159,
+          "file": "game-weapons.json",
+          "rows": 24,
+          "tables": 1
+        }
+      ],
+      "detail": "An earlier PTU build, kept in the cache (read only): /synthetic/cache/mcp/PTU/4.10.197.2878-5e1f0c2a",
+      "id": "cached:PTU:4.10.197.2878-5e1f0c2a",
+      "kind": "cached",
+      "label": "PTU 4.10.197.2878 (cached)",
+      "state": "ready"
+    },
+    {
+      "build": "4.9.0.9000",
+      "datasets": [
+        {
+          "bytes": 496,
+          "file": "game-ships.json",
+          "rows": 5,
+          "tables": 1
+        }
+      ],
+      "detail": "Incomplete: game-weapons.json is missing from the cache (removed after it was read)",
+      "id": "cached:PTU:4.9.0.9000-0c0ffee0",
+      "kind": "cached",
+      "label": "PTU 4.9.0.9000 (cached)",
+      "state": "error"
+    },
+    {
       "build": null,
       "datasets": [
         {
@@ -7251,6 +7289,44 @@
       "kind": "build",
       "label": "PTU build",
       "state": "ready"
+    },
+    {
+      "build": "4.10.197.2878",
+      "datasets": [
+        {
+          "bytes": 496,
+          "file": "game-ships.json",
+          "rows": 5,
+          "tables": 1
+        },
+        {
+          "bytes": 2159,
+          "file": "game-weapons.json",
+          "rows": 24,
+          "tables": 1
+        }
+      ],
+      "detail": "An earlier PTU build, kept in the cache (read only): /synthetic/cache/mcp/PTU/4.10.197.2878-5e1f0c2a",
+      "id": "cached:PTU:4.10.197.2878-5e1f0c2a",
+      "kind": "cached",
+      "label": "PTU 4.10.197.2878 (cached)",
+      "state": "ready"
+    },
+    {
+      "build": "4.9.0.9000",
+      "datasets": [
+        {
+          "bytes": 496,
+          "file": "game-ships.json",
+          "rows": 5,
+          "tables": 1
+        }
+      ],
+      "detail": "Incomplete: game-weapons.json is missing from the cache (removed after it was read)",
+      "id": "cached:PTU:4.9.0.9000-0c0ffee0",
+      "kind": "cached",
+      "label": "PTU 4.9.0.9000 (cached)",
+      "state": "error"
     },
     {
       "build": null,
@@ -11784,6 +11860,44 @@
       "kind": "build",
       "label": "PTU build",
       "state": "ready"
+    },
+    {
+      "build": "4.10.197.2878",
+      "datasets": [
+        {
+          "bytes": 496,
+          "file": "game-ships.json",
+          "rows": 5,
+          "tables": 1
+        },
+        {
+          "bytes": 2159,
+          "file": "game-weapons.json",
+          "rows": 24,
+          "tables": 1
+        }
+      ],
+      "detail": "An earlier PTU build, kept in the cache (read only): /synthetic/cache/mcp/PTU/4.10.197.2878-5e1f0c2a",
+      "id": "cached:PTU:4.10.197.2878-5e1f0c2a",
+      "kind": "cached",
+      "label": "PTU 4.10.197.2878 (cached)",
+      "state": "ready"
+    },
+    {
+      "build": "4.9.0.9000",
+      "datasets": [
+        {
+          "bytes": 496,
+          "file": "game-ships.json",
+          "rows": 5,
+          "tables": 1
+        }
+      ],
+      "detail": "Incomplete: game-weapons.json is missing from the cache (removed after it was read)",
+      "id": "cached:PTU:4.9.0.9000-0c0ffee0",
+      "kind": "cached",
+      "label": "PTU 4.9.0.9000 (cached)",
+      "state": "error"
     }
   ],
   "dev_status": {
