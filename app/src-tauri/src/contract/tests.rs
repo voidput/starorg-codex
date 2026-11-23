@@ -849,6 +849,7 @@ fn ts_unions_list_every_variant() {
                 PatchState::Disabled,
                 PatchState::NoData,
                 PatchState::Retired,
+                PatchState::Checking,
             ]),
         ),
         (

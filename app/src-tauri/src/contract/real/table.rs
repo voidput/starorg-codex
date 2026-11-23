@@ -3,6 +3,7 @@
 //! from. Used by the Strings screen, the previews, patch outcomes and plan counts. Writes
 //! nothing.
 
+use crate::contract::strings_query;
 use crate::contract::types::*;
 use starorg_core::blueprints::Selection;
 use starorg_core::build::BuildInfo;
@@ -36,6 +37,9 @@ pub struct Table {
     pub also: Vec<Vec<String>>,
     /// Owners per row (same order as `rows`), for the detail's full list.
     pub owners: Arc<OwnerIndex>,
+    /// Lower-case search text per row ([`strings_query::search_text`]), made on the first
+    /// Strings search of this table.
+    pub search: std::sync::OnceLock<Vec<Box<str>>>,
 }
 
 /// Names and makers of the secondary owners, lower case, for search (`None` when none).
@@ -291,10 +295,17 @@ pub fn build(i: &Inputs<'_>) -> Table {
         counts,
         also,
         owners: i.owners.clone(),
+        search: std::sync::OnceLock::new(),
     }
 }
 
 impl Table {
+    /// [`Self::search`], made on first use.
+    pub fn search_text(&self) -> &[Box<str>] {
+        self.search
+            .get_or_init(|| self.rows.iter().map(strings_query::search_text).collect())
+    }
+
     pub fn row(&self, key: &str) -> Option<(usize, &StringRow)> {
         let i = *self.index.get(&key.to_ascii_lowercase())?;
         Some((i, &self.rows[i]))

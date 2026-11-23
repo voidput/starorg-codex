@@ -28,6 +28,42 @@ pub fn sha256_file(path: &Path) -> std::io::Result<String> {
     Ok(hex(&h.finalize()))
 }
 
+/// How old a file's mtime must be before [`sha256_file_cached`] keeps its hash: a write in
+/// the same timestamp tick as the hash (FAT: 2 s) would otherwise go unseen.
+const HASH_SETTLE: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// [`sha256_file`], remembered per path while the file's length and mtime stay the same
+/// (status hashes every channel's `global.ini`, tens of MB, on each overview).
+pub fn sha256_file_cached(path: &Path) -> std::io::Result<String> {
+    type Seen = std::collections::HashMap<PathBuf, (u64, SystemTime, String)>;
+    static SEEN: std::sync::OnceLock<std::sync::Mutex<Seen>> = std::sync::OnceLock::new();
+    let seen = SEEN.get_or_init(Default::default);
+    let meta = std::fs::metadata(path)?;
+    let stamp = meta.modified().ok().map(|m| (meta.len(), m));
+    if let Some((len, m)) = stamp
+        && let Some((l, t, h)) = seen.lock().unwrap_or_else(|e| e.into_inner()).get(path)
+        && (*l, *t) == (len, m)
+    {
+        return Ok(h.clone());
+    }
+    let h = sha256_file(path)?;
+    let settled = stamp.is_some_and(|(_, m)| {
+        SystemTime::now()
+            .duration_since(m)
+            .is_ok_and(|age| age >= HASH_SETTLE)
+    });
+    let mut g = seen.lock().unwrap_or_else(|e| e.into_inner());
+    match stamp {
+        Some((len, m)) if settled => {
+            g.insert(path.to_path_buf(), (len, m, h.clone()));
+        }
+        _ => {
+            g.remove(path);
+        }
+    }
+    Ok(h)
+}
+
 /// Hash several labelled parts into one id; order matters.
 pub fn sha256_parts(parts: &[&[u8]]) -> String {
     let mut h = Sha256::new();
@@ -518,6 +554,38 @@ pub fn random_id(bytes: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn cached_hash_follows_length_and_mtime() {
+        let t = tempfile::tempdir().unwrap();
+        let p = t.path().join("global.ini");
+        let old = SystemTime::now() - std::time::Duration::from_secs(60);
+        let set = |text: &str, m: SystemTime| {
+            std::fs::write(&p, text).unwrap();
+            std::fs::File::options()
+                .write(true)
+                .open(&p)
+                .unwrap()
+                .set_modified(m)
+                .unwrap();
+        };
+        set("abc", old);
+        assert_eq!(sha256_file_cached(&p).unwrap(), sha256_hex(b"abc"));
+        // Same length and mtime: the remembered hash (proves the cache is used).
+        set("xyz", old);
+        assert_eq!(sha256_file_cached(&p).unwrap(), sha256_hex(b"abc"));
+        // A new mtime or length hashes again.
+        set("xyz", old + std::time::Duration::from_secs(1));
+        assert_eq!(sha256_file_cached(&p).unwrap(), sha256_hex(b"xyz"));
+        set("xyzw", old + std::time::Duration::from_secs(1));
+        assert_eq!(sha256_file_cached(&p).unwrap(), sha256_hex(b"xyzw"));
+        // Just written: never kept, so a same-tick rewrite is seen.
+        let now = SystemTime::now();
+        set("aaaa", now);
+        assert_eq!(sha256_file_cached(&p).unwrap(), sha256_hex(b"aaaa"));
+        set("bbbb", now);
+        assert_eq!(sha256_file_cached(&p).unwrap(), sha256_hex(b"bbbb"));
+    }
 
     #[test]
     fn sha256_known_value() {

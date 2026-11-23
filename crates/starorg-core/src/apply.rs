@@ -467,8 +467,8 @@ pub fn status(ctx: &Ctx, t: &Target<'_>, inputs: &Inputs) -> Result<Status, Stri
             applied,
         });
     }
-    let bytes = std::fs::read(&ini.real).map_err(|e| format!("{}: {e}", ini.real.display()))?;
-    let sha = fsutil::sha256_hex(&bytes);
+    let sha = fsutil::sha256_file_cached(&ini.real)
+        .map_err(|e| format!("{}: {e}", ini.real.display()))?;
     let outputs = Outputs::load(&ctx.dirs).map_err(|e| e.to_string())?;
     let state = match &applied {
         Some(a) if a.output_sha256 == sha => {
@@ -482,9 +482,14 @@ pub fn status(ctx: &Ctx, t: &Target<'_>, inputs: &Inputs) -> Result<Status, Stri
         _ if outputs.contains(&sha) => State::Stale {
             reasons: vec!["not the last recorded output".into()],
         },
-        _ => State::ChangedByAnotherTool {
-            tool: foreign_tool(&bytes, &t.channel.dir),
-        },
+        _ => {
+            // Only a file we did not write is read whole (to name the tool).
+            let bytes =
+                std::fs::read(&ini.real).map_err(|e| format!("{}: {e}", ini.real.display()))?;
+            State::ChangedByAnotherTool {
+                tool: foreign_tool(&bytes, &t.channel.dir),
+            }
+        }
     };
     Ok(Status {
         channel: t.channel.name.clone(),

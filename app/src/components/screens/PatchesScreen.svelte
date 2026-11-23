@@ -28,6 +28,7 @@
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { PatchDetail, PatchView } from '@/lib/contract/types';
   import { int, patchStateView } from '@/lib/format';
+  import { fillStates, needsStates } from '@/lib/patchstates';
   import { app } from '@/lib/stores/app.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
 
@@ -41,9 +42,18 @@
     if (!key || !app.target) return;
     const t = $state.snapshot(app.target);
     let stale = false;
+    // Rows first; the states (they need the channel's table) fill in after.
     api
       .listPatches(t)
-      .then((p) => !stale && ((patches = p), (error = null)))
+      .then((p) => {
+        if (stale) return;
+        patches = p;
+        error = null;
+        if (!needsStates(p)) return;
+        return api.patchStates(t).then((s) => {
+          if (!stale && patches) patches = fillStates(patches, s);
+        });
+      })
       .catch((e) => !stale && (error = toContractError(e)));
     return () => (stale = true);
   });
@@ -154,7 +164,11 @@
       <p class="text-muted-foreground">No patches for this build.</p>
     {/if}
     <p class="text-muted-foreground" aria-live="polite">
-      {counts.applies} applied · {counts.warn} skipped with a warning · {counts.other} not needed or off, for {app.channel?.channel} build {app.channel?.build.change ?? '—'}.
+      {#if needsStates(patches)}
+        Checking the patches against {app.channel?.channel} build {app.channel?.build.change ?? '—'}…
+      {:else}
+        {counts.applies} applied · {counts.warn} skipped with a warning · {counts.other} not needed or off, for {app.channel?.channel} build {app.channel?.build.change ?? '—'}.
+      {/if}
     </p>
     <div class="flex flex-wrap items-center gap-2" role="toolbar" aria-label="Your patches">
       <Button variant="outline" size="sm" onclick={() => { formError = null; adding = true; }}><Plus aria-hidden="true" /> Add patch</Button>

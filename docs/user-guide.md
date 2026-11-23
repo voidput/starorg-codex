@@ -150,6 +150,10 @@ checks the original text first, so a fix CIG already made is skipped as *not nee
 changed text is skipped as *target changed* instead of overwritten. **Add patch** creates your
 own edit; patches can be exported to a file and imported again (patch packs).
 
+The list shows at once. Working out each patch's state needs the build's full text table, so on
+the first visit after a start or a change the badges read *Checking…* for a moment and then
+fill in.
+
 ## Strings
 
 Every text key of the build, its original and the result, with what each key belongs to

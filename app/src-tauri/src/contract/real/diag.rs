@@ -221,6 +221,7 @@ fn reason(s: PatchState) -> &'static str {
         PatchState::OutOfRange => "This build is outside the range the patch is written for.",
         PatchState::Conflict => "Another layer writes the same key; the patch was left out.",
         PatchState::Disabled => "Switched off in this channel's profile.",
+        PatchState::Checking => "Checking this build...",
         PatchState::NoData => {
             "Game data of this build has not been read yet; apply (or a dry run) shows the outcome."
         }

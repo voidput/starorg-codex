@@ -184,12 +184,15 @@
       pages[p] = r.rows;
       total = r.total;
       all = r.all;
-      sourceFacets = r.sources;
-      categoryFacets = r.categories;
-      groupNodes = r.groups;
       groupState = r.group_state;
-      const dim = r.groups.length && prefs.groupBy !== 'none' ? ({ type: 'groups', manufacturer: 'manufacturers', size: 'sizes' } as const)[prefs.groupBy] : null;
-      if (dim) for (const n of r.groups) known.set(`${dim}:${n.id}`, n.label);
+      // Facets and the tree come with the first page only; later pages keep them.
+      if (r.offset === 0) {
+        sourceFacets = r.sources;
+        categoryFacets = r.categories;
+        groupNodes = r.groups;
+        const dim = r.groups.length && prefs.groupBy !== 'none' ? ({ type: 'groups', manufacturer: 'manufacturers', size: 'sizes' } as const)[prefs.groupBy] : null;
+        if (dim) for (const n of r.groups) known.set(`${dim}:${n.id}`, n.label);
+      }
       error = null;
     } catch (e) {
       if (g === gen) error = toContractError(e);

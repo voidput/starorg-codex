@@ -51,6 +51,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   reset_override: [{ req: T.KeyRequest }, T.StringDetail];
   list_overrides: [{ req: T.ChannelRef }, T.OverrideEntry[]];
   list_patches: [{ req: T.ChannelRef }, T.PatchView[]];
+  patch_states: [{ req: T.ChannelRef }, T.PatchView[]];
   set_patch_enabled: [{ req: T.PatchToggle }, T.PatchView];
   patch_detail: [{ req: T.PatchRef }, T.PatchDetail];
   add_user_patch: [{ req: T.NewPatch }, T.PatchView];
@@ -146,6 +147,7 @@ export const COMMANDS = [
   'reset_override',
   'list_overrides',
   'list_patches',
+  'patch_states',
   'set_patch_enabled',
   'patch_detail',
   'add_user_patch',
@@ -389,6 +391,7 @@ export const api = {
   resetOverride: (req: T.KeyRequest) => call('reset_override', { req }),
   listOverrides: (req: T.ChannelRef) => call('list_overrides', { req }),
   listPatches: (req: T.ChannelRef) => call('list_patches', { req }),
+  patchStates: (req: T.ChannelRef) => call('patch_states', { req }),
   setPatchEnabled: (req: T.PatchToggle) => call('set_patch_enabled', { req }),
   patchDetail: (req: T.PatchRef) => call('patch_detail', { req }),
   addUserPatch: (req: T.NewPatch) => call('add_user_patch', { req }),
