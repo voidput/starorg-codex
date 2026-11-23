@@ -16,6 +16,7 @@ Tauri 2 + Svelte 5 app. `unsafe_code` is forbidden workspace-wide.
 | `crates/starorg-gamedata` | Rust port of sc-gamedata: game data domains as JSON (see its `README.md`) |
 | `crates/starorg-mcp` | Experimental local MCP server, read-only ([docs/mcp.md](docs/mcp.md)) |
 | `crates/starorg-net` | HTTPS transport for the opt-in network features |
+| `crates/starorg-telemetry` | Experimental live telemetry: the game's local gRPC service on loopback, schema read at run time from the user's `StarCitizen.exe` (nothing CIG-derived in the repo; tests use `mock`) |
 | `crates/starorg-cli` | The `starorg-codex` binary. Must not pull in GTK or an HTTP client (CI `cli-deps` job) |
 | `app/src-tauri` | Crate `starorg-codex-app`: the Tauri shell. Command contract in `src/contract/` (`types.rs`, `mod.rs`, real backend in `real/`, `mock.rs`) |
 | `app/src` | Svelte 5 UI. `lib/contract/samples.gen.json` is generated from the Rust mock and type-checked against the TS types |
