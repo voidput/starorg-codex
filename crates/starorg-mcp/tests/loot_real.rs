@@ -3,13 +3,17 @@
 //! `game-loot.json` and `game-item-sources.json` (what "Read game data" caches). Prints every
 //! area with its tree path and the row count of every node, and checks the naming rules
 //! hold on every real id: unique names among siblings, no preset words, at most one middle
-//! level, no level holding a single row.
+//! level, no level holding a single row. Then every detail in groups: the headers count
+//! every drop (past the row caps), and the default answer stays small; prints the groups of
+//! the biggest area and of `ASD facilities > General (classic)`.
 //!
 //! `STARORG_LOOT_DIR=... cargo test -p starorg-mcp --test loot_real -- --ignored --nocapture`
 
 use serde_json::Value;
 use starorg_mcp::loot::input::{Datasets, ItemTags, LootArea, LootData, build_loot_index};
-use starorg_mcp::loot::{LootScreen, LootSummary, LootView};
+use starorg_mcp::loot::{
+    DetailQuery, LootGroupBy, LootScreen, LootSummary, LootView, MAX_DROPS, MAX_GROUP_ROWS,
+};
 use std::collections::{BTreeMap, HashSet};
 use std::path::Path;
 
@@ -77,5 +81,80 @@ fn real_loot_tree() {
         println!("AREA\t{}\t{}\t{}", p.join(" > "), r.count, r.id);
     }
     check(&a, "areas");
-    check(&s.list(LootView::Items).rows, "items");
+    let items = s.list(LootView::Items).rows;
+    check(&items, "items");
+    groups(&s, LootView::Areas, &a);
+    groups(&s, LootView::Items, &items);
+    let classic = a
+        .iter()
+        .find(|r| {
+            r.path.first().map(String::as_str) == Some("ASD facilities")
+                && r.name == "General (classic)"
+        })
+        .or_else(|| a.iter().max_by_key(|r| r.count))
+        .unwrap();
+    let biggest = a.iter().max_by_key(|r| r.count).unwrap();
+    for r in [classic, biggest] {
+        let t = std::time::Instant::now();
+        let d = s.detail(LootView::Areas, &r.id, &DetailQuery::default());
+        let took = t.elapsed();
+        let mut p = r.path.clone();
+        p.push(r.name.clone());
+        println!(
+            "GROUPS\t{}\t{} drops\t{} groups\t{} rows sent\t{took:?}",
+            p.join(" > "),
+            d.total,
+            d.groups.len(),
+            d.rows().count()
+        );
+        for g in &d.groups {
+            println!(
+                "GROUP\t{}\t{}\t{:.4}\t{}",
+                g.label,
+                g.count,
+                g.best,
+                if g.rows.is_some() { "open" } else { "" }
+            );
+        }
+    }
+}
+
+/// Every detail of a list in groups: headers cover every drop, rows stay under the caps,
+/// groups are best first.
+fn groups(s: &LootScreen, view: LootView, rows: &[LootSummary]) {
+    let modes: &[LootGroupBy] = match view {
+        LootView::Areas => &[LootGroupBy::Container, LootGroupBy::None],
+        LootView::Items => &[
+            LootGroupBy::Place,
+            LootGroupBy::Container,
+            LootGroupBy::None,
+        ],
+    };
+    for r in rows {
+        for &m in modes {
+            let d = s.detail(
+                view,
+                &r.id,
+                &DetailQuery {
+                    group_by: Some(m),
+                    ..DetailQuery::default()
+                },
+            );
+            assert_eq!(d.total, r.count, "{}", r.id);
+            assert_eq!(d.groups.iter().map(|g| g.count).sum::<usize>(), r.count);
+            assert!(d.groups.windows(2).all(|w| w[0].best >= w[1].best));
+            assert!((d.groups[0].best - r.best).abs() < 1e-12);
+            assert!(d.groups[0].rows.is_some());
+            let cap = if m == LootGroupBy::None {
+                MAX_DROPS
+            } else {
+                MAX_GROUP_ROWS
+            };
+            for g in &d.groups {
+                if let Some(rows) = &g.rows {
+                    assert_eq!(rows.len(), g.count.min(cap), "{} {}", r.id, g.label);
+                }
+            }
+        }
+    }
 }

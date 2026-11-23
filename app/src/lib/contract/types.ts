@@ -439,6 +439,9 @@ export type LootView = 'areas' | 'items';
 /** How the item is there: rolled by a loot table, held by a rack, or lying loose. */
 export type LootDropKind = 'loot' | 'fixed' | 'loose';
 
+/** How a detail's drops are grouped: by container ("Where in it"), by the top level of the other list's tree (an area's kind of place, an item's category), or one flat group. */
+export type LootGroupBy = 'container' | 'place' | 'none';
+
 /** `target`: the channel whose cached loot data is read (null: `missing`); nothing is extracted. */
 export interface LootListRequest {
   target: ChannelRef | null;
@@ -450,8 +453,12 @@ export interface LootDetailRequest {
   view: LootView;
   /** A `LootSummary.id` of that view. */
   id: string;
-  /** Only the drops holding every word (name, path, container, rarity, id); still capped. */
+  /** Only the drops holding every word (name, path, container, rarity, id), over every drop. */
   filter?: string | null;
+  /** null: the view's default (areas by container, items by place). */
+  group_by?: LootGroupBy | null;
+  /** Group keys whose rows to answer (opening a group); null: the default ones (the first and a few small ones, or a filter's matches). */
+  groups?: string[] | null;
 }
 
 /** One row of a Loot list: an area or an item (summary only). */
@@ -492,7 +499,21 @@ export interface LootDrop {
   kind: LootDropKind;
 }
 
-/** `loot_detail`: likeliest first, at most 2000 rows; `total` counts the drops matching the filter, `all` every drop. */
+/** One group of a detail: its header over every matching drop, its rows when asked for. */
+export interface LootGroup {
+  /** What `groups` takes: the label, or "all" ungrouped. */
+  key: string;
+  /** "Weapons rack", "Caves", "FPS weapons"; "All drops" ungrouped. */
+  label: string;
+  /** Drops in the group matching the filter. */
+  count: number;
+  /** Best rough odds per box in the group. */
+  best: number;
+  /** Likeliest first, at most 500 (2000 ungrouped); null when not asked for. */
+  rows: LootDrop[] | null;
+}
+
+/** `loot_detail`: groups best odds first, then by name; `total` counts the drops matching the filter, `all` every drop. */
 export interface LootDetail {
   state: LootDataState;
   view: LootView;
@@ -500,7 +521,8 @@ export interface LootDetail {
   entry: LootSummary | null;
   /** Items: the game record (Explorer link). */
   record: ItemRecord | null;
-  rows: LootDrop[];
+  group_by: LootGroupBy;
+  groups: LootGroup[];
   total: number;
   all: number;
 }

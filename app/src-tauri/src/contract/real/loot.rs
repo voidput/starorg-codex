@@ -26,9 +26,7 @@ impl RealBackend {
 
     pub(super) fn loot_detail_of(&self, req: LootDetailRequest) -> LootDetail {
         match self.loot_tools(req.target.as_ref()) {
-            Some((tools, ch)) => {
-                tools.loot_detail(Some(&ch), req.view, &req.id, req.filter.as_deref())
-            }
+            Some((tools, ch)) => tools.loot_detail(Some(&ch), req.view, &req.id, &req.query()),
             None => starorg_mcp::loot::missing_detail(req.view),
         }
     }

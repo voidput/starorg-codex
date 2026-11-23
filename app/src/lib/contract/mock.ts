@@ -1067,7 +1067,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     loot_detail: async ({ req }) => {
       await sleep(delay * 2);
-      return mockLootDetail(lootData as unknown as LootMockData, !!req.target && dataRead.has(id(req.target)), req.view, req.id, req.filter ?? null);
+      return mockLootDetail(lootData as unknown as LootMockData, !!req.target && dataRead.has(id(req.target)), req.view, req.id, req.filter ?? null, req.group_by ?? null, req.groups ?? null);
     },
     // The Rust mock's synthetic shops once both UEX files are there (`?uex=fetched` or Fetch now).
     // Ship items link once the channel's game data was read (Read game data), as in Rust.

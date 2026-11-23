@@ -147,3 +147,25 @@ test('the mock lists make trees with unique sibling names and every row reachabl
     assert.ok(all.some((r) => r.level === 2));
   }
 });
+
+test('same-named sibling rows are marked (their ids then show); the same name elsewhere is not', () => {
+  const rows = [row('crate_a', 'Standard Container', ['Other']), row('crate_b', 'Standard Container', ['Other']), row('crate_c', 'Standard Container', ['Cargo']), row('crate_d', 'Box', ['Cargo'])];
+  const leaves = flatten(buildTree(rows), 'all').flatMap((r) => (r.node.kind === 'leaf' ? [[r.node.row.id, r.node.clash] as const] : []));
+  assert.deepEqual(
+    new Map(leaves),
+    new Map([
+      ['crate_a', true],
+      ['crate_b', true],
+      ['crate_c', false],
+      ['crate_d', false],
+    ]),
+  );
+  // The Rust mock's items: every clash has a same-named sibling.
+  const walk = (nodes: LootNode[]): void => {
+    for (const n of nodes) {
+      if (n.kind === 'branch') walk(n.children);
+      else if (n.clash) assert.ok(nodes.filter((m) => m.kind === 'leaf' && m.label === n.label).length > 1);
+    }
+  };
+  walk(buildTree(data.items.rows));
+});

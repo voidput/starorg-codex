@@ -69,7 +69,7 @@ test('a drop says what the spot is, its rarity and how the item is there', () =>
   assert.equal(listed(rows, null), null);
 });
 
-test('the TS mock serves the Rust mock: missing until read, then lists and likeliest-first details', () => {
+test('the TS mock serves the Rust mock: missing until read, then lists and grouped, likeliest-first details', () => {
   assert.deepEqual(mockLootList(data, false, 'areas'), { state: 'missing', view: 'areas', build: null, rows: [] });
   const areas = mockLootList(data, true, 'areas');
   const items = mockLootList(data, true, 'items');
@@ -77,25 +77,48 @@ test('the TS mock serves the Rust mock: missing until read, then lists and likel
   assert.ok(areas.rows.length >= 10 && items.rows.length >= 40);
   // Summaries only (with their tree path): no drops in a list row.
   assert.deepEqual(Object.keys(areas.rows[0]!).sort(), ['best', 'count', 'group', 'id', 'name', 'path']);
+  const sorted = (rows: { odds: number }[]) => rows.every((x, i) => i === 0 || rows[i - 1]!.odds >= x.odds);
   for (const r of areas.rows) {
     const d = mockLootDetail(data, true, 'areas', r.id.toUpperCase());
     assert.equal(d.entry?.id, r.id);
+    assert.equal(d.group_by, 'container');
     assert.equal(d.total, r.count);
-    assert.ok(d.rows.every((x, i) => i === 0 || d.rows[i - 1]!.odds >= x.odds));
+    // Headers cover every drop, best first; open groups hold their container's rows.
+    assert.equal(
+      d.groups.reduce((n, g) => n + g.count, 0),
+      r.count,
+    );
+    assert.ok(d.groups.every((g, i) => i === 0 || d.groups[i - 1]!.best >= g.best));
+    assert.ok(Array.isArray(d.groups[0]!.rows));
+    for (const g of d.groups) if (g.rows) assert.ok(sorted(g.rows) && g.rows.every((x) => x.container === g.label));
+    // Ungrouped: one group of every drop.
+    const flat = mockLootDetail(data, true, 'areas', r.id, null, 'none');
+    assert.equal(flat.groups.length, 1);
+    assert.equal(flat.groups[0]!.rows!.length, r.count);
+    assert.ok(sorted(flat.groups[0]!.rows!));
   }
   const gun = items.rows.find((r) => r.group === 'FPS weapons')!;
   const d = mockLootDetail(data, true, 'items', gun.id);
   assert.ok(d.record?.guid);
+  assert.equal(d.group_by, 'place');
+  assert.ok(d.groups.every((g) => !g.rows || g.rows.every((x) => x.group.split(' › ')[0] === g.label)));
+  // Asking for one group answers its rows only.
+  const last = d.groups.at(-1)!;
+  const one = mockLootDetail(data, true, 'items', gun.id, null, null, [last.key]);
+  assert.ok(one.groups.every((g) => (g.key === last.key) === Array.isArray(g.rows)));
   assert.equal(mockLootDetail(data, true, 'items', 'nothing').entry, null);
   assert.equal(mockLootDetail(data, false, 'items', gun.id).state, 'missing');
-  // The filter: every word, `all` still counts every drop.
-  const f = mockLootDetail(data, true, 'items', gun.id, '  CAVES ');
-  assert.ok(f.rows.length > 0 && f.rows.every((r) => `${r.name} ${r.group} ${r.id}`.toLowerCase().includes('caves')));
-  assert.equal(f.total, f.rows.length);
+  // The filter: every word, `all` still counts every drop; the matching groups open.
+  const f = mockLootDetail(data, true, 'items', gun.id, '  CAVES ', 'none');
+  const fr = f.groups[0]!.rows!;
+  assert.ok(fr.length > 0 && fr.every((r) => `${r.name} ${r.group} ${r.id}`.toLowerCase().includes('caves')));
+  assert.equal(f.total, fr.length);
   assert.equal(f.all, d.all);
-  assert.equal(mockLootDetail(data, true, 'items', gun.id, 'zzz').rows.length, 0);
+  const fg = mockLootDetail(data, true, 'items', gun.id, 'caves');
+  assert.ok(fg.groups.length > 0 && fg.groups.every((g) => Array.isArray(g.rows)));
+  assert.equal(mockLootDetail(data, true, 'items', gun.id, 'zzz').groups.length, 0);
   assert.equal(mockLootDetail(data, true, 'items', gun.id, 'zzz').entry?.id, gun.id);
   // Answers are copies: editing one does not change the next.
-  d.rows.length = 0;
-  assert.ok(mockLootDetail(data, true, 'items', gun.id).rows.length > 0);
+  d.groups.length = 0;
+  assert.ok(mockLootDetail(data, true, 'items', gun.id).groups.length > 0);
 });

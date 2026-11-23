@@ -7,10 +7,10 @@
 use super::mock_dev::{CATALOGUE, catalogue_guid, catalogue_name};
 use super::types::*;
 use serde_json::{Value, json};
-use starorg_mcp::loot::LootScreen;
 use starorg_mcp::loot::input::{
     Datasets, ItemTags, LootArea, LootData, SpawnConfig, SpawnLoot, SpawnSlot, build_loot_index,
 };
+use starorg_mcp::loot::{DetailQuery, LootScreen};
 use std::sync::OnceLock;
 
 const CAN: &str = "LootGeneration/CanGenerateAsLoot";
@@ -330,22 +330,28 @@ pub fn mock_loot_list(ready: bool, view: LootView) -> LootList {
     }
 }
 
-pub fn mock_loot_detail(ready: bool, view: LootView, id: &str, filter: Option<&str>) -> LootDetail {
+pub fn mock_loot_detail(ready: bool, view: LootView, id: &str, q: &DetailQuery) -> LootDetail {
     if ready {
-        mock_loot_screen().detail(view, id, filter)
+        mock_loot_screen().detail(view, id, q)
     } else {
         starorg_mcp::loot::missing_detail(view)
     }
 }
 
-/// What the TS mock serves (`mock-loot.gen.json`): both lists and every detail of each.
+/// What the TS mock serves (`mock-loot.gen.json`): both lists and every detail of each,
+/// ungrouped with every row (the TS mock groups, filters and caps them as
+/// `LootScreen::detail` does).
 pub fn gen_file() -> Value {
     let s = mock_loot_screen();
+    let flat = DetailQuery {
+        group_by: Some(LootGroupBy::None),
+        ..DetailQuery::default()
+    };
     let details = |view: LootView| -> Vec<LootDetail> {
         s.list(view)
             .rows
             .iter()
-            .map(|r| s.detail(view, &r.id, None))
+            .map(|r| s.detail(view, &r.id, &flat))
             .collect()
     };
     json!({

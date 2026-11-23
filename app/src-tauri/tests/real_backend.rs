@@ -2453,9 +2453,11 @@ fn loot_is_missing_until_read_and_extracts_nothing() {
                     view,
                     id: "caves/loot_caves".into(),
                     filter: None,
+                    group_by: None,
+                    groups: None,
                 })
                 .unwrap();
-            assert!(d.entry.is_none() && d.rows.is_empty());
+            assert!(d.entry.is_none() && d.groups.is_empty());
         }
     }
     assert!(!f.dirs.cache.join("mcp/LIVE").exists());

@@ -15107,558 +15107,457 @@
       "name": "Asteroid bases",
       "path": []
     },
-    "record": null,
-    "rows": [
+    "group_by": "container",
+    "groups": [
       {
-        "container": "Large crate",
-        "group": "Consumables",
-        "id": "SYN_Fizz_Can",
-        "kind": "loot",
-        "name": "Fizz Can",
-        "odds": 0.22131200000000018,
-        "rarity": null
+        "best": 0.22131200000000018,
+        "count": 48,
+        "key": "Large crate",
+        "label": "Large crate",
+        "rows": [
+          {
+            "container": "Large crate",
+            "group": "Consumables",
+            "id": "SYN_Fizz_Can",
+            "kind": "loot",
+            "name": "Fizz Can",
+            "odds": 0.22131200000000018,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "FPS weapons",
+            "id": "SYN_Hornet_Pistol",
+            "kind": "loot",
+            "name": "Hornet Pistol",
+            "odds": 0.22131200000000018,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "FPS weapons",
+            "id": "SYN_Viper_Rifle",
+            "kind": "loot",
+            "name": "Viper Rifle",
+            "odds": 0.22131200000000018,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables",
+            "id": "SYN_Mend_Pen",
+            "kind": "loot",
+            "name": "Mend Pen",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables › Food",
+            "id": "SYN_Ration_Bar",
+            "kind": "loot",
+            "name": "Ration Bar",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_berry",
+            "kind": "loot",
+            "name": "Ration Bar (Berry)",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_chili",
+            "kind": "loot",
+            "name": "Ration Bar (Chili)",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_citrus",
+            "kind": "loot",
+            "name": "Ration Bar (Citrus)",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_mint",
+            "kind": "loot",
+            "name": "Ration Bar (Mint)",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_smoked",
+            "kind": "loot",
+            "name": "Ration Bar (Smoked)",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_vanilla",
+            "kind": "loot",
+            "name": "Ration Bar (Vanilla)",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "FPS weapons",
+            "id": "SYN_Thumper_Launcher",
+            "kind": "loot",
+            "name": "Thumper Launcher",
+            "odds": 0.11526400000000014,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Arm armour",
+            "id": "syn_armour_arms_night",
+            "kind": "loot",
+            "name": "Pathfinder Arms (Night)",
+            "odds": 0.03946903703703697,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Backpacks",
+            "id": "syn_armour_backpack_night",
+            "kind": "loot",
+            "name": "Pathfinder Backpack (Night)",
+            "odds": 0.03946903703703697,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Torso armour",
+            "id": "syn_armour_core_night",
+            "kind": "loot",
+            "name": "Pathfinder Core (Night)",
+            "odds": 0.03946903703703697,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Helmets",
+            "id": "syn_armour_helmet_night",
+            "kind": "loot",
+            "name": "Pathfinder Helmet (Night)",
+            "odds": 0.03946903703703697,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Leg armour",
+            "id": "syn_armour_legs_night",
+            "kind": "loot",
+            "name": "Pathfinder Legs (Night)",
+            "odds": 0.03946903703703697,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Undersuits",
+            "id": "syn_armour_undersuit_night",
+            "kind": "loot",
+            "name": "Pathfinder Undersuit (Night)",
+            "odds": 0.03946903703703697,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Arm armour",
+            "id": "syn_armour_arms_ash",
+            "kind": "loot",
+            "name": "Pathfinder Arms (Ash)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Arm armour",
+            "id": "syn_armour_arms_crimson",
+            "kind": "loot",
+            "name": "Pathfinder Arms (Crimson)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Arm armour",
+            "id": "syn_armour_arms_desert",
+            "kind": "loot",
+            "name": "Pathfinder Arms (Desert)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Arm armour",
+            "id": "syn_armour_arms_forest",
+            "kind": "loot",
+            "name": "Pathfinder Arms (Forest)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Arm armour",
+            "id": "syn_armour_arms_storm",
+            "kind": "loot",
+            "name": "Pathfinder Arms (Storm)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Backpacks",
+            "id": "syn_armour_backpack_ash",
+            "kind": "loot",
+            "name": "Pathfinder Backpack (Ash)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Backpacks",
+            "id": "syn_armour_backpack_crimson",
+            "kind": "loot",
+            "name": "Pathfinder Backpack (Crimson)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Backpacks",
+            "id": "syn_armour_backpack_desert",
+            "kind": "loot",
+            "name": "Pathfinder Backpack (Desert)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Backpacks",
+            "id": "syn_armour_backpack_forest",
+            "kind": "loot",
+            "name": "Pathfinder Backpack (Forest)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Backpacks",
+            "id": "syn_armour_backpack_storm",
+            "kind": "loot",
+            "name": "Pathfinder Backpack (Storm)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Torso armour",
+            "id": "syn_armour_core_ash",
+            "kind": "loot",
+            "name": "Pathfinder Core (Ash)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Torso armour",
+            "id": "syn_armour_core_crimson",
+            "kind": "loot",
+            "name": "Pathfinder Core (Crimson)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Torso armour",
+            "id": "syn_armour_core_desert",
+            "kind": "loot",
+            "name": "Pathfinder Core (Desert)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Torso armour",
+            "id": "syn_armour_core_forest",
+            "kind": "loot",
+            "name": "Pathfinder Core (Forest)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Torso armour",
+            "id": "syn_armour_core_storm",
+            "kind": "loot",
+            "name": "Pathfinder Core (Storm)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Helmets",
+            "id": "syn_armour_helmet_ash",
+            "kind": "loot",
+            "name": "Pathfinder Helmet (Ash)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Helmets",
+            "id": "syn_armour_helmet_crimson",
+            "kind": "loot",
+            "name": "Pathfinder Helmet (Crimson)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Helmets",
+            "id": "syn_armour_helmet_desert",
+            "kind": "loot",
+            "name": "Pathfinder Helmet (Desert)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Helmets",
+            "id": "syn_armour_helmet_forest",
+            "kind": "loot",
+            "name": "Pathfinder Helmet (Forest)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Helmets",
+            "id": "syn_armour_helmet_storm",
+            "kind": "loot",
+            "name": "Pathfinder Helmet (Storm)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Leg armour",
+            "id": "syn_armour_legs_ash",
+            "kind": "loot",
+            "name": "Pathfinder Legs (Ash)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Leg armour",
+            "id": "syn_armour_legs_crimson",
+            "kind": "loot",
+            "name": "Pathfinder Legs (Crimson)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Leg armour",
+            "id": "syn_armour_legs_desert",
+            "kind": "loot",
+            "name": "Pathfinder Legs (Desert)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Leg armour",
+            "id": "syn_armour_legs_forest",
+            "kind": "loot",
+            "name": "Pathfinder Legs (Forest)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Undersuits",
+            "id": "syn_armour_undersuit_ash",
+            "kind": "loot",
+            "name": "Pathfinder Undersuit (Ash)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Undersuits",
+            "id": "syn_armour_undersuit_crimson",
+            "kind": "loot",
+            "name": "Pathfinder Undersuit (Crimson)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Undersuits",
+            "id": "syn_armour_undersuit_desert",
+            "kind": "loot",
+            "name": "Pathfinder Undersuit (Desert)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Undersuits",
+            "id": "syn_armour_undersuit_forest",
+            "kind": "loot",
+            "name": "Pathfinder Undersuit (Forest)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Undersuits",
+            "id": "syn_armour_undersuit_storm",
+            "kind": "loot",
+            "name": "Pathfinder Undersuit (Storm)",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          },
+          {
+            "container": "Large crate",
+            "group": "Armour & clothing › Leg armour",
+            "id": "syn_armour_legs_storm",
+            "kind": "loot",
+            "name": "SYN Armour Legs Storm",
+            "odds": 0.031659880296296405,
+            "rarity": null
+          }
+        ]
       },
       {
-        "container": "Large crate",
-        "group": "FPS weapons",
-        "id": "SYN_Hornet_Pistol",
-        "kind": "loot",
-        "name": "Hornet Pistol",
-        "odds": 0.22131200000000018,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "FPS weapons",
-        "id": "SYN_Viper_Rifle",
-        "kind": "loot",
-        "name": "Viper Rifle",
-        "odds": 0.22131200000000018,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables",
-        "id": "SYN_Mend_Pen",
-        "kind": "loot",
-        "name": "Mend Pen",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables › Food",
-        "id": "SYN_Ration_Bar",
-        "kind": "loot",
-        "name": "Ration Bar",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables › Food",
-        "id": "syn_food_ration_berry",
-        "kind": "loot",
-        "name": "Ration Bar (Berry)",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables › Food",
-        "id": "syn_food_ration_chili",
-        "kind": "loot",
-        "name": "Ration Bar (Chili)",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables › Food",
-        "id": "syn_food_ration_citrus",
-        "kind": "loot",
-        "name": "Ration Bar (Citrus)",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables › Food",
-        "id": "syn_food_ration_mint",
-        "kind": "loot",
-        "name": "Ration Bar (Mint)",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables › Food",
-        "id": "syn_food_ration_smoked",
-        "kind": "loot",
-        "name": "Ration Bar (Smoked)",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Consumables › Food",
-        "id": "syn_food_ration_vanilla",
-        "kind": "loot",
-        "name": "Ration Bar (Vanilla)",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "FPS weapons",
-        "id": "SYN_Thumper_Launcher",
-        "kind": "loot",
-        "name": "Thumper Launcher",
-        "odds": 0.11526400000000014,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Shields",
-        "id": "SYN_Aegis_Shell_Shield",
-        "kind": "loot",
-        "name": "Aegis Shell Shield",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship weapons",
-        "id": "SYN_Breaker_Scattergun_S4",
-        "kind": "loot",
-        "name": "Breaker Scattergun S4",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Power plants",
-        "id": "SYN_Dynamo_Power_Plant",
-        "kind": "loot",
-        "name": "Dynamo Power Plant",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship weapons",
-        "id": "SYN_Ember_Repeater_S1",
-        "kind": "loot",
-        "name": "Ember Repeater S1",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Coolers",
-        "id": "SYN_Frost_Cooler",
-        "kind": "loot",
-        "name": "Frost Cooler",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Coolers",
-        "id": "SYN_Glacier_Cooler",
-        "kind": "loot",
-        "name": "Glacier Cooler",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Quantum drives",
-        "id": "SYN_Leap_Quantum_Drive",
-        "kind": "loot",
-        "name": "Leap Quantum Drive",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship weapons",
-        "id": "SYN_Torrent_Cannon_S3",
-        "kind": "loot",
-        "name": "Torrent Cannon S3",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Quantum drives",
-        "id": "SYN_Vault_Quantum_Drive",
-        "kind": "loot",
-        "name": "Vault Quantum Drive",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Shields",
-        "id": "SYN_Bastion_Shield",
-        "kind": "loot",
-        "name": "Bastion Shield",
-        "odds": 0.050000000000000044,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship weapons",
-        "id": "SYN_Ember_Repeater_S2",
-        "kind": "loot",
-        "name": "Ember Repeater S2",
-        "odds": 0.050000000000000044,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Quantum drives",
-        "id": "SYN_Leap_Quantum_Drive_Template",
-        "kind": "loot",
-        "name": "Leap Quantum Drive Template",
-        "odds": 0.050000000000000044,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S2",
-        "group": "Ship components › Power plants",
-        "id": "SYN_Spark_Power_Plant",
-        "kind": "loot",
-        "name": "Spark Power Plant",
-        "odds": 0.050000000000000044,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Arm armour",
-        "id": "syn_armour_arms_night",
-        "kind": "loot",
-        "name": "Pathfinder Arms (Night)",
-        "odds": 0.03946903703703697,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Backpacks",
-        "id": "syn_armour_backpack_night",
-        "kind": "loot",
-        "name": "Pathfinder Backpack (Night)",
-        "odds": 0.03946903703703697,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Torso armour",
-        "id": "syn_armour_core_night",
-        "kind": "loot",
-        "name": "Pathfinder Core (Night)",
-        "odds": 0.03946903703703697,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Helmets",
-        "id": "syn_armour_helmet_night",
-        "kind": "loot",
-        "name": "Pathfinder Helmet (Night)",
-        "odds": 0.03946903703703697,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Leg armour",
-        "id": "syn_armour_legs_night",
-        "kind": "loot",
-        "name": "Pathfinder Legs (Night)",
-        "odds": 0.03946903703703697,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Undersuits",
-        "id": "syn_armour_undersuit_night",
-        "kind": "loot",
-        "name": "Pathfinder Undersuit (Night)",
-        "odds": 0.03946903703703697,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Arm armour",
-        "id": "syn_armour_arms_ash",
-        "kind": "loot",
-        "name": "Pathfinder Arms (Ash)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Arm armour",
-        "id": "syn_armour_arms_crimson",
-        "kind": "loot",
-        "name": "Pathfinder Arms (Crimson)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Arm armour",
-        "id": "syn_armour_arms_desert",
-        "kind": "loot",
-        "name": "Pathfinder Arms (Desert)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Arm armour",
-        "id": "syn_armour_arms_forest",
-        "kind": "loot",
-        "name": "Pathfinder Arms (Forest)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Arm armour",
-        "id": "syn_armour_arms_storm",
-        "kind": "loot",
-        "name": "Pathfinder Arms (Storm)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Backpacks",
-        "id": "syn_armour_backpack_ash",
-        "kind": "loot",
-        "name": "Pathfinder Backpack (Ash)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Backpacks",
-        "id": "syn_armour_backpack_crimson",
-        "kind": "loot",
-        "name": "Pathfinder Backpack (Crimson)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Backpacks",
-        "id": "syn_armour_backpack_desert",
-        "kind": "loot",
-        "name": "Pathfinder Backpack (Desert)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Backpacks",
-        "id": "syn_armour_backpack_forest",
-        "kind": "loot",
-        "name": "Pathfinder Backpack (Forest)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Backpacks",
-        "id": "syn_armour_backpack_storm",
-        "kind": "loot",
-        "name": "Pathfinder Backpack (Storm)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Torso armour",
-        "id": "syn_armour_core_ash",
-        "kind": "loot",
-        "name": "Pathfinder Core (Ash)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Torso armour",
-        "id": "syn_armour_core_crimson",
-        "kind": "loot",
-        "name": "Pathfinder Core (Crimson)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Torso armour",
-        "id": "syn_armour_core_desert",
-        "kind": "loot",
-        "name": "Pathfinder Core (Desert)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Torso armour",
-        "id": "syn_armour_core_forest",
-        "kind": "loot",
-        "name": "Pathfinder Core (Forest)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Torso armour",
-        "id": "syn_armour_core_storm",
-        "kind": "loot",
-        "name": "Pathfinder Core (Storm)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Helmets",
-        "id": "syn_armour_helmet_ash",
-        "kind": "loot",
-        "name": "Pathfinder Helmet (Ash)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Helmets",
-        "id": "syn_armour_helmet_crimson",
-        "kind": "loot",
-        "name": "Pathfinder Helmet (Crimson)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Helmets",
-        "id": "syn_armour_helmet_desert",
-        "kind": "loot",
-        "name": "Pathfinder Helmet (Desert)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Helmets",
-        "id": "syn_armour_helmet_forest",
-        "kind": "loot",
-        "name": "Pathfinder Helmet (Forest)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Helmets",
-        "id": "syn_armour_helmet_storm",
-        "kind": "loot",
-        "name": "Pathfinder Helmet (Storm)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Leg armour",
-        "id": "syn_armour_legs_ash",
-        "kind": "loot",
-        "name": "Pathfinder Legs (Ash)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Leg armour",
-        "id": "syn_armour_legs_crimson",
-        "kind": "loot",
-        "name": "Pathfinder Legs (Crimson)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Leg armour",
-        "id": "syn_armour_legs_desert",
-        "kind": "loot",
-        "name": "Pathfinder Legs (Desert)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Leg armour",
-        "id": "syn_armour_legs_forest",
-        "kind": "loot",
-        "name": "Pathfinder Legs (Forest)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Undersuits",
-        "id": "syn_armour_undersuit_ash",
-        "kind": "loot",
-        "name": "Pathfinder Undersuit (Ash)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Undersuits",
-        "id": "syn_armour_undersuit_crimson",
-        "kind": "loot",
-        "name": "Pathfinder Undersuit (Crimson)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Undersuits",
-        "id": "syn_armour_undersuit_desert",
-        "kind": "loot",
-        "name": "Pathfinder Undersuit (Desert)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Undersuits",
-        "id": "syn_armour_undersuit_forest",
-        "kind": "loot",
-        "name": "Pathfinder Undersuit (Forest)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Undersuits",
-        "id": "syn_armour_undersuit_storm",
-        "kind": "loot",
-        "name": "Pathfinder Undersuit (Storm)",
-        "odds": 0.031659880296296405,
-        "rarity": null
-      },
-      {
-        "container": "Large crate",
-        "group": "Armour & clothing › Leg armour",
-        "id": "syn_armour_legs_storm",
-        "kind": "loot",
-        "name": "SYN Armour Legs Storm",
-        "odds": 0.031659880296296405,
-        "rarity": null
+        "best": 0.0888888888888889,
+        "count": 13,
+        "key": "Ship component crate S2",
+        "label": "Ship component crate S2",
+        "rows": null
       }
     ],
+    "record": null,
     "state": "ready",
     "total": 61,
     "view": "areas"
@@ -15676,30 +15575,47 @@
         "Shields"
       ]
     },
+    "group_by": "place",
+    "groups": [
+      {
+        "best": 0.0888888888888889,
+        "count": 1,
+        "key": "Asteroid bases",
+        "label": "Asteroid bases",
+        "rows": [
+          {
+            "container": "Ship component crate S2",
+            "group": "Asteroid bases",
+            "id": "v3slotpreset_asteroidbase",
+            "kind": "loot",
+            "name": "Asteroid bases",
+            "odds": 0.0888888888888889,
+            "rarity": null
+          }
+        ]
+      },
+      {
+        "best": 0.0888888888888889,
+        "count": 1,
+        "key": "Derelicts",
+        "label": "Derelicts",
+        "rows": [
+          {
+            "container": "Ship component crate S3",
+            "group": "Derelicts",
+            "id": "v3slotpreset_spacederelict_large",
+            "kind": "loot",
+            "name": "Derelicts: Space large",
+            "odds": 0.0888888888888889,
+            "rarity": null
+          }
+        ]
+      }
+    ],
     "record": {
       "class_name": "SYN_Aegis_Shell_Shield",
       "guid": "54000000-0000-4000-8000-000000000011"
     },
-    "rows": [
-      {
-        "container": "Ship component crate S2",
-        "group": "Asteroid bases",
-        "id": "v3slotpreset_asteroidbase",
-        "kind": "loot",
-        "name": "Asteroid bases",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      },
-      {
-        "container": "Ship component crate S3",
-        "group": "Derelicts",
-        "id": "v3slotpreset_spacederelict_large",
-        "kind": "loot",
-        "name": "Derelicts: Space large",
-        "odds": 0.0888888888888889,
-        "rarity": null
-      }
-    ],
     "state": "ready",
     "total": 2,
     "view": "items"

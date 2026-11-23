@@ -1999,7 +1999,7 @@ impl Backend for MockBackend {
             read,
             req.view,
             &req.id,
-            req.filter.as_deref(),
+            &req.query(),
         ))
     }
 

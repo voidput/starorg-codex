@@ -749,7 +749,8 @@ pub struct UexTokenRequest {
 // The Loot screen (`loot_list`, `loot_detail`): every loot area with what drops there and
 // every item with where, from the channel's cached loot data, typed in `starorg_mcp::loot`.
 pub use starorg_mcp::loot::{
-    LootDataState, LootDetail, LootDrop, LootDropKind, LootList, LootSummary, LootView,
+    LootDataState, LootDetail, LootDrop, LootDropKind, LootGroup, LootGroupBy, LootList,
+    LootSummary, LootView,
 };
 
 /// Every loot area (`view: areas`) or every item that drops in one (`items`), summaries
@@ -761,9 +762,12 @@ pub struct LootListRequest {
     pub view: LootView,
 }
 
-/// One area's items or one item's areas; `id` is a [`LootSummary::id`] of that view.
-/// `filter`: only the drops holding every word of it (name, path, container, rarity, id),
-/// so the drops past `MAX_DROPS` are reachable; the answer is still capped.
+/// One area's items or one item's areas in groups; `id` is a [`LootSummary::id`] of that
+/// view. `filter`: only the drops holding every word of it (name, path, container, rarity,
+/// id), over every drop. `group_by`: `None` for the view's default (areas by container,
+/// items by place). `groups`: the group keys whose rows to answer (opening a group); `None`
+/// answers the default ones (the first and a few small ones, or the matches of a filter).
+/// Every group's header covers all its drops; rows are capped per group.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LootDetailRequest {
     pub target: Option<ChannelRef>,
@@ -771,6 +775,21 @@ pub struct LootDetailRequest {
     pub id: String,
     #[serde(default)]
     pub filter: Option<String>,
+    #[serde(default)]
+    pub group_by: Option<LootGroupBy>,
+    #[serde(default)]
+    pub groups: Option<Vec<String>>,
+}
+
+impl LootDetailRequest {
+    /// What [`starorg_mcp::loot::LootScreen::detail`] takes.
+    pub fn query(&self) -> starorg_mcp::loot::DetailQuery<'_> {
+        starorg_mcp::loot::DetailQuery {
+            filter: self.filter.as_deref(),
+            group_by: self.group_by,
+            groups: self.groups.as_deref(),
+        }
+    }
 }
 
 // The Shops screen (`shop_inventory`, `shop_items`): what each UEX terminal sells, from the

@@ -25,6 +25,8 @@ export interface LootLeaf {
   id: string;
   label: string;
   row: LootSummary;
+  /** Another row under the same parent has the same name (its id then shows beside it). */
+  clash: boolean;
 }
 
 export type LootNode = LootBranch | LootLeaf;
@@ -52,10 +54,15 @@ function sortLevel(nodes: LootNode[], top: boolean): void {
     }
     return leafOrder(a.label, b.label);
   });
-  for (const n of nodes) if (n.kind === 'branch') sortLevel(n.children, false);
+  const seen = new Map<string, number>();
+  for (const n of nodes) if (n.kind === 'leaf') seen.set(n.label, (seen.get(n.label) ?? 0) + 1);
+  for (const n of nodes) {
+    if (n.kind === 'branch') sortLevel(n.children, false);
+    else n.clash = (seen.get(n.label) ?? 0) > 1;
+  }
 }
 
-/** The tree of the rows: branches first then rows at each level, by name (`Other` last). */
+/** The tree of the rows: branches first then rows at each level, by name (`Other` last); same-named sibling rows are marked (`clash`). */
 export function buildTree(rows: readonly LootSummary[] | null | undefined): LootNode[] {
   const root: LootNode[] = [];
   if (!Array.isArray(rows)) return root;
@@ -79,7 +86,7 @@ export function buildTree(rows: readonly LootSummary[] | null | undefined): Loot
       b.count++;
       if (row.best > b.best) b.best = row.best;
     }
-    level.push({ kind: 'leaf', id: leafId(row.id), label: row.name, row });
+    level.push({ kind: 'leaf', id: leafId(row.id), label: row.name, row, clash: false });
   }
   sortLevel(root, true);
   return root;

@@ -2112,17 +2112,18 @@ impl Tools {
         }
     }
 
-    /// One area's items or one item's areas for the Loot screen, likeliest first; `filter`:
-    /// only the drops holding every word of it ([`crate::loot::LootScreen::detail`]).
+    /// One area's items or one item's areas for the Loot screen, in groups, likeliest
+    /// first; `q`: the filter, the grouping and the groups whose rows to answer
+    /// ([`crate::loot::LootScreen::detail`]).
     pub fn loot_detail(
         &self,
         channel: Option<&str>,
         view: crate::loot::LootView,
         id: &str,
-        filter: Option<&str>,
+        q: &crate::loot::DetailQuery,
     ) -> crate::loot::LootDetail {
         match self.loot_screen(channel) {
-            Some(s) => s.detail(view, id, filter),
+            Some(s) => s.detail(view, id, q),
             None => crate::loot::missing_detail(view),
         }
     }

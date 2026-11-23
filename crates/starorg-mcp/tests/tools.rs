@@ -695,12 +695,16 @@ fn loot_screen_reads_only_cached_data() {
     let items = t.loot_list(Some("LIVE"), LootView::Items);
     let names: Vec<&str> = items.rows.iter().map(|r| r.name.as_str()).collect();
     assert_eq!(names, ["FS-9 LMG", "Verdict LMG"]);
-    let cave = t.loot_detail(Some("LIVE"), LootView::Areas, "caves/loot_caves", None);
+    let q = starorg_mcp::loot::DetailQuery::default();
+    let cave = t.loot_detail(Some("LIVE"), LootView::Areas, "caves/loot_caves", &q);
     assert_eq!(cave.total, 2);
-    assert!(cave.rows[0].odds >= cave.rows[1].odds);
-    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01", None);
-    assert_eq!(fs9.record.unwrap().guid, "id-fs9");
-    assert_eq!(fs9.rows[0].name, "Caves");
+    let rows: Vec<_> = cave.rows().collect();
+    assert_eq!(rows.len(), 2, "{:?}", cave.groups);
+    assert!(cave.groups.windows(2).all(|w| w[0].best >= w[1].best));
+    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01", &q);
+    assert_eq!(fs9.record.as_ref().unwrap().guid, "id-fs9");
+    assert_eq!(fs9.rows().next().unwrap().name, "Caves");
+    assert_eq!(fs9.groups[0].label, "Caves");
     // Reading the lists again extracts nothing more.
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
     assert_eq!(

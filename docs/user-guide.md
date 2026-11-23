@@ -278,17 +278,27 @@ typing a few letters jumps to the next row starting with them.
   drink`), and an area with nothing more to say is `General`. Two areas that would read the
   same are told apart by their preset family: `General (v3)`, `General (multi)`, `General
   (classic)` are different slot presets of the same place. Pick an area to see every item that
-  can drop there, likeliest first, with the spot it is in (`Large weapons crate`, `Weapons rack
-  · always in it`, `Lying loose`) and its rarity.
+  can drop there, grouped by where in it the item is (`Lying loose`, `Weapons rack`, `Large
+  mining crate`, `Medical crate`, ...), each row with its rarity and `always in it` for a rack.
 - **By item:** category (FPS weapons, FPS attachments, Armour & clothing, Consumables, Ship
   components, ...) -> what kind of thing (Rifles, Pistols, Magazines, Helmets, Jackets & coats,
   Power plants, ...) -> the items, searchable by name or class. Pick one to see every area it
-  drops in, likeliest first. With Developer mode on, **Open in Explorer** opens its record.
-- A name in the drops list jumps to the other view with that row picked, its branches opened
-  and scrolled into view (an item's other areas, an area's other items).
+  drops in, grouped by kind of place (Caves, Outposts, Stations, ...). With Developer mode on,
+  **Open in Explorer** opens its record. Items that share a name (seven `Standard Container`s)
+  show their class name beside it, in the tree and in the drops.
+- **Group by** beside the filter picks how the drops are grouped: for an area **Where in it**
+  (the default) or **None** (one list, likeliest first); for an item **Place** (the default, the
+  top level of the area tree), **Where in it** or **None**. The app remembers the choice per
+  view. Each group is a header with its size and best odds, over all its drops; groups are
+  ordered by best odds, then by name, and the rows inside are likeliest first. Only the first
+  group (or the first few small ones) is open at first; opening another loads its rows. A group
+  shows at most its 500 likeliest drops (`N more in ...; filter to narrow`), an ungrouped list
+  the 2,000 likeliest.
+- A name in the drops list jumps to the other view with that row picked, its branches opened,
+  scrolled into view and focused (an item's other areas, an area's other items).
 - **Filter** above the drops narrows them by item or area name, tree path, container, rarity or
-  id. A detail lists at most the 2,000 likeliest drops; the filter searches all of them, so the
-  rest are reachable.
+  id, across every group and every drop, so the drops past a cap are reachable; the group
+  headers then count the matches, and the groups with matches open.
 - **Per box** is a rough estimate: the chance one spawned crate, rack or loose spot of that kind
   holds the item, assuming an even pick inside each loot pool (the game data does not say how
   the pick is weighted). The WHERE TO GET line, the Explorer Sources card and the MCP

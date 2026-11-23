@@ -6,8 +6,11 @@
    * rows' paths (kind of place or category -> a middle level -> the row), collapsed until
    * opened (remembered per viewer) and open wherever a search matches; it is windowed, so only
    * the visible rows render. Lazy: nothing loads before the screen opens; the list call returns
-   * summaries only and a row's drops load when it is picked (stale answers are ignored), with
-   * a server-side filter that reaches drops past the first 2,000. The backend builds the index
+   * summaries only and a row's drops load when it is picked (stale answers are ignored). The
+   * drops come in groups ("Group by", remembered per view: where in it, place, or none): the
+   * answer holds every group's header (count and best odds over all the drops, after the
+   * server-side filter) and the rows of the first few only; opening a group loads its rows
+   * (capped per group). Same-named rows show their class name. The backend builds the index
    * once per build.
    */
   import { tick as nextTick, untrack } from 'svelte';
@@ -27,9 +30,10 @@
   import ErrorState from '@/components/common/ErrorState.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
-  import type { LootDetail, LootList, LootSummary, LootView } from '@/lib/contract/types';
+  import type { LootDetail, LootDrop, LootGroupBy, LootList, LootSummary, LootView } from '@/lib/contract/types';
   import { dropWhere, groupsOf, listed, oddsText } from '@/lib/loot';
   import { ancestorsOf, leafId, openKey, parseOpen, searching, toggled, visibleTree, whereText, type TreeRow } from '@/lib/loottree';
+  import { dropRows, dupNames, groupByOptions, loadGroupBy, loadedRows, missingGroups, saveGroupBy, type DropRow } from '@/lib/lootgroups';
   import { keyAction } from '@/lib/grouptree';
   import { guard } from '@/lib/loadstate';
   import { int } from '@/lib/format';
@@ -88,11 +92,20 @@
   // The drops filter: typed, and the value sent (after a pause).
   let dropFilter = $state('');
   let sentFilter = $state('');
-  // The last detail answer with what it was asked for.
-  let detail = $state.raw<{ view: LootView; id: string; filter: string; d: LootDetail } | null>(null);
+  // How each view's drops are grouped (remembered per viewer).
+  let groupBy = $state<Record<LootView, LootGroupBy>>({ areas: loadGroupBy('areas'), items: loadGroupBy('items') });
+  // The last detail answer (its group headers) with what it was asked for; `key` names the ask.
+  let detail = $state.raw<{ key: string; view: LootView; id: string; filter: string; by: LootGroupBy; d: LootDetail } | null>(null);
   let detailError = $state<ContractError | null>(null);
   let detailLoading = $state(false);
   const detailGuard = guard();
+  // The answer's open groups, the rows loaded per group and the groups loading, all of `detail`.
+  let openGroups = $state.raw<Set<string>>(new Set());
+  let groupRows = $state.raw<Record<string, LootDrop[]>>({});
+  let loadingGroups = $state.raw<Set<string>>(new Set());
+  // A new detail answer starts a new epoch: a group's rows that come back after it are dropped.
+  const groupEpoch = guard();
+  let groupLive: () => boolean = () => false;
 
   const devOn = $derived(!!app.settings?.advanced.developer_mode);
   const stamp = $derived(`${app.targetKey}|${app.rev}|${tick}`);
@@ -149,8 +162,8 @@
       if (!row) return;
       const up = ancestorsOf(row);
       if (up.some((a) => !open[v].has(a))) setOpen(v, new Set([...open[v], ...up]));
-      focusId = leafId(id);
-      revealSeq++;
+      // Keyboard focus follows the jump to the revealed row.
+      void focusRow(leafId(id));
     });
   });
 
@@ -161,16 +174,21 @@
     return () => clearTimeout(t);
   });
 
-  // Keyed on primitives only: the view, the picked id, the sent filter, readiness and the
-  // stamp. A newer pick or filter makes the older request stale, so a slow answer never
-  // replaces a newer one.
+  const by = $derived(groupBy[view]);
+
+  // Keyed on primitives only: the view, the picked id, the sent filter, the grouping, readiness
+  // and the stamp. A newer pick, filter or grouping makes the older request stale, so a slow
+  // answer never replaces a newer one. The answer holds every group's header and the rows of
+  // the groups it opened (the first few, or a filter's matches).
   $effect(() => {
     const v = view;
     const id = current;
     const f = sentFilter;
-    void stamp;
+    const g = by;
+    const s = stamp;
     if (id === null || !ready) {
       detailGuard.drop();
+      groupEpoch.drop();
       detail = null;
       detailLoading = false;
       return;
@@ -180,19 +198,75 @@
     detailLoading = true;
     detailError = null;
     api
-      .lootDetail(target, v, id, f || null)
+      .lootDetail(target, v, id, f || null, g)
       .then((d) => {
-        if (fresh()) detail = { view: v, id, filter: f, d };
+        if (!fresh()) return;
+        const rows = loadedRows(d.groups);
+        groupLive = groupEpoch.next();
+        groupRows = rows;
+        openGroups = new Set(Object.keys(rows));
+        loadingGroups = new Set();
+        detail = { key: `${v}|${id}|${f}|${g}|${s}`, view: v, id, filter: f, by: g, d };
       })
       .catch((e) => fresh() && (detailError = toContractError(e)))
       .finally(() => fresh() && (detailLoading = false));
     return () => detailGuard.drop();
   });
 
-  // The answer for the current pick (an older filter's while a newer one loads, never another row's).
+  // The open groups without rows yet, as one primitive (what to load next).
+  const missing = $derived(missingGroups(openGroups, groupRows, loadingGroups).join('\u001f'));
+
+  // Keyed on primitives only: the answer and the open groups still to load. Each opened group's
+  // rows load once; several loads may run together, and all of them are dropped when a newer
+  // answer arrives (another pick, filter or grouping).
+  $effect(() => {
+    const keys = missing;
+    const k = detail?.key ?? '';
+    if (!keys || !k) return;
+    untrack(() => {
+      const at = detail;
+      if (!at) return;
+      const want = keys.split('\u001f');
+      const live = groupLive;
+      loadingGroups = new Set([...loadingGroups, ...want]);
+      const target = app.target ? $state.snapshot(app.target) : null;
+      const settle = (got: Record<string, LootDrop[]>) => {
+        if (!live()) return;
+        // A group the answer does not hold any more loads as empty, so it is never asked again.
+        const next = { ...groupRows };
+        for (const w of want) next[w] = got[w] ?? [];
+        groupRows = next;
+        loadingGroups = new Set([...loadingGroups].filter((x) => !want.includes(x)));
+      };
+      api
+        .lootDetail(target, at.view, at.id, at.filter || null, at.by, want)
+        .then((d) => settle(loadedRows(d.groups)))
+        .catch((e) => {
+          if (!live()) return;
+          settle({});
+          toast('error', 'Could not read the drops', toContractError(e).message);
+        });
+    });
+  });
+
+  // The answer for the current pick (an older filter's or grouping's while a newer one loads, never another row's).
   const shownDetail = $derived(detail && detail.view === view && detail.id === current ? detail.d : null);
   // An answer that knows nothing of the row (the data went missing, or a refresh dropped it).
   const emptyAnswer = $derived(!!shownDetail && (shownDetail.state !== 'ready' || shownDetail.entry === null));
+  const flat = $derived(shownDetail?.group_by === 'none');
+  const drawn = $derived<DropRow[]>(shownDetail ? dropRows(shownDetail.groups, openGroups, groupRows, flat) : []);
+  // Names more than one loaded row carries: those rows show their id (class name) too.
+  const dups = $derived(dupNames(drawn.flatMap((r) => (r.kind === 'drop' ? [r.drop] : []))));
+  // Ungrouped: the one group's rows sent and its size (the footer says when it is capped).
+  const flatShown = $derived(flat ? (groupRows[shownDetail?.groups[0]?.key ?? ''] ?? []).length : 0);
+
+  function setGroupBy(g: LootGroupBy) {
+    groupBy = { ...groupBy, [view]: g };
+    saveGroupBy(view, g);
+  }
+  function toggleGroup(key: string) {
+    openGroups = toggled(openGroups, key, !openGroups.has(key));
+  }
 
   function setView(v: LootView) {
     view = v;
@@ -242,7 +316,13 @@
     focusId = id;
     revealSeq++;
     await nextTick();
-    treeEl?.querySelector<HTMLElement>(`[data-tree-id="${CSS.escape(id)}"]`)?.focus();
+    // The windowed list draws the row once it has scrolled to it: wait a frame or two for it.
+    for (let i = 0; i < 4; i++) {
+      if (focusId !== id) return;
+      const el = treeEl?.querySelector<HTMLElement>(`[data-tree-id="${CSS.escape(id)}"]`);
+      if (el) return el.focus();
+      await new Promise((r) => requestAnimationFrame(() => r(null)));
+    }
   }
   function activate(r: TreeRow) {
     if (r.node.kind === 'branch') setBranch(r.id, !r.expanded);
@@ -408,7 +488,14 @@
                     <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds per box below">{oddsText(branch.best)}</span>
                   {:else if leaf}
                     <span class="size-3.5 shrink-0" aria-hidden="true"></span>
-                    <span class={cn('min-w-0 flex-1 truncate text-[13px]', on && 'font-medium')} title={leaf.name}>{leaf.name}</span>
+                    {#if r.node.kind === 'leaf' && r.node.clash}
+                      <span class="flex min-w-0 flex-1 items-baseline gap-1.5" title="{leaf.name} ({leaf.id})">
+                        <span class={cn('min-w-0 shrink truncate text-[13px]', on && 'font-medium')}>{leaf.name}</span>
+                        <span class="mono text-muted-foreground min-w-0 shrink-[2] truncate text-[10.5px]">{leaf.id}</span>
+                      </span>
+                    {:else}
+                      <span class={cn('min-w-0 flex-1 truncate text-[13px]', on && 'font-medium')} title={leaf.name}>{leaf.name}</span>
+                    {/if}
                     <span class="text-muted-foreground shrink-0 text-[11px]">{view === 'areas' ? unit(leaf.count, 'item', 'items') : unit(leaf.count, 'area', 'areas')}</span>
                     <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds per box">{oddsText(leaf.best)}</span>
                   {/if}
@@ -448,17 +535,23 @@
           {:else if emptyAnswer}
             <p class="text-muted-foreground py-6 text-center text-[12px]">No drops listed.</p>
           {:else}
-            <div class="relative">
-              <ListFilter class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
-              <Input
-                type="search"
-                aria-label={view === 'areas' ? 'Filter the items' : 'Filter the areas'}
-                placeholder={view === 'areas' ? 'Filter items, containers, rarity' : 'Filter areas, containers, rarity'}
-                class="h-8 pl-8"
-                value={dropFilter}
-                oninput={(e) => (dropFilter = (e.currentTarget as HTMLInputElement).value)}
-                onkeydown={(e) => e.key === 'Escape' && dropFilter && (e.preventDefault(), resetDropFilter())}
-              />
+            <div class="flex flex-wrap items-center gap-2">
+              <div class="relative min-w-48 flex-1">
+                <ListFilter class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
+                <Input
+                  type="search"
+                  aria-label={view === 'areas' ? 'Filter the items' : 'Filter the areas'}
+                  placeholder={view === 'areas' ? 'Filter items, containers, rarity' : 'Filter areas, containers, rarity'}
+                  class="h-8 pl-8"
+                  value={dropFilter}
+                  oninput={(e) => (dropFilter = (e.currentTarget as HTMLInputElement).value)}
+                  onkeydown={(e) => e.key === 'Escape' && dropFilter && (e.preventDefault(), resetDropFilter())}
+                />
+              </div>
+              <div class="flex items-center gap-1.5 text-[12px]">
+                <span class="text-muted-foreground" aria-hidden="true">Group by</span>
+                <Segmented ariaLabel="Group the drops by" size="sm" options={groupByOptions(view)} value={by} onchange={(g) => setGroupBy(g)} />
+              </div>
             </div>
             <div role="table" aria-label={view === 'areas' ? `What can drop in ${currentRow.name}` : `Where ${currentRow.name} drops`} class="text-[12.5px]">
               <div role="rowgroup">
@@ -472,41 +565,75 @@
                 <div role="rowgroup" class="grid gap-1.5 pt-2" aria-label="Loading">
                   {#each Array.from({ length: Math.min(8, Math.max(3, currentRow.count)) }, (_, i) => i) as i (i)}<Skeleton class="h-7 w-full" />{/each}
                 </div>
-              {:else if !shownDetail.rows.length}
+              {:else if !shownDetail.groups.length}
                 <p class="text-muted-foreground py-6 text-center text-[12px]">{detail?.filter ? `No drop matches "${detail.filter}".` : 'No drops listed.'}</p>
               {:else}
                 <VirtualList
-                  items={shownDetail.rows}
+                  items={drawn}
                   rowHeight={DROW}
                   role="rowgroup"
-                  label="Drops, likeliest first"
-                  resetKey={`${view}|${current}|${detail?.filter ?? ''}`}
-                  key={(d, i) => `${d.id}/${i}`}
+                  label={flat ? 'Drops, likeliest first' : `Drops in ${int(shownDetail.groups.length)} groups, best odds first`}
+                  resetKey={`${view}|${current}|${detail?.filter ?? ''}|${detail?.by ?? ''}`}
+                  key={(r) => r.id}
                   class="max-h-[calc(100vh-24rem)] min-h-48"
                 >
-                  {#snippet row(d)}
-                    <div role="row" class={cn(DGRID, 'border-border/50 h-full border-b px-1')}>
-                      <span role="cell" class="grid min-w-0">
-                        <button
-                          type="button"
-                          class="text-primary focus-visible:ring-ring/60 truncate rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2"
-                          title={view === 'areas' ? `Where else ${d.name} drops` : `What else drops in ${d.name}`}
-                          onclick={() => jump(d.id)}>{d.name}</button
-                        >
-                        <span class="text-muted-foreground truncate text-[11px]" title={d.group}>{d.group}</span>
-                      </span>
-                      <span role="cell" class="text-muted-foreground truncate" title={dropWhere(d)}>{dropWhere(d)}</span>
-                      <span role="cell" class="text-right font-medium tabular-nums">{oddsText(d.odds)}</span>
-                    </div>
+                  {#snippet row(r)}
+                    {#if r.kind === 'head'}
+                      {@const g = r.group}
+                      <div role="row" class="border-border/50 bg-muted/40 h-full border-b">
+                        <span role="cell" class="block h-full">
+                          <button
+                            type="button"
+                            class={cn(DGRID, 'hover:bg-muted focus-visible:ring-ring/60 h-full w-full px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset')}
+                            aria-expanded={r.open}
+                            aria-label="{g.label}, {unit(g.count, view === 'areas' ? 'item' : 'area', view === 'areas' ? 'items' : 'areas')}, best {oddsText(g.best)} per box"
+                            onclick={() => toggleGroup(g.key)}
+                          >
+                            <span class="flex min-w-0 items-center gap-1.5 [grid-column:span_2]">
+                              <ChevronRight class={cn('text-muted-foreground size-3.5 shrink-0 transition-transform motion-reduce:transition-none', r.open && 'rotate-90')} aria-hidden="true" />
+                              <span class="min-w-0 truncate font-medium" title={g.label}>{g.label}</span>
+                              <span class="text-muted-foreground shrink-0 text-[11px]">{unit(g.count, view === 'areas' ? 'item' : 'area', view === 'areas' ? 'items' : 'areas')}</span>
+                            </span>
+                            <span class="text-muted-foreground text-right text-[11px] tabular-nums" title="Best rough odds per box in this group">best {oddsText(g.best)}</span>
+                          </button>
+                        </span>
+                      </div>
+                    {:else if r.kind === 'drop'}
+                      {@const d = r.drop}
+                      {@const twin = dups.has(d.name)}
+                      <div role="row" class={cn(DGRID, 'border-border/50 h-full border-b px-1', !flat && 'pl-6')}>
+                        <span role="cell" class="grid min-w-0">
+                          <button
+                            type="button"
+                            class="text-primary focus-visible:ring-ring/60 truncate rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+                            title={view === 'areas' ? `Where else ${d.name} drops${twin ? ` (${d.id})` : ''}` : `What else drops in ${d.name}${twin ? ` (${d.id})` : ''}`}
+                            onclick={() => jump(d.id)}>{d.name}</button
+                          >
+                          <span class="text-muted-foreground truncate text-[11px]" title={twin ? `${d.id} · ${d.group}` : d.group}>
+                            {#if twin}<span class="mono">{d.id}</span> · {/if}{d.group}
+                          </span>
+                        </span>
+                        <span role="cell" class="text-muted-foreground truncate" title={dropWhere(d)}>{dropWhere(d)}</span>
+                        <span role="cell" class="text-right font-medium tabular-nums">{oddsText(d.odds)}</span>
+                      </div>
+                    {:else if r.kind === 'more'}
+                      <div role="row" class="border-border/50 text-muted-foreground flex h-full items-center border-b pr-1 pl-6 text-[11.5px]">
+                        <span role="cell">{int(r.group.count - r.shown)} more in {r.group.label}; filter to narrow.</span>
+                      </div>
+                    {:else}
+                      <div role="row" class="border-border/50 flex h-full items-center border-b pr-1 pl-6" aria-busy="true">
+                        <span role="cell" class="w-full"><Skeleton class="h-5 w-2/3" /><span class="sr-only">Loading</span></span>
+                      </div>
+                    {/if}
                   {/snippet}
                 </VirtualList>
               {/if}
-              {#if shownDetail && (detail?.filter || shownDetail.total > shownDetail.rows.length)}
+              {#if shownDetail && shownDetail.groups.length && (detail?.filter || (flat && shownDetail.total > flatShown))}
                 <p class="text-muted-foreground pt-2 text-[11.5px]" aria-live="polite">
                   {#if detail?.filter}
-                    {int(shownDetail.total)} of {int(shownDetail.all)} drops match{shownDetail.total > shownDetail.rows.length ? `; the likeliest ${int(shownDetail.rows.length)} shown` : ''}.
-                  {:else if shownDetail.total > shownDetail.rows.length}
-                    The likeliest {int(shownDetail.rows.length)} of {int(shownDetail.total)} shown; filter to reach the rest.
+                    {int(shownDetail.total)} of {int(shownDetail.all)} drops match{flat && shownDetail.total > flatShown ? `; the likeliest ${int(flatShown)} shown` : ''}.
+                  {:else}
+                    The likeliest {int(flatShown)} of {int(shownDetail.total)} shown; filter to reach the rest.
                   {/if}
                 </p>
               {/if}
