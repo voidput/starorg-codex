@@ -148,6 +148,7 @@
       tree.drop();
       sel.drop();
       recSeq.drop();
+      recLoading = false;
       loaded = new Map();
       open = new Set();
       void check();
