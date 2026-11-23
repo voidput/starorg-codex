@@ -315,6 +315,9 @@ impl LoadedData {
 /// One build's finder catalogue.
 type BpCatalog = Arc<Vec<bp_finder::CatalogItem>>;
 
+/// Draft-profile tables kept for the preview (each holds a channel's generated text).
+const PREVIEW_TABLES: usize = 3;
+
 #[derive(Default)]
 struct Mem {
     manual: Vec<PathBuf>,
@@ -324,6 +327,9 @@ struct Mem {
     job: Option<JobProgress>,
     data: HashMap<(String, String), Arc<LoadedData>>,
     tables: HashMap<(String, String), (String, Arc<Table>)>,
+    /// Tables of draft profiles (the Enhancements preview), newest last, at most
+    /// [`PREVIEW_TABLES`]: switching an option back and forth does not build again.
+    previews: VecDeque<((String, String), String, Arc<Table>)>,
     /// Blueprint finder catalogue per channel, by build key (a few hundred KB; addendum §7.19).
     bp_catalogs: HashMap<(String, String), (String, BpCatalog)>,
     /// The fleet file picked for the last dry run (name, bytes): the confirm step imports it
@@ -999,11 +1005,21 @@ impl RealBackend {
             hints_tag.as_bytes(),
         ]);
         let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
-        if profile.is_none()
-            && let Some((k, t)) = self.mem().tables.get(&slot)
-            && *k == key
         {
-            return Ok(t.clone());
+            let mut m = self.mem();
+            if let Some((k, t)) = m.tables.get(&slot)
+                && *k == key
+            {
+                return Ok(t.clone());
+            }
+            if profile.is_some()
+                && let Some(i) = m.previews.iter().position(|(s, k, _)| *s == slot && *k == key)
+            {
+                let hit = m.previews.remove(i).expect("position is in range");
+                let t = hit.2.clone();
+                m.previews.push_back(hit);
+                return Ok(t);
+            }
         }
         let tbl = Arc::new(table::build(&table::Inputs {
             stock: &d.stock,
@@ -1018,8 +1034,14 @@ impl RealBackend {
             ship_names: inp.ship_names.active(),
             obtain: hints.as_ref(),
         }));
+        let mut m = self.mem();
         if profile.is_none() {
-            self.mem().tables.insert(slot, (key, tbl.clone()));
+            m.tables.insert(slot, (key, tbl.clone()));
+        } else {
+            m.previews.push_back((slot, key, tbl.clone()));
+            while m.previews.len() > PREVIEW_TABLES {
+                m.previews.pop_front();
+            }
         }
         Ok(tbl)
     }
@@ -1079,7 +1101,9 @@ impl RealBackend {
 
     fn forget_tables(&self, f: &Found, ch: &Channel) {
         let slot = (f.id.clone().unwrap_or_default(), ch.name.clone());
-        self.mem().tables.remove(&slot);
+        let mut m = self.mem();
+        m.tables.remove(&slot);
+        m.previews.retain(|(s, _, _)| *s != slot);
     }
 
     // -----------------------------------------------------------------------------------
@@ -2453,6 +2477,7 @@ impl Backend for RealBackend {
         let mut m = self.mem();
         m.data.insert(slot.clone(), fresh);
         m.tables.remove(&slot);
+        m.previews.retain(|(s, _, _)| *s != slot);
         Ok(state)
     }
 
