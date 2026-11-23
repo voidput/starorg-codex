@@ -3,8 +3,10 @@
 //! A tool asks for the datasets it needs by name. The first time a build needs one it is
 //! extracted by a worker process ([`crate::worker`]) into
 //! `<cache>/<CHANNEL>/<build>-<fingerprint>/<dataset>.json`; afterwards it is read from
-//! there. The fingerprint covers the archive's size and modification time and this crate's
-//! version, so a patched `Data.p4k` or an app update never reads an old answer. Parsed
+//! there. The fingerprint covers the archive's size and modification time and a hash of the
+//! code that writes the datasets (`build.rs`, `DATASET_CODE`), so a patched `Data.p4k` or a
+//! change to extraction never reads an old answer, while a release that leaves extraction
+//! alone keeps the cache. Parsed
 //! datasets stay in memory for the two most recently used builds (a diff needs two).
 //! `measurements.json` in each build folder keeps what each extraction cost.
 
@@ -219,7 +221,8 @@ impl Store {
             .join(segment(&ch.name.to_ascii_uppercase()))
     }
 
-    /// The archive's identity: size, modification time, cache format, crate version.
+    /// The archive's identity: size, modification time, cache format and the hash of the
+    /// dataset code (not the app version: a release alone does not extract again).
     pub fn fingerprint(p4k: &Path) -> String {
         let meta = std::fs::metadata(p4k).ok();
         let len = meta.as_ref().map_or(0, std::fs::Metadata::len);
@@ -230,7 +233,7 @@ impl Store {
         let mut h = Sha256::new();
         h.update(format!(
             "{len}:{mtime}:{CACHE_FORMAT}:{}",
-            env!("CARGO_PKG_VERSION")
+            env!("DATASET_CODE")
         ));
         h.finalize()[..4]
             .iter()

@@ -53,3 +53,15 @@ all = { level = "warn", priority = -1 }
 # Do not switch to "abort"; tests/release_profile.rs fails if this changes.
 [profile.release]
 panic = "unwind"
+
+# Debug builds (`tauri dev`, `cargo run`) still read a 100+ GB archive: optimise the
+# dependencies and the extraction crates, or a first extraction takes minutes instead of
+# seconds. The rest of the workspace stays unoptimised for quick rebuilds and debugging.
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.dev.package.starorg-data]
+opt-level = 2
+
+[profile.dev.package.starorg-gamedata]
+opt-level = 2

@@ -138,8 +138,10 @@ extracts each needed dataset from `Data.p4k` (read only) in a **separate short-l
 process** (`starorg-codex mcp-extract-worker` / `starorg-codex-app mcp-extract-worker`, one
 dataset per process), which writes `<cache>/mcp/<CHANNEL>/<build>-<fingerprint>/<dataset>.json`
 and records its cost in `measurements.json` beside it. Later questions read the JSON. The
-fingerprint covers the archive's size and time and the app version, so a game patch or an app
-update never serves old answers; three builds per channel are kept.
+fingerprint covers the archive's size and time and a hash of the code that writes the datasets
+(`starorg-gamedata` and `starorg-data`, StarBreaker pin included), so a game patch or a change
+to extraction never serves old answers, while an app update that leaves extraction alone keeps
+the cache; three builds per channel are kept.
 
 `<cache>` is `~/.cache/starorg-codex` on Linux and `%LOCALAPPDATA%\StarOrg Tools\Codex\cache`
 on Windows. Nothing is written in the game folder (the worker refuses an output folder inside the
