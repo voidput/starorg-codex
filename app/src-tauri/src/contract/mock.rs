@@ -1818,7 +1818,7 @@ impl Backend for MockBackend {
                 ),
                 backups: c.backups.iter().rev().cloned().collect(),
                 offers: offers(c),
-                keep_newest: 10,
+                keep_newest: 5,
                 keep_builds: 3,
             })
         })
@@ -3087,6 +3087,7 @@ impl Backend for MockBackend {
                     uex_dir: None,
                     our_outputs: vec![],
                     extractor: std::sync::Arc::new(NoGameData),
+                    cache_cap: None,
                 })
             })
         } else {
@@ -3115,6 +3116,93 @@ impl Backend for MockBackend {
             },
         );
         self.memory_status()
+    }
+
+    fn storage_status(&self) -> CmdResult<StorageStatus> {
+        Ok(self.storage_view())
+    }
+
+    fn storage_clear_assets(&self) -> CmdResult<StorageStatus> {
+        super::assets::AssetBackend::asset_cache_clear(self)?;
+        Ok(self.storage_view())
+    }
+}
+
+/// Fixed sizes of the mock's areas (about the dev machine's after compression; see
+/// docs/user-guide.md#storage): game data of 3 channels, 2 WHERE TO GET builds, UEX files,
+/// no temp folders, 5 backups of 3 channels.
+pub const MOCK_STORAGE: [(starorg_core::storage::Area, &str, u64, u64); 5] = {
+    use starorg_core::storage::Area;
+    [
+        (Area::GameData, "/synthetic/cache", 11_400_000, 12),
+        (Area::WhereToGet, "/synthetic/cache/mcp", 72_000_000, 46),
+        (Area::Uex, "/synthetic/cache/mcp/uex", 7_300_000, 3),
+        (Area::Temporary, "/synthetic/cache/work", 0, 0),
+        (Area::Backups, "/synthetic/data/channels", 37_800_000, 30),
+    ]
+};
+
+impl MockBackend {
+    fn storage_view(&self) -> StorageStatus {
+        use starorg_core::assetcache::Usage;
+        use starorg_core::storage::{Area, AreaUsage, Report};
+        let (assets, custom) = {
+            let s = self.asset_state();
+            let u = Usage {
+                bytes: s.cached.iter().map(|c| c.1).sum(),
+                files: s.cached.len() as u64,
+            };
+            (u, s.custom_dir)
+        };
+        let mut areas: Vec<AreaUsage> = MOCK_STORAGE
+            .iter()
+            .map(|(area, path, bytes, files)| AreaUsage {
+                area: *area,
+                path: path.into(),
+                usage: Usage {
+                    bytes: *bytes,
+                    files: *files,
+                },
+            })
+            .collect();
+        areas.insert(
+            3,
+            AreaUsage {
+                area: Area::AssetExports,
+                path: if custom {
+                    super::mock_assets::CACHE_OTHER
+                } else {
+                    super::mock_assets::CACHE_DEFAULT
+                }
+                .into(),
+                usage: assets,
+            },
+        );
+        let in_cache: u64 = areas
+            .iter()
+            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .map(|a| a.usage.bytes)
+            .sum();
+        let files: u64 = areas
+            .iter()
+            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .map(|a| a.usage.files)
+            .sum();
+        let r = Report {
+            cache_path: "/synthetic/cache".into(),
+            cache: Usage {
+                bytes: in_cache,
+                files,
+            },
+            areas,
+        };
+        StorageStatus::build(
+            &r,
+            starorg_core::storage::DEFAULT_CAP,
+            super::mock_assets::CACHE_MAX,
+            !custom,
+            None,
+        )
     }
 }
 

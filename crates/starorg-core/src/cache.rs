@@ -9,8 +9,11 @@
 //! - `base.ini` must start with the BOM and hold at least [`MIN_STOCK_KEYS`] keys, because
 //!   validation compares our output against it.
 //!
-//! `GameData` is stored as plain `gamedata.json`: in M1 it holds only the build and DataCore
-//! counts (a few hundred bytes). Compression (`.json.zst`) comes with the M2 model.
+//! - `base.ini`, `gamedata.json` and `keyrefs.json` are stored gzipped (`<name>.gz`, about a
+//!   seventh of the plain size; inflating a LIVE entry takes about 30 ms). `meta.json` hashes
+//!   the uncompressed bytes. Entries written before compression (plain files) still load.
+//! - A hit touches `meta.json`, so the storage cap ([`crate::storage`]) sees when the entry
+//!   was last used.
 
 use crate::discovery::Fingerprint;
 use crate::fsutil;
@@ -112,8 +115,8 @@ pub fn load(channel_cache: &Path, inputs: &KeyInputs, min_keys: usize) -> Result
         return reject("meta.json inputs differ from the key".into());
     }
     let (Ok(base), Ok(gd)) = (
-        std::fs::read(dir.join(BASE)),
-        std::fs::read(dir.join(GAMEDATA)),
+        crate::gz::read_either(&dir.join(BASE)),
+        crate::gz::read_either(&dir.join(GAMEDATA)),
     ) else {
         return reject("missing files".into());
     };
@@ -130,6 +133,7 @@ pub fn load(channel_cache: &Path, inputs: &KeyInputs, min_keys: usize) -> Result
         Ok(g) => g,
         Err(e) => return reject(format!("gamedata.json: {e}")),
     };
+    fsutil::touch(&dir.join(META));
     Ok(Loaded {
         base_ini: base,
         game_data,
@@ -170,20 +174,14 @@ pub fn store(
         }
         std::fs::create_dir_all(&tmp)?;
         if let Some(kr) = &kr {
-            write_synced(&tmp.join(KEYREFS), kr)?;
+            write_gz(&tmp.join(KEYREFS), kr)?;
         }
-        for (name, bytes) in [
-            (BASE, loaded.base_ini.as_slice()),
-            (GAMEDATA, gd.as_slice()),
-            (
-                META,
-                &serde_json::to_vec_pretty(&meta).map_err(std::io::Error::other)?,
-            ),
-        ] {
-            let mut f = std::fs::File::create(tmp.join(name))?;
-            std::io::Write::write_all(&mut f, bytes)?;
-            f.sync_all()?;
-        }
+        write_gz(&tmp.join(BASE), &loaded.base_ini)?;
+        write_gz(&tmp.join(GAMEDATA), &gd)?;
+        write_synced(
+            &tmp.join(META),
+            &serde_json::to_vec_pretty(&meta).map_err(std::io::Error::other)?,
+        )?;
         fsutil::fsync_dir(&tmp)?;
         if dir.exists() {
             std::fs::remove_dir_all(&dir)?;
@@ -206,6 +204,15 @@ pub fn store(
     Ok(())
 }
 
+/// `<plain>.gz` with `bytes` compressed; a plain file of the same name is removed.
+fn write_gz(plain: &Path, bytes: &[u8]) -> std::io::Result<()> {
+    write_synced(&crate::gz::gz_path(plain), &crate::gz::compress(bytes)?)?;
+    match std::fs::remove_file(plain) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+        _ => Ok(()),
+    }
+}
+
 fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let mut f = std::fs::File::create(path)?;
     std::io::Write::write_all(&mut f, bytes)?;
@@ -216,7 +223,7 @@ fn write_synced(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
 /// schema; anything else counts as absent (grouping is then approximate, nothing else).
 fn load_keyrefs(dir: &Path, sha: Option<&str>) -> Option<KeyRefs> {
     let sha = sha?;
-    let bytes = std::fs::read(dir.join(KEYREFS)).ok()?;
+    let bytes = crate::gz::read_either(&dir.join(KEYREFS)).ok()?;
     if fsutil::sha256_hex(&bytes) != sha {
         return None;
     }
@@ -240,7 +247,7 @@ pub fn add_keyrefs(
         return Err(std::io::Error::other("cache entry is for other inputs"));
     }
     let bytes = serde_json::to_vec(keyrefs).map_err(std::io::Error::other)?;
-    write_synced(&dir.join(KEYREFS), &bytes)?;
+    write_gz(&dir.join(KEYREFS), &bytes)?;
     meta.keyrefs_sha256 = Some(fsutil::sha256_hex(&bytes));
     let tmp = dir.join(format!("{META}.tmp-{}", std::process::id()));
     write_synced(
@@ -299,7 +306,14 @@ mod tests {
         assert!(matches!(load(t.path(), &i, 50_000), Err(Miss::Rejected(_))));
         assert!(!entry_dir(t.path(), &i).exists());
         store(t.path(), &i, &loaded(), 5).unwrap();
-        std::fs::write(entry_dir(t.path(), &i).join(BASE), b"\xEF\xBB\xBFtampered").unwrap();
+        let gz_base = crate::gz::gz_path(&entry_dir(t.path(), &i).join(BASE));
+        assert!(gz_base.is_file(), "stored compressed");
+        assert!(!entry_dir(t.path(), &i).join(BASE).exists());
+        std::fs::write(
+            &gz_base,
+            crate::gz::compress(b"\xEF\xBB\xBFtampered").unwrap(),
+        )
+        .unwrap();
         assert!(matches!(load(t.path(), &i, 5), Err(Miss::Rejected(_))));
         // Keyrefs: absent, then added to the entry, then tampered (dropped, entry kept).
         store(t.path(), &i, &loaded(), 5).unwrap();
@@ -313,12 +327,65 @@ mod tests {
         with.keyrefs = Some(kr.clone());
         store(t.path(), &i, &with, 5).unwrap();
         assert_eq!(load(t.path(), &i, 5).unwrap().keyrefs, Some(kr));
-        std::fs::write(entry_dir(t.path(), &i).join(KEYREFS), b"{}").unwrap();
+        std::fs::write(
+            crate::gz::gz_path(&entry_dir(t.path(), &i).join(KEYREFS)),
+            crate::gz::compress(b"{}").unwrap(),
+        )
+        .unwrap();
         let l = load(t.path(), &i, 5).unwrap();
         assert_eq!(l.keyrefs, None);
         // A different schema or source is a different key.
         let mut other = i.clone();
         other.schema += 1;
         assert_ne!(other.key(), i.key());
+    }
+
+    /// An entry written before compression (plain files) still loads, hashes unchanged.
+    #[test]
+    fn plain_entries_from_before_compression_load() {
+        let t = tempfile::tempdir().unwrap();
+        let i = inputs();
+        store(t.path(), &i, &loaded(), 5).unwrap();
+        let dir = entry_dir(t.path(), &i);
+        for name in [BASE, GAMEDATA] {
+            let gz = crate::gz::gz_path(&dir.join(name));
+            let plain = crate::gz::read_either(&dir.join(name)).unwrap();
+            std::fs::remove_file(gz).unwrap();
+            std::fs::write(dir.join(name), plain).unwrap();
+        }
+        assert_eq!(load(t.path(), &i, 5).unwrap().base_ini, loaded().base_ini);
+    }
+
+    /// Real data, read only: `STARORG_REAL_CACHE=<cache entry dir> cargo test --release -p
+    /// starorg-core --lib cache::tests::real_entry_load_time -- --ignored --nocapture`. Copies
+    /// the entry to a temp folder, then times a load of the plain copy and of a gzip one.
+    #[test]
+    #[ignore = "needs a real cache entry in STARORG_REAL_CACHE"]
+    fn real_entry_load_time() {
+        let src = PathBuf::from(std::env::var("STARORG_REAL_CACHE").expect("STARORG_REAL_CACHE"));
+        let meta: Meta = fsutil::read_json(&src.join(META)).unwrap().unwrap();
+        let i = meta.inputs.clone();
+        let t = tempfile::tempdir().unwrap();
+        let dir = entry_dir(t.path(), &i);
+        std::fs::create_dir_all(&dir).unwrap();
+        for n in [META, BASE, GAMEDATA, KEYREFS] {
+            let b = crate::gz::read_either(&src.join(n)).unwrap();
+            std::fs::write(dir.join(n), b).unwrap();
+        }
+        let size = |d: &Path| crate::storage::usage(d).bytes;
+        let time = |what: &str| {
+            let s = std::time::Instant::now();
+            let l = load(t.path(), &i, MIN_STOCK_KEYS).unwrap();
+            println!(
+                "{what}: load {:?}, {} bytes on disk",
+                s.elapsed(),
+                size(&dir)
+            );
+            l
+        };
+        let l = time("plain");
+        store(t.path(), &i, &l, MIN_STOCK_KEYS).unwrap();
+        let g = time("gzip");
+        assert_eq!(g.base_ini, l.base_ini);
     }
 }

@@ -66,6 +66,7 @@ const SAMPLES = samples as unknown as {
   set_mcp_enabled: T.McpStatus;
   memory_status: T.MemoryStatus;
   set_memory_limit: T.MemoryStatus;
+  storage_status: T.StorageStatus;
   obtain_status: T.ObtainStatus;
   uex_token_status: T.UexTokenStatus;
   set_uex_token: T.UexTokenStatus;
@@ -787,6 +788,23 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     fail: (c, m) => fail(c, m),
   });
 
+  /** Settings > Storage: the samples' fixed areas, with the asset cache as it is now. */
+  const storageView = (): T.StorageStatus => {
+    const s = clone(SAMPLES.storage_status);
+    const a = assets.handlers.asset_cache_status({}) as T.AssetCacheStatus;
+    const area = s.areas.find((x) => x.id === 'asset-exports');
+    if (area) {
+      area.bytes = a.bytes;
+      area.files = a.files;
+      area.path = a.path;
+      area.in_cache = a.is_default;
+    }
+    const inCache = s.areas.filter((x) => x.in_cache);
+    s.cache_bytes = inCache.reduce((n, x) => n + x.bytes, 0);
+    s.total_bytes = s.cache_bytes + s.areas.filter((x) => !x.in_cache).reduce((n, x) => n + x.bytes, 0);
+    return s;
+  };
+
   // Developer mode assets (mock-assets.ts): the Rust mock's synthetic archive and sounds.
   const devEntries = (devData as unknown as DevMockData).entries;
   const assets = createAssetMock(assetData as unknown as AssetMockData, {
@@ -984,7 +1002,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     },
     list_backups: ({ req }) => {
       const c = chan(req);
-      return { channel: req.channel, folder: `~/.local/share/starorg-codex/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 10, keep_builds: 3 };
+      return { channel: req.channel, folder: `~/.local/share/starorg-codex/channels/${req.install}/${req.channel}/backups`, backups: clone([...c.backups].reverse()), offers: offers(c), keep_newest: 5, keep_builds: 3 };
     },
     backup_now: ({ req }) => {
       const c = chan(req);
@@ -1527,6 +1545,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       return clone(mcp);
     },
     memory_status: () => clone(memory),
+    storage_status: () => storageView(),
+    storage_clear_assets: () => {
+      assets.handlers.asset_cache_clear({});
+      addLog('info', 'dev', null, 'Asset cache cleared');
+      return storageView();
+    },
     set_memory_limit: ({ req }) => {
       memory = memoryView(SAMPLES.memory_status, req.gb === null ? null : clampGb(req.gb, memory));
       addLog('info', 'dev', null, req.gb === null ? `Memory limit back to the default (${memory.default_gb} GB)` : `Memory limit for Developer mode and MCP workers: ${memory.limit_gb} GB`);

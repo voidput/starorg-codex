@@ -1,9 +1,10 @@
 //! Backups of `global.ini` (spec 4.6). `user.cfg` is never backed up as a whole file.
 //!
 //! A backup is `backups/<YYYYmmdd-HHMMSS>-<reason>/` with `manifest.json` and, if the file
-//! existed, `global.ini`. `existed: false` is a real state: a clean game has no loose file.
+//! existed, `global.ini.gz` (gzip, about a fifth of the file; backups made before 1.5 hold a
+//! plain `global.ini`, still read). The manifest's size and hash are of the uncompressed file. `existed: false` is a real state: a clean game has no loose file.
 //!
-//! Retention: the pinned `pre-existing` one; the newest 10; and the newest backup made under
+//! Retention: the pinned `pre-existing` one; the newest 5; and the newest backup made under
 //! each of the last 3 game builds.
 
 use crate::build::BuildInfo;
@@ -12,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
-pub const KEEP_NEWEST: usize = 10;
+pub const KEEP_NEWEST: usize = 5;
 pub const KEEP_BUILDS: usize = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -101,8 +102,19 @@ impl Backup {
     pub fn pinned(&self) -> bool {
         self.manifest.reason == Reason::PreExisting
     }
+    /// The plain name; the file itself is `<this>.gz` (or, in older backups, this).
     pub fn ini_path(&self) -> PathBuf {
         self.dir.join("global.ini")
+    }
+
+    /// Whether the backup holds the file (compressed or plain).
+    pub fn has_ini(&self) -> bool {
+        crate::gz::exists_either(&self.ini_path())
+    }
+
+    /// The backed-up file's bytes (uncompressed), from `global.ini.gz` or a plain `global.ini`.
+    pub fn read_ini(&self) -> std::io::Result<Vec<u8>> {
+        crate::gz::read_either(&self.ini_path())
     }
 }
 
@@ -208,8 +220,8 @@ pub fn create(
     let result = (|| {
         std::fs::create_dir_all(&tmp)?;
         if let Some(b) = cur.bytes {
-            let mut f = std::fs::File::create(tmp.join("global.ini"))?;
-            std::io::Write::write_all(&mut f, b)?;
+            let mut f = std::fs::File::create(crate::gz::gz_path(&tmp.join("global.ini")))?;
+            std::io::Write::write_all(&mut f, &crate::gz::compress(b)?)?;
             f.sync_all()?;
         }
         let mut f = std::fs::File::create(tmp.join("manifest.json"))?;
@@ -304,7 +316,7 @@ mod tests {
     }
 
     #[test]
-    fn retention_keeps_pinned_newest_10_and_last_3_builds() {
+    fn retention_keeps_pinned_newest_5_and_last_3_builds() {
         let mut all = vec![fake("pin", 0, Reason::PreExisting, 1)];
         all.push(fake("b2", 1, Reason::BeforeApply, 2));
         all.push(fake("b3-old", 2, Reason::BeforeApply, 3));
@@ -317,8 +329,8 @@ mod tests {
         assert!(keep.contains("b3"), "newest under build 3");
         assert!(keep.contains("b2"), "newest under build 2");
         assert!(!keep.contains("b3-old"));
-        assert!(keep.contains("n19") && keep.contains("n10") && !keep.contains("n09"));
-        assert_eq!(keep.len(), 1 + 2 + 10);
+        assert!(keep.contains("n19") && keep.contains("n15") && !keep.contains("n14"));
+        assert_eq!(keep.len(), 1 + 2 + 5);
     }
 
     #[test]
@@ -335,7 +347,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert!(!pre.manifest.file.existed);
-        assert!(!pre.ini_path().exists());
+        assert!(!pre.has_ini());
         let cur = Current {
             real_path: &real,
             bytes: Some(b"abc"),
@@ -345,7 +357,14 @@ mod tests {
         let b = create(t.path(), Reason::BeforeApply, "0", None, &cur)
             .unwrap()
             .unwrap();
-        assert_eq!(std::fs::read(b.ini_path()).unwrap(), b"abc");
+        assert_eq!(b.read_ini().unwrap(), b"abc");
+        assert!(!b.ini_path().exists(), "stored compressed");
+        assert!(crate::gz::gz_path(&b.ini_path()).is_file());
+        // A backup made before compression (plain `global.ini`) still reads.
+        let gz = crate::gz::gz_path(&b.ini_path());
+        std::fs::remove_file(&gz).unwrap();
+        std::fs::write(b.ini_path(), b"plain").unwrap();
+        assert_eq!(b.read_ini().unwrap(), b"plain");
         assert!(
             create(t.path(), Reason::BeforeApply, "0", None, &cur)
                 .unwrap()

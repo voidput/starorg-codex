@@ -21,7 +21,10 @@ no crash upload and no account of its own.**
   (`%APPDATA%\StarOrg Tools\Codex\` and `%LOCALAPPDATA%\StarOrg Tools\Codex\` on Windows,
   `~/.config`, `~/.local/share` and `~/.cache` under `starorg-codex` on Linux).
 - None of this leaves your computer. Removing the app's folders and using **Remove** in the app
-  deletes everything it made.
+  deletes everything it made. Settings -> Storage lists what is kept where and how much: the
+  extracted game data cache, WHERE TO GET datasets, UEX market data, asset exports, temporary
+  extraction folders and `global.ini` backups (gzip-compressed; 5 per channel plus the newest of
+  each of the last 3 game builds). The cache folder is capped (1 GB by default).
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
   folder with placeholders.
 - Developer mode (Settings -> Advanced, off by default) only reads: `Data.p4k` (read only, as
@@ -31,7 +34,7 @@ no crash upload and no account of its own.**
   them; extracted files, sounds and models go only to a folder or file you pick, never into the
   game folder. Decoded sounds, exported models and texture previews are kept in an asset cache
   (`<cache>/assets`, or a `StarOrg Codex asset cache` subfolder of a folder you choose in
-  Settings -> Advanced; 2 GB at most; only its own files are ever removed) that
+  Settings -> Advanced; 1 GB at most; only its own files are ever removed) that
   "Clear" empties. These are Cloud Imperium's assets: for your own use, not to redistribute.
 - The memory limit of the Developer mode and MCP workers (Settings -> Advanced -> Memory limit,
   `[dev] memory_limit_gb` in `config.toml`) reads this computer's total and free RAM locally

@@ -1045,10 +1045,11 @@ fn real_builds_read_as_names() {
     let side = |var: &str| {
         let dir = PathBuf::from(std::env::var(var).expect(var));
         let stock = Arc::new(StockIni::parse(
-            std::fs::read(dir.join("base.ini")).unwrap(),
+            crate::gz::read_either(&dir.join("base.ini")).unwrap(),
         ));
         let gd: GameData =
-            serde_json::from_slice(&std::fs::read(dir.join("gamedata.json")).unwrap()).unwrap();
+            serde_json::from_slice(&crate::gz::read_either(&dir.join("gamedata.json")).unwrap())
+                .unwrap();
         let t = std::time::Instant::now();
         let s = stock.clone();
         let l = MapLookup::from_gamedata(&gd)

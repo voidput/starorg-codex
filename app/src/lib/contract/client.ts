@@ -94,6 +94,8 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   set_mcp_enabled: [{ req: T.McpToggle }, T.McpStatus];
   memory_status: [Record<string, never>, T.MemoryStatus];
   set_memory_limit: [{ req: T.MemoryLimitRequest }, T.MemoryStatus];
+  storage_status: [Record<string, never>, T.StorageStatus];
+  storage_clear_assets: [Record<string, never>, T.StorageStatus];
 }
 
 export type Command = keyof CommandMap;
@@ -234,6 +236,8 @@ export const COMMANDS = [
   'set_mcp_enabled',
   'memory_status',
   'set_memory_limit',
+  'storage_status',
+  'storage_clear_assets',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -425,5 +429,9 @@ export const api = {
   memoryStatus: () => call('memory_status', none),
   /** null resets to the default. */
   setMemoryLimit: (gb: number | null) => call('set_memory_limit', { req: { gb } }),
+  /** Settings > Storage: sizes per area and the cache folder's cap. */
+  storageStatus: () => call('storage_status', none),
+  /** "Clear asset cache"; `busy` while an asset job runs. */
+  storageClearAssets: () => call('storage_clear_assets', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
 };

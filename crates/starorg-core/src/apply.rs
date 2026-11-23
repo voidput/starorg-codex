@@ -958,9 +958,14 @@ fn load_stock(
     })?;
     if ctx.use_cache
         && let Some(inp) = inputs
-        && let Err(e) = cache::store(&cache_dir, inp, &loaded, ctx.min_stock_keys)
     {
-        warnings.push(Warning::new("cache", format!("not cached: {e}")));
+        match cache::store(&cache_dir, inp, &loaded, ctx.min_stock_keys) {
+            Err(e) => warnings.push(Warning::new("cache", format!("not cached: {e}"))),
+            // The cache folder's cap; this channel's new entry is in use.
+            Ok(()) => {
+                crate::storage::enforce_configured(&ctx.dirs, &[cache::entry_dir(&cache_dir, inp)]);
+            }
+        }
     }
     Ok(loaded)
 }
@@ -1791,7 +1796,7 @@ pub fn restore(ctx: &Ctx, t: &Target<'_>, backup_id: &str, allow_build_mismatch:
         return fail(r, e);
     }
     let want: Option<Vec<u8>> = if b.manifest.file.existed {
-        match std::fs::read(b.ini_path()) {
+        match b.read_ini() {
             Ok(bytes) if Some(fsutil::sha256_hex(&bytes)) == b.manifest.file.sha256 => Some(bytes),
             Ok(_) => return fail(r, format!("backup {} is damaged (hash mismatch)", b.id)),
             Err(e) => return fail(r, format!("backup {}: {e}", b.id)),

@@ -577,9 +577,10 @@ fn real_catalog() {
     };
     let dir = std::path::Path::new(&dir);
     let gd: GameData =
-        serde_json::from_slice(&std::fs::read(dir.join("gamedata.json")).unwrap()).unwrap();
-    let stock = StockIni::parse(std::fs::read(dir.join("base.ini")).unwrap());
-    let refs: Option<crate::groups::KeyRefs> = std::fs::read(dir.join("keyrefs.json"))
+        serde_json::from_slice(&crate::gz::read_either(&dir.join("gamedata.json")).unwrap())
+            .unwrap();
+    let stock = StockIni::parse(crate::gz::read_either(&dir.join("base.ini")).unwrap());
+    let refs: Option<crate::groups::KeyRefs> = crate::gz::read_either(&dir.join("keyrefs.json"))
         .ok()
         .map(|b| serde_json::from_slice(&b).unwrap());
     let groups = crate::groups::assign(&stock, &gd, refs.as_ref());

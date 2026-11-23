@@ -2314,3 +2314,106 @@ impl MemoryStatus {
         }
     }
 }
+
+/// One area of what the app keeps on this PC (Settings > Storage).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum StorageAreaId {
+    /// Extracted game text and data per channel (`<cache>/<install>/<CHANNEL>/`).
+    GameData,
+    /// WHERE TO GET / MCP datasets (`<cache>/mcp/<CHANNEL>/`).
+    WhereToGet,
+    /// UEX market data (`<cache>/mcp/uex/`).
+    Uex,
+    /// Developer mode asset exports (the asset cache folder).
+    AssetExports,
+    /// Extraction temp folders (`<cache>/work/`).
+    Temporary,
+    /// `global.ini` backups (app data folder; not in the cache, not under its cap).
+    Backups,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StorageArea {
+    pub id: StorageAreaId,
+    pub label: String,
+    /// The folder shown for it.
+    pub path: String,
+    pub bytes: u64,
+    pub files: u64,
+    /// Counted toward the cache folder's cap.
+    pub in_cache: bool,
+}
+
+/// Settings > Storage: what the app keeps on this PC and the cache folder's cap.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct StorageStatus {
+    /// The app's cache folder.
+    pub cache_path: String,
+    /// Everything in it now.
+    pub cache_bytes: u64,
+    /// Its cap (`[storage] cache_max_mb`, default 1 GiB): least recently used goes first.
+    pub cap_bytes: u64,
+    /// Cache folder + backups (+ the asset cache when it is in a folder of its own).
+    pub total_bytes: u64,
+    /// In a fixed order: game data, WHERE TO GET, UEX, asset exports, temporary, backups.
+    pub areas: Vec<StorageArea>,
+    /// The asset cache's own cap.
+    pub asset_cap_bytes: u64,
+    /// Backups kept per channel (plus the newest of each of the last `backup_keep_builds`
+    /// game builds and the one from before the app).
+    pub backup_keep_newest: u32,
+    pub backup_keep_builds: u32,
+    /// Why "Clear asset cache" is refused right now (an asset job is running), else `None`.
+    pub asset_busy: Option<String>,
+}
+
+impl StorageStatus {
+    /// From a measured report (`starorg_core::storage`).
+    pub fn build(
+        r: &starorg_core::storage::Report,
+        cap: u64,
+        asset_cap: u64,
+        assets_inside_cache: bool,
+        asset_busy: Option<String>,
+    ) -> Self {
+        use starorg_core::storage::Area;
+        let areas = r
+            .areas
+            .iter()
+            .map(|a| {
+                let (id, label) = match a.area {
+                    Area::GameData => (StorageAreaId::GameData, "Game data cache"),
+                    Area::WhereToGet => (StorageAreaId::WhereToGet, "WHERE TO GET datasets"),
+                    Area::Uex => (StorageAreaId::Uex, "UEX market data"),
+                    Area::AssetExports => (StorageAreaId::AssetExports, "Asset exports"),
+                    Area::Temporary => (StorageAreaId::Temporary, "Temporary extraction folders"),
+                    Area::Backups => (StorageAreaId::Backups, "global.ini backups"),
+                };
+                StorageArea {
+                    id,
+                    label: label.into(),
+                    path: a.path.display().to_string(),
+                    bytes: a.usage.bytes,
+                    files: a.usage.files,
+                    in_cache: match a.area {
+                        Area::Backups => false,
+                        Area::AssetExports => assets_inside_cache,
+                        _ => true,
+                    },
+                }
+            })
+            .collect();
+        StorageStatus {
+            cache_path: r.cache_path.display().to_string(),
+            cache_bytes: r.cache.bytes,
+            cap_bytes: cap,
+            total_bytes: r.total(assets_inside_cache).bytes,
+            areas,
+            asset_cap_bytes: asset_cap,
+            backup_keep_newest: starorg_core::backup::KEEP_NEWEST as u32,
+            backup_keep_builds: starorg_core::backup::KEEP_BUILDS as u32,
+            asset_busy,
+        }
+    }
+}

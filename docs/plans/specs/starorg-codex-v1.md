@@ -639,8 +639,10 @@ global.ini        copy, if the file existed
   (stock text from `Data.p4k`). The `pre-existing` backup is another tool's file for one
   specific build. Section 7.6 treats the two differently.
 - A backup is skipped when the file's hash equals the newest backup's.
-- Retention: the pinned one; the newest 10; and the newest backup made under each of the last
-  3 game builds, even if older than the newest 10. A hook that applies on every build change
+- Retention: the pinned one; the newest 5 (10 before 1.5); and the newest backup made under
+  each of the last 3 game builds, even if older than the newest 5. Since 1.5 the file is stored
+  as `global.ini.gz` (manifest size and hash are of the uncompressed file); plain `global.ini`
+  backups still restore. A hook that applies on every build change
   cannot push out the last backup from before a patch.
 
 ### 4.7 Profile (`profile.toml`)

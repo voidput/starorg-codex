@@ -218,6 +218,32 @@ backup made for another game build asks first), and **Remove changes** (Home) or
 `starorg-codex remove --all` puts the game back to stock. Uninstalling the app does not do
 that for you: run Remove first ([uninstall](uninstall.md)).
 
+Kept per channel: the 5 newest backups, the newest one made under each of the last 3 game
+builds, and the file from before StarOrg Codex; older ones are deleted after an apply. Each is
+stored gzip-compressed (`global.ini.gz`, about a fifth of the 11 MB file); backups made by
+older versions (plain `global.ini`) restore the same way.
+
+## Storage
+
+Settings -> Storage shows how much the app keeps and where:
+
+| Area | Where (Linux; Windows: `%LOCALAPPDATA%\StarOrg Tools\Codex\cache\`) | Bound |
+|---|---|---|
+| Game data cache | `~/.cache/starorg-codex/<install>/<CHANNEL>/` | one entry per channel, gzip (LIVE about 3.8 MB) |
+| WHERE TO GET datasets | `~/.cache/starorg-codex/mcp/<CHANNEL>/` | the last 2 builds per channel |
+| UEX market data | `~/.cache/starorg-codex/mcp/uex/` | 3 files, replaced on download |
+| Asset exports (Developer mode) | `~/.cache/starorg-codex/assets/` or your folder | 1 GB, least recently used first |
+| Temporary extraction folders | `~/.cache/starorg-codex/work/` | removed after each read; leftovers older than an hour at the next start |
+| Backups | `~/.local/share/starorg-codex/channels/<install>/<CHANNEL>/backups/` | see [Backups](#backups-and-restore) |
+
+**The cache folder's cap** (1 GB by default; `[storage] cache_max_mb` in `config.toml`):
+after the app or the CLI writes to it (game data read, a dataset extracted, an asset export)
+and at start, the least recently used goes first until it fits: asset exports, then folders
+of older builds, then another channel's WHERE TO GET datasets. A channel's current game data,
+anything used in the last 5 minutes, UEX files and backups are never removed by the cap, so it
+can stay over when everything left is in use. Whatever goes is rebuilt when it is needed
+again (a re-read of `Data.p4k`).
+
 ## Settings worth knowing
 
 - **Appearance:** dark (default) or light theme, accent colour and palette.
@@ -236,8 +262,10 @@ that for you: run Remove first ([uninstall](uninstall.md)).
 - **Launch hooks** (Linux): install, update or remove the LUG Helper hook blocks.
 - **Advanced -> Developer mode:** adds the Dev group (below). **Memory limit** caps each
   Developer mode and MCP worker (default 5 GB or half the RAM, minimum 1.5 GB; a worker stops
-  at 90% of it). **Asset cache:** where decoded sounds, exported models and previews go (2 GB,
+  at 90% of it). **Asset cache:** where decoded sounds, exported models and previews go (1 GB,
   Clear, or a folder you choose).
+- **Storage:** what the app keeps on this PC, per area, and the cache folder's cap
+  ([below](#storage)); **Clear asset cache** (refused while an export runs).
 - **Local MCP server** (experimental, off): read-only game data tools for Claude Code or Claude
   Desktop ([mcp](mcp.md)).
 - **Diagnostics** (Activity): a report with user names and home paths replaced, for bug reports.

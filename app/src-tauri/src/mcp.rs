@@ -198,6 +198,7 @@ mod tests {
             uex_dir: None,
             our_outputs: vec![],
             extractor: Arc::new(NoExtract),
+            cache_cap: None,
         }
     }
 

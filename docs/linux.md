@@ -70,8 +70,8 @@ All steps, hooks and data folders: [uninstall](uninstall.md).
 |---|---|
 | Config (profiles, settings) | `${XDG_CONFIG_HOME:-~/.config}/starorg-codex/` |
 | Data (backups of game files, blueprints, update state `app-update.json`) | `${XDG_DATA_HOME:-~/.local/share}/starorg-codex/` |
-| Cache (extracted game text, GameData; can be deleted, it is rebuilt) | `${XDG_CACHE_HOME:-~/.cache}/starorg-codex/` |
-| Asset cache (Developer mode: decoded sounds, exported models, texture previews; 2 GB by default, Settings -> Advanced) | `<cache>/assets/`, or a `StarOrg Codex asset cache` subfolder of a folder you choose |
+| Cache (extracted game text, GameData, compressed; can be deleted, it is rebuilt; 1 GB cap in all, [storage](user-guide.md#storage)) | `${XDG_CACHE_HOME:-~/.cache}/starorg-codex/` |
+| Asset cache (Developer mode: decoded sounds, exported models, texture previews; 1 GB by default, Settings -> Advanced) | `<cache>/assets/`, or a `StarOrg Codex asset cache` subfolder of a folder you choose |
 | MCP datasets (local MCP server, experimental) | `<cache>/mcp/` |
 | Webview storage (WebKitGTK, made by Tauri) | `~/.local/share/tools.starorg.codex/`, `~/.cache/tools.starorg.codex/` |
 

@@ -269,6 +269,7 @@ impl World {
             uex_dir: Some(self.root.join("cache/uex")),
             our_outputs: vec![sha],
             extractor: self.fake.clone(),
+            cache_cap: None,
         }
     }
 

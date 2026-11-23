@@ -68,9 +68,9 @@ fn eviction_removes_least_recently_used_first() {
     let a = write(&c, "LIVE", B, Kind::Audio, "a", 200);
     let b = write(&c, "LIVE", B, Kind::Audio, B, 200);
     let d = write(&c, "LIVE", B, Kind::Audio, "d", 200);
-    age(&a, 300);
-    age(&b, 200);
-    age(&d, 100);
+    age(&a, 3000);
+    age(&b, 2000);
+    age(&d, 1000);
     // `a` is used again: it is now the newest.
     assert!(c.get("LIVE", B, Kind::Audio, "a", "ogg").is_some());
     // 600 + 240 + 240 > 1000: the two oldest (b, then d) go.
@@ -407,4 +407,42 @@ fn peek_finds_a_file_without_touching_it() {
             .is_none(),
         "empty"
     );
+}
+
+#[test]
+fn default_cap_is_one_gib() {
+    assert_eq!(DEFAULT_MAX_BYTES, 1 << 30);
+    assert_eq!(configured_max(&Config::default()), 1 << 30);
+}
+
+#[test]
+fn eviction_is_lru_to_the_cap_and_skips_files_in_use() {
+    let t = tempfile::tempdir().unwrap();
+    let c = AssetCache::new(t.path(), 1000);
+    let old = write(&c, "LIVE", B, Kind::Audio, "old", 240);
+    let mid = write(&c, "LIVE", B, Kind::Audio, "mid", 240);
+    age(&old, 3600);
+    age(&mid, 1800);
+    // The current job: files written just now, and a `.part` it is still writing.
+    let cur = write(&c, "LIVE", B, Kind::Models, "cur", 240);
+    let cur2 = write(&c, "LIVE", B, Kind::Models, "cur2", 240);
+    let part = AssetCache::part_path(&c.path("LIVE", B, Kind::Models, "wip", "glb"));
+    std::fs::write(&part, vec![0u8; 240]).unwrap();
+    // 5 x 240 > 1000: the least recently used (`old`) goes, nothing else.
+    let cur3 = write(&c, "LIVE", B, Kind::Models, "cur3", 240);
+    assert!(!old.exists());
+    assert!(mid.exists() && part.exists());
+    let job = [&cur, &cur2, &cur3];
+    assert!(job.iter().all(|p| p.exists()));
+    // A smaller cap: `mid` goes; the files in use stay although the total is over it.
+    let small = AssetCache::new(t.path(), 300);
+    small.evict().unwrap();
+    assert!(!mid.exists());
+    assert!(job.iter().all(|p| p.exists()) && part.exists());
+    // Once they are no longer in use, eviction gets down to the cap; a .part that is not
+    // stale yet is never removed for size.
+    let later = SystemTime::now() + IN_USE + Duration::from_secs(1);
+    small.evict_at(later).unwrap();
+    assert_eq!(job.iter().filter(|p| p.exists()).count(), 1, "720 -> 240");
+    assert!(part.exists());
 }

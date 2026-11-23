@@ -1371,7 +1371,9 @@ previews (`previews/<path hash>.png`) under `<root>/<CHANNEL>/<build key>/`. The
 own, `<chosen>/StarOrg Codex asset cache/`, so nothing of the user's is ever inside the layout. The build key
 is the extraction cache key (p4k size, mtime, change number, StarBreaker rev), so a game patch
 misses; the first write for a new build removes the channel's older builds. LRU by modification
-time (a hit touches the file), 2 GiB cap (`[dev] asset_cache_max_mb`), files over a quarter of
+time (a hit touches the file), 1 GiB cap (`[dev] asset_cache_max_mb`; was 2 GiB before 1.5, see
+`starorg_core::storage` for the cache folder's overall cap; files used in the last 5 min are
+never evicted), files over a quarter of
 the cap are not kept, stale `.part` files go after an hour. A hit is answered without starting a
 worker (preview, play, sounds export without `.wem`, model export); a sound that is not converted
 is cached as its WEM (a cached WEM of a codec this build converts is not a hit: it is converted

@@ -317,9 +317,10 @@ fn real_cache_entry() {
     let dir = std::path::PathBuf::from(
         std::env::var("STARORG_OWNERS_DIR").expect("set STARORG_OWNERS_DIR"),
     );
-    let stock = StockIni::parse(std::fs::read(dir.join("base.ini")).unwrap());
+    let stock = StockIni::parse(crate::gz::read_either(&dir.join("base.ini")).unwrap());
     let gd: GameData =
-        serde_json::from_slice(&std::fs::read(dir.join("gamedata.json")).unwrap()).unwrap();
+        serde_json::from_slice(&crate::gz::read_either(&dir.join("gamedata.json")).unwrap())
+            .unwrap();
     let t = std::time::Instant::now();
     let idx = OwnerIndex::build(&stock, &gd);
     let took = t.elapsed();

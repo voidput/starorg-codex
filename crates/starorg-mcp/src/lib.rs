@@ -75,6 +75,7 @@ pub fn config_for(
     let cfg = Config::load(dirs).unwrap_or_default();
     let outputs = Outputs::load(dirs).unwrap_or_default();
     let cache_dir = dirs.cache.join("mcp");
+    let cache_cap = Some(starorg_core::storage::configured_cap(&cfg));
     StoreConfig {
         channels,
         default_channel: cfg.default_channel,
@@ -82,6 +83,7 @@ pub fn config_for(
         cache_dir,
         our_outputs: outputs.entries.into_iter().map(|e| e.sha256).collect(),
         extractor,
+        cache_cap,
     }
 }
 
