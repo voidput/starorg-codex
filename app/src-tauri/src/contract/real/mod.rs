@@ -120,7 +120,7 @@ pub struct WorkerSource;
 
 impl SourceFactory for WorkerSource {
     fn source(&self, dirs: &AppDirs) -> Result<Box<dyn GameSource>, String> {
-        let exe = std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
+        let exe = starorg_core::selfexe::own_exe()?;
         // App-started extractions also run the loc-reference pass (Strings grouping).
         let mut s = LocalExtraction::new(exe).with_keyrefs();
         s.work_root = Some(dirs.cache.join("work"));
@@ -3732,8 +3732,7 @@ impl Backend for RealBackend {
     fn set_mcp_enabled(&self, req: McpToggle) -> CmdResult<McpStatus> {
         let st = if req.enabled {
             self.mcp.enable(|| {
-                let exe =
-                    std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
+                let exe = starorg_core::selfexe::own_exe()?;
                 let installs = self.installs();
                 Ok(starorg_mcp::config_for(
                     installs.first().map(|f| &f.install),

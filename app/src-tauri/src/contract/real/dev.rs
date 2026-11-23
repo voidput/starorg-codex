@@ -74,7 +74,7 @@ pub struct WorkerSpawner;
 
 impl DevSpawner for WorkerSpawner {
     fn command(&self, ch: &Channel) -> Result<Command, String> {
-        let exe = std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
+        let exe = starorg_core::selfexe::own_exe()?;
         let mut c = Command::new(exe);
         c.arg("dev-worker").arg("--p4k").arg(&ch.p4k);
         Ok(c)
@@ -522,8 +522,7 @@ impl RealBackend {
         {
             return Ok(t.clone());
         }
-        let exe = std::env::current_exe()
-            .map_err(|e| internal(format!("cannot find own binary: {e}")))?;
+        let exe = starorg_core::selfexe::own_exe().map_err(internal)?;
         let cfg = starorg_mcp::config_for(
             Some(&f.install),
             self.dirs(),

@@ -29,6 +29,7 @@ pub mod model;
 pub mod patch;
 pub mod paths;
 pub mod running;
+pub mod selfexe;
 pub mod source;
 pub mod starorg;
 pub mod state;
