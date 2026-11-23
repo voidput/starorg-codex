@@ -1252,6 +1252,21 @@ pub(crate) const MOCK_FLEET_FILE: &str = r#"[
  {"name":"Synthetic paint pack","entity_type":"skin"}
 ]"#;
 
+/// Made-up cargo grid SCU of the mock hulls; the rest have none (not known).
+fn mock_cargo(id: &str) -> Option<f64> {
+    match id {
+        "vehicle_NameORBW_Lantern" => Some(8.0),
+        "vehicle_NameORBW_Lantern_Pro" => Some(16.0),
+        "vehicle_NameRDGE_Hauler" => Some(96.0),
+        "vehicle_NameRDGE_Hauler_XL" => Some(192.0),
+        "vehicle_NameRDGE_Barge" => Some(576.0),
+        "vehicle_NameVLMR_Pike" => Some(32.0),
+        "vehicle_NameSOLN_Rover" => Some(2.0),
+        "vehicle_NameTRNE_Heron" => Some(46.0),
+        _ => None,
+    }
+}
+
 fn mock_catalog() -> starorg_core::fleet::Catalog {
     use starorg_core::fleet::Hull;
     starorg_core::fleet::Catalog::new(
@@ -1267,6 +1282,7 @@ fn mock_catalog() -> starorg_core::fleet::Catalog {
                 ground,
                 npc_shared: if ground { 0 } else { 2 },
                 namesake: true,
+                cargo_scu: mock_cargo(id),
             })
             .collect(),
     )

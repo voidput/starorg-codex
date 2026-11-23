@@ -13742,6 +13742,7 @@
   "fleet_clear": {
     "catalog": [
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Bastion",
         "maker": "axis",
@@ -13750,6 +13751,7 @@
         "short": "Bastion"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Vigil",
         "maker": "axis",
@@ -13758,6 +13760,7 @@
         "short": "Vigil"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Harrier",
         "maker": "kstl",
@@ -13766,6 +13769,7 @@
         "short": "Harrier"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Kite",
         "maker": "kstl",
@@ -13774,6 +13778,7 @@
         "short": "Kite"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon",
         "maker": "kstl",
@@ -13782,6 +13787,7 @@
         "short": "Talon Mk I"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon_Mk2",
         "maker": "kstl",
@@ -13790,6 +13796,7 @@
         "short": "Talon Mk II"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameORBW_Beacon",
         "maker": "orbw",
@@ -13798,6 +13805,7 @@
         "short": "Beacon"
       },
       {
+        "cargo_scu": 8.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern",
         "maker": "orbw",
@@ -13806,6 +13814,7 @@
         "short": "Lantern"
       },
       {
+        "cargo_scu": 16.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern_Pro",
         "maker": "orbw",
@@ -13814,6 +13823,7 @@
         "short": "Lantern Pro"
       },
       {
+        "cargo_scu": 576.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Barge",
         "maker": "rdge",
@@ -13822,6 +13832,7 @@
         "short": null
       },
       {
+        "cargo_scu": 96.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler",
         "maker": "rdge",
@@ -13830,6 +13841,7 @@
         "short": "Hauler"
       },
       {
+        "cargo_scu": 192.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler_XL",
         "maker": "rdge",
@@ -13838,6 +13850,7 @@
         "short": "Hauler XL"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Drifter",
         "maker": "soln",
@@ -13846,6 +13859,7 @@
         "short": "Drifter"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Prospect",
         "maker": "soln",
@@ -13854,6 +13868,7 @@
         "short": "Prospect"
       },
       {
+        "cargo_scu": 2.0,
         "ground": true,
         "hull": "vehicle_NameSOLN_Rover",
         "maker": "soln",
@@ -13862,6 +13877,7 @@
         "short": "Rover"
       },
       {
+        "cargo_scu": 46.0,
         "ground": false,
         "hull": "vehicle_NameTRNE_Heron",
         "maker": "trne",
@@ -13870,6 +13886,7 @@
         "short": "Heron"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameTRNE_Wren",
         "maker": "trne",
@@ -13878,6 +13895,7 @@
         "short": "Wren"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Hornbill",
         "maker": "vlmr",
@@ -13886,6 +13904,7 @@
         "short": "Hornbill"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Moth",
         "maker": "vlmr",
@@ -13894,6 +13913,7 @@
         "short": "Moth"
       },
       {
+        "cargo_scu": 32.0,
         "ground": false,
         "hull": "vehicle_NameVLMR_Pike",
         "maker": "vlmr",
@@ -14137,6 +14157,7 @@
   "fleet_match": {
     "catalog": [
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Bastion",
         "maker": "axis",
@@ -14145,6 +14166,7 @@
         "short": "Bastion"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Vigil",
         "maker": "axis",
@@ -14153,6 +14175,7 @@
         "short": "Vigil"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Harrier",
         "maker": "kstl",
@@ -14161,6 +14184,7 @@
         "short": "Harrier"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Kite",
         "maker": "kstl",
@@ -14169,6 +14193,7 @@
         "short": "Kite"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon",
         "maker": "kstl",
@@ -14177,6 +14202,7 @@
         "short": "Talon Mk I"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon_Mk2",
         "maker": "kstl",
@@ -14185,6 +14211,7 @@
         "short": "Talon Mk II"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameORBW_Beacon",
         "maker": "orbw",
@@ -14193,6 +14220,7 @@
         "short": "Beacon"
       },
       {
+        "cargo_scu": 8.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern",
         "maker": "orbw",
@@ -14201,6 +14229,7 @@
         "short": "Lantern"
       },
       {
+        "cargo_scu": 16.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern_Pro",
         "maker": "orbw",
@@ -14209,6 +14238,7 @@
         "short": "Lantern Pro"
       },
       {
+        "cargo_scu": 576.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Barge",
         "maker": "rdge",
@@ -14217,6 +14247,7 @@
         "short": null
       },
       {
+        "cargo_scu": 96.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler",
         "maker": "rdge",
@@ -14225,6 +14256,7 @@
         "short": "Hauler"
       },
       {
+        "cargo_scu": 192.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler_XL",
         "maker": "rdge",
@@ -14233,6 +14265,7 @@
         "short": "Hauler XL"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Drifter",
         "maker": "soln",
@@ -14241,6 +14274,7 @@
         "short": "Drifter"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Prospect",
         "maker": "soln",
@@ -14249,6 +14283,7 @@
         "short": "Prospect"
       },
       {
+        "cargo_scu": 2.0,
         "ground": true,
         "hull": "vehicle_NameSOLN_Rover",
         "maker": "soln",
@@ -14257,6 +14292,7 @@
         "short": "Rover"
       },
       {
+        "cargo_scu": 46.0,
         "ground": false,
         "hull": "vehicle_NameTRNE_Heron",
         "maker": "trne",
@@ -14265,6 +14301,7 @@
         "short": "Heron"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameTRNE_Wren",
         "maker": "trne",
@@ -14273,6 +14310,7 @@
         "short": "Wren"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Hornbill",
         "maker": "vlmr",
@@ -14281,6 +14319,7 @@
         "short": "Hornbill"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Moth",
         "maker": "vlmr",
@@ -14289,6 +14328,7 @@
         "short": "Moth"
       },
       {
+        "cargo_scu": 32.0,
         "ground": false,
         "hull": "vehicle_NameVLMR_Pike",
         "maker": "vlmr",
@@ -14422,6 +14462,7 @@
   "fleet_view": {
     "catalog": [
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Bastion",
         "maker": "axis",
@@ -14430,6 +14471,7 @@
         "short": "Bastion"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Vigil",
         "maker": "axis",
@@ -14438,6 +14480,7 @@
         "short": "Vigil"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Harrier",
         "maker": "kstl",
@@ -14446,6 +14489,7 @@
         "short": "Harrier"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Kite",
         "maker": "kstl",
@@ -14454,6 +14498,7 @@
         "short": "Kite"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon",
         "maker": "kstl",
@@ -14462,6 +14507,7 @@
         "short": "Talon Mk I"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon_Mk2",
         "maker": "kstl",
@@ -14470,6 +14516,7 @@
         "short": "Talon Mk II"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameORBW_Beacon",
         "maker": "orbw",
@@ -14478,6 +14525,7 @@
         "short": "Beacon"
       },
       {
+        "cargo_scu": 8.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern",
         "maker": "orbw",
@@ -14486,6 +14534,7 @@
         "short": "Lantern"
       },
       {
+        "cargo_scu": 16.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern_Pro",
         "maker": "orbw",
@@ -14494,6 +14543,7 @@
         "short": "Lantern Pro"
       },
       {
+        "cargo_scu": 576.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Barge",
         "maker": "rdge",
@@ -14502,6 +14552,7 @@
         "short": null
       },
       {
+        "cargo_scu": 96.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler",
         "maker": "rdge",
@@ -14510,6 +14561,7 @@
         "short": "Hauler"
       },
       {
+        "cargo_scu": 192.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler_XL",
         "maker": "rdge",
@@ -14518,6 +14570,7 @@
         "short": "Hauler XL"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Drifter",
         "maker": "soln",
@@ -14526,6 +14579,7 @@
         "short": "Drifter"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Prospect",
         "maker": "soln",
@@ -14534,6 +14588,7 @@
         "short": "Prospect"
       },
       {
+        "cargo_scu": 2.0,
         "ground": true,
         "hull": "vehicle_NameSOLN_Rover",
         "maker": "soln",
@@ -14542,6 +14597,7 @@
         "short": "Rover"
       },
       {
+        "cargo_scu": 46.0,
         "ground": false,
         "hull": "vehicle_NameTRNE_Heron",
         "maker": "trne",
@@ -14550,6 +14606,7 @@
         "short": "Heron"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameTRNE_Wren",
         "maker": "trne",
@@ -14558,6 +14615,7 @@
         "short": "Wren"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Hornbill",
         "maker": "vlmr",
@@ -14566,6 +14624,7 @@
         "short": "Hornbill"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Moth",
         "maker": "vlmr",
@@ -14574,6 +14633,7 @@
         "short": "Moth"
       },
       {
+        "cargo_scu": 32.0,
         "ground": false,
         "hull": "vehicle_NameVLMR_Pike",
         "maker": "vlmr",
@@ -18355,6 +18415,7 @@
   "save_ship_names": {
     "catalog": [
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Bastion",
         "maker": "axis",
@@ -18363,6 +18424,7 @@
         "short": "Bastion"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameAXIS_Vigil",
         "maker": "axis",
@@ -18371,6 +18433,7 @@
         "short": "Vigil"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Harrier",
         "maker": "kstl",
@@ -18379,6 +18442,7 @@
         "short": "Harrier"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Kite",
         "maker": "kstl",
@@ -18387,6 +18451,7 @@
         "short": "Kite"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon",
         "maker": "kstl",
@@ -18395,6 +18460,7 @@
         "short": "Talon Mk I"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameKSTL_Talon_Mk2",
         "maker": "kstl",
@@ -18403,6 +18469,7 @@
         "short": "Talon Mk II"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameORBW_Beacon",
         "maker": "orbw",
@@ -18411,6 +18478,7 @@
         "short": "Beacon"
       },
       {
+        "cargo_scu": 8.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern",
         "maker": "orbw",
@@ -18419,6 +18487,7 @@
         "short": "Lantern"
       },
       {
+        "cargo_scu": 16.0,
         "ground": false,
         "hull": "vehicle_NameORBW_Lantern_Pro",
         "maker": "orbw",
@@ -18427,6 +18496,7 @@
         "short": "Lantern Pro"
       },
       {
+        "cargo_scu": 576.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Barge",
         "maker": "rdge",
@@ -18435,6 +18505,7 @@
         "short": null
       },
       {
+        "cargo_scu": 96.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler",
         "maker": "rdge",
@@ -18443,6 +18514,7 @@
         "short": "Hauler"
       },
       {
+        "cargo_scu": 192.0,
         "ground": false,
         "hull": "vehicle_NameRDGE_Hauler_XL",
         "maker": "rdge",
@@ -18451,6 +18523,7 @@
         "short": "Hauler XL"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Drifter",
         "maker": "soln",
@@ -18459,6 +18532,7 @@
         "short": "Drifter"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameSOLN_Prospect",
         "maker": "soln",
@@ -18467,6 +18541,7 @@
         "short": "Prospect"
       },
       {
+        "cargo_scu": 2.0,
         "ground": true,
         "hull": "vehicle_NameSOLN_Rover",
         "maker": "soln",
@@ -18475,6 +18550,7 @@
         "short": "Rover"
       },
       {
+        "cargo_scu": 46.0,
         "ground": false,
         "hull": "vehicle_NameTRNE_Heron",
         "maker": "trne",
@@ -18483,6 +18559,7 @@
         "short": "Heron"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameTRNE_Wren",
         "maker": "trne",
@@ -18491,6 +18568,7 @@
         "short": "Wren"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Hornbill",
         "maker": "vlmr",
@@ -18499,6 +18577,7 @@
         "short": "Hornbill"
       },
       {
+        "cargo_scu": null,
         "ground": false,
         "hull": "vehicle_NameVLMR_Moth",
         "maker": "vlmr",
@@ -18507,6 +18586,7 @@
         "short": "Moth"
       },
       {
+        "cargo_scu": 32.0,
         "ground": false,
         "hull": "vehicle_NameVLMR_Pike",
         "maker": "vlmr",

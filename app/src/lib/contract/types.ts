@@ -1228,6 +1228,8 @@ export interface FleetHull {
   ground: boolean;
   /** Other records (AI, PU variants) that show the same name. */
   npc_shared: number;
+  /** Cargo grid SCU of the stock loadout; null when not known. */
+  cargo_scu: number | null;
 }
 
 export interface OwnedHull {

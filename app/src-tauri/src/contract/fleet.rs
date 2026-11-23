@@ -177,6 +177,7 @@ pub fn hull(h: &Hull) -> FleetHull {
         maker: h.maker.clone(),
         ground: h.ground,
         npc_shared: h.npc_shared,
+        cargo_scu: h.cargo_scu,
     }
 }
 

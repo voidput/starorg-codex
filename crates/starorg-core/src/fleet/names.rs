@@ -276,6 +276,7 @@ mod tests {
             ground: false,
             npc_shared: 0,
             namesake: true,
+            cargo_scu: None,
         }
     }
 

@@ -1707,7 +1707,7 @@ pub struct ShipNamesSettings {
 }
 
 /// A player-flyable hull of the channel's build.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetHull {
     /// Hull id = the long name key (`vehicle_NameAEGS_Gladius`).
     pub hull: String,
@@ -1720,6 +1720,9 @@ pub struct FleetHull {
     pub ground: bool,
     /// Other records (AI, PU, unmanned variants) that show the same name.
     pub npc_shared: u32,
+    /// Cargo grid SCU of the stock loadout; `None` when the game data has none or the
+    /// records disagree.
+    pub cargo_scu: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1756,7 +1759,7 @@ pub struct FleetViewRequest {
 }
 
 /// Everything the Ships screen needs for one channel.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct FleetView {
     pub channel: String,
     /// The build's game data has been read: `catalog` is the real list.

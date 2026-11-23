@@ -2,7 +2,7 @@
 title: StarOrg Codex v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-21
+updated: 2026-11-23
 ---
 
 # StarOrg Codex v1 — addendum (user requests 2026-11-14)
@@ -444,7 +444,10 @@ change).
 - Fields: `hull`, `name` (stock long name), `short` (stock value of `<hull>_short` when that
   key exists), `maker` (most common manufacturer code of its records, a `_2025`-style year
   suffix dropped), `flyable` (at least one record passes `is_player_hull`), `ground`
-  (movement class), `npc_shared` (records that fail `is_player_hull`).
+  (movement class), `npc_shared` (records that fail `is_player_hull`), `cargo_scu` (stock
+  cargo grid SCU of the namesake player record, else the value all player records agree on;
+  none when no grid or they disagree; the Commodities trade calculator reads it through
+  `fleet_view`).
 - Only `flyable` hulls are offered in the UI and matched by the importer.
 
 ### 6.3 Import
