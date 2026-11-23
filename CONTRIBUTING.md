@@ -36,6 +36,17 @@ npm test
 npm run build
 ```
 
+### Disk space
+
+- Debug builds keep line tables only (`[profile.dev]` in `Cargo.toml`); for a debugger session
+  build with `CARGO_PROFILE_DEV_DEBUG=full`.
+- Extra git worktrees should share one build folder: set `CARGO_TARGET_DIR` to the main
+  checkout's `target/` (an absolute path). Otherwise each worktree builds its own `target/` of
+  tens of GB.
+- `scripts/clean-dev.sh` shows old build output, worktree `target/` folders and `.tmp/` scratch;
+  `scripts/clean-dev.sh --yes` removes them (`DAYS=3` to keep less; uses `cargo sweep` when
+  installed).
+
 On Linux the Tauri crate needs the WebKitGTK development packages (see the `Tauri system
 libraries` step in `.github/workflows/ci.yml`).
 

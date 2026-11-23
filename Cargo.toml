@@ -54,12 +54,21 @@ all = { level = "warn", priority = -1 }
 [profile.release]
 panic = "unwind"
 
-# Debug builds (`tauri dev`, `cargo run`) still read a 100+ GB archive: optimise the
-# dependencies and the extraction crates, or a first extraction takes minutes instead of
-# seconds. The rest of the workspace stays unoptimised for quick rebuilds and debugging.
+# Debug info: line tables only for our crates (backtraces keep file:line; no full variable
+# info) and none for dependencies. Full debug info made target/debug grow to ~300 GB across
+# test binaries (one debug CLI binary was 643 MB). Set CARGO_PROFILE_DEV_DEBUG=full for a
+# debugger session.
+[profile.dev]
+debug = "line-tables-only"
+
 [profile.dev.package."*"]
 opt-level = 2
+debug = false
 
+# Debug builds (`tauri dev`, `cargo run`) still read a 100+ GB archive: optimise the
+# dependencies and the extraction crates, or a first extraction takes minutes instead of
+# seconds (dependencies: above). The rest of the workspace stays unoptimised for quick
+# rebuilds.
 [profile.dev.package.starorg-data]
 opt-level = 2
 
