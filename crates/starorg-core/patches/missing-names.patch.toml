@@ -47,3 +47,30 @@ key = "item_NameReclaimer_Paint_Showdown"
 op = "set"
 value = "Reclaimer Showdown Livery"
 fill_name = true
+
+# nvs_pilot_flightsuit_01_01_02..04: stock (LIVE 4.10) has no name; the variant rule gave
+# them the base suit's name. The wiki pages for these classes name each colour, matching
+# the stock helmets nvs_pilot_flightsuit_helmet_01_01_02..04 (Slate, Jungle, Alpine).
+# Source: https://starcitizen.tools/OMNI-AFS-Sapphire_Armored_Flight_Suit_Slate
+[[loc]]
+id = "omni-afs-suit-slate"
+key = "item_Name_nvs_pilot_flightsuit_01_01_02"
+op = "set"
+value = "OMNI-AFS-Sapphire Armored Flight Suit Slate"
+fill_name = true
+
+# Source: https://starcitizen.tools/OMNI-AFS-Sapphire_Armored_Flight_Suit_Jungle
+[[loc]]
+id = "omni-afs-suit-jungle"
+key = "item_Name_nvs_pilot_flightsuit_01_01_03"
+op = "set"
+value = "OMNI-AFS-Sapphire Armored Flight Suit Jungle"
+fill_name = true
+
+# Source: https://starcitizen.tools/OMNI-AFS-Sapphire_Armored_Flight_Suit_Alpine
+[[loc]]
+id = "omni-afs-suit-alpine"
+key = "item_Name_nvs_pilot_flightsuit_01_01_04"
+op = "set"
+value = "OMNI-AFS-Sapphire Armored Flight Suit Alpine"
+fill_name = true
