@@ -412,7 +412,14 @@ For players who want to look things up in the game data. Read only on the game.
   listed as "LIVE <version>") and press **Compare**. Downloaded builds stay usable with the
   switch off; the trash button deletes one. Applying never uses them: it always reads
   `Data.p4k` on this computer.
-- **Files:** browse `Data.p4k`, preview textures and text, extract files.
+- **Files:** browse `Data.p4k`, preview textures and text, extract files. Long folders and
+  searches scroll smoothly (only the rows in view are drawn); so does the Diff records list.
+
+Explorer and Files read `Data.p4k` in a separate process that uses about 0.5-1 GB of memory
+while open. Opening either screen does not start it: press **Open game data**. After that,
+coming back to the screen (for the same channel, until the app closes) opens it again by itself,
+and so does a hand-off such as Ctrl+K **Find record…** or **Open owning record**. Closing the
+asset browser by hand (the power button on Files) makes Files ask again next time.
 
 Exports are for your own use; the game's assets belong to Cloud Imperium. CLI: `starorg-codex dev`.
 
