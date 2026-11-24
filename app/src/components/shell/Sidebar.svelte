@@ -19,17 +19,23 @@
   import Sheet from '@lucide/svelte/icons/sheet';
   import GitCompare from '@lucide/svelte/icons/git-compare';
   import FolderTree from '@lucide/svelte/icons/folder-tree';
+  import Gauge from '@lucide/svelte/icons/gauge';
   import PanelLeftClose from '@lucide/svelte/icons/panel-left-close';
   import PanelLeftOpen from '@lucide/svelte/icons/panel-left-open';
   import { Button } from '@/components/ui/button';
   import { navGroups, navItems, type ScreenId } from '@/lib/nav';
   import { cn } from '@/lib/utils';
 
-  let { current = $bindable<ScreenId>('home'), version = '', dev = false }: { current: ScreenId; version?: string; dev?: boolean } = $props();
+  let {
+    current = $bindable<ScreenId>('home'),
+    version = '',
+    dev = false,
+    telemetry = false,
+  }: { current: ScreenId; version?: string; dev?: boolean; /** Live telemetry is on (Settings > Experimental). */ telemetry?: boolean } = $props();
 
-  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, shops: Store, commodities: Boxes, loot: PackageOpen, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare, files: FolderTree } as const;
-  const NAV = $derived(navGroups(dev));
-  const NAV_ITEMS = $derived(navItems(dev));
+  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, shops: Store, commodities: Boxes, loot: PackageOpen, telemetry: Gauge, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare, files: FolderTree } as const;
+  const NAV = $derived(navGroups(dev, telemetry));
+  const NAV_ITEMS = $derived(navItems(dev, telemetry));
   const MIN = 168;
   const MAX = 384;
   const KEY = 'starorg:sidebar';
@@ -113,12 +119,13 @@
                   collapsed && 'justify-center px-0',
                 )}
                 aria-current={active ? 'page' : undefined}
-                aria-label={collapsed ? item.label : undefined}
+                aria-label={collapsed ? (item.badge ? `${item.label} (${item.badge.toLowerCase()})` : item.label) : undefined}
                 title={collapsed ? (item.key ? `${item.label} (Alt+${item.key})` : item.label) : undefined}
                 onclick={() => (current = item.id)}
               >
                 <Icon class="size-4 shrink-0" aria-hidden="true" />
                 {#if !collapsed}<span class="flex-1 truncate">{item.label}</span>{/if}
+                {#if !collapsed && item.badge}<span class="text-warning border-warning/40 shrink-0 rounded-full border px-1.5 text-[10px] leading-4 font-medium" title={item.badge}><span aria-hidden="true">{item.badge.slice(0, 3)}</span><span class="sr-only">({item.badge.toLowerCase()})</span></span>{/if}
               </button>
             </li>
           {/each}

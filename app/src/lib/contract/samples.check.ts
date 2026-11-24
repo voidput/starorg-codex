@@ -203,6 +203,16 @@ interface Samples {
   storage_status: T.StorageStatus;
   storage_clear_assets: T.StorageStatus;
   open_link: null;
+  telemetry_event: string;
+  telemetry_status: T.TelemetryStatus;
+  telemetry_configure: T.TelemetryConfigureResult;
+  telemetry_start: T.TelemetryStatus;
+  telemetry_stop: T.TelemetryStatus;
+  telemetry_actions: T.TelemetryActions;
+  telemetry_trigger: T.TelemetryTriggerResult;
+  telemetry_trigger_refused: T.TelemetryTriggerResult;
+  telemetry_event_status: T.TelemetryEvent;
+  telemetry_event_frame: T.TelemetryEvent;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

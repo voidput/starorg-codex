@@ -272,6 +272,9 @@ fn samples() -> Value {
         v[k] = x;
     }
     v["open_link"] = json!(b.open_link(ExternalLink::Support).unwrap());
+    for (k, x) in super::tests_telemetry::telemetry_samples() {
+        v[k] = x;
+    }
     for (k, x) in super::tests_assets::asset_samples() {
         v[k] = x;
     }
@@ -331,6 +334,7 @@ fn storage_on_the_mock_lists_every_area_and_clears_assets() {
             StorageAreaId::Uex,
             StorageAreaId::AssetExports,
             StorageAreaId::Temporary,
+            StorageAreaId::Telemetry,
             StorageAreaId::Backups,
         ]
     );
@@ -1292,7 +1296,8 @@ fn ts_client_lists_every_command() {
         assert!(
             src.contains(&format!("$crate::contract::{name},"))
                 || src.contains(&format!("$crate::contract::dev::{name},"))
-                || src.contains(&format!("$crate::contract::assets::{name},")),
+                || src.contains(&format!("$crate::contract::assets::{name},"))
+                || src.contains(&format!("$crate::contract::telemetry::{name},")),
             "{name} missing from contract_handler!"
         );
     }

@@ -24,7 +24,7 @@ test('sizes and the cap read plainly', () => {
 
 test('the samples list every area, with a hint, and backups outside the cap', () => {
   const ids = s.areas.map((a) => a.id);
-  assert.deepEqual(ids, ['game-data', 'where-to-get', 'uex', 'asset-exports', 'temporary', 'backups']);
+  assert.deepEqual(ids, ['game-data', 'where-to-get', 'uex', 'asset-exports', 'temporary', 'telemetry', 'backups']);
   for (const a of s.areas) assert.ok(AREA_HINTS[a.id], a.id);
   const backups = s.areas.find((a) => a.id === 'backups')!;
   assert.equal(backups.in_cache, false);

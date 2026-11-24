@@ -3,9 +3,9 @@
 // Run: npm test.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { navGroups, navItems } from '../src/lib/nav.ts';
+import { findNav, isScreen, navGroups, navItems } from '../src/lib/nav.ts';
 
-const layout = (dev: boolean) => navGroups(dev).map((g) => [g.label, g.items.map((i) => `${i.id}:${i.key}`)]);
+const layout = (dev: boolean, telemetry = false) => navGroups(dev, telemetry).map((g) => [g.label, g.items.map((i) => `${i.id}:${i.key}`)]);
 
 test('Game reads the game; Backups and Activity sit with Settings', () => {
   assert.deepEqual(layout(false), [
@@ -27,4 +27,19 @@ test('Developer mode adds Dev before App and moves only Settings to Alt+0', () =
     .map((i) => i.key)
     .filter(Boolean);
   assert.equal(new Set(keys).size, keys.length, 'no Alt key used twice');
+});
+
+test('Live telemetry joins Game only while the feature is on, labelled experimental and without a key', () => {
+  assert.ok(!navItems(false).some((i) => i.id === 'telemetry'));
+  assert.ok(!navItems(true).some((i) => i.id === 'telemetry'));
+  assert.deepEqual(layout(false, true)[2], ['Game', ['shops:', 'commodities:', 'loot:', 'telemetry:']]);
+  const withDev = layout(true, true);
+  assert.deepEqual(withDev[2], ['Game', ['shops:', 'commodities:', 'loot:', 'telemetry:']]);
+  assert.deepEqual(withDev.at(-1), ['App', ['backups:7', 'activity:8', 'settings:0']]);
+  const item = navItems(false, true).find((i) => i.id === 'telemetry')!;
+  assert.equal(item.label, 'Live telemetry');
+  assert.equal(item.badge, 'Experimental');
+  // Deep links and the palette know the screen even while it is hidden.
+  assert.ok(isScreen('telemetry'));
+  assert.equal(findNav('telemetry').label, 'Live telemetry');
 });

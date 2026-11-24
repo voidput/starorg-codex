@@ -4,6 +4,7 @@ pub mod commands;
 pub mod contract;
 pub mod gpu;
 pub mod mcp;
+pub mod telemetry;
 pub mod tokens;
 pub mod update;
 
@@ -94,13 +95,12 @@ pub fn run() {
     .build(tauri::generate_context!())
     .expect("error while building StarOrg Codex")
     .run(|app, event| {
-        // The local MCP server stops with the app (docs/mcp.md).
+        // The local MCP server (docs/mcp.md) and a live telemetry stream stop with the app.
         if let tauri::RunEvent::Exit = event {
             use tauri::Manager;
-            let _ = app
-                .state::<BackendState>()
-                .0
-                .set_mcp_enabled(contract::types::McpToggle { enabled: false });
+            let b = app.state::<BackendState>().0.clone();
+            let _ = b.set_mcp_enabled(contract::types::McpToggle { enabled: false });
+            let _ = b.telemetry_stop();
         }
     });
 }

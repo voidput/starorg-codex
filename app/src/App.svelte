@@ -35,6 +35,8 @@
   import DatasetsScreen from '@/components/screens/DatasetsScreen.svelte';
   import DiffScreen from '@/components/screens/DiffScreen.svelte';
   import FilesScreen from '@/components/screens/FilesScreen.svelte';
+  import TelemetryScreen from '@/components/screens/TelemetryScreen.svelte';
+  import { telemetry } from '@/lib/stores/telemetry.svelte';
   import { app } from '@/lib/stores/app.svelte';
   import UpdateBanner from '@/components/shell/UpdateBanner.svelte';
   import { updates } from '@/lib/stores/update.svelte';
@@ -43,8 +45,12 @@
   let palette = $state(false);
   let main = $state<HTMLElement | null>(null);
   const devOn = $derived(!!app.settings?.advanced.developer_mode);
-  /** With Developer mode off the Dev screens are not rendered; their routes fall back to Home. */
-  const screen = $derived<ScreenId>(isDevScreen(app.screen) && !devOn ? 'home' : app.screen);
+  const telemetryOn = $derived(telemetry.enabled);
+  /**
+   * With Developer mode off the Dev screens are not rendered; their routes fall back to Home. The
+   * same for Live telemetry while it is off (it waits for its state before falling back).
+   */
+  const screen = $derived<ScreenId>((isDevScreen(app.screen) && !devOn) || (app.screen === 'telemetry' && telemetry.status && !telemetryOn) ? 'home' : app.screen);
   const page = $derived(findNav(screen));
   /** Screens that work on one channel's files show "Set up <channel>" instead of an error. */
   const needsSetup = $derived(!!app.channel && !app.channel.set_up && ['enhancements', 'strings', 'patches', 'blueprints', 'ships', 'backups'].includes(app.screen));
@@ -80,7 +86,7 @@
       return;
     }
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^[0-9]$/.test(e.key) && !shortcutsOff(e)) {
-      const n = navItems(devOn).find((i) => i.key === e.key);
+      const n = navItems(devOn, telemetryOn).find((i) => i.key === e.key);
       if (n) {
         e.preventDefault();
         go(n.id);
@@ -93,6 +99,8 @@
       if (params.has('wizard')) app.wizard = true;
       // The start-up update check: Rust asks only with the switch on, at most once per 24 h.
       void updates.init();
+      // Whether Live telemetry is on (the sidebar shows its screen): config.toml and USER.cfg reads.
+      void telemetry.load();
     });
   });
 </script>
@@ -103,7 +111,7 @@
   <a href="#main" class="bg-primary text-primary-foreground sr-only z-50 rounded px-3 py-1 focus:not-sr-only focus:fixed focus:top-2 focus:left-2">Skip to content</a>
   <div class="flex h-full flex-col" inert={app.wizard}>
     <div class="flex min-h-0 flex-1">
-      <Sidebar bind:current={() => screen, (s) => go(s)} version={app.overview?.app_version ?? ''} dev={devOn} />
+      <Sidebar bind:current={() => screen, (s) => go(s)} version={app.overview?.app_version ?? ''} dev={devOn} telemetry={telemetryOn} />
       <div class="flex min-w-0 flex-1 flex-col">
         <AppHeader {page} />
         <main id="main" bind:this={main} tabindex="-1" aria-labelledby="page-title" class="min-h-0 flex-1 overflow-y-auto px-6 py-5 outline-none">
@@ -131,6 +139,8 @@
             <CommoditiesScreen />
           {:else if screen === 'loot'}
             <LootScreen />
+          {:else if screen === 'telemetry'}
+            {#if telemetry.status}<TelemetryScreen />{/if}
           {:else if screen === 'backups'}
             <BackupsScreen />
           {:else if screen === 'activity'}

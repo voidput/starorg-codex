@@ -4890,6 +4890,7 @@ dependencies = [
  "starorg-data",
  "starorg-mcp",
  "starorg-net",
+ "starorg-telemetry",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

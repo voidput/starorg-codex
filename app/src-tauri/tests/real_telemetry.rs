@@ -1,0 +1,300 @@
+//! Live telemetry on the real backend (experimental) against a synthetic fake install: the
+//! 5.0 gate, the `[experimental]` switches in `config.toml`, the `USER.cfg` lines written and
+//! taken out again, and a stream that finds no game on a closed loopback port. The schema is
+//! the synthetic one (`starorg_telemetry::mock`), put in the cache folder as if it had been
+//! read from the exe; no CIG file and no real game are involved.
+
+use starorg_codex_app::contract::Backend;
+use starorg_codex_app::contract::real::{DialogSlot, RealBackend, RealConfig, SourceFactory};
+use starorg_codex_app::contract::telemetry::*;
+use starorg_codex_app::contract::types::*;
+use starorg_core::appdirs::AppDirs;
+use starorg_core::apply::Ctx;
+use starorg_core::discovery::{DiscoveryEnv, DiscoveryRequest};
+use starorg_core::source::GameSource;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, mpsc};
+use std::time::Duration;
+
+struct NoSource;
+impl SourceFactory for NoSource {
+    fn source(&self, _: &AppDirs) -> Result<Box<dyn GameSource>, String> {
+        Err("no extraction in these tests".into())
+    }
+}
+
+struct Fake {
+    _t: tempfile::TempDir,
+    lib: PathBuf,
+    dirs: AppDirs,
+    backend: RealBackend,
+}
+
+const PTU_CHANGE: u64 = 13189690;
+const CFG: &str = "g_language = english\r\nr_width = 2560\r\n";
+
+fn fake() -> Fake {
+    let t = tempfile::tempdir().unwrap();
+    let base = std::fs::canonicalize(t.path()).unwrap();
+    let lib = base.join("games/StarCitizen");
+    for (ch, branch, change, version) in [
+        ("LIVE", "sc-alpha-4.10.0", 13165946, "4.10.200.58746"),
+        ("PTU", "sc-alpha-5.0.0-ptu", PTU_CHANGE, "5.0.0.1"),
+    ] {
+        let d = lib.join(ch);
+        std::fs::create_dir_all(d.join("Data")).unwrap();
+        std::fs::write(d.join("Data.p4k"), b"fake archive").unwrap();
+        std::fs::write(
+            d.join("build_manifest.id"),
+            format!(
+                r#"{{"Data":{{"Branch":"{branch}","RequestedP4ChangeNum":"{change}","Version":"{version}"}}}}"#
+            ),
+        )
+        .unwrap();
+        std::fs::write(d.join("USER.cfg"), CFG).unwrap();
+    }
+    let dirs = AppDirs::under(&base.join("app"));
+    let backend = RealBackend::new(RealConfig {
+        ctx: Ctx::new(dirs.clone(), "0.0.0-test", "test"),
+        discovery: DiscoveryRequest {
+            game_dir: Some(lib.clone()),
+            prefix: None,
+        },
+        env: DiscoveryEnv::from_process(),
+        source: Arc::new(NoSource),
+        dialogs: DialogSlot::default(),
+    });
+    Fake {
+        _t: t,
+        lib,
+        dirs,
+        backend,
+    }
+}
+
+impl Fake {
+    fn r(&self, ch: &str) -> ChannelRef {
+        ChannelRef {
+            install: self.backend.overview().unwrap().installs[0].id.clone(),
+            channel: ch.into(),
+        }
+    }
+
+    fn configure(
+        &self,
+        ch: Option<&str>,
+        s: TelemetrySettings,
+    ) -> CmdResult<TelemetryConfigureResult> {
+        self.backend.telemetry_configure(TelemetryConfigureRequest {
+            target: ch.map(|c| self.r(c)),
+            settings: s,
+            replace_other: false,
+        })
+    }
+
+    fn cfg(&self, ch: &str) -> String {
+        std::fs::read_to_string(self.lib.join(ch).join("USER.cfg")).unwrap()
+    }
+}
+
+fn on(port: u16, triggers: bool) -> TelemetrySettings {
+    TelemetrySettings {
+        enabled: true,
+        port,
+        triggers,
+    }
+}
+
+fn off() -> TelemetrySettings {
+    TelemetrySettings {
+        enabled: false,
+        ..on(50051, false)
+    }
+}
+
+#[test]
+fn offered_for_the_5_0_channel_only_and_off_by_default() {
+    let f = fake();
+    let s = f.backend.telemetry_status().unwrap();
+    assert!(!s.settings.enabled);
+    assert_eq!(s.settings.port, 50051);
+    assert!(!s.mock);
+    let ch = |n: &str| s.channels.iter().find(|c| c.channel == n).unwrap().clone();
+    assert!(ch("PTU").offered);
+    assert!(!ch("LIVE").offered);
+    assert!(ch("LIVE").reason.unwrap().contains("4.10.0"));
+    assert_eq!(ch("PTU").telemetry_line.state, CvarState::Missing);
+    assert!(!ch("PTU").exe_found);
+    // Looking writes nothing.
+    assert!(!f.dirs.config_toml().exists());
+}
+
+#[test]
+fn switching_on_writes_config_and_user_cfg_and_off_takes_them_out() {
+    let f = fake();
+    let e = f.configure(Some("LIVE"), on(50051, false)).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(!f.dirs.config_toml().exists(), "nothing saved for LIVE");
+    assert_eq!(f.cfg("LIVE"), CFG);
+
+    let r = f.configure(Some("PTU"), on(50123, false)).unwrap();
+    assert_eq!(
+        r.telemetry_line.as_ref().unwrap().outcome,
+        LineOutcome::Written
+    );
+    assert_eq!(
+        r.triggers_line.as_ref().unwrap().outcome,
+        LineOutcome::NotOurs
+    );
+    let cfg = f.cfg("PTU");
+    assert!(cfg.starts_with(CFG), "other lines stay: {cfg:?}");
+    assert!(cfg.contains("server.game.telemetry.enabled = 1"));
+    assert!(!cfg.contains("trigger.actions"));
+    let toml = std::fs::read_to_string(f.dirs.config_toml()).unwrap();
+    assert!(
+        toml.contains("[experimental]") && toml.contains("telemetry_port = 50123"),
+        "{toml}"
+    );
+    assert_eq!(r.status.endpoint, "127.0.0.1:50123");
+    assert!(r.status.env_help.contains("50123"));
+
+    let r = f.configure(Some("PTU"), on(50123, true)).unwrap();
+    assert_eq!(r.triggers_line.unwrap().outcome, LineOutcome::Written);
+    assert!(
+        f.cfg("PTU")
+            .contains("server.game.telemetry.trigger.actions.enabled = 1")
+    );
+
+    let r = f.configure(None, off()).unwrap();
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(f.cfg("PTU"), CFG, "both lines taken out again");
+    assert!(!f.backend.telemetry_status().unwrap().settings.enabled);
+}
+
+#[test]
+fn an_explicit_other_value_is_replaced_only_after_asking() {
+    let f = fake();
+    std::fs::write(
+        f.lib.join("PTU/USER.cfg"),
+        format!("{CFG}server.game.telemetry.enabled = 0\r\n"),
+    )
+    .unwrap();
+    let r = f.configure(Some("PTU"), on(50051, false)).unwrap();
+    let l = r.telemetry_line.unwrap();
+    assert_eq!(l.outcome, LineOutcome::NeedsDecision);
+    assert_eq!(l.value.as_deref(), Some("0"));
+    assert!(f.cfg("PTU").contains("enabled = 0"));
+    let r = f
+        .backend
+        .telemetry_configure(TelemetryConfigureRequest {
+            target: Some(f.r("PTU")),
+            settings: on(50051, false),
+            replace_other: true,
+        })
+        .unwrap();
+    assert_eq!(r.telemetry_line.unwrap().outcome, LineOutcome::Written);
+    assert!(f.cfg("PTU").contains("server.game.telemetry.enabled = 1"));
+    f.configure(None, off()).unwrap();
+    assert!(
+        f.cfg("PTU").contains("server.game.telemetry.enabled = 0"),
+        "the user's line is back"
+    );
+}
+
+fn sink() -> (Sink, mpsc::Receiver<TelemetryEvent>) {
+    let (tx, rx) = mpsc::channel();
+    let tx = Mutex::new(tx);
+    let s: Sink = Arc::new(move |ev| {
+        let _ = tx.lock().unwrap().send(ev);
+    });
+    (s, rx)
+}
+
+fn state(ev: &TelemetryEvent) -> Option<String> {
+    ev.status.as_ref().map(|s| {
+        serde_json::to_value(s).unwrap()["state"]
+            .as_str()
+            .unwrap()
+            .to_string()
+    })
+}
+
+#[test]
+fn without_an_exe_or_a_cached_schema_the_stream_says_no_schema() {
+    let f = fake();
+    let (s, rx) = sink();
+    assert_eq!(
+        f.backend
+            .telemetry_start(f.r("PTU"), s.clone())
+            .unwrap_err()
+            .code,
+        ErrorCode::Invalid,
+        "off by default"
+    );
+    f.configure(Some("PTU"), on(50051, false)).unwrap();
+    let st = f.backend.telemetry_start(f.r("PTU"), s).unwrap();
+    assert_eq!(
+        serde_json::to_value(&st.link).unwrap()["state"],
+        serde_json::json!("no_schema")
+    );
+    let ev = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    assert_eq!(state(&ev).as_deref(), Some("no_schema"));
+    f.backend.telemetry_stop().unwrap();
+}
+
+#[test]
+fn a_cached_schema_streams_loopback_and_reports_the_game_not_running() {
+    let f = fake();
+    // A closed port on 127.0.0.1: nothing listens there.
+    let port = std::net::TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port();
+    f.configure(Some("PTU"), on(port, false)).unwrap();
+    // The synthetic schema in the cache, as a first start would have left it.
+    let dir = starorg_core::storage::telemetry_dir(&f.dirs);
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(
+        dir.join(format!("sc-alpha-5.0.0-ptu-{PTU_CHANGE}.fds")),
+        starorg_telemetry::mock::schema().to_set_bytes(),
+    )
+    .unwrap();
+    let (s, rx) = sink();
+    let st = f.backend.telemetry_start(f.r("PTU"), s).unwrap();
+    assert_eq!(st.streaming, Some(f.r("PTU")));
+    let schema = st.schema.unwrap();
+    assert_eq!(schema.origin, "cache");
+    assert_eq!(schema.key, format!("sc-alpha-5.0.0-ptu-{PTU_CHANGE}"));
+    let mut seen = Vec::new();
+    while seen.len() < 2 {
+        let ev = rx.recv_timeout(Duration::from_secs(10)).unwrap();
+        assert_eq!(ev.session, st.session);
+        seen.extend(state(&ev));
+    }
+    assert_eq!(seen, ["connecting", "game_not_running"]);
+    // Settings > Storage counts the schema.
+    let storage = f.backend.storage_measure().unwrap();
+    let area = storage
+        .areas
+        .iter()
+        .find(|a| a.id == StorageAreaId::Telemetry)
+        .unwrap();
+    assert!(area.bytes > 0 && area.in_cache);
+    // Triggers stay refused while their switch is off; the actions list is empty without a game.
+    let r = f
+        .backend
+        .telemetry_trigger(TelemetryTriggerRequest {
+            action: "v_lights".into(),
+            hold_ms: None,
+            confirmed: true,
+        })
+        .unwrap();
+    assert_eq!(r.refused.unwrap().reason, "disabled");
+    let a = f.backend.telemetry_actions().unwrap();
+    assert!(a.actions.is_empty());
+    assert!(a.error.is_some(), "the game did not answer");
+    // Switching off stops the stream.
+    let r = f.configure(None, off()).unwrap();
+    assert_eq!(r.status.streaming, None);
+}

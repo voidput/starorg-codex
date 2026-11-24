@@ -128,7 +128,13 @@ pub enum NotEligible {
 
 /// Whether `channel` can use live telemetry: its build reports game version 5.0 or newer.
 pub fn eligible(channel: &Channel) -> Result<(), NotEligible> {
-    match channel.build.as_ref().and_then(|b| b.game_version) {
+    eligible_version(channel.build.as_ref().and_then(|b| b.game_version))
+}
+
+/// [`eligible`] for a game version alone (`None` = unknown), for callers that hold a build's
+/// version but no discovered [`Channel`] (the app's mock backend).
+pub fn eligible_version(version: Option<GameVersion>) -> Result<(), NotEligible> {
+    match version {
         None => Err(NotEligible::UnknownVersion),
         Some(v) if v < MIN_VERSION => Err(NotEligible::TooOld { version: v }),
         Some(_) => Ok(()),

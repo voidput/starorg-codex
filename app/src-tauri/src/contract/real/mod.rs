@@ -24,6 +24,7 @@ mod memory;
 mod starorg;
 mod storage;
 mod table;
+mod telemetry;
 mod uex;
 
 pub use assets::{AssetSpawner, AssetWorkerSpawner};
@@ -380,6 +381,8 @@ pub struct RealBackend {
     dev: dev::DevState,
     assets: assets::AssetState,
     mcp: crate::mcp::McpHost,
+    /// Live telemetry (experimental): the stream and the trigger gate (real/telemetry.rs).
+    telemetry: crate::telemetry::TelemetryHost,
     starorg: starorg::StarOrgDeps,
     starorg_mem: starorg::StarOrgMem,
     uex: uex::UexDeps,
@@ -496,6 +499,7 @@ impl RealBackend {
             dev: dev::DevState::default(),
             assets: assets::AssetState::default(),
             mcp: crate::mcp::McpHost::default(),
+            telemetry: crate::telemetry::TelemetryHost::default(),
             starorg,
             starorg_mem: starorg::StarOrgMem::default(),
             uex: uex::UexDeps::default(),
