@@ -47,14 +47,19 @@ export function pauseToasts(paused: boolean): void {
   }
 }
 
-export function toast(tone: ToastTone, title: string, detail?: string | null, action?: Toast['action']): number {
+/**
+ * `autoMs`: leave after this long whatever the tone (a live alert is stale once read; an
+ * error never takes it).
+ */
+export function toast(tone: ToastTone, title: string, detail?: string | null, action?: Toast['action'], autoMs?: number): number {
   const id = next++;
   const others = toasts.list.filter((t) => t.tone !== 'error');
   const drop = new Set(others.slice(0, Math.max(0, others.length - (KEEP - 1))).map((t) => t.id));
   for (const d of drop) dismiss(d);
   toasts.list = [...toasts.list, { id, tone, title, detail, action }];
-  if (tone === 'info' || tone === 'success') {
-    timers.set(id, { left: AUTO_MS, started: Date.now(), handle: null });
+  const auto = tone === 'error' ? undefined : (autoMs ?? (tone === 'info' || tone === 'success' ? AUTO_MS : undefined));
+  if (auto !== undefined) {
+    timers.set(id, { left: auto, started: Date.now(), handle: null });
     arm(id);
   }
   return id;

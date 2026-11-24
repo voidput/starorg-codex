@@ -224,6 +224,10 @@ interface Samples {
   telemetry_recording_delete: T.TelemetryRecordings;
   telemetry_replay_start: T.TelemetryStatus;
   telemetry_replay_control: T.TelemetryStatus;
+  telemetry_event_alert: T.TelemetryEvent;
+  telemetry_alerts: T.TelemetryAlerts;
+  telemetry_alerts_configure: T.TelemetryAlerts;
+  telemetry_alert_test: T.TelemetryAlert;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

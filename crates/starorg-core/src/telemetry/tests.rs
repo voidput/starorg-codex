@@ -303,3 +303,81 @@ fn configure_user_cfg_shared_symlink() {
         "the link stays"
     );
 }
+
+#[test]
+fn alert_settings_default_off_and_round_trip() {
+    let mut cfg = Config::default();
+    let a = alert_settings(&cfg);
+    assert_eq!(a, AlertSettings::default());
+    assert_eq!(a.notifications, Notifications::Off);
+    assert!(!a.speech && a.overrides.is_empty());
+
+    // The telemetry switches and the alert settings share the table without clobbering.
+    set_settings(
+        &mut cfg,
+        &Settings {
+            enabled: true,
+            ..Settings::default()
+        },
+    )
+    .unwrap();
+    let mut a = AlertSettings {
+        notifications: Notifications::InAppSound,
+        speech: true,
+        overrides: Default::default(),
+    };
+    a.overrides.insert(
+        "boost_low".into(),
+        RuleOverride {
+            enabled: Some(false),
+            cooldown_s: Some(30.0),
+            ..RuleOverride::default()
+        },
+    );
+    a.overrides.insert(
+        "hull_half".into(),
+        RuleOverride {
+            value: Some(0.4),
+            rearm: Some(0.5),
+            ..RuleOverride::default()
+        },
+    );
+    a.overrides
+        .insert("empty_one".into(), RuleOverride::default());
+    set_alert_settings(&mut cfg, &a);
+    let text = toml::to_string(&cfg).unwrap();
+    let back: Config = toml::from_str(&text).unwrap();
+    a.overrides.remove("empty_one");
+    assert_eq!(alert_settings(&back), a, "{text}");
+    assert!(settings(&back).enabled, "{text}");
+    // set_settings keeps the alert keys.
+    let mut back = back;
+    set_settings(&mut back, &Settings::default()).unwrap();
+    assert_eq!(alert_settings(&back), a);
+    // No overrides: the table goes.
+    a.overrides.clear();
+    set_alert_settings(&mut back, &a);
+    assert!(!toml::to_string(&back).unwrap().contains("telemetry_alerts"));
+}
+
+#[test]
+fn bad_alert_values_read_as_defaults() {
+    let cfg: Config = toml::from_str(
+        "[experimental]\ntelemetry_notifications = \"loud\"\ntelemetry_speech = 1\n\
+         [experimental.telemetry_alerts]\n\"Bad-Id\" = { enabled = false }\nboost_low = 3\n\
+         hull_half = { cooldown_s = 20, value = \"x\" }\n",
+    )
+    .unwrap();
+    let a = alert_settings(&cfg);
+    assert_eq!(a.notifications, Notifications::Off);
+    assert!(!a.speech);
+    assert_eq!(a.overrides.len(), 1);
+    assert_eq!(
+        a.overrides["hull_half"],
+        RuleOverride {
+            cooldown_s: Some(20.0),
+            ..RuleOverride::default()
+        }
+    );
+    assert!(valid_rule_id("g_load") && !valid_rule_id("") && !valid_rule_id("A"));
+}

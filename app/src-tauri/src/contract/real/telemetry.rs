@@ -28,6 +28,10 @@ impl RealBackend {
         gate::settings(&self.config())
     }
 
+    fn telemetry_alert_settings(&self) -> gate::AlertSettings {
+        gate::alert_settings(&self.config())
+    }
+
     fn telemetry_channel(f: &Found, ch: &Channel) -> TelemetryChannel {
         let cfg = usercfg::locate(&ch.dir).ok();
         let text = cfg.as_ref().and_then(|t| usercfg::read(t).ok()).flatten();
@@ -301,6 +305,14 @@ impl TelemetryBackend for RealBackend {
         let addr = LoopbackAddr::from_socket_addr(gate::endpoint(s.port))
             .map_err(|e| err(ErrorCode::Invalid, e.to_string()))?;
         self.telemetry.set_record(s.record_active());
+        for w in self.telemetry.set_alerts(&self.telemetry_alert_settings()) {
+            self.log(
+                LogLevel::Warn,
+                None,
+                None,
+                &format!("Alert rule override skipped: {w}"),
+            );
+        }
         match self.telemetry_schema(&ch) {
             Ok(schema) => {
                 self.log(
@@ -437,5 +449,42 @@ impl TelemetryBackend for RealBackend {
             .replay_control(req.playing, req.seek_ms, req.speed)
             .map_err(|m| err(ErrorCode::Invalid, m))?;
         Ok(self.telemetry_view())
+    }
+
+    fn telemetry_alerts(&self) -> CmdResult<TelemetryAlerts> {
+        Ok(crate::telemetry::alerts_view(
+            &self.telemetry,
+            &self.telemetry_alert_settings(),
+        ))
+    }
+
+    fn telemetry_alerts_configure(
+        &self,
+        req: TelemetryAlertSettings,
+    ) -> CmdResult<TelemetryAlerts> {
+        let a = crate::telemetry::alerts_normalize(&req).map_err(|m| err(ErrorCode::Invalid, m))?;
+        let mut cfg = Config::load(self.dirs()).map_err(io)?;
+        let before = gate::alert_settings(&cfg);
+        gate::set_alert_settings(&mut cfg, &a);
+        cfg.save(self.dirs()).map_err(io)?;
+        self.telemetry.set_alerts(&a);
+        if before.notifications != a.notifications || before.speech != a.speech {
+            self.log(
+                LogLevel::Info,
+                None,
+                None,
+                &format!(
+                    "Live telemetry notifications: {} (speech {})",
+                    a.notifications.as_str(),
+                    if a.speech { "on" } else { "off" }
+                ),
+            );
+        }
+        Ok(crate::telemetry::alerts_view(&self.telemetry, &a))
+    }
+
+    fn telemetry_alert_test(&self, req: TelemetryAlertTestRequest) -> CmdResult<TelemetryAlert> {
+        crate::telemetry::alert_test(&self.telemetry_alert_settings(), &req.rule)
+            .map_err(|(code, m)| err(code, m))
     }
 }

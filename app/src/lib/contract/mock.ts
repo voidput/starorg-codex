@@ -97,6 +97,7 @@ const SAMPLES = samples as unknown as {
   telemetry_actions: T.TelemetryActions;
   telemetry_event_frame: T.TelemetryEvent;
   telemetry_recordings: T.TelemetryRecordings;
+  telemetry_alerts: T.TelemetryAlerts;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -845,7 +846,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
 
   // Live telemetry (mock-telemetry.ts): the Rust mock's samples and a synthetic stream.
   const telemetry = createTelemetryMock(
-    { status: SAMPLES.telemetry_status, actions: SAMPLES.telemetry_actions, frame: SAMPLES.telemetry_event_frame, recordings: SAMPLES.telemetry_recordings },
+    { status: SAMPLES.telemetry_status, actions: SAMPLES.telemetry_actions, frame: SAMPLES.telemetry_event_frame, recordings: SAMPLES.telemetry_recordings, alerts: SAMPLES.telemetry_alerts },
     { fail: (c, m) => fail(c, m), log: (m, ch) => addLog('info', null, ch, m) },
   );
   const teleParam = params.get('telemetry');

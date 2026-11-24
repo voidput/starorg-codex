@@ -149,6 +149,14 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
 - "Metrics + actions" (a separate choice, not the default) lets the app press game inputs the game lists
   as triggerable, only when you press a button. The first press of each app session asks
   first, and the dangerous actions (self destruct, eject, power off...) ask every time.
+- Notifications (alerts on low fuel, shields, hull...) are their own choice, off by default;
+  choosing Metrics does not turn them on. They are worked out on this computer from the frames
+  above. The last 50 are kept in memory for the screen's Alerts panel and are gone when the app
+  quits; Activity notes only a change of the choice (and a saved rule change that no longer fits). Tones are made by the app itself (no
+  sound file, nothing from the game). Spoken callouts (a further switch, off by default) use
+  only voices installed on this computer: a voice that would send the text to an online
+  speech service is never used, so with no local voice nothing is spoken. The choice and your
+  rule changes are saved in `config.toml`.
 
 ## Things outside the app
 

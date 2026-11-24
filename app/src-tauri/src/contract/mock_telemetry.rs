@@ -57,6 +57,8 @@ pub struct TelemetryMock {
     pub settings: TelemetrySettings,
     /// By `install/CHANNEL`.
     pub lines: BTreeMap<String, MockLines>,
+    /// Notifications, speech and rule overrides (in memory).
+    pub alerts: TelemetryAlertSettings,
 }
 
 impl Default for TelemetryMock {
@@ -64,6 +66,7 @@ impl Default for TelemetryMock {
         Self {
             settings: starorg_core::telemetry::Settings::default().into(),
             lines: BTreeMap::new(),
+            alerts: TelemetryAlertSettings::default(),
         }
     }
 }
@@ -287,6 +290,8 @@ impl TelemetryBackend for MockBackend {
         self.tele_offered(&req)?;
         let rec = self.tele().settings.record_active();
         self.telemetry.set_record(rec);
+        let alerts = self.tele().alerts.clone();
+        self.telemetry.set_alerts(&alerts);
         self.telemetry.start_mock(req, sink);
         Ok(self.tele_status())
     }
@@ -374,5 +379,26 @@ impl TelemetryBackend for MockBackend {
             .replay_control(req.playing, req.seek_ms, req.speed)
             .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
         Ok(self.tele_status())
+    }
+
+    fn telemetry_alerts(&self) -> CmdResult<TelemetryAlerts> {
+        let a = self.tele().alerts.clone();
+        Ok(crate::telemetry::alerts_view(&self.telemetry, &a))
+    }
+
+    fn telemetry_alerts_configure(
+        &self,
+        req: TelemetryAlertSettings,
+    ) -> CmdResult<TelemetryAlerts> {
+        let a = crate::telemetry::alerts_normalize(&req)
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        self.tele().alerts = a.clone();
+        self.telemetry.set_alerts(&a);
+        Ok(crate::telemetry::alerts_view(&self.telemetry, &a))
+    }
+
+    fn telemetry_alert_test(&self, req: TelemetryAlertTestRequest) -> CmdResult<TelemetryAlert> {
+        let a = self.tele().alerts.clone();
+        crate::telemetry::alert_test(&a, &req.rule).map_err(|(c, m)| AppError::new(c, m))
     }
 }

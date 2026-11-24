@@ -544,6 +544,9 @@ macro_rules! contract_handler {
             $crate::contract::telemetry::telemetry_recording_delete,
             $crate::contract::telemetry::telemetry_replay_start,
             $crate::contract::telemetry::telemetry_replay_control,
+            $crate::contract::telemetry::telemetry_alerts,
+            $crate::contract::telemetry::telemetry_alerts_configure,
+            $crate::contract::telemetry::telemetry_alert_test,
         ]
     };
 }
@@ -705,6 +708,9 @@ pub const COMMAND_NAMES: &[&str] = &[
     "telemetry_recording_delete",
     "telemetry_replay_start",
     "telemetry_replay_control",
+    "telemetry_alerts",
+    "telemetry_alerts_configure",
+    "telemetry_alert_test",
 ];
 
 #[cfg(test)]

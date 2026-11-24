@@ -277,6 +277,84 @@ export interface TelemetryEvent {
   frame: TelemetryFrame | null;
   /** In a replay: its position (its own events may carry only this). */
   replay: TelemetryReplayState | null;
+  /** Alerts this frame fired (none while Notifications is off). */
+  alerts: TelemetryAlert[];
+}
+
+/** Their own choice, off by default; Metrics never turns them on. */
+export type TelemetryNotifications = 'off' | 'in_app' | 'in_app_sound';
+
+export type AlertSeverity = 'info' | 'warn' | 'critical';
+
+export type AlertScope = 'any' | 'vehicle' | 'pilot' | 'on_foot';
+
+export interface TelemetryAlert {
+  rule: string;
+  severity: AlertSeverity;
+  text: string;
+  /** Set only with "In app + sound" and speech on. */
+  speech: string | null;
+  /** Tone id (info | warn | critical), set only with "In app + sound". */
+  sound: string | null;
+  value: number | null;
+  at_ms: number;
+  test: boolean;
+}
+
+/** The user's change to a default rule; null keeps the default. */
+export interface TelemetryRuleOverride {
+  enabled: boolean | null;
+  cooldown_s: number | null;
+  value: number | null;
+  rearm: number | null;
+}
+
+export interface TelemetryAlertSettings {
+  notifications: TelemetryNotifications;
+  /** Spoken callouts (this computer's own voices only); counts only with in_app_sound. */
+  speech: boolean;
+  overrides: { [rule: string]: TelemetryRuleOverride };
+}
+
+export interface TelemetryAlertRule {
+  id: string;
+  description: string;
+  /** threshold | transition | edge | composite */
+  kind: string;
+  severity: AlertSeverity;
+  scope: AlertScope;
+  path: string | null;
+  op: string | null;
+  /** fraction (0-1, shown as %) | count | value */
+  unit: string | null;
+  message: string;
+  sound: string | null;
+  verified: boolean;
+  debounce_s: number;
+  enabled: boolean;
+  cooldown_s: number;
+  threshold: number | null;
+  rearm: number | null;
+  default_enabled: boolean;
+  default_cooldown_s: number;
+  default_threshold: number | null;
+  default_rearm: number | null;
+}
+
+export interface TelemetryAlerts {
+  settings: TelemetryAlertSettings;
+  rules: TelemetryAlertRule[];
+  /** Newest first. */
+  recent: TelemetryAlert[];
+  recent_max: number;
+  /** A stream runs and notifications are on. */
+  evaluating: boolean;
+  /** Saved overrides that no longer fit (skipped). */
+  warnings: string[];
+}
+
+export interface TelemetryAlertTestRequest {
+  rule: string;
 }
 
 export interface TelemetryCommandMap {
@@ -292,6 +370,9 @@ export interface TelemetryCommandMap {
   telemetry_recording_delete: [{ req: TelemetryRecordingRef }, TelemetryRecordings];
   telemetry_replay_start: [{ req: TelemetryRecordingRef }, TelemetryStatus];
   telemetry_replay_control: [{ req: TelemetryReplayControl }, TelemetryStatus];
+  telemetry_alerts: [Record<string, never>, TelemetryAlerts];
+  telemetry_alerts_configure: [{ req: TelemetryAlertSettings }, TelemetryAlerts];
+  telemetry_alert_test: [{ req: TelemetryAlertTestRequest }, TelemetryAlert];
 }
 
 /** Same order as `TELEMETRY_COMMAND_NAMES` in contract/telemetry.rs (a Rust test compares them). */
@@ -308,6 +389,9 @@ export const TELEMETRY_COMMANDS = [
   'telemetry_recording_delete',
   'telemetry_replay_start',
   'telemetry_replay_control',
+  'telemetry_alerts',
+  'telemetry_alerts_configure',
+  'telemetry_alert_test',
 ] as const satisfies readonly (keyof TelemetryCommandMap)[];
 
 const none = {} as Record<string, never>;
@@ -330,4 +414,8 @@ export const telemetryApi = {
   /** Plays a recording into the screen in place of the stream; events arrive through `onTelemetry`. */
   replayStart: (name: string) => call('telemetry_replay_start', { req: { name } }),
   replayControl: (req: TelemetryReplayControl) => call('telemetry_replay_control', { req }),
+  alerts: () => call('telemetry_alerts', none),
+  /** Notifications, speech and every rule override (a misfit refuses the whole request). */
+  configureAlerts: (req: TelemetryAlertSettings) => call('telemetry_alerts_configure', { req }),
+  testAlert: (req: TelemetryAlertTestRequest) => call('telemetry_alert_test', { req }),
 };

@@ -26,6 +26,7 @@ import {
 import type { ChannelRef } from '@/lib/contract/types';
 import { mergeHistory, sessionStep } from '@/lib/telemetry';
 import { toast } from './toast.svelte';
+import { telemetryAlerts } from './telemetryAlerts.svelte';
 
 /** How often the graphs' history is asked for (they redraw at most this often). */
 export const HISTORY_POLL_MS = 1000;
@@ -75,6 +76,7 @@ class TelemetryState {
         this.frame = e.frame;
         this.count++;
       }
+      if (e.alerts?.length) telemetryAlerts.take(e.alerts);
     });
   }
 

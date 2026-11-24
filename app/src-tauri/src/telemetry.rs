@@ -26,12 +26,20 @@
 //!   frame. The mock backend has no folder: its recordings are a list in memory;
 //! - a replay plays a recording through the same [`Sink`] on a thread of its own, at the
 //!   recorded pace times its speed, with pause and seek ([`TelemetryHost::replay_control`]).
+//!
+//! Alerts ([`starorg_telemetry::alerts`]) are evaluated on the stream's frames only while a
+//! stream runs and the user's own Notifications choice is not Off (it is Off by default and
+//! independent of Metrics and actions). They ride on the frame event that fired them and are
+//! kept in a short list ([`RECENT_MAX`]) for the screen's Alerts panel. The host strips the
+//! tone and the speech text unless the user chose sound (and speech), so the webview plays
+//! only what was asked for. A replay never fires alerts: they are of the live game only.
 
 use crate::contract::telemetry::{
-    TelemetryActions, TelemetryEvent, TelemetryRecording, TelemetryRefusal, TelemetryReplayState,
-    TelemetrySchemaInfo, TelemetryTriggerResult,
+    TelemetryActions, TelemetryAlertRule, TelemetryAlerts, TelemetryEvent, TelemetryRecording,
+    TelemetryRefusal, TelemetryReplayState, TelemetrySchemaInfo, TelemetryTriggerResult,
 };
 use crate::contract::types::ChannelRef;
+use starorg_telemetry::alerts::{self, Alert, AlertEngine, AlertSettings, Notifications, Trigger};
 use starorg_telemetry::client::{LoopbackAddr, TelemetryClient};
 use starorg_telemetry::frames::{Frame, Snapshot, UI_INTERVAL};
 use starorg_telemetry::history::{History, HistoryView};
@@ -41,10 +49,14 @@ use starorg_telemetry::record::{self, Caps, Recorder, Stopped};
 use starorg_telemetry::replay::{self, FileReplay, ReplaySource, SyntheticReplay};
 use starorg_telemetry::schema::{Schema, SchemaOrigin};
 use starorg_telemetry::trigger::{DANGEROUS, TriggerGate, TriggerableAction};
+use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+/// Most alerts kept for the Alerts panel (newest first).
+pub const RECENT_MAX: usize = 50;
 
 /// Where the events of a stream go (the command emits them to the window).
 pub type Sink = Arc<dyn Fn(TelemetryEvent) + Send + Sync>;
@@ -128,6 +140,89 @@ struct Running {
     replay: Option<Arc<Mutex<ReplayCtl>>>,
     /// What the history holds (`live <install>/<CHANNEL>` or `replay <name>`).
     history_of: Option<String>,
+    alerts: AlertHub,
+}
+
+/// The alert engine of the running stream and how alerts are delivered.
+struct AlertHub {
+    engine: AlertEngine,
+    notifications: Notifications,
+    speech: bool,
+    /// Newest first, at most [`RECENT_MAX`].
+    recent: VecDeque<Alert>,
+    /// The engine's clock.
+    epoch: Instant,
+}
+
+impl Default for AlertHub {
+    fn default() -> Self {
+        Self {
+            engine: AlertEngine::default(),
+            notifications: Notifications::Off,
+            speech: false,
+            recent: VecDeque::new(),
+            epoch: Instant::now(),
+        }
+    }
+}
+
+/// Only what the user asked for: no tone without sound, no speech without both.
+fn deliver(mut a: Alert, notifications: Notifications, speech: bool) -> Alert {
+    if notifications != Notifications::InAppSound {
+        a.sound = None;
+        a.speech = None;
+    } else if !speech {
+        a.speech = None;
+    }
+    a
+}
+
+/// A test alert of `rule` with the user's settings, shaped as a real one would be. Refused
+/// while notifications are off.
+pub fn alert_test(
+    a: &AlertSettings,
+    rule: &str,
+) -> Result<Alert, (crate::contract::types::ErrorCode, String)> {
+    use crate::contract::types::ErrorCode;
+    if a.notifications == Notifications::Off {
+        return Err((
+            ErrorCode::Invalid,
+            "Turn on Notifications under Settings -> Experimental first.".into(),
+        ));
+    }
+    let (rules, _) = alerts::apply_overrides(&alerts::defaults(), &a.overrides);
+    let t = AlertEngine::new(rules)
+        .test_alert(rule, now_ms())
+        .ok_or_else(|| (ErrorCode::NotFound, format!("No alert rule {rule}")))?;
+    Ok(deliver(t, a.notifications, a.speech))
+}
+
+impl AlertHub {
+    /// The alerts of one frame (none while notifications are off).
+    fn frame(&mut self, f: &Frame) -> Vec<Alert> {
+        if self.notifications == Notifications::Off {
+            return Vec::new();
+        }
+        let now = self.epoch.elapsed().as_secs_f64();
+        self.frame_at(f, now)
+    }
+
+    fn frame_at(&mut self, f: &Frame, now: f64) -> Vec<Alert> {
+        if self.notifications == Notifications::Off {
+            return Vec::new();
+        }
+        let fired: Vec<Alert> = self
+            .engine
+            .evaluate(&f.raw, now, f.received_ms)
+            .into_iter()
+            .map(|a| deliver(a, self.notifications, self.speech))
+            .collect();
+        for a in &fired {
+            self.recent.push_front(a.clone());
+        }
+        self.recent.truncate(RECENT_MAX);
+        fired
+    }
 }
 
 impl Default for Running {
@@ -142,6 +237,7 @@ impl Default for Running {
             actions_error: None,
             replay: None,
             history_of: None,
+            alerts: AlertHub::default(),
         }
     }
 }
@@ -278,6 +374,109 @@ pub fn recordings_view(
     }
 }
 
+/// Overrides that match the defaults dropped, then checked against the rules: `Err` names
+/// each override that does not fit.
+pub fn alerts_normalize(a: &AlertSettings) -> Result<AlertSettings, String> {
+    let defaults = alerts::defaults();
+    let mut out = a.clone();
+    out.overrides.clear();
+    let mut errors = Vec::new();
+    for (id, o) in &a.overrides {
+        let Some(d) = defaults.iter().find(|r| &r.id == id) else {
+            errors.push(format!("{id}: no such alert rule"));
+            continue;
+        };
+        if let Err(e) = alerts::apply_override(d, o) {
+            errors.push(format!("{id}: {e}"));
+            continue;
+        }
+        let (dv, dr) = threshold(&d.trigger);
+        let mut o = *o;
+        if o.enabled == Some(d.enabled) {
+            o.enabled = None;
+        }
+        if o.cooldown_s == Some(d.cooldown_s) {
+            o.cooldown_s = None;
+        }
+        // The threshold and its re-arm point go together.
+        if o.value.is_some_and(|v| Some(v) == dv) && o.rearm.is_none_or(|x| Some(x) == dr) {
+            o.value = None;
+            o.rearm = None;
+        }
+        if o.value.is_none() && o.rearm.is_some() && o.rearm == dr {
+            o.rearm = None;
+        }
+        if !o.is_empty() {
+            out.overrides.insert(id.clone(), o);
+        }
+    }
+    if errors.is_empty() {
+        Ok(out)
+    } else {
+        Err(errors.join("; "))
+    }
+}
+
+fn threshold(t: &Trigger) -> (Option<f64>, Option<f64>) {
+    match t {
+        Trigger::Threshold { value, rearm, .. } => (Some(*value), *rearm),
+        _ => (None, None),
+    }
+}
+
+/// Settings -> Live telemetry -> Notifications and the screen's Alerts panel: the rules as
+/// the user has them next to their defaults, and the recent alerts.
+pub fn alerts_view(host: &TelemetryHost, a: &AlertSettings) -> TelemetryAlerts {
+    let defaults = alerts::defaults();
+    let (rules, warnings) = alerts::apply_overrides(&defaults, &a.overrides);
+    let view = rules
+        .iter()
+        .zip(&defaults)
+        .map(|(r, d)| {
+            let (value, rearm) = threshold(&r.trigger);
+            let (dv, dr) = threshold(&d.trigger);
+            let (path, op) = match &r.trigger {
+                Trigger::Threshold { path, op, .. } => (Some(path.clone()), Some(op.as_str())),
+                Trigger::Transition { path, .. } | Trigger::Edge { path, .. } => {
+                    (Some(path.clone()), None)
+                }
+                Trigger::Composite { .. } => (None, None),
+            };
+            TelemetryAlertRule {
+                id: r.id.clone(),
+                description: r.description.clone(),
+                kind: r.trigger.kind().into(),
+                severity: r.severity,
+                scope: r.scope,
+                path,
+                op: op.map(str::to_owned),
+                unit: r.unit.clone(),
+                message: r.message.clone(),
+                sound: r.sound.clone(),
+                verified: r.verified,
+                debounce_s: r.debounce_s,
+                enabled: r.enabled,
+                cooldown_s: r.cooldown_s,
+                threshold: value,
+                rearm,
+                default_enabled: d.enabled,
+                default_cooldown_s: d.cooldown_s,
+                default_threshold: dv,
+                default_rearm: dr,
+            }
+        })
+        .collect();
+    let r = lock(&host.state);
+    TelemetryAlerts {
+        settings: a.clone(),
+        rules: view,
+        recent: r.alerts.recent.iter().cloned().collect(),
+        recent_max: RECENT_MAX as u32,
+        evaluating: r.source.is_some() && r.alerts.notifications != Notifications::Off,
+        warnings,
+    }
+}
+
 /// The dangerous actions, sorted (they always need a confirmation).
 pub fn dangerous() -> Vec<String> {
     let mut v: Vec<String> = DANGEROUS.iter().map(|s| (*s).to_owned()).collect();
@@ -326,6 +525,22 @@ impl TelemetryHost {
         Some(lock(&ctl).state())
     }
 
+    /// The user's alert settings (rules with their overrides, delivery); a bad override is
+    /// skipped and named in the result. Every rule takes the next frame as its baseline.
+    pub fn set_alerts(&self, a: &AlertSettings) -> Vec<String> {
+        let (rules, warnings) = alerts::apply_overrides(&alerts::defaults(), &a.overrides);
+        let mut r = lock(&self.state);
+        let h = &mut r.alerts;
+        if h.notifications == Notifications::Off && a.notifications != Notifications::Off {
+            // Turned on mid-stream: what holds now is the baseline.
+            h.engine.reset();
+        }
+        h.engine.set_rules(rules);
+        h.notifications = a.notifications;
+        h.speech = a.speech;
+        warnings
+    }
+
     /// Stop any stream or replay and start a new session for `target` (`None`: a replay);
     /// returns its number. The history goes unless it is of the same thing (`history_of`).
     fn begin(&self, r: &mut Running, target: Option<ChannelRef>, history_of: String) -> u64 {
@@ -333,6 +548,8 @@ impl TelemetryHost {
             t.stop();
         }
         lock(&self.rec).close(r.session);
+        // A new stream starts with a baseline, never with what the last one saw.
+        r.alerts.engine.reset();
         r.session += 1;
         r.target = target;
         r.source = None;
@@ -352,20 +569,24 @@ impl TelemetryHost {
     }
 
     /// Hand an event of `session` on (dropped when a newer stream started; then false). A
-    /// frame of a live stream also goes into the history and, with "Record sessions" on, the
-    /// recording.
+    /// frame of a live stream also goes into the history, with "Record sessions" on the
+    /// recording, and through the alerts (none while Notifications is Off).
     fn forward(&self, sink: &Sink, session: u64, ev: LiveEvent) -> bool {
-        let meta = {
+        let (meta, alerts) = {
             let mut r = lock(&self.state);
             if r.session != session {
                 return false;
             }
-            if let LiveEvent::Status(s) = &ev {
-                r.link = s.clone();
-            }
+            let alerts = match &ev {
+                LiveEvent::Status(s) => {
+                    r.link = s.clone();
+                    Vec::new()
+                }
+                LiveEvent::Frame(f) => r.alerts.frame(f),
+            };
             let channel = r.target.as_ref().map(|t| t.channel.clone());
             let key = r.source.as_ref().map(|s| s.schema().key().to_owned());
-            (channel, key)
+            ((channel, key), alerts)
         };
         if let LiveEvent::Frame(f) = &ev {
             lock(&self.history).push(f.received_ms, &f.snapshot);
@@ -373,7 +594,9 @@ impl TelemetryHost {
                 self.record_frame(session, &channel, &key, f);
             }
         }
-        sink(TelemetryEvent::of(session, ev));
+        let mut e = TelemetryEvent::of(session, ev);
+        e.alerts = alerts;
+        sink(e);
         true
     }
 
@@ -674,6 +897,7 @@ impl TelemetryHost {
         r.link = LinkStatus::Disabled;
         r.actions_error = None;
         r.gate.clear_actions();
+        r.alerts.engine.reset();
     }
 
     /// Play recording `name` into `sink` in place of a stream (from the start, playing, at
@@ -813,6 +1037,7 @@ impl TelemetryHost {
             status: None,
             frame: frame.map(Box::new),
             replay: Some(state),
+            alerts: Vec::new(),
         });
         true
     }
@@ -1231,5 +1456,145 @@ mod tests {
         let r = host.trigger("v_toggle_lights", None, true, false);
         assert!(r.refused.is_some(), "{:?}", r.error);
         assert!(r.error.is_none() && r.outcome.is_none());
+    }
+
+    fn boost(b: f64, seq: u64) -> Frame {
+        let raw = serde_json::json!({"vehicle": {"state": {"name": "Test Ship",
+            "power": {"engines": true},
+            "flight": {"instruments": {"boost": {"reserves": b}}}}}});
+        Frame {
+            seq,
+            received_ms: 1_000 + seq,
+            snapshot: Snapshot::from_json(&raw),
+            raw,
+        }
+    }
+
+    /// 2 s of full boost, then 1 s at 20 %: one `boost_low` crossing at 2.0 s.
+    fn crossing(h: &mut AlertHub) -> Vec<Alert> {
+        let mut out = Vec::new();
+        for i in 0..30u64 {
+            let b = if i < 20 { 0.9 } else { 0.2 };
+            out.extend(h.frame_at(&boost(b, i), i as f64 * 0.1));
+        }
+        out
+    }
+
+    fn hub(n: Notifications, speech: bool) -> AlertHub {
+        AlertHub {
+            notifications: n,
+            speech,
+            ..AlertHub::default()
+        }
+    }
+
+    #[test]
+    fn alerts_only_with_notifications_on_and_only_what_was_chosen() {
+        let mut h = hub(Notifications::Off, true);
+        assert!(crossing(&mut h).is_empty(), "off: nothing is evaluated");
+        assert!(h.recent.is_empty());
+
+        let mut h = hub(Notifications::InApp, true);
+        let a = crossing(&mut h);
+        assert_eq!(a.len(), 1);
+        assert_eq!(a[0].rule, "boost_low");
+        assert!(
+            a[0].sound.is_none() && a[0].speech.is_none(),
+            "in app: silent"
+        );
+        assert_eq!(h.recent.len(), 1);
+
+        let mut h = hub(Notifications::InAppSound, false);
+        let a = crossing(&mut h);
+        assert_eq!(a[0].sound.as_deref(), Some("warn"));
+        assert!(a[0].speech.is_none(), "speech is its own switch");
+
+        let mut h = hub(Notifications::InAppSound, true);
+        let a = crossing(&mut h);
+        assert_eq!(a[0].speech.as_deref(), Some("Boost twenty percent"));
+    }
+
+    #[test]
+    fn the_recent_list_is_bounded() {
+        let mut h = hub(Notifications::InApp, false);
+        for _ in 0..RECENT_MAX + 5 {
+            h.recent
+                .push_front(h.engine.test_alert("hull_half", 0).unwrap());
+        }
+        h.frame_at(&boost(0.9, 0), 0.0);
+        assert_eq!(h.recent.len(), RECENT_MAX);
+    }
+
+    #[test]
+    fn stale_events_carry_no_alerts_and_a_restart_rebaselines() {
+        let host = TelemetryHost::default();
+        host.set_alerts(&AlertSettings {
+            notifications: Notifications::InApp,
+            ..AlertSettings::default()
+        });
+        let session = host.session();
+        let got: Arc<Mutex<Vec<TelemetryEvent>>> = Arc::default();
+        let sink: Sink = {
+            let got = got.clone();
+            Arc::new(move |e| got.lock().unwrap().push(e))
+        };
+        let ev = || LiveEvent::Frame(Box::new(boost(0.2, 1)));
+        assert!(!host.forward(&sink, session + 1, ev()));
+        assert!(host.forward(&sink, session, ev()));
+        let got = got.lock().unwrap();
+        assert_eq!(got.len(), 1, "the stale event is dropped");
+        assert!(got[0].alerts.is_empty(), "the first frame is a baseline");
+        drop(got);
+        host.no_schema(target("PTU"), "test".into(), &quiet());
+        assert!(lock(&host.state).alerts.engine.rules().len() > 10);
+    }
+
+    #[test]
+    fn normalize_drops_defaults_and_refuses_misfits() {
+        let mut a = AlertSettings::default();
+        a.overrides.insert(
+            "boost_low".into(),
+            alerts::RuleOverride {
+                enabled: Some(true),
+                cooldown_s: Some(15.0),
+                value: Some(0.25),
+                rearm: None,
+            },
+        );
+        a.overrides.insert(
+            "hull_half".into(),
+            alerts::RuleOverride {
+                enabled: Some(false),
+                ..Default::default()
+            },
+        );
+        let n = alerts_normalize(&a).unwrap();
+        assert_eq!(n.overrides.len(), 1, "{:?}", n.overrides);
+        assert_eq!(n.overrides["hull_half"].enabled, Some(false));
+        a.overrides.insert("nope".into(), Default::default());
+        assert!(alerts_normalize(&a).unwrap_err().contains("nope"));
+
+        let host = TelemetryHost::default();
+        let v = alerts_view(&host, &n);
+        let hull = v.rules.iter().find(|r| r.id == "hull_half").unwrap();
+        assert!(!hull.enabled && hull.default_enabled);
+        assert_eq!(hull.threshold, Some(0.5));
+        assert_eq!(hull.unit.as_deref(), Some("fraction"));
+        assert!(!v.evaluating && v.recent.is_empty() && v.warnings.is_empty());
+    }
+
+    #[test]
+    fn a_test_alert_follows_the_delivery_choice() {
+        let mut a = AlertSettings::default();
+        assert!(alert_test(&a, "hull_half").is_err(), "refused while off");
+        a.notifications = Notifications::InApp;
+        let t = alert_test(&a, "hull_half").unwrap();
+        assert!(t.test && t.sound.is_none());
+        a.notifications = Notifications::InAppSound;
+        assert_eq!(
+            alert_test(&a, "hull_half").unwrap().sound.as_deref(),
+            Some("warn")
+        );
+        assert!(alert_test(&a, "nope").is_err());
     }
 }

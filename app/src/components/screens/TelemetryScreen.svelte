@@ -3,7 +3,7 @@
    * Live telemetry (experimental; docs/user-guide.md#live-telemetry): the game's own live data,
    * read from its local service on 127.0.0.1 while this screen is open. Panels after
    * sc-telemetry's dashboard (same owner, MIT) in this app's style: connection, pilot vitals,
-   * ship, shields, systems and annunciators, history graphs, actions, raw frame, recordings.
+   * ship, shields, systems and annunciators, history graphs, alerts, actions, raw frame, recordings.
    *
    * Replay: a recording plays into the same panels in place of the game (a "Replay" badge and
    * its controls replace the connection and Start/Stop); "Back to live" reads the game again.
@@ -23,6 +23,7 @@
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import ActionsPanel from '@/components/telemetry/ActionsPanel.svelte';
   import HistoryPanel from '@/components/telemetry/HistoryPanel.svelte';
+  import AlertsPanel from '@/components/telemetry/AlertsPanel.svelte';
   import RawFramePanel from '@/components/telemetry/RawFramePanel.svelte';
   import RecordingsPanel from '@/components/telemetry/RecordingsPanel.svelte';
   import ReplayBar from '@/components/telemetry/ReplayBar.svelte';
@@ -230,6 +231,8 @@
         </Card.Root>
       </div>
     {/if}
+
+    <AlertsPanel />
 
     <div class="grid gap-3 lg:grid-cols-2">
       <HistoryPanel />

@@ -140,7 +140,7 @@ test('the inspector cuts long frames and follows at most once a second', () => {
 function mock() {
   const ticks: (() => void)[] = [];
   const logs: string[] = [];
-  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv, recordings: samples.telemetry_recordings };
+  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv, recordings: samples.telemetry_recordings, alerts: samples.telemetry_alerts };
   const m = createTelemetryMock(data, {
     fail: (c, msg) => {
       throw new Fail(c, msg);
