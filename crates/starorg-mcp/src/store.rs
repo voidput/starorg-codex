@@ -894,7 +894,16 @@ mod tests {
         assert!(older.is_dir(), "the second reader still holds it");
         assert_eq!(s.cached_builds(live).len(), KEEP_BUILDS + 1);
         drop(second);
-        s.prune_old_builds(live, &current);
+        // A child another test starts can share the just-dropped lock for an instant
+        // (between fork and exec): prune again until it is free.
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            s.prune_old_builds(live, &current);
+            if s.cached_builds(live).len() == KEEP_BUILDS || std::time::Instant::now() > until {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
         assert_eq!(s.cached_builds(live).len(), KEEP_BUILDS);
         assert!(current.is_dir());
         let left: Vec<String> = std::fs::read_dir(&ch)

@@ -89,8 +89,24 @@ mod tests {
         let a = try_lock(&p).unwrap();
         assert!(matches!(try_lock(&p), Err(LockError::Held(_))));
         drop(a);
-        let _b = try_lock(&p).unwrap();
+        let _b = eventually(&p);
         assert!(p.exists(), "the file stays; only the lock is gone");
+    }
+
+    /// The exclusive lock once nobody holds the file. Another test of this process starting
+    /// a child can hold a copy of an open lock file for a moment (between fork and exec, the
+    /// child shares it), so a lock just dropped may still read as held for an instant.
+    fn eventually(p: &Path) -> Lock {
+        let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
+        loop {
+            match try_lock(p) {
+                Ok(l) => return l,
+                Err(LockError::Held(_)) if std::time::Instant::now() < until => {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                }
+                Err(e) => panic!("{e}"),
+            }
+        }
     }
 
     #[test]
@@ -106,7 +122,7 @@ mod tests {
             "one reader left"
         );
         drop(r2);
-        let x = try_lock(&p).unwrap();
+        let x = eventually(&p);
         assert!(matches!(try_lock_shared(&p), Err(LockError::Held(_))));
         drop(x);
     }
