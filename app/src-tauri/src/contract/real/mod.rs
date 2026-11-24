@@ -2616,6 +2616,10 @@ impl Backend for RealBackend {
         Ok(self.shop_items_of(req))
     }
 
+    fn shop_item_search(&self, req: ShopItemSearchRequest) -> CmdResult<ShopItemSearch> {
+        Ok(self.shop_item_search_of(req))
+    }
+
     fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {
         Ok(self.commodity_list_of(req))
     }

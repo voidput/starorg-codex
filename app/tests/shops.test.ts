@@ -8,17 +8,21 @@ import {
   CATEGORY_LABEL,
   CATEGORY_ORDER,
   categoryChips,
+  dealOffers,
   filterShops,
   firstShop,
   groupItems,
   hasShop,
+  itemMatchLine,
   matchesWords,
   textFiltered,
   topCategories,
   uexAgeDays,
   uexAgeText,
+  whereToBuyLabel,
 } from '../src/lib/shops.ts';
-import type { ShopDirectory, ShopItemRow, ShopItems } from '../src/lib/contract/types.ts';
+import { mockItemSearch, type ShopItemCatalogue } from '../src/lib/contract/mock-shops.ts';
+import type { ShopDirectory, ShopItemOffer, ShopItemRow, ShopItems, ShopItemSearch } from '../src/lib/contract/types.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const dir = samples.shop_inventory as ShopDirectory;
@@ -151,4 +155,73 @@ test('ship items link only after the game data is read', () => {
   const linked = (list: ShopItems[]) => list.flatMap((s) => s.items).filter((i) => ship.has(i.category) && i.record).length;
   assert.equal(linked(samples.shop_items_all as ShopItems[]), 0);
   assert.ok(linked(all) > 10);
+});
+
+// The item search (`shop_item_search`): the deal sort and system filter, the list line, the palette
+// label, and the in-browser mock over the Rust mock's catalogue.
+const catalogue = samples.shop_item_catalogue_linked as ShopItemCatalogue;
+const offer = (o: Partial<ShopItemOffer>): ShopItemOffer => ({
+  terminal: 1,
+  shop: 'S',
+  location: 'P',
+  system: 'Stanton',
+  not_on_live: false,
+  price_buy: null,
+  price_sell: null,
+  updated: null,
+  stale: false,
+  ...o,
+});
+
+test('buy lists sellers cheapest first; sell lists payers best first; the system filter applies', () => {
+  const list = [
+    offer({ terminal: 1, price_buy: 300, price_sell: 100 }),
+    offer({ terminal: 2, price_buy: 200, system: 'Pyro' }),
+    offer({ terminal: 3, price_sell: 150 }),
+    offer({ terminal: 4, price_buy: 200, price_sell: 90 }),
+  ];
+  const ids = (l: ShopItemOffer[]) => l.map((o) => o.terminal);
+  // Ties keep the given order.
+  assert.deepEqual(ids(dealOffers(list, 'buy', '')), [2, 4, 1]);
+  assert.deepEqual(ids(dealOffers(list, 'sell', '')), [3, 1, 4]);
+  assert.deepEqual(ids(dealOffers(list, 'buy', 'Stanton')), [4, 1]);
+  assert.deepEqual(dealOffers(null, 'buy', ''), []);
+});
+
+test('an item line says how many shops sell and buy it', () => {
+  const m = catalogue.find((c) => c.item.bought_at > 0)!.item;
+  const p = (v: number) => `${v} aUEC`;
+  assert.match(itemMatchLine(m, p), /^\d+ shops? sells? it from \d+ aUEC · \d+ buys? it$/);
+  assert.equal(itemMatchLine({ ...m, sold_at: 0, min_buy: null, bought_at: 0 }, p), 'No shop sells it');
+  assert.equal(itemMatchLine({ ...m, sold_at: 1, min_buy: 5, bought_at: 2 }, p), '1 shop sells it from 5 aUEC · 2 buy it');
+  assert.equal(itemMatchLine({ ...m, sold_at: 3, min_buy: 5, bought_at: 1 }, p), '3 shops sell it from 5 aUEC · 1 buys it');
+});
+
+test('the palette offers "Where to buy" only with text', () => {
+  assert.equal(whereToBuyLabel('  fs-9 '), 'Where to buy “fs-9”');
+  assert.equal(whereToBuyLabel('  '), null);
+});
+
+test('the Rust sample search lists the item with its shops cheapest first', () => {
+  const s = samples.shop_item_search as ShopItemSearch;
+  assert.equal(s.state, 'ready');
+  assert.equal(s.item?.name, 'Hornet Pistol');
+  const buys = s.offers.map((o) => o.price_buy ?? Infinity);
+  assert.deepEqual(buys, [...buys].sort((a, b) => a - b));
+  assert.equal((samples.shop_item_search_missing as ShopItemSearch).state, 'missing');
+});
+
+test('the in-browser mock matches names and keeps a picked key', () => {
+  assert.equal(mockItemSearch(catalogue, false, '/uex', null, null, 'hornet', null).state, 'missing');
+  const r = mockItemSearch(catalogue, true, '/uex', 'f', 'LIVE', 'hornet', null);
+  assert.equal(r.state, 'ready');
+  assert.equal(r.item?.name, 'Hornet Pistol');
+  assert.equal(r.offer_count, r.offers.length);
+  assert.ok(r.offers.length > 0);
+  const many = mockItemSearch(catalogue, true, null, null, null, 'repeater', null);
+  assert.ok(many.items.length > 1);
+  const second = many.items[1]!.key;
+  assert.equal(mockItemSearch(catalogue, true, null, null, null, 'repeater', second).item?.key, second);
+  const none = mockItemSearch(catalogue, true, null, null, null, '   ', null);
+  assert.deepEqual([none.items.length, none.item], [0, null]);
 });

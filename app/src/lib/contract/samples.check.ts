@@ -38,6 +38,10 @@ interface Samples {
   shop_items: T.ShopItems;
   shop_items_all: T.ShopItems[];
   shop_items_all_linked: T.ShopItems[];
+  shop_item_search: T.ShopItemSearch;
+  shop_item_search_missing: T.ShopItemSearch;
+  shop_item_catalogue: { item: T.ShopItemMatch; offers: T.ShopItemOffer[] }[];
+  shop_item_catalogue_linked: { item: T.ShopItemMatch; offers: T.ShopItemOffer[] }[];
   commodity_list_not_read: T.CommodityDirectory;
   commodity_list: T.CommodityDirectory;
   commodity_list_priced: T.CommodityDirectory;

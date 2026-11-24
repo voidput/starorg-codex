@@ -19521,6 +19521,3069 @@
     "state": "missing",
     "systems": []
   },
+  "shop_item_catalogue": [
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:aegis shell shield",
+        "max_sell": 18172.0,
+        "min_buy": 45430.0,
+        "name": "Aegis Shell Shield",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 45430.0,
+          "price_sell": 18172.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 47247.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:bastion shield",
+        "max_sell": 19096.0,
+        "min_buy": 47740.0,
+        "name": "Bastion Shield",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 47740.0,
+          "price_sell": 19096.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 49650.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "uex:breaker scattergun s4",
+        "max_sell": 30256.0,
+        "min_buy": 75640.0,
+        "name": "Breaker Scattergun S4",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 75640.0,
+          "price_sell": 30256.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 78666.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 81691.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "uex:chaff launcher",
+        "max_sell": 31720.0,
+        "min_buy": 79300.0,
+        "name": "Chaff Launcher",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 79300.0,
+          "price_sell": 31720.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 82472.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 85644.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-attachments",
+        "key": "SYN_Clear_Scope_4x",
+        "max_sell": null,
+        "min_buy": 845.0,
+        "name": "Clear Scope 4x",
+        "record": {
+          "class_name": "SYN_Clear_Scope_4x",
+          "guid": "54000000-0000-4000-8000-000000000021"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 845.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 879.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 913.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "other",
+        "key": "SYN_Copper_Crate",
+        "max_sell": null,
+        "min_buy": 182.0,
+        "name": "Copper Crate",
+        "record": {
+          "class_name": "SYN_Copper_Crate",
+          "guid": "54000000-0000-4000-8000-000000000028"
+        },
+        "sold_at": 1,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 182.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-16"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "mining",
+        "key": "uex:drill head s1",
+        "max_sell": 10799.0,
+        "min_buy": 25960.0,
+        "name": "Drill Head S1",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 25960.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 26998.0,
+          "price_sell": 10799.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:dynamo power plant",
+        "max_sell": 17248.0,
+        "min_buy": 43120.0,
+        "name": "Dynamo Power Plant",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 43120.0,
+          "price_sell": 17248.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 44845.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "uex:ember repeater s1",
+        "max_sell": 25864.0,
+        "min_buy": 64660.0,
+        "name": "Ember Repeater S1",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 64660.0,
+          "price_sell": 25864.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 67246.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 69833.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "uex:ember repeater s2",
+        "max_sell": 27328.0,
+        "min_buy": 68320.0,
+        "name": "Ember Repeater S2",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 68320.0,
+          "price_sell": 27328.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 71053.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 73786.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "consumables",
+        "key": "SYN_Fizz_Can",
+        "max_sell": null,
+        "min_buy": 10.0,
+        "name": "Fizz Can",
+        "record": {
+          "class_name": "SYN_Fizz_Can",
+          "guid": "54000000-0000-4000-8000-000000000024"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Lorville, Hurston",
+          "not_on_live": false,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Cafe Lorville",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 103,
+          "updated": "2026-11-20"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "mining",
+        "key": "uex:focus module",
+        "max_sell": 11348.0,
+        "min_buy": 27280.0,
+        "name": "Focus Module",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 27280.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 28371.0,
+          "price_sell": 11348.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:frost cooler",
+        "max_sell": 20944.0,
+        "min_buy": 52360.0,
+        "name": "Frost Cooler",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:glacier cooler",
+        "max_sell": 15400.0,
+        "min_buy": 38500.0,
+        "name": "Glacier Cooler",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "missiles",
+        "key": "uex:hammer",
+        "max_sell": 829.0,
+        "min_buy": 2072.0,
+        "name": "Hammer",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 2072.0,
+          "price_sell": 829.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2155.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2238.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-weapons",
+        "key": "SYN_Hornet_Pistol",
+        "max_sell": null,
+        "min_buy": 5460.0,
+        "name": "Hornet Pistol",
+        "record": {
+          "class_name": "SYN_Hornet_Pistol",
+          "guid": "54000000-0000-4000-8000-00000000001a"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 5460.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 5678.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 5897.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-18"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-attachments",
+        "key": "SYN_Hush_Suppressor",
+        "max_sell": null,
+        "min_buy": 806.0,
+        "name": "Hush Suppressor",
+        "record": {
+          "class_name": "SYN_Hush_Suppressor",
+          "guid": "54000000-0000-4000-8000-000000000020"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 806.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 838.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 870.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-18"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:leap quantum drive",
+        "max_sell": 20020.0,
+        "min_buy": 50050.0,
+        "name": "Leap Quantum Drive",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 50050.0,
+          "price_sell": 20020.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 52052.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:leap quantum drive template",
+        "max_sell": 15400.0,
+        "min_buy": 38500.0,
+        "name": "Leap Quantum Drive Template",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "consumables",
+        "key": "SYN_Mend_Pen",
+        "max_sell": null,
+        "min_buy": 10.0,
+        "name": "Mend Pen",
+        "record": {
+          "class_name": "SYN_Mend_Pen",
+          "guid": "54000000-0000-4000-8000-000000000025"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Lorville, Hurston",
+          "not_on_live": false,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Cafe Lorville",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 103,
+          "updated": "2026-11-19"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "missiles",
+        "key": "uex:quiver missile rack",
+        "max_sell": 873.0,
+        "min_buy": 2183.0,
+        "name": "Quiver Missile Rack",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 2183.0,
+          "price_sell": 873.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2270.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2358.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "consumables",
+        "key": "SYN_Ration_Bar",
+        "max_sell": null,
+        "min_buy": 9.0,
+        "name": "Ration Bar",
+        "record": {
+          "class_name": "SYN_Ration_Bar",
+          "guid": "54000000-0000-4000-8000-000000000023"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 9.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Lorville, Hurston",
+          "not_on_live": false,
+          "price_buy": 9.0,
+          "price_sell": null,
+          "shop": "Cafe Lorville",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 103,
+          "updated": "2026-11-15"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "armour",
+        "key": "SYN_Sentinel_Core",
+        "max_sell": null,
+        "min_buy": 3248.0,
+        "name": "Sentinel Core",
+        "record": {
+          "class_name": "SYN_Sentinel_Core",
+          "guid": "54000000-0000-4000-8000-00000000001e"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 3248.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 3378.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-20"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "armour",
+        "key": "SYN_Sentinel_Helmet",
+        "max_sell": null,
+        "min_buy": 3074.0,
+        "name": "Sentinel Helmet",
+        "record": {
+          "class_name": "SYN_Sentinel_Helmet",
+          "guid": "54000000-0000-4000-8000-00000000001d"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 3074.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 3197.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-15"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:spark power plant",
+        "max_sell": 16324.0,
+        "min_buy": 40810.0,
+        "name": "Spark Power Plant",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 40810.0,
+          "price_sell": 16324.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 42442.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "ship-weapons",
+        "key": "uex:syn-9 repeater",
+        "max_sell": null,
+        "min_buy": 48500.0,
+        "name": "SYN-9 Repeater",
+        "record": null,
+        "sold_at": 1,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 48500.0,
+          "price_sell": null,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "other",
+        "key": "uex:synthetic hull patch",
+        "max_sell": null,
+        "min_buy": 75.0,
+        "name": "Synthetic Hull Patch",
+        "record": null,
+        "sold_at": 1,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 75.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-weapons",
+        "key": "SYN_Thumper_Launcher",
+        "max_sell": null,
+        "min_buy": 5712.0,
+        "name": "Thumper Launcher",
+        "record": {
+          "class_name": "SYN_Thumper_Launcher",
+          "guid": "54000000-0000-4000-8000-00000000001b"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 5712.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 5940.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 6169.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "uex:torrent cannon s3",
+        "max_sell": 28792.0,
+        "min_buy": 71980.0,
+        "name": "Torrent Cannon S3",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 71980.0,
+          "price_sell": 28792.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 74859.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 77738.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "mining",
+        "key": "SYN_Tracker_Gadget",
+        "max_sell": 9152.0,
+        "min_buy": 22000.0,
+        "name": "Tracker Gadget",
+        "record": {
+          "class_name": "SYN_Tracker_Gadget",
+          "guid": "54000000-0000-4000-8000-00000000001c"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 22000.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 22880.0,
+          "price_sell": 9152.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "armour",
+        "key": "SYN_Trail_Boots",
+        "max_sell": null,
+        "min_buy": 3422.0,
+        "name": "Trail Boots",
+        "record": {
+          "class_name": "SYN_Trail_Boots",
+          "guid": "54000000-0000-4000-8000-00000000001f"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 3422.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 3559.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-19"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "uex:vault quantum drive",
+        "max_sell": 20944.0,
+        "min_buy": 52360.0,
+        "name": "Vault Quantum Drive",
+        "record": null,
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-attachments",
+        "key": "SYN_Viper_Magazine",
+        "max_sell": null,
+        "min_buy": 884.0,
+        "name": "Viper Magazine",
+        "record": {
+          "class_name": "SYN_Viper_Magazine",
+          "guid": "54000000-0000-4000-8000-000000000022"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 884.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 919.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 955.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-16"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-weapons",
+        "key": "SYN_Viper_Rifle",
+        "max_sell": null,
+        "min_buy": 5208.0,
+        "name": "Viper Rifle",
+        "record": {
+          "class_name": "SYN_Viper_Rifle",
+          "guid": "54000000-0000-4000-8000-000000000019"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 5208.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 5416.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 5625.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-19"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "missiles",
+        "key": "uex:wasp",
+        "max_sell": 784.0,
+        "min_buy": 1961.0,
+        "name": "Wasp",
+        "record": null,
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 1961.0,
+          "price_sell": 784.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2039.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2118.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    }
+  ],
+  "shop_item_catalogue_linked": [
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Aegis_Shell_Shield",
+        "max_sell": 18172.0,
+        "min_buy": 45430.0,
+        "name": "Aegis Shell Shield",
+        "record": {
+          "class_name": "SYN_Aegis_Shell_Shield",
+          "guid": "54000000-0000-4000-8000-000000000011"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 45430.0,
+          "price_sell": 18172.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 47247.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Bastion_Shield",
+        "max_sell": 19096.0,
+        "min_buy": 47740.0,
+        "name": "Bastion Shield",
+        "record": {
+          "class_name": "SYN_Bastion_Shield",
+          "guid": "54000000-0000-4000-8000-000000000012"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 47740.0,
+          "price_sell": 19096.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 49650.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "SYN_Breaker_Scattergun_S4",
+        "max_sell": 30256.0,
+        "min_buy": 75640.0,
+        "name": "Breaker Scattergun S4",
+        "record": {
+          "class_name": "SYN_Breaker_Scattergun_S4",
+          "guid": "54000000-0000-4000-8000-00000000000b"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 75640.0,
+          "price_sell": 30256.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 78666.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 81691.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "SYN_Chaff_Launcher",
+        "max_sell": 31720.0,
+        "min_buy": 79300.0,
+        "name": "Chaff Launcher",
+        "record": {
+          "class_name": "SYN_Chaff_Launcher",
+          "guid": "54000000-0000-4000-8000-00000000000c"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 79300.0,
+          "price_sell": 31720.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 82472.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 85644.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-attachments",
+        "key": "SYN_Clear_Scope_4x",
+        "max_sell": null,
+        "min_buy": 845.0,
+        "name": "Clear Scope 4x",
+        "record": {
+          "class_name": "SYN_Clear_Scope_4x",
+          "guid": "54000000-0000-4000-8000-000000000021"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 845.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 879.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 913.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "other",
+        "key": "SYN_Copper_Crate",
+        "max_sell": null,
+        "min_buy": 182.0,
+        "name": "Copper Crate",
+        "record": {
+          "class_name": "SYN_Copper_Crate",
+          "guid": "54000000-0000-4000-8000-000000000028"
+        },
+        "sold_at": 1,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 182.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-16"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "mining",
+        "key": "SYN_Drill_Head_S1",
+        "max_sell": 10799.0,
+        "min_buy": 25960.0,
+        "name": "Drill Head S1",
+        "record": {
+          "class_name": "SYN_Drill_Head_S1",
+          "guid": "54000000-0000-4000-8000-000000000026"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 25960.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 26998.0,
+          "price_sell": 10799.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Dynamo_Power_Plant",
+        "max_sell": 17248.0,
+        "min_buy": 43120.0,
+        "name": "Dynamo Power Plant",
+        "record": {
+          "class_name": "SYN_Dynamo_Power_Plant",
+          "guid": "54000000-0000-4000-8000-000000000010"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 43120.0,
+          "price_sell": 17248.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 44845.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "SYN_Ember_Repeater_S1",
+        "max_sell": 25864.0,
+        "min_buy": 64660.0,
+        "name": "Ember Repeater S1",
+        "record": {
+          "class_name": "SYN_Ember_Repeater_S1",
+          "guid": "54000000-0000-4000-8000-000000000008"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 64660.0,
+          "price_sell": 25864.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 67246.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 69833.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "SYN_Ember_Repeater_S2",
+        "max_sell": 27328.0,
+        "min_buy": 68320.0,
+        "name": "Ember Repeater S2",
+        "record": {
+          "class_name": "SYN_Ember_Repeater_S2",
+          "guid": "54000000-0000-4000-8000-000000000009"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 68320.0,
+          "price_sell": 27328.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 71053.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 73786.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "consumables",
+        "key": "SYN_Fizz_Can",
+        "max_sell": null,
+        "min_buy": 10.0,
+        "name": "Fizz Can",
+        "record": {
+          "class_name": "SYN_Fizz_Can",
+          "guid": "54000000-0000-4000-8000-000000000024"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Lorville, Hurston",
+          "not_on_live": false,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Cafe Lorville",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 103,
+          "updated": "2026-11-20"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "mining",
+        "key": "SYN_Focus_Module",
+        "max_sell": 11348.0,
+        "min_buy": 27280.0,
+        "name": "Focus Module",
+        "record": {
+          "class_name": "SYN_Focus_Module",
+          "guid": "54000000-0000-4000-8000-000000000027"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 27280.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 28371.0,
+          "price_sell": 11348.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Frost_Cooler",
+        "max_sell": 20944.0,
+        "min_buy": 52360.0,
+        "name": "Frost Cooler",
+        "record": {
+          "class_name": "SYN_Frost_Cooler",
+          "guid": "54000000-0000-4000-8000-00000000000d"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Glacier_Cooler",
+        "max_sell": 15400.0,
+        "min_buy": 38500.0,
+        "name": "Glacier Cooler",
+        "record": {
+          "class_name": "SYN_Glacier_Cooler",
+          "guid": "54000000-0000-4000-8000-00000000000e"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "missiles",
+        "key": "SYN_Hammer_Torpedo",
+        "max_sell": 829.0,
+        "min_buy": 2072.0,
+        "name": "Hammer Torpedo",
+        "record": {
+          "class_name": "SYN_Hammer_Torpedo",
+          "guid": "54000000-0000-4000-8000-000000000017"
+        },
+        "sold_at": 3,
+        "uex_name": "Hammer"
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 2072.0,
+          "price_sell": 829.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2155.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2238.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-weapons",
+        "key": "SYN_Hornet_Pistol",
+        "max_sell": null,
+        "min_buy": 5460.0,
+        "name": "Hornet Pistol",
+        "record": {
+          "class_name": "SYN_Hornet_Pistol",
+          "guid": "54000000-0000-4000-8000-00000000001a"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 5460.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 5678.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 5897.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-18"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-attachments",
+        "key": "SYN_Hush_Suppressor",
+        "max_sell": null,
+        "min_buy": 806.0,
+        "name": "Hush Suppressor",
+        "record": {
+          "class_name": "SYN_Hush_Suppressor",
+          "guid": "54000000-0000-4000-8000-000000000020"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 806.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 838.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 870.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-18"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Leap_Quantum_Drive",
+        "max_sell": 20020.0,
+        "min_buy": 50050.0,
+        "name": "Leap Quantum Drive",
+        "record": {
+          "class_name": "SYN_Leap_Quantum_Drive",
+          "guid": "54000000-0000-4000-8000-000000000013"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 50050.0,
+          "price_sell": 20020.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 52052.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Leap_Quantum_Drive_Template",
+        "max_sell": 15400.0,
+        "min_buy": 38500.0,
+        "name": "Leap Quantum Drive Template",
+        "record": {
+          "class_name": "SYN_Leap_Quantum_Drive_Template",
+          "guid": "54000000-0000-4000-8000-000000000015"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 38500.0,
+          "price_sell": 15400.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 40040.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "consumables",
+        "key": "SYN_Mend_Pen",
+        "max_sell": null,
+        "min_buy": 10.0,
+        "name": "Mend Pen",
+        "record": {
+          "class_name": "SYN_Mend_Pen",
+          "guid": "54000000-0000-4000-8000-000000000025"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Lorville, Hurston",
+          "not_on_live": false,
+          "price_buy": 10.0,
+          "price_sell": null,
+          "shop": "Cafe Lorville",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 103,
+          "updated": "2026-11-19"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "missiles",
+        "key": "SYN_Quiver_Missile_Rack",
+        "max_sell": 873.0,
+        "min_buy": 2183.0,
+        "name": "Quiver Missile Rack",
+        "record": {
+          "class_name": "SYN_Quiver_Missile_Rack",
+          "guid": "54000000-0000-4000-8000-000000000018"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 2183.0,
+          "price_sell": 873.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2270.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2358.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "consumables",
+        "key": "SYN_Ration_Bar",
+        "max_sell": null,
+        "min_buy": 9.0,
+        "name": "Ration Bar",
+        "record": {
+          "class_name": "SYN_Ration_Bar",
+          "guid": "54000000-0000-4000-8000-000000000023"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 9.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Lorville, Hurston",
+          "not_on_live": false,
+          "price_buy": 9.0,
+          "price_sell": null,
+          "shop": "Cafe Lorville",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 103,
+          "updated": "2026-11-15"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "armour",
+        "key": "SYN_Sentinel_Core",
+        "max_sell": null,
+        "min_buy": 3248.0,
+        "name": "Sentinel Core",
+        "record": {
+          "class_name": "SYN_Sentinel_Core",
+          "guid": "54000000-0000-4000-8000-00000000001e"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 3248.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-20"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 3378.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-20"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "armour",
+        "key": "SYN_Sentinel_Helmet",
+        "max_sell": null,
+        "min_buy": 3074.0,
+        "name": "Sentinel Helmet",
+        "record": {
+          "class_name": "SYN_Sentinel_Helmet",
+          "guid": "54000000-0000-4000-8000-00000000001d"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 3074.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-15"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 3197.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-15"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Spark_Power_Plant",
+        "max_sell": 16324.0,
+        "min_buy": 40810.0,
+        "name": "Spark Power Plant",
+        "record": {
+          "class_name": "SYN_Spark_Power_Plant",
+          "guid": "54000000-0000-4000-8000-00000000000f"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 40810.0,
+          "price_sell": 16324.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 42442.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "ship-weapons",
+        "key": "uex:syn-9 repeater",
+        "max_sell": null,
+        "min_buy": 48500.0,
+        "name": "SYN-9 Repeater",
+        "record": null,
+        "sold_at": 1,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 48500.0,
+          "price_sell": null,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-20"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "other",
+        "key": "uex:synthetic hull patch",
+        "max_sell": null,
+        "min_buy": 75.0,
+        "name": "Synthetic Hull Patch",
+        "record": null,
+        "sold_at": 1,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 75.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-weapons",
+        "key": "SYN_Thumper_Launcher",
+        "max_sell": null,
+        "min_buy": 5712.0,
+        "name": "Thumper Launcher",
+        "record": {
+          "class_name": "SYN_Thumper_Launcher",
+          "guid": "54000000-0000-4000-8000-00000000001b"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 5712.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 5940.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-17"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 6169.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-17"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-weapons",
+        "key": "SYN_Torrent_Cannon_S3",
+        "max_sell": 28792.0,
+        "min_buy": 71980.0,
+        "name": "Torrent Cannon S3",
+        "record": {
+          "class_name": "SYN_Torrent_Cannon_S3",
+          "guid": "54000000-0000-4000-8000-00000000000a"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 71980.0,
+          "price_sell": 28792.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 74859.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 77738.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "mining",
+        "key": "SYN_Tracker_Gadget",
+        "max_sell": 9152.0,
+        "min_buy": 22000.0,
+        "name": "Tracker Gadget",
+        "record": {
+          "class_name": "SYN_Tracker_Gadget",
+          "guid": "54000000-0000-4000-8000-00000000001c"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Levski, Delamar",
+          "not_on_live": true,
+          "price_buy": 22000.0,
+          "price_sell": null,
+          "shop": "Levski Admin",
+          "stale": false,
+          "system": "Nyx",
+          "terminal": 107,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 22880.0,
+          "price_sell": 9152.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "armour",
+        "key": "SYN_Trail_Boots",
+        "max_sell": null,
+        "min_buy": 3422.0,
+        "name": "Trail Boots",
+        "record": {
+          "class_name": "SYN_Trail_Boots",
+          "guid": "54000000-0000-4000-8000-00000000001f"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 3422.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 3559.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-19"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "ship-components",
+        "key": "SYN_Vault_Quantum_Drive",
+        "max_sell": 20944.0,
+        "min_buy": 52360.0,
+        "name": "Vault Quantum Drive",
+        "record": {
+          "class_name": "SYN_Vault_Quantum_Drive",
+          "guid": "54000000-0000-4000-8000-000000000014"
+        },
+        "sold_at": 2,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 52360.0,
+          "price_sell": 20944.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-18"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 54454.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-attachments",
+        "key": "SYN_Viper_Magazine",
+        "max_sell": null,
+        "min_buy": 884.0,
+        "name": "Viper Magazine",
+        "record": {
+          "class_name": "SYN_Viper_Magazine",
+          "guid": "54000000-0000-4000-8000-000000000022"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 884.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 919.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 955.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-16"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 0,
+        "category": "fps-weapons",
+        "key": "SYN_Viper_Rifle",
+        "max_sell": null,
+        "min_buy": 5208.0,
+        "name": "Viper Rifle",
+        "record": {
+          "class_name": "SYN_Viper_Rifle",
+          "guid": "54000000-0000-4000-8000-000000000019"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 5208.0,
+          "price_sell": null,
+          "shop": "Skutters Grim",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 102,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Area 18, ArcCorp",
+          "not_on_live": false,
+          "price_buy": 5416.0,
+          "price_sell": null,
+          "shop": "CenterMass Area 18",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 104,
+          "updated": "2026-11-19"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 5625.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-19"
+        }
+      ]
+    },
+    {
+      "item": {
+        "bought_at": 1,
+        "category": "missiles",
+        "key": "SYN_Wasp_Missile",
+        "max_sell": 784.0,
+        "min_buy": 1961.0,
+        "name": "Wasp Missile",
+        "record": {
+          "class_name": "SYN_Wasp_Missile",
+          "guid": "54000000-0000-4000-8000-000000000016"
+        },
+        "sold_at": 3,
+        "uex_name": "Wasp"
+      },
+      "offers": [
+        {
+          "location": "Grim HEX, Yela, Crusader",
+          "not_on_live": false,
+          "price_buy": 1961.0,
+          "price_sell": 784.0,
+          "shop": "Dumper's GrimHEX",
+          "stale": false,
+          "system": "Stanton",
+          "terminal": 101,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2039.0,
+          "price_sell": null,
+          "shop": "Guns Ruin",
+          "stale": false,
+          "system": "Pyro",
+          "terminal": 105,
+          "updated": "2026-11-16"
+        },
+        {
+          "location": "Ruin Station, Terminus",
+          "not_on_live": false,
+          "price_buy": 2118.0,
+          "price_sell": null,
+          "shop": "Platinum Bay Ruin",
+          "stale": true,
+          "system": "Pyro",
+          "terminal": 106,
+          "updated": "2026-10-10"
+        }
+      ]
+    }
+  ],
+  "shop_item_search": {
+    "fetched": "2026-11-21T09:00:00Z",
+    "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+    "item": {
+      "bought_at": 0,
+      "category": "fps-weapons",
+      "key": "SYN_Hornet_Pistol",
+      "max_sell": null,
+      "min_buy": 5460.0,
+      "name": "Hornet Pistol",
+      "record": {
+        "class_name": "SYN_Hornet_Pistol",
+        "guid": "54000000-0000-4000-8000-00000000001a"
+      },
+      "sold_at": 3,
+      "uex_name": null
+    },
+    "items": [
+      {
+        "bought_at": 0,
+        "category": "fps-weapons",
+        "key": "SYN_Hornet_Pistol",
+        "max_sell": null,
+        "min_buy": 5460.0,
+        "name": "Hornet Pistol",
+        "record": {
+          "class_name": "SYN_Hornet_Pistol",
+          "guid": "54000000-0000-4000-8000-00000000001a"
+        },
+        "sold_at": 3,
+        "uex_name": null
+      }
+    ],
+    "linked": "LIVE 4.10.200.58746",
+    "offer_count": 3,
+    "offers": [
+      {
+        "location": "Grim HEX, Yela, Crusader",
+        "not_on_live": false,
+        "price_buy": 5460.0,
+        "price_sell": null,
+        "shop": "Skutters Grim",
+        "stale": false,
+        "system": "Stanton",
+        "terminal": 102,
+        "updated": "2026-11-18"
+      },
+      {
+        "location": "Area 18, ArcCorp",
+        "not_on_live": false,
+        "price_buy": 5678.0,
+        "price_sell": null,
+        "shop": "CenterMass Area 18",
+        "stale": false,
+        "system": "Stanton",
+        "terminal": 104,
+        "updated": "2026-11-18"
+      },
+      {
+        "location": "Ruin Station, Terminus",
+        "not_on_live": false,
+        "price_buy": 5897.0,
+        "price_sell": null,
+        "shop": "Guns Ruin",
+        "stale": false,
+        "system": "Pyro",
+        "terminal": 105,
+        "updated": "2026-11-18"
+      }
+    ],
+    "query": "hornet",
+    "state": "ready",
+    "total": 1
+  },
+  "shop_item_search_missing": {
+    "fetched": null,
+    "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",
+    "item": null,
+    "items": [],
+    "linked": null,
+    "offer_count": 0,
+    "offers": [],
+    "query": "hornet",
+    "state": "missing",
+    "total": 0
+  },
   "shop_items": {
     "fetched": "2026-11-21T09:00:00Z",
     "folder": "/home/pilot/.cache/starorg-codex/mcp/uex",

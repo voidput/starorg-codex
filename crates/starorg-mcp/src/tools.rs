@@ -1087,10 +1087,7 @@ fn where_to_buy(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
                 not_on_live: (s.live == Some(false)).then_some(true),
             })
             .collect();
-        rows.sort_by(|x, y| {
-            let p = |r: &ShopRow| r.price_buy.unwrap_or(f64::INFINITY);
-            p(x).partial_cmp(&p(y)).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        crate::shops::cheapest_first(&mut rows, |r| r.price_buy);
         let mut v =
             json!({"item": {"key": i.class_name, "name": i.name}, "shops": page(&rows, a)?});
         if let Some(n) = r.shops_elsewhere.filter(|n| *n > 0) {
@@ -1959,6 +1956,21 @@ impl Tools {
         match self.shop_index(ctx.as_ref()) {
             Some(ix) => ix.items(terminal, self.uex_folder()),
             None => crate::shops::missing_items(self.uex_folder()),
+        }
+    }
+
+    /// The Shops screen's item search: the items `query` matches (fuzzy, game and UEX names)
+    /// and the shops of the one `key` names, else of the best match.
+    pub fn shop_item_search(
+        &self,
+        channel: Option<&str>,
+        query: &str,
+        key: Option<&str>,
+    ) -> crate::shops::ShopItemSearch {
+        let ctx = self.cached_ctx(channel);
+        match self.shop_index(ctx.as_ref()) {
+            Some(ix) => ix.search_items(query, key, self.uex_folder()),
+            None => crate::shops::missing_item_search(self.uex_folder(), query),
         }
     }
 

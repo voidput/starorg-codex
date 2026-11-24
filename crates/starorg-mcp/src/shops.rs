@@ -1,7 +1,8 @@
 //! The shop browser: what every UEX terminal sells, grouped by star system, place and shop,
 //! each item in a readable category and linked to its game record when the build's item data
-//! knows it. The app's Shops screen (`shop_inventory`, `shop_items`) and the `shop_inventory`
-//! MCP tool answer from one [`ShopIndex`] built from the two UEX files.
+//! knows it. The app's Shops screen (`shop_inventory`, `shop_items`, and the item search
+//! `shop_item_search`) and the `shop_inventory` MCP tool answer from one [`ShopIndex`] built
+//! from the two UEX files.
 //!
 //! Shop stock is server-side and in no game file: every row is UEX data, reported by players.
 //!
@@ -12,6 +13,7 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use starorg_gamedata::collate::locale_compare;
+use starorg_gamedata::query::fuzzy::{self, Entry, EntryKind};
 use starorg_gamedata::query::shops::{
     AsOf, Locator, STALE_DAYS, ShopPrice, UexTerminal, normalise_place, price_age, reference_time,
 };
@@ -334,6 +336,164 @@ pub struct ShopIndex {
     pub linked: Option<String>,
     /// See [`ShopDirectory::ship_items`]; set by the caller that knows the item data.
     pub ship_items: bool,
+    /// Every item any shop lists, for the item search ([`ShopIndex::search_items`]).
+    pub items: Vec<IndexedItem>,
+    /// Fuzzy entries of [`Self::items`]: one per name (game and UEX), `key` = the item's key.
+    entries: Vec<Entry>,
+}
+
+/// Most items an item search lists.
+pub const ITEM_MATCH_LIMIT: usize = 40;
+/// Most shops listed for one item.
+pub const ITEM_OFFER_LIMIT: usize = 200;
+
+/// One item across every shop that lists it (rows of the same record, or of the same name
+/// when unlinked).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShopItemMatch {
+    /// The record's class name when linked, else `uex:` and the lower-case name. What
+    /// `shop_item_search` takes as `key`.
+    pub key: String,
+    pub name: String,
+    /// UEX's name when it differs from the game's.
+    pub uex_name: Option<String>,
+    pub category: ShopCategory,
+    pub record: Option<ItemRecord>,
+    /// Shops that sell it (a buy price).
+    pub sold_at: usize,
+    /// Shops that pay for it (a sell price).
+    pub bought_at: usize,
+    /// Cheapest buy price.
+    pub min_buy: Option<f64>,
+    /// Best price a shop pays.
+    pub max_sell: Option<f64>,
+}
+
+/// One shop's row for an item.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShopItemOffer {
+    /// [`ShopSummary::id`].
+    pub terminal: u64,
+    /// The shop (terminal) name.
+    pub shop: String,
+    /// The place without the system.
+    pub location: String,
+    pub system: Option<String>,
+    pub not_on_live: bool,
+    pub price_buy: Option<f64>,
+    pub price_sell: Option<f64>,
+    pub updated: Option<String>,
+    pub stale: bool,
+}
+
+/// `shop_item_search`: the items a name matches, and the shops of one of them.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ShopItemSearch {
+    pub state: ShopDataState,
+    pub folder: Option<String>,
+    pub fetched: Option<String>,
+    pub linked: Option<String>,
+    pub query: String,
+    /// Best match first, at most [`ITEM_MATCH_LIMIT`].
+    pub items: Vec<ShopItemMatch>,
+    /// Matches before the cap.
+    pub total: usize,
+    /// The item `key` named, else the best match; `None` when nothing matches.
+    pub item: Option<ShopItemMatch>,
+    /// Its shops, cheapest buy first (rows without a buy price last), at most
+    /// [`ITEM_OFFER_LIMIT`].
+    pub offers: Vec<ShopItemOffer>,
+    /// Its shops before the cap.
+    pub offer_count: usize,
+}
+
+/// An item of the index: its summary and where its rows are (`(shop, row)` in
+/// [`ShopIndex::shops`]), in index order.
+#[derive(Debug, Clone)]
+pub struct IndexedItem {
+    pub summary: ShopItemMatch,
+    pub rows: Vec<(usize, usize)>,
+}
+
+/// Cheapest buy price first, rows without one last; a stable sort, so ties keep their order.
+/// Shared by the Shops screen's item search and the MCP `where_to_buy` tool.
+pub fn cheapest_first<T>(rows: &mut [T], buy: impl Fn(&T) -> Option<f64>) {
+    rows.sort_by(|a, b| {
+        buy(a)
+            .unwrap_or(f64::INFINITY)
+            .total_cmp(&buy(b).unwrap_or(f64::INFINITY))
+    });
+}
+
+/// The key of an item row: see [`ShopItemMatch::key`].
+fn item_key(row: &ShopItemRow) -> String {
+    match &row.record {
+        Some(r) => r.class_name.clone(),
+        None => format!("uex:{}", row.name.trim().to_lowercase()),
+    }
+}
+
+/// Every item of the shops, by name, with one fuzzy entry per name.
+fn index_items(shops: &[IndexedShop]) -> (Vec<IndexedItem>, Vec<Entry>) {
+    let mut at: HashMap<String, usize> = HashMap::new();
+    let mut items: Vec<IndexedItem> = Vec::new();
+    for (si, s) in shops.iter().enumerate() {
+        for (ri, row) in s.items.iter().enumerate() {
+            let key = item_key(row);
+            let i = *at.entry(key.clone()).or_insert_with(|| {
+                items.push(IndexedItem {
+                    summary: ShopItemMatch {
+                        key,
+                        name: row.name.clone(),
+                        uex_name: None,
+                        category: row.category,
+                        record: row.record.clone(),
+                        sold_at: 0,
+                        bought_at: 0,
+                        min_buy: None,
+                        max_sell: None,
+                    },
+                    rows: Vec::new(),
+                });
+                items.len() - 1
+            });
+            let it = &mut items[i];
+            it.rows.push((si, ri));
+            let m = &mut it.summary;
+            if m.uex_name.is_none() {
+                m.uex_name = row.uex_name.clone();
+            }
+            if let Some(b) = row.price_buy {
+                m.sold_at += 1;
+                m.min_buy = Some(m.min_buy.map_or(b, |x| x.min(b)));
+            }
+            if let Some(p) = row.price_sell {
+                m.bought_at += 1;
+                m.max_sell = Some(m.max_sell.map_or(p, |x| x.max(p)));
+            }
+        }
+    }
+    items.sort_by(|a, b| {
+        locale_compare(&a.summary.name, &b.summary.name)
+            .then_with(|| a.summary.key.cmp(&b.summary.key))
+    });
+    let mut entries = Vec::new();
+    for it in &items {
+        let m = &it.summary;
+        let entry = |name: &str| Entry {
+            kind: EntryKind::Item,
+            key: m.key.clone(),
+            name: name.to_string(),
+            maker: None,
+            ty: Some(m.category.label().to_string()),
+            family: None,
+        };
+        entries.push(entry(&m.name));
+        if let Some(u) = &m.uex_name {
+            entries.push(entry(u));
+        }
+    }
+    (items, entries)
 }
 
 fn words(s: &str) -> Vec<String> {
@@ -548,12 +708,15 @@ pub fn build_index(
             .then_with(|| locale_compare(&a.summary.name, &b.summary.name))
             .then_with(|| a.summary.id.cmp(&b.summary.id))
     });
+    let (items, entries) = index_items(&shops);
     ShopIndex {
         fetched: fetched.map(str::to_string),
         shops,
         rows,
         linked,
         ship_items: false,
+        items,
+        entries,
     }
 }
 
@@ -648,6 +811,101 @@ impl ShopIndex {
             Some(b) => self.shops.iter().filter(|s| tier(s) == Some(b)).collect(),
             None => Vec::new(),
         }
+    }
+
+    /// Items whose game or UEX name matches the query, best first ([`fuzzy::rank_scored`],
+    /// the scorer of the `search` tool), one row per item. An empty query matches nothing.
+    pub fn match_items(&self, query: &str) -> Vec<&IndexedItem> {
+        if query.trim().is_empty() {
+            return Vec::new();
+        }
+        let by_key: HashMap<&str, &IndexedItem> = self
+            .items
+            .iter()
+            .map(|i| (i.summary.key.as_str(), i))
+            .collect();
+        let mut seen = std::collections::HashSet::new();
+        fuzzy::rank_scored(&self.entries, query)
+            .into_iter()
+            .filter(|(e, _)| seen.insert(e.key.as_str()))
+            .filter_map(|(e, _)| by_key.get(e.key.as_str()).copied())
+            .collect()
+    }
+
+    /// One item's shops, cheapest buy first ([`cheapest_first`]); ties in index order
+    /// (system, place, shop).
+    pub fn offers(&self, item: &IndexedItem) -> Vec<ShopItemOffer> {
+        let mut v: Vec<ShopItemOffer> = item
+            .rows
+            .iter()
+            .filter_map(|&(si, ri)| {
+                let s = self.shops.get(si)?;
+                let r = s.items.get(ri)?;
+                Some(ShopItemOffer {
+                    terminal: s.summary.id,
+                    shop: s.summary.name.clone(),
+                    location: s.summary.location.clone(),
+                    system: s.summary.system.clone(),
+                    not_on_live: s.summary.not_on_live,
+                    price_buy: r.price_buy,
+                    price_sell: r.price_sell,
+                    updated: r.updated.clone(),
+                    stale: r.stale,
+                })
+            })
+            .collect();
+        cheapest_first(&mut v, |o| o.price_buy);
+        v
+    }
+
+    /// `shop_item_search`: the items `query` matches (capped) and the shops of the item
+    /// `key` names (any item of the index, matched or not), else of the best match.
+    pub fn search_items(
+        &self,
+        query: &str,
+        key: Option<&str>,
+        folder: Option<String>,
+    ) -> ShopItemSearch {
+        let found = self.match_items(query);
+        let chosen = key
+            .filter(|k| !k.is_empty())
+            .and_then(|k| self.items.iter().find(|i| i.summary.key == k))
+            .or_else(|| found.first().copied());
+        let mut offers = chosen.map(|i| self.offers(i)).unwrap_or_default();
+        let offer_count = offers.len();
+        offers.truncate(ITEM_OFFER_LIMIT);
+        ShopItemSearch {
+            state: ShopDataState::Ready,
+            folder,
+            fetched: self.fetched.clone(),
+            linked: self.linked.clone(),
+            query: query.to_string(),
+            total: found.len(),
+            items: found
+                .iter()
+                .take(ITEM_MATCH_LIMIT)
+                .map(|i| i.summary.clone())
+                .collect(),
+            item: chosen.map(|i| i.summary.clone()),
+            offers,
+            offer_count,
+        }
+    }
+}
+
+/// The item search while the UEX files are missing.
+pub fn missing_item_search(folder: Option<String>, query: &str) -> ShopItemSearch {
+    ShopItemSearch {
+        state: ShopDataState::Missing,
+        folder,
+        fetched: None,
+        linked: None,
+        query: query.to_string(),
+        items: Vec::new(),
+        total: 0,
+        item: None,
+        offers: Vec::new(),
+        offer_count: 0,
     }
 }
 
@@ -894,6 +1152,69 @@ mod tests {
         assert_eq!(ids("ruin"), [1]);
         assert!(ids("orison").is_empty());
         assert!(ids("  ").is_empty());
+    }
+
+    #[test]
+    fn item_search_matches_names_and_lists_shops_cheapest_first() {
+        let ix = index();
+        let r = ix.search_items("FS-9", None, Some("/uex".into()));
+        assert_eq!(r.state, ShopDataState::Ready);
+        let best = r.item.as_ref().unwrap();
+        assert_eq!(best.key, "behr_lmg_ballistic_01");
+        assert_eq!(r.items[0].key, best.key);
+        assert_eq!((best.sold_at, best.bought_at), (2, 0));
+        assert_eq!(best.min_buy, Some(6900.0));
+        assert_eq!(best.category, ShopCategory::FpsWeapons);
+        let shops: Vec<(u64, Option<f64>)> =
+            r.offers.iter().map(|o| (o.terminal, o.price_buy)).collect();
+        assert_eq!(shops, [(2, Some(6900.0)), (1, Some(7029.0))]);
+        assert_eq!(r.offer_count, 2);
+        assert_eq!(r.offers[0].shop, "Dumper's GrimHEX");
+        assert_eq!(r.offers[0].system.as_deref(), Some("Stanton"));
+        assert_eq!(r.offers[1].location, "Ruin Station, Terminus");
+        // UEX's name finds the linked item, once.
+        let r = ix.search_items("ignite ii", None, None);
+        let keys: Vec<&str> = r.items.iter().map(|i| i.key.as_str()).collect();
+        assert_eq!(keys.iter().filter(|k| **k == "misl_s02_ignite").count(), 1);
+        assert_eq!(r.item.unwrap().name, "Ignite II Missile");
+        // An unlinked row keys on its name; `key` picks an item the query did not match.
+        let r = ix.search_items("lmg", Some("uex:twin name"), None);
+        assert_eq!(r.item.as_ref().unwrap().name, "Twin Name");
+        assert!(r.item.unwrap().record.is_none());
+        assert_eq!(r.offers.len(), 1);
+        assert_eq!(r.offers[0].terminal, 4);
+        // An unknown key falls back to the best match; an empty query matches nothing.
+        let r = ix.search_items("lmg", Some("nope"), None);
+        assert_eq!(r.item.unwrap().key, "behr_lmg_ballistic_01");
+        let r = ix.search_items("  ", None, None);
+        assert!(r.items.is_empty() && r.item.is_none() && r.offers.is_empty());
+        assert!(ix.search_items("zzzzqqq", None, None).item.is_none());
+    }
+
+    #[test]
+    fn item_search_caps_matches_and_works_without_item_data() {
+        let prices: Vec<ShopPrice> = (0..60)
+            .map(|n| row(&format!("Widget {n:02}"), None, 2, 999, 10.0 + n as f64))
+            .collect();
+        // No item data: UEX names only, nothing links.
+        let ix = build_index(&prices, &terminals(), &[], None, None);
+        let r = ix.search_items("widget", None, None);
+        assert_eq!(r.total, 60);
+        assert_eq!(r.items.len(), ITEM_MATCH_LIMIT);
+        assert!(r.items.iter().all(|i| i.record.is_none()));
+        assert!(r.linked.is_none());
+        let m = missing_item_search(Some("/uex".into()), "widget");
+        assert_eq!(m.state, ShopDataState::Missing);
+        assert!(m.items.is_empty() && m.offers.is_empty() && m.item.is_none());
+        assert_eq!(m.query, "widget");
+    }
+
+    #[test]
+    fn cheapest_first_puts_rows_without_a_buy_price_last() {
+        let mut v = [(Some(5.0), 'a'), (None, 'b'), (Some(1.0), 'c'), (None, 'd')];
+        cheapest_first(&mut v, |r| r.0);
+        let order: String = v.iter().map(|r| r.1).collect();
+        assert_eq!(order, "cabd");
     }
 
     #[test]

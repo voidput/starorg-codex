@@ -1862,6 +1862,13 @@ fn shop_samples() -> Vec<(&'static str, Value)> {
         target: Some(live()),
     };
     let missing = b.shop_inventory(req()).unwrap();
+    let search_missing = b
+        .shop_item_search(ShopItemSearchRequest {
+            target: Some(live()),
+            query: "hornet".into(),
+            key: None,
+        })
+        .unwrap();
     let mut s = b.get_settings().unwrap();
     s.network.uex = true;
     b.save_settings(s).unwrap();
@@ -1879,8 +1886,22 @@ fn shop_samples() -> Vec<(&'static str, Value)> {
     b.read_game_data(ReadGameDataRequest { target: live() })
         .unwrap();
     let linked = b.shop_inventory(req()).unwrap();
-    use super::mock_shops::mock_all_items;
+    let search = b
+        .shop_item_search(ShopItemSearchRequest {
+            target: Some(live()),
+            query: "hornet".into(),
+            key: None,
+        })
+        .unwrap();
+    use super::mock_shops::{mock_all_items, mock_item_catalogue};
     vec![
+        ("shop_item_search_missing", json!(search_missing)),
+        ("shop_item_search", json!(search)),
+        ("shop_item_catalogue", json!(mock_item_catalogue(false))),
+        (
+            "shop_item_catalogue_linked",
+            json!(mock_item_catalogue(true)),
+        ),
         ("shop_inventory_missing", json!(missing)),
         ("shop_inventory", json!(ready)),
         ("shop_inventory_linked", json!(linked)),
@@ -2092,6 +2113,54 @@ fn shops_on_the_mock_group_categorise_and_link() {
         .shop
         .is_none()
     );
+}
+
+#[test]
+fn shop_item_search_on_the_mock_lists_shops_cheapest_first() {
+    let b = MockBackend::default();
+    let req = |query: &str, key: Option<&str>| ShopItemSearchRequest {
+        target: None,
+        query: query.into(),
+        key: key.map(str::to_string),
+    };
+    // No UEX files: the same `missing` as the shop list.
+    let r = b.shop_item_search(req("hornet", None)).unwrap();
+    assert_eq!(r.state, ShopDataState::Missing);
+    assert!(r.items.is_empty() && r.item.is_none());
+    let mut s = b.get_settings().unwrap();
+    s.network.uex = true;
+    b.save_settings(s).unwrap();
+    b.fetch_uex().unwrap();
+    let r = b.shop_item_search(req("hornet pistol", None)).unwrap();
+    assert_eq!(r.state, ShopDataState::Ready);
+    let best = r.item.as_ref().unwrap();
+    assert_eq!(best.name, "Hornet Pistol");
+    assert_eq!(best.category, ShopCategory::FpsWeapons);
+    assert!(best.record.is_some());
+    let shops: Vec<&str> = r.offers.iter().map(|o| o.shop.as_str()).collect();
+    assert_eq!(shops.len(), 3);
+    assert!(
+        r.offers
+            .windows(2)
+            .all(|w| w[0].price_buy <= w[1].price_buy),
+        "{shops:?}"
+    );
+    assert_eq!(best.min_buy, r.offers[0].price_buy);
+    // Dumper's pays for ship guns: `bought_at` and `max_sell`.
+    let r = b.shop_item_search(req("ember repeater s1", None)).unwrap();
+    let it = r.item.unwrap();
+    assert!(it.bought_at >= 1 && it.max_sell.is_some());
+    assert!(
+        r.offers
+            .iter()
+            .any(|o| o.terminal == 101 && o.price_sell.is_some())
+    );
+    // `key` keeps the picked item while the query lists others.
+    let other = b.shop_item_search(req("repeater", None)).unwrap();
+    assert!(other.items.len() > 1);
+    let second = other.items[1].key.clone();
+    let r = b.shop_item_search(req("repeater", Some(&second))).unwrap();
+    assert_eq!(r.item.unwrap().key, second);
 }
 
 #[test]
