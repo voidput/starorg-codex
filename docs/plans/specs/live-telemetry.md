@@ -67,7 +67,7 @@ owner, MIT, Python) into StarOrg Codex as an opt-in experimental feature. User g
 | Contract | `app/src-tauri/src/contract/telemetry.rs` (+ `real/telemetry.rs`, `mock_telemetry.rs`) | `telemetry_status`, `telemetry_configure`, `telemetry_start`, `telemetry_stop`, `telemetry_actions`, `telemetry_trigger`; event `telemetry` |
 | UI | `app/src/lib/telemetry.ts`, `lib/stores/telemetry.svelte.ts`, `components/screens/TelemetryScreen.svelte`, `components/telemetry/`, `components/settings/TelemetrySection.svelte` | Settings section, screen panels, TS mock (`lib/contract/mock-telemetry.ts`) |
 
-**Events.** `telemetry` carries `{session, status, frame}`: a `LinkStatus` change
+**Events.** `telemetry` carries `{session, status, frame, alerts}` (alerts: see [Alerts](#alerts)): a `LinkStatus` change
 (`disabled`, `no_schema`, `connecting`, `connected`, `game_not_running`, `unreachable`) or a
 frame `{seq, received_ms, snapshot, raw}`. `session` goes up at every start and stop; the
 webview drops events of an older session. A start that cannot get a schema answers with a
@@ -111,14 +111,52 @@ feature on.
 - Not covered: a real `StarCitizen.exe` (the crate's `#[ignore]` test `schema::tests::real_exe`
   reads `$STARORG_SC_EXE`) and a real game session.
 
+## Alerts
+
+A port of sc-telemetry's `alerts.py` engine and `data/alerts.default.json` (frame rules only;
+`docs/telemetry/alerts.md` there).
+
+- **Their own choice, off by default** (asked for 2026-11-23): Settings -> Experimental ->
+  Live telemetry -> **Notifications**: Off / In app / In app + sound
+  (`[experimental] telemetry_notifications`, `starorg_core::telemetry::AlertSettings`).
+  Turning on Metrics never turns on toasts or sounds. **Spoken callouts**
+  (`telemetry_speech`) is a further switch, off by default, used only with sound.
+- **Engine** (`starorg_telemetry::alerts`, rules in `crates/starorg-telemetry/data/`):
+  `threshold` (hysteresis via `rearm`), `transition`, `edge`, `composite`; severity, scope,
+  cooldown (never drops an alert: it fires when the cooldown ends if the condition still
+  holds), debounce, `when` guard (a gated rule baselines), `supersedes`, `on_entry`; derived
+  `$oxygen`, `$shield_faces_down` (face shares learnt at full charge), `$quantum_seen`. The
+  first frame, the first 1.5 s after a vehicle appears or changes, and a gap over 3 s are a
+  baseline. Missing data never fires.
+- **Overrides** in `[experimental.telemetry_alerts.<id>]`: `enabled`, `cooldown_s` (0 to
+  3600), and for threshold rules `value` and `rearm` (a new value alone keeps the default's
+  gap; a fraction stays 0..1; the re-arm point must be past the threshold). Values equal to
+  the defaults are dropped on save; a misfit refuses the save; a saved misfit is skipped with
+  a warning.
+- **Where it runs**: in the host (`app/src-tauri/src/telemetry.rs` `AlertHub`) on the frames
+  the stream forwards (at most 10 Hz), only while a stream runs and Notifications is not Off.
+  Fired alerts ride on the frame's `telemetry` event (`alerts`), and the last 50 stay in memory
+  for the screen's **Alerts** panel. The host strips `sound` and `speech` unless the user chose
+  them. Commands: `telemetry_alerts`, `telemetry_alerts_configure`, `telemetry_alert_test`.
+- **Delivery** (webview): a toast per alert (a newer one of the same rule replaces it; leaves
+  after 5 to 12 s), and with sound one queue (`lib/telemetryAlerts.ts` `AlertAudioQueue`: one
+  at a time, 2 s apart, severity first, critical cuts in, 6 waiting at most, 10 s old dropped)
+  playing WebAudio tones made in code (`lib/alertSound.ts`; no audio file) and Web Speech with
+  `localService` voices only. The recent list is a raw state replaced only when an alert fires.
+- **Tests**: `alerts/tests.rs` (baseline, crossing, hysteresis, cooldown, debounce, guard,
+  supersedes, vehicle change and gaps, missing data, transitions, edges with `on_entry`,
+  composites, face shares, templates, overrides), host tests (off evaluates nothing, delivery
+  stripping, bounded list, normalisation), contract tests (off by default, independent of
+  Metrics, overrides checked, IPC), `app/tests/telemetryalerts.test.ts` (audio queue, recent
+  list, threshold text, override patching, the TS mock against the Rust samples).
+
 ## Phase 2 ideas
 
 From sc-telemetry, not in this phase:
 
-- **Alerts**: rules over frames and events (low fuel, shield faces down, hull, G) as toasts and
-  sounds, with per-rule cooldowns (sc-telemetry `alerts.py`, `docs/telemetry/alerts.md`);
-  speech off by default. **Notifications get their own choice, off by default**, separate from
-  Metrics and actions (asked for 2026-11-23): turning on Metrics never turns on toasts or sounds.
+- **Alerts**: done for frame rules, see [Alerts](#alerts). Still open: sc-telemetry's `event`
+  rules (Game.log signals: armistice, shard, disconnects, quantum arrival, deaths), and alerts
+  while the screen is closed (needs the background stream below).
 - **Game.log signals**: session, location, quantum travel, deaths and respawns from the
   channel's `Game.log`, which the telemetry API lacks (`gamelog.py`,
   `docs/telemetry/gamelog-signals.md`). The app already reads `Game.log` for blueprints.

@@ -14,6 +14,9 @@
 //! - `telemetry_trigger` presses an action the game lists as triggerable, refused unless
 //!   "Allow game actions" is on; dangerous ones need `confirmed`, and the UI asks before the
 //!   first press of each session.
+//! - `telemetry_alerts`, `telemetry_alerts_configure` and `telemetry_alert_test`: alerts over
+//!   the frames (`starorg_telemetry::alerts`), behind their own Notifications choice (Off by
+//!   default, independent of Metrics and actions). Alerts come with the frame event.
 
 use super::types::*;
 use super::{BackendState, run};
@@ -292,12 +295,14 @@ pub struct TelemetryTriggerResult {
     pub error: Option<String>,
 }
 
-/// Payload of [`TELEMETRY_EVENT`]: a status change or a frame of stream `session`.
+/// Payload of [`TELEMETRY_EVENT`]: a status change or a frame of stream `session`, with the
+/// alerts that frame fired (none while Notifications is Off).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TelemetryEvent {
     pub session: u64,
     pub status: Option<LinkStatus>,
     pub frame: Option<Box<Frame>>,
+    pub alerts: Vec<TelemetryAlert>,
 }
 
 impl TelemetryEvent {
@@ -307,14 +312,81 @@ impl TelemetryEvent {
                 session,
                 status: Some(s),
                 frame: None,
+                alerts: Vec::new(),
             },
             LiveEvent::Frame(f) => Self {
                 session,
                 status: None,
                 frame: Some(f),
+                alerts: Vec::new(),
             },
         }
     }
+}
+
+/// One alert (`starorg_telemetry::alerts::Alert`). `sound` and `speech` are set only when the
+/// user chose "In app + sound" (and speech).
+pub type TelemetryAlert = starorg_telemetry::alerts::Alert;
+
+/// `[experimental]` alert settings: `notifications` (`off`, the default; `in_app`;
+/// `in_app_sound`), `speech` (off by default) and per-rule `overrides` by rule id.
+pub type TelemetryAlertSettings = starorg_core::telemetry::AlertSettings;
+
+pub use starorg_telemetry::alerts::{
+    Notifications as TelemetryNotifications, RuleOverride as TelemetryRuleOverride,
+    Scope as AlertScope, Severity as AlertSeverity,
+};
+
+/// One alert rule as the user has it, with its defaults.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TelemetryAlertRule {
+    pub id: String,
+    pub description: String,
+    /// `threshold`, `transition`, `edge` or `composite`.
+    pub kind: String,
+    pub severity: AlertSeverity,
+    pub scope: AlertScope,
+    /// The frame path or `$derived` value it watches (none for a composite).
+    pub path: Option<String>,
+    /// A threshold's comparison (`<=`, `>`...).
+    pub op: Option<String>,
+    /// `fraction` (0..1, shown as a percentage), `count` or `value`.
+    pub unit: Option<String>,
+    pub message: String,
+    /// Tone id, or none.
+    pub sound: Option<String>,
+    /// Its data source was seen changing in a recording.
+    pub verified: bool,
+    pub debounce_s: f64,
+    pub enabled: bool,
+    pub cooldown_s: f64,
+    /// A threshold rule's threshold and re-arm point.
+    pub threshold: Option<f64>,
+    pub rearm: Option<f64>,
+    pub default_enabled: bool,
+    pub default_cooldown_s: f64,
+    pub default_threshold: Option<f64>,
+    pub default_rearm: Option<f64>,
+}
+
+/// Settings -> Live telemetry -> Notifications, and the screen's Alerts panel.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TelemetryAlerts {
+    pub settings: TelemetryAlertSettings,
+    /// Every rule, in the defaults' order.
+    pub rules: Vec<TelemetryAlertRule>,
+    /// Newest first.
+    pub recent: Vec<TelemetryAlert>,
+    pub recent_max: u32,
+    /// A stream runs and notifications are on: frames are being checked.
+    pub evaluating: bool,
+    /// Saved overrides that no longer fit a rule (skipped).
+    pub warnings: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelemetryAlertTestRequest {
+    pub rule: String,
 }
 
 /// `ok` when the build of `version` is offered, else the reason.
@@ -338,6 +410,15 @@ pub trait TelemetryBackend {
     fn telemetry_stop(&self) -> CmdResult<TelemetryStatus>;
     fn telemetry_actions(&self) -> CmdResult<TelemetryActions>;
     fn telemetry_trigger(&self, req: TelemetryTriggerRequest) -> CmdResult<TelemetryTriggerResult>;
+    /// The alert rules, the user's choices and the recent alerts.
+    fn telemetry_alerts(&self) -> CmdResult<TelemetryAlerts>;
+    /// Save the Notifications choice, speech and the rule overrides (all of them; an override
+    /// that does not fit its rule refuses the whole request). Works with telemetry off too.
+    fn telemetry_alerts_configure(&self, req: TelemetryAlertSettings)
+    -> CmdResult<TelemetryAlerts>;
+    /// A test alert of one rule, shaped as a real one would be. Refused while notifications
+    /// are off.
+    fn telemetry_alert_test(&self, req: TelemetryAlertTestRequest) -> CmdResult<TelemetryAlert>;
 }
 
 macro_rules! telemetry_commands {
@@ -360,6 +441,9 @@ telemetry_commands! {
     telemetry_stop() -> TelemetryStatus;
     telemetry_actions() -> TelemetryActions;
     telemetry_trigger(req: TelemetryTriggerRequest) -> TelemetryTriggerResult;
+    telemetry_alerts() -> TelemetryAlerts;
+    telemetry_alerts_configure(req: TelemetryAlertSettings) -> TelemetryAlerts;
+    telemetry_alert_test(req: TelemetryAlertTestRequest) -> TelemetryAlert;
 }
 
 /// The stream's events go to the window as [`TELEMETRY_EVENT`].
@@ -386,4 +470,7 @@ pub const TELEMETRY_COMMAND_NAMES: &[&str] = &[
     "telemetry_stop",
     "telemetry_actions",
     "telemetry_trigger",
+    "telemetry_alerts",
+    "telemetry_alerts_configure",
+    "telemetry_alert_test",
 ];

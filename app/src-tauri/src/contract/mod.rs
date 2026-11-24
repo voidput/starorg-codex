@@ -538,6 +538,9 @@ macro_rules! contract_handler {
             $crate::contract::telemetry::telemetry_stop,
             $crate::contract::telemetry::telemetry_actions,
             $crate::contract::telemetry::telemetry_trigger,
+            $crate::contract::telemetry::telemetry_alerts,
+            $crate::contract::telemetry::telemetry_alerts_configure,
+            $crate::contract::telemetry::telemetry_alert_test,
         ]
     };
 }
@@ -693,6 +696,9 @@ pub const COMMAND_NAMES: &[&str] = &[
     "telemetry_stop",
     "telemetry_actions",
     "telemetry_trigger",
+    "telemetry_alerts",
+    "telemetry_alerts_configure",
+    "telemetry_alert_test",
 ];
 
 #[cfg(test)]

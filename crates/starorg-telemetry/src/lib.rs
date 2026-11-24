@@ -20,8 +20,10 @@
 //! [`live::LinkStatus`], frames throttled for the UI as [`frames::Frame`]: a small stable
 //! [`frames::Snapshot`] plus the raw frame as JSON). Write: `TriggerGameAction` for the
 //! actions the game itself lists as triggerable, and only through a [`trigger::TriggerGate`]
-//! the user has switched on separately.
+//! the user has switched on separately. Alerts: [`alerts`] (rules over frames, a port of
+//! sc-telemetry's `alerts.py`; delivery is the app's, behind its own switch).
 
+pub mod alerts;
 pub mod client;
 pub mod codec;
 pub mod frames;

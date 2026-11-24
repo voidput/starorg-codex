@@ -5,7 +5,7 @@
    * not). One choice: Off, Metrics (read only) or Metrics + actions. Metrics writes one line to
    * that channel's USER.cfg, actions a second; the launcher needs two environment variables, which the app never
    * sets: the steps are shown with a copy button. The app reads the game's own service on
-   * 127.0.0.1 only.
+   * 127.0.0.1 only. Notifications (alerts) are a separate choice below (TelemetryAlertsSection).
    */
   import Copy from '@lucide/svelte/icons/copy';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -16,6 +16,7 @@
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import SelectField from '@/components/common/SelectField.svelte';
   import PathText from '@/components/common/PathText.svelte';
+  import TelemetryAlertsSection from '@/components/settings/TelemetryAlertsSection.svelte';
   import { toContractError } from '@/lib/contract/client';
   import type { CvarState, TelemetryCfgLine, TelemetryChannel, TelemetryConfigureResult, TelemetrySettings } from '@/lib/contract/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
@@ -200,5 +201,6 @@
       {#if error}<p class="text-destructive text-[12px]" role="alert">{error}</p>{/if}
       <p class="text-muted-foreground text-[12px]">Reads only the game's local service, and only while this is on. StarOrg Codex still collects nothing and sends nothing anywhere.</p>
     </div>
+    {#if offered.length > 0}<TelemetryAlertsSection enabled={st.settings.enabled} />{/if}
   {/if}
 </div>

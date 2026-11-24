@@ -11,6 +11,7 @@ import { telemetryApi, type LinkStatus, type TelemetryConfigureRequest, type Tel
 import type { ChannelRef } from '@/lib/contract/types';
 import { sessionStep } from '@/lib/telemetry';
 import { toast } from './toast.svelte';
+import { telemetryAlerts } from './telemetryAlerts.svelte';
 
 class TelemetryState {
   status = $state<TelemetryStatus | null>(null);
@@ -49,6 +50,7 @@ class TelemetryState {
         this.frame = e.frame;
         this.count++;
       }
+      if (e.alerts?.length) telemetryAlerts.take(e.alerts);
     });
   }
 

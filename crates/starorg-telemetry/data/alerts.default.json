@@ -1,0 +1,438 @@
+{
+  "$comment": "Default alert rules: a port of sc-telemetry's sctelemetry/data/alerts.default.json (same owner, MIT). Event rules wait for the Game.log signals. Read by starorg_telemetry::alerts; the user's changes live in config.toml [experimental.telemetry_alerts.<id>] (enabled, cooldown_s, value, rearm). verified=false: the rule's data source never changed in a recording, so the trigger is a reasonable guess. unit: how the UI shows a threshold (fraction: 0..1 as a percentage).",
+  "version": 1,
+  "rules": [
+    {
+      "id": "boost_low",
+      "description": "Boost reserves at or below 25% (re-arms above 35%)",
+      "kind": "threshold",
+      "path": "vehicle.state.flight.instruments.boost.reserves",
+      "op": "<=",
+      "value": 0.25,
+      "rearm": 0.35,
+      "when": {
+        "path": "vehicle.state.power.engines",
+        "op": "==",
+        "value": true
+      },
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 15,
+      "debounce_s": 0,
+      "message": "Boost {pct}%",
+      "speech": "Boost {pct_words} percent",
+      "sound": "warn",
+      "verified": true,
+      "unit": "fraction"
+    },
+    {
+      "id": "boost_empty",
+      "description": "Boost reserves empty (re-arms above 10%). boost.critical is NOT used: it goes true at ~25% (RSI_Perseus) and stays true until reserves recover",
+      "kind": "threshold",
+      "path": "vehicle.state.flight.instruments.boost.reserves",
+      "op": "<=",
+      "value": 0.01,
+      "rearm": 0.1,
+      "when": {
+        "path": "vehicle.state.power.engines",
+        "op": "==",
+        "value": true
+      },
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 20,
+      "debounce_s": 0,
+      "supersedes": [
+        "boost_low"
+      ],
+      "message": "Boost depleted",
+      "speech": "Boost depleted",
+      "sound": "warn",
+      "verified": true,
+      "unit": "fraction"
+    },
+    {
+      "id": "hydrogen_low",
+      "description": "Hydrogen fuel at or below 20% while engines are powered (it reads 0 with engines off)",
+      "kind": "threshold",
+      "path": "vehicle.state.flight.instruments.hydrogen_fuel",
+      "op": "<=",
+      "value": 0.2,
+      "rearm": 0.25,
+      "when": {
+        "path": "vehicle.state.power.engines",
+        "op": "==",
+        "value": true
+      },
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 60,
+      "debounce_s": 2,
+      "message": "Hydrogen {pct}%",
+      "speech": "Hydrogen {pct_words} percent",
+      "sound": "warn",
+      "verified": true,
+      "unit": "fraction"
+    },
+    {
+      "id": "hydrogen_critical",
+      "description": "Hydrogen fuel at or below 10%",
+      "kind": "threshold",
+      "path": "vehicle.state.flight.instruments.hydrogen_fuel",
+      "op": "<=",
+      "value": 0.1,
+      "rearm": 0.15,
+      "when": {
+        "path": "vehicle.state.power.engines",
+        "op": "==",
+        "value": true
+      },
+      "severity": "critical",
+      "scope": "vehicle",
+      "cooldown_s": 60,
+      "debounce_s": 2,
+      "supersedes": [
+        "hydrogen_low"
+      ],
+      "message": "Hydrogen critical {pct}%",
+      "speech": "Hydrogen critical",
+      "sound": "critical",
+      "verified": true,
+      "unit": "fraction"
+    },
+    {
+      "id": "quantum_low",
+      "description": "Quantum fuel at or below 15% (only once quantum fuel has read above 0 on this vehicle)",
+      "kind": "threshold",
+      "path": "vehicle.state.flight.instruments.quantum_fuel",
+      "op": "<=",
+      "value": 0.15,
+      "rearm": 0.2,
+      "when": {
+        "all": [
+          {
+            "path": "$quantum_seen",
+            "op": "==",
+            "value": true
+          },
+          {
+            "path": "vehicle.state.power.engines",
+            "op": "==",
+            "value": true
+          }
+        ]
+      },
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 120,
+      "debounce_s": 2,
+      "message": "Quantum fuel {pct}%",
+      "speech": "Quantum fuel low",
+      "sound": "warn",
+      "verified": false,
+      "unit": "fraction"
+    },
+    {
+      "id": "shields_low",
+      "description": "Overall shield level at or below 25% while generators and emitters are powered (re-arms above 40%)",
+      "kind": "threshold",
+      "path": "vehicle.state.shields.level",
+      "op": "<=",
+      "value": 0.25,
+      "rearm": 0.4,
+      "when": {
+        "all": [
+          {
+            "path": "vehicle.state.power.shield_generators",
+            "op": "==",
+            "value": true
+          },
+          {
+            "path": "vehicle.state.power.shield_emitters",
+            "op": "==",
+            "value": true
+          }
+        ]
+      },
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 15,
+      "debounce_s": 0.5,
+      "message": "Shields {pct}%",
+      "speech": "Shields low",
+      "sound": "warn",
+      "verified": true,
+      "unit": "fraction"
+    },
+    {
+      "id": "shield_face_down",
+      "description": "A shield face reads 0 while the overall level is above 5% (a face tuned to its share is not DOWN)",
+      "kind": "threshold",
+      "path": "$shield_faces_down",
+      "op": ">=",
+      "value": 1,
+      "when": {
+        "path": "vehicle.state.power.shield_generators",
+        "op": "==",
+        "value": true
+      },
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 10,
+      "debounce_s": 0.5,
+      "message": "Shield face down ({value:.0f})",
+      "speech": "Shield face down",
+      "sound": "warn",
+      "verified": false,
+      "unit": "count"
+    },
+    {
+      "id": "shield_emitters_lost",
+      "description": "Shield emitters lost power while the generators stay on (not a deliberate shields-off toggle)",
+      "kind": "composite",
+      "all": [
+        {
+          "path": "vehicle.state.power.shield_emitters",
+          "op": "==",
+          "value": false
+        },
+        {
+          "path": "vehicle.state.power.shield_generators",
+          "op": "==",
+          "value": true
+        }
+      ],
+      "severity": "critical",
+      "scope": "vehicle",
+      "cooldown_s": 15,
+      "debounce_s": 1,
+      "message": "Shield emitters lost power",
+      "speech": "Shield emitters offline",
+      "sound": "critical",
+      "verified": false
+    },
+    {
+      "id": "hull_half",
+      "description": "Hull health at or below 50%",
+      "kind": "threshold",
+      "path": "vehicle.state.health",
+      "op": "<=",
+      "value": 0.5,
+      "rearm": 0.6,
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 30,
+      "debounce_s": 0,
+      "message": "Hull {pct}%",
+      "speech": "Hull fifty percent",
+      "sound": "warn",
+      "verified": false,
+      "unit": "fraction"
+    },
+    {
+      "id": "hull_critical",
+      "description": "Hull health at or below 25%",
+      "kind": "threshold",
+      "path": "vehicle.state.health",
+      "op": "<=",
+      "value": 0.25,
+      "rearm": 0.35,
+      "severity": "critical",
+      "scope": "vehicle",
+      "cooldown_s": 30,
+      "debounce_s": 0,
+      "supersedes": [
+        "hull_half"
+      ],
+      "message": "Hull critical {pct}%",
+      "speech": "Hull critical",
+      "sound": "critical",
+      "verified": false,
+      "unit": "fraction"
+    },
+    {
+      "id": "missile_warning",
+      "description": "Missile annunciator goes MAJOR",
+      "kind": "transition",
+      "path": "vehicle.state.annunciators.misl",
+      "to": [
+        "MAJOR_ON",
+        "MAJOR_FLASHING"
+      ],
+      "severity": "critical",
+      "scope": "vehicle",
+      "cooldown_s": 5,
+      "debounce_s": 0,
+      "message": "Missile warning",
+      "speech": "Missile warning",
+      "sound": "critical",
+      "verified": true
+    },
+    {
+      "id": "hit_warning",
+      "description": "Hit annunciator goes MAJOR",
+      "kind": "transition",
+      "path": "vehicle.state.annunciators.hit",
+      "to": [
+        "MAJOR_ON",
+        "MAJOR_FLASHING"
+      ],
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 15,
+      "debounce_s": 0,
+      "message": "Taking hits",
+      "speech": "Taking hits",
+      "sound": "warn",
+      "verified": true
+    },
+    {
+      "id": "proximity_warning",
+      "description": "Proximity annunciator goes MAJOR",
+      "kind": "transition",
+      "path": "vehicle.state.annunciators.prox",
+      "to": [
+        "MAJOR_ON",
+        "MAJOR_FLASHING"
+      ],
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 10,
+      "debounce_s": 0,
+      "message": "Proximity warning",
+      "speech": "Proximity",
+      "sound": "warn",
+      "verified": true
+    },
+    {
+      "id": "oxygen_low",
+      "description": "Suit oxygen at or below 25% (current / max)",
+      "kind": "threshold",
+      "path": "$oxygen",
+      "op": "<=",
+      "value": 0.25,
+      "rearm": 0.35,
+      "severity": "critical",
+      "scope": "any",
+      "cooldown_s": 30,
+      "debounce_s": 1,
+      "message": "Oxygen {pct}%",
+      "speech": "Oxygen low",
+      "sound": "critical",
+      "verified": false,
+      "unit": "fraction"
+    },
+    {
+      "id": "health_low",
+      "description": "Player health at or below 30 (of 100) while alive (death jumps straight to 0 in one frame: that is the corpse rule's job, not a 'low' callout)",
+      "kind": "threshold",
+      "path": "actor.vitals.health.current",
+      "op": "<=",
+      "value": 30,
+      "rearm": 40,
+      "when": {
+        "path": "actor.vitals.health.current",
+        "op": ">",
+        "value": 0
+      },
+      "severity": "critical",
+      "scope": "any",
+      "cooldown_s": 30,
+      "debounce_s": 0,
+      "message": "Health {value:.0f}",
+      "speech": "Health low",
+      "sound": "critical",
+      "verified": true,
+      "unit": "value"
+    },
+    {
+      "id": "radiation",
+      "description": "Ambient radiation above 0 for 2 s",
+      "kind": "threshold",
+      "path": "actor.environment.ambient_radiation_rate",
+      "op": ">",
+      "value": 0,
+      "rearm": 0,
+      "severity": "warn",
+      "scope": "any",
+      "cooldown_s": 60,
+      "debounce_s": 2,
+      "message": "Radiation {value:.2f}",
+      "speech": "Radiation detected",
+      "sound": "warn",
+      "verified": false,
+      "unit": "value"
+    },
+    {
+      "id": "unbreathable",
+      "description": "Atmosphere becomes unbreathable while on foot (also when stepping out into it)",
+      "kind": "edge",
+      "path": "actor.environment.breathable_atmosphere",
+      "to": false,
+      "on_entry": true,
+      "severity": "warn",
+      "scope": "on_foot",
+      "cooldown_s": 30,
+      "debounce_s": 1.5,
+      "message": "Unbreathable atmosphere",
+      "speech": "Unbreathable atmosphere",
+      "sound": "warn",
+      "verified": false
+    },
+    {
+      "id": "gear_overspeed",
+      "description": "Landing gear down above 120 m/s while airborne",
+      "kind": "composite",
+      "all": [
+        {
+          "path": "vehicle.state.flight.state.gear",
+          "op": "==",
+          "value": "DEPLOYED"
+        },
+        {
+          "path": "vehicle.state.flight.instruments.speed",
+          "op": ">",
+          "value": 120
+        },
+        {
+          "path": "vehicle.state.flight.state.is_landed",
+          "op": "==",
+          "value": false
+        }
+      ],
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 30,
+      "debounce_s": 1,
+      "message": "Gear down at speed",
+      "speech": "Gear down, overspeed",
+      "sound": "warn",
+      "verified": true
+    },
+    {
+      "id": "g_load",
+      "description": "G-load at or above 9 G with G-safe off",
+      "kind": "composite",
+      "all": [
+        {
+          "path": "vehicle.state.flight.instruments.g_meter.current",
+          "op": ">=",
+          "value": 9
+        },
+        {
+          "path": "vehicle.state.flight.settings.ifcs_g_safe.active",
+          "op": "==",
+          "value": false
+        }
+      ],
+      "severity": "warn",
+      "scope": "vehicle",
+      "cooldown_s": 20,
+      "debounce_s": 0.3,
+      "message": "High G, G-safe off",
+      "speech": "G load",
+      "sound": "warn",
+      "verified": true
+    }
+  ]
+}

@@ -376,6 +376,22 @@ also refuses a second press of the same action within a second. With **Metrics**
 shown but every button is disabled, and the second line is taken out of every channel's
 `USER.cfg`.
 
+**Notifications (alerts)**: a separate choice under Live telemetry, **Off** by default:
+**Off**, **In app** (a toast and the screen's **Alerts** panel, silent) or **In app + sound**
+(also a short tone the app makes itself). Choosing Metrics never turns them on. With sound,
+**Spoken callouts** is one more switch, off by default: it speaks a short callout with your
+computer's own voices only, and says so when it finds none. Alerts are checked only while the
+Live telemetry screen is open and reading. The rules (after sc-telemetry): boost low and
+empty, hydrogen low and critical (only with engines on), quantum fuel low, shields low, a
+shield face down (a face you tuned away does not count), shield emitters lost, hull at 50 % and
+25 %, missile, hit and proximity warnings, oxygen and health low, radiation, unbreathable air
+on foot, gear down at speed, and high G with G-safe off. Each fires once when its condition
+starts, never on what already holds when the stream starts or a ship appears, then waits out
+its cooldown, and arms again only past its re-arm point (boost low fires at 25 % and again only
+after going back above 35 %). Under **Rules** you can switch each one off, change a threshold
+rule's threshold (the re-arm point moves with it) and any cooldown, test one with **Test**, or
+go back with **Default**. The changes are saved in `config.toml`.
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,

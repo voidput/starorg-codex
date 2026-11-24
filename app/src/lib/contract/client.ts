@@ -263,6 +263,9 @@ export const COMMANDS = [
   'telemetry_stop',
   'telemetry_actions',
   'telemetry_trigger',
+  'telemetry_alerts',
+  'telemetry_alerts_configure',
+  'telemetry_alert_test',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.

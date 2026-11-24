@@ -25,7 +25,7 @@ use crate::config::Config;
 use crate::discovery::Channel;
 use crate::paths::{ResolveError, find_existing_ci};
 use crate::usercfg::{self, AdoptOutcome, CfgError, TELEMETRY, TELEMETRY_TRIGGERS, UndoOutcome};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::path::{Path, PathBuf};
 
@@ -114,6 +114,159 @@ pub fn set_settings(cfg: &mut Config, s: &Settings) -> Result<(), String> {
     t.insert(KEY_PORT.into(), toml::Value::Integer(i64::from(s.port)));
     t.insert(KEY_TRIGGERS.into(), toml::Value::Boolean(s.triggers));
     Ok(())
+}
+
+const KEY_NOTIFICATIONS: &str = "telemetry_notifications";
+const KEY_SPEECH: &str = "telemetry_speech";
+const KEY_ALERTS: &str = "telemetry_alerts";
+
+/// Rule ids of the alert overrides (`starorg_telemetry::alerts`).
+pub fn valid_rule_id(id: &str) -> bool {
+    (1..=48).contains(&id.len())
+        && id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'_')
+}
+
+/// How alerts reach the user: their own choice, separate from Metrics and actions, so turning
+/// Metrics on never turns on toasts or sounds. `telemetry_notifications` in `[experimental]`.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Notifications {
+    /// No alert is evaluated (the default).
+    #[default]
+    Off,
+    /// Toasts and the screen's Alerts panel.
+    InApp,
+    /// Also a short tone generated in the app (and speech when that is on too).
+    InAppSound,
+}
+
+impl Notifications {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::InApp => "in_app",
+            Self::InAppSound => "in_app_sound",
+        }
+    }
+
+    fn parse(s: &str) -> Option<Self> {
+        [Self::Off, Self::InApp, Self::InAppSound]
+            .into_iter()
+            .find(|n| n.as_str() == s)
+    }
+}
+
+/// The user's change to one default alert rule; `None` keeps the default.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
+pub struct RuleOverride {
+    pub enabled: Option<bool>,
+    /// Least seconds between two alerts of the rule.
+    pub cooldown_s: Option<f64>,
+    /// The threshold of a threshold rule.
+    pub value: Option<f64>,
+    /// Where a threshold rule arms again (hysteresis).
+    pub rearm: Option<f64>,
+}
+
+impl RuleOverride {
+    pub fn is_empty(&self) -> bool {
+        *self == Self::default()
+    }
+}
+
+/// Alert settings in `[experimental]`: `telemetry_notifications`, `telemetry_speech` and the
+/// per-rule overrides in `[experimental.telemetry_alerts.<rule id>]`.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+pub struct AlertSettings {
+    pub notifications: Notifications,
+    /// Speak the callout (Web Speech, the computer's own voices only). Off by default; counts
+    /// only with [`Notifications::InAppSound`].
+    pub speech: bool,
+    /// By rule id; empty overrides are not kept.
+    pub overrides: std::collections::BTreeMap<String, RuleOverride>,
+}
+
+/// Read the alert settings; a value of the wrong type is the default, an override entry that
+/// is not a table or has a bad rule id is skipped.
+pub fn alert_settings(cfg: &Config) -> AlertSettings {
+    let mut a = AlertSettings::default();
+    let Some(t) = cfg.extra.get(TABLE).and_then(|t| t.as_table()) else {
+        return a;
+    };
+    if let Some(n) = t
+        .get(KEY_NOTIFICATIONS)
+        .and_then(|v| v.as_str())
+        .and_then(Notifications::parse)
+    {
+        a.notifications = n;
+    }
+    a.speech = t.get(KEY_SPEECH).and_then(|v| v.as_bool()).unwrap_or(false);
+    let Some(rules) = t.get(KEY_ALERTS).and_then(|v| v.as_table()) else {
+        return a;
+    };
+    for (id, v) in rules {
+        let Some(r) = v.as_table().filter(|_| valid_rule_id(id)) else {
+            continue;
+        };
+        let num = |k: &str| {
+            r.get(k)
+                .and_then(|v| v.as_float().or_else(|| v.as_integer().map(|i| i as f64)))
+                .filter(|x| x.is_finite())
+        };
+        let o = RuleOverride {
+            enabled: r.get("enabled").and_then(|v| v.as_bool()),
+            cooldown_s: num("cooldown_s"),
+            value: num("value"),
+            rearm: num("rearm"),
+        };
+        if !o.is_empty() {
+            a.overrides.insert(id.clone(), o);
+        }
+    }
+    a
+}
+
+/// Write `a` into `[experimental]`, keeping the table's other keys (the overrides table is
+/// replaced as a whole). The caller saves the config. Values are not checked against the
+/// rules here (`starorg_telemetry::alerts::apply_overrides` does that).
+pub fn set_alert_settings(cfg: &mut Config, a: &AlertSettings) {
+    let entry = cfg
+        .extra
+        .entry(TABLE)
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+    if !entry.is_table() {
+        *entry = toml::Value::Table(toml::Table::new());
+    }
+    let t = entry.as_table_mut().expect("made a table above");
+    t.insert(
+        KEY_NOTIFICATIONS.into(),
+        toml::Value::String(a.notifications.as_str().into()),
+    );
+    t.insert(KEY_SPEECH.into(), toml::Value::Boolean(a.speech));
+    let mut rules = toml::Table::new();
+    for (id, o) in a.overrides.iter().filter(|(_, o)| !o.is_empty()) {
+        let mut r = toml::Table::new();
+        if let Some(b) = o.enabled {
+            r.insert("enabled".into(), toml::Value::Boolean(b));
+        }
+        for (k, v) in [
+            ("cooldown_s", o.cooldown_s),
+            ("value", o.value),
+            ("rearm", o.rearm),
+        ] {
+            if let Some(x) = v.filter(|x| x.is_finite()) {
+                r.insert(k.into(), toml::Value::Float(x));
+            }
+        }
+        rules.insert(id.clone(), toml::Value::Table(r));
+    }
+    if rules.is_empty() {
+        t.remove(KEY_ALERTS);
+    } else {
+        t.insert(KEY_ALERTS.into(), toml::Value::Table(rules));
+    }
 }
 
 /// Why a channel is not offered live telemetry.

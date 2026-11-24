@@ -115,6 +115,31 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         1,
         starorg_telemetry::live::LiveEvent::Frame(Box::new(frame)),
     );
+    let alerts_off = b.telemetry_alerts().unwrap();
+    let mut chosen = TelemetryAlertSettings {
+        notifications: TelemetryNotifications::InAppSound,
+        ..TelemetryAlertSettings::default()
+    };
+    chosen.overrides.insert(
+        "hull_half".into(),
+        TelemetryRuleOverride {
+            value: Some(0.6),
+            cooldown_s: Some(20.0),
+            ..TelemetryRuleOverride::default()
+        },
+    );
+    let alerts_on = b.telemetry_alerts_configure(chosen).unwrap();
+    let mut tested = b
+        .telemetry_alert_test(TelemetryAlertTestRequest {
+            rule: "hull_half".into(),
+        })
+        .unwrap();
+    tested.at_ms = 1_795_123_456_789;
+    let mut fired = tested.clone();
+    fired.test = false;
+    fired.text = fired.text.trim_start_matches("TEST: ").to_owned();
+    let mut alert_ev = frame_ev.clone();
+    alert_ev.alerts = vec![fired];
     vec![
         ("telemetry_event", json!(TELEMETRY_EVENT)),
         ("telemetry_status", json!(off)),
@@ -126,7 +151,102 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         ("telemetry_trigger_refused", json!(refused)),
         ("telemetry_event_status", json!(status_ev)),
         ("telemetry_event_frame", json!(frame_ev)),
+        ("telemetry_event_alert", json!(alert_ev)),
+        ("telemetry_alerts", json!(alerts_off)),
+        ("telemetry_alerts_configure", json!(alerts_on)),
+        ("telemetry_alert_test", json!(tested)),
     ]
+}
+
+#[test]
+fn notifications_are_off_by_default_and_their_own_choice() {
+    let b = MockBackend::default();
+    let a = b.telemetry_alerts().unwrap();
+    assert_eq!(a.settings.notifications, TelemetryNotifications::Off);
+    assert!(!a.settings.speech && a.settings.overrides.is_empty());
+    assert!(a.rules.len() >= 15 && a.rules.iter().all(|r| r.enabled));
+    // Metrics + actions on: notifications stay off.
+    configure(&b, ptu(), on(true));
+    assert_eq!(
+        b.telemetry_alerts().unwrap().settings.notifications,
+        TelemetryNotifications::Off
+    );
+    let e = b
+        .telemetry_alert_test(TelemetryAlertTestRequest {
+            rule: "hull_half".into(),
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid, "no test alert while off");
+    // Notifications on; Metrics off again: the choice is kept as it is.
+    let r = b
+        .telemetry_alerts_configure(TelemetryAlertSettings {
+            notifications: TelemetryNotifications::InApp,
+            ..TelemetryAlertSettings::default()
+        })
+        .unwrap();
+    assert_eq!(r.settings.notifications, TelemetryNotifications::InApp);
+    configure(&b, ptu(), off());
+    assert_eq!(
+        b.telemetry_alerts().unwrap().settings.notifications,
+        TelemetryNotifications::InApp
+    );
+    assert!(
+        !b.telemetry_alerts().unwrap().evaluating,
+        "no stream, no evaluation"
+    );
+    let t = b
+        .telemetry_alert_test(TelemetryAlertTestRequest {
+            rule: "hull_half".into(),
+        })
+        .unwrap();
+    assert!(
+        t.test && t.sound.is_none() && t.speech.is_none(),
+        "in app only"
+    );
+}
+
+#[test]
+fn rule_overrides_are_checked_and_kept() {
+    let b = MockBackend::default();
+    let mut a = TelemetryAlertSettings::default();
+    a.overrides.insert(
+        "boost_low".into(),
+        TelemetryRuleOverride {
+            rearm: Some(0.1),
+            ..TelemetryRuleOverride::default()
+        },
+    );
+    let e = b.telemetry_alerts_configure(a.clone()).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(e.message.contains("boost_low"), "{}", e.message);
+    assert!(
+        b.telemetry_alerts().unwrap().settings.overrides.is_empty(),
+        "nothing saved"
+    );
+    a.overrides.insert(
+        "boost_low".into(),
+        TelemetryRuleOverride {
+            enabled: Some(false),
+            ..TelemetryRuleOverride::default()
+        },
+    );
+    let r = b.telemetry_alerts_configure(a).unwrap();
+    let rule = r.rules.iter().find(|r| r.id == "boost_low").unwrap();
+    assert!(!rule.enabled && rule.default_enabled);
+    assert_eq!(r.settings.overrides.len(), 1);
+}
+
+#[test]
+fn the_synthetic_stream_carries_no_alerts_while_off() {
+    let b = MockBackend::default();
+    configure(&b, ptu(), on(false));
+    let (s, rx) = sink();
+    b.telemetry_start(ptu(), s).unwrap();
+    for _ in 0..5 {
+        let ev = rx.recv_timeout(Duration::from_secs(5)).expect("an event");
+        assert!(ev.alerts.is_empty());
+    }
+    b.telemetry_stop().unwrap();
 }
 
 #[test]
@@ -445,6 +565,21 @@ fn ts_mirror_lists_every_variant_and_command() {
     .map(|r| TelemetryRefusal::of(r).reason)
     .collect();
     assert_eq!(ts_union(&ts, "RefusalReason"), refusals);
+    use TelemetryNotifications as N;
+    assert_eq!(
+        ts_union(&ts, "TelemetryNotifications"),
+        names(&[N::Off, N::InApp, N::InAppSound])
+    );
+    use AlertSeverity as V;
+    assert_eq!(
+        ts_union(&ts, "AlertSeverity"),
+        names(&[V::Info, V::Warn, V::Critical])
+    );
+    use AlertScope as P;
+    assert_eq!(
+        ts_union(&ts, "AlertScope"),
+        names(&[P::Any, P::Vehicle, P::Pilot, P::OnFoot])
+    );
     let start = ts
         .find("export const TELEMETRY_COMMANDS = [")
         .expect("telemetry.ts has TELEMETRY_COMMANDS");
@@ -481,4 +616,18 @@ fn telemetry_over_ipc_takes_a_req() {
     )
     .unwrap();
     assert_eq!(v["refused"]["reason"], json!("disabled"));
+    let v = ipc("telemetry_alerts", json!({})).unwrap();
+    assert_eq!(v["settings"]["notifications"], json!("off"));
+    let v = ipc(
+        "telemetry_alerts_configure",
+        json!({"req": {"notifications": "in_app", "speech": false, "overrides": {"g_load": {"enabled": false, "cooldown_s": null, "value": null, "rearm": null}}}}),
+    )
+    .unwrap();
+    assert_eq!(
+        v["settings"]["overrides"]["g_load"]["enabled"],
+        json!(false)
+    );
+    // A fresh backend: notifications off, so no test alert.
+    let e = ipc("telemetry_alert_test", json!({"req": {"rule": "g_load"}})).unwrap_err();
+    assert_eq!(e["code"], json!("invalid"));
 }

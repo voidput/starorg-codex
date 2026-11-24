@@ -3,7 +3,7 @@
    * Live telemetry (experimental; docs/user-guide.md#live-telemetry): the game's own live data,
    * read from its local service on 127.0.0.1 while this screen is open. Panels after
    * sc-telemetry's dashboard (same owner, MIT) in this app's style: connection, pilot vitals,
-   * ship, shields, systems and annunciators, actions, raw frame.
+   * ship, shields, systems and annunciators, alerts, actions, raw frame.
    *
    * Lazy: the stream starts when the screen opens and stops when it closes. Frames come at most
    * 10 a second into one raw state; each panel reads only its values from it, so nothing heavier
@@ -19,6 +19,7 @@
   import SelectField from '@/components/common/SelectField.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import ActionsPanel from '@/components/telemetry/ActionsPanel.svelte';
+  import AlertsPanel from '@/components/telemetry/AlertsPanel.svelte';
   import RawFramePanel from '@/components/telemetry/RawFramePanel.svelte';
   import type { TelemetryChannel } from '@/lib/contract/telemetry';
   import { annunciators, barWidth, faceLabels, fixed, linkView, pct, systems, telemetryTarget } from '@/lib/telemetry';
@@ -206,6 +207,8 @@
         </Card.Root>
       </div>
     {/if}
+
+    <AlertsPanel />
 
     <div class="grid gap-3 lg:grid-cols-2">
       <ActionsPanel raw={frame?.raw ?? null} connected={telemetry.link.state === 'connected'} />
