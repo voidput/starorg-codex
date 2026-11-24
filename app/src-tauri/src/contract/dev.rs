@@ -193,12 +193,16 @@ pub struct DevExportResult {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum SourceKind {
-    /// Our own GameData of a channel's build, from the extraction cache.
+    /// Our own GameData of a channel's build, from the extraction cache, plus the WHERE TO
+    /// GET datasets already extracted for that build (`game-*.json`).
     Build,
     /// A local folder (or one file) of `*.json`.
     Folder,
     /// A published LIVE build downloaded for Diff (addendum §1): `dump:<tag>`.
     Dump,
+    /// An older build of a channel still in the dataset cache (`<cache>/mcp/<CHANNEL>/`):
+    /// `cached:<CHANNEL>:<folder>`. Read only; never extracted into.
+    Cached,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -222,7 +226,7 @@ pub struct DevDatasetSummary {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DevSource {
-    /// `build:<channel>`, `folder:<n>`, `dump:<tag>`.
+    /// `build:<channel>`, `cached:<channel>:<folder>`, `folder:<n>`, `dump:<tag>`.
     pub id: String,
     pub kind: SourceKind,
     pub label: String,
@@ -581,6 +585,35 @@ pub fn dump_tag(source: &str) -> Option<&str> {
         .strip_prefix("dump:")
         .filter(|t| starorg_core::source::dump::valid_component(t))
 }
+
+/// Keep the datasets both sides have, when one side is an older cached build (both
+/// backends' Diff): such a build holds only what WHERE TO GET extracted (`game-*.json`,
+/// never our GameData), so a dataset on one side alone shows what was read, not what
+/// changed. Other pairs are compared whole.
+pub fn common_datasets<T>(
+    a_id: &str,
+    b_id: &str,
+    a: &mut Vec<(String, T)>,
+    b: &mut Vec<(String, T)>,
+) -> CmdResult<()> {
+    if !a_id.starts_with("cached:") && !b_id.starts_with("cached:") {
+        return Ok(());
+    }
+    let names = |side: &[(String, T)]| -> std::collections::HashSet<String> {
+        side.iter().map(|x| x.0.clone()).collect()
+    };
+    let (na, nb) = (names(a), names(b));
+    a.retain(|x| nb.contains(&x.0));
+    b.retain(|x| na.contains(&x.0));
+    if a.is_empty() {
+        return Err(AppError::new(ErrorCode::Invalid, NO_COMMON_DATASET));
+    }
+    Ok(())
+}
+
+/// [`common_datasets`]' answer when nothing is left.
+pub const NO_COMMON_DATASET: &str = "A and B have no dataset in common: use WHERE TO GET on \
+     the current build for what the older one holds.";
 
 /// The label of a downloaded LIVE build in the source lists.
 pub fn dump_label(tag: &str) -> String {

@@ -469,6 +469,48 @@ fn file_key(p: &Path) -> Option<FileKey> {
     Some((p.to_path_buf(), m.len(), t))
 }
 
+/// A dataset cache file's identity: path and size. Those files are written once (a new
+/// extraction is a new folder) and reading them touches their time (last used, for the
+/// storage cap), so the time is left out.
+fn cache_key(p: &Path) -> Option<FileKey> {
+    let m = std::fs::metadata(p).ok().filter(|m| m.is_file())?;
+    Some((p.to_path_buf(), m.len(), 0))
+}
+
+/// The datasets of a dataset cache build folder (`game-*.json`), as [`json_files`] caps them.
+fn cache_files(dir: &Path) -> Vec<(String, PathBuf, u64)> {
+    json_files(dir)
+        .into_iter()
+        .filter(|f| starorg_mcp::store::is_dataset_file(&f.0))
+        .collect()
+}
+
+/// `PTU 5.0.201.1 (cached)`: a cached build folder of a channel, by the version in its name.
+fn cached_label(channel: &str, folder: &str) -> String {
+    format!(
+        "{channel} {} (cached)",
+        starorg_mcp::store::build_version(folder)
+    )
+}
+
+/// [`cached_label`] with the folder's fingerprint, `PTU 5.0.201.1 (cached, 0a1b2c3d)`, for a
+/// folder whose version another of the channel's folders has too (the same build read again
+/// after an app update or a changed archive).
+fn cached_label_fp(channel: &str, folder: &str) -> String {
+    let v = starorg_mcp::store::build_version(folder);
+    match folder.strip_prefix(v).and_then(|x| x.strip_prefix('-')) {
+        Some(fp) if !fp.is_empty() => format!("{channel} {v} (cached, {fp})"),
+        _ => cached_label(channel, folder),
+    }
+}
+
+fn counts(d: &Dataset) -> (u32, u32) {
+    (
+        d.tables.len() as u32,
+        d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+    )
+}
+
 /// `*.json` directly inside, sorted by name, each at most the per-file cap; the folder total
 /// is capped too (7.10).
 fn json_files(dir: &Path) -> Vec<(String, PathBuf, u64)> {
@@ -820,6 +862,196 @@ impl RealBackend {
     fn parse_file(&self, path: &Path) -> CmdResult<Arc<Dataset>> {
         let key = file_key(path)
             .ok_or_else(|| err(ErrorCode::NotFound, format!("{} is gone", path.display())))?;
+        self.parse_at(path, key)
+    }
+
+    /// A dataset cache file, kept by [`cache_key`].
+    fn parse_cache_file(&self, path: &Path) -> CmdResult<Arc<Dataset>> {
+        let key = cache_key(path)
+            .ok_or_else(|| err(ErrorCode::NotFound, format!("{} is gone", path.display())))?;
+        self.parse_at(path, key)
+    }
+
+    /// Tables and rows of a dataset cache file (parsed once per file).
+    fn cache_counts(&self, path: &Path) -> Result<(u32, u32), String> {
+        if let Some(c) =
+            cache_key(path).and_then(|k| lock_or(&self.dev.data).summaries.get(&k).copied())
+        {
+            return Ok(c);
+        }
+        self.parse_cache_file(path)
+            .map(|d| counts(&d))
+            .map_err(|e| e.message)
+    }
+
+    // ----- The dataset cache (`<cache>/mcp`, the Sources card's) ----------------------
+
+    /// The dataset cache and one channel of it, from the install as discovered now (its
+    /// build may have changed since the Sources card's tools were made).
+    fn mcp_channel(
+        &self,
+        f: &Found,
+        channel: &str,
+    ) -> Option<(
+        Arc<starorg_mcp::tools::Tools>,
+        starorg_mcp::store::ChannelSource,
+    )> {
+        let tools = self.origin_tools(f).ok()?;
+        let ch = starorg_mcp::channels_of(&f.install, self.dirs())
+            .into_iter()
+            .find(|c| c.name == channel)?;
+        Some((tools, ch))
+    }
+
+    /// The channel's current build folder in the dataset cache, when there is one.
+    fn current_cache_dir(&self, f: &Found, channel: &str) -> Option<PathBuf> {
+        let (t, ch) = self.mcp_channel(f, channel)?;
+        Some(t.store.build_dir(&ch)).filter(|d| d.is_dir())
+    }
+
+    /// The folder of a `cached:<CHANNEL>:<folder>` source: one of that channel's older
+    /// cached builds by name (the webview never sends a path).
+    fn cached_dir(&self, r: &ChannelRef, source: &str) -> CmdResult<(String, String, PathBuf)> {
+        let none = || err(ErrorCode::NotFound, format!("no source {source}"));
+        let (chan, folder) = source
+            .strip_prefix("cached:")
+            .and_then(|s| s.split_once(':'))
+            .ok_or_else(none)?;
+        let f = self.resolve(r)?;
+        let (t, ch) = self.mcp_channel(&f, chan).ok_or_else(none)?;
+        let dir = t
+            .store
+            .older_builds(&ch)
+            .into_iter()
+            .find(|b| b.0 == folder)
+            .map(|b| b.1)
+            .ok_or_else(|| {
+                err(
+                    ErrorCode::NotFound,
+                    format!("{} is no longer in the cache", cached_label(chan, folder)),
+                )
+            })?;
+        Ok((chan.to_string(), folder.to_string(), dir))
+    }
+
+    /// Read files of a dataset cache folder: held against pruning while it reads
+    /// (`starorg_mcp::store::hold_build`) and marked as used for the storage cap. Never
+    /// extracts anything.
+    fn read_cache<T>(&self, dir: &Path, read: impl FnOnce() -> T) -> T {
+        let _held = starorg_mcp::store::hold_build(dir);
+        starorg_mcp::store::mark_used(dir);
+        read()
+    }
+
+    /// Every dataset of an older cached build.
+    fn cached_datasets(
+        &self,
+        r: &ChannelRef,
+        source: &str,
+    ) -> CmdResult<Vec<(String, Arc<Dataset>)>> {
+        let (chan, folder, dir) = self.cached_dir(r, source)?;
+        let label = cached_label(&chan, &folder);
+        self.read_cache(&dir, || {
+            cache_files(&dir)
+                .into_iter()
+                .map(|(name, p, _)| {
+                    let d = self
+                        .parse_cache_file(&p)
+                        .map_err(|e| err(e.code, format!("{label} {name}: {}", e.message)))?;
+                    Ok((name, d))
+                })
+                .collect()
+        })
+    }
+
+    /// One older cached build as a source: `Error` with the reason when it is incomplete.
+    /// `label`: [`cached_label`], or [`cached_label_fp`] when its version is not unique.
+    fn cached_source(&self, channel: &str, folder: &str, dir: &Path, label: String) -> DevSource {
+        // Held while its files are counted, so a prune meanwhile leaves it.
+        self.read_cache(dir, || self.cached_source_at(channel, folder, dir, label))
+    }
+
+    fn cached_source_at(
+        &self,
+        channel: &str,
+        folder: &str,
+        dir: &Path,
+        label: String,
+    ) -> DevSource {
+        let mut problem = starorg_mcp::store::incomplete(dir);
+        let mut datasets = Vec::new();
+        for (name, path, bytes) in cache_files(dir) {
+            let (tables, rows) = match self.cache_counts(&path) {
+                Ok(c) => c,
+                Err(m) => {
+                    problem.get_or_insert(format!("{name} does not read as data: {m}"));
+                    (0, 0)
+                }
+            };
+            datasets.push(DevDatasetSummary {
+                file: name,
+                bytes,
+                tables,
+                rows,
+            });
+        }
+        DevSource {
+            id: format!("cached:{channel}:{folder}"),
+            kind: SourceKind::Cached,
+            label,
+            build: Some(starorg_mcp::store::build_version(folder).to_string()),
+            state: if problem.is_some() {
+                SourceState::Error
+            } else {
+                SourceState::Ready
+            },
+            detail: Some(match problem {
+                Some(p) => format!("Incomplete: {p}"),
+                None => format!(
+                    "An earlier {channel} build, kept in the cache (read only): {}",
+                    dir.display()
+                ),
+            }),
+            datasets,
+        }
+    }
+
+    /// The current build's datasets: our GameData, plus what the dataset cache already holds
+    /// for this build (read only). Fails only when there is neither.
+    fn build_datasets(&self, f: &Found, ch: &Channel) -> CmdResult<Vec<(String, Arc<Dataset>)>> {
+        let mut out = Vec::new();
+        let gamedata = self.build_dataset(f, ch);
+        if let Ok(d) = &gamedata {
+            out.push((GAMEDATA.to_string(), d.clone()));
+        }
+        if let Some(dir) = self.current_cache_dir(f, &ch.name) {
+            self.read_cache(&dir, || {
+                // A file being written by an extraction right now is left out this time.
+                for (name, p, _) in cache_files(&dir) {
+                    if let Ok(d) = self.parse_cache_file(&p) {
+                        out.push((name, d));
+                    }
+                }
+            });
+        }
+        match gamedata {
+            Err(e) if out.is_empty() => Err(e),
+            _ => Ok(out),
+        }
+    }
+
+    /// A channel's GameData alone, as the one dataset of a source.
+    fn gamedata_only(
+        &self,
+        r: &ChannelRef,
+        channel: &str,
+    ) -> CmdResult<Vec<(String, Arc<Dataset>)>> {
+        let f = self.resolve(r)?;
+        let ch = f.channel(channel)?.clone();
+        Ok(vec![(GAMEDATA.to_string(), self.build_dataset(&f, &ch)?)])
+    }
+
+    fn parse_at(&self, path: &Path, key: FileKey) -> CmdResult<Arc<Dataset>> {
         if let Some(d) = self.parsed(&key) {
             return Ok(d);
         }
@@ -1017,7 +1249,10 @@ impl RealBackend {
         if let Some(chan) = source.strip_prefix("build:") {
             let f = self.resolve(r)?;
             let ch = f.channel(chan)?.clone();
-            return Ok(vec![(GAMEDATA.to_string(), self.build_dataset(&f, &ch)?)]);
+            return self.build_datasets(&f, &ch);
+        }
+        if source.starts_with("cached:") {
+            return self.cached_datasets(r, source);
         }
         if source.starts_with("folder:") {
             let dir = self.folder_path(source)?;
@@ -1038,13 +1273,29 @@ impl RealBackend {
 
     fn dataset(&self, r: &ChannelRef, source: &str, name: &str) -> CmdResult<Arc<Dataset>> {
         self.dev_on()?;
+        let no_dataset = || err(ErrorCode::NotFound, format!("no dataset {name}"));
         if let Some(chan) = source.strip_prefix("build:") {
-            if name != GAMEDATA {
-                return Err(err(ErrorCode::NotFound, format!("no dataset {name}")));
-            }
             let f = self.resolve(r)?;
             let ch = f.channel(chan)?.clone();
-            return self.build_dataset(&f, &ch);
+            if name == GAMEDATA {
+                return self.build_dataset(&f, &ch);
+            }
+            let dir = self
+                .current_cache_dir(&f, &ch.name)
+                .ok_or_else(no_dataset)?;
+            let (_, p, _) = cache_files(&dir)
+                .into_iter()
+                .find(|x| x.0 == name)
+                .ok_or_else(no_dataset)?;
+            return self.read_cache(&dir, || self.parse_cache_file(&p));
+        }
+        if source.starts_with("cached:") {
+            let (_, _, dir) = self.cached_dir(r, source)?;
+            let (_, p, _) = cache_files(&dir)
+                .into_iter()
+                .find(|x| x.0 == name)
+                .ok_or_else(no_dataset)?;
+            return self.read_cache(&dir, || self.parse_cache_file(&p));
         }
         if source.starts_with("folder:") {
             let dir = self.folder_path(source)?;
@@ -1100,9 +1351,13 @@ impl RealBackend {
         Some(m)
     }
 
-    /// The lookup of a dataset source: a build's own, else the target channel's.
+    /// The lookup of a dataset source: a build's own (an older cached build: its channel's
+    /// current one, the nearest there is), else the target channel's.
     fn source_lookup(&self, r: &ChannelRef, source: &str) -> Option<Arc<MapLookup>> {
-        let chan = source.strip_prefix("build:").unwrap_or(&r.channel);
+        let chan = source
+            .strip_prefix("build:")
+            .or_else(|| source.strip_prefix("cached:")?.split_once(':').map(|x| x.0))
+            .unwrap_or(&r.channel);
         self.lookup_for(r, chan)
     }
 
@@ -1116,7 +1371,8 @@ impl RealBackend {
         self.dev_on()?;
         let f = self.resolve(r)?;
         let mut out = Vec::new();
-        // The target's build first, then the install's other channels (for a diff).
+        // The target's build first, then the install's other channels (for a diff); each
+        // channel's older cached builds right after its current one, newest first.
         let mut chans: Vec<Channel> = f.install.channels.clone();
         chans.sort_by_key(|c| c.name != r.channel);
         for ch in &chans {
@@ -1126,28 +1382,78 @@ impl RealBackend {
                 .as_ref()
                 .map(|b| b.version.clone())
                 .filter(|v| !v.is_empty());
-            let (state, detail, datasets) = match self.build_dataset(&f, ch) {
-                Ok(d) => (
-                    SourceState::Ready,
-                    None,
-                    vec![DevDatasetSummary {
-                        file: GAMEDATA.into(),
-                        bytes: d.info.bytes,
-                        tables: d.tables.len() as u32,
-                        rows: d.tables.iter().map(|t| t.rows.len() as u32).sum(),
-                    }],
-                ),
-                Err(e) => (SourceState::Missing, Some(e.message), vec![]),
-            };
+            let mut datasets = Vec::new();
+            let mut detail = None;
+            match self.build_dataset(&f, ch) {
+                Ok(d) => datasets.push(DevDatasetSummary {
+                    file: GAMEDATA.into(),
+                    bytes: d.info.bytes,
+                    tables: d.tables.len() as u32,
+                    rows: d.tables.iter().map(|t| t.rows.len() as u32).sum(),
+                }),
+                Err(e) => detail = Some(e.message),
+            }
+            let mcp = self.mcp_channel(&f, &ch.name);
+            if let Some(dir) = mcp
+                .as_ref()
+                .map(|(t, c)| t.store.build_dir(c))
+                .filter(|d| d.is_dir())
+            {
+                for (name, path, bytes) in cache_files(&dir) {
+                    // One being written by an extraction right now shows next time.
+                    if let Ok((tables, rows)) = self.cache_counts(&path) {
+                        datasets.push(DevDatasetSummary {
+                            file: name,
+                            bytes,
+                            tables,
+                            rows,
+                        });
+                    }
+                }
+            }
             out.push(DevSource {
                 id: format!("build:{}", ch.name),
                 kind: SourceKind::Build,
                 label,
                 build,
-                state,
+                state: if datasets.is_empty() {
+                    SourceState::Missing
+                } else {
+                    SourceState::Ready
+                },
                 detail,
                 datasets,
             });
+            if let Some((t, c)) = &mcp {
+                let current = t.store.build_dir(c);
+                let older = t.store.older_builds(c);
+                let version = starorg_mcp::store::build_version;
+                let name_of = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned());
+                let mut versions: Vec<String> =
+                    older.iter().map(|b| version(&b.0).to_string()).collect();
+                versions.extend(name_of(&current).map(|n| version(&n).to_string()));
+                for (folder, dir) in &older {
+                    let v = version(folder);
+                    let label = if versions.iter().filter(|x| *x == v).count() > 1 {
+                        cached_label_fp(&ch.name, folder)
+                    } else {
+                        cached_label(&ch.name, folder)
+                    };
+                    out.push(self.cached_source(&ch.name, folder, dir, label));
+                }
+                // Parsed counts and files of folders pruned since: forgotten.
+                let root = t.store.channel_cache(c);
+                let kept: Vec<&Path> = older
+                    .iter()
+                    .map(|b| b.1.as_path())
+                    .chain([current.as_path()])
+                    .collect();
+                let stale =
+                    |p: &Path| p.starts_with(&root) && !kept.iter().any(|k| p.starts_with(k));
+                let mut d = lock_or(&self.dev.data);
+                d.summaries.retain(|k, _| !stale(&k.0));
+                d.files.retain(|x| !stale(&x.0.0));
+            }
         }
         for (i, dir) in self.dev_file().folders.iter().enumerate() {
             let p = PathBuf::from(dir);
@@ -1310,9 +1616,9 @@ impl DevBackend for RealBackend {
         };
         let t0 = Instant::now();
         // The Diff screen's machinery: A = the other build, B = this one, so "added" are
-        // records only here.
-        let a = self.source_datasets(&req.target, &format!("build:{other}"))?;
-        let b = self.source_datasets(&req.target, &format!("build:{}", req.target.channel))?;
+        // records only here. GameData only: the marks are of its records.
+        let a = self.gamedata_only(&req.target, &other)?;
+        let b = self.gamedata_only(&req.target, &req.target.channel)?;
         let ra: Vec<(String, &Dataset)> = a.iter().map(|x| (x.0.clone(), &*x.1)).collect();
         let rb: Vec<(String, &Dataset)> = b.iter().map(|x| (x.0.clone(), &*x.1)).collect();
         let tables = diff::diff_sources(&ra, &rb, &|_, _| {});
@@ -1838,9 +2144,10 @@ impl DevBackend for RealBackend {
         );
         progress(job.clone());
         let r: CmdResult<DevDiffSummary> = (|| {
-            let a = self.source_datasets(&req.target, &req.a)?;
+            let mut a = self.source_datasets(&req.target, &req.a)?;
             self.job_step(&mut job, 2, "Reading datasets", Some(progress));
-            let b = self.source_datasets(&req.target, &req.b)?;
+            let mut b = self.source_datasets(&req.target, &req.b)?;
+            common_datasets(&req.a, &req.b, &mut a, &mut b)?;
             self.job_step(&mut job, 3, "Comparing", Some(progress));
             let ra: Vec<(String, &Dataset)> = a.iter().map(|x| (x.0.clone(), &*x.1)).collect();
             let rb: Vec<(String, &Dataset)> = b.iter().map(|x| (x.0.clone(), &*x.1)).collect();
