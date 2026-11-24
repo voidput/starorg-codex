@@ -136,6 +136,20 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
 - "Metrics + actions" (a separate choice, not the default) lets the app press game inputs the game lists
   as triggerable, only when you press a button. The first press of each app session asks
   first, and the dangerous actions (self destruct, eject, power off...) ask every time.
+- **Read Game.log events** (its own switch, off by default) reads the streamed channel's
+  `Game.log` on this computer while the Live telemetry screen is open: read only, the bytes
+  the game added since the last read, twice a second. What it shows (session, shard and
+  region, star system, quantum route, zone notices, ship classes nearby, deaths and respawns)
+  lives in memory and goes when the screen closes; nothing of it is written to a file or sent.
+  The server address, port and session ids in the log are never kept. This is separate from
+  "Import blueprints from Game.log", which reads only the blueprint lines.
+- **People** (another switch under it, off by default) also keeps the player handles Game.log
+  names (crew channels, party notices, quantum calibration notices, players named in ship
+  kills near you) and your own, to list them by how they relate to you. They stay in memory
+  for the current Game.log only (**Clear** forgets them at once, People off or the screen
+  closing too), are never written to a file, never go into Activity, and every handle held is
+  replaced with `<handle>` in a diagnostics report. There is no online lookup of handles or
+  orgs.
 
 ## Things outside the app
 

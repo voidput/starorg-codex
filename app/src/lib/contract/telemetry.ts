@@ -16,6 +16,10 @@ export interface TelemetrySettings {
   port: number;
   /** The "Metrics + actions" choice; counts only with `enabled` on. */
   triggers: boolean;
+  /** "Read Game.log events" (its own switch, off by default); counts only with `enabled` on. */
+  gamelog: boolean;
+  /** "People": keep the handles Game.log names, memory only; counts only with `gamelog` on. */
+  people: boolean;
 }
 
 export type CvarState = 'no-file' | 'missing' | 'set' | 'other';
@@ -185,10 +189,140 @@ export interface TelemetryFrame {
   raw: { [k: string]: TelemetryJson };
 }
 
+/** Mirrors `starorg_telemetry::gamelog::EventKind`. */
+export type GameLogEventKind =
+  | 'log_started'
+  | 'session_join'
+  | 'session_shard_change'
+  | 'session_leave'
+  | 'session_system'
+  | 'session_queue'
+  | 'session_hub_down'
+  | 'session_hub_up'
+  | 'session_disconnect'
+  | 'session_dropped'
+  | 'nearby_ship'
+  | 'qt_route'
+  | 'qt_arrived'
+  | 'zone'
+  | 'vehicle_released'
+  | 'vehicle_destroyed'
+  | 'corpse_items'
+  | 'spawned'
+  | 'respawned';
+
+/** One line of the Events panel; never carries an entity id, an address or a handle. */
+export interface GameLogEvent {
+  seq: number;
+  kind: GameLogEventKind;
+  /** Log time, Unix ms. */
+  t_ms: number | null;
+  detail: string;
+}
+
+export interface GameLogSession {
+  channel: string | null;
+  build: string | null;
+  shard: string | null;
+  region_code: string | null;
+  region_name: string | null;
+  shard_short: string | null;
+  system: string | null;
+  joined_ms: number | null;
+  log_started: string | null;
+  queue_position: number | null;
+  queue_eta_s: number | null;
+  /** up | down */
+  hub: string | null;
+  disconnects: number;
+  last_disconnect_reason: string | null;
+  last_disconnect_expected: boolean | null;
+}
+
+export interface GameLogZone {
+  /** armistice | monitored | ungoverned | jurisdiction | other */
+  kind: string;
+  text: string;
+  since_ms: number | null;
+}
+
+export interface GameLogNearby {
+  class: string;
+  display: string;
+  /** Ship instances seen this shard, not people. */
+  count: number;
+  first_ms: number | null;
+  last_ms: number | null;
+}
+
+export interface GameLogQt {
+  /** idle | routed */
+  state: string;
+  destination: string | null;
+  fuel_estimate: number | null;
+  since_ms: number | null;
+  last_arrival: string | null;
+}
+
+export interface GameLogSignals {
+  zone: GameLogZone | null;
+  armistice: boolean;
+  jurisdiction: string | null;
+  location: string | null;
+  qt: GameLogQt;
+  own_ship: { class: string; display: string } | null;
+  nearby: GameLogNearby[];
+  nearby_count: number;
+  nearby_classes: number;
+  deaths: number;
+  respawns: number;
+  vehicles_destroyed: number;
+}
+
+export type PersonRelation = 'crew' | 'party' | 'party_likely' | 'nearby';
+
+export interface GameLogPerson {
+  name: string;
+  relation: PersonRelation;
+  relations: PersonRelation[];
+  /** crew | party | party? | nearby */
+  label: string;
+  sources: string[];
+  first_ms: number | null;
+  last_ms: number | null;
+  count: number;
+  ship: string | null;
+  left: boolean;
+  leader: boolean;
+  valid_handle: boolean;
+}
+
+export interface GameLogPeople {
+  counts: { crew: number; party: number; party_likely: number; nearby: number; total: number };
+  people: GameLogPerson[];
+  self_name: string | null;
+}
+
+export interface GameLogView {
+  /** game_log | mock */
+  source: string;
+  found: boolean;
+  rotations: number;
+  last_line_ms: number | null;
+  session: GameLogSession;
+  signals: GameLogSignals;
+  /** Oldest first, at most 200. */
+  events: GameLogEvent[];
+  /** null while People is off (no handle is kept then). */
+  people: GameLogPeople | null;
+}
+
 export interface TelemetryEvent {
   session: number;
   status: LinkStatus | null;
   frame: TelemetryFrame | null;
+  /** The Game.log reader's view, when it changed (at most twice a second). */
+  gamelog: GameLogView | null;
 }
 
 export interface TelemetryCommandMap {
@@ -198,6 +332,8 @@ export interface TelemetryCommandMap {
   telemetry_stop: [Record<string, never>, TelemetryStatus];
   telemetry_actions: [Record<string, never>, TelemetryActions];
   telemetry_trigger: [{ req: TelemetryTriggerRequest }, TelemetryTriggerResult];
+  telemetry_gamelog: [Record<string, never>, GameLogView | null];
+  telemetry_people_clear: [Record<string, never>, GameLogView | null];
 }
 
 /** Same order as `TELEMETRY_COMMAND_NAMES` in contract/telemetry.rs (a Rust test compares them). */
@@ -208,6 +344,8 @@ export const TELEMETRY_COMMANDS = [
   'telemetry_stop',
   'telemetry_actions',
   'telemetry_trigger',
+  'telemetry_gamelog',
+  'telemetry_people_clear',
 ] as const satisfies readonly (keyof TelemetryCommandMap)[];
 
 const none = {} as Record<string, never>;
@@ -221,4 +359,8 @@ export const telemetryApi = {
   stop: () => call('telemetry_stop', none),
   actions: () => call('telemetry_actions', none),
   trigger: (req: TelemetryTriggerRequest) => call('telemetry_trigger', { req }),
+  /** The Game.log view now (null while the reader does not run). */
+  gamelog: () => call('telemetry_gamelog', none),
+  /** Forget every person the People panel lists. */
+  clearPeople: () => call('telemetry_people_clear', none),
 };

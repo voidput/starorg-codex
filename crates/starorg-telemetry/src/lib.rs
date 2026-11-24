@@ -25,6 +25,7 @@
 pub mod client;
 pub mod codec;
 pub mod frames;
+pub mod gamelog;
 pub mod json;
 pub mod live;
 pub mod mock;

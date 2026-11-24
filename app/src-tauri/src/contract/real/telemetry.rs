@@ -5,11 +5,16 @@
 //! The schema comes from the channel's own `Bin64/StarCitizen.exe` the first time a build is
 //! streamed (a scan of a few seconds) and is cached in `<cache>/telemetry/` (Settings >
 //! Storage counts it; three builds are kept). Only `127.0.0.1` is ever contacted.
+//!
+//! "Read Game.log events" follows the streamed channel's own `Game.log` (read only, the
+//! bytes added since the last poll); "People" keeps the handles it names in memory. Neither
+//! writes a file, and no handle goes into the Activity log.
 
 use super::convert::{err, path_text};
 use super::{Found, RealBackend, io};
 use crate::contract::telemetry::*;
 use crate::contract::types::*;
+use crate::telemetry::GameLogSource;
 use starorg_core::apply::Target;
 use starorg_core::config::Config;
 use starorg_core::discovery::Channel;
@@ -122,6 +127,21 @@ impl RealBackend {
         }
     }
 
+    /// Start, keep or stop the Game.log reader of the running stream to match `s`.
+    fn telemetry_gamelog_sync(&self, s: &Settings) {
+        let source = s
+            .gamelog_active()
+            .then(|| self.telemetry.target())
+            .flatten()
+            .and_then(|t| {
+                let f = self.resolve(&t).ok()?;
+                Some(GameLogSource::Channel(
+                    f.channel(&t.channel).ok()?.dir.clone(),
+                ))
+            });
+        self.telemetry.set_gamelog(source, s.people_active());
+    }
+
     /// The build's schema: from `<cache>/telemetry/` when there, else scanned from the exe.
     fn telemetry_schema(&self, ch: &Channel) -> Result<schema::Schema, String> {
         let dir = starorg_core::storage::telemetry_dir(self.dirs());
@@ -153,6 +173,10 @@ impl RealBackend {
 }
 
 impl TelemetryBackend for RealBackend {
+    fn telemetry_host(&self) -> &crate::telemetry::TelemetryHost {
+        &self.telemetry
+    }
+
     fn telemetry_status(&self) -> CmdResult<TelemetryStatus> {
         Ok(self.telemetry_view())
     }
@@ -240,6 +264,9 @@ impl TelemetryBackend for RealBackend {
             warnings.extend(self.telemetry_release_others(keep.as_deref()));
             warnings
         };
+        if s.enabled {
+            self.telemetry_gamelog_sync(&s);
+        }
         let channel = req.target.as_ref().map(|t| t.channel.as_str());
         self.log(
             LogLevel::Info,
@@ -247,9 +274,11 @@ impl TelemetryBackend for RealBackend {
             channel,
             &if s.enabled {
                 format!(
-                    "Live telemetry on (127.0.0.1:{}, game actions {})",
+                    "Live telemetry on (127.0.0.1:{}, game actions {}, Game.log events {}{})",
                     s.port,
-                    if s.triggers { "allowed" } else { "off" }
+                    if s.triggers { "allowed" } else { "off" },
+                    if s.gamelog { "on" } else { "off" },
+                    if s.people_active() { ", people on" } else { "" }
                 )
             } else {
                 "Live telemetry off; its USER.cfg lines were released".into()
@@ -300,6 +329,19 @@ impl TelemetryBackend for RealBackend {
                 );
                 self.telemetry.no_schema(req, reason, &sink);
             }
+        }
+        // Game.log needs no schema: it runs with or without the stream.
+        if s.gamelog_active() {
+            self.telemetry.set_gamelog(
+                Some(GameLogSource::Channel(ch.dir.clone())),
+                s.people_active(),
+            );
+            self.log(
+                LogLevel::Info,
+                None,
+                Some(&ch.name),
+                "Live telemetry: reading Game.log events",
+            );
         }
         Ok(self.telemetry_view())
     }

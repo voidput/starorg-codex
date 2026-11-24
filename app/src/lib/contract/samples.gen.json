@@ -25631,6 +25631,8 @@
       "session": 0,
       "settings": {
         "enabled": true,
+        "gamelog": false,
+        "people": false,
         "port": 50051,
         "triggers": true
       },
@@ -25758,16 +25760,538 @@
         }
       }
     },
+    "gamelog": null,
+    "session": 1,
+    "status": null
+  },
+  "telemetry_event_gamelog": {
+    "frame": null,
+    "gamelog": {
+      "events": [
+        {
+          "detail": "Game started",
+          "kind": "log_started",
+          "seq": 1,
+          "t_ms": null
+        },
+        {
+          "detail": "mock_use1b_0_001 (US East)",
+          "kind": "session_join",
+          "seq": 2,
+          "t_ms": 1795122596789
+        },
+        {
+          "detail": "Stanton",
+          "kind": "session_system",
+          "seq": 3,
+          "t_ms": 1795122616789
+        },
+        {
+          "detail": "Spawned",
+          "kind": "spawned",
+          "seq": 4,
+          "t_ms": 1795122626789
+        },
+        {
+          "detail": "Entered Monitored Space",
+          "kind": "zone",
+          "seq": 5,
+          "t_ms": 1795122656789
+        },
+        {
+          "detail": "Entering Armistice Zone - Combat Prohibited",
+          "kind": "zone",
+          "seq": 6,
+          "t_ms": 1795122666789
+        },
+        {
+          "detail": "Leaving Armistice Zone - Caution Advised",
+          "kind": "zone",
+          "seq": 7,
+          "t_ms": 1795122856789
+        },
+        {
+          "detail": "Quantum route to Mock_Station_Alpha (AEGS Gladius)",
+          "kind": "qt_route",
+          "seq": 8,
+          "t_ms": 1795123036789
+        },
+        {
+          "detail": "You (AEGS Gladius) arrived at Mock_Station_Alpha",
+          "kind": "qt_arrived",
+          "seq": 9,
+          "t_ms": 1795123096789
+        },
+        {
+          "detail": "MISC Freelancer arrived from quantum",
+          "kind": "qt_arrived",
+          "seq": 10,
+          "t_ms": 1795123156789
+        },
+        {
+          "detail": "AEGS Gladius nearby was destroyed (Combat)",
+          "kind": "vehicle_destroyed",
+          "seq": 11,
+          "t_ms": 1795123216789
+        },
+        {
+          "detail": "Left the pilot seat of AEGS Gladius",
+          "kind": "vehicle_released",
+          "seq": 12,
+          "t_ms": 1795123256789
+        },
+        {
+          "detail": "Corpse nearby: 3 items (owner unknown)",
+          "kind": "corpse_items",
+          "seq": 13,
+          "t_ms": 1795123306789
+        },
+        {
+          "detail": "Respawned after a death (3 items left on the body)",
+          "kind": "respawned",
+          "seq": 14,
+          "t_ms": 1795123346789
+        },
+        {
+          "detail": "5 new ships: DRAK Cutlass Black, AEGS Avenger Titan, MISC Freelancer…",
+          "kind": "nearby_ship",
+          "seq": 15,
+          "t_ms": 1795123426789
+        }
+      ],
+      "found": true,
+      "last_line_ms": 1795123426789,
+      "people": {
+        "counts": {
+          "crew": 1,
+          "nearby": 1,
+          "party": 1,
+          "party_likely": 1,
+          "total": 4
+        },
+        "people": [
+          {
+            "count": 2,
+            "first_ms": 1795122956789,
+            "label": "crew",
+            "last_ms": 1795122996789,
+            "leader": true,
+            "left": false,
+            "name": "TestPilot_Lead",
+            "relation": "crew",
+            "relations": [
+              "crew",
+              "party"
+            ],
+            "ship": "Drake Cutlass Black",
+            "sources": [
+              "party_toast",
+              "voice_channel"
+            ],
+            "valid_handle": true
+          },
+          {
+            "count": 1,
+            "first_ms": 1795122976789,
+            "label": "party",
+            "last_ms": 1795122976789,
+            "leader": false,
+            "left": false,
+            "name": "TestPilot_B",
+            "relation": "party",
+            "relations": [
+              "party"
+            ],
+            "ship": null,
+            "sources": [
+              "party_toast"
+            ],
+            "valid_handle": true
+          },
+          {
+            "count": 1,
+            "first_ms": 1795123026789,
+            "label": "party?",
+            "last_ms": 1795123026789,
+            "leader": false,
+            "left": false,
+            "name": "TestPilot_C",
+            "relation": "party_likely",
+            "relations": [
+              "party_likely"
+            ],
+            "ship": null,
+            "sources": [
+              "qt_calibration"
+            ],
+            "valid_handle": true
+          },
+          {
+            "count": 1,
+            "first_ms": 1795123216789,
+            "label": "nearby",
+            "last_ms": 1795123216789,
+            "leader": false,
+            "left": false,
+            "name": "TestPilot_D",
+            "relation": "nearby",
+            "relations": [
+              "nearby"
+            ],
+            "ship": null,
+            "sources": [
+              "vehicle_destroyed"
+            ],
+            "valid_handle": true
+          }
+        ],
+        "self_name": "TestPilot_Self"
+      },
+      "rotations": 0,
+      "session": {
+        "build": "0.0.0.0",
+        "channel": "PTU",
+        "disconnects": 0,
+        "hub": null,
+        "joined_ms": 1795122596789,
+        "last_disconnect_expected": null,
+        "last_disconnect_reason": null,
+        "log_started": "Mon Nov 23 10:00:00 2026",
+        "queue_eta_s": null,
+        "queue_position": null,
+        "region_code": "use1b",
+        "region_name": "US East",
+        "shard": "mock_use1b_0_001",
+        "shard_short": "USE1B · 001",
+        "system": "Stanton"
+      },
+      "signals": {
+        "armistice": false,
+        "deaths": 1,
+        "jurisdiction": null,
+        "location": "Mock Planet One",
+        "nearby": [
+          {
+            "class": "RSI_Constellation_Andromeda",
+            "count": 1,
+            "display": "RSI Constellation Andromeda",
+            "first_ms": 1795123426789,
+            "last_ms": 1795123426789
+          },
+          {
+            "class": "MISC_Freelancer",
+            "count": 1,
+            "display": "MISC Freelancer",
+            "first_ms": 1795123156789,
+            "last_ms": 1795123156789
+          },
+          {
+            "class": "DRAK_Cutlass_Black",
+            "count": 2,
+            "display": "DRAK Cutlass Black",
+            "first_ms": 1795122756789,
+            "last_ms": 1795122776789
+          },
+          {
+            "class": "AEGS_Avenger_Titan",
+            "count": 1,
+            "display": "AEGS Avenger Titan",
+            "first_ms": 1795122766789,
+            "last_ms": 1795122766789
+          }
+        ],
+        "nearby_classes": 4,
+        "nearby_count": 5,
+        "own_ship": {
+          "class": "AEGS_Gladius",
+          "display": "AEGS Gladius"
+        },
+        "qt": {
+          "destination": null,
+          "fuel_estimate": null,
+          "last_arrival": "Mock_Station_Alpha",
+          "since_ms": null,
+          "state": "idle"
+        },
+        "respawns": 1,
+        "vehicles_destroyed": 1,
+        "zone": {
+          "kind": "other",
+          "since_ms": 1795122856789,
+          "text": "Leaving Armistice Zone - Caution Advised"
+        }
+      },
+      "source": "mock"
+    },
     "session": 1,
     "status": null
   },
   "telemetry_event_status": {
     "frame": null,
+    "gamelog": null,
     "session": 1,
     "status": {
       "state": "connected"
     }
   },
+  "telemetry_gamelog": {
+    "events": [
+      {
+        "detail": "Game started",
+        "kind": "log_started",
+        "seq": 1,
+        "t_ms": null
+      },
+      {
+        "detail": "mock_use1b_0_001 (US East)",
+        "kind": "session_join",
+        "seq": 2,
+        "t_ms": 1795122596789
+      },
+      {
+        "detail": "Stanton",
+        "kind": "session_system",
+        "seq": 3,
+        "t_ms": 1795122616789
+      },
+      {
+        "detail": "Spawned",
+        "kind": "spawned",
+        "seq": 4,
+        "t_ms": 1795122626789
+      },
+      {
+        "detail": "Entered Monitored Space",
+        "kind": "zone",
+        "seq": 5,
+        "t_ms": 1795122656789
+      },
+      {
+        "detail": "Entering Armistice Zone - Combat Prohibited",
+        "kind": "zone",
+        "seq": 6,
+        "t_ms": 1795122666789
+      },
+      {
+        "detail": "Leaving Armistice Zone - Caution Advised",
+        "kind": "zone",
+        "seq": 7,
+        "t_ms": 1795122856789
+      },
+      {
+        "detail": "Quantum route to Mock_Station_Alpha (AEGS Gladius)",
+        "kind": "qt_route",
+        "seq": 8,
+        "t_ms": 1795123036789
+      },
+      {
+        "detail": "You (AEGS Gladius) arrived at Mock_Station_Alpha",
+        "kind": "qt_arrived",
+        "seq": 9,
+        "t_ms": 1795123096789
+      },
+      {
+        "detail": "MISC Freelancer arrived from quantum",
+        "kind": "qt_arrived",
+        "seq": 10,
+        "t_ms": 1795123156789
+      },
+      {
+        "detail": "AEGS Gladius nearby was destroyed (Combat)",
+        "kind": "vehicle_destroyed",
+        "seq": 11,
+        "t_ms": 1795123216789
+      },
+      {
+        "detail": "Left the pilot seat of AEGS Gladius",
+        "kind": "vehicle_released",
+        "seq": 12,
+        "t_ms": 1795123256789
+      },
+      {
+        "detail": "Corpse nearby: 3 items (owner unknown)",
+        "kind": "corpse_items",
+        "seq": 13,
+        "t_ms": 1795123306789
+      },
+      {
+        "detail": "Respawned after a death (3 items left on the body)",
+        "kind": "respawned",
+        "seq": 14,
+        "t_ms": 1795123346789
+      },
+      {
+        "detail": "5 new ships: DRAK Cutlass Black, AEGS Avenger Titan, MISC Freelancer…",
+        "kind": "nearby_ship",
+        "seq": 15,
+        "t_ms": 1795123426789
+      }
+    ],
+    "found": true,
+    "last_line_ms": 1795123426789,
+    "people": {
+      "counts": {
+        "crew": 1,
+        "nearby": 1,
+        "party": 1,
+        "party_likely": 1,
+        "total": 4
+      },
+      "people": [
+        {
+          "count": 2,
+          "first_ms": 1795122956789,
+          "label": "crew",
+          "last_ms": 1795122996789,
+          "leader": true,
+          "left": false,
+          "name": "TestPilot_Lead",
+          "relation": "crew",
+          "relations": [
+            "crew",
+            "party"
+          ],
+          "ship": "Drake Cutlass Black",
+          "sources": [
+            "party_toast",
+            "voice_channel"
+          ],
+          "valid_handle": true
+        },
+        {
+          "count": 1,
+          "first_ms": 1795122976789,
+          "label": "party",
+          "last_ms": 1795122976789,
+          "leader": false,
+          "left": false,
+          "name": "TestPilot_B",
+          "relation": "party",
+          "relations": [
+            "party"
+          ],
+          "ship": null,
+          "sources": [
+            "party_toast"
+          ],
+          "valid_handle": true
+        },
+        {
+          "count": 1,
+          "first_ms": 1795123026789,
+          "label": "party?",
+          "last_ms": 1795123026789,
+          "leader": false,
+          "left": false,
+          "name": "TestPilot_C",
+          "relation": "party_likely",
+          "relations": [
+            "party_likely"
+          ],
+          "ship": null,
+          "sources": [
+            "qt_calibration"
+          ],
+          "valid_handle": true
+        },
+        {
+          "count": 1,
+          "first_ms": 1795123216789,
+          "label": "nearby",
+          "last_ms": 1795123216789,
+          "leader": false,
+          "left": false,
+          "name": "TestPilot_D",
+          "relation": "nearby",
+          "relations": [
+            "nearby"
+          ],
+          "ship": null,
+          "sources": [
+            "vehicle_destroyed"
+          ],
+          "valid_handle": true
+        }
+      ],
+      "self_name": "TestPilot_Self"
+    },
+    "rotations": 0,
+    "session": {
+      "build": "0.0.0.0",
+      "channel": "PTU",
+      "disconnects": 0,
+      "hub": null,
+      "joined_ms": 1795122596789,
+      "last_disconnect_expected": null,
+      "last_disconnect_reason": null,
+      "log_started": "Mon Nov 23 10:00:00 2026",
+      "queue_eta_s": null,
+      "queue_position": null,
+      "region_code": "use1b",
+      "region_name": "US East",
+      "shard": "mock_use1b_0_001",
+      "shard_short": "USE1B · 001",
+      "system": "Stanton"
+    },
+    "signals": {
+      "armistice": false,
+      "deaths": 1,
+      "jurisdiction": null,
+      "location": "Mock Planet One",
+      "nearby": [
+        {
+          "class": "RSI_Constellation_Andromeda",
+          "count": 1,
+          "display": "RSI Constellation Andromeda",
+          "first_ms": 1795123426789,
+          "last_ms": 1795123426789
+        },
+        {
+          "class": "MISC_Freelancer",
+          "count": 1,
+          "display": "MISC Freelancer",
+          "first_ms": 1795123156789,
+          "last_ms": 1795123156789
+        },
+        {
+          "class": "DRAK_Cutlass_Black",
+          "count": 2,
+          "display": "DRAK Cutlass Black",
+          "first_ms": 1795122756789,
+          "last_ms": 1795122776789
+        },
+        {
+          "class": "AEGS_Avenger_Titan",
+          "count": 1,
+          "display": "AEGS Avenger Titan",
+          "first_ms": 1795122766789,
+          "last_ms": 1795122766789
+        }
+      ],
+      "nearby_classes": 4,
+      "nearby_count": 5,
+      "own_ship": {
+        "class": "AEGS_Gladius",
+        "display": "AEGS Gladius"
+      },
+      "qt": {
+        "destination": null,
+        "fuel_estimate": null,
+        "last_arrival": "Mock_Station_Alpha",
+        "since_ms": null,
+        "state": "idle"
+      },
+      "respawns": 1,
+      "vehicles_destroyed": 1,
+      "zone": {
+        "kind": "other",
+        "since_ms": 1795122856789,
+        "text": "Leaving Armistice Zone - Caution Advised"
+      }
+    },
+    "source": "mock"
+  },
+  "telemetry_people_clear": null,
   "telemetry_start": {
     "channels": [
       {
@@ -25872,6 +26396,8 @@
     "session": 1,
     "settings": {
       "enabled": true,
+      "gamelog": false,
+      "people": false,
       "port": 50051,
       "triggers": true
     },
@@ -25981,6 +26507,8 @@
     "session": 0,
     "settings": {
       "enabled": false,
+      "gamelog": false,
+      "people": false,
       "port": 50051,
       "triggers": false
     },
@@ -26087,6 +26615,8 @@
     "session": 2,
     "settings": {
       "enabled": true,
+      "gamelog": false,
+      "people": false,
       "port": 50051,
       "triggers": true
     },

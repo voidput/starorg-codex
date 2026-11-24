@@ -7,7 +7,7 @@
  * Frames come at most 10 a second. Everything here is a cheap pure function over one frame,
  * so a panel re-renders only the numbers that changed.
  */
-import type { LinkStatus, TelemetryJson, TelemetrySnapshot, TelemetryShip, TriggerableAction } from './contract/telemetry';
+import type { GameLogEvent, GameLogEventKind, GameLogPerson, GameLogView, LinkStatus, PersonRelation, TelemetryJson, TelemetrySnapshot, TelemetryShip, TriggerableAction } from './contract/telemetry';
 import type { StatusTone } from './format';
 
 type Obj = { [k: string]: TelemetryJson };
@@ -268,4 +268,82 @@ export function telemetryTarget<C extends { install: string; channel: string; te
 export function sequencer(): { next: () => number; latest: (n: number) => boolean } {
   let seq = 0;
   return { next: () => ++seq, latest: (n) => n === seq };
+}
+
+// ---- Game.log events and people (the Events and People panels) ------------------------------
+
+const EVENT_TONE: Partial<Record<GameLogEventKind, StatusTone>> = {
+  session_dropped: 'destructive',
+  session_hub_down: 'warning',
+  vehicle_destroyed: 'warning',
+  corpse_items: 'warning',
+  respawned: 'warning',
+  session_join: 'success',
+  session_hub_up: 'success',
+  qt_arrived: 'info',
+  qt_route: 'info',
+  zone: 'info',
+};
+
+/** The tone of an event's badge. */
+export function eventTone(kind: GameLogEventKind): StatusTone {
+  return EVENT_TONE[kind] ?? 'muted';
+}
+
+const EVENT_LABEL: Record<GameLogEventKind, string> = {
+  log_started: 'Game',
+  session_join: 'Joined',
+  session_shard_change: 'Shard',
+  session_leave: 'Left',
+  session_system: 'System',
+  session_queue: 'Queue',
+  session_hub_down: 'Hub',
+  session_hub_up: 'Hub',
+  session_disconnect: 'Disconnect',
+  session_dropped: 'Dropped',
+  nearby_ship: 'Nearby',
+  qt_route: 'Route',
+  qt_arrived: 'Quantum',
+  zone: 'Zone',
+  vehicle_released: 'Seat',
+  vehicle_destroyed: 'Destroyed',
+  corpse_items: 'Corpse',
+  spawned: 'Spawn',
+  respawned: 'Respawn',
+};
+
+export function eventLabel(kind: GameLogEventKind): string {
+  return EVENT_LABEL[kind] ?? kind;
+}
+
+/** `14:03:27` (local time, or `tz`) for a log time; `—` without one. */
+export function clock(ms: number | null, tz?: string): string {
+  if (ms === null) return '—';
+  return new Date(ms).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false, timeZone: tz });
+}
+
+/** Newest first, at most `max` (the panel's list). */
+export function recentEvents(v: GameLogView | null, max = 100): GameLogEvent[] {
+  if (!v || !Array.isArray(v.events)) return [];
+  return v.events.slice(-max).reverse();
+}
+
+export const RELATION_ORDER: readonly PersonRelation[] = ['crew', 'party', 'party_likely', 'nearby'];
+export const RELATION_TITLE: Record<PersonRelation, string> = { crew: 'Crew', party: 'Party', party_likely: 'Party?', nearby: 'Nearby' };
+
+/** People by their strongest relation, in panel order; empty groups left out. */
+export function groupPeople(people: readonly GameLogPerson[] | null | undefined): { relation: PersonRelation; title: string; people: GameLogPerson[] }[] {
+  if (!Array.isArray(people)) return [];
+  return RELATION_ORDER.map((r) => ({ relation: r, title: RELATION_TITLE[r], people: people.filter((p) => p.relation === r) })).filter((g) => g.people.length > 0);
+}
+
+/** One line on where you are: system, the route's start location, zone. */
+export function whereText(v: GameLogView): string {
+  const s = v.signals;
+  const parts: string[] = [];
+  if (v.session.system) parts.push(v.session.system);
+  if (s.location && s.location !== v.session.system) parts.push(s.location);
+  if (s.zone) parts.push(s.zone.text);
+  else if (s.armistice) parts.push('Armistice zone');
+  return parts.length ? parts.join(' · ') : 'Not known yet';
 }

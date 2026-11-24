@@ -3,7 +3,9 @@
  * (app/src-tauri/src/contract/mock_telemetry.rs) seeded from its samples. The stream is a
  * synthetic generator in the shape of the Rust one (`starorg_telemetry::mock::frame`): 10
  * frames a second, values on slow sine waves, lights, gear and shields flipped by presses.
- * No game, no socket, no CIG data. No JSON import here, so node can load it.
+ * No game, no socket, no CIG data. No JSON import here, so node can load it. With "Read
+ * Game.log events" on, the stream also sends the Rust mock's synthetic Game.log view (fake
+ * handles; People only with its own switch on).
  */
 import type * as T from './types';
 import type * as L from './telemetry';
@@ -14,6 +16,8 @@ export interface TelemetryMockData {
   actions: L.TelemetryActions;
   /** A frame event of the Rust mock (its raw frame is the template). */
   frame: L.TelemetryEvent;
+  /** The Rust mock's synthetic Game.log view (with people). */
+  gamelog?: L.GameLogView | null;
 }
 
 export interface TelemetryMockCtx {
@@ -31,6 +35,8 @@ export interface TelemetryHandlers {
   telemetry_stop: H<Record<string, never>, L.TelemetryStatus>;
   telemetry_actions: H<Record<string, never>, L.TelemetryActions>;
   telemetry_trigger: H<{ req: L.TelemetryTriggerRequest }, L.TelemetryTriggerResult>;
+  telemetry_gamelog: H<Record<string, never>, L.GameLogView | null>;
+  telemetry_people_clear: H<Record<string, never>, L.GameLogView | null>;
 }
 
 const clone = <X>(x: X): X => JSON.parse(JSON.stringify(x)) as X;
@@ -149,6 +155,20 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
   }
 
   const triggersOn = () => settings.enabled && settings.triggers;
+  /** The People panel's Clear empties the roster until the reader starts over. */
+  let peopleCleared = false;
+  /** The Game.log view of the running stream, as the Rust host would hold it. */
+  function gamelogView(): L.GameLogView | null {
+    if (!streaming || !settings.enabled || !settings.gamelog || !data.gamelog) return null;
+    const v = clone(data.gamelog);
+    if (!settings.people) v.people = null;
+    else if (peopleCleared && v.people) v.people = { ...v.people, people: [], counts: { crew: 0, party: 0, party_likely: 0, nearby: 0, total: 0 } };
+    return v;
+  }
+  const sendGamelog = () => {
+    const g = gamelogView();
+    if (g) emit({ session, status: null, frame: null, gamelog: g });
+  };
 
   const handlers: TelemetryHandlers = {
     telemetry_status: () => status(),
@@ -160,10 +180,14 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
         offered(req.target);
       }
       const was = req.target ? (lines.get(key(req.target)) ?? { telemetry: false, triggers: false }) : { telemetry: false, triggers: false };
+      const readerChanged = s.gamelog !== settings.gamelog || s.people !== settings.people;
       settings = clone(s);
       if (!s.enabled) {
         lines.clear();
         stop();
+      } else if (readerChanged) {
+        peopleCleared = false;
+        sendGamelog();
       }
       const outcome = (on: boolean, had: boolean): L.LineOutcome => (on ? (had ? 'already-set' : 'written') : had ? 'reverted' : 'not-ours');
       let tl: L.TelemetryLineChange | null = null;
@@ -189,17 +213,19 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       const t0 = Date.now();
       let seq = 0;
       let started = false;
+      peopleCleared = false;
       stopTimer = every(100, () => {
         if (me !== session) return;
         if (!started) {
           started = true;
-          emit({ session: me, status: { state: 'connecting' }, frame: null });
+          emit({ session: me, status: { state: 'connecting' }, frame: null, gamelog: null });
           link = { state: 'connected' };
-          emit({ session: me, status: { state: 'connected' }, frame: null });
+          emit({ session: me, status: { state: 'connected' }, frame: null, gamelog: null });
+          sendGamelog();
           return;
         }
         seq += 2;
-        emit({ session: me, status: null, frame: mockFrame(template, seq, (Date.now() - t0) / 1000, st) });
+        emit({ session: me, status: null, frame: mockFrame(template, seq, (Date.now() - t0) / 1000, st), gamelog: null });
       });
       return status();
     },
@@ -228,6 +254,12 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       }
       ctx.log(`Game action ${req.action}: OK`, null);
       return { action: req.action, outcome: { status: 'OK', message: 'mock: accepted' }, refused: null, error: null };
+    },
+    telemetry_gamelog: () => gamelogView(),
+    telemetry_people_clear: () => {
+      if (!gamelogView()) return null;
+      peopleCleared = true;
+      return gamelogView();
     },
   };
 

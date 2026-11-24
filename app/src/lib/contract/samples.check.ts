@@ -217,6 +217,9 @@ interface Samples {
   telemetry_trigger_refused: T.TelemetryTriggerResult;
   telemetry_event_status: T.TelemetryEvent;
   telemetry_event_frame: T.TelemetryEvent;
+  telemetry_gamelog: T.GameLogView | null;
+  telemetry_people_clear: T.GameLogView | null;
+  telemetry_event_gamelog: T.TelemetryEvent;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

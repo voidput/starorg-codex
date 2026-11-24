@@ -4,9 +4,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { actionState, annunciators, at, barWidth, faceLabels, fixed, gate, groupActions, humanName, inspectorText, linkView, needsConfirm, pct, sequencer, sessionStep, snapshotFromRaw, systems, telemetryTarget, triggerText } from '../src/lib/telemetry.ts';
+import { actionState, annunciators, at, barWidth, clock, eventLabel, eventTone, faceLabels, fixed, gate, groupActions, groupPeople, humanName, inspectorText, linkView, needsConfirm, pct, recentEvents, sequencer, sessionStep, snapshotFromRaw, systems, telemetryTarget, triggerText, whereText } from '../src/lib/telemetry.ts';
 import { createTelemetryMock, mockFrame, type TelemetryMockData } from '../src/lib/contract/mock-telemetry.ts';
-import type { TelemetryActions, TelemetryEvent, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
+import type { GameLogView, TelemetryActions, TelemetryEvent, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const frameEv = samples.telemetry_event_frame as TelemetryEvent;
@@ -112,7 +112,7 @@ test('the inspector cuts long frames and follows at most once a second', () => {
 function mock() {
   const ticks: (() => void)[] = [];
   const logs: string[] = [];
-  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv };
+  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv, gamelog: samples.telemetry_gamelog };
   const m = createTelemetryMock(data, {
     fail: (c, msg) => {
       throw new Fail(c, msg);
@@ -133,7 +133,7 @@ function mock() {
 
 const ptu = { install: 'inst-7f3a', channel: 'PTU' };
 const live = { install: 'inst-7f3a', channel: 'LIVE' };
-const on = (triggers: boolean) => ({ enabled: true, port: 50051, triggers });
+const on = (triggers: boolean, gamelog = false, people = false) => ({ enabled: true, port: 50051, triggers, gamelog, people });
 
 test('the TS mock starts off, offers PTU only and answers like the Rust mock', async () => {
   const { h } = mock();
@@ -176,7 +176,7 @@ test('the TS mock streams synthetic frames, and presses flip the lights', async 
   tick();
   assert.equal(events.at(-1)!.frame!.snapshot.ship!.lights, false);
   // Off stops the stream and releases the lines.
-  const off = await h.telemetry_configure({ req: { target: null, settings: { enabled: false, port: 50051, triggers: false }, replace_other: false } });
+  const off = await h.telemetry_configure({ req: { target: null, settings: { enabled: false, port: 50051, triggers: false, gamelog: false, people: false }, replace_other: false } });
   assert.equal(off.status.streaming, null);
   assert.equal(ticks.length, 0);
 });
@@ -213,4 +213,51 @@ test('a sequencer keeps only the latest answer', () => {
   const b = s.next();
   assert.equal(s.latest(a), false);
   assert.equal(s.latest(b), true);
+});
+
+const gamelog = samples.telemetry_gamelog as GameLogView;
+
+test('Game.log events: newest first, tones, labels, where and the people groups', () => {
+  const ev = recentEvents(gamelog);
+  assert.equal(ev.length, gamelog.events.length);
+  assert.ok(ev[0]!.seq > ev.at(-1)!.seq, 'newest first');
+  assert.equal(recentEvents(gamelog, 3).length, 3);
+  assert.deepEqual(recentEvents(null), []);
+  assert.equal(eventTone('session_dropped'), 'destructive');
+  assert.equal(eventTone('spawned'), 'muted');
+  assert.equal(eventLabel('respawned'), 'Respawn');
+  assert.equal(clock(Date.UTC(2026, 10, 23, 14, 3, 27), 'UTC'), '14:03:27');
+  assert.equal(clock(null), '—');
+  assert.match(whereText(gamelog), /^Stanton · Mock Planet One · /);
+  const g = groupPeople(gamelog.people!.people);
+  assert.deepEqual(
+    g.map((x) => x.relation),
+    ['crew', 'party', 'party_likely', 'nearby'],
+  );
+  assert.equal(g[0]!.people[0]!.name, 'TestPilot_Lead');
+  assert.deepEqual(groupPeople(null), []);
+  // Samples carry synthetic handles only.
+  for (const p of gamelog.people!.people) assert.match(p.name, /^TestPilot_/);
+  // Events never carry a handle.
+  assert.ok(!JSON.stringify(gamelog.events).includes('TestPilot'));
+});
+
+test('the TS mock sends Game.log only with its switch, and people only with theirs', async () => {
+  const { h, events, tick } = mock();
+  await h.telemetry_configure({ req: { target: ptu, settings: on(false), replace_other: false } });
+  await h.telemetry_start({ req: ptu });
+  tick(3);
+  assert.ok(events.every((e) => e.gamelog === null), 'off by default');
+  assert.equal(await h.telemetry_gamelog({}), null);
+  await h.telemetry_configure({ req: { target: ptu, settings: on(false, true), replace_other: false } });
+  const g = events.findLast((e) => e.gamelog)?.gamelog;
+  assert.ok(g);
+  assert.equal(g.people, null);
+  await h.telemetry_configure({ req: { target: ptu, settings: on(false, true, true), replace_other: false } });
+  assert.equal(events.findLast((e) => e.gamelog)?.gamelog?.people?.counts.total, gamelog.people!.counts.total);
+  const cleared = await h.telemetry_people_clear({});
+  assert.equal(cleared?.people?.people.length, 0);
+  await h.telemetry_stop({});
+  assert.equal(await h.telemetry_gamelog({}), null);
+  assert.equal(await h.telemetry_people_clear({}), null);
 });

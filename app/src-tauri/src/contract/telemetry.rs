@@ -14,11 +14,16 @@
 //! - `telemetry_trigger` presses an action the game lists as triggerable, refused unless
 //!   "Allow game actions" is on; dangerous ones need `confirmed`, and the UI asks before the
 //!   first press of each session.
+//! - "Read Game.log events" (its own switch, off) follows the channel's `Game.log` while the
+//!   stream runs: the view goes out in the same event ([`TelemetryEvent::gamelog`]), at most
+//!   twice a second. "People" (another switch, off) adds the handles Game.log names, memory
+//!   only; `telemetry_people_clear` forgets them. Nothing about either goes to the network.
 
 use super::types::*;
 use super::{BackendState, run};
 use serde::{Deserialize, Serialize};
 use starorg_telemetry::frames::Frame;
+pub use starorg_telemetry::gamelog::GameLogView;
 use starorg_telemetry::live::{LinkStatus, LiveEvent};
 use starorg_telemetry::trigger::{Refusal, TriggerOutcome, TriggerableAction};
 use tauri::Emitter;
@@ -38,6 +43,12 @@ pub struct TelemetrySettings {
     pub port: u16,
     /// "Allow game actions": press allowlisted inputs. Counts only with `enabled` on.
     pub triggers: bool,
+    /// "Read Game.log events": follow the channel's Game.log while the stream runs.
+    #[serde(default)]
+    pub gamelog: bool,
+    /// "People": keep the handles Game.log names (memory only). Counts only with `gamelog`.
+    #[serde(default)]
+    pub people: bool,
 }
 
 impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
@@ -46,6 +57,8 @@ impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
             enabled: s.enabled,
             port: s.port,
             triggers: s.triggers,
+            gamelog: s.gamelog,
+            people: s.people,
         }
     }
 }
@@ -56,6 +69,8 @@ impl From<TelemetrySettings> for starorg_core::telemetry::Settings {
             enabled: s.enabled,
             port: s.port,
             triggers: s.triggers,
+            gamelog: s.gamelog,
+            people: s.people,
         }
     }
 }
@@ -63,6 +78,14 @@ impl From<TelemetrySettings> for starorg_core::telemetry::Settings {
 impl TelemetrySettings {
     pub fn triggers_active(&self) -> bool {
         self.enabled && self.triggers
+    }
+
+    pub fn gamelog_active(&self) -> bool {
+        self.enabled && self.gamelog
+    }
+
+    pub fn people_active(&self) -> bool {
+        self.gamelog_active() && self.people
     }
 }
 
@@ -292,12 +315,15 @@ pub struct TelemetryTriggerResult {
     pub error: Option<String>,
 }
 
-/// Payload of [`TELEMETRY_EVENT`]: a status change or a frame of stream `session`.
+/// Payload of [`TELEMETRY_EVENT`]: a status change, a frame or the Game.log view of stream
+/// `session`.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TelemetryEvent {
     pub session: u64,
     pub status: Option<LinkStatus>,
     pub frame: Option<Box<Frame>>,
+    /// The Game.log reader's whole view, sent when it changed (at most twice a second).
+    pub gamelog: Option<Box<GameLogView>>,
 }
 
 impl TelemetryEvent {
@@ -307,12 +333,23 @@ impl TelemetryEvent {
                 session,
                 status: Some(s),
                 frame: None,
+                gamelog: None,
             },
             LiveEvent::Frame(f) => Self {
                 session,
                 status: None,
                 frame: Some(f),
+                gamelog: None,
             },
+        }
+    }
+
+    pub fn gamelog(session: u64, view: GameLogView) -> Self {
+        Self {
+            session,
+            status: None,
+            frame: None,
+            gamelog: Some(Box::new(view)),
         }
     }
 }
@@ -338,6 +375,16 @@ pub trait TelemetryBackend {
     fn telemetry_stop(&self) -> CmdResult<TelemetryStatus>;
     fn telemetry_actions(&self) -> CmdResult<TelemetryActions>;
     fn telemetry_trigger(&self, req: TelemetryTriggerRequest) -> CmdResult<TelemetryTriggerResult>;
+    /// The Game.log view now (`None` while the reader does not run).
+    fn telemetry_gamelog(&self) -> CmdResult<Option<GameLogView>> {
+        Ok(self.telemetry_host().gamelog_view())
+    }
+    /// The People panel's Clear: forget every person seen (your own handle stays known).
+    fn telemetry_people_clear(&self) -> CmdResult<Option<GameLogView>> {
+        Ok(self.telemetry_host().clear_people())
+    }
+    /// The stream host of this backend.
+    fn telemetry_host(&self) -> &crate::telemetry::TelemetryHost;
 }
 
 macro_rules! telemetry_commands {
@@ -360,6 +407,8 @@ telemetry_commands! {
     telemetry_stop() -> TelemetryStatus;
     telemetry_actions() -> TelemetryActions;
     telemetry_trigger(req: TelemetryTriggerRequest) -> TelemetryTriggerResult;
+    telemetry_gamelog() -> Option<GameLogView>;
+    telemetry_people_clear() -> Option<GameLogView>;
 }
 
 /// The stream's events go to the window as [`TELEMETRY_EVENT`].
@@ -386,4 +435,6 @@ pub const TELEMETRY_COMMAND_NAMES: &[&str] = &[
     "telemetry_stop",
     "telemetry_actions",
     "telemetry_trigger",
+    "telemetry_gamelog",
+    "telemetry_people_clear",
 ];

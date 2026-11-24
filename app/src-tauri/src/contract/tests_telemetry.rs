@@ -30,6 +30,8 @@ fn on(triggers: bool) -> TelemetrySettings {
         enabled: true,
         port: 50051,
         triggers,
+        gamelog: false,
+        people: false,
     }
 }
 
@@ -71,6 +73,38 @@ fn next_frame(rx: &mpsc::Receiver<TelemetryEvent>) -> Box<starorg_telemetry::fra
             return f;
         }
     }
+}
+
+/// The next Game.log view within 5 s (other events are skipped).
+fn next_gamelog(rx: &mpsc::Receiver<TelemetryEvent>) -> Box<GameLogView> {
+    loop {
+        let ev = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("a Game.log view");
+        if let Some(g) = ev.gamelog {
+            return g;
+        }
+    }
+}
+
+fn with_gamelog(people: bool) -> TelemetrySettings {
+    TelemetrySettings {
+        gamelog: true,
+        people,
+        ..on(false)
+    }
+}
+
+/// The synthetic Game.log session at a fixed time, as the samples carry it.
+fn gamelog_sample() -> GameLogView {
+    use starorg_telemetry::gamelog::{GameLog, mock};
+    let now = 1_795_123_456_789;
+    let mut log = GameLog::new(true);
+    for l in mock::session_lines(now, true) {
+        log.fold_line(&l);
+    }
+    log.end_poll(now);
+    log.view("mock", true, 0)
 }
 
 /// One sample per telemetry command and both event kinds (fixed times, for the file).
@@ -115,8 +149,13 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         1,
         starorg_telemetry::live::LiveEvent::Frame(Box::new(frame)),
     );
+    let gamelog = gamelog_sample();
+    let gamelog_ev = TelemetryEvent::gamelog(1, gamelog.clone());
     vec![
         ("telemetry_event", json!(TELEMETRY_EVENT)),
+        ("telemetry_gamelog", json!(Some(gamelog))),
+        ("telemetry_people_clear", json!(None::<GameLogView>)),
+        ("telemetry_event_gamelog", json!(gamelog_ev)),
         ("telemetry_status", json!(off)),
         ("telemetry_configure", json!(configured)),
         ("telemetry_start", json!(started)),
@@ -445,6 +484,35 @@ fn ts_mirror_lists_every_variant_and_command() {
     .map(|r| TelemetryRefusal::of(r).reason)
     .collect();
     assert_eq!(ts_union(&ts, "RefusalReason"), refusals);
+    use starorg_telemetry::gamelog::EventKind as K;
+    assert_eq!(
+        ts_union(&ts, "GameLogEventKind"),
+        names(&[
+            K::LogStarted,
+            K::SessionJoin,
+            K::SessionShardChange,
+            K::SessionLeave,
+            K::SessionSystem,
+            K::SessionQueue,
+            K::SessionHubDown,
+            K::SessionHubUp,
+            K::SessionDisconnect,
+            K::SessionDropped,
+            K::NearbyShip,
+            K::QtRoute,
+            K::QtArrived,
+            K::Zone,
+            K::VehicleReleased,
+            K::VehicleDestroyed,
+            K::CorpseItems,
+            K::Spawned,
+            K::Respawned,
+        ])
+    );
+    assert_eq!(
+        ts_union(&ts, "PersonRelation"),
+        starorg_telemetry::gamelog::people::RELATIONS
+    );
     let start = ts
         .find("export const TELEMETRY_COMMANDS = [")
         .expect("telemetry.ts has TELEMETRY_COMMANDS");
@@ -481,4 +549,83 @@ fn telemetry_over_ipc_takes_a_req() {
     )
     .unwrap();
     assert_eq!(v["refused"]["reason"], json!("disabled"));
+}
+
+#[test]
+fn game_log_events_need_their_own_switch_and_people_another() {
+    let b = MockBackend::default();
+    configure(&b, ptu(), on(false));
+    let (s, rx) = sink();
+    b.telemetry_start(ptu(), s).unwrap();
+    let _ = next_frame(&rx);
+    assert_eq!(b.telemetry_gamelog().unwrap(), None, "off by default");
+    for _ in 0..5 {
+        let ev = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(ev.gamelog.is_none());
+    }
+
+    // On while streaming: the reader starts for the running stream; no people yet.
+    let session = configure(&b, ptu(), with_gamelog(false)).status.session;
+    let g = next_gamelog(&rx);
+    assert_eq!(g.source, "mock");
+    assert!(g.found && g.people.is_none());
+    assert!(
+        g.events
+            .iter()
+            .any(|e| e.kind == starorg_telemetry::gamelog::EventKind::Respawned)
+    );
+    let json = serde_json::to_string(&g).unwrap();
+    assert!(
+        !json.contains("TestPilot"),
+        "no handle without People: {json}"
+    );
+    assert_eq!(
+        b.telemetry_status().unwrap().session,
+        session,
+        "the stream kept running"
+    );
+
+    // People on: the reader starts over with the roster.
+    configure(&b, ptu(), with_gamelog(true));
+    let p = loop {
+        if let Some(p) = next_gamelog(&rx).people {
+            break p;
+        }
+    };
+    assert!(p.counts.total >= 3, "{p:?}");
+    assert_eq!(p.self_name.as_deref(), Some("TestPilot_Self"));
+    let cleared = b.telemetry_people_clear().unwrap().unwrap();
+    assert!(cleared.people.unwrap().people.is_empty());
+
+    // Off again: the reader stops and holds nothing.
+    configure(&b, ptu(), on(false));
+    assert_eq!(b.telemetry_gamelog().unwrap(), None);
+    assert_eq!(b.telemetry_people_clear().unwrap(), None);
+    b.telemetry_stop().unwrap();
+}
+
+#[test]
+fn the_game_log_reader_stops_with_the_stream_and_a_new_stream_starts_its_own() {
+    let b = MockBackend::default();
+    configure(&b, ptu(), with_gamelog(true));
+    assert_eq!(b.telemetry_gamelog().unwrap(), None, "no stream, no reader");
+    let (s, rx) = sink();
+    let a = b.telemetry_start(ptu(), s.clone()).unwrap().session;
+    let g = next_gamelog(&rx);
+    assert!(g.people.is_some());
+    let c = b.telemetry_start(ptu(), s).unwrap().session;
+    assert!(c > a);
+    let ev = loop {
+        let ev = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        if ev.gamelog.is_some() && ev.session == c {
+            break ev;
+        }
+    };
+    assert_eq!(ev.session, c);
+    b.telemetry_stop().unwrap();
+    assert_eq!(b.telemetry_gamelog().unwrap(), None);
+    std::thread::sleep(Duration::from_millis(700));
+    while rx.try_recv().is_ok() {}
+    std::thread::sleep(Duration::from_millis(700));
+    assert!(rx.try_recv().is_err(), "no Game.log view after the stop");
 }

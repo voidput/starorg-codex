@@ -6,8 +6,14 @@
    * that channel's USER.cfg, actions a second; the launcher needs two environment variables, which the app never
    * sets: the steps are shown with a copy button. The app reads the game's own service on
    * 127.0.0.1 only.
+   *
+   * Two more switches, each off by default and each its own choice: "Read Game.log events"
+   * (the channel's own Game.log on this computer, for the Events panel) and, under it,
+   * "People" (the handles Game.log names, memory only). Neither changes USER.cfg or sends
+   * anything.
    */
   import Copy from '@lucide/svelte/icons/copy';
+  import SwitchRow from '@/components/common/SwitchRow.svelte';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
   import { Button } from '@/components/ui/button';
   import { Input } from '@/components/ui/input';
@@ -184,6 +190,27 @@
         </div>
       {/if}
       {#if st.settings.enabled}
+        <div class="grid gap-0.5" aria-label="Game.log">
+          <SwitchRow
+            id="tele-gamelog"
+            size="sm"
+            label="Read Game.log events"
+            hint="While the Live telemetry screen is open, follows this channel's Game.log on this computer: session, where you are, quantum travel, ships nearby, deaths and respawns. Read only; nothing is sent."
+            checked={st.settings.gamelog}
+            disabled={telemetry.busy}
+            onchange={(v) => void save({ gamelog: v, people: v ? st.settings.people : false })}
+          />
+          <SwitchRow
+            id="tele-people"
+            size="sm"
+            class="pl-6"
+            label="People"
+            hint="Also lists the player handles Game.log names (crew, party, players in ship kills near you). Kept in memory only, never written to a file, the Activity log or a diagnostics report, and never looked up online."
+            checked={st.settings.gamelog && st.settings.people}
+            disabled={telemetry.busy || !st.settings.gamelog}
+            onchange={(v) => void save({ people: v })}
+          />
+        </div>
         {#if st.settings.triggers}
           <p class="text-muted-foreground text-[12px]">Each session asks before the first press; self destruct, eject and power off ask every time.</p>
           <p class="text-warning flex items-start gap-1.5 text-[12px]"><TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /> A press acts in your game at once, as if you pressed the key. Use it only while you can see the game.</p>

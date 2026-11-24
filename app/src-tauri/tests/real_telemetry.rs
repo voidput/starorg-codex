@@ -107,6 +107,8 @@ fn on(port: u16, triggers: bool) -> TelemetrySettings {
         enabled: true,
         port,
         triggers,
+        gamelog: false,
+        people: false,
     }
 }
 
@@ -356,4 +358,117 @@ fn a_cached_schema_streams_loopback_and_reports_the_game_not_running() {
     // Switching off stops the stream.
     let r = f.configure(None, off()).unwrap();
     assert_eq!(r.status.streaming, None);
+}
+
+/// The next Game.log view that passes `ok`, within 10 s.
+fn gamelog_until(
+    rx: &mpsc::Receiver<TelemetryEvent>,
+    ok: impl Fn(&GameLogView) -> bool,
+) -> Box<GameLogView> {
+    let end = std::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let left = end.saturating_duration_since(std::time::Instant::now());
+        let ev = rx.recv_timeout(left).expect("a Game.log view in time");
+        if let Some(g) = ev.gamelog
+            && ok(&g)
+        {
+            return g;
+        }
+    }
+}
+
+#[test]
+fn game_log_events_follow_the_channel_log_and_handles_stay_out_of_activity_and_diagnostics() {
+    let f = fake();
+    // Synthetic lines only. The own handle is "StarCitizen", a word the fake install's path
+    // holds, so the diagnostics text shows whether held handles are replaced.
+    let note = "[Notice] <SHUDEvent_OnNotification> Added notification \"";
+    let tail = ": \" [1] to queue. New queue size: 1";
+    let log = f.lib.join("PTU").join("Game.log");
+    std::fs::write(
+        &log,
+        format!(
+            "Log started on Mon Nov 23 10:00:00 2026\r\n\
+             <2026-11-23T10:00:01.000Z> [Notice] <Legacy login response> [CIG-net] User Login Success - Handle[StarCitizen] - Time[1]\r\n\
+             <2026-11-23T10:00:02.000Z> [Notice] <Join PU> address[203.0.113.9] port[64000] shard[ptu_use1b_1_020] locationId[1]\r\n\
+             <2026-11-23T10:00:03.000Z> {note}New Member Joined\r\n\
+             <2026-11-23T10:00:03.000Z> TestPilot_B has joined the party.{tail}\r\n"
+        ),
+    )
+    .unwrap();
+    let mut s = on(50051, false);
+    s.gamelog = true;
+    s.people = true;
+    f.configure(Some("PTU"), s).unwrap();
+    let (sink, rx) = sink();
+    // No exe and no cached schema: the stream says no_schema, Game.log is read anyway.
+    let st = f.backend.telemetry_start(f.r("PTU"), sink).unwrap();
+    assert_eq!(
+        serde_json::to_value(&st.link).unwrap()["state"],
+        serde_json::json!("no_schema")
+    );
+    let g = gamelog_until(&rx, |g| {
+        g.people.as_ref().is_some_and(|p| p.counts.total == 1)
+    });
+    assert!(g.found && g.source == "game_log");
+    assert_eq!(g.session.shard.as_deref(), Some("ptu_use1b_1_020"));
+    let p = g.people.unwrap();
+    assert_eq!(p.people[0].name, "TestPilot_B");
+    assert_eq!(p.self_name.as_deref(), Some("StarCitizen"));
+    assert!(
+        !serde_json::to_string(&g.events)
+            .unwrap()
+            .contains("TestPilot")
+    );
+    assert!(
+        !serde_json::to_string(&g.session)
+            .unwrap()
+            .contains("203.0.113.9")
+    );
+
+    // Lines added later are read (only the new bytes); the handle is closed at once.
+    let mut fh = std::fs::OpenOptions::new().append(true).open(&log).unwrap();
+    std::io::Write::write_all(
+        &mut fh,
+        b"<2026-11-23T10:00:09.000Z> [Notice] <SHUDEvent_OnNotification> Added notification \"Entering Armistice Zone - Combat Prohibited: \" [2] to queue.\r\n",
+    )
+    .unwrap();
+    drop(fh);
+    let g = gamelog_until(&rx, |g| g.signals.armistice);
+    assert_eq!(g.signals.zone.as_ref().unwrap().kind, "armistice");
+
+    // No handle in the Activity log; the diagnostics text replaces every one held.
+    let activity = f.backend.activity(500).unwrap();
+    assert!(
+        activity
+            .iter()
+            .all(|e| !e.message.contains("TestPilot") && !e.message.contains("Handle[")),
+        "{activity:?}"
+    );
+    let d = f.backend.export_diagnostics().unwrap();
+    assert!(!d.text.contains("StarCitizen"), "{}", d.text);
+    assert!(d.text.contains("<handle>"), "{}", d.text);
+
+    // Clear forgets everyone; People off drops the roster; off stops the reader.
+    let v = f.backend.telemetry_people_clear().unwrap().unwrap();
+    assert!(v.people.unwrap().people.is_empty());
+    s.people = false;
+    f.configure(Some("PTU"), s).unwrap();
+    let g = gamelog_until(&rx, |g| g.people.is_none());
+    assert!(g.found);
+    assert!(
+        f.backend
+            .telemetry_gamelog()
+            .unwrap()
+            .unwrap()
+            .people
+            .is_none()
+    );
+    f.backend.telemetry_stop().unwrap();
+    assert_eq!(f.backend.telemetry_gamelog().unwrap(), None);
+    let d = f.backend.export_diagnostics().unwrap();
+    assert!(
+        d.text.contains("StarCitizen"),
+        "nothing held any more, nothing replaced"
+    );
 }

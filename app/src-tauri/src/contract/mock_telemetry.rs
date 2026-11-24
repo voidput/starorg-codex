@@ -2,11 +2,14 @@
 //! synthetic generator (`starorg_telemetry::mock`) in place of a game, so the screen and its
 //! trigger buttons work without one. The mock's PTU runs 5.0 (offered); LIVE and HOTFIX run
 //! 4.10 (not offered). Nothing is read from or written to disk, and no socket is opened.
+//! "Read Game.log events" feeds synthetic Game.log lines (`starorg_telemetry::gamelog::mock`,
+//! fake handles) instead of a file.
 
 use super::Backend;
 use super::mock::MockBackend;
 use super::telemetry::*;
 use super::types::*;
+use crate::telemetry::GameLogSource;
 use std::collections::BTreeMap;
 use std::sync::MutexGuard;
 
@@ -142,6 +145,10 @@ impl MockBackend {
 }
 
 impl TelemetryBackend for MockBackend {
+    fn telemetry_host(&self) -> &crate::telemetry::TelemetryHost {
+        &self.telemetry
+    }
+
     fn telemetry_status(&self) -> CmdResult<TelemetryStatus> {
         Ok(self.tele_status())
     }
@@ -212,7 +219,10 @@ impl TelemetryBackend for MockBackend {
                 None => (None, None),
             }
         };
-        if !s.enabled {
+        if s.enabled {
+            let src = s.gamelog_active().then_some(GameLogSource::Mock);
+            self.telemetry.set_gamelog(src, s.people_active());
+        } else {
             self.telemetry.stop();
         }
         self.log(
@@ -246,6 +256,11 @@ impl TelemetryBackend for MockBackend {
         }
         self.tele_offered(&req)?;
         self.telemetry.start_mock(req, sink);
+        let s = self.tele().settings;
+        if s.gamelog_active() {
+            self.telemetry
+                .set_gamelog(Some(GameLogSource::Mock), s.people_active());
+        }
         Ok(self.tele_status())
     }
 
