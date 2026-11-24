@@ -2,24 +2,43 @@
   /**
    * Live telemetry (experimental; docs/user-guide.md#live-telemetry): the game's own live data,
    * read from its local service on 127.0.0.1 while this screen is open. Panels after
-   * sc-telemetry's dashboard (same owner, MIT) in this app's style: connection, pilot vitals,
-   * ship, shields, systems and annunciators, actions, raw frame.
+   * sc-telemetry's dashboard (same owner, MIT) in this app's style, top to bottom:
+   * - the connection bar (or the replay bar), the key readouts, pilot, ship, shields, systems;
+   * - Alerts and Actions, then the History graphs;
+   * - Game.log: Events and People, then Sessions (the shard join history); with "Read Game.log
+   *   events" off, one card says so with a link to Settings (Sessions stays while it has rows);
+   * - Recordings and the raw frame.
+   * Every panel below the live readouts folds to its title (CollapsibleCard, remembered). Each
+   * of alerts, actions, recordings and Game.log is its own switch, off by default; an off panel
+   * says how to turn it on.
+   *
+   * Replay: a recording plays into the same panels in place of the game (a "Replay" badge and
+   * its controls replace the connection and Start/Stop); "Back to live" reads the game again.
    *
    * Lazy: the stream starts when the screen opens and stops when it closes. Frames come at most
    * 10 a second into one raw state; each panel reads only its values from it, so nothing heavier
    * than a few text nodes changes per frame. With the mock backend the frames are synthetic.
    */
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import Gauge from '@lucide/svelte/icons/gauge';
   import Play from '@lucide/svelte/icons/play';
+  import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Square from '@lucide/svelte/icons/square';
   import * as Card from '@/components/ui/card';
   import { Button } from '@/components/ui/button';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import SelectField from '@/components/common/SelectField.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
+  import CollapsibleCard from '@/components/common/CollapsibleCard.svelte';
   import ActionsPanel from '@/components/telemetry/ActionsPanel.svelte';
+  import AlertsPanel from '@/components/telemetry/AlertsPanel.svelte';
+  import EventsPanel from '@/components/telemetry/EventsPanel.svelte';
+  import HistoryPanel from '@/components/telemetry/HistoryPanel.svelte';
+  import PeoplePanel from '@/components/telemetry/PeoplePanel.svelte';
+  import SessionsPanel from '@/components/telemetry/SessionsPanel.svelte';
   import RawFramePanel from '@/components/telemetry/RawFramePanel.svelte';
+  import RecordingsPanel from '@/components/telemetry/RecordingsPanel.svelte';
+  import ReplayBar from '@/components/telemetry/ReplayBar.svelte';
   import type { TelemetryChannel } from '@/lib/contract/telemetry';
   import { annunciators, barWidth, faceLabels, fixed, linkView, pct, systems, telemetryTarget } from '@/lib/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
@@ -33,8 +52,16 @@
   const targetKey = $derived(target ? key(target) : '');
   const running = $derived(!!st?.streaming);
   const view = $derived(linkView(telemetry.link, running));
+  const replay = $derived(telemetry.replay ?? st?.replay ?? null);
 
   const enabled = $derived(!!st?.settings.enabled);
+  const gamelogOn = $derived(enabled && !!st?.settings.gamelog);
+  /** "Shard history": rows are kept and logbackups read in (its own switch under Game.log events). */
+  const sessionsOn = $derived(gamelogOn && !!st?.settings.sessions);
+  /** Rows of the join history kept from earlier (its panel shows with Game.log off too). */
+  const savedSessions = $derived(Array.isArray(telemetry.sessions?.items) ? telemetry.sessions.items.length : 0);
+  onMount(() => void telemetry.loadSessions());
+  const openSettings = () => ((app.settingsSection = 'experimental'), app.go('settings'));
 
   // Start for the chosen channel when the screen opens or the channel changes; keyed on
   // primitives only, so a Stop (a new status) does not start it again.
@@ -64,6 +91,11 @@
       void telemetry.stop();
     } else if (target) void telemetry.start({ install: target.install, channel: target.channel });
   }
+
+  async function backToLive() {
+    await telemetry.stop();
+    if (target) void telemetry.start({ install: target.install, channel: target.channel });
+  }
 </script>
 
 {#snippet bar(label: string, value: number | null, text: string, low = 0.25)}
@@ -88,7 +120,7 @@
 {#if !st?.settings.enabled}
   <FullEmpty icon={Gauge} title="Live telemetry is off">
     Turn it on under Settings → Experimental. It reads the game's own local service on this computer, for 5.0 builds and newer.
-    {#snippet actions()}<Button onclick={() => ((app.settingsSection = 'experimental'), app.go('settings'))}>Open Settings</Button>{/snippet}
+    {#snippet actions()}<Button onclick={openSettings}>Open Settings</Button>{/snippet}
   </FullEmpty>
 {:else if offered.length === 0}
   <FullEmpty icon={Gauge} title="No 5.0 channel">None of your channels runs game version 5.0 or newer yet. Live telemetry is offered for those only.</FullEmpty>
@@ -96,7 +128,11 @@
   <div class="grid gap-3">
     <div class="flex flex-wrap items-center gap-2">
       <ToneBadge tone="warning" label="Experimental" />
-      <ToneBadge tone={view.tone} label={view.label} />
+      {#if replay}
+        <ToneBadge tone="info" label="Replay" hint="A recording plays instead of the game" />
+      {:else}
+        <ToneBadge tone={view.tone} label={view.label} />
+      {/if}
       {#if offered.length > 1 && target}
         <SelectField ariaLabel="Channel" options={offered.map((c) => ({ id: key(c), label: c.channel }))} value={targetKey} onchange={(v) => (telemetry.picked = v)} />
       {:else if target}
@@ -105,20 +141,28 @@
       <span class="mono text-muted-foreground text-[12px]">{st.endpoint}</span>
       {#if st.mock}<span class="text-muted-foreground text-[12px]">synthetic frames (mock)</span>{/if}
       <span class="flex-1"></span>
-      <Button size="sm" variant="outline" onclick={toggle} disabled={!target || telemetry.starting}>
-        {#if running}<Square aria-hidden="true" /> Stop{:else if telemetry.starting}<Play aria-hidden="true" /> Starting…{:else}<Play aria-hidden="true" /> Start{/if}
-      </Button>
+      {#if !replay}
+        <Button size="sm" variant="outline" onclick={toggle} disabled={!target || telemetry.starting}>
+          {#if running}<Square aria-hidden="true" /> Stop{:else if telemetry.starting}<Play aria-hidden="true" /> Starting…{:else}<Play aria-hidden="true" /> Start{/if}
+        </Button>
+      {/if}
     </div>
-    <p class="text-muted-foreground text-[12px]" aria-live="polite">
-      {#if telemetry.starting && !running}Reading the game's schema (the first start of a build takes a few seconds)…{:else}{view.detail}{/if}
-      {#if st.schema}Schema {st.schema.key} ({st.schema.origin === 'cache' ? 'cached' : st.schema.origin === 'extracted' ? 'read from StarCitizen.exe just now' : 'synthetic'}).{/if}
-      Reads this computer only; nothing is sent anywhere.
-    </p>
+    {#if replay}
+      <ReplayBar {replay} onlive={() => void backToLive()} />
+      <p class="text-muted-foreground text-[12px]">Replaying a recording from this computer: the game is not read meanwhile, and actions are off.</p>
+    {:else}
+      <p class="text-muted-foreground text-[12px]" aria-live="polite">
+        {#if telemetry.starting && !running}Reading the game's schema (the first start of a build takes a few seconds)…{:else}{view.detail}{/if}
+        {#if st.schema}Schema {st.schema.key} ({st.schema.origin === 'cache' ? 'cached' : st.schema.origin === 'extracted' ? 'read from StarCitizen.exe just now' : 'synthetic'}).{/if}
+        {#if st.recording}Recording this session.{/if}
+        Reads this computer only; nothing is sent anywhere.
+      </p>
+    {/if}
 
     {#if !frame}
       <Card.Root>
         <Card.Content class="text-muted-foreground py-6 text-center text-sm">
-          {telemetry.link.state === 'connected' ? 'Connected. The game sends frames once you have spawned.' : 'No frames yet.'}
+          {replay ? 'Loading the recording…' : telemetry.link.state === 'connected' ? 'Connected. The game sends frames once you have spawned.' : 'No frames yet.'}
         </Card.Content>
       </Card.Root>
     {:else}
@@ -208,7 +252,33 @@
     {/if}
 
     <div class="grid gap-3 lg:grid-cols-2">
-      <ActionsPanel raw={frame?.raw ?? null} connected={telemetry.link.state === 'connected'} />
+      <CollapsibleCard key="telemetry.alerts" bare><AlertsPanel /></CollapsibleCard>
+      <CollapsibleCard key="telemetry.actions" bare><ActionsPanel raw={frame?.raw ?? null} connected={!replay && telemetry.link.state === 'connected'} /></CollapsibleCard>
+    </div>
+    <CollapsibleCard key="telemetry.history" bare><HistoryPanel /></CollapsibleCard>
+
+    {#if gamelogOn}
+      <div class={cn('grid gap-3', st.settings.people && 'lg:grid-cols-[3fr_2fr]')}>
+        <CollapsibleCard key="telemetry.events" bare><EventsPanel view={telemetry.gamelog} /></CollapsibleCard>
+        {#if st.settings.people}<CollapsibleCard key="telemetry.people" bare><PeoplePanel people={telemetry.gamelog?.people ?? null} onclear={() => void telemetry.clearPeople()} /></CollapsibleCard>{/if}
+      </div>
+    {:else}
+      <Card.Root aria-labelledby="tele-gamelog-off">
+        <Card.Header>
+          <Card.Title id="tele-gamelog-off" class="flex items-center gap-2"><ScrollText class="size-4" aria-hidden="true" /> Game.log events are off</Card.Title>
+          <Card.Description>
+            Turn on Read Game.log events for where you are, the shard you are on, quantum travel, deaths and respawns, and a history of the shards you join. It reads this channel's Game.log on this computer only.
+          </Card.Description>
+          <Card.Action><Button size="xs" variant="outline" onclick={openSettings}>Settings</Button></Card.Action>
+        </Card.Header>
+      </Card.Root>
+    {/if}
+    {#if gamelogOn || savedSessions > 0}
+      <CollapsibleCard key="telemetry.sessions" bare><SessionsPanel current={telemetry.gamelog?.stint ?? null} rev={telemetry.gamelog?.sessions_rev ?? null} reading={sessionsOn} /></CollapsibleCard>
+    {/if}
+
+    <div class="grid gap-3 lg:grid-cols-2">
+      <CollapsibleCard key="telemetry.recordings" bare><RecordingsPanel /></CollapsibleCard>
       <RawFramePanel {frame} />
     </div>
   </div>

@@ -30,6 +30,10 @@ fn on(triggers: bool) -> TelemetrySettings {
         enabled: true,
         port: 50051,
         triggers,
+        record: false,
+        gamelog: false,
+        people: false,
+        sessions: false,
     }
 }
 
@@ -73,6 +77,38 @@ fn next_frame(rx: &mpsc::Receiver<TelemetryEvent>) -> Box<starorg_telemetry::fra
     }
 }
 
+/// The next Game.log view within 5 s (other events are skipped).
+fn next_gamelog(rx: &mpsc::Receiver<TelemetryEvent>) -> Box<GameLogView> {
+    loop {
+        let ev = rx
+            .recv_timeout(Duration::from_secs(5))
+            .expect("a Game.log view");
+        if let Some(g) = ev.gamelog {
+            return g;
+        }
+    }
+}
+
+fn with_gamelog(people: bool) -> TelemetrySettings {
+    TelemetrySettings {
+        gamelog: true,
+        people,
+        ..on(false)
+    }
+}
+
+/// The synthetic Game.log session at a fixed time, as the samples carry it.
+fn gamelog_sample() -> GameLogView {
+    use starorg_telemetry::gamelog::{GameLog, mock};
+    let now = 1_795_123_456_789;
+    let mut log = GameLog::new(true);
+    for l in mock::session_lines(now, true) {
+        log.fold_line(&l);
+    }
+    log.end_poll(now);
+    log.view("mock", true, 0)
+}
+
 /// One sample per telemetry command and both event kinds (fixed times, for the file).
 pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
     let b = MockBackend::default();
@@ -99,7 +135,71 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         })
         .unwrap();
     let stopped = b.telemetry_stop().unwrap();
+    let recordings = b.telemetry_recordings().unwrap();
+    let record_on = b
+        .telemetry_record(TelemetryRecordRequest { on: true })
+        .unwrap();
+    b.telemetry_record(TelemetryRecordRequest { on: false })
+        .unwrap();
+    let name = recordings.items[0].name.clone();
+    let (s2, _rx2) = sink();
+    let mut replaying = b
+        .telemetry_replay_start(TelemetryRecordingRef { name: name.clone() }, s2)
+        .unwrap();
+    // The player may have moved on already; the answer of a start is at 0.
+    if let Some(r) = replaying.replay.as_mut() {
+        r.position_ms = 0;
+    }
+    b.telemetry_replay_control(TelemetryReplayControl {
+        playing: Some(false),
+        ..Default::default()
+    })
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(150));
+    let mut controlled = b
+        .telemetry_replay_control(TelemetryReplayControl {
+            playing: None,
+            seek_ms: Some(30_000),
+            speed: Some(2.0),
+        })
+        .unwrap();
+    if let Some(r) = controlled.replay.as_mut() {
+        r.position_ms = 30_000;
+    }
+    let deleted = b
+        .telemetry_recording_delete(TelemetryRecordingRef {
+            name: recordings.items[1].name.clone(),
+        })
+        .unwrap();
+    b.telemetry_stop().unwrap();
+    let mut history = starorg_telemetry::history::History::default();
     let schema = starorg_telemetry::mock::schema();
+    for i in 0..3u32 {
+        let f = crate::telemetry::mock_frame(
+            &schema,
+            u64::from(i),
+            f64::from(i),
+            &starorg_telemetry::mock::MockState::default(),
+        );
+        history.push(1_795_123_456_000 + u64::from(i) * 1000, &f.snapshot);
+    }
+    let history = history.since(None, None);
+    let replay_ev = TelemetryEvent {
+        session: 3,
+        status: None,
+        frame: None,
+        replay: Some(TelemetryReplayState {
+            name: name.clone(),
+            start_ms: 1_795_100_000_000,
+            position_ms: 12_250,
+            duration_ms: 240_000,
+            playing: true,
+            speed: 1.0,
+            ended: false,
+        }),
+        alerts: Vec::new(),
+        gamelog: None,
+    };
     let mut frame = crate::telemetry::mock_frame(
         &schema,
         42,
@@ -115,8 +215,43 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         1,
         starorg_telemetry::live::LiveEvent::Frame(Box::new(frame)),
     );
+    let alerts_off = b.telemetry_alerts().unwrap();
+    let mut chosen = TelemetryAlertSettings {
+        notifications: TelemetryNotifications::InAppSound,
+        ..TelemetryAlertSettings::default()
+    };
+    chosen.overrides.insert(
+        "hull_half".into(),
+        TelemetryRuleOverride {
+            value: Some(0.6),
+            cooldown_s: Some(20.0),
+            ..TelemetryRuleOverride::default()
+        },
+    );
+    let alerts_on = b.telemetry_alerts_configure(chosen).unwrap();
+    let mut tested = b
+        .telemetry_alert_test(TelemetryAlertTestRequest {
+            rule: "hull_half".into(),
+        })
+        .unwrap();
+    tested.at_ms = 1_795_123_456_789;
+    let mut fired = tested.clone();
+    fired.test = false;
+    fired.text = fired.text.trim_start_matches("TEST: ").to_owned();
+    let mut alert_ev = frame_ev.clone();
+    alert_ev.alerts = vec![fired];
+    let gamelog = gamelog_sample();
+    let gamelog_ev = TelemetryEvent::gamelog(1, gamelog.clone());
+    let fresh = MockBackend::default();
+    let sessions = fresh.telemetry_sessions().unwrap();
+    let sessions_cleared = fresh.telemetry_sessions_clear().unwrap();
     vec![
+        ("telemetry_sessions", json!(sessions)),
+        ("telemetry_sessions_clear", json!(sessions_cleared)),
         ("telemetry_event", json!(TELEMETRY_EVENT)),
+        ("telemetry_gamelog", json!(Some(gamelog))),
+        ("telemetry_people_clear", json!(None::<GameLogView>)),
+        ("telemetry_event_gamelog", json!(gamelog_ev)),
         ("telemetry_status", json!(off)),
         ("telemetry_configure", json!(configured)),
         ("telemetry_start", json!(started)),
@@ -126,7 +261,109 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         ("telemetry_trigger_refused", json!(refused)),
         ("telemetry_event_status", json!(status_ev)),
         ("telemetry_event_frame", json!(frame_ev)),
+        ("telemetry_event_replay", json!(replay_ev)),
+        ("telemetry_history", json!(history)),
+        ("telemetry_record", json!(record_on)),
+        ("telemetry_recordings", json!(recordings)),
+        ("telemetry_recording_delete", json!(deleted)),
+        ("telemetry_replay_start", json!(replaying)),
+        ("telemetry_replay_control", json!(controlled)),
+        ("telemetry_event_alert", json!(alert_ev)),
+        ("telemetry_alerts", json!(alerts_off)),
+        ("telemetry_alerts_configure", json!(alerts_on)),
+        ("telemetry_alert_test", json!(tested)),
     ]
+}
+
+#[test]
+fn notifications_are_off_by_default_and_their_own_choice() {
+    let b = MockBackend::default();
+    let a = b.telemetry_alerts().unwrap();
+    assert_eq!(a.settings.notifications, TelemetryNotifications::Off);
+    assert!(!a.settings.speech && a.settings.overrides.is_empty());
+    assert!(a.rules.len() >= 15 && a.rules.iter().all(|r| r.enabled));
+    // Metrics + actions on: notifications stay off.
+    configure(&b, ptu(), on(true));
+    assert_eq!(
+        b.telemetry_alerts().unwrap().settings.notifications,
+        TelemetryNotifications::Off
+    );
+    let e = b
+        .telemetry_alert_test(TelemetryAlertTestRequest {
+            rule: "hull_half".into(),
+        })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid, "no test alert while off");
+    // Notifications on; Metrics off again: the choice is kept as it is.
+    let r = b
+        .telemetry_alerts_configure(TelemetryAlertSettings {
+            notifications: TelemetryNotifications::InApp,
+            ..TelemetryAlertSettings::default()
+        })
+        .unwrap();
+    assert_eq!(r.settings.notifications, TelemetryNotifications::InApp);
+    configure(&b, ptu(), off());
+    assert_eq!(
+        b.telemetry_alerts().unwrap().settings.notifications,
+        TelemetryNotifications::InApp
+    );
+    assert!(
+        !b.telemetry_alerts().unwrap().evaluating,
+        "no stream, no evaluation"
+    );
+    let t = b
+        .telemetry_alert_test(TelemetryAlertTestRequest {
+            rule: "hull_half".into(),
+        })
+        .unwrap();
+    assert!(
+        t.test && t.sound.is_none() && t.speech.is_none(),
+        "in app only"
+    );
+}
+
+#[test]
+fn rule_overrides_are_checked_and_kept() {
+    let b = MockBackend::default();
+    let mut a = TelemetryAlertSettings::default();
+    a.overrides.insert(
+        "boost_low".into(),
+        TelemetryRuleOverride {
+            rearm: Some(0.1),
+            ..TelemetryRuleOverride::default()
+        },
+    );
+    let e = b.telemetry_alerts_configure(a.clone()).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(e.message.contains("boost_low"), "{}", e.message);
+    assert!(
+        b.telemetry_alerts().unwrap().settings.overrides.is_empty(),
+        "nothing saved"
+    );
+    a.overrides.insert(
+        "boost_low".into(),
+        TelemetryRuleOverride {
+            enabled: Some(false),
+            ..TelemetryRuleOverride::default()
+        },
+    );
+    let r = b.telemetry_alerts_configure(a).unwrap();
+    let rule = r.rules.iter().find(|r| r.id == "boost_low").unwrap();
+    assert!(!rule.enabled && rule.default_enabled);
+    assert_eq!(r.settings.overrides.len(), 1);
+}
+
+#[test]
+fn the_synthetic_stream_carries_no_alerts_while_off() {
+    let b = MockBackend::default();
+    configure(&b, ptu(), on(false));
+    let (s, rx) = sink();
+    b.telemetry_start(ptu(), s).unwrap();
+    for _ in 0..5 {
+        let ev = rx.recv_timeout(Duration::from_secs(5)).expect("an event");
+        assert!(ev.alerts.is_empty());
+    }
+    b.telemetry_stop().unwrap();
 }
 
 #[test]
@@ -385,6 +622,78 @@ fn a_new_stream_replaces_the_old_one() {
 }
 
 #[test]
+fn record_sessions_is_its_own_switch_and_replays_play_into_the_screen() {
+    let b = MockBackend::default();
+    // Off by default; Metrics alone never turns it on.
+    assert!(!b.telemetry_status().unwrap().settings.record);
+    let s = configure(&b, ptu(), on(true)).status;
+    assert!(!s.settings.record && s.recording.is_none());
+    // Its own command; a configure keeps it.
+    assert!(
+        b.telemetry_record(TelemetryRecordRequest { on: true })
+            .unwrap()
+            .settings
+            .record
+    );
+    assert!(configure(&b, ptu(), on(false)).status.settings.record);
+    let before = b.telemetry_recordings().unwrap().items.len();
+    let (s, rx) = sink();
+    b.telemetry_start(ptu(), s).unwrap();
+    let _ = next_frame(&rx);
+    let st = b.telemetry_status().unwrap();
+    let rec = st.recording.clone().expect("recording");
+    let list = b.telemetry_recordings().unwrap();
+    assert_eq!(list.items.len(), before + 1);
+    assert_eq!(list.recording.as_deref(), Some(rec.as_str()));
+    let e = b
+        .telemetry_recording_delete(TelemetryRecordingRef { name: rec.clone() })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Busy);
+    // History over the contract: incremental within an epoch.
+    let h = b
+        .telemetry_history(TelemetryHistoryRequest::default())
+        .unwrap();
+    assert!(h.reset && !h.t_ms.is_empty());
+    let more = b
+        .telemetry_history(TelemetryHistoryRequest {
+            epoch: Some(h.epoch),
+            since_ms: h.t_ms.last().copied(),
+        })
+        .unwrap();
+    assert!(!more.reset);
+    assert!(more.t_ms.iter().all(|t| t > h.t_ms.last().unwrap()));
+    // A replay replaces the stream: no channel, the replay in the status.
+    let (s, rx) = sink();
+    let r = b
+        .telemetry_replay_start(TelemetryRecordingRef { name: rec.clone() }, s)
+        .unwrap();
+    assert!(r.streaming.is_none());
+    assert_eq!(r.replay.as_ref().unwrap().name, rec);
+    assert!(r.recording.is_none(), "the stream's recording ended");
+    let f = next_frame(&rx);
+    assert!(f.snapshot.ship.is_some());
+    let c = b
+        .telemetry_replay_control(TelemetryReplayControl {
+            speed: Some(0.0),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(c.replay.unwrap().speed, 0.25);
+    b.telemetry_stop().unwrap();
+    assert!(b.telemetry_status().unwrap().replay.is_none());
+    let e = b
+        .telemetry_replay_control(TelemetryReplayControl::default())
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    b.telemetry_recording_delete(TelemetryRecordingRef { name: rec })
+        .unwrap();
+    assert_eq!(b.telemetry_recordings().unwrap().items.len(), before);
+    // Off: recording stops with the rest, the choice is kept for next time.
+    let s = configure(&b, ptu(), off()).status;
+    assert!(s.settings.record && s.recording.is_none());
+}
+
+#[test]
 fn ts_mirror_lists_every_variant_and_command() {
     let ts = std::fs::read_to_string(app_src().join("telemetry.ts")).unwrap();
     use CvarState as C;
@@ -445,6 +754,51 @@ fn ts_mirror_lists_every_variant_and_command() {
     .map(|r| TelemetryRefusal::of(r).reason)
     .collect();
     assert_eq!(ts_union(&ts, "RefusalReason"), refusals);
+    use TelemetryNotifications as N;
+    assert_eq!(
+        ts_union(&ts, "TelemetryNotifications"),
+        names(&[N::Off, N::InApp, N::InAppSound])
+    );
+    use AlertSeverity as V;
+    assert_eq!(
+        ts_union(&ts, "AlertSeverity"),
+        names(&[V::Info, V::Warn, V::Critical])
+    );
+    use AlertScope as P;
+    assert_eq!(
+        ts_union(&ts, "AlertScope"),
+        names(&[P::Any, P::Vehicle, P::Pilot, P::OnFoot])
+    );
+    use starorg_telemetry::gamelog::EventKind as K;
+    assert_eq!(
+        ts_union(&ts, "GameLogEventKind"),
+        names(&[
+            K::LogStarted,
+            K::SessionJoin,
+            K::SessionShardChange,
+            K::SessionLeave,
+            K::SessionSystem,
+            K::SessionQueue,
+            K::SessionHubDown,
+            K::SessionHubUp,
+            K::SessionDisconnect,
+            K::SessionDropped,
+            K::NearbyShip,
+            K::QtRoute,
+            K::QtArrived,
+            K::Zone,
+            K::VehicleReleased,
+            K::VehicleDestroyed,
+            K::CorpseItems,
+            K::Spawned,
+            K::Respawned,
+        ])
+    );
+    assert_eq!(
+        ts_union(&ts, "PersonRelation"),
+        starorg_telemetry::gamelog::people::RELATIONS
+    );
+    assert_eq!(ts_union(&ts, "LeftReason"), names(&LeftReason::ALL));
     let start = ts
         .find("export const TELEMETRY_COMMANDS = [")
         .expect("telemetry.ts has TELEMETRY_COMMANDS");
@@ -481,4 +835,169 @@ fn telemetry_over_ipc_takes_a_req() {
     )
     .unwrap();
     assert_eq!(v["refused"]["reason"], json!("disabled"));
+    let v = ipc("telemetry_alerts", json!({})).unwrap();
+    assert_eq!(v["settings"]["notifications"], json!("off"));
+    let v = ipc(
+        "telemetry_alerts_configure",
+        json!({"req": {"notifications": "in_app", "speech": false, "overrides": {"g_load": {"enabled": false, "cooldown_s": null, "value": null, "rearm": null}}}}),
+    )
+    .unwrap();
+    assert_eq!(
+        v["settings"]["overrides"]["g_load"]["enabled"],
+        json!(false)
+    );
+    // A fresh backend: notifications off, so no test alert.
+    let e = ipc("telemetry_alert_test", json!({"req": {"rule": "g_load"}})).unwrap_err();
+    assert_eq!(e["code"], json!("invalid"));
+}
+
+#[test]
+fn the_join_history_lists_newest_first_clears_and_is_counted_by_storage() {
+    let b = MockBackend::default();
+    let v = b.telemetry_sessions().unwrap();
+    assert_eq!(v.items.len(), 4, "seeded");
+    assert!(v.items[0].joined_ms > v.items[3].joined_ms, "newest first");
+    assert!(v.items.iter().any(|r| r.dropped));
+    assert_eq!(v.max_items, 2000);
+    assert!(v.path.is_none(), "memory only on the mock");
+    let json = serde_json::to_string(&v).unwrap();
+    for bad in ["address", "port", "203.0.113", "session_id", "TestPilot"] {
+        assert!(!json.contains(bad), "{bad} in {json}");
+    }
+    let area = |b: &MockBackend| {
+        b.storage_status()
+            .unwrap()
+            .areas
+            .into_iter()
+            .find(|a| a.id == StorageAreaId::TelemetrySessions)
+            .unwrap()
+    };
+    let a = area(&b);
+    assert!(a.bytes > 0 && !a.in_cache);
+    let cleared = b.telemetry_sessions_clear().unwrap();
+    assert!(cleared.items.is_empty());
+    assert!(cleared.revision > v.revision);
+    assert_eq!(area(&b).bytes, 0);
+}
+
+#[test]
+fn a_replay_needs_the_switch_and_shard_history_is_its_own() {
+    let b = MockBackend::default();
+    let name = b.telemetry_recordings().unwrap().items[0].name.clone();
+    let e = b
+        .telemetry_replay_start(TelemetryRecordingRef { name: name.clone() }, sink().0)
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid, "off: no replay either");
+    configure(&b, ptu(), on(false));
+    assert!(
+        b.telemetry_replay_start(TelemetryRecordingRef { name }, sink().0)
+            .unwrap()
+            .replay
+            .is_some()
+    );
+    b.telemetry_stop().unwrap();
+    // Shard history: off with Game.log events on, and nothing without Game.log events.
+    let s = configure(&b, ptu(), with_gamelog(true)).status.settings;
+    assert!(!s.sessions && !s.sessions_active());
+    let s = configure(
+        &b,
+        ptu(),
+        TelemetrySettings {
+            sessions: true,
+            ..on(false)
+        },
+    )
+    .status
+    .settings;
+    assert!(s.sessions && !s.sessions_active());
+    let s = configure(
+        &b,
+        ptu(),
+        TelemetrySettings {
+            sessions: true,
+            ..with_gamelog(false)
+        },
+    )
+    .status
+    .settings;
+    assert!(s.sessions_active());
+}
+
+#[test]
+fn game_log_events_need_their_own_switch_and_people_another() {
+    let b = MockBackend::default();
+    configure(&b, ptu(), on(false));
+    let (s, rx) = sink();
+    b.telemetry_start(ptu(), s).unwrap();
+    let _ = next_frame(&rx);
+    assert_eq!(b.telemetry_gamelog().unwrap(), None, "off by default");
+    for _ in 0..5 {
+        let ev = rx.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(ev.gamelog.is_none());
+    }
+
+    // On while streaming: the reader starts for the running stream; no people yet.
+    let session = configure(&b, ptu(), with_gamelog(false)).status.session;
+    let g = next_gamelog(&rx);
+    assert_eq!(g.source, "mock");
+    assert!(g.found && g.people.is_none());
+    assert!(
+        g.events
+            .iter()
+            .any(|e| e.kind == starorg_telemetry::gamelog::EventKind::Respawned)
+    );
+    let json = serde_json::to_string(&g).unwrap();
+    assert!(
+        !json.contains("TestPilot"),
+        "no handle without People: {json}"
+    );
+    assert_eq!(
+        b.telemetry_status().unwrap().session,
+        session,
+        "the stream kept running"
+    );
+
+    // People on: the reader starts over with the roster.
+    configure(&b, ptu(), with_gamelog(true));
+    let p = loop {
+        if let Some(p) = next_gamelog(&rx).people {
+            break p;
+        }
+    };
+    assert!(p.counts.total >= 3, "{p:?}");
+    assert_eq!(p.self_name.as_deref(), Some("TestPilot_Self"));
+    let cleared = b.telemetry_people_clear().unwrap().unwrap();
+    assert!(cleared.people.unwrap().people.is_empty());
+
+    // Off again: the reader stops and holds nothing.
+    configure(&b, ptu(), on(false));
+    assert_eq!(b.telemetry_gamelog().unwrap(), None);
+    assert_eq!(b.telemetry_people_clear().unwrap(), None);
+    b.telemetry_stop().unwrap();
+}
+
+#[test]
+fn the_game_log_reader_stops_with_the_stream_and_a_new_stream_starts_its_own() {
+    let b = MockBackend::default();
+    configure(&b, ptu(), with_gamelog(true));
+    assert_eq!(b.telemetry_gamelog().unwrap(), None, "no stream, no reader");
+    let (s, rx) = sink();
+    let a = b.telemetry_start(ptu(), s.clone()).unwrap().session;
+    let g = next_gamelog(&rx);
+    assert!(g.people.is_some());
+    let c = b.telemetry_start(ptu(), s).unwrap().session;
+    assert!(c > a);
+    let ev = loop {
+        let ev = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        if ev.gamelog.is_some() && ev.session == c {
+            break ev;
+        }
+    };
+    assert_eq!(ev.session, c);
+    b.telemetry_stop().unwrap();
+    assert_eq!(b.telemetry_gamelog().unwrap(), None);
+    std::thread::sleep(Duration::from_millis(700));
+    while rx.try_recv().is_ok() {}
+    std::thread::sleep(Duration::from_millis(700));
+    assert!(rx.try_recv().is_err(), "no Game.log view after the stop");
 }

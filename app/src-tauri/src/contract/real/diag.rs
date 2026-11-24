@@ -516,8 +516,9 @@ fn kebab_state(s: &HookState) -> String {
     }
 }
 
-/// Personal values to replace, longest first: home folder, user name, character names and
-/// geids of every channel (addendum §3).
+/// Personal values to replace, longest first: home folder, user name, character names,
+/// geids of every channel (addendum §3), StarOrg account names and the handles live
+/// telemetry's Game.log reader holds.
 fn secrets(b: &RealBackend) -> Vec<(String, String)> {
     let mut out: Vec<(String, String)> = Vec::new();
     for var in ["HOME", "USERPROFILE"] {
@@ -564,6 +565,13 @@ fn secrets(b: &RealBackend) -> Vec<(String, String)> {
             if g.name.len() >= 2 {
                 out.push((g.name.clone(), "<org>".into()));
             }
+        }
+    }
+    // Live telemetry's People panel: every handle Game.log named this session, yours too
+    // (memory only; never logged, but a line could still quote one).
+    for h in b.telemetry.gamelog_handles() {
+        if h.len() >= 2 {
+            out.push((h, "<handle>".into()));
         }
     }
     out.sort_by(|a, b| (b.0.len(), &b.0).cmp(&(a.0.len(), &a.0)));

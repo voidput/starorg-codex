@@ -2,17 +2,122 @@
 //! synthetic generator (`starorg_telemetry::mock`) in place of a game, so the screen and its
 //! trigger buttons work without one. The mock's PTU runs 5.0 (offered); LIVE and HOTFIX run
 //! 4.10 (not offered). Nothing is read from or written to disk, and no socket is opened.
+//!
+//! "Record sessions" keeps its recordings in memory ([`TelemetryHost::default`] has no
+//! folder), starting with two synthetic ones ([`seed_recordings`]); a replay plays the
+//! synthetic generator over a recording's length.
+//! "Read Game.log events" feeds synthetic Game.log lines (`starorg_telemetry::gamelog::mock`,
+//! fake handles) instead of a file.
 
 use super::Backend;
 use super::mock::MockBackend;
 use super::telemetry::*;
 use super::types::*;
+use crate::telemetry::GameLogSource;
+use crate::telemetry::TelemetryHost;
 use std::collections::BTreeMap;
 use std::sync::MutexGuard;
 
 /// The mock's `USER.cfg` path per channel (shown only).
 const CFG_ROOT: &str =
     "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen";
+
+/// The mock's recordings folder (shown only; nothing is written there).
+pub const RECORDINGS_DIR: &str = "/synthetic/data/telemetry/recordings";
+
+/// Two synthetic recordings of the mock's PTU, oldest first (fixed times, for the samples).
+pub fn seed_recordings() -> Vec<TelemetryRecording> {
+    let rec = |start_ms: u64, duration_ms: u64| TelemetryRecording {
+        name: format!("{}-PTU.jsonl", starorg_telemetry::record::stamp(start_ms)),
+        bytes: 200 + (duration_ms / 250 + 1) * 1_800,
+        started_ms: Some(start_ms),
+        duration_ms: Some(duration_ms),
+        channel: Some("PTU".into()),
+        schema: Some("mock".into()),
+    };
+    vec![
+        rec(1_794_900_000_000, 95_000),
+        rec(1_795_100_000_000, 240_000),
+    ]
+}
+
+/// The mock's join history file (shown only; the rows stay in memory).
+pub const SESSIONS_DIR: &str = "/synthetic/data/telemetry/sessions";
+
+/// Synthetic join history rows, oldest first (fixed times and fake shard ids, for the samples):
+/// a stint that dropped, a rejoin of the same shard, a shard change and a quit.
+pub fn seed_sessions() -> Vec<crate::contract::telemetry::TelemetryStint> {
+    use starorg_telemetry::gamelog::{LeftReason, Stint, session::parse_shard};
+    let row = |channel: &str,
+               shard: &str,
+               joined_ms: i64,
+               mins: i64,
+               reason: LeftReason,
+               systems: &[&str]| {
+        let (code, region, short) = parse_shard(shard);
+        Stint {
+            channel: Some(channel.into()),
+            build: Some("0.0.0.0".into()),
+            shard: shard.into(),
+            shard_short: short,
+            region_code: code,
+            region,
+            log_started: Some("Mon Nov 23 08:00:00 2026".into()),
+            joined_ms,
+            left_ms: Some(joined_ms + mins * 60_000),
+            left_reason: Some(reason),
+            uptime_s: Some((mins * 60) as f64),
+            systems: systems.iter().map(|x| (*x).to_owned()).collect(),
+            disconnects: u32::from(matches!(
+                reason,
+                LeftReason::Dropped | LeftReason::Disconnect
+            )),
+            dropped: reason == LeftReason::Dropped,
+        }
+    };
+    vec![
+        row(
+            "LIVE",
+            "mock_euw1a_0_004",
+            1_794_990_000_000,
+            42,
+            LeftReason::Leave,
+            &["Stanton"],
+        ),
+        row(
+            "PTU",
+            "mock_use1b_0_001",
+            1_795_000_000_000,
+            75,
+            LeftReason::Dropped,
+            &["Stanton", "Pyro"],
+        ),
+        row(
+            "PTU",
+            "mock_use1b_0_001",
+            1_795_004_800_000,
+            30,
+            LeftReason::ShardChange,
+            &["Pyro"],
+        ),
+        row(
+            "PTU",
+            "mock_use1b_0_002",
+            1_795_006_600_000,
+            55,
+            LeftReason::Disconnect,
+            &["Pyro", "Stanton"],
+        ),
+    ]
+}
+
+/// The mock backend's host: recordings and the join history in memory, seeded.
+pub fn mock_host() -> TelemetryHost {
+    let h = TelemetryHost::default();
+    h.seed_mock_recordings(seed_recordings());
+    h.seed_mock_sessions(seed_sessions());
+    h
+}
 
 /// Which of the two lines the mock's `USER.cfg` of a channel holds.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -26,6 +131,8 @@ pub struct TelemetryMock {
     pub settings: TelemetrySettings,
     /// By `install/CHANNEL`.
     pub lines: BTreeMap<String, MockLines>,
+    /// Notifications, speech and rule overrides (in memory).
+    pub alerts: TelemetryAlertSettings,
 }
 
 impl Default for TelemetryMock {
@@ -33,6 +140,7 @@ impl Default for TelemetryMock {
         Self {
             settings: starorg_core::telemetry::Settings::default().into(),
             lines: BTreeMap::new(),
+            alerts: TelemetryAlertSettings::default(),
         }
     }
 }
@@ -122,6 +230,9 @@ impl MockBackend {
             ui_hz: starorg_telemetry::frames::UI_HZ,
             dangerous: crate::telemetry::dangerous(),
             mock: true,
+            replay: self.telemetry.replay_state(),
+            recording: self.telemetry.recording(),
+            record_error: self.telemetry.record_error(),
         }
     }
 
@@ -142,6 +253,10 @@ impl MockBackend {
 }
 
 impl TelemetryBackend for MockBackend {
+    fn telemetry_host(&self) -> &crate::telemetry::TelemetryHost {
+        &self.telemetry
+    }
+
     fn telemetry_status(&self) -> CmdResult<TelemetryStatus> {
         Ok(self.tele_status())
     }
@@ -179,6 +294,11 @@ impl TelemetryBackend for MockBackend {
         };
         let (tl, gl) = {
             let mut m = self.tele();
+            // "Record sessions" has its own command: a configure keeps it.
+            let s = TelemetrySettings {
+                record: m.settings.record,
+                ..s
+            };
             m.settings = s;
             let was = req
                 .target
@@ -212,8 +332,13 @@ impl TelemetryBackend for MockBackend {
                 None => (None, None),
             }
         };
-        if !s.enabled {
+        if s.enabled {
+            let src = s.gamelog_active().then_some(GameLogSource::Mock);
+            self.telemetry
+                .set_gamelog(src, s.people_active(), s.sessions_active());
+        } else {
             self.telemetry.stop();
+            self.telemetry.set_record(false);
         }
         self.log(
             LogLevel::Info,
@@ -245,7 +370,19 @@ impl TelemetryBackend for MockBackend {
             ));
         }
         self.tele_offered(&req)?;
+        let rec = self.tele().settings.record_active();
+        self.telemetry.set_record(rec);
+        let alerts = self.tele().alerts.clone();
+        self.telemetry.set_alerts(&alerts);
         self.telemetry.start_mock(req, sink);
+        let s = self.tele().settings;
+        if s.gamelog_active() {
+            self.telemetry.set_gamelog(
+                Some(GameLogSource::Mock),
+                s.people_active(),
+                s.sessions_active(),
+            );
+        }
         Ok(self.tele_status())
     }
 
@@ -273,5 +410,91 @@ impl TelemetryBackend for MockBackend {
             );
         }
         Ok(r)
+    }
+
+    fn telemetry_history(&self, req: TelemetryHistoryRequest) -> CmdResult<TelemetryHistory> {
+        Ok(self.telemetry.history(req.epoch, req.since_ms))
+    }
+
+    fn telemetry_record(&self, req: TelemetryRecordRequest) -> CmdResult<TelemetryStatus> {
+        let active = {
+            let mut m = self.tele();
+            m.settings.record = req.on;
+            m.settings.record_active()
+        };
+        self.telemetry.set_record(active);
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            if req.on {
+                "Live telemetry: Record sessions on"
+            } else {
+                "Live telemetry: Record sessions off"
+            },
+        );
+        Ok(self.tele_status())
+    }
+
+    fn telemetry_recordings(&self) -> CmdResult<TelemetryRecordings> {
+        Ok(crate::telemetry::recordings_view(
+            &self.telemetry,
+            RECORDINGS_DIR.into(),
+        ))
+    }
+
+    fn telemetry_recording_delete(
+        &self,
+        req: TelemetryRecordingRef,
+    ) -> CmdResult<TelemetryRecordings> {
+        self.telemetry
+            .delete_recording(&req.name)
+            .map_err(|m| AppError::new(ErrorCode::Busy, m))?;
+        self.telemetry_recordings()
+    }
+
+    fn telemetry_replay_start(
+        &self,
+        req: TelemetryRecordingRef,
+        sink: Sink,
+    ) -> CmdResult<TelemetryStatus> {
+        if !self.tele().settings.enabled {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "Turn on Live telemetry under Settings -> Experimental first.",
+            ));
+        }
+        self.telemetry
+            .start_replay(&req.name, sink)
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        Ok(self.tele_status())
+    }
+
+    fn telemetry_replay_control(&self, req: TelemetryReplayControl) -> CmdResult<TelemetryStatus> {
+        self.telemetry
+            .replay_control(req.playing, req.seek_ms, req.speed)
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        Ok(self.tele_status())
+    }
+
+    fn telemetry_alerts(&self) -> CmdResult<TelemetryAlerts> {
+        let a = self.tele().alerts.clone();
+        Ok(crate::telemetry::alerts_view(&self.telemetry, &a))
+    }
+
+    fn telemetry_alerts_configure(
+        &self,
+        req: TelemetryAlertSettings,
+    ) -> CmdResult<TelemetryAlerts> {
+        let a = crate::telemetry::alerts_normalize(&req)
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        self.tele().alerts = a.clone();
+        self.telemetry.set_alerts(&a);
+        Ok(crate::telemetry::alerts_view(&self.telemetry, &a))
+    }
+
+    fn telemetry_alert_test(&self, req: TelemetryAlertTestRequest) -> CmdResult<TelemetryAlert> {
+        let a = self.tele().alerts.clone();
+        crate::telemetry::alert_test(&a, &req.rule).map_err(|(c, m)| AppError::new(c, m))
     }
 }

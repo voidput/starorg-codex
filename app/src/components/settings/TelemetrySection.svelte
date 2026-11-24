@@ -5,7 +5,16 @@
    * not). One choice: Off, Metrics (read only) or Metrics + actions. Metrics writes one line to
    * that channel's USER.cfg, actions a second; the launcher needs two environment variables, which the app never
    * sets: the steps are shown with a copy button. The app reads the game's own service on
-   * 127.0.0.1 only.
+   * 127.0.0.1 only. "Record sessions" is a switch of its own (off): it saves streams to the
+   * app's data folder for replay, and turning Metrics on never turns it on. Notifications
+   * (alerts) are a separate choice below (TelemetryAlertsSection).
+   *
+   * "More from Live telemetry" groups the other switches, each off by default and each its own
+   * choice: "Record sessions", "Read Game.log events" (the channel's own Game.log on this
+   * computer, for the Events and Sessions panels) and, under it, "People" (the handles Game.log
+   * names, memory only) and "Shard history" (the shards joined, in a file in the app's data
+   * folder, with the channel's logbackups read in: the one that writes, so its own switch).
+   * None changes USER.cfg or sends anything.
    */
   import Copy from '@lucide/svelte/icons/copy';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -15,7 +24,9 @@
   import Segmented from '@/components/common/Segmented.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import SelectField from '@/components/common/SelectField.svelte';
+  import SwitchRow from '@/components/common/SwitchRow.svelte';
   import PathText from '@/components/common/PathText.svelte';
+  import TelemetryAlertsSection from '@/components/settings/TelemetryAlertsSection.svelte';
   import { toContractError } from '@/lib/contract/client';
   import type { CvarState, TelemetryCfgLine, TelemetryChannel, TelemetryConfigureResult, TelemetrySettings } from '@/lib/contract/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
@@ -94,6 +105,16 @@
     if (n !== st.settings.port) void save({ port: n });
   }
 
+  async function setRecord(on: boolean) {
+    error = null;
+    try {
+      await telemetry.setRecord(on);
+      toast('success', on ? 'Record sessions on' : 'Record sessions off', on ? 'Each stream is saved on this computer from its first frame; replay it on the Live telemetry screen.' : 'A recording in progress was closed.');
+    } catch (e) {
+      error = toContractError(e).message;
+    }
+  }
+
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -122,7 +143,10 @@
         <Segmented ariaLabel="Live telemetry" size="sm" options={MODES} value={mode} disabled={telemetry.busy || (mode === 'off' && !target)} onchange={setMode} />
       </div>
       <p class="text-muted-foreground text-[12px]">
-        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). Nothing leaves the computer and nothing is recorded. For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Actions are a separate choice: leave them off unless you want them.
+        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Nothing leaves the computer.
+      </p>
+      <p class="text-muted-foreground text-[12px]">
+        Each part is its own choice and off by default; turning one on never turns on another: <strong class="font-medium">Metrics</strong> or <strong class="font-medium">Metrics + actions</strong> here, then <strong class="font-medium">Record sessions</strong>, <strong class="font-medium">Read Game.log events</strong> (with People and Shard history) and <strong class="font-medium">Notifications</strong> below.
       </p>
     </div>
     <div class="grid gap-2 pl-0">
@@ -184,6 +208,50 @@
         </div>
       {/if}
       {#if st.settings.enabled}
+        <div class="grid gap-1.5 rounded-md border px-3 py-2" role="group" aria-labelledby="tele-extras">
+          <div class="grid gap-0.5">
+            <span id="tele-extras" class="text-[12.5px] font-medium">More from Live telemetry</span>
+            <span class="text-muted-foreground text-[12px]">Each off until you turn it on. All of it stays on this computer.</span>
+          </div>
+          <SwitchRow
+            id="tele-record"
+            size="sm"
+            label="Record sessions"
+            hint="Saves each live stream (4 frames a second) to the app's data folder so you can replay it on the Live telemetry screen. 20 recordings and 256 MB at most, the oldest go first; Settings → Storage shows them. Never sent anywhere."
+            checked={st.settings.record}
+            disabled={telemetry.busy}
+            onchange={(v) => void setRecord(v)}
+          />
+          <SwitchRow
+            id="tele-gamelog"
+            size="sm"
+            label="Read Game.log events"
+            hint="While the Live telemetry screen is open, follows this channel's Game.log on this computer: where you are, the shard you are on, quantum travel, ships nearby, deaths and respawns. Read only, kept in memory; nothing is written or sent."
+            checked={st.settings.gamelog}
+            disabled={telemetry.busy}
+            onchange={(v) => void save({ gamelog: v, people: v ? st.settings.people : false, sessions: v ? st.settings.sessions : false })}
+          />
+          <SwitchRow
+            id="tele-people"
+            size="sm"
+            class="pl-6"
+            label="People"
+            hint="Also lists the player handles Game.log names (crew, party, players in ship kills near you). Kept in memory only, never written to a file, the Activity log or a diagnostics report, and never looked up online."
+            checked={st.settings.gamelog && st.settings.people}
+            disabled={telemetry.busy || !st.settings.gamelog}
+            onchange={(v) => void save({ people: v })}
+          />
+          <SwitchRow
+            id="tele-sessions"
+            size="sm"
+            class="pl-6"
+            label="Shard history"
+            hint="Keeps a list of the shards you join (region, times, why you left; never a server address, session id or player name) in the app's data folder, and reads in the older logs in this channel's logbackups folder (the newest 40). 2000 rows at most; Settings → Storage shows it and Clear empties it."
+            checked={st.settings.gamelog && st.settings.sessions}
+            disabled={telemetry.busy || !st.settings.gamelog}
+            onchange={(v) => void save({ sessions: v })}
+          />
+        </div>
         {#if st.settings.triggers}
           <p class="text-muted-foreground text-[12px]">Each session asks before the first press; self destruct, eject and power off ask every time.</p>
           <p class="text-warning flex items-start gap-1.5 text-[12px]"><TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /> A press acts in your game at once, as if you pressed the key. Use it only while you can see the game.</p>
@@ -200,5 +268,6 @@
       {#if error}<p class="text-destructive text-[12px]" role="alert">{error}</p>{/if}
       <p class="text-muted-foreground text-[12px]">Reads only the game's local service, and only while this is on. StarOrg Codex still collects nothing and sends nothing anywhere.</p>
     </div>
+    {#if offered.length > 0}<TelemetryAlertsSection enabled={st.settings.enabled} />{/if}
   {/if}
 </div>

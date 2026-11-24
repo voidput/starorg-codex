@@ -411,7 +411,7 @@ impl MockBackend {
             assets: Mutex::new(Default::default()),
             mcp: crate::mcp::McpHost::default(),
             memory_gb: Mutex::new(None),
-            telemetry: Default::default(),
+            telemetry: super::mock_telemetry::mock_host(),
             telemetry_cfg: Mutex::new(Default::default()),
         };
         me.log(
@@ -3246,6 +3246,28 @@ impl MockBackend {
                 },
             })
             .collect();
+        // The mock's telemetry recordings are a list in memory (mock_telemetry.rs).
+        let recs = self.telemetry.recordings();
+        areas.insert(
+            areas.len() - 1,
+            AreaUsage {
+                area: Area::TelemetryRecordings,
+                path: super::mock_telemetry::RECORDINGS_DIR.into(),
+                usage: Usage {
+                    bytes: recs.iter().map(|r| r.bytes).sum(),
+                    files: recs.len() as u64,
+                },
+            },
+        );
+        let (bytes, files) = self.telemetry.sessions_usage();
+        areas.insert(
+            areas.len() - 1,
+            AreaUsage {
+                area: Area::TelemetrySessions,
+                path: super::mock_telemetry::SESSIONS_DIR.into(),
+                usage: Usage { bytes, files },
+            },
+        );
         areas.insert(
             3,
             AreaUsage {
@@ -3261,12 +3283,22 @@ impl MockBackend {
         );
         let in_cache: u64 = areas
             .iter()
-            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .filter(|a| {
+                !matches!(
+                    a.area,
+                    Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions
+                ) && (a.area != Area::AssetExports || !custom)
+            })
             .map(|a| a.usage.bytes)
             .sum();
         let files: u64 = areas
             .iter()
-            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .filter(|a| {
+                !matches!(
+                    a.area,
+                    Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions
+                ) && (a.area != Area::AssetExports || !custom)
+            })
             .map(|a| a.usage.files)
             .sum();
         let r = Report {

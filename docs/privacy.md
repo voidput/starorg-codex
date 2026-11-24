@@ -23,7 +23,8 @@ no crash upload and no account of its own.**
 - None of this leaves your computer. Removing the app's folders and using **Remove** in the app
   deletes everything it made. Settings -> Storage lists what is kept where and how much: the
   extracted game data cache, WHERE TO GET datasets, UEX market data, asset exports, temporary
-  extraction folders, live telemetry schemas (experimental, below) and `global.ini` backups
+  extraction folders, live telemetry schemas, recordings and session history (experimental,
+  below) and `global.ini` backups
   (gzip-compressed; 5 per channel plus the newest of each of the last 3 game builds). The cache folder is capped (1 GB by default).
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
   folder with placeholders.
@@ -120,10 +121,25 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
 
 - It talks only to `127.0.0.1` on this computer (any other address is refused) and only while
   the switch is on and the Live telemetry screen is open. It makes no network request.
-- Frames are shown and then dropped: nothing is recorded, logged or sent anywhere. Activity
-  notes only the switch changes (on or off, the port, whether game actions are allowed), each
-  start and stop, which cached schema a start used or why there was none (that reason can name
-  the path of the game's exe), and the name and result of each game action pressed.
+- Frames are shown and then dropped, unless you turn on **Record sessions** (below): nothing
+  is logged or sent anywhere. The screen's graphs keep the last 10 minutes of a few values
+  (speed, G, fuel, hull, shields, health, oxygen) in memory while the app runs; they are never
+  written to disk. Activity notes only the switch changes (on or off, the port, whether game
+  actions are allowed, Game.log events on or off, People and Shard history on, Record sessions
+  on or off), each start and stop, which cached schema a start used or why there was none (that
+  reason can name the path of the game's exe), that Game.log events are being read, each
+  replay started and recording deleted (by file name), that the shard history was cleared, and
+  the name and result of each game action pressed. None of these lines carries a log line,
+  a shard, a handle or an address.
+- **Record sessions** (its own switch, off by default; turning on Metrics never turns it on)
+  saves each live stream, 4 frames a second, as a JSONL file in the app's data folder
+  (`telemetry/recordings/` under `%APPDATA%\StarOrg Tools\Codex\data\` or
+  `~/.local/share/starorg-codex/`). A file holds what the game sent in those frames: your
+  in-game state (vitals, ship, position), the channel and the build's schema name; no account,
+  no address. At most 20 files and 256 MB in all (64 MB each); the oldest go first. Settings ->
+  Storage counts them, the Live telemetry screen lists, replays and deletes them, and turning
+  the switch off ends a recording at once. They never leave the computer: share one only if you
+  mean to.
 - Turning it on writes one line to the chosen channel's `USER.cfg`
   (`server.game.telemetry.enabled = 1`; a second one only with "Metrics + actions" chosen) and
   saves the switches in `config.toml`. Only that one channel carries the lines: picking another
@@ -136,6 +152,41 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
 - "Metrics + actions" (a separate choice, not the default) lets the app press game inputs the game lists
   as triggerable, only when you press a button. The first press of each app session asks
   first, and the dangerous actions (self destruct, eject, power off...) ask every time.
+- Notifications (alerts on low fuel, shields, hull...) are their own choice, off by default;
+  choosing Metrics does not turn them on. They are worked out on this computer from the frames
+  above. The last 50 are kept in memory for the screen's Alerts panel and are gone when the app
+  quits; Activity notes only a change of the choice (and a saved rule change that no longer fits). Tones are made by the app itself (no
+  sound file, nothing from the game). Spoken callouts (a further switch, off by default) use
+  only voices installed on this computer: a voice that would send the text to an online
+  speech service is never used, so with no local voice nothing is spoken. The choice and your
+  rule changes are saved in `config.toml`.
+- **Read Game.log events** (its own switch, off by default) reads the streamed channel's
+  `Game.log` on this computer while the Live telemetry screen is open: read only, the bytes
+  the game added since the last read, twice a second. What it shows (session, shard and
+  region, star system, quantum route, zone notices, ship classes nearby, deaths and respawns)
+  lives in memory and goes when the screen closes; nothing of it is written or sent. The server address, port and session ids in the log are never read into the
+  app at all, and a disconnect line (which also names addresses, a session and your handle) is
+  only classified, never kept. This is separate from "Import blueprints from Game.log", which
+  reads only the blueprint lines.
+- **Shard history** (its own switch under Read Game.log events, off by default; turning on
+  Game.log events never turns it on): one row per shard you joined (channel, build, shard id
+  and region, join and leave times, how long, the star systems you went to, why it ended, how
+  many disconnects and whether it dropped), saved in one file in the app's data folder
+  (`telemetry/sessions/history.json`). To start it with your past sessions it also reads the
+  channel's own `logbackups/*.log` (the newest 40, each once, read only, at most 128 MB of
+  each, a few MB at a time, never held open). With it off, no row is written and no backup is
+  opened. No address, port, session id, handle or raw log line is in it. At most 2000 rows and
+  2 MB; the oldest go first. Settings -> Storage counts it; **Clear** (in the Sessions panel or
+  Settings -> Storage) empties it for good: the file keeps only when you cleared it, and no
+  session that started before then is added again, even when the same Game.log or one of its
+  backups is read again. Activity notes only that it was cleared.
+- **People** (another switch under it, off by default) also keeps the player handles Game.log
+  names (crew channels, party notices, quantum calibration notices, players named in ship
+  kills near you) and your own, to list them by how they relate to you. They stay in memory
+  for the current Game.log only (**Clear** forgets them at once, People off or the screen
+  closing too), are never written to a file, never go into Activity, and every handle held is
+  replaced with `<handle>` in a diagnostics report. There is no online lookup of handles or
+  orgs.
 
 ## Things outside the app
 

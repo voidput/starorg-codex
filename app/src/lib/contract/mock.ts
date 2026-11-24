@@ -27,7 +27,8 @@
  * `&bpnotice=1` (two characters share a name: the notice).
  * Memory limit: `&memory=1.5` (that limit in GB instead of the default).
  * Live telemetry: `&telemetry=on` (on for PTU, the mock's 5.0 channel), `&telemetry=triggers`
- * (game actions allowed too); the stream is the synthetic generator (mock-telemetry.ts).
+ * (game actions allowed too), `&telemetry=gamelog` (Game.log events and People on too); the
+ * stream is the synthetic generator (mock-telemetry.ts).
  */
 import { clampGb, memoryView } from '../memory';
 import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
@@ -96,6 +97,10 @@ const SAMPLES = samples as unknown as {
   telemetry_status: T.TelemetryStatus;
   telemetry_actions: T.TelemetryActions;
   telemetry_event_frame: T.TelemetryEvent;
+  telemetry_recordings: T.TelemetryRecordings;
+  telemetry_alerts: T.TelemetryAlerts;
+  telemetry_gamelog: T.GameLogView | null;
+  telemetry_sessions: T.TelemetrySessions;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -844,13 +849,14 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
 
   // Live telemetry (mock-telemetry.ts): the Rust mock's samples and a synthetic stream.
   const telemetry = createTelemetryMock(
-    { status: SAMPLES.telemetry_status, actions: SAMPLES.telemetry_actions, frame: SAMPLES.telemetry_event_frame },
+    { status: SAMPLES.telemetry_status, actions: SAMPLES.telemetry_actions, frame: SAMPLES.telemetry_event_frame, recordings: SAMPLES.telemetry_recordings, alerts: SAMPLES.telemetry_alerts, gamelog: SAMPLES.telemetry_gamelog, sessions: SAMPLES.telemetry_sessions },
     { fail: (c, m) => fail(c, m), log: (m, ch) => addLog('info', null, ch, m) },
   );
   const teleParam = params.get('telemetry');
-  if (teleParam === 'on' || teleParam === 'triggers') {
+  if (teleParam === 'on' || teleParam === 'triggers' || teleParam === 'gamelog') {
     const ptu = SAMPLES.telemetry_status.channels.find((c) => c.offered);
-    if (ptu) void telemetry.handlers.telemetry_configure({ req: { target: { install: ptu.install, channel: ptu.channel }, settings: { enabled: true, port: 50051, triggers: teleParam === 'triggers' }, replace_other: false } });
+    const gamelog = teleParam === 'gamelog';
+    if (ptu) void telemetry.handlers.telemetry_configure({ req: { target: { install: ptu.install, channel: ptu.channel }, settings: { enabled: true, port: 50051, triggers: teleParam === 'triggers', record: false, gamelog, people: gamelog, sessions: gamelog }, replace_other: false } });
   }
 
   const h: Handlers = {

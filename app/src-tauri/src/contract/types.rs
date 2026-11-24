@@ -2420,6 +2420,12 @@ pub enum StorageAreaId {
     /// Live telemetry (experimental): the schema read from each build's `StarCitizen.exe`
     /// (`<cache>/telemetry/`).
     Telemetry,
+    /// Live telemetry (experimental): recorded sessions (`<data>/telemetry/recordings/`; not
+    /// in the cache, bounded by their writer).
+    TelemetryRecordings,
+    /// Live telemetry (experimental): the server and shard join history from Game.log
+    /// (`<data>/telemetry/sessions/`; not in the cache, bounded by its writer).
+    TelemetrySessions,
     /// `global.ini` backups (app data folder; not in the cache, not under its cap).
     Backups,
 }
@@ -2448,7 +2454,7 @@ pub struct StorageStatus {
     /// Cache folder + backups (+ the asset cache when it is in a folder of its own).
     pub total_bytes: u64,
     /// In a fixed order: game data, WHERE TO GET, UEX, asset exports, temporary, live
-    /// telemetry schemas, backups.
+    /// telemetry schemas, live telemetry recordings, live telemetry session history, backups.
     pub areas: Vec<StorageArea>,
     /// The asset cache's own cap.
     pub asset_cap_bytes: u64,
@@ -2481,6 +2487,14 @@ impl StorageStatus {
                     Area::AssetExports => (StorageAreaId::AssetExports, "Asset exports"),
                     Area::Temporary => (StorageAreaId::Temporary, "Temporary extraction folders"),
                     Area::Telemetry => (StorageAreaId::Telemetry, "Live telemetry schemas"),
+                    Area::TelemetryRecordings => (
+                        StorageAreaId::TelemetryRecordings,
+                        "Live telemetry recordings",
+                    ),
+                    Area::TelemetrySessions => (
+                        StorageAreaId::TelemetrySessions,
+                        "Live telemetry session history",
+                    ),
                     Area::Backups => (StorageAreaId::Backups, "global.ini backups"),
                 };
                 StorageArea {
@@ -2490,7 +2504,9 @@ impl StorageStatus {
                     bytes: a.usage.bytes,
                     files: a.usage.files,
                     in_cache: match a.area {
-                        Area::Backups => false,
+                        Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions => {
+                            false
+                        }
                         Area::AssetExports => assets_inside_cache,
                         _ => true,
                     },

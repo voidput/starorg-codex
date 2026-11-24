@@ -217,6 +217,22 @@ interface Samples {
   telemetry_trigger_refused: T.TelemetryTriggerResult;
   telemetry_event_status: T.TelemetryEvent;
   telemetry_event_frame: T.TelemetryEvent;
+  telemetry_event_replay: T.TelemetryEvent;
+  telemetry_history: T.TelemetryHistory;
+  telemetry_record: T.TelemetryStatus;
+  telemetry_recordings: T.TelemetryRecordings;
+  telemetry_recording_delete: T.TelemetryRecordings;
+  telemetry_replay_start: T.TelemetryStatus;
+  telemetry_replay_control: T.TelemetryStatus;
+  telemetry_event_alert: T.TelemetryEvent;
+  telemetry_alerts: T.TelemetryAlerts;
+  telemetry_alerts_configure: T.TelemetryAlerts;
+  telemetry_alert_test: T.TelemetryAlert;
+  telemetry_gamelog: T.GameLogView | null;
+  telemetry_people_clear: T.GameLogView | null;
+  telemetry_sessions: T.TelemetrySessions;
+  telemetry_sessions_clear: T.TelemetrySessions;
+  telemetry_event_gamelog: T.TelemetryEvent;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */
