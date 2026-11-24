@@ -3,7 +3,10 @@
    * Live telemetry (experimental; docs/user-guide.md#live-telemetry): the game's own live data,
    * read from its local service on 127.0.0.1 while this screen is open. Panels after
    * sc-telemetry's dashboard (same owner, MIT) in this app's style: connection, pilot vitals,
-   * ship, shields, systems and annunciators, actions, raw frame.
+   * ship, shields, systems and annunciators, history graphs, actions, raw frame, recordings.
+   *
+   * Replay: a recording plays into the same panels in place of the game (a "Replay" badge and
+   * its controls replace the connection and Start/Stop); "Back to live" reads the game again.
    *
    * Lazy: the stream starts when the screen opens and stops when it closes. Frames come at most
    * 10 a second into one raw state; each panel reads only its values from it, so nothing heavier
@@ -19,7 +22,10 @@
   import SelectField from '@/components/common/SelectField.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import ActionsPanel from '@/components/telemetry/ActionsPanel.svelte';
+  import HistoryPanel from '@/components/telemetry/HistoryPanel.svelte';
   import RawFramePanel from '@/components/telemetry/RawFramePanel.svelte';
+  import RecordingsPanel from '@/components/telemetry/RecordingsPanel.svelte';
+  import ReplayBar from '@/components/telemetry/ReplayBar.svelte';
   import type { TelemetryChannel } from '@/lib/contract/telemetry';
   import { annunciators, barWidth, faceLabels, fixed, linkView, pct, systems, telemetryTarget } from '@/lib/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
@@ -33,6 +39,7 @@
   const targetKey = $derived(target ? key(target) : '');
   const running = $derived(!!st?.streaming);
   const view = $derived(linkView(telemetry.link, running));
+  const replay = $derived(telemetry.replay ?? st?.replay ?? null);
 
   const enabled = $derived(!!st?.settings.enabled);
 
@@ -63,6 +70,11 @@
       if (targetKey) telemetry.picked = targetKey;
       void telemetry.stop();
     } else if (target) void telemetry.start({ install: target.install, channel: target.channel });
+  }
+
+  async function backToLive() {
+    await telemetry.stop();
+    if (target) void telemetry.start({ install: target.install, channel: target.channel });
   }
 </script>
 
@@ -96,7 +108,11 @@
   <div class="grid gap-3">
     <div class="flex flex-wrap items-center gap-2">
       <ToneBadge tone="warning" label="Experimental" />
-      <ToneBadge tone={view.tone} label={view.label} />
+      {#if replay}
+        <ToneBadge tone="info" label="Replay" hint="A recording plays instead of the game" />
+      {:else}
+        <ToneBadge tone={view.tone} label={view.label} />
+      {/if}
       {#if offered.length > 1 && target}
         <SelectField ariaLabel="Channel" options={offered.map((c) => ({ id: key(c), label: c.channel }))} value={targetKey} onchange={(v) => (telemetry.picked = v)} />
       {:else if target}
@@ -105,20 +121,28 @@
       <span class="mono text-muted-foreground text-[12px]">{st.endpoint}</span>
       {#if st.mock}<span class="text-muted-foreground text-[12px]">synthetic frames (mock)</span>{/if}
       <span class="flex-1"></span>
-      <Button size="sm" variant="outline" onclick={toggle} disabled={!target || telemetry.starting}>
-        {#if running}<Square aria-hidden="true" /> Stop{:else if telemetry.starting}<Play aria-hidden="true" /> Starting…{:else}<Play aria-hidden="true" /> Start{/if}
-      </Button>
+      {#if !replay}
+        <Button size="sm" variant="outline" onclick={toggle} disabled={!target || telemetry.starting}>
+          {#if running}<Square aria-hidden="true" /> Stop{:else if telemetry.starting}<Play aria-hidden="true" /> Starting…{:else}<Play aria-hidden="true" /> Start{/if}
+        </Button>
+      {/if}
     </div>
-    <p class="text-muted-foreground text-[12px]" aria-live="polite">
-      {#if telemetry.starting && !running}Reading the game's schema (the first start of a build takes a few seconds)…{:else}{view.detail}{/if}
-      {#if st.schema}Schema {st.schema.key} ({st.schema.origin === 'cache' ? 'cached' : st.schema.origin === 'extracted' ? 'read from StarCitizen.exe just now' : 'synthetic'}).{/if}
-      Reads this computer only; nothing is sent anywhere.
-    </p>
+    {#if replay}
+      <ReplayBar {replay} onlive={() => void backToLive()} />
+      <p class="text-muted-foreground text-[12px]">Replaying a recording from this computer: the game is not read meanwhile, and actions are off.</p>
+    {:else}
+      <p class="text-muted-foreground text-[12px]" aria-live="polite">
+        {#if telemetry.starting && !running}Reading the game's schema (the first start of a build takes a few seconds)…{:else}{view.detail}{/if}
+        {#if st.schema}Schema {st.schema.key} ({st.schema.origin === 'cache' ? 'cached' : st.schema.origin === 'extracted' ? 'read from StarCitizen.exe just now' : 'synthetic'}).{/if}
+        {#if st.recording}Recording this session.{/if}
+        Reads this computer only; nothing is sent anywhere.
+      </p>
+    {/if}
 
     {#if !frame}
       <Card.Root>
         <Card.Content class="text-muted-foreground py-6 text-center text-sm">
-          {telemetry.link.state === 'connected' ? 'Connected. The game sends frames once you have spawned.' : 'No frames yet.'}
+          {replay ? 'Loading the recording…' : telemetry.link.state === 'connected' ? 'Connected. The game sends frames once you have spawned.' : 'No frames yet.'}
         </Card.Content>
       </Card.Root>
     {:else}
@@ -208,7 +232,9 @@
     {/if}
 
     <div class="grid gap-3 lg:grid-cols-2">
-      <ActionsPanel raw={frame?.raw ?? null} connected={telemetry.link.state === 'connected'} />
+      <HistoryPanel />
+      <ActionsPanel raw={frame?.raw ?? null} connected={!replay && telemetry.link.state === 'connected'} />
+      <RecordingsPanel />
       <RawFramePanel {frame} />
     </div>
   </div>

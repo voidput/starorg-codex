@@ -335,6 +335,7 @@ fn storage_on_the_mock_lists_every_area_and_clears_assets() {
             StorageAreaId::AssetExports,
             StorageAreaId::Temporary,
             StorageAreaId::Telemetry,
+            StorageAreaId::TelemetryRecordings,
             StorageAreaId::Backups,
         ]
     );
@@ -356,7 +357,14 @@ fn storage_on_the_mock_lists_every_area_and_clears_assets() {
         .find(|a| a.id == StorageAreaId::Backups)
         .unwrap();
     assert!(!backups.in_cache);
-    assert_eq!(s.total_bytes, s.cache_bytes + backups.bytes);
+    let recs = s
+        .areas
+        .iter()
+        .find(|a| a.id == StorageAreaId::TelemetryRecordings)
+        .unwrap();
+    assert!(!recs.in_cache);
+    assert_eq!(recs.files, 2, "the mock's two synthetic recordings");
+    assert_eq!(s.total_bytes, s.cache_bytes + backups.bytes + recs.bytes);
 }
 
 #[test]

@@ -30,6 +30,7 @@ fn on(triggers: bool) -> TelemetrySettings {
         enabled: true,
         port: 50051,
         triggers,
+        record: false,
     }
 }
 
@@ -99,7 +100,69 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         })
         .unwrap();
     let stopped = b.telemetry_stop().unwrap();
+    let recordings = b.telemetry_recordings().unwrap();
+    let record_on = b
+        .telemetry_record(TelemetryRecordRequest { on: true })
+        .unwrap();
+    b.telemetry_record(TelemetryRecordRequest { on: false })
+        .unwrap();
+    let name = recordings.items[0].name.clone();
+    let (s2, _rx2) = sink();
+    let mut replaying = b
+        .telemetry_replay_start(TelemetryRecordingRef { name: name.clone() }, s2)
+        .unwrap();
+    // The player may have moved on already; the answer of a start is at 0.
+    if let Some(r) = replaying.replay.as_mut() {
+        r.position_ms = 0;
+    }
+    b.telemetry_replay_control(TelemetryReplayControl {
+        playing: Some(false),
+        ..Default::default()
+    })
+    .unwrap();
+    std::thread::sleep(Duration::from_millis(150));
+    let mut controlled = b
+        .telemetry_replay_control(TelemetryReplayControl {
+            playing: None,
+            seek_ms: Some(30_000),
+            speed: Some(2.0),
+        })
+        .unwrap();
+    if let Some(r) = controlled.replay.as_mut() {
+        r.position_ms = 30_000;
+    }
+    let deleted = b
+        .telemetry_recording_delete(TelemetryRecordingRef {
+            name: recordings.items[1].name.clone(),
+        })
+        .unwrap();
+    b.telemetry_stop().unwrap();
+    let mut history = starorg_telemetry::history::History::default();
     let schema = starorg_telemetry::mock::schema();
+    for i in 0..3u32 {
+        let f = crate::telemetry::mock_frame(
+            &schema,
+            u64::from(i),
+            f64::from(i),
+            &starorg_telemetry::mock::MockState::default(),
+        );
+        history.push(1_795_123_456_000 + u64::from(i) * 1000, &f.snapshot);
+    }
+    let history = history.since(None, None);
+    let replay_ev = TelemetryEvent {
+        session: 3,
+        status: None,
+        frame: None,
+        replay: Some(TelemetryReplayState {
+            name: name.clone(),
+            start_ms: 1_795_100_000_000,
+            position_ms: 12_250,
+            duration_ms: 240_000,
+            playing: true,
+            speed: 1.0,
+            ended: false,
+        }),
+    };
     let mut frame = crate::telemetry::mock_frame(
         &schema,
         42,
@@ -126,6 +189,13 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
         ("telemetry_trigger_refused", json!(refused)),
         ("telemetry_event_status", json!(status_ev)),
         ("telemetry_event_frame", json!(frame_ev)),
+        ("telemetry_event_replay", json!(replay_ev)),
+        ("telemetry_history", json!(history)),
+        ("telemetry_record", json!(record_on)),
+        ("telemetry_recordings", json!(recordings)),
+        ("telemetry_recording_delete", json!(deleted)),
+        ("telemetry_replay_start", json!(replaying)),
+        ("telemetry_replay_control", json!(controlled)),
     ]
 }
 
@@ -382,6 +452,78 @@ fn a_new_stream_replaces_the_old_one() {
     std::thread::sleep(Duration::from_millis(300));
     assert!(rx1.try_recv().is_err(), "the old stream is gone");
     b.telemetry_stop().unwrap();
+}
+
+#[test]
+fn record_sessions_is_its_own_switch_and_replays_play_into_the_screen() {
+    let b = MockBackend::default();
+    // Off by default; Metrics alone never turns it on.
+    assert!(!b.telemetry_status().unwrap().settings.record);
+    let s = configure(&b, ptu(), on(true)).status;
+    assert!(!s.settings.record && s.recording.is_none());
+    // Its own command; a configure keeps it.
+    assert!(
+        b.telemetry_record(TelemetryRecordRequest { on: true })
+            .unwrap()
+            .settings
+            .record
+    );
+    assert!(configure(&b, ptu(), on(false)).status.settings.record);
+    let before = b.telemetry_recordings().unwrap().items.len();
+    let (s, rx) = sink();
+    b.telemetry_start(ptu(), s).unwrap();
+    let _ = next_frame(&rx);
+    let st = b.telemetry_status().unwrap();
+    let rec = st.recording.clone().expect("recording");
+    let list = b.telemetry_recordings().unwrap();
+    assert_eq!(list.items.len(), before + 1);
+    assert_eq!(list.recording.as_deref(), Some(rec.as_str()));
+    let e = b
+        .telemetry_recording_delete(TelemetryRecordingRef { name: rec.clone() })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Busy);
+    // History over the contract: incremental within an epoch.
+    let h = b
+        .telemetry_history(TelemetryHistoryRequest::default())
+        .unwrap();
+    assert!(h.reset && !h.t_ms.is_empty());
+    let more = b
+        .telemetry_history(TelemetryHistoryRequest {
+            epoch: Some(h.epoch),
+            since_ms: h.t_ms.last().copied(),
+        })
+        .unwrap();
+    assert!(!more.reset);
+    assert!(more.t_ms.iter().all(|t| t > h.t_ms.last().unwrap()));
+    // A replay replaces the stream: no channel, the replay in the status.
+    let (s, rx) = sink();
+    let r = b
+        .telemetry_replay_start(TelemetryRecordingRef { name: rec.clone() }, s)
+        .unwrap();
+    assert!(r.streaming.is_none());
+    assert_eq!(r.replay.as_ref().unwrap().name, rec);
+    assert!(r.recording.is_none(), "the stream's recording ended");
+    let f = next_frame(&rx);
+    assert!(f.snapshot.ship.is_some());
+    let c = b
+        .telemetry_replay_control(TelemetryReplayControl {
+            speed: Some(0.0),
+            ..Default::default()
+        })
+        .unwrap();
+    assert_eq!(c.replay.unwrap().speed, 0.25);
+    b.telemetry_stop().unwrap();
+    assert!(b.telemetry_status().unwrap().replay.is_none());
+    let e = b
+        .telemetry_replay_control(TelemetryReplayControl::default())
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    b.telemetry_recording_delete(TelemetryRecordingRef { name: rec })
+        .unwrap();
+    assert_eq!(b.telemetry_recordings().unwrap().items.len(), before);
+    // Off: recording stops with the rest, the choice is kept for next time.
+    let s = configure(&b, ptu(), off()).status;
+    assert!(s.settings.record && s.recording.is_none());
 }
 
 #[test]

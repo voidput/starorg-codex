@@ -25317,6 +25317,14 @@
         "path": "/synthetic/cache/telemetry"
       },
       {
+        "bytes": 2416000,
+        "files": 2,
+        "id": "telemetry-recordings",
+        "in_cache": false,
+        "label": "Live telemetry recordings",
+        "path": "/synthetic/data/telemetry/recordings"
+      },
+      {
         "bytes": 37800000,
         "files": 30,
         "id": "backups",
@@ -25332,7 +25340,7 @@
     "cache_bytes": 90884000,
     "cache_path": "/synthetic/cache",
     "cap_bytes": 1073741824,
-    "total_bytes": 128684000
+    "total_bytes": 131100000
   },
   "storage_status": {
     "areas": [
@@ -25385,6 +25393,14 @@
         "path": "/synthetic/cache/telemetry"
       },
       {
+        "bytes": 2416000,
+        "files": 2,
+        "id": "telemetry-recordings",
+        "in_cache": false,
+        "label": "Live telemetry recordings",
+        "path": "/synthetic/data/telemetry/recordings"
+      },
+      {
         "bytes": 37800000,
         "files": 30,
         "id": "backups",
@@ -25400,7 +25416,7 @@
     "cache_bytes": 138884000,
     "cache_path": "/synthetic/cache",
     "cap_bytes": 1073741824,
-    "total_bytes": 176684000
+    "total_bytes": 179100000
   },
   "string_detail": {
     "also_used_by": [],
@@ -25627,11 +25643,15 @@
         "state": "disabled"
       },
       "mock": true,
+      "record_error": null,
+      "recording": null,
+      "replay": null,
       "schema": null,
       "session": 0,
       "settings": {
         "enabled": true,
         "port": 50051,
+        "record": false,
         "triggers": true
       },
       "streaming": null,
@@ -25758,15 +25778,476 @@
         }
       }
     },
+    "replay": null,
     "session": 1,
+    "status": null
+  },
+  "telemetry_event_replay": {
+    "frame": null,
+    "replay": {
+      "duration_ms": 240000,
+      "ended": false,
+      "name": "20261119-145320-PTU.jsonl",
+      "playing": true,
+      "position_ms": 12250,
+      "speed": 1.0,
+      "start_ms": 1795100000000
+    },
+    "session": 3,
     "status": null
   },
   "telemetry_event_status": {
     "frame": null,
+    "replay": null,
     "session": 1,
     "status": {
       "state": "connected"
     }
+  },
+  "telemetry_history": {
+    "capacity": 600,
+    "epoch": 1,
+    "interval_ms": 1000,
+    "reset": true,
+    "series": {
+      "g": [
+        1.0,
+        1.8659,
+        2.678
+      ],
+      "health": [
+        80.0,
+        82.2177,
+        84.408
+      ],
+      "hull": [
+        0.75,
+        0.7647,
+        0.7793
+      ],
+      "hydrogen_fuel": [
+        1.0,
+        0.9967,
+        0.9933
+      ],
+      "oxygen": [
+        0.7,
+        0.7231,
+        0.746
+      ],
+      "quantum_fuel": [
+        0.82,
+        0.82,
+        0.82
+      ],
+      "shield": [
+        0.5,
+        0.5829,
+        0.6636
+      ],
+      "speed": [
+        180.0,
+        209.6885,
+        237.5311
+      ]
+    },
+    "t_ms": [
+      1795123456000,
+      1795123457000,
+      1795123458000
+    ]
+  },
+  "telemetry_record": {
+    "channels": [
+      {
+        "channel": "LIVE",
+        "exe_found": true,
+        "game_version": "4.10.0",
+        "install": "inst-7f3a",
+        "offered": false,
+        "reason": "this channel runs 4.10.0; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      },
+      {
+        "channel": "HOTFIX",
+        "exe_found": true,
+        "game_version": "4.10.0",
+        "install": "inst-7f3a",
+        "offered": false,
+        "reason": "this channel runs 4.10.0; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/HOTFIX/USER.cfg"
+      },
+      {
+        "channel": "PTU",
+        "exe_found": true,
+        "game_version": "5.0.0",
+        "install": "inst-7f3a",
+        "offered": true,
+        "reason": null,
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "set",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "set",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/PTU/USER.cfg"
+      },
+      {
+        "channel": "LIVE",
+        "exe_found": true,
+        "game_version": "4.9.1",
+        "install": "inst-c21e",
+        "offered": false,
+        "reason": "this channel runs 4.9.1; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      }
+    ],
+    "dangerous": [
+      "v_eject",
+      "v_emergency_exit",
+      "v_power_set_off",
+      "v_power_set_thrusters_off",
+      "v_power_toggle",
+      "v_power_toggle_thrusters",
+      "v_self_destruct",
+      "v_toggle_qdrive_engagement"
+    ],
+    "endpoint": "127.0.0.1:50051",
+    "env_help": "The game reads two environment variables from the RSI Launcher that starts it. Wine passes the Linux environment through, so add them to whatever starts the launcher:\n\n- LUG Helper or a plain Wine launch script: near the top, before the line that runs wine:\n\n    export GRPC_CLIENT_SERVER_ENABLED=1\n    export GRPC_CLIENT_SERVER_PORT=50051\n\n- Lutris: right-click Star Citizen > Configure > System options > Environment variables, add GRPC_CLIENT_SERVER_ENABLED = 1 and GRPC_CLIENT_SERVER_PORT = 50051, Save.\n\n- Steam (Proton): Properties > Launch options:\n\n    GRPC_CLIENT_SERVER_ENABLED=1 GRPC_CLIENT_SERVER_PORT=50051 %command%\n\n- Anything else: put the two variables in front of the command that starts the launcher.\n\nThen quit the launcher completely and start it again the way you just changed. To undo, remove what you added.\n\nNever set GRPC_CLIENT_SERVER_EXTERNAL: it would open the game's service, which has no password, to your whole network.\n",
+    "help_os": "linux",
+    "link": {
+      "state": "disabled"
+    },
+    "mock": true,
+    "record_error": null,
+    "recording": null,
+    "replay": null,
+    "schema": null,
+    "session": 2,
+    "settings": {
+      "enabled": true,
+      "port": 50051,
+      "record": true,
+      "triggers": true
+    },
+    "streaming": null,
+    "ui_hz": 10
+  },
+  "telemetry_recording_delete": {
+    "folder": "/synthetic/data/telemetry/recordings",
+    "items": [
+      {
+        "bytes": 1730000,
+        "channel": "PTU",
+        "duration_ms": 240000,
+        "name": "20261119-145320-PTU.jsonl",
+        "schema": "mock",
+        "started_ms": 1795100000000
+      }
+    ],
+    "max_file_bytes": 67108864,
+    "max_files": 20,
+    "max_total_bytes": 268435456,
+    "record_hz": 4,
+    "recording": null,
+    "replaying": "20261119-145320-PTU.jsonl"
+  },
+  "telemetry_recordings": {
+    "folder": "/synthetic/data/telemetry/recordings",
+    "items": [
+      {
+        "bytes": 1730000,
+        "channel": "PTU",
+        "duration_ms": 240000,
+        "name": "20261119-145320-PTU.jsonl",
+        "schema": "mock",
+        "started_ms": 1795100000000
+      },
+      {
+        "bytes": 686000,
+        "channel": "PTU",
+        "duration_ms": 95000,
+        "name": "20261117-072000-PTU.jsonl",
+        "schema": "mock",
+        "started_ms": 1794900000000
+      }
+    ],
+    "max_file_bytes": 67108864,
+    "max_files": 20,
+    "max_total_bytes": 268435456,
+    "record_hz": 4,
+    "recording": null,
+    "replaying": null
+  },
+  "telemetry_replay_control": {
+    "channels": [
+      {
+        "channel": "LIVE",
+        "exe_found": true,
+        "game_version": "4.10.0",
+        "install": "inst-7f3a",
+        "offered": false,
+        "reason": "this channel runs 4.10.0; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      },
+      {
+        "channel": "HOTFIX",
+        "exe_found": true,
+        "game_version": "4.10.0",
+        "install": "inst-7f3a",
+        "offered": false,
+        "reason": "this channel runs 4.10.0; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/HOTFIX/USER.cfg"
+      },
+      {
+        "channel": "PTU",
+        "exe_found": true,
+        "game_version": "5.0.0",
+        "install": "inst-7f3a",
+        "offered": true,
+        "reason": null,
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "set",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "set",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/PTU/USER.cfg"
+      },
+      {
+        "channel": "LIVE",
+        "exe_found": true,
+        "game_version": "4.9.1",
+        "install": "inst-c21e",
+        "offered": false,
+        "reason": "this channel runs 4.9.1; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      }
+    ],
+    "dangerous": [
+      "v_eject",
+      "v_emergency_exit",
+      "v_power_set_off",
+      "v_power_set_thrusters_off",
+      "v_power_toggle",
+      "v_power_toggle_thrusters",
+      "v_self_destruct",
+      "v_toggle_qdrive_engagement"
+    ],
+    "endpoint": "127.0.0.1:50051",
+    "env_help": "The game reads two environment variables from the RSI Launcher that starts it. Wine passes the Linux environment through, so add them to whatever starts the launcher:\n\n- LUG Helper or a plain Wine launch script: near the top, before the line that runs wine:\n\n    export GRPC_CLIENT_SERVER_ENABLED=1\n    export GRPC_CLIENT_SERVER_PORT=50051\n\n- Lutris: right-click Star Citizen > Configure > System options > Environment variables, add GRPC_CLIENT_SERVER_ENABLED = 1 and GRPC_CLIENT_SERVER_PORT = 50051, Save.\n\n- Steam (Proton): Properties > Launch options:\n\n    GRPC_CLIENT_SERVER_ENABLED=1 GRPC_CLIENT_SERVER_PORT=50051 %command%\n\n- Anything else: put the two variables in front of the command that starts the launcher.\n\nThen quit the launcher completely and start it again the way you just changed. To undo, remove what you added.\n\nNever set GRPC_CLIENT_SERVER_EXTERNAL: it would open the game's service, which has no password, to your whole network.\n",
+    "help_os": "linux",
+    "link": {
+      "state": "disabled"
+    },
+    "mock": true,
+    "record_error": null,
+    "recording": null,
+    "replay": {
+      "duration_ms": 240000,
+      "ended": false,
+      "name": "20261119-145320-PTU.jsonl",
+      "playing": false,
+      "position_ms": 30000,
+      "speed": 2.0,
+      "start_ms": 1795100000000
+    },
+    "schema": null,
+    "session": 3,
+    "settings": {
+      "enabled": true,
+      "port": 50051,
+      "record": false,
+      "triggers": true
+    },
+    "streaming": null,
+    "ui_hz": 10
+  },
+  "telemetry_replay_start": {
+    "channels": [
+      {
+        "channel": "LIVE",
+        "exe_found": true,
+        "game_version": "4.10.0",
+        "install": "inst-7f3a",
+        "offered": false,
+        "reason": "this channel runs 4.10.0; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      },
+      {
+        "channel": "HOTFIX",
+        "exe_found": true,
+        "game_version": "4.10.0",
+        "install": "inst-7f3a",
+        "offered": false,
+        "reason": "this channel runs 4.10.0; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/HOTFIX/USER.cfg"
+      },
+      {
+        "channel": "PTU",
+        "exe_found": true,
+        "game_version": "5.0.0",
+        "install": "inst-7f3a",
+        "offered": true,
+        "reason": null,
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "set",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "set",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/PTU/USER.cfg"
+      },
+      {
+        "channel": "LIVE",
+        "exe_found": true,
+        "game_version": "4.9.1",
+        "install": "inst-c21e",
+        "offered": false,
+        "reason": "this channel runs 4.9.1; live telemetry needs 5.0 or newer",
+        "telemetry_line": {
+          "line": "server.game.telemetry.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "triggers_line": {
+          "line": "server.game.telemetry.trigger.actions.enabled = 1",
+          "state": "missing",
+          "value": null
+        },
+        "user_cfg": "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen/LIVE/USER.cfg"
+      }
+    ],
+    "dangerous": [
+      "v_eject",
+      "v_emergency_exit",
+      "v_power_set_off",
+      "v_power_set_thrusters_off",
+      "v_power_toggle",
+      "v_power_toggle_thrusters",
+      "v_self_destruct",
+      "v_toggle_qdrive_engagement"
+    ],
+    "endpoint": "127.0.0.1:50051",
+    "env_help": "The game reads two environment variables from the RSI Launcher that starts it. Wine passes the Linux environment through, so add them to whatever starts the launcher:\n\n- LUG Helper or a plain Wine launch script: near the top, before the line that runs wine:\n\n    export GRPC_CLIENT_SERVER_ENABLED=1\n    export GRPC_CLIENT_SERVER_PORT=50051\n\n- Lutris: right-click Star Citizen > Configure > System options > Environment variables, add GRPC_CLIENT_SERVER_ENABLED = 1 and GRPC_CLIENT_SERVER_PORT = 50051, Save.\n\n- Steam (Proton): Properties > Launch options:\n\n    GRPC_CLIENT_SERVER_ENABLED=1 GRPC_CLIENT_SERVER_PORT=50051 %command%\n\n- Anything else: put the two variables in front of the command that starts the launcher.\n\nThen quit the launcher completely and start it again the way you just changed. To undo, remove what you added.\n\nNever set GRPC_CLIENT_SERVER_EXTERNAL: it would open the game's service, which has no password, to your whole network.\n",
+    "help_os": "linux",
+    "link": {
+      "state": "disabled"
+    },
+    "mock": true,
+    "record_error": null,
+    "recording": null,
+    "replay": {
+      "duration_ms": 240000,
+      "ended": false,
+      "name": "20261119-145320-PTU.jsonl",
+      "playing": true,
+      "position_ms": 0,
+      "speed": 1.0,
+      "start_ms": 1795100000000
+    },
+    "schema": null,
+    "session": 3,
+    "settings": {
+      "enabled": true,
+      "port": 50051,
+      "record": false,
+      "triggers": true
+    },
+    "streaming": null,
+    "ui_hz": 10
   },
   "telemetry_start": {
     "channels": [
@@ -25864,6 +26345,9 @@
       "state": "connecting"
     },
     "mock": true,
+    "record_error": null,
+    "recording": null,
+    "replay": null,
     "schema": {
       "files": 2,
       "key": "mock",
@@ -25873,6 +26357,7 @@
     "settings": {
       "enabled": true,
       "port": 50051,
+      "record": false,
       "triggers": true
     },
     "streaming": {
@@ -25977,11 +26462,15 @@
       "state": "disabled"
     },
     "mock": true,
+    "record_error": null,
+    "recording": null,
+    "replay": null,
     "schema": null,
     "session": 0,
     "settings": {
       "enabled": false,
       "port": 50051,
+      "record": false,
       "triggers": false
     },
     "streaming": null,
@@ -26083,11 +26572,15 @@
       "state": "disabled"
     },
     "mock": true,
+    "record_error": null,
+    "recording": null,
+    "replay": null,
     "schema": null,
     "session": 2,
     "settings": {
       "enabled": true,
       "port": 50051,
+      "record": false,
       "triggers": true
     },
     "streaming": null,

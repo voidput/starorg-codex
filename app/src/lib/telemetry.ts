@@ -7,7 +7,7 @@
  * Frames come at most 10 a second. Everything here is a cheap pure function over one frame,
  * so a panel re-renders only the numbers that changed.
  */
-import type { LinkStatus, TelemetryJson, TelemetrySnapshot, TelemetryShip, TriggerableAction } from './contract/telemetry';
+import type { LinkStatus, TelemetryHistory, TelemetryJson, TelemetryRecording, TelemetrySeriesKey, TelemetrySnapshot, TelemetryShip, TriggerableAction } from './contract/telemetry';
 import type { StatusTone } from './format';
 
 type Obj = { [k: string]: TelemetryJson };
@@ -268,4 +268,158 @@ export function telemetryTarget<C extends { install: string; channel: string; te
 export function sequencer(): { next: () => number; latest: (n: number) => boolean } {
   let seq = 0;
   return { next: () => ++seq, latest: (n) => n === seq };
+}
+
+// ---- History graphs (sc-telemetry `/api/history` sparklines) --------------------------------
+
+/** One graph: its series, label, how its values read and its fixed range (null: from the data). */
+export interface SeriesSpec {
+  key: TelemetrySeriesKey;
+  label: string;
+  /** Fixed range, else fitted to the visible values. */
+  min: number | null;
+  max: number | null;
+  /** Below this the line is drawn as a warning (fractions and health only). */
+  low: number | null;
+  text: (v: number | null) => string;
+}
+
+const health = (v: number | null) => (v === null ? '—' : `${Math.round(v)}%`);
+
+/** The graphs, in screen order: flight, then ship, then pilot. */
+export const SERIES: readonly SeriesSpec[] = [
+  { key: 'speed', label: 'Speed', min: 0, max: null, low: null, text: (v) => fixed(v, 0, 'm/s') },
+  { key: 'g', label: 'G', min: null, max: null, low: null, text: (v) => fixed(v, 2) },
+  { key: 'hydrogen_fuel', label: 'Hydrogen fuel', min: 0, max: 1, low: 0.15, text: pct },
+  { key: 'quantum_fuel', label: 'Quantum fuel', min: 0, max: 1, low: 0.15, text: pct },
+  { key: 'hull', label: 'Hull', min: 0, max: 1, low: 0.3, text: pct },
+  { key: 'shield', label: 'Shields', min: 0, max: 1, low: 0.1, text: pct },
+  { key: 'health', label: 'Health', min: 0, max: 100, low: 30, text: health },
+  { key: 'oxygen', label: 'Oxygen', min: 0, max: 1, low: 0.2, text: pct },
+];
+
+/** The windows a graph can show. */
+export const WINDOWS = [
+  { id: '60', label: '1 min', ms: 60_000 },
+  { id: '300', label: '5 min', ms: 300_000 },
+  { id: '600', label: '10 min', ms: 600_000 },
+] as const;
+
+const SERIES_KEYS: readonly TelemetrySeriesKey[] = ['speed', 'g', 'hydrogen_fuel', 'quantum_fuel', 'hull', 'shield', 'health', 'oxygen'];
+
+/**
+ * The client's history after an answer of `telemetry_history`: the answer itself on a reset
+ * (or with nothing before), else the old samples and the new ones, the oldest cut so at most
+ * `capacity` stay. Never mutates `prev`.
+ */
+export function mergeHistory(prev: TelemetryHistory | null, next: TelemetryHistory): TelemetryHistory {
+  if (!prev || next.reset || next.epoch !== prev.epoch) return next;
+  if (next.t_ms.length === 0) return prev;
+  const last = prev.t_ms.at(-1) ?? -Infinity;
+  // Only what is newer than the newest kept (an answer may overlap a slow earlier one).
+  const from = next.t_ms.findIndex((t) => t > last);
+  if (from === -1) return prev;
+  const cap = Math.max(1, next.capacity);
+  const join = <X>(a: X[], b: X[]) => [...a, ...b.slice(from)].slice(-cap);
+  const series = {} as TelemetryHistory['series'];
+  for (const k of SERIES_KEYS) series[k] = join(prev.series[k], next.series[k]);
+  return { ...next, reset: false, t_ms: join(prev.t_ms, next.t_ms), series };
+}
+
+/** The range a graph spans: the spec's fixed ends, else the visible values with a little room (never empty). */
+export function seriesRange(values: readonly (number | null)[], spec: Pick<SeriesSpec, 'min' | 'max'>): { min: number; max: number } {
+  let lo = Infinity;
+  let hi = -Infinity;
+  for (const v of values) {
+    if (v === null) continue;
+    if (v < lo) lo = v;
+    if (v > hi) hi = v;
+  }
+  if (lo === Infinity) {
+    lo = spec.min ?? 0;
+    hi = spec.max ?? 1;
+  }
+  let min = spec.min ?? lo;
+  let max = spec.max ?? hi;
+  if (spec.min === null || spec.max === null) {
+    const pad = (max - min) * 0.08 || Math.max(Math.abs(max), 1) * 0.1;
+    if (spec.min === null) min -= pad;
+    if (spec.max === null) max += pad;
+  }
+  if (max <= min) max = min + 1;
+  return { min, max };
+}
+
+/**
+ * An SVG path for one series over `[end - span, end]` in a `w` x `h` box (y up): `M`/`L`
+ * runs, broken where a value is missing or two samples are more than `gapMs` apart.
+ * Samples before the window are left out. Coordinates rounded to 0.1.
+ */
+export function sparkPath(t: readonly number[], v: readonly (number | null)[], o: { w: number; h: number; end: number; span: number; min: number; max: number; gapMs: number }): string {
+  const start = o.end - o.span;
+  const r = (x: number) => Math.round(x * 10) / 10;
+  const sy = o.h / (o.max - o.min);
+  const sx = o.w / o.span;
+  let d = '';
+  let prevT = -Infinity;
+  let open = false;
+  for (let i = 0; i < t.length; i++) {
+    const ti = t[i]!;
+    const vi = v[i];
+    if (ti < start || vi === null || vi === undefined) {
+      open = false;
+      prevT = ti;
+      continue;
+    }
+    const x = r((ti - start) * sx);
+    const y = r(o.h - (Math.min(o.max, Math.max(o.min, vi)) - o.min) * sy);
+    d += `${open && ti - prevT <= o.gapMs ? 'L' : 'M'}${x} ${y}`;
+    open = true;
+    prevT = ti;
+  }
+  return d;
+}
+
+/** The newest value of a series that is not missing. */
+export function latestValue(v: readonly (number | null)[]): number | null {
+  for (let i = v.length - 1; i >= 0; i--) if (v[i] !== null && v[i] !== undefined) return v[i]!;
+  return null;
+}
+
+/** Lowest and highest value inside the window (null without any). */
+export function windowStats(t: readonly number[], v: readonly (number | null)[], start: number): { min: number; max: number } | null {
+  let min = Infinity;
+  let max = -Infinity;
+  for (let i = 0; i < t.length; i++) {
+    const x = v[i];
+    if (t[i]! < start || x === null || x === undefined) continue;
+    min = Math.min(min, x);
+    max = Math.max(max, x);
+  }
+  return min === Infinity ? null : { min, max };
+}
+
+// ---- Recordings and replay ---------------------------------------------------------------
+
+/** `95_000` as `1:35`, `3_725_000` as `1:02:05`. */
+export function clockText(ms: number | null | undefined): string {
+  if (ms === null || ms === undefined || !Number.isFinite(ms) || ms < 0) return '—';
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const ss = String(s % 60).padStart(2, '0');
+  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+}
+
+/** A recording's line in the list: when (local time), channel and length. */
+export function recordingText(r: TelemetryRecording, locale?: string): string {
+  const when = r.started_ms === null ? r.name : new Date(r.started_ms).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+  return [when, r.channel, r.duration_ms === null ? null : clockText(r.duration_ms)].filter(Boolean).join(' · ');
+}
+
+/** Replay speeds offered. */
+export const SPEEDS = [0.25, 0.5, 1, 2, 4, 8, 16] as const;
+
+export function speedText(s: number): string {
+  return `${s}×`;
 }

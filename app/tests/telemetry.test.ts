@@ -4,9 +4,37 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { actionState, annunciators, at, barWidth, faceLabels, fixed, gate, groupActions, humanName, inspectorText, linkView, needsConfirm, pct, sequencer, sessionStep, snapshotFromRaw, systems, telemetryTarget, triggerText } from '../src/lib/telemetry.ts';
-import { createTelemetryMock, mockFrame, type TelemetryMockData } from '../src/lib/contract/mock-telemetry.ts';
-import type { TelemetryActions, TelemetryEvent, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
+import {
+  SERIES,
+  actionState,
+  annunciators,
+  at,
+  barWidth,
+  clockText,
+  faceLabels,
+  fixed,
+  gate,
+  groupActions,
+  humanName,
+  inspectorText,
+  latestValue,
+  linkView,
+  mergeHistory,
+  needsConfirm,
+  pct,
+  recordingText,
+  sequencer,
+  seriesRange,
+  sessionStep,
+  snapshotFromRaw,
+  sparkPath,
+  systems,
+  telemetryTarget,
+  triggerText,
+  windowStats,
+} from '../src/lib/telemetry.ts';
+import { createTelemetryMock, mockFrame, stamp, type TelemetryMockData } from '../src/lib/contract/mock-telemetry.ts';
+import type { TelemetryActions, TelemetryEvent, TelemetryHistory, TelemetryRecordings, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const frameEv = samples.telemetry_event_frame as TelemetryEvent;
@@ -112,7 +140,7 @@ test('the inspector cuts long frames and follows at most once a second', () => {
 function mock() {
   const ticks: (() => void)[] = [];
   const logs: string[] = [];
-  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv };
+  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv, recordings: samples.telemetry_recordings };
   const m = createTelemetryMock(data, {
     fail: (c, msg) => {
       throw new Fail(c, msg);
@@ -133,7 +161,7 @@ function mock() {
 
 const ptu = { install: 'inst-7f3a', channel: 'PTU' };
 const live = { install: 'inst-7f3a', channel: 'LIVE' };
-const on = (triggers: boolean) => ({ enabled: true, port: 50051, triggers });
+const on = (triggers: boolean) => ({ enabled: true, port: 50051, triggers, record: false });
 
 test('the TS mock starts off, offers PTU only and answers like the Rust mock', async () => {
   const { h } = mock();
@@ -176,7 +204,7 @@ test('the TS mock streams synthetic frames, and presses flip the lights', async 
   tick();
   assert.equal(events.at(-1)!.frame!.snapshot.ship!.lights, false);
   // Off stops the stream and releases the lines.
-  const off = await h.telemetry_configure({ req: { target: null, settings: { enabled: false, port: 50051, triggers: false }, replace_other: false } });
+  const off = await h.telemetry_configure({ req: { target: null, settings: { enabled: false, port: 50051, triggers: false, record: false }, replace_other: false } });
   assert.equal(off.status.streaming, null);
   assert.equal(ticks.length, 0);
 });
@@ -213,4 +241,137 @@ test('a sequencer keeps only the latest answer', () => {
   const b = s.next();
   assert.equal(s.latest(a), false);
   assert.equal(s.latest(b), true);
+});
+
+// ---- History, recordings, replay -------------------------------------------------------
+
+const hist = samples.telemetry_history as TelemetryHistory;
+
+function more(h: TelemetryHistory, t: number[], speed: number[]): TelemetryHistory {
+  const nulls = t.map(() => null);
+  return {
+    ...h,
+    reset: false,
+    t_ms: t,
+    series: { speed, g: nulls, hydrogen_fuel: nulls, quantum_fuel: nulls, hull: nulls, shield: nulls, health: nulls, oxygen: nulls },
+  };
+}
+
+test('the Rust history sample has every graphed series, one value per time', () => {
+  assert.equal(hist.interval_ms, 1000);
+  assert.equal(hist.capacity, 600);
+  for (const s of SERIES) assert.equal(hist.series[s.key].length, hist.t_ms.length, s.key);
+});
+
+test('history answers merge: new samples appended, a reset or another epoch replaces, the ring stays bounded', () => {
+  const last = hist.t_ms.at(-1)!;
+  const m = mergeHistory(hist, more(hist, [last + 1000, last + 2000], [1, 2]));
+  assert.equal(m.t_ms.length, hist.t_ms.length + 2);
+  assert.deepEqual(m.series.speed.slice(-2), [1, 2]);
+  assert.equal(m.series.health.length, m.t_ms.length);
+  // An overlapping answer adds only what is newer.
+  const again = mergeHistory(m, more(hist, [last + 2000, last + 3000], [2, 3]));
+  assert.deepEqual(again.series.speed.slice(-3), [1, 2, 3]);
+  // Nothing new keeps the same object (no redraw).
+  assert.equal(mergeHistory(m, more(hist, [], [])), m);
+  const reset = { ...more(hist, [5], [9]), reset: true };
+  assert.deepEqual(mergeHistory(m, reset).t_ms, [5]);
+  assert.deepEqual(mergeHistory(m, { ...more(hist, [last + 9000], [9]), epoch: hist.epoch + 1 }).t_ms, [last + 9000]);
+  const small = { ...hist, capacity: 3 };
+  const cut = mergeHistory(small, { ...more(small, [last + 1000, last + 2000], [1, 2]) });
+  assert.equal(cut.t_ms.length, 3);
+  assert.deepEqual(cut.t_ms, [hist.t_ms.at(-1), last + 1000, last + 2000]);
+  // The input is never changed.
+  assert.equal(hist.t_ms.length, 3);
+});
+
+test('graphs: a fixed or fitted range, paths broken at gaps and missing values', () => {
+  assert.deepEqual(seriesRange([0.2, 0.5], { min: 0, max: 1 }), { min: 0, max: 1 });
+  const r = seriesRange([10, 20], { min: null, max: null });
+  assert.ok(r.min < 10 && r.max > 20);
+  const flat = seriesRange([5, 5], { min: null, max: null });
+  assert.ok(flat.max > flat.min);
+  assert.deepEqual(seriesRange([null], { min: 0, max: null }), { min: 0, max: 1.08 });
+  const o = { w: 100, h: 10, end: 10_000, span: 10_000, min: 0, max: 1, gapMs: 3000 };
+  assert.equal(sparkPath([0, 1000, 2000], [0, 1, 0.5], o), 'M0 10L10 0L20 5');
+  // A missing value and a 5 s gap each start a new run; values outside the range are clamped.
+  assert.equal(sparkPath([0, 1000, 2000, 3000, 8000], [0, null, 1, 2, 0], o), 'M0 10M20 0L30 0M80 10');
+  // Before the window: left out.
+  assert.equal(sparkPath([-5000, 5000], [1, 1], o), 'M50 0');
+  assert.equal(sparkPath([], [], o), '');
+  assert.equal(latestValue([1, 2, null]), 2);
+  assert.equal(latestValue([null]), null);
+  assert.deepEqual(windowStats([0, 1, 2], [5, 1, 3], 1), { min: 1, max: 3 });
+  assert.equal(windowStats([0], [null], 0), null);
+  const speed = SERIES.find((s) => s.key === 'speed')!;
+  assert.equal(speed.text(1234.4), '1,234 m/s');
+  assert.equal(SERIES.find((s) => s.key === 'health')!.text(81.6), '82%');
+  assert.equal(SERIES.find((s) => s.key === 'hull')!.text(0.5), '50%');
+});
+
+test('recordings read as time, channel and length', () => {
+  const recs = samples.telemetry_recordings as TelemetryRecordings;
+  assert.equal(recs.items.length, 2);
+  assert.equal(recs.max_files, 20);
+  assert.equal(clockText(95_000), '1:35');
+  assert.equal(clockText(3_725_000), '1:02:05');
+  assert.equal(clockText(null), '—');
+  assert.match(recordingText(recs.items[0]!, 'en-US'), /PTU · 4:00$/);
+  assert.equal(recordingText({ ...recs.items[0]!, started_ms: null, duration_ms: null }), `${recs.items[0]!.name} · PTU`);
+  // The TS stamp matches the Rust one (the seeded names).
+  assert.equal(`${stamp(recs.items[0]!.started_ms!)}-PTU.jsonl`, recs.items[0]!.name);
+});
+
+test('the TS mock: Record sessions is its own switch, and a recording replays with pause, seek and speed', async () => {
+  const { h, events, tick } = mock();
+  await h.telemetry_configure({ req: { target: ptu, settings: on(true), replace_other: false } });
+  let st = (await h.telemetry_status({})) as TelemetryStatus;
+  assert.equal(st.settings.record, false, 'Metrics + actions never turns it on');
+  st = await h.telemetry_record({ req: { on: true } });
+  assert.equal(st.settings.record, true);
+  // A configure keeps it.
+  const c = await h.telemetry_configure({ req: { target: ptu, settings: on(false), replace_other: false } });
+  assert.equal(c.status.settings.record, true);
+  await h.telemetry_start({ req: ptu });
+  tick(3);
+  st = (await h.telemetry_status({})) as TelemetryStatus;
+  assert.ok(st.recording?.endsWith('-PTU.jsonl'), String(st.recording));
+  let recs = (await h.telemetry_recordings({})) as TelemetryRecordings;
+  assert.equal(recs.items.length, 3);
+  assert.equal(recs.items[0]!.name, st.recording);
+  await assert.rejects(async () => h.telemetry_recording_delete({ req: { name: st.recording! } }), (e: Fail) => e.code === 'busy');
+  // The history fills from the frames.
+  const hh = (await h.telemetry_history({ req: { epoch: null, since_ms: null } })) as TelemetryHistory;
+  assert.ok(hh.reset && hh.t_ms.length >= 1);
+  // Replay a seeded recording: no channel, the replay in the status and on its events.
+  const seeded = recs.items[1]!;
+  st = await h.telemetry_replay_start({ req: { name: seeded.name } });
+  assert.equal(st.streaming, null);
+  assert.equal(st.recording, null);
+  assert.equal(st.replay?.name, seeded.name);
+  const first = events.at(-1)!;
+  assert.equal(first.frame?.received_ms, seeded.started_ms);
+  assert.equal(first.replay?.position_ms, 0);
+  tick(2);
+  assert.equal(events.at(-1)!.replay!.position_ms, 200);
+  st = await h.telemetry_replay_control({ req: { playing: false, seek_ms: 60_000, speed: 99 } });
+  assert.equal(st.replay?.playing, false);
+  assert.equal(st.replay?.speed, 16);
+  assert.equal(st.replay?.position_ms, 60_000);
+  const seekEv = events.filter((e) => e.frame).at(-1)!;
+  assert.equal(seekEv.frame!.received_ms, seeded.started_ms! + 60_000);
+  const after = (await h.telemetry_history({ req: { epoch: null, since_ms: null } })) as TelemetryHistory;
+  assert.equal(after.t_ms.length, 61, 'the minute that led there, and the frame');
+  tick(5);
+  assert.equal((await h.telemetry_status({})).replay?.position_ms, 60_000, 'paused');
+  await h.telemetry_replay_control({ req: { playing: true, seek_ms: null, speed: null } });
+  tick(200);
+  st = (await h.telemetry_status({})) as TelemetryStatus;
+  assert.equal(st.replay?.ended, true);
+  assert.equal(st.replay?.position_ms, seeded.duration_ms);
+  await assert.rejects(async () => h.telemetry_recording_delete({ req: { name: seeded.name } }), (e: Fail) => e.code === 'busy');
+  await h.telemetry_stop({});
+  await assert.rejects(async () => h.telemetry_replay_control({ req: { playing: true, seek_ms: null, speed: null } }), (e: Fail) => e.code === 'invalid');
+  recs = await h.telemetry_recording_delete({ req: { name: seeded.name } });
+  assert.equal(recs.items.length, 2);
 });

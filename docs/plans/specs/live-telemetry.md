@@ -125,8 +125,7 @@ From sc-telemetry, not in this phase:
 - **People**: handles seen in `Game.log`, grouped by relation, with an opt-in org lookup on
   the public RSI page (`people.py`). Needs its own network switch and the no-real-handles rule
   for fixtures.
-- **History and charts**: a short ring buffer of the headline series (`/api/history`), drawn
-  as sparklines.
+- ~~**History and charts**~~: done, see *Phase 2: history, recording, replay* below.
 - **Ship capabilities** from the channel's game data (sc-telemetry `shipcaps.py`): which
   systems a hull has, to grey out what it lacks.
 - **Full action/state map**: port `data/action_state_map.json` (VTOL, doors, weapons,
@@ -135,6 +134,42 @@ From sc-telemetry, not in this phase:
   order is confirmed.
 - A stream that keeps running in the background (for alerts) instead of only while the screen
   is open.
+
+## Phase 2: history, recording, replay
+
+Ported from sc-telemetry `server.py` (`history`/`/api/history`, `--record` with
+`session_recorder`, `--replay` with `replay_records`/`run_replay`).
+
+- **History** (`starorg_telemetry::history`): a ring of one sample a second, 600 kept (10
+  minutes), of speed, G, hydrogen and quantum fuel, hull, shield, health and oxygen. The host
+  pushes every frame it hands to the UI (a replay: every frame it plays, at the recorded time).
+  It survives a stop and start of the same channel and is cleared for another channel, a
+  replay and a seek (an epoch). `telemetry_history {epoch, since_ms}` answers only what is new;
+  another epoch gets the whole ring with `reset`. The UI polls once a second while the screen
+  is open and redraws the graphs then: SVG paths, no chart library, at most 1 Hz.
+- **Recording** (`starorg_telemetry::record`): "Record sessions" is its own switch
+  (`[experimental] telemetry_record`, `telemetry_record` command), off by default, and counts
+  only while telemetry is on; a configure keeps it, Metrics never turns it on. A file per live
+  stream, opened at its first frame: `<YYYYMMDD-HHMMSS>-<CHANNEL>.jsonl` (UTC) in
+  `<data>/telemetry/recordings/`, a `{"t", "starorg": {format, channel, schema}}` first line
+  then `{"t", "frame"}` lines at most 4 a second (sc-telemetry's format). Caps: 64 MiB a file
+  (it stops there), 20 files and 256 MiB in all (the oldest are pruned before a new file so a
+  full one fits). Only names matching `[A-Za-z0-9_-]{1,80}.jsonl` are listed, counted or
+  removed; the webview names a recording, never a path. Settings > Storage: *Live telemetry
+  recordings* (data folder, outside the cache cap). The mock backend keeps its recordings in
+  memory, seeded with two synthetic ones.
+- **Replay** (`starorg_telemetry::replay`): one pass over the file builds an index of frame
+  lines (time, offset, length), so a seek is one read and a file is never loaded whole. Lines
+  without an object `frame`, a non-finite time, torn or over-long lines are skipped; times that
+  run back are held. A thread plays frames at the recorded pace (gaps cut to 5 s) divided by the
+  speed (0.25 to 16), at most 10 a second to the UI, through the same event with a
+  `TelemetryReplayState`; a seek refills the history with the 10 minutes before it. Commands:
+  `telemetry_replay_start`, `telemetry_replay_control {playing, seek_ms, speed}`,
+  `telemetry_stop`. Play at the end starts over. The recording being written or played is not
+  deletable (`busy`).
+
+Not done here: alerts and their own notification switch, Game.log signals, people, ship
+capabilities (other branches).
 
 ## Open
 

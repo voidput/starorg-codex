@@ -2,17 +2,48 @@
 //! synthetic generator (`starorg_telemetry::mock`) in place of a game, so the screen and its
 //! trigger buttons work without one. The mock's PTU runs 5.0 (offered); LIVE and HOTFIX run
 //! 4.10 (not offered). Nothing is read from or written to disk, and no socket is opened.
+//!
+//! "Record sessions" keeps its recordings in memory ([`TelemetryHost::default`] has no
+//! folder), starting with two synthetic ones ([`seed_recordings`]); a replay plays the
+//! synthetic generator over a recording's length.
 
 use super::Backend;
 use super::mock::MockBackend;
 use super::telemetry::*;
 use super::types::*;
+use crate::telemetry::TelemetryHost;
 use std::collections::BTreeMap;
 use std::sync::MutexGuard;
 
 /// The mock's `USER.cfg` path per channel (shown only).
 const CFG_ROOT: &str =
     "/home/pilot/Games/star-citizen/drive_c/Program Files/Roberts Space Industries/StarCitizen";
+
+/// The mock's recordings folder (shown only; nothing is written there).
+pub const RECORDINGS_DIR: &str = "/synthetic/data/telemetry/recordings";
+
+/// Two synthetic recordings of the mock's PTU, oldest first (fixed times, for the samples).
+pub fn seed_recordings() -> Vec<TelemetryRecording> {
+    let rec = |start_ms: u64, duration_ms: u64| TelemetryRecording {
+        name: format!("{}-PTU.jsonl", starorg_telemetry::record::stamp(start_ms)),
+        bytes: 200 + (duration_ms / 250 + 1) * 1_800,
+        started_ms: Some(start_ms),
+        duration_ms: Some(duration_ms),
+        channel: Some("PTU".into()),
+        schema: Some("mock".into()),
+    };
+    vec![
+        rec(1_794_900_000_000, 95_000),
+        rec(1_795_100_000_000, 240_000),
+    ]
+}
+
+/// The mock backend's host: recordings in memory, seeded.
+pub fn mock_host() -> TelemetryHost {
+    let h = TelemetryHost::default();
+    h.seed_mock_recordings(seed_recordings());
+    h
+}
 
 /// Which of the two lines the mock's `USER.cfg` of a channel holds.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -122,6 +153,9 @@ impl MockBackend {
             ui_hz: starorg_telemetry::frames::UI_HZ,
             dangerous: crate::telemetry::dangerous(),
             mock: true,
+            replay: self.telemetry.replay_state(),
+            recording: self.telemetry.recording(),
+            record_error: self.telemetry.record_error(),
         }
     }
 
@@ -179,6 +213,11 @@ impl TelemetryBackend for MockBackend {
         };
         let (tl, gl) = {
             let mut m = self.tele();
+            // "Record sessions" has its own command: a configure keeps it.
+            let s = TelemetrySettings {
+                record: m.settings.record,
+                ..s
+            };
             m.settings = s;
             let was = req
                 .target
@@ -214,6 +253,7 @@ impl TelemetryBackend for MockBackend {
         };
         if !s.enabled {
             self.telemetry.stop();
+            self.telemetry.set_record(false);
         }
         self.log(
             LogLevel::Info,
@@ -245,6 +285,8 @@ impl TelemetryBackend for MockBackend {
             ));
         }
         self.tele_offered(&req)?;
+        let rec = self.tele().settings.record_active();
+        self.telemetry.set_record(rec);
         self.telemetry.start_mock(req, sink);
         Ok(self.tele_status())
     }
@@ -273,5 +315,64 @@ impl TelemetryBackend for MockBackend {
             );
         }
         Ok(r)
+    }
+
+    fn telemetry_history(&self, req: TelemetryHistoryRequest) -> CmdResult<TelemetryHistory> {
+        Ok(self.telemetry.history(req.epoch, req.since_ms))
+    }
+
+    fn telemetry_record(&self, req: TelemetryRecordRequest) -> CmdResult<TelemetryStatus> {
+        let active = {
+            let mut m = self.tele();
+            m.settings.record = req.on;
+            m.settings.record_active()
+        };
+        self.telemetry.set_record(active);
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            if req.on {
+                "Live telemetry: Record sessions on"
+            } else {
+                "Live telemetry: Record sessions off"
+            },
+        );
+        Ok(self.tele_status())
+    }
+
+    fn telemetry_recordings(&self) -> CmdResult<TelemetryRecordings> {
+        Ok(crate::telemetry::recordings_view(
+            &self.telemetry,
+            RECORDINGS_DIR.into(),
+        ))
+    }
+
+    fn telemetry_recording_delete(
+        &self,
+        req: TelemetryRecordingRef,
+    ) -> CmdResult<TelemetryRecordings> {
+        self.telemetry
+            .delete_recording(&req.name)
+            .map_err(|m| AppError::new(ErrorCode::Busy, m))?;
+        self.telemetry_recordings()
+    }
+
+    fn telemetry_replay_start(
+        &self,
+        req: TelemetryRecordingRef,
+        sink: Sink,
+    ) -> CmdResult<TelemetryStatus> {
+        self.telemetry
+            .start_replay(&req.name, sink)
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        Ok(self.tele_status())
+    }
+
+    fn telemetry_replay_control(&self, req: TelemetryReplayControl) -> CmdResult<TelemetryStatus> {
+        self.telemetry
+            .replay_control(req.playing, req.seek_ms, req.speed)
+            .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;
+        Ok(self.tele_status())
     }
 }

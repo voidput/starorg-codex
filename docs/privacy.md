@@ -23,7 +23,7 @@ no crash upload and no account of its own.**
 - None of this leaves your computer. Removing the app's folders and using **Remove** in the app
   deletes everything it made. Settings -> Storage lists what is kept where and how much: the
   extracted game data cache, WHERE TO GET datasets, UEX market data, asset exports, temporary
-  extraction folders, live telemetry schemas (experimental, below) and `global.ini` backups
+  extraction folders, live telemetry schemas and recordings (experimental, below) and `global.ini` backups
   (gzip-compressed; 5 per channel plus the newest of each of the last 3 game builds). The cache folder is capped (1 GB by default).
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
   folder with placeholders.
@@ -120,10 +120,23 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
 
 - It talks only to `127.0.0.1` on this computer (any other address is refused) and only while
   the switch is on and the Live telemetry screen is open. It makes no network request.
-- Frames are shown and then dropped: nothing is recorded, logged or sent anywhere. Activity
-  notes only the switch changes (on or off, the port, whether game actions are allowed), each
-  start and stop, which cached schema a start used or why there was none (that reason can name
-  the path of the game's exe), and the name and result of each game action pressed.
+- Frames are shown and then dropped, unless you turn on **Record sessions** (below): nothing
+  is logged or sent anywhere. The screen's graphs keep the last 10 minutes of a few values
+  (speed, G, fuel, hull, shields, health, oxygen) in memory while the app runs; they are never
+  written to disk. Activity notes only the switch changes (on or off, the port, whether game
+  actions are allowed, Record sessions on or off), each start and stop, which cached schema a
+  start used or why there was none (that reason can name the path of the game's exe), each
+  replay started and recording deleted (by file name), and the name and result of each game
+  action pressed.
+- **Record sessions** (its own switch, off by default; turning on Metrics never turns it on)
+  saves each live stream, 4 frames a second, as a JSONL file in the app's data folder
+  (`telemetry/recordings/` under `%APPDATA%\StarOrg Tools\Codex\data\` or
+  `~/.local/share/starorg-codex/`). A file holds what the game sent in those frames: your
+  in-game state (vitals, ship, position), the channel and the build's schema name; no account,
+  no address. At most 20 files and 256 MB in all (64 MB each); the oldest go first. Settings ->
+  Storage counts them, the Live telemetry screen lists, replays and deletes them, and turning
+  the switch off ends a recording at once. They never leave the computer: share one only if you
+  mean to.
 - Turning it on writes one line to the chosen channel's `USER.cfg`
   (`server.game.telemetry.enabled = 1`; a second one only with "Metrics + actions" chosen) and
   saves the switches in `config.toml`. Only that one channel carries the lines: picking another

@@ -96,6 +96,7 @@ const SAMPLES = samples as unknown as {
   telemetry_status: T.TelemetryStatus;
   telemetry_actions: T.TelemetryActions;
   telemetry_event_frame: T.TelemetryEvent;
+  telemetry_recordings: T.TelemetryRecordings;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -844,13 +845,13 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
 
   // Live telemetry (mock-telemetry.ts): the Rust mock's samples and a synthetic stream.
   const telemetry = createTelemetryMock(
-    { status: SAMPLES.telemetry_status, actions: SAMPLES.telemetry_actions, frame: SAMPLES.telemetry_event_frame },
+    { status: SAMPLES.telemetry_status, actions: SAMPLES.telemetry_actions, frame: SAMPLES.telemetry_event_frame, recordings: SAMPLES.telemetry_recordings },
     { fail: (c, m) => fail(c, m), log: (m, ch) => addLog('info', null, ch, m) },
   );
   const teleParam = params.get('telemetry');
   if (teleParam === 'on' || teleParam === 'triggers') {
     const ptu = SAMPLES.telemetry_status.channels.find((c) => c.offered);
-    if (ptu) void telemetry.handlers.telemetry_configure({ req: { target: { install: ptu.install, channel: ptu.channel }, settings: { enabled: true, port: 50051, triggers: teleParam === 'triggers' }, replace_other: false } });
+    if (ptu) void telemetry.handlers.telemetry_configure({ req: { target: { install: ptu.install, channel: ptu.channel }, settings: { enabled: true, port: 50051, triggers: teleParam === 'triggers', record: false }, replace_other: false } });
   }
 
   const h: Handlers = {

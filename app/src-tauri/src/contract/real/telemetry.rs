@@ -5,6 +5,10 @@
 //! The schema comes from the channel's own `Bin64/StarCitizen.exe` the first time a build is
 //! streamed (a scan of a few seconds) and is cached in `<cache>/telemetry/` (Settings >
 //! Storage counts it; three builds are kept). Only `127.0.0.1` is ever contacted.
+//!
+//! With "Record sessions" on, streams are recorded to `<data>/telemetry/recordings/`
+//! (`starorg_core::storage::telemetry_recordings_dir`, Settings > Storage counts it, capped by
+//! `starorg_telemetry::record::Caps`) and can be replayed into the screen.
 
 use super::convert::{err, path_text};
 use super::{Found, RealBackend, io};
@@ -73,7 +77,19 @@ impl RealBackend {
             ui_hz: starorg_telemetry::frames::UI_HZ,
             dangerous: crate::telemetry::dangerous(),
             mock: false,
+            replay: self.telemetry.replay_state(),
+            recording: self.telemetry.recording(),
+            record_error: self.telemetry.record_error(),
         }
+    }
+
+    fn telemetry_recordings_view(&self) -> TelemetryRecordings {
+        crate::telemetry::recordings_view(
+            &self.telemetry,
+            path_text(&starorg_core::storage::telemetry_recordings_dir(
+                self.dirs(),
+            )),
+        )
     }
 
     /// The channel, refused (`invalid`) unless its build is offered.
@@ -180,6 +196,11 @@ impl TelemetryBackend for RealBackend {
         };
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
         let before = gate::settings(&cfg);
+        // "Record sessions" has its own command: a configure keeps what is saved.
+        let s = Settings {
+            record: before.record,
+            ..s
+        };
         gate::set_settings(&mut cfg, &s).map_err(|m| err(ErrorCode::Invalid, m))?;
         let (mut tl, mut gl) = (None, None);
         let warnings = if s.enabled {
@@ -219,6 +240,8 @@ impl TelemetryBackend for RealBackend {
             // `config.toml`, and a USER.cfg that cannot be changed is only a warning.
             cfg.save(self.dirs()).map_err(io)?;
             self.telemetry.stop();
+            self.telemetry.set_record(false);
+            self.sizes_changed();
             let mut keep = None;
             let mut warnings = Vec::new();
             if let Some((f, ch)) = &target
@@ -277,6 +300,7 @@ impl TelemetryBackend for RealBackend {
         let (_, ch) = self.telemetry_target(&req)?;
         let addr = LoopbackAddr::from_socket_addr(gate::endpoint(s.port))
             .map_err(|e| err(ErrorCode::Invalid, e.to_string()))?;
+        self.telemetry.set_record(s.record_active());
         match self.telemetry_schema(&ch) {
             Ok(schema) => {
                 self.log(
@@ -314,6 +338,7 @@ impl TelemetryBackend for RealBackend {
             );
         }
         self.telemetry.stop();
+        self.sizes_changed();
         Ok(self.telemetry_view())
     }
 
@@ -336,5 +361,81 @@ impl TelemetryBackend for RealBackend {
             );
         }
         Ok(r)
+    }
+
+    fn telemetry_history(&self, req: TelemetryHistoryRequest) -> CmdResult<TelemetryHistory> {
+        Ok(self.telemetry.history(req.epoch, req.since_ms))
+    }
+
+    fn telemetry_record(&self, req: TelemetryRecordRequest) -> CmdResult<TelemetryStatus> {
+        let mut cfg = Config::load(self.dirs()).map_err(io)?;
+        let s = Settings {
+            record: req.on,
+            ..gate::settings(&cfg)
+        };
+        gate::set_settings(&mut cfg, &s).map_err(|m| err(ErrorCode::Invalid, m))?;
+        cfg.save(self.dirs()).map_err(io)?;
+        let was = self.telemetry.recording();
+        self.telemetry.set_record(s.record_active());
+        if was.is_some() && !req.on {
+            self.sizes_changed();
+        }
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            if req.on {
+                "Live telemetry: Record sessions on"
+            } else {
+                "Live telemetry: Record sessions off"
+            },
+        );
+        Ok(self.telemetry_view())
+    }
+
+    fn telemetry_recordings(&self) -> CmdResult<TelemetryRecordings> {
+        Ok(self.telemetry_recordings_view())
+    }
+
+    fn telemetry_recording_delete(
+        &self,
+        req: TelemetryRecordingRef,
+    ) -> CmdResult<TelemetryRecordings> {
+        self.telemetry
+            .delete_recording(&req.name)
+            .map_err(|m| err(ErrorCode::Busy, m))?;
+        self.sizes_changed();
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!("Live telemetry: deleted recording {}", req.name),
+        );
+        Ok(self.telemetry_recordings_view())
+    }
+
+    fn telemetry_replay_start(
+        &self,
+        req: TelemetryRecordingRef,
+        sink: Sink,
+    ) -> CmdResult<TelemetryStatus> {
+        self.telemetry
+            .start_replay(&req.name, sink)
+            .map_err(|m| err(ErrorCode::Invalid, m))?;
+        self.sizes_changed();
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            &format!("Live telemetry: replaying {}", req.name),
+        );
+        Ok(self.telemetry_view())
+    }
+
+    fn telemetry_replay_control(&self, req: TelemetryReplayControl) -> CmdResult<TelemetryStatus> {
+        self.telemetry
+            .replay_control(req.playing, req.seek_ms, req.speed)
+            .map_err(|m| err(ErrorCode::Invalid, m))?;
+        Ok(self.telemetry_view())
     }
 }

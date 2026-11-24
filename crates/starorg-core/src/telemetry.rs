@@ -7,7 +7,9 @@
 //! game is switched on; the client lives elsewhere.
 //!
 //! - **Off by default.** `[experimental] telemetry = true` in `config.toml` turns it on;
-//!   `telemetry_triggers` is a second, separate opt-in ([`Settings`]).
+//!   `telemetry_triggers` is a second, separate opt-in ([`Settings`]), and
+//!   `telemetry_record` ("Record sessions") a third: recordings of the stream in the app's
+//!   data folder ([`crate::storage::telemetry_recordings_dir`]).
 //! - **5.0 or newer only** ([`eligible`]): PTU 5.0 today, LIVE by itself once LIVE reports 5.0.
 //!   An unknown game version is not offered.
 //! - **Loopback only** ([`endpoint`]; the client refuses any other host): nothing leaves the
@@ -33,6 +35,7 @@ const TABLE: &str = "experimental";
 const KEY_ENABLED: &str = "telemetry";
 const KEY_PORT: &str = "telemetry_port";
 const KEY_TRIGGERS: &str = "telemetry_triggers";
+const KEY_RECORD: &str = "telemetry_record";
 
 /// The port the game is told to use when the user sets none (`GRPC_CLIENT_SERVER_PORT`).
 pub const DEFAULT_PORT: u16 = 50051;
@@ -55,6 +58,9 @@ pub struct Settings {
     /// `telemetry_triggers`: allow pressing allowlisted game inputs. Has no effect while
     /// `enabled` is off.
     pub triggers: bool,
+    /// `telemetry_record`: "Record sessions", write the live stream to a recording. Has no
+    /// effect while `enabled` is off; independent of `triggers`.
+    pub record: bool,
 }
 
 impl Default for Settings {
@@ -63,6 +69,7 @@ impl Default for Settings {
             enabled: false,
             port: DEFAULT_PORT,
             triggers: false,
+            record: false,
         }
     }
 }
@@ -71,6 +78,11 @@ impl Settings {
     /// Triggers count only while telemetry itself is on.
     pub fn triggers_active(&self) -> bool {
         self.enabled && self.triggers
+    }
+
+    /// Recording counts only while telemetry itself is on.
+    pub fn record_active(&self) -> bool {
+        self.enabled && self.record
     }
 }
 
@@ -90,6 +102,7 @@ pub fn settings(cfg: &Config) -> Settings {
             .filter(|&p| p >= MIN_PORT)
             .unwrap_or(d.port),
         triggers: flag(KEY_TRIGGERS).unwrap_or(d.triggers),
+        record: flag(KEY_RECORD).unwrap_or(d.record),
     }
 }
 
@@ -113,6 +126,7 @@ pub fn set_settings(cfg: &mut Config, s: &Settings) -> Result<(), String> {
     t.insert(KEY_ENABLED.into(), toml::Value::Boolean(s.enabled));
     t.insert(KEY_PORT.into(), toml::Value::Integer(i64::from(s.port)));
     t.insert(KEY_TRIGGERS.into(), toml::Value::Boolean(s.triggers));
+    t.insert(KEY_RECORD.into(), toml::Value::Boolean(s.record));
     Ok(())
 }
 

@@ -107,6 +107,7 @@ fn on(port: u16, triggers: bool) -> TelemetrySettings {
         enabled: true,
         port,
         triggers,
+        record: false,
     }
 }
 
@@ -356,4 +357,86 @@ fn a_cached_schema_streams_loopback_and_reports_the_game_not_running() {
     // Switching off stops the stream.
     let r = f.configure(None, off()).unwrap();
     assert_eq!(r.status.streaming, None);
+}
+
+#[test]
+fn recordings_are_listed_replayed_deleted_and_counted_by_storage() {
+    let f = fake();
+    f.configure(Some("PTU"), on(50051, false)).unwrap();
+    // "Record sessions": its own switch, saved in config.toml, off by default.
+    assert!(!f.backend.telemetry_status().unwrap().settings.record);
+    let st = f
+        .backend
+        .telemetry_record(TelemetryRecordRequest { on: true })
+        .unwrap();
+    assert!(st.settings.record);
+    let toml = std::fs::read_to_string(f.dirs.config_toml()).unwrap();
+    assert!(toml.contains("telemetry_record = true"), "{toml}");
+    // A synthetic recording, as a stream would have written it.
+    let dir = starorg_core::storage::telemetry_recordings_dir(&f.dirs);
+    let schema = starorg_telemetry::mock::schema();
+    let caps = starorg_telemetry::record::Caps {
+        interval: Duration::ZERO,
+        ..Default::default()
+    };
+    let t0 = 1_795_437_296_000u64;
+    let mut r = starorg_telemetry::record::Recorder::create(&dir, "PTU", "mock", t0, caps).unwrap();
+    for i in 0..20u64 {
+        let raw = starorg_telemetry::json::to_json(&starorg_telemetry::mock::frame(
+            &schema,
+            i as f64 / 4.0,
+            &starorg_telemetry::mock::MockState::default(),
+        ));
+        assert!(r.frame(t0 + i * 250, &raw));
+    }
+    let name = r.finish().unwrap();
+    std::fs::write(dir.join("notes.txt"), "not ours").unwrap();
+    let list = f.backend.telemetry_recordings().unwrap();
+    assert_eq!(list.items.len(), 1, "only our files");
+    assert_eq!(list.items[0].name, name);
+    assert_eq!(list.items[0].duration_ms, Some(4750));
+    assert_eq!(list.max_files, 20);
+    // Settings > Storage: its own area, outside the cache and its cap.
+    let storage = f.backend.storage_measure().unwrap();
+    let area = storage
+        .areas
+        .iter()
+        .find(|a| a.id == StorageAreaId::TelemetryRecordings)
+        .unwrap();
+    assert_eq!(area.files, 2, "the folder as a whole");
+    assert!(area.bytes >= list.items[0].bytes && !area.in_cache);
+    // Replayed into the screen.
+    let (s, rx) = sink();
+    let st = f
+        .backend
+        .telemetry_replay_start(TelemetryRecordingRef { name: name.clone() }, s)
+        .unwrap();
+    assert!(st.streaming.is_none());
+    assert_eq!(st.replay.as_ref().unwrap().duration_ms, 4750);
+    let ev = rx.recv_timeout(Duration::from_secs(5)).unwrap();
+    let frame = ev.frame.expect("a frame");
+    assert_eq!(frame.received_ms, t0);
+    assert!(frame.snapshot.ship.is_some());
+    let e = f
+        .backend
+        .telemetry_recording_delete(TelemetryRecordingRef { name: name.clone() })
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Busy, "playing");
+    let bad = f
+        .backend
+        .telemetry_replay_start(
+            TelemetryRecordingRef {
+                name: "../config.jsonl".into(),
+            },
+            sink().0,
+        )
+        .unwrap_err();
+    assert_eq!(bad.code, ErrorCode::Invalid);
+    f.backend.telemetry_stop().unwrap();
+    let list = f
+        .backend
+        .telemetry_recording_delete(TelemetryRecordingRef { name })
+        .unwrap();
+    assert!(list.items.is_empty());
+    assert!(dir.join("notes.txt").is_file());
 }

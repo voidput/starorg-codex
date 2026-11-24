@@ -16,6 +16,8 @@ export interface TelemetrySettings {
   port: number;
   /** The "Metrics + actions" choice; counts only with `enabled` on. */
   triggers: boolean;
+  /** "Record sessions" (its own switch, `telemetry_record`); counts only with `enabled` on. */
+  record: boolean;
 }
 
 export type CvarState = 'no-file' | 'missing' | 'set' | 'other';
@@ -73,6 +75,90 @@ export interface TelemetryStatus {
   dangerous: string[];
   /** Frames from the synthetic generator (mock backend). */
   mock: boolean;
+  /** A recording plays instead of the game (the "Replay" mode). */
+  replay: TelemetryReplayState | null;
+  /** The recording being written now. */
+  recording: string | null;
+  /** Why the last recording could not start or stopped early. */
+  record_error: string | null;
+}
+
+export interface TelemetryReplayState {
+  /** The recording's file name. */
+  name: string;
+  /** Unix ms of its first frame. */
+  start_ms: number;
+  position_ms: number;
+  duration_ms: number;
+  playing: boolean;
+  /** 0.25-16. */
+  speed: number;
+  /** At the last frame; Play starts over. */
+  ended: boolean;
+}
+
+/** The graphs' series, one value a second (null: not sent then). Health 0-100, oxygen and the ship's fractions 0-1, speed m/s. */
+export interface TelemetrySeries {
+  speed: (number | null)[];
+  g: (number | null)[];
+  hydrogen_fuel: (number | null)[];
+  quantum_fuel: (number | null)[];
+  hull: (number | null)[];
+  shield: (number | null)[];
+  health: (number | null)[];
+  oxygen: (number | null)[];
+}
+
+export type TelemetrySeriesKey = keyof TelemetrySeries;
+
+export interface TelemetryHistory {
+  epoch: number;
+  /** The caller's points are gone: this is the whole ring. */
+  reset: boolean;
+  interval_ms: number;
+  capacity: number;
+  /** Unix ms per sample (a replay: when it was recorded). */
+  t_ms: number[];
+  series: TelemetrySeries;
+}
+
+export interface TelemetryHistoryRequest {
+  epoch: number | null;
+  since_ms: number | null;
+}
+
+export interface TelemetryRecording {
+  /** File name; the webview names a recording by this, never by a path. */
+  name: string;
+  bytes: number;
+  started_ms: number | null;
+  duration_ms: number | null;
+  channel: string | null;
+  schema: string | null;
+}
+
+export interface TelemetryRecordings {
+  /** Newest first. */
+  items: TelemetryRecording[];
+  folder: string;
+  /** Being written (not deletable until the stream stops). */
+  recording: string | null;
+  replaying: string | null;
+  max_files: number;
+  max_total_bytes: number;
+  max_file_bytes: number;
+  record_hz: number;
+}
+
+export interface TelemetryRecordingRef {
+  name: string;
+}
+
+/** Each field left null stays as it is. */
+export interface TelemetryReplayControl {
+  playing: boolean | null;
+  seek_ms: number | null;
+  speed: number | null;
 }
 
 export interface TelemetryConfigureRequest {
@@ -189,6 +275,8 @@ export interface TelemetryEvent {
   session: number;
   status: LinkStatus | null;
   frame: TelemetryFrame | null;
+  /** In a replay: its position (its own events may carry only this). */
+  replay: TelemetryReplayState | null;
 }
 
 export interface TelemetryCommandMap {
@@ -198,6 +286,12 @@ export interface TelemetryCommandMap {
   telemetry_stop: [Record<string, never>, TelemetryStatus];
   telemetry_actions: [Record<string, never>, TelemetryActions];
   telemetry_trigger: [{ req: TelemetryTriggerRequest }, TelemetryTriggerResult];
+  telemetry_history: [{ req: TelemetryHistoryRequest }, TelemetryHistory];
+  telemetry_record: [{ req: { on: boolean } }, TelemetryStatus];
+  telemetry_recordings: [Record<string, never>, TelemetryRecordings];
+  telemetry_recording_delete: [{ req: TelemetryRecordingRef }, TelemetryRecordings];
+  telemetry_replay_start: [{ req: TelemetryRecordingRef }, TelemetryStatus];
+  telemetry_replay_control: [{ req: TelemetryReplayControl }, TelemetryStatus];
 }
 
 /** Same order as `TELEMETRY_COMMAND_NAMES` in contract/telemetry.rs (a Rust test compares them). */
@@ -208,6 +302,12 @@ export const TELEMETRY_COMMANDS = [
   'telemetry_stop',
   'telemetry_actions',
   'telemetry_trigger',
+  'telemetry_history',
+  'telemetry_record',
+  'telemetry_recordings',
+  'telemetry_recording_delete',
+  'telemetry_replay_start',
+  'telemetry_replay_control',
 ] as const satisfies readonly (keyof TelemetryCommandMap)[];
 
 const none = {} as Record<string, never>;
@@ -221,4 +321,13 @@ export const telemetryApi = {
   stop: () => call('telemetry_stop', none),
   actions: () => call('telemetry_actions', none),
   trigger: (req: TelemetryTriggerRequest) => call('telemetry_trigger', { req }),
+  /** The graphs' history since the last answer (`epoch`/`since_ms` of it; null for all). */
+  history: (req: TelemetryHistoryRequest) => call('telemetry_history', { req }),
+  /** "Record sessions" on or off (saved; off ends a recording in progress). */
+  record: (on: boolean) => call('telemetry_record', { req: { on } }),
+  recordings: () => call('telemetry_recordings', none),
+  deleteRecording: (name: string) => call('telemetry_recording_delete', { req: { name } }),
+  /** Plays a recording into the screen in place of the stream; events arrive through `onTelemetry`. */
+  replayStart: (name: string) => call('telemetry_replay_start', { req: { name } }),
+  replayControl: (req: TelemetryReplayControl) => call('telemetry_replay_control', { req }),
 };

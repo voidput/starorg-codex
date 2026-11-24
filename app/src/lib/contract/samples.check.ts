@@ -217,6 +217,13 @@ interface Samples {
   telemetry_trigger_refused: T.TelemetryTriggerResult;
   telemetry_event_status: T.TelemetryEvent;
   telemetry_event_frame: T.TelemetryEvent;
+  telemetry_event_replay: T.TelemetryEvent;
+  telemetry_history: T.TelemetryHistory;
+  telemetry_record: T.TelemetryStatus;
+  telemetry_recordings: T.TelemetryRecordings;
+  telemetry_recording_delete: T.TelemetryRecordings;
+  telemetry_replay_start: T.TelemetryStatus;
+  telemetry_replay_control: T.TelemetryStatus;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */
