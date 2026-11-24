@@ -795,8 +795,8 @@ impl LootDetailRequest {
 // The Shops screen (`shop_inventory`, `shop_items`): what each UEX terminal sells, from the
 // same UEX files, typed in `starorg_mcp::shops` (the MCP `shop_inventory` tool reads them too).
 pub use starorg_mcp::shops::{
-    CategoryCount, ItemRecord, ShopCategory, ShopDataState, ShopDirectory, ShopItemRow, ShopItems,
-    ShopPlaceGroup, ShopSummary, ShopSystem,
+    CategoryCount, ItemRecord, ShopCategory, ShopDataState, ShopDirectory, ShopItemMatch,
+    ShopItemOffer, ShopItemRow, ShopItemSearch, ShopItems, ShopPlaceGroup, ShopSummary, ShopSystem,
 };
 
 /// Every shop. `target`: the channel whose cached item data names the rows and links them to
@@ -812,6 +812,17 @@ pub struct ShopInventoryRequest {
 pub struct ShopItemsRequest {
     pub target: Option<ChannelRef>,
     pub terminal: u64,
+}
+
+/// The Shops screen's item search: the items whose game or UEX name matches `query` (fuzzy,
+/// best first, capped), and every shop (one offer each) of the item `key` names (a [`ShopItemMatch::key`]),
+/// else of the best match. `target` as for [`ShopInventoryRequest`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopItemSearchRequest {
+    pub target: Option<ChannelRef>,
+    pub query: String,
+    #[serde(default)]
+    pub key: Option<String>,
 }
 
 // The Commodities screen (`commodity_list`, `commodity_detail`): every tradable resource of

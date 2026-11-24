@@ -42,6 +42,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap, TelemetryCom
   loot_detail: [{ req: T.LootDetailRequest }, T.LootDetail];
   shop_inventory: [{ req: T.ShopInventoryRequest }, T.ShopDirectory];
   shop_items: [{ req: T.ShopItemsRequest }, T.ShopItems];
+  shop_item_search: [{ req: T.ShopItemSearchRequest }, T.ShopItemSearch];
   commodity_list: [{ req: T.CommodityListRequest }, T.CommodityDirectory];
   commodity_detail: [{ req: T.CommodityDetailRequest }, T.CommodityInfo];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
@@ -139,6 +140,7 @@ export const COMMANDS = [
   'loot_detail',
   'shop_inventory',
   'shop_items',
+  'shop_item_search',
   'commodity_list',
   'commodity_detail',
   'get_profile',
@@ -395,6 +397,8 @@ export const api = {
   shopInventory: (target: T.ChannelRef | null) => call('shop_inventory', { req: { target } }),
   /** One shop's items by category, linked to records through the channel's cached item data. */
   shopItems: (target: T.ChannelRef | null, terminal: number) => call('shop_items', { req: { target, terminal } }),
+  /** Every shop that sells or buys an item: the items a name matches, and one item's shops cheapest first. */
+  shopItemSearch: (target: T.ChannelRef | null, query: string, key: string | null = null) => call('shop_item_search', { req: { target, query, key } }),
   /** The Commodities screen: every tradable resource of the channel's build, list rows only (`not-read` until "Read game data"). */
   commodityList: (target: T.ChannelRef | null) => call('commodity_list', { req: { target } }),
   /** One resource in full: forms, quality, volatility, cargo, where mined, UEX kiosk prices. */

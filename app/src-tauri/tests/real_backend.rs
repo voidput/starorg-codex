@@ -2487,13 +2487,25 @@ fn shops_list_the_fetched_uex_files_without_extracting_anything() {
         let items = f
             .backend
             .shop_items(ShopItemsRequest {
-                target,
+                target: target.clone(),
                 terminal: 7,
             })
             .unwrap();
         assert_eq!(items.items[0].name, "Fake Rifle Kestrel");
         assert_eq!(items.items[0].price_buy, Some(1200.0));
         assert!(items.items[0].record.is_none());
+        // The item search finds it by a UEX name word, with its one shop.
+        let found = f
+            .backend
+            .shop_item_search(ShopItemSearchRequest {
+                target,
+                query: "kestrel".into(),
+                key: None,
+            })
+            .unwrap();
+        assert_eq!(found.item.as_ref().unwrap().name, "Fake Rifle Kestrel");
+        assert_eq!(found.offers.len(), 1);
+        assert_eq!(found.offers[0].terminal, 7);
     }
     // Nothing was extracted for it.
     assert!(!f.dirs.cache.join("mcp/LIVE").exists());

@@ -220,8 +220,17 @@ line at the top says how old the data is ("UEX data from 21 Nov").
   first read of a build takes a minute or two, under the memory limit). Rows no record matches
   still get their category from UEX.
 
-To find which shops sell one item, open it in the Explorer (Sources card, Buy rows) or ask the
-MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.
+- **Items:** the *Shops | Items* switch above the search turns the left column into an item
+  search. Type part of a name (game or UEX name; small typos are fine, `hornet`, `fs9 lmg`) and
+  pick one of the matches (at most 40; type more to narrow): the right side lists every shop
+  that sells it, cheapest first, with the place, the price and the day UEX confirmed it.
+  *Sell* lists the shops that pay for it instead, best price first. The system filter applies
+  here too. Click a shop to open it in the shop list with *Filter items* set to that item. The
+  screen keeps the mode and the search until the app closes. Ctrl+K offers **Where to buy
+  "…"** for whatever you type, which opens this search.
+
+To find which shops sell one item you can also open it in the Explorer (Sources card, Buy rows)
+or ask the MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.
 
 ## Commodities
 

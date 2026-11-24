@@ -2028,6 +2028,16 @@ impl Backend for MockBackend {
         Ok(super::mock_shops::mock_items(ready, ship, req.terminal))
     }
 
+    fn shop_item_search(&self, req: ShopItemSearchRequest) -> CmdResult<ShopItemSearch> {
+        let (ready, ship) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_shops::mock_item_search(
+            ready,
+            ship,
+            &req.query,
+            req.key.as_deref(),
+        ))
+    }
+
     /// The synthetic commodities of `mock_commodities` once the target's game data was read
     /// ("Read game data"); kiosk prices once "Fetch now" ran.
     fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {

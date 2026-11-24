@@ -47,6 +47,7 @@ import assetData from './mock-assets.gen.json';
 import { mockLootDetail, mockLootList, type LootMockData } from './mock-loot';
 import lootData from './mock-loot.gen.json';
 import { createTelemetryMock } from './mock-telemetry';
+import { mockItemSearch, type ShopItemCatalogue } from './mock-shops';
 
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
@@ -82,6 +83,10 @@ const SAMPLES = samples as unknown as {
   shop_items: T.ShopItems;
   shop_items_all: T.ShopItems[];
   shop_items_all_linked: T.ShopItems[];
+  shop_item_search: T.ShopItemSearch;
+  shop_item_search_missing: T.ShopItemSearch;
+  shop_item_catalogue: ShopItemCatalogue;
+  shop_item_catalogue_linked: ShopItemCatalogue;
   commodity_list_not_read: T.CommodityDirectory;
   commodity_list: T.CommodityDirectory;
   commodity_list_priced: T.CommodityDirectory;
@@ -1096,6 +1101,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const all = req.target && dataRead.has(id(req.target)) ? SAMPLES.shop_items_all_linked : SAMPLES.shop_items_all;
       const hit = all.find((s) => s.shop?.id === req.terminal);
       return clone(hit ?? { ...SAMPLES.shop_items, shop: null, items: [] });
+    },
+    shop_item_search: ({ req }) => {
+      const linked = !!req.target && dataRead.has(id(req.target));
+      const dir = linked ? SAMPLES.shop_inventory_linked : SAMPLES.shop_inventory;
+      const all = linked ? SAMPLES.shop_item_catalogue_linked : SAMPLES.shop_item_catalogue;
+      return mockItemSearch(all, uex.shops_ready, SAMPLES.shop_inventory_missing.folder, dir.fetched, dir.linked, req.query, req.key ?? null);
     },
     // The Rust mock's synthetic commodities once the channel's game data was read; kiosk
     // prices once the commodity prices are there. A detail takes a moment (the skeleton shows).

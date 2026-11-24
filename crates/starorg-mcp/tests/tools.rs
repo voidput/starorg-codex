@@ -633,6 +633,15 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
     let names: Vec<&str> = d.systems.iter().map(|s| s.name.as_str()).collect();
     assert_eq!(names, ["Pyro", "Stanton"]);
+    // The item search works on UEX names before any item data is read.
+    let r = t.shop_item_search(Some("LIVE"), "fs-9", None);
+    let best = r.item.as_ref().expect("a match");
+    assert!(
+        best.record.is_none() && best.key.starts_with("uex:"),
+        "{best:?}"
+    );
+    assert!(!r.offers.is_empty());
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
     // After a tool extracted item-tags, rows link.
     let s = starorg_mcp::server(w.config(), None);
     ok(&s, "item", json!({"key": "behr_lmg_ballistic_01"}));
@@ -645,6 +654,12 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
         i.items
     );
     assert!(i.linked.is_some());
+    // Linked now: the item keys on its class name, its shops cheapest first.
+    let r = t.shop_item_search(Some("LIVE"), "FS-9 LMG", None);
+    assert_eq!(r.item.as_ref().unwrap().key, "behr_lmg_ballistic_01");
+    assert!(r.offers.windows(2).all(
+        |w| w[0].price_buy.unwrap_or(f64::INFINITY) <= w[1].price_buy.unwrap_or(f64::INFINITY)
+    ));
     // Ship-components not cached yet: the cannon keeps UEX's name, unlinked.
     let cannon = |i: &starorg_mcp::shops::ShopItems| {
         i.items
@@ -671,6 +686,9 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
     assert_eq!(serde_json::to_value(gone.state).unwrap(), json!("missing"));
     assert!(gone.folder.unwrap().ends_with("uex"));
     assert!(t.shop_items(None, 2).shop.is_none());
+    let gone = t.shop_item_search(Some("LIVE"), "fs-9", None);
+    assert_eq!(serde_json::to_value(gone.state).unwrap(), json!("missing"));
+    assert!(gone.items.is_empty() && gone.offers.is_empty());
 }
 
 #[test]

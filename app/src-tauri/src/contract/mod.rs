@@ -107,6 +107,9 @@ pub trait Backend:
     fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory>;
     /// One shop's items by category, with prices and the game record when linked.
     fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems>;
+    /// Every shop that sells (or buys) an item: the items a name matches, and one item's
+    /// shops cheapest first. Same data and rules as `shop_inventory`.
+    fn shop_item_search(&self, req: ShopItemSearchRequest) -> CmdResult<ShopItemSearch>;
     /// The Commodities screen: every tradable resource of the channel's build as list rows
     /// (summaries only), from its cached game data; nothing is extracted or downloaded.
     fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory>;
@@ -298,6 +301,7 @@ commands! {
     loot_detail(req: LootDetailRequest) -> LootDetail;
     shop_inventory(req: ShopInventoryRequest) -> ShopDirectory;
     shop_items(req: ShopItemsRequest) -> ShopItems;
+    shop_item_search(req: ShopItemSearchRequest) -> ShopItemSearch;
     commodity_list(req: CommodityListRequest) -> CommodityDirectory;
     commodity_detail(req: CommodityDetailRequest) -> CommodityInfo;
     get_profile(req: ChannelRef) -> Profile;
@@ -411,6 +415,7 @@ macro_rules! contract_handler {
             $crate::contract::loot_detail,
             $crate::contract::shop_inventory,
             $crate::contract::shop_items,
+            $crate::contract::shop_item_search,
             $crate::contract::commodity_list,
             $crate::contract::commodity_detail,
             $crate::contract::get_profile,
@@ -565,6 +570,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "loot_detail",
     "shop_inventory",
     "shop_items",
+    "shop_item_search",
     "commodity_list",
     "commodity_detail",
     "get_profile",
