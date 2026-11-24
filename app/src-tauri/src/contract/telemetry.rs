@@ -14,12 +14,21 @@
 //! - `telemetry_trigger` presses an action the game lists as triggerable, refused unless
 //!   "Allow game actions" is on; dangerous ones need `confirmed`, and the UI asks before the
 //!   first press of each session.
+//! - `telemetry_history` answers the 10-minute ring of headline values (1 a second) for the
+//!   graphs, only what is new since the caller's last answer.
+//! - "Record sessions" (`telemetry_record`, its own switch, off) writes the live stream to
+//!   JSONL in the app's data folder, capped (`starorg_telemetry::record::Caps`);
+//!   `telemetry_recordings` lists them, `telemetry_recording_delete` removes one, and
+//!   `telemetry_replay_start` / `telemetry_replay_control` play one into the same screen
+//!   (events carry [`TelemetryReplayState`]); `telemetry_stop` ends a replay too.
 
 use super::types::*;
 use super::{BackendState, run};
 use serde::{Deserialize, Serialize};
 use starorg_telemetry::frames::Frame;
+pub use starorg_telemetry::history::{HistoryView as TelemetryHistory, Series as TelemetrySeries};
 use starorg_telemetry::live::{LinkStatus, LiveEvent};
+pub use starorg_telemetry::record::RecordingInfo as TelemetryRecording;
 use starorg_telemetry::trigger::{Refusal, TriggerOutcome, TriggerableAction};
 use tauri::Emitter;
 
@@ -38,6 +47,10 @@ pub struct TelemetrySettings {
     pub port: u16,
     /// "Allow game actions": press allowlisted inputs. Counts only with `enabled` on.
     pub triggers: bool,
+    /// "Record sessions": write the live stream to a recording. Counts only with `enabled`
+    /// on; independent of `triggers`. Changed alone by `telemetry_record`.
+    #[serde(default)]
+    pub record: bool,
 }
 
 impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
@@ -46,6 +59,7 @@ impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
             enabled: s.enabled,
             port: s.port,
             triggers: s.triggers,
+            record: s.record,
         }
     }
 }
@@ -56,6 +70,7 @@ impl From<TelemetrySettings> for starorg_core::telemetry::Settings {
             enabled: s.enabled,
             port: s.port,
             triggers: s.triggers,
+            record: s.record,
         }
     }
 }
@@ -63,6 +78,10 @@ impl From<TelemetrySettings> for starorg_core::telemetry::Settings {
 impl TelemetrySettings {
     pub fn triggers_active(&self) -> bool {
         self.enabled && self.triggers
+    }
+
+    pub fn record_active(&self) -> bool {
+        self.enabled && self.record
     }
 }
 
@@ -158,6 +177,76 @@ pub struct TelemetryStatus {
     pub dangerous: Vec<String>,
     /// The mock backend: frames come from the synthetic generator.
     pub mock: bool,
+    /// A recording plays instead of the game (the screen's "Replay" mode).
+    pub replay: Option<TelemetryReplayState>,
+    /// The recording being written now ("Record sessions" on and frames arriving).
+    pub recording: Option<String>,
+    /// Why the last recording could not be started or stopped early, if it did.
+    pub record_error: Option<String>,
+}
+
+/// A replay as the screen shows it (in status and on every replayed event).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct TelemetryReplayState {
+    /// The recording's file name.
+    pub name: String,
+    /// Unix ms of its first frame.
+    pub start_ms: u64,
+    /// From the first frame to the one shown.
+    pub position_ms: u64,
+    pub duration_ms: u64,
+    pub playing: bool,
+    /// 0.25 to 16.
+    pub speed: f64,
+    /// It reached the last frame (Play starts over).
+    pub ended: bool,
+}
+
+/// `telemetry_history`: what the caller already has (both `None` for everything).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct TelemetryHistoryRequest {
+    /// The epoch of the caller's last answer; another one means start over.
+    pub epoch: Option<u64>,
+    /// The time of the caller's newest sample.
+    pub since_ms: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelemetryRecordRequest {
+    pub on: bool,
+}
+
+/// One recording, named by its file name (the webview never sends a path).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TelemetryRecordingRef {
+    pub name: String,
+}
+
+/// Recordings, newest first, and their bounds.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TelemetryRecordings {
+    pub items: Vec<TelemetryRecording>,
+    /// The folder (shown only).
+    pub folder: String,
+    /// Being written now (not deletable until the stream stops).
+    pub recording: Option<String>,
+    /// Playing now.
+    pub replaying: Option<String>,
+    pub max_files: u32,
+    pub max_total_bytes: u64,
+    pub max_file_bytes: u64,
+    /// Frames a second written at most.
+    pub record_hz: u32,
+}
+
+/// `telemetry_replay_control`: each field left out stays as it is.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct TelemetryReplayControl {
+    pub playing: Option<bool>,
+    /// Jump to this far from the first frame.
+    pub seek_ms: Option<u64>,
+    /// 0.25 to 16 (clamped).
+    pub speed: Option<f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -292,12 +381,14 @@ pub struct TelemetryTriggerResult {
     pub error: Option<String>,
 }
 
-/// Payload of [`TELEMETRY_EVENT`]: a status change or a frame of stream `session`.
+/// Payload of [`TELEMETRY_EVENT`]: a status change or a frame of stream `session`, and in a
+/// replay its position (a replay's own events may carry only that).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TelemetryEvent {
     pub session: u64,
     pub status: Option<LinkStatus>,
     pub frame: Option<Box<Frame>>,
+    pub replay: Option<TelemetryReplayState>,
 }
 
 impl TelemetryEvent {
@@ -307,11 +398,13 @@ impl TelemetryEvent {
                 session,
                 status: Some(s),
                 frame: None,
+                replay: None,
             },
             LiveEvent::Frame(f) => Self {
                 session,
                 status: None,
                 frame: Some(f),
+                replay: None,
             },
         }
     }
@@ -338,6 +431,23 @@ pub trait TelemetryBackend {
     fn telemetry_stop(&self) -> CmdResult<TelemetryStatus>;
     fn telemetry_actions(&self) -> CmdResult<TelemetryActions>;
     fn telemetry_trigger(&self, req: TelemetryTriggerRequest) -> CmdResult<TelemetryTriggerResult>;
+    /// The graphs' history since the caller's last answer.
+    fn telemetry_history(&self, req: TelemetryHistoryRequest) -> CmdResult<TelemetryHistory>;
+    /// "Record sessions" on or off (saved; a recording in progress ends when off).
+    fn telemetry_record(&self, req: TelemetryRecordRequest) -> CmdResult<TelemetryStatus>;
+    fn telemetry_recordings(&self) -> CmdResult<TelemetryRecordings>;
+    /// Refused (`busy`) for the recording being written or played.
+    fn telemetry_recording_delete(
+        &self,
+        req: TelemetryRecordingRef,
+    ) -> CmdResult<TelemetryRecordings>;
+    /// Play a recording into the screen (replacing a running stream or replay).
+    fn telemetry_replay_start(
+        &self,
+        req: TelemetryRecordingRef,
+        sink: Sink,
+    ) -> CmdResult<TelemetryStatus>;
+    fn telemetry_replay_control(&self, req: TelemetryReplayControl) -> CmdResult<TelemetryStatus>;
 }
 
 macro_rules! telemetry_commands {
@@ -360,6 +470,11 @@ telemetry_commands! {
     telemetry_stop() -> TelemetryStatus;
     telemetry_actions() -> TelemetryActions;
     telemetry_trigger(req: TelemetryTriggerRequest) -> TelemetryTriggerResult;
+    telemetry_history(req: TelemetryHistoryRequest) -> TelemetryHistory;
+    telemetry_record(req: TelemetryRecordRequest) -> TelemetryStatus;
+    telemetry_recordings() -> TelemetryRecordings;
+    telemetry_recording_delete(req: TelemetryRecordingRef) -> TelemetryRecordings;
+    telemetry_replay_control(req: TelemetryReplayControl) -> TelemetryStatus;
 }
 
 /// The stream's events go to the window as [`TELEMETRY_EVENT`].
@@ -378,6 +493,22 @@ pub async fn telemetry_start<R: tauri::Runtime>(
     .await
 }
 
+/// A replay's events go to the window as [`TELEMETRY_EVENT`], like a stream's.
+#[tauri::command(rename_all = "snake_case")]
+pub async fn telemetry_replay_start<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, BackendState>,
+    req: TelemetryRecordingRef,
+) -> CmdResult<TelemetryStatus> {
+    run(&state, move |b| {
+        let sink: Sink = std::sync::Arc::new(move |ev: TelemetryEvent| {
+            let _ = app.emit(TELEMETRY_EVENT, ev);
+        });
+        b.telemetry_replay_start(req, sink)
+    })
+    .await
+}
+
 /// Command names, in handler order (the TS client's `TELEMETRY_COMMANDS` matches).
 pub const TELEMETRY_COMMAND_NAMES: &[&str] = &[
     "telemetry_status",
@@ -386,4 +517,10 @@ pub const TELEMETRY_COMMAND_NAMES: &[&str] = &[
     "telemetry_stop",
     "telemetry_actions",
     "telemetry_trigger",
+    "telemetry_history",
+    "telemetry_record",
+    "telemetry_recordings",
+    "telemetry_recording_delete",
+    "telemetry_replay_start",
+    "telemetry_replay_control",
 ];

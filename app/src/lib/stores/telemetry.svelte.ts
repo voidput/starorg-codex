@@ -5,12 +5,30 @@
  * Frames arrive at most 10 a second through one `onTelemetry` listener; the latest is kept in
  * a raw state (no deep proxy), so a panel re-renders only the values it reads. Events of an
  * older stream (a lower session number) are dropped.
+ *
+ * The graphs' history is polled once a second while a screen watches it ([`watchHistory`]),
+ * only what is new each time, so the graphs redraw at 1 Hz, never at the frame rate. A replay
+ * of a recording comes through the same events, with its position in `replay`.
  */
 import { api, toContractError } from '@/lib/contract/client';
-import { telemetryApi, type LinkStatus, type TelemetryConfigureRequest, type TelemetryConfigureResult, type TelemetryFrame, type TelemetryStatus } from '@/lib/contract/telemetry';
+import {
+  telemetryApi,
+  type LinkStatus,
+  type TelemetryConfigureRequest,
+  type TelemetryConfigureResult,
+  type TelemetryFrame,
+  type TelemetryHistory,
+  type TelemetryRecordings,
+  type TelemetryReplayControl,
+  type TelemetryReplayState,
+  type TelemetryStatus,
+} from '@/lib/contract/telemetry';
 import type { ChannelRef } from '@/lib/contract/types';
-import { sessionStep } from '@/lib/telemetry';
+import { mergeHistory, sessionStep } from '@/lib/telemetry';
 import { toast } from './toast.svelte';
+
+/** How often the graphs' history is asked for (they redraw at most this often). */
+export const HISTORY_POLL_MS = 1000;
 
 class TelemetryState {
   status = $state<TelemetryStatus | null>(null);
@@ -26,6 +44,12 @@ class TelemetryState {
   starting = $state(false);
   /** The channel picked in Settings or on the screen (`<install>/<CHANNEL>`); kept while the app runs. */
   picked = $state<string | null>(null);
+  /** The replay playing instead of the game, as of its latest event. */
+  replay = $state.raw<TelemetryReplayState | null>(null);
+  /** The graphs' history (one sample a second), replaced whole at each poll. */
+  history = $state.raw<TelemetryHistory | null>(null);
+  /** The recordings list, once asked for. */
+  recordings = $state.raw<TelemetryRecordings | null>(null);
 
   /** The feature is on: the sidebar shows the screen. */
   enabled = $derived(!!this.status?.settings.enabled);
@@ -42,9 +66,11 @@ class TelemetryState {
         // A new stream (another channel): the old one's frame is not shown under it.
         this.frame = null;
         this.count = 0;
+        this.replay = null;
       }
       this.session = e.session;
       if (e.status) this.link = e.status;
+      if (e.replay) this.replay = e.replay;
       if (e.frame) {
         this.frame = e.frame;
         this.count++;
@@ -61,6 +87,9 @@ class TelemetryState {
     }
     // The answer of a start may come after the stream's first statuses.
     if (!s.streaming || this.link.state === 'disabled') this.link = s.link;
+    // A replay's events are newer than the answer that started it; none in the answer ends it.
+    if (!s.replay) this.replay = null;
+    else if (!this.replay || this.replay.name !== s.replay.name) this.replay = s.replay;
     return s;
   }
 
@@ -132,14 +161,106 @@ class TelemetryState {
   async stop(): Promise<void> {
     this.wanted = false;
     this.queued = null;
-    if (!this.status?.streaming) return;
+    if (!this.status?.streaming && !this.status?.replay) return;
     try {
       this.take(await telemetryApi.stop());
       this.frame = null;
+      this.replay = null;
       this.link = { state: 'disabled' };
     } catch (e) {
       toast('error', 'Live telemetry not stopped', toContractError(e).message);
     }
+  }
+
+  /** "Record sessions" on or off (its own switch; throws so Settings can show why). */
+  async setRecord(on: boolean): Promise<void> {
+    this.busy = true;
+    try {
+      this.take(await telemetryApi.record(on));
+    } finally {
+      this.busy = false;
+    }
+  }
+
+  async loadRecordings(): Promise<void> {
+    try {
+      this.recordings = await telemetryApi.recordings();
+    } catch (e) {
+      toast('error', 'Could not list the recordings', toContractError(e).message);
+    }
+  }
+
+  async deleteRecording(name: string): Promise<void> {
+    try {
+      this.recordings = await telemetryApi.deleteRecording(name);
+    } catch (e) {
+      toast('error', 'Recording not deleted', toContractError(e).message);
+    }
+  }
+
+  /** Play a recording into the screen in place of the stream. */
+  async replayStart(name: string): Promise<void> {
+    this.listen();
+    try {
+      await this.unlisten;
+      // A start waiting for its answer must not start the game stream after this.
+      this.queued = null;
+      const s = await telemetryApi.replayStart(name);
+      this.frame = null;
+      this.count = 0;
+      this.history = null;
+      this.take(s);
+      void this.loadRecordings();
+    } catch (e) {
+      toast('error', 'Replay not started', toContractError(e).message);
+    }
+  }
+
+  async replayControl(c: Partial<TelemetryReplayControl>): Promise<void> {
+    try {
+      const s = await telemetryApi.replayControl({ playing: c.playing ?? null, seek_ms: c.seek_ms ?? null, speed: c.speed ?? null });
+      if (s.replay) this.replay = s.replay;
+      this.status = s;
+    } catch (e) {
+      toast('error', 'Replay', toContractError(e).message);
+    }
+  }
+
+  private polling = 0;
+  private historyTimer: ReturnType<typeof setInterval> | null = null;
+  private historyBusy = false;
+
+  /** Ask for what is new in the history (skipped while an answer is on its way or the window is hidden). */
+  async pollHistory(): Promise<void> {
+    if (this.historyBusy) return;
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
+    this.historyBusy = true;
+    try {
+      const h = this.history;
+      const next = await telemetryApi.history({ epoch: h?.epoch ?? null, since_ms: h?.t_ms.at(-1) ?? null });
+      // A seek or a new stream meanwhile dropped the old one: merge only onto what is there now.
+      this.history = mergeHistory(this.history, next);
+    } catch {
+      // The graphs keep what they have; the next poll tries again.
+    } finally {
+      this.historyBusy = false;
+    }
+  }
+
+  /** Poll the history while the caller watches (a screen's mount); returns the unwatch. */
+  watchHistory(): () => void {
+    this.polling++;
+    if (!this.historyTimer) {
+      void this.pollHistory();
+      this.historyTimer = setInterval(() => void this.pollHistory(), HISTORY_POLL_MS);
+    }
+    return () => {
+      this.polling = Math.max(0, this.polling - 1);
+      if (this.polling === 0 && this.historyTimer) {
+        clearInterval(this.historyTimer);
+        this.historyTimer = null;
+      }
+    };
   }
 }
 

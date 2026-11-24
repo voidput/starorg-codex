@@ -21,13 +21,19 @@
 //! [`frames::Snapshot`] plus the raw frame as JSON). Write: `TriggerGameAction` for the
 //! actions the game itself lists as triggerable, and only through a [`trigger::TriggerGate`]
 //! the user has switched on separately.
+//!
+//! Around the stream: a 10-minute [`history::History`] of the headline values for the graphs,
+//! [`record`]ings of sessions (only with "Record sessions" on) and their [`replay`].
 
 pub mod client;
 pub mod codec;
 pub mod frames;
+pub mod history;
 pub mod json;
 pub mod live;
 pub mod mock;
+pub mod record;
+pub mod replay;
 pub mod schema;
 pub mod trigger;
 

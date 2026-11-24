@@ -20,7 +20,7 @@ fn channel(dir: &Path, branch: Option<&str>) -> Channel {
 fn settings_default_off_and_round_trip() {
     let mut cfg = Config::default();
     assert_eq!(settings(&cfg), Settings::default());
-    assert!(!settings(&cfg).enabled && !settings(&cfg).triggers);
+    assert!(!settings(&cfg).enabled && !settings(&cfg).triggers && !settings(&cfg).record);
     assert_eq!(settings(&cfg).port, DEFAULT_PORT);
 
     cfg.extra = toml::from_str("[experimental]\nother = \"kept\"\n").unwrap();
@@ -28,6 +28,7 @@ fn settings_default_off_and_round_trip() {
         enabled: true,
         port: 50100,
         triggers: true,
+        record: true,
     };
     set_settings(&mut cfg, &s).unwrap();
     let text = toml::to_string(&cfg).unwrap();
@@ -35,6 +36,14 @@ fn settings_default_off_and_round_trip() {
     assert_eq!(settings(&back), s);
     assert!(text.contains("other = \"kept\""), "{text}");
     assert!(set_settings(&mut cfg, &Settings { port: 80, ..s }).is_err());
+    assert!(
+        !Settings {
+            enabled: false,
+            ..s
+        }
+        .record_active()
+    );
+    assert!(s.record_active());
 }
 
 #[test]

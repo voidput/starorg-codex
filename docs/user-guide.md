@@ -329,7 +329,8 @@ channel whose build is 5.0 or newer: PTU today, LIVE by itself once LIVE reaches
 lists every channel and why one is not offered (an older version, or no build manifest).
 
 Nothing leaves the computer: the app talks to `127.0.0.1` only, refuses any other address,
-records nothing and sends nothing anywhere ([privacy](privacy.md)).
+records nothing unless you turn on **Record sessions**, and sends nothing anywhere
+([privacy](privacy.md)).
 
 **Turning it on** (Settings -> Experimental -> Live telemetry):
 
@@ -359,10 +360,14 @@ it retries by itself every few seconds), then once you have spawned:
   for every ship),
 - **Systems** (engines, shield generators, lights, gear, landed, quantum spool, boost) and
   **Annunciators** (low health, oxygen, hull or fuel, shields off, high G),
+- **History**: small line graphs of speed, G, hydrogen and quantum fuel, hull, shields,
+  health and oxygen over the last 1, 5 or 10 minutes (one sample a second, kept in memory
+  while the app runs; a gap in the data breaks the line),
 - **Actions** (below) and **Raw frame**: everything the game sent, as JSON, once a second
-  while it is open, with Pause and Copy JSON.
+  while it is open, with Pause and Copy JSON,
+- **Recordings** (below).
 
-The screen updates at most 10 times a second. The first time a build is read, the app reads
+The screen updates at most 10 times a second; the graphs once a second. The first time a build is read, the app reads
 the layout of the game's service from that channel's `Bin64/StarCitizen.exe` (a few seconds)
 and keeps it in the cache folder (Settings -> Storage, *Live telemetry schemas*); nothing of
 the game is shipped with the app.
@@ -375,6 +380,17 @@ session asks first; self destruct, eject, emergency exit and power off ask every
 also refuses a second press of the same action within a second. With **Metrics** only, the list is
 shown but every button is disabled, and the second line is taken out of every channel's
 `USER.cfg`.
+
+**Record sessions and replay**: a switch of its own under Settings -> Experimental -> Live
+telemetry, off by default (choosing Metrics never turns it on). While it is on, each stream
+is saved from its first frame, 4 frames a second, to a file in the app's data folder
+(`telemetry/recordings/`, *Live telemetry recordings* in Settings -> Storage): at most 20
+files and 256 MB in all, 64 MB each, the oldest go first. The **Recordings** panel lists
+them; **Replay** plays one into the same screen instead of the game (a *Replay* badge, Play
+and Pause, a position slider, speed 0.25x to 16x, **Back to live**). Gaps longer than 5
+seconds in a recording are shortened while it plays. The file being written and the one
+playing cannot be deleted. The files use sc-telemetry's `--record` format, so either tool can
+replay the other's.
 
 ## Backups and restore
 
@@ -401,6 +417,7 @@ Settings -> Storage shows how much the app keeps and where:
 | Asset exports (Developer mode) | `~/.cache/starorg-codex/assets/` or your folder | 1 GB, least recently used first |
 | Temporary extraction folders | `~/.cache/starorg-codex/work/` | removed after each read; leftovers older than an hour at the next start |
 | Live telemetry schemas (experimental) | `~/.cache/starorg-codex/telemetry/` | the last 3 game builds, a few hundred KB each |
+| Live telemetry recordings (experimental, Record sessions) | `~/.local/share/starorg-codex/telemetry/recordings/` (Windows: `%APPDATA%\StarOrg Tools\Codex\data\telemetry\recordings\`) | 20 files, 256 MB in all; not in the cache folder or its cap |
 | Backups | `~/.local/share/starorg-codex/channels/<install>/<CHANNEL>/backups/` | see [Backups](#backups-and-restore) |
 
 **The cache folder's cap** (1 GB by default; `[storage] cache_max_mb` in `config.toml`):

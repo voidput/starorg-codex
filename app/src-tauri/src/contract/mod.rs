@@ -538,6 +538,12 @@ macro_rules! contract_handler {
             $crate::contract::telemetry::telemetry_stop,
             $crate::contract::telemetry::telemetry_actions,
             $crate::contract::telemetry::telemetry_trigger,
+            $crate::contract::telemetry::telemetry_history,
+            $crate::contract::telemetry::telemetry_record,
+            $crate::contract::telemetry::telemetry_recordings,
+            $crate::contract::telemetry::telemetry_recording_delete,
+            $crate::contract::telemetry::telemetry_replay_start,
+            $crate::contract::telemetry::telemetry_replay_control,
         ]
     };
 }
@@ -693,6 +699,12 @@ pub const COMMAND_NAMES: &[&str] = &[
     "telemetry_stop",
     "telemetry_actions",
     "telemetry_trigger",
+    "telemetry_history",
+    "telemetry_record",
+    "telemetry_recordings",
+    "telemetry_recording_delete",
+    "telemetry_replay_start",
+    "telemetry_replay_control",
 ];
 
 #[cfg(test)]

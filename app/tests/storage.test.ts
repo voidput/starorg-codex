@@ -24,11 +24,13 @@ test('sizes and the cap read plainly', () => {
 
 test('the samples list every area, with a hint, and backups outside the cap', () => {
   const ids = s.areas.map((a) => a.id);
-  assert.deepEqual(ids, ['game-data', 'where-to-get', 'uex', 'asset-exports', 'temporary', 'telemetry', 'backups']);
+  assert.deepEqual(ids, ['game-data', 'where-to-get', 'uex', 'asset-exports', 'temporary', 'telemetry', 'telemetry-recordings', 'backups']);
   for (const a of s.areas) assert.ok(AREA_HINTS[a.id], a.id);
   const backups = s.areas.find((a) => a.id === 'backups')!;
   assert.equal(backups.in_cache, false);
-  assert.equal(s.total_bytes, s.cache_bytes + backups.bytes);
+  const recs = s.areas.find((a) => a.id === 'telemetry-recordings')!;
+  assert.equal(recs.in_cache, false);
+  assert.equal(s.total_bytes, s.cache_bytes + backups.bytes + recs.bytes);
   assert.equal(s.cap_bytes, 1024 ** 3);
   assert.equal(s.backup_keep_newest, 5);
   assert.match(backupRule(s), /5 newest.*last 3 game builds/);

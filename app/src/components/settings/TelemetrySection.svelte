@@ -5,7 +5,8 @@
    * not). One choice: Off, Metrics (read only) or Metrics + actions. Metrics writes one line to
    * that channel's USER.cfg, actions a second; the launcher needs two environment variables, which the app never
    * sets: the steps are shown with a copy button. The app reads the game's own service on
-   * 127.0.0.1 only.
+   * 127.0.0.1 only. "Record sessions" is a switch of its own (off): it saves streams to the
+   * app's data folder for replay, and turning Metrics on never turns it on.
    */
   import Copy from '@lucide/svelte/icons/copy';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -15,6 +16,7 @@
   import Segmented from '@/components/common/Segmented.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import SelectField from '@/components/common/SelectField.svelte';
+  import SwitchRow from '@/components/common/SwitchRow.svelte';
   import PathText from '@/components/common/PathText.svelte';
   import { toContractError } from '@/lib/contract/client';
   import type { CvarState, TelemetryCfgLine, TelemetryChannel, TelemetryConfigureResult, TelemetrySettings } from '@/lib/contract/telemetry';
@@ -94,6 +96,16 @@
     if (n !== st.settings.port) void save({ port: n });
   }
 
+  async function setRecord(on: boolean) {
+    error = null;
+    try {
+      await telemetry.setRecord(on);
+      toast('success', on ? 'Record sessions on' : 'Record sessions off', on ? 'Each stream is saved on this computer from its first frame; replay it on the Live telemetry screen.' : 'A recording in progress was closed.');
+    } catch (e) {
+      error = toContractError(e).message;
+    }
+  }
+
   async function copy(text: string) {
     try {
       await navigator.clipboard.writeText(text);
@@ -122,7 +134,7 @@
         <Segmented ariaLabel="Live telemetry" size="sm" options={MODES} value={mode} disabled={telemetry.busy || (mode === 'off' && !target)} onchange={setMode} />
       </div>
       <p class="text-muted-foreground text-[12px]">
-        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). Nothing leaves the computer and nothing is recorded. For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Actions are a separate choice: leave them off unless you want them.
+        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). Nothing leaves the computer, and nothing is recorded unless you turn on Record sessions. For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Actions are a separate choice: leave them off unless you want them.
       </p>
     </div>
     <div class="grid gap-2 pl-0">
@@ -184,6 +196,15 @@
         </div>
       {/if}
       {#if st.settings.enabled}
+        <SwitchRow
+          id="tele-record"
+          size="sm"
+          label="Record sessions"
+          hint="Saves each live stream (4 frames a second) to the app's data folder so you can replay it on the Live telemetry screen. 20 recordings and 256 MB at most, the oldest go first; Settings → Storage shows them. Never sent anywhere."
+          checked={st.settings.record}
+          disabled={telemetry.busy}
+          onchange={(v) => void setRecord(v)}
+        />
         {#if st.settings.triggers}
           <p class="text-muted-foreground text-[12px]">Each session asks before the first press; self destruct, eject and power off ask every time.</p>
           <p class="text-warning flex items-start gap-1.5 text-[12px]"><TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /> A press acts in your game at once, as if you pressed the key. Use it only while you can see the game.</p>
