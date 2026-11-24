@@ -24,6 +24,7 @@ mod memory;
 mod starorg;
 mod storage;
 mod table;
+mod telemetry;
 mod uex;
 
 pub use assets::{AssetSpawner, AssetWorkerSpawner};
@@ -120,7 +121,7 @@ pub struct WorkerSource;
 
 impl SourceFactory for WorkerSource {
     fn source(&self, dirs: &AppDirs) -> Result<Box<dyn GameSource>, String> {
-        let exe = std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
+        let exe = starorg_core::selfexe::own_exe()?;
         // App-started extractions also run the loc-reference pass (Strings grouping).
         let mut s = LocalExtraction::new(exe).with_keyrefs();
         s.work_root = Some(dirs.cache.join("work"));
@@ -380,6 +381,8 @@ pub struct RealBackend {
     dev: dev::DevState,
     assets: assets::AssetState,
     mcp: crate::mcp::McpHost,
+    /// Live telemetry (experimental): the stream and the trigger gate (real/telemetry.rs).
+    telemetry: crate::telemetry::TelemetryHost,
     starorg: starorg::StarOrgDeps,
     starorg_mem: starorg::StarOrgMem,
     uex: uex::UexDeps,
@@ -486,6 +489,12 @@ impl RealBackend {
     pub fn new(cfg: RealConfig) -> Self {
         let update = crate::update::Updater::github(cfg.ctx.dirs.data.join(UPDATE_JSON));
         let starorg = starorg::StarOrgDeps::system(cfg.ctx.dirs.config.join("starorg-tokens"));
+        let telemetry = crate::telemetry::TelemetryHost::with_dirs(
+            Some(starorg_core::storage::telemetry_recordings_dir(
+                &cfg.ctx.dirs,
+            )),
+            Some(starorg_core::storage::telemetry_sessions_dir(&cfg.ctx.dirs)),
+        );
         Self {
             cfg,
             mem: Mutex::new(Mem::default()),
@@ -496,6 +505,7 @@ impl RealBackend {
             dev: dev::DevState::default(),
             assets: assets::AssetState::default(),
             mcp: crate::mcp::McpHost::default(),
+            telemetry,
             starorg,
             starorg_mem: starorg::StarOrgMem::default(),
             uex: uex::UexDeps::default(),
@@ -2612,6 +2622,10 @@ impl Backend for RealBackend {
         Ok(self.shop_items_of(req))
     }
 
+    fn shop_item_search(&self, req: ShopItemSearchRequest) -> CmdResult<ShopItemSearch> {
+        Ok(self.shop_item_search_of(req))
+    }
+
     fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {
         Ok(self.commodity_list_of(req))
     }
@@ -3732,15 +3746,16 @@ impl Backend for RealBackend {
     fn set_mcp_enabled(&self, req: McpToggle) -> CmdResult<McpStatus> {
         let st = if req.enabled {
             self.mcp.enable(|| {
-                let exe =
-                    std::env::current_exe().map_err(|e| format!("cannot find own binary: {e}"))?;
+                let exe = starorg_core::selfexe::own_exe()?;
                 let installs = self.installs();
                 Ok(starorg_mcp::config_for(
                     installs.first().map(|f| &f.install),
                     self.dirs(),
                     Arc::new(
+                        // MCP clients extract without anyone clicking: background work.
                         starorg_mcp::worker::ProcessExtractor::new(exe)
-                            .with_limit(self.mcp_limit()),
+                            .with_limit(self.mcp_limit())
+                            .with_priority(starorg_core::background::Priority::Background),
                     ),
                 ))
             })

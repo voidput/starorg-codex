@@ -304,6 +304,25 @@ pub fn mock_items(ready: bool, ship: bool, terminal: u64) -> ShopItems {
     }
 }
 
+/// `shop_item_search` on the mock's index (`missing` without the files).
+pub fn mock_item_search(ready: bool, ship: bool, query: &str, key: Option<&str>) -> ShopItemSearch {
+    if ready {
+        mock_shop_index(ship).search_items(query, key, Some(MOCK_UEX_FOLDER.into()))
+    } else {
+        starorg_mcp::shops::missing_item_search(Some(MOCK_UEX_FOLDER.into()), query)
+    }
+}
+
+/// Every mock item with its shops, in index order (the TS mock answers `shop_item_search`
+/// from these, matching names as `matchesWords` does).
+pub fn mock_item_catalogue(ship: bool) -> Vec<Value> {
+    let ix = mock_shop_index(ship);
+    ix.items
+        .iter()
+        .map(|i| json!({"item": i.summary, "offers": ix.offers(i)}))
+        .collect()
+}
+
 /// Every mock shop's items, in directory order (the TS mock serves `shop_items` from these).
 pub fn mock_all_items(ship: bool) -> Vec<ShopItems> {
     mock_shop_index(ship)

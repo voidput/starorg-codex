@@ -84,6 +84,16 @@ pub struct GlobalOpts {
     #[cfg(feature = "test-hooks")]
     #[arg(long, global = true, hide = true, value_name = "PATH")]
     pub test_pause_before_cfg_until: Option<std::path::PathBuf>,
+    /// Test hook: `--test-stock-ini` takes this many milliseconds to load, ignoring the time
+    /// budget (an extraction phase that never checks it).
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, global = true, hide = true, value_name = "MS")]
+    pub test_slow_load_ms: Option<u64>,
+    /// Test hook: with `--test-obtain-hints`, building the hints takes this many
+    /// milliseconds and the hooks see them only once built (a slow first build).
+    #[cfg(feature = "test-hooks")]
+    #[arg(long, global = true, hide = true, value_name = "MS")]
+    pub test_slow_obtain_ms: Option<u64>,
 }
 
 impl GlobalOpts {
@@ -123,6 +133,22 @@ impl GlobalOpts {
     pub fn test_pause_before_cfg_ms(&self) -> Option<u64> {
         #[cfg(feature = "test-hooks")]
         return self.test_pause_before_cfg_ms;
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
+
+    /// `--test-slow-obtain-ms` (only in builds with the `test-hooks` feature).
+    pub fn test_slow_obtain_ms(&self) -> Option<u64> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_slow_obtain_ms;
+        #[cfg(not(feature = "test-hooks"))]
+        None
+    }
+
+    /// `--test-slow-load-ms` (only in builds with the `test-hooks` feature).
+    pub fn test_slow_load_ms(&self) -> Option<u64> {
+        #[cfg(feature = "test-hooks")]
+        return self.test_slow_load_ms;
         #[cfg(not(feature = "test-hooks"))]
         None
     }
@@ -391,6 +417,15 @@ pub enum HookCmd {
     /// stale. Never fails: exits 0 except on usage errors.
     Postexit {
         /// Time budget in seconds (default 120).
+        #[arg(long, value_name = "SECONDS")]
+        timeout: Option<u64>,
+    },
+    /// The post-exit background job (started by `hook postexit`, detached): finish what the
+    /// hook left for later (game data of a new build, the WHERE TO GET datasets), at the
+    /// lowest priority, one at a time, stopping as soon as the game starts.
+    #[command(hide = true)]
+    Background {
+        /// Ignored (the hook's own `--timeout`, passed along).
         #[arg(long, value_name = "SECONDS")]
         timeout: Option<u64>,
     },
@@ -894,6 +929,22 @@ fn migrate_app_folders(cmd: &Command) {
     }
 }
 
+/// The priority of a run of `cmd`: the launch hooks run in the background (lowest priority,
+/// few threads), so does anything started with `STARORG_PRIORITY=background` (a script or
+/// timer running `apply --all --if-stale`); everything else is user-started work at
+/// below-normal priority. `None` for the extraction worker, which takes its caller's from
+/// the environment.
+pub fn process_priority(cmd: &Command) -> Option<starorg_core::background::Priority> {
+    use starorg_core::background::Priority;
+    match cmd {
+        Command::ExtractWorker { .. } => None,
+        Command::Hook {
+            cmd: HookCmd::Prelaunch { .. } | HookCmd::Postexit { .. } | HookCmd::Background { .. },
+        } => Some(Priority::Background),
+        _ => Some(Priority::from_env()),
+    }
+}
+
 /// Parse `args` (including the program name) and run. Never panics on bad input.
 pub fn run<I, T>(args: I) -> ExitCode
 where
@@ -919,6 +970,14 @@ where
             });
         }
     };
+    // How hard this run may use the machine (starorg_core::background): before any thread
+    // starts, so every later thread and worker inherits it.
+    match process_priority(&cli.command) {
+        Some(p) => starorg_core::background::init_process(p),
+        None => {
+            starorg_core::background::arm_from_env();
+        }
+    }
     if !matches!(cli.command, Command::ExtractWorker { .. }) {
         migrate_app_folders(&cli.command);
     }
@@ -1061,5 +1120,45 @@ where
             let opts = starorg_data::extract::Options { ini_only, keyrefs };
             ExitCode::from(run_opts(&p4k, &out, hook, opts) as u8)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use starorg_core::background::Priority;
+
+    fn priority_of(args: &[&str]) -> Option<Priority> {
+        let cli = Cli::try_parse_from(args).unwrap();
+        process_priority(&cli.command)
+    }
+
+    /// The launch hooks run in the background; the worker takes its caller's priority;
+    /// everything else is user-started (unless `STARORG_PRIORITY` says otherwise, which
+    /// this test does not set).
+    #[test]
+    fn hooks_run_in_the_background() {
+        if std::env::var_os(starorg_core::background::ENV_PRIORITY).is_some() {
+            return;
+        }
+        let b = Some(Priority::Background);
+        assert_eq!(priority_of(&["x", "hook", "postexit"]), b);
+        assert_eq!(priority_of(&["x", "hook", "background"]), b);
+        assert_eq!(
+            priority_of(&["x", "hook", "prelaunch", "--timeout", "5"]),
+            b
+        );
+        assert_eq!(
+            priority_of(&["x", "hook", "status"]),
+            Some(Priority::Normal)
+        );
+        assert_eq!(
+            priority_of(&["x", "apply", "--all", "--if-stale"]),
+            Some(Priority::Normal)
+        );
+        assert_eq!(
+            priority_of(&["x", "extract-worker", "--p4k", "a", "--out", "b"]),
+            None
+        );
     }
 }

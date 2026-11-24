@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
    * Settings -> Experimental (docs/mcp.md): the local MCP server switch. Off at every start;
-   * when on, shows the loopback URL, this run's token and ready-to-paste client configs.
+   * when on, shows the loopback URL, this run's token and ready-to-paste client configs. Below
+   * it, Live telemetry (TelemetrySection).
    */
   import Copy from '@lucide/svelte/icons/copy';
   import Eye from '@lucide/svelte/icons/eye';
@@ -19,6 +20,7 @@
   import { ensureMemory, memory } from '@/lib/stores/memory.svelte';
   import MemoryLimitRow from '@/components/settings/MemoryLimitRow.svelte';
   import { app } from '@/lib/stores/app.svelte';
+  import TelemetrySection from '@/components/settings/TelemetrySection.svelte';
 
   /** Turning the server on asks first: its extraction workers can use several GB (7.18). */
   let warning = $state(false);
@@ -119,5 +121,6 @@
         <Button variant="ghost" size="xs" onclick={() => copy(st!.stdio, 'the command')}><Copy aria-hidden="true" /> Copy</Button>
       </div>
     {/if}
+    <TelemetrySection />
   </Card.Content>
 </Card.Root>

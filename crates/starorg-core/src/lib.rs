@@ -6,6 +6,7 @@
 pub mod appdirs;
 pub mod apply;
 pub mod assetcache;
+pub mod background;
 pub mod backup;
 pub mod blueprints;
 pub mod build;
@@ -29,10 +30,12 @@ pub mod model;
 pub mod patch;
 pub mod paths;
 pub mod running;
+pub mod selfexe;
 pub mod source;
 pub mod starorg;
 pub mod state;
 pub mod storage;
+pub mod telemetry;
 pub mod usercfg;
 pub mod validate;
 

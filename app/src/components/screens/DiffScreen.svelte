@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
-   * Diff (addendum 7.6, 7.8): pick A and B among the dataset sources (two builds, two downloaded
-   * published LIVE builds, two folders, or a folder against this build), then a summary per table (added / removed / changed /
+   * Diff (addendum 7.6, 7.8): pick A and B among the dataset sources (two builds, a channel's
+   * current build and an older one kept in the dataset cache, two downloaded published LIVE
+   * builds, two folders, or a folder against this build), then a summary per table (added / removed / changed /
    * same, largest first; tables on one side marked), the records of the picked table (changed
    * first; filter by state and by changed field; identity column override) and the field diff
    * of the picked record (old ► new, numbers with delta and percent). F6 cycles the panes.
@@ -42,6 +43,7 @@
   import { cn } from '@/lib/utils';
   import { guard } from '@/lib/loadstate';
   import { revealTop, windowRange } from '@/lib/virtual';
+  import { keepPair } from '@/lib/diffpick';
 
   const target = $derived(app.target);
   const tkey = $derived(app.targetKey);
@@ -64,15 +66,13 @@
         const got = (await devApi.sources(t)).filter((s) => s.state === 'ready');
         if (!live()) return;
         sources = got;
-        a ??= sources[0]?.id ?? null;
-        b ??= sources.find((s) => s.id !== a)?.id ?? null;
+        // First visit: the channel's previous cached build → its current one, when kept. A
+        // pick no longer listed (an older cached build pruned since) is picked afresh.
+        ({ a, b } = keepPair(got, t.channel, { a, b }));
         const sum = await devApi.diffSummary(t).catch(() => null);
         if (!live()) return;
         summary = sum;
-        if (summary) {
-          a = summary.a;
-          b = summary.b;
-        }
+        if (summary) ({ a, b } = keepPair(got, t.channel, { a: summary.a, b: summary.b }));
       } catch (e) {
         if (live()) error = toContractError(e);
       }
@@ -443,7 +443,7 @@
       {#if summary}<span class="text-muted-foreground text-[12px]">{label(summary.a)} → {label(summary.b)} · {int(summary.tables.length)} tables · {summary.ms} ms</span>{/if}
     </div>
     {#if sources.length < 2}
-      <p class="text-muted-foreground text-[12.5px]">Two sources are needed: read another channel's game data (apply or a dry run), download two published LIVE builds, or add a dataset folder on the Datasets screen.</p>
+      <p class="text-muted-foreground text-[12.5px]">Two sources are needed: read another channel's game data (apply or a dry run), use WHERE TO GET again after a game update (the build before stays in the cache), download two published LIVE builds, or add a dataset folder on the Datasets screen.</p>
     {/if}
     {#if error}
       <ErrorState title="Could not compare" {error} />

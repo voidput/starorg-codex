@@ -9,10 +9,14 @@
 import type * as T from './types';
 import type { DevCommandMap } from './dev';
 import type { AssetCommandMap } from './assets';
+import type { TelemetryCommandMap, TelemetryEvent } from './telemetry';
 import { CONTRACT_VERSION, JOB_EVENT } from './types';
 
+/** Event name of live telemetry (telemetry.ts has it too; kept here so the transport needs no runtime import of it). */
+const TELEMETRY_EVENT = 'telemetry';
+
 /** Command name -> [arguments object, result]. Argument names match the Rust parameters. */
-export interface CommandMap extends DevCommandMap, AssetCommandMap {
+export interface CommandMap extends DevCommandMap, AssetCommandMap, TelemetryCommandMap {
   overview: [Record<string, never>, T.Overview];
   discover_installs: [{ deep: boolean }, T.InstallSummary[]];
   pick_install_folder: [Record<string, never>, T.InstallSummary | null];
@@ -38,6 +42,7 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap {
   loot_detail: [{ req: T.LootDetailRequest }, T.LootDetail];
   shop_inventory: [{ req: T.ShopInventoryRequest }, T.ShopDirectory];
   shop_items: [{ req: T.ShopItemsRequest }, T.ShopItems];
+  shop_item_search: [{ req: T.ShopItemSearchRequest }, T.ShopItemSearch];
   commodity_list: [{ req: T.CommodityListRequest }, T.CommodityDirectory];
   commodity_detail: [{ req: T.CommodityDetailRequest }, T.CommodityInfo];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
@@ -135,6 +140,7 @@ export const COMMANDS = [
   'loot_detail',
   'shop_inventory',
   'shop_items',
+  'shop_item_search',
   'commodity_list',
   'commodity_detail',
   'get_profile',
@@ -251,6 +257,25 @@ export const COMMANDS = [
   'storage_status',
   'storage_measure',
   'storage_clear_assets',
+  'telemetry_status',
+  'telemetry_configure',
+  'telemetry_start',
+  'telemetry_stop',
+  'telemetry_actions',
+  'telemetry_trigger',
+  'telemetry_history',
+  'telemetry_record',
+  'telemetry_recordings',
+  'telemetry_recording_delete',
+  'telemetry_replay_start',
+  'telemetry_replay_control',
+  'telemetry_alerts',
+  'telemetry_alerts_configure',
+  'telemetry_alert_test',
+  'telemetry_gamelog',
+  'telemetry_people_clear',
+  'telemetry_sessions',
+  'telemetry_sessions_clear',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -263,6 +288,8 @@ export interface Transport {
   call<K extends Command>(cmd: K, args: Args<K>): Promise<Result<K>>;
   /** Subscribe to job progress; returns the unsubscribe function. */
   onJob(cb: (p: T.JobProgress) => void): Promise<() => void>;
+  /** Subscribe to live telemetry events (status changes and frames); returns the unsubscribe function. */
+  onTelemetry(cb: (e: TelemetryEvent) => void): Promise<() => void>;
 }
 
 /** Thrown by `call` for every failure, so the UI can switch on `code`. */
@@ -300,6 +327,9 @@ async function tauriTransport(): Promise<Transport> {
     },
     async onJob(cb) {
       return listen<T.JobProgress>(JOB_EVENT, (ev) => cb(ev.payload));
+    },
+    async onTelemetry(cb) {
+      return listen<TelemetryEvent>(TELEMETRY_EVENT, (ev) => cb(ev.payload));
     },
   };
 }
@@ -380,6 +410,8 @@ export const api = {
   shopInventory: (target: T.ChannelRef | null) => call('shop_inventory', { req: { target } }),
   /** One shop's items by category, linked to records through the channel's cached item data. */
   shopItems: (target: T.ChannelRef | null, terminal: number) => call('shop_items', { req: { target, terminal } }),
+  /** Every shop that sells or buys an item: the items a name matches, and one item's shops cheapest first. */
+  shopItemSearch: (target: T.ChannelRef | null, query: string, key: string | null = null) => call('shop_item_search', { req: { target, query, key } }),
   /** The Commodities screen: every tradable resource of the channel's build, list rows only (`not-read` until "Read game data"). */
   commodityList: (target: T.ChannelRef | null) => call('commodity_list', { req: { target } }),
   /** One resource in full: forms, quality, volatility, cargo, where mined, UEX kiosk prices. */
@@ -459,4 +491,6 @@ export const api = {
   /** "Clear asset cache"; `busy` while an asset job runs. */
   storageClearAssets: () => call('storage_clear_assets', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
+  /** Live telemetry events of the running stream (Settings > Experimental). */
+  onTelemetry: async (cb: (e: TelemetryEvent) => void) => (await getTransport()).onTelemetry(cb),
 };

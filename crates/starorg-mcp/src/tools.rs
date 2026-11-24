@@ -377,6 +377,8 @@ pub struct Ctx<'a> {
     pub dir: PathBuf,
     /// Extract a dataset that is not cached yet (else answer that it is missing).
     pub extract: bool,
+    /// Long in-process work (the obtain hints' loot pass) gives up once this passes.
+    pub deadline: Option<std::time::Instant>,
 }
 
 impl<'a> Ctx<'a> {
@@ -392,6 +394,7 @@ impl<'a> Ctx<'a> {
             ch,
             dir: store.build_dir(ch),
             extract: true,
+            deadline: None,
         })
     }
 
@@ -1087,10 +1090,7 @@ fn where_to_buy(ctx: &Ctx<'_>, a: &Args<'_>) -> ToolResult<Value> {
                 not_on_live: (s.live == Some(false)).then_some(true),
             })
             .collect();
-        rows.sort_by(|x, y| {
-            let p = |r: &ShopRow| r.price_buy.unwrap_or(f64::INFINITY);
-            p(x).partial_cmp(&p(y)).unwrap_or(std::cmp::Ordering::Equal)
-        });
+        crate::shops::cheapest_first(&mut rows, |r| r.price_buy);
         let mut v =
             json!({"item": {"key": i.class_name, "name": i.name}, "shops": page(&rows, a)?});
         if let Some(n) = r.shops_elsewhere.filter(|n| *n > 0) {
@@ -1962,6 +1962,21 @@ impl Tools {
         }
     }
 
+    /// The Shops screen's item search: the items `query` matches (fuzzy, game and UEX names)
+    /// and the shops of the one `key` names, else of the best match.
+    pub fn shop_item_search(
+        &self,
+        channel: Option<&str>,
+        query: &str,
+        key: Option<&str>,
+    ) -> crate::shops::ShopItemSearch {
+        let ctx = self.cached_ctx(channel);
+        match self.shop_index(ctx.as_ref()) {
+            Some(ix) => ix.search_items(query, key, self.uex_folder()),
+            None => crate::shops::missing_item_search(self.uex_folder(), query),
+        }
+    }
+
     /// Whether the UEX commodity files are there, read through [`Store::uex`] (parsed once
     /// per file version).
     fn market_meta(&self) -> crate::commodities::MarketMeta {
@@ -2209,8 +2224,32 @@ impl Tools {
         channel: &str,
         extract: bool,
     ) -> ToolResult<Arc<crate::hints::BuiltHints>> {
+        self.obtain_hints_until(channel, extract, None)
+    }
+
+    /// The channel's complete hints when already built and stored on disk for its current
+    /// build (and the UEX files' stamp), without working anything out: cheap.
+    pub fn stored_obtain_hints(&self, channel: &str) -> Option<Arc<crate::hints::BuiltHints>> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel)).ok()?;
+        read_hints(&ctx.dir, &hints_tag(&ctx)).map(Arc::new)
+    }
+
+    /// [`Self::obtain_hints_with`] that stops by `deadline` (the launch hooks' budget):
+    /// the extractor's own deadline ends the dataset extractions, and the loot pass gives up
+    /// once it passes. What was stopped is a warning, so the answer is partial and built
+    /// again on the next call.
+    pub fn obtain_hints_until(
+        &self,
+        channel: &str,
+        extract: bool,
+        deadline: Option<std::time::Instant>,
+    ) -> ToolResult<Arc<crate::hints::BuiltHints>> {
+        if deadline.is_some_and(|d| std::time::Instant::now() >= d) {
+            return tool_err("out of time; left for the next run");
+        }
         let mut ctx = Ctx::for_channel(&self.store, Some(channel))?;
         ctx.extract = extract;
+        ctx.deadline = deadline;
         let mut partial = None;
         let r = ctx.store.typed_uex(&ctx.dir, "obtain-hints", || {
             // A complete answer is kept on disk too, so a restart does not build it again.
@@ -2316,7 +2355,12 @@ fn build_hints(ctx: &Ctx<'_>) -> crate::hints::BuiltHints {
     if let Some(c) = &corpus {
         let bulk = BulkObtain::new(&c.d, c.index.as_ref());
         let list: Vec<_> = c.d.items.iter().filter(|i| !i.template()).collect();
-        let all_areas = bulk.areas_all(&list);
+        let Some(all_areas) = bulk.areas_all_until(&list, ctx.deadline) else {
+            out.warnings
+                .push("loot and shop lines left out: out of time; left for the next run".into());
+            out.items = out.hints.items.len();
+            return out;
+        };
         for (item, areas) in list.into_iter().zip(all_areas) {
             let (loot, loot_total) = loot_hints(&areas, MAX_LOOT);
             let o = ItemObtain {
@@ -2336,6 +2380,9 @@ fn build_hints(ctx: &Ctx<'_>) -> crate::hints::BuiltHints {
     }
     // Mining and quality, per resource with a quality spread.
     let mining = (|| -> ToolResult<()> {
+        if ctx.deadline.is_some_and(|d| std::time::Instant::now() >= d) {
+            return tool_err("out of time; left for the next run");
+        }
         let c = ctx.commodities()?;
         let spawns = ctx.mining_spawns()?;
         let bodies: std::collections::HashMap<String, String> = spawns

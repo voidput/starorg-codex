@@ -20,6 +20,8 @@ sha2.workspace = true
 getrandom.workspace = true
 memchr.workspace = true
 flate2.workspace = true
+# The thread cap of the global pool (background.rs); already in the tree.
+rayon.workspace = true
 
 # Windows only: process image paths (is the game running?) and the list of fixed drives
 # (install discovery), through safe wrappers over Toolhelp/QueryFullProcessImageName and

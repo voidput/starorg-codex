@@ -293,6 +293,10 @@ pub struct ExportDone {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Hooks {
     pub panic_op: bool,
+    /// While an export runs, wait this long for the next request before each step instead
+    /// of only taking one already read, so a test can reach the export mid-run however fast
+    /// the build is.
+    pub line_wait: Option<std::time::Duration>,
 }
 
 fn fail(code: &str, message: impl Into<String>) -> ReplyError {
@@ -961,7 +965,14 @@ where
     let mut job: Option<(u64, TypeExport, u32)> = None;
     loop {
         let line = if job.is_some() {
-            match rx.try_recv() {
+            let next = match session.hooks.line_wait {
+                Some(d) => rx.recv_timeout(d).map_err(|e| match e {
+                    mpsc::RecvTimeoutError::Timeout => TryRecvError::Empty,
+                    mpsc::RecvTimeoutError::Disconnected => TryRecvError::Disconnected,
+                }),
+                None => rx.try_recv(),
+            };
+            match next {
                 Ok(l) => Some(l),
                 Err(TryRecvError::Empty) => None,
                 // EOF: the parent is gone; the export's Drop removes its temporary file.

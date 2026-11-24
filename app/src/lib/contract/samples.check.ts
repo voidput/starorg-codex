@@ -38,6 +38,10 @@ interface Samples {
   shop_items: T.ShopItems;
   shop_items_all: T.ShopItems[];
   shop_items_all_linked: T.ShopItems[];
+  shop_item_search: T.ShopItemSearch;
+  shop_item_search_missing: T.ShopItemSearch;
+  shop_item_catalogue: { item: T.ShopItemMatch; offers: T.ShopItemOffer[] }[];
+  shop_item_catalogue_linked: { item: T.ShopItemMatch; offers: T.ShopItemOffer[] }[];
   commodity_list_not_read: T.CommodityDirectory;
   commodity_list: T.CommodityDirectory;
   commodity_list_priced: T.CommodityDirectory;
@@ -203,6 +207,32 @@ interface Samples {
   storage_status: T.StorageStatus;
   storage_clear_assets: T.StorageStatus;
   open_link: null;
+  telemetry_event: string;
+  telemetry_status: T.TelemetryStatus;
+  telemetry_configure: T.TelemetryConfigureResult;
+  telemetry_start: T.TelemetryStatus;
+  telemetry_stop: T.TelemetryStatus;
+  telemetry_actions: T.TelemetryActions;
+  telemetry_trigger: T.TelemetryTriggerResult;
+  telemetry_trigger_refused: T.TelemetryTriggerResult;
+  telemetry_event_status: T.TelemetryEvent;
+  telemetry_event_frame: T.TelemetryEvent;
+  telemetry_event_replay: T.TelemetryEvent;
+  telemetry_history: T.TelemetryHistory;
+  telemetry_record: T.TelemetryStatus;
+  telemetry_recordings: T.TelemetryRecordings;
+  telemetry_recording_delete: T.TelemetryRecordings;
+  telemetry_replay_start: T.TelemetryStatus;
+  telemetry_replay_control: T.TelemetryStatus;
+  telemetry_event_alert: T.TelemetryEvent;
+  telemetry_alerts: T.TelemetryAlerts;
+  telemetry_alerts_configure: T.TelemetryAlerts;
+  telemetry_alert_test: T.TelemetryAlert;
+  telemetry_gamelog: T.GameLogView | null;
+  telemetry_people_clear: T.GameLogView | null;
+  telemetry_sessions: T.TelemetrySessions;
+  telemetry_sessions_clear: T.TelemetrySessions;
+  telemetry_event_gamelog: T.TelemetryEvent;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

@@ -10,6 +10,9 @@
 //! | UEX market data | `<cache>/mcp/uex/` | 3 files, replaced on fetch |
 //! | Asset exports | the asset cache root ([`crate::assetcache`]) | 1 GiB, LRU |
 //! | Temporary | `<cache>/work/starorg-extract-*` | removed after each load; leftovers after 1 h |
+//! | Live telemetry schemas | `<cache>/telemetry/<key>.fds` ([`telemetry_dir`]) | 3 builds (`starorg_telemetry::schema::KEEP_KEYS`) |
+//! | Live telemetry recordings | `<data>/telemetry/recordings/*.jsonl` ([`telemetry_recordings_dir`]) | 20 files, 256 MiB (`starorg_telemetry::record::Caps`) |
+//! | Live telemetry session history | `<data>/telemetry/sessions/history.json` ([`telemetry_sessions_dir`]) | 2000 rows, 2 MiB (`starorg_telemetry::gamelog::stints`) |
 //! | Backups | `<data>/channels/<install>/<CHANNEL>/backups/`, `<data>/hooks/backups/` | [`crate::backup::KEEP_NEWEST`] + builds |
 //!
 //! **One cap for the cache folder** ([`DEFAULT_CAP`], 1 GiB; `[storage] cache_max_mb` in
@@ -23,8 +26,9 @@
 //!
 //! Never removed: a channel's newest game-data entry, anything written or used in the last
 //! [`crate::assetcache::IN_USE`] or named by the caller as in use, UEX files, `work/` (see
-//! [`crate::source::local::sweep_work`]), `dumps/`, backups and everything outside the cache
-//! folder. The cap can therefore stay exceeded when what is left is all in use.
+//! [`crate::source::local::sweep_work`]), `dumps/`, the live telemetry schemas (a few hundred
+//! KB, pruned to 3 builds by their writer), backups, the live telemetry recordings (in the data
+//! folder, bounded by their writer) and everything outside the cache folder. The cap can therefore stay exceeded when what is left is all in use.
 
 use crate::appdirs::AppDirs;
 use crate::assetcache::{AssetCache, IN_USE, Usage};
@@ -45,16 +49,29 @@ pub enum Area {
     Uex,
     AssetExports,
     Temporary,
+    /// Live telemetry (experimental): the game's service schema per build, read from the
+    /// user's own `StarCitizen.exe` ([`telemetry_dir`]).
+    Telemetry,
+    /// Live telemetry (experimental): recorded sessions ("Record sessions"), in the data
+    /// folder ([`telemetry_recordings_dir`]); not part of the cache or its cap.
+    TelemetryRecordings,
+    /// Live telemetry (experimental): the server and shard join history read from Game.log
+    /// ("Read Game.log events"), in the data folder ([`telemetry_sessions_dir`]); not part of
+    /// the cache or its cap.
+    TelemetrySessions,
     Backups,
 }
 
 impl Area {
-    pub const ALL: [Area; 6] = [
+    pub const ALL: [Area; 9] = [
         Area::GameData,
         Area::WhereToGet,
         Area::Uex,
         Area::AssetExports,
         Area::Temporary,
+        Area::Telemetry,
+        Area::TelemetryRecordings,
+        Area::TelemetrySessions,
         Area::Backups,
     ];
 }
@@ -65,6 +82,27 @@ const UEX: &str = "uex";
 const WORK: &str = "work";
 const ASSETS: &str = "assets";
 const DUMPS: &str = "dumps";
+const TELEMETRY: &str = "telemetry";
+
+/// Where live telemetry keeps the schema it read from each build's `StarCitizen.exe`
+/// (`<cache>/telemetry/`), so the cache folder's size and Settings > Storage count it.
+pub fn telemetry_dir(dirs: &AppDirs) -> PathBuf {
+    dirs.cache.join(TELEMETRY)
+}
+
+/// Where live telemetry keeps recorded sessions (`<data>/telemetry/recordings/`): the user's
+/// own sessions, not a cache, so they are outside the cache folder and its cap and bounded by
+/// their writer (`starorg_telemetry::record`).
+pub fn telemetry_recordings_dir(dirs: &AppDirs) -> PathBuf {
+    dirs.data.join(TELEMETRY).join("recordings")
+}
+
+/// Where live telemetry keeps the server and shard join history read from Game.log
+/// (`<data>/telemetry/sessions/`): one small file bounded by its writer
+/// (`starorg_telemetry::gamelog::stints`), outside the cache folder and its cap.
+pub fn telemetry_sessions_dir(dirs: &AppDirs) -> PathBuf {
+    dirs.data.join(TELEMETRY).join("sessions")
+}
 
 /// `[storage] cache_max_mb`, else [`DEFAULT_CAP`].
 pub fn configured_cap(cfg: &Config) -> u64 {
@@ -196,9 +234,16 @@ impl Report {
             .unwrap_or_default()
     }
 
-    /// The cache folder, plus the asset cache when it is elsewhere, plus backups.
+    /// The cache folder, plus the asset cache when it is elsewhere, plus backups, telemetry
+    /// recordings and the telemetry session history.
     pub fn total(&self, assets_inside_cache: bool) -> Usage {
-        let mut t = add(self.cache, self.area(Area::Backups));
+        let mut t = add(
+            add(
+                add(self.cache, self.area(Area::Backups)),
+                self.area(Area::TelemetryRecordings),
+            ),
+            self.area(Area::TelemetrySessions),
+        );
         if !assets_inside_cache {
             t = add(t, self.area(Area::AssetExports));
         }
@@ -224,6 +269,7 @@ pub fn report(dirs: &AppDirs, assets: &AssetCache) -> Report {
     let mut wtg = Usage::default();
     let mut uex = Usage::default();
     let mut temp = Usage::default();
+    let mut tele = Usage::default();
     let mut other = Usage::default();
     for (name, p) in entries(&dirs.cache) {
         match name.as_str() {
@@ -237,11 +283,12 @@ pub fn report(dirs: &AppDirs, assets: &AssetCache) -> Report {
                 }
             }
             WORK => temp = add(temp, usage(&p)),
+            TELEMETRY => tele = add(tele, usage(&p)),
             ASSETS => other = add(other, usage(&p)),
             _ => game = add(game, usage(&p)),
         }
     }
-    let cache = [game, wtg, uex, temp, other]
+    let cache = [game, wtg, uex, temp, tele, other]
         .into_iter()
         .fold(Usage::default(), add);
     let mcp = dirs.cache.join(MCP);
@@ -270,6 +317,21 @@ pub fn report(dirs: &AppDirs, assets: &AssetCache) -> Report {
             area: Area::Temporary,
             path: dirs.cache.join(WORK),
             usage: temp,
+        },
+        AreaUsage {
+            area: Area::Telemetry,
+            path: telemetry_dir(dirs),
+            usage: tele,
+        },
+        AreaUsage {
+            area: Area::TelemetryRecordings,
+            path: telemetry_recordings_dir(dirs),
+            usage: usage(&telemetry_recordings_dir(dirs)),
+        },
+        AreaUsage {
+            area: Area::TelemetrySessions,
+            path: telemetry_sessions_dir(dirs),
+            usage: usage(&telemetry_sessions_dir(dirs)),
         },
         AreaUsage {
             area: Area::Backups,
@@ -351,7 +413,7 @@ fn enforce_at(cache: &Path, cap: u64, in_use: &[PathBuf], now: SystemTime) -> En
     // 2 and 3. Build folders.
     let mut cands: Vec<Candidate> = Vec::new();
     for (name, p) in entries(cache) {
-        if !real_dir(&p) || [ASSETS, WORK, DUMPS].contains(&name.as_str()) {
+        if !real_dir(&p) || [ASSETS, WORK, DUMPS, TELEMETRY].contains(&name.as_str()) {
             continue;
         }
         if name == MCP {
@@ -427,6 +489,12 @@ mod tests {
             999,
         );
         put(&dirs.data.join("hooks/backups/a.sh"), 2);
+        put(&telemetry_dir(&dirs).join("sc-alpha-5.0.0-ptu-1.fds"), 9);
+        put(
+            &telemetry_recordings_dir(&dirs).join("20261123-120000-PTU.jsonl"),
+            13,
+        );
+        put(&telemetry_sessions_dir(&dirs).join("history.json"), 4);
         let assets = AssetCache::new(crate::assetcache::default_dir(&dirs), 1 << 20);
         let b = "0000000000000000000000b1";
         assets
@@ -441,6 +509,9 @@ mod tests {
         assert_eq!(r.area(Area::WhereToGet).bytes, 30);
         assert_eq!(r.area(Area::Uex).bytes, 7);
         assert_eq!(r.area(Area::Temporary).bytes, 11);
+        assert_eq!(r.area(Area::Telemetry).bytes, 9, "not game data");
+        assert_eq!(r.area(Area::TelemetryRecordings).bytes, 13);
+        assert_eq!(r.area(Area::TelemetrySessions).bytes, 4);
         assert_eq!(
             r.area(Area::AssetExports),
             Usage {
@@ -456,9 +527,9 @@ mod tests {
         // The cache folder holds the asset cache's marker file too.
         let marker = crate::assetcache::MARKER;
         let m = std::fs::metadata(assets.root().join(marker)).unwrap().len();
-        assert_eq!(r.cache.bytes, 105 + 30 + 7 + 11 + 50 + m);
-        assert_eq!(r.total(true).bytes, r.cache.bytes + 42);
-        assert_eq!(r.total(false).bytes, r.cache.bytes + 42 + 50);
+        assert_eq!(r.cache.bytes, 105 + 30 + 7 + 11 + 9 + 50 + m);
+        assert_eq!(r.total(true).bytes, r.cache.bytes + 42 + 13 + 4);
+        assert_eq!(r.total(false).bytes, r.cache.bytes + 42 + 13 + 4 + 50);
     }
 
     #[cfg(unix)]

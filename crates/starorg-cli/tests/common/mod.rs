@@ -100,6 +100,10 @@ impl Fake {
             .arg(&self.stock)
             .env_remove("WINEPREFIX")
             .env_remove("STARORG_ENV")
+            // The test machine's own priority settings must not leak in.
+            .env_remove("STARORG_THREADS")
+            .env_remove("STARORG_PRIORITY")
+            .env_remove("STARORG_DEADLINE_MS")
             .env("HOME", self.base.join("home"))
             .env("XDG_CONFIG_HOME", self.base.join("home/config"))
             .env("XDG_DATA_HOME", self.base.join("home/data"))

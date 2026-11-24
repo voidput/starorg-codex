@@ -220,8 +220,17 @@ line at the top says how old the data is ("UEX data from 21 Nov").
   first read of a build takes a minute or two, under the memory limit). Rows no record matches
   still get their category from UEX.
 
-To find which shops sell one item, open it in the Explorer (Sources card, Buy rows) or ask the
-MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.
+- **Items:** the *Shops | Items* switch above the search turns the left column into an item
+  search. Type part of a name (game or UEX name; small typos are fine, `hornet`, `fs9 lmg`) and
+  pick one of the matches (at most 40; type more to narrow): the right side lists every shop
+  that sells it, cheapest first, with the place, the price and the day UEX confirmed it.
+  *Sell* lists the shops that pay for it instead, best price first. The system filter applies
+  here too. Click a shop to open it in the shop list with *Filter items* set to that item. The
+  screen keeps the mode and the search until the app closes. Ctrl+K offers **Where to buy
+  "…"** for whatever you type, which opens this search.
+
+To find which shops sell one item you can also open it in the Explorer (Sources card, Buy rows)
+or ask the MCP server (`where_to_buy`); `shop_inventory` lists one shop's items there too.
 
 ## Commodities
 
@@ -311,6 +320,157 @@ The index is built once per game build and kept in memory while the app runs, so
 or screens does not rebuild it. The lists carry only each row's summary and tree path; the
 drops load when you pick a row.
 
+## Live telemetry
+
+**Experimental, off by default.** Star Citizen 5.0 can serve its own live data (your health,
+oxygen, ship, fuel, shields, flight mode) to programs on the same computer, over a local
+service on `127.0.0.1`. Live telemetry reads it while you play. It is offered only for a
+channel whose build is 5.0 or newer: PTU today, LIVE by itself once LIVE reaches 5.0. Settings
+lists every channel and why one is not offered (an older version, or no build manifest).
+
+Nothing leaves the computer: the app talks to `127.0.0.1` only, refuses any other address,
+records nothing unless you turn on **Record sessions**, and sends nothing anywhere
+([privacy](privacy.md)).
+
+**Each part is its own choice, off by default**, and turning one on never turns on another:
+
+| Choice (Settings -> Experimental -> Live telemetry) | What it adds |
+|---|---|
+| **Off** / **Metrics** / **Metrics + actions** | the screen itself; actions also press game inputs ([below](#live-telemetry)) |
+| **Record sessions** | a file per stream, for replay |
+| **Read Game.log events** | the Events panel and the shard you are on (memory only) |
+| **People** (under it) | the People panel (handles in memory only) |
+| **Shard history** (under it) | the Sessions panel: a saved history of the shards you join |
+| **Notifications**: Off / In app / In app + sound | toasts, tones and spoken callouts |
+
+The last five sit under **More from Live telemetry** and **Notifications** once Metrics is on.
+
+**Turning it on** (Settings -> Experimental -> Live telemetry):
+
+1. Choose **Metrics** (or **Metrics + actions**) under **Live telemetry** for a 5.0 channel. The app adds one line to that channel's
+   `USER.cfg`, `server.game.telemetry.enabled = 1`, and keeps every other line as it is. If
+   the file already has another value there (`= 0`), it asks before replacing it; your line
+   comes back when you choose **Off**. Choosing Off takes the line out again (unless you changed
+   it since), the same way the language line works. Only one channel carries the lines: picking
+   another **Channel** moves them there and takes them out of the one before.
+2. **Port**: the port the game should use (default 50051, 1024 to 65535).
+3. **Launcher setup**: the game also reads two environment variables from the RSI Launcher,
+   `GRPC_CLIENT_SERVER_ENABLED=1` and `GRPC_CLIENT_SERVER_PORT=<port>`. The app never changes
+   your environment or registry; Settings shows the steps for your system (Windows: `setx`,
+   then quit the launcher from the tray and start it again; Linux: the LUG Helper or Wine
+   script, Lutris, or Steam launch options) with **Copy steps**. Never set
+   `GRPC_CLIENT_SERVER_EXTERNAL`: it opens the game's service, which has no password, to your
+   whole network.
+
+Then **Live telemetry** appears in the sidebar under Game (marked Exp). Opening it starts
+reading; leaving it stops. It shows the connection (Connecting, Connected, Game not running:
+it retries by itself every few seconds), then once you have spawned, top to bottom:
+
+- key readouts (speed, vertical speed, G, master mode, gear),
+- **Pilot**: health, oxygen, heart rate, body temperature, gravity,
+- **Ship**: hull, hydrogen and quantum fuel, boost,
+- **Shields**: the level and each face (labelled F1, F2... while the order is not confirmed
+  for every ship),
+- **Systems** (engines, shield generators, lights, gear, landed, quantum spool, boost) and
+  **Annunciators** (low health, oxygen, hull or fuel, shields off, high G),
+- **Alerts** and **Actions** (both below),
+- **History**: small line graphs of speed, G, hydrogen and quantum fuel, hull, shields,
+  health and oxygen over the last 1, 5 or 10 minutes (one sample a second, kept in memory
+  while the app runs; a gap in the data breaks the line),
+- **Events**, **People** and **Sessions** from Game.log (below); with Read Game.log events
+  off, one card says so, with a **Settings** button,
+- **Recordings** (below) and **Raw frame**: everything the game sent, as JSON, once a second
+  while it is open, with Pause and Copy JSON.
+
+Every panel below the live readouts folds to its title (click it); the app remembers which
+are folded. A panel whose switch is off says how to turn it on.
+
+The screen updates at most 10 times a second; the graphs once a second. The first time a build is read, the app reads
+the layout of the game's service from that channel's `Bin64/StarCitizen.exe` (a few seconds)
+and keeps it in the cache folder (Settings -> Storage, *Live telemetry schemas*); nothing of
+the game is shipped with the app.
+
+**Game actions**: the Live telemetry choice is **Off**, **Metrics** (read only) or **Metrics + actions**. Metrics + actions adds a second line,
+`server.game.telemetry.trigger.actions.enabled = 1`, and lets the Actions panel press inputs
+in the game for you: only the ones the game itself lists as triggerable (lights, landing
+gear, shield power, ping...), with **Hold** for the holdable ones. The first press of each app
+session asks first; self destruct, eject, emergency exit and power off ask every time. The app
+also refuses a second press of the same action within a second. With **Metrics** only, the list is
+shown but every button is disabled, and the second line is taken out of every channel's
+`USER.cfg`.
+
+**Record sessions and replay**: a switch of its own under Settings -> Experimental -> Live
+telemetry, off by default (choosing Metrics never turns it on). While it is on, each stream
+is saved from its first frame, 4 frames a second, to a file in the app's data folder
+(`telemetry/recordings/`, *Live telemetry recordings* in Settings -> Storage): at most 20
+files and 256 MB in all, 64 MB each, the oldest go first. The **Recordings** panel lists
+them; **Replay** plays one into the same screen instead of the game (a *Replay* badge, Play
+and Pause, a position slider, speed 0.25x to 16x, **Back to live**). Gaps longer than 5
+seconds in a recording are shortened while it plays. The file being written and the one
+playing cannot be deleted. The files use sc-telemetry's `--record` format, so either tool can
+replay the other's.
+
+**Notifications (alerts)**: a separate choice under Live telemetry, **Off** by default:
+**Off**, **In app** (a toast and the screen's **Alerts** panel, silent) or **In app + sound**
+(also a short tone the app makes itself). Choosing Metrics never turns them on. With sound,
+**Spoken callouts** is one more switch, off by default: it speaks a short callout with your
+computer's own voices only, and says so when it finds none. Alerts are checked only while the
+Live telemetry screen is open and reading. The rules (after sc-telemetry): boost low and
+empty, hydrogen low and critical (only with engines on), quantum fuel low, shields low, a
+shield face down (a face you tuned away does not count), shield emitters lost, hull at 50 % and
+25 %, missile, hit and proximity warnings, oxygen and health low, radiation, unbreathable air
+on foot, gear down at speed, and high G with G-safe off. Each fires once when its condition
+starts, never on what already holds when the stream starts or a ship appears, then waits out
+its cooldown, and arms again only past its re-arm point (boost low fires at 25 % and again only
+after going back above 35 %). Under **Rules** you can switch each one off, change a threshold
+rule's threshold (the re-arm point moves with it) and any cooldown, test one with **Test**, or
+go back with **Default**. The changes are saved in `config.toml`.
+
+**Game.log events** (a switch of its own under Live telemetry, off by default): **Read
+Game.log events** adds an **Events** panel fed by the channel's own `Game.log`, which tells
+things the live service does not. It works even when the service is not reachable (no
+environment variables set, no schema), as long as the screen is open:
+
+- where you are: star system, the start of your last quantum route (planet, moon, station),
+  armistice, monitored space and jurisdiction notices;
+- the shard and region, the build, the login queue, the backend link and disconnects;
+- quantum travel: the destination you picked, the fuel estimate, your arrival;
+- ships streamed in near you (class names only: parked and AI ships count too, and there is
+  no owner or distance);
+- vehicles disabled or destroyed nearby, leaving the pilot seat;
+- corpse item lists near you, spawns and respawns. A corpse list followed within a minute by
+  your own respawn counts as your death (the log names no owner, so a corpse of someone you
+  killed shows as a corpse only).
+
+These are the game's unofficial debug lines: a patch can change or drop them. The app reads
+only what the game added since the last read, twice a second, and keeps the newest 200 events.
+
+**Sessions** (with **Shard history**, a switch of its own under Read Game.log events, off by
+default): a history of the shards you joined, one row per
+stint from the join to when you left: the channel, the shard (`USE1B · 020`) and region,
+when you joined, how long you stayed, the star systems you went to, and why it ended: **Left**
+(back at the menu, or joined another shard), **Shard change** (the game moved you), **Quit**
+(you disconnected), **Dropped** (kicked for being idle, timed out, the server went: marked
+with a warning sign) or **Log ended** (the game closed while on the shard). *Same shard as
+before* marks a rejoin of the shard your previous session on that channel was on. The stint
+you are on now is shown on top (after a disconnect, with how it ended, until the next line of
+the log). Filter by channel and region; **Clear** forgets the whole history for good: a session
+that started before the Clear never comes back, even when the same logs are read again. A row is saved when the stint ends; when the screen opens, the app also reads the
+newest 40 older logs in the channel's `logbackups` folder (once each, a few MB at a time, at
+most 128 MB of each; one that cannot be read right then is tried again the next time) so the
+history starts with your past sessions. With Shard history off nothing is saved and no older
+log is opened. It is one small file in the app's data folder
+(`telemetry/sessions/history.json`, *Live telemetry session history* in Settings -> Storage,
+which can clear it too): 2000 rows and 2 MB at most, the oldest go first. It holds no server
+address, port, session id or player name.
+
+**People** (under it, off by default) adds a **People** panel: the player handles Game.log
+names, by how they relate to you: **Crew** (ship voice channels), **Party** (party notices),
+**Party?** (quantum calibration notices, usually a party member) and **Nearby** (players named
+in ship kills around you). You are shown once as *You*. **Clear** forgets everyone listed. The
+handles stay in memory for the current Game.log only; nothing is looked up online
+([privacy](privacy.md#live-telemetry-experimental-off-by-default)).
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,
@@ -335,6 +495,9 @@ Settings -> Storage shows how much the app keeps and where:
 | UEX market data | `~/.cache/starorg-codex/mcp/uex/` | 3 files, replaced on download |
 | Asset exports (Developer mode) | `~/.cache/starorg-codex/assets/` or your folder | 1 GB, least recently used first |
 | Temporary extraction folders | `~/.cache/starorg-codex/work/` | removed after each read; leftovers older than an hour at the next start |
+| Live telemetry schemas (experimental) | `~/.cache/starorg-codex/telemetry/` | the last 3 game builds, a few hundred KB each |
+| Live telemetry recordings (experimental, Record sessions) | `~/.local/share/starorg-codex/telemetry/recordings/` (Windows: `%APPDATA%\StarOrg Tools\Codex\data\telemetry\recordings\`) | 20 files, 256 MB in all; not in the cache folder or its cap |
+| Live telemetry session history (experimental, Shard history) | `~/.local/share/starorg-codex/telemetry/sessions/` (Windows: `%APPDATA%\StarOrg Tools\Codex\data\telemetry\sessions\`) | one file, 2000 rows and 2 MB; not in the cache folder or its cap; **Clear session history** |
 | Backups | `~/.local/share/starorg-codex/channels/<install>/<CHANNEL>/backups/` | see [Backups](#backups-and-restore) |
 
 **The cache folder's cap** (1 GB by default; `[storage] cache_max_mb` in `config.toml`):
@@ -351,6 +514,22 @@ import, restore, download or asset export; an asset preview; Clear, Browse, Rese
 the asset cache; a backup made or deleted) and when you press **Measure again**. What another
 program writes there (the MCP server, a launch hook, the CLI) shows within 5 minutes, or at
 once with **Measure again**.
+
+## CPU and time
+
+The game usually runs while StarOrg Codex works, so nothing it does runs at full priority:
+
+| Work | Priority (Linux nice; Windows workers) | Threads at most | Time |
+|---|---|---|---|
+| You started it: Apply, Read game data, Developer mode, `apply` or `build` in a terminal | below normal (nice 10; `BELOW_NORMAL`) | all cores but two, at most 8 | until done |
+| Nobody waits for it: the launch hooks, their post-exit background job, WHERE TO GET datasets an MCP client asks for (app or `starorg-codex mcp`) | lowest (nice 19, which also puts disk reads at the lowest level; `IDLE`) | a quarter of the cores, at most 4 | hooks: their `--timeout`; the background job stops when the game starts ([linux: launch hooks](linux.md#launch-hooks)) |
+
+The extraction workers (`extract-worker`, `mcp-extract-worker`, the Developer mode workers) get
+the same priority and thread cap as the job that started them; the app's own window does not
+slow down. `STARORG_THREADS=<n>` sets the thread cap for both rows (at least 1), and
+`STARORG_PRIORITY=background` makes a CLI run from a script or timer (for example
+`apply --all --if-stale`) a background one. On Windows the app and the CLI keep their own
+priority class (only their workers are lowered); the thread cap applies everywhere.
 
 ## Settings worth knowing
 
@@ -376,6 +555,10 @@ once with **Measure again**.
   ([below](#storage)); **Clear asset cache** (refused while an export runs).
 - **Local MCP server** (experimental, off): read-only game data tools for Claude Code or Claude
   Desktop ([mcp](mcp.md)).
+- **Live telemetry** (experimental, off): your vitals, ship and shields while you play, from the
+  game's own local service, for 5.0 builds ([below](#live-telemetry)); Record sessions,
+  Read Game.log events, People, Shard history and Notifications are more choices there, each
+  off.
 - **Diagnostics** (Activity): a report with user names and home paths replaced, for bug reports.
 
 ## Developer mode
@@ -455,8 +638,14 @@ For players who want to look things up in the game data. Read only on the game.
   of memory. That data is cached and shared with the MCP server. The odds assume an even pick
   inside a loot pool, which the game data does not state.
 - **Datasets:** the game data as tables, with group trees; also any folder of JSON files.
-- **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one.
-  To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for
+- **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one;
+  or compare a channel's current build with the previous one the app read (kept in the cache).
+  That previous build is listed as "<CHANNEL> <version> (cached)" right after the channel's
+  build, newest first, and Diff starts with it as **A** and the current build as **B**; only
+  the datasets both have are compared, so after a game update use WHERE TO GET once on the
+  new build first. It holds the WHERE TO GET datasets that were extracted for it (the last 2 builds per channel are
+  kept, see [Storage](#storage)); it is read only and never extracted into, and a build whose
+  cache was cut short shows on Datasets with the reason. To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for
   Diff**, open **Datasets**, and press **Download** next to two builds under **Published LIVE
   builds** (about 20-25 MB each, from github.com/voidput/sc-gamedata-dumps, checked by
   checksum). Then on **Diff** pick the older one as **A** and the newer one as **B** (they are

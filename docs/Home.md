@@ -1,7 +1,7 @@
 ---
 title: StarOrg Codex
 tags: [docs]
-updated: 2026-11-22
+updated: 2026-11-23
 ---
 
 # StarOrg Codex
@@ -27,6 +27,7 @@ updated: 2026-11-22
 - [[plans/specs/model-print|Model export: 3D print processing (experimental)]] ([plain](plans/specs/model-print.md))
 - [[plans/specs/obtain-hints|Obtain hints: where to get it, in descriptions]] ([plain](plans/specs/obtain-hints.md))
 - [[plans/specs/missing-names|Missing names: names for item keys stock lacks, and a raw-key guard]] ([plain](plans/specs/missing-names.md))
+- [[plans/specs/live-telemetry|Live telemetry (experimental): the game's local gRPC service in the app]] ([plain](plans/specs/live-telemetry.md))
 
 ## Repo (outside the vault, plain links only)
 - [README](../README.md) · [Contributing](../CONTRIBUTING.md) · [Agent and repo guide](../AGENTS.md) · [Patches and pull requests](../PATCH.md) · [Code of Conduct](../CODE_OF_CONDUCT.md) · [Security policy](../SECURITY.md)

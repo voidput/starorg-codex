@@ -26,6 +26,9 @@
  * Blueprints: `&bphint=larger` (auto mode, another character owns far more: the warning),
  * `&bpnotice=1` (two characters share a name: the notice).
  * Memory limit: `&memory=1.5` (that limit in GB instead of the default).
+ * Live telemetry: `&telemetry=on` (on for PTU, the mock's 5.0 channel), `&telemetry=triggers`
+ * (game actions allowed too), `&telemetry=gamelog` (Game.log events and People on too); the
+ * stream is the synthetic generator (mock-telemetry.ts).
  */
 import { clampGb, memoryView } from '../memory';
 import { fold, nameProblem, SEPARATORS, SYMBOLS } from '../shipnames';
@@ -44,6 +47,8 @@ import { createAssetMock, type AssetMockData } from './mock-assets';
 import assetData from './mock-assets.gen.json';
 import { mockLootDetail, mockLootList, type LootMockData } from './mock-loot';
 import lootData from './mock-loot.gen.json';
+import { createTelemetryMock } from './mock-telemetry';
+import { mockItemSearch, type ShopItemCatalogue } from './mock-shops';
 
 const clone = <X>(x: X): X => structuredClone(x);
 const SAMPLES = samples as unknown as {
@@ -79,12 +84,23 @@ const SAMPLES = samples as unknown as {
   shop_items: T.ShopItems;
   shop_items_all: T.ShopItems[];
   shop_items_all_linked: T.ShopItems[];
+  shop_item_search: T.ShopItemSearch;
+  shop_item_search_missing: T.ShopItemSearch;
+  shop_item_catalogue: ShopItemCatalogue;
+  shop_item_catalogue_linked: ShopItemCatalogue;
   commodity_list_not_read: T.CommodityDirectory;
   commodity_list: T.CommodityDirectory;
   commodity_list_priced: T.CommodityDirectory;
   commodity_detail: T.CommodityInfo;
   commodity_details_all: T.CommodityDetail[];
   commodity_details_all_priced: T.CommodityDetail[];
+  telemetry_status: T.TelemetryStatus;
+  telemetry_actions: T.TelemetryActions;
+  telemetry_event_frame: T.TelemetryEvent;
+  telemetry_recordings: T.TelemetryRecordings;
+  telemetry_alerts: T.TelemetryAlerts;
+  telemetry_gamelog: T.GameLogView | null;
+  telemetry_sessions: T.TelemetrySessions;
 };
 
 const NOW = '2026-11-14T21:30:05Z';
@@ -831,9 +847,22 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     takeCancel: (j) => cancelled.delete(j),
   });
 
+  // Live telemetry (mock-telemetry.ts): the Rust mock's samples and a synthetic stream.
+  const telemetry = createTelemetryMock(
+    { status: SAMPLES.telemetry_status, actions: SAMPLES.telemetry_actions, frame: SAMPLES.telemetry_event_frame, recordings: SAMPLES.telemetry_recordings, alerts: SAMPLES.telemetry_alerts, gamelog: SAMPLES.telemetry_gamelog, sessions: SAMPLES.telemetry_sessions },
+    { fail: (c, m) => fail(c, m), log: (m, ch) => addLog('info', null, ch, m) },
+  );
+  const teleParam = params.get('telemetry');
+  if (teleParam === 'on' || teleParam === 'triggers' || teleParam === 'gamelog') {
+    const ptu = SAMPLES.telemetry_status.channels.find((c) => c.offered);
+    const gamelog = teleParam === 'gamelog';
+    if (ptu) void telemetry.handlers.telemetry_configure({ req: { target: { install: ptu.install, channel: ptu.channel }, settings: { enabled: true, port: 50051, triggers: teleParam === 'triggers', record: false, gamelog, people: gamelog, sessions: gamelog }, replace_other: false } });
+  }
+
   const h: Handlers = {
     ...dev.handlers,
     ...assets.handlers,
+    ...telemetry.handlers,
     overview: () => {
       sync();
       const active = installs.find((i) => i.saved)?.id ?? null;
@@ -1078,6 +1107,12 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const all = req.target && dataRead.has(id(req.target)) ? SAMPLES.shop_items_all_linked : SAMPLES.shop_items_all;
       const hit = all.find((s) => s.shop?.id === req.terminal);
       return clone(hit ?? { ...SAMPLES.shop_items, shop: null, items: [] });
+    },
+    shop_item_search: ({ req }) => {
+      const linked = !!req.target && dataRead.has(id(req.target));
+      const dir = linked ? SAMPLES.shop_inventory_linked : SAMPLES.shop_inventory;
+      const all = linked ? SAMPLES.shop_item_catalogue_linked : SAMPLES.shop_item_catalogue;
+      return mockItemSearch(all, uex.shops_ready, SAMPLES.shop_inventory_missing.folder, dir.fetched, dir.linked, req.query, req.key ?? null);
     },
     // The Rust mock's synthetic commodities once the channel's game data was read; kiosk
     // prices once the commodity prices are there. A detail takes a moment (the skeleton shows).
@@ -1750,6 +1785,9 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
     async onJob(cb) {
       listeners.add(cb);
       return () => listeners.delete(cb);
+    },
+    async onTelemetry(cb) {
+      return telemetry.onTelemetry(cb);
     },
   };
 }

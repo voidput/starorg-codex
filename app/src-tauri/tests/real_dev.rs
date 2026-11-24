@@ -566,6 +566,170 @@ fn folder_datasets_rows_and_diff() {
     );
 }
 
+/// A build folder of the dataset cache with `game-weapons.json` of `tag`; `measured` are
+/// the datasets its `measurements.json` says were extracted.
+fn cache_build(dir: &Path, tag: &str, measured: &[&str]) {
+    use starorg_mcp::worker::Measurement;
+    std::fs::create_dir_all(dir).unwrap();
+    std::fs::write(dir.join("game-weapons.json"), dump_body(tag)).unwrap();
+    let m: BTreeMap<&str, Measurement> = measured
+        .iter()
+        .map(|d| {
+            (
+                *d,
+                Measurement {
+                    dataset: d.to_string(),
+                    seconds: 1.0,
+                    peak_rss_bytes: None,
+                    bytes: 1,
+                    warnings: 0,
+                },
+            )
+        })
+        .collect();
+    std::fs::write(
+        dir.join("measurements.json"),
+        serde_json::to_vec(&m).unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+fn older_cached_builds_are_read_only_sources_next_to_the_current_one() {
+    let f = fake(false);
+    f.dev_mode(true);
+    let live = f.live();
+    let p4k = f.base.join("games/StarCitizen/LIVE/Data.p4k");
+    let mcp = AppDirs::under(&f.base.join("app")).cache.join("mcp/LIVE");
+    let fp = starorg_mcp::store::Store::fingerprint(&p4k);
+    // Two cached builds: the current one (this archive) and the one read before it.
+    let current = mcp.join(format!("{NEW}-{fp}"));
+    let older = mcp.join(format!("{OLD}-0a1b2c3d"));
+    cache_build(&current, NEW, &["game-weapons"]);
+    cache_build(&older, OLD, &["game-weapons"]);
+    let src = f.backend.dev_sources(live.clone()).unwrap();
+    let cached: Vec<&DevSource> = src
+        .iter()
+        .filter(|s| s.kind == SourceKind::Cached)
+        .collect();
+    assert_eq!(cached.len(), 1, "the current build is not listed twice");
+    let old_id = format!("cached:LIVE:{OLD}-0a1b2c3d");
+    assert_eq!(src[0].id, "build:LIVE");
+    assert_eq!(src[1].id, old_id, "right after its channel's build");
+    let c = cached[0];
+    assert_eq!(c.label, format!("LIVE {OLD} (cached)"));
+    assert_eq!(c.build.as_deref(), Some(OLD));
+    assert_eq!(c.state, SourceState::Ready, "{:?}", c.detail);
+    assert_eq!(c.datasets[0].file, "game-weapons.json");
+    assert_eq!(c.datasets[0].rows, 2);
+    // The current build carries what the cache holds for it, with no GameData read yet.
+    let build = &src[0];
+    assert_eq!(build.state, SourceState::Ready);
+    assert_eq!(
+        build
+            .datasets
+            .iter()
+            .map(|d| d.file.as_str())
+            .collect::<Vec<_>>(),
+        ["game-weapons.json"]
+    );
+    // Previous build (A) against the current one (B), read from the cache only.
+    let diff = f
+        .backend
+        .dev_diff(
+            DevDiffRequest {
+                target: live.clone(),
+                a: old_id.clone(),
+                b: "build:LIVE".into(),
+            },
+            &noop,
+        )
+        .unwrap();
+    let t = diff
+        .tables
+        .iter()
+        .find(|t| t.table == "shipWeapons")
+        .unwrap();
+    assert_eq!((t.added, t.removed, t.changed), (1, 0, 1));
+    let page = f
+        .backend
+        .dev_rows(DevRowsRequest {
+            target: live.clone(),
+            source: old_id.clone(),
+            dataset: "game-weapons.json".into(),
+            table: "shipWeapons".into(),
+            columns: vec![],
+            search: String::new(),
+            filters: vec![],
+            sort: None,
+            offset: 0,
+            limit: 50,
+            group: None,
+        })
+        .unwrap();
+    assert_eq!(page.total, 2);
+    // Nothing was extracted: still just the two folders, each with only what it had (and
+    // the reading locks beside them, never inside).
+    let mut names: Vec<String> = std::fs::read_dir(&mcp)
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .collect();
+    names.sort();
+    let folders: Vec<&String> = names
+        .iter()
+        .filter(|n| !n.ends_with(starorg_mcp::store::READING_LOCK))
+        .collect();
+    assert_eq!(
+        folders,
+        [&format!("{OLD}-0a1b2c3d"), &format!("{NEW}-{fp}")]
+    );
+    for dir in [&current, &older] {
+        let mut inside: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        inside.sort();
+        assert_eq!(
+            inside,
+            ["game-weapons.json", "measurements.json"],
+            "{dir:?}"
+        );
+    }
+    assert!(!current.join("gamedata.json").exists());
+    // An incomplete older build is an error that says why; it is listed after the newer.
+    let cut = mcp.join("4.10.190.1-deadbeef");
+    cache_build(&cut, OLD, &["game-weapons", "game-law"]);
+    let src = f.backend.dev_sources(live.clone()).unwrap();
+    let cached: Vec<&DevSource> = src
+        .iter()
+        .filter(|s| s.kind == SourceKind::Cached)
+        .collect();
+    assert_eq!(
+        cached.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+        [old_id.as_str(), "cached:LIVE:4.10.190.1-deadbeef"],
+        "newest first"
+    );
+    assert_eq!(cached[1].state, SourceState::Error);
+    let why = cached[1].detail.as_deref().unwrap();
+    assert!(why.contains("game-law.json is missing"), "{why}");
+    // A build that is no longer in the cache (or never was) is not found, not a path.
+    for gone in [
+        "cached:LIVE:4.0.0.1-00000000",
+        "cached:LIVE:../../x",
+        "cached:LIVE",
+    ] {
+        let e = f
+            .backend
+            .dev_dataset(DevDatasetRef {
+                target: live.clone(),
+                source: gone.into(),
+                dataset: "game-weapons.json".into(),
+            })
+            .unwrap_err();
+        assert_eq!(e.code, ErrorCode::NotFound, "{gone}");
+    }
+}
+
 #[test]
 fn the_worker_serves_sections_list_owner_and_compare() {
     use starorg_codex_app::contract::dev::{

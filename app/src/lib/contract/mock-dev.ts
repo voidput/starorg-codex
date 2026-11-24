@@ -26,6 +26,10 @@ export interface DevMockData {
   folder: { label: string; path: string; files: { file: string; value: Json }[] };
   /** The published LIVE builds (newest first) and their synthetic datasets. */
   dumps: { tag: string; title: string; branch: string; published: string; files: { file: string; value: Json }[] }[];
+  /** Older builds in the dataset cache (newest first); `files` name the older dump's files they hold. */
+  cached: { channel: string; folder: string; version: string; complete: boolean; detail: string; files: string[] }[];
+  /** Diff's answer for an older cached build with no dataset in common with the other side. */
+  noCommonDataset: string;
   /** The section index's input (7.17): facts per entry, the table's result per entry. */
   facts: (Facts | null)[];
   sections: SectionsData;
@@ -1481,15 +1485,29 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
   const summaryOf = (file: string, d: Dataset): D.DevDatasetSummary => ({ file, bytes: d.info.bytes, tables: d.tables.length, rows: d.tables.reduce((n, t) => n + t.rows.length, 0) });
   const sources = (r: T.ChannelRef): D.DevSource[] => {
     const chans = [...ctx.channelNames(r.install)].sort((a, b) => Number(a !== r.channel) - Number(b !== r.channel));
-    const out: D.DevSource[] = chans.map((c) => ({
-      id: `build:${c}`,
-      kind: 'build',
-      label: `${c} build`,
-      build: '4.10.0-mock',
-      state: 'ready',
-      detail: null,
-      datasets: [summaryOf(GAMEDATA, toDataset(GAMEDATA, data.builds[c] ?? null))],
-    }));
+    const out: D.DevSource[] = chans.flatMap((c): D.DevSource[] => [
+      {
+        id: `build:${c}`,
+        kind: 'build',
+        label: `${c} build`,
+        build: '4.10.0-mock',
+        state: 'ready',
+        detail: null,
+        datasets: [summaryOf(GAMEDATA, toDataset(GAMEDATA, data.builds[c] ?? null))],
+      },
+      // Its older builds still in the dataset cache, newest first.
+      ...data.cached
+        .filter((x) => x.channel === c)
+        .map((x): D.DevSource => ({
+          id: `cached:${x.channel}:${x.folder}`,
+          kind: 'cached',
+          label: `${x.channel} ${x.version} (cached)`,
+          build: x.version,
+          state: x.complete ? 'ready' : 'error',
+          detail: x.detail,
+          datasets: cachedFiles(x).map(([f, d]) => summaryOf(f, d)),
+        })),
+    ]);
     if (folder) {
       out.push({ id: 'folder:0', kind: 'folder', label: data.folder.label, build: null, state: 'ready', detail: data.folder.path, datasets: data.folder.files.map((f) => summaryOf(f.file, toDataset(f.file, f.value))) });
     }
@@ -1507,6 +1525,9 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
     return out;
   };
   const dumpLabel = (tag: string) => `LIVE ${tag}`;
+  /** A cached build's datasets: the older dump's files it names. */
+  const cachedFiles = (x: DevMockData['cached'][number]): [string, Dataset][] =>
+    (data.dumps[data.dumps.length - 1]?.files ?? []).filter((f) => x.files.includes(f.file)).map((f) => [f.file, toDataset(f.file, f.value)]);
   /** As `starorg_core::source::dump::valid_component`. */
   const validComponent = (t: string) => t.length > 0 && t.length <= 128 && /^[A-Za-z0-9._-]+$/.test(t) && t !== '.' && t !== '..';
   const dumpOf = (source: string) => (source.startsWith('dump:') ? data.dumps.find((d) => `dump:${d.tag}` === source && dumped.includes(d.tag)) : undefined);
@@ -1516,6 +1537,8 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       if (!ctx.channelNames(r.install).includes(c)) ctx.fail('not-found', `no source ${source}`);
       return [[GAMEDATA, toDataset(GAMEDATA, data.builds[c] ?? null)]];
     }
+    const cached = data.cached.find((x) => `cached:${x.channel}:${x.folder}` === source && ctx.channelNames(r.install).includes(x.channel));
+    if (cached) return cachedFiles(cached);
     if (source === 'folder:0' && folder) return data.folder.files.map((f) => [f.file, toDataset(f.file, f.value)]);
     const d = dumpOf(source);
     if (d) return d.files.map((f) => [f.file, toDataset(f.file, f.value)]);
@@ -1712,8 +1735,17 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       on(req.target);
       let summary: D.DevDiffSummary | null = null;
       await job('Reading datasets', 2, req.target.channel, async (p) => {
-        const a = datasetsOf(req.target, req.a);
-        const b = datasetsOf(req.target, req.b);
+        let a = datasetsOf(req.target, req.a);
+        let b = datasetsOf(req.target, req.b);
+        // As `contract::dev::common_datasets`: an older cached build against anything, only
+        // the datasets both hold.
+        if (req.a.startsWith('cached:') || req.b.startsWith('cached:')) {
+          const na = new Set(a.map((x) => x[0]));
+          const nb = new Set(b.map((x) => x[0]));
+          a = a.filter((x) => nb.has(x[0]));
+          b = b.filter((x) => na.has(x[0]));
+          if (a.length === 0) ctx.fail('invalid', data.noCommonDataset);
+        }
         await ctx.sleep(ctx.delay);
         ctx.emit({ ...p, step: 2, label: 'Comparing' });
         const tables = diffSources(a, b);

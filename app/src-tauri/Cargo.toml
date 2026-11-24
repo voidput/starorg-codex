@@ -32,6 +32,10 @@ toml.workspace = true
 # Experimental local MCP server (Settings -> Experimental; docs/mcp.md): the loopback
 # streamable-HTTP transport, a std::net server with no HTTP crate of its own.
 starorg-mcp = { workspace = true, features = ["http"] }
+# Experimental live telemetry (Settings -> Experimental; docs/user-guide.md#live-telemetry):
+# the game's own gRPC service on 127.0.0.1, schema read at run time from the user's
+# StarCitizen.exe. Runs on Tauri's Tokio runtime.
+starorg-telemetry.workspace = true
 # Native folder/file/save dialogs, called from Rust only (no dialog permission for the
 # webview; see capabilities/default.json).
 tauri-plugin-dialog = "2"

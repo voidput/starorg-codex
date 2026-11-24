@@ -633,6 +633,15 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
     let names: Vec<&str> = d.systems.iter().map(|s| s.name.as_str()).collect();
     assert_eq!(names, ["Pyro", "Stanton"]);
+    // The item search works on UEX names before any item data is read.
+    let r = t.shop_item_search(Some("LIVE"), "fs-9", None);
+    let best = r.item.as_ref().expect("a match");
+    assert!(
+        best.record.is_none() && best.key.starts_with("uex:"),
+        "{best:?}"
+    );
+    assert!(!r.offers.is_empty());
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
     // After a tool extracted item-tags, rows link.
     let s = starorg_mcp::server(w.config(), None);
     ok(&s, "item", json!({"key": "behr_lmg_ballistic_01"}));
@@ -645,6 +654,12 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
         i.items
     );
     assert!(i.linked.is_some());
+    // Linked now: the item keys on its class name, its shops cheapest first.
+    let r = t.shop_item_search(Some("LIVE"), "FS-9 LMG", None);
+    assert_eq!(r.item.as_ref().unwrap().key, "behr_lmg_ballistic_01");
+    assert!(r.offers.windows(2).all(
+        |w| w[0].price_buy.unwrap_or(f64::INFINITY) <= w[1].price_buy.unwrap_or(f64::INFINITY)
+    ));
     // Ship-components not cached yet: the cannon keeps UEX's name, unlinked.
     let cannon = |i: &starorg_mcp::shops::ShopItems| {
         i.items
@@ -671,6 +686,9 @@ fn shop_directory_for_the_app_reads_only_cached_item_data() {
     assert_eq!(serde_json::to_value(gone.state).unwrap(), json!("missing"));
     assert!(gone.folder.unwrap().ends_with("uex"));
     assert!(t.shop_items(None, 2).shop.is_none());
+    let gone = t.shop_item_search(Some("LIVE"), "fs-9", None);
+    assert_eq!(serde_json::to_value(gone.state).unwrap(), json!("missing"));
+    assert!(gone.items.is_empty() && gone.offers.is_empty());
 }
 
 #[test]
@@ -1470,6 +1488,87 @@ fn obtain_hints_keep_what_did_not_fail() {
     assert_eq!(c.warnings.len(), 2, "{:?}", c.warnings);
     // An unknown channel is an error.
     assert!(t.obtain_hints("NOPE").is_err());
+}
+
+/// The launch hooks' budget: one deadline for every dataset of the obtain hints, not one
+/// timeout each. The "worker" sleeps far longer than the deadline; it is killed at the
+/// deadline, no other dataset starts after it, nothing half-written is left, and the
+/// partial answer is built again next time.
+#[cfg(unix)]
+#[test]
+fn obtain_hints_share_one_deadline_and_stop_a_slow_worker() {
+    use starorg_mcp::worker::ProcessExtractor;
+    use std::time::{Duration, Instant};
+    let w = World::new();
+    let bin = w.root.join("bin");
+    std::fs::create_dir_all(&bin).unwrap();
+    let exe = bin.join("slow-worker");
+    std::fs::write(
+        &exe,
+        "#!/bin/sh\ncase \"$1\" in mcp-extract-worker) exec sleep 60;; esac\nexit 0\n",
+    )
+    .unwrap();
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+    }
+    // Another test's fork can briefly hold the new file open (ETXTBSY): run it once first.
+    let mut tries = 0;
+    while std::process::Command::new(&exe).status().is_err() && tries < 50 {
+        tries += 1;
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let budget = Duration::from_millis(1500);
+    let deadline = Instant::now() + budget;
+    let mut cfg = w.config();
+    cfg.extractor = Arc::new(ProcessExtractor::new(exe).with_deadline(deadline));
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(cfg));
+    let started = Instant::now();
+    let b = t.obtain_hints_until("LIVE", true, Some(deadline)).unwrap();
+    let took = started.elapsed();
+    // Five datasets at 1.5 s each would be 7.5 s; one shared deadline is 1.5 s.
+    assert!(
+        took < budget + Duration::from_millis(1500),
+        "took {took:?}, warnings {:?}",
+        b.warnings
+    );
+    assert!(b.hints.items.is_empty());
+    assert!(!b.warnings.is_empty());
+    assert!(
+        b.warnings
+            .iter()
+            .any(|w| w.contains("left for the next run")),
+        "{:?}",
+        b.warnings
+    );
+    // No dataset, no temp file, no stored partial answer.
+    for d in walk(&w.root.join("cache")) {
+        let name = d.file_name().unwrap().to_string_lossy().into_owned();
+        assert!(
+            !name.starts_with("game-") && !name.contains(".tmp") && name != "obtain-hints.json",
+            "{} left behind",
+            d.display()
+        );
+    }
+    // After the deadline nothing starts at all.
+    let started = Instant::now();
+    assert!(t.obtain_hints_until("LIVE", true, Some(deadline)).is_err());
+    assert!(started.elapsed() < Duration::from_millis(500));
+}
+
+/// Every file below `dir`.
+#[cfg(unix)]
+fn walk(dir: &Path) -> Vec<PathBuf> {
+    let mut out = Vec::new();
+    for e in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let p = e.path();
+        if p.is_dir() {
+            out.extend(walk(&p));
+        } else {
+            out.push(p);
+        }
+    }
+    out
 }
 
 /// UEX answers for `starorg_net::uex::fetch_market`: Dumper's renamed, Laranite repriced.

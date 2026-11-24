@@ -795,8 +795,8 @@ impl LootDetailRequest {
 // The Shops screen (`shop_inventory`, `shop_items`): what each UEX terminal sells, from the
 // same UEX files, typed in `starorg_mcp::shops` (the MCP `shop_inventory` tool reads them too).
 pub use starorg_mcp::shops::{
-    CategoryCount, ItemRecord, ShopCategory, ShopDataState, ShopDirectory, ShopItemRow, ShopItems,
-    ShopPlaceGroup, ShopSummary, ShopSystem,
+    CategoryCount, ItemRecord, ShopCategory, ShopDataState, ShopDirectory, ShopItemMatch,
+    ShopItemOffer, ShopItemRow, ShopItemSearch, ShopItems, ShopPlaceGroup, ShopSummary, ShopSystem,
 };
 
 /// Every shop. `target`: the channel whose cached item data names the rows and links them to
@@ -812,6 +812,17 @@ pub struct ShopInventoryRequest {
 pub struct ShopItemsRequest {
     pub target: Option<ChannelRef>,
     pub terminal: u64,
+}
+
+/// The Shops screen's item search: the items whose game or UEX name matches `query` (fuzzy,
+/// best first, capped), and every shop (one offer each) of the item `key` names (a [`ShopItemMatch::key`]),
+/// else of the best match. `target` as for [`ShopInventoryRequest`].
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ShopItemSearchRequest {
+    pub target: Option<ChannelRef>,
+    pub query: String,
+    #[serde(default)]
+    pub key: Option<String>,
 }
 
 // The Commodities screen (`commodity_list`, `commodity_detail`): every tradable resource of
@@ -2406,6 +2417,15 @@ pub enum StorageAreaId {
     AssetExports,
     /// Extraction temp folders (`<cache>/work/`).
     Temporary,
+    /// Live telemetry (experimental): the schema read from each build's `StarCitizen.exe`
+    /// (`<cache>/telemetry/`).
+    Telemetry,
+    /// Live telemetry (experimental): recorded sessions (`<data>/telemetry/recordings/`; not
+    /// in the cache, bounded by their writer).
+    TelemetryRecordings,
+    /// Live telemetry (experimental): the server and shard join history from Game.log
+    /// (`<data>/telemetry/sessions/`; not in the cache, bounded by its writer).
+    TelemetrySessions,
     /// `global.ini` backups (app data folder; not in the cache, not under its cap).
     Backups,
 }
@@ -2433,7 +2453,8 @@ pub struct StorageStatus {
     pub cap_bytes: u64,
     /// Cache folder + backups (+ the asset cache when it is in a folder of its own).
     pub total_bytes: u64,
-    /// In a fixed order: game data, WHERE TO GET, UEX, asset exports, temporary, backups.
+    /// In a fixed order: game data, WHERE TO GET, UEX, asset exports, temporary, live
+    /// telemetry schemas, live telemetry recordings, live telemetry session history, backups.
     pub areas: Vec<StorageArea>,
     /// The asset cache's own cap.
     pub asset_cap_bytes: u64,
@@ -2465,6 +2486,15 @@ impl StorageStatus {
                     Area::Uex => (StorageAreaId::Uex, "UEX market data"),
                     Area::AssetExports => (StorageAreaId::AssetExports, "Asset exports"),
                     Area::Temporary => (StorageAreaId::Temporary, "Temporary extraction folders"),
+                    Area::Telemetry => (StorageAreaId::Telemetry, "Live telemetry schemas"),
+                    Area::TelemetryRecordings => (
+                        StorageAreaId::TelemetryRecordings,
+                        "Live telemetry recordings",
+                    ),
+                    Area::TelemetrySessions => (
+                        StorageAreaId::TelemetrySessions,
+                        "Live telemetry session history",
+                    ),
                     Area::Backups => (StorageAreaId::Backups, "global.ini backups"),
                 };
                 StorageArea {
@@ -2474,7 +2504,9 @@ impl StorageStatus {
                     bytes: a.usage.bytes,
                     files: a.usage.files,
                     in_cache: match a.area {
-                        Area::Backups => false,
+                        Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions => {
+                            false
+                        }
                         Area::AssetExports => assets_inside_cache,
                         _ => true,
                     },

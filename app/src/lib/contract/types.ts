@@ -621,6 +621,57 @@ export interface ShopItems {
   linked: string | null;
 }
 
+/** The item search: items whose game or UEX name matches `query`, and the shops of the item `key` names (else the best match). */
+export interface ShopItemSearchRequest {
+  target: ChannelRef | null;
+  query: string;
+  /** A `ShopItemMatch.key`; null = the best match. */
+  key: string | null;
+}
+
+/** One item across every shop that lists it. */
+export interface ShopItemMatch {
+  /** The record's class name when linked, else `uex:` and the lower-case name. */
+  key: string;
+  name: string;
+  uex_name: string | null;
+  category: ShopCategory;
+  record: ItemRecord | null;
+  /** Shops with a buy price (a shop with two rows of it counts once). */
+  sold_at: number;
+  /** Shops that pay for it. */
+  bought_at: number;
+  min_buy: number | null;
+  max_sell: number | null;
+}
+
+/** One shop's row for an item. */
+export interface ShopItemOffer {
+  /** `ShopSummary.id`. */
+  terminal: number;
+  shop: string;
+  location: string;
+  system: string | null;
+  not_on_live: boolean;
+  price_buy: number | null;
+  price_sell: number | null;
+  updated: string | null;
+  stale: boolean;
+}
+
+/** `shop_item_search`: matches best first (at most 40 of `total`), the chosen item and its shops (one offer per shop, all of them) cheapest buy first. */
+export interface ShopItemSearch {
+  state: ShopDataState;
+  folder: string | null;
+  fetched: string | null;
+  linked: string | null;
+  query: string;
+  items: ShopItemMatch[];
+  total: number;
+  item: ShopItemMatch | null;
+  offers: ShopItemOffer[];
+}
+
 // The Commodities screen (`commodity_list`, `commodity_detail`), typed in
 // `starorg_mcp::commodities`: list rows only, one resource in full from a second call.
 
@@ -1555,6 +1606,7 @@ export type ExternalLink = 'support' | 'donate' | 'patreon' | 'uex';
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';
 export type * from './assets';
+export type * from './telemetry';
 // Experimental: local MCP server (docs/mcp.md) --------------------------------------------
 
 /** One HTTP request the local MCP server answered. */
@@ -1622,7 +1674,7 @@ export interface MemoryLimitRequest {
   gb: number | null;
 }
 
-export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'backups';
+export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'telemetry' | 'telemetry-recordings' | 'telemetry-sessions' | 'backups';
 
 export interface StorageArea {
   id: StorageAreaId;

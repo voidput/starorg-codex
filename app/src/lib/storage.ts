@@ -36,6 +36,9 @@ export const AREA_HINTS: Record<StorageAreaId, string> = {
   uex: 'UEX market prices, replaced on each download.',
   'asset-exports': 'Developer mode: decoded sounds, exported models and previews.',
   temporary: 'Extraction folders, removed after each read; leftovers go after an hour.',
+  telemetry: 'Live telemetry (experimental): the game service layout read from StarCitizen.exe, the last 3 builds.',
+  'telemetry-recordings': 'Live telemetry sessions you recorded ("Record sessions", off by default), in the data folder: 20 files and 256 MB at most, the oldest go first. Delete them on the Live telemetry screen.',
+  'telemetry-sessions': 'Live telemetry server and shard join history read from Game.log ("Read Game.log events", off by default), in the data folder: one file, 2000 rows and 2 MB at most, the oldest go first. Clear it in the Sessions panel on the Live telemetry screen.',
   backups: 'Copies of global.ini, compressed. Not part of the cache and never removed by its cap.',
 };
 

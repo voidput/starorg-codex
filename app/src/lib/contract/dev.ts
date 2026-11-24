@@ -530,7 +530,8 @@ export interface DevExportResult {
   bytes: number;
 }
 
-export type SourceKind = 'build' | 'folder' | 'dump';
+/** `cached`: an older build of a channel still in the dataset cache (read only). */
+export type SourceKind = 'build' | 'folder' | 'dump' | 'cached';
 export type SourceState = 'ready' | 'off' | 'missing' | 'error';
 
 export interface DevDatasetSummary {

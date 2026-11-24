@@ -1,10 +1,10 @@
 /**
  * The Shops screen as pure functions: category labels and order, the file-age line, the shop
- * list search and system filter, and the item filter and grouping. The data comes from
- * `shop_inventory` and `shop_items` (UEX files; categories and record links in Rust,
- * `starorg_mcp::shops`).
+ * list search and system filter, the item filter and grouping, and the item search's deal sort.
+ * The data comes from `shop_inventory`, `shop_items` and `shop_item_search` (UEX files;
+ * categories, record links and the item matching in Rust, `starorg_mcp::shops`).
  */
-import type { ShopCategory, ShopDirectory, ShopItemRow, ShopSummary } from './contract/types';
+import type { ShopCategory, ShopDirectory, ShopItemMatch, ShopItemOffer, ShopItemRow, ShopSummary } from './contract/types';
 
 /** Display order, as the Rust `ShopCategory::ALL`. */
 export const CATEGORY_ORDER: readonly ShopCategory[] = ['fps-weapons', 'fps-attachments', 'armour', 'ship-weapons', 'missiles', 'ship-components', 'mining', 'consumables', 'other'];
@@ -116,6 +116,32 @@ export function groupItems(items: ShopItemRow[], category: ShopCategory | null):
     items: [...(by.get(c) ?? [])].sort((a, b) => a.name.localeCompare(b.name, 'en')),
   }));
 }
+
+/** The left column: every shop by place, or the item search. */
+export type ShopsMode = 'shops' | 'items';
+/** An item's shops: where to buy it (shops that sell it) or where to sell it (shops that pay for it). */
+export type ItemDeal = 'buy' | 'sell';
+
+/**
+ * An item's shops for the deal and the system filter (`''` = all): `buy` keeps the shops with a buy
+ * price, cheapest first; `sell` the shops that pay for it, best price first. Ties keep the given order
+ * (the backend's: cheapest buy, then system, place and shop).
+ */
+export function dealOffers(offers: ShopItemOffer[] | null | undefined, deal: ItemDeal, system: string): ShopItemOffer[] {
+  const list = (Array.isArray(offers) ? offers : []).filter((o) => !system || o.system === system);
+  if (deal === 'buy') return list.filter((o) => o.price_buy !== null).sort((a, b) => (a.price_buy ?? 0) - (b.price_buy ?? 0));
+  return list.filter((o) => o.price_sell !== null).sort((a, b) => (b.price_sell ?? 0) - (a.price_sell ?? 0));
+}
+
+/** "3 shops sell it from 5,208 aUEC · 1 buys it": an item's line in the search list. */
+export function itemMatchLine(m: ShopItemMatch, price: (v: number) => string): string {
+  const sell = m.sold_at ? `${m.sold_at} ${m.sold_at === 1 ? 'shop sells' : 'shops sell'} it${m.min_buy !== null ? ` from ${price(m.min_buy)}` : ''}` : 'No shop sells it';
+  const buy = m.bought_at ? ` · ${m.bought_at} buy${m.bought_at === 1 ? 's' : ''} it` : '';
+  return sell + buy;
+}
+
+/** "Where to buy FS-9" for the command palette; null without text. */
+export const whereToBuyLabel = (typed: string): string | null => (typed.trim() ? `Where to buy “${typed.trim()}”` : null);
 
 /** "Ship weapons · Missiles & torpedoes +2": a shop's biggest categories for the list. */
 export function topCategories(s: ShopSummary, max = 2): string {

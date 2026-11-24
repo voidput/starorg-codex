@@ -9,9 +9,10 @@ use crate::apply_cmds::{
 };
 use crate::blueprint_cmds::{print_scan, scan_channel};
 use crate::commands::{JSON_SCHEMA, fail, run_discovery};
+use crate::obtain_src::Obtain;
 use crate::{GlobalOpts, HookCmd, HookScripts, exit};
 use serde_json::{Value, json};
-use starorg_core::apply::{ApplyOpts, Outcome};
+use starorg_core::apply::{ApplyOpts, OBTAIN_LATER, Outcome, Report};
 use starorg_core::hooks::{self, BlockOpts, BlockState, Kind};
 use starorg_core::source::Budget;
 use std::path::{Path, PathBuf};
@@ -22,6 +23,7 @@ pub fn run(g: &GlobalOpts, cmd: HookCmd) -> ExitCode {
     match cmd {
         HookCmd::Prelaunch { timeout } => launch_hook(g, Kind::Prelaunch, timeout),
         HookCmd::Postexit { timeout } => launch_hook(g, Kind::Postexit, timeout),
+        HookCmd::Background { .. } => background_job(g),
         HookCmd::Install { scripts, bin } => edit(g, &scripts, bin.as_deref(), true),
         HookCmd::Uninstall { scripts } => edit(g, &scripts, None, false),
         HookCmd::Status { scripts, bin } => status(g, &scripts, bin.as_deref()),
@@ -41,10 +43,46 @@ fn soft(g: &GlobalOpts, kind: Kind, msg: &str) -> ExitCode {
     ExitCode::from(exit::OK)
 }
 
+/// Past the deadline by this much, the watchdog ends the hook whatever it is doing.
+pub const HOOK_GRACE: Duration = Duration::from_secs(2);
+
+/// The hook's priority as JSON: what `starorg_core::background` set for this process.
+fn priority_json() -> Value {
+    use starorg_core::background as bg;
+    json!({ "class": bg::process_priority().as_str(), "nice": bg::current_nice(),
+            "threads": bg::process_threads() })
+}
+
+/// End a hook that is still running at `deadline` + [`HOOK_GRACE`]: the usual soft report
+/// (exit 0). Each phase checks the deadline on its own, and the workers stop themselves at
+/// it; this catches whatever does not (a long in-process step), never cutting a write short
+/// (`starorg_core::background::critical`). What was stopped is done on the next run: every
+/// cache is written to a temp name and renamed into place.
+fn arm_watchdog(g: &GlobalOpts, kind: Kind, started: Instant, deadline: Instant) {
+    let json_out = g.json;
+    starorg_core::background::watchdog(deadline, HOOK_GRACE, move || {
+        let secs = started.elapsed().as_secs_f64();
+        let msg =
+            format!("out of time after {secs:.1} s; stopped, the rest is left for the next run");
+        if json_out {
+            println!(
+                "{}",
+                json!({ "schema": JSON_SCHEMA, "command": format!("hook {}", kind.as_str()),
+                        "exit_code": exit::SKIPPED, "error": msg, "stopped": true,
+                        "priority": priority_json(),
+                        "duration_ms": started.elapsed().as_millis() as u64 })
+            );
+        }
+        eprintln!("starorg-codex hook {}: {msg} (non-fatal)", kind.as_str());
+        std::process::exit(i32::from(exit::OK));
+    });
+}
+
 fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
     let started = Instant::now();
     let budget = Duration::from_secs(timeout.unwrap_or(kind.default_timeout()));
     let deadline = started + budget;
+    arm_watchdog(g, kind, started, deadline);
     let Ok(c) = ctx(g) else {
         return soft(g, kind, "no app folders");
     };
@@ -93,9 +131,10 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
         budget: Budget::with_timeout(remaining),
         profile_file: None,
         character: None,
-        // Datasets are cached after the first apply of a build; a first extraction that
-        // would outrun the hook's budget is stopped and only its lines are left out.
-        obtain: crate::obtain_src::provider(g, &i, &c.dirs, Some(remaining)),
+        // The game text first: WHERE TO GET lines only when already built. Building them
+        // takes minutes on a new build: the post-exit background job does it, and the
+        // output stays stale ("where to get") until they are in.
+        obtain: crate::obtain_src::provider_as(g, &i, &c.dirs, Obtain::Stored),
     };
     let names: Vec<String> = i.channels.iter().map(|c| c.name.clone()).collect();
     let (reports, skipped) = match apply_channels(g, &c, &i, &id, &names, true, &opts, src.as_ref())
@@ -103,6 +142,13 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
         Ok(x) => x,
         Err(_) => return soft(g, kind, "channel lookup failed"),
     };
+    // What the budget left for later goes to the background job (after exit only: before
+    // launch the game is about to start).
+    let background_job = kind == Kind::Postexit
+        && reports.iter().any(left_for_later)
+        && start_background_job(&c.dirs);
+    // The report is written whole and once: the watchdog waits for it, then stands down.
+    let reporting = starorg_core::background::critical();
     let command = format!("hook {}", kind.as_str());
     let code = if g.json {
         // One object: the apply report plus the scans.
@@ -118,12 +164,21 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
             "{}",
             json!({ "schema": JSON_SCHEMA, "command": command, "exit_code": code,
                     "channels": channels, "scans": scans, "sync_pending": sync_pending,
+                    "background_job": background_job, "priority": priority_json(),
                     "duration_ms": started.elapsed().as_millis() as u64 })
         );
         code
     } else {
-        print_reports(g, &command, &reports, &[])
+        let code = print_reports(g, &command, &reports, &[]);
+        if background_job && !g.quiet {
+            eprintln!(
+                "starorg-codex {command}: the rest continues in the background at low priority"
+            );
+        }
+        code
     };
+    starorg_core::background::disarm();
+    drop(reporting);
     let applied = reports.iter().any(|r| r.result == Outcome::Applied);
     notify(g, code, &summary(&reports), applied);
     if code != exit::OK && !g.quiet {
@@ -134,6 +189,123 @@ fn launch_hook(g: &GlobalOpts, kind: Kind, timeout: Option<u64>) -> ExitCode {
             _ => "apply failed",
         };
         eprintln!("starorg-codex {command}: {what} (non-fatal)");
+    }
+    ExitCode::from(exit::OK)
+}
+
+/// Whether a hook left work for later in `r`: out of time, or WHERE TO GET lines not built.
+fn left_for_later(r: &Report) -> bool {
+    let late = |s: &str| s.contains("out of time") || s.contains(OBTAIN_LATER);
+    (r.result == Outcome::Skipped && r.reason.as_deref().is_some_and(late))
+        || r.warnings
+            .iter()
+            .any(|w| w.kind == "obtain-hints" && w.detail.contains(OBTAIN_LATER))
+}
+
+/// The background job's lock (one at a time) and log, in the cache folder.
+const JOB_LOCK: &str = "hook-background.lock";
+const JOB_LOG: &str = "hook-background.log";
+
+/// Start `hook background` detached: this binary with this run's arguments (so it finds
+/// the same install), at the lowest priority, in a process group of its own so the
+/// launcher does not wait for it, output to the log in the cache folder.
+fn start_background_job(dirs: &starorg_core::appdirs::AppDirs) -> bool {
+    use starorg_core::background::{self as bg, Priority};
+    let Ok(exe) = std::env::current_exe() else {
+        return false;
+    };
+    let mut args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+    let Some(hook) = args.iter().position(|a| a == "hook") else {
+        return false;
+    };
+    let Some(post) = args[hook..].iter().position(|a| a == "postexit") else {
+        return false;
+    };
+    args[hook + post] = "background".into();
+    if std::fs::create_dir_all(&dirs.cache).is_err() {
+        return false;
+    }
+    let Ok(log) = std::fs::File::create(dirs.cache.join(JOB_LOG)) else {
+        return false;
+    };
+    let mut cmd = std::process::Command::new(exe);
+    cmd.args(args)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(log);
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        cmd.process_group(0);
+    }
+    bg::prepare(&mut cmd, Priority::Background, None, true);
+    bg::spawn(&mut cmd, Priority::Background).is_ok()
+}
+
+/// Whether the game runs for any channel of `i`.
+fn game_running(i: &starorg_core::discovery::Install) -> bool {
+    i.channels.iter().any(|ch| {
+        starorg_core::running::game_running(i.prefix.as_deref(), &ch.name, &ch.dir).is_some()
+    })
+}
+
+/// `hook background`: re-apply what is stale with no time budget, extracting what is
+/// missing (game data of a new build, the WHERE TO GET datasets) at the lowest priority with
+/// few threads. One job at a time; skipped while the game runs, and stopped (with its
+/// workers) as soon as it starts: everything it writes is renamed into place whole, so the
+/// next job or hook picks up from what was finished.
+fn background_job(g: &GlobalOpts) -> ExitCode {
+    let say = |m: &str| eprintln!("starorg-codex hook background: {m}");
+    let Ok(c) = ctx(g) else {
+        say("no app folders");
+        return ExitCode::from(exit::OK);
+    };
+    let _ = std::fs::create_dir_all(&c.dirs.cache);
+    let Ok(_one) = starorg_core::lock::try_lock(&c.dirs.cache.join(JOB_LOCK)) else {
+        say("another background job is running");
+        return ExitCode::from(exit::OK);
+    };
+    let Some(i) = run_discovery(g).installs.into_iter().next() else {
+        say("no Star Citizen install found");
+        return ExitCode::from(exit::OK);
+    };
+    if game_running(&i) {
+        say("the game is running; left for the next exit");
+        return ExitCode::from(exit::OK);
+    }
+    // Stop the moment the game starts: the whole group, workers included.
+    let watched = i.clone();
+    std::thread::spawn(move || {
+        loop {
+            std::thread::sleep(Duration::from_secs(5));
+            if game_running(&watched) {
+                eprintln!("starorg-codex hook background: the game started; stopping");
+                starorg_core::background::stop_process_group();
+            }
+        }
+    });
+    let Ok(id) = register(g, &c, &i) else {
+        say("cannot register the install");
+        return ExitCode::from(exit::OK);
+    };
+    let Ok(src) = source(g, &c) else {
+        say("cannot find own binary");
+        return ExitCode::from(exit::OK);
+    };
+    let opts = ApplyOpts {
+        if_stale: true,
+        dry_run: false,
+        budget: Budget::unlimited(),
+        profile_file: None,
+        character: None,
+        obtain: crate::obtain_src::provider_as(g, &i, &c.dirs, Obtain::Full(None)),
+    };
+    let names: Vec<String> = i.channels.iter().map(|c| c.name.clone()).collect();
+    match apply_channels(g, &c, &i, &id, &names, true, &opts, src.as_ref()) {
+        Ok((reports, _)) => {
+            print_reports(g, "hook background", &reports, &[]);
+        }
+        Err(_) => say("channel lookup failed"),
     }
     ExitCode::from(exit::OK)
 }

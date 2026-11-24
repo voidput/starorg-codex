@@ -3,10 +3,13 @@
    * Shops: what each shop sells. Left, every UEX item terminal by system and place, with a
    * search and a system filter; right, the picked shop's items by category with a chip row, a
    * text filter, buy and sell prices, and a link to the item's Explorer record when the
-   * channel's item data knows it. Shop stock is in no game file: every row is UEX data
-   * (Settings -> Network -> Download UEX market data, Fetch now).
+   * channel's item data knows it. The "Shops | Items" switch turns the left column into an
+   * item search: the items a name matches, and the picked one's shops cheapest first (or, to
+   * sell, the best payers first); a shop there opens it in the shop list with the item filter
+   * set. The mode and the search last for the session (`shopsState`). Shop stock is in no game
+   * file: every row is UEX data (Settings -> Network -> Download UEX market data, Fetch now).
    */
-  import { untrack } from 'svelte';
+  import { tick as flushDom, untrack } from 'svelte';
   import Store from '@lucide/svelte/icons/store';
   import Search from '@lucide/svelte/icons/search';
   import Settings from '@lucide/svelte/icons/settings';
@@ -19,13 +22,30 @@
   import { Input } from '@/components/ui/input';
   import { Skeleton } from '@/components/ui/skeleton';
   import SelectField from '@/components/common/SelectField.svelte';
+  import Segmented from '@/components/common/Segmented.svelte';
   import ErrorState from '@/components/common/ErrorState.svelte';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
-  import type { ShopCategory, ShopDirectory, ShopItems } from '@/lib/contract/types';
+  import type { ShopCategory, ShopDirectory, ShopItemSearch, ShopItems } from '@/lib/contract/types';
   import { priceText } from '@/lib/sources';
   import { int } from '@/lib/format';
-  import { CATEGORY_LABEL, categoryChips, filterShops, firstShop, groupItems, hasShop, textFiltered, topCategories, uexAgeDays, uexAgeText } from '@/lib/shops';
+  import {
+    CATEGORY_LABEL,
+    categoryChips,
+    dealOffers,
+    filterShops,
+    firstShop,
+    groupItems,
+    hasShop,
+    itemMatchLine,
+    textFiltered,
+    topCategories,
+    uexAgeDays,
+    uexAgeText,
+    type ItemDeal,
+    type ShopsMode,
+  } from '@/lib/shops';
+  import { shopsState } from '@/lib/stores/shops.svelte';
   import { fetchUexNow } from '@/lib/uex';
   import { toast } from '@/lib/stores/toast.svelte';
   import { app } from '@/lib/stores/app.svelte';
@@ -78,7 +98,7 @@
     void tick;
     const id = current;
     const key = app.targetKey;
-    if (id === null || !ready) {
+    if (id === null || !ready || shopsState.mode !== 'shops') {
       items = null;
       return;
     }
@@ -109,6 +129,79 @@
   function pick(id: number) {
     selected = id;
     itemQuery = '';
+  }
+
+  // The item search. The typed text is sent after a short pause; the request is keyed on
+  // primitives only (the sent text, the picked item, the channel, Reload), and a newer one
+  // makes the older answer stale.
+  const MODES: { id: ShopsMode; label: string; hint: string }[] = [
+    { id: 'shops', label: 'Shops', hint: 'Every shop by system and place' },
+    { id: 'items', label: 'Items', hint: 'Every shop that sells or buys an item' },
+  ];
+  let search = $state<ShopItemSearch | null>(null);
+  let searchError = $state<ContractError | null>(null);
+  let searchLoading = $state(false);
+  let sentQuery = $state(shopsState.itemQuery.trim());
+  $effect(() => {
+    const q = shopsState.itemQuery.trim();
+    const t = setTimeout(() => (sentQuery = q), 200);
+    return () => clearTimeout(t);
+  });
+  $effect(() => {
+    void app.rev;
+    void tick;
+    const q = sentQuery;
+    const k = shopsState.itemKey;
+    const key = app.targetKey;
+    if (shopsState.mode !== 'items' || !ready || !q) {
+      search = null;
+      searchError = null;
+      searchLoading = false;
+      return;
+    }
+    let stale = false;
+    const target = untrack(() => (app.target ? $state.snapshot(app.target) : null));
+    searchLoading = true;
+    api
+      .shopItemSearch(key ? target : null, q, k)
+      .then((r) => {
+        if (stale) return;
+        search = r;
+        searchError = null;
+      })
+      .catch((e) => !stale && (searchError = toContractError(e)))
+      .finally(() => !stale && (searchLoading = false));
+    return () => (stale = true);
+  });
+  const typing = $derived(shopsState.itemQuery.trim() !== sentQuery);
+  const found = $derived(Array.isArray(search?.items) ? search.items : []);
+  const picked = $derived(search?.item ?? null);
+  const offers = $derived(dealOffers(search?.offers, shopsState.deal, system));
+  // The counts follow the system filter, like the table.
+  const buyCount = $derived(dealOffers(search?.offers, 'buy', system).length);
+  const sellCount = $derived(dealOffers(search?.offers, 'sell', system).length);
+  const deals = $derived<{ id: ItemDeal; label: string; hint: string }[]>([
+    { id: 'buy', label: `Buy${picked ? ` · ${buyCount}` : ''}`, hint: 'Shops that sell it, cheapest first' },
+    { id: 'sell', label: `Sell${picked ? ` · ${sellCount}` : ''}`, hint: 'Shops that pay for it, best price first' },
+  ]);
+
+  function setItemQuery(q: string) {
+    shopsState.itemQuery = q;
+    shopsState.itemKey = null;
+  }
+  // A shop of the item search: the shop list with that shop picked, scrolled into view, and the
+  // item filter set. A linked item filters by its class name: every row of the record has it,
+  // while the display names of a template record's rows differ.
+  let shopList = $state<HTMLElement | null>(null);
+  async function openShop(terminal: number) {
+    const filter = picked?.record?.class_name ?? picked?.name ?? '';
+    shopsState.mode = 'shops';
+    query = '';
+    category = null;
+    selected = terminal;
+    itemQuery = filter;
+    await flushDom();
+    shopList?.querySelector(`[data-shop-id="${terminal}"]`)?.scrollIntoView({ block: 'nearest' });
   }
   function openRecord(guid: string) {
     dev.openRecord(guid, () => app.go('explorer'));
@@ -141,6 +234,7 @@
   }
 
   const ROW = 'grid grid-cols-[minmax(0,1fr)_7.5rem_7.5rem_6rem] items-baseline gap-3';
+  const OFFER_ROW = 'grid grid-cols-[minmax(0,1fr)_7.5rem_6rem] items-baseline gap-3';
 </script>
 
 {#if error}
@@ -197,8 +291,27 @@
 
     <div class="grid items-start gap-3 lg:grid-cols-[minmax(15rem,21rem)_minmax(0,1fr)]">
       <section class="bg-card flex min-h-0 flex-col rounded-lg border" aria-labelledby="shops-list-title">
-        <h2 id="shops-list-title" class="sr-only">Shops</h2>
+        <h2 id="shops-list-title" class="sr-only">{shopsState.mode === 'items' ? 'Item search' : 'Shops'}</h2>
         <div class="grid gap-2 border-b p-2.5">
+          <Segmented size="sm" ariaLabel="Search shops or items" class="justify-self-start" options={MODES} bind:value={shopsState.mode} />
+          {#if shopsState.mode === 'items'}
+            <div class="relative">
+              <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
+              <Input
+                type="search"
+                aria-label="Search items"
+                placeholder="Search items"
+                class="h-8 pl-8"
+                value={shopsState.itemQuery}
+                oninput={(e) => setItemQuery((e.currentTarget as HTMLInputElement).value)}
+                onkeydown={(e) => e.key === 'Escape' && shopsState.itemQuery && (e.preventDefault(), setItemQuery(''))}
+              />
+            </div>
+            <div class="flex items-center gap-2 text-[12px]">
+              <SelectField ariaLabel="System" options={systems} value={system} onchange={(v) => (system = v)} class="min-w-36 flex-1" />
+              <span class="text-muted-foreground shrink-0" aria-live="polite">{search ? `${search.total} item${search.total === 1 ? '' : 's'}` : ''}</span>
+            </div>
+          {:else}
           <div class="relative">
             <Search class="text-muted-foreground pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2" aria-hidden="true" />
             <Input
@@ -215,11 +328,44 @@
             <SelectField ariaLabel="System" options={systems} value={system} onchange={(v) => (system = v)} class="min-w-36 flex-1" />
             <span class="text-muted-foreground shrink-0" aria-live="polite">{shown} of {dir.shop_count}</span>
           </div>
+          {/if}
         </div>
-        {#if !groups.length}
+        {#if shopsState.mode === 'items'}
+          {#if !shopsState.itemQuery.trim()}
+            <p class="text-muted-foreground px-3 py-6 text-center text-[12px]">Type an item name to see every shop that sells or buys it.</p>
+          {:else if searchError && !search}
+            <p class="text-muted-foreground px-3 py-6 text-center text-[12px]">The search failed; see the right side.</p>
+          {:else if !search || (typing && !found.length)}
+            <div class="grid gap-2 p-3" aria-busy="true"><Skeleton class="h-8 w-full" /><Skeleton class="h-8 w-full" /><Skeleton class="h-8 w-full" /></div>
+          {:else if !found.length}
+            <p class="text-muted-foreground px-3 py-6 text-center text-[12px]">No item matches “{search.query}”.</p>
+          {:else}
+            <ul class="m-0 max-h-[calc(100vh-15rem)] list-none overflow-y-auto p-0 py-1" aria-label="Items">
+              {#each found as m (m.key)}
+                <li>
+                  <button
+                    type="button"
+                    aria-current={m.key === picked?.key ? 'true' : undefined}
+                    class={cn(
+                      'focus-visible:ring-ring/60 grid w-full gap-0.5 px-3 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset',
+                      m.key === picked?.key ? 'bg-primary/15 text-foreground' : 'hover:bg-muted',
+                    )}
+                    onclick={() => (shopsState.itemKey = m.key)}
+                  >
+                    <span class={cn('truncate text-[13px]', m.key === picked?.key && 'font-medium')} title={m.uex_name ? `${m.name} (UEX: ${m.uex_name})` : m.name}>{m.name}</span>
+                    <span class="text-muted-foreground truncate text-[11px]">{CATEGORY_LABEL[m.category]} · {itemMatchLine(m, priceText)}</span>
+                  </button>
+                </li>
+              {/each}
+            </ul>
+            {#if search.total > found.length}
+              <p class="text-muted-foreground border-t px-3 py-2 text-[11.5px]">{found.length} of {search.total} shown; type more of the name.</p>
+            {/if}
+          {/if}
+        {:else if !groups.length}
           <p class="text-muted-foreground px-3 py-6 text-center text-[12px]">No shop matches.</p>
         {:else}
-          <nav class="max-h-[calc(100vh-15rem)] overflow-y-auto py-1" aria-label="Shops by system and place">
+          <nav bind:this={shopList} class="max-h-[calc(100vh-15rem)] overflow-y-auto py-1" aria-label="Shops by system and place">
             {#each groups as g (g.system)}
               <h3 class="eyebrow text-muted-foreground px-3 pt-2.5 pb-1">{g.system} <span class="mono font-normal">{g.count}</span></h3>
               {#each g.places as p (p.name)}
@@ -229,6 +375,7 @@
                     <li>
                       <button
                         type="button"
+                        data-shop-id={s.id}
                         aria-current={s.id === current ? 'true' : undefined}
                         class={cn(
                           'focus-visible:ring-ring/60 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-2 px-3 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset',
@@ -249,6 +396,71 @@
         {/if}
       </section>
 
+      {#if shopsState.mode === 'items'}
+        <section class="bg-card grid min-w-0 gap-3 rounded-lg border p-3" aria-labelledby="item-title" aria-busy={searchLoading}>
+          {#if searchError}
+            <ErrorState title="Could not search the shop data" error={searchError} onretry={() => tick++} />
+          {:else if !picked}
+            {#if searchLoading}<Skeleton class="h-64 w-full" />{:else}<p class="text-muted-foreground py-6 text-center">Search for an item, then pick it.</p>{/if}
+          {:else}
+            <header class="flex flex-wrap items-start gap-x-3 gap-y-2">
+              <div class="grid min-w-0 flex-1 gap-0.5">
+                <h2 id="item-title" class="text-[16px] font-semibold">
+                  {#if picked.record && devOn}
+                    <button
+                      type="button"
+                      class="text-primary focus-visible:ring-ring/60 inline-flex max-w-full items-center gap-1 rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+                      title="Open {picked.record.class_name} in the Explorer"
+                      onclick={() => openRecord(picked.record!.guid)}><span class="truncate">{picked.name}</span><ExternalLink class="size-3.5 shrink-0" aria-hidden="true" /></button
+                    >
+                  {:else}{picked.name}{/if}
+                </h2>
+                <p class="text-muted-foreground text-[12px]">
+                  {CATEGORY_LABEL[picked.category]}{picked.uex_name ? ` · UEX: ${picked.uex_name}` : ''}{picked.record ? '' : ' · not linked to a game record'}
+                </p>
+              </div>
+              <Segmented size="sm" ariaLabel="Buy or sell" options={deals} bind:value={shopsState.deal} />
+            </header>
+            {#if !offers.length}
+              <p class="text-muted-foreground py-6 text-center text-[12px]">
+                {shopsState.deal === 'buy' ? 'No shop sells it' : 'No shop pays for it'}{system ? ` in ${system}` : ''} in the UEX data.
+              </p>
+            {:else}
+              <div role="table" aria-label="{shopsState.deal === 'buy' ? 'Shops that sell' : 'Shops that buy'} {picked.name}" class="text-[12.5px]">
+                <div role="rowgroup">
+                  <div role="row" class={cn(OFFER_ROW, 'text-muted-foreground border-b py-1 text-[11px]')}>
+                    <span role="columnheader" class="eyebrow text-foreground">Shop <span class="mono text-muted-foreground font-normal">{offers.length}</span></span>
+                    <span role="columnheader" class="text-right" title={shopsState.deal === 'buy' ? 'What you pay' : 'What the shop pays'}>{shopsState.deal === 'buy' ? 'Buy' : 'Sell'}</span>
+                    <span role="columnheader" class="text-right" title="Day UEX last confirmed the row">Updated</span>
+                  </div>
+                </div>
+                <div role="rowgroup" class="divide-y divide-border/50">
+                  {#each offers as o, i (`${o.terminal}/${i}`)}
+                    {@const price = shopsState.deal === 'buy' ? o.price_buy : o.price_sell}
+                    <div role="row" class={cn(OFFER_ROW, 'py-1')}>
+                      <span role="cell" class="min-w-0">
+                        <button
+                          type="button"
+                          class="text-primary focus-visible:ring-ring/60 inline-flex max-w-full items-center rounded-sm text-left underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+                          title="Show everything {o.shop} sells"
+                          onclick={() => openShop(o.terminal)}><span class="truncate">{o.shop}</span></button
+                        >
+                        <span class="text-muted-foreground block truncate text-[11px]"
+                          >{o.location}{o.system ? ` · ${o.system}` : ''}{#if o.not_on_live}<span class="text-warning"> · not on LIVE</span>{/if}</span
+                        >
+                      </span>
+                      <span role="cell" class="text-right font-medium tabular-nums">{price !== null ? priceText(price) : '–'}</span>
+                      <span role="cell" class={cn('text-right tabular-nums', o.stale ? 'text-muted-foreground/70' : 'text-muted-foreground')} title={o.stale ? 'Not confirmed for over 30 days' : undefined}
+                        >{o.updated ?? '–'}{o.stale ? ' ⚠' : ''}</span
+                      >
+                    </div>
+                  {/each}
+                </div>
+              </div>
+            {/if}
+          {/if}
+        </section>
+      {:else}
       <section class="bg-card grid min-w-0 gap-3 rounded-lg border p-3" aria-labelledby="shop-title" aria-busy={itemsLoading}>
         {#if itemsError}
           <ErrorState title="Could not read this shop" error={itemsError} onretry={() => tick++} />
@@ -345,6 +557,7 @@
           {/if}
         {/if}
       </section>
+      {/if}
     </div>
   </div>
 {/if}

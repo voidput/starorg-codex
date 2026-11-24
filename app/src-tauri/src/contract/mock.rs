@@ -40,12 +40,14 @@ fn hotfix_build() -> Build {
     }
 }
 
+/// PTU runs 5.0, the first build with the game's telemetry service (live telemetry is offered
+/// there only).
 fn ptu_build() -> Build {
     Build {
-        branch: Some("sc-alpha-4.11.0-ptu".into()),
-        game_version: Some("4.11.0".into()),
+        branch: Some("sc-alpha-5.0.0-ptu".into()),
+        game_version: Some("5.0.0".into()),
         change: Some(13_190_517),
-        version: Some("4.11.0.60112".into()),
+        version: Some("5.0.0.60112".into()),
     }
 }
 
@@ -119,6 +121,9 @@ pub struct MockBackend {
     mcp: crate::mcp::McpHost,
     /// The saved memory limit, GB (`None` = the default).
     memory_gb: Mutex<Option<f64>>,
+    /// Live telemetry: the synthetic stream (mock_telemetry.rs).
+    pub(crate) telemetry: crate::telemetry::TelemetryHost,
+    pub(crate) telemetry_cfg: Mutex<super::mock_telemetry::TelemetryMock>,
 }
 
 /// When the mock's "Fetch now" wrote the UEX files (fixed, for the samples).
@@ -406,6 +411,8 @@ impl MockBackend {
             assets: Mutex::new(Default::default()),
             mcp: crate::mcp::McpHost::default(),
             memory_gb: Mutex::new(None),
+            telemetry: super::mock_telemetry::mock_host(),
+            telemetry_cfg: Mutex::new(Default::default()),
         };
         me.log(
             LogLevel::Info,
@@ -490,7 +497,13 @@ impl MockBackend {
         (s.uex_fetched.is_some(), ship)
     }
 
-    fn log(&self, level: LogLevel, job: Option<JobKind>, channel: Option<&str>, msg: &str) {
+    pub(crate) fn log(
+        &self,
+        level: LogLevel,
+        job: Option<JobKind>,
+        channel: Option<&str>,
+        msg: &str,
+    ) {
         let mut s = self.lock();
         let id = s.next_log;
         s.next_log += 1;
@@ -2015,6 +2028,16 @@ impl Backend for MockBackend {
         Ok(super::mock_shops::mock_items(ready, ship, req.terminal))
     }
 
+    fn shop_item_search(&self, req: ShopItemSearchRequest) -> CmdResult<ShopItemSearch> {
+        let (ready, ship) = self.shop_state(req.target.as_ref());
+        Ok(super::mock_shops::mock_item_search(
+            ready,
+            ship,
+            &req.query,
+            req.key.as_deref(),
+        ))
+    }
+
     /// The synthetic commodities of `mock_commodities` once the target's game data was read
     /// ("Read game data"); kiosk prices once "Fetch now" ran.
     fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory> {
@@ -3187,14 +3210,15 @@ impl Backend for MockBackend {
 
 /// Fixed sizes of the mock's areas (about the dev machine's after compression; see
 /// docs/user-guide.md#storage): game data of 3 channels, 2 WHERE TO GET builds, UEX files,
-/// no temp folders, 5 backups of 3 channels.
-pub const MOCK_STORAGE: [(starorg_core::storage::Area, &str, u64, u64); 5] = {
+/// no temp folders, one live telemetry schema, 5 backups of 3 channels.
+pub const MOCK_STORAGE: [(starorg_core::storage::Area, &str, u64, u64); 6] = {
     use starorg_core::storage::Area;
     [
         (Area::GameData, "/synthetic/cache", 11_400_000, 12),
         (Area::WhereToGet, "/synthetic/cache/mcp", 72_000_000, 46),
         (Area::Uex, "/synthetic/cache/mcp/uex", 7_300_000, 3),
         (Area::Temporary, "/synthetic/cache/work", 0, 0),
+        (Area::Telemetry, "/synthetic/cache/telemetry", 184_000, 1),
         (Area::Backups, "/synthetic/data/channels", 37_800_000, 30),
     ]
 };
@@ -3222,6 +3246,28 @@ impl MockBackend {
                 },
             })
             .collect();
+        // The mock's telemetry recordings are a list in memory (mock_telemetry.rs).
+        let recs = self.telemetry.recordings();
+        areas.insert(
+            areas.len() - 1,
+            AreaUsage {
+                area: Area::TelemetryRecordings,
+                path: super::mock_telemetry::RECORDINGS_DIR.into(),
+                usage: Usage {
+                    bytes: recs.iter().map(|r| r.bytes).sum(),
+                    files: recs.len() as u64,
+                },
+            },
+        );
+        let (bytes, files) = self.telemetry.sessions_usage();
+        areas.insert(
+            areas.len() - 1,
+            AreaUsage {
+                area: Area::TelemetrySessions,
+                path: super::mock_telemetry::SESSIONS_DIR.into(),
+                usage: Usage { bytes, files },
+            },
+        );
         areas.insert(
             3,
             AreaUsage {
@@ -3237,12 +3283,22 @@ impl MockBackend {
         );
         let in_cache: u64 = areas
             .iter()
-            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .filter(|a| {
+                !matches!(
+                    a.area,
+                    Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions
+                ) && (a.area != Area::AssetExports || !custom)
+            })
             .map(|a| a.usage.bytes)
             .sum();
         let files: u64 = areas
             .iter()
-            .filter(|a| a.area != Area::Backups && (a.area != Area::AssetExports || !custom))
+            .filter(|a| {
+                !matches!(
+                    a.area,
+                    Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions
+                ) && (a.area != Area::AssetExports || !custom)
+            })
             .map(|a| a.usage.files)
             .sum();
         let r = Report {

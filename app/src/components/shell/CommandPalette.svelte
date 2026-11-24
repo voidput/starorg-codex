@@ -3,14 +3,18 @@
    * Ctrl/Cmd+K command palette (spec 9.3): go to a screen, switch channel, apply, re-run setup.
    * Apply is listed only when writing is allowed (not while the game runs or a job runs).
    * With Developer mode on (addendum 7.8): "Find record…" searches the explorer for the typed
-   * text, "Open record by GUID" opens a pasted GUID.
+   * text, "Open record by GUID" opens a pasted GUID. Any typed text also offers "Where to buy …":
+   * the Shops screen's item search with that text.
    */
   import * as Dialog from '@/components/ui/dialog';
   import { Input } from '@/components/ui/input';
   import { navItems, type ScreenId } from '@/lib/nav';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
+  import { telemetry } from '@/lib/stores/telemetry.svelte';
   import { isGuidLike } from '@/lib/devnav';
+  import { whereToBuyLabel } from '@/lib/shops';
+  import { shopsState } from '@/lib/stores/shops.svelte';
   import { cn } from '@/lib/utils';
 
   let { open = $bindable(false), go }: { open: boolean; go: (s: ScreenId) => void } = $props();
@@ -34,14 +38,20 @@
         ]
       : [];
   });
+  // Like the dev commands, it takes the typed text (captured now) and always shows with some.
+  const shopCmds = $derived.by<Cmd[]>(() => {
+    const typed = q.trim();
+    const label = whereToBuyLabel(typed);
+    return label ? [{ id: 'shop-item', label, hint: 'Shops', run: () => shopsState.findItem(typed, () => go('shops')) }] : [];
+  });
   const cmds = $derived<Cmd[]>([
-    ...navItems(devOn).map((n) => ({ id: `go-${n.id}`, label: `Go to ${n.label}`, hint: n.key ? `Alt+${n.key}` : 'Developer', run: () => go(n.id) })),
+    ...navItems(devOn, telemetry.enabled).map((n) => ({ id: `go-${n.id}`, label: `Go to ${n.label}`, hint: n.key ? `Alt+${n.key}` : (n.badge ?? 'Developer'), run: () => go(n.id) })),
     ...app.channels.map((c) => ({ id: `ch-${c.channel}`, label: `Switch to ${c.channel}`, hint: 'Channel', run: () => app.selectChannel(c.channel) })),
     ...(app.channel?.set_up && !app.blocked ? [{ id: 'apply', label: `Apply to ${app.channel.channel}`, hint: 'Action', run: () => app.requestApply() }] : []),
     { id: 'setup', label: 'Run setup again', hint: 'Action', run: () => (app.wizard = true) },
   ]);
-  // The dev commands take the typed text as their argument, so they always show.
-  const shown = $derived([...cmds.filter((c) => c.label.toLowerCase().includes(q.trim().toLowerCase())), ...devCmds]);
+  // The shop and dev commands take the typed text as their argument, so they always show.
+  const shown = $derived([...cmds.filter((c) => c.label.toLowerCase().includes(q.trim().toLowerCase())), ...shopCmds, ...devCmds]);
   $effect(() => {
     void q;
     sel = 0;

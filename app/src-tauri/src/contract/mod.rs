@@ -29,9 +29,12 @@ pub mod mock_finder;
 pub mod mock_loot;
 #[cfg(any(test, feature = "mock-backend"))]
 pub mod mock_shops;
+#[cfg(any(test, feature = "mock-backend"))]
+pub mod mock_telemetry;
 pub mod real;
 pub mod schema;
 pub mod strings_query;
+pub mod telemetry;
 pub mod types;
 
 use std::sync::Arc;
@@ -44,8 +47,11 @@ pub type Progress<'a> = &'a (dyn Fn(JobProgress) + Send + Sync);
 /// Everything the UI can ask of the core. Implementations must be cheap to call from many
 /// threads; long jobs report through `progress`.
 /// Developer mode (addendum 7) is the [`dev::DevBackend`] half; its assets (7.16) the
-/// [`assets::AssetBackend`] half.
-pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'static {
+/// [`assets::AssetBackend`] half; live telemetry (experimental) the
+/// [`telemetry::TelemetryBackend`] half.
+pub trait Backend:
+    dev::DevBackend + assets::AssetBackend + telemetry::TelemetryBackend + Send + Sync + 'static
+{
     fn overview(&self) -> CmdResult<Overview>;
     fn discover_installs(&self, deep: bool) -> CmdResult<Vec<InstallSummary>>;
     /// Opens the native folder picker in the real backend; the webview never sends a path.
@@ -101,6 +107,9 @@ pub trait Backend: dev::DevBackend + assets::AssetBackend + Send + Sync + 'stati
     fn shop_inventory(&self, req: ShopInventoryRequest) -> CmdResult<ShopDirectory>;
     /// One shop's items by category, with prices and the game record when linked.
     fn shop_items(&self, req: ShopItemsRequest) -> CmdResult<ShopItems>;
+    /// Every shop that sells (or buys) an item: the items a name matches, and one item's
+    /// shops cheapest first. Same data and rules as `shop_inventory`.
+    fn shop_item_search(&self, req: ShopItemSearchRequest) -> CmdResult<ShopItemSearch>;
     /// The Commodities screen: every tradable resource of the channel's build as list rows
     /// (summaries only), from its cached game data; nothing is extracted or downloaded.
     fn commodity_list(&self, req: CommodityListRequest) -> CmdResult<CommodityDirectory>;
@@ -292,6 +301,7 @@ commands! {
     loot_detail(req: LootDetailRequest) -> LootDetail;
     shop_inventory(req: ShopInventoryRequest) -> ShopDirectory;
     shop_items(req: ShopItemsRequest) -> ShopItems;
+    shop_item_search(req: ShopItemSearchRequest) -> ShopItemSearch;
     commodity_list(req: CommodityListRequest) -> CommodityDirectory;
     commodity_detail(req: CommodityDetailRequest) -> CommodityInfo;
     get_profile(req: ChannelRef) -> Profile;
@@ -405,6 +415,7 @@ macro_rules! contract_handler {
             $crate::contract::loot_detail,
             $crate::contract::shop_inventory,
             $crate::contract::shop_items,
+            $crate::contract::shop_item_search,
             $crate::contract::commodity_list,
             $crate::contract::commodity_detail,
             $crate::contract::get_profile,
@@ -521,6 +532,25 @@ macro_rules! contract_handler {
             $crate::contract::storage_status,
             $crate::contract::storage_measure,
             $crate::contract::storage_clear_assets,
+            $crate::contract::telemetry::telemetry_status,
+            $crate::contract::telemetry::telemetry_configure,
+            $crate::contract::telemetry::telemetry_start,
+            $crate::contract::telemetry::telemetry_stop,
+            $crate::contract::telemetry::telemetry_actions,
+            $crate::contract::telemetry::telemetry_trigger,
+            $crate::contract::telemetry::telemetry_history,
+            $crate::contract::telemetry::telemetry_record,
+            $crate::contract::telemetry::telemetry_recordings,
+            $crate::contract::telemetry::telemetry_recording_delete,
+            $crate::contract::telemetry::telemetry_replay_start,
+            $crate::contract::telemetry::telemetry_replay_control,
+            $crate::contract::telemetry::telemetry_alerts,
+            $crate::contract::telemetry::telemetry_alerts_configure,
+            $crate::contract::telemetry::telemetry_alert_test,
+            $crate::contract::telemetry::telemetry_gamelog,
+            $crate::contract::telemetry::telemetry_people_clear,
+            $crate::contract::telemetry::telemetry_sessions,
+            $crate::contract::telemetry::telemetry_sessions_clear,
         ]
     };
 }
@@ -553,6 +583,7 @@ pub const COMMAND_NAMES: &[&str] = &[
     "loot_detail",
     "shop_inventory",
     "shop_items",
+    "shop_item_search",
     "commodity_list",
     "commodity_detail",
     "get_profile",
@@ -669,6 +700,25 @@ pub const COMMAND_NAMES: &[&str] = &[
     "storage_status",
     "storage_measure",
     "storage_clear_assets",
+    "telemetry_status",
+    "telemetry_configure",
+    "telemetry_start",
+    "telemetry_stop",
+    "telemetry_actions",
+    "telemetry_trigger",
+    "telemetry_history",
+    "telemetry_record",
+    "telemetry_recordings",
+    "telemetry_recording_delete",
+    "telemetry_replay_start",
+    "telemetry_replay_control",
+    "telemetry_alerts",
+    "telemetry_alerts_configure",
+    "telemetry_alert_test",
+    "telemetry_gamelog",
+    "telemetry_people_clear",
+    "telemetry_sessions",
+    "telemetry_sessions_clear",
 ];
 
 #[cfg(test)]
@@ -679,3 +729,5 @@ mod tests_assets;
 mod tests_dev;
 #[cfg(test)]
 mod tests_loot;
+#[cfg(test)]
+mod tests_telemetry;
