@@ -2636,8 +2636,9 @@ impl DevBackend for MockBackend {
     fn dev_diff(&self, req: DevDiffRequest, progress: Progress<'_>) -> CmdResult<DevDiffSummary> {
         self.dev_on(&req.target)?;
         let mut p = self.progress_job("Reading datasets", 2, &req.target.channel, progress);
-        let a = self.datasets_of(&req.target, &req.a)?;
-        let b = self.datasets_of(&req.target, &req.b)?;
+        let mut a = self.datasets_of(&req.target, &req.a)?;
+        let mut b = self.datasets_of(&req.target, &req.b)?;
+        common_datasets(&req.a, &req.b, &mut a, &mut b)?;
         self.wait();
         p.step = 2;
         p.label = "Comparing".into();
@@ -2825,5 +2826,7 @@ pub fn gen_file() -> Value {
         "dumps": (DUMPS.iter().map(|(tag, title, branch, published)| json!({ "tag": tag, "title": title, "branch": branch, "published": published, "files": (dump_files(tag).into_iter().map(|(f, v)| json!({ "file": f, "value": v })).collect::<Vec<_>>()) })).collect::<Vec<_>>()),
         // Older builds in the dataset cache: their files are the older dump's (by name).
         "cached": (CACHED.iter().map(|(ch, folder, version, complete)| json!({ "channel": ch, "folder": folder, "version": version, "complete": complete, "detail": cached_detail(ch, folder, *complete), "files": (cached_files(*complete).into_iter().map(|(f, _)| f).collect::<Vec<_>>()) })).collect::<Vec<_>>()),
+        // Diff of an older cached build with nothing in common (`common_datasets`).
+        "noCommonDataset": NO_COMMON_DATASET,
     })
 }

@@ -28,6 +28,8 @@ export interface DevMockData {
   dumps: { tag: string; title: string; branch: string; published: string; files: { file: string; value: Json }[] }[];
   /** Older builds in the dataset cache (newest first); `files` name the older dump's files they hold. */
   cached: { channel: string; folder: string; version: string; complete: boolean; detail: string; files: string[] }[];
+  /** Diff's answer for an older cached build with no dataset in common with the other side. */
+  noCommonDataset: string;
   /** The section index's input (7.17): facts per entry, the table's result per entry. */
   facts: (Facts | null)[];
   sections: SectionsData;
@@ -1733,8 +1735,17 @@ export function createDevMock(data: DevMockData, ctx: DevMockCtx): DevMock {
       on(req.target);
       let summary: D.DevDiffSummary | null = null;
       await job('Reading datasets', 2, req.target.channel, async (p) => {
-        const a = datasetsOf(req.target, req.a);
-        const b = datasetsOf(req.target, req.b);
+        let a = datasetsOf(req.target, req.a);
+        let b = datasetsOf(req.target, req.b);
+        // As `contract::dev::common_datasets`: an older cached build against anything, only
+        // the datasets both hold.
+        if (req.a.startsWith('cached:') || req.b.startsWith('cached:')) {
+          const na = new Set(a.map((x) => x[0]));
+          const nb = new Set(b.map((x) => x[0]));
+          a = a.filter((x) => nb.has(x[0]));
+          b = b.filter((x) => na.has(x[0]));
+          if (a.length === 0) ctx.fail('invalid', data.noCommonDataset);
+        }
         await ctx.sleep(ctx.delay);
         ctx.emit({ ...p, step: 2, label: 'Comparing' });
         const tables = diffSources(a, b);

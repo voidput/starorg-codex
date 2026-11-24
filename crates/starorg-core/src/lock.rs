@@ -34,6 +34,16 @@ pub enum LockError {
 
 /// Try to take an exclusive lock without waiting.
 pub fn try_lock(path: &Path) -> Result<Lock, LockError> {
+    take(path, false)
+}
+
+/// Try to take a shared lock without waiting: any number of shared holders at once, none
+/// while someone holds it exclusively ([`try_lock`]).
+pub fn try_lock_shared(path: &Path) -> Result<Lock, LockError> {
+    take(path, true)
+}
+
+fn take(path: &Path, shared: bool) -> Result<Lock, LockError> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir).map_err(|source| LockError::Io {
             path: path.to_path_buf(),
@@ -50,7 +60,12 @@ pub fn try_lock(path: &Path) -> Result<Lock, LockError> {
             path: path.to_path_buf(),
             source,
         })?;
-    match file.try_lock() {
+    let got = if shared {
+        file.try_lock_shared()
+    } else {
+        file.try_lock()
+    };
+    match got {
         Ok(()) => Ok(Lock {
             _file: file,
             path: path.to_path_buf(),
@@ -76,5 +91,23 @@ mod tests {
         drop(a);
         let _b = try_lock(&p).unwrap();
         assert!(p.exists(), "the file stays; only the lock is gone");
+    }
+
+    #[test]
+    fn shared_holders_coexist_and_keep_the_exclusive_one_out() {
+        let t = tempfile::tempdir().unwrap();
+        let p = t.path().join("x.lock");
+        let r1 = try_lock_shared(&p).unwrap();
+        let r2 = try_lock_shared(&p).unwrap();
+        assert!(matches!(try_lock(&p), Err(LockError::Held(_))));
+        drop(r1);
+        assert!(
+            matches!(try_lock(&p), Err(LockError::Held(_))),
+            "one reader left"
+        );
+        drop(r2);
+        let x = try_lock(&p).unwrap();
+        assert!(matches!(try_lock_shared(&p), Err(LockError::Held(_))));
+        drop(x);
     }
 }

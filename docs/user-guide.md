@@ -458,8 +458,9 @@ For players who want to look things up in the game data. Read only on the game.
 - **Diff:** compare two builds, two dataset folders, or an old LIVE build against a new one;
   or compare a channel's current build with the previous one the app read (kept in the cache).
   That previous build is listed as "<CHANNEL> <version> (cached)" right after the channel's
-  build, newest first, and Diff starts with it as **A** and the current build as **B**. It
-  holds the WHERE TO GET datasets that were extracted for it (the last 2 builds per channel are
+  build, newest first, and Diff starts with it as **A** and the current build as **B**; only
+  the datasets both have are compared, so after a game update use WHERE TO GET once on the
+  new build first. It holds the WHERE TO GET datasets that were extracted for it (the last 2 builds per channel are
   kept, see [Storage](#storage)); it is read only and never extracted into, and a build whose
   cache was cut short shows on Datasets with the reason. To compare LIVE builds: turn on Settings -> Network -> **Download published LIVE builds for
   Diff**, open **Datasets**, and press **Download** next to two builds under **Published LIVE

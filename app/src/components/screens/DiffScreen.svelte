@@ -43,7 +43,7 @@
   import { cn } from '@/lib/utils';
   import { guard } from '@/lib/loadstate';
   import { revealTop, windowRange } from '@/lib/virtual';
-  import { defaultPair } from '@/lib/diffpick';
+  import { keepPair } from '@/lib/diffpick';
 
   const target = $derived(app.target);
   const tkey = $derived(app.targetKey);
@@ -66,20 +66,13 @@
         const got = (await devApi.sources(t)).filter((s) => s.state === 'ready');
         if (!live()) return;
         sources = got;
-        // First visit: the channel's previous cached build → its current one, when kept.
-        if (a === null) {
-          const first = defaultPair(got, t.channel);
-          a = first.a;
-          b ??= first.b;
-        }
-        b ??= sources.find((s) => s.id !== a)?.id ?? null;
+        // First visit: the channel's previous cached build → its current one, when kept. A
+        // pick no longer listed (an older cached build pruned since) is picked afresh.
+        ({ a, b } = keepPair(got, t.channel, { a, b }));
         const sum = await devApi.diffSummary(t).catch(() => null);
         if (!live()) return;
         summary = sum;
-        if (summary) {
-          a = summary.a;
-          b = summary.b;
-        }
+        if (summary) ({ a, b } = keepPair(got, t.channel, { a: summary.a, b: summary.b }));
       } catch (e) {
         if (live()) error = toContractError(e);
       }

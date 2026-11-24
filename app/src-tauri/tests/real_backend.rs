@@ -2749,3 +2749,95 @@ fn the_finder_and_list_characters_opened_together_both_see_the_new_scan() {
         assert_eq!(found, want, "round {round}: finder");
     }
 }
+
+/// Diff of an older cached build (dataset cache, WHERE TO GET) against the current build with
+/// its GameData read: only the datasets both hold are compared, so GameData (never in a
+/// cached build) and a dataset extracted for one build only do not show as all added.
+#[test]
+fn a_cached_build_diff_compares_only_the_datasets_both_hold() {
+    use starorg_codex_app::contract::dev::*;
+    let f = Fake::new();
+    f.setup_live();
+    f.backend
+        .read_game_data(ReadGameDataRequest { target: f.live() })
+        .unwrap();
+    let mut s = f.backend.get_settings().unwrap();
+    s.advanced.developer_mode = true;
+    f.backend.save_settings(s).unwrap();
+    let live = f.live();
+    let mcp = f.dirs.cache.join("mcp/LIVE");
+    let fp = starorg_mcp::store::Store::fingerprint(&f.lib.join("LIVE/Data.p4k"));
+    let weapons = |n: u32| {
+        let rows: Vec<String> = (1..=n)
+            .map(|i| format!(r#"{{"name":"W{i}","dps":{}}}"#, 10 * i))
+            .collect();
+        format!(r#"{{"_source":"syn","shipWeapons":[{}]}}"#, rows.join(","))
+    };
+    let put = |dir: &std::path::Path, name: &str, body: &str| {
+        std::fs::create_dir_all(dir).unwrap();
+        std::fs::write(dir.join(name), body).unwrap();
+    };
+    let current = mcp.join(format!("4.10.200.58746-{fp}"));
+    let older = mcp.join("4.10.197.2878-0a1b2c3d");
+    // The same version as the current build, under another fingerprint (an app update).
+    let again = mcp.join("4.10.200.58746-deadbeef");
+    put(&current, "game-weapons.json", &weapons(3));
+    put(
+        &current,
+        "game-law.json",
+        r#"{"_source":"syn","laws":[{"name":"L1"}]}"#,
+    );
+    put(&older, "game-weapons.json", &weapons(2));
+    put(&again, "game-weapons.json", &weapons(3));
+    let src = f.backend.dev_sources(live.clone()).unwrap();
+    let build = src.iter().find(|s| s.id == "build:LIVE").unwrap();
+    let files: Vec<&str> = build.datasets.iter().map(|d| d.file.as_str()).collect();
+    assert_eq!(
+        files,
+        ["gamedata.json", "game-law.json", "game-weapons.json"]
+    );
+    let label = |id: &str| src.iter().find(|s| s.id == id).unwrap().label.clone();
+    assert_eq!(
+        label("cached:LIVE:4.10.197.2878-0a1b2c3d"),
+        "LIVE 4.10.197.2878 (cached)"
+    );
+    assert_eq!(
+        label("cached:LIVE:4.10.200.58746-deadbeef"),
+        "LIVE 4.10.200.58746 (cached, deadbeef)",
+        "a version the current build has too is told apart"
+    );
+    let diff = |a: &str, b: &str| {
+        f.backend.dev_diff(
+            DevDiffRequest {
+                target: live.clone(),
+                a: a.into(),
+                b: b.into(),
+            },
+            &|_| {},
+        )
+    };
+    let d = diff("cached:LIVE:4.10.197.2878-0a1b2c3d", "build:LIVE").unwrap();
+    assert!(!d.tables.is_empty());
+    assert!(
+        d.tables.iter().all(|t| t.dataset == "game-weapons.json"),
+        "{:?}",
+        d.tables.iter().map(|t| &t.dataset).collect::<Vec<_>>()
+    );
+    let t = &d.tables[0];
+    assert_eq!(t.table, "shipWeapons");
+    assert_eq!((t.added, t.removed, t.changed), (1, 0, 0));
+    // The other way round too.
+    let d = diff("build:LIVE", "cached:LIVE:4.10.197.2878-0a1b2c3d").unwrap();
+    assert!(d.tables.iter().all(|t| t.dataset == "game-weapons.json"));
+    // Nothing in common: said, not an empty or one-sided comparison.
+    let lonely = mcp.join("4.10.100.1-00000001");
+    put(
+        &lonely,
+        "game-ammo.json",
+        r#"{"_source":"syn","ammo":[{"name":"A1"}]}"#,
+    );
+    f.backend.dev_sources(live.clone()).unwrap();
+    let e = diff("cached:LIVE:4.10.100.1-00000001", "build:LIVE").unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid);
+    assert!(e.message.contains("no dataset in common"), "{}", e.message);
+}

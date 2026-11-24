@@ -158,27 +158,51 @@ fn segment(s: &str) -> String {
     }
 }
 
-/// Held (an OS lock, see `starorg_core::lock`) by a reader of a cached build folder while it
-/// reads files there; pruning leaves a held folder alone.
+/// Suffix of a cached build folder's reading lock, a file beside the folder
+/// (`<CHANNEL>/<folder>.reading.lock`): readers hold it shared while they read files there,
+/// pruning takes it exclusively. Beside, not inside, so taking it never changes the folder
+/// (its time orders [`Store::cached_builds`]) and the folder stays as written.
 pub const READING_LOCK: &str = ".reading.lock";
 
-/// Take the reading lock of a cached build folder, `None` when the folder is gone or
-/// another reader holds it (that reader keeps it from pruning too). Never creates the folder.
+/// The reading lock file of a cached build folder.
+pub fn reading_lock(dir: &Path) -> PathBuf {
+    let mut name = dir.file_name().unwrap_or_default().to_os_string();
+    name.push(READING_LOCK);
+    dir.with_file_name(name)
+}
+
+/// Take a shared reading lock of a cached build folder, `None` when the folder is gone or
+/// is being pruned. Any number of readers hold it at once; pruning leaves a held folder
+/// alone. Never creates the folder.
 pub fn hold_build(dir: &Path) -> Option<starorg_core::lock::Lock> {
     if !dir.is_dir() {
         return None;
     }
-    starorg_core::lock::try_lock(&dir.join(READING_LOCK)).ok()
+    let held = starorg_core::lock::try_lock_shared(&reading_lock(dir)).ok()?;
+    // Pruned between the check and the lock: nothing left to protect.
+    dir.is_dir().then_some(held)
 }
 
-/// Someone holds the folder's [`READING_LOCK`].
-fn being_read(dir: &Path) -> bool {
-    let lock = dir.join(READING_LOCK);
-    lock.is_file()
-        && matches!(
-            starorg_core::lock::try_lock(&lock),
-            Err(starorg_core::lock::LockError::Held(_))
-        )
+/// Mark a cached build folder as used now, for the storage cap (which goes by a folder's
+/// newest file): its `measurements.json`, else its first dataset file.
+pub fn mark_used(dir: &Path) {
+    let m = dir.join("measurements.json");
+    let file = if m.is_file() {
+        Some(m)
+    } else {
+        let mut names: Vec<String> = std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| e.file_name().to_str().map(str::to_string))
+            .filter(|n| is_dataset_file(n))
+            .collect();
+        names.sort();
+        names.first().map(|n| dir.join(n))
+    };
+    if let Some(f) = file {
+        starorg_core::fsutil::touch(&f);
+    }
 }
 
 /// The game version of a build folder name (`<build>-<fingerprint>`): the name without its
@@ -365,10 +389,39 @@ impl Store {
 
     fn prune_old_builds(&self, ch: &ChannelSource, current: &Path) {
         for (_, p) in self.cached_builds(ch).into_iter().skip(KEEP_BUILDS) {
+            if p == current {
+                continue;
+            }
             // A folder read right now (an older build in the app's Diff) stays; the next
-            // new build prunes it.
-            if p != current && !being_read(&p) {
-                let _ = std::fs::remove_dir_all(&p);
+            // new build prunes it. Held across the removal, so no reader starts meanwhile.
+            let lock = reading_lock(&p);
+            let Ok(_held) = starorg_core::lock::try_lock(&lock) else {
+                continue;
+            };
+            if std::fs::remove_dir_all(&p).is_ok() {
+                let _ = std::fs::remove_file(&lock);
+            }
+        }
+        // Reading locks whose folder is gone (removed by the storage cap, say).
+        for e in std::fs::read_dir(self.channel_cache(ch))
+            .into_iter()
+            .flatten()
+            .flatten()
+        {
+            let lock = e.path();
+            let Some(folder) = e
+                .file_name()
+                .to_str()
+                .and_then(|n| n.strip_suffix(READING_LOCK))
+                .map(|n| lock.with_file_name(n))
+            else {
+                continue;
+            };
+            if lock.is_file()
+                && !folder.exists()
+                && let Ok(_held) = starorg_core::lock::try_lock(&lock)
+            {
+                let _ = std::fs::remove_file(&lock);
             }
         }
     }
@@ -797,21 +850,96 @@ mod tests {
         let older = ch.join("4.8.0.1-00000000");
         std::fs::create_dir_all(&older).unwrap();
         std::fs::create_dir_all(&old).unwrap();
-        // Both older folders held (which one is pruned goes by folder times): none goes.
+        let ago = |s| std::time::SystemTime::now() - std::time::Duration::from_secs(s);
+        std::fs::File::open(&older)
+            .unwrap()
+            .set_modified(ago(7200))
+            .unwrap();
+        std::fs::File::open(&old)
+            .unwrap()
+            .set_modified(ago(3600))
+            .unwrap();
+        // Both older folders held: none goes.
         let held = [hold_build(&older).unwrap(), hold_build(&old).unwrap()];
-        assert!(
-            hold_build(&older).is_none(),
-            "one reader at a time holds it"
-        );
+        let second = hold_build(&older).expect("readers share the lock");
         assert!(hold_build(&dir.path().join("none")).is_none());
+        assert_eq!(
+            reading_lock(&older),
+            ch.join("4.8.0.1-00000000.reading.lock")
+        );
+        assert_eq!(
+            std::fs::read_dir(&older).unwrap().count(),
+            0,
+            "the lock is beside the folder, not in it"
+        );
         let current = s.build_dir(live);
         std::fs::create_dir_all(&current).unwrap();
         s.prune_old_builds(live, &current);
         assert!(older.is_dir() && old.is_dir(), "being read");
         drop(held);
         s.prune_old_builds(live, &current);
+        assert!(older.is_dir(), "the second reader still holds it");
+        assert_eq!(s.cached_builds(live).len(), KEEP_BUILDS + 1);
+        drop(second);
+        s.prune_old_builds(live, &current);
         assert_eq!(s.cached_builds(live).len(), KEEP_BUILDS);
         assert!(current.is_dir());
+        let left: Vec<String> = std::fs::read_dir(&ch)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .filter(|n| n.ends_with(READING_LOCK))
+            .collect();
+        let kept: Vec<String> = s.cached_builds(live).into_iter().map(|b| b.0).collect();
+        assert!(
+            left.iter()
+                .all(|n| kept.iter().any(|k| *n == format!("{k}{READING_LOCK}"))),
+            "the pruned folder's lock goes with it: {left:?}"
+        );
+    }
+
+    #[test]
+    fn a_reading_lock_keeps_the_prune_order() {
+        // Reading the older build must not make it look newer than the current one.
+        let dir = tempfile::tempdir().unwrap();
+        let s = store(dir.path(), Arc::new(Fake(AtomicUsize::new(0))));
+        let live = s.channel(Some("LIVE")).unwrap();
+        let ch = s.channel_cache(live);
+        let old = ch.join("4.8.0.1-00000000");
+        std::fs::create_dir_all(&old).unwrap();
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        std::fs::File::open(&old)
+            .unwrap()
+            .set_modified(past)
+            .unwrap();
+        let current = s.build_dir(live);
+        std::fs::create_dir_all(&current).unwrap();
+        let _held = hold_build(&old).unwrap();
+        let order: Vec<PathBuf> = s.cached_builds(live).into_iter().map(|b| b.1).collect();
+        assert_eq!(order, [current, old]);
+    }
+
+    #[test]
+    fn mark_used_touches_a_file_with_or_without_measurements() {
+        let dir = tempfile::tempdir().unwrap();
+        let b = dir.path().join("b");
+        std::fs::create_dir_all(&b).unwrap();
+        let f = b.join("game-ships.json");
+        std::fs::write(&f, "{}").unwrap();
+        let past = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+        std::fs::File::options()
+            .write(true)
+            .open(&f)
+            .unwrap()
+            .set_modified(past)
+            .unwrap();
+        mark_used(&b);
+        let t = std::fs::metadata(&f).unwrap().modified().unwrap();
+        assert!(
+            t > past,
+            "no measurements.json: the dataset file is touched"
+        );
+        assert!(!b.join("measurements.json").exists(), "nothing is created");
     }
 
     #[test]

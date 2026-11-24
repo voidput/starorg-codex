@@ -493,6 +493,17 @@ fn cached_label(channel: &str, folder: &str) -> String {
     )
 }
 
+/// [`cached_label`] with the folder's fingerprint, `PTU 5.0.201.1 (cached, 0a1b2c3d)`, for a
+/// folder whose version another of the channel's folders has too (the same build read again
+/// after an app update or a changed archive).
+fn cached_label_fp(channel: &str, folder: &str) -> String {
+    let v = starorg_mcp::store::build_version(folder);
+    match folder.strip_prefix(v).and_then(|x| x.strip_prefix('-')) {
+        Some(fp) if !fp.is_empty() => format!("{channel} {v} (cached, {fp})"),
+        _ => cached_label(channel, folder),
+    }
+}
+
 fn counts(d: &Dataset) -> (u32, u32) {
     (
         d.tables.len() as u32,
@@ -928,7 +939,7 @@ impl RealBackend {
     /// extracts anything.
     fn read_cache<T>(&self, dir: &Path, read: impl FnOnce() -> T) -> T {
         let _held = starorg_mcp::store::hold_build(dir);
-        starorg_core::fsutil::touch(&dir.join("measurements.json"));
+        starorg_mcp::store::mark_used(dir);
         read()
     }
 
@@ -954,7 +965,19 @@ impl RealBackend {
     }
 
     /// One older cached build as a source: `Error` with the reason when it is incomplete.
-    fn cached_source(&self, channel: &str, folder: &str, dir: &Path) -> DevSource {
+    /// `label`: [`cached_label`], or [`cached_label_fp`] when its version is not unique.
+    fn cached_source(&self, channel: &str, folder: &str, dir: &Path, label: String) -> DevSource {
+        // Held while its files are counted, so a prune meanwhile leaves it.
+        self.read_cache(dir, || self.cached_source_at(channel, folder, dir, label))
+    }
+
+    fn cached_source_at(
+        &self,
+        channel: &str,
+        folder: &str,
+        dir: &Path,
+        label: String,
+    ) -> DevSource {
         let mut problem = starorg_mcp::store::incomplete(dir);
         let mut datasets = Vec::new();
         for (name, path, bytes) in cache_files(dir) {
@@ -975,7 +998,7 @@ impl RealBackend {
         DevSource {
             id: format!("cached:{channel}:{folder}"),
             kind: SourceKind::Cached,
-            label: cached_label(channel, folder),
+            label,
             build: Some(starorg_mcp::store::build_version(folder).to_string()),
             state: if problem.is_some() {
                 SourceState::Error
@@ -1402,9 +1425,34 @@ impl RealBackend {
                 datasets,
             });
             if let Some((t, c)) = &mcp {
-                for (folder, dir) in t.store.older_builds(c) {
-                    out.push(self.cached_source(&ch.name, &folder, &dir));
+                let current = t.store.build_dir(c);
+                let older = t.store.older_builds(c);
+                let version = starorg_mcp::store::build_version;
+                let name_of = |p: &Path| p.file_name().map(|n| n.to_string_lossy().into_owned());
+                let mut versions: Vec<String> =
+                    older.iter().map(|b| version(&b.0).to_string()).collect();
+                versions.extend(name_of(&current).map(|n| version(&n).to_string()));
+                for (folder, dir) in &older {
+                    let v = version(folder);
+                    let label = if versions.iter().filter(|x| *x == v).count() > 1 {
+                        cached_label_fp(&ch.name, folder)
+                    } else {
+                        cached_label(&ch.name, folder)
+                    };
+                    out.push(self.cached_source(&ch.name, folder, dir, label));
                 }
+                // Parsed counts and files of folders pruned since: forgotten.
+                let root = t.store.channel_cache(c);
+                let kept: Vec<&Path> = older
+                    .iter()
+                    .map(|b| b.1.as_path())
+                    .chain([current.as_path()])
+                    .collect();
+                let stale =
+                    |p: &Path| p.starts_with(&root) && !kept.iter().any(|k| p.starts_with(k));
+                let mut d = lock_or(&self.dev.data);
+                d.summaries.retain(|k, _| !stale(&k.0));
+                d.files.retain(|x| !stale(&x.0.0));
             }
         }
         for (i, dir) in self.dev_file().folders.iter().enumerate() {
@@ -2096,9 +2144,10 @@ impl DevBackend for RealBackend {
         );
         progress(job.clone());
         let r: CmdResult<DevDiffSummary> = (|| {
-            let a = self.source_datasets(&req.target, &req.a)?;
+            let mut a = self.source_datasets(&req.target, &req.a)?;
             self.job_step(&mut job, 2, "Reading datasets", Some(progress));
-            let b = self.source_datasets(&req.target, &req.b)?;
+            let mut b = self.source_datasets(&req.target, &req.b)?;
+            common_datasets(&req.a, &req.b, &mut a, &mut b)?;
             self.job_step(&mut job, 3, "Comparing", Some(progress));
             let ra: Vec<(String, &Dataset)> = a.iter().map(|x| (x.0.clone(), &*x.1)).collect();
             let rb: Vec<(String, &Dataset)> = b.iter().map(|x| (x.0.clone(), &*x.1)).collect();

@@ -668,13 +668,33 @@ fn older_cached_builds_are_read_only_sources_next_to_the_current_one() {
         })
         .unwrap();
     assert_eq!(page.total, 2);
-    // Nothing was extracted: still just the two folders, each with only what it had.
+    // Nothing was extracted: still just the two folders, each with only what it had (and
+    // the reading locks beside them, never inside).
     let mut names: Vec<String> = std::fs::read_dir(&mcp)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
         .collect();
     names.sort();
-    assert_eq!(names, [format!("{OLD}-0a1b2c3d"), format!("{NEW}-{fp}")]);
+    let folders: Vec<&String> = names
+        .iter()
+        .filter(|n| !n.ends_with(starorg_mcp::store::READING_LOCK))
+        .collect();
+    assert_eq!(
+        folders,
+        [&format!("{OLD}-0a1b2c3d"), &format!("{NEW}-{fp}")]
+    );
+    for dir in [&current, &older] {
+        let mut inside: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+            .collect();
+        inside.sort();
+        assert_eq!(
+            inside,
+            ["game-weapons.json", "measurements.json"],
+            "{dir:?}"
+        );
+    }
     assert!(!current.join("gamedata.json").exists());
     // An incomplete older build is an error that says why; it is listed after the newer.
     let cut = mcp.join("4.10.190.1-deadbeef");

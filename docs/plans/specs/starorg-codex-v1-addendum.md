@@ -1002,6 +1002,20 @@ The steady 341 MB is the cost of having Dev mode open; it is returned when the w
    made. Each downloaded build is a `dump:<tag>` source labelled "LIVE <tag>" (build = tag,
    datasets = its `data/*.json`), works with the switch off, and is deleted from the cache by
    its trash button (`dev_remove_source`). The old placeholder `dump:<channel>` row is gone.
+4. **Older cached builds** (added 2026-11-23) – a channel's earlier build folders still in the
+   dataset cache (`<cache>/mcp/<CHANNEL>/<build>-<fingerprint>`, the WHERE TO GET store,
+   `KEEP_BUILDS` = 2), each a `cached:<CHANNEL>:<folder>` source labelled "<CHANNEL>
+   <version> (cached)" (with the fingerprint, "(cached, 0a1b2c3d)", when another of the
+   channel's folders has the same version), listed right after the channel's build, newest
+   version first. Matched by folder name against the store's list (the webview never sends a
+   path); read only, never extracted into. Readers hold a shared lock file beside the folder
+   (`<folder>.reading.lock`) and pruning takes it exclusively, so a folder being read is kept
+   until the next new build. Missing files listed in its `measurements.json`, or no dataset
+   at all, make it an `error` source with the reason.
+
+   **Build source scope:** `build:<CHANNEL>` now carries our GameData (`gamedata.json`) plus
+   the `game-*.json` the dataset cache holds for the current build. `dev_compare` still
+   compares GameData only.
 
 **Shape inference** (generic; checked against all 30 `sc-gamedata` files):
 
@@ -1047,6 +1061,13 @@ parsed datasets are kept (LRU); a file is re-read when its size or mtime changes
   pickers list them like any other ready source. Measured (debug build, real network):
   4.10.197.2878 ► 4.10.200.58746 compared in 2.9 s, 87 tables, 35 differ (+13,590 -0
   ~1,908; `game-item-tags.json` is new in 4.10.200, so its 12,896 rows count as added).
+- **Older cached builds (2026-11-23):** with a `cached:` source on either side only the
+  datasets both sides hold are compared (a cached build never has `gamedata.json`, and a
+  `game-*.json` extracted for one build only is what was read, not what changed); none in
+  common is an `invalid` error that says to use WHERE TO GET on the current build. The first
+  A/B (`diffpick.ts`) is the channel's newest cached build that shares a dataset with the
+  current build, preferring one whose version differs from it, against the current build;
+  otherwise the first two comparable sources. A pick no longer listed (pruned) is replaced.
 - **Summary:** one row per dataset table present in either side: added / removed / changed /
   same, sorted by changed + added + removed, largest first; tables only in one side are
   marked.

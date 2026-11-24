@@ -586,6 +586,35 @@ pub fn dump_tag(source: &str) -> Option<&str> {
         .filter(|t| starorg_core::source::dump::valid_component(t))
 }
 
+/// Keep the datasets both sides have, when one side is an older cached build (both
+/// backends' Diff): such a build holds only what WHERE TO GET extracted (`game-*.json`,
+/// never our GameData), so a dataset on one side alone shows what was read, not what
+/// changed. Other pairs are compared whole.
+pub fn common_datasets<T>(
+    a_id: &str,
+    b_id: &str,
+    a: &mut Vec<(String, T)>,
+    b: &mut Vec<(String, T)>,
+) -> CmdResult<()> {
+    if !a_id.starts_with("cached:") && !b_id.starts_with("cached:") {
+        return Ok(());
+    }
+    let names = |side: &[(String, T)]| -> std::collections::HashSet<String> {
+        side.iter().map(|x| x.0.clone()).collect()
+    };
+    let (na, nb) = (names(a), names(b));
+    a.retain(|x| nb.contains(&x.0));
+    b.retain(|x| na.contains(&x.0));
+    if a.is_empty() {
+        return Err(AppError::new(ErrorCode::Invalid, NO_COMMON_DATASET));
+    }
+    Ok(())
+}
+
+/// [`common_datasets`]' answer when nothing is left.
+pub const NO_COMMON_DATASET: &str = "A and B have no dataset in common: use WHERE TO GET on \
+     the current build for what the older one holds.";
+
 /// The label of a downloaded LIVE build in the source lists.
 pub fn dump_label(tag: &str) -> String {
     format!("LIVE {tag}")
