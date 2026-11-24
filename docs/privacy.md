@@ -125,15 +125,15 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
   start and stop, which cached schema a start used or why there was none (that reason can name
   the path of the game's exe), and the name and result of each game action pressed.
 - Turning it on writes one line to the chosen channel's `USER.cfg`
-  (`server.game.telemetry.enabled = 1`; a second one only with "Allow game actions" on) and
+  (`server.game.telemetry.enabled = 1`; a second one only with "Metrics + actions" chosen) and
   saves the switches in `config.toml`. Only that one channel carries the lines: picking another
-  channel, or switching "Allow game actions" off, takes them out of the others. Turning it off
+  channel, or going back to "Metrics", takes them out of the others. Turning it off
   takes them out everywhere. The app never sets the launcher's environment variables; it shows
   you how.
 - To read the stream it reads the layout of the game's service from that channel's own
   `Bin64/StarCitizen.exe` and keeps it in the app's cache folder (Settings -> Storage, the last
   3 builds). No game file is shipped with the app.
-- "Allow game actions" (a separate switch, off) lets the app press game inputs the game lists
+- "Metrics + actions" (a separate choice, not the default) lets the app press game inputs the game lists
   as triggerable, only when you press a button. The first press of each app session asks
   first, and the dangerous actions (self destruct, eject, power off...) ask every time.
 

@@ -14,7 +14,7 @@ export interface TelemetrySettings {
   enabled: boolean;
   /** GRPC_CLIENT_SERVER_PORT, 1024-65535. */
   port: number;
-  /** "Allow game actions"; counts only with `enabled` on. */
+  /** The "Metrics + actions" choice; counts only with `enabled` on. */
   triggers: boolean;
 }
 

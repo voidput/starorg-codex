@@ -39,7 +39,7 @@ owner, MIT, Python) into StarOrg Codex as an opt-in experimental feature. User g
   writer prunes it.
 - **USER.cfg.** Switching on adopts `server.game.telemetry.enabled = 1` in the chosen
   channel's `USER.cfg` with the language line's ledger rules (`usercfg::adopt`, its own ledger
-  `<hash>.telemetry.json`); "Allow game actions" adds
+  `<hash>.telemetry.json`); "Metrics + actions" adds
   `server.game.telemetry.trigger.actions.enabled = 1` only on top of a telemetry line that is
   really there. An explicit other value (`= 0`) is replaced only after the user agrees, and
   comes back on undo. Switching off releases both lines on every registered channel.
@@ -48,7 +48,7 @@ owner, MIT, Python) into StarOrg Codex as an opt-in experimental feature. User g
   them; `env_help` gives per-OS steps (Windows `setx` plus a full launcher restart; Linux LUG
   or Wine script, Lutris, Steam `%command%`) with a copy button.
 - **Write path, guarded twice.** `TriggerGameAction` only for actions the game lists in
-  `ListTriggerableActions`, only while "Allow game actions" is on (its own switch), through
+  `ListTriggerableActions`, only while "Metrics + actions" is chosen, through
   `TriggerGate` (name and hold checks, allowlist, 1 s debounce per action, `confirmed` for the
   dangerous ones from sc-telemetry's `DANGEROUS`). The UI asks before the first press of each
   app session and before every dangerous press.
@@ -117,7 +117,8 @@ From sc-telemetry, not in this phase:
 
 - **Alerts**: rules over frames and events (low fuel, shield faces down, hull, G) as toasts and
   sounds, with per-rule cooldowns (sc-telemetry `alerts.py`, `docs/telemetry/alerts.md`);
-  speech off by default.
+  speech off by default. **Notifications get their own choice, off by default**, separate from
+  Metrics and actions (asked for 2026-11-23): turning on Metrics never turns on toasts or sounds.
 - **Game.log signals**: session, location, quantum travel, deaths and respawns from the
   channel's `Game.log`, which the telemetry API lacks (`gamelog.py`,
   `docs/telemetry/gamelog-signals.md`). The app already reads `Game.log` for blueprints.

@@ -2,7 +2,7 @@
   /**
    * Live telemetry -> Actions: the inputs the game lists as triggerable, by category, with a
    * Press (and for holdable ones a Hold) button. Disabled unless Settings > Experimental >
-   * "Allow game actions" is on. The first press of each app session asks first; the dangerous
+   * "Metrics + actions" is chosen. The first press of each app session asks first; the dangerous
    * actions (self destruct, eject, power off...) ask every time. The current state next to an
    * action comes from the frame (lights, gear, shields).
    */
@@ -101,7 +101,7 @@
       {#if triggersOn}
         A press acts in your game at once. The first one of this session asks first; dangerous ones always do.
       {:else}
-        Pressing is off. Turn on "Allow game actions" under <button type="button" class="text-primary underline-offset-2 hover:underline" onclick={() => ((app.settingsSection = 'experimental'), app.go('settings'))}>Settings → Experimental</button> to use these buttons.
+        Pressing is off. Choose "Metrics + actions" under <button type="button" class="text-primary underline-offset-2 hover:underline" onclick={() => ((app.settingsSection = 'experimental'), app.go('settings'))}>Settings → Experimental</button> to use these buttons.
       {/if}
     </Card.Description>
   </Card.Header>

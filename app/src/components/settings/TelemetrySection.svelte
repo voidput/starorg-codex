@@ -2,8 +2,8 @@
   /**
    * Settings -> Experimental -> Live telemetry (docs/user-guide.md#live-telemetry): off by
    * default. Offered only for a channel whose build is 5.0 or newer (each channel says why
-   * not). Turning it on writes one line to that channel's USER.cfg (and a second only with
-   * "Allow game actions" on); the launcher needs two environment variables, which the app never
+   * not). One choice: Off, Metrics (read only) or Metrics + actions. Metrics writes one line to
+   * that channel's USER.cfg, actions a second; the launcher needs two environment variables, which the app never
    * sets: the steps are shown with a copy button. The app reads the game's own service on
    * 127.0.0.1 only.
    */
@@ -12,7 +12,7 @@
   import { Button } from '@/components/ui/button';
   import { Input } from '@/components/ui/input';
   import { Skeleton } from '@/components/ui/skeleton';
-  import SwitchRow from '@/components/common/SwitchRow.svelte';
+  import Segmented from '@/components/common/Segmented.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import SelectField from '@/components/common/SelectField.svelte';
   import PathText from '@/components/common/PathText.svelte';
@@ -54,6 +54,18 @@
   /** USER.cfg has another value for a line; the user may replace it. */
   let decision = $state<{ line: string; value: string } | null>(null);
 
+  type Mode = 'off' | 'metrics' | 'actions';
+  const MODES: { id: Mode; label: string; hint: string }[] = [
+    { id: 'off', label: 'Off', hint: 'Nothing is read and USER.cfg is left as it was.' },
+    { id: 'metrics', label: 'Metrics', hint: 'Read only: health, ship, fuel and shields while you play.' },
+    { id: 'actions', label: 'Metrics + actions', hint: 'Also buttons that press game inputs for you (lights, landing gear, shields…), only those the game itself lists.' },
+  ];
+  const mode = $derived<Mode>(!st?.settings.enabled ? 'off' : st.settings.triggers ? 'actions' : 'metrics');
+  function setMode(m: Mode) {
+    if (m === mode) return;
+    void save({ enabled: m !== 'off', triggers: m === 'actions' });
+  }
+
   const ref = (c: TelemetryChannel) => ({ install: c.install, channel: c.channel });
 
   async function save(next: Partial<TelemetrySettings>, replaceOther = false) {
@@ -65,7 +77,7 @@
       const ask = [r.telemetry_line, r.triggers_line].find((l) => l?.outcome === 'needs-decision');
       decision = ask ? { line: ask.line, value: ask.value ?? '' } : null;
       for (const w of r.warnings) toast('warning', 'USER.cfg not changed', w);
-      if (next.enabled === true && !ask) toast('success', 'Live telemetry on', `Reads 127.0.0.1:${settings.port} only. Open it from the sidebar under Game.`);
+      if (next.enabled === true && !st.settings.enabled && !ask) toast('success', 'Live telemetry on', `Reads 127.0.0.1:${settings.port} only. Open it from the sidebar under Game.`);
       if (next.enabled === false) toast('success', 'Live telemetry off', 'Its USER.cfg lines were taken out again.');
     } catch (e) {
       error = toContractError(e).message;
@@ -104,15 +116,16 @@
   {#if !st}
     <Skeleton class="h-12 w-full" />
   {:else}
-    <SwitchRow
-      id="telemetry-on"
-      label="Live telemetry"
-      hint="Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). Nothing leaves the computer and nothing is recorded. For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0)."
-      checked={st.settings.enabled}
-      disabled={telemetry.busy || (!st.settings.enabled && !target)}
-      onchange={(v) => void save({ enabled: v })}
-    />
-    <div class="grid gap-2 pl-11">
+    <div class="grid gap-1.5" id="telemetry-on">
+      <div class="flex flex-wrap items-center gap-3">
+        <span class="text-[13px] font-medium">Live telemetry</span>
+        <Segmented ariaLabel="Live telemetry" size="sm" options={MODES} value={mode} disabled={telemetry.busy || (mode === 'off' && !target)} onchange={setMode} />
+      </div>
+      <p class="text-muted-foreground text-[12px]">
+        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). Nothing leaves the computer and nothing is recorded. For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Actions are a separate choice: leave them off unless you want them.
+      </p>
+    </div>
+    <div class="grid gap-2 pl-0">
       <ul class="grid gap-1 text-[12px]" aria-label="Channels for live telemetry">
         {#each st.channels as c (key(c))}
           <li class="flex flex-wrap items-center gap-2">
@@ -155,7 +168,7 @@
             <div class="flex flex-wrap items-center gap-2">
               <span class="mono">{l.line}</span>
               <ToneBadge tone={b.tone} label={b.label} />
-              <span class="text-muted-foreground">{i === 0 ? 'while Live telemetry is on' : 'only with game actions allowed'}</span>
+              <span class="text-muted-foreground">{i === 0 ? 'while Live telemetry is on' : 'only with Metrics + actions'}</span>
             </div>
           {/each}
           <p class="text-muted-foreground">Taken out again when you switch off (unless you changed it since). Other lines stay as they are.</p>
@@ -171,16 +184,8 @@
         </div>
       {/if}
       {#if st.settings.enabled}
-        <SwitchRow
-          id="telemetry-triggers"
-          size="sm"
-          label="Allow game actions"
-          hint="Adds buttons that press game inputs for you (lights, landing gear, shields…), only those the game itself lists. Each session asks before the first press; self destruct, eject and power off ask every time. Leave off unless you want it."
-          checked={st.settings.triggers}
-          disabled={telemetry.busy}
-          onchange={(v) => void save({ triggers: v })}
-        />
         {#if st.settings.triggers}
+          <p class="text-muted-foreground text-[12px]">Each session asks before the first press; self destruct, eject and power off ask every time.</p>
           <p class="text-warning flex items-start gap-1.5 text-[12px]"><TriangleAlert class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" /> A press acts in your game at once, as if you pressed the key. Use it only while you can see the game.</p>
         {/if}
         <div class="grid gap-1.5">

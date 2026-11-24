@@ -324,10 +324,10 @@ records nothing and sends nothing anywhere ([privacy](privacy.md)).
 
 **Turning it on** (Settings -> Experimental -> Live telemetry):
 
-1. Switch **Live telemetry** on for a 5.0 channel. The app adds one line to that channel's
+1. Choose **Metrics** (or **Metrics + actions**) under **Live telemetry** for a 5.0 channel. The app adds one line to that channel's
    `USER.cfg`, `server.game.telemetry.enabled = 1`, and keeps every other line as it is. If
    the file already has another value there (`= 0`), it asks before replacing it; your line
-   comes back when you switch off. Switching off takes the line out again (unless you changed
+   comes back when you choose **Off**. Choosing Off takes the line out again (unless you changed
    it since), the same way the language line works. Only one channel carries the lines: picking
    another **Channel** moves them there and takes them out of the one before.
 2. **Port**: the port the game should use (default 50051, 1024 to 65535).
@@ -358,12 +358,12 @@ the layout of the game's service from that channel's `Bin64/StarCitizen.exe` (a 
 and keeps it in the cache folder (Settings -> Storage, *Live telemetry schemas*); nothing of
 the game is shipped with the app.
 
-**Game actions** (off, a second switch): **Allow game actions** adds a second line,
+**Game actions**: the Live telemetry choice is **Off**, **Metrics** (read only) or **Metrics + actions**. Metrics + actions adds a second line,
 `server.game.telemetry.trigger.actions.enabled = 1`, and lets the Actions panel press inputs
 in the game for you: only the ones the game itself lists as triggerable (lights, landing
 gear, shield power, ping...), with **Hold** for the holdable ones. The first press of each app
 session asks first; self destruct, eject, emergency exit and power off ask every time. The app
-also refuses a second press of the same action within a second. With the switch off the list is
+also refuses a second press of the same action within a second. With **Metrics** only, the list is
 shown but every button is disabled, and the second line is taken out of every channel's
 `USER.cfg`.
 
