@@ -1,0 +1,58 @@
+# Discord release notice: posts each new GitHub release to Star Org Labs.
+# Pre-releases go to #🧪codex-dev, full releases to #🚀codex-main (secrets DISCORD_RELEASE_WEBHOOK_DEV / _MAIN).
+# Releases here are created with GITHUB_TOKEN, which never fires `on: release`, so this follows the
+# release workflow instead: Release (release-please on main; X.Y.Z-suffix versions are pre-releases). Run it by hand with a tag to (re)post one release.
+name: Discord release notice
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to post (e.g. v1.2.3)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  notify:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Post new releases to Discord
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          APP: "Codex"
+          TAG: ${{ inputs.tag }}
+          SINCE: ${{ github.event.workflow_run.run_started_at }}
+          HOOK_MAIN: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MAIN }}
+          HOOK_DEV: ${{ secrets.DISCORD_RELEASE_WEBHOOK_DEV }}
+        run: |
+          set -euo pipefail
+          if [ -n "${TAG:-}" ]; then echo "$TAG" > tags.txt; else
+            gh release list -R "$REPO" --limit 20 --json tagName,isDraft,createdAt \
+              -q ".[] | select((.isDraft | not) and .createdAt >= \"$SINCE\") | .tagName" > tags.txt
+          fi
+          if [ ! -s tags.txt ]; then echo "No release created by this run."; exit 0; fi
+          while read -r tag; do
+            rel=$(gh release view "$tag" -R "$REPO" --json tagName,name,url,body,isPrerelease,createdAt)
+            if [ "$(jq -r .isPrerelease <<<"$rel")" = true ]; then hook=${HOOK_DEV:-}; lane=dev; else hook=${HOOK_MAIN:-}; lane=main; fi
+            payload=$(jq -c --arg app "$APP" --arg lane "$lane" '{
+                username: ($app + " releases"),
+                allowed_mentions: {parse: []},
+                embeds: [{
+                  title: ($app + " " + .tagName + (if .name != "" and .name != .tagName then " · " + .name else "" end)),
+                  url: .url,
+                  description: ((.body // "") | if length > 1800 then .[0:1800] + "\n…" else . end),
+                  color: (if $lane == "dev" then 15105570 else 3066993 end),
+                  footer: {text: (if $lane == "dev" then "dev · pre-release" else "main · release" end)},
+                  timestamp: .createdAt }] }' <<<"$rel")
+            if [ -z "$hook" ]; then echo "::notice::DISCORD_RELEASE_WEBHOOK_${lane^^} not set; skipping $tag"; continue; fi
+            curl -fsS -X POST -H 'Content-Type: application/json' -d "$payload" "$hook"
+            echo "Posted $tag to $lane"
+          done < tags.txt
