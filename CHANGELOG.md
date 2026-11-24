@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.6.0](https://github.com/voidput/starorg-codex/compare/v1.5.0...v1.6.0) (2026-11-24)
+
+
+### Features
+
+* **dev:** Diff offers each channel's older cached builds as read-only sources ([8452630](https://github.com/voidput/starorg-codex/commit/84526300f9dc5ab11aaeea057dd4c089120db9be))
+* **shops:** item search: every shop that sells or buys an item ([bb0c26c](https://github.com/voidput/starorg-codex/commit/bb0c26c0d8926c419f08582e1b4126d20072409e))
+* **telemetry:** alerts over live frames behind their own Notifications choice ([e7dd314](https://github.com/voidput/starorg-codex/commit/e7dd3144eb90d2f892fdc1e3c12c43e7ccfb14d4))
+* **telemetry:** experimental live telemetry crate (loopback gRPC, run-time schema) ([40f0e81](https://github.com/voidput/starorg-codex/commit/40f0e8169caf8289c78d27dbae6f8e03707baea0))
+* **telemetry:** Game.log events and a local People panel (experimental, off) ([9a6372a](https://github.com/voidput/starorg-codex/commit/9a6372a82be743652a34947d11e2032d33328b16))
+* **telemetry:** history graphs, session recording and replay ([17a9d04](https://github.com/voidput/starorg-codex/commit/17a9d0474b59e1c801e37614a8844e44e4d5a8ea))
+* **telemetry:** live telemetry screen, settings section and Tauri backend (experimental, opt-in) ([dfb10e6](https://github.com/voidput/starorg-codex/commit/dfb10e68e2a64d50e6886d228bb41319c20c0af4))
+* **telemetry:** one choice in Settings: Off, Metrics or Metrics + actions; notifications get their own switch later ([aa79947](https://github.com/voidput/starorg-codex/commit/aa79947f0e11b56ce16e41ca68be6b4097ae589c))
+* **telemetry:** opt-in gate for live telemetry, managed USER.cfg lines and launcher env help ([732113e](https://github.com/voidput/starorg-codex/commit/732113e18d2b2cb768f3f8c6db4b75f9e7494a0c))
+* **telemetry:** shard join history, and a coherent phase 2 screen and settings ([a970aca](https://github.com/voidput/starorg-codex/commit/a970aca4c4fb1ffd4f790cf5741f28f25d913f34))
+
+
+### Bug Fixes
+
+* **app:** say restart when the app file was replaced while open, instead of a bare worker start error ([cf1e76f](https://github.com/voidput/starorg-codex/commit/cf1e76f8b06f10029fa74b611073704864511d2a))
+* **dev:** cached-build Diff compares shared datasets only, shared reading locks beside the folder, stale picks re-picked ([15d2b40](https://github.com/voidput/starorg-codex/commit/15d2b405fda9e5ee77059c1bbc5e522982a6026a))
+* **hooks:** bound launch hooks to their timeout and run all work at low priority ([8292c95](https://github.com/voidput/starorg-codex/commit/8292c95baf975f055c03c8c29cc44ff47c727f45))
+* launch hooks stay in their time limit and run at low priority; live telemetry phase 2, shops item search ([d4fc2a7](https://github.com/voidput/starorg-codex/commit/d4fc2a7e91946104e0a790a9bb64f76f88563547))
+* **mcp:** Windows: release a reading lock before deleting it, open folders for mtime in tests with backup semantics ([6df1e9f](https://github.com/voidput/starorg-codex/commit/6df1e9f45d75a62ce576814adf011ae3429a13f5))
+* **shops:** item search merges a shop's rows of one item, names only match names ([9f9808a](https://github.com/voidput/starorg-codex/commit/9f9808a390abbb41330f645c603c0aefaf8624b7))
+* **telemetry:** one channel carries the USER.cfg lines, config only after USER.cfg, review fixes ([8708cc8](https://github.com/voidput/starorg-codex/commit/8708cc8bdb6e070c90b0667f9d6f03c74702ca3c))
+* **telemetry:** shard history gets its own switch and a Clear that stays cleared ([bdabe70](https://github.com/voidput/starorg-codex/commit/bdabe706f9ac25c9cf8ec6270e4778b186df6840))
+
 ## [1.5.0](https://github.com/voidput/starorg-codex/compare/v1.4.0...v1.5.0) (2026-11-23)
 
 
