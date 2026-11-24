@@ -213,6 +213,11 @@ impl TriggerGate {
             .collect();
     }
 
+    /// Forget the action list (a new stream, or none): the next game's answer fills it.
+    pub fn clear_actions(&mut self) {
+        self.actions.clear();
+    }
+
     pub fn actions(&self) -> Vec<&TriggerableAction> {
         let mut v: Vec<_> = self.actions.values().collect();
         v.sort_by(|a, b| a.action_name.cmp(&b.action_name));

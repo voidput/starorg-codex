@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { actionState, annunciators, at, barWidth, faceLabels, fixed, gate, groupActions, humanName, inspectorText, linkView, needsConfirm, pct, snapshotFromRaw, systems, triggerText } from '../src/lib/telemetry.ts';
+import { actionState, annunciators, at, barWidth, faceLabels, fixed, gate, groupActions, humanName, inspectorText, linkView, needsConfirm, pct, sequencer, sessionStep, snapshotFromRaw, systems, telemetryTarget, triggerText } from '../src/lib/telemetry.ts';
 import { createTelemetryMock, mockFrame, type TelemetryMockData } from '../src/lib/contract/mock-telemetry.ts';
 import type { TelemetryActions, TelemetryEvent, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
 
@@ -188,4 +188,29 @@ test('a synthetic frame keeps the template and moves its values', () => {
   assert.equal(a.snapshot.ship?.lights, false);
   assert.notEqual(a.snapshot.ship?.speed, b.snapshot.ship?.speed);
   assert.equal(at(a.raw, 'actor.state.seat_name'), at(frame.raw, 'actor.state.seat_name'), 'fields the generator does not move stay');
+});
+
+test('a newer stream clears the old frame; older events are dropped', () => {
+  assert.equal(sessionStep(3, 2), 'stale');
+  assert.equal(sessionStep(3, 3), 'same');
+  assert.equal(sessionStep(3, 4), 'new');
+});
+
+test('the telemetry channel: picked, streaming, the one with the line, the app channel, the first', () => {
+  const ch = (channel: string, state = 'missing') => ({ install: 'i', channel, telemetry_line: { state } });
+  const offered = [ch('LIVE'), ch('PTU', 'set'), ch('TECH')];
+  assert.equal(telemetryTarget(offered, 'i/TECH', { install: 'i', channel: 'LIVE' }, 'i/LIVE')?.channel, 'TECH');
+  assert.equal(telemetryTarget(offered, null, { install: 'i', channel: 'LIVE' }, 'i/TECH')?.channel, 'LIVE');
+  assert.equal(telemetryTarget(offered, null, null, 'i/TECH')?.channel, 'PTU', 'the channel that has the line beats the app channel');
+  assert.equal(telemetryTarget([ch('LIVE'), ch('TECH')], null, null, 'i/TECH')?.channel, 'TECH');
+  assert.equal(telemetryTarget([ch('LIVE'), ch('TECH')], 'i/GONE', null, null)?.channel, 'LIVE');
+  assert.equal(telemetryTarget([], 'i/PTU', null, null), null);
+});
+
+test('a sequencer keeps only the latest answer', () => {
+  const s = sequencer();
+  const a = s.next();
+  const b = s.next();
+  assert.equal(s.latest(a), false);
+  assert.equal(s.latest(b), true);
 });

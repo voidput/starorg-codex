@@ -174,6 +174,8 @@ impl TelemetryHost {
         r.target = Some(target);
         r.source = None;
         r.actions_error = None;
+        // The allowlist belongs to the old stream's build: a new one starts empty, as on stop.
+        r.gate.clear_actions();
         r.session
     }
 
@@ -293,9 +295,7 @@ impl TelemetryHost {
         r.source = None;
         r.link = LinkStatus::Disabled;
         r.actions_error = None;
-        let on = r.gate.enabled();
-        r.gate.set_enabled(false);
-        r.gate.set_enabled(on);
+        r.gate.clear_actions();
     }
 
     /// Run `f` against the game with a fresh client (blocking; called on the blocking pool).
@@ -408,5 +408,47 @@ impl TelemetryHost {
             },
             Err(e) => failed(e),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn target(ch: &str) -> ChannelRef {
+        ChannelRef {
+            install: "inst".into(),
+            channel: ch.into(),
+        }
+    }
+
+    fn quiet() -> Sink {
+        Arc::new(|_| {})
+    }
+
+    #[test]
+    fn a_new_stream_starts_with_an_empty_allowlist() {
+        let host = TelemetryHost::default();
+        host.start_mock(target("PTU"), quiet());
+        assert!(!host.actions(true).actions.is_empty());
+        assert!(!lock(&host.state).gate.actions().is_empty());
+        // Another channel without stopping first: the old build's list is gone.
+        host.no_schema(target("LIVE"), "test".into(), &quiet());
+        assert!(lock(&host.state).gate.actions().is_empty());
+        assert!(host.actions(true).actions.is_empty());
+        host.stop();
+    }
+
+    #[test]
+    fn triggers_off_refuses_before_any_request() {
+        let host = TelemetryHost::default();
+        // A game source on a closed loopback port: any request would come back as an error.
+        lock(&host.state).source = Some(Source::Game {
+            schema: Arc::new(mock::schema()),
+            addr: LoopbackAddr::localhost(1).unwrap(),
+        });
+        let r = host.trigger("v_toggle_lights", None, true, false);
+        assert!(r.refused.is_some(), "{:?}", r.error);
+        assert!(r.error.is_none() && r.outcome.is_none());
     }
 }

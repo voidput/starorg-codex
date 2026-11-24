@@ -84,8 +84,11 @@ impl RealBackend {
         Ok((f, ch))
     }
 
-    /// Release both lines of every channel (switching off). Failures become warnings.
-    fn telemetry_release_all(&self) -> Vec<String> {
+    /// Release both lines of every registered channel but `keep` (`<install-id>/<CHANNEL>`):
+    /// all of them when switching off, the others when the lines move to `keep`. Only one
+    /// channel carries the lines, so neither line stays in a USER.cfg the app no longer
+    /// streams from. Failures become warnings.
+    fn telemetry_release_others(&self, keep: Option<&str>) -> Vec<String> {
         let off = Settings {
             enabled: false,
             ..Settings::default()
@@ -98,12 +101,25 @@ impl RealBackend {
             }
             for ch in &f.install.channels {
                 let me = Target::new(&f.install, f.id.clone(), ch).channel_ref();
+                if keep == Some(me.as_str()) {
+                    continue;
+                }
                 if let Err(e) = gate::configure_user_cfg(self.dirs(), &ch.dir, &me, &off, false) {
                     warnings.push(format!("{}: USER.cfg not changed: {e}", ch.name));
                 }
             }
         }
         warnings
+    }
+
+    /// Undo what a failed configure may have done to the target's USER.cfg before the error:
+    /// a line `before` did not want is released again (best effort; the error is reported).
+    fn telemetry_cfg_rollback(&self, ch: &Channel, me: &str, before: &Settings, now: &Settings) {
+        let wanted_now =
+            now.enabled && !before.enabled || now.triggers_active() && !before.triggers_active();
+        if wanted_now {
+            let _ = gate::configure_user_cfg(self.dirs(), &ch.dir, me, before, false);
+        }
     }
 
     /// The build's schema: from `<cache>/telemetry/` when there, else scanned from the exe.
@@ -149,11 +165,11 @@ impl TelemetryBackend for RealBackend {
         // The channel first: nothing is saved for one that is not offered.
         let target = match (&req.target, s.enabled) {
             (Some(t), true) => Some(self.telemetry_target(t)?),
-            (Some(t), false) => {
-                let f = self.resolve(t)?;
-                let ch = f.channel(&t.channel)?.clone();
+            // Off never fails on the channel: a channel gone since is released with the rest.
+            (Some(t), false) => self.resolve(t).ok().and_then(|f| {
+                let ch = f.channel(&t.channel).ok()?.clone();
                 Some((f, ch))
-            }
+            }),
             (None, true) => {
                 return Err(err(
                     ErrorCode::Invalid,
@@ -163,25 +179,67 @@ impl TelemetryBackend for RealBackend {
             (None, false) => None,
         };
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
+        let before = gate::settings(&cfg);
         gate::set_settings(&mut cfg, &s).map_err(|m| err(ErrorCode::Invalid, m))?;
-        cfg.save(self.dirs()).map_err(io)?;
-        let mut warnings = Vec::new();
         let (mut tl, mut gl) = (None, None);
-        if let Some((mut f, ch)) = target {
-            self.register(&mut f)?;
+        let warnings = if s.enabled {
+            let Some((mut f, ch)) = target else {
+                unreachable!("refused above without a target");
+            };
+            // USER.cfg first, `config.toml` only once it took: a failed write (lock busy,
+            // file not ours, too big) leaves the switches as they were, so the switch and
+            // the file never disagree.
+            if f.id.is_none() {
+                // Registering saves `config.toml` itself: load it again, or the save below
+                // would drop the install it just added.
+                self.register(&mut f)?;
+                cfg = Config::load(self.dirs()).map_err(io)?;
+                gate::set_settings(&mut cfg, &s).map_err(|m| err(ErrorCode::Invalid, m))?;
+            }
             let me = Target::new(&f.install, f.id.clone(), &ch).channel_ref();
             let c = gate::configure_user_cfg(self.dirs(), &ch.dir, &me, &s, req.replace_other)
-                .map_err(|e| err(ErrorCode::Busy, format!("USER.cfg not changed: {e}")))?;
+                .map_err(|e| {
+                    self.telemetry_cfg_rollback(&ch, &me, &before, &s);
+                    err(ErrorCode::Busy, format!("USER.cfg not changed: {e}"))
+                })?;
+            if let Err(e) = cfg.save(self.dirs()) {
+                self.telemetry_cfg_rollback(&ch, &me, &before, &s);
+                return Err(io(e));
+            }
             tl = Some(TelemetryLineChange::of(TELEMETRY.line, &c.telemetry));
             gl = Some(TelemetryLineChange::of(
                 TELEMETRY_TRIGGERS.line,
                 &c.triggers,
             ));
-        }
-        if !s.enabled {
+            // The lines live in the target's USER.cfg only: a changed channel must not
+            // leave them (the triggers line above all) in another one.
+            self.telemetry_release_others(Some(&me))
+        } else {
+            // Off is saved first and always wins: the stream and the trigger gate read
+            // `config.toml`, and a USER.cfg that cannot be changed is only a warning.
+            cfg.save(self.dirs()).map_err(io)?;
             self.telemetry.stop();
-            warnings = self.telemetry_release_all();
-        }
+            let mut keep = None;
+            let mut warnings = Vec::new();
+            if let Some((f, ch)) = &target
+                && f.id.is_some()
+            {
+                let me = Target::new(&f.install, f.id.clone(), ch).channel_ref();
+                match gate::configure_user_cfg(self.dirs(), &ch.dir, &me, &s, false) {
+                    Ok(c) => {
+                        tl = Some(TelemetryLineChange::of(TELEMETRY.line, &c.telemetry));
+                        gl = Some(TelemetryLineChange::of(
+                            TELEMETRY_TRIGGERS.line,
+                            &c.triggers,
+                        ));
+                    }
+                    Err(e) => warnings.push(format!("{}: USER.cfg not changed: {e}", ch.name)),
+                }
+                keep = Some(me);
+            }
+            warnings.extend(self.telemetry_release_others(keep.as_deref()));
+            warnings
+        };
         let channel = req.target.as_ref().map(|t| t.channel.as_str());
         self.log(
             LogLevel::Info,
@@ -247,6 +305,14 @@ impl TelemetryBackend for RealBackend {
     }
 
     fn telemetry_stop(&self) -> CmdResult<TelemetryStatus> {
+        if let Some(t) = self.telemetry.target() {
+            self.log(
+                LogLevel::Info,
+                None,
+                Some(&t.channel),
+                "Live telemetry: stopped",
+            );
+        }
         self.telemetry.stop();
         Ok(self.telemetry_view())
     }

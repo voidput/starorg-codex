@@ -40,21 +40,20 @@ pub const SERVICE: &str = "sc.game.telemetry.v1.GameTelemetryService";
 pub const MARKER: &str = "sc/game/telemetry/v1/api.proto";
 
 /// Port sc-telemetry's docs use for `GRPC_CLIENT_SERVER_PORT`. The game's own default is
-/// unknown, so the player sets the port and the app asks for it.
-pub const DEFAULT_PORT: u16 = 50051;
+/// unknown, so the player sets the port and the app asks for it. One value with the gate in
+/// `starorg_core::telemetry`.
+pub use starorg_core::telemetry::DEFAULT_PORT;
 
 /// First game version with the telemetry service this crate supports (`TriggerGameAction`
 /// and the vehicle fields arrived in PTU 5.0.0; sc-telemetry `docs/telemetry/api-spec.md` §7).
-pub const MIN_GAME_VERSION: GameVersion = GameVersion {
-    major: 5,
-    minor: 0,
-    patch: 0,
-};
+/// The gate's own [`starorg_core::telemetry::MIN_VERSION`], so the two cannot drift.
+pub use starorg_core::telemetry::MIN_VERSION as MIN_GAME_VERSION;
 
 /// Whether live telemetry may be offered for a channel whose build has this version
-/// (`BuildInfo::game_version`). `None` (version unknown) is not offered.
+/// (`BuildInfo::game_version`). `None` (version unknown) is not offered. Same rule as
+/// [`starorg_core::telemetry::eligible_version`].
 pub fn offered(game_version: Option<GameVersion>) -> bool {
-    game_version.is_some_and(|v| v >= MIN_GAME_VERSION)
+    starorg_core::telemetry::eligible_version(game_version).is_ok()
 }
 
 #[cfg(test)]

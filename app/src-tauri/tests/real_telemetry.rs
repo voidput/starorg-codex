@@ -33,14 +33,19 @@ struct Fake {
 const PTU_CHANGE: u64 = 13189690;
 const CFG: &str = "g_language = english\r\nr_width = 2560\r\n";
 
+type FakeChannel = (&'static str, &'static str, u64, &'static str);
+const LIVE_4_10: FakeChannel = ("LIVE", "sc-alpha-4.10.0", 13165946, "4.10.200.58746");
+const PTU_5_0: FakeChannel = ("PTU", "sc-alpha-5.0.0-ptu", PTU_CHANGE, "5.0.0.1");
+
 fn fake() -> Fake {
+    fake_with(&[LIVE_4_10, PTU_5_0])
+}
+
+fn fake_with(channels: &[FakeChannel]) -> Fake {
     let t = tempfile::tempdir().unwrap();
     let base = std::fs::canonicalize(t.path()).unwrap();
     let lib = base.join("games/StarCitizen");
-    for (ch, branch, change, version) in [
-        ("LIVE", "sc-alpha-4.10.0", 13165946, "4.10.200.58746"),
-        ("PTU", "sc-alpha-5.0.0-ptu", PTU_CHANGE, "5.0.0.1"),
-    ] {
+    for &(ch, branch, change, version) in channels {
         let d = lib.join(ch);
         std::fs::create_dir_all(d.join("Data")).unwrap();
         std::fs::write(d.join("Data.p4k"), b"fake archive").unwrap();
@@ -199,6 +204,60 @@ fn an_explicit_other_value_is_replaced_only_after_asking() {
         f.cfg("PTU").contains("server.game.telemetry.enabled = 0"),
         "the user's line is back"
     );
+}
+
+#[test]
+fn the_lines_follow_the_target_channel_and_triggers_off_takes_them_out_everywhere() {
+    // LIVE and PTU both on 5.0: the lines are only ever in the target's USER.cfg.
+    let f = fake_with(&[("LIVE", "sc-alpha-5.0.0", 13165946, "5.0.0.2"), PTU_5_0]);
+    f.configure(Some("PTU"), on(50051, true)).unwrap();
+    assert!(f.cfg("PTU").contains("trigger.actions.enabled = 1"));
+
+    // Another channel, game actions off: PTU keeps neither line.
+    let r = f.configure(Some("LIVE"), on(50051, false)).unwrap();
+    assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+    assert_eq!(f.cfg("PTU"), CFG, "both lines left PTU");
+    let live = f.cfg("LIVE");
+    assert!(live.contains("server.game.telemetry.enabled = 1"));
+    assert!(!live.contains("trigger.actions"), "{live:?}");
+
+    // Game actions on for LIVE, then back to PTU with them still on: LIVE is clean.
+    f.configure(Some("LIVE"), on(50051, true)).unwrap();
+    f.configure(Some("PTU"), on(50051, true)).unwrap();
+    assert_eq!(f.cfg("LIVE"), CFG);
+    assert!(f.cfg("PTU").contains("trigger.actions.enabled = 1"));
+
+    // Off with no target named: every channel clean.
+    f.configure(None, off()).unwrap();
+    assert_eq!(f.cfg("PTU"), CFG);
+    assert_eq!(f.cfg("LIVE"), CFG);
+}
+
+#[test]
+fn a_user_cfg_that_cannot_be_changed_leaves_the_switches_as_they_were() {
+    let f = fake();
+    // Larger than the 1 MiB the app edits.
+    let pad = "; padding\r\n".repeat(120_000);
+    let big = format!("{CFG}{pad}");
+    std::fs::write(f.lib.join("PTU/USER.cfg"), &big).unwrap();
+    let e = f.configure(Some("PTU"), on(50051, true)).unwrap_err();
+    assert_eq!(e.code, ErrorCode::Busy);
+    assert!(e.message.contains("USER.cfg not changed"), "{}", e.message);
+    assert!(
+        !f.backend.telemetry_status().unwrap().settings.enabled,
+        "the switch stays off"
+    );
+    assert_eq!(f.cfg("PTU"), big);
+
+    // On already, then game actions refused: telemetry stays on, game actions stay off.
+    std::fs::write(f.lib.join("PTU/USER.cfg"), CFG).unwrap();
+    f.configure(Some("PTU"), on(50051, false)).unwrap();
+    let grown = format!("{}{pad}", f.cfg("PTU"));
+    std::fs::write(f.lib.join("PTU/USER.cfg"), &grown).unwrap();
+    assert!(f.configure(Some("PTU"), on(50051, true)).is_err());
+    let s = f.backend.telemetry_status().unwrap().settings;
+    assert!(s.enabled && !s.triggers, "{s:?}");
+    assert_eq!(f.cfg("PTU"), grown);
 }
 
 fn sink() -> (Sink, mpsc::Receiver<TelemetryEvent>) {

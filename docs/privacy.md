@@ -121,16 +121,21 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
 - It talks only to `127.0.0.1` on this computer (any other address is refused) and only while
   the switch is on and the Live telemetry screen is open. It makes no network request.
 - Frames are shown and then dropped: nothing is recorded, logged or sent anywhere. Activity
-  notes only that it started or stopped, and the name of each game action pressed.
+  notes only the switch changes (on or off, the port, whether game actions are allowed), each
+  start and stop, which cached schema a start used or why there was none (that reason can name
+  the path of the game's exe), and the name and result of each game action pressed.
 - Turning it on writes one line to the chosen channel's `USER.cfg`
   (`server.game.telemetry.enabled = 1`; a second one only with "Allow game actions" on) and
-  saves the switches in `config.toml`. Turning it off takes the lines out again. The app never
-  sets the launcher's environment variables; it shows you how.
+  saves the switches in `config.toml`. Only that one channel carries the lines: picking another
+  channel, or switching "Allow game actions" off, takes them out of the others. Turning it off
+  takes them out everywhere. The app never sets the launcher's environment variables; it shows
+  you how.
 - To read the stream it reads the layout of the game's service from that channel's own
   `Bin64/StarCitizen.exe` and keeps it in the app's cache folder (Settings -> Storage, the last
   3 builds). No game file is shipped with the app.
 - "Allow game actions" (a separate switch, off) lets the app press game inputs the game lists
-  as triggerable, only when you press a button, with a confirmation first.
+  as triggerable, only when you press a button. The first press of each app session asks
+  first, and the dangerous actions (self destruct, eject, power off...) ask every time.
 
 ## Things outside the app
 

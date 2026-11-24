@@ -100,26 +100,9 @@ fn game_exe_is_found_case_insensitively() {
 }
 
 #[test]
-fn only_loopback_hosts() {
+fn endpoint_is_loopback() {
     assert_eq!(endpoint(50051).to_string(), "127.0.0.1:50051");
-    assert!(loopback_host("127.0.0.1").is_ok());
-    assert!(loopback_host("127.4.5.6").is_ok());
-    assert!(loopback_host("::1").is_ok());
-    assert!(loopback_host("[::1]").is_ok());
-    assert_eq!(
-        loopback_host("LocalHost").unwrap(),
-        IpAddr::V4(Ipv4Addr::LOCALHOST)
-    );
-    for bad in [
-        "0.0.0.0",
-        "192.168.1.2",
-        "10.0.0.1",
-        "example.com",
-        "",
-        "::",
-    ] {
-        assert!(loopback_host(bad).is_err(), "{bad}");
-    }
+    assert!(endpoint(50051).ip().is_loopback());
 }
 
 #[test]
@@ -191,6 +174,33 @@ fn configure_user_cfg_on_triggers_off() {
     s.triggers = true; // ignored while telemetry is off
     configure_user_cfg(&dirs, &ch, "i/PTU", &s, false).unwrap();
     assert_eq!(cfg_text(&ch.join("USER.cfg")), before);
+}
+
+#[test]
+fn configure_user_cfg_off_removes_the_file_it_created() {
+    // No USER.cfg before: the telemetry line creates it, the triggers line finds it. Off
+    // takes both out and leaves no file, not an empty one.
+    let t = tempfile::tempdir().unwrap();
+    let dirs = AppDirs::under(&t.path().join("app"));
+    let ch = t.path().join("PTU");
+    std::fs::create_dir_all(&ch).unwrap();
+    let on = Settings {
+        enabled: true,
+        triggers: true,
+        ..Settings::default()
+    };
+    configure_user_cfg(&dirs, &ch, "i/PTU", &on, false).unwrap();
+    assert!(cfg_text(&ch.join("user.cfg")).contains(TELEMETRY_TRIGGERS.line));
+    let c = configure_user_cfg(&dirs, &ch, "i/PTU", &Settings::default(), false).unwrap();
+    for l in [c.telemetry, c.triggers] {
+        assert_eq!(
+            l,
+            LineChange::Released {
+                outcome: UndoOutcome::Reverted
+            }
+        );
+    }
+    assert!(!ch.join("user.cfg").exists());
 }
 
 #[test]

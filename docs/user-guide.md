@@ -328,7 +328,8 @@ records nothing and sends nothing anywhere ([privacy](privacy.md)).
    `USER.cfg`, `server.game.telemetry.enabled = 1`, and keeps every other line as it is. If
    the file already has another value there (`= 0`), it asks before replacing it; your line
    comes back when you switch off. Switching off takes the line out again (unless you changed
-   it since), the same way the language line works.
+   it since), the same way the language line works. Only one channel carries the lines: picking
+   another **Channel** moves them there and takes them out of the one before.
 2. **Port**: the port the game should use (default 50051, 1024 to 65535).
 3. **Launcher setup**: the game also reads two environment variables from the RSI Launcher,
    `GRPC_CLIENT_SERVER_ENABLED=1` and `GRPC_CLIENT_SERVER_PORT=<port>`. The app never changes
@@ -363,7 +364,8 @@ in the game for you: only the ones the game itself lists as triggerable (lights,
 gear, shield power, ping...), with **Hold** for the holdable ones. The first press of each app
 session asks first; self destruct, eject, emergency exit and power off ask every time. The app
 also refuses a second press of the same action within a second. With the switch off the list is
-shown but every button is disabled.
+shown but every button is disabled, and the second line is taken out of every channel's
+`USER.cfg`.
 
 ## Backups and restore
 

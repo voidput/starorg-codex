@@ -19,6 +19,7 @@
   import { toContractError } from '@/lib/contract/client';
   import type { CvarState, TelemetryCfgLine, TelemetryChannel, TelemetryConfigureResult, TelemetrySettings } from '@/lib/contract/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
+  import { telemetryTarget } from '@/lib/telemetry';
   import { app } from '@/lib/stores/app.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
 
@@ -32,12 +33,18 @@
   const installName = (id: string) => app.overview?.installs.find((i) => i.id === id)?.found_by_label ?? id;
   const offered = $derived(st?.channels.filter((c) => c.offered) ?? []);
   const key = (c: { install: string; channel: string }) => `${c.install}/${c.channel}`;
-  /** The channel whose USER.cfg gets the lines: the streaming one, the app's channel if offered, else the first offered. */
-  let picked = $state<string | null>(null);
-  const target = $derived.by<TelemetryChannel | null>(() => {
-    const byKey = (k: string | null) => offered.find((c) => key(c) === k) ?? null;
-    return byKey(picked) ?? (st?.streaming ? byKey(key(st.streaming)) : null) ?? byKey(app.targetKey) ?? offered[0] ?? null;
-  });
+  /**
+   * The channel whose USER.cfg gets the lines: the one picked (kept in the store while the app
+   * runs), the streaming one, the one whose USER.cfg has the line, the app's channel, else the
+   * first offered.
+   */
+  const target = $derived<TelemetryChannel | null>(telemetryTarget(offered, telemetry.picked, st?.streaming ?? null, app.targetKey));
+
+  /** Another channel picked while on: its USER.cfg gets the lines now, the old one's go. */
+  function pick(v: string) {
+    telemetry.picked = v;
+    if (st?.settings.enabled) void save({});
+  }
   let port = $state('');
   const savedPort = $derived(st?.settings.port ?? null);
   $effect(() => {
@@ -128,7 +135,7 @@
       {#if target && (st.settings.enabled || offered.length > 1)}
         <div class="flex flex-wrap items-center gap-2 text-[12px]">
           <span id="tele-ch">Channel</span>
-          <SelectField ariaLabel="Channel whose USER.cfg gets the line" options={offered.map((c) => ({ id: key(c), label: c.channel }))} value={key(target)} onchange={(v) => (picked = v)} />
+          <SelectField ariaLabel="Channel whose USER.cfg gets the line" options={offered.map((c) => ({ id: key(c), label: c.channel }))} value={key(target)} onchange={pick} />
           <label for="tele-port" class="ml-2">Port</label>
           <Input
             id="tele-port"

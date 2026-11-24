@@ -118,46 +118,52 @@ pub async fn run(
         }
         let failed = match TelemetryClient::connect(schema.clone(), addr).await {
             Err(e) => status_of(&e),
-            Ok(mut client) => match client.stream().await {
-                Err(e) => status_of(&e),
-                Ok(mut stream) => {
-                    if !status(LinkStatus::Connected, &mut sink) {
-                        return;
-                    }
-                    let mut throttle = Throttle::new(opts.ui_interval);
-                    let mut seq = 0u64;
-                    let mut pending: Option<(u64, DynamicMessage)> = None;
-                    loop {
-                        let wake = tokio::time::Instant::from_std(throttle.next_at(Instant::now()));
-                        tokio::select! {
-                            msg = stream.message() => match msg {
-                                Ok(Some(m)) => {
-                                    seq += 1;
-                                    backoff = opts.backoff_min;
-                                    if throttle.admit(Instant::now()) {
-                                        pending = None;
-                                        if !sink(LiveEvent::Frame(Box::new(to_frame(seq, &m)))) {
+            Ok(mut client) => {
+                // Connected once the HTTP/2 handshake is done, as sc-telemetry reports it at
+                // `channel_ready()`: the stream call itself resolves on the response headers,
+                // which a game may hold back until the first frame (after spawning).
+                if !status(LinkStatus::Connected, &mut sink) {
+                    return;
+                }
+                match client.stream().await {
+                    Err(e) => status_of(&e),
+                    Ok(mut stream) => {
+                        let mut throttle = Throttle::new(opts.ui_interval);
+                        let mut seq = 0u64;
+                        let mut pending: Option<(u64, DynamicMessage)> = None;
+                        loop {
+                            let wake =
+                                tokio::time::Instant::from_std(throttle.next_at(Instant::now()));
+                            tokio::select! {
+                                msg = stream.message() => match msg {
+                                    Ok(Some(m)) => {
+                                        seq += 1;
+                                        backoff = opts.backoff_min;
+                                        if throttle.admit(Instant::now()) {
+                                            pending = None;
+                                            if !sink(LiveEvent::Frame(Box::new(to_frame(seq, &m)))) {
+                                                return;
+                                            }
+                                        } else {
+                                            pending = Some((seq, m));
+                                        }
+                                    }
+                                    Ok(None) => break LinkStatus::GameNotRunning,
+                                    Err(s) => break status_of(&ClientError::from(s)),
+                                },
+                                () = tokio::time::sleep_until(wake), if pending.is_some() => {
+                                    if let Some((n, m)) = pending.take() {
+                                        throttle.admit(Instant::now());
+                                        if !sink(LiveEvent::Frame(Box::new(to_frame(n, &m)))) {
                                             return;
                                         }
-                                    } else {
-                                        pending = Some((seq, m));
-                                    }
-                                }
-                                Ok(None) => break LinkStatus::GameNotRunning,
-                                Err(s) => break status_of(&ClientError::from(s)),
-                            },
-                            () = tokio::time::sleep_until(wake), if pending.is_some() => {
-                                if let Some((n, m)) = pending.take() {
-                                    throttle.admit(Instant::now());
-                                    if !sink(LiveEvent::Frame(Box::new(to_frame(n, &m)))) {
-                                        return;
                                     }
                                 }
                             }
                         }
                     }
                 }
-            },
+            }
         };
         if !status(failed, &mut sink) {
             return;

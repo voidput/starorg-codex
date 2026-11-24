@@ -27,6 +27,9 @@ const FRAME_GAP: Duration = Duration::from_millis(20);
 struct MockServer {
     schema: Arc<Schema>,
     game: Arc<Mutex<MockGame>>,
+    /// How long the stream's response headers are held back (a game that sends its initial
+    /// metadata with the first frame, after spawning).
+    hold_headers: Duration,
 }
 
 #[derive(Clone)]
@@ -44,6 +47,7 @@ impl Service<Request<DynamicMessage>> for StreamCall {
     fn call(&mut self, _req: Request<DynamicMessage>) -> Self::Future {
         let srv = self.0.clone();
         Box::pin(async move {
+            tokio::time::sleep(srv.hold_headers).await;
             let (tx, rx) = tokio::sync::mpsc::channel(4);
             tokio::spawn(async move {
                 for i in 0..FRAMES {
@@ -166,6 +170,12 @@ impl Service<http::Request<Body>> for MockServer {
 }
 
 async fn serve() -> (LoopbackAddr, Arc<Schema>, Arc<Mutex<MockGame>>) {
+    serve_holding_headers(Duration::ZERO).await
+}
+
+async fn serve_holding_headers(
+    hold_headers: Duration,
+) -> (LoopbackAddr, Arc<Schema>, Arc<Mutex<MockGame>>) {
     let schema = Arc::new(mock::schema());
     let game = Arc::new(Mutex::new(MockGame::default()));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -173,6 +183,7 @@ async fn serve() -> (LoopbackAddr, Arc<Schema>, Arc<Mutex<MockGame>>) {
     let svc = MockServer {
         schema: schema.clone(),
         game: game.clone(),
+        hold_headers,
     };
     tokio::spawn(async move {
         tonic::transport::Server::builder()
@@ -286,4 +297,25 @@ async fn live_loop_throttles_and_reconnects() {
     let ship = last.snapshot.ship.as_ref().expect("a ship in the mock");
     assert_eq!(ship.name.as_deref(), Some("Mock Gladius"));
     assert!(last.raw["actor"]["vitals"].is_object());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn connected_shows_before_the_stream_headers_arrive() {
+    // The headers come 3 s late; "Connected" must not wait for them.
+    let (addr, schema, _game) = serve_holding_headers(Duration::from_secs(3)).await;
+    let (handle, mut rx) = live::spawn(schema, addr, LiveOptions::default(), 16);
+    let mut statuses = Vec::new();
+    let started = Instant::now();
+    while !statuses.contains(&LinkStatus::Connected) {
+        let ev = tokio::time::timeout(Duration::from_secs(2), rx.recv())
+            .await
+            .expect("Connected within 2 s, before the headers")
+            .expect("the loop is running");
+        if let LiveEvent::Status(s) = ev {
+            statuses.push(s);
+        }
+    }
+    assert!(started.elapsed() < Duration::from_secs(3));
+    assert_eq!(statuses, [LinkStatus::Connecting, LinkStatus::Connected]);
+    handle.stop();
 }

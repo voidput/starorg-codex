@@ -238,3 +238,34 @@ export function gate(ms: number, now: () => number = Date.now): () => boolean {
     return true;
   };
 }
+
+/**
+ * What an event of stream `event` means for a store on stream `current`: `stale` (an older
+ * stream, dropped), `same`, or `new` (a newer stream: the old stream's frame and count go
+ * before anything of the new one is shown).
+ */
+export function sessionStep(current: number, event: number): 'stale' | 'same' | 'new' {
+  return event < current ? 'stale' : event > current ? 'new' : 'same';
+}
+
+/**
+ * The channel live telemetry is for: the one picked, else the streaming one, else the one
+ * whose USER.cfg has the telemetry line (only one channel carries it), else the app's
+ * channel, else the first offered. `offered` holds offered channels only.
+ */
+export function telemetryTarget<C extends { install: string; channel: string; telemetry_line: { state: string } }>(
+  offered: readonly C[],
+  picked: string | null,
+  streaming: { install: string; channel: string } | null,
+  appKey: string | null,
+): C | null {
+  const key = (c: { install: string; channel: string }) => `${c.install}/${c.channel}`;
+  const byKey = (k: string | null) => (k ? (offered.find((c) => key(c) === k) ?? null) : null);
+  return byKey(picked) ?? (streaming ? byKey(key(streaming)) : null) ?? offered.find((c) => c.telemetry_line.state === 'set') ?? byKey(appKey) ?? offered[0] ?? null;
+}
+
+/** Numbers async answers so only the latest one is used (`const n = next(); ...; if (latest(n))`). */
+export function sequencer(): { next: () => number; latest: (n: number) => boolean } {
+  let seq = 0;
+  return { next: () => ++seq, latest: (n) => n === seq };
+}

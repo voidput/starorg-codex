@@ -15,7 +15,7 @@
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import { telemetryApi, type TelemetryActions, type TelemetryJson } from '@/lib/contract/telemetry';
   import { toContractError } from '@/lib/contract/client';
-  import { actionState, groupActions, humanName, needsConfirm, triggerText } from '@/lib/telemetry';
+  import { actionState, groupActions, humanName, needsConfirm, sequencer, triggerText } from '@/lib/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
   import { app } from '@/lib/stores/app.svelte';
   import { cn } from '@/lib/utils';
@@ -33,14 +33,19 @@
   const triggersOn = $derived(!!telemetry.status?.settings.enabled && !!telemetry.status?.settings.triggers);
   const dangerous = $derived(telemetry.status?.dangerous ?? []);
 
+  /** Loads can overlap (the switch and the connection flip quickly): only the latest one counts. */
+  const loads = sequencer();
+
   async function load() {
+    const n = loads.next();
     loading = true;
     try {
-      list = await telemetryApi.actions();
+      const l = await telemetryApi.actions();
+      if (loads.latest(n)) list = l;
     } catch (e) {
-      result = { ok: false, text: toContractError(e).message, action: '' };
+      if (loads.latest(n)) result = { ok: false, text: toContractError(e).message, action: '' };
     } finally {
-      loading = false;
+      if (loads.latest(n)) loading = false;
     }
   }
 

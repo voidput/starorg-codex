@@ -21,7 +21,7 @@
   import ActionsPanel from '@/components/telemetry/ActionsPanel.svelte';
   import RawFramePanel from '@/components/telemetry/RawFramePanel.svelte';
   import type { TelemetryChannel } from '@/lib/contract/telemetry';
-  import { annunciators, barWidth, faceLabels, fixed, linkView, pct, systems } from '@/lib/telemetry';
+  import { annunciators, barWidth, faceLabels, fixed, linkView, pct, systems, telemetryTarget } from '@/lib/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
   import { app } from '@/lib/stores/app.svelte';
   import { cn } from '@/lib/utils';
@@ -29,11 +29,7 @@
   const st = $derived(telemetry.status);
   const offered = $derived(st?.channels.filter((c) => c.offered) ?? []);
   const key = (c: { install: string; channel: string }) => `${c.install}/${c.channel}`;
-  let picked = $state<string | null>(null);
-  const target = $derived.by<TelemetryChannel | null>(() => {
-    const byKey = (k: string | null) => offered.find((c) => key(c) === k) ?? null;
-    return byKey(picked) ?? (st?.streaming ? byKey(key(st.streaming)) : null) ?? byKey(app.targetKey) ?? offered[0] ?? null;
-  });
+  const target = $derived<TelemetryChannel | null>(telemetryTarget(offered, telemetry.picked, st?.streaming ?? null, app.targetKey));
   const targetKey = $derived(target ? key(target) : '');
   const running = $derived(!!st?.streaming);
   const view = $derived(linkView(telemetry.link, running));
@@ -61,8 +57,12 @@
   const labels = $derived(faceLabels(faces.length));
 
   function toggle() {
-    if (running) void telemetry.stop();
-    else if (target) void telemetry.start({ install: target.install, channel: target.channel });
+    if (running) {
+      // Keep the channel that was streaming: without the pin, Stop would fall back to
+      // another channel and the effect above would start that one.
+      if (targetKey) telemetry.picked = targetKey;
+      void telemetry.stop();
+    } else if (target) void telemetry.start({ install: target.install, channel: target.channel });
   }
 </script>
 
@@ -98,19 +98,19 @@
       <ToneBadge tone="warning" label="Experimental" />
       <ToneBadge tone={view.tone} label={view.label} />
       {#if offered.length > 1 && target}
-        <SelectField ariaLabel="Channel" options={offered.map((c) => ({ id: key(c), label: c.channel }))} value={targetKey} onchange={(v) => (picked = v)} />
+        <SelectField ariaLabel="Channel" options={offered.map((c) => ({ id: key(c), label: c.channel }))} value={targetKey} onchange={(v) => (telemetry.picked = v)} />
       {:else if target}
         <span class="font-medium">{target.channel}</span>
       {/if}
       <span class="mono text-muted-foreground text-[12px]">{st.endpoint}</span>
       {#if st.mock}<span class="text-muted-foreground text-[12px]">synthetic frames (mock)</span>{/if}
       <span class="flex-1"></span>
-      <Button size="sm" variant="outline" onclick={toggle} disabled={!target}>
-        {#if running}<Square aria-hidden="true" /> Stop{:else}<Play aria-hidden="true" /> Start{/if}
+      <Button size="sm" variant="outline" onclick={toggle} disabled={!target || telemetry.starting}>
+        {#if running}<Square aria-hidden="true" /> Stop{:else if telemetry.starting}<Play aria-hidden="true" /> Starting…{:else}<Play aria-hidden="true" /> Start{/if}
       </Button>
     </div>
     <p class="text-muted-foreground text-[12px]" aria-live="polite">
-      {view.detail}
+      {#if telemetry.starting && !running}Reading the game's schema (the first start of a build takes a few seconds)…{:else}{view.detail}{/if}
       {#if st.schema}Schema {st.schema.key} ({st.schema.origin === 'cache' ? 'cached' : st.schema.origin === 'extracted' ? 'read from StarCitizen.exe just now' : 'synthetic'}).{/if}
       Reads this computer only; nothing is sent anywhere.
     </p>

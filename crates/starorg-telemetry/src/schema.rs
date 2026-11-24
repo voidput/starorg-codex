@@ -46,6 +46,13 @@ pub const KEEP_KEYS: usize = 3;
 /// Extension of a cached `FileDescriptorSet`.
 const CACHE_EXT: &str = "fds";
 
+/// Largest cached schema read back (the real one is well under 1 MiB); a bigger file in
+/// the cache folder is ignored and the exe is scanned again.
+pub const MAX_CACHED: u64 = 8 << 20;
+
+/// A `*.fds.partial` this old is left from a run that died mid-write and is removed.
+const STALE_PARTIAL: std::time::Duration = std::time::Duration::from_secs(600);
+
 /// Fields a `FileDescriptorProto` may carry, with their wire type (schema.py `FDP_FIELDS`):
 /// 1 name, 2 package, 3 dependency, 4 message_type, 5 enum_type, 6 service, 7 extension,
 /// 8 options, 9 source_code_info, 10 public_dependency, 11 weak_dependency, 12 syntax,
@@ -428,8 +435,15 @@ fn cache_file(cache_dir: &Path, key: &CacheKey) -> PathBuf {
 
 /// The cached schema for `key`, if there is a valid one.
 pub fn load_cached(cache_dir: &Path, key: &CacheKey) -> Option<Schema> {
-    let bytes = fs::read(cache_file(cache_dir, key)).ok()?;
+    let bytes = read_cached(&cache_file(cache_dir, key))?;
     Schema::from_set_bytes(&bytes, key.as_str(), SchemaOrigin::Cache).ok()
+}
+
+/// A cache file's bytes, `None` when absent, unreadable or over [`MAX_CACHED`].
+fn read_cached(path: &Path) -> Option<Vec<u8>> {
+    starorg_core::fsutil::read_limited(path, MAX_CACHED)
+        .ok()
+        .flatten()
 }
 
 /// The newest valid cached schema of any key: for a start without the game installed.
@@ -438,7 +452,7 @@ pub fn load_newest_cached(cache_dir: &Path) -> Option<Schema> {
     entries.sort_by_key(|(_, t)| std::cmp::Reverse(*t));
     entries.into_iter().find_map(|(p, _)| {
         let key = p.file_stem()?.to_str()?.to_owned();
-        let bytes = fs::read(&p).ok()?;
+        let bytes = read_cached(&p)?;
         Schema::from_set_bytes(&bytes, &key, SchemaOrigin::Cache).ok()
     })
 }
@@ -487,8 +501,22 @@ fn store(cache_dir: &Path, key: &CacheKey, bytes: &[u8]) -> io::Result<()> {
     Ok(())
 }
 
-/// Keep the [`KEEP_KEYS`] newest cached schemas (always `keep`).
+/// Keep the [`KEEP_KEYS`] newest cached schemas (always `keep`), and remove `*.partial`
+/// files older than [`STALE_PARTIAL`] (a younger one may be another start's write).
 fn prune(cache_dir: &Path, keep: &Path) {
+    if let Ok(rd) = fs::read_dir(cache_dir) {
+        let now = std::time::SystemTime::now();
+        for e in rd.filter_map(Result::ok) {
+            let p = e.path();
+            let stale = e
+                .metadata()
+                .and_then(|m| m.modified())
+                .is_ok_and(|t| now.duration_since(t).unwrap_or_default() >= STALE_PARTIAL);
+            if stale && p.extension().is_some_and(|x| x == "partial") {
+                let _ = fs::remove_file(p);
+            }
+        }
+    }
     let mut entries: Vec<_> = cached_entries(cache_dir)
         .into_iter()
         .filter(|(p, _)| p != keep)
@@ -655,6 +683,39 @@ mod tests {
         left.sort();
         assert_eq!(left.len(), KEEP_KEYS);
         assert!(left.contains(&"k4.fds".to_owned()));
+    }
+
+    #[test]
+    fn prune_removes_stale_partial_writes() {
+        let dir = tempfile::tempdir().unwrap();
+        let old = dir.path().join("dead.fds.partial");
+        let young = dir.path().join("busy.fds.partial");
+        fs::write(&old, b"half").unwrap();
+        fs::write(&young, b"half").unwrap();
+        fs::File::options()
+            .write(true)
+            .open(&old)
+            .unwrap()
+            .set_modified(std::time::SystemTime::now() - STALE_PARTIAL * 2)
+            .unwrap();
+        store(
+            dir.path(),
+            &CacheKey::sanitized("k"),
+            &mock::schema().to_set_bytes(),
+        )
+        .unwrap();
+        assert!(!old.exists(), "a dead run's partial write is removed");
+        assert!(young.exists(), "a write in progress is left alone");
+    }
+
+    #[test]
+    fn an_oversized_cache_file_is_ignored() {
+        let dir = tempfile::tempdir().unwrap();
+        let key = CacheKey::sanitized("k");
+        let f = fs::File::create(dir.path().join("k.fds")).unwrap();
+        f.set_len(MAX_CACHED + 1).unwrap();
+        assert!(load_cached(dir.path(), &key).is_none());
+        assert!(load_newest_cached(dir.path()).is_none());
     }
 
     #[test]

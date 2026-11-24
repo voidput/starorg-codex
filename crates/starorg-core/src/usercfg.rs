@@ -537,6 +537,9 @@ pub fn release_line(
                     fsutil::remove_retry(&target.real)?;
                 } else {
                     write(target, &new_text)?;
+                    if ledger.created {
+                        hand_over_created(dirs, &target.real, m)?;
+                    }
                 }
                 UndoOutcome::Reverted
             }
@@ -545,6 +548,24 @@ pub fn release_line(
     };
     delete_ledger_for(dirs, &target.real, m)?;
     Ok(outcome)
+}
+
+/// Every line we manage; they share one file, one lock and the "we created it" fact.
+const MANAGED: [&ManagedLine; 3] = [&LANGUAGE, &TELEMETRY, &TELEMETRY_TRIGGERS];
+
+/// The file `from` created outlives `from`'s line (another managed line is still in it):
+/// pass the fact on to the ledgers still there, so whichever line goes last removes the
+/// file instead of leaving an empty one behind.
+fn hand_over_created(dirs: &AppDirs, real: &Path, from: &ManagedLine) -> std::io::Result<()> {
+    for m in MANAGED.into_iter().filter(|m| *m != from) {
+        if let Some(mut l) = load_ledger_for(dirs, real, m)?
+            && !l.created
+        {
+            l.created = true;
+            save_ledger_for(dirs, &l, m)?;
+        }
+    }
+    Ok(())
 }
 
 /// How long [`adopt`] and [`drop_line`] wait for another run holding the file's lock.
@@ -1020,6 +1041,36 @@ mod tests {
             adopt(&dirs, &t.path().join("GONE"), "i/GONE", &TELEMETRY, false),
             Err(CfgError::NotWritable(_))
         ));
+    }
+
+    #[test]
+    fn created_file_is_removed_whichever_line_goes_last() {
+        // The first line created the file; the second found it there. Either release order
+        // ends with no file, not an empty one.
+        for first_out in [&TELEMETRY, &TELEMETRY_TRIGGERS] {
+            let t = tempfile::tempdir().unwrap();
+            let dirs = AppDirs::under(&t.path().join("app"));
+            let ch = t.path().join("PTU");
+            std::fs::create_dir_all(&ch).unwrap();
+            adopt(&dirs, &ch, "i/PTU", &TELEMETRY, false).unwrap();
+            adopt(&dirs, &ch, "i/PTU", &TELEMETRY_TRIGGERS, false).unwrap();
+            let last_out = if first_out == &TELEMETRY {
+                &TELEMETRY_TRIGGERS
+            } else {
+                &TELEMETRY
+            };
+            for m in [first_out, last_out] {
+                assert_eq!(
+                    drop_line(&dirs, &ch, "i/PTU", m).unwrap(),
+                    UndoOutcome::Reverted
+                );
+            }
+            assert!(
+                !ch.join("user.cfg").exists(),
+                "released {} first",
+                first_out.name
+            );
+        }
     }
 
     #[test]

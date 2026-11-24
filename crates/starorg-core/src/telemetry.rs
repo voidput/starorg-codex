@@ -10,7 +10,8 @@
 //!   `telemetry_triggers` is a second, separate opt-in ([`Settings`]).
 //! - **5.0 or newer only** ([`eligible`]): PTU 5.0 today, LIVE by itself once LIVE reports 5.0.
 //!   An unknown game version is not offered.
-//! - **Loopback only** ([`endpoint`], [`loopback_host`]): nothing leaves the computer.
+//! - **Loopback only** ([`endpoint`]; the client refuses any other host): nothing leaves the
+//!   computer.
 //! - **The schema is the user's own.** It is read at run time from the channel's
 //!   `Bin64/StarCitizen.exe` ([`game_exe`]); no CIG file is shipped.
 //! - The game needs `server.game.telemetry.enabled = 1` in `USER.cfg`
@@ -152,28 +153,6 @@ pub fn endpoint(port: u16) -> SocketAddr {
     SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), port)
 }
 
-/// A host the client may connect to: a loopback address, or `localhost` (taken as
-/// `127.0.0.1`, never looked up). Everything else is refused, so nothing leaves the computer.
-pub fn loopback_host(host: &str) -> Result<IpAddr, String> {
-    let h = host.trim();
-    if h.eq_ignore_ascii_case("localhost") {
-        return Ok(IpAddr::V4(Ipv4Addr::LOCALHOST));
-    }
-    let bare = h
-        .strip_prefix('[')
-        .and_then(|x| x.strip_suffix(']'))
-        .unwrap_or(h);
-    match bare.parse::<IpAddr>() {
-        Ok(ip) if ip.is_loopback() => Ok(ip),
-        Ok(ip) => Err(format!(
-            "{ip} is not a loopback address; live telemetry only talks to this computer"
-        )),
-        Err(_) => Err(format!(
-            "{h:?} is not a loopback address; live telemetry only talks to this computer"
-        )),
-    }
-}
-
 /// What [`configure_user_cfg`] did to each line.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CfgChange {
@@ -202,14 +181,17 @@ pub fn configure_user_cfg(
     s: &Settings,
     replace_other: bool,
 ) -> Result<CfgChange, CfgError> {
-    let telemetry = if s.enabled {
-        LineChange::Adopted {
-            outcome: usercfg::adopt(dirs, channel_dir, channel_ref, &TELEMETRY, replace_other)?,
-        }
-    } else {
-        LineChange::Released {
-            outcome: usercfg::drop_line(dirs, channel_dir, channel_ref, &TELEMETRY)?,
-        }
+    if !s.enabled {
+        // Off: the triggers line first, the reverse of the order the lines were adopted in.
+        let triggers = usercfg::drop_line(dirs, channel_dir, channel_ref, &TELEMETRY_TRIGGERS)?;
+        let telemetry = usercfg::drop_line(dirs, channel_dir, channel_ref, &TELEMETRY)?;
+        return Ok(CfgChange {
+            telemetry: LineChange::Released { outcome: telemetry },
+            triggers: LineChange::Released { outcome: triggers },
+        });
+    }
+    let telemetry = LineChange::Adopted {
+        outcome: usercfg::adopt(dirs, channel_dir, channel_ref, &TELEMETRY, replace_other)?,
     };
     // Triggers only on top of a telemetry line that is really there.
     let telemetry_set = matches!(
