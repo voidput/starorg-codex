@@ -395,10 +395,14 @@ impl Store {
             // A folder read right now (an older build in the app's Diff) stays; the next
             // new build prunes it. Held across the removal, so no reader starts meanwhile.
             let lock = reading_lock(&p);
-            let Ok(_held) = starorg_core::lock::try_lock(&lock) else {
+            let Ok(held) = starorg_core::lock::try_lock(&lock) else {
                 continue;
             };
-            if std::fs::remove_dir_all(&p).is_ok() {
+            let removed = std::fs::remove_dir_all(&p).is_ok();
+            // Released first: Windows does not delete a file that is still open. A reader
+            // that locks it meanwhile finds the folder gone (`hold_build` checks again).
+            drop(held);
+            if removed {
                 let _ = std::fs::remove_file(&lock);
             }
         }
@@ -419,8 +423,9 @@ impl Store {
             };
             if lock.is_file()
                 && !folder.exists()
-                && let Ok(_held) = starorg_core::lock::try_lock(&lock)
+                && let Ok(held) = starorg_core::lock::try_lock(&lock)
             {
+                drop(held);
                 let _ = std::fs::remove_file(&lock);
             }
         }
@@ -654,6 +659,20 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    /// Set a folder's modified time. Windows opens a folder only with write access and
+    /// `FILE_FLAG_BACKUP_SEMANTICS`; a plain `File::open` is refused there (os error 5).
+    fn set_dir_mtime(dir: &Path, t: std::time::SystemTime) {
+        let mut o = std::fs::File::options();
+        #[cfg(windows)]
+        {
+            use std::os::windows::fs::OpenOptionsExt;
+            o.write(true).custom_flags(0x0200_0000);
+        }
+        #[cfg(not(windows))]
+        o.read(true);
+        o.open(dir).unwrap().set_modified(t).unwrap();
+    }
+
     struct Fake(AtomicUsize);
     impl Extractor for Fake {
         fn extract(&self, _p4k: &Path, dataset: &str, out: &Path) -> Result<Measurement, String> {
@@ -851,14 +870,8 @@ mod tests {
         std::fs::create_dir_all(&older).unwrap();
         std::fs::create_dir_all(&old).unwrap();
         let ago = |s| std::time::SystemTime::now() - std::time::Duration::from_secs(s);
-        std::fs::File::open(&older)
-            .unwrap()
-            .set_modified(ago(7200))
-            .unwrap();
-        std::fs::File::open(&old)
-            .unwrap()
-            .set_modified(ago(3600))
-            .unwrap();
+        set_dir_mtime(&older, ago(7200));
+        set_dir_mtime(&old, ago(3600));
         // Both older folders held: none goes.
         let held = [hold_build(&older).unwrap(), hold_build(&old).unwrap()];
         let second = hold_build(&older).expect("readers share the lock");
@@ -908,10 +921,7 @@ mod tests {
         let old = ch.join("4.8.0.1-00000000");
         std::fs::create_dir_all(&old).unwrap();
         let past = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
-        std::fs::File::open(&old)
-            .unwrap()
-            .set_modified(past)
-            .unwrap();
+        set_dir_mtime(&old, past);
         let current = s.build_dir(live);
         std::fs::create_dir_all(&current).unwrap();
         let _held = hold_build(&old).unwrap();
