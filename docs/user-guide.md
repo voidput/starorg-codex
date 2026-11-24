@@ -311,6 +311,62 @@ The index is built once per game build and kept in memory while the app runs, so
 or screens does not rebuild it. The lists carry only each row's summary and tree path; the
 drops load when you pick a row.
 
+## Live telemetry
+
+**Experimental, off by default.** Star Citizen 5.0 can serve its own live data (your health,
+oxygen, ship, fuel, shields, flight mode) to programs on the same computer, over a local
+service on `127.0.0.1`. Live telemetry reads it while you play. It is offered only for a
+channel whose build is 5.0 or newer: PTU today, LIVE by itself once LIVE reaches 5.0. Settings
+lists every channel and why one is not offered (an older version, or no build manifest).
+
+Nothing leaves the computer: the app talks to `127.0.0.1` only, refuses any other address,
+records nothing and sends nothing anywhere ([privacy](privacy.md)).
+
+**Turning it on** (Settings -> Experimental -> Live telemetry):
+
+1. Choose **Metrics** (or **Metrics + actions**) under **Live telemetry** for a 5.0 channel. The app adds one line to that channel's
+   `USER.cfg`, `server.game.telemetry.enabled = 1`, and keeps every other line as it is. If
+   the file already has another value there (`= 0`), it asks before replacing it; your line
+   comes back when you choose **Off**. Choosing Off takes the line out again (unless you changed
+   it since), the same way the language line works. Only one channel carries the lines: picking
+   another **Channel** moves them there and takes them out of the one before.
+2. **Port**: the port the game should use (default 50051, 1024 to 65535).
+3. **Launcher setup**: the game also reads two environment variables from the RSI Launcher,
+   `GRPC_CLIENT_SERVER_ENABLED=1` and `GRPC_CLIENT_SERVER_PORT=<port>`. The app never changes
+   your environment or registry; Settings shows the steps for your system (Windows: `setx`,
+   then quit the launcher from the tray and start it again; Linux: the LUG Helper or Wine
+   script, Lutris, or Steam launch options) with **Copy steps**. Never set
+   `GRPC_CLIENT_SERVER_EXTERNAL`: it opens the game's service, which has no password, to your
+   whole network.
+
+Then **Live telemetry** appears in the sidebar under Game (marked Exp). Opening it starts
+reading; leaving it stops. It shows the connection (Connecting, Connected, Game not running:
+it retries by itself every few seconds), then once you have spawned:
+
+- key readouts (speed, vertical speed, G, master mode, gear),
+- **Pilot**: health, oxygen, heart rate, body temperature, gravity,
+- **Ship**: hull, hydrogen and quantum fuel, boost,
+- **Shields**: the level and each face (labelled F1, F2... while the order is not confirmed
+  for every ship),
+- **Systems** (engines, shield generators, lights, gear, landed, quantum spool, boost) and
+  **Annunciators** (low health, oxygen, hull or fuel, shields off, high G),
+- **Actions** (below) and **Raw frame**: everything the game sent, as JSON, once a second
+  while it is open, with Pause and Copy JSON.
+
+The screen updates at most 10 times a second. The first time a build is read, the app reads
+the layout of the game's service from that channel's `Bin64/StarCitizen.exe` (a few seconds)
+and keeps it in the cache folder (Settings -> Storage, *Live telemetry schemas*); nothing of
+the game is shipped with the app.
+
+**Game actions**: the Live telemetry choice is **Off**, **Metrics** (read only) or **Metrics + actions**. Metrics + actions adds a second line,
+`server.game.telemetry.trigger.actions.enabled = 1`, and lets the Actions panel press inputs
+in the game for you: only the ones the game itself lists as triggerable (lights, landing
+gear, shield power, ping...), with **Hold** for the holdable ones. The first press of each app
+session asks first; self destruct, eject, emergency exit and power off ask every time. The app
+also refuses a second press of the same action within a second. With **Metrics** only, the list is
+shown but every button is disabled, and the second line is taken out of every channel's
+`USER.cfg`.
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,
@@ -335,6 +391,7 @@ Settings -> Storage shows how much the app keeps and where:
 | UEX market data | `~/.cache/starorg-codex/mcp/uex/` | 3 files, replaced on download |
 | Asset exports (Developer mode) | `~/.cache/starorg-codex/assets/` or your folder | 1 GB, least recently used first |
 | Temporary extraction folders | `~/.cache/starorg-codex/work/` | removed after each read; leftovers older than an hour at the next start |
+| Live telemetry schemas (experimental) | `~/.cache/starorg-codex/telemetry/` | the last 3 game builds, a few hundred KB each |
 | Backups | `~/.local/share/starorg-codex/channels/<install>/<CHANNEL>/backups/` | see [Backups](#backups-and-restore) |
 
 **The cache folder's cap** (1 GB by default; `[storage] cache_max_mb` in `config.toml`):
@@ -376,6 +433,8 @@ once with **Measure again**.
   ([below](#storage)); **Clear asset cache** (refused while an export runs).
 - **Local MCP server** (experimental, off): read-only game data tools for Claude Code or Claude
   Desktop ([mcp](mcp.md)).
+- **Live telemetry** (experimental, off): your vitals, ship and shields while you play, from the
+  game's own local service, for 5.0 builds ([below](#live-telemetry)).
 - **Diagnostics** (Activity): a report with user names and home paths replaced, for bug reports.
 
 ## Developer mode

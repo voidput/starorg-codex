@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 tags: [docs]
-updated: 2026-11-22
+updated: 2026-11-23
 ---
 
 # Privacy policy
@@ -23,8 +23,8 @@ no crash upload and no account of its own.**
 - None of this leaves your computer. Removing the app's folders and using **Remove** in the app
   deletes everything it made. Settings -> Storage lists what is kept where and how much: the
   extracted game data cache, WHERE TO GET datasets, UEX market data, asset exports, temporary
-  extraction folders and `global.ini` backups (gzip-compressed; 5 per channel plus the newest of
-  each of the last 3 game builds). The cache folder is capped (1 GB by default).
+  extraction folders, live telemetry schemas (experimental, below) and `global.ini` backups
+  (gzip-compressed; 5 per channel plus the newest of each of the last 3 game builds). The cache folder is capped (1 GB by default).
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
   folder with placeholders.
 - Developer mode (Settings -> Advanced, off by default) only reads: `Data.p4k` (read only, as
@@ -111,6 +111,31 @@ assistant on your computer ask read-only questions about your game data ([detail
 - It writes only its cache in the app's cache folder. Shop and commodity prices are used only
   if the UEX files are there: downloaded by the app's **Fetch now** (above), or put there by you. The MCP
   server never downloads them.
+
+## Live telemetry (experimental, off by default)
+
+Settings -> Experimental -> Live telemetry reads Star Citizen's own live data (vitals, ship,
+fuel, shields) from the game's local service while you play, for 5.0 builds and newer
+([details](user-guide.md#live-telemetry)). The app still collects nothing.
+
+- It talks only to `127.0.0.1` on this computer (any other address is refused) and only while
+  the switch is on and the Live telemetry screen is open. It makes no network request.
+- Frames are shown and then dropped: nothing is recorded, logged or sent anywhere. Activity
+  notes only the switch changes (on or off, the port, whether game actions are allowed), each
+  start and stop, which cached schema a start used or why there was none (that reason can name
+  the path of the game's exe), and the name and result of each game action pressed.
+- Turning it on writes one line to the chosen channel's `USER.cfg`
+  (`server.game.telemetry.enabled = 1`; a second one only with "Metrics + actions" chosen) and
+  saves the switches in `config.toml`. Only that one channel carries the lines: picking another
+  channel, or going back to "Metrics", takes them out of the others. Turning it off
+  takes them out everywhere. The app never sets the launcher's environment variables; it shows
+  you how.
+- To read the stream it reads the layout of the game's service from that channel's own
+  `Bin64/StarCitizen.exe` and keeps it in the app's cache folder (Settings -> Storage, the last
+  3 builds). No game file is shipped with the app.
+- "Metrics + actions" (a separate choice, not the default) lets the app press game inputs the game lists
+  as triggerable, only when you press a button. The first press of each app session asks
+  first, and the dangerous actions (self destruct, eject, power off...) ask every time.
 
 ## Things outside the app
 

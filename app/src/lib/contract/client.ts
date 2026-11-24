@@ -9,10 +9,14 @@
 import type * as T from './types';
 import type { DevCommandMap } from './dev';
 import type { AssetCommandMap } from './assets';
+import type { TelemetryCommandMap, TelemetryEvent } from './telemetry';
 import { CONTRACT_VERSION, JOB_EVENT } from './types';
 
+/** Event name of live telemetry (telemetry.ts has it too; kept here so the transport needs no runtime import of it). */
+const TELEMETRY_EVENT = 'telemetry';
+
 /** Command name -> [arguments object, result]. Argument names match the Rust parameters. */
-export interface CommandMap extends DevCommandMap, AssetCommandMap {
+export interface CommandMap extends DevCommandMap, AssetCommandMap, TelemetryCommandMap {
   overview: [Record<string, never>, T.Overview];
   discover_installs: [{ deep: boolean }, T.InstallSummary[]];
   pick_install_folder: [Record<string, never>, T.InstallSummary | null];
@@ -251,6 +255,12 @@ export const COMMANDS = [
   'storage_status',
   'storage_measure',
   'storage_clear_assets',
+  'telemetry_status',
+  'telemetry_configure',
+  'telemetry_start',
+  'telemetry_stop',
+  'telemetry_actions',
+  'telemetry_trigger',
 ] as const satisfies readonly Command[];
 
 // Compile-time: COMMANDS covers every key of CommandMap.
@@ -263,6 +273,8 @@ export interface Transport {
   call<K extends Command>(cmd: K, args: Args<K>): Promise<Result<K>>;
   /** Subscribe to job progress; returns the unsubscribe function. */
   onJob(cb: (p: T.JobProgress) => void): Promise<() => void>;
+  /** Subscribe to live telemetry events (status changes and frames); returns the unsubscribe function. */
+  onTelemetry(cb: (e: TelemetryEvent) => void): Promise<() => void>;
 }
 
 /** Thrown by `call` for every failure, so the UI can switch on `code`. */
@@ -300,6 +312,9 @@ async function tauriTransport(): Promise<Transport> {
     },
     async onJob(cb) {
       return listen<T.JobProgress>(JOB_EVENT, (ev) => cb(ev.payload));
+    },
+    async onTelemetry(cb) {
+      return listen<TelemetryEvent>(TELEMETRY_EVENT, (ev) => cb(ev.payload));
     },
   };
 }
@@ -459,4 +474,6 @@ export const api = {
   /** "Clear asset cache"; `busy` while an asset job runs. */
   storageClearAssets: () => call('storage_clear_assets', none),
   onJob: async (cb: (p: T.JobProgress) => void) => (await getTransport()).onJob(cb),
+  /** Live telemetry events of the running stream (Settings > Experimental). */
+  onTelemetry: async (cb: (e: TelemetryEvent) => void) => (await getTransport()).onTelemetry(cb),
 };

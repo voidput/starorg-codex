@@ -1555,6 +1555,7 @@ export type ExternalLink = 'support' | 'donate' | 'patreon' | 'uex';
 // Developer mode (addendum 7): dev.ts ---------------------------------------------------
 export type * from './dev';
 export type * from './assets';
+export type * from './telemetry';
 // Experimental: local MCP server (docs/mcp.md) --------------------------------------------
 
 /** One HTTP request the local MCP server answered. */
@@ -1622,7 +1623,7 @@ export interface MemoryLimitRequest {
   gb: number | null;
 }
 
-export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'backups';
+export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'telemetry' | 'backups';
 
 export interface StorageArea {
   id: StorageAreaId;

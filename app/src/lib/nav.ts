@@ -1,10 +1,11 @@
 /**
  * Sidebar layout (spec 9.3, addendum §6.6, §7.8): Home · Customize (Enhancements, Strings, Patches,
- * Blueprints, Ships) · Game (Shops, Commodities, Loot) · Dev (Explorer, Datasets, Diff, Files; only with
- * Settings > Advanced > Developer mode on) · App (Backups, Activity, Settings). With Developer mode on, Alt+9 opens the
- * Explorer and Settings moves to Alt+0 (Q-D6: Datasets and Diff through Ctrl+K).
+ * Blueprints, Ships) · Game (Shops, Commodities, Loot, and Live telemetry while Settings > Experimental >
+ * Live telemetry is on) · Dev (Explorer, Datasets, Diff, Files; only with Settings > Advanced > Developer
+ * mode on) · App (Backups, Activity, Settings). With Developer mode on, Alt+9 opens the Explorer and
+ * Settings moves to Alt+0 (Q-D6: Datasets and Diff through Ctrl+K).
  */
-export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'shops' | 'commodities' | 'loot' | 'backups' | 'activity' | 'settings' | DevScreenId;
+export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'shops' | 'commodities' | 'loot' | 'telemetry' | 'backups' | 'activity' | 'settings' | DevScreenId;
 export type DevScreenId = 'explorer' | 'datasets' | 'diff' | 'files';
 
 export interface NavItem {
@@ -13,6 +14,8 @@ export interface NavItem {
   description: string;
   /** Keyboard shortcut digit (Alt+n); empty = palette only. */
   key: string;
+  /** Shown next to the label (an experimental screen). */
+  badge?: string;
 }
 
 export interface NavGroup {
@@ -52,6 +55,10 @@ export const NAV: NavGroup[] = [
 
 export const NAV_ITEMS = NAV.flatMap((g) => g.items);
 
+/** Live telemetry (experimental): in the Game group, only while the feature is on. */
+export const TELEMETRY_ITEM: NavItem = { id: 'telemetry', label: 'Live telemetry', description: "The game's own live data on this computer: vitals, ship, shields, game actions", key: '', badge: 'Experimental' };
+export const isTelemetryScreen = (s: ScreenId): boolean => s === 'telemetry';
+
 export const DEV_GROUP: NavGroup = {
   label: 'Dev',
   items: [
@@ -65,15 +72,19 @@ export const DEV_GROUP: NavGroup = {
 export const DEV_SCREENS: readonly DevScreenId[] = ['explorer', 'datasets', 'diff', 'files'];
 export const isDevScreen = (s: ScreenId): s is DevScreenId => (DEV_SCREENS as readonly string[]).includes(s);
 
-/** The sidebar groups: the Dev group after Game when Developer mode is on; Settings then moves to Alt+0. */
-export function navGroups(dev: boolean): NavGroup[] {
-  if (!dev) return NAV;
-  const app = NAV[NAV.length - 1]!;
-  return [...NAV.slice(0, -1), DEV_GROUP, { ...app, items: app.items.map((i) => (i.id === 'settings' ? { ...i, key: '0' } : i)) }];
+/**
+ * The sidebar groups: Live telemetry at the end of Game when `telemetry` is on; the Dev group after
+ * Game when Developer mode is on, and Settings then moves to Alt+0.
+ */
+export function navGroups(dev: boolean, telemetry = false): NavGroup[] {
+  const base = telemetry ? NAV.map((g) => (g.label === 'Game' ? { ...g, items: [...g.items, TELEMETRY_ITEM] } : g)) : NAV;
+  if (!dev) return base;
+  const app = base[base.length - 1]!;
+  return [...base.slice(0, -1), DEV_GROUP, { ...app, items: app.items.map((i) => (i.id === 'settings' ? { ...i, key: '0' } : i)) }];
 }
 
-export const navItems = (dev: boolean): NavItem[] => navGroups(dev).flatMap((g) => g.items);
+export const navItems = (dev: boolean, telemetry = false): NavItem[] => navGroups(dev, telemetry).flatMap((g) => g.items);
 
-export const findNav = (id: ScreenId): NavItem => navItems(true).find((i) => i.id === id) ?? NAV_ITEMS[0]!;
+export const findNav = (id: ScreenId): NavItem => navItems(true, true).find((i) => i.id === id) ?? NAV_ITEMS[0]!;
 
-export const isScreen = (s: string | null): s is ScreenId => navItems(true).some((n) => n.id === s);
+export const isScreen = (s: string | null): s is ScreenId => navItems(true, true).some((n) => n.id === s);

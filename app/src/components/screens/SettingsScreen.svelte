@@ -2,7 +2,7 @@
   /**
    * Settings (spec 9.4): Game, Appearance, Network (all off by default, spec 11), StarOrg Tools,
    * Launch hooks (Linux), Diagnostics, Storage, Advanced (Developer mode, addendum 7.8), Experimental
-   * (local MCP server), Command line. A section index on top jumps by anchor.
+   * (local MCP server, live telemetry), Command line. A section index on top jumps by anchor.
    */
   import Wand from '@lucide/svelte/icons/wand-sparkles';
   import * as Card from '@/components/ui/card';

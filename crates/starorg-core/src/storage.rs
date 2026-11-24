@@ -10,6 +10,7 @@
 //! | UEX market data | `<cache>/mcp/uex/` | 3 files, replaced on fetch |
 //! | Asset exports | the asset cache root ([`crate::assetcache`]) | 1 GiB, LRU |
 //! | Temporary | `<cache>/work/starorg-extract-*` | removed after each load; leftovers after 1 h |
+//! | Live telemetry schemas | `<cache>/telemetry/<key>.fds` ([`telemetry_dir`]) | 3 builds (`starorg_telemetry::schema::KEEP_KEYS`) |
 //! | Backups | `<data>/channels/<install>/<CHANNEL>/backups/`, `<data>/hooks/backups/` | [`crate::backup::KEEP_NEWEST`] + builds |
 //!
 //! **One cap for the cache folder** ([`DEFAULT_CAP`], 1 GiB; `[storage] cache_max_mb` in
@@ -23,8 +24,8 @@
 //!
 //! Never removed: a channel's newest game-data entry, anything written or used in the last
 //! [`crate::assetcache::IN_USE`] or named by the caller as in use, UEX files, `work/` (see
-//! [`crate::source::local::sweep_work`]), `dumps/`, backups and everything outside the cache
-//! folder. The cap can therefore stay exceeded when what is left is all in use.
+//! [`crate::source::local::sweep_work`]), `dumps/`, the live telemetry schemas (a few hundred
+//! KB, pruned to 3 builds by their writer), backups and everything outside the cache folder. The cap can therefore stay exceeded when what is left is all in use.
 
 use crate::appdirs::AppDirs;
 use crate::assetcache::{AssetCache, IN_USE, Usage};
@@ -45,16 +46,20 @@ pub enum Area {
     Uex,
     AssetExports,
     Temporary,
+    /// Live telemetry (experimental): the game's service schema per build, read from the
+    /// user's own `StarCitizen.exe` ([`telemetry_dir`]).
+    Telemetry,
     Backups,
 }
 
 impl Area {
-    pub const ALL: [Area; 6] = [
+    pub const ALL: [Area; 7] = [
         Area::GameData,
         Area::WhereToGet,
         Area::Uex,
         Area::AssetExports,
         Area::Temporary,
+        Area::Telemetry,
         Area::Backups,
     ];
 }
@@ -65,6 +70,13 @@ const UEX: &str = "uex";
 const WORK: &str = "work";
 const ASSETS: &str = "assets";
 const DUMPS: &str = "dumps";
+const TELEMETRY: &str = "telemetry";
+
+/// Where live telemetry keeps the schema it read from each build's `StarCitizen.exe`
+/// (`<cache>/telemetry/`), so the cache folder's size and Settings > Storage count it.
+pub fn telemetry_dir(dirs: &AppDirs) -> PathBuf {
+    dirs.cache.join(TELEMETRY)
+}
 
 /// `[storage] cache_max_mb`, else [`DEFAULT_CAP`].
 pub fn configured_cap(cfg: &Config) -> u64 {
@@ -224,6 +236,7 @@ pub fn report(dirs: &AppDirs, assets: &AssetCache) -> Report {
     let mut wtg = Usage::default();
     let mut uex = Usage::default();
     let mut temp = Usage::default();
+    let mut tele = Usage::default();
     let mut other = Usage::default();
     for (name, p) in entries(&dirs.cache) {
         match name.as_str() {
@@ -237,11 +250,12 @@ pub fn report(dirs: &AppDirs, assets: &AssetCache) -> Report {
                 }
             }
             WORK => temp = add(temp, usage(&p)),
+            TELEMETRY => tele = add(tele, usage(&p)),
             ASSETS => other = add(other, usage(&p)),
             _ => game = add(game, usage(&p)),
         }
     }
-    let cache = [game, wtg, uex, temp, other]
+    let cache = [game, wtg, uex, temp, tele, other]
         .into_iter()
         .fold(Usage::default(), add);
     let mcp = dirs.cache.join(MCP);
@@ -270,6 +284,11 @@ pub fn report(dirs: &AppDirs, assets: &AssetCache) -> Report {
             area: Area::Temporary,
             path: dirs.cache.join(WORK),
             usage: temp,
+        },
+        AreaUsage {
+            area: Area::Telemetry,
+            path: telemetry_dir(dirs),
+            usage: tele,
         },
         AreaUsage {
             area: Area::Backups,
@@ -351,7 +370,7 @@ fn enforce_at(cache: &Path, cap: u64, in_use: &[PathBuf], now: SystemTime) -> En
     // 2 and 3. Build folders.
     let mut cands: Vec<Candidate> = Vec::new();
     for (name, p) in entries(cache) {
-        if !real_dir(&p) || [ASSETS, WORK, DUMPS].contains(&name.as_str()) {
+        if !real_dir(&p) || [ASSETS, WORK, DUMPS, TELEMETRY].contains(&name.as_str()) {
             continue;
         }
         if name == MCP {
@@ -427,6 +446,7 @@ mod tests {
             999,
         );
         put(&dirs.data.join("hooks/backups/a.sh"), 2);
+        put(&telemetry_dir(&dirs).join("sc-alpha-5.0.0-ptu-1.fds"), 9);
         let assets = AssetCache::new(crate::assetcache::default_dir(&dirs), 1 << 20);
         let b = "0000000000000000000000b1";
         assets
@@ -441,6 +461,7 @@ mod tests {
         assert_eq!(r.area(Area::WhereToGet).bytes, 30);
         assert_eq!(r.area(Area::Uex).bytes, 7);
         assert_eq!(r.area(Area::Temporary).bytes, 11);
+        assert_eq!(r.area(Area::Telemetry).bytes, 9, "not game data");
         assert_eq!(
             r.area(Area::AssetExports),
             Usage {
@@ -456,7 +477,7 @@ mod tests {
         // The cache folder holds the asset cache's marker file too.
         let marker = crate::assetcache::MARKER;
         let m = std::fs::metadata(assets.root().join(marker)).unwrap().len();
-        assert_eq!(r.cache.bytes, 105 + 30 + 7 + 11 + 50 + m);
+        assert_eq!(r.cache.bytes, 105 + 30 + 7 + 11 + 9 + 50 + m);
         assert_eq!(r.total(true).bytes, r.cache.bytes + 42);
         assert_eq!(r.total(false).bytes, r.cache.bytes + 42 + 50);
     }

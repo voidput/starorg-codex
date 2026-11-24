@@ -1,0 +1,35 @@
+[package]
+name = "starorg-telemetry"
+description = "Experimental live telemetry: Star Citizen's own local gRPC service on loopback (opt-in, 5.0+ builds)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+publish.workspace = true
+
+[dependencies]
+starorg-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+memchr.workspace = true
+sha2.workspace = true
+# Runtime descriptors: the schema is read from the user's own StarCitizen.exe, never
+# compiled in, so messages are dynamic (prost-reflect) and there is no build script.
+prost-reflect = "0.16"
+# gRPC client only: plaintext HTTP/2 to loopback, no TLS stack, no server, no codegen.
+tonic = { version = "0.14", default-features = false, features = ["channel"] }
+http = "1"
+tokio = { version = "1", default-features = false, features = ["rt", "sync", "time", "macros"] }
+
+[dev-dependencies]
+tempfile.workspace = true
+# The in-process test server (synthetic schema): tonic's server half and a TCP listener.
+tonic = { version = "0.14", default-features = false, features = ["channel", "server", "codegen"] }
+tokio = { version = "1", default-features = false, features = ["rt-multi-thread", "net", "macros", "time", "sync"] }
+tokio-stream = { version = "0.1", default-features = false, features = ["net"] }
+
+[lints]
+workspace = true

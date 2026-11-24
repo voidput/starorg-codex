@@ -10,6 +10,7 @@
   import { navItems, type ScreenId } from '@/lib/nav';
   import { app } from '@/lib/stores/app.svelte';
   import { dev } from '@/lib/stores/dev.svelte';
+  import { telemetry } from '@/lib/stores/telemetry.svelte';
   import { isGuidLike } from '@/lib/devnav';
   import { cn } from '@/lib/utils';
 
@@ -35,7 +36,7 @@
       : [];
   });
   const cmds = $derived<Cmd[]>([
-    ...navItems(devOn).map((n) => ({ id: `go-${n.id}`, label: `Go to ${n.label}`, hint: n.key ? `Alt+${n.key}` : 'Developer', run: () => go(n.id) })),
+    ...navItems(devOn, telemetry.enabled).map((n) => ({ id: `go-${n.id}`, label: `Go to ${n.label}`, hint: n.key ? `Alt+${n.key}` : (n.badge ?? 'Developer'), run: () => go(n.id) })),
     ...app.channels.map((c) => ({ id: `ch-${c.channel}`, label: `Switch to ${c.channel}`, hint: 'Channel', run: () => app.selectChannel(c.channel) })),
     ...(app.channel?.set_up && !app.blocked ? [{ id: 'apply', label: `Apply to ${app.channel.channel}`, hint: 'Action', run: () => app.requestApply() }] : []),
     { id: 'setup', label: 'Run setup again', hint: 'Action', run: () => (app.wizard = true) },

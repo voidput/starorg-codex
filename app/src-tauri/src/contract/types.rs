@@ -2406,6 +2406,9 @@ pub enum StorageAreaId {
     AssetExports,
     /// Extraction temp folders (`<cache>/work/`).
     Temporary,
+    /// Live telemetry (experimental): the schema read from each build's `StarCitizen.exe`
+    /// (`<cache>/telemetry/`).
+    Telemetry,
     /// `global.ini` backups (app data folder; not in the cache, not under its cap).
     Backups,
 }
@@ -2433,7 +2436,8 @@ pub struct StorageStatus {
     pub cap_bytes: u64,
     /// Cache folder + backups (+ the asset cache when it is in a folder of its own).
     pub total_bytes: u64,
-    /// In a fixed order: game data, WHERE TO GET, UEX, asset exports, temporary, backups.
+    /// In a fixed order: game data, WHERE TO GET, UEX, asset exports, temporary, live
+    /// telemetry schemas, backups.
     pub areas: Vec<StorageArea>,
     /// The asset cache's own cap.
     pub asset_cap_bytes: u64,
@@ -2465,6 +2469,7 @@ impl StorageStatus {
                     Area::Uex => (StorageAreaId::Uex, "UEX market data"),
                     Area::AssetExports => (StorageAreaId::AssetExports, "Asset exports"),
                     Area::Temporary => (StorageAreaId::Temporary, "Temporary extraction folders"),
+                    Area::Telemetry => (StorageAreaId::Telemetry, "Live telemetry schemas"),
                     Area::Backups => (StorageAreaId::Backups, "global.ini backups"),
                 };
                 StorageArea {
