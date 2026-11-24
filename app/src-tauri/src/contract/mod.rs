@@ -549,6 +549,8 @@ macro_rules! contract_handler {
             $crate::contract::telemetry::telemetry_alert_test,
             $crate::contract::telemetry::telemetry_gamelog,
             $crate::contract::telemetry::telemetry_people_clear,
+            $crate::contract::telemetry::telemetry_sessions,
+            $crate::contract::telemetry::telemetry_sessions_clear,
         ]
     };
 }
@@ -715,6 +717,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "telemetry_alert_test",
     "telemetry_gamelog",
     "telemetry_people_clear",
+    "telemetry_sessions",
+    "telemetry_sessions_clear",
 ];
 
 #[cfg(test)]

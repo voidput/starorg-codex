@@ -3259,6 +3259,15 @@ impl MockBackend {
                 },
             },
         );
+        let (bytes, files) = self.telemetry.sessions_usage();
+        areas.insert(
+            areas.len() - 1,
+            AreaUsage {
+                area: Area::TelemetrySessions,
+                path: super::mock_telemetry::SESSIONS_DIR.into(),
+                usage: Usage { bytes, files },
+            },
+        );
         areas.insert(
             3,
             AreaUsage {
@@ -3275,16 +3284,20 @@ impl MockBackend {
         let in_cache: u64 = areas
             .iter()
             .filter(|a| {
-                !matches!(a.area, Area::Backups | Area::TelemetryRecordings)
-                    && (a.area != Area::AssetExports || !custom)
+                !matches!(
+                    a.area,
+                    Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions
+                ) && (a.area != Area::AssetExports || !custom)
             })
             .map(|a| a.usage.bytes)
             .sum();
         let files: u64 = areas
             .iter()
             .filter(|a| {
-                !matches!(a.area, Area::Backups | Area::TelemetryRecordings)
-                    && (a.area != Area::AssetExports || !custom)
+                !matches!(
+                    a.area,
+                    Area::Backups | Area::TelemetryRecordings | Area::TelemetrySessions
+                ) && (a.area != Area::AssetExports || !custom)
             })
             .map(|a| a.usage.files)
             .sum();

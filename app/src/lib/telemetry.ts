@@ -7,7 +7,7 @@
  * Frames come at most 10 a second. Everything here is a cheap pure function over one frame,
  * so a panel re-renders only the numbers that changed.
  */
-import type { GameLogEvent, GameLogEventKind, GameLogPerson, GameLogView, LinkStatus, PersonRelation, TelemetryHistory, TelemetryJson, TelemetryRecording, TelemetrySeriesKey, TelemetrySnapshot, TelemetryShip, TriggerableAction } from './contract/telemetry';
+import type { GameLogEvent, GameLogEventKind, GameLogPerson, GameLogView, LeftReason, LinkStatus, PersonRelation, TelemetryHistory, TelemetryJson, TelemetryRecording, TelemetrySeriesKey, TelemetrySnapshot, TelemetryShip, TelemetryStint, TriggerableAction } from './contract/telemetry';
 import type { StatusTone } from './format';
 
 type Obj = { [k: string]: TelemetryJson };
@@ -500,4 +500,69 @@ export function whereText(v: GameLogView): string {
   if (s.zone) parts.push(s.zone.text);
   else if (s.armistice) parts.push('Armistice zone');
   return parts.length ? parts.join(' · ') : 'Not known yet';
+}
+
+// ---- Sessions: the server and shard join history (the Sessions panel) ---------------------
+
+export const LEFT_REASON: Record<LeftReason, { label: string; tone: StatusTone; hint: string }> = {
+  leave: { label: 'Left', tone: 'muted', hint: 'Back at the main menu, or joined another shard' },
+  shard_change: { label: 'Shard change', tone: 'info', hint: 'The game moved you to another shard' },
+  disconnect: { label: 'Quit', tone: 'muted', hint: 'You disconnected (quit, exit to menu)' },
+  dropped: { label: 'Dropped', tone: 'destructive', hint: 'The connection dropped (kicked, timed out, server gone)' },
+  log_end: { label: 'Log ended', tone: 'muted', hint: 'The game closed (or the log ended) while on the shard' },
+};
+
+/** 3725 as `1h 02m`, 754 as `12m 34s`, 45 as `45s`; `—` without one. */
+export function durationText(s: number | null | undefined): string {
+  if (s === null || s === undefined || !Number.isFinite(s) || s < 0) return '—';
+  const n = Math.floor(s);
+  const h = Math.floor(n / 3600);
+  const m = Math.floor((n % 3600) / 60);
+  const p = (x: number) => String(x).padStart(2, '0');
+  return h > 0 ? `${h}h ${p(m)}m` : m > 0 ? `${m}m ${p(n % 60)}s` : `${n % 60}s`;
+}
+
+/** A row's region name for the filter (`Unknown` without one). */
+export function regionOf(s: Pick<TelemetryStint, 'region' | 'region_code'>): string {
+  return s.region ?? s.region_code?.toUpperCase() ?? 'Unknown';
+}
+
+export interface SessionRow {
+  stint: TelemetryStint;
+  key: string;
+  /** The stint before it on the same channel was on this shard too. */
+  sameShard: boolean;
+}
+
+/**
+ * The panel's rows: `items` newest first, filtered by channel and region (`all` for any). The
+ * same-shard marker compares with the previous stint of the same channel in the whole list,
+ * so a filter does not change it.
+ */
+export function sessionRows(items: readonly TelemetryStint[] | null | undefined, channel = 'all', region = 'all'): SessionRow[] {
+  if (!Array.isArray(items)) return [];
+  // Oldest to newest: the last shard seen per channel.
+  const last = new Map<string, string>();
+  const same: boolean[] = new Array<boolean>(items.length).fill(false);
+  for (let i = items.length - 1; i >= 0; i--) {
+    const s = items[i]!;
+    const ch = s.channel ?? '?';
+    same[i] = last.get(ch) === s.shard;
+    last.set(ch, s.shard);
+  }
+  const rows: SessionRow[] = items.map((s, i) => ({ stint: s, key: `${s.log_started ?? ''}|${s.joined_ms}|${s.shard}`, sameShard: same[i]! }));
+  return rows.filter((r) => (channel === 'all' || (r.stint.channel ?? '?') === channel) && (region === 'all' || regionOf(r.stint) === region));
+}
+
+/** The channels and regions present, for the filters (sorted). */
+export function sessionFilters(items: readonly TelemetryStint[] | null | undefined): { channels: string[]; regions: string[] } {
+  if (!Array.isArray(items)) return { channels: [], regions: [] };
+  const channels = [...new Set(items.map((s) => s.channel ?? '?'))].sort();
+  const regions = [...new Set(items.map(regionOf))].sort();
+  return { channels, regions };
+}
+
+/** `Mon 23 Nov, 14:03` (local time, or `tz`). */
+export function whenText(ms: number, tz?: string): string {
+  return new Date(ms).toLocaleString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz });
 }

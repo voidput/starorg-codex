@@ -21,6 +21,7 @@ pub mod mock;
 pub mod people;
 pub mod session;
 pub mod signals;
+pub mod stints;
 pub mod tail;
 
 #[cfg(test)]
@@ -32,6 +33,7 @@ use std::collections::VecDeque;
 pub use people::PeopleView;
 pub use session::SessionView;
 pub use signals::SignalsView;
+pub use stints::{LeftReason, Stint};
 
 /// Events kept (oldest dropped first).
 pub const EVENTS_CAP: usize = 200;
@@ -98,6 +100,11 @@ pub struct GameLogView {
     pub events: Vec<LogEvent>,
     /// `None` while the People switch is off (no handle is even kept then).
     pub people: Option<PeopleView>,
+    /// The shard stint you are on now ([`stints`]); `None` off a shard.
+    pub stint: Option<Stint>,
+    /// The join history's revision (the host's [`stints::Store`]): when it moves, the
+    /// Sessions panel reads the list again. 0 from [`GameLog::view`].
+    pub sessions_rev: u64,
 }
 
 /// An event before it gets its number.
@@ -109,6 +116,7 @@ pub struct GameLog {
     session: session::SessionState,
     signals: signals::SignalsState,
     people: Option<people::PeopleState>,
+    stints: stints::Tracker,
     events: VecDeque<LogEvent>,
     seq: u64,
     version: u64,
@@ -127,6 +135,7 @@ impl GameLog {
             session: session::SessionState::default(),
             signals: signals::SignalsState::default(),
             people: people.then(people::PeopleState::default),
+            stints: stints::Tracker::default(),
             events: VecDeque::new(),
             seq: 0,
             version: 0,
@@ -142,6 +151,8 @@ impl GameLog {
 
     /// A new Game.log (rotation, truncation, file gone): everything starts over.
     pub fn reset(&mut self) {
+        // The old file ended: a stint still open on it ends with it.
+        self.stints.end_log();
         self.session = session::SessionState::default();
         self.signals = signals::SignalsState::default();
         if let Some(p) = &mut self.people {
@@ -224,7 +235,9 @@ impl GameLog {
         if t.is_some() && t != self.last_t {
             self.last_t = t;
         }
+        self.stints.saw(t);
         if let Some(evs) = self.session.apply(body, t) {
+            self.stints.observe(&evs, &self.session, t);
             let started = evs.iter().any(|e| e.0 == EventKind::LogStarted);
             if started {
                 // A new launch: identity, people and signals of the old one are history.
@@ -266,6 +279,11 @@ impl GameLog {
         self.push(evs);
     }
 
+    /// Shard stints that ended since the last call (for the join history), oldest first.
+    pub fn drain_stints(&mut self) -> Vec<Stint> {
+        self.stints.drain()
+    }
+
     pub fn view(&self, source: &str, found: bool, rotations: u32) -> GameLogView {
         GameLogView {
             source: source.into(),
@@ -276,6 +294,8 @@ impl GameLog {
             signals: self.signals.view(self.last_t),
             events: self.events.iter().cloned().collect(),
             people: self.people.as_ref().map(people::PeopleState::view),
+            stint: self.stints.current().cloned(),
+            sessions_rev: 0,
         }
     }
 }

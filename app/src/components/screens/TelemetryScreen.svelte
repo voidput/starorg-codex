@@ -2,9 +2,15 @@
   /**
    * Live telemetry (experimental; docs/user-guide.md#live-telemetry): the game's own live data,
    * read from its local service on 127.0.0.1 while this screen is open. Panels after
-   * sc-telemetry's dashboard (same owner, MIT) in this app's style: connection, pilot vitals,
-   * ship, shields, systems and annunciators, history graphs, alerts, actions, raw frame, recordings;
-   * and, each behind its own switch (off by default), Game.log events, sessions and people.
+   * sc-telemetry's dashboard (same owner, MIT) in this app's style, top to bottom:
+   * - the connection bar (or the replay bar), the key readouts, pilot, ship, shields, systems;
+   * - Alerts and Actions, then the History graphs;
+   * - Game.log: Events and People, then Sessions (the shard join history); with "Read Game.log
+   *   events" off, one card says so with a link to Settings (Sessions stays while it has rows);
+   * - Recordings and the raw frame.
+   * Every panel below the live readouts folds to its title (CollapsibleCard, remembered). Each
+   * of alerts, actions, recordings and Game.log is its own switch, off by default; an off panel
+   * says how to turn it on.
    *
    * Replay: a recording plays into the same panels in place of the game (a "Replay" badge and
    * its controls replace the connection and Start/Stop); "Back to live" reads the game again.
@@ -13,20 +19,23 @@
    * 10 a second into one raw state; each panel reads only its values from it, so nothing heavier
    * than a few text nodes changes per frame. With the mock backend the frames are synthetic.
    */
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, onMount, untrack } from 'svelte';
   import Gauge from '@lucide/svelte/icons/gauge';
   import Play from '@lucide/svelte/icons/play';
+  import ScrollText from '@lucide/svelte/icons/scroll-text';
   import Square from '@lucide/svelte/icons/square';
   import * as Card from '@/components/ui/card';
   import { Button } from '@/components/ui/button';
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import SelectField from '@/components/common/SelectField.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
+  import CollapsibleCard from '@/components/common/CollapsibleCard.svelte';
   import ActionsPanel from '@/components/telemetry/ActionsPanel.svelte';
-  import HistoryPanel from '@/components/telemetry/HistoryPanel.svelte';
   import AlertsPanel from '@/components/telemetry/AlertsPanel.svelte';
   import EventsPanel from '@/components/telemetry/EventsPanel.svelte';
+  import HistoryPanel from '@/components/telemetry/HistoryPanel.svelte';
   import PeoplePanel from '@/components/telemetry/PeoplePanel.svelte';
+  import SessionsPanel from '@/components/telemetry/SessionsPanel.svelte';
   import RawFramePanel from '@/components/telemetry/RawFramePanel.svelte';
   import RecordingsPanel from '@/components/telemetry/RecordingsPanel.svelte';
   import ReplayBar from '@/components/telemetry/ReplayBar.svelte';
@@ -46,6 +55,11 @@
   const replay = $derived(telemetry.replay ?? st?.replay ?? null);
 
   const enabled = $derived(!!st?.settings.enabled);
+  const gamelogOn = $derived(enabled && !!st?.settings.gamelog);
+  /** Rows of the join history kept from earlier (its panel shows with Game.log off too). */
+  const savedSessions = $derived(Array.isArray(telemetry.sessions?.items) ? telemetry.sessions.items.length : 0);
+  onMount(() => void telemetry.loadSessions());
+  const openSettings = () => ((app.settingsSection = 'experimental'), app.go('settings'));
 
   // Start for the chosen channel when the screen opens or the channel changes; keyed on
   // primitives only, so a Stop (a new status) does not start it again.
@@ -104,7 +118,7 @@
 {#if !st?.settings.enabled}
   <FullEmpty icon={Gauge} title="Live telemetry is off">
     Turn it on under Settings → Experimental. It reads the game's own local service on this computer, for 5.0 builds and newer.
-    {#snippet actions()}<Button onclick={() => ((app.settingsSection = 'experimental'), app.go('settings'))}>Open Settings</Button>{/snippet}
+    {#snippet actions()}<Button onclick={openSettings}>Open Settings</Button>{/snippet}
   </FullEmpty>
 {:else if offered.length === 0}
   <FullEmpty icon={Gauge} title="No 5.0 channel">None of your channels runs game version 5.0 or newer yet. Live telemetry is offered for those only.</FullEmpty>
@@ -235,19 +249,34 @@
       </div>
     {/if}
 
-    <AlertsPanel />
+    <div class="grid gap-3 lg:grid-cols-2">
+      <CollapsibleCard key="telemetry.alerts" bare><AlertsPanel /></CollapsibleCard>
+      <CollapsibleCard key="telemetry.actions" bare><ActionsPanel raw={frame?.raw ?? null} connected={!replay && telemetry.link.state === 'connected'} /></CollapsibleCard>
+    </div>
+    <CollapsibleCard key="telemetry.history" bare><HistoryPanel /></CollapsibleCard>
 
-    {#if st.settings.gamelog}
+    {#if gamelogOn}
       <div class={cn('grid gap-3', st.settings.people && 'lg:grid-cols-[3fr_2fr]')}>
-        <EventsPanel view={telemetry.gamelog} />
-        {#if st.settings.people}<PeoplePanel people={telemetry.gamelog?.people ?? null} onclear={() => void telemetry.clearPeople()} />{/if}
+        <CollapsibleCard key="telemetry.events" bare><EventsPanel view={telemetry.gamelog} /></CollapsibleCard>
+        {#if st.settings.people}<CollapsibleCard key="telemetry.people" bare><PeoplePanel people={telemetry.gamelog?.people ?? null} onclear={() => void telemetry.clearPeople()} /></CollapsibleCard>{/if}
       </div>
+    {:else}
+      <Card.Root aria-labelledby="tele-gamelog-off">
+        <Card.Header>
+          <Card.Title id="tele-gamelog-off" class="flex items-center gap-2"><ScrollText class="size-4" aria-hidden="true" /> Game.log events are off</Card.Title>
+          <Card.Description>
+            Turn on Read Game.log events for where you are, the shard you are on, quantum travel, deaths and respawns, and a history of the shards you join. It reads this channel's Game.log on this computer only.
+          </Card.Description>
+          <Card.Action><Button size="xs" variant="outline" onclick={openSettings}>Settings</Button></Card.Action>
+        </Card.Header>
+      </Card.Root>
+    {/if}
+    {#if gamelogOn || savedSessions > 0}
+      <CollapsibleCard key="telemetry.sessions" bare><SessionsPanel current={telemetry.gamelog?.stint ?? null} rev={telemetry.gamelog?.sessions_rev ?? null} reading={gamelogOn} /></CollapsibleCard>
     {/if}
 
     <div class="grid gap-3 lg:grid-cols-2">
-      <HistoryPanel />
-      <ActionsPanel raw={frame?.raw ?? null} connected={!replay && telemetry.link.state === 'connected'} />
-      <RecordingsPanel />
+      <CollapsibleCard key="telemetry.recordings" bare><RecordingsPanel /></CollapsibleCard>
       <RawFramePanel {frame} />
     </div>
   </div>

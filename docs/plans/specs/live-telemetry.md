@@ -150,32 +150,47 @@ A port of sc-telemetry's `alerts.py` engine and `data/alerts.default.json` (fram
   Metrics, overrides checked, IPC), `app/tests/telemetryalerts.test.ts` (audio queue, recent
   list, threshold text, override patching, the TS mock against the Rust samples).
 
-## Phase 2 ideas
+## Phase 2 status
 
-From sc-telemetry, not in this phase:
+Merged on `feat/telemetry-phase2` (history, alerts, Game.log branches plus the join history
+and an integration pass). Each part is its own switch, off by default; none turns on another.
 
-- **Alerts**: rules over frames and events (low fuel, shield faces down, hull, G) as toasts and
-  sounds, with per-rule cooldowns (sc-telemetry `alerts.py`, `docs/telemetry/alerts.md`);
-  speech off by default. **Notifications get their own choice, off by default**, separate from
-  Metrics and actions (asked for 2026-11-23): turning on Metrics never turns on toasts or sounds.
-- **Game.log signals**: done, see [Game.log events and People](#gamelog-events-and-people)
-  below.
-- **People**: the local part is done (below). Still open: the opt-in org lookup on the public
-  RSI citizen page (sc-telemetry `people.py` `OrgLookup`, `docs/telemetry/people-and-lookup.md`).
-  It needs its own network switch (off), its own row in [privacy](../../privacy.md) and the
-  network table there, `starorg-net` as the transport (one request in flight, 3 s apart, a
-  fixed User-Agent without personal data, backoff on 403/429/503), a clearable cache in the
-  cache folder counted by Settings > Storage, and hand-written HTML fixtures only.
-- **History and charts**: a short ring buffer of the headline series (`/api/history`), drawn
-  as sparklines.
+Done:
+
+- ~~**History and charts**~~: [Phase 2: history, recording, replay](#phase-2-history-recording-replay).
+- ~~**Recording and replay**~~: same section.
+- ~~**Alerts** over frames~~ with their own Notifications choice: [Alerts](#alerts).
+- ~~**Game.log signals**~~ and the local half of **People**:
+  [Game.log events and People](#gamelog-events-and-people).
+- ~~**Server and shard join history**~~: [Sessions](#sessions-the-shard-join-history).
+- ~~**Screen and Settings layout**~~: the screen runs live readouts, then Alerts and Actions,
+  History, Game.log (Events, People, Sessions; one "off" card with a Settings link when its
+  switch is off), then Recordings and the raw frame. Every panel below the readouts is a
+  `CollapsibleCard` (remembered per `telemetry.<panel>`). Settings groups Record sessions,
+  Read Game.log events and People under "More from Live telemetry", next to the Metrics /
+  actions choice and the Notifications choice, with a table of the choices in the user guide.
+
+Still open (sc-telemetry has them, not ported):
+
+- **People org lookup** on the public RSI citizen page (sc-telemetry `people.py`
+  `OrgLookup`, `docs/telemetry/people-and-lookup.md`). It needs its own network switch (off),
+  its own row in [privacy](../../privacy.md) and the network table there, `starorg-net` as the
+  transport (one request in flight, 3 s apart, a fixed User-Agent without personal data,
+  backoff on 403/429/503), a clearable cache in the cache folder counted by Settings > Storage,
+  and hand-written HTML fixtures only.
+- **Alerts on Game.log events** (sc-telemetry `event` rules: armistice, shard change,
+  disconnects, quantum arrival, death), on top of the Game.log reader.
+- A stream that keeps running in the background (for alerts and the join history) instead
+  of only while the screen is open.
 - **Ship capabilities** from the channel's game data (sc-telemetry `shipcaps.py`): which
   systems a hull has, to grey out what it lacks.
 - **Full action/state map**: port `data/action_state_map.json` (VTOL, doors, weapons,
   countermeasures) once more links are verified in game.
 - **Shield face layout** per ship class (`shield_faces.json` `overrides_by_class`) once face
   order is confirmed.
-- A stream that keeps running in the background (for alerts) instead of only while the screen
-  is open.
+- Game.log: the telemetry vehicle as an own-ship source, multi-line HUD toasts for crime,
+  injuries and contracts (parser plan F2 onward).
+- Not checked in a running app against a real game yet; all tests use synthetic data.
 
 ## Phase 2: history, recording, replay
 
@@ -209,9 +224,6 @@ Ported from sc-telemetry `server.py` (`history`/`/api/history`, `--record` with
   `telemetry_replay_start`, `telemetry_replay_control {playing, seek_ms, speed}`,
   `telemetry_stop`. Play at the end starts over. The recording being written or played is not
   deletable (`busy`).
-
-Not done here: alerts and their own notification switch, Game.log signals, people, ship
-capabilities (other branches).
 
 ## Game.log events and People
 
@@ -252,8 +264,7 @@ A port of sc-telemetry's `gamelog.py` (session, signals, the quantum and spawn p
   `Spawned!` follows within 60 s (`DEATH_WINDOW_MS`); the first spawn after a join is the login.
 - **Not ported yet:** the telemetry vehicle as an own-ship source (own ship comes from seat
   releases and quantum target selection only), multi-line HUD toasts for crime, injuries and
-  contracts (parser plan F2 onward), recordings and replay, alerts on Game.log events, the org
-  lookup (above).
+  contracts (parser plan F2 onward), alerts on Game.log events, the org lookup (above).
 
 Tests: `crates/starorg-telemetry/src/gamelog/tests.rs` (synthetic lines: session without
 addresses, nearby bursts and own-ship exclusion, quantum route and timeout, zones, corpse and
@@ -262,6 +273,56 @@ over truncation, in-place rewrite, rotation and a directory named `Game.log`),
 `contract/tests_telemetry.rs` (the switches on the mock, the reader's lifetime, TS unions),
 `tests/real_telemetry.rs` (a fake install's `Game.log`, appended lines, nothing in Activity,
 handles replaced in diagnostics), `app/tests/telemetry.test.ts` (helpers and the TS mock).
+
+## Sessions: the shard join history
+
+Behind "Read Game.log events" (no switch of its own). Facts from sc-telemetry's `gamelog.py`
+and its session notes; the parsing is the [Game.log](#gamelog-events-and-people) reader's
+`SessionState`, which never reads the address, port or session ids at all.
+
+- **Rows** (`starorg_telemetry::gamelog::stints`): one `Stint` per shard stint: channel,
+  build, shard, `shard_short`, region code and label, `log_started`, `joined_ms`, `left_ms`,
+  `left_reason` (`leave` | `shard_change` | `disconnect` | `dropped` | `log_end`),
+  `uptime_s`, the star systems seen (12 at most), disconnects and `dropped`. A stint starts at
+  `<Join PU>` and ends at the menu's `Frontend` loading screen or another join (`leave`), a
+  real `<Update Shard Id>` change (the usual repeat of the joined shard is not one), a new
+  `Log started`, a rotation of the live file or the end of a backup (`log_end`). A
+  `<Channel Disconnected>` inside it (not `_Frontend`; lines within 2 s are one) makes the
+  reason `disconnect` (own quit: "Player requested disconnect", "disconnect light", "Nub
+  destroyed", "before game shutdown") or `dropped`, with that line's time and `uptime_secs`.
+  The raw line is never kept (it also names addresses, a session and the handle).
+- **Identity.** (`log_started`, `joined_ms`, `shard`): reading the same log again (the live
+  file at every reader start, then its copy in `logbackups/`) adds nothing.
+- **Store** (`Store`): `<data>/telemetry/sessions/history.json`
+  (`starorg_core::storage::telemetry_sessions_dir`, Storage area *Live telemetry session
+  history*, outside the cache and its cap): `{format, scanned, stints}`, at most 2000 rows and
+  2 MiB (the oldest go first), written through `history.json.tmp` and a rename, never held
+  open. A broken file reads as empty and says so. Clear empties the rows but keeps the list of
+  backups read, so they are not read in again. The mock backend keeps it in memory, seeded
+  with four synthetic rows.
+- **Backfill** (`Backfill`): at each reader start, the newest 40 `logbackups/*.log` (plain
+  files only, by mtime) not marked as read (name and size), one 4 MiB read per 500 ms poll,
+  each file opened and closed per read, 128 MiB of one file at most; a file's rows and its mark
+  go in together when it is done.
+- **Host.** The Game.log thread drains ended stints into the store after every poll and reads
+  one backup chunk; the view carries the stint you are on (`stint`) and the store's
+  `sessions_rev`, so the UI reads `telemetry_sessions` again only when it moved.
+  `telemetry_sessions_clear` clears (Activity notes it; Storage measures again).
+- **UI.** `components/telemetry/SessionsPanel.svelte`: the current stint, then the newest 200
+  rows of the filter (channel, region), the reason as a badge (Dropped with a warning icon), a
+  *same shard as before* mark (the previous stint of that channel was on the same shard),
+  Clear. It also shows with Game.log off while it has rows. Settings > Storage has **Clear
+  session history** on its row.
+
+Tests: `gamelog/stints/tests.rs` (synthetic lines: a stint and its systems, nothing private in
+a row, the 2 s disconnect merge and the drop, the `_Frontend` skip and an own quit, the
+shard-change repeat rule, a new log and a rotation, a rejoin, the store's dedupe, caps,
+restart, clear and a broken file, the backfill's newest-once order with a directory named
+`*.log`, a chunk boundary inside a line), `contract/tests_telemetry.rs` (the mock's history,
+Storage, Clear, the TS `LeftReason` union), `tests/real_telemetry.rs` (a fake install's
+`Game.log` and `logbackups/`, the file on disk without addresses or handles, no duplicate on a
+second start, Storage and Clear), `app/tests/telemetry.test.ts` (rows, marks, filters,
+durations, the TS mock).
 
 ## Open
 

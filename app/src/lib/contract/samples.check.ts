@@ -230,6 +230,8 @@ interface Samples {
   telemetry_alert_test: T.TelemetryAlert;
   telemetry_gamelog: T.GameLogView | null;
   telemetry_people_clear: T.GameLogView | null;
+  telemetry_sessions: T.TelemetrySessions;
+  telemetry_sessions_clear: T.TelemetrySessions;
   telemetry_event_gamelog: T.TelemetryEvent;
 }
 

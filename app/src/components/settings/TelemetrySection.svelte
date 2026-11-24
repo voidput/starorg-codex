@@ -9,9 +9,10 @@
    * app's data folder for replay, and turning Metrics on never turns it on. Notifications
    * (alerts) are a separate choice below (TelemetryAlertsSection).
    *
-   * Two more switches, each off by default and each its own choice: "Read Game.log events"
-   * (the channel's own Game.log on this computer, for the Events panel) and, under it,
-   * "People" (the handles Game.log names, memory only). Neither changes USER.cfg or sends
+   * "More from Live telemetry" groups the other switches, each off by default and each its own
+   * choice: "Record sessions", "Read Game.log events" (the channel's own Game.log on this
+   * computer, for the Events and Sessions panels and the shard join history) and, under it,
+   * "People" (the handles Game.log names, memory only). None changes USER.cfg or sends
    * anything.
    */
   import Copy from '@lucide/svelte/icons/copy';
@@ -141,7 +142,10 @@
         <Segmented ariaLabel="Live telemetry" size="sm" options={MODES} value={mode} disabled={telemetry.busy || (mode === 'off' && !target)} onchange={setMode} />
       </div>
       <p class="text-muted-foreground text-[12px]">
-        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). Nothing leaves the computer, and nothing is recorded unless you turn on Record sessions. For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Actions are a separate choice: leave them off unless you want them.
+        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Nothing leaves the computer.
+      </p>
+      <p class="text-muted-foreground text-[12px]">
+        Each part is its own choice and off by default; turning one on never turns on another: <strong class="font-medium">Metrics</strong> or <strong class="font-medium">Metrics + actions</strong> here, then <strong class="font-medium">Record sessions</strong>, <strong class="font-medium">Read Game.log events</strong> (and People) and <strong class="font-medium">Notifications</strong> below.
       </p>
     </div>
     <div class="grid gap-2 pl-0">
@@ -203,21 +207,25 @@
         </div>
       {/if}
       {#if st.settings.enabled}
-        <SwitchRow
-          id="tele-record"
-          size="sm"
-          label="Record sessions"
-          hint="Saves each live stream (4 frames a second) to the app's data folder so you can replay it on the Live telemetry screen. 20 recordings and 256 MB at most, the oldest go first; Settings → Storage shows them. Never sent anywhere."
-          checked={st.settings.record}
-          disabled={telemetry.busy}
-          onchange={(v) => void setRecord(v)}
-        />
-        <div class="grid gap-0.5" aria-label="Game.log">
+        <div class="grid gap-1.5 rounded-md border px-3 py-2" role="group" aria-labelledby="tele-extras">
+          <div class="grid gap-0.5">
+            <span id="tele-extras" class="text-[12.5px] font-medium">More from Live telemetry</span>
+            <span class="text-muted-foreground text-[12px]">Each off until you turn it on. All of it stays on this computer.</span>
+          </div>
+          <SwitchRow
+            id="tele-record"
+            size="sm"
+            label="Record sessions"
+            hint="Saves each live stream (4 frames a second) to the app's data folder so you can replay it on the Live telemetry screen. 20 recordings and 256 MB at most, the oldest go first; Settings → Storage shows them. Never sent anywhere."
+            checked={st.settings.record}
+            disabled={telemetry.busy}
+            onchange={(v) => void setRecord(v)}
+          />
           <SwitchRow
             id="tele-gamelog"
             size="sm"
             label="Read Game.log events"
-            hint="While the Live telemetry screen is open, follows this channel's Game.log on this computer: session, where you are, quantum travel, ships nearby, deaths and respawns. Read only; nothing is sent."
+            hint="While the Live telemetry screen is open, follows this channel's Game.log on this computer: where you are, quantum travel, ships nearby, deaths and respawns, and a history of the shards you join (kept in the app's data folder, Settings → Storage). Read only; nothing is sent."
             checked={st.settings.gamelog}
             disabled={telemetry.busy}
             onchange={(v) => void save({ gamelog: v, people: v ? st.settings.people : false })}

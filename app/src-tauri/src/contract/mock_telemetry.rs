@@ -41,10 +41,81 @@ pub fn seed_recordings() -> Vec<TelemetryRecording> {
     ]
 }
 
-/// The mock backend's host: recordings in memory, seeded.
+/// The mock's join history file (shown only; the rows stay in memory).
+pub const SESSIONS_DIR: &str = "/synthetic/data/telemetry/sessions";
+
+/// Synthetic join history rows, oldest first (fixed times and fake shard ids, for the samples):
+/// a stint that dropped, a rejoin of the same shard, a shard change and a quit.
+pub fn seed_sessions() -> Vec<crate::contract::telemetry::TelemetryStint> {
+    use starorg_telemetry::gamelog::{LeftReason, Stint, session::parse_shard};
+    let row = |channel: &str,
+               shard: &str,
+               joined_ms: i64,
+               mins: i64,
+               reason: LeftReason,
+               systems: &[&str]| {
+        let (code, region, short) = parse_shard(shard);
+        Stint {
+            channel: Some(channel.into()),
+            build: Some("0.0.0.0".into()),
+            shard: shard.into(),
+            shard_short: short,
+            region_code: code,
+            region,
+            log_started: Some("Mon Nov 23 08:00:00 2026".into()),
+            joined_ms,
+            left_ms: Some(joined_ms + mins * 60_000),
+            left_reason: Some(reason),
+            uptime_s: Some((mins * 60) as f64),
+            systems: systems.iter().map(|x| (*x).to_owned()).collect(),
+            disconnects: u32::from(matches!(
+                reason,
+                LeftReason::Dropped | LeftReason::Disconnect
+            )),
+            dropped: reason == LeftReason::Dropped,
+        }
+    };
+    vec![
+        row(
+            "LIVE",
+            "mock_euw1a_0_004",
+            1_794_990_000_000,
+            42,
+            LeftReason::Leave,
+            &["Stanton"],
+        ),
+        row(
+            "PTU",
+            "mock_use1b_0_001",
+            1_795_000_000_000,
+            75,
+            LeftReason::Dropped,
+            &["Stanton", "Pyro"],
+        ),
+        row(
+            "PTU",
+            "mock_use1b_0_001",
+            1_795_004_800_000,
+            30,
+            LeftReason::ShardChange,
+            &["Pyro"],
+        ),
+        row(
+            "PTU",
+            "mock_use1b_0_002",
+            1_795_006_600_000,
+            55,
+            LeftReason::Disconnect,
+            &["Pyro", "Stanton"],
+        ),
+    ]
+}
+
+/// The mock backend's host: recordings and the join history in memory, seeded.
 pub fn mock_host() -> TelemetryHost {
     let h = TelemetryHost::default();
     h.seed_mock_recordings(seed_recordings());
+    h.seed_mock_sessions(seed_sessions());
     h
 }
 

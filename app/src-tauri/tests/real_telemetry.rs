@@ -555,3 +555,87 @@ fn game_log_events_follow_the_channel_log_and_handles_stay_out_of_activity_and_d
         "nothing held any more, nothing replaced"
     );
 }
+
+#[test]
+fn shard_stints_from_game_log_and_its_backups_go_to_the_history_file_once() {
+    let f = fake();
+    let ch = f.lib.join("PTU");
+    let header = "Log started on Mon Nov 23 09:00:00 2026\r\nFileVersion: 9.9.0.1\r\nExecutable: C:\\Games\\StarCitizen\\PTU\\Bin64\\StarCitizen.exe\r\n";
+    let join = |ts: &str, shard: &str| {
+        format!(
+            "<{ts}> [Notice] <Join PU> address[203.0.113.9] port[64000] shard[{shard}] locationId[1]\r\n"
+        )
+    };
+    // An older log in logbackups: one stint that dropped.
+    std::fs::create_dir_all(ch.join("logbackups")).unwrap();
+    std::fs::write(
+        ch.join("logbackups").join("Game Build(1) 23 Nov 26 (09 00 00).log"),
+        format!(
+            "{header}{}<2026-11-23T09:20:00.000Z> [Notice] <Channel Disconnected> cause=3 reason=\"Remote Disconnect - player inactive\" gamerules=\"SC_Default\" remoteAddr=203.0.113.9:64000 nickname=\"TestPilot_Self\" uptime_secs=1195.0\r\n",
+            join("2026-11-23T09:00:05.000Z", "ptu_use1b_1_020")
+        ),
+    )
+    .unwrap();
+    // The live Game.log: a stint that ended at the menu.
+    std::fs::write(
+        ch.join("Game.log"),
+        format!(
+            "{}{}<2026-11-23T10:30:00.000Z> Loading screen for Frontend_Main : x closed after 3.0 seconds\r\n",
+            header.replace("09:00:00", "10:00:00"),
+            join("2026-11-23T10:00:05.000Z", "ptu_euw1a_1_007")
+        ),
+    )
+    .unwrap();
+    let mut s = on(50051, false);
+    s.gamelog = true;
+    f.configure(Some("PTU"), s).unwrap();
+    let (s1, _rx) = sink();
+    f.backend.telemetry_start(f.r("PTU"), s1).unwrap();
+    let end = std::time::Instant::now() + Duration::from_secs(10);
+    let v = loop {
+        let v = f.backend.telemetry_sessions().unwrap();
+        if v.items.len() >= 2 && v.backfill_pending == 0 {
+            break v;
+        }
+        assert!(std::time::Instant::now() < end, "{v:?}");
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    assert_eq!(v.items.len(), 2);
+    assert_eq!(v.items[0].shard, "ptu_euw1a_1_007", "newest first");
+    assert_eq!(v.items[0].left_reason, Some(LeftReason::Leave));
+    assert_eq!(v.items[1].left_reason, Some(LeftReason::Dropped));
+    assert!(v.items[1].dropped);
+    let dir = starorg_core::storage::telemetry_sessions_dir(&f.dirs);
+    let text = std::fs::read_to_string(dir.join("history.json")).unwrap();
+    for bad in ["203.0.113", "64000", "TestPilot", "inactive"] {
+        assert!(!text.contains(bad), "{bad} in {text}");
+    }
+    // Read again (Game.log from its start, the backup already marked): nothing new.
+    f.backend.telemetry_stop().unwrap();
+    let (s2, _rx2) = sink();
+    f.backend.telemetry_start(f.r("PTU"), s2).unwrap();
+    std::thread::sleep(Duration::from_millis(1500));
+    assert_eq!(f.backend.telemetry_sessions().unwrap().items.len(), 2);
+    f.backend.telemetry_stop().unwrap();
+    // Settings > Storage: its own area, outside the cache; Clear empties it.
+    let area = |f: &Fake| {
+        f.backend
+            .storage_measure()
+            .unwrap()
+            .areas
+            .into_iter()
+            .find(|a| a.id == StorageAreaId::TelemetrySessions)
+            .unwrap()
+    };
+    let a = area(&f);
+    assert!(a.bytes > 0 && !a.in_cache, "{a:?}");
+    assert!(
+        f.backend
+            .telemetry_sessions_clear()
+            .unwrap()
+            .items
+            .is_empty()
+    );
+    assert!(area(&f).bytes < a.bytes);
+    assert!(f.backend.telemetry_sessions().unwrap().items.is_empty());
+}

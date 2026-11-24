@@ -27,6 +27,8 @@ export interface TelemetryMockData {
   alerts: L.TelemetryAlerts;
   /** The Rust mock's synthetic Game.log view (with people). */
   gamelog?: L.GameLogView | null;
+  /** The Rust mock's seeded join history. */
+  sessions?: L.TelemetrySessions;
 }
 
 export interface TelemetryMockCtx {
@@ -55,6 +57,8 @@ export interface TelemetryHandlers {
   telemetry_alert_test: H<{ req: L.TelemetryAlertTestRequest }, L.TelemetryAlert>;
   telemetry_gamelog: H<Record<string, never>, L.GameLogView | null>;
   telemetry_people_clear: H<Record<string, never>, L.GameLogView | null>;
+  telemetry_sessions: H<Record<string, never>, L.TelemetrySessions>;
+  telemetry_sessions_clear: H<Record<string, never>, L.TelemetrySessions>;
 }
 
 const SERIES_KEYS: readonly L.TelemetrySeriesKey[] = ['speed', 'g', 'hydrogen_fuel', 'quantum_fuel', 'hull', 'shield', 'health', 'oxygen'];
@@ -255,6 +259,7 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
   let stopTimer: (() => void) | null = null;
   const st: MockState = { lights: true, gear: false, shields: true };
   const lastPress = new Map<string, number>();
+  let sessions: L.TelemetrySessions = clone(data.sessions ?? { items: [], max_items: 2000, path: null, revision: 0, backfill_pending: 0, error: null });
   const history = new MockHistory();
   /** What the history holds (`live <install>/<CHANNEL>` or `replay <name>`). */
   let historyOf: string | null = null;
@@ -584,6 +589,12 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       return shape(a, alertSettings);
     },
     telemetry_gamelog: () => gamelogView(),
+    telemetry_sessions: () => clone(sessions),
+    telemetry_sessions_clear: () => {
+      sessions = { ...sessions, items: [], revision: sessions.revision + 1 };
+      ctx.log('Live telemetry: session history cleared', null);
+      return clone(sessions);
+    },
     telemetry_people_clear: () => {
       if (!gamelogView()) return null;
       peopleCleared = true;

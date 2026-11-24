@@ -2,8 +2,9 @@
   /**
    * Settings > Storage: what the app keeps on this PC per area (game data cache, WHERE TO GET
    * datasets, UEX, asset exports, temporary folders, backups), the cache folder's cap
-   * (least recently used goes first above it) and "Clear asset cache" (refused while an asset
-   * job runs). Sizes are measured on the Rust side, off the UI thread.
+   * (least recently used goes first above it), "Clear asset cache" (refused while an asset
+   * job runs) and the live telemetry session history's own Clear. Sizes are measured on the
+   * Rust side, off the UI thread.
    */
   import { onMount } from 'svelte';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
@@ -13,6 +14,7 @@
   import ConfirmButton from '@/components/common/ConfirmButton.svelte';
   import PathText from '@/components/common/PathText.svelte';
   import { api, toContractError } from '@/lib/contract/client';
+  import { telemetryApi } from '@/lib/contract/telemetry';
   import type { StorageStatus } from '@/lib/contract/types';
   import { AREA_HINTS, areaText, backupRule, capPercent, capText, sizeText } from '@/lib/storage';
   import { toast } from '@/lib/stores/toast.svelte';
@@ -38,6 +40,18 @@
       toast('success', 'Asset cache cleared', null);
     } catch (e) {
       toast('error', 'Clearing the asset cache failed', toContractError(e).message);
+    } finally {
+      busy = false;
+    }
+  }
+  async function clearSessions() {
+    busy = true;
+    try {
+      await telemetryApi.clearSessions();
+      s = await api.storageMeasure();
+      toast('success', 'Session history cleared', null);
+    } catch (e) {
+      toast('error', 'Clearing the session history failed', toContractError(e).message);
     } finally {
       busy = false;
     }
@@ -72,6 +86,9 @@
             </div>
             <p class="text-muted-foreground text-[11.5px]">{AREA_HINTS[a.id]}{a.id === 'asset-exports' ? ` Up to ${sizeText(s.asset_cap_bytes)}.` : ''}{a.in_cache ? '' : ' Not counted toward the cap.'}</p>
             {#if a.id === 'backups'}<p class="text-muted-foreground text-[11.5px]">{backupRule(s)}</p>{/if}
+            {#if a.id === 'telemetry-sessions' && a.bytes > 0}
+              <div><ConfirmButton disabled={busy} confirmLabel="Clear the history?" onconfirm={() => void clearSessions()}><Trash aria-hidden="true" /> Clear session history</ConfirmButton></div>
+            {/if}
           </li>
         {/each}
       </ul>

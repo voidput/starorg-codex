@@ -22,6 +22,7 @@ import {
   type TelemetryFrame,
   type TelemetryHistory,
   type TelemetryRecordings,
+  type TelemetrySessions,
   type TelemetryReplayControl,
   type TelemetryReplayState,
   type TelemetryStatus,
@@ -56,6 +57,8 @@ class TelemetryState {
   history = $state.raw<TelemetryHistory | null>(null);
   /** The recordings list, once asked for. */
   recordings = $state.raw<TelemetryRecordings | null>(null);
+  /** The server and shard join history, once asked for (read again when its revision moves). */
+  sessions = $state.raw<TelemetrySessions | null>(null);
 
   /** The feature is on: the sidebar shows the screen. */
   enabled = $derived(!!this.status?.settings.enabled);
@@ -203,6 +206,23 @@ class TelemetryState {
       this.take(await telemetryApi.record(on));
     } finally {
       this.busy = false;
+    }
+  }
+
+  async loadSessions(): Promise<void> {
+    try {
+      this.sessions = await telemetryApi.sessions();
+    } catch (e) {
+      toast('error', 'Could not read the session history', toContractError(e).message);
+    }
+  }
+
+  /** The Sessions panel's Clear: the whole join history goes. */
+  async clearSessions(): Promise<void> {
+    try {
+      this.sessions = await telemetryApi.clearSessions();
+    } catch (e) {
+      toast('error', 'Session history not cleared', toContractError(e).message);
     }
   }
 

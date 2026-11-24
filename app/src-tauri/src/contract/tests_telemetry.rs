@@ -241,7 +241,12 @@ pub(super) fn telemetry_samples() -> Vec<(&'static str, Value)> {
     alert_ev.alerts = vec![fired];
     let gamelog = gamelog_sample();
     let gamelog_ev = TelemetryEvent::gamelog(1, gamelog.clone());
+    let fresh = MockBackend::default();
+    let sessions = fresh.telemetry_sessions().unwrap();
+    let sessions_cleared = fresh.telemetry_sessions_clear().unwrap();
     vec![
+        ("telemetry_sessions", json!(sessions)),
+        ("telemetry_sessions_clear", json!(sessions_cleared)),
         ("telemetry_event", json!(TELEMETRY_EVENT)),
         ("telemetry_gamelog", json!(Some(gamelog))),
         ("telemetry_people_clear", json!(None::<GameLogView>)),
@@ -792,6 +797,7 @@ fn ts_mirror_lists_every_variant_and_command() {
         ts_union(&ts, "PersonRelation"),
         starorg_telemetry::gamelog::people::RELATIONS
     );
+    assert_eq!(ts_union(&ts, "LeftReason"), names(&LeftReason::ALL));
     let start = ts
         .find("export const TELEMETRY_COMMANDS = [")
         .expect("telemetry.ts has TELEMETRY_COMMANDS");
@@ -842,6 +848,35 @@ fn telemetry_over_ipc_takes_a_req() {
     // A fresh backend: notifications off, so no test alert.
     let e = ipc("telemetry_alert_test", json!({"req": {"rule": "g_load"}})).unwrap_err();
     assert_eq!(e["code"], json!("invalid"));
+}
+
+#[test]
+fn the_join_history_lists_newest_first_clears_and_is_counted_by_storage() {
+    let b = MockBackend::default();
+    let v = b.telemetry_sessions().unwrap();
+    assert_eq!(v.items.len(), 4, "seeded");
+    assert!(v.items[0].joined_ms > v.items[3].joined_ms, "newest first");
+    assert!(v.items.iter().any(|r| r.dropped));
+    assert_eq!(v.max_items, 2000);
+    assert!(v.path.is_none(), "memory only on the mock");
+    let json = serde_json::to_string(&v).unwrap();
+    for bad in ["address", "port", "203.0.113", "session_id", "TestPilot"] {
+        assert!(!json.contains(bad), "{bad} in {json}");
+    }
+    let area = |b: &MockBackend| {
+        b.storage_status()
+            .unwrap()
+            .areas
+            .into_iter()
+            .find(|a| a.id == StorageAreaId::TelemetrySessions)
+            .unwrap()
+    };
+    let a = area(&b);
+    assert!(a.bytes > 0 && !a.in_cache);
+    let cleared = b.telemetry_sessions_clear().unwrap();
+    assert!(cleared.items.is_empty());
+    assert!(cleared.revision > v.revision);
+    assert_eq!(area(&b).bytes, 0);
 }
 
 #[test]

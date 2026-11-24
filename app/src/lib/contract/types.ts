@@ -1674,7 +1674,7 @@ export interface MemoryLimitRequest {
   gb: number | null;
 }
 
-export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'telemetry' | 'telemetry-recordings' | 'backups';
+export type StorageAreaId = 'game-data' | 'where-to-get' | 'uex' | 'asset-exports' | 'temporary' | 'telemetry' | 'telemetry-recordings' | 'telemetry-sessions' | 'backups';
 
 export interface StorageArea {
   id: StorageAreaId;

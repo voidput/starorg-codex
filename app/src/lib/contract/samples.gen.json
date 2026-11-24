@@ -25325,6 +25325,14 @@
         "path": "/synthetic/data/telemetry/recordings"
       },
       {
+        "bytes": 1298,
+        "files": 1,
+        "id": "telemetry-sessions",
+        "in_cache": false,
+        "label": "Live telemetry session history",
+        "path": "/synthetic/data/telemetry/sessions"
+      },
+      {
         "bytes": 37800000,
         "files": 30,
         "id": "backups",
@@ -25340,7 +25348,7 @@
     "cache_bytes": 90884000,
     "cache_path": "/synthetic/cache",
     "cap_bytes": 1073741824,
-    "total_bytes": 131100000
+    "total_bytes": 131101298
   },
   "storage_status": {
     "areas": [
@@ -25401,6 +25409,14 @@
         "path": "/synthetic/data/telemetry/recordings"
       },
       {
+        "bytes": 1298,
+        "files": 1,
+        "id": "telemetry-sessions",
+        "in_cache": false,
+        "label": "Live telemetry session history",
+        "path": "/synthetic/data/telemetry/sessions"
+      },
+      {
         "bytes": 37800000,
         "files": 30,
         "id": "backups",
@@ -25416,7 +25432,7 @@
     "cache_bytes": 138884000,
     "cache_path": "/synthetic/cache",
     "cap_bytes": 1073741824,
-    "total_bytes": 179100000
+    "total_bytes": 179101298
   },
   "string_detail": {
     "also_used_by": [],
@@ -26992,6 +27008,7 @@
         "shard_short": "USE1B · 001",
         "system": "Stanton"
       },
+      "sessions_rev": 0,
       "signals": {
         "armistice": false,
         "deaths": 1,
@@ -27048,7 +27065,25 @@
           "text": "Leaving Armistice Zone - Caution Advised"
         }
       },
-      "source": "mock"
+      "source": "mock",
+      "stint": {
+        "build": "0.0.0.0",
+        "channel": "PTU",
+        "disconnects": 0,
+        "dropped": false,
+        "joined_ms": 1795122596789,
+        "left_ms": null,
+        "left_reason": null,
+        "log_started": "Mon Nov 23 10:00:00 2026",
+        "region": "US East",
+        "region_code": "use1b",
+        "shard": "mock_use1b_0_001",
+        "shard_short": "USE1B · 001",
+        "systems": [
+          "Stanton"
+        ],
+        "uptime_s": null
+      }
     },
     "replay": null,
     "session": 1,
@@ -27279,6 +27314,7 @@
       "shard_short": "USE1B · 001",
       "system": "Stanton"
     },
+    "sessions_rev": 0,
     "signals": {
       "armistice": false,
       "deaths": 1,
@@ -27335,7 +27371,25 @@
         "text": "Leaving Armistice Zone - Caution Advised"
       }
     },
-    "source": "mock"
+    "source": "mock",
+    "stint": {
+      "build": "0.0.0.0",
+      "channel": "PTU",
+      "disconnects": 0,
+      "dropped": false,
+      "joined_ms": 1795122596789,
+      "left_ms": null,
+      "left_reason": null,
+      "log_started": "Mon Nov 23 10:00:00 2026",
+      "region": "US East",
+      "region_code": "use1b",
+      "shard": "mock_use1b_0_001",
+      "shard_short": "USE1B · 001",
+      "systems": [
+        "Stanton"
+      ],
+      "uptime_s": null
+    }
   },
   "telemetry_history": {
     "capacity": 600,
@@ -27788,6 +27842,97 @@
     },
     "streaming": null,
     "ui_hz": 10
+  },
+  "telemetry_sessions": {
+    "backfill_pending": 0,
+    "error": null,
+    "items": [
+      {
+        "build": "0.0.0.0",
+        "channel": "PTU",
+        "disconnects": 1,
+        "dropped": false,
+        "joined_ms": 1795006600000,
+        "left_ms": 1795009900000,
+        "left_reason": "disconnect",
+        "log_started": "Mon Nov 23 08:00:00 2026",
+        "region": "US East",
+        "region_code": "use1b",
+        "shard": "mock_use1b_0_002",
+        "shard_short": "USE1B · 002",
+        "systems": [
+          "Pyro",
+          "Stanton"
+        ],
+        "uptime_s": 3300.0
+      },
+      {
+        "build": "0.0.0.0",
+        "channel": "PTU",
+        "disconnects": 0,
+        "dropped": false,
+        "joined_ms": 1795004800000,
+        "left_ms": 1795006600000,
+        "left_reason": "shard_change",
+        "log_started": "Mon Nov 23 08:00:00 2026",
+        "region": "US East",
+        "region_code": "use1b",
+        "shard": "mock_use1b_0_001",
+        "shard_short": "USE1B · 001",
+        "systems": [
+          "Pyro"
+        ],
+        "uptime_s": 1800.0
+      },
+      {
+        "build": "0.0.0.0",
+        "channel": "PTU",
+        "disconnects": 1,
+        "dropped": true,
+        "joined_ms": 1795000000000,
+        "left_ms": 1795004500000,
+        "left_reason": "dropped",
+        "log_started": "Mon Nov 23 08:00:00 2026",
+        "region": "US East",
+        "region_code": "use1b",
+        "shard": "mock_use1b_0_001",
+        "shard_short": "USE1B · 001",
+        "systems": [
+          "Stanton",
+          "Pyro"
+        ],
+        "uptime_s": 4500.0
+      },
+      {
+        "build": "0.0.0.0",
+        "channel": "LIVE",
+        "disconnects": 0,
+        "dropped": false,
+        "joined_ms": 1794990000000,
+        "left_ms": 1794992520000,
+        "left_reason": "leave",
+        "log_started": "Mon Nov 23 08:00:00 2026",
+        "region": "EU West",
+        "region_code": "euw1a",
+        "shard": "mock_euw1a_0_004",
+        "shard_short": "EUW1A · 004",
+        "systems": [
+          "Stanton"
+        ],
+        "uptime_s": 2520.0
+      }
+    ],
+    "max_items": 2000,
+    "path": null,
+    "revision": 1
+  },
+  "telemetry_sessions_clear": {
+    "backfill_pending": 0,
+    "error": null,
+    "items": [],
+    "max_items": 2000,
+    "path": null,
+    "revision": 2
   },
   "telemetry_start": {
     "channels": [

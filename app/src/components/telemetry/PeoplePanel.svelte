@@ -22,10 +22,11 @@
     <Card.Title id="tele-people" class="flex items-center gap-2">
       <Users class="size-4" aria-hidden="true" /> People
       {#if people}<span class="text-muted-foreground text-[13px] font-normal">{people.counts.total}</span>{/if}
-      <span class="flex-1"></span>
-      <Button size="xs" variant="ghost" onclick={onclear} disabled={!people || people.counts.total === 0}><Eraser aria-hidden="true" /> Clear</Button>
     </Card.Title>
     <Card.Description>Handles named in Game.log this session. Kept in memory on this computer only; nothing is looked up or sent.</Card.Description>
+    <Card.Action>
+      <Button size="xs" variant="ghost" onclick={onclear} disabled={!people || people.counts.total === 0}><Eraser aria-hidden="true" /> Clear</Button>
+    </Card.Action>
   </Card.Header>
   <Card.Content class="grid gap-3 text-[12px]">
     {#if people?.self_name}

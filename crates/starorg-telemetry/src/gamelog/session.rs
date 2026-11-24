@@ -59,6 +59,9 @@ pub struct SessionView {
 pub struct SessionState {
     v: SessionView,
     last_dc: Option<i64>,
+    /// `uptime_secs` of the last disconnect counted (for the join history; the raw line is
+    /// never kept).
+    pub(crate) last_dc_uptime_s: Option<f64>,
 }
 
 /// `.../StarCitizen/PTU/Bin64/StarCitizen.exe` -> `PTU` (either slash).
@@ -261,16 +264,15 @@ impl SessionState {
             self.v.disconnects += 1;
             self.v.last_disconnect_reason = Some(reason.to_owned());
             self.v.last_disconnect_expected = Some(expected);
-            let up = body
-                .split_once("uptime_secs=")
-                .and_then(|(_, u)| {
-                    let n: String = u
-                        .chars()
-                        .take_while(|c| c.is_ascii_digit() || *c == '.')
-                        .collect();
-                    n.parse::<f64>().ok()
-                })
-                .and_then(fmt_secs);
+            let up_s = body.split_once("uptime_secs=").and_then(|(_, u)| {
+                let n: String = u
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit() || *c == '.')
+                    .collect();
+                n.parse::<f64>().ok().filter(|x| x.is_finite() && *x >= 0.0)
+            });
+            self.last_dc_uptime_s = up_s;
+            let up = up_s.and_then(fmt_secs);
             let d = match up {
                 Some(u) => format!("{reason} (after {u})"),
                 None => reason.to_owned(),

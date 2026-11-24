@@ -33,7 +33,7 @@ use super::types::*;
 use super::{BackendState, run};
 use serde::{Deserialize, Serialize};
 use starorg_telemetry::frames::Frame;
-pub use starorg_telemetry::gamelog::GameLogView;
+pub use starorg_telemetry::gamelog::{GameLogView, LeftReason, Stint as TelemetryStint};
 pub use starorg_telemetry::history::{HistoryView as TelemetryHistory, Series as TelemetrySeries};
 use starorg_telemetry::live::{LinkStatus, LiveEvent};
 pub use starorg_telemetry::record::RecordingInfo as TelemetryRecording;
@@ -246,6 +246,21 @@ pub struct TelemetryRecordRequest {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TelemetryRecordingRef {
     pub name: String,
+}
+
+/// The server and shard join history ("Read Game.log events"), newest first.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct TelemetrySessions {
+    pub items: Vec<TelemetryStint>,
+    pub max_items: u32,
+    /// The history file (shown only; `None` on the mock: memory only).
+    pub path: Option<String>,
+    /// Bumped at every change (the Game.log view carries it as `sessions_rev`).
+    pub revision: u64,
+    /// `logbackups/` files still to read in while the reader runs.
+    pub backfill_pending: u32,
+    /// The file could not be read or written.
+    pub error: Option<String>,
 }
 
 /// Recordings, newest first, and their bounds.
@@ -575,6 +590,18 @@ pub trait TelemetryBackend {
     fn telemetry_people_clear(&self) -> CmdResult<Option<GameLogView>> {
         Ok(self.telemetry_host().clear_people())
     }
+    /// The server and shard join history, newest first (works with the reader off too).
+    fn telemetry_sessions(&self) -> CmdResult<TelemetrySessions> {
+        Ok(self.telemetry_host().sessions_view())
+    }
+    /// Forget the whole join history (Settings > Storage counts the file).
+    fn telemetry_sessions_clear(&self) -> CmdResult<TelemetrySessions> {
+        let v = self.telemetry_host().clear_sessions();
+        self.telemetry_sessions_cleared();
+        Ok(v)
+    }
+    /// After a Clear: Settings > Storage measures again, Activity notes it (real backend).
+    fn telemetry_sessions_cleared(&self) {}
     /// The stream host of this backend.
     fn telemetry_host(&self) -> &crate::telemetry::TelemetryHost;
 }
@@ -609,6 +636,8 @@ telemetry_commands! {
     telemetry_alert_test(req: TelemetryAlertTestRequest) -> TelemetryAlert;
     telemetry_gamelog() -> Option<GameLogView>;
     telemetry_people_clear() -> Option<GameLogView>;
+    telemetry_sessions() -> TelemetrySessions;
+    telemetry_sessions_clear() -> TelemetrySessions;
 }
 
 /// The stream's events go to the window as [`TELEMETRY_EVENT`].
@@ -662,4 +691,6 @@ pub const TELEMETRY_COMMAND_NAMES: &[&str] = &[
     "telemetry_alert_test",
     "telemetry_gamelog",
     "telemetry_people_clear",
+    "telemetry_sessions",
+    "telemetry_sessions_clear",
 ];

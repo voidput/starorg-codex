@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  LEFT_REASON,
   SERIES,
   actionState,
   annunciators,
@@ -12,6 +13,7 @@ import {
   barWidth,
   clock,
   clockText,
+  durationText,
   eventLabel,
   eventTone,
   faceLabels,
@@ -28,8 +30,11 @@ import {
   pct,
   recentEvents,
   recordingText,
+  regionOf,
   sequencer,
   seriesRange,
+  sessionFilters,
+  sessionRows,
   sessionStep,
   snapshotFromRaw,
   sparkPath,
@@ -40,7 +45,7 @@ import {
   windowStats,
 } from '../src/lib/telemetry.ts';
 import { createTelemetryMock, mockFrame, stamp, type TelemetryMockData } from '../src/lib/contract/mock-telemetry.ts';
-import type { GameLogView, TelemetryActions, TelemetryEvent, TelemetryHistory, TelemetryRecordings, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
+import type { GameLogView, TelemetryActions, TelemetrySessions, TelemetryEvent, TelemetryHistory, TelemetryRecordings, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
 const frameEv = samples.telemetry_event_frame as TelemetryEvent;
@@ -146,7 +151,7 @@ test('the inspector cuts long frames and follows at most once a second', () => {
 function mock() {
   const ticks: (() => void)[] = [];
   const logs: string[] = [];
-  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv, recordings: samples.telemetry_recordings, alerts: samples.telemetry_alerts, gamelog: samples.telemetry_gamelog };
+  const data: TelemetryMockData = { status: samples.telemetry_status, actions: samples.telemetry_actions, frame: frameEv, recordings: samples.telemetry_recordings, alerts: samples.telemetry_alerts, gamelog: samples.telemetry_gamelog, sessions: samples.telemetry_sessions };
   const m = createTelemetryMock(data, {
     fail: (c, msg) => {
       throw new Fail(c, msg);
@@ -427,4 +432,44 @@ test('the TS mock sends Game.log only with its switch, and people only with thei
   await h.telemetry_stop({});
   assert.equal(await h.telemetry_gamelog({}), null);
   assert.equal(await h.telemetry_people_clear({}), null);
+});
+
+const sessions = samples.telemetry_sessions as TelemetrySessions;
+
+test('the session history: newest first, same-shard and dropped marks, filters, durations', () => {
+  assert.equal(sessions.items.length, 4);
+  assert.equal(sessions.path, null, 'memory only on the mock');
+  const rows = sessionRows(sessions.items);
+  assert.equal(rows.length, 4);
+  // The PTU rejoin of mock_use1b_0_001 after the drop is "the same shard as before".
+  const rejoin = rows.find((r) => r.stint.left_reason === 'shard_change')!;
+  assert.equal(rejoin.sameShard, true);
+  assert.equal(rows.find((r) => r.stint.dropped)!.sameShard, false);
+  assert.equal(rows.filter((r) => r.sameShard).length, 1);
+  // A filter keeps the marks of the whole list.
+  const ptu = sessionRows(sessions.items, 'PTU');
+  assert.equal(ptu.length, 3);
+  assert.equal(ptu.filter((r) => r.sameShard).length, 1);
+  assert.equal(sessionRows(sessions.items, 'all', 'EU West').length, 1);
+  assert.deepEqual(sessionFilters(sessions.items), { channels: ['LIVE', 'PTU'], regions: ['EU West', 'US East'] });
+  assert.equal(regionOf({ region: null, region_code: 'apse2' }), 'APSE2');
+  assert.equal(durationText(3725), '1h 02m');
+  assert.equal(durationText(754), '12m 34s');
+  assert.equal(durationText(45.9), '45s');
+  assert.equal(durationText(null), '—');
+  assert.equal(LEFT_REASON.dropped.tone, 'destructive');
+  assert.deepEqual(sessionRows(null), []);
+  // Nothing private in a row.
+  const j = JSON.stringify(sessions);
+  for (const bad of ['203.0.113', 'address', 'port', 'TestPilot']) assert.ok(!j.includes(bad), bad);
+});
+
+test('the TS mock lists and clears the session history', async () => {
+  const { h } = mock();
+  const v = await h.telemetry_sessions({});
+  assert.equal(v.items.length, sessions.items.length);
+  const c = await h.telemetry_sessions_clear({});
+  assert.equal(c.items.length, 0);
+  assert.ok(c.revision > v.revision);
+  assert.equal((await h.telemetry_sessions({})).items.length, 0);
 });

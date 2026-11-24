@@ -401,6 +401,44 @@ export interface GameLogView {
   events: GameLogEvent[];
   /** null while People is off (no handle is kept then). */
   people: GameLogPeople | null;
+  /** The shard stint you are on now; null off a shard. */
+  stint: TelemetryStint | null;
+  /** The join history's revision: when it moves, read `telemetry_sessions` again. */
+  sessions_rev: number;
+}
+
+/** Mirrors `starorg_telemetry::gamelog::LeftReason`. */
+export type LeftReason = 'leave' | 'shard_change' | 'disconnect' | 'dropped' | 'log_end';
+
+/** One shard stint (join to leave). Never an address, a port, a session id or a handle. */
+export interface TelemetryStint {
+  channel: string | null;
+  build: string | null;
+  shard: string;
+  shard_short: string | null;
+  region_code: string | null;
+  region: string | null;
+  log_started: string | null;
+  joined_ms: number;
+  /** null while still on the shard. */
+  left_ms: number | null;
+  left_reason: LeftReason | null;
+  uptime_s: number | null;
+  systems: string[];
+  disconnects: number;
+  dropped: boolean;
+}
+
+/** The server and shard join history, newest first. */
+export interface TelemetrySessions {
+  items: TelemetryStint[];
+  max_items: number;
+  /** The history file (null on the mock: memory only). */
+  path: string | null;
+  revision: number;
+  /** logbackups files still to read in while the reader runs. */
+  backfill_pending: number;
+  error: string | null;
 }
 
 export interface TelemetryEvent {
@@ -509,6 +547,8 @@ export interface TelemetryCommandMap {
   telemetry_alert_test: [{ req: TelemetryAlertTestRequest }, TelemetryAlert];
   telemetry_gamelog: [Record<string, never>, GameLogView | null];
   telemetry_people_clear: [Record<string, never>, GameLogView | null];
+  telemetry_sessions: [Record<string, never>, TelemetrySessions];
+  telemetry_sessions_clear: [Record<string, never>, TelemetrySessions];
 }
 
 /** Same order as `TELEMETRY_COMMAND_NAMES` in contract/telemetry.rs (a Rust test compares them). */
@@ -530,6 +570,8 @@ export const TELEMETRY_COMMANDS = [
   'telemetry_alert_test',
   'telemetry_gamelog',
   'telemetry_people_clear',
+  'telemetry_sessions',
+  'telemetry_sessions_clear',
 ] as const satisfies readonly (keyof TelemetryCommandMap)[];
 
 const none = {} as Record<string, never>;
@@ -560,4 +602,7 @@ export const telemetryApi = {
   gamelog: () => call('telemetry_gamelog', none),
   /** Forget every person the People panel lists. */
   clearPeople: () => call('telemetry_people_clear', none),
+  /** The server and shard join history, newest first. */
+  sessions: () => call('telemetry_sessions', none),
+  clearSessions: () => call('telemetry_sessions_clear', none),
 };

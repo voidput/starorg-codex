@@ -23,7 +23,8 @@ no crash upload and no account of its own.**
 - None of this leaves your computer. Removing the app's folders and using **Remove** in the app
   deletes everything it made. Settings -> Storage lists what is kept where and how much: the
   extracted game data cache, WHERE TO GET datasets, UEX market data, asset exports, temporary
-  extraction folders, live telemetry schemas and recordings (experimental, below) and `global.ini` backups
+  extraction folders, live telemetry schemas, recordings and session history (experimental,
+  below) and `global.ini` backups
   (gzip-compressed; 5 per channel plus the newest of each of the last 3 game builds). The cache folder is capped (1 GB by default).
 - Diagnostics exports are files you save and share yourself. They replace your user name and home
   folder with placeholders.
@@ -161,9 +162,19 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
   `Game.log` on this computer while the Live telemetry screen is open: read only, the bytes
   the game added since the last read, twice a second. What it shows (session, shard and
   region, star system, quantum route, zone notices, ship classes nearby, deaths and respawns)
-  lives in memory and goes when the screen closes; nothing of it is written to a file or sent.
-  The server address, port and session ids in the log are never kept. This is separate from
-  "Import blueprints from Game.log", which reads only the blueprint lines.
+  lives in memory and goes when the screen closes, except the session history below; nothing
+  of it is sent. The server address, port and session ids in the log are never read into the
+  app at all, and a disconnect line (which also names addresses, a session and your handle) is
+  only classified, never kept. This is separate from "Import blueprints from Game.log", which
+  reads only the blueprint lines.
+- **Session history** (part of Read Game.log events): one row per shard you joined (channel,
+  build, shard id and region, join and leave times, how long, the star systems you went to,
+  why it ended, how many disconnects and whether it dropped), saved in one file in the app's
+  data folder (`telemetry/sessions/history.json`). To start it with your past sessions it also
+  reads the channel's own `logbackups/*.log` (the newest 40, each once, read only, a few MB at
+  a time, never held open). No address, port, session id, handle or raw log line is in it. At
+  most 2000 rows and 2 MB; the oldest go first. Settings -> Storage counts it; **Clear** (in the
+  Sessions panel or Settings -> Storage) empties it. Activity notes only that it was cleared.
 - **People** (another switch under it, off by default) also keeps the player handles Game.log
   names (crew channels, party notices, quantum calibration notices, players named in ship
   kills near you) and your own, to list them by how they relate to you. They stay in memory

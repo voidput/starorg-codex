@@ -49,6 +49,7 @@ use crate::contract::types::ChannelRef;
 use starorg_telemetry::alerts::{self, Alert, AlertEngine, AlertSettings, Notifications, Trigger};
 use starorg_telemetry::client::{LoopbackAddr, TelemetryClient};
 use starorg_telemetry::frames::{Frame, Snapshot, UI_INTERVAL};
+use starorg_telemetry::gamelog::stints::{self, Backfill, Stint, Store};
 use starorg_telemetry::gamelog::{self, GameLog, GameLogView};
 use starorg_telemetry::history::{History, HistoryView};
 use starorg_telemetry::live::{self, LinkStatus, LiveEvent, LiveOptions};
@@ -149,11 +150,15 @@ struct GameLogShared {
     source: &'static str,
     found: bool,
     rotations: u32,
+    /// Backups still to read into the join history.
+    backfill_pending: u32,
 }
 
 impl GameLogShared {
-    fn view(&self) -> GameLogView {
-        self.log.view(self.source, self.found, self.rotations)
+    fn view(&self, sessions_rev: u64) -> GameLogView {
+        let mut v = self.log.view(self.source, self.found, self.rotations);
+        v.sessions_rev = sessions_rev;
+        v
     }
 }
 
@@ -363,6 +368,8 @@ pub struct TelemetryHost {
     state: Arc<Mutex<Running>>,
     history: Arc<Mutex<History>>,
     rec: Arc<Mutex<RecSlot>>,
+    /// The server and shard join history (a file in the data folder; memory on the mock).
+    sessions: Arc<Mutex<Store>>,
 }
 
 impl Default for TelemetryHost {
@@ -541,10 +548,16 @@ pub fn dangerous() -> Vec<String> {
 impl TelemetryHost {
     /// Recordings in `dir` (the real backend: `<data>/telemetry/recordings`), or in memory.
     pub fn with_recordings(dir: Option<PathBuf>) -> Self {
+        Self::with_dirs(dir, None)
+    }
+
+    /// Recordings in `recordings`, the join history in `sessions` (`None`: memory only).
+    pub fn with_dirs(recordings: Option<PathBuf>, sessions: Option<PathBuf>) -> Self {
         Self {
             state: Arc::default(),
             history: Arc::default(),
-            rec: Arc::new(Mutex::new(RecSlot::new(dir))),
+            rec: Arc::new(Mutex::new(RecSlot::new(recordings))),
+            sessions: Arc::new(Mutex::new(Store::new(sessions))),
         }
     }
 
@@ -849,6 +862,50 @@ impl TelemetryHost {
             rec.mock = items;
             rec.mock_current = None;
         }
+    }
+
+    /// Synthetic join history rows (the mock backend; ignored with a folder).
+    pub fn seed_mock_sessions(&self, rows: Vec<Stint>) {
+        let mut s = lock(&self.sessions);
+        if s.path().is_none() {
+            s.add(rows, None);
+        }
+    }
+
+    /// The join history, newest first, with the backups still to read.
+    pub fn sessions_view(&self) -> crate::contract::telemetry::TelemetrySessions {
+        let pending = {
+            let r = lock(&self.state);
+            r.gamelog
+                .as_ref()
+                .map_or(0, |g| lock(&g.shared).backfill_pending)
+        };
+        let mut s = lock(&self.sessions);
+        let items = s.rows();
+        crate::contract::telemetry::TelemetrySessions {
+            items,
+            max_items: stints::MAX_ROWS as u32,
+            path: s.path().map(|p| p.display().to_string()),
+            revision: s.revision,
+            backfill_pending: pending,
+            error: s.error.clone(),
+        }
+    }
+
+    /// Forget the whole join history (backups read stay read).
+    pub fn clear_sessions(&self) -> crate::contract::telemetry::TelemetrySessions {
+        lock(&self.sessions).clear();
+        self.sessions_view()
+    }
+
+    /// The history file and its size (the mock's Storage row).
+    pub fn sessions_usage(&self) -> (u64, u64) {
+        let mut s = lock(&self.sessions);
+        let rows = s.rows();
+        if rows.is_empty() {
+            return (0, 0);
+        }
+        (serde_json::to_vec(&rows).map_or(0, |v| v.len() as u64), 1)
     }
 
     /// The graphs' history since the caller's last answer.
@@ -1246,14 +1303,18 @@ impl TelemetryHost {
             },
             found: false,
             rotations: 0,
+            backfill_pending: 0,
         }));
         let stop = Arc::new(AtomicBool::new(false));
         let session = r.session;
         let state = self.state.clone();
+        let store = self.sessions.clone();
         let (sh, st, src) = (shared.clone(), stop.clone(), source.clone());
         let started = std::thread::Builder::new()
             .name("starorg-telemetry-gamelog".into())
-            .spawn(move || Self::run_gamelog(&state, &sh, &st, session, &sink, src, people));
+            .spawn(move || {
+                Self::run_gamelog(&state, &sh, &st, session, &sink, src, people, &store)
+            });
         if started.is_ok() {
             r.gamelog = Some(GameLogTask {
                 source,
@@ -1265,7 +1326,10 @@ impl TelemetryHost {
     }
 
     /// The reader thread: poll, fold, send the view when it changed (at most every
-    /// [`GAMELOG_EMIT`]); ends when stopped or when a newer stream started.
+    /// [`GAMELOG_EMIT`]); ends when stopped or when a newer stream started. Shard stints that
+    /// end go to the join history, and one chunk of a `logbackups/` file is read in per poll
+    /// until the newest backups are all in.
+    #[allow(clippy::too_many_arguments)]
     fn run_gamelog(
         state: &Mutex<Running>,
         shared: &Mutex<GameLogShared>,
@@ -1274,11 +1338,18 @@ impl TelemetryHost {
         sink: &Sink,
         source: GameLogSource,
         people: bool,
+        store: &Mutex<Store>,
     ) {
         let now = || now_ms() as i64;
         let mut tail = match &source {
             GameLogSource::Channel(dir) => Some(gamelog::tail::Tail::for_channel(dir)),
             GameLogSource::Mock => None,
+        };
+        let mut backfill = match &source {
+            GameLogSource::Channel(dir) => {
+                Backfill::plan(stints::backups_dir(dir).as_deref(), &mut lock(store))
+            }
+            GameLogSource::Mock => Backfill::default(),
         };
         if tail.is_none() {
             let mut g = lock(shared);
@@ -1288,7 +1359,7 @@ impl TelemetryHost {
             g.log.end_poll(now());
             g.found = true;
         }
-        let mut sent: Option<u64> = None;
+        let mut sent: Option<(u64, u64)> = None;
         let mut last_emit: Option<Instant> = None;
         let mut last_mock = Instant::now();
         let mut mock_i = 0u64;
@@ -1315,10 +1386,23 @@ impl TelemetryHost {
                     false
                 }
             };
+            // Ended stints into the history; then one chunk of a backup (file IO unlocked).
+            let ended = lock(shared).log.drain_stints();
+            if !ended.is_empty() {
+                lock(store).add(ended, None);
+            }
+            if !backfill.is_done() {
+                if let Some((rows, mark)) = backfill.step() {
+                    lock(store).add(rows, Some(mark));
+                }
+                lock(shared).backfill_pending = backfill.pending() as u32;
+            }
+            let rev = lock(store).revision;
             let due = last_emit.is_none_or(|t| t.elapsed() >= GAMELOG_EMIT);
             let view = {
                 let g = lock(shared);
-                (due && sent != Some(g.log.version())).then(|| (g.log.version(), g.view()))
+                let v = (g.log.version(), rev);
+                (due && sent != Some(v)).then(|| (v, g.view(rev)))
             };
             if let Some((v, view)) = view {
                 if stop.load(Ordering::Relaxed) || lock(state).session != session {
@@ -1343,18 +1427,20 @@ impl TelemetryHost {
 
     /// What the Game.log reader holds now (`None` while it does not run).
     pub fn gamelog_view(&self) -> Option<GameLogView> {
+        let rev = lock(&self.sessions).revision;
         let r = lock(&self.state);
-        r.gamelog.as_ref().map(|g| lock(&g.shared).view())
+        r.gamelog.as_ref().map(|g| lock(&g.shared).view(rev))
     }
 
     /// The People panel's Clear: every person held goes (your own handle stays, so later
     /// lines naming you are still not listed).
     pub fn clear_people(&self) -> Option<GameLogView> {
+        let rev = lock(&self.sessions).revision;
         let r = lock(&self.state);
         r.gamelog.as_ref().map(|g| {
             let mut s = lock(&g.shared);
             s.log.clear_people();
-            s.view()
+            s.view(rev)
         })
     }
 

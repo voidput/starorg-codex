@@ -197,6 +197,16 @@ impl TelemetryBackend for RealBackend {
         &self.telemetry
     }
 
+    fn telemetry_sessions_cleared(&self) {
+        self.sizes_changed();
+        self.log(
+            LogLevel::Info,
+            None,
+            None,
+            "Live telemetry: session history cleared",
+        );
+    }
+
     fn telemetry_status(&self) -> CmdResult<TelemetryStatus> {
         Ok(self.telemetry_view())
     }

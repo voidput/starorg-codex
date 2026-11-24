@@ -332,6 +332,18 @@ Nothing leaves the computer: the app talks to `127.0.0.1` only, refuses any othe
 records nothing unless you turn on **Record sessions**, and sends nothing anywhere
 ([privacy](privacy.md)).
 
+**Each part is its own choice, off by default**, and turning one on never turns on another:
+
+| Choice (Settings -> Experimental -> Live telemetry) | What it adds |
+|---|---|
+| **Off** / **Metrics** / **Metrics + actions** | the screen itself; actions also press game inputs ([below](#live-telemetry)) |
+| **Record sessions** | a file per stream, for replay |
+| **Read Game.log events** | the Events and Sessions panels and a history of the shards you join |
+| **People** (under it) | the People panel (handles in memory only) |
+| **Notifications**: Off / In app / In app + sound | toasts, tones and spoken callouts |
+
+The last four sit under **More from Live telemetry** and **Notifications** once Metrics is on.
+
 **Turning it on** (Settings -> Experimental -> Live telemetry):
 
 1. Choose **Metrics** (or **Metrics + actions**) under **Live telemetry** for a 5.0 channel. The app adds one line to that channel's
@@ -351,7 +363,7 @@ records nothing unless you turn on **Record sessions**, and sends nothing anywhe
 
 Then **Live telemetry** appears in the sidebar under Game (marked Exp). Opening it starts
 reading; leaving it stops. It shows the connection (Connecting, Connected, Game not running:
-it retries by itself every few seconds), then once you have spawned:
+it retries by itself every few seconds), then once you have spawned, top to bottom:
 
 - key readouts (speed, vertical speed, G, master mode, gear),
 - **Pilot**: health, oxygen, heart rate, body temperature, gravity,
@@ -360,12 +372,17 @@ it retries by itself every few seconds), then once you have spawned:
   for every ship),
 - **Systems** (engines, shield generators, lights, gear, landed, quantum spool, boost) and
   **Annunciators** (low health, oxygen, hull or fuel, shields off, high G),
+- **Alerts** and **Actions** (both below),
 - **History**: small line graphs of speed, G, hydrogen and quantum fuel, hull, shields,
   health and oxygen over the last 1, 5 or 10 minutes (one sample a second, kept in memory
   while the app runs; a gap in the data breaks the line),
-- **Actions** (below) and **Raw frame**: everything the game sent, as JSON, once a second
-  while it is open, with Pause and Copy JSON,
-- **Recordings** (below).
+- **Events**, **People** and **Sessions** from Game.log (below); with Read Game.log events
+  off, one card says so, with a **Settings** button,
+- **Recordings** (below) and **Raw frame**: everything the game sent, as JSON, once a second
+  while it is open, with Pause and Copy JSON.
+
+Every panel below the live readouts folds to its title (click it); the app remembers which
+are folded. A panel whose switch is off says how to turn it on.
 
 The screen updates at most 10 times a second; the graphs once a second. The first time a build is read, the app reads
 the layout of the game's service from that channel's `Bin64/StarCitizen.exe` (a few seconds)
@@ -427,6 +444,21 @@ environment variables set, no schema), as long as the screen is open:
 These are the game's unofficial debug lines: a patch can change or drop them. The app reads
 only what the game added since the last read, twice a second, and keeps the newest 200 events.
 
+**Sessions** (with Read Game.log events): a history of the shards you joined, one row per
+stint from the join to when you left: the channel, the shard (`USE1B · 020`) and region,
+when you joined, how long you stayed, the star systems you went to, and why it ended: **Left**
+(back at the menu, or joined another shard), **Shard change** (the game moved you), **Quit**
+(you disconnected), **Dropped** (kicked for being idle, timed out, the server went: marked
+with a warning sign) or **Log ended** (the game closed while on the shard). *Same shard as
+before* marks a rejoin of the shard your previous session on that channel was on. The stint
+you are on now is shown on top. Filter by channel and region; **Clear** forgets the whole
+history. A row is saved when the stint ends; when the screen opens, the app also reads the
+newest 40 older logs in the channel's `logbackups` folder (once each, a few MB at a time) so
+the history starts with your past sessions. It is one small file in the app's data folder
+(`telemetry/sessions/history.json`, *Live telemetry session history* in Settings -> Storage,
+which can clear it too): 2000 rows and 2 MB at most, the oldest go first. It holds no server
+address, port, session id or player name.
+
 **People** (under it, off by default) adds a **People** panel: the player handles Game.log
 names, by how they relate to you: **Crew** (ship voice channels), **Party** (party notices),
 **Party?** (quantum calibration notices, usually a party member) and **Nearby** (players named
@@ -460,6 +492,7 @@ Settings -> Storage shows how much the app keeps and where:
 | Temporary extraction folders | `~/.cache/starorg-codex/work/` | removed after each read; leftovers older than an hour at the next start |
 | Live telemetry schemas (experimental) | `~/.cache/starorg-codex/telemetry/` | the last 3 game builds, a few hundred KB each |
 | Live telemetry recordings (experimental, Record sessions) | `~/.local/share/starorg-codex/telemetry/recordings/` (Windows: `%APPDATA%\StarOrg Tools\Codex\data\telemetry\recordings\`) | 20 files, 256 MB in all; not in the cache folder or its cap |
+| Live telemetry session history (experimental, Read Game.log events) | `~/.local/share/starorg-codex/telemetry/sessions/` (Windows: `%APPDATA%\StarOrg Tools\Codex\data\telemetry\sessions\`) | one file, 2000 rows and 2 MB; not in the cache folder or its cap; **Clear session history** |
 | Backups | `~/.local/share/starorg-codex/channels/<install>/<CHANNEL>/backups/` | see [Backups](#backups-and-restore) |
 
 **The cache folder's cap** (1 GB by default; `[storage] cache_max_mb` in `config.toml`):
@@ -502,8 +535,8 @@ once with **Measure again**.
 - **Local MCP server** (experimental, off): read-only game data tools for Claude Code or Claude
   Desktop ([mcp](mcp.md)).
 - **Live telemetry** (experimental, off): your vitals, ship and shields while you play, from the
-  game's own local service, for 5.0 builds ([below](#live-telemetry)); Game.log events and
-  People are two more switches there, each off.
+  game's own local service, for 5.0 builds ([below](#live-telemetry)); Record sessions,
+  Read Game.log events, People and Notifications are more choices there, each off.
 - **Diagnostics** (Activity): a report with user names and home paths replaced, for bug reports.
 
 ## Developer mode

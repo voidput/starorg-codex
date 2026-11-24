@@ -489,9 +489,12 @@ impl RealBackend {
     pub fn new(cfg: RealConfig) -> Self {
         let update = crate::update::Updater::github(cfg.ctx.dirs.data.join(UPDATE_JSON));
         let starorg = starorg::StarOrgDeps::system(cfg.ctx.dirs.config.join("starorg-tokens"));
-        let telemetry = crate::telemetry::TelemetryHost::with_recordings(Some(
-            starorg_core::storage::telemetry_recordings_dir(&cfg.ctx.dirs),
-        ));
+        let telemetry = crate::telemetry::TelemetryHost::with_dirs(
+            Some(starorg_core::storage::telemetry_recordings_dir(
+                &cfg.ctx.dirs,
+            )),
+            Some(starorg_core::storage::telemetry_sessions_dir(&cfg.ctx.dirs)),
+        );
         Self {
             cfg,
             mem: Mutex::new(Mem::default()),

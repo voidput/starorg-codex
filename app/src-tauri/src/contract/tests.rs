@@ -336,6 +336,7 @@ fn storage_on_the_mock_lists_every_area_and_clears_assets() {
             StorageAreaId::Temporary,
             StorageAreaId::Telemetry,
             StorageAreaId::TelemetryRecordings,
+            StorageAreaId::TelemetrySessions,
             StorageAreaId::Backups,
         ]
     );
@@ -364,7 +365,16 @@ fn storage_on_the_mock_lists_every_area_and_clears_assets() {
         .unwrap();
     assert!(!recs.in_cache);
     assert_eq!(recs.files, 2, "the mock's two synthetic recordings");
-    assert_eq!(s.total_bytes, s.cache_bytes + backups.bytes + recs.bytes);
+    let sessions = s
+        .areas
+        .iter()
+        .find(|a| a.id == StorageAreaId::TelemetrySessions)
+        .unwrap();
+    assert!(!sessions.in_cache && sessions.files == 1);
+    assert_eq!(
+        s.total_bytes,
+        s.cache_bytes + backups.bytes + recs.bytes + sessions.bytes
+    );
 }
 
 #[test]
