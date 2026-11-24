@@ -815,7 +815,7 @@ pub struct ShopItemsRequest {
 }
 
 /// The Shops screen's item search: the items whose game or UEX name matches `query` (fuzzy,
-/// best first, capped), and the shops of the item `key` names (a [`ShopItemMatch::key`]),
+/// best first, capped), and every shop (one offer each) of the item `key` names (a [`ShopItemMatch::key`]),
 /// else of the best match. `target` as for [`ShopInventoryRequest`].
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShopItemSearchRequest {

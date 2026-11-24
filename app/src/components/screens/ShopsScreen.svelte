@@ -9,7 +9,7 @@
    * set. The mode and the search last for the session (`shopsState`). Shop stock is in no game
    * file: every row is UEX data (Settings -> Network -> Download UEX market data, Fetch now).
    */
-  import { untrack } from 'svelte';
+  import { tick as flushDom, untrack } from 'svelte';
   import Store from '@lucide/svelte/icons/store';
   import Search from '@lucide/svelte/icons/search';
   import Settings from '@lucide/svelte/icons/settings';
@@ -177,23 +177,31 @@
   const found = $derived(Array.isArray(search?.items) ? search.items : []);
   const picked = $derived(search?.item ?? null);
   const offers = $derived(dealOffers(search?.offers, shopsState.deal, system));
+  // The counts follow the system filter, like the table.
+  const buyCount = $derived(dealOffers(search?.offers, 'buy', system).length);
+  const sellCount = $derived(dealOffers(search?.offers, 'sell', system).length);
   const deals = $derived<{ id: ItemDeal; label: string; hint: string }[]>([
-    { id: 'buy', label: `Buy${picked ? ` · ${picked.sold_at}` : ''}`, hint: 'Shops that sell it, cheapest first' },
-    { id: 'sell', label: `Sell${picked ? ` · ${picked.bought_at}` : ''}`, hint: 'Shops that pay for it, best price first' },
+    { id: 'buy', label: `Buy${picked ? ` · ${buyCount}` : ''}`, hint: 'Shops that sell it, cheapest first' },
+    { id: 'sell', label: `Sell${picked ? ` · ${sellCount}` : ''}`, hint: 'Shops that pay for it, best price first' },
   ]);
 
   function setItemQuery(q: string) {
     shopsState.itemQuery = q;
     shopsState.itemKey = null;
   }
-  // A shop of the item search: the shop list with that shop picked and the item filter set.
-  function openShop(terminal: number) {
-    const name = picked?.name ?? '';
+  // A shop of the item search: the shop list with that shop picked, scrolled into view, and the
+  // item filter set. A linked item filters by its class name: every row of the record has it,
+  // while the display names of a template record's rows differ.
+  let shopList = $state<HTMLElement | null>(null);
+  async function openShop(terminal: number) {
+    const filter = picked?.record?.class_name ?? picked?.name ?? '';
     shopsState.mode = 'shops';
     query = '';
     category = null;
     selected = terminal;
-    itemQuery = name;
+    itemQuery = filter;
+    await flushDom();
+    shopList?.querySelector(`[data-shop-id="${terminal}"]`)?.scrollIntoView({ block: 'nearest' });
   }
   function openRecord(guid: string) {
     dev.openRecord(guid, () => app.go('explorer'));
@@ -357,7 +365,7 @@
         {:else if !groups.length}
           <p class="text-muted-foreground px-3 py-6 text-center text-[12px]">No shop matches.</p>
         {:else}
-          <nav class="max-h-[calc(100vh-15rem)] overflow-y-auto py-1" aria-label="Shops by system and place">
+          <nav bind:this={shopList} class="max-h-[calc(100vh-15rem)] overflow-y-auto py-1" aria-label="Shops by system and place">
             {#each groups as g (g.system)}
               <h3 class="eyebrow text-muted-foreground px-3 pt-2.5 pb-1">{g.system} <span class="mono font-normal">{g.count}</span></h3>
               {#each g.places as p (p.name)}
@@ -367,6 +375,7 @@
                     <li>
                       <button
                         type="button"
+                        data-shop-id={s.id}
                         aria-current={s.id === current ? 'true' : undefined}
                         class={cn(
                           'focus-visible:ring-ring/60 grid w-full grid-cols-[minmax(0,1fr)_auto] gap-x-2 px-3 py-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset',
@@ -426,7 +435,7 @@
                   </div>
                 </div>
                 <div role="rowgroup" class="divide-y divide-border/50">
-                  {#each offers as o (o.terminal)}
+                  {#each offers as o, i (`${o.terminal}/${i}`)}
                     {@const price = shopsState.deal === 'buy' ? o.price_buy : o.price_sell}
                     <div role="row" class={cn(OFFER_ROW, 'py-1')}>
                       <span role="cell" class="min-w-0">
@@ -448,9 +457,6 @@
                   {/each}
                 </div>
               </div>
-              {#if search && search.offer_count > search.offers.length}
-                <p class="text-muted-foreground text-[11.5px]">The first {search.offers.length} of {search.offer_count} shops, cheapest first.</p>
-              {/if}
             {/if}
           {/if}
         </section>

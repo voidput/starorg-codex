@@ -9,9 +9,8 @@ import { matchesWords } from '../shops.ts';
 
 export type ShopItemCatalogue = { item: T.ShopItemMatch; offers: T.ShopItemOffer[] }[];
 
-/** Rust's `ITEM_MATCH_LIMIT` and `ITEM_OFFER_LIMIT`. */
+/** Rust's `ITEM_MATCH_LIMIT`. */
 const MATCH_LIMIT = 40;
-const OFFER_LIMIT = 200;
 
 export function mockItemSearch(
   catalogue: ShopItemCatalogue,
@@ -22,7 +21,7 @@ export function mockItemSearch(
   query: string,
   key: string | null,
 ): T.ShopItemSearch {
-  const empty: T.ShopItemSearch = { state: 'missing', folder, fetched: null, linked: null, query, items: [], total: 0, item: null, offers: [], offer_count: 0 };
+  const empty: T.ShopItemSearch = { state: 'missing', folder, fetched: null, linked: null, query, items: [], total: 0, item: null, offers: [] };
   if (!ready) return empty;
   const list = Array.isArray(catalogue) ? catalogue : [];
   const found = query.trim() ? list.filter((c) => matchesWords(`${c.item.name} ${c.item.uex_name ?? ''} ${c.item.record?.class_name ?? ''}`, query)) : [];
@@ -36,7 +35,6 @@ export function mockItemSearch(
     items: found.slice(0, MATCH_LIMIT).map((c) => c.item),
     total: found.length,
     item: chosen?.item ?? null,
-    offers: offers.slice(0, OFFER_LIMIT),
-    offer_count: offers.length,
+    offers,
   });
 }

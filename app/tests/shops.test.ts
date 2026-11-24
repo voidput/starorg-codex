@@ -216,7 +216,6 @@ test('the in-browser mock matches names and keeps a picked key', () => {
   const r = mockItemSearch(catalogue, true, '/uex', 'f', 'LIVE', 'hornet', null);
   assert.equal(r.state, 'ready');
   assert.equal(r.item?.name, 'Hornet Pistol');
-  assert.equal(r.offer_count, r.offers.length);
   assert.ok(r.offers.length > 0);
   const many = mockItemSearch(catalogue, true, null, null, null, 'repeater', null);
   assert.ok(many.items.length > 1);

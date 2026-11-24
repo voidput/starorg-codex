@@ -637,7 +637,7 @@ export interface ShopItemMatch {
   uex_name: string | null;
   category: ShopCategory;
   record: ItemRecord | null;
-  /** Shops with a buy price. */
+  /** Shops with a buy price (a shop with two rows of it counts once). */
   sold_at: number;
   /** Shops that pay for it. */
   bought_at: number;
@@ -659,7 +659,7 @@ export interface ShopItemOffer {
   stale: boolean;
 }
 
-/** `shop_item_search`: matches best first (at most 40 of `total`), the chosen item and its shops cheapest buy first (at most 200 of `offer_count`). */
+/** `shop_item_search`: matches best first (at most 40 of `total`), the chosen item and its shops (one offer per shop, all of them) cheapest buy first. */
 export interface ShopItemSearch {
   state: ShopDataState;
   folder: string | null;
@@ -670,7 +670,6 @@ export interface ShopItemSearch {
   total: number;
   item: ShopItemMatch | null;
   offers: ShopItemOffer[];
-  offer_count: number;
 }
 
 // The Commodities screen (`commodity_list`, `commodity_detail`), typed in

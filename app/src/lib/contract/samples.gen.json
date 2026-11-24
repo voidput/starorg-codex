@@ -22532,7 +22532,6 @@
       }
     ],
     "linked": "LIVE 4.10.200.58746",
-    "offer_count": 3,
     "offers": [
       {
         "location": "Grim HEX, Yela, Crusader",
@@ -22578,7 +22577,6 @@
     "item": null,
     "items": [],
     "linked": null,
-    "offer_count": 0,
     "offers": [],
     "query": "hornet",
     "state": "missing",
