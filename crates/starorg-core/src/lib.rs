@@ -6,6 +6,7 @@
 pub mod appdirs;
 pub mod apply;
 pub mod assetcache;
+pub mod background;
 pub mod backup;
 pub mod blueprints;
 pub mod build;

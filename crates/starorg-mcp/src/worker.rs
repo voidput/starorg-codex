@@ -18,6 +18,7 @@
 
 use crate::rss;
 use serde::{Deserialize, Serialize};
+use starorg_core::background::{self, Priority};
 use starorg_core::memlimit;
 use starorg_gamedata::domain::{FileSource, NoFiles};
 use starorg_gamedata::pipeline::{self, Game};
@@ -139,6 +140,12 @@ pub fn worker_main(args: &[OsString]) -> Option<i32> {
     };
     // The parent's memory limit, when it set one (memlimit::apply).
     memlimit::arm_from_env();
+    // The caller's priority, thread cap and deadline (starorg_core::background); stopped at
+    // the deadline, it removes its temp file first (the dataset file is renamed whole).
+    let tmp = out.join(format!("{dataset}.json.tmp-{}", std::process::id()));
+    background::arm_from_env_with(move || {
+        let _ = std::fs::remove_file(&tmp);
+    });
     if let Some(r) = protected_root(&p4k, &out) {
         eprintln!(
             "{WORKER_ARG}: --out {} is inside {}; refusing",
@@ -183,6 +190,11 @@ pub struct ProcessExtractor {
     pub timeout: Duration,
     /// The memory limit for each worker (none by default).
     pub limit: Option<LimitFn>,
+    /// How hard each worker may use the machine (`starorg_core::background`).
+    pub priority: Priority,
+    /// One deadline shared by every extraction (the launch hooks' budget): an extraction
+    /// stops at it whatever `timeout` says, and none starts after it.
+    pub deadline: Option<Instant>,
 }
 
 impl ProcessExtractor {
@@ -191,6 +203,32 @@ impl ProcessExtractor {
             exe,
             timeout: WORKER_TIMEOUT,
             limit: None,
+            priority: background::process_priority(),
+            deadline: None,
+        }
+    }
+
+    /// Each worker at `p`.
+    pub fn with_priority(mut self, p: Priority) -> Self {
+        self.priority = p;
+        self
+    }
+
+    /// Every extraction ends by `deadline` (see [`Self::deadline`]).
+    pub fn with_deadline(mut self, deadline: Instant) -> Self {
+        self.deadline = Some(deadline);
+        self
+    }
+
+    /// How long the next extraction may take: `timeout`, cut to what is left before the
+    /// deadline. `None` once the deadline passed.
+    pub fn time_left(&self) -> Option<Duration> {
+        match self.deadline {
+            None => Some(self.timeout),
+            Some(d) => {
+                let left = d.saturating_duration_since(Instant::now());
+                (!left.is_zero()).then(|| self.timeout.min(left))
+            }
         }
     }
 
@@ -220,6 +258,11 @@ pub fn guard(dataset: &str, limit: Option<u64>, available: Option<u64>) -> Resul
 
 impl Extractor for ProcessExtractor {
     fn extract(&self, p4k: &Path, dataset: &str, out: &Path) -> Result<Measurement, String> {
+        let Some(timeout) = self.time_left() else {
+            return Err(format!(
+                "out of time before extracting {dataset}; left for the next run"
+            ));
+        };
         let limit = self.limit.as_ref().and_then(|f| f());
         if limit.is_some() {
             guard(dataset, limit, memlimit::meminfo().available)?;
@@ -236,14 +279,10 @@ impl Extractor for ProcessExtractor {
         cmd.stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            // CREATE_NO_WINDOW: the app is a GUI process; no console flashes up.
-            cmd.creation_flags(0x0800_0000);
-        }
-        let mut child = cmd
-            .spawn()
+        let deadline = Instant::now() + timeout;
+        // no_window: the app is a GUI process; no console flashes up (Windows).
+        background::prepare(&mut cmd, self.priority, Some(deadline), true);
+        let mut child = background::spawn(&mut cmd, self.priority)
             .map_err(|e| format!("cannot start {}: {e}", self.exe.display()))?;
         // Drain both pipes on threads so a chatty worker never blocks on a full pipe.
         let mut so = child.stdout.take();
@@ -262,16 +301,19 @@ impl Extractor for ProcessExtractor {
             }
             s
         });
-        let deadline = Instant::now() + self.timeout;
         let status = loop {
             match child.try_wait() {
                 Ok(Some(s)) => break s,
                 Ok(None) if Instant::now() >= deadline => {
+                    let pid = child.id();
                     let _ = child.kill();
                     let _ = child.wait();
+                    // Its temp file, if it got that far; the dataset file is only ever
+                    // renamed into place whole.
+                    let _ = std::fs::remove_file(out.join(format!("{dataset}.json.tmp-{pid}")));
                     return Err(format!(
-                        "extracting {dataset} took over {} s; stopped",
-                        self.timeout.as_secs()
+                        "extracting {dataset} took over {} s; stopped, left for the next run",
+                        timeout.as_secs()
                     ));
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(50)),
@@ -280,6 +322,15 @@ impl Extractor for ProcessExtractor {
         };
         let stdout = t_out.join().unwrap_or_default();
         let stderr = t_err.join().unwrap_or_default();
+        // It stopped itself at the deadline (background::EXIT_DEADLINE) just before the
+        // loop above would have: the same stop. Any other failure (a memory stop) says so.
+        if status.code() == Some(background::EXIT_DEADLINE) {
+            let _ = std::fs::remove_file(out.join(format!("{dataset}.json.tmp-{}", child.id())));
+            return Err(format!(
+                "extracting {dataset} took over {} s; stopped, left for the next run",
+                timeout.as_secs()
+            ));
+        }
         if !status.success() {
             if memlimit::exit_was_memory(&status, limit, Some(&stderr)) {
                 return Err(format!(

@@ -515,6 +515,22 @@ the asset cache; a backup made or deleted) and when you press **Measure again**.
 program writes there (the MCP server, a launch hook, the CLI) shows within 5 minutes, or at
 once with **Measure again**.
 
+## CPU and time
+
+The game usually runs while StarOrg Codex works, so nothing it does runs at full priority:
+
+| Work | Priority (Linux nice; Windows workers) | Threads at most | Time |
+|---|---|---|---|
+| You started it: Apply, Read game data, Developer mode, `apply` or `build` in a terminal | below normal (nice 10; `BELOW_NORMAL`) | all cores but two, at most 8 | until done |
+| Nobody waits for it: the launch hooks, their post-exit background job, WHERE TO GET datasets an MCP client asks for (app or `starorg-codex mcp`) | lowest (nice 19, which also puts disk reads at the lowest level; `IDLE`) | a quarter of the cores, at most 4 | hooks: their `--timeout`; the background job stops when the game starts ([linux: launch hooks](linux.md#launch-hooks)) |
+
+The extraction workers (`extract-worker`, `mcp-extract-worker`, the Developer mode workers) get
+the same priority and thread cap as the job that started them; the app's own window does not
+slow down. `STARORG_THREADS=<n>` sets the thread cap for both rows (at least 1), and
+`STARORG_PRIORITY=background` makes a CLI run from a script or timer (for example
+`apply --all --if-stale`) a background one. On Windows the app and the CLI keep their own
+priority class (only their workers are lowered); the thread cap applies everywhere.
+
 ## Settings worth knowing
 
 - **Appearance:** dark (default) or light theme, accent colour and palette.

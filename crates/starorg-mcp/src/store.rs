@@ -453,8 +453,14 @@ impl Store {
     fn record_measurement(dir: &Path, m: &Measurement) {
         let mut all = Self::measurements(dir);
         all.insert(m.dataset.clone(), m.clone());
+        // Temp file and rename: a run stopped half-way never leaves a torn file.
         if let Ok(text) = serde_json::to_string_pretty(&all) {
-            let _ = std::fs::write(dir.join("measurements.json"), text);
+            let tmp = dir.join(format!("measurements.json.tmp-{}", std::process::id()));
+            if std::fs::write(&tmp, text).is_err()
+                || std::fs::rename(&tmp, dir.join("measurements.json")).is_err()
+            {
+                let _ = std::fs::remove_file(&tmp);
+            }
         }
     }
 

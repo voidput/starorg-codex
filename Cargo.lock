@@ -4907,6 +4907,7 @@ dependencies = [
  "flate2",
  "getrandom 0.4.3",
  "memchr",
+ "rayon",
  "rustix",
  "serde",
  "serde_json",

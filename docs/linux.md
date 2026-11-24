@@ -1,7 +1,7 @@
 ---
 title: Linux
 tags: [docs]
-updated: 2026-11-15
+updated: 2026-11-23
 ---
 
 # Linux
@@ -271,6 +271,26 @@ starorg-codex hook status
 `hook uninstall` removes the block again. A block written by 0.2 (old `starorg-strings`
 markers) is reported as outdated and `hook install` replaces it in place. Use `--prefix` (or `--prelaunch-script` /
 `--postexit-script`) when the prefix is not found automatically.
+
+A hook never holds up the launcher: `--timeout` (60 s before launch, 120 s after exit by
+default) is one deadline for everything it does (blueprint scan, game data read, apply). Each
+step checks it, the extraction workers stop themselves at it, and a step that still runs 2 s
+past it is stopped with the usual soft report (exit 0). Writes to `global.ini`, `user.cfg` and
+the backups always finish. Caches are written to a temp name and renamed into place, so a
+stopped run never leaves a half-written one. Hooks run at the lowest priority with at most 4
+threads ([user guide: CPU and time](user-guide.md#cpu-and-time)); `--json` reports both under
+`priority`.
+
+The game text comes first. The WHERE TO GET lines need datasets that take minutes to build
+on a new game build, so the hooks use them only once built: until then `global.ini` is applied
+without them, the channel shows *Stale (WHERE TO GET lines)*, and the hooks do not rewrite the
+file while the lines are still not ready. Whatever a hook leaves for later (those datasets, or
+a game data read that did not fit the budget) the **post-exit** hook hands to a background
+job (`hook background`, never started before launch): one at a time, lowest priority, at most
+4 threads, no time limit, skipped while the game runs and stopped with its workers as soon as
+it starts. It extracts what is missing, applies, and logs to
+`~/.cache/starorg-codex/hook-background.log`; the next hook then finds everything up to date.
+`--json` says `"background_job": true` when one was started.
 
 ## Build from source
 

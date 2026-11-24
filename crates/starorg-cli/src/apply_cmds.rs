@@ -24,11 +24,15 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Duration;
 
-/// Test source: a stock file on disk instead of an extraction (hidden `--test-stock-ini`).
-struct FileSource(PathBuf, Option<PathBuf>);
+/// Test source: a stock file on disk instead of an extraction (hidden `--test-stock-ini`),
+/// optionally slow (`--test-slow-load-ms`, which ignores the budget).
+struct FileSource(PathBuf, Option<PathBuf>, Option<Duration>);
 
 impl GameSource for FileSource {
     fn load(&self, _: &Channel, _: &Budget) -> Result<Loaded, SourceError> {
+        if let Some(d) = self.2 {
+            std::thread::sleep(d);
+        }
         let game_data = match &self.1 {
             Some(p) => serde_json::from_slice(&std::fs::read(p)?)
                 .map_err(|e| std::io::Error::other(format!("{}: {e}", p.display())))?,
@@ -68,6 +72,7 @@ pub(crate) fn source(g: &GlobalOpts, c: &Ctx) -> Result<Box<dyn GameSource>, Exi
         return Ok(Box::new(FileSource(
             p.to_path_buf(),
             g.test_gamedata().map(Path::to_path_buf),
+            g.test_slow_load_ms().map(Duration::from_millis),
         )));
     }
     let exe = std::env::current_exe().map_err(|e| {
@@ -165,7 +170,8 @@ pub(crate) fn notify(g: &GlobalOpts, code: u8, summary: &str, applied_something:
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .status();
+        // Not waited for: a hung notification daemon never holds up a hook.
+        .spawn();
     if r.is_err() && !g.quiet {
         eprintln!("starorg-codex: notify-send not available; {summary}");
     }
@@ -454,15 +460,17 @@ pub fn apply(
         Ok(s) => s,
         Err(e) => return e,
     };
+    let budget = timeout
+        .map(|s| Budget::with_timeout(Duration::from_secs(s)))
+        .unwrap_or_default();
     let opts = ApplyOpts {
         if_stale,
         dry_run,
-        budget: timeout
-            .map(|s| Budget::with_timeout(Duration::from_secs(s)))
-            .unwrap_or_default(),
+        budget,
         profile_file: profile,
         character,
-        obtain: crate::obtain_src::provider(g, &i, &c.dirs, None),
+        // `--timeout` covers the datasets too.
+        obtain: crate::obtain_src::provider(g, &i, &c.dirs, budget.deadline()),
     };
     let (reports, skipped) =
         match apply_channels(g, &c, &i, &id, &names, sel.all, &opts, src.as_ref()) {

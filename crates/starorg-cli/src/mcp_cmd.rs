@@ -37,7 +37,11 @@ pub fn run(g: &GlobalOpts, channel: Option<&str>, limit: Option<u64>) -> ExitCod
         game_dir: g.game_dir.clone(),
         prefix: g.prefix.clone(),
     };
-    let extractor = ProcessExtractor::new(exe).with_limit(Arc::new(move || limit));
+    // MCP clients extract without anyone clicking: background work (the server itself
+    // only answers requests).
+    let extractor = ProcessExtractor::new(exe)
+        .with_limit(Arc::new(move || limit))
+        .with_priority(starorg_core::background::Priority::Background);
     let mut cfg = starorg_mcp::config_from_env(&req, &dirs, Arc::new(extractor));
     if let Some(ch) = channel {
         if !cfg.channels.iter().any(|c| c.name.eq_ignore_ascii_case(ch)) {

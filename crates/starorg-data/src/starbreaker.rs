@@ -889,8 +889,9 @@ pub struct RawFacets {
 /// more resident after the explorer's scans; a few threads that end with the pool keep it
 /// near the old steady size.
 pub fn small_pool<T: Send>(f: impl FnOnce() -> T + Send) -> T {
+    // Never more than the global pool, whose size the priority sets (starorg_core::background).
     match rayon::ThreadPoolBuilder::new()
-        .num_threads(POOL_THREADS)
+        .num_threads(POOL_THREADS.min(rayon::current_num_threads()))
         .build()
     {
         Ok(pool) => pool.install(f),

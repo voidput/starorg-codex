@@ -115,6 +115,8 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
     if args.get(1).map(|a| a.as_os_str()) == Some("dev-worker".as_ref()) {
         // The memory limit the app put on it (addendum 7.18): 90% watchdog + hard cap above it.
         starorg_core::memlimit::arm_from_env();
+        // Its priority and thread cap (starorg_core::background).
+        starorg_core::background::arm_from_env();
         return Some(match starorg_data::devworker::parse_args(&args[2..]) {
             Ok(input) => starorg_data::devworker::run(&input),
             Err(e) => {
@@ -127,6 +129,7 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
     // Read only; outputs go only to the asset cache or paths from a native dialog.
     if args.get(1).map(|a| a.as_os_str()) == Some("asset-worker".as_ref()) {
         starorg_core::memlimit::arm_from_env();
+        starorg_core::background::arm_from_env();
         return Some(match starorg_data::assetworker::parse_args(&args[2..]) {
             Ok(a) => starorg_data::assetworker::run(&a),
             Err(e) => {
@@ -181,6 +184,8 @@ pub fn worker_main(args: &[std::ffi::OsString]) -> Option<i32> {
         );
         return Some(2);
     }
+    // The caller's priority, thread cap and deadline (starorg_core::background).
+    starorg_core::background::arm_from_env();
     Some(starorg_data::worker::run_opts(
         &p4k,
         &out,

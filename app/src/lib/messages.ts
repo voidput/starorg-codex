@@ -31,6 +31,7 @@ const STALE: Record<string, string> = {
   profile: 'your settings',
   overrides: 'your edits',
   'enhancer update': 'improved enhancements',
+  'where to get': 'WHERE TO GET lines',
   patches: 'patches',
   'ship names': 'ship names',
   'owned blueprints': 'owned blueprints',

@@ -150,8 +150,10 @@ impl Worker {
         cmd.stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
-        let mut child = cmd
-            .spawn()
+        // User-started (Developer mode), below normal priority with the usual thread cap.
+        let p = starorg_core::background::Priority::Normal;
+        starorg_core::background::prepare(&mut cmd, p, None, false);
+        let mut child = starorg_core::background::spawn(&mut cmd, p)
             .map_err(|e| format!("cannot start the explorer: {e}"))?;
         let stdin = child.stdin.take();
         let stdout = child.stdout.take().ok_or("no worker stdout")?;
@@ -170,10 +172,18 @@ impl Worker {
                 }
             }
             drop(ready_tx);
-            // Wait until the parent has built the Worker.
+            // Wait until the parent has built the Worker; it gave up when it dropped its
+            // handle of the slot without filling it (a bad ready line).
             let w = loop {
                 if let Some(w) = lock_or(&reader_slot).clone() {
                     break w;
+                }
+                if Arc::strong_count(&reader_slot) == 1 {
+                    // The parent may have filled the slot just before dropping its handle.
+                    match lock_or(&reader_slot).clone() {
+                        Some(w) => break w,
+                        None => return,
+                    }
                 }
                 std::thread::sleep(Duration::from_millis(5));
             };
@@ -230,8 +240,14 @@ impl Worker {
                 .unwrap_or_else(|| "the explorer stopped while starting".into());
             return Err(why);
         }
-        let info: WorkerInfo =
-            serde_json::from_value(ev["info"].clone()).map_err(|e| e.to_string())?;
+        let info: WorkerInfo = match serde_json::from_value(ev["info"].clone()) {
+            Ok(i) => i,
+            Err(e) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err(e.to_string());
+            }
+        };
         let w = Arc::new(Worker {
             key,
             stdin: Mutex::new(stdin),

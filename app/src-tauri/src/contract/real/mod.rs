@@ -3752,8 +3752,10 @@ impl Backend for RealBackend {
                     installs.first().map(|f| &f.install),
                     self.dirs(),
                     Arc::new(
+                        // MCP clients extract without anyone clicking: background work.
                         starorg_mcp::worker::ProcessExtractor::new(exe)
-                            .with_limit(self.mcp_limit()),
+                            .with_limit(self.mcp_limit())
+                            .with_priority(starorg_core::background::Priority::Background),
                     ),
                 ))
             })

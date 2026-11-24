@@ -1181,16 +1181,30 @@ impl<'a> BulkObtain<'a> {
     /// spawn (`best.paths` is `None`); the rolls of items with the same tags are worked out
     /// once per worker thread.
     pub fn areas_all(&self, items: &[&ItemTags]) -> Vec<Vec<AreaSummary>> {
+        self.areas_all_until(items, None).unwrap_or_default()
+    }
+
+    /// [`Self::areas_all`] that gives up once `deadline` passes (checked before each item):
+    /// `None` then. It runs on rayon's global pool, whose size the caller sets.
+    pub fn areas_all_until(
+        &self,
+        items: &[&ItemTags],
+        deadline: Option<std::time::Instant>,
+    ) -> Option<Vec<Vec<AreaSummary>>> {
         use rayon::prelude::*;
         type Rolls = std::sync::Arc<Vec<(usize, Vec<RollPath>, f64)>>;
+        let late = || deadline.is_some_and(|d| std::time::Instant::now() >= d);
         items
             .par_iter()
             .map_init(HashMap::<Vec<String>, Rolls>::new, |seen, item| {
+                if late() {
+                    return None;
+                }
                 let rolls = seen
                     .entry(item.tags.clone())
                     .or_insert_with(|| std::sync::Arc::new(self.loot_rolls(item)))
                     .clone();
-                rank_areas(&self.hits_with(item, &rolls, false))
+                Some(rank_areas(&self.hits_with(item, &rolls, false)))
             })
             .collect()
     }
@@ -2498,5 +2512,10 @@ mod tests {
             }
             assert_eq!(*a, want);
         }
+        // A deadline: none left gives up, time left gives the same answer.
+        let now = std::time::Instant::now();
+        assert_eq!(bulk.areas_all_until(&all, Some(now)), None);
+        let later = now + std::time::Duration::from_secs(600);
+        assert_eq!(bulk.areas_all_until(&all, Some(later)), Some(areas));
     }
 }

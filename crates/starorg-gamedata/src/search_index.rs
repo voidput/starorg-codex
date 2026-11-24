@@ -411,7 +411,13 @@ pub fn write_search_index(dir: &Path) -> std::io::Result<Option<Written>> {
     let build = coalesce(get_build(&tags).as_ref(), get_build(&ships).as_ref());
     let doc = build_search_index(items, vehicles, build);
     let body = serialize(&doc);
-    std::fs::write(&file, &body)?;
+    // Temp file and rename: a run stopped half-way never leaves a torn index.
+    let tmp = dir.join(format!("{FILE}.tmp-{}", std::process::id()));
+    std::fs::write(&tmp, &body)?;
+    if let Err(e) = std::fs::rename(&tmp, &file) {
+        let _ = std::fs::remove_file(&tmp);
+        return Err(e);
+    }
     Ok(Some(Written {
         file,
         entries: doc.items.len() + doc.ships.len(),

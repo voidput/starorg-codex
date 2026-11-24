@@ -415,7 +415,7 @@ pub struct Status {
 
 /// Why a channel whose game file is ours needs re-applying (empty = up to date). Reasons:
 /// `build`, `game data`, `profile`, `patches`, `overrides`, `owned blueprints`,
-/// `ship names`, `enhancer update`. The app version is not one: a release that leaves the
+/// `ship names`, `enhancer update`, `where to get` ([`STALE_OBTAIN`]). The app version is not one: a release that leaves the
 /// output alone must not ask for a re-apply ([`crate::OUTPUT_VERSION`] covers the rest).
 fn stale_reasons(a: &Applied, inp: &Inputs) -> Vec<String> {
     let mut r = Vec::new();
@@ -442,8 +442,22 @@ fn stale_reasons(a: &Applied, inp: &Inputs) -> Vec<String> {
     if a.output_version != crate::OUTPUT_VERSION {
         r.push("enhancer update".into());
     }
+    // The WHERE TO GET lines were left out for lack of time (a launch hook) or because the
+    // datasets were not built yet: apply again once they are.
+    if a.warnings
+        .iter()
+        .any(|w| w.kind == "obtain-hints" && w.detail.contains(OBTAIN_LATER))
+    {
+        r.push(STALE_OBTAIN.into());
+    }
     r
 }
+
+/// In an `obtain-hints` warning: the lines it names were left for a later run (out of
+/// time, or the datasets not built yet), so the output goes stale with [`STALE_OBTAIN`].
+pub const OBTAIN_LATER: &str = "left for the next run";
+/// The stale reason of an output whose WHERE TO GET lines were left for later.
+pub const STALE_OBTAIN: &str = "where to get";
 
 /// Status of a channel. Needs no extraction: hashes one file and reads small state files.
 pub fn status(ctx: &Ctx, t: &Target<'_>, inputs: &Inputs) -> Result<Status, String> {
@@ -858,6 +872,11 @@ pub struct ObtainFetch {
 /// app, over `starorg-mcp`). Core never names the datasets.
 pub trait ObtainSource: Send + Sync {
     fn fetch(&self, channel: &str) -> ObtainFetch;
+    /// Whether a [`Self::fetch`] now would give the hints whole (none left for later). An
+    /// `--if-stale` apply whose only reason is [`STALE_OBTAIN`] waits until it does.
+    fn ready(&self, _channel: &str) -> bool {
+        true
+    }
 }
 
 /// A shared [`ObtainSource`], for [`ApplyOpts`].
@@ -1033,8 +1052,12 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
         Ok(l) => l,
         Err((o, c, why)) => return r.end(o, c, Some(why), started),
     };
-    // 2. Recover.
-    match recover(ctx, t) {
+    // 2. Recover (a restore of the game file: a hook's watchdog waits for it).
+    let recovered = {
+        let _writing = crate::background::critical();
+        recover(ctx, t)
+    };
+    match recovered {
         Ok(m) => r.recovered = m,
         Err(e) => return fail(r, e),
     }
@@ -1105,6 +1128,27 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             Ok(s) if s.state == State::Applied => {
                 r.output_sha256 = s.sha256;
                 r.target = s.file.map(|f| f.real);
+                return r.end(Outcome::UpToDate, exit::OK, None, started);
+            }
+            // Only the WHERE TO GET lines were left for later, and they are still not ready:
+            // applying again would write the same text.
+            Ok(Status {
+                state: State::Stale { reasons },
+                sha256,
+                file,
+                ..
+            }) if reasons == [STALE_OBTAIN]
+                && opts
+                    .obtain
+                    .as_ref()
+                    .is_some_and(|o| !o.0.ready(&t.channel.name)) =>
+            {
+                r.output_sha256 = sha256;
+                r.target = file.map(|f| f.real);
+                r.warnings.push(Warning::new(
+                    "obtain-hints",
+                    format!("WHERE TO GET lines not ready yet; {OBTAIN_LATER}"),
+                ));
                 return r.end(Outcome::UpToDate, exit::OK, None, started);
             }
             Ok(_) => {}
@@ -1271,6 +1315,8 @@ pub fn apply(ctx: &Ctx, t: &Target<'_>, opts: &ApplyOpts, source: &dyn GameSourc
             started,
         );
     }
+    // From here on the writes run to the end: a hook's watchdog waits for them.
+    let _writing = crate::background::critical();
 
     // 8. Back up.
     let all = backup::list(&data);

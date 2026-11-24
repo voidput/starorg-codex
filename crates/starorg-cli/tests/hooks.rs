@@ -172,6 +172,239 @@ fn postexit_scans_attributes_and_reapplies() {
     assert_eq!(v["channels"][0]["owned"]["count"], 2);
 }
 
+/// A hook ends within its `--timeout` (plus the watchdog's short grace) whatever it is
+/// doing: here a load that ignores the budget. It exits 0 with the soft report, writes
+/// nothing half-way, and the next run does the work. It runs at the lowest priority with
+/// few threads.
+#[test]
+fn hook_stops_at_its_timeout_and_the_next_run_resumes() {
+    use std::time::{Duration, Instant};
+    let f = Fake::new();
+    f.setup("LIVE");
+    let before = std::fs::read(f.ini("LIVE")).ok();
+    let started = Instant::now();
+    let o = f
+        .cmd(&[
+            "hook",
+            "prelaunch",
+            "--timeout",
+            "3",
+            "--test-slow-load-ms",
+            "120000",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    let took = started.elapsed();
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    // 3 s budget + 2 s grace (HOOK_GRACE) + generous slack for a loaded machine; far
+    // below the 120 s the load would take.
+    assert!(took < Duration::from_secs(30), "took {took:?}");
+    let v = json_of(&o);
+    // Normally the watchdog's report; on a machine so loaded that the budget ran out
+    // before the load began, the hook's own "out of time" skip. Either way: soft, nothing
+    // written.
+    if v["stopped"] == true {
+        assert!(took >= Duration::from_secs(3), "took {took:?}");
+        assert_eq!(v["exit_code"], 3, "{v}");
+        assert!(
+            v["error"]
+                .as_str()
+                .unwrap()
+                .contains("left for the next run"),
+            "{v}"
+        );
+    } else {
+        let live = v["channels"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["channel"] == "LIVE")
+            .unwrap();
+        assert_eq!(live["result"], "skipped", "{v}");
+    }
+    assert_eq!(v["priority"]["class"], "background", "{v}");
+    assert_eq!(v["priority"]["nice"], 19, "{v}");
+    let threads = v["priority"]["threads"].as_u64().unwrap();
+    assert!((1..=4).contains(&threads), "{v}");
+    assert_eq!(std::fs::read(f.ini("LIVE")).ok(), before, "nothing written");
+    // The next run (no slow load) does the work.
+    let (code, v) = f.json(&["hook", "prelaunch", "--timeout", "60"]);
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(live_of(&v)["result"], "applied", "{v}");
+    assert_eq!(v["priority"]["nice"], 19, "{v}");
+    assert_eq!(f.status_of("LIVE"), "applied");
+}
+
+/// The watchdog never cuts a write short: past the deadline it waits for the apply's
+/// writes, which end with the hook's full report (and no second, "stopped" one).
+#[test]
+fn hook_watchdog_waits_for_a_write_in_progress() {
+    use std::time::{Duration, Instant};
+    let f = Fake::new();
+    f.setup("LIVE");
+    let go = f.base.join("go");
+    let reached = f.base.join("go.reached");
+    let started = Instant::now();
+    let child = f
+        .cmd(&[
+            "hook",
+            "prelaunch",
+            "--timeout",
+            "10",
+            "--test-pause-before-cfg-until",
+            go.to_str().unwrap(),
+            "--json",
+        ])
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    while !reached.exists() {
+        assert!(
+            started.elapsed() < Duration::from_secs(60),
+            "never reached the write"
+        );
+        std::thread::sleep(Duration::from_millis(50));
+    }
+    // Well past the deadline and the grace, then let the write finish.
+    while started.elapsed() < Duration::from_secs(14) {
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    std::fs::write(&go, "").unwrap();
+    let o = child.wait_with_output().unwrap();
+    assert_eq!(o.status.code(), Some(0), "{o:?}");
+    let v = json_of(&o);
+    assert!(v.get("stopped").is_none(), "{v}");
+    assert_eq!(live_of(&v)["result"], "applied", "{v}");
+    assert_eq!(f.status_of("LIVE"), "applied");
+}
+
+/// LIVE's entry in a hook report.
+fn live_of(v: &Value) -> &Value {
+    v["channels"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["channel"] == "LIVE")
+        .unwrap()
+}
+
+/// A gun description, GameData naming its description key, and obtain hints for it.
+fn obtain_fixture(f: &Fake) -> (PathBuf, PathBuf) {
+    let mut stock = stock_bytes("Star Citizen Alpha 4.10");
+    stock.extend_from_slice(
+        b"item_NameTEST_Gun=Filler Gun\r\nitem_DescTEST_Gun=Filler gun text.\r\n",
+    );
+    std::fs::write(&f.stock, stock).unwrap();
+    let gd = f.base.join("gamedata.json");
+    std::fs::write(
+        &gd,
+        serde_json::json!({"schema": 4, "itemDescs": {"test_gun": "@item_DescTEST_Gun"}})
+            .to_string(),
+    )
+    .unwrap();
+    let hints = f.base.join("hints.json");
+    std::fs::write(
+        &hints,
+        serde_json::json!({"items": {"test_gun": {"loot": [
+            {"contents": "Large weapons crate", "rarity": "Rare", "place": "Caves"}
+        ]}}})
+        .to_string(),
+    )
+    .unwrap();
+    (gd, hints)
+}
+
+/// A first build of the WHERE TO GET data that takes longer than a hook may: the hooks
+/// apply the game text at once, leave those lines for later (status "where to get") and do
+/// not rewrite the file while they are not ready; post-exit hands the build to the
+/// detached background job, which finishes it and applies; then the hooks are up to date.
+#[test]
+fn slow_where_to_get_data_converges_through_the_background_job() {
+    use std::time::{Duration, Instant};
+    let f = Fake::new();
+    let (gd, hints) = obtain_fixture(&f);
+    f.setup("LIVE");
+    let gd = gd.to_str().unwrap();
+    let hints_arg = hints.to_str().unwrap();
+    let hook = |kind: &str| {
+        f.json(&[
+            "--test-gamedata",
+            gd,
+            "--test-obtain-hints",
+            hints_arg,
+            "--test-slow-obtain-ms",
+            "3000",
+            "hook",
+            kind,
+            "--timeout",
+            "60",
+        ])
+    };
+    let built = f.base.join("hints.json.built");
+    let desc = || {
+        String::from_utf8_lossy(&std::fs::read(f.ini("LIVE")).unwrap())
+            .lines()
+            .find(|l| l.starts_with("item_DescTEST_Gun="))
+            .unwrap()
+            .to_string()
+    };
+
+    // Before launch: the game text is applied now, the WHERE TO GET lines left for later.
+    let (code, v) = hook("prelaunch");
+    assert_eq!(code, 0, "{v}");
+    let live = live_of(&v);
+    assert_eq!(live["result"], "applied", "{v}");
+    assert_eq!(v["background_job"], false, "prelaunch never starts it: {v}");
+    assert!(!built.exists());
+    assert!(!desc().contains("WHERE TO GET"), "{}", desc());
+    let (_, st) = f.json(&["status", "--channel", "LIVE"]);
+    assert_eq!(
+        st["channels"][0]["reasons"],
+        serde_json::json!(["where to get"]),
+        "{st}"
+    );
+
+    // Again before launch: not ready yet, so the file is left as it is.
+    let (_, v) = hook("prelaunch");
+    assert_eq!(live_of(&v)["result"], "up-to-date", "{v}");
+
+    // After exit: handed to the background job.
+    let (code, v) = hook("postexit");
+    assert_eq!(code, 0, "{v}");
+    assert_eq!(v["background_job"], true, "{v}");
+    let started = Instant::now();
+    while f.status_of("LIVE") != "applied" {
+        assert!(
+            started.elapsed() < Duration::from_secs(120),
+            "background job did not finish; log: {}",
+            std::fs::read_to_string(f.base.join("home/cache/starorg-codex/hook-background.log"))
+                .unwrap_or_default()
+        );
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    assert!(built.exists());
+    assert!(desc().contains("WHERE TO GET"), "{}", desc());
+    // Once the job has let go of the channel, the hooks have nothing left to do.
+    let started = Instant::now();
+    loop {
+        let (_, v) = hook("prelaunch");
+        if live_of(&v)["result"] != "skipped" || started.elapsed() > Duration::from_secs(60) {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(250));
+    }
+    let (_, v) = hook("prelaunch");
+    assert_eq!(live_of(&v)["result"], "up-to-date", "{v}");
+    assert!(
+        live_of(&v)["warnings"]
+            .as_array()
+            .is_none_or(|w| w.iter().all(|w| w["kind"] != "obtain-hints")),
+        "{v}"
+    );
+}
+
 #[test]
 fn prelaunch_is_non_fatal() {
     let f = Fake::new();

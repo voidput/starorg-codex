@@ -8,7 +8,7 @@
 //! rounds them and stamps the line with the day they were fetched, as they go stale.
 
 use crate::sources::{LootContainer, MinedReport, OreQuality};
-use starorg_core::apply::{ObtainFetch, ObtainProvider, ObtainSource};
+use starorg_core::apply::{OBTAIN_LATER, ObtainFetch, ObtainProvider, ObtainSource};
 use starorg_core::model::{
     LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, SellHint, ShopHint,
 };
@@ -45,17 +45,66 @@ pub struct ToolsObtain {
     /// Extract datasets that are not cached yet (apply); `false` reads only the cache
     /// (previews).
     pub extract: bool,
+    /// Stop by then (see [`crate::tools::Tools::obtain_hints_until`]).
+    pub deadline: Option<std::time::Instant>,
+    /// Only hints already built whole and stored on disk, nothing worked out now (the launch
+    /// hooks: their budget is for the game text; the post-exit background job builds the
+    /// rest).
+    pub stored_only: bool,
 }
 
 impl ToolsObtain {
     pub fn provider(tools: std::sync::Arc<crate::tools::Tools>, extract: bool) -> ObtainProvider {
-        ObtainProvider(std::sync::Arc::new(Self { tools, extract }))
+        Self::provider_until(tools, extract, None)
+    }
+
+    /// [`Self::provider`] whose answers stop by `deadline`.
+    pub fn provider_until(
+        tools: std::sync::Arc<crate::tools::Tools>,
+        extract: bool,
+        deadline: Option<std::time::Instant>,
+    ) -> ObtainProvider {
+        ObtainProvider(std::sync::Arc::new(Self {
+            tools,
+            extract,
+            deadline,
+            stored_only: false,
+        }))
+    }
+
+    /// Hints only when already built and stored ([`Self::stored_only`]); otherwise the lines
+    /// are left out with an [`OBTAIN_LATER`] warning, so the output goes stale until they
+    /// are.
+    pub fn provider_stored(tools: std::sync::Arc<crate::tools::Tools>) -> ObtainProvider {
+        ObtainProvider(std::sync::Arc::new(Self {
+            tools,
+            extract: false,
+            deadline: None,
+            stored_only: true,
+        }))
     }
 }
 
 impl ObtainSource for ToolsObtain {
     fn fetch(&self, channel: &str) -> ObtainFetch {
-        match self.tools.obtain_hints_with(channel, self.extract) {
+        if self.stored_only {
+            return match self.tools.stored_obtain_hints(channel) {
+                Some(b) => ObtainFetch {
+                    hints: Some(b.hints.clone()),
+                    warnings: Vec::new(),
+                },
+                None => ObtainFetch {
+                    hints: None,
+                    warnings: vec![format!(
+                        "WHERE TO GET left out: not built yet for this build; {OBTAIN_LATER}"
+                    )],
+                },
+            };
+        }
+        match self
+            .tools
+            .obtain_hints_until(channel, self.extract, self.deadline)
+        {
             Ok(b) => ObtainFetch {
                 hints: Some(b.hints.clone()),
                 warnings: b.warnings.clone(),
@@ -65,6 +114,10 @@ impl ObtainSource for ToolsObtain {
                 warnings: vec![format!("WHERE TO GET left out: {e}")],
             },
         }
+    }
+
+    fn ready(&self, channel: &str) -> bool {
+        !self.stored_only || self.tools.stored_obtain_hints(channel).is_some()
     }
 }
 

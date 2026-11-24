@@ -11,6 +11,7 @@
 //! `starorg-data`.
 
 use super::{Budget, GameSource, Loaded, Origin, SourceError, Warning};
+use crate::background::Priority;
 use crate::discovery::Channel;
 use crate::model::GameData;
 use serde::Deserialize;
@@ -59,6 +60,9 @@ pub struct LocalExtraction {
     pub ini_only: bool,
     /// Also run the loc-reference pass (`--keyrefs`): the app sets this, launch hooks do not.
     pub keyrefs: bool,
+    /// How hard the worker may use the machine (`crate::background`): `Background` for the
+    /// launch hooks and automatic loads, `Normal` for user-started ones.
+    pub priority: Priority,
     /// Extra worker arguments, for tests (e.g. the hidden `--test-panic`).
     #[doc(hidden)]
     pub extra_args: Vec<String>,
@@ -71,8 +75,15 @@ impl LocalExtraction {
             work_root: None,
             ini_only: false,
             keyrefs: false,
+            priority: crate::background::process_priority(),
             extra_args: Vec::new(),
         }
+    }
+
+    /// The same worker at `p`.
+    pub fn with_priority(mut self, p: Priority) -> Self {
+        self.priority = p;
+        self
     }
 
     /// The same worker, reading only the stock `global.ini`.
@@ -90,8 +101,8 @@ impl LocalExtraction {
     /// Run the worker for `p4k` into `out`. On success `out` holds the worker's files.
     pub fn run_worker(&self, p4k: &Path, out: &Path, budget: &Budget) -> Result<(), SourceError> {
         let started = Instant::now();
-        let mut child = Command::new(&self.worker)
-            .arg("extract-worker")
+        let mut cmd = Command::new(&self.worker);
+        cmd.arg("extract-worker")
             .arg("--p4k")
             .arg(p4k)
             .arg("--out")
@@ -101,11 +112,13 @@ impl LocalExtraction {
             .args(&self.extra_args)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                SourceError::Worker(format!("cannot start {}: {e}", self.worker.display()))
-            })?;
+            .stderr(Stdio::piped());
+        // The worker also stops itself at the budget's deadline, should this process end
+        // before it could kill it.
+        crate::background::prepare(&mut cmd, self.priority, budget.deadline(), false);
+        let mut child = crate::background::spawn(&mut cmd, self.priority).map_err(|e| {
+            SourceError::Worker(format!("cannot start {}: {e}", self.worker.display()))
+        })?;
         let mut stdout = child.stdout.take().expect("piped stdout");
         let mut stderr = child.stderr.take().expect("piped stderr");
         let out_thread = std::thread::spawn(move || {
@@ -138,6 +151,12 @@ impl LocalExtraction {
         };
         let stdout = out_thread.join().unwrap_or_default();
         let stderr = err_thread.join().unwrap_or_default();
+        // It stopped itself at the deadline (it does, should this process be gone) just
+        // before the loop above would have: the same stop. A memory stop stays a failure.
+        if status.code() == Some(crate::background::EXIT_DEADLINE) && budget.expired() {
+            let _ = std::fs::remove_dir_all(out);
+            return Err(SourceError::Timeout(started.elapsed()));
+        }
         let report = stdout
             .lines()
             .rev()

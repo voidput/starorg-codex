@@ -365,7 +365,7 @@ pub fn build(g: &GlobalOpts, a: &BuildArgs) -> ExitCode {
         None
     } else {
         starorg_core::appdirs::AppDirs::from_env()
-            .and_then(|dirs| crate::obtain_src::provider(g, install, &dirs, None))
+            .and_then(|dirs| crate::obtain_src::provider(g, install, &dirs, budget.deadline()))
     };
     let (hints, obtain_warnings, obtain_stats) = starorg_core::apply::obtain_hints(
         &loaded.game_data,
