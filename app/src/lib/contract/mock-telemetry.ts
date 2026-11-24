@@ -8,7 +8,9 @@
  *
  * Around it, as the Rust host: a 10-minute history (one sample a second) for the graphs,
  * "Record sessions" as a list in memory (seeded from the samples), and a replay of a
- * recording that plays the generator over its length, with pause, seek and speed.
+ * recording that plays the generator over its length, with pause, seek and speed. With "Read
+ * Game.log events" on, the stream also sends the Rust mock's synthetic Game.log view (fake
+ * handles; People only with its own switch on).
  */
 import type * as T from './types';
 import type * as L from './telemetry';
@@ -23,6 +25,8 @@ export interface TelemetryMockData {
   recordings: L.TelemetryRecordings;
   /** The Rust mock's alert view with notifications off (the rules and their defaults). */
   alerts: L.TelemetryAlerts;
+  /** The Rust mock's synthetic Game.log view (with people). */
+  gamelog?: L.GameLogView | null;
 }
 
 export interface TelemetryMockCtx {
@@ -49,6 +53,8 @@ export interface TelemetryHandlers {
   telemetry_alerts: H<Record<string, never>, L.TelemetryAlerts>;
   telemetry_alerts_configure: H<{ req: L.TelemetryAlertSettings }, L.TelemetryAlerts>;
   telemetry_alert_test: H<{ req: L.TelemetryAlertTestRequest }, L.TelemetryAlert>;
+  telemetry_gamelog: H<Record<string, never>, L.GameLogView | null>;
+  telemetry_people_clear: H<Record<string, never>, L.GameLogView | null>;
 }
 
 const SERIES_KEYS: readonly L.TelemetrySeriesKey[] = ['speed', 'g', 'hydrogen_fuel', 'quantum_fuel', 'hull', 'shield', 'health', 'oxygen'];
@@ -352,7 +358,7 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
     const show = (pos: number) => {
       const f = frameAt(pos);
       history.push(f.received_ms, f.snapshot);
-      emit({ session: me, status: null, frame: f, replay: clone(state), alerts: [] });
+      emit({ session: me, status: null, frame: f, replay: clone(state), alerts: [], gamelog: null });
     };
     const timer = every(100, () => {
       if (me !== session || !state.playing) return;
@@ -382,10 +388,24 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
     r.state.ended = false;
     const f = mockFrame(template, 1, pos / 1000, { lights: true, gear: false, shields: true }, start + pos);
     history.push(f.received_ms, f.snapshot);
-    emit({ session, status: null, frame: f, replay: clone(r.state), alerts: [] });
+    emit({ session, status: null, frame: f, replay: clone(r.state), alerts: [], gamelog: null });
   }
 
   const triggersOn = () => settings.enabled && settings.triggers;
+  /** The People panel's Clear empties the roster until the reader starts over. */
+  let peopleCleared = false;
+  /** The Game.log view of the running stream, as the Rust host would hold it. */
+  function gamelogView(): L.GameLogView | null {
+    if (!streaming || !settings.enabled || !settings.gamelog || !data.gamelog) return null;
+    const v = clone(data.gamelog);
+    if (!settings.people) v.people = null;
+    else if (peopleCleared && v.people) v.people = { ...v.people, people: [], counts: { crew: 0, party: 0, party_likely: 0, nearby: 0, total: 0 } };
+    return v;
+  }
+  const sendGamelog = () => {
+    const g = gamelogView();
+    if (g) emit({ session, status: null, frame: null, replay: null, alerts: [], gamelog: g });
+  };
 
   let alertSettings: L.TelemetryAlertSettings = clone(data.alerts.settings);
   let recent: L.TelemetryAlert[] = [];
@@ -430,10 +450,14 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       }
       const was = req.target ? (lines.get(key(req.target)) ?? { telemetry: false, triggers: false }) : { telemetry: false, triggers: false };
       const was_record = settings.record;
+      const readerChanged = s.gamelog !== settings.gamelog || s.people !== settings.people;
       settings = clone(s);
       if (!s.enabled) {
         lines.clear();
         stop();
+      } else if (readerChanged) {
+        peopleCleared = false;
+        sendGamelog();
       }
       const outcome = (on: boolean, had: boolean): L.LineOutcome => (on ? (had ? 'already-set' : 'written') : had ? 'reverted' : 'not-ours');
       let tl: L.TelemetryLineChange | null = null;
@@ -462,20 +486,22 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       let seq = 0;
       let started = false;
       engine.reset();
+      peopleCleared = false;
       stopTimer = every(100, () => {
         if (me !== session) return;
         if (!started) {
           started = true;
-          emit({ session: me, status: { state: 'connecting' }, frame: null, replay: null, alerts: [] });
+          emit({ session: me, status: { state: 'connecting' }, frame: null, replay: null, alerts: [], gamelog: null });
           link = { state: 'connected' };
-          emit({ session: me, status: { state: 'connected' }, frame: null, replay: null, alerts: [] });
+          emit({ session: me, status: { state: 'connected' }, frame: null, replay: null, alerts: [], gamelog: null });
+          sendGamelog();
           return;
         }
         seq += 2;
         const t = (Date.now() - t0) / 1000;
         const f = mockFrame(template, seq, t, st);
         took(me, f, req.channel);
-        emit({ session: me, status: null, frame: f, replay: null, alerts: frameAlerts(f.raw, t, f.received_ms) });
+        emit({ session: me, status: null, frame: f, replay: null, alerts: frameAlerts(f.raw, t, f.received_ms), gamelog: null });
       });
       return status();
     },
@@ -535,7 +561,7 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
         if (req.playing && r.state.ended) seek(r, 0);
         r.state.playing = req.playing;
       }
-      emit({ session, status: null, frame: null, replay: clone(r.state), alerts: [] });
+      emit({ session, status: null, frame: null, replay: clone(r.state), alerts: [], gamelog: null });
       return status();
     },
     telemetry_alerts: () => alertView(),
@@ -556,6 +582,12 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       const r = rules().find((x) => x.id === req.rule) ?? ctx.fail('not-found', `No alert rule ${req.rule}`);
       const a: L.TelemetryAlert = { rule: r.id, severity: r.severity, text: `TEST: ${renderAlert(r.message, r.threshold)}`, speech: null, sound: r.sound, value: r.threshold, at_ms: Date.now(), test: true };
       return shape(a, alertSettings);
+    },
+    telemetry_gamelog: () => gamelogView(),
+    telemetry_people_clear: () => {
+      if (!gamelogView()) return null;
+      peopleCleared = true;
+      return gamelogView();
     },
   };
 

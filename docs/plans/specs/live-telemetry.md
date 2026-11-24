@@ -64,10 +64,10 @@ owner, MIT, Python) into StarOrg Codex as an opt-in experimental feature. User g
 | Client | `crates/starorg-telemetry` | schema scan and cache, tonic channel and dynamic codec (prost-reflect), proto3 JSON, `Snapshot`, `live::run` (status on change, frames throttled to 10 Hz, latest wins), `TriggerGate`, synthetic schema and generator |
 | Gate | `crates/starorg-core/src/telemetry.rs`, `usercfg.rs` | settings in `config.toml`, `eligible`, `game_exe`, loopback checks, managed `USER.cfg` lines, `env_help` |
 | Host | `app/src-tauri/src/telemetry.rs` | `TelemetryHost`: the running stream (game or synthetic), sessions, the gate |
-| Contract | `app/src-tauri/src/contract/telemetry.rs` (+ `real/telemetry.rs`, `mock_telemetry.rs`) | `telemetry_status`, `telemetry_configure`, `telemetry_start`, `telemetry_stop`, `telemetry_actions`, `telemetry_trigger`; event `telemetry` |
+| Contract | `app/src-tauri/src/contract/telemetry.rs` (+ `real/telemetry.rs`, `mock_telemetry.rs`) | `telemetry_status`, `telemetry_configure`, `telemetry_start`, `telemetry_stop`, `telemetry_actions`, `telemetry_trigger`, `telemetry_gamelog`, `telemetry_people_clear`; event `telemetry` |
 | UI | `app/src/lib/telemetry.ts`, `lib/stores/telemetry.svelte.ts`, `components/screens/TelemetryScreen.svelte`, `components/telemetry/`, `components/settings/TelemetrySection.svelte` | Settings section, screen panels, TS mock (`lib/contract/mock-telemetry.ts`) |
 
-**Events.** `telemetry` carries `{session, status, frame, alerts}` (alerts: see [Alerts](#alerts)): a `LinkStatus` change
+**Events.** `telemetry` carries `{session, status, frame, replay, alerts, gamelog}` (alerts: see [Alerts](#alerts), gamelog: see [Game.log events and People](#gamelog-events-and-people)): a `LinkStatus` change
 (`disabled`, `no_schema`, `connecting`, `connected`, `game_not_running`, `unreachable`) or a
 frame `{seq, received_ms, snapshot, raw}`. `session` goes up at every start and stop; the
 webview drops events of an older session. A start that cannot get a schema answers with a
@@ -154,16 +154,20 @@ A port of sc-telemetry's `alerts.py` engine and `data/alerts.default.json` (fram
 
 From sc-telemetry, not in this phase:
 
-- **Alerts**: done for frame rules, see [Alerts](#alerts). Still open: sc-telemetry's `event`
-  rules (Game.log signals: armistice, shard, disconnects, quantum arrival, deaths), and alerts
-  while the screen is closed (needs the background stream below).
-- **Game.log signals**: session, location, quantum travel, deaths and respawns from the
-  channel's `Game.log`, which the telemetry API lacks (`gamelog.py`,
-  `docs/telemetry/gamelog-signals.md`). The app already reads `Game.log` for blueprints.
-- **People**: handles seen in `Game.log`, grouped by relation, with an opt-in org lookup on
-  the public RSI page (`people.py`). Needs its own network switch and the no-real-handles rule
-  for fixtures.
-- ~~**History and charts**~~: done, see *Phase 2: history, recording, replay* below.
+- **Alerts**: rules over frames and events (low fuel, shield faces down, hull, G) as toasts and
+  sounds, with per-rule cooldowns (sc-telemetry `alerts.py`, `docs/telemetry/alerts.md`);
+  speech off by default. **Notifications get their own choice, off by default**, separate from
+  Metrics and actions (asked for 2026-11-23): turning on Metrics never turns on toasts or sounds.
+- **Game.log signals**: done, see [Game.log events and People](#gamelog-events-and-people)
+  below.
+- **People**: the local part is done (below). Still open: the opt-in org lookup on the public
+  RSI citizen page (sc-telemetry `people.py` `OrgLookup`, `docs/telemetry/people-and-lookup.md`).
+  It needs its own network switch (off), its own row in [privacy](../../privacy.md) and the
+  network table there, `starorg-net` as the transport (one request in flight, 3 s apart, a
+  fixed User-Agent without personal data, backoff on 403/429/503), a clearable cache in the
+  cache folder counted by Settings > Storage, and hand-written HTML fixtures only.
+- **History and charts**: a short ring buffer of the headline series (`/api/history`), drawn
+  as sparklines.
 - **Ship capabilities** from the channel's game data (sc-telemetry `shipcaps.py`): which
   systems a hull has, to grey out what it lacks.
 - **Full action/state map**: port `data/action_state_map.json` (VTOL, doors, weapons,
@@ -208,6 +212,56 @@ Ported from sc-telemetry `server.py` (`history`/`/api/history`, `--record` with
 
 Not done here: alerts and their own notification switch, Game.log signals, people, ship
 capabilities (other branches).
+
+## Game.log events and People
+
+A port of sc-telemetry's `gamelog.py` (session, signals, the quantum and spawn parsers of its
+`gamelog-parser-plan.md`) and the local half of `people.py`.
+
+- **Switches.** `[experimental] telemetry_gamelog` ("Read Game.log events") and
+  `telemetry_people` ("People"), both off, each its own `SwitchRow` under Live telemetry in
+  Settings. Game.log counts only with telemetry on (`Settings::gamelog_active`), People only
+  with Game.log on (`people_active`). Neither changes `USER.cfg`; the IPC fields default to
+  off when absent.
+- **Reader.** `starorg_telemetry::gamelog`: `tail::Tail` finds the channel's `Game.log` with
+  `resolve_ci` like the blueprint import, opens it read-only per poll (no handle kept between
+  polls, so the game can still move it to `logbackups/` on Windows), reads only the new bytes
+  (at most 4 MiB a poll, quicker polls while catching up) and starts over on a smaller size, a
+  changed 128-byte head or, on Unix, a changed inode; a directory of that name is never
+  opened. `GameLog` folds lines (partial lines kept across reads, lines over 1 MiB dropped)
+  into `SessionState`, `SignalsState` and, with People on, `PeopleState`; events are a ring of
+  200, nearby entities capped at 1000 and people at 300.
+- **Lifetime.** The host (`TelemetryHost::set_gamelog`) runs the reader on a thread of its own
+  for the running stream session, also when the stream says `no_schema`: it starts with
+  `telemetry_start`, restarts when either switch changes, and stops with the stream, with the
+  telemetry switch and at exit. The mock backend feeds `gamelog::mock` lines (fake ids,
+  `TestPilot_*` handles) instead of a file.
+- **Contract.** The view (`GameLogView`: session, signals, events, people) rides the
+  `telemetry` event as `gamelog`, sent only when it changed and at most every 500 ms, so the
+  panels never re-render at the frame rate. `telemetry_gamelog` reads it,
+  `telemetry_people_clear` forgets every person (your own handle stays known so you are never
+  listed as someone else).
+- **UI.** `components/telemetry/EventsPanel.svelte` (where, shard, quantum, deaths and
+  respawns, own ship, ships nearby, the newest 100 events) and `PeoplePanel.svelte` (by
+  relation: crew, party, party?, nearby; Clear), helpers in `lib/telemetry.ts`.
+- **Privacy.** Server address, port and session ids are not kept at all. Events carry class
+  names, codes and counts, never an entity id or a handle (a killer's name goes only to
+  People). Handles stay in memory, never in Activity; `diag::secrets` replaces every handle
+  the reader holds with `<handle>` in the diagnostics report. No network request.
+- **Deaths.** A corpse item list has no owner. It counts as your death only when your own
+  `Spawned!` follows within 60 s (`DEATH_WINDOW_MS`); the first spawn after a join is the login.
+- **Not ported yet:** the telemetry vehicle as an own-ship source (own ship comes from seat
+  releases and quantum target selection only), multi-line HUD toasts for crime, injuries and
+  contracts (parser plan F2 onward), recordings and replay, alerts on Game.log events, the org
+  lookup (above).
+
+Tests: `crates/starorg-telemetry/src/gamelog/tests.rs` (synthetic lines: session without
+addresses, nearby bursts and own-ship exclusion, quantum route and timeout, zones, corpse and
+respawn, toast rules and multi-line toasts across reads, killers and victims, bounds, the tail
+over truncation, in-place rewrite, rotation and a directory named `Game.log`),
+`contract/tests_telemetry.rs` (the switches on the mock, the reader's lifetime, TS unions),
+`tests/real_telemetry.rs` (a fake install's `Game.log`, appended lines, nothing in Activity,
+handles replaced in diagnostics), `app/tests/telemetry.test.ts` (helpers and the TS mock).
 
 ## Open
 

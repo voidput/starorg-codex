@@ -408,6 +408,32 @@ after going back above 35 %). Under **Rules** you can switch each one off, chang
 rule's threshold (the re-arm point moves with it) and any cooldown, test one with **Test**, or
 go back with **Default**. The changes are saved in `config.toml`.
 
+**Game.log events** (a switch of its own under Live telemetry, off by default): **Read
+Game.log events** adds an **Events** panel fed by the channel's own `Game.log`, which tells
+things the live service does not. It works even when the service is not reachable (no
+environment variables set, no schema), as long as the screen is open:
+
+- where you are: star system, the start of your last quantum route (planet, moon, station),
+  armistice, monitored space and jurisdiction notices;
+- the shard and region, the build, the login queue, the backend link and disconnects;
+- quantum travel: the destination you picked, the fuel estimate, your arrival;
+- ships streamed in near you (class names only: parked and AI ships count too, and there is
+  no owner or distance);
+- vehicles disabled or destroyed nearby, leaving the pilot seat;
+- corpse item lists near you, spawns and respawns. A corpse list followed within a minute by
+  your own respawn counts as your death (the log names no owner, so a corpse of someone you
+  killed shows as a corpse only).
+
+These are the game's unofficial debug lines: a patch can change or drop them. The app reads
+only what the game added since the last read, twice a second, and keeps the newest 200 events.
+
+**People** (under it, off by default) adds a **People** panel: the player handles Game.log
+names, by how they relate to you: **Crew** (ship voice channels), **Party** (party notices),
+**Party?** (quantum calibration notices, usually a party member) and **Nearby** (players named
+in ship kills around you). You are shown once as *You*. **Clear** forgets everyone listed. The
+handles stay in memory for the current Game.log only; nothing is looked up online
+([privacy](privacy.md#live-telemetry-experimental-off-by-default)).
+
 ## Backups and restore
 
 Before the first write into a channel, and whenever the game file was replaced by someone else,
@@ -476,7 +502,8 @@ once with **Measure again**.
 - **Local MCP server** (experimental, off): read-only game data tools for Claude Code or Claude
   Desktop ([mcp](mcp.md)).
 - **Live telemetry** (experimental, off): your vitals, ship and shields while you play, from the
-  game's own local service, for 5.0 builds ([below](#live-telemetry)).
+  game's own local service, for 5.0 builds ([below](#live-telemetry)); Game.log events and
+  People are two more switches there, each off.
 - **Diagnostics** (Activity): a report with user names and home paths replaced, for bug reports.
 
 ## Developer mode

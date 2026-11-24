@@ -8,11 +8,14 @@
  *
  * The graphs' history is polled once a second while a screen watches it ([`watchHistory`]),
  * only what is new each time, so the graphs redraw at 1 Hz, never at the frame rate. A replay
- * of a recording comes through the same events, with its position in `replay`.
+ * of a recording comes through the same events, with its position in `replay`. The Game.log
+ * view (Events, Sessions and People panels) comes through the same listener, at most twice a
+ * second, also as one raw value.
  */
 import { api, toContractError } from '@/lib/contract/client';
 import {
   telemetryApi,
+  type GameLogView,
   type LinkStatus,
   type TelemetryConfigureRequest,
   type TelemetryConfigureResult,
@@ -36,6 +39,8 @@ class TelemetryState {
   /** The latest frame of the running stream. */
   frame = $state.raw<TelemetryFrame | null>(null);
   link = $state.raw<LinkStatus>({ state: 'disabled' });
+  /** The Game.log reader's latest view ("Read Game.log events" on and the stream running). */
+  gamelog = $state.raw<GameLogView | null>(null);
   /** Frames seen on this stream (the screen shows the rate). */
   count = $state(0);
   /** The first press of this app session was confirmed (the dialog asks once per session). */
@@ -66,12 +71,14 @@ class TelemetryState {
       if (step === 'new') {
         // A new stream (another channel): the old one's frame is not shown under it.
         this.frame = null;
+        this.gamelog = null;
         this.count = 0;
         this.replay = null;
       }
       this.session = e.session;
       if (e.status) this.link = e.status;
       if (e.replay) this.replay = e.replay;
+      if (e.gamelog) this.gamelog = e.gamelog;
       if (e.frame) {
         this.frame = e.frame;
         this.count++;
@@ -85,8 +92,12 @@ class TelemetryState {
     if (s.session > this.session) {
       this.session = s.session;
       this.frame = null;
+      this.gamelog = null;
       this.count = 0;
     }
+    // Switched off: the panels empty at once (the host dropped what it held).
+    if (!s.settings.enabled || !s.settings.gamelog) this.gamelog = null;
+    else if (!s.settings.people && this.gamelog?.people) this.gamelog = { ...this.gamelog, people: null };
     // The answer of a start may come after the stream's first statuses.
     if (!s.streaming || this.link.state === 'disabled') this.link = s.link;
     // A replay's events are newer than the answer that started it; none in the answer ends it.
@@ -160,6 +171,16 @@ class TelemetryState {
     if (next && this.wanted && (!now || now.install !== next.install || now.channel !== next.channel)) await this.start(next);
   }
 
+  /** The People panel's Clear: the host forgets everyone it listed. */
+  async clearPeople(): Promise<void> {
+    try {
+      const v = await telemetryApi.clearPeople();
+      if (v) this.gamelog = v;
+    } catch (e) {
+      toast('error', 'People not cleared', toContractError(e).message);
+    }
+  }
+
   async stop(): Promise<void> {
     this.wanted = false;
     this.queued = null;
@@ -168,6 +189,7 @@ class TelemetryState {
       this.take(await telemetryApi.stop());
       this.frame = null;
       this.replay = null;
+      this.gamelog = null;
       this.link = { state: 'disabled' };
     } catch (e) {
       toast('error', 'Live telemetry not stopped', toContractError(e).message);

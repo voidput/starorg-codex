@@ -3,7 +3,8 @@
    * Live telemetry (experimental; docs/user-guide.md#live-telemetry): the game's own live data,
    * read from its local service on 127.0.0.1 while this screen is open. Panels after
    * sc-telemetry's dashboard (same owner, MIT) in this app's style: connection, pilot vitals,
-   * ship, shields, systems and annunciators, history graphs, alerts, actions, raw frame, recordings.
+   * ship, shields, systems and annunciators, history graphs, alerts, actions, raw frame, recordings;
+   * and, each behind its own switch (off by default), Game.log events, sessions and people.
    *
    * Replay: a recording plays into the same panels in place of the game (a "Replay" badge and
    * its controls replace the connection and Start/Stop); "Back to live" reads the game again.
@@ -24,6 +25,8 @@
   import ActionsPanel from '@/components/telemetry/ActionsPanel.svelte';
   import HistoryPanel from '@/components/telemetry/HistoryPanel.svelte';
   import AlertsPanel from '@/components/telemetry/AlertsPanel.svelte';
+  import EventsPanel from '@/components/telemetry/EventsPanel.svelte';
+  import PeoplePanel from '@/components/telemetry/PeoplePanel.svelte';
   import RawFramePanel from '@/components/telemetry/RawFramePanel.svelte';
   import RecordingsPanel from '@/components/telemetry/RecordingsPanel.svelte';
   import ReplayBar from '@/components/telemetry/ReplayBar.svelte';
@@ -233,6 +236,13 @@
     {/if}
 
     <AlertsPanel />
+
+    {#if st.settings.gamelog}
+      <div class={cn('grid gap-3', st.settings.people && 'lg:grid-cols-[3fr_2fr]')}>
+        <EventsPanel view={telemetry.gamelog} />
+        {#if st.settings.people}<PeoplePanel people={telemetry.gamelog?.people ?? null} onclear={() => void telemetry.clearPeople()} />{/if}
+      </div>
+    {/if}
 
     <div class="grid gap-3 lg:grid-cols-2">
       <HistoryPanel />

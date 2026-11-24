@@ -24,11 +24,16 @@
 //! - `telemetry_alerts`, `telemetry_alerts_configure` and `telemetry_alert_test`: alerts over
 //!   the frames (`starorg_telemetry::alerts`), behind their own Notifications choice (Off by
 //!   default, independent of Metrics and actions). Alerts come with the frame event.
+//! - "Read Game.log events" (its own switch, off) follows the channel's `Game.log` while the
+//!   stream runs: the view goes out in the same event ([`TelemetryEvent::gamelog`]), at most
+//!   twice a second. "People" (another switch, off) adds the handles Game.log names, memory
+//!   only; `telemetry_people_clear` forgets them. Nothing about either goes to the network.
 
 use super::types::*;
 use super::{BackendState, run};
 use serde::{Deserialize, Serialize};
 use starorg_telemetry::frames::Frame;
+pub use starorg_telemetry::gamelog::GameLogView;
 pub use starorg_telemetry::history::{HistoryView as TelemetryHistory, Series as TelemetrySeries};
 use starorg_telemetry::live::{LinkStatus, LiveEvent};
 pub use starorg_telemetry::record::RecordingInfo as TelemetryRecording;
@@ -54,6 +59,12 @@ pub struct TelemetrySettings {
     /// on; independent of `triggers`. Changed alone by `telemetry_record`.
     #[serde(default)]
     pub record: bool,
+    /// "Read Game.log events": follow the channel's Game.log while the stream runs.
+    #[serde(default)]
+    pub gamelog: bool,
+    /// "People": keep the handles Game.log names (memory only). Counts only with `gamelog`.
+    #[serde(default)]
+    pub people: bool,
 }
 
 impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
@@ -63,6 +74,8 @@ impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
             port: s.port,
             triggers: s.triggers,
             record: s.record,
+            gamelog: s.gamelog,
+            people: s.people,
         }
     }
 }
@@ -74,6 +87,8 @@ impl From<TelemetrySettings> for starorg_core::telemetry::Settings {
             port: s.port,
             triggers: s.triggers,
             record: s.record,
+            gamelog: s.gamelog,
+            people: s.people,
         }
     }
 }
@@ -85,6 +100,14 @@ impl TelemetrySettings {
 
     pub fn record_active(&self) -> bool {
         self.enabled && self.record
+    }
+
+    pub fn gamelog_active(&self) -> bool {
+        self.enabled && self.gamelog
+    }
+
+    pub fn people_active(&self) -> bool {
+        self.gamelog_active() && self.people
     }
 }
 
@@ -384,9 +407,9 @@ pub struct TelemetryTriggerResult {
     pub error: Option<String>,
 }
 
-/// Payload of [`TELEMETRY_EVENT`]: a status change or a frame of stream `session`, with the
-/// alerts that frame fired (none while Notifications is Off), and in a replay its position (a
-/// replay's own events may carry only that).
+/// Payload of [`TELEMETRY_EVENT`]: a status change, a frame or the Game.log view of stream
+/// `session`, with the alerts that frame fired (none while Notifications is Off), and in a
+/// replay its position (a replay's own events may carry only that).
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TelemetryEvent {
     pub session: u64,
@@ -394,6 +417,8 @@ pub struct TelemetryEvent {
     pub frame: Option<Box<Frame>>,
     pub replay: Option<TelemetryReplayState>,
     pub alerts: Vec<TelemetryAlert>,
+    /// The Game.log reader's whole view, sent when it changed (at most twice a second).
+    pub gamelog: Option<Box<GameLogView>>,
 }
 
 impl TelemetryEvent {
@@ -405,6 +430,7 @@ impl TelemetryEvent {
                 frame: None,
                 replay: None,
                 alerts: Vec::new(),
+                gamelog: None,
             },
             LiveEvent::Frame(f) => Self {
                 session,
@@ -412,7 +438,19 @@ impl TelemetryEvent {
                 frame: Some(f),
                 replay: None,
                 alerts: Vec::new(),
+                gamelog: None,
             },
+        }
+    }
+
+    pub fn gamelog(session: u64, view: GameLogView) -> Self {
+        Self {
+            session,
+            status: None,
+            frame: None,
+            replay: None,
+            alerts: Vec::new(),
+            gamelog: Some(Box::new(view)),
         }
     }
 }
@@ -529,6 +567,16 @@ pub trait TelemetryBackend {
     /// A test alert of one rule, shaped as a real one would be. Refused while notifications
     /// are off.
     fn telemetry_alert_test(&self, req: TelemetryAlertTestRequest) -> CmdResult<TelemetryAlert>;
+    /// The Game.log view now (`None` while the reader does not run).
+    fn telemetry_gamelog(&self) -> CmdResult<Option<GameLogView>> {
+        Ok(self.telemetry_host().gamelog_view())
+    }
+    /// The People panel's Clear: forget every person seen (your own handle stays known).
+    fn telemetry_people_clear(&self) -> CmdResult<Option<GameLogView>> {
+        Ok(self.telemetry_host().clear_people())
+    }
+    /// The stream host of this backend.
+    fn telemetry_host(&self) -> &crate::telemetry::TelemetryHost;
 }
 
 macro_rules! telemetry_commands {
@@ -559,6 +607,8 @@ telemetry_commands! {
     telemetry_alerts() -> TelemetryAlerts;
     telemetry_alerts_configure(req: TelemetryAlertSettings) -> TelemetryAlerts;
     telemetry_alert_test(req: TelemetryAlertTestRequest) -> TelemetryAlert;
+    telemetry_gamelog() -> Option<GameLogView>;
+    telemetry_people_clear() -> Option<GameLogView>;
 }
 
 /// The stream's events go to the window as [`TELEMETRY_EVENT`].
@@ -610,4 +660,6 @@ pub const TELEMETRY_COMMAND_NAMES: &[&str] = &[
     "telemetry_alerts",
     "telemetry_alerts_configure",
     "telemetry_alert_test",
+    "telemetry_gamelog",
+    "telemetry_people_clear",
 ];

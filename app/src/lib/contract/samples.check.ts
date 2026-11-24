@@ -228,6 +228,9 @@ interface Samples {
   telemetry_alerts: T.TelemetryAlerts;
   telemetry_alerts_configure: T.TelemetryAlerts;
   telemetry_alert_test: T.TelemetryAlert;
+  telemetry_gamelog: T.GameLogView | null;
+  telemetry_people_clear: T.GameLogView | null;
+  telemetry_event_gamelog: T.TelemetryEvent;
 }
 
 /** String unions become `string` (JSON imports infer `string`), structure stays. */

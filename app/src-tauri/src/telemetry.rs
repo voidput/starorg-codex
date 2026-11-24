@@ -33,6 +33,13 @@
 //! kept in a short list ([`RECENT_MAX`]) for the screen's Alerts panel. The host strips the
 //! tone and the speech text unless the user chose sound (and speech), so the webview plays
 //! only what was asked for. A replay never fires alerts: they are of the live game only.
+//!
+//! With "Read Game.log events" on, the same stream session also follows the channel's
+//! `Game.log` ([`starorg_telemetry::gamelog`]) on a thread of its own: polled every 500 ms,
+//! only new bytes read, the view sent at most twice a second and only when it changed. With
+//! "People" on as well, the handles Game.log names are kept in memory for the People panel;
+//! they are never logged, and [`TelemetryHost::gamelog_handles`] feeds the diagnostics
+//! redaction. The mock backend feeds synthetic lines instead of a file.
 
 use crate::contract::telemetry::{
     TelemetryActions, TelemetryAlertRule, TelemetryAlerts, TelemetryEvent, TelemetryRecording,
@@ -42,6 +49,7 @@ use crate::contract::types::ChannelRef;
 use starorg_telemetry::alerts::{self, Alert, AlertEngine, AlertSettings, Notifications, Trigger};
 use starorg_telemetry::client::{LoopbackAddr, TelemetryClient};
 use starorg_telemetry::frames::{Frame, Snapshot, UI_INTERVAL};
+use starorg_telemetry::gamelog::{self, GameLog, GameLogView};
 use starorg_telemetry::history::{History, HistoryView};
 use starorg_telemetry::live::{self, LinkStatus, LiveEvent, LiveOptions};
 use starorg_telemetry::mock::{self, MockGame};
@@ -126,6 +134,47 @@ impl ReplayCtl {
     }
 }
 
+/// Where the Game.log reader reads.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum GameLogSource {
+    /// The channel folder: its `Game.log`, in the on-disk spelling.
+    Channel(PathBuf),
+    /// Synthetic lines (`starorg_telemetry::gamelog::mock`), no file.
+    Mock,
+}
+
+/// What the reader thread and the commands share.
+struct GameLogShared {
+    log: GameLog,
+    source: &'static str,
+    found: bool,
+    rotations: u32,
+}
+
+impl GameLogShared {
+    fn view(&self) -> GameLogView {
+        self.log.view(self.source, self.found, self.rotations)
+    }
+}
+
+struct GameLogTask {
+    source: GameLogSource,
+    people: bool,
+    stop: Arc<AtomicBool>,
+    shared: Arc<Mutex<GameLogShared>>,
+}
+
+impl GameLogTask {
+    fn stop(self) {
+        self.stop.store(true, Ordering::Relaxed);
+    }
+}
+
+/// The view goes to the window at most this often.
+const GAMELOG_EMIT: Duration = Duration::from_millis(500);
+/// A mock line this often.
+const GAMELOG_MOCK_EVERY: Duration = Duration::from_secs(4);
+
 struct Running {
     /// Bumped at every start and stop; events of an older stream are dropped.
     session: u64,
@@ -141,6 +190,9 @@ struct Running {
     /// What the history holds (`live <install>/<CHANNEL>` or `replay <name>`).
     history_of: Option<String>,
     alerts: AlertHub,
+    /// Where the stream's events go (the Game.log reader sends there too).
+    sink: Option<Sink>,
+    gamelog: Option<GameLogTask>,
 }
 
 /// The alert engine of the running stream and how alerts are delivered.
@@ -238,6 +290,8 @@ impl Default for Running {
             replay: None,
             history_of: None,
             alerts: AlertHub::default(),
+            sink: None,
+            gamelog: None,
         }
     }
 }
@@ -543,13 +597,23 @@ impl TelemetryHost {
 
     /// Stop any stream or replay and start a new session for `target` (`None`: a replay);
     /// returns its number. The history goes unless it is of the same thing (`history_of`).
-    fn begin(&self, r: &mut Running, target: Option<ChannelRef>, history_of: String) -> u64 {
+    fn begin(
+        &self,
+        r: &mut Running,
+        target: Option<ChannelRef>,
+        history_of: String,
+        sink: &Sink,
+    ) -> u64 {
         if let Some(t) = r.task.take() {
             t.stop();
         }
         lock(&self.rec).close(r.session);
         // A new stream starts with a baseline, never with what the last one saw.
         r.alerts.engine.reset();
+        if let Some(g) = r.gamelog.take() {
+            g.stop();
+        }
+        r.sink = Some(sink.clone());
         r.session += 1;
         r.target = target;
         r.source = None;
@@ -797,7 +861,7 @@ impl TelemetryHost {
         let session = {
             let mut r = lock(&self.state);
             let key = Self::live_key(&target);
-            self.begin(&mut r, Some(target), key)
+            self.begin(&mut r, Some(target), key, sink)
         };
         let ev = LiveEvent::Status(LinkStatus::NoSchema { reason });
         self.forward(sink, session, ev);
@@ -813,7 +877,7 @@ impl TelemetryHost {
     ) {
         let mut r = lock(&self.state);
         let key = Self::live_key(&target);
-        let session = self.begin(&mut r, Some(target), key);
+        let session = self.begin(&mut r, Some(target), key, &sink);
         r.source = Some(Source::Game {
             schema: schema.clone(),
             addr,
@@ -835,7 +899,7 @@ impl TelemetryHost {
         let session = {
             let mut r = lock(&self.state);
             let key = Self::live_key(&target);
-            let session = self.begin(&mut r, Some(target), key);
+            let session = self.begin(&mut r, Some(target), key, &sink);
             r.source = Some(Source::Mock {
                 schema: schema.clone(),
                 game: game.clone(),
@@ -885,6 +949,10 @@ impl TelemetryHost {
             t.stop();
         }
         lock(&self.rec).close(r.session);
+        if let Some(g) = r.gamelog.take() {
+            g.stop();
+        }
+        r.sink = None;
         if r.target.is_some() || r.source.is_some() || r.replay.is_some() {
             r.session += 1;
         }
@@ -945,7 +1013,7 @@ impl TelemetryHost {
         let stop = Arc::new(AtomicBool::new(false));
         let session = {
             let mut r = lock(&self.state);
-            let session = self.begin(&mut r, None, format!("replay {name}"));
+            let session = self.begin(&mut r, None, format!("replay {name}"), &sink);
             // A replay always starts on an empty history (its own times).
             lock(&self.history).clear();
             r.link = LinkStatus::Disabled;
@@ -1038,6 +1106,7 @@ impl TelemetryHost {
             frame: frame.map(Box::new),
             replay: Some(state),
             alerts: Vec::new(),
+            gamelog: None,
         });
         true
     }
@@ -1146,6 +1215,156 @@ impl TelemetryHost {
             .saturating_sub(src.t_ms(i - 1))
             .min(replay::MAX_GAP_MS);
         Duration::from_secs_f64(ms as f64 / 1000.0 / replay::clamp_speed(speed))
+    }
+
+    /// Follow `source` for the current stream (`None` stops the reader). `people`: keep the
+    /// handles Game.log names. The same source and choice keep the running reader; a change
+    /// starts over from the file's start (everything held is dropped). Without a stream
+    /// (`telemetry_start` not called) nothing starts.
+    pub fn set_gamelog(&self, source: Option<GameLogSource>, people: bool) {
+        let mut r = lock(&self.state);
+        if let (Some(g), Some(s)) = (&r.gamelog, &source)
+            && g.source == *s
+            && g.people == people
+        {
+            return;
+        }
+        if let Some(g) = r.gamelog.take() {
+            g.stop();
+        }
+        let (Some(source), Some(sink)) = (source, r.sink.clone()) else {
+            return;
+        };
+        if r.target.is_none() {
+            return;
+        }
+        let shared = Arc::new(Mutex::new(GameLogShared {
+            log: GameLog::new(people),
+            source: match source {
+                GameLogSource::Channel(_) => "game_log",
+                GameLogSource::Mock => "mock",
+            },
+            found: false,
+            rotations: 0,
+        }));
+        let stop = Arc::new(AtomicBool::new(false));
+        let session = r.session;
+        let state = self.state.clone();
+        let (sh, st, src) = (shared.clone(), stop.clone(), source.clone());
+        let started = std::thread::Builder::new()
+            .name("starorg-telemetry-gamelog".into())
+            .spawn(move || Self::run_gamelog(&state, &sh, &st, session, &sink, src, people));
+        if started.is_ok() {
+            r.gamelog = Some(GameLogTask {
+                source,
+                people,
+                stop,
+                shared,
+            });
+        }
+    }
+
+    /// The reader thread: poll, fold, send the view when it changed (at most every
+    /// [`GAMELOG_EMIT`]); ends when stopped or when a newer stream started.
+    fn run_gamelog(
+        state: &Mutex<Running>,
+        shared: &Mutex<GameLogShared>,
+        stop: &AtomicBool,
+        session: u64,
+        sink: &Sink,
+        source: GameLogSource,
+        people: bool,
+    ) {
+        let now = || now_ms() as i64;
+        let mut tail = match &source {
+            GameLogSource::Channel(dir) => Some(gamelog::tail::Tail::for_channel(dir)),
+            GameLogSource::Mock => None,
+        };
+        if tail.is_none() {
+            let mut g = lock(shared);
+            for l in gamelog::mock::session_lines(now(), people) {
+                g.log.fold_line(&l);
+            }
+            g.log.end_poll(now());
+            g.found = true;
+        }
+        let mut sent: Option<u64> = None;
+        let mut last_emit: Option<Instant> = None;
+        let mut last_mock = Instant::now();
+        let mut mock_i = 0u64;
+        while !stop.load(Ordering::Relaxed) {
+            let more = match &mut tail {
+                Some(t) => {
+                    // File IO first, without the lock; then fold under it.
+                    let r = t.read();
+                    let mut g = lock(shared);
+                    gamelog::tail::apply(&r, &mut g.log, now());
+                    g.found = t.found;
+                    g.rotations = t.rotations;
+                    r.more
+                }
+                None => {
+                    let mut g = lock(shared);
+                    if last_mock.elapsed() >= GAMELOG_MOCK_EVERY {
+                        last_mock = Instant::now();
+                        mock_i += 1;
+                        let l = gamelog::mock::ambient_line(mock_i, now());
+                        g.log.fold_line(&l);
+                    }
+                    g.log.end_poll(now());
+                    false
+                }
+            };
+            let due = last_emit.is_none_or(|t| t.elapsed() >= GAMELOG_EMIT);
+            let view = {
+                let g = lock(shared);
+                (due && sent != Some(g.log.version())).then(|| (g.log.version(), g.view()))
+            };
+            if let Some((v, view)) = view {
+                if stop.load(Ordering::Relaxed) || lock(state).session != session {
+                    return;
+                }
+                sent = Some(v);
+                last_emit = Some(Instant::now());
+                sink(TelemetryEvent::gamelog(session, view));
+            }
+            // A big log is caught up in short steps; otherwise one poll every 500 ms.
+            let wait = if more {
+                Duration::from_millis(50)
+            } else {
+                gamelog::tail::POLL
+            };
+            let until = Instant::now() + wait;
+            while Instant::now() < until && !stop.load(Ordering::Relaxed) {
+                std::thread::sleep(Duration::from_millis(50));
+            }
+        }
+    }
+
+    /// What the Game.log reader holds now (`None` while it does not run).
+    pub fn gamelog_view(&self) -> Option<GameLogView> {
+        let r = lock(&self.state);
+        r.gamelog.as_ref().map(|g| lock(&g.shared).view())
+    }
+
+    /// The People panel's Clear: every person held goes (your own handle stays, so later
+    /// lines naming you are still not listed).
+    pub fn clear_people(&self) -> Option<GameLogView> {
+        let r = lock(&self.state);
+        r.gamelog.as_ref().map(|g| {
+            let mut s = lock(&g.shared);
+            s.log.clear_people();
+            s.view()
+        })
+    }
+
+    /// Every handle the reader holds (yours and others'): the diagnostics text replaces them.
+    pub fn gamelog_handles(&self) -> Vec<String> {
+        let r = lock(&self.state);
+        r.gamelog
+            .as_ref()
+            .map(|g| lock(&g.shared).log.handles())
+            .unwrap_or_default()
     }
 
     /// Run `f` against the game with a fresh client (blocking; called on the blocking pool).

@@ -6,11 +6,14 @@
 //! "Record sessions" keeps its recordings in memory ([`TelemetryHost::default`] has no
 //! folder), starting with two synthetic ones ([`seed_recordings`]); a replay plays the
 //! synthetic generator over a recording's length.
+//! "Read Game.log events" feeds synthetic Game.log lines (`starorg_telemetry::gamelog::mock`,
+//! fake handles) instead of a file.
 
 use super::Backend;
 use super::mock::MockBackend;
 use super::telemetry::*;
 use super::types::*;
+use crate::telemetry::GameLogSource;
 use crate::telemetry::TelemetryHost;
 use std::collections::BTreeMap;
 use std::sync::MutexGuard;
@@ -179,6 +182,10 @@ impl MockBackend {
 }
 
 impl TelemetryBackend for MockBackend {
+    fn telemetry_host(&self) -> &crate::telemetry::TelemetryHost {
+        &self.telemetry
+    }
+
     fn telemetry_status(&self) -> CmdResult<TelemetryStatus> {
         Ok(self.tele_status())
     }
@@ -254,7 +261,10 @@ impl TelemetryBackend for MockBackend {
                 None => (None, None),
             }
         };
-        if !s.enabled {
+        if s.enabled {
+            let src = s.gamelog_active().then_some(GameLogSource::Mock);
+            self.telemetry.set_gamelog(src, s.people_active());
+        } else {
             self.telemetry.stop();
             self.telemetry.set_record(false);
         }
@@ -293,6 +303,11 @@ impl TelemetryBackend for MockBackend {
         let alerts = self.tele().alerts.clone();
         self.telemetry.set_alerts(&alerts);
         self.telemetry.start_mock(req, sink);
+        let s = self.tele().settings;
+        if s.gamelog_active() {
+            self.telemetry
+                .set_gamelog(Some(GameLogSource::Mock), s.people_active());
+        }
         Ok(self.tele_status())
     }
 

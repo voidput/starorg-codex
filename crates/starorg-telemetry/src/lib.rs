@@ -30,6 +30,7 @@ pub mod alerts;
 pub mod client;
 pub mod codec;
 pub mod frames;
+pub mod gamelog;
 pub mod history;
 pub mod json;
 pub mod live;

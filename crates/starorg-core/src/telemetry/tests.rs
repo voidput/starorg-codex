@@ -21,6 +21,7 @@ fn settings_default_off_and_round_trip() {
     let mut cfg = Config::default();
     assert_eq!(settings(&cfg), Settings::default());
     assert!(!settings(&cfg).enabled && !settings(&cfg).triggers && !settings(&cfg).record);
+    assert!(!settings(&cfg).gamelog && !settings(&cfg).people);
     assert_eq!(settings(&cfg).port, DEFAULT_PORT);
 
     cfg.extra = toml::from_str("[experimental]\nother = \"kept\"\n").unwrap();
@@ -29,6 +30,8 @@ fn settings_default_off_and_round_trip() {
         port: 50100,
         triggers: true,
         record: true,
+        gamelog: true,
+        people: true,
     };
     set_settings(&mut cfg, &s).unwrap();
     let text = toml::to_string(&cfg).unwrap();
@@ -59,6 +62,22 @@ fn bad_values_read_as_defaults() {
         s.triggers && !s.triggers_active(),
         "triggers need telemetry on"
     );
+    let cfg: Config =
+        toml::from_str("[experimental]\ntelemetry_gamelog = true\ntelemetry_people = true\n")
+            .unwrap();
+    let s = settings(&cfg);
+    assert!(s.gamelog && s.people);
+    assert!(
+        !s.gamelog_active() && !s.people_active(),
+        "Game.log events need telemetry on"
+    );
+    let s = Settings { enabled: true, ..s };
+    assert!(s.gamelog_active() && s.people_active());
+    let s = Settings {
+        gamelog: false,
+        ..s
+    };
+    assert!(!s.people_active(), "people need Game.log events on");
     let cfg: Config = toml::from_str("[experimental]\ntelemetry_port = 70000\n").unwrap();
     assert_eq!(settings(&cfg).port, DEFAULT_PORT);
     let cfg: Config = toml::from_str("experimental = 3\n").unwrap();
