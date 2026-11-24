@@ -455,7 +455,7 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       }
       const was = req.target ? (lines.get(key(req.target)) ?? { telemetry: false, triggers: false }) : { telemetry: false, triggers: false };
       const was_record = settings.record;
-      const readerChanged = s.gamelog !== settings.gamelog || s.people !== settings.people;
+      const readerChanged = s.gamelog !== settings.gamelog || s.people !== settings.people || s.sessions !== settings.sessions;
       settings = clone(s);
       if (!s.enabled) {
         lines.clear();
@@ -552,6 +552,7 @@ export function createTelemetryMock(data: TelemetryMockData, ctx: TelemetryMockC
       return recordingsView();
     },
     telemetry_replay_start: ({ req }) => {
+      if (!settings.enabled) ctx.fail('invalid', 'Turn on Live telemetry under Settings -> Experimental first.');
       if (recording?.name === req.name) recording = null;
       const rec = recordings.find((r) => r.name === req.name) ?? ctx.fail('invalid', `No recording ${req.name}`);
       startReplay(rec);

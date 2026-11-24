@@ -21,7 +21,7 @@ fn settings_default_off_and_round_trip() {
     let mut cfg = Config::default();
     assert_eq!(settings(&cfg), Settings::default());
     assert!(!settings(&cfg).enabled && !settings(&cfg).triggers && !settings(&cfg).record);
-    assert!(!settings(&cfg).gamelog && !settings(&cfg).people);
+    assert!(!settings(&cfg).gamelog && !settings(&cfg).people && !settings(&cfg).sessions);
     assert_eq!(settings(&cfg).port, DEFAULT_PORT);
 
     cfg.extra = toml::from_str("[experimental]\nother = \"kept\"\n").unwrap();
@@ -32,6 +32,7 @@ fn settings_default_off_and_round_trip() {
         record: true,
         gamelog: true,
         people: true,
+        sessions: true,
     };
     set_settings(&mut cfg, &s).unwrap();
     let text = toml::to_string(&cfg).unwrap();
@@ -47,6 +48,15 @@ fn settings_default_off_and_round_trip() {
         .record_active()
     );
     assert!(s.record_active());
+    assert!(s.sessions_active());
+    // The shard history rides on Game.log events, never on Metrics alone.
+    assert!(
+        !Settings {
+            gamelog: false,
+            ..s
+        }
+        .sessions_active()
+    );
 }
 
 #[test]

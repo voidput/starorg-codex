@@ -258,7 +258,7 @@ fn the_store_dedupes_caps_survives_a_restart_and_clears() {
     assert_eq!(rows.last().unwrap().joined_ms, T0 + 1010);
     assert!(std::fs::metadata(d.join(FILE_NAME)).unwrap().len() as usize <= MAX_FILE_BYTES);
     assert!(!d.join("history.json.tmp").exists());
-    again.clear();
+    again.clear(T0 + 10_000_000);
     assert!(again.rows().is_empty());
     assert!(Store::new(Some(d.clone())).rows().is_empty());
     // A broken file reads as empty (and says so).
@@ -292,8 +292,12 @@ fn backfill_reads_the_newest_backups_once_in_bounded_chunks() {
     assert_eq!(b.pending(), 2);
     let mut steps = 0;
     while !b.is_done() {
-        if let Some((rows, mark)) = b.step() {
-            store.add(rows, Some(mark));
+        match b.step() {
+            Some(Step::Read(rows, mark)) => {
+                store.add(rows, Some(mark));
+            }
+            Some(Step::Failed(s)) => panic!("{} not read", s.name),
+            None => {}
         }
         steps += 1;
         assert!(steps < 10);
@@ -328,4 +332,168 @@ fn a_chunk_boundary_inside_a_line_is_fine() {
     let s = f.finish();
     assert_eq!(s.len(), 1);
     assert_eq!(s[0].left_reason, Some(LeftReason::Leave));
+}
+
+#[test]
+fn a_clear_stays_cleared_when_the_same_logs_are_read_again() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path().join("sessions");
+    let mut s = Store::new(Some(d.clone()));
+    let old = vec![row(T0, "a", "L1"), row(T0 + 5, "b", "L1")];
+    assert_eq!(s.add(old.clone(), None), 2);
+    s.clear(T0 + 1_000);
+    assert!(s.rows().is_empty());
+    // The live Game.log folded again (a reader restart), then its copy in logbackups/.
+    assert_eq!(s.add(old.clone(), None), 0);
+    assert_eq!(s.add(vec![row(T0 + 5, "b", "L1-backup")], None), 0);
+    assert!(s.rows().is_empty());
+    // A stint that joined after the Clear is kept.
+    assert_eq!(s.add(vec![row(T0 + 2_000, "c", "L1")], None), 1);
+    // The watermark is in the file: a restart of the app keeps it.
+    let mut again = Store::new(Some(d.clone()));
+    assert_eq!(again.cleared_ms(), Some(T0 + 1_000));
+    assert_eq!(again.add(old, None), 0);
+    assert_eq!(again.rows().len(), 1);
+    // A Clear never moves the watermark back.
+    again.clear(T0);
+    assert_eq!(again.cleared_ms(), Some(T0 + 1_000));
+}
+
+#[test]
+fn a_broken_file_is_set_aside_and_a_newer_one_is_never_written() {
+    let dir = tempfile::tempdir().unwrap();
+    let d = dir.path().join("sessions");
+    std::fs::create_dir_all(&d).unwrap();
+    std::fs::write(d.join(FILE_NAME), b"{not json").unwrap();
+    let mut broken = Store::new(Some(d.clone()));
+    assert!(broken.rows().is_empty());
+    assert!(broken.error.as_deref().unwrap().contains(BAD_NAME));
+    assert_eq!(broken.add(vec![row(T0, "a", "L1")], None), 1);
+    assert_eq!(std::fs::read(d.join(BAD_NAME)).unwrap(), b"{not json");
+    assert_eq!(Store::new(Some(d.clone())).rows().len(), 1);
+    assert!(broken.error.is_none());
+
+    // A newer format: shown, never replaced.
+    let newer =
+        serde_json::json!({ "format": FORMAT + 1, "stints": [row(T0, "z", "L9")], "more": 1 });
+    let text = serde_json::to_vec(&newer).unwrap();
+    std::fs::write(d.join(FILE_NAME), &text).unwrap();
+    let mut s = Store::new(Some(d.clone()));
+    assert_eq!(s.rows().len(), 1);
+    assert!(s.error.as_deref().unwrap().contains("newer"));
+    s.add(vec![row(T0 + 9, "y", "L9")], None);
+    s.clear(T0 + 100);
+    assert_eq!(std::fs::read(d.join(FILE_NAME)).unwrap(), text);
+}
+
+fn write_backup(backups: &std::path::Path, name: &str, t: i64, shard: &str) {
+    let mut l = header("Mon Nov 23 10:00:00 2026");
+    l.push(join(t, shard));
+    l.push(system(t + 60_000, "Frontend_Main"));
+    std::fs::write(backups.join(name), l.join("\n") + "\n").unwrap();
+}
+
+#[test]
+fn a_failed_read_marks_nothing_and_is_tried_again_a_few_times() {
+    let dir = tempfile::tempdir().unwrap();
+    let backups = dir.path().join("logbackups");
+    std::fs::create_dir_all(&backups).unwrap();
+    write_backup(&backups, "Game 1.log", T0, "pub_use1b_1_001");
+    let mut store = Store::new(Some(dir.path().join("sessions")));
+    let mut b = Backfill::plan(Some(&backups), &mut store);
+    assert_eq!(b.pending(), 1);
+    // Gone between the plan and the read (or locked): nothing counts, nothing is marked.
+    let kept = std::fs::read(backups.join("Game 1.log")).unwrap();
+    std::fs::remove_file(backups.join("Game 1.log")).unwrap();
+    let Some(Step::Failed(s)) = b.step() else {
+        panic!("expected a failed read")
+    };
+    assert!(b.is_done());
+    assert!(!store.is_scanned(&s));
+    store.failed(s);
+    assert!(store.rows().is_empty());
+    // Back again: the next start reads it.
+    std::fs::write(backups.join("Game 1.log"), &kept).unwrap();
+    let mut b = Backfill::plan(Some(&backups), &mut store);
+    assert_eq!(b.pending(), 1);
+    let Some(Step::Read(rows, mark)) = b.step() else {
+        panic!("expected the file read")
+    };
+    assert_eq!(rows.len(), 1);
+    store.add(rows, Some(mark));
+    assert!(Backfill::plan(Some(&backups), &mut store).is_done());
+    // A file that keeps failing waits for the next app run after MAX_ATTEMPTS.
+    write_backup(&backups, "Game 2.log", T0 + 1, "pub_use1b_1_002");
+    let m = std::fs::metadata(backups.join("Game 2.log")).unwrap();
+    let s = Scanned {
+        name: "Game 2.log".into(),
+        bytes: m.len(),
+    };
+    for _ in 0..MAX_ATTEMPTS {
+        assert_eq!(Backfill::plan(Some(&backups), &mut store).pending(), 1);
+        store.failed(s.clone());
+    }
+    assert!(Backfill::plan(Some(&backups), &mut store).is_done());
+    assert!(Backfill::plan(Some(&backups), &mut Store::new(None)).pending() == 2);
+}
+
+#[test]
+fn a_backup_cut_at_the_size_cap_leaves_out_the_stint_still_open_there() {
+    let dir = tempfile::tempdir().unwrap();
+    let backups = dir.path().join("logbackups");
+    std::fs::create_dir_all(&backups).unwrap();
+    let mut l = header("Mon Nov 23 10:00:00 2026");
+    l.push(join(T0, "pub_use1b_1_001"));
+    l.push(system(T0 + 60_000, "Frontend_Main"));
+    l.push(join(T0 + 120_000, "pub_use1b_1_002"));
+    let head = l.join("\n") + "\n";
+    let mut text = head.clone();
+    for i in 0..200 {
+        text.push_str(&at(
+            T0 + 130_000 + i,
+            "[Notice] filler line of the open stint\n",
+        ));
+    }
+    l.clear();
+    l.push(system(T0 + 900_000, "Frontend_Main"));
+    text.push_str(&(l.join("\n") + "\n"));
+    std::fs::write(backups.join("Game 1.log"), &text).unwrap();
+    let mut store = Store::new(None);
+    let mut b = Backfill::plan(Some(&backups), &mut store);
+    b.file_max = head.len() as u64 + 100;
+    let rows = loop {
+        match b.step() {
+            Some(Step::Read(rows, _)) => break rows,
+            Some(Step::Failed(_)) => panic!("not read"),
+            None => {}
+        }
+    };
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    assert_eq!(rows[0].shard, "pub_use1b_1_001");
+    assert_eq!(rows[0].left_reason, Some(LeftReason::Leave));
+}
+
+#[test]
+fn the_current_stint_after_a_disconnect_reads_as_ended() {
+    let mut l = header("Mon Nov 23 10:00:00 2026");
+    l.push(join(T0, "pub_usw2a_1_001"));
+    let mut g = GameLog::new(false);
+    for x in &l {
+        g.fold_line(x);
+    }
+    let now = g.view("game_log", true, 0).stint.unwrap();
+    assert_eq!((now.left_reason, now.left_ms), (None, None));
+    g.fold_line(&dc(
+        T0 + 60_000,
+        "Remote Disconnect - Player requested disconnect",
+        "SC_Default",
+        60.0,
+    ));
+    let s = g.view("game_log", true, 0).stint.unwrap();
+    assert_eq!(s.left_reason, Some(LeftReason::Disconnect));
+    assert_eq!(s.left_ms, Some(T0 + 60_000));
+    assert!(
+        g.drain_stints().is_empty(),
+        "still open until the next line"
+    );
 }

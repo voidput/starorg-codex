@@ -856,7 +856,7 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
   if (teleParam === 'on' || teleParam === 'triggers' || teleParam === 'gamelog') {
     const ptu = SAMPLES.telemetry_status.channels.find((c) => c.offered);
     const gamelog = teleParam === 'gamelog';
-    if (ptu) void telemetry.handlers.telemetry_configure({ req: { target: { install: ptu.install, channel: ptu.channel }, settings: { enabled: true, port: 50051, triggers: teleParam === 'triggers', record: false, gamelog, people: gamelog }, replace_other: false } });
+    if (ptu) void telemetry.handlers.telemetry_configure({ req: { target: { install: ptu.install, channel: ptu.channel }, settings: { enabled: true, port: 50051, triggers: teleParam === 'triggers', record: false, gamelog, people: gamelog, sessions: gamelog }, replace_other: false } });
   }
 
   const h: Handlers = {

@@ -49,7 +49,7 @@ use crate::contract::types::ChannelRef;
 use starorg_telemetry::alerts::{self, Alert, AlertEngine, AlertSettings, Notifications, Trigger};
 use starorg_telemetry::client::{LoopbackAddr, TelemetryClient};
 use starorg_telemetry::frames::{Frame, Snapshot, UI_INTERVAL};
-use starorg_telemetry::gamelog::stints::{self, Backfill, Stint, Store};
+use starorg_telemetry::gamelog::stints::{self, Backfill, Step, Stint, Store};
 use starorg_telemetry::gamelog::{self, GameLog, GameLogView};
 use starorg_telemetry::history::{History, HistoryView};
 use starorg_telemetry::live::{self, LinkStatus, LiveEvent, LiveOptions};
@@ -165,6 +165,8 @@ impl GameLogShared {
 struct GameLogTask {
     source: GameLogSource,
     people: bool,
+    /// "Shard history": ended stints go to the file, `logbackups/` is read in.
+    sessions: bool,
     stop: Arc<AtomicBool>,
     shared: Arc<Mutex<GameLogShared>>,
 }
@@ -179,6 +181,8 @@ impl GameLogTask {
 const GAMELOG_EMIT: Duration = Duration::from_millis(500);
 /// A mock line this often.
 const GAMELOG_MOCK_EVERY: Duration = Duration::from_secs(4);
+/// The wait between two reads while a long Game.log is caught up.
+const GAMELOG_CATCH_UP: Duration = Duration::from_millis(200);
 
 struct Running {
     /// Bumped at every start and stop; events of an older stream are dropped.
@@ -801,17 +805,21 @@ impl TelemetryHost {
         lock(&self.rec).caps
     }
 
-    /// Every recording, newest first.
+    /// Every recording, newest first. The folder is listed without the lock, so a frame being
+    /// recorded never waits on it.
     pub fn recordings(&self) -> Vec<TelemetryRecording> {
-        let rec = lock(&self.rec);
-        match &rec.dir {
-            Some(d) => record::list(d),
-            None => {
-                let mut v = rec.mock.clone();
-                v.reverse();
-                v
+        let dir = {
+            let rec = lock(&self.rec);
+            match &rec.dir {
+                Some(d) => d.clone(),
+                None => {
+                    let mut v = rec.mock.clone();
+                    v.reverse();
+                    return v;
+                }
             }
-        }
+        };
+        record::list(&dir)
     }
 
     /// Remove a recording; refused for the one being written or played.
@@ -892,9 +900,10 @@ impl TelemetryHost {
         }
     }
 
-    /// Forget the whole join history (backups read stay read).
+    /// Forget the whole join history for good: no stint that joined before now comes back
+    /// when a log is read again (backups read stay read).
     pub fn clear_sessions(&self) -> crate::contract::telemetry::TelemetrySessions {
-        lock(&self.sessions).clear();
+        lock(&self.sessions).clear(now_ms() as i64);
         self.sessions_view()
     }
 
@@ -1275,14 +1284,16 @@ impl TelemetryHost {
     }
 
     /// Follow `source` for the current stream (`None` stops the reader). `people`: keep the
-    /// handles Game.log names. The same source and choice keep the running reader; a change
-    /// starts over from the file's start (everything held is dropped). Without a stream
+    /// handles Game.log names; `sessions`: "Shard history", ended stints go to the history file
+    /// and `logbackups/` is read in. The same source and choices keep the running reader; a
+    /// change starts over from the file's start (everything held is dropped). Without a stream
     /// (`telemetry_start` not called) nothing starts.
-    pub fn set_gamelog(&self, source: Option<GameLogSource>, people: bool) {
+    pub fn set_gamelog(&self, source: Option<GameLogSource>, people: bool, sessions: bool) {
         let mut r = lock(&self.state);
         if let (Some(g), Some(s)) = (&r.gamelog, &source)
             && g.source == *s
             && g.people == people
+            && g.sessions == sessions
         {
             return;
         }
@@ -1313,12 +1324,15 @@ impl TelemetryHost {
         let started = std::thread::Builder::new()
             .name("starorg-telemetry-gamelog".into())
             .spawn(move || {
-                Self::run_gamelog(&state, &sh, &st, session, &sink, src, people, &store)
+                Self::run_gamelog(
+                    &state, &sh, &st, session, &sink, src, people, sessions, &store,
+                )
             });
         if started.is_ok() {
             r.gamelog = Some(GameLogTask {
                 source,
                 people,
+                sessions,
                 stop,
                 shared,
             });
@@ -1326,9 +1340,10 @@ impl TelemetryHost {
     }
 
     /// The reader thread: poll, fold, send the view when it changed (at most every
-    /// [`GAMELOG_EMIT`]); ends when stopped or when a newer stream started. Shard stints that
-    /// end go to the join history, and one chunk of a `logbackups/` file is read in per poll
-    /// until the newest backups are all in.
+    /// [`GAMELOG_EMIT`]); ends when stopped or when a newer stream started. With `sessions`
+    /// ("Shard history" on), shard stints that end go to the join history, and one chunk of a
+    /// `logbackups/` file is read in per poll until the newest backups are all in; without it
+    /// nothing is written and no backup is opened.
     #[allow(clippy::too_many_arguments)]
     fn run_gamelog(
         state: &Mutex<Running>,
@@ -1338,6 +1353,7 @@ impl TelemetryHost {
         sink: &Sink,
         source: GameLogSource,
         people: bool,
+        sessions: bool,
         store: &Mutex<Store>,
     ) {
         let now = || now_ms() as i64;
@@ -1346,10 +1362,10 @@ impl TelemetryHost {
             GameLogSource::Mock => None,
         };
         let mut backfill = match &source {
-            GameLogSource::Channel(dir) => {
+            GameLogSource::Channel(dir) if sessions => {
                 Backfill::plan(stints::backups_dir(dir).as_deref(), &mut lock(store))
             }
-            GameLogSource::Mock => Backfill::default(),
+            _ => Backfill::default(),
         };
         if tail.is_none() {
             let mut g = lock(shared);
@@ -1386,16 +1402,23 @@ impl TelemetryHost {
                     false
                 }
             };
-            // Ended stints into the history; then one chunk of a backup (file IO unlocked).
+            // Ended stints into the history (dropped with Shard history off); then one chunk of
+            // a backup (file IO unlocked).
             let ended = lock(shared).log.drain_stints();
-            if !ended.is_empty() {
-                lock(store).add(ended, None);
-            }
-            if !backfill.is_done() {
-                if let Some((rows, mark)) = backfill.step() {
-                    lock(store).add(rows, Some(mark));
+            if sessions {
+                if !ended.is_empty() {
+                    lock(store).add(ended, None);
                 }
-                lock(shared).backfill_pending = backfill.pending() as u32;
+                if !backfill.is_done() {
+                    match backfill.step() {
+                        Some(Step::Read(rows, mark)) => {
+                            lock(store).add(rows, Some(mark));
+                        }
+                        Some(Step::Failed(mark)) => lock(store).failed(mark),
+                        None => {}
+                    }
+                    lock(shared).backfill_pending = backfill.pending() as u32;
+                }
             }
             let rev = lock(store).revision;
             let due = last_emit.is_none_or(|t| t.elapsed() >= GAMELOG_EMIT);
@@ -1412,9 +1435,11 @@ impl TelemetryHost {
                 last_emit = Some(Instant::now());
                 sink(TelemetryEvent::gamelog(session, view));
             }
-            // A big log is caught up in short steps; otherwise one poll every 500 ms.
+            // A big log is caught up in steps (4 MiB each, 200 ms apart, so a long Game.log at
+            // the screen's open never holds a core while the game runs); otherwise one poll
+            // every 500 ms.
             let wait = if more {
-                Duration::from_millis(50)
+                GAMELOG_CATCH_UP
             } else {
                 gamelog::tail::POLL
             };

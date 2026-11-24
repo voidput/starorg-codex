@@ -326,6 +326,33 @@ export function mergeHistory(prev: TelemetryHistory | null, next: TelemetryHisto
   return { ...next, reset: false, t_ms: join(prev.t_ms, next.t_ms), series };
 }
 
+/**
+ * Only the newest request's answer counts: `next()` numbers a request (and makes every earlier
+ * one stale), `current(n)` says whether the answer of request `n` may still be used. A slow
+ * answer landing after a newer request (a Clear, a reset) is dropped instead of shown.
+ */
+export class Latest {
+  private n = 0;
+  next(): number {
+    return ++this.n;
+  }
+  current(n: number): boolean {
+    return n === this.n;
+  }
+}
+
+/**
+ * When to read the join history again for a revision `rev` of the Game.log view (`null`: no
+ * view yet): `skip` when what is held already is that revision (or, without a view, when a list
+ * is held or on its way); `now` when the last read is at least `everyMs` ago; else `later` with
+ * the wait, so a backfill that moves the revision many times in a row reads it once a second.
+ */
+export function sessionsReload(rev: number | null, held: number | null, loading: boolean, sinceLastMs: number, everyMs: number): { at: 'skip' } | { at: 'now' } | { at: 'later'; waitMs: number } {
+  if (rev === null ? held !== null || loading : held === rev) return { at: 'skip' };
+  if (sinceLastMs >= everyMs) return { at: 'now' };
+  return { at: 'later', waitMs: everyMs - sinceLastMs };
+}
+
 /** The range a graph spans: the spec's fixed ends, else the visible values with a little room (never empty). */
 export function seriesRange(values: readonly (number | null)[], spec: Pick<SeriesSpec, 'min' | 'max'>): { min: number; max: number } {
   let lo = Infinity;

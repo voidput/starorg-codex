@@ -125,10 +125,12 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
   is logged or sent anywhere. The screen's graphs keep the last 10 minutes of a few values
   (speed, G, fuel, hull, shields, health, oxygen) in memory while the app runs; they are never
   written to disk. Activity notes only the switch changes (on or off, the port, whether game
-  actions are allowed, Record sessions on or off), each start and stop, which cached schema a
-  start used or why there was none (that reason can name the path of the game's exe), each
-  replay started and recording deleted (by file name), and the name and result of each game
-  action pressed.
+  actions are allowed, Game.log events on or off, People and Shard history on, Record sessions
+  on or off), each start and stop, which cached schema a start used or why there was none (that
+  reason can name the path of the game's exe), that Game.log events are being read, each
+  replay started and recording deleted (by file name), that the shard history was cleared, and
+  the name and result of each game action pressed. None of these lines carries a log line,
+  a shard, a handle or an address.
 - **Record sessions** (its own switch, off by default; turning on Metrics never turns it on)
   saves each live stream, 4 frames a second, as a JSONL file in the app's data folder
   (`telemetry/recordings/` under `%APPDATA%\StarOrg Tools\Codex\data\` or
@@ -162,19 +164,22 @@ fuel, shields) from the game's local service while you play, for 5.0 builds and 
   `Game.log` on this computer while the Live telemetry screen is open: read only, the bytes
   the game added since the last read, twice a second. What it shows (session, shard and
   region, star system, quantum route, zone notices, ship classes nearby, deaths and respawns)
-  lives in memory and goes when the screen closes, except the session history below; nothing
-  of it is sent. The server address, port and session ids in the log are never read into the
+  lives in memory and goes when the screen closes; nothing of it is written or sent. The server address, port and session ids in the log are never read into the
   app at all, and a disconnect line (which also names addresses, a session and your handle) is
   only classified, never kept. This is separate from "Import blueprints from Game.log", which
   reads only the blueprint lines.
-- **Session history** (part of Read Game.log events): one row per shard you joined (channel,
-  build, shard id and region, join and leave times, how long, the star systems you went to,
-  why it ended, how many disconnects and whether it dropped), saved in one file in the app's
-  data folder (`telemetry/sessions/history.json`). To start it with your past sessions it also
-  reads the channel's own `logbackups/*.log` (the newest 40, each once, read only, a few MB at
-  a time, never held open). No address, port, session id, handle or raw log line is in it. At
-  most 2000 rows and 2 MB; the oldest go first. Settings -> Storage counts it; **Clear** (in the
-  Sessions panel or Settings -> Storage) empties it. Activity notes only that it was cleared.
+- **Shard history** (its own switch under Read Game.log events, off by default; turning on
+  Game.log events never turns it on): one row per shard you joined (channel, build, shard id
+  and region, join and leave times, how long, the star systems you went to, why it ended, how
+  many disconnects and whether it dropped), saved in one file in the app's data folder
+  (`telemetry/sessions/history.json`). To start it with your past sessions it also reads the
+  channel's own `logbackups/*.log` (the newest 40, each once, read only, at most 128 MB of
+  each, a few MB at a time, never held open). With it off, no row is written and no backup is
+  opened. No address, port, session id, handle or raw log line is in it. At most 2000 rows and
+  2 MB; the oldest go first. Settings -> Storage counts it; **Clear** (in the Sessions panel or
+  Settings -> Storage) empties it for good: the file keeps only when you cleared it, and no
+  session that started before then is added again, even when the same Game.log or one of its
+  backups is read again. Activity notes only that it was cleared.
 - **People** (another switch under it, off by default) also keeps the player handles Game.log
   names (crew channels, party notices, quantum calibration notices, players named in ship
   kills near you) and your own, to list them by how they relate to you. They stay in memory

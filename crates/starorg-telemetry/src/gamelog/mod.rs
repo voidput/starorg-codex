@@ -294,7 +294,7 @@ impl GameLog {
             signals: self.signals.view(self.last_t),
             events: self.events.iter().cloned().collect(),
             people: self.people.as_ref().map(people::PeopleState::view),
-            stint: self.stints.current().cloned(),
+            stint: self.stints.current(),
             sessions_rev: 0,
         }
     }

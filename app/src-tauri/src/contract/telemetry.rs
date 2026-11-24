@@ -27,7 +27,10 @@
 //! - "Read Game.log events" (its own switch, off) follows the channel's `Game.log` while the
 //!   stream runs: the view goes out in the same event ([`TelemetryEvent::gamelog`]), at most
 //!   twice a second. "People" (another switch, off) adds the handles Game.log names, memory
-//!   only; `telemetry_people_clear` forgets them. Nothing about either goes to the network.
+//!   only; `telemetry_people_clear` forgets them. "Shard history" (another switch, off) keeps
+//!   the shards joined in a file in the data folder and reads `logbackups/` in;
+//!   `telemetry_sessions` lists it, `telemetry_sessions_clear` empties it for good. Nothing
+//!   about any of them goes to the network.
 
 use super::types::*;
 use super::{BackendState, run};
@@ -65,6 +68,10 @@ pub struct TelemetrySettings {
     /// "People": keep the handles Game.log names (memory only). Counts only with `gamelog`.
     #[serde(default)]
     pub people: bool,
+    /// "Shard history": keep the shards joined in the data folder and read `logbackups/` in.
+    /// Counts only with `gamelog`.
+    #[serde(default)]
+    pub sessions: bool,
 }
 
 impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
@@ -76,6 +83,7 @@ impl From<starorg_core::telemetry::Settings> for TelemetrySettings {
             record: s.record,
             gamelog: s.gamelog,
             people: s.people,
+            sessions: s.sessions,
         }
     }
 }
@@ -89,6 +97,7 @@ impl From<TelemetrySettings> for starorg_core::telemetry::Settings {
             record: s.record,
             gamelog: s.gamelog,
             people: s.people,
+            sessions: s.sessions,
         }
     }
 }
@@ -108,6 +117,10 @@ impl TelemetrySettings {
 
     pub fn people_active(&self) -> bool {
         self.gamelog_active() && self.people
+    }
+
+    pub fn sessions_active(&self) -> bool {
+        self.gamelog_active() && self.sessions
     }
 }
 
@@ -248,7 +261,7 @@ pub struct TelemetryRecordingRef {
     pub name: String,
 }
 
-/// The server and shard join history ("Read Game.log events"), newest first.
+/// The server and shard join history ("Shard history"), newest first.
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct TelemetrySessions {
     pub items: Vec<TelemetryStint>,

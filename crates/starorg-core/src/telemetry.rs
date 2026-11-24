@@ -10,8 +10,10 @@
 //!   `telemetry_triggers` is a second, separate opt-in ([`Settings`]), and
 //!   `telemetry_record` ("Record sessions") a third: recordings of the stream in the app's
 //!   data folder ([`crate::storage::telemetry_recordings_dir`]); so are `telemetry_gamelog`
-//!   (read the channel's `Game.log` for events) and `telemetry_people` (list the handles named
-//!   there; needs `telemetry_gamelog`).
+//!   (read the channel's `Game.log` for events), `telemetry_people` (list the handles named
+//!   there; needs `telemetry_gamelog`) and `telemetry_sessions` ("Shard history": keep the
+//!   shards joined in a file in the data folder and read `logbackups/` in; needs
+//!   `telemetry_gamelog`).
 //! - **5.0 or newer only** ([`eligible`]): PTU 5.0 today, LIVE by itself once LIVE reports 5.0.
 //!   An unknown game version is not offered.
 //! - **Loopback only** ([`endpoint`]; the client refuses any other host): nothing leaves the
@@ -40,6 +42,7 @@ const KEY_TRIGGERS: &str = "telemetry_triggers";
 const KEY_RECORD: &str = "telemetry_record";
 const KEY_GAMELOG: &str = "telemetry_gamelog";
 const KEY_PEOPLE: &str = "telemetry_people";
+const KEY_SESSIONS: &str = "telemetry_sessions";
 
 /// The port the game is told to use when the user sets none (`GRPC_CLIENT_SERVER_PORT`).
 pub const DEFAULT_PORT: u16 = 50051;
@@ -71,6 +74,10 @@ pub struct Settings {
     /// `telemetry_people`: keep the handles Game.log names for the People panel (memory
     /// only). Counts only with `gamelog` active.
     pub people: bool,
+    /// `telemetry_sessions`: "Shard history", keep the shards joined in a file in the data
+    /// folder and read the channel's `logbackups/` in. The only part of the Game.log family
+    /// that writes a file, so its own switch. Counts only with `gamelog` active.
+    pub sessions: bool,
 }
 
 impl Default for Settings {
@@ -82,6 +89,7 @@ impl Default for Settings {
             record: false,
             gamelog: false,
             people: false,
+            sessions: false,
         }
     }
 }
@@ -106,6 +114,11 @@ impl Settings {
     pub fn people_active(&self) -> bool {
         self.gamelog_active() && self.people
     }
+
+    /// The shard history counts only while Game.log events are on.
+    pub fn sessions_active(&self) -> bool {
+        self.gamelog_active() && self.sessions
+    }
 }
 
 /// Read `[experimental]`; anything missing or of the wrong type is the default.
@@ -127,6 +140,7 @@ pub fn settings(cfg: &Config) -> Settings {
         record: flag(KEY_RECORD).unwrap_or(d.record),
         gamelog: flag(KEY_GAMELOG).unwrap_or(d.gamelog),
         people: flag(KEY_PEOPLE).unwrap_or(d.people),
+        sessions: flag(KEY_SESSIONS).unwrap_or(d.sessions),
     }
 }
 
@@ -153,6 +167,7 @@ pub fn set_settings(cfg: &mut Config, s: &Settings) -> Result<(), String> {
     t.insert(KEY_RECORD.into(), toml::Value::Boolean(s.record));
     t.insert(KEY_GAMELOG.into(), toml::Value::Boolean(s.gamelog));
     t.insert(KEY_PEOPLE.into(), toml::Value::Boolean(s.people));
+    t.insert(KEY_SESSIONS.into(), toml::Value::Boolean(s.sessions));
     Ok(())
 }
 

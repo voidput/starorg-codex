@@ -4,18 +4,25 @@
    * oxygen as small line graphs (sc-telemetry's sparklines, same owner, MIT), from the host's
    * 10-minute ring (one sample a second). Plain SVG paths, no chart library.
    *
-   * The store polls the ring once a second while this panel is mounted, so the graphs redraw
-   * at 1 Hz whatever the frame rate. A gap (no sample for 3 s, or a value the game did not
+   * The store polls the ring once a second while this panel is mounted and not folded away
+   * (its CollapsibleCard), so the graphs redraw at 1 Hz whatever the frame rate, and a folded
+   * card asks nothing. A gap (no sample for 3 s, or a value the game did not
    * send) breaks the line rather than bridging it.
    */
-  import { onMount } from 'svelte';
   import * as Card from '@/components/ui/card';
+  import { getCardCollapse } from '@/components/ui/card/collapse';
   import Segmented from '@/components/common/Segmented.svelte';
   import { SERIES, WINDOWS, latestValue, seriesRange, sparkPath, windowStats } from '@/lib/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
   import { cn } from '@/lib/utils';
 
-  onMount(() => telemetry.watchHistory());
+  const card = getCardCollapse();
+  const open = $derived(card?.open ?? true);
+  // A primitive: folding stops the poll, unfolding starts it again.
+  $effect(() => {
+    if (!open) return;
+    return telemetry.watchHistory();
+  });
 
   type WindowId = (typeof WINDOWS)[number]['id'];
   let win = $state<WindowId>('300');

@@ -33,6 +33,7 @@ fn on(triggers: bool) -> TelemetrySettings {
         record: false,
         gamelog: false,
         people: false,
+        sessions: false,
     }
 }
 
@@ -877,6 +878,49 @@ fn the_join_history_lists_newest_first_clears_and_is_counted_by_storage() {
     assert!(cleared.items.is_empty());
     assert!(cleared.revision > v.revision);
     assert_eq!(area(&b).bytes, 0);
+}
+
+#[test]
+fn a_replay_needs_the_switch_and_shard_history_is_its_own() {
+    let b = MockBackend::default();
+    let name = b.telemetry_recordings().unwrap().items[0].name.clone();
+    let e = b
+        .telemetry_replay_start(TelemetryRecordingRef { name: name.clone() }, sink().0)
+        .unwrap_err();
+    assert_eq!(e.code, ErrorCode::Invalid, "off: no replay either");
+    configure(&b, ptu(), on(false));
+    assert!(
+        b.telemetry_replay_start(TelemetryRecordingRef { name }, sink().0)
+            .unwrap()
+            .replay
+            .is_some()
+    );
+    b.telemetry_stop().unwrap();
+    // Shard history: off with Game.log events on, and nothing without Game.log events.
+    let s = configure(&b, ptu(), with_gamelog(true)).status.settings;
+    assert!(!s.sessions && !s.sessions_active());
+    let s = configure(
+        &b,
+        ptu(),
+        TelemetrySettings {
+            sessions: true,
+            ..on(false)
+        },
+    )
+    .status
+    .settings;
+    assert!(s.sessions && !s.sessions_active());
+    let s = configure(
+        &b,
+        ptu(),
+        TelemetrySettings {
+            sessions: true,
+            ..with_gamelog(false)
+        },
+    )
+    .status
+    .settings;
+    assert!(s.sessions_active());
 }
 
 #[test]

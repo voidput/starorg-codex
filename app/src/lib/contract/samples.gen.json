@@ -26549,6 +26549,7 @@
         "people": false,
         "port": 50051,
         "record": false,
+        "sessions": false,
         "triggers": true
       },
       "streaming": null,
@@ -27552,6 +27553,7 @@
       "people": false,
       "port": 50051,
       "record": true,
+      "sessions": false,
       "triggers": true
     },
     "streaming": null,
@@ -27718,6 +27720,7 @@
       "people": false,
       "port": 50051,
       "record": false,
+      "sessions": false,
       "triggers": true
     },
     "streaming": null,
@@ -27838,6 +27841,7 @@
       "people": false,
       "port": 50051,
       "record": false,
+      "sessions": false,
       "triggers": true
     },
     "streaming": null,
@@ -28045,6 +28049,7 @@
       "people": false,
       "port": 50051,
       "record": false,
+      "sessions": false,
       "triggers": true
     },
     "streaming": {
@@ -28160,6 +28165,7 @@
       "people": false,
       "port": 50051,
       "record": false,
+      "sessions": false,
       "triggers": false
     },
     "streaming": null,
@@ -28272,6 +28278,7 @@
       "people": false,
       "port": 50051,
       "record": false,
+      "sessions": false,
       "triggers": true
     },
     "streaming": null,

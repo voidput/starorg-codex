@@ -167,7 +167,7 @@ Done:
   History, Game.log (Events, People, Sessions; one "off" card with a Settings link when its
   switch is off), then Recordings and the raw frame. Every panel below the readouts is a
   `CollapsibleCard` (remembered per `telemetry.<panel>`). Settings groups Record sessions,
-  Read Game.log events and People under "More from Live telemetry", next to the Metrics /
+  Read Game.log events, People and Shard history under "More from Live telemetry", next to the Metrics /
   actions choice and the Notifications choice, with a table of the choices in the user guide.
 
 Still open (sc-telemetry has them, not ported):
@@ -276,7 +276,13 @@ handles replaced in diagnostics), `app/tests/telemetry.test.ts` (helpers and the
 
 ## Sessions: the shard join history
 
-Behind "Read Game.log events" (no switch of its own). Facts from sc-telemetry's `gamelog.py`
+Behind its own switch, `[experimental] telemetry_sessions` ("Shard history", off), a
+`SwitchRow` under "Read Game.log events" like People: it counts only with Game.log on
+(`Settings::sessions_active`). It is the only part of the Game.log family that writes a file
+and the only one that opens `logbackups/`, so it is not bundled into the Game.log switch;
+turning Game.log off turns it off too, turning Game.log on never turns it on. With it off
+ended stints are dropped, no backup is planned or opened, and the file is not touched. Facts
+from sc-telemetry's `gamelog.py`
 and its session notes; the parsing is the [Game.log](#gamelog-events-and-people) reader's
 `SessionState`, which never reads the address, port or session ids at all.
 
@@ -297,31 +303,47 @@ and its session notes; the parsing is the [Game.log](#gamelog-events-and-people)
   (`starorg_core::storage::telemetry_sessions_dir`, Storage area *Live telemetry session
   history*, outside the cache and its cap): `{format, scanned, stints}`, at most 2000 rows and
   2 MiB (the oldest go first), written through `history.json.tmp` and a rename, never held
-  open. A broken file reads as empty and says so. Clear empties the rows but keeps the list of
-  backups read, so they are not read in again. The mock backend keeps it in memory, seeded
+  open. A file that does not parse reads as empty, says so, and is renamed to
+  `history.json.bad` before the first write replaces it; a file of a newer `format` is shown
+  but never written. **Clear** stays cleared: it empties the rows, keeps the list of backups
+  read, and stores `cleared_ms` (wall time); `add` drops every stint with `joined_ms <=
+  cleared_ms`, so neither the live `Game.log` folded again at the next reader start nor the
+  same log later found in `logbackups/` under another name brings a row back. The mock backend keeps it in memory, seeded
   with four synthetic rows.
 - **Backfill** (`Backfill`): at each reader start, the newest 40 `logbackups/*.log` (plain
   files only, by mtime) not marked as read (name and size), one 4 MiB read per 500 ms poll,
   each file opened and closed per read, 128 MiB of one file at most; a file's rows and its mark
-  go in together when it is done.
+  go in together when it is done. A file cut at that cap leaves out the stint still open at the
+  cut (it did not end there). A read that fails (a sharing violation or a virus scanner on
+  Windows, the file gone) drops what was read of it and marks nothing (`Step::Failed`); the
+  next reader start tries again, at most 3 times per app run (counted in memory).
 - **Host.** The Game.log thread drains ended stints into the store after every poll and reads
-  one backup chunk; the view carries the stint you are on (`stint`) and the store's
-  `sessions_rev`, so the UI reads `telemetry_sessions` again only when it moved.
+  one backup chunk (both only with Shard history on); the view carries the stint you are on
+  (`stint`, with the reason and time of a disconnect nothing followed yet, so a closed game
+  does not read as "Now") and the store's `sessions_rev`, so the UI reads `telemetry_sessions`
+  again only when it moved, at most once a second (a backfill moves it up to 40 times in a
+  row; `sessionsReload` in `lib/telemetry.ts`). Whole list each time (2000 rows at most): the
+  channel and region filters work on all rows, so it is not cut to the 200 drawn. A long
+  `Game.log` is caught up 4 MiB per 200 ms.
   `telemetry_sessions_clear` clears (Activity notes it; Storage measures again).
 - **UI.** `components/telemetry/SessionsPanel.svelte`: the current stint, then the newest 200
   rows of the filter (channel, region), the reason as a badge (Dropped with a warning icon), a
   *same shard as before* mark (the previous stint of that channel was on the same shard),
-  Clear. It also shows with Game.log off while it has rows. Settings > Storage has **Clear
+  Clear. It also shows with Game.log off while it has rows. The store drops a list answer that
+  a newer read or a Clear overtook (`Latest`), and Settings > Storage's Clear updates it too. Settings > Storage has **Clear
   session history** on its row.
 
 Tests: `gamelog/stints/tests.rs` (synthetic lines: a stint and its systems, nothing private in
 a row, the 2 s disconnect merge and the drop, the `_Frontend` skip and an own quit, the
 shard-change repeat rule, a new log and a rotation, a rejoin, the store's dedupe, caps,
-restart, clear and a broken file, the backfill's newest-once order with a directory named
-`*.log`, a chunk boundary inside a line), `contract/tests_telemetry.rs` (the mock's history,
+restart, clear and a broken file, a Clear that stays cleared across restarts and re-read logs,
+a broken file set aside and a newer one left alone, a failed read retried and capped, a file cut
+at the size cap, the current stint after a disconnect, the backfill's newest-once order with a
+directory named `*.log`, a chunk boundary inside a line), `contract/tests_telemetry.rs` (the mock's history,
 Storage, Clear, the TS `LeftReason` union), `tests/real_telemetry.rs` (a fake install's
 `Game.log` and `logbackups/`, the file on disk without addresses or handles, no duplicate on a
-second start, Storage and Clear), `app/tests/telemetry.test.ts` (rows, marks, filters,
+second start, Storage and Clear, nothing written with Shard history off, still empty after a
+Clear and a new start with the log copied into `logbackups/`), `app/tests/telemetry.test.ts` (rows, marks, filters,
 durations, the TS mock).
 
 ## Open

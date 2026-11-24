@@ -12,7 +12,10 @@
 //!
 //! "Read Game.log events" follows the streamed channel's own `Game.log` (read only, the
 //! bytes added since the last poll); "People" keeps the handles it names in memory. Neither
-//! writes a file, and no handle goes into the Activity log.
+//! writes a file, and no handle goes into the Activity log. "Shard history" (its own switch,
+//! under Game.log events) is the one that writes: the shards joined, in
+//! `<data>/telemetry/sessions/history.json` (no address, port, session id or handle; Settings >
+//! Storage counts it), with the channel's `logbackups/` read in.
 
 use super::convert::{err, path_text};
 use super::{Found, RealBackend, io};
@@ -159,7 +162,8 @@ impl RealBackend {
                     f.channel(&t.channel).ok()?.dir.clone(),
                 ))
             });
-        self.telemetry.set_gamelog(source, s.people_active());
+        self.telemetry
+            .set_gamelog(source, s.people_active(), s.sessions_active());
     }
 
     /// The build's schema: from `<cache>/telemetry/` when there, else scanned from the exe.
@@ -311,11 +315,16 @@ impl TelemetryBackend for RealBackend {
             channel,
             &if s.enabled {
                 format!(
-                    "Live telemetry on (127.0.0.1:{}, game actions {}, Game.log events {}{})",
+                    "Live telemetry on (127.0.0.1:{}, game actions {}, Game.log events {}{}{})",
                     s.port,
                     if s.triggers { "allowed" } else { "off" },
                     if s.gamelog { "on" } else { "off" },
-                    if s.people_active() { ", people on" } else { "" }
+                    if s.people_active() { ", people on" } else { "" },
+                    if s.sessions_active() {
+                        ", shard history on"
+                    } else {
+                        ""
+                    }
                 )
             } else {
                 "Live telemetry off; its USER.cfg lines were released".into()
@@ -381,6 +390,7 @@ impl TelemetryBackend for RealBackend {
             self.telemetry.set_gamelog(
                 Some(GameLogSource::Channel(ch.dir.clone())),
                 s.people_active(),
+                s.sessions_active(),
             );
             self.log(
                 LogLevel::Info,
@@ -483,6 +493,12 @@ impl TelemetryBackend for RealBackend {
         req: TelemetryRecordingRef,
         sink: Sink,
     ) -> CmdResult<TelemetryStatus> {
+        if !self.telemetry_settings().enabled {
+            return Err(err(
+                ErrorCode::Invalid,
+                "Turn on Live telemetry under Settings -> Experimental first.",
+            ));
+        }
         self.telemetry
             .start_replay(&req.name, sink)
             .map_err(|m| err(ErrorCode::Invalid, m))?;

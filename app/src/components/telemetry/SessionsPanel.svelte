@@ -1,11 +1,11 @@
 <script lang="ts">
   /**
-   * Live telemetry -> Sessions: the server and shard join history from Game.log ("Read Game.log
-   * events", off by default), one row per shard stint, newest first, with the stint you are on
-   * now on top. Filters by channel and region; marks a drop and a rejoin of the shard you were
+   * Live telemetry -> Sessions: the server and shard join history from Game.log ("Shard
+   * history" under "Read Game.log events", each off by default), one row per shard stint, newest
+   * first, with the stint you are on now on top (or the last one, once it disconnected). Filters by channel and region; marks a drop and a rejoin of the shard you were
    * on before. The file lives in the app's data folder (Settings > Storage counts it); it holds
    * no server address, port, session id or handle. The list is read again only when its
-   * revision moves (at most twice a second with the Game.log view), never per frame.
+   * revision moves, at most once a second (a backfill moves it many times), never per frame.
    */
   import Eraser from '@lucide/svelte/icons/eraser';
   import Repeat from '@lucide/svelte/icons/repeat';
@@ -24,10 +24,10 @@
   /** Rows drawn at most (the file keeps more; a filter narrows them). */
   const SHOWN = 200;
 
-  // On mount, and again when the history's revision moves (a primitive: no reload loop).
+  // On mount (unless the screen's read is held or on its way), and again when the history's
+  // revision moves; a primitive, so no reload loop.
   $effect(() => {
-    void rev;
-    void telemetry.loadSessions();
+    telemetry.sessionsChanged(rev);
   });
 
   let channel = $state('all');
@@ -56,11 +56,13 @@
   </Card.Header>
   <Card.Content class="grid gap-3 text-[12px]">
     {#if current}
-      <div class="flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5" aria-label="Current shard">
-        <ToneBadge tone="success" label="Now" />
+      <!-- A disconnect that nothing followed yet (the game closed): the last shard, not the current one. -->
+      {@const gone = current.left_reason ? LEFT_REASON[current.left_reason] : null}
+      <div class="flex flex-wrap items-center gap-2 rounded-md border px-2 py-1.5" aria-label={gone ? 'Last shard' : 'Current shard'}>
+        {#if gone}<ToneBadge tone={gone.tone} label={gone.label} hint={gone.hint} />{:else}<ToneBadge tone="success" label="Now" />{/if}
         <span class="mono">{current.shard_short ?? current.shard}</span>
         {#if current.region}<span class="text-muted-foreground">{current.region}</span>{/if}
-        <span class="text-muted-foreground">since {clock(current.joined_ms)}</span>
+        {#if gone && current.left_ms !== null}<span class="text-muted-foreground">{clock(current.joined_ms)} to {clock(current.left_ms)}</span>{:else}<span class="text-muted-foreground">since {clock(current.joined_ms)}</span>{/if}
         {#if current.systems.length}<span>{current.systems.join(' → ')}</span>{/if}
         {#if current.disconnects}<span class="text-warning">{current.disconnects} disconnect{current.disconnects > 1 ? 's' : ''}</span>{/if}
       </div>
@@ -68,7 +70,7 @@
     {#if list?.error}<p class="text-warning" role="alert">{list.error}</p>{/if}
     {#if total === 0}
       <p class="text-muted-foreground">
-        {#if reading}No shard joins yet. A row is added when you leave a shard (or the game closes); older logs in logbackups are read in too.{:else}No sessions saved. Turn on Read Game.log events to keep a history of the shards you join.{/if}
+        {#if reading}No shard joins yet. A row is added when you leave a shard (or the game closes); older logs in logbackups are read in too.{:else}No sessions saved. Turn on Shard history (under Read Game.log events) to keep a history of the shards you join.{/if}
       </p>
     {:else}
       {#if filters.channels.length > 1 || filters.regions.length > 1}

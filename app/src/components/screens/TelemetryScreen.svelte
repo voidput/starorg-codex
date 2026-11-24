@@ -56,6 +56,8 @@
 
   const enabled = $derived(!!st?.settings.enabled);
   const gamelogOn = $derived(enabled && !!st?.settings.gamelog);
+  /** "Shard history": rows are kept and logbackups read in (its own switch under Game.log events). */
+  const sessionsOn = $derived(gamelogOn && !!st?.settings.sessions);
   /** Rows of the join history kept from earlier (its panel shows with Game.log off too). */
   const savedSessions = $derived(Array.isArray(telemetry.sessions?.items) ? telemetry.sessions.items.length : 0);
   onMount(() => void telemetry.loadSessions());
@@ -272,7 +274,7 @@
       </Card.Root>
     {/if}
     {#if gamelogOn || savedSessions > 0}
-      <CollapsibleCard key="telemetry.sessions" bare><SessionsPanel current={telemetry.gamelog?.stint ?? null} rev={telemetry.gamelog?.sessions_rev ?? null} reading={gamelogOn} /></CollapsibleCard>
+      <CollapsibleCard key="telemetry.sessions" bare><SessionsPanel current={telemetry.gamelog?.stint ?? null} rev={telemetry.gamelog?.sessions_rev ?? null} reading={sessionsOn} /></CollapsibleCard>
     {/if}
 
     <div class="grid gap-3 lg:grid-cols-2">

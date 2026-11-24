@@ -15,6 +15,7 @@
   import PathText from '@/components/common/PathText.svelte';
   import { api, toContractError } from '@/lib/contract/client';
   import { telemetryApi } from '@/lib/contract/telemetry';
+  import { telemetry } from '@/lib/stores/telemetry.svelte';
   import type { StorageStatus } from '@/lib/contract/types';
   import { AREA_HINTS, areaText, backupRule, capPercent, capText, sizeText } from '@/lib/storage';
   import { toast } from '@/lib/stores/toast.svelte';
@@ -47,7 +48,8 @@
   async function clearSessions() {
     busy = true;
     try {
-      await telemetryApi.clearSessions();
+      // The Sessions panel shows the same list: it empties too.
+      telemetry.takeSessions(await telemetryApi.clearSessions());
       s = await api.storageMeasure();
       toast('success', 'Session history cleared', null);
     } catch (e) {

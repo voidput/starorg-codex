@@ -11,9 +11,10 @@
    *
    * "More from Live telemetry" groups the other switches, each off by default and each its own
    * choice: "Record sessions", "Read Game.log events" (the channel's own Game.log on this
-   * computer, for the Events and Sessions panels and the shard join history) and, under it,
-   * "People" (the handles Game.log names, memory only). None changes USER.cfg or sends
-   * anything.
+   * computer, for the Events and Sessions panels) and, under it, "People" (the handles Game.log
+   * names, memory only) and "Shard history" (the shards joined, in a file in the app's data
+   * folder, with the channel's logbackups read in: the one that writes, so its own switch).
+   * None changes USER.cfg or sends anything.
    */
   import Copy from '@lucide/svelte/icons/copy';
   import TriangleAlert from '@lucide/svelte/icons/triangle-alert';
@@ -145,7 +146,7 @@
         Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Nothing leaves the computer.
       </p>
       <p class="text-muted-foreground text-[12px]">
-        Each part is its own choice and off by default; turning one on never turns on another: <strong class="font-medium">Metrics</strong> or <strong class="font-medium">Metrics + actions</strong> here, then <strong class="font-medium">Record sessions</strong>, <strong class="font-medium">Read Game.log events</strong> (and People) and <strong class="font-medium">Notifications</strong> below.
+        Each part is its own choice and off by default; turning one on never turns on another: <strong class="font-medium">Metrics</strong> or <strong class="font-medium">Metrics + actions</strong> here, then <strong class="font-medium">Record sessions</strong>, <strong class="font-medium">Read Game.log events</strong> (with People and Shard history) and <strong class="font-medium">Notifications</strong> below.
       </p>
     </div>
     <div class="grid gap-2 pl-0">
@@ -225,10 +226,10 @@
             id="tele-gamelog"
             size="sm"
             label="Read Game.log events"
-            hint="While the Live telemetry screen is open, follows this channel's Game.log on this computer: where you are, quantum travel, ships nearby, deaths and respawns, and a history of the shards you join (kept in the app's data folder, Settings → Storage). Read only; nothing is sent."
+            hint="While the Live telemetry screen is open, follows this channel's Game.log on this computer: where you are, the shard you are on, quantum travel, ships nearby, deaths and respawns. Read only, kept in memory; nothing is written or sent."
             checked={st.settings.gamelog}
             disabled={telemetry.busy}
-            onchange={(v) => void save({ gamelog: v, people: v ? st.settings.people : false })}
+            onchange={(v) => void save({ gamelog: v, people: v ? st.settings.people : false, sessions: v ? st.settings.sessions : false })}
           />
           <SwitchRow
             id="tele-people"
@@ -239,6 +240,16 @@
             checked={st.settings.gamelog && st.settings.people}
             disabled={telemetry.busy || !st.settings.gamelog}
             onchange={(v) => void save({ people: v })}
+          />
+          <SwitchRow
+            id="tele-sessions"
+            size="sm"
+            class="pl-6"
+            label="Shard history"
+            hint="Keeps a list of the shards you join (region, times, why you left; never a server address, session id or player name) in the app's data folder, and reads in the older logs in this channel's logbackups folder (the newest 40). 2000 rows at most; Settings → Storage shows it and Clear empties it."
+            checked={st.settings.gamelog && st.settings.sessions}
+            disabled={telemetry.busy || !st.settings.gamelog}
+            onchange={(v) => void save({ sessions: v })}
           />
         </div>
         {#if st.settings.triggers}

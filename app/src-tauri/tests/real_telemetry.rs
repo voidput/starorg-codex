@@ -110,6 +110,7 @@ fn on(port: u16, triggers: bool) -> TelemetrySettings {
         record: false,
         gamelog: false,
         people: false,
+        sessions: false,
     }
 }
 
@@ -586,8 +587,22 @@ fn shard_stints_from_game_log_and_its_backups_go_to_the_history_file_once() {
         ),
     )
     .unwrap();
+    let dir = starorg_core::storage::telemetry_sessions_dir(&f.dirs);
+    // Game.log events alone: the Events panel, but no history written and no backup read.
     let mut s = on(50051, false);
     s.gamelog = true;
+    f.configure(Some("PTU"), s).unwrap();
+    let (s0, rx0) = sink();
+    f.backend.telemetry_start(f.r("PTU"), s0).unwrap();
+    let g = gamelog_until(&rx0, |g| g.found);
+    assert_eq!(g.sessions_rev, 0);
+    std::thread::sleep(Duration::from_millis(1000));
+    let v = f.backend.telemetry_sessions().unwrap();
+    assert!(v.items.is_empty() && v.backfill_pending == 0, "{v:?}");
+    assert!(!dir.join("history.json").exists());
+    f.backend.telemetry_stop().unwrap();
+    // "Shard history", its own switch.
+    s.sessions = true;
     f.configure(Some("PTU"), s).unwrap();
     let (s1, _rx) = sink();
     f.backend.telemetry_start(f.r("PTU"), s1).unwrap();
@@ -605,7 +620,6 @@ fn shard_stints_from_game_log_and_its_backups_go_to_the_history_file_once() {
     assert_eq!(v.items[0].left_reason, Some(LeftReason::Leave));
     assert_eq!(v.items[1].left_reason, Some(LeftReason::Dropped));
     assert!(v.items[1].dropped);
-    let dir = starorg_core::storage::telemetry_sessions_dir(&f.dirs);
     let text = std::fs::read_to_string(dir.join("history.json")).unwrap();
     for bad in ["203.0.113", "64000", "TestPilot", "inactive"] {
         assert!(!text.contains(bad), "{bad} in {text}");
@@ -638,4 +652,27 @@ fn shard_stints_from_game_log_and_its_backups_go_to_the_history_file_once() {
     );
     assert!(area(&f).bytes < a.bytes);
     assert!(f.backend.telemetry_sessions().unwrap().items.is_empty());
+    // And stays cleared: the reader starts again and folds the same Game.log from its start,
+    // and the backup shows up again under another name (as the live log does once rotated).
+    std::fs::copy(
+        ch.join("Game.log"),
+        ch.join("logbackups")
+            .join("Game Build(1) 23 Nov 26 (10 00 00).log"),
+    )
+    .unwrap();
+    let (s3, rx3) = sink();
+    f.backend.telemetry_start(f.r("PTU"), s3).unwrap();
+    let _ = gamelog_until(&rx3, |g| g.found);
+    // At least 1.5 s (three polls: the backup copy is read in by then), and until no backup
+    // is left to read.
+    let t = std::time::Instant::now();
+    while f.backend.telemetry_sessions().unwrap().backfill_pending > 0
+        || t.elapsed() < Duration::from_millis(1500)
+    {
+        assert!(t.elapsed() < Duration::from_secs(10));
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    let v = f.backend.telemetry_sessions().unwrap();
+    assert!(v.items.is_empty(), "cleared rows came back: {v:?}");
+    f.backend.telemetry_stop().unwrap();
 }

@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
   LEFT_REASON,
+  Latest,
   SERIES,
   actionState,
   annunciators,
@@ -36,6 +37,7 @@ import {
   sessionFilters,
   sessionRows,
   sessionStep,
+  sessionsReload,
   snapshotFromRaw,
   sparkPath,
   systems,
@@ -172,7 +174,7 @@ function mock() {
 
 const ptu = { install: 'inst-7f3a', channel: 'PTU' };
 const live = { install: 'inst-7f3a', channel: 'LIVE' };
-const on = (triggers: boolean, gamelog = false, people = false) => ({ enabled: true, port: 50051, triggers, record: false, gamelog, people });
+const on = (triggers: boolean, gamelog = false, people = false, sessions = false) => ({ enabled: true, port: 50051, triggers, record: false, gamelog, people, sessions });
 
 test('the TS mock starts off, offers PTU only and answers like the Rust mock', async () => {
   const { h } = mock();
@@ -215,7 +217,7 @@ test('the TS mock streams synthetic frames, and presses flip the lights', async 
   tick();
   assert.equal(events.at(-1)!.frame!.snapshot.ship!.lights, false);
   // Off stops the stream and releases the lines.
-  const off = await h.telemetry_configure({ req: { target: null, settings: { enabled: false, port: 50051, triggers: false, record: false, gamelog: false, people: false }, replace_other: false } });
+  const off = await h.telemetry_configure({ req: { target: null, settings: { enabled: false, port: 50051, triggers: false, record: false, gamelog: false, people: false, sessions: false }, replace_other: false } });
   assert.equal(off.status.streaming, null);
   assert.equal(ticks.length, 0);
 });
@@ -331,6 +333,40 @@ test('recordings read as time, channel and length', () => {
   assert.equal(recordingText({ ...recs.items[0]!, started_ms: null, duration_ms: null }), `${recs.items[0]!.name} · PTU`);
   // The TS stamp matches the Rust one (the seeded names).
   assert.equal(`${stamp(recs.items[0]!.started_ms!)}-PTU.jsonl`, recs.items[0]!.name);
+});
+
+test('the TS mock: a replay needs Live telemetry on, as on the Rust side', async () => {
+  const { h } = mock();
+  const recs = (await h.telemetry_recordings({})) as TelemetryRecordings;
+  await assert.rejects(async () => h.telemetry_replay_start({ req: { name: recs.items[0]!.name } }), (e: Fail) => e.code === 'invalid');
+  await h.telemetry_configure({ req: { target: ptu, settings: on(false), replace_other: false } });
+  const st = await h.telemetry_replay_start({ req: { name: recs.items[0]!.name } });
+  assert.equal(st.replay?.name, recs.items[0]!.name);
+});
+
+test('Shard history is off by default and its own switch', () => {
+  const s = (samples.telemetry_status as TelemetryStatus).settings;
+  assert.equal(s.sessions, false);
+});
+
+test('only the newest request counts: a slow read after a Clear is dropped', () => {
+  const l = new Latest();
+  const load = l.next();
+  const clear = l.next();
+  assert.equal(l.current(load), false, 'the read started before the Clear');
+  assert.equal(l.current(clear), true);
+});
+
+test('the join history is read again once per revision, at most once a second', () => {
+  // The screen's read is on its way or held: a panel mounting adds none.
+  assert.deepEqual(sessionsReload(null, null, true, 0, 1000), { at: 'skip' });
+  assert.deepEqual(sessionsReload(null, 3, false, 0, 1000), { at: 'skip' });
+  assert.deepEqual(sessionsReload(null, null, false, 5000, 1000), { at: 'now' });
+  // Already that revision.
+  assert.deepEqual(sessionsReload(4, 4, false, 5000, 1000), { at: 'skip' });
+  // A backfill moving it again and again: once a second.
+  assert.deepEqual(sessionsReload(5, 4, false, 5000, 1000), { at: 'now' });
+  assert.deepEqual(sessionsReload(6, 5, false, 300, 1000), { at: 'later', waitMs: 700 });
 });
 
 test('the TS mock: Record sessions is its own switch, and a recording replays with pause, seek and speed', async () => {

@@ -334,7 +334,8 @@ impl TelemetryBackend for MockBackend {
         };
         if s.enabled {
             let src = s.gamelog_active().then_some(GameLogSource::Mock);
-            self.telemetry.set_gamelog(src, s.people_active());
+            self.telemetry
+                .set_gamelog(src, s.people_active(), s.sessions_active());
         } else {
             self.telemetry.stop();
             self.telemetry.set_record(false);
@@ -376,8 +377,11 @@ impl TelemetryBackend for MockBackend {
         self.telemetry.start_mock(req, sink);
         let s = self.tele().settings;
         if s.gamelog_active() {
-            self.telemetry
-                .set_gamelog(Some(GameLogSource::Mock), s.people_active());
+            self.telemetry.set_gamelog(
+                Some(GameLogSource::Mock),
+                s.people_active(),
+                s.sessions_active(),
+            );
         }
         Ok(self.tele_status())
     }
@@ -454,6 +458,12 @@ impl TelemetryBackend for MockBackend {
         req: TelemetryRecordingRef,
         sink: Sink,
     ) -> CmdResult<TelemetryStatus> {
+        if !self.tele().settings.enabled {
+            return Err(AppError::new(
+                ErrorCode::Invalid,
+                "Turn on Live telemetry under Settings -> Experimental first.",
+            ));
+        }
         self.telemetry
             .start_replay(&req.name, sink)
             .map_err(|m| AppError::new(ErrorCode::Invalid, m))?;

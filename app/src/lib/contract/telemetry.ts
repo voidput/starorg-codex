@@ -22,6 +22,8 @@ export interface TelemetrySettings {
   gamelog: boolean;
   /** "People": keep the handles Game.log names, memory only; counts only with `gamelog` on. */
   people: boolean;
+  /** "Shard history": keep the shards joined in the data folder, read logbackups in; counts only with `gamelog` on. */
+  sessions: boolean;
 }
 
 export type CvarState = 'no-file' | 'missing' | 'set' | 'other';

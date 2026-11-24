@@ -28,9 +28,12 @@ import {
   type TelemetryStatus,
 } from '@/lib/contract/telemetry';
 import type { ChannelRef } from '@/lib/contract/types';
-import { mergeHistory, sessionStep } from '@/lib/telemetry';
+import { Latest, mergeHistory, sessionStep, sessionsReload } from '@/lib/telemetry';
 import { toast } from './toast.svelte';
 import { telemetryAlerts } from './telemetryAlerts.svelte';
+
+/** The join history is read again at most this often while its revision moves (a backfill). */
+const SESSIONS_EVERY_MS = 1000;
 
 /** How often the graphs' history is asked for (they redraw at most this often). */
 export const HISTORY_POLL_MS = 1000;
@@ -209,18 +212,50 @@ class TelemetryState {
     }
   }
 
+  private sessionsReq = new Latest();
+  private sessionsLoading = 0;
+  private sessionsAt = 0;
+  private sessionsTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** Read the join history (an answer overtaken by a newer read or a Clear is dropped). */
   async loadSessions(): Promise<void> {
+    const n = this.sessionsReq.next();
+    this.sessionsAt = Date.now();
+    this.sessionsLoading++;
     try {
-      this.sessions = await telemetryApi.sessions();
+      const v = await telemetryApi.sessions();
+      if (this.sessionsReq.current(n)) this.sessions = v;
     } catch (e) {
-      toast('error', 'Could not read the session history', toContractError(e).message);
+      if (this.sessionsReq.current(n)) toast('error', 'Could not read the session history', toContractError(e).message);
+    } finally {
+      this.sessionsLoading--;
     }
+  }
+
+  /** The Game.log view's `sessions_rev` moved (or a panel mounted): read again, at most once a second. */
+  sessionsChanged(rev: number | null): void {
+    if (this.sessionsTimer) return;
+    const r = sessionsReload(rev, this.sessions?.revision ?? null, this.sessionsLoading > 0, Date.now() - this.sessionsAt, SESSIONS_EVERY_MS);
+    if (r.at === 'now') void this.loadSessions();
+    else if (r.at === 'later')
+      this.sessionsTimer = setTimeout(() => {
+        this.sessionsTimer = null;
+        void this.loadSessions();
+      }, r.waitMs);
+  }
+
+  /** A list answered elsewhere (Settings > Storage's Clear): it is the newest. */
+  takeSessions(v: TelemetrySessions): void {
+    this.sessionsReq.next();
+    this.sessions = v;
   }
 
   /** The Sessions panel's Clear: the whole join history goes. */
   async clearSessions(): Promise<void> {
+    const n = this.sessionsReq.next();
     try {
-      this.sessions = await telemetryApi.clearSessions();
+      const v = await telemetryApi.clearSessions();
+      if (this.sessionsReq.current(n)) this.sessions = v;
     } catch (e) {
       toast('error', 'Session history not cleared', toContractError(e).message);
     }
@@ -252,6 +287,8 @@ class TelemetryState {
       const s = await telemetryApi.replayStart(name);
       this.frame = null;
       this.count = 0;
+      // A poll on its way is of the old stream: its answer must not land on the replay.
+      this.historyReq.next();
       this.history = null;
       this.take(s);
       void this.loadRecordings();
@@ -273,15 +310,19 @@ class TelemetryState {
   private polling = 0;
   private historyTimer: ReturnType<typeof setInterval> | null = null;
   private historyBusy = false;
+  private historyReq = new Latest();
 
   /** Ask for what is new in the history (skipped while an answer is on its way or the window is hidden). */
   async pollHistory(): Promise<void> {
     if (this.historyBusy) return;
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     this.historyBusy = true;
+    const n = this.historyReq.next();
     try {
       const h = this.history;
       const next = await telemetryApi.history({ epoch: h?.epoch ?? null, since_ms: h?.t_ms.at(-1) ?? null });
+      // The history was dropped meanwhile (a replay started): this answer is of what was before.
+      if (!this.historyReq.current(n)) return;
       // A seek or a new stream meanwhile dropped the old one: merge only onto what is there now.
       this.history = mergeHistory(this.history, next);
     } catch {
