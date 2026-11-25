@@ -1,8 +1,9 @@
 //! The mock's Commodities screen data: a synthetic `game-commodities` (resources in the
-//! game's group shapes, cargo items, cargo damage), mining spawns and loot areas, and UEX
-//! commodity kiosk prices at the mock shop terminals ([`super::mock_shops::terminal_rows`]).
-//! The real list, detail, mining and price code ([`starorg_mcp::commodities`]) answers over
-//! them. Names are made up or generic; no UEX or CIG data.
+//! game's group shapes, cargo items, cargo damage), mining spawns and loot areas, rock
+//! physics (`game-mining`) and mining lasers (`game-weapons`), and UEX commodity kiosk
+//! prices at the mock shop terminals ([`super::mock_shops::terminal_rows`]). The real list,
+//! detail, mining and price code ([`starorg_mcp::commodities`], [`starorg_mcp::mining`])
+//! answers over them. Names are made up or generic; no UEX or CIG data.
 
 use super::mock::MOCK_UEX_FETCHED;
 use super::mock_shops::{MOCK_UEX_FOLDER, terminal_rows};
@@ -11,6 +12,9 @@ use serde_json::{Value, json};
 use starorg_mcp::commodities::{
     CommodityData, Kiosks, LootArea, MiningSpawns, commodity_detail, commodity_list,
     kiosks_from_files, quality_resources, where_mined,
+};
+use starorg_mcp::mining::{
+    ElementIn, MiningIndex, WeaponIn, build_index, directory, empty_directory,
 };
 use std::sync::OnceLock;
 
@@ -154,19 +158,69 @@ fn data_json() -> Value {
 fn spawns_json() -> Value {
     json!({
         "rocks": [
-            {"rock": "MineableRock_Synthium", "kind": "ship", "ores": [{"element": "synthium_ore"}]},
-            {"rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "ores": [{"element": "fixtanium_raw"}]},
-            {"rock": "MineableRock_GroundVehicle_Mockite", "kind": "vehicle", "ores": [{"element": "mockite_ore"}]},
-            {"rock": "MineableRock_FPS_Stubbite", "kind": "hand", "ores": [{"element": "minableelement_fps_stubbite"}]}
+            {"rock": "MineableRock_Synthium", "kind": "ship", "tier": "Common", "signature": 4200, "ores": [
+                {"element": "synthium_ore", "minPercent": 20, "maxPercent": 45, "probability": 1, "qualityScale": 1},
+                {"element": "mockite_ore", "minPercent": 2, "maxPercent": 5, "probability": 0.4, "qualityScale": 0.8}]},
+            {"rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "tier": "Legendary", "signature": 3900, "ores": [
+                {"element": "fixtanium_raw", "minPercent": 10, "maxPercent": 30, "probability": 1, "qualityScale": 1},
+                {"element": "synthium_ore", "minPercent": 30, "maxPercent": 60, "probability": 1, "qualityScale": 0.49}]},
+            {"rock": "MineableRock_GroundVehicle_Mockite", "kind": "vehicle", "signature": 1700, "ores": [{"element": "mockite_ore", "minPercent": 50, "maxPercent": 100}]},
+            {"rock": "MineableRock_FPS_Stubbite", "kind": "hand", "signature": 3000, "ores": [{"element": "minableelement_fps_stubbite", "minPercent": 50, "maxPercent": 100}]}
         ],
         "oreSpawns": [
-            {"ore": "synthium_ore", "location": "Stanton1", "system": "Stanton", "body": "Hurston", "rock": "MineableRock_Synthium", "kind": "ship", "spawnShare": 0.4, "minPercent": 20, "maxPercent": 45},
-            {"ore": "synthium_ore", "location": "Stanton2c", "system": "Stanton", "body": "Yela", "rock": "MineableRock_Synthium", "kind": "ship", "spawnShare": 0.25},
-            {"ore": "fixtanium_raw", "location": "StantonBelt_Aaron", "system": "Stanton", "body": "Aaron Halo", "rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "spawnShare": 0.08, "minPercent": 10, "maxPercent": 30},
-            {"ore": "fixtanium_raw", "location": "Pyro1", "system": "Pyro", "body": "Pyro I", "rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "spawnShare": 0.05},
-            {"ore": "mockite_ore", "location": "Stanton3a", "system": "Stanton", "body": "Lyria", "rock": "MineableRock_GroundVehicle_Mockite", "kind": "vehicle", "spawnShare": 0.3}
+            {"ore": "synthium_ore", "location": "Stanton1", "system": "Stanton", "body": "Hurston", "rock": "MineableRock_Synthium", "kind": "ship", "tier": "Common", "signature": 4200, "spawnShare": 0.4, "minPercent": 20, "maxPercent": 45, "qualityScale": 1},
+            {"ore": "synthium_ore", "location": "Stanton2c", "system": "Stanton", "body": "Yela", "rock": "MineableRock_Synthium", "kind": "ship", "tier": "Common", "spawnShare": 0.25},
+            {"ore": "fixtanium_raw", "location": "StantonBelt_Aaron", "system": "Stanton", "body": "Aaron Halo", "rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "tier": "Legendary", "signature": 3900, "spawnShare": 0.08, "minPercent": 10, "maxPercent": 30, "qualityScale": 1},
+            {"ore": "fixtanium_raw", "location": "Pyro1", "system": "Pyro", "body": "Pyro I", "rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "tier": "Legendary", "spawnShare": 0.05},
+            {"ore": "fixtanium_raw", "location": "Nyx1", "system": "Nyx", "body": "Nyx I", "rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "tier": "Legendary", "spawnShare": 0.03, "minPercent": 10, "maxPercent": 30, "qualityScale": 1},
+            {"ore": "fixtanium_raw", "location": "Lagrange_B", "system": "Lagrange", "rock": "MineableRock_Asteroid_Fixtanium", "kind": "ship", "tier": "Legendary", "spawnShare": 0.02, "minPercent": 10, "maxPercent": 30, "qualityScale": 0.79},
+            {"ore": "mockite_ore", "location": "Stanton3a", "system": "Stanton", "body": "Lyria", "rock": "MineableRock_GroundVehicle_Mockite", "kind": "vehicle", "signature": 1700, "spawnShare": 0.3, "minPercent": 50, "maxPercent": 100}
         ]
     })
+}
+
+/// Rock physics (`game-mining` `mineableElements`): one easy, one medium, one hard ore and
+/// a hand-mined one.
+fn elements_json() -> Value {
+    json!([
+        {"name": "Ore_Synthium", "recordName": "MineableElement.Synthium_Ore", "instability": 50, "resistance": -0.2,
+         "optimalWindowMidpoint": 0.6, "optimalWindowRandomness": 0.15, "optimalWindowThinness": 0.4, "explosionMultiplier": 20, "clusterFactor": 0.6},
+        {"name": "Raw_Fixtanium", "recordName": "MineableElement.Fixtanium_Raw", "instability": 900, "resistance": 0.9,
+         "optimalWindowMidpoint": 0.5, "optimalWindowRandomness": 0.2, "optimalWindowThinness": 2.0, "explosionMultiplier": 240, "clusterFactor": 0.1},
+        {"name": "Ore_Mockite", "recordName": "MineableElement.Mockite_Ore", "instability": 200, "resistance": 0.3,
+         "optimalWindowMidpoint": 0.4, "optimalWindowRandomness": 0.1, "optimalWindowThinness": 0.8},
+        {"name": "Stubbite", "recordName": "MineableElement.MinableElement_FPS_Stubbite", "instability": 100, "resistance": 0,
+         "optimalWindowMidpoint": 0.7}
+    ])
+}
+
+/// Mining lasers (`game-weapons` `shipWeapons`): two S1, one S2, a vehicle laser.
+fn lasers_json() -> Value {
+    let laser = |name: &str, class: &str, size: u8, power: f64| {
+        json!({"name": name, "recordName": format!("EntityClassDefinition.{class}"), "type": "WeaponMining", "size": size,
+               "modes": [{"name": "Beam", "kind": "beam", "dps": power}, {"name": "Beam", "kind": "beam", "dps": power * 0.8}]})
+    };
+    json!([
+        laser(
+            "Mock MH1 Mining Laser",
+            "Mining_Laser_MOCK_MH1_S1",
+            1,
+            2400.0
+        ),
+        laser(
+            "Mock Lancer I Mining Laser",
+            "Mining_Laser_MOCK_Lancer_S1",
+            1,
+            3600.0
+        ),
+        laser(
+            "Mock MH2 Mining Laser",
+            "Mining_Laser_MOCK_MH2_S2",
+            2,
+            4200.0
+        ),
+        laser("Mock MHV Mining Laser", "Mining_Laser_MOCK_MHV_S0", 0, 0.8),
+    ])
 }
 
 fn areas_json() -> Value {
@@ -227,6 +281,7 @@ struct MockData {
     spawns: MiningSpawns,
     areas: Vec<LootArea>,
     kiosks: Kiosks,
+    mining: MiningIndex,
 }
 
 fn mock() -> &'static MockData {
@@ -239,11 +294,24 @@ fn mock() -> &'static MockData {
             &quality_resources(&data),
             Some(MOCK_UEX_FOLDER.into()),
         );
+        let spawns: MiningSpawns = serde_json::from_value(spawns_json()).expect("mock spawns");
+        let areas: Vec<LootArea> = serde_json::from_value(areas_json()).expect("mock areas");
+        let elements: Vec<ElementIn> =
+            serde_json::from_value(elements_json()).expect("mock elements");
+        let weapons: Vec<WeaponIn> = serde_json::from_value(lasers_json()).expect("mock lasers");
+        let mining = build_index(
+            &data,
+            Some(&spawns),
+            Some(&areas),
+            Some(&elements),
+            Some(&weapons),
+        );
         MockData {
-            spawns: serde_json::from_value(spawns_json()).expect("mock spawns"),
-            areas: serde_json::from_value(areas_json()).expect("mock areas"),
+            spawns,
+            areas,
             kiosks,
             data,
+            mining,
         }
     })
 }
@@ -312,4 +380,36 @@ pub fn mock_all_details(prices: bool) -> Vec<CommodityDetail> {
         .iter()
         .filter_map(|s| mock_commodity_detail(Some(true), prices, &s.id).commodity)
         .collect()
+}
+
+/// The Mining tab's list: `read` as [`mock_commodity_list`].
+pub fn mock_mining_list(read: Option<bool>) -> MiningDirectory {
+    match read {
+        None => empty_directory(CommodityDataState::NoChannel),
+        Some(false) => empty_directory(CommodityDataState::NotRead),
+        Some(true) => directory(&mock().mining, Some(MOCK_COMMODITY_BUILD.into())),
+    }
+}
+
+/// One mineral, as [`mock_mining_list`].
+pub fn mock_mining_detail(read: Option<bool>, id: &str) -> MiningInfo {
+    match read {
+        None => MiningInfo {
+            state: CommodityDataState::NoChannel,
+            mineral: None,
+        },
+        Some(false) => MiningInfo {
+            state: CommodityDataState::NotRead,
+            mineral: None,
+        },
+        Some(true) => MiningInfo {
+            state: CommodityDataState::Ready,
+            mineral: mock().mining.detail(id).cloned(),
+        },
+    }
+}
+
+/// Every mineral's detail (the TS mock serves `mining_detail` from this list).
+pub fn mock_all_minerals() -> Vec<MineralDetail> {
+    mock().mining.minerals.clone()
 }

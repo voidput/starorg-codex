@@ -10,6 +10,11 @@
 import type { GameLogEvent, GameLogEventKind, GameLogPerson, GameLogView, LeftReason, LinkStatus, PersonRelation, TelemetryHistory, TelemetryJson, TelemetryRecording, TelemetrySeriesKey, TelemetrySnapshot, TelemetryShip, TelemetryStint, TriggerableAction } from './contract/telemetry';
 import type { StatusTone } from './format';
 
+/** The Live telemetry screen's and its Settings section's privacy line (docs/privacy.md). */
+export const TELEMETRY_LOCAL = "Live data comes from your own game on this PC, through the game's local telemetry API new in 5.0. Nothing leaves this PC.";
+/** The matching line of the Game.log panels (Events, People, Sessions, the shard history). */
+export const GAMELOG_LOCAL = "Read from the game's own log file on this PC. Nothing leaves this PC.";
+
 type Obj = { [k: string]: TelemetryJson };
 
 /** The value at a dotted path (`vehicle.state.lights_enabled`), or undefined. */

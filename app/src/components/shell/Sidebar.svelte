@@ -10,6 +10,7 @@
   import Archive from '@lucide/svelte/icons/archive';
   import Store from '@lucide/svelte/icons/store';
   import Boxes from '@lucide/svelte/icons/boxes';
+  import Gem from '@lucide/svelte/icons/gem';
   import PackageOpen from '@lucide/svelte/icons/package-open';
   import BookOpenCheck from '@lucide/svelte/icons/book-open-check';
   import Rocket from '@lucide/svelte/icons/rocket';
@@ -33,7 +34,7 @@
     telemetry = false,
   }: { current: ScreenId; version?: string; dev?: boolean; /** Live telemetry is on (Settings > Experimental). */ telemetry?: boolean } = $props();
 
-  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, shops: Store, commodities: Boxes, loot: PackageOpen, telemetry: Gauge, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare, files: FolderTree } as const;
+  const icons = { home: House, enhancements: Sparkles, strings: Table2, patches: Wrench, blueprints: BookOpenCheck, ships: Rocket, shops: Store, commodities: Boxes, mining: Gem, loot: PackageOpen, telemetry: Gauge, backups: Archive, activity: ScrollText, settings: Settings, explorer: Binary, datasets: Sheet, diff: GitCompare, files: FolderTree } as const;
   const NAV = $derived(navGroups(dev, telemetry));
   const NAV_ITEMS = $derived(navItems(dev, telemetry));
   const MIN = 168;

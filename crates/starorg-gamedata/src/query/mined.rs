@@ -18,6 +18,8 @@ pub struct MinedRock {
     pub rock: String,
     pub kind: Option<String>,
     pub tier: Option<String>,
+    /// The scanner's RS signature.
+    pub signature: Option<f64>,
     pub ores: Vec<MinedOre>,
 }
 
@@ -25,6 +27,11 @@ pub struct MinedRock {
 #[serde(rename_all = "camelCase", default)]
 pub struct MinedOre {
     pub element: String,
+    pub min_percent: Option<f64>,
+    pub max_percent: Option<f64>,
+    /// Chance (0..1) the rock holds this ore at all.
+    pub probability: Option<f64>,
+    pub quality_scale: Option<f64>,
 }
 
 /// One row of `game-mining-spawns` `oreSpawns`.
@@ -38,9 +45,12 @@ pub struct OreSpawn {
     pub rock: String,
     pub kind: Option<String>,
     pub tier: Option<String>,
+    pub signature: Option<f64>,
     pub spawn_share: Option<f64>,
     pub min_percent: Option<f64>,
     pub max_percent: Option<f64>,
+    /// Multiplier on the rolled quality of this ore in this rock.
+    pub quality_scale: Option<f64>,
 }
 
 /// The parts of `game-mining-spawns` this reads.

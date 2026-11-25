@@ -54,6 +54,16 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+/// The datasets the Mining tab index reads: it is built
+/// again when any of them appears, goes or changes.
+const MINING_DATASETS: &[&str] = &[
+    "game-commodities",
+    "game-mining-spawns",
+    "game-item-sources",
+    "game-mining",
+    "game-weapons",
+];
+
 /// The UEX commodity kiosk prices (`starorg_net::uex::COMMODITY_PRICES_FILE`).
 pub const COMMODITY_PRICES_FILE: &str = "uex-commodity-prices.json";
 
@@ -2083,6 +2093,97 @@ impl Tools {
         CommodityInfo {
             state: CommodityDataState::Ready,
             commodity,
+        }
+    }
+
+    /// Extract what the Mining tab adds to the commodities, for the channel's current build:
+    /// `game-mining` (rock physics) and `game-weapons` (mining laser power). Each runs in
+    /// the extraction worker under the memory limit; a cached one is not extracted again.
+    /// The app's "Read game data" calls this.
+    pub fn warm_mining(&self, channel: &str) -> ToolResult<()> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        ctx.json("game-mining")?;
+        ctx.json("game-weapons")?;
+        Ok(())
+    }
+
+    /// The build's Mining tab index, built once per build and again whenever one of
+    /// [`MINING_DATASETS`] appears or changes on disk ("Read game data" adds them). Cached
+    /// data only; `None` while `game-commodities` is not cached. Missing mining spawns or loot
+    /// areas leave the places or spots empty and the index says they are not read.
+    fn mining_index(
+        &self,
+        ctx: &Ctx<'_>,
+    ) -> Option<Arc<starorg_gamedata::query::mining::MiningIndex>> {
+        use crate::mining::{ElementIn, WeaponIn, build_index, rows};
+        let data = self.commodity_data(ctx)?;
+        ctx.store
+            .typed_files(&ctx.dir, "mining-index", MINING_DATASETS, || {
+                let spawns = ctx.mining_spawns().ok();
+                let areas = ctx
+                    .store
+                    .typed(&ctx.dir, "loot-areas", || {
+                        field::<Vec<LootArea>>(&*ctx.json("game-item-sources")?, "areas")
+                    })
+                    .ok();
+                let elements: Option<Vec<ElementIn>> = ctx
+                    .json("game-mining")
+                    .ok()
+                    .map(|v| rows(&v, "mineableElements"));
+                let weapons: Option<Vec<WeaponIn>> = ctx
+                    .json("game-weapons")
+                    .ok()
+                    .map(|v| rows(&v, "shipWeapons"));
+                Ok(build_index(
+                    &data,
+                    spawns.as_deref(),
+                    areas.as_deref().map(Vec::as_slice),
+                    elements.as_deref(),
+                    weapons.as_deref(),
+                ))
+            })
+            .ok()
+    }
+
+    /// The app's Mining tab: every mineable resource of the channel's build, as list rows.
+    /// Cached data only; built once per build ([`Self::mining_index`]).
+    pub fn mining_list(&self, channel: Option<&str>) -> crate::mining::MiningDirectory {
+        use crate::mining::{CommodityDataState, directory, empty_directory};
+        let Some(ctx) = channel.and_then(|c| self.cached_ctx(Some(c))) else {
+            return empty_directory(CommodityDataState::NoChannel);
+        };
+        let Some(ix) = self.mining_index(&ctx) else {
+            return empty_directory(CommodityDataState::NotRead);
+        };
+        directory(
+            &ix,
+            Some(format!(
+                "{} {}",
+                ctx.ch.name,
+                ctx.ch.build.as_deref().unwrap_or("unknown build")
+            )),
+        )
+    }
+
+    /// One mineral in full for the Mining tab: places with their quality, rock profile,
+    /// difficulty and laser estimate, and the hand-placed spots.
+    pub fn mining_detail(&self, channel: Option<&str>, id: &str) -> crate::mining::MiningInfo {
+        use crate::mining::{CommodityDataState, MiningInfo};
+        let Some(ctx) = channel.and_then(|c| self.cached_ctx(Some(c))) else {
+            return MiningInfo {
+                state: CommodityDataState::NoChannel,
+                mineral: None,
+            };
+        };
+        match self.mining_index(&ctx) {
+            Some(ix) => MiningInfo {
+                state: CommodityDataState::Ready,
+                mineral: ix.detail(id).cloned(),
+            },
+            None => MiningInfo {
+                state: CommodityDataState::NotRead,
+                mineral: None,
+            },
         }
     }
 

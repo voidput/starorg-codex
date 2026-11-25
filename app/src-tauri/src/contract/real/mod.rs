@@ -2537,7 +2537,7 @@ impl Backend for RealBackend {
     fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary> {
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
-        let job = self.job_start(JobKind::Extract, Some(&ch.name), 3, "Reading game data");
+        let job = self.job_start(JobKind::Extract, Some(&ch.name), 4, "Reading game data");
         let r = (|| {
             let d = self.loaded(&f, ch, true)?;
             // Where to get: extract its datasets whatever the saved profile says, so the
@@ -2569,6 +2569,18 @@ impl Backend for RealBackend {
                     Some(JobKind::Extract),
                     Some(&ch.name),
                     &format!("{}: shop item links: {e}", ch.name),
+                );
+            }
+            // Mining: rock physics (game-mining) and mining laser power (game-weapons) for
+            // the Commodities screen's Mining tab. A failure is only a warning: the tab then
+            // says those numbers are not known.
+            self.job_step(&mut job, 4, "Reading mining data", None);
+            if let Err(e) = self.warm_mining(&f, &ch.name) {
+                self.log(
+                    LogLevel::Warn,
+                    Some(JobKind::Extract),
+                    Some(&ch.name),
+                    &format!("{}: mining data: {e}", ch.name),
                 );
             }
             Ok::<_, AppError>(())
@@ -2632,6 +2644,14 @@ impl Backend for RealBackend {
 
     fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo> {
         Ok(self.commodity_detail_of(req))
+    }
+
+    fn mining_list(&self, req: MiningListRequest) -> CmdResult<MiningDirectory> {
+        Ok(self.mining_list_of(req))
+    }
+
+    fn mining_detail(&self, req: MiningDetailRequest) -> CmdResult<MiningInfo> {
+        Ok(self.mining_detail_of(req))
     }
 
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {

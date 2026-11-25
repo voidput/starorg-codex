@@ -148,6 +148,12 @@ class AppState {
     });
   }
 
+  /** A tab of the open screen that has its own sidebar entry (Commodities | Mining): the
+   * sidebar follows, focus stays on the tab control. */
+  retab(s: ScreenId): void {
+    this.screen = s;
+  }
+
   selectChannel(name: string): void {
     if (name === this.channelName) return;
     this.guarded('leave', `switch to ${name}`, () => {

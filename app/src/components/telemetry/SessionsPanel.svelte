@@ -16,7 +16,7 @@
   import SelectField from '@/components/common/SelectField.svelte';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import type { TelemetryStint } from '@/lib/contract/telemetry';
-  import { LEFT_REASON, clock, durationText, regionOf, sessionFilters, sessionRows, whenText } from '@/lib/telemetry';
+  import { GAMELOG_LOCAL, LEFT_REASON, clock, durationText, regionOf, sessionFilters, sessionRows, whenText } from '@/lib/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
 
   let { current, rev, reading }: { current: TelemetryStint | null; rev: number | null; reading: boolean } = $props();
@@ -47,7 +47,7 @@
       {#if total}<span class="text-muted-foreground text-[13px] font-normal">{total}</span>{/if}
     </Card.Title>
     <Card.Description>
-      Shards you joined, from Game.log and its backups on this computer. No server address, session id or player name is kept.
+      Shards you joined (the shard history), from Game.log and its backups. {GAMELOG_LOCAL} No server address, session id or player name is kept.
       {#if list?.backfill_pending}Reading {list.backfill_pending} older logs…{/if}
     </Card.Description>
     <Card.Action>

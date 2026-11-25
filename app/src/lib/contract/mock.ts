@@ -88,6 +88,9 @@ const SAMPLES = samples as unknown as {
   shop_item_search_missing: T.ShopItemSearch;
   shop_item_catalogue: ShopItemCatalogue;
   shop_item_catalogue_linked: ShopItemCatalogue;
+  mining_list_not_read: T.MiningDirectory;
+  mining_list: T.MiningDirectory;
+  mining_details_all: T.MineralDetail[];
   commodity_list_not_read: T.CommodityDirectory;
   commodity_list: T.CommodityDirectory;
   commodity_list_priced: T.CommodityDirectory;
@@ -1128,6 +1131,22 @@ export function createMockTransport(opts: { delay?: number; ready?: boolean } = 
       const all = uex.prices_ready ? SAMPLES.commodity_details_all_priced : SAMPLES.commodity_details_all;
       const hit = all.find((c) => c.id.toLowerCase() === req.id.toLowerCase());
       return { state: 'ready' as const, commodity: hit ? clone(hit) : null };
+    },
+    // The Mining tab over the same synthetic data (rock physics and lasers included).
+    mining_list: ({ req }) => {
+      if (!req.target) return { ...clone(SAMPLES.mining_list_not_read), state: 'no-channel' as const };
+      if (!dataRead.has(id(req.target))) return clone(SAMPLES.mining_list_not_read);
+      return clone(SAMPLES.mining_list);
+    },
+    mining_detail: async ({ req }) => {
+      await sleep(Math.min(delay, 300));
+      if (!req.target) return { state: 'no-channel' as const, mineral: null };
+      if (!dataRead.has(id(req.target))) return { state: 'not-read' as const, mineral: null };
+      const q = req.id.toLowerCase();
+      const short = (s: string) => s.slice(s.lastIndexOf('.') + 1).toLowerCase();
+      const all = SAMPLES.mining_details_all;
+      const hit = all.find((m) => m.id.toLowerCase() === q) ?? all.find((m) => m.commodity?.id.toLowerCase() === q || m.ores.some((o) => o.toLowerCase() === q)) ?? all.find((m) => m.commodity && short(m.id) === q);
+      return { state: 'ready' as const, mineral: hit ? clone(hit) : null };
     },
     get_profile: ({ req }) => clone(chan(req).profile),
     preset_profile: ({ preset }) => presetProfile(preset),

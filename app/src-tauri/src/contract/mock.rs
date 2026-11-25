@@ -2054,6 +2054,20 @@ impl Backend for MockBackend {
         ))
     }
 
+    /// The Mining tab over the same synthetic data, once the game data was read (with the
+    /// mock's rock physics and mining lasers, as after "Read game data").
+    fn mining_list(&self, req: MiningListRequest) -> CmdResult<MiningDirectory> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_mining_list(read))
+    }
+
+    fn mining_detail(&self, req: MiningDetailRequest) -> CmdResult<MiningInfo> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_mining_detail(read, &req.id))
+    }
+
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
         self.with_channel(&req, |c, _| Ok(c.profile.clone()))
     }

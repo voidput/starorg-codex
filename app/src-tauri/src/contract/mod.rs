@@ -116,6 +116,12 @@ pub trait Backend:
     /// One resource in full: forms, quality, volatility, cargo, where it is mined and the
     /// UEX kiosk prices when the UEX files are there.
     fn commodity_detail(&self, req: CommodityDetailRequest) -> CmdResult<CommodityInfo>;
+    /// The Commodities screen's Mining tab: every mineable resource of the channel's build
+    /// as list rows, from its cached game data; nothing is extracted or downloaded.
+    fn mining_list(&self, req: MiningListRequest) -> CmdResult<MiningDirectory>;
+    /// One mineral in full: places with their quality, rock profile, difficulty and the
+    /// laser estimate.
+    fn mining_detail(&self, req: MiningDetailRequest) -> CmdResult<MiningInfo>;
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile>;
     fn preset_profile(&self, preset: Preset) -> CmdResult<Profile>;
     fn save_profile(&self, req: SaveProfileRequest) -> CmdResult<Profile>;
@@ -304,6 +310,8 @@ commands! {
     shop_item_search(req: ShopItemSearchRequest) -> ShopItemSearch;
     commodity_list(req: CommodityListRequest) -> CommodityDirectory;
     commodity_detail(req: CommodityDetailRequest) -> CommodityInfo;
+    mining_list(req: MiningListRequest) -> MiningDirectory;
+    mining_detail(req: MiningDetailRequest) -> MiningInfo;
     get_profile(req: ChannelRef) -> Profile;
     preset_profile(preset: Preset) -> Profile;
     save_profile(req: SaveProfileRequest) -> Profile;
@@ -418,6 +426,8 @@ macro_rules! contract_handler {
             $crate::contract::shop_item_search,
             $crate::contract::commodity_list,
             $crate::contract::commodity_detail,
+            $crate::contract::mining_list,
+            $crate::contract::mining_detail,
             $crate::contract::get_profile,
             $crate::contract::preset_profile,
             $crate::contract::save_profile,
@@ -586,6 +596,8 @@ pub const COMMAND_NAMES: &[&str] = &[
     "shop_item_search",
     "commodity_list",
     "commodity_detail",
+    "mining_list",
+    "mining_detail",
     "get_profile",
     "preset_profile",
     "save_profile",

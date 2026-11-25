@@ -30,7 +30,7 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import { Button } from '@/components/ui/button';
   import Wand from '@lucide/svelte/icons/wand-sparkles';
-  import { findNav, isDevScreen, navItems, type ScreenId } from '@/lib/nav';
+  import { findNav, isCommoditiesScreen, isDevScreen, navItems, type ScreenId } from '@/lib/nav';
   import ExplorerScreen from '@/components/screens/ExplorerScreen.svelte';
   import DatasetsScreen from '@/components/screens/DatasetsScreen.svelte';
   import DiffScreen from '@/components/screens/DiffScreen.svelte';
@@ -135,8 +135,8 @@
             <ShipsScreen />
           {:else if screen === 'shops'}
             <ShopsScreen />
-          {:else if screen === 'commodities'}
-            <CommoditiesScreen />
+          {:else if isCommoditiesScreen(screen)}
+            <CommoditiesScreen tab={screen} />
           {:else if screen === 'loot'}
             <LootScreen />
           {:else if screen === 'telemetry'}

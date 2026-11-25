@@ -9,7 +9,7 @@
   import * as Card from '@/components/ui/card';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import type { GameLogView } from '@/lib/contract/telemetry';
-  import { clock, eventLabel, eventTone, recentEvents, whereText } from '@/lib/telemetry';
+  import { clock, eventLabel, eventTone, GAMELOG_LOCAL, recentEvents, whereText } from '@/lib/telemetry';
 
   let { view }: { view: GameLogView | null } = $props();
 
@@ -21,7 +21,7 @@
 <Card.Root aria-labelledby="tele-events">
   <Card.Header>
     <Card.Title id="tele-events" class="flex items-center gap-2"><ScrollText class="size-4" aria-hidden="true" /> Events</Card.Title>
-    <Card.Description>From this channel's Game.log on this computer. Unofficial debug lines: a game patch can change or drop them.</Card.Description>
+    <Card.Description>From this channel's Game.log. {GAMELOG_LOCAL} Unofficial debug lines: a game patch can change or drop them.</Card.Description>
   </Card.Header>
   <Card.Content class="grid gap-3">
     {#if !view}

@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 tags: [docs]
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # Privacy policy
@@ -117,7 +117,12 @@ assistant on your computer ask read-only questions about your game data ([detail
 
 Settings -> Experimental -> Live telemetry reads Star Citizen's own live data (vitals, ship,
 fuel, shields) from the game's local service while you play, for 5.0 builds and newer
-([details](user-guide.md#live-telemetry)). The app still collects nothing.
+([details](user-guide.md#live-telemetry)). The app still collects nothing. The screen and its
+Settings section say so in one line: "Live data comes from your own game on this PC, through
+the game's local telemetry API new in 5.0. Nothing leaves this PC." (Metrics + actions also
+sends your button presses to the game, over the same loopback service on this PC.) The Game.log
+panels (Events, People, Sessions) each say theirs: "Read from the game's own log file on this
+PC. Nothing leaves this PC."
 
 - It talks only to `127.0.0.1` on this computer (any other address is refused) and only while
   the switch is on and the Live telemetry screen is open. It makes no network request.

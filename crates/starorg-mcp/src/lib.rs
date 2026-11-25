@@ -24,6 +24,7 @@ pub mod commodities;
 pub mod hints;
 pub mod loot;
 pub mod loot_tree;
+pub mod mining;
 pub mod owned;
 pub mod protocol;
 pub mod rss;

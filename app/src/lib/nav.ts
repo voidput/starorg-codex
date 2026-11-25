@@ -1,11 +1,11 @@
 /**
  * Sidebar layout (spec 9.3, addendum §6.6, §7.8): Home · Customize (Enhancements, Strings, Patches,
- * Blueprints, Ships) · Game (Shops, Commodities, Loot, and Live telemetry while Settings > Experimental >
+ * Blueprints, Ships) · Game (Shops, Commodities, Mining, Loot, and Live telemetry while Settings > Experimental >
  * Live telemetry is on) · Dev (Explorer, Datasets, Diff, Files; only with Settings > Advanced > Developer
  * mode on) · App (Backups, Activity, Settings). With Developer mode on, Alt+9 opens the Explorer and
  * Settings moves to Alt+0 (Q-D6: Datasets and Diff through Ctrl+K).
  */
-export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'shops' | 'commodities' | 'loot' | 'telemetry' | 'backups' | 'activity' | 'settings' | DevScreenId;
+export type ScreenId = 'home' | 'enhancements' | 'strings' | 'patches' | 'blueprints' | 'ships' | 'shops' | 'commodities' | 'mining' | 'loot' | 'telemetry' | 'backups' | 'activity' | 'settings' | DevScreenId;
 export type DevScreenId = 'explorer' | 'datasets' | 'diff' | 'files';
 
 export interface NavItem {
@@ -40,6 +40,7 @@ export const NAV: NavGroup[] = [
     items: [
       { id: 'shops', label: 'Shops', description: 'What each shop sells, by category, from UEX market data', key: '' },
       { id: 'commodities', label: 'Commodities', description: 'Every tradable resource: refined form, quality, where it is mined, kiosk prices', key: '' },
+      { id: 'mining', label: 'Mining', description: 'Every mineable resource: where it spawns, quality by place, rock profile, difficulty and which laser it takes', key: '' },
       { id: 'loot', label: 'Loot', description: 'What drops in each loot area, and where each item drops, with rough odds per box', key: '' },
     ],
   },
@@ -88,3 +89,7 @@ export const navItems = (dev: boolean, telemetry = false): NavItem[] => navGroup
 export const findNav = (id: ScreenId): NavItem => navItems(true, true).find((i) => i.id === id) ?? NAV_ITEMS[0]!;
 
 export const isScreen = (s: string | null): s is ScreenId => navItems(true, true).some((n) => n.id === s);
+
+/** Commodities and Mining are one screen (shared search and data) on two tabs. */
+export type CommoditiesTab = 'commodities' | 'mining';
+export const isCommoditiesScreen = (s: ScreenId): s is CommoditiesTab => s === 'commodities' || s === 'mining';
