@@ -164,13 +164,18 @@ jobs:
         run: |
           scripts/gen-notices.sh --check || echo "::warning::THIRD_PARTY_NOTICES.md is stale: run scripts/gen-notices.sh and commit the result."
 
-  # Push runs only (not PRs): Discord ping when any job above fails. No-ops without DISCORD_CI_WEBHOOK.
-  notify-failure:
-    if: failure() && github.event_name != 'pull_request'
+  # Push runs on main/dev only (not PRs): Discord embed on failure, or on the first green run after one
+  # (notify-discord.yml, docs/ci.md). No-ops without a webhook secret for the branch.
+  notify:
+    if: ${{ !cancelled() && github.event_name != 'pull_request' && (github.ref_name == 'main' || github.ref_name == 'dev') }}
     needs: [rust, deny, cli-deps, ui, notices]
-    permissions: {}
-    uses: ./.github/workflows/notify-failure.yml
+    permissions:
+      actions: read
+    uses: ./.github/workflows/notify-discord.yml
     with:
+      kind: ${{ contains(needs.*.result, 'failure') && 'failure' || 'success' }}
       workflow: CI
     secrets:
-      webhook: ${{ secrets.DISCORD_CI_WEBHOOK }}
+      webhook_main: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MAIN }}
+      webhook_dev: ${{ secrets.DISCORD_RELEASE_WEBHOOK_DEV }}
+      webhook_fallback: ${{ secrets.DISCORD_CI_WEBHOOK }}
