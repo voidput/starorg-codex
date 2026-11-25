@@ -472,7 +472,9 @@ export interface LootSummary {
   path: string[];
   /** Areas: items that can drop there. Items: areas it drops in. */
   count: number;
-  /** Best rough odds per spawned box, 0 to 1. */
+  /** Items: how many of `count` are NPC bodies ("NPCs (body loot)"); areas: 0. */
+  npcs: number;
+  /** Best rough odds per spawned box (or NPC body), 0 to 1. */
   best: number;
 }
 

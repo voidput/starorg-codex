@@ -351,6 +351,25 @@ fn compile_filter(
 pub struct TableSlot {
     pub weight: f64,
     pub archetype: Option<Archetype>,
+    /// The slot's own name (V3: `Ammo`, `Unique item`); `None` in v1 tables.
+    pub label: Option<String>,
+    /// The table always fills the slot: V3 `priorityCount` above 0, v1
+    /// `numberOfResultsConstraints.minResults` above 0.
+    pub guaranteed: bool,
+    /// V3 `chanceToExist`: the odds the slot is there at all.
+    pub chance: Option<f64>,
+    // `guaranteed` and `chance` feed NPC body odds ([`body_hits`]) only; area containers
+    // ([`table_rolls`] through the spawns) still weigh every slot by its weight alone.
+    // Follow-up: apply them to area odds too.
+}
+
+/// The first number `key` holds in a V3 `optionalData` list (`[{"priorityCount": 1}, ...]`).
+fn optional_number(v: &Value, key: &str) -> Option<f64> {
+    v.get("optionalData")?
+        .as_array()?
+        .iter()
+        .find_map(|o| o.get(key).and_then(Value::as_f64))
+        .filter(|x| x.is_finite())
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -425,9 +444,17 @@ pub fn build_loot_index(loot: &LootData) -> LootIndex {
                     (None, Some(r)) => by_name.get(&r.to_lowercase()).cloned(),
                     _ => None,
                 };
+                let min_results = slot
+                    .get("numberOfResultsConstraints")
+                    .and_then(|c| c.get("minResults"))
+                    .and_then(Value::as_f64);
                 TableSlot {
                     weight: number_or(slot.get("weight"), 1.0),
                     archetype,
+                    label: obj_str(slot, "name").map(str::to_string),
+                    guaranteed: optional_number(slot, "priorityCount").is_some_and(|n| n > 0.0)
+                        || min_results.is_some_and(|n| n > 0.0),
+                    chance: optional_number(slot, "chanceToExist").map(|c| c.clamp(0.0, 1.0)),
                 }
             })
             .collect();
@@ -520,6 +547,9 @@ fn layer_share(layer: &Layer, item: &ItemTags) -> f64 {
 #[serde(rename_all = "camelCase")]
 pub struct RollPath {
     pub table: String,
+    /// The table slot the path goes through (its index in [`Table::slots`]).
+    #[serde(skip)]
+    pub slot: usize,
     pub archetype: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<String>,
@@ -691,6 +721,7 @@ pub fn table_rolls(
             });
             paths.push(RollPath {
                 table: table.name.clone(),
+                slot: slot_ix,
                 archetype: archetype.name.clone(),
                 entry: entry.name.clone(),
                 share,
@@ -942,6 +973,92 @@ fn other_tables_memo(
         }
     }
     sort_desc(&mut out, |p| p.per_roll);
+    out
+}
+
+// ---------------------------------------------------------------- bodies
+
+/// One way an NPC's body can hold the item: a slot of the actor's loot table.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct BodyHit {
+    /// The slot's index in [`Table::slots`].
+    pub slot: usize,
+    /// The slot's name (`Ammo`, `Unique item`), else its archetype's.
+    pub label: String,
+    /// Rough odds one body holds the item from this slot, 0 to 1.
+    pub odds: f64,
+}
+
+/// Rough odds one body that rolls the actor table `table_name` holds the item, per slot,
+/// likeliest first. The same model as a container ([`table_rolls`]: weights, pool sizes, an
+/// even pick in the pool) with one roll, since no data says how many results a body gets
+/// (an estimate, likely a floor where a body gets more). A slot the table always fills (V3
+/// `priorityCount`, v1 `minResults` above 0) is there whatever the weights; the other V3
+/// slots weigh against each other only; `chanceToExist` scales a slot's odds.
+pub fn body_hits(
+    index: &LootIndex,
+    table_name: &str,
+    item: &ItemTags,
+    ctx: RollContext<'_>,
+) -> Vec<BodyHit> {
+    let Some(table) = index.table(table_name) else {
+        return Vec::new();
+    };
+    let total: f64 = table.slots.iter().map(|s| s.weight).sum();
+    // V3 fills its priority slots first and picks the rest among the others, so those
+    // weigh only against each other. A v1 table's `minResults` slot still takes part in
+    // the weighted picks (its `maxResults` may allow more), so its weight stays in.
+    let v3 = table.version.eq_ignore_ascii_case("v3")
+        || table.name.to_ascii_lowercase().starts_with("v3");
+    let rest: f64 = if v3 {
+        table
+            .slots
+            .iter()
+            .filter(|s| !s.guaranteed)
+            .map(|s| s.weight)
+            .sum()
+    } else {
+        total
+    };
+    let mut per_slot: Vec<(usize, f64)> = Vec::new();
+    for p in table_rolls(index, table_name, item, ctx) {
+        match per_slot.iter_mut().find(|(s, _)| *s == p.slot) {
+            Some(e) => e.1 += p.per_roll,
+            None => per_slot.push((p.slot, p.per_roll)),
+        }
+    }
+    let mut out: Vec<BodyHit> = per_slot
+        .into_iter()
+        .filter_map(|(si, per_roll)| {
+            let slot = &table.slots[si];
+            let share = slot.weight / total;
+            if share <= 0.0 {
+                return None;
+            }
+            // The odds inside the slot: what the archetype picks, over its pool.
+            let inside = (per_roll / share).min(1.0);
+            let chance = slot.chance.unwrap_or(1.0);
+            let there = if slot.guaranteed {
+                chance
+            } else if rest > 0.0 {
+                (slot.weight / rest).min(1.0) * chance
+            } else {
+                0.0
+            };
+            let odds = inside * there;
+            let label = slot
+                .label
+                .clone()
+                .or_else(|| slot.archetype.as_ref().map(|a| a.name.clone()))
+                .unwrap_or_default();
+            (odds > 0.0).then_some(BodyHit {
+                slot: si,
+                label,
+                odds,
+            })
+        })
+        .collect();
+    sort_desc(&mut out, |h| h.odds);
     out
 }
 
@@ -1264,6 +1381,44 @@ impl<'a> BulkObtain<'a> {
     fn roll_key(&self, item: &ItemTags) -> (Vec<String>, Option<String>) {
         let c = item.class_name.to_lowercase();
         (item.tags.clone(), self.named.contains(&c).then_some(c))
+    }
+
+    /// [`body_hits`] of one item, with the shared pool sizes.
+    pub fn body_hits(&self, table: &str, item: &ItemTags) -> Vec<BodyHit> {
+        let Some(index) = self.index else {
+            return Vec::new();
+        };
+        body_hits(
+            index,
+            table,
+            item,
+            RollContext {
+                pool: Some(&self.lootable),
+                memo: Some(&self.memo),
+                entry_pools: Some(&self.entry_pools),
+                ..Default::default()
+            },
+        )
+    }
+
+    /// [`Self::body_hits`] of every item against every table in `tables`, in parallel:
+    /// per item, (table position in `tables`, its best slot), best first.
+    pub fn bodies_all(&self, tables: &[&str], items: &[&ItemTags]) -> Vec<Vec<(usize, BodyHit)>> {
+        use rayon::prelude::*;
+        items
+            .par_iter()
+            .map(|item| {
+                let mut out: Vec<(usize, BodyHit)> = tables
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(ti, t)| {
+                        self.body_hits(t, item).into_iter().next().map(|h| (ti, h))
+                    })
+                    .collect();
+                sort_desc(&mut out, |(_, h)| h.odds);
+                out
+            })
+            .collect()
     }
 
     /// The item's shop rows, placed and dated (the `shops` of [`obtain`] without `at`).
@@ -2121,6 +2276,70 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    /// An entity-class entry picks only its classes; body odds: a priority slot is there at
+    /// its chanceToExist, the others by weight share; a v1 `minResults` slot is always there.
+    #[test]
+    fn entity_class_entries_and_body_hits() {
+        const CAN: &str = "LootGeneration/CanGenerateAsLoot";
+        let loot: LootData = serde_json::from_value(json!({
+            "tables": [
+                {"name": "V3LootTable_Actor_X", "version": "v3", "lootArchetypes": [
+                    {"name": "Ammo", "weight": 3, "archetype": {"entries": [
+                        {"name": "Mags", "weight": 1, "selector": {"tags": {"positiveTags": ["Mag"]}}}]}},
+                    {"name": "Unique item", "weight": 1, "archetype": {"entries": [
+                        {"name": "Scrip", "weight": 1, "selector": {"entityClasses": {"entityClasses": ["Scrip_A"]}}}]},
+                     "optionalData": [{"priorityCount": 1}, {"chanceToExist": 0.25}]}]},
+                {"name": "LootTable_Actor_Y", "lootArchetypes": [
+                    {"archetype": "Arch_Mags", "weight": 1, "numberOfResultsConstraints": {"minResults": 1}}]}
+            ],
+            "archetypes": [{"name": "Arch_Mags", "primaryOrGroup": {"entries": [{"tag": "Mag", "weight": 1}]}}]
+        }))
+        .unwrap();
+        let index = build_loot_index(&loot);
+        let t = index.table("v3loottable_actor_x").unwrap();
+        assert_eq!(t.slots[0].label.as_deref(), Some("Ammo"));
+        assert!(!t.slots[0].guaranteed && t.slots[1].guaranteed);
+        assert_eq!(t.slots[1].chance, Some(0.25));
+        assert!(index.table("LootTable_Actor_Y").unwrap().slots[0].guaranteed);
+        let pool = vec![
+            item("mag_a", &[CAN, "Mag"], None),
+            item("mag_b", &[CAN, "Mag"], None),
+            item("scrip_a", &[CAN, "Scrip"], None),
+            item("scrip_b", &[CAN, "Scrip"], None),
+        ];
+        let ctx = RollContext {
+            pool: Some(&pool),
+            ..Default::default()
+        };
+        let hits = |table: &str, i: usize| body_hits(&index, table, &pool[i], ctx);
+        // The class entry: scrip_a (any case), never scrip_b with the same tags.
+        let a = hits("V3LootTable_Actor_X", 2);
+        assert_eq!(a.len(), 1);
+        assert_eq!((a[0].slot, a[0].label.as_str()), (1, "Unique item"));
+        assert!(close(a[0].odds, 0.25));
+        assert!(hits("V3LootTable_Actor_X", 3).is_empty());
+        // Ammo: the only non-priority slot (the priority one is not in its weights), then
+        // one of two mags.
+        let m = hits("V3LootTable_Actor_X", 0);
+        assert!(close(m[0].odds, 0.5));
+        // v1 always-filled slot, labelled by its archetype.
+        let y = hits("LootTable_Actor_Y", 1);
+        assert_eq!(y[0].label, "Arch_Mags");
+        assert!(close(y[0].odds, 0.5));
+        // The bulk answer is the same, the class kept apart from same-tag items.
+        let d = Datasets {
+            items: pool.clone(),
+            loot: Some(loot.clone()),
+            ..Default::default()
+        };
+        let bulk = BulkObtain::new(&d, Some(&index));
+        let refs: Vec<&ItemTags> = d.items.iter().collect();
+        let all = bulk.bodies_all(&["V3LootTable_Actor_X", "LootTable_Actor_Y"], &refs);
+        assert_eq!(all[2].len(), 1);
+        assert!(all[3].is_empty());
+        assert_eq!(all[0].len(), 2);
     }
 
     /// An entity-class entry in an area's table: it picks its class only (not a same-tag

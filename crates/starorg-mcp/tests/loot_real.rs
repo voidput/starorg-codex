@@ -93,6 +93,27 @@ fn real_loot_tree() {
         })
         .or_else(|| a.iter().max_by_key(|r| r.count))
         .unwrap();
+    // NPC bodies: each slot with its best rows.
+    for r in a.iter().filter(|r| starorg_mcp::loot::is_npc(&r.id)) {
+        let d = s.detail(LootView::Areas, &r.id, &DetailQuery::default());
+        for g in &d.groups {
+            let top: Vec<String> = g
+                .rows
+                .iter()
+                .flatten()
+                .take(3)
+                .map(|x| format!("{} {:.4}", x.name, x.odds))
+                .collect();
+            println!(
+                "NPCSLOT\t{}\t{}\t{}\t{:.4}\t{}",
+                r.name,
+                g.label,
+                g.count,
+                g.best,
+                top.join(" | ")
+            );
+        }
+    }
     let biggest = a.iter().max_by_key(|r| r.count).unwrap();
     for r in [classic, biggest] {
         let t = std::time::Instant::now();

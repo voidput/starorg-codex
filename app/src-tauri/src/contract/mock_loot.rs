@@ -1,7 +1,8 @@
 //! The mock's Loot screen data: synthetic loot tables and areas over the Developer mode
 //! catalogue's items ([`super::mock_dev::CATALOGUE`], so an item links to a record the mock
 //! Explorer can open) plus generated armour sets and rations, run through the real index
-//! code ([`starorg_mcp::loot::LootScreen`]). No CIG data. `mock-loot.gen.json` (written by
+//! code ([`starorg_mcp::loot::LootScreen`]), with a few actor tables so the areas list has
+//! NPC bodies. No CIG data. `mock-loot.gen.json` (written by
 //! the contract tests) carries the same answers for the TS mock.
 
 use super::mock_dev::{CATALOGUE, catalogue_guid, catalogue_name};
@@ -110,14 +111,36 @@ fn loot_data() -> LootData {
     let rarity = json!([{"groupName": "Rarity", "entries": [{"tag": COMMON, "weight": 4}, {"tag": RARE, "weight": 1}]}]);
     let arch = |name: &str, entries: Vec<Value>| json!({"name": name, "primaryOrGroup": {"entries": entries}, "secondaryOrGroups": rarity});
     let table = |name: &str, archetype: &str| json!({"name": name, "version": "v1", "lootArchetypes": [{"archetype": archetype, "weight": 1}]});
+    let v3slot = |name: &str, weight: f64, tag: &str| json!({"name": name, "weight": weight, "archetype": {"entries": [{"name": name, "weight": 1, "selector": {"tags": {"positiveTags": [tag]}}}]}});
+    let actor = |name: &str, slots: Vec<Value>| json!({"name": name, "version": "v3", "lootArchetypes": slots});
     serde_json::from_value(json!({
         "tables": [
             table("Mock_Crate_Weapons", "Mock_Arch_Weapons"),
             table("Mock_Crate_Armour", "Mock_Arch_Armour"),
             table("Mock_Crate_Mixed", "Mock_Arch_Mixed"),
             table("Mock_Crate_Ship", "Mock_Arch_Ship"),
+            // NPC bodies (actor tables): a v1 pilot whose rations slot is always filled, V3
+            // ground NPCs, a council-scrip variant (a priority slot naming its item by
+            // class, there half the time), a named boss, and a template that is no NPC.
+            {"name": "LootTable_Actor_AcePilot", "version": "v1", "lootArchetypes": [
+                {"archetype": "LootArchetype_Actor_AcePilot_Rations", "weight": 1,
+                 "numberOfResultsConstraints": {"minResults": 1, "maxResults": 1}},
+                {"archetype": "Mock_Arch_Weapons", "weight": 0.5,
+                 "numberOfResultsConstraints": {"minResults": 0, "maxResults": 1}}]},
+            actor("V3LootTable_Actor_Grunt", vec![v3slot("Ammo", 10.0, "Mock/Attachment"), v3slot("Rations", 1.0, "Mock/Consumable")]),
+            actor("V3LootTable_Actor_Soldier", vec![v3slot("Ammo", 10.0, "Mock/Attachment"), v3slot("Sidearm", 2.0, "Mock/FPSWeapon")]),
+            actor("V3LootTable_Actor_Soldier_CouncilScrip", vec![
+                v3slot("Ammo", 10.0, "Mock/Attachment"),
+                v3slot("Sidearm", 2.0, "Mock/FPSWeapon"),
+                json!({"name": "Unique item", "weight": 1, "archetype": {"entries": [
+                    {"name": "Mint ration", "weight": 1, "selector": {"entityClasses": {"entityClasses": ["syn_food_ration_mint"]}}}]},
+                    "optionalData": [{"priorityCount": 1}, {"choiceLimit": 1}, {"chanceToExist": 0.5}]}),
+            ]),
+            actor("V3LootTable_Actor_SOO_MendoRen", vec![v3slot("Ammo", 10.0, "Mock/Attachment"), v3slot("Armour", 1.0, "Mock/Armour")]),
+            actor("V3LootTable_Actor_TEMPLATE", vec![v3slot("Ammo", 1.0, "Mock/Attachment")]),
         ],
         "archetypes": [
+            arch("LootArchetype_Actor_AcePilot_Rations", vec![entry("Mock/Consumable", 1.0)]),
             arch("Mock_Arch_Weapons", vec![entry("Mock/FPSWeapon", 3.0), entry("Mock/Attachment", 1.0)]),
             arch("Mock_Arch_Armour", vec![entry("Mock/Armour", 1.0)]),
             arch("Mock_Arch_Mixed", vec![entry("Mock/FPSWeapon", 1.0), entry("Mock/Armour", 2.0), entry("Mock/Consumable", 2.0)]),

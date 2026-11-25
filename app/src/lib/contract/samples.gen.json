@@ -16075,6 +16075,7 @@
       "group": "Asteroid bases",
       "id": "v3slotpreset_asteroidbase",
       "name": "Asteroid bases",
+      "npcs": 0,
       "path": []
     },
     "group_by": "container",
@@ -16540,6 +16541,7 @@
       "group": "Ship components",
       "id": "SYN_Aegis_Shell_Shield",
       "name": "Aegis Shell Shield",
+      "npcs": 0,
       "path": [
         "Ship components",
         "Shields"
@@ -16599,6 +16601,7 @@
         "group": "Asteroid bases",
         "id": "v3slotpreset_asteroidbase",
         "name": "Asteroid bases",
+        "npcs": 0,
         "path": []
       },
       {
@@ -16607,6 +16610,7 @@
         "group": "Caves",
         "id": "caves/loot_caves_unoccupied",
         "name": "Unoccupied",
+        "npcs": 0,
         "path": [
           "Caves"
         ]
@@ -16617,6 +16621,7 @@
         "group": "Caves",
         "id": "caves/loot_caves_occupied_rock",
         "name": "Rock",
+        "npcs": 0,
         "path": [
           "Caves",
           "Occupied"
@@ -16628,6 +16633,7 @@
         "group": "Caves",
         "id": "caves/loot_caves_occupied_sand_pyro",
         "name": "Sand Pyro",
+        "npcs": 0,
         "path": [
           "Caves",
           "Occupied"
@@ -16639,6 +16645,7 @@
         "group": "Contested zones",
         "id": "contestedzone_vault_executive",
         "name": "Contested zones: Vault executive",
+        "npcs": 0,
         "path": []
       },
       {
@@ -16647,6 +16654,7 @@
         "group": "Derelict outposts",
         "id": "lootgeneration_slotpreset_derelictoutpost",
         "name": "Derelict outposts",
+        "npcs": 0,
         "path": []
       },
       {
@@ -16655,6 +16663,7 @@
         "group": "Derelicts",
         "id": "v3slotpreset_spacederelict_large",
         "name": "Derelicts: Space large",
+        "npcs": 0,
         "path": []
       },
       {
@@ -16663,6 +16672,7 @@
         "group": "Distribution centres",
         "id": "v3slotpreset_distributioncentres_highsecurity",
         "name": "High security",
+        "npcs": 0,
         "path": [
           "Distribution centres"
         ]
@@ -16673,6 +16683,7 @@
         "group": "Distribution centres",
         "id": "v3slotpreset_distributioncentres_lowsecurity",
         "name": "Low security",
+        "npcs": 0,
         "path": [
           "Distribution centres"
         ]
@@ -16683,6 +16694,7 @@
         "group": "Distribution centres",
         "id": "distributioncentre_multiconfig_cargowing",
         "name": "General",
+        "npcs": 0,
         "path": [
           "Distribution centres",
           "Cargo wing"
@@ -16694,6 +16706,7 @@
         "group": "Distribution centres",
         "id": "distributioncentre_multiconfig_cargowing_high",
         "name": "High security",
+        "npcs": 0,
         "path": [
           "Distribution centres",
           "Cargo wing"
@@ -16705,7 +16718,66 @@
         "group": "Junk sites",
         "id": "lootgeneration_slotpreset_junksites",
         "name": "Junk sites",
+        "npcs": 0,
         "path": []
+      },
+      {
+        "best": 0.2,
+        "count": 15,
+        "group": "NPCs (body loot)",
+        "id": "npc:LootTable_Actor_AcePilot",
+        "name": "Ace pilot",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)"
+        ]
+      },
+      {
+        "best": 0.30303030303030304,
+        "count": 39,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_SOO_MendoRen",
+        "name": "Mendo Ren",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)"
+        ]
+      },
+      {
+        "best": 0.30303030303030304,
+        "count": 12,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_Grunt",
+        "name": "Grunt",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)",
+          "Ground combat"
+        ]
+      },
+      {
+        "best": 0.2777777777777778,
+        "count": 6,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_Soldier",
+        "name": "Soldier",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)",
+          "Ground combat"
+        ]
+      },
+      {
+        "best": 0.5,
+        "count": 7,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_Soldier_CouncilScrip",
+        "name": "Soldier (with council scrip)",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)",
+          "Ground combat"
+        ]
       },
       {
         "best": 0.75,
@@ -16713,6 +16785,7 @@
         "group": "Security Post Kareah",
         "id": "lootgeneration_slotpreset_kareah",
         "name": "General (classic)",
+        "npcs": 0,
         "path": [
           "Security Post Kareah"
         ]
@@ -16723,6 +16796,7 @@
         "group": "Security Post Kareah",
         "id": "lootgeneration_multislotpreset_kareah",
         "name": "General (multi)",
+        "npcs": 0,
         "path": [
           "Security Post Kareah"
         ]
@@ -16733,6 +16807,7 @@
         "group": "Underground facilities",
         "id": "lootgeneration_slotpreset_ugfs",
         "name": "Underground facilities",
+        "npcs": 0,
         "path": []
       },
       {
@@ -16741,6 +16816,7 @@
         "group": "Other",
         "id": "v3slotpreset_loot_generic",
         "name": "Other: Generic",
+        "npcs": 0,
         "path": []
       }
     ],

@@ -31,7 +31,7 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { LootDetail, LootDrop, LootGroupBy, LootList, LootSummary, LootView } from '@/lib/contract/types';
-  import { dropWhere, groupsOf, listed, oddsText } from '@/lib/loot';
+  import { NPC_KIND, NPC_NOTE, branchPer, dropWhere, groupPer, groupsOf, isNpc, listed, npcBranch, oddsText, placesText, rowPer } from '@/lib/loot';
   import { ancestorsOf, leafId, openKey, parseOpen, searching, toggled, visibleTree, whereText, type TreeRow } from '@/lib/loottree';
   import { dropRows, dupNames, groupByOptions, loadGroupBy, loadedRows, missingGroups, saveGroupBy, type DropRow } from '@/lib/lootgroups';
   import { keyAction } from '@/lib/grouptree';
@@ -378,6 +378,12 @@
   }
 
   const unit = (n: number, one: string, many: string) => `${int(n)} ${n === 1 ? one : many}`;
+  /** A branch's size: areas, NPCs (below the NPC kind) or items. */
+  const branchUnit = (id: string, n: number) => (view === 'items' ? unit(n, 'item', 'items') : npcBranch(id) ? unit(n, 'NPC', 'NPCs') : unit(n, 'area', 'areas'));
+  /** A detail group's size: an area's items; an item's areas, or NPCs in the NPC group by place. */
+  const groupUnit = (label: string, n: number) =>
+    view === 'areas' ? unit(n, 'item', 'items') : (shownDetail?.group_by ?? 'place') === 'place' && label === NPC_KIND ? unit(n, 'NPC', 'NPCs') : unit(n, 'area', 'areas');
+  const gPer = (label: string) => groupPer(view, currentRow, shownDetail?.group_by ?? (view === 'areas' ? 'container' : 'place'), label);
   const LROW = 34;
   const DROW = 40;
   const DGRID = 'grid grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)_5.5rem] items-center gap-3';
@@ -401,7 +407,7 @@
   <div class="grid gap-3">
     <p class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]" role="note">
       <Info class="size-3.5 shrink-0" aria-hidden="true" />
-      <span>Odds are rough, per spawned box: the chance one crate, rack or loose spot of that kind holds the item, assuming an even pick inside each loot pool.</span>
+      <span>Odds are rough, per spawned box: the chance one crate, rack or loose spot of that kind holds the item, assuming an even pick inside each loot pool. For an NPC, per body, from one pick of its loot table.</span>
       {#if list?.build}<span aria-hidden="true">·</span><span>{list.build}</span>{/if}
     </p>
 
@@ -413,8 +419,8 @@
             ariaLabel="List"
             size="sm"
             options={[
-              { id: 'areas', label: 'By area', hint: 'Caves, derelicts, outposts: what can drop there' },
-              { id: 'items', label: 'By item', hint: 'Every item that drops in an area: where' },
+              { id: 'areas', label: 'By area', hint: 'Caves, derelicts, outposts, NPC bodies: what can drop there' },
+              { id: 'items', label: 'By item', hint: 'Every item that drops in an area or on an NPC: where' },
             ]}
             value={view}
             onchange={(v) => setView(v as LootView)}
@@ -470,7 +476,7 @@
                   aria-posinset={r.pos}
                   aria-expanded={branch ? r.expanded : undefined}
                   aria-selected={leaf ? on : undefined}
-                  aria-label={branch ? `${r.label}, ${unit(branch.count, view === 'areas' ? 'area' : 'item', view === 'areas' ? 'areas' : 'items')}` : undefined}
+                  aria-label={branch ? `${r.label}, ${branchUnit(branch.id, branch.count)}` : undefined}
                   tabindex={r.id === tabId ? 0 : -1}
                   class={cn(
                     'focus-visible:ring-ring/60 flex h-full cursor-pointer items-center gap-1.5 pr-3 outline-none select-none focus-visible:ring-2 focus-visible:ring-inset',
@@ -486,8 +492,8 @@
                   {#if branch}
                     <ChevronRight class={cn('text-muted-foreground size-3.5 shrink-0 transition-transform motion-reduce:transition-none', r.expanded && 'rotate-90')} aria-hidden="true" />
                     <span class={cn('min-w-0 flex-1 truncate text-[13px]', r.level === 1 && 'font-medium')} title={r.label}>{r.label}</span>
-                    <span class="mono text-muted-foreground shrink-0 text-[11px]" title={unit(branch.count, view === 'areas' ? 'area' : 'item', view === 'areas' ? 'areas' : 'items')}>{int(branch.count)}</span>
-                    <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds per box below">{oddsText(branch.best)}</span>
+                    <span class="mono text-muted-foreground shrink-0 text-[11px]" title={branchUnit(branch.id, branch.count)}>{int(branch.count)}</span>
+                    <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds {branchPer(view, branch.id)} below">{oddsText(branch.best)}</span>
                   {:else if leaf}
                     <span class="size-3.5 shrink-0" aria-hidden="true"></span>
                     {#if r.node.kind === 'leaf' && r.node.clash}
@@ -498,8 +504,8 @@
                     {:else}
                       <span class={cn('min-w-0 flex-1 truncate text-[13px]', on && 'font-medium')} title={leaf.name}>{leaf.name}</span>
                     {/if}
-                    <span class="text-muted-foreground shrink-0 text-[11px]">{view === 'areas' ? unit(leaf.count, 'item', 'items') : unit(leaf.count, 'area', 'areas')}</span>
-                    <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds per box">{oddsText(leaf.best)}</span>
+                    <span class="text-muted-foreground shrink-0 text-[11px]">{view === 'areas' ? unit(leaf.count, 'item', 'items') : placesText(leaf)}</span>
+                    <span class="mono text-muted-foreground w-12 shrink-0 text-right text-[11px]" title="Best rough odds {rowPer(view, leaf)}">{oddsText(leaf.best)}</span>
                   {/if}
                 </div>
               {/snippet}
@@ -517,9 +523,15 @@
               <p class="text-muted-foreground truncate text-[11.5px]">{whereText(currentRow)}</p>
               <h2 id="loot-title" class="text-[16px] font-semibold">{currentRow.name}</h2>
               <p class="text-muted-foreground text-[12px]">
-                {view === 'areas' ? `${unit(currentRow.count, 'item', 'items')} can drop here` : `drops in ${unit(currentRow.count, 'area', 'areas')}`} · best {oddsText(currentRow.best)} per box
+                {view === 'areas' ? `${unit(currentRow.count, 'item', 'items')} can drop here` : `drops in ${placesText(currentRow)}`} · best {oddsText(currentRow.best)} {rowPer(view, currentRow)}
                 <span class="mono block truncate text-[11px]" title={currentRow.id}>{currentRow.id}</span>
               </p>
+              {#if view === 'areas' && isNpc(currentRow.id)}
+                <p class="text-muted-foreground flex items-start gap-1.5 pt-1 text-[12px]" role="note">
+                  <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+                  <span>{NPC_NOTE}</span>
+                </p>
+              {/if}
             </div>
             {#if view === 'items' && shownDetail?.record}
               {@const rec = shownDetail.record}
@@ -588,15 +600,15 @@
                             type="button"
                             class={cn(DGRID, 'hover:bg-muted focus-visible:ring-ring/60 h-full w-full px-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset')}
                             aria-expanded={r.open}
-                            aria-label="{g.label}, {unit(g.count, view === 'areas' ? 'item' : 'area', view === 'areas' ? 'items' : 'areas')}, best {oddsText(g.best)} per box"
+                            aria-label="{g.label}, {groupUnit(g.label, g.count)}, best {oddsText(g.best)} {gPer(g.label)}"
                             onclick={() => toggleGroup(g.key)}
                           >
                             <span class="flex min-w-0 items-center gap-1.5 [grid-column:span_2]">
                               <ChevronRight class={cn('text-muted-foreground size-3.5 shrink-0 transition-transform motion-reduce:transition-none', r.open && 'rotate-90')} aria-hidden="true" />
                               <span class="min-w-0 truncate font-medium" title={g.label}>{g.label}</span>
-                              <span class="text-muted-foreground shrink-0 text-[11px]">{unit(g.count, view === 'areas' ? 'item' : 'area', view === 'areas' ? 'items' : 'areas')}</span>
+                              <span class="text-muted-foreground shrink-0 text-[11px]">{groupUnit(g.label, g.count)}</span>
                             </span>
-                            <span class="text-muted-foreground text-right text-[11px] tabular-nums" title="Best rough odds per box in this group">best {oddsText(g.best)}</span>
+                            <span class="text-muted-foreground text-right text-[11px] tabular-nums" title="Best rough odds {gPer(g.label)} in this group">best {oddsText(g.best)}</span>
                           </button>
                         </span>
                       </div>

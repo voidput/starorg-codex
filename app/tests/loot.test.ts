@@ -4,13 +4,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { dropWhere, filterSummaries, groupsOf, listed, oddsText, queryWords } from '../src/lib/loot.ts';
+import { NPC_KIND, NPC_NOTE, branchPer, dropWhere, filterSummaries, groupPer, groupsOf, isNpc, listed, oddsText, perWhat, placesText, queryWords, rowPer } from '../src/lib/loot.ts';
+import { branchId } from '../src/lib/loottree.ts';
 import { mockLootDetail, mockLootList, type LootMockData } from '../src/lib/contract/mock-loot.ts';
 import type { LootSummary } from '../src/lib/contract/types.ts';
 
 const data = JSON.parse(readFileSync(new URL('../src/lib/contract/mock-loot.gen.json', import.meta.url), 'utf8')) as LootMockData;
 
-const row = (id: string, name: string, group: string, path: string[] = [group], best = 0.1, count = 1): LootSummary => ({ id, name, group, path, best, count });
+const row = (id: string, name: string, group: string, path: string[] = [group], best = 0.1, count = 1): LootSummary => ({ id, name, group, path, best, count, npcs: 0 });
 
 test('odds read like the WHERE TO GET line', () => {
   assert.equal(oddsText(0.75), '75.0%');
@@ -76,7 +77,7 @@ test('the TS mock serves the Rust mock: missing until read, then lists and group
   assert.equal(areas.state, 'ready');
   assert.ok(areas.rows.length >= 10 && items.rows.length >= 40);
   // Summaries only (with their tree path): no drops in a list row.
-  assert.deepEqual(Object.keys(areas.rows[0]!).sort(), ['best', 'count', 'group', 'id', 'name', 'path']);
+  assert.deepEqual(Object.keys(areas.rows[0]!).sort(), ['best', 'count', 'group', 'id', 'name', 'npcs', 'path']);
   const sorted = (rows: { odds: number }[]) => rows.every((x, i) => i === 0 || rows[i - 1]!.odds >= x.odds);
   for (const r of areas.rows) {
     const d = mockLootDetail(data, true, 'areas', r.id.toUpperCase());
@@ -121,4 +122,54 @@ test('the TS mock serves the Rust mock: missing until read, then lists and group
   // Answers are copies: editing one does not change the next.
   d.groups.length = 0;
   assert.ok(mockLootDetail(data, true, 'items', gun.id).groups.length > 0);
+});
+
+test('NPC bodies: rows of their own kind, per body, grouped by table slot, and drop places of items', () => {
+  assert.ok(isNpc('npc:V3LootTable_Actor_Grunt'));
+  assert.ok(!isNpc('caves/loot_caves_occupied') && !isNpc(null));
+  assert.equal(perWhat('npc:V3LootTable_Actor_Grunt'), 'per body');
+  assert.equal(perWhat('caves/loot_caves_occupied'), 'per box');
+  assert.equal(NPC_NOTE, 'Body loot only: what the NPC carries in its pockets. The gear it wears (suit, armour, weapon) is not in this list yet. The data gives no roll count; these odds may be a floor.');
+  const npcs = mockLootList(data, true, 'areas').rows.filter((r) => isNpc(r.id));
+  assert.ok(npcs.length >= 4);
+  assert.ok(npcs.every((r) => r.group === NPC_KIND && r.path[0] === NPC_KIND));
+  // Templates are no NPC; names are readable; a council-scrip variant is its own row.
+  assert.ok(npcs.every((r) => !/template/i.test(r.id) && !r.name.includes('_')));
+  assert.deepEqual(
+    npcs.filter((r) => r.path[1] === 'Ground combat').map((r) => r.name),
+    ['Grunt', 'Soldier', 'Soldier (with council scrip)'],
+  );
+  assert.ok(groupsOf(npcs).some((g) => g.group === NPC_KIND));
+  // An NPC's drops group by the slot of its table, likeliest first.
+  const d = mockLootDetail(data, true, 'areas', 'npc:V3LootTable_Actor_Soldier_CouncilScrip');
+  assert.deepEqual(
+    d.groups.map((g) => g.label),
+    ['Unique item', 'Ammo', 'Sidearm'],
+  );
+  assert.equal(d.groups[0]!.rows![0]!.id, 'syn_food_ration_mint');
+  // By item: the NPCs under their kind, so an item search answers which NPC drops it.
+  const it = mockLootDetail(data, true, 'items', 'syn_food_ration_mint');
+  const npcGroup = it.groups.find((g) => g.label === NPC_KIND);
+  assert.ok(npcGroup, JSON.stringify(it.groups.map((g) => g.label)));
+  assert.ok((npcGroup.rows ?? []).some((r) => r.name === 'Soldier (with council scrip)'));
+  const mint = mockLootList(data, true, 'items').rows.find((r) => r.id === 'syn_food_ration_mint')!;
+  assert.ok(mint.npcs > 0 && mint.npcs <= mint.count);
+});
+
+test('places and NPCs are counted apart, and odds say what they are per', () => {
+  const r = (count: number, npcs: number) => ({ id: 'x', count, npcs });
+  assert.equal(placesText(r(3, 0)), '3 areas');
+  assert.equal(placesText(r(2, 2)), '2 NPCs');
+  assert.equal(placesText(r(4, 1)), '3 areas, 1 NPC');
+  assert.equal(placesText(r(1, 0)), '1 area');
+  assert.equal(rowPer('items', r(3, 0)), 'per box');
+  assert.equal(rowPer('items', r(2, 2)), 'per body');
+  assert.equal(rowPer('items', r(4, 1)), 'per box or body');
+  assert.equal(rowPer('areas', { id: 'npc:V3LootTable_Actor_Grunt', count: 3, npcs: 0 }), 'per body');
+  assert.equal(branchPer('areas', branchId([NPC_KIND, 'Ground combat'])), 'per body');
+  assert.equal(branchPer('areas', branchId(['Caves'])), 'per box');
+  assert.equal(groupPer('items', r(4, 1), 'place', NPC_KIND), 'per body');
+  assert.equal(groupPer('items', r(4, 1), 'place', 'Caves'), 'per box');
+  assert.equal(groupPer('items', r(4, 1), 'none', 'All drops'), 'per box or body');
+  assert.equal(groupPer('areas', { id: 'npc:V3LootTable_Actor_Grunt', count: 3, npcs: 0 }, 'container', 'Ammo'), 'per body');
 });

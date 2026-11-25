@@ -11,7 +11,7 @@ import type { LootMockData } from '../src/lib/contract/mock-loot.ts';
 
 const data = JSON.parse(readFileSync(new URL('../src/lib/contract/mock-loot.gen.json', import.meta.url), 'utf8')) as LootMockData;
 
-const row = (id: string, name: string, path: string[], best = 0.1): LootSummary => ({ id, name, group: path[0] ?? name, path, best, count: 1 });
+const row = (id: string, name: string, path: string[], best = 0.1): LootSummary => ({ id, name, group: path[0] ?? name, path, best, count: 1, npcs: 0 });
 
 const ROWS: LootSummary[] = [
   row('v3slotpreset_battaglia', 'Battaglia', [], 0.2),
@@ -168,4 +168,14 @@ test('same-named sibling rows are marked (their ids then show); the same name el
     }
   };
   walk(buildTree(data.items.rows));
+});
+
+test('NPC rows sit under their own kind, in groups of two or more NPCs', () => {
+  const t = buildTree(data.areas.rows);
+  const npc = t.find((n) => n.kind === 'branch' && n.label === 'NPCs (body loot)');
+  assert.ok(npc && npc.kind === 'branch');
+  if (npc?.kind !== 'branch') return;
+  assert.deepEqual(labels(npc.children), ['[Ground combat]', 'Ace pilot', 'Mendo Ren']);
+  const ground = npc.children[0]!;
+  assert.ok(ground.kind === 'branch' && ground.children.every((c) => c.kind === 'leaf' && c.row.id.startsWith('npc:')));
 });

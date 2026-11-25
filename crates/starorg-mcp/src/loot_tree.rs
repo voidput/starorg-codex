@@ -520,9 +520,246 @@ pub fn item_paths(rows: &[(String, Option<String>)]) -> Vec<Vec<String>> {
         .collect()
 }
 
+/// The kind of place NPC rows sit under in the areas list.
+pub const NPC_KIND: &str = "NPCs (body loot)";
+
+/// Id of an NPC row: this prefix and the actor loot table's name (never a slot preset path).
+pub const NPC_PREFIX: &str = "npc:";
+
+/// Whether an areas-list id is an NPC's.
+pub fn is_npc(id: &str) -> bool {
+    id.starts_with(NPC_PREFIX)
+}
+
+/// The words of an actor loot table's name after `Actor_` (`V3LootTable_Actor_SOO_MendoRen`
+/// -> `SOO_MendoRen`); `None` for other tables.
+fn actor_rest(table: &str) -> Option<&str> {
+    let lower = table.to_ascii_lowercase();
+    let at = lower.find("actor_")?;
+    let head = &lower[..at];
+    // `LootTable_Actor_`, `V3LootTable_Actor_`: the word before is the table family.
+    (head.is_empty() || head.ends_with("loottable_")).then(|| &table[at + "actor_".len()..])
+}
+
+/// An NPC body's loot table (`*LootTable_Actor_*`) that is a real NPC's: not a `_TEMPLATE`
+/// (designer templates no record points to; their unique-item slot is empty).
+pub fn is_actor_table(table: &str) -> bool {
+    actor_rest(table).is_some() && !table.to_ascii_lowercase().contains("template")
+}
+
+/// The NPC groups, in list order.
+pub const NPC_PILOTS: &str = "Pilots";
+pub const NPC_GROUND: &str = "Ground combat";
+pub const NPC_PRISONERS: &str = "Prisoners";
+pub const NPC_BOSSES: &str = "Bosses";
+
+/// Known NPCs by the lower-case words after `Actor_`: (group, name).
+const NPCS: &[(&str, &str, &str)] = &[
+    ("acepilot", NPC_PILOTS, "Ace pilot"),
+    ("grunt", NPC_GROUND, "Grunt"),
+    ("soldier", NPC_GROUND, "Soldier"),
+    ("sniper", NPC_GROUND, "Sniper"),
+    ("cqc", NPC_GROUND, "CQC fighter"),
+    ("grenadier", NPC_GROUND, "Grenadier"),
+    ("juggernaut", NPC_GROUND, "Juggernaut"),
+    ("techie", NPC_GROUND, "Techie"),
+    ("largeammo", NPC_GROUND, "Large-ammo carrier"),
+    ("prisoner", NPC_PRISONERS, "Prisoner"),
+    ("soo_artkelvin", NPC_BOSSES, "Art Kelvin"),
+    ("soo_mendoren", NPC_BOSSES, "Mendo Ren"),
+    ("soo_remykettle", NPC_BOSSES, "Remy Kettle"),
+    (
+        "soo_juggernaut_elite",
+        NPC_BOSSES,
+        "Juggernaut (elite, SOO)",
+    ),
+    (
+        "largeammo_rockcracker_boss",
+        NPC_BOSSES,
+        "Rock Cracker boss",
+    ),
+];
+
+/// The variant suffix that adds a council scrip slot to an NPC's table.
+const COUNCIL_SCRIP: &str = "_councilscrip";
+
+/// An actor table's NPC group and readable name: a known NPC ([`NPCS`]), else the table's
+/// words (`SOO_NewBoss` -> `Bosses`, `New boss (SOO)`). A `_CouncilScrip` table is its own
+/// NPC row (the data does not say which NPCs roll which of the two), named after the base
+/// NPC: `Soldier (with council scrip)`.
+pub fn npc_name(table: &str) -> (String, String) {
+    let rest = actor_rest(table).unwrap_or(table);
+    let lower = rest.to_ascii_lowercase();
+    let (base, scrip) = match lower.strip_suffix(COUNCIL_SCRIP) {
+        Some(b) => (b.to_string(), true),
+        None => (lower.clone(), false),
+    };
+    let (group, name) = match NPCS.iter().find(|(k, _, _)| *k == base) {
+        Some((_, g, n)) => ((*g).to_string(), (*n).to_string()),
+        None => {
+            let raw = &rest[..base.len().min(rest.len())];
+            let soo = base.split('_').any(|w| w == "soo");
+            let words: Vec<String> = raw
+                .split('_')
+                .filter(|w| !w.eq_ignore_ascii_case("soo"))
+                .map(spaced)
+                .filter(|w| !w.is_empty())
+                .collect();
+            let mut name = sentence(&words.iter().map(|w| w.to_lowercase()).collect::<Vec<_>>());
+            if name.is_empty() {
+                name = rest.to_string();
+            }
+            if soo {
+                name.push_str(" (SOO)");
+            }
+            let group = if soo || base.contains("boss") {
+                NPC_BOSSES
+            } else if base.contains("pilot") {
+                NPC_PILOTS
+            } else if base.contains("prisoner") {
+                NPC_PRISONERS
+            } else {
+                NPC_GROUND
+            };
+            (group.to_string(), name)
+        }
+    };
+    let name = if scrip {
+        format!("{name} (with council scrip)")
+    } else {
+        name
+    };
+    (group, name)
+}
+
+/// A readable name for a slot of an NPC's table: V3 slots name themselves (`Ammo`); a v1
+/// slot is its archetype, named without the archetype and NPC words
+/// (`LootArchetype_Actor_AcePilot_Medals` of `LootTable_Actor_AcePilot` -> `Medals`).
+pub fn npc_slot_label(table: &str, label: &str) -> String {
+    let label = label.trim();
+    if label.is_empty() {
+        return "Body loot".to_string();
+    }
+    if !label.contains('_') {
+        return label.to_string();
+    }
+    let own: Vec<String> = actor_rest(table)
+        .unwrap_or("")
+        .split('_')
+        .map(str::to_ascii_lowercase)
+        .collect();
+    let words: Vec<String> = label
+        .split('_')
+        .map(str::to_ascii_lowercase)
+        .filter(|w| {
+            !w.is_empty()
+                && !matches!(w.as_str(), "lootarchetype" | "v3lootarchetype" | "actor")
+                && !own.contains(w)
+        })
+        .collect();
+    if words.is_empty() {
+        label.to_string()
+    } else {
+        sentence(&words)
+    }
+}
+
+/// Each NPC row's tree path and name, in the order of `tables`: [`NPC_KIND`] -> its group
+/// -> the NPC, without a group level that holds one NPC (or all of them); a list with one
+/// NPC is that NPC (`NPCs (body loot): Ace pilot`).
+pub fn npc_tree(tables: &[&str]) -> Vec<(Vec<String>, String)> {
+    let named: Vec<(String, String)> = tables.iter().map(|t| npc_name(t)).collect();
+    if let [(_, name)] = named.as_slice() {
+        return vec![(Vec::new(), format!("{NPC_KIND}: {name}"))];
+    }
+    let mut per_group: HashMap<&str, usize> = HashMap::new();
+    for (g, _) in &named {
+        *per_group.entry(g.as_str()).or_default() += 1;
+    }
+    named
+        .iter()
+        .map(|(g, name)| {
+            let n = per_group[g.as_str()];
+            let path = if (2..named.len()).contains(&n) {
+                vec![NPC_KIND.to_string(), g.clone()]
+            } else {
+                vec![NPC_KIND.to_string()]
+            };
+            (path, name.clone())
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn npc_tables_and_names() {
+        assert!(is_actor_table("LootTable_Actor_AcePilot"));
+        assert!(is_actor_table("V3LootTable_Actor_CQC_CouncilScrip"));
+        assert!(!is_actor_table("V3LootTable_Actor_TEMPLATE"));
+        assert!(!is_actor_table(
+            "V3LootTable_Actor_Soldier_UniqueItem_TEMPLATE"
+        ));
+        assert!(!is_actor_table("V3LootTable_Medical_Common"));
+        assert!(!is_actor_table("Crate_Factor_Weapons"));
+        let n = |t: &str| npc_name(t);
+        assert_eq!(
+            n("LootTable_Actor_AcePilot"),
+            ("Pilots".into(), "Ace pilot".into())
+        );
+        assert_eq!(
+            n("V3LootTable_Actor_Soldier_CouncilScrip"),
+            (
+                "Ground combat".into(),
+                "Soldier (with council scrip)".into()
+            )
+        );
+        assert_eq!(n("V3LootTable_Actor_SOO_MendoRen").1, "Mendo Ren");
+        assert_eq!(
+            n("V3LootTable_Actor_SOO_Juggernaut_Elite").1,
+            "Juggernaut (elite, SOO)"
+        );
+        assert_eq!(
+            n("V3LootTable_Actor_LargeAmmo_RockCracker_Boss").0,
+            "Bosses"
+        );
+        // Unknown tables read from their words.
+        assert_eq!(
+            n("V3LootTable_Actor_SOO_NewBoss"),
+            ("Bosses".into(), "New boss (SOO)".into())
+        );
+        assert_eq!(
+            n("V3LootTable_Actor_RiotGuard"),
+            ("Ground combat".into(), "Riot guard".into())
+        );
+    }
+
+    #[test]
+    fn npc_tree_drops_single_row_groups() {
+        let t = npc_tree(&[
+            "LootTable_Actor_AcePilot",
+            "V3LootTable_Actor_Grunt",
+            "V3LootTable_Actor_Soldier",
+            "V3LootTable_Actor_SOO_MendoRen",
+        ]);
+        assert_eq!(t[0], (vec![NPC_KIND.to_string()], "Ace pilot".to_string()));
+        assert_eq!(t[1].0, [NPC_KIND, "Ground combat"]);
+        assert_eq!(t[3].0, [NPC_KIND]);
+        // All in one group: no group level.
+        let t = npc_tree(&["V3LootTable_Actor_Grunt", "V3LootTable_Actor_Soldier"]);
+        assert_eq!(t[0].0, [NPC_KIND]);
+        let l = |a: &str| npc_slot_label("LootTable_Actor_AcePilot", a);
+        assert_eq!(l("LootArchetype_Actor_AcePilot_Medals"), "Medals");
+        assert_eq!(l("Unique item"), "Unique item");
+        assert_eq!(l(" "), "Body loot");
+        let t = npc_tree(&["LootTable_Actor_AcePilot"]);
+        assert_eq!(
+            t[0],
+            (Vec::new(), "NPCs (body loot): Ace pilot".to_string())
+        );
+    }
 
     fn tree(ids: &[&str]) -> Vec<String> {
         area_tree(ids)

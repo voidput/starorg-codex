@@ -606,6 +606,7 @@ mod tests {
         let mut r = base();
         r.other_tables = vec![RollPath {
             table: "T".into(),
+            slot: 0,
             archetype: "A".into(),
             entry: None,
             share: 0.1,

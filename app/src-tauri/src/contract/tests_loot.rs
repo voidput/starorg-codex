@@ -148,6 +148,74 @@ fn loot_on_the_mock_is_missing_until_the_game_data_is_read() {
 }
 
 #[test]
+fn loot_npc_bodies_are_areas_and_item_sources() {
+    use starorg_mcp::loot::{NPC_KIND, is_npc};
+    let b = MockBackend::default();
+    read_live(&b);
+    let areas = list(&b, Some(live()), LootView::Areas);
+    let npcs: Vec<String> = areas
+        .rows
+        .iter()
+        .filter(|r| is_npc(&r.id))
+        .map(|r| {
+            let mut p = r.path.clone();
+            p.push(r.name.clone());
+            p.join(" > ")
+        })
+        .collect();
+    // The template is no NPC; one-NPC groups sit right under the kind.
+    assert_eq!(
+        npcs,
+        [
+            "NPCs (body loot) > Ace pilot",
+            "NPCs (body loot) > Mendo Ren",
+            "NPCs (body loot) > Ground combat > Grunt",
+            "NPCs (body loot) > Ground combat > Soldier",
+            "NPCs (body loot) > Ground combat > Soldier (with council scrip)",
+        ]
+    );
+    // By slot: the council-scrip variant's unique item, by class, half the time.
+    let d = ask(
+        &b,
+        LootView::Areas,
+        "npc:V3LootTable_Actor_Soldier_CouncilScrip",
+        None,
+        None,
+        None,
+    );
+    let labels: Vec<&str> = d.groups.iter().map(|g| g.label.as_str()).collect();
+    assert_eq!(labels, ["Unique item", "Ammo", "Sidearm"], "{labels:?}");
+    let unique = d.groups[0].rows.as_ref().unwrap();
+    assert_eq!(unique.len(), 1);
+    assert_eq!(unique[0].id, "syn_food_ration_mint");
+    assert!((unique[0].odds - 0.5).abs() < 1e-12);
+    // The pilot's always-filled slot reads without the archetype words.
+    let d = ask(
+        &b,
+        LootView::Areas,
+        "npc:LootTable_Actor_AcePilot",
+        None,
+        None,
+        None,
+    );
+    assert_eq!(d.groups[0].label, "Rations");
+    // By item: the NPCs are drop places of their own kind.
+    let d = ask(
+        &b,
+        LootView::Items,
+        "syn_food_ration_mint",
+        None,
+        None,
+        None,
+    );
+    assert!(
+        d.groups.iter().any(|g| g.label == NPC_KIND),
+        "{:?}",
+        d.groups
+    );
+}
+
+#[test]
 fn loot_rows_carry_tree_paths_and_details_filter() {
     let b = MockBackend::default();
     read_live(&b);
