@@ -46,7 +46,9 @@ use std::collections::BTreeMap;
 ///   `resource_descs`), for the obtain hints (spec obtain-hints).
 /// - 5: name key, description key and `AttachDef` type of every entity class with a name
 ///   (`item_names`), for the missing names (spec missing-names).
-pub const GAMEDATA_SCHEMA: u32 = 5;
+/// - 6: star systems of every contract (`Contract::systems`, from its locality
+///   prerequisites), for the blueprint finder's "Earn it".
+pub const GAMEDATA_SCHEMA: u32 = 6;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

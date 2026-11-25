@@ -2,9 +2,11 @@
   /**
    * Blueprint finder (addendum §7.19): every blueprint of the channel's build (or of all channels)
    * with who owns it, searchable, filterable by facets with counts (category, type, maker, size,
-   * source, character, channel), sortable and groupable. Filters, sort and scope are remembered per
-   * channel (localStorage, validated on read). Ownership stays per channel and per character: the
-   * "All channels" view only puts the rows side by side, each owner with its channel badge.
+   * source, character, missing for, channel, missions, reputation), sortable and groupable. Filters, sort
+   * and scope are remembered per channel (localStorage, validated on read). Ownership stays per
+   * channel and per character: the "All channels" view only puts the rows side by side, each owner
+   * with its channel badge. "Earn it" opens under a row: the missions that award the blueprint
+   * (computed once per build with the catalogue, never per render).
    */
   import { characterLabel } from '@/lib/characters';
   import Search from '@lucide/svelte/icons/search';
@@ -17,6 +19,7 @@
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import ChevronsDownUp from '@lucide/svelte/icons/chevrons-down-up';
   import ChevronsUpDown from '@lucide/svelte/icons/chevrons-up-down';
+  import ExternalLink from '@lucide/svelte/icons/external-link';
   import { tick, untrack } from 'svelte';
   import { getCardCollapse } from '@/components/ui/card/collapse';
   import { Button } from '@/components/ui/button';
@@ -27,7 +30,7 @@
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import ChannelBadge from '@/components/common/ChannelBadge.svelte';
   import { api, toContractError } from '@/lib/contract/client';
-  import type { BlueprintFinder, BlueprintOwner, BlueprintRow, ChannelRef } from '@/lib/contract/types';
+  import type { BlueprintEarn, BlueprintFinder, BlueprintOwner, BlueprintRow, ChannelRef } from '@/lib/contract/types';
   import {
     FACETS,
     GROUPS,
@@ -36,6 +39,9 @@
     acquired,
     activeFilters,
     clearFilters,
+    earnFor,
+    missionOf,
+    missionTitle,
     kindLabel,
     hiddenMatches,
     makerLabel,
@@ -54,6 +60,8 @@
   import { fmtDate } from '@/lib/format';
   import { cn } from '@/lib/utils';
   import { toast } from '@/lib/stores/toast.svelte';
+  import { app } from '@/lib/stores/app.svelte';
+  import { dev } from '@/lib/stores/dev.svelte';
 
   let {
     target,
@@ -96,7 +104,8 @@
     }
   });
 
-  let data = $state<BlueprintFinder | null>(null);
+  // Raw: the payload is replaced whole on every load, never changed in place (no deep proxy).
+  let data = $state.raw<BlueprintFinder | null>(null);
   let failed = $state<string | null>(null);
   const scopeAll = $derived(prefs.scope === 'all' && channels.length > 1);
   const fetchKey = $derived(prefsFor === tkey ? `${tkey}/${scopeAll ? '*' : target.channel}/${rev}` : '');
@@ -164,12 +173,56 @@
     size: 'Size',
     source: 'Source',
     character: 'Character',
+    missing: 'Missing for',
     channel: 'Channel',
+    earn: 'Missions',
+    faction: 'Reputation',
   };
   const FACET_MAX = 8;
   /** Values worth a chip: with matches, or picked. */
   const chips = (f: FacetId) => (v?.facets[f] ?? []).filter((x) => x.count > 0 || x.on);
-  const facetShown = (f: FacetId) => (f === 'channel' && !scopeAll ? false : f === 'type' ? chips('type').length > 1 : chips(f).length > 0);
+  const facetShown = (f: FacetId) =>
+    f === 'channel' && !scopeAll
+      ? false
+      : // A stored pick always shows (it filters), else only with two characters to compare.
+        f === 'missing'
+        ? prefs.missing.length > 0 || ((data?.characters.length ?? 0) > 1 && chips(f).length > 0)
+        : f === 'type'
+          ? chips('type').length > 1
+          : chips(f).length > 0;
+
+  // "Earn it": the rows whose mission list is open (not remembered), and the Explorer hand-off.
+  let earnOpen = $state<Record<string, boolean>>({});
+  const devOn = $derived(!!app.settings?.advanced.developer_mode);
+  // Missions of the channels in view (or picked), like the owners.
+  const earnChans = $derived(new Set(prefs.channel.filter((c) => inView.includes(c)).length ? prefs.channel.filter((c) => inView.includes(c)) : inView));
+  const earnList = (r: BlueprintRow) => earnFor(r, earnChans) ?? [];
+  const earnSummary = (r: BlueprintRow) => {
+    const list = earnList(r);
+    const sure = list.filter((e) => e.award === 'guaranteed').length;
+    const pools = list.filter((e) => e.award === 'guaranteed-pool').length;
+    return [`${list.length} mission${list.length === 1 ? '' : 's'}`, sure ? `${sure} guaranteed` : null, pools ? `${pools} from a guaranteed pool` : null].filter(Boolean).join(', ');
+  };
+  const AWARD: Record<BlueprintEarn['award'], { tone: 'success' | 'info' | 'warning'; hint: string }> = {
+    guaranteed: { tone: 'success', hint: 'Every contract with this title awards a pool that holds only this blueprint' },
+    'guaranteed-pool': { tone: 'info', hint: 'Every contract awards a pool for sure, but this blueprint is one draw of several' },
+    chance: { tone: 'warning', hint: 'Not on every completion (or not every variant): see the odds' },
+  };
+  const awardLabel = (e: BlueprintEarn) => (e.award === 'guaranteed' ? 'Guaranteed' : e.award === 'guaranteed-pool' ? `Guaranteed pool, 1 of ${e.pool}` : 'Chance');
+  /** The odds line: MISSION DETAILS wording, then the pool. */
+  const oddsText = (e: BlueprintEarn, contracts: number) =>
+    [
+      `Blueprint reward: ${e.odds}`,
+      e.variants < contracts ? `${e.variants} of ${contracts} variants` : null,
+      `pool of ${e.pool}${e.pick ? `, ${e.pick} of the draws` : ''}`,
+    ]
+      .filter(Boolean)
+      .join(' · ');
+  function findMission(generator: string) {
+    dev.findRecord(generator, () => app.go('explorer'));
+  }
+  /** Catalogue rows in view whose build's contracts have not been read: their missions are not known. */
+  const missionsUnread = $derived(v ? v.rows.filter((r) => r.record !== null && earnFor(r, earnChans) === null).length : 0);
 
   /** Owners in view (or "maybe" owners), per character, with whether they are picked. */
   function owners(r: BlueprintRow, list: BlueprintOwner[] = r.owners) {
@@ -317,7 +370,7 @@
 
   {#if showFacets && v}
     <div id="bp-facets" class="bg-muted/30 grid gap-2 rounded-md border p-2.5">
-      <p class="text-muted-foreground text-[11.5px]">Owned and Missing count the picked characters (all of them when none is picked){scopeAll ? ', on every channel; each channel keeps its own sets' : ` on ${target.channel}`}. A character's number is how many blueprints it owns (lacks, with Missing); other numbers show what a filter would give.</p>
+      <p class="text-muted-foreground text-[11.5px]">Owned and Missing count the picked characters (all of them when none is picked){scopeAll ? ', on every channel; each channel keeps its own sets' : ` on ${target.channel}`}. A character's number is how many blueprints it owns (lacks, with Missing); other numbers show what a filter would give. Missing for keeps only what none of its characters owns (any source): pick Owned, a character (an alt, or a guild list pulled into one) and yourself under Missing for to see what they have and you lack. Missions and Reputation come from the builds' contracts; Guaranteed means a sure pool that holds only this blueprint, From a guaranteed pool a sure pool it is one draw of.</p>
       {#each FACETS.filter(facetShown) as f (f)}
         {@const list = chips(f)}
         {@const open = more[f] || list.length <= FACET_MAX + 1}
@@ -358,6 +411,12 @@
     <p class="text-muted-foreground flex items-start gap-1.5 text-[12px]" role="note">
       <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
       <span>{skipped} blueprint file{skipped === 1 ? '' : 's'} could not be read and {skipped === 1 ? 'is' : 'are'} not shown; see Activity.</span>
+    </p>
+  {/if}
+  {#if missionsUnread && !notRead.length}
+    <p class="text-muted-foreground flex items-start gap-1.5 text-[12px]" role="note">
+      <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
+      <span>The missions of {missionsUnread} blueprint{missionsUnread === 1 ? '' : 's'} are not known: that build's contracts have not been read (only a local read of the game data has them). Apply (or a dry run) reads them.</span>
     </p>
   {/if}
   {#if notRead.length}
@@ -442,6 +501,7 @@
                 {@const own = owners(r)}
                 {@const mine = own.filter((o) => o.picked)}
                 {@const maybe = owners(r, r.maybe).filter((o) => o.picked && !own.some((x) => x.id === o.id))}
+                {@const maybeLacking = prefs.missing.length ? owners(r, r.maybe).filter((o) => prefs.missing.includes(o.id)) : []}
                 <tr>
                   <td class="py-1.5 pr-3">
                     <div class="flex flex-wrap items-center gap-1.5">
@@ -450,9 +510,22 @@
                       {#if r.record === null && r.candidates.length}<ToneBadge tone="warning" label="Ambiguous" hint={`This name could be ${r.candidates.length} blueprints; none is marked owned`} />{/if}
                       {#if r.record === null && !r.candidates.length}<ToneBadge tone="muted" label="Not in build" hint="No blueprint of the read builds has this name" />{/if}
                       {#if maybe.length}<ToneBadge tone="info" label="Maybe owned" hint="An owned name could be this blueprint or another one" />{/if}
+                      {#each maybeLacking as o (o.id)}<ToneBadge tone="info" label={`Maybe owned by ${o.name}`} hint={`Missing for ${o.name}, but an owned name of theirs could be this blueprint or another one`} />{/each}
                       {#each onlyIn(r) as c (c)}<ChannelBadge channel={c} variant="badge" title={`Only in ${c}'s build`} />{/each}
                     </div>
                     {#if r.record}<div class="mono text-muted-foreground truncate text-[10.5px]" title={r.record}>{r.record}</div>{/if}
+                    {#if earnList(r).length}
+                      <button
+                        type="button"
+                        class="text-primary focus-visible:ring-ring/60 mt-0.5 inline-flex items-center gap-1 rounded-sm text-[11.5px] underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+                        aria-expanded={!!earnOpen[r.key]}
+                        aria-controls={`bp-earn-${i}`}
+                        onclick={() => (earnOpen = { ...earnOpen, [r.key]: !earnOpen[r.key] })}
+                      >
+                        <ChevronRight class={cn('size-3 shrink-0 transition-transform motion-reduce:transition-none', earnOpen[r.key] && 'rotate-90')} aria-hidden="true" />
+                        Earn it: {earnSummary(r)}
+                      </button>
+                    {/if}
                     {#if r.record === null && r.candidates.length}
                       <ul class="text-muted-foreground mt-0.5 grid text-[11px]" aria-label="Could be">
                         {#each r.candidates as k (k)}<li>Could be: {candText(k)}</li>{/each}
@@ -487,6 +560,40 @@
                   <td class="text-muted-foreground py-1.5 pr-3 text-[12px] max-xl:hidden">{[...new Set(mine.flatMap((o) => o.sources).map(sourceText))].join(', ') || '—'}</td>
                   <td class="mono text-muted-foreground py-1.5 text-[12px] whitespace-nowrap">{fmtDate(acquired(r.owners.filter((o) => mine.some((x) => x.id === o.character && x.channels.includes(o.channel)))))}</td>
                 </tr>
+                {#if earnOpen[r.key] && earnList(r).length}
+                  <tr id={`bp-earn-${i}`} class="bg-muted/20">
+                    <td colspan={cols.length} class="py-1.5 pr-3 pl-5 text-[12px]">
+                      <ul class="grid gap-1.5" aria-label={`Missions that award ${r.name}`}>
+                        {#each earnList(r) as e, k (`${e.mission}/${k}`)}
+                          {@const m = data ? missionOf(data, e) : null}
+                          <li class="grid gap-0.5">
+                            {#if m}
+                              <div class="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                                <span class={cn('font-medium', m.title === null && 'mono text-[11.5px]')} title={m.title ? m.record : 'No readable title in this build'}>{missionTitle(m)}</span>
+                                <ToneBadge tone={AWARD[e.award].tone} label={awardLabel(e)} hint={AWARD[e.award].hint} />
+                                {#if scopeAll && e.channels.length < readChannels.length}{#each e.channels as c (c)}<ChannelBadge channel={c} variant="badge" title={`In ${c}'s build`} />{/each}{/if}
+                                {#if devOn}
+                                  <button
+                                    type="button"
+                                    class="text-primary focus-visible:ring-ring/60 inline-flex items-center gap-1 rounded-sm text-[11.5px] underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+                                    title="Search the Explorer for {m.generator}"
+                                    onclick={() => findMission(m.generator)}>Find in Explorer<ExternalLink class="size-3 shrink-0" aria-hidden="true" /></button
+                                  >
+                                {/if}
+                              </div>
+                              <div class="text-muted-foreground">
+                                {[m.reputation.length ? `Reputation: ${m.reputation.join(', ')}` : null, m.systems.length ? `System: ${m.systems.join(', ')}` : 'System: not known', m.kinds.length ? `Type: ${m.kinds.join(', ')}` : null, m.requires ? `Requires: ${m.requires}` : null].filter(Boolean).join(' · ')}
+                              </div>
+                              <div class="text-muted-foreground">{oddsText(e, m.contracts)}</div>
+                            {:else}
+                              <span class="text-muted-foreground">A mission this list does not have (reload the finder).</span>
+                            {/if}
+                          </li>
+                        {/each}
+                      </ul>
+                    </td>
+                  </tr>
+                {/if}
               {/if}
             {/each}
           </tbody>

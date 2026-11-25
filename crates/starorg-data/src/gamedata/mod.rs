@@ -147,6 +147,7 @@ struct Lookup<'a, 's> {
     index: &'a Index<'s>,
     rep: HashMap<String, f64>,
     name_keys: Mutex<HashMap<String, Option<String>>>,
+    faction_names: Mutex<HashMap<String, Option<String>>>,
     templates: Mutex<HashMap<String, Vec<String>>>,
 }
 
@@ -164,6 +165,23 @@ impl missions::MissionLookup for Lookup<'_, '_> {
             json::text_at(json::attach_def(&l.value), "Localization.Name").map(str::to_string)
         });
         self.name_keys
+            .lock()
+            .ok()?
+            .insert(path.to_string(), key.clone());
+        key
+    }
+
+    fn faction_name_key(&self, path: &str) -> Option<String> {
+        if let Some(hit) = self.faction_names.lock().ok()?.get(path) {
+            return hit.clone();
+        }
+        let key = self.index.by_path(path).and_then(|m| {
+            let l = self.store.load(m).ok()?;
+            json::text(l.value.get("displayName"))
+                .filter(|k| k.starts_with('@') && starorg_core::model::loc_key(k).is_some())
+                .map(str::to_string)
+        });
+        self.faction_names
             .lock()
             .ok()?
             .insert(path.to_string(), key.clone());
@@ -571,6 +589,7 @@ pub fn extract(
             index: &index,
             rep,
             name_keys: Mutex::new(HashMap::new()),
+            faction_names: Mutex::new(HashMap::new()),
             templates: Mutex::new(HashMap::new()),
         };
         gd.blueprint_pools = load_all(

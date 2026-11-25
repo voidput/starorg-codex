@@ -1555,7 +1555,7 @@ impl RealBackend {
             }
         }
         inp.unattributed = blueprints::load_unattributed(&data).ok();
-        inp.catalog = self.bp_catalog(f, ch, current).map(|c| c.as_ref().clone());
+        inp.catalog = self.bp_catalog(f, ch, current);
         inp
     }
 

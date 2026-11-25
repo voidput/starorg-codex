@@ -7,19 +7,27 @@
  * a count says what you get when you add that value. "Owned" / "Missing" mean owned / not owned
  * by the picked characters (any character when none is picked) on the channels in view; picking
  * characters with "All" keeps every row and only changes whose ownership is shown and counted.
+ *
+ * "Missing for" compares: it keeps the rows none of its characters owns (from any source), on
+ * top of the rest, so "Owned" + Character Alt + Missing for Me lists what Alt (or a guild list
+ * pulled into a character) has and I lack. Its values are ANDed (missing for each of them), so a
+ * Missing-for count is what the view gives with that character added. "Missions" sorts rows by
+ * how missions award them (guaranteed, from a guaranteed pool, by chance, not from missions, not
+ * known) and "Reputation" by the factions those missions pay. Both only count the missions of the
+ * channels in view (or picked).
  */
-import type { BlueprintFinder, BlueprintKind, BlueprintOwner, BlueprintRow } from './contract/types';
+import type { BlueprintEarn, BlueprintFinder, BlueprintKind, BlueprintMission, BlueprintOwner, BlueprintRow } from './contract/types';
 
 export type OwnedFilter = 'all' | 'owned' | 'missing';
 export type SortKey = 'name' | 'kind' | 'manufacturer' | 'size' | 'acquired' | 'source' | 'owners';
 export type GroupKey = 'none' | 'kind' | 'manufacturer' | 'character';
 export type Scope = 'channel' | 'all';
-export type FacetId = 'kind' | 'type' | 'manufacturer' | 'size' | 'source' | 'character' | 'channel';
+export type FacetId = 'kind' | 'type' | 'manufacturer' | 'size' | 'source' | 'character' | 'missing' | 'channel' | 'earn' | 'faction';
 
 /** Owner id of the unattributed set (core `finder::UNATTRIBUTED`; also in mock-finder.ts). */
 export const UNATTRIBUTED = 'unattributed';
 
-export const FACETS: FacetId[] = ['kind', 'type', 'manufacturer', 'size', 'source', 'character', 'channel'];
+export const FACETS: FacetId[] = ['kind', 'type', 'manufacturer', 'size', 'source', 'character', 'missing', 'channel', 'earn', 'faction'];
 
 export interface FinderPrefs {
   scope: Scope;
@@ -31,7 +39,13 @@ export interface FinderPrefs {
   size: string[];
   source: string[];
   character: string[];
+  /** Characters none of whom may own a row ("Missing for"). */
+  missing: string[];
   channel: string[];
+  /** How missions award it: `guaranteed`, `pool`, `chance`, `none`, `unknown`. */
+  earn: string[];
+  /** Reputation factions of its missions (faction records; `none` = a mission paying none). */
+  faction: string[];
   sort: SortKey;
   desc: boolean;
   group: GroupKey;
@@ -47,7 +61,10 @@ export const DEFAULT_PREFS: FinderPrefs = {
   size: [],
   source: [],
   character: [],
+  missing: [],
   channel: [],
+  earn: [],
+  faction: [],
   sort: 'name',
   desc: false,
   group: 'none',
@@ -114,6 +131,34 @@ function sizeRank(id: string): number {
 }
 
 export const makerId = (r: BlueprintRow) => r.manufacturer ?? 'none';
+
+/** "Earn it" facet ids, in facet order. */
+export const EARNS: { id: string; label: string }[] = [
+  { id: 'guaranteed', label: 'Guaranteed' },
+  { id: 'pool', label: 'From a guaranteed pool' },
+  { id: 'chance', label: 'By chance' },
+  { id: 'none', label: 'Not from missions' },
+  { id: 'unknown', label: 'Not known' },
+];
+/** A row's mission entries on these channels; null when none of them read its build's contracts. */
+export function earnFor(r: BlueprintRow, chans: ReadonlySet<string>): BlueprintEarn[] | null {
+  const read = Array.isArray(r.earn_read) ? r.earn_read : [];
+  if (!read.some((c) => chans.has(c))) return null;
+  return (Array.isArray(r.earn) ? r.earn : []).filter((e) => e.channels.some((c) => chans.has(c)));
+}
+/** How missions award it: the surest entry, or none, or not known. */
+export function earnId(list: BlueprintEarn[] | null): string {
+  if (list === null) return 'unknown';
+  if (!list.length) return 'none';
+  if (list.some((e) => e.award === 'guaranteed')) return 'guaranteed';
+  return list.some((e) => e.award === 'guaranteed-pool') ? 'pool' : 'chance';
+}
+/** The mission an earn entry names (null when the index is off the table). */
+export const missionOf = (data: Pick<BlueprintFinder, 'missions'>, e: BlueprintEarn): BlueprintMission | null => (Array.isArray(data.missions) ? (data.missions[e.mission] ?? null) : null);
+/** Reputation facet ids of a mission: its factions, or `none`. */
+export const factionIds = (m: BlueprintMission | null): string[] => (m && m.factions.length ? m.factions : ['none']);
+/** A mission for display: its in-game title, else its contract record. */
+export const missionTitle = (m: BlueprintMission) => m.title ?? m.record;
 export const makerLabel = (r: BlueprintRow) => r.manufacturer_name ?? r.manufacturer ?? 'Unknown maker';
 
 // Prefs ------------------------------------------------------------------------------------
@@ -143,7 +188,10 @@ export function parsePrefs(raw: string | null): FinderPrefs {
     size: strings(o.size),
     source: strings(o.source),
     character: strings(o.character),
+    missing: strings(o.missing),
     channel: strings(o.channel),
+    earn: strings(o.earn).filter((x) => EARNS.some((e) => e.id === x)),
+    faction: strings(o.faction),
     sort: oneOf(o.sort, SORTS.map((s) => s.id), d.sort),
     desc: o.desc === true,
     group: oneOf(o.group, GROUPS.map((g) => g.id), d.group),
@@ -158,7 +206,7 @@ export function activeFilters(p: FinderPrefs, allChannels = true): number {
 
 /** Every filter back to its default; sort, group and scope stay. */
 export function clearFilters(p: FinderPrefs): FinderPrefs {
-  return { ...p, search: '', owned: DEFAULT_PREFS.owned, kind: [], type: [], manufacturer: [], size: [], source: [], character: [], channel: [] };
+  return { ...p, search: '', owned: DEFAULT_PREFS.owned, kind: [], type: [], manufacturer: [], size: [], source: [], character: [], missing: [], channel: [], earn: [], faction: [] };
 }
 
 export function toggle(p: FinderPrefs, f: FacetId, id: string): FinderPrefs {
@@ -245,10 +293,13 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
   const picked = new Set(p.channel.filter((c) => inView.has(c)));
   const chans = picked.size ? picked : inView;
   const chars = new Set(p.character);
+  const lacking = new Set(p.missing);
   const words = fold(p.search).split(' ').filter(Boolean);
+  // Missions count on the channels in view (or picked), like ownership.
+  const factionsOf = (list: BlueprintEarn[] | null) => new Set((list ?? []).flatMap((e) => factionIds(missionOf(data, e))));
   const rows = (Array.isArray(data.rows) ? data.rows : []).filter((r) => r.channels.some((c) => inView.has(c)) || r.owners.some((o) => inView.has(o.channel)));
 
-  type Eval = { r: BlueprintRow; score: number; own: BlueprintOwner[]; byChars: BlueprintOwner[]; pass: Record<FacetId, boolean>; ownedOk: boolean; ownedAny: boolean; maybe: boolean };
+  type Eval = { r: BlueprintRow; score: number; own: BlueprintOwner[]; owners: Set<string>; earn: BlueprintEarn[] | null; factions: Set<string>; byChars: BlueprintOwner[]; pass: Record<FacetId, boolean>; ownedOk: boolean; ownedAny: boolean; maybe: boolean };
   let evals: Eval[] = [];
   for (const r of rows) {
     const score = matchScore(r, words);
@@ -258,6 +309,9 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
     const ownedAny = byChars.length > 0;
     const srcs = new Set(byChars.flatMap((o) => o.sources.map(sourceId)));
     const inChan = r.channels.some((c) => chans.has(c)) || own.length > 0;
+    const owners = new Set(own.map((o) => o.character));
+    const earn = earnFor(r, chans);
+    const factions = factionsOf(earn);
     const pass: Record<FacetId, boolean> = {
       kind: !p.kind.length || p.kind.includes(r.kind),
       type: !p.type.length || (r.type_label !== null && p.type.includes(r.type_label)),
@@ -266,11 +320,15 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
       source: !p.source.length || p.source.some((s) => srcs.has(s)),
       // Characters say whose ownership counts; the owned toggle filters by it.
       character: true,
+      // Missing for: none of these characters owns it (any source).
+      missing: ![...lacking].some((c) => owners.has(c)),
       channel: !picked.size || inChan,
+      earn: !p.earn.length || p.earn.includes(earnId(earn)),
+      faction: !p.faction.length || [...factions].some((g) => p.faction.includes(g)),
     };
     const ownedOk = p.owned === 'all' || (p.owned === 'owned' ? ownedAny : !ownedAny);
     const maybe = !ownedAny && r.maybe.some((o) => chans.has(o.channel) && (!chars.size || chars.has(o.character)));
-    evals.push({ r, score, own, byChars, pass, ownedOk, ownedAny, maybe });
+    evals.push({ r, score, own, owners, earn, factions, byChars, pass, ownedOk, ownedAny, maybe });
   }
   // Letters-in-order matches only when nothing matches as text.
   if (evals.some((e) => e.score === 2)) evals = evals.filter((e) => e.score === 2);
@@ -303,12 +361,20 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
         }
         continue;
       }
+      if (f === 'missing') {
+        // ANDed: a character's number is the view with that character added (its own picks apply).
+        if (!passAll(e) || !e.ownedOk) continue;
+        for (const c of data.characters) if (!e.owners.has(c.id)) bump(f, c.id);
+        continue;
+      }
       if (!passAll(e, f) || !e.ownedOk) continue;
       if (f === 'kind') bump(f, r.kind);
       else if (f === 'type') r.type_label !== null && bump(f, r.type_label);
       else if (f === 'manufacturer') bump(f, makerId(r));
       else if (f === 'size') bump(f, sizeId(r));
       else if (f === 'source') for (const s of new Set(e.byChars.flatMap((o) => o.sources.map(sourceId)))) bump(f, s);
+      else if (f === 'earn') bump(f, earnId(e.earn));
+      else if (f === 'faction') for (const g of e.factions) bump(f, g);
 
     }
   }
@@ -329,7 +395,17 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
     size: sizeLabel,
     source: sourceLabel,
     character: ctx.characterName,
+    missing: ctx.characterName,
     channel: (id) => id,
+    earn: (id) => EARNS.find((x) => x.id === id)?.label ?? id,
+    faction: (id) => {
+      if (id === 'none') return 'No reputation';
+      for (const m of Array.isArray(data.missions) ? data.missions : []) {
+        const i = m.factions.indexOf(id);
+        if (i >= 0) return m.reputation[i] ?? id;
+      }
+      return id;
+    },
   };
   const order: Record<FacetId, (a: FacetValue, b: FacetValue) => number> = {
     kind: (a, b) => (KIND_RANK.get(a.id as BlueprintKind) ?? 99) - (KIND_RANK.get(b.id as BlueprintKind) ?? 99),
@@ -338,12 +414,15 @@ export function query(data: BlueprintFinder, p: FinderPrefs, ctx: ViewCtx): Find
     size: (a, b) => sizeRank(a.id) - sizeRank(b.id),
     source: (a, b) => rank(SOURCE_RANK, a.id) - rank(SOURCE_RANK, b.id) || cmp(a.id, b.id),
     character: (a, b) => cmp(a.label, b.label) || cmp(a.id, b.id),
+    missing: (a, b) => cmp(a.label, b.label) || cmp(a.id, b.id),
     channel: (a, b) => ctx.channels.indexOf(a.id) - ctx.channels.indexOf(b.id),
+    earn: (a, b) => rank(EARNS.map((x) => x.id), a.id) - rank(EARNS.map((x) => x.id), b.id),
+    faction: (a, b) => (a.id === 'none' ? 1 : 0) - (b.id === 'none' ? 1 : 0) || b.count - a.count || cmp(a.label, b.label),
   };
   const facets = {} as Record<FacetId, FacetValue[]>;
   for (const f of FACETS) {
     const ids = new Set([...counts[f].keys(), ...p[f]]);
-    if (f === 'character') for (const c of data.characters) ids.add(c.id);
+    if (f === 'character' || f === 'missing') for (const c of data.characters) ids.add(c.id);
     if (f === 'channel') for (const c of ctx.channels) ids.add(c);
     facets[f] = [...ids].map((id) => ({ id, label: labels[f](id), count: counts[f].get(id) ?? 0, on: p[f].includes(id) })).sort(order[f]);
   }

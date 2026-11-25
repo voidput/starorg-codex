@@ -1,9 +1,15 @@
 //! Synthetic blueprint catalogue and owned sets for the mock backend (addendum §7.19): two
 //! channels with a read build (LIVE, PTU; HOTFIX not read), three characters, every kind,
-//! four makers, sizes, grades and armor weights. All names are made up.
+//! four makers, sizes, grades and armor weights, and a few missions that award blueprints
+//! ("Earn it": guaranteed, by chance, some variants only, untitled). All names are made up.
 
 use super::types::OwnedBlueprint;
-use starorg_core::blueprints::finder::{CatalogItem, Kind};
+use starorg_core::blueprints::finder::{self, CatalogItem, Earn, Kind, Mission};
+use starorg_core::ini::StockIni;
+use starorg_core::model::{
+    BlueprintPool, BlueprintPoolEntry, BlueprintReward, Contract, GameData, ReputationReward,
+    ReputationStanding,
+};
 use std::collections::HashMap;
 
 /// name, kind, type, class, maker, size, grade.
@@ -415,7 +421,150 @@ fn item(i: usize, x: &Item) -> CatalogItem {
             .map(|(_, n)| n.to_string()),
         size,
         grade: grade.map(str::to_string),
+        earn: None,
     }
+}
+
+/// Record short name of a mock blueprint (as [`item`] names it).
+fn record(name: &str) -> String {
+    format!("BP_CRAFT_SYN_{}", name.replace([' ', '\''], "_"))
+}
+
+/// Synthetic contracts and pools of a read build, through the core's `earn_index` like a
+/// real build's. PTU has one mission more (a trial that awards a blueprint LIVE's missions
+/// do not), so "All channels" shows missions of several builds.
+fn earn(channel: &str) -> HashMap<String, Vec<Earn<Mission>>> {
+    let pool = |name: &str, list: &[(&str, Option<f64>)]| BlueprintPool {
+        name: name.into(),
+        blueprints: list
+            .iter()
+            .map(|(b, w)| BlueprintPoolEntry {
+                blueprint: record(b),
+                weight: *w,
+            })
+            .collect(),
+    };
+    let contract = |debug: &str, title: Option<&str>, pool: Option<(&str, Option<f64>)>| Contract {
+        generator: "SYN_MockGenerator".into(),
+        debug_name: debug.into(),
+        title_key: title.map(|t| format!("@{t}")),
+        blueprint_rewards: pool
+            .map(|(p, chance)| BlueprintReward {
+                pool: p.into(),
+                chance,
+            })
+            .into_iter()
+            .collect(),
+        ..Default::default()
+    };
+    let rep = |faction: &str, name: Option<&str>| ReputationReward {
+        faction: Some(faction.into()),
+        faction_name_key: name.map(str::to_string),
+        amount: 250.0,
+        on_success: true,
+        on_failure: false,
+    };
+    let mut easy = contract(
+        "SYN_Bounty_Easy",
+        Some("syn_mission_bounty"),
+        Some(("BP_MOCK_BOUNTY", Some(1.0))),
+    );
+    easy.reputation.push(rep(
+        "factionreputation_lawful_synthetic_security",
+        Some("@syn_faction_security"),
+    ));
+    easy.systems = vec!["Stanton".into()];
+    let mut hard = contract(
+        "SYN_Bounty_Hard",
+        Some("syn_mission_bounty"),
+        Some(("BP_MOCK_BOUNTY", Some(1.0))),
+    );
+    hard.reputation.push(rep(
+        "factionreputation_lawful_synthetic_security",
+        Some("@syn_faction_security"),
+    ));
+    hard.systems = vec!["Pyro".into()];
+    let mut salvage = contract(
+        "SYN_Salvage",
+        Some("syn_mission_salvage"),
+        Some(("BP_MOCK_SALVAGE", Some(0.3))),
+    );
+    salvage
+        .reputation
+        .push(rep("factionreputation_unlawful_test_cds", None));
+    salvage.chain = true;
+    salvage.once_only = true;
+    salvage.min_standing = Some("syn_standing_trusted".into());
+    let mut gd = GameData {
+        contracts: vec![
+            easy,
+            hard,
+            salvage,
+            contract(
+                "SYN_Courier_Long",
+                Some("syn_mission_courier"),
+                Some(("BP_MOCK_COURIER", Some(1.0))),
+            ),
+            contract("SYN_Courier_Short", Some("syn_mission_courier"), None),
+            contract("SYN_Debug_Reward", None, Some(("BP_MOCK_DEBUG", Some(1.0)))),
+        ],
+        blueprint_pools: vec![
+            pool(
+                "BP_MOCK_BOUNTY",
+                &[
+                    ("Synthetic Rifle Mk2", Some(1.0)),
+                    ("Sample Shield S1", Some(1.0)),
+                    ("Synthetic Cooler S3", Some(2.0)),
+                    ("Sample Helmet Red", Some(1.0)),
+                    ("PTU Prototype Shield", Some(1.0)),
+                ],
+            ),
+            pool(
+                "BP_MOCK_SALVAGE",
+                &[
+                    ("Synthetic Cannon S3", None),
+                    ("Sample Gatling S4", None),
+                    ("Test Sniper", None),
+                    ("Synthetic Rifle Mk2", None),
+                ],
+            ),
+            pool(
+                "BP_MOCK_COURIER",
+                &[
+                    ("Sample Armor Legs", Some(1.0)),
+                    ("Sample Armor Arms", Some(1.0)),
+                ],
+            ),
+            pool("BP_MOCK_DEBUG", &[("Test Knife", None)]),
+        ],
+        reputation_standings: vec![ReputationStanding {
+            name: "syn_standing_trusted".into(),
+            record_name: "SReputationStandingParams.syn_standing_trusted".into(),
+            display_name_key: Some("@syn_standing_trusted".into()),
+            min_reputation: Some(1000.0),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+    if channel == "PTU" {
+        gd.contracts.push(contract(
+            "SYN_PTU_Trial",
+            Some("syn_mission_trial"),
+            Some(("BP_MOCK_TRIAL", Some(1.0))),
+        ));
+        gd.blueprint_pools
+            .push(pool("BP_MOCK_TRIAL", &[("Synthetic Rifle Mk1", Some(1.0))]));
+    }
+    let stock = StockIni::parse(
+        b"syn_mission_bounty=Eliminate the Sample Warlord\n\
+syn_mission_salvage=Recover the Cargo near ~mission(Location|Address)\n\
+syn_mission_courier=Synthetic Courier Run\n\
+syn_mission_trial=Prototype Trial Run\n\
+syn_standing_trusted=Trusted\n\
+syn_faction_security=Synthetic Security Bureau\n"
+            .to_vec(),
+    );
+    finder::earn_index(&gd, &stock).unwrap_or_default()
 }
 
 /// The build of a mock channel: LIVE and PTU have one (PTU one blueprint more, one less);
@@ -426,12 +575,21 @@ pub fn catalog(channel: &str) -> Option<Vec<CatalogItem>> {
         "PTU" => LIVE_ONLY,
         _ => return None,
     };
+    let earn = earn(channel);
     Some(
         ITEMS
             .iter()
             .enumerate()
             .filter(|(_, x)| x.0 != skip)
-            .map(|(i, x)| item(i, x))
+            .map(|(i, x)| {
+                let mut c = item(i, x);
+                c.earn = Some(
+                    earn.get(&c.record.to_ascii_lowercase())
+                        .cloned()
+                        .unwrap_or_default(),
+                );
+                c
+            })
             .collect(),
     )
 }

@@ -300,7 +300,7 @@ fn build_merges_channels_and_keeps_ownership_scoped() {
     let ptu_cat = catalog(&ptu_gd, &stock, None);
     let live = ChannelInput {
         channel: "LIVE".into(),
-        catalog: Some(live_cat),
+        catalog: Some(Arc::new(live_cat)),
         characters: chars(&[
             ("111", "Pilot_A", "2026-11-14T10:00:00Z"),
             ("222", "Alt_B", "2026-11-01T10:00:00Z"),
@@ -393,7 +393,7 @@ fn build_merges_channels_and_keeps_ownership_scoped() {
     };
     let ptu = ChannelInput {
         channel: "PTU".into(),
-        catalog: Some(ptu_cat),
+        catalog: Some(Arc::new(ptu_cat)),
         // Same geid as LIVE (PTU copy), newer name.
         characters: chars(&[("111", "Pilot_A2", "2026-11-15T10:00:00Z")]),
         sets: vec![set(
@@ -549,7 +549,7 @@ fn two_entries_on_one_blueprint_merge_into_one_owner() {
     );
     let f = build(&[ChannelInput {
         channel: "LIVE".into(),
-        catalog: Some(catalog(&gd, &stock, None)),
+        catalog: Some(Arc::new(catalog(&gd, &stock, None))),
         characters: chars(&[("111", "Pilot_A", "2026-11-14T10:00:00Z")]),
         sets: vec![s],
         unattributed: None,
@@ -621,7 +621,7 @@ fn real_catalog() {
         .collect();
     let f = build(&[ChannelInput {
         channel: "LIVE".into(),
-        catalog: Some(c),
+        catalog: Some(Arc::new(c)),
         characters,
         sets,
         unattributed: crate::blueprints::load_unattributed(data).ok(),
@@ -694,4 +694,310 @@ fn merged_geids_join_up_across_channels() {
     let row = f.rows.iter().find(|r| r.name == "Synthetic Thing").unwrap();
     assert_eq!(row.owners[0].character, "2002");
     assert_eq!(row.owners[0].channel, "PTU");
+}
+
+fn reward(pool: &str, chance: Option<f64>) -> crate::model::BlueprintReward {
+    crate::model::BlueprintReward {
+        pool: pool.into(),
+        chance,
+    }
+}
+
+fn pool(name: &str, list: &[(&str, Option<f64>)]) -> crate::model::BlueprintPool {
+    crate::model::BlueprintPool {
+        name: name.into(),
+        blueprints: list
+            .iter()
+            .map(|(b, w)| crate::model::BlueprintPoolEntry {
+                blueprint: (*b).into(),
+                weight: *w,
+            })
+            .collect(),
+    }
+}
+
+fn contract(
+    debug: &str,
+    title: Option<&str>,
+    rewards: Vec<crate::model::BlueprintReward>,
+) -> Contract {
+    Contract {
+        generator: "SYN_Generator".into(),
+        debug_name: debug.into(),
+        title_key: title.map(|t| format!("@{t}")),
+        blueprint_rewards: rewards,
+        ..Default::default()
+    }
+}
+
+fn rep(faction: &str, name_key: Option<&str>) -> crate::model::ReputationReward {
+    crate::model::ReputationReward {
+        faction: Some(faction.into()),
+        faction_name_key: name_key.map(str::to_string),
+        amount: 100.0,
+        on_success: true,
+        on_failure: false,
+    }
+}
+
+/// The game of [`game`] with contracts: a bounty whose two variants both award a weighted
+/// pool (paying two factions), a salvage job awarded by chance (pool without weights), a
+/// courier run only one of whose two variants awards a pool, a crate run whose pool holds
+/// one blueprint, an untitled contract and an unreleased one.
+fn game_with_missions() -> (GameData, StockIni) {
+    let (mut gd, stock) = game();
+    let mut bounty_a = contract(
+        "SYN_Bounty_Easy",
+        Some("syn_bounty"),
+        vec![reward("BP_POOL_A", Some(1.0))],
+    );
+    bounty_a.reputation.push(rep(
+        "factionreputation_synthetic_cds",
+        Some("@syn_faction_cds"),
+    ));
+    bounty_a.systems = vec!["Stanton".into()];
+    let mut bounty_b = contract(
+        "SYN_Bounty_Hard",
+        Some("syn_bounty"),
+        vec![reward("BP_POOL_A", None)],
+    );
+    bounty_b
+        .reputation
+        .push(rep("factionreputation_lawful_other_guild", None));
+    bounty_b.systems = vec!["Pyro".into()];
+    let mut salvage = contract(
+        "SYN_Salvage",
+        Some("syn_salvage"),
+        vec![reward("BP_POOL_B", Some(0.25))],
+    );
+    salvage.chain = true;
+    salvage.once_only = true;
+    salvage.min_standing = Some("syn_trusted".into());
+    let courier_a = contract(
+        "SYN_Courier_A",
+        Some("syn_courier"),
+        vec![reward("bp_pool_b", Some(1.0))],
+    );
+    let courier_b = contract("SYN_Courier_B", Some("syn_courier"), Vec::new());
+    let crate_run = contract(
+        "SYN_Crate_Run",
+        Some("syn_crate"),
+        vec![reward("BP_POOL_C", Some(1.0))],
+    );
+    let untitled = contract("SYN_Untitled", None, vec![reward("BP_POOL_A", Some(1.0))]);
+    let mut unreleased = contract(
+        "SYN_Test_Only",
+        Some("syn_test"),
+        vec![reward("BP_POOL_A", Some(1.0))],
+    );
+    unreleased.not_for_release = true;
+    gd.contracts = vec![
+        bounty_a, bounty_b, salvage, courier_a, courier_b, crate_run, untitled, unreleased,
+    ];
+    gd.blueprint_pools = vec![
+        // The rifle twice: one entry, both weights.
+        pool(
+            "BP_POOL_A",
+            &[
+                ("BP_CRAFT_SYN_Rifle_01", Some(1.0)),
+                ("BP_CRAFT_SYN_Cooler_S2", Some(3.0)),
+                ("BP_CRAFT_SYN_Rifle_01", Some(1.0)),
+            ],
+        ),
+        pool(
+            "BP_POOL_B",
+            &[
+                ("BP_CRAFT_SYN_Rifle_01", None),
+                ("BP_CRAFT_SYN_Ammo_01", None),
+                ("BP_CRAFT_SYN_Cooler_S2", None),
+            ],
+        ),
+        pool("BP_POOL_C", &[("BP_CRAFT_SYN_Crate", Some(1.0))]),
+    ];
+    gd.reputation_standings = vec![crate::model::ReputationStanding {
+        name: "syn_trusted".into(),
+        record_name: "SReputationStandingParams.syn_trusted".into(),
+        display_name_key: Some("@syn_standing_trusted".into()),
+        min_reputation: Some(500.0),
+        ..Default::default()
+    }];
+    let mut ini = stock.as_bytes().to_vec();
+    ini.extend_from_slice(
+        b"syn_bounty=Eliminate the <EM4>Sample</EM4> Boss\n\
+syn_salvage=Recover cargo near ~mission(Location|Address)\n\
+syn_courier=Sample Courier Run\n\
+syn_crate=Sample Crate Run\n\
+syn_test=Unreleased Test\n\
+syn_standing_trusted=Trusted\n\
+syn_faction_cds=Synthetic Salvage Corp\n",
+    );
+    (gd, StockIni::parse(ini))
+}
+
+#[test]
+fn earn_lists_the_missions_that_award_a_blueprint() {
+    let (gd, stock) = game_with_missions();
+    let c = catalog(&gd, &stock, None);
+    let rifle = by_record(&c, "BP_CRAFT_SYN_Rifle_01").earn.clone().unwrap();
+    let titles: Vec<Option<&str>> = rifle.iter().map(|e| e.mission.title.as_deref()).collect();
+    // Guaranteed pools first (titled before untitled), then by title; the unreleased one is
+    // left out.
+    assert_eq!(
+        titles,
+        [
+            Some("Eliminate the Sample Boss"),
+            None,
+            Some("Recover cargo near [Location]"),
+            Some("Sample Courier Run"),
+        ]
+    );
+    let bounty = &rifle[0];
+    // The pool is sure, the rifle is one draw of two: not "guaranteed" for the rifle.
+    assert_eq!(
+        (bounty.odds.as_str(), bounty.award),
+        ("Guaranteed", Award::GuaranteedPool)
+    );
+    assert_eq!((bounty.variants, bounty.mission.contracts), (2, 2));
+    assert_eq!(
+        (bounty.pool.as_str(), bounty.pick.as_deref()),
+        ("2", Some("40%")),
+        "duplicate weights add up"
+    );
+    assert_eq!(bounty.mission.record, "SYN_Bounty_Easy (+1 more)");
+    assert_eq!(bounty.mission.generator, "SYN_Generator");
+    // Every faction the title pays: the game's name when the record has one.
+    assert_eq!(
+        bounty.mission.factions,
+        [
+            "factionreputation_synthetic_cds",
+            "factionreputation_lawful_other_guild"
+        ]
+    );
+    assert_eq!(
+        bounty.mission.reputation,
+        ["Synthetic Salvage Corp", "Other Guild"]
+    );
+    assert_eq!(bounty.mission.systems, ["Pyro", "Stanton"]);
+    assert!(bounty.mission.kinds.is_empty());
+    assert_eq!(rifle[1].mission.record, "SYN_Untitled");
+    let salvage = &rifle[2];
+    assert_eq!(
+        (salvage.odds.as_str(), salvage.award),
+        ("25%", Award::Chance)
+    );
+    assert_eq!(
+        (salvage.pool.as_str(), salvage.pick.as_deref()),
+        ("3", None),
+        "no weights, no pick share"
+    );
+    assert_eq!(salvage.mission.kinds, ["Chain", "Once only"]);
+    assert_eq!(salvage.mission.requires.as_deref(), Some("Trusted"));
+    assert!(salvage.mission.systems.is_empty(), "no locality: not known");
+    assert!(salvage.mission.factions.is_empty());
+    // Only one of the two courier variants awards a pool (pool names fold case).
+    let courier = &rifle[3];
+    assert_eq!(
+        (
+            courier.odds.as_str(),
+            courier.award,
+            courier.variants,
+            courier.mission.contracts
+        ),
+        ("Some variants only", Award::Chance, 1, 2)
+    );
+    // A sure pool of one: the blueprint itself is guaranteed.
+    let crate_earn = by_record(&c, "BP_CRAFT_SYN_Crate").earn.clone().unwrap();
+    assert_eq!(
+        (crate_earn[0].award, crate_earn[0].pool.as_str()),
+        (Award::Guaranteed, "1")
+    );
+    let cooler = by_record(&c, "BP_CRAFT_SYN_Cooler_S2")
+        .earn
+        .clone()
+        .unwrap();
+    assert_eq!(cooler.len(), 4);
+    assert_eq!(cooler[0].pick.as_deref(), Some("60%"));
+    assert_eq!(
+        by_record(&c, "BP_CRAFT_SYN_LaserCannon_S3").earn,
+        Some(Vec::new())
+    );
+    // Contracts not read: not known, rather than "no missions".
+    let (plain, stock) = game();
+    assert!(
+        catalog(&plain, &stock, None)
+            .iter()
+            .all(|i| i.earn.is_none())
+    );
+}
+
+#[test]
+fn finder_rows_merge_every_channels_missions() {
+    let (gd, stock) = game_with_missions();
+    // LIVE's contracts were read but award nothing; HOTFIX has PTU's; RETAIL is not read.
+    let (mut live, live_stock) = game();
+    live.contracts = vec![contract("SYN_Nothing", None, Vec::new())];
+    let input = |channel: &str, cat: Vec<CatalogItem>| ChannelInput {
+        channel: channel.into(),
+        catalog: Some(Arc::new(cat)),
+        ..Default::default()
+    };
+    let (plain, plain_stock) = game();
+    let mut ptu = input("PTU", catalog(&gd, &stock, None));
+    ptu.characters = chars(&[("1", "Pilot", "2026-01-01T00:00:00Z")]);
+    ptu.sets = vec![set(
+        "1",
+        vec![entry(
+            "Not A Blueprint",
+            &[],
+            false,
+            SOURCE_LOG,
+            "2026-01-01T00:00:00Z",
+        )],
+    )];
+    let f = build(&[
+        input("LIVE", catalog(&live, &live_stock, None)),
+        ptu,
+        input("HOTFIX", catalog(&gd, &stock, None)),
+        input("RETAIL", catalog(&plain, &plain_stock, None)),
+    ]);
+    let row = |n: &str| f.rows.iter().find(|r| r.name == n).unwrap();
+    let rifle = row("Test Rifle");
+    // LIVE's empty list does not hide the other channels' missions; each says where it is.
+    assert_eq!(rifle.earn_read, ["LIVE", "PTU", "HOTFIX"]);
+    assert_eq!(rifle.earn.len(), 4);
+    assert!(rifle.earn.iter().all(|e| e.channels == ["PTU", "HOTFIX"]));
+    assert_eq!(f.missions.len(), 5, "each mission once over the channels");
+    let mut sorted = f.missions.clone();
+    sorted.sort();
+    assert_eq!(f.missions, sorted);
+    assert_eq!(
+        f.missions[rifle.earn[0].mission as usize].title.as_deref(),
+        Some("Eliminate the Sample Boss")
+    );
+    let cooler = row("Synthetic Cooler");
+    assert_eq!(
+        cooler.earn[0].mission, rifle.earn[0].mission,
+        "shared, not copied"
+    );
+    let name_row = row("Not A Blueprint");
+    assert!(
+        name_row.earn.is_empty() && name_row.earn_read.is_empty(),
+        "a name row: not known"
+    );
+}
+
+#[test]
+fn readable_titles_and_faction_names() {
+    assert_eq!(
+        readable_title("Go to ~mission(Location|Address) <EM4>now</EM4>  "),
+        "Go to [Location] now"
+    );
+    assert_eq!(readable_title("50% ~ off <b"), "50% ~ off <b");
+    assert_eq!(faction_label("factionreputation_lawful_ftl"), "FTL");
+    assert_eq!(
+        faction_label("factionreputation_unlawful_red_wind"),
+        "Red Wind"
+    );
+    assert_eq!(faction_label("FactionReputation_Lawful"), "Lawful");
+    assert_eq!(faction_label("hockrow_agency"), "Hockrow Agency");
 }

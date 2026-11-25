@@ -47,10 +47,25 @@ export function seedOwned(sample: T.BlueprintFinder, channel: string): Map<strin
   return out;
 }
 
-/** Catalogue of one channel: the sample rows that channel's build has. `null` = not read. */
+/** Catalogue of one channel: the sample rows that channel's build has, with that build's missions only. `null` = not read. */
 function catalog(sample: T.BlueprintFinder, channel: string): T.BlueprintRow[] | null {
   if (!sample.channels.some((c) => c.channel === channel && c.catalog !== null)) return null;
-  return sample.rows.filter((r) => r.record !== null && r.channels.includes(channel)).map((r) => ({ ...r, owners: [], maybe: [] }));
+  return sample.rows
+    .filter((r) => r.record !== null && r.channels.includes(channel))
+    .map((r) => ({ ...r, owners: [], maybe: [], earn: r.earn.filter((e) => e.channels.includes(channel)), earn_read: r.earn_read.filter((c) => c === channel) }));
+}
+
+const sameEarn = (a: T.BlueprintEarn, b: T.BlueprintEarn) => a.mission === b.mission && a.award === b.award && a.odds === b.odds && a.variants === b.variants && a.pool === b.pool && a.pick === b.pick;
+/** Core `MissionTable::merge`: one channel's entries into the row, the same entry once with its channels. */
+function mergeEarn(row: T.BlueprintRow, c: T.BlueprintRow, channel: string) {
+  if (!c.earn_read.includes(channel)) return;
+  if (!row.earn_read.includes(channel)) row.earn_read.push(channel);
+  for (const e of c.earn) {
+    const x = row.earn.find((y) => sameEarn(y, e));
+    if (x) {
+      if (!x.channels.includes(channel)) x.channels.push(channel);
+    } else row.earn.push({ ...e, channels: [channel] });
+  }
 }
 
 /** Owner id of `unattributed.json` (core `finder::UNATTRIBUTED`). */
@@ -87,10 +102,11 @@ export function mockFinder(sample: T.BlueprintFinder, chans: FinderChan[], chara
     for (const c of cat) {
       let i = byKey.get(c.key);
       if (i === undefined) {
-        rows.push({ ...structuredClone(c), channels: [], candidates: [], owners: [], maybe: [] });
+        rows.push({ ...structuredClone(c), channels: [], candidates: [], owners: [], maybe: [], earn: [], earn_read: [] });
         byKey.set(c.key, (i = rows.length - 1));
       }
       if (!rows[i]!.channels.includes(ch.channel)) rows[i]!.channels.push(ch.channel);
+      mergeEarn(rows[i]!, c, ch.channel);
       addName(names, normalize(c.name), c.key);
       addName(namesAll, normalize(c.name), c.key);
     }
@@ -139,7 +155,7 @@ export function mockFinder(sample: T.BlueprintFinder, chans: FinderChan[], chara
         key ??= `name:${norm}`;
         let i = byKey.get(key);
         if (i === undefined) {
-          rows.push({ key, name: b.name, record: null, kind: 'other', type_label: null, class: null, manufacturer: null, manufacturer_name: null, size: null, grade: null, channels: [], candidates: [], owners: [], maybe: [] });
+          rows.push({ key, name: b.name, record: null, kind: 'other', type_label: null, class: null, manufacturer: null, manufacturer_name: null, size: null, grade: null, channels: [], candidates: [], owners: [], maybe: [], earn: [], earn_read: [] });
           byKey.set(key, (i = rows.length - 1));
         }
         for (const c of candidates) if (!rows[i]!.candidates.includes(c)) rows[i]!.candidates.push(c);
@@ -165,8 +181,50 @@ export function mockFinder(sample: T.BlueprintFinder, chans: FinderChan[], chara
     for (const c of cands) for (const x of c.channels) if (!r.channels.includes(x)) r.channels.push(x);
   }
   rows.sort((a, b) => byte(a.name.toLowerCase(), b.name.toLowerCase()) || byte(a.key, b.key));
+  const missions = missionTable(sample.missions, rows);
   const outChars = [...chars.values()].sort(
     (a, b) => Number(a.id === UNATTRIBUTED) - Number(b.id === UNATTRIBUTED) || byte(a.name.toLowerCase(), b.name.toLowerCase()) || byte(a.id, b.id),
   );
-  return { channels: outChans, characters: outChars, rows };
+  return { channels: outChans, characters: outChars, rows, missions };
+}
+
+const nullFirst = (a: string | null, b: string | null) => (a === null ? (b === null ? 0 : -1) : b === null ? 1 : byte(a, b));
+const lists = (a: string[], b: string[]) => {
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    const c = byte(a[i]!, b[i]!);
+    if (c) return c;
+  }
+  return a.length - b.length;
+};
+/** Core `Mission`'s derived order: its fields in declaration order, `None` first. */
+function missionOrder(a: T.BlueprintMission, b: T.BlueprintMission): number {
+  return (
+    nullFirst(a.title, b.title) ||
+    byte(a.record, b.record) ||
+    byte(a.generator, b.generator) ||
+    lists(a.factions, b.factions) ||
+    lists(a.reputation, b.reputation) ||
+    lists(a.systems, b.systems) ||
+    lists(a.kinds, b.kinds) ||
+    nullFirst(a.requires, b.requires) ||
+    a.contracts - b.contracts
+  );
+}
+
+const AWARD_RANK: Record<T.BlueprintAward, number> = { guaranteed: 0, 'guaranteed-pool': 1, chance: 2 };
+/** Core `earn_order`: sure rewards first, titled before untitled, then title and record. */
+function earnOrder(a: T.BlueprintEarn, b: T.BlueprintEarn, from: T.BlueprintMission[]): number {
+  const ma = from[a.mission]!;
+  const mb = from[b.mission]!;
+  return AWARD_RANK[a.award] - AWARD_RANK[b.award] || Number(ma.title === null) - Number(mb.title === null) || nullFirst(ma.title, mb.title) || byte(ma.record, mb.record);
+}
+
+/** Core `MissionTable`: the missions the rows name (their `earn` indices point into `from`), each once, sorted; the rows' entries re-sorted and their indices moved with them. */
+function missionTable(from: T.BlueprintMission[], rows: T.BlueprintRow[]): T.BlueprintMission[] {
+  const used = new Map<string, T.BlueprintMission>();
+  for (const r of rows) for (const e of r.earn) if (from[e.mission]) used.set(JSON.stringify(from[e.mission]), from[e.mission]!);
+  const list = [...used.values()].sort(missionOrder);
+  const at = new Map(list.map((m, i) => [JSON.stringify(m), i]));
+  for (const r of rows) r.earn = [...r.earn].sort((a, b) => earnOrder(a, b, from)).map((e) => ({ ...e, mission: at.get(JSON.stringify(from[e.mission])) ?? e.mission }));
+  return structuredClone(list);
 }
