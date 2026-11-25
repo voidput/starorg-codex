@@ -43,7 +43,6 @@ jobs:
             rel=$(gh release view "$tag" -R "$REPO" --json tagName,name,url,body,isPrerelease,createdAt)
             if [ "$(jq -r .isPrerelease <<<"$rel")" = true ]; then hook=${HOOK_DEV:-}; lane=dev; else hook=${HOOK_MAIN:-}; lane=main; fi
             payload=$(jq -c --arg app "$APP" --arg lane "$lane" '{
-                username: ($app + " releases"),
                 allowed_mentions: {parse: []},
                 embeds: [{
                   title: ($app + " " + .tagName + (if .name != "" and .name != .tagName then " · " + .name else "" end)),
