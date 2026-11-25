@@ -1,0 +1,189 @@
+# Reusable Discord notifier (docs/ci.md). Three kinds:
+#   failure  - red embed; CI and Security call it when a push/schedule run fails.
+#   success  - green "recovered" embed, posted only when the previous decisive run of the same workflow on the
+#              same branch failed (or this is a successful re-run of a failed attempt). Plain green runs post nothing.
+#   release  - blue embed with the version and release link; release.yml calls it when release-please publishes.
+# Webhook by branch: main -> DISCORD_RELEASE_WEBHOOK_MAIN, dev -> DISCORD_RELEASE_WEBHOOK_DEV, each falling back to
+# DISCORD_CI_WEBHOOK. Any other branch, or no secret set (forks), is a no-op. The URL only ever lives in an env var
+# and is never printed. GitHub-hosted runner only: this is a public repo.
+name: Notify Discord
+
+on:
+  workflow_call:
+    inputs:
+      kind:
+        description: "failure, success or release"
+        required: true
+        type: string
+      workflow:
+        description: "Human-readable name of the calling workflow"
+        required: true
+        type: string
+      tag:
+        description: "release only: the release tag (vX.Y.Z)"
+        required: false
+        type: string
+        default: ""
+      prerelease:
+        description: "release only: 'true' for a SemVer prerelease"
+        required: false
+        type: string
+        default: "false"
+    secrets:
+      webhook_main:
+        description: "Discord webhook for main (DISCORD_RELEASE_WEBHOOK_MAIN)"
+        required: false
+      webhook_dev:
+        description: "Discord webhook for dev (DISCORD_RELEASE_WEBHOOK_DEV)"
+        required: false
+      webhook_fallback:
+        description: "Fallback webhook for either branch (DISCORD_CI_WEBHOOK)"
+        required: false
+
+# Only talks to Discord and reads this repo's run history. A called workflow never holds more than its caller grants.
+permissions: {}
+
+jobs:
+  notify:
+    name: Post to Discord
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read # recovery check: the previous run's conclusion
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+
+      - name: Post to Discord
+        env:
+          WEBHOOK_URL: >-
+            ${{ github.ref_name == 'main' && (secrets.webhook_main || secrets.webhook_fallback)
+            || github.ref_name == 'dev' && (secrets.webhook_dev || secrets.webhook_fallback) || '' }}
+          GH_TOKEN: ${{ github.token }}
+          KIND: ${{ inputs.kind }}
+          WORKFLOW: ${{ inputs.workflow }}
+          TAG: ${{ inputs.tag }}
+          PRERELEASE: ${{ inputs.prerelease }}
+          API_URL: ${{ github.api_url }}
+          SERVER_URL: ${{ github.server_url }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.ref_name }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+          RUN_ID: ${{ github.run_id }}
+          RUN_NUMBER: ${{ github.run_number }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.parse
+          import urllib.request
+
+          env = os.environ
+          kind = env["KIND"]
+          webhook_url = env.get("WEBHOOK_URL", "")
+          if not webhook_url:
+              print(f"No Discord webhook for branch {env['BRANCH']!r}; skipping notification.")
+              raise SystemExit(0)
+
+          repo = env["REPO"]
+          sha = env["SHA"]
+          run_url = f"{env['SERVER_URL']}/{repo}/actions/runs/{env['RUN_ID']}"
+          commit_url = f"{env['SERVER_URL']}/{repo}/commit/{sha}"
+          FAILED = {"failure", "timed_out", "startup_failure"}
+
+
+          def api(path):
+              req = urllib.request.Request(
+                  f"{env['API_URL']}{path}",
+                  headers={
+                      "Authorization": f"Bearer {env['GH_TOKEN']}",
+                      "Accept": "application/vnd.github+json",
+                      "X-GitHub-Api-Version": "2022-11-28",
+                  },
+              )
+              with urllib.request.urlopen(req, timeout=30) as resp:
+                  return json.load(resp)
+
+
+          def previous_failed():
+              """True when this run follows a failure on the same workflow and branch."""
+              run_id = int(env["RUN_ID"])
+              attempt = int(env["RUN_ATTEMPT"])
+              base = f"/repos/{repo}/actions/runs/{run_id}"
+              if attempt > 1:  # a re-run: compare against the attempt before it
+                  return api(f"{base}/attempts/{attempt - 1}").get("conclusion") in FAILED
+              workflow_id = api(base)["workflow_id"]
+              query = urllib.parse.urlencode({"branch": env["BRANCH"], "status": "completed", "per_page": 50})
+              runs = api(f"/repos/{repo}/actions/workflows/{workflow_id}/runs?{query}")["workflow_runs"]
+              # PR runs from this branch share head_branch; cancelled/skipped runs say nothing about health.
+              earlier = [
+                  r for r in runs
+                  if r["id"] != run_id
+                  and r["run_number"] < int(env["RUN_NUMBER"])
+                  and r["event"] != "pull_request"
+                  and r["conclusion"] in FAILED | {"success"}
+              ]
+              if not earlier:
+                  return False
+              return max(earlier, key=lambda r: r["run_number"])["conclusion"] in FAILED
+
+
+          fields = [
+              {"name": "Repository", "value": repo, "inline": True},
+              {"name": "Branch", "value": env["BRANCH"], "inline": True},
+          ]
+          if kind == "failure":
+              embed = {
+                  "title": f"CI failed - {env['WORKFLOW']}",
+                  "url": run_url,
+                  "description": f"[View the failing run]({run_url})",
+                  "color": 15548997,  # Discord red
+              }
+          elif kind == "success":
+              try:
+                  recovered = previous_failed()
+              except Exception as exc:  # a lookup hiccup must not turn a green run red
+                  print(f"::warning::Recovery check failed ({type(exc).__name__}); not posting.")
+                  raise SystemExit(0)
+              if not recovered:
+                  print("Previous run was not a failure; nothing to post.")
+                  raise SystemExit(0)
+              embed = {
+                  "title": f"CI recovered - {env['WORKFLOW']}",
+                  "url": run_url,
+                  "description": f"Back to green after a failure. [View the run]({run_url})",
+                  "color": 5763719,  # Discord green
+              }
+          elif kind == "release":
+              tag = env["TAG"]
+              release_url = f"{env['SERVER_URL']}/{repo}/releases/tag/{urllib.parse.quote(tag)}"
+              pre = env.get("PRERELEASE") == "true"
+              embed = {
+                  "title": f"Released {tag}" + (" (prerelease)" if pre else ""),
+                  "url": release_url,
+                  "description": f"[Release notes and downloads]({release_url}). Assets upload while the build jobs run.",
+                  "color": 3447003,  # Discord blue
+              }
+              fields.append({"name": "Version", "value": tag, "inline": True})
+          else:
+              raise SystemExit(f"Unknown kind {kind!r}")
+
+          fields += [
+              {"name": "Trigger", "value": env["EVENT"], "inline": True},
+              {"name": "Commit", "value": f"[`{sha[:7]}`]({commit_url})", "inline": True},
+          ]
+          embed["fields"] = fields
+          data = json.dumps({"content": "", "embeds": [embed]}).encode("utf-8")
+          req = urllib.request.Request(
+              webhook_url,
+              data=data,
+              headers={"Content-Type": "application/json", "User-Agent": "Mozilla/5.0"},
+          )
+          # Deliberately unguarded: a webhook that rejects us is a real config problem.
+          urllib.request.urlopen(req, timeout=30)
+          print(f"Discord {kind} notification sent.")
+          PY

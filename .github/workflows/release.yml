@@ -501,3 +501,20 @@ jobs:
         run: |
           cp "$BUNDLE" "starorg-codex-$TAG.intoto.jsonl"
           gh release upload "$TAG" -R "$REPO" "starorg-codex-$TAG.intoto.jsonl" --clobber
+
+  # Discord announcement on the main webhook (DISCORD_RELEASE_WEBHOOK_MAIN, else DISCORD_CI_WEBHOOK) as soon as
+  # release-please publishes; it does not wait for the asset builds. No-op without a secret. docs/ci.md.
+  notify-release:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    permissions:
+      actions: read
+    uses: ./.github/workflows/notify-discord.yml
+    with:
+      kind: release
+      workflow: Release
+      tag: ${{ needs.release-please.outputs.tag_name }}
+      prerelease: ${{ needs.release-please.outputs.prerelease }}
+    secrets:
+      webhook_main: ${{ secrets.DISCORD_RELEASE_WEBHOOK_MAIN }}
+      webhook_fallback: ${{ secrets.DISCORD_CI_WEBHOOK }}

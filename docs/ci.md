@@ -1,7 +1,7 @@
 ---
 title: CI and security checks
 tags: [ci, security]
-updated: 2026-11-15
+updated: 2026-11-25
 ---
 
 # CI and security checks
@@ -12,13 +12,39 @@ comment; Dependabot (`github-actions`) moves the SHA and comment together. Each 
 
 | Workflow | Triggers | Jobs |
 |---|---|---|
-| CI (`ci.yml`) | PR, push `main`/`dev` | `rust` (fmt, clippy, tests on Linux + Windows, release worker test, Tauri crate checks), `deny` (cargo-deny, all checks), `cli-deps` (CLI tree has no GTK/HTTP), `ui` (lint, check, unit tests in `app/`), `notices` (`THIRD_PARTY_NOTICES.md` up to date; warning only, so Dependabot lock bumps stay green), `notify-failure` |
-| Security (`security.yml`) | push `main`, PR, weekly Mon 06:17 UTC, manual | `codeql` (rust, javascript-typescript, actions; `security-and-quality`; `build-mode: none` so no GTK build), `cargo-audit` (RustSec advisories via cargo-deny), `npm-audit` (`app/`: prod moderate+, all high+), `dependency-review` (PRs, fails on high+), `secrets` (gitleaks, full history), `notify-failure` |
+| CI (`ci.yml`) | PR, push `main`/`dev` | `rust` (fmt, clippy, tests on Linux + Windows, release worker test, Tauri crate checks), `deny` (cargo-deny, all checks), `cli-deps` (CLI tree has no GTK/HTTP), `ui` (lint, check, unit tests in `app/`), `notices` (`THIRD_PARTY_NOTICES.md` up to date; warning only, so Dependabot lock bumps stay green), `notify` |
+| Security (`security.yml`) | push `main`, PR, weekly Mon 06:17 UTC, manual | `codeql` (rust, javascript-typescript, actions; `security-and-quality`; `build-mode: none` so no GTK build), `cargo-audit` (RustSec advisories via cargo-deny), `npm-audit` (`app/`: prod moderate+, all high+), `dependency-review` (PRs, fails on high+), `secrets` (gitleaks, full history), `notify` |
 | Scorecard (`scorecard.yml`) | push `main`, weekly Mon 06:41 UTC, manual | OpenSSF Scorecard; publishes the score and uploads SARIF to Code scanning. Never fails the build |
-| Notify CI Failure (`notify-failure.yml`) | `workflow_call` only | Posts a red Discord embed. No-ops when the webhook secret is unset. GitHub-hosted runner only (public repo: never self-hosted) |
-| Release (`release.yml`) | push `main` | release-please + build matrix; see [release process](release.md) |
+| Notify Discord (`notify-discord.yml`) | `workflow_call` only | Posts a failure, recovery or release embed to the branch's Discord webhook; see [Discord notifications](#discord-notifications). GitHub-hosted runner only (public repo: never self-hosted) |
+| Release (`release.yml`) | push `main` | release-please + build matrix, `notify-release`; see [release process](release.md) |
 
-`notify-failure` jobs in CI and Security run `if: failure()` on push/schedule only, never on PRs.
+## Discord notifications
+`notify` jobs in CI and Security, and `notify-release` in Release, call `notify-discord.yml`. They never run on
+PRs, and branches other than `main` and `dev` post nothing.
+
+| Event | Branch | Posts | Webhook (first one set) |
+|---|---|---|---|
+| CI push / Security push, schedule or manual run fails | `main` | red "CI failed" | `DISCORD_RELEASE_WEBHOOK_MAIN`, `DISCORD_CI_WEBHOOK` |
+| same | `dev` | red "CI failed" | `DISCORD_RELEASE_WEBHOOK_DEV`, `DISCORD_CI_WEBHOOK` |
+| a green run whose previous run (same workflow, same branch) failed | `main` / `dev` | green "CI recovered" | as above for the branch |
+| a green run after a green run | any | nothing | - |
+| release-please publishes a release | `main` | blue "Released vX.Y.Z" with the release link | `DISCORD_RELEASE_WEBHOOK_MAIN`, `DISCORD_CI_WEBHOOK` |
+| anything with no webhook set for the branch (forks too) | any | nothing (logged as skipped) | - |
+
+Security only runs on `main` (push, the weekly schedule) plus manual runs, so `dev` sees CI only. "Previous run"
+ignores PR, cancelled and skipped runs; a successful re-run of a failed attempt also counts as a recovery. If the
+run-history lookup fails, the recovery post is skipped with a warning rather than failing a green run. The release
+post goes out as soon as the release exists; assets keep uploading from the build jobs for a while after.
+
+Set up a webhook: in Discord, Server Settings -> Integrations -> Webhooks -> New Webhook, pick the channel, Copy
+Webhook URL. Then store it as a repo secret (`gh` prompts for the value, so it never lands in shell history):
+```sh
+gh secret set DISCORD_RELEASE_WEBHOOK_DEV -R voidput/starorg-codex
+gh secret set DISCORD_RELEASE_WEBHOOK_MAIN -R voidput/starorg-codex
+gh secret list -R voidput/starorg-codex   # names only
+```
+The URL is a credential: anyone holding it can post to the channel. Workflows pass it only through an env var and
+never print it; to rotate, delete the webhook in Discord and set the secret again.
 
 ## Dependabot
 `.github/dependabot.yml`: weekly (Monday) cargo (`/`), npm (`/app`) and github-actions (`/`). Minor/patch are grouped
@@ -34,7 +60,9 @@ Deferred majors (each has a targeted `ignore` in `dependabot.yml`; drop it when 
 ## Secrets
 | Secret | Required | Use |
 |---|---|---|
-| `DISCORD_CI_WEBHOOK` | optional | Discord webhook for failure pings; unset means no notification |
+| `DISCORD_RELEASE_WEBHOOK_MAIN` | optional | Discord webhook for `main`: failures, recoveries, releases |
+| `DISCORD_RELEASE_WEBHOOK_DEV` | optional | Discord webhook for `dev`: failures, recoveries |
+| `DISCORD_CI_WEBHOOK` | optional | fallback for either branch when its own secret is unset; none set means no notification |
 | `GITHUB_TOKEN` | automatic | dependency review, CodeQL (gitleaks runs as the pinned CLI, no token or licence) |
 | `TAURI_SIGNING_*` | handled elsewhere | release signing, see [release process](release.md) |
 
@@ -50,7 +78,7 @@ Deferred majors (each has a targeted `ignore` in `dependabot.yml`; drop it when 
   on a PR only (solo merges, and release-please PRs, which get no CI runs from `GITHUB_TOKEN`); a
   `Release-As:` commit therefore goes through a PR too. Renaming a CI job means updating the
   ruleset's check list.
-- Optional: add the `DISCORD_CI_WEBHOOK` Actions secret.
+- Optional: add the Discord webhook secrets ([Discord notifications](#discord-notifications)).
 
 ## Scorecard
 
