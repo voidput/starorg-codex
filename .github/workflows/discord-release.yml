@@ -47,7 +47,7 @@ jobs:
                 embeds: [{
                   title: ($app + " " + .tagName + (if .name != "" and .name != .tagName then " · " + .name else "" end)),
                   url: .url,
-                  description: ((.body // "") | if length > 1800 then .[0:1800] + "\n…" else . end),
+                  description: ((.body // "") | gsub(" by @[A-Za-z0-9-]+(\\[bot\\])?"; "") | gsub("\\n[^\\n]*made their first contribution[^\\n]*"; "") | gsub("\\n#+ New Contributors[ \\t]*\\n"; "\n") | if length > 1800 then .[0:1800] + "\n…" else . end),
                   color: (if $lane == "dev" then 15105570 else 3066993 end),
                   footer: {text: (if $lane == "dev" then "dev · pre-release" else "main · release" end)},
                   timestamp: .createdAt }] }' <<<"$rel")
