@@ -310,37 +310,35 @@ a high roll. Pick one for:
   override naming a station or a place no spawn row is says so and is applied nowhere. A place
   whose system the data does not give (Lagrange points, asteroid clusters) shows "curve not
   known" where a system override exists, not "same as base".
-- **Rock physics:** resistance, instability and the optimal charge window (where it sits, how far
+- **Rock physics** (folded, open it to see): resistance, instability and the optimal charge window (where it sits, how far
   it moves, how thin it is) from the game's mineable element records. Rock mass is not known:
   the game rolls it when a rock spawns.
 - **Where found:** every body or belt that spawns it, **Most common** first or **Best quality**
   first. Each row shows its mining kind, its quality range and where the curve comes from
   (*same as base*, the override, or not known), the estimated share of rolls at 700 or more
-  (*est.*: a normal curve cut to its range), the difficulty and the laser it takes. A row whose
+  (*est.*: a normal curve cut to its range), the best shown rolls with their shares, and the
+  difficulty. A row whose
   ore has a quality scale below 1 in that rock (the records give ×0.49 or ×0.79 for many) is
   marked `*`: how the game applies the scale is not in the data, so the share is not changed,
   may be lower, and the row sorts after full-scale rows in **Best quality**. Names come from the
-  body, else the provider key (`Yela Belt`, `Lagrange A`). Open a row for the rock: its record, tier, scan signature, how much of
-  it is this ore, what else it can hold, the top two shown values here with their shares, and the
-  difficulty and laser estimates with their inputs.
+  body, else the provider key (`Yela Belt`, `Lagrange A`). Open a row for its quality first (range, share at 700 or
+  more, best rolls with their shares, the scale note), then one rock line (tier, kind, how much
+  of it is this ore, what else it can hold, scan signature) and the difficulty with its inputs.
 - **Hand-placed spots:** caves, asteroid bases and events whose spawn points place the rock;
   they roll the base curve (the data does not say which system a spot is in).
 
-**Estimates.** Two numbers are worked out, not read, and say so:
+**Estimates.** The quality shares and the difficulty are worked out, not read, and say so:
 
 - **Difficulty** (easy, medium, hard) scores resistance (below 0.2, below 0.6, else), instability
   (below 100, below 500, else) and window thinness (below 0.6, below 1.5, else) 0, 1 or 2 points
   each: 0-1 of 6 easy, 2-3 medium, 4-6 hard. A missing input is left out and named.
-- **Laser:** a hand-mined rock takes a multitool and a ROC rock a ROC: that follows from the
-  rock's kind in the game data. For a ship rock the Prospector (one S1 laser) and the MOLE (three
-  S2 lasers) are compared: effective power = best laser power of that size × lasers × (1 −
-  resistance), from the mining lasers in the ship weapons data. Breaking a rock also depends on
-  its mass, which the game files do not hold, so no ship is picked: the numbers are shown and
-  the line says "rock mass not known". The Golem is not compared (ship loadouts are not read).
+- **No ship or laser pick.** The kind column says whether a rock is hand, ROC or ship mined
+  (from the game data). Which laser head suits a ship rock depends on more than beam power
+  (resistance and instability modifiers, window size, module slots), and the game files read
+  here hold only power and range, so no head or ship is recommended.
 
-The rock physics and laser power come from two datasets **Read game data** adds (rock physics
-and ship weapons); a build read before them shows "not known yet" and the top line offers
-**Read game data** again.
+The rock physics come from a dataset **Read game data** adds; a build read before it shows "not
+known yet" and the top line offers **Read game data** again.
 
 ## Loot
 

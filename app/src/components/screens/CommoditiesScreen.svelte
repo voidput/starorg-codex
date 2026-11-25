@@ -10,7 +10,7 @@
    *
    * Mining: every mineable resource (`mining_list`), filtered by mining kind and sorted by
    * name or best quality, windowed the same way; right, one mineral (`mining_detail`): raw to
-   * refined, quality per place, rock physics, difficulty and the laser estimate. Its list
+   * refined, quality per place, rock physics and difficulty. Its list
    * loads the first time the tab opens, then stays for the build like the commodity list.
    *
    * Lazy: nothing loads until this screen opens; the list call returns summaries only, and a
@@ -52,7 +52,7 @@
   const ROW = 30;
   const TABS: { id: CommoditiesTab; label: string; hint: string }[] = [
     { id: 'commodities', label: 'Commodities', hint: 'Every tradable resource: forms, quality, cargo, kiosk prices' },
-    { id: 'mining', label: 'Mining', hint: 'Every mineable resource: places, quality by place, rock, difficulty, laser' },
+    { id: 'mining', label: 'Mining', hint: 'Every mineable resource: quality by place, best rolls, rock, difficulty' },
   ];
   const SORTS: { id: MineralSort; label: string; hint: string }[] = [
     { id: 'name', label: 'Name', hint: 'By name' },
@@ -150,7 +150,7 @@
   /** The Mining datasets this build has not read yet, for the top line. */
   const notRead = $derived(
     mdir?.state === 'ready'
-      ? [!mdir.spawns_read && 'mining spawns', !mdir.spots_read && 'hand-placed spots', !mdir.physics && 'rock physics', !mdir.lasers_read && 'laser power'].filter((x): x is string => !!x)
+      ? [!mdir.spawns_read && 'mining spawns', !mdir.spots_read && 'hand-placed spots', !mdir.physics && 'rock physics'].filter((x): x is string => !!x)
       : [],
   );
 
@@ -584,7 +584,7 @@
           <ErrorState title="Could not read this mineral" error={mInfoError} onretry={() => tick++} />
         {:else if mineral && mdir}
           <div class={cn('transition-opacity', mInfoLoading && 'opacity-60')}>
-            <MiningDetailView m={mineral} lasers={mdir.lasers} physics={mdir.physics} lasersRead={mdir.lasers_read} spawnsRead={mdir.spawns_read} spotsRead={mdir.spots_read} oncommodity={showCommodity} />
+            <MiningDetailView m={mineral} physics={mdir.physics} spawnsRead={mdir.spawns_read} spotsRead={mdir.spots_read} oncommodity={showCommodity} />
           </div>
         {:else if mInfoLoading || (mCurrent && !mInfo) || !mdir}
           <div class="grid gap-3" aria-label="Loading">

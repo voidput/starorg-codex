@@ -2,30 +2,29 @@
   /**
    * One mineral in full (`mining_detail`): what it refines into, its quality curve and the
    * place overrides, the rock physics, and every body or belt that spawns it with that
-   * place's quality, rock profile, difficulty and the laser it takes. A number the data does
-   * not hold says "not known"; the difficulty and the ship comparison are labelled estimates
-   * with their inputs. Places sort most common or best quality first.
+   * place's quality first, then a short rock line and the difficulty estimate. A number the
+   * data does not hold says "not known". No ship or laser pick: the head records hold only beam
+   * power and range, not the modifiers that decide a head, so a pick would mislead. Places sort
+   * most common or best quality first.
    */
   import ChevronRight from '@lucide/svelte/icons/chevron-right';
   import Segmented from '@/components/common/Segmented.svelte';
-  import type { LaserClass, MineralDetail, MiningPlace } from '@/lib/contract/types';
+  import type { MineralDetail, MiningPlace } from '@/lib/contract/types';
   import { pctText, qualityText, spotPlace } from '@/lib/sources';
   import { numText } from '@/lib/commodities';
-  import { curveSource, difficultyInputs, GRADE_LABEL, gradeTone, kindLabel, placeName, powerText, rangeText, scaleNote, shareText, sortPlaces, type PlaceSort } from '@/lib/mining';
+  import { curveSource, difficultyInputs, GRADE_LABEL, gradeTone, kindLabel, placeName, rangeText, scaleNote, shareText, sortPlaces, type PlaceSort } from '@/lib/mining';
   import { cn } from '@/lib/utils';
 
   interface Props {
     m: MineralDetail;
-    lasers: LaserClass[];
     physics: boolean;
-    lasersRead: boolean;
     /** `game-mining-spawns` and `game-item-sources` were read. */
     spawnsRead: boolean;
     spotsRead: boolean;
     /** Show a resource on the Commodities tab. */
     oncommodity: (id: string) => void;
   }
-  let { m, lasers, physics, lasersRead, spawnsRead, spotsRead, oncommodity }: Props = $props();
+  let { m, physics, spawnsRead, spotsRead, oncommodity }: Props = $props();
 
   let sort = $state<PlaceSort>('common');
   let open = $state<Record<string, boolean>>({});
@@ -35,7 +34,7 @@
   ];
   const places = $derived(sortPlaces(m.places, sort));
   const key = (p: MiningPlace) => `${p.ore}|${p.location}|${p.rock}`;
-  const PLACE_GRID = 'grid grid-cols-[1rem_minmax(0,1.4fr)_3rem_minmax(0,1.3fr)_4rem_4.5rem_minmax(0,1fr)] gap-x-2';
+  const PLACE_GRID = 'grid grid-cols-[1rem_minmax(0,1.4fr)_3rem_minmax(0,1.3fr)_4rem_minmax(0,1.3fr)_4.5rem] gap-x-2';
   const SPOT_GRID = 'grid grid-cols-[minmax(0,1.3fr)_minmax(0,1.2fr)_4.5rem] gap-x-2';
 </script>
 
@@ -96,8 +95,8 @@
     {/if}
   </section>
 
-  <section class="grid gap-1" aria-labelledby="m-physics">
-    <h3 id="m-physics" class="eyebrow text-muted-foreground">Rock physics</h3>
+  <details class="grid gap-1">
+    <summary class="eyebrow text-muted-foreground cursor-pointer">Rock physics</summary>
     {#if m.elements.length}
       {#each m.elements as e (e.ore)}
         <p class="m-0 text-[12.5px]">
@@ -114,7 +113,7 @@
     {:else}
       {@render quiet('Not known: no MineableElement record for this ore.')}
     {/if}
-  </section>
+  </details>
 
   <section class="grid gap-2" aria-labelledby="m-places">
     <div class="flex flex-wrap items-center gap-2">
@@ -135,8 +134,8 @@
           <span role="columnheader">Kind</span>
           <span role="columnheader" title="The place's quality curve: an override for the place, else the base curve">Quality</span>
           <span role="columnheader" class="text-right" title="Estimated share of rolls at 700 or more on this place's curve (a normal curve cut to its range; quality scales not applied)">≥ 700 (est.)</span>
+          <span role="columnheader" title="The highest shown quality values on this place's curve and their estimated shares">Best rolls (est.)</span>
           <span role="columnheader" title="An estimate from resistance, instability and the charge window">Difficulty</span>
-          <span role="columnheader">Laser</span>
         </div>
         {#each places as p (key(p))}
           {@const k = key(p)}
@@ -158,44 +157,27 @@
               <span class={cn('text-[11px]', p.quality.source === 'override' ? 'text-primary' : p.quality.source === 'unknown' ? 'text-warning' : 'text-muted-foreground')}>· {p.quality.source === 'unknown' ? 'curve not known' : curveSource(p.quality)}</span>
             </span>
             <span role="cell" class={cn('text-right tabular-nums', !p.quality.full_scale && 'text-muted-foreground')} title={scaleNote(p) ?? undefined}>{pctText(p.quality.high)}{p.quality.full_scale ? '' : '*'}</span>
-            <span role="cell" class={cn(gradeTone(p.difficulty?.grade))}>{p.difficulty ? GRADE_LABEL[p.difficulty.grade] : 'Not known'}</span>
-            <span role="cell" class="min-w-0 truncate" title={p.recommendation.reason}>{p.recommendation.label}</span>
+            <span role="cell" class="text-muted-foreground min-w-0 truncate tabular-nums">{p.quality.top.length ? p.quality.top.map((s) => `${s.shown}${s.share !== null ? ` ${pctText(s.share)}` : ''}`).join(' · ') : '–'}</span>
+            <span role="cell" class={cn(gradeTone(p.difficulty?.grade))} title={p.difficulty ? difficultyInputs(p.difficulty) : undefined}>{p.difficulty ? GRADE_LABEL[p.difficulty.grade] : 'Not known'}</span>
           </div>
           {#if on}
             <div role="row" class="bg-muted/40 mb-1 rounded-md px-3 py-2 text-[12px]">
               <div role="cell" class="grid gap-1">
               <p class="m-0">
-                <span class="font-medium">Rock</span> <span class="mono text-[11px]">{p.rock}</span>{p.tier ? ` · ${p.tier}` : ''} · {kindLabel(p.kind)}-mined · signature {p.signature !== null ? numText(p.signature, 0) : 'not known'} ·
-                {m.name} is {shareText(p.min_percent, p.max_percent)} of it · mass not known
+                <span class="font-medium">Quality here:</span> rolls {qualityText(p.quality.range)} ({p.quality.source === 'unknown' ? 'curve not known, base shares shown' : curveSource(p.quality)}){p.quality.high !== null ? ` · ${pctText(p.quality.high)} of rolls at 700 or more (est.)` : ''}
               </p>
-              {#if p.quality.source === 'unknown'}<p class="text-warning m-0">Curve: {curveSource(p.quality)}. The shares are the base curve's.</p>{/if}
-              {#if p.companions.length}<p class="text-muted-foreground m-0">Can also hold {p.companions.join(', ')}.</p>{/if}
               {#if p.quality.top.length}
                 <p class="m-0">
-                  Top shown values here: {p.quality.top.map((s) => `${s.shown}${s.share !== null ? ` (${pctText(s.share)})` : ''}`).join(', ')}{p.quality.top_share !== null ? `, together ${pctText(p.quality.top_share)} of rolls (est.)` : ''}.
-                  {#if scaleNote(p)}<span class="text-warning"
-                      >* The records give this ore a {scaleNote(p)} (×{p.quality_scales.join(', ×')} in this rock; how the game applies a scale is not in the data, so the shares do not use it and the row sorts after full-scale rows).</span
-                    >{/if}
+                  Best rolls: {p.quality.top.map((s) => `${s.shown} → ${s.share !== null ? pctText(s.share) : 'not known'}`).join(' · ')}{p.quality.top_share !== null ? ` (together ${pctText(p.quality.top_share)}, est.)` : ''}
                 </p>
               {/if}
-              <p class="m-0">
-                <span class="font-medium">Difficulty (estimate):</span>
-                {#if p.difficulty}{GRADE_LABEL[p.difficulty.grade]} · {difficultyInputs(p.difficulty)}{:else}not known: {physics ? 'no physics record for this ore' : 'the mining physics are not read'}.{/if}
+              {#if scaleNote(p)}<p class="text-warning m-0">* Quality scale ×{p.quality_scales.join(', ×')} in this rock: the data does not say how the game applies it, so the real share may be lower.</p>{/if}
+              <p class="text-muted-foreground m-0">
+                Rock: {p.tier ?? 'tier not known'} · {kindLabel(p.kind)}-mined · {m.name} {shareText(p.min_percent, p.max_percent)}{p.companions.length ? ` · also ${p.companions.join(', ')}` : ''}{p.signature !== null ? ` · signature ${numText(p.signature, 0)}` : ''}
               </p>
-              <p class="m-0">
-                <span class="font-medium">{p.recommendation.label}{p.recommendation.estimate ? ' (estimate)' : ''}:</span>
-                {p.recommendation.reason}
+              <p class="text-muted-foreground m-0">
+                Difficulty (estimate): {#if p.difficulty}{GRADE_LABEL[p.difficulty.grade]} · {difficultyInputs(p.difficulty)}{:else}not known: {physics ? 'no physics record for this ore' : 'the mining physics are not read'}.{/if}
               </p>
-              {#if p.recommendation.options.length}
-                <ul class="m-0 grid list-none gap-0.5 p-0">
-                  {#each p.recommendation.options as o (o.ship)}
-                    <li>
-                      {o.ship}: {o.laser_count}× S{o.laser_size}{o.best_laser ? ` (best: ${o.best_laser})` : ''} · power {powerText(o.power)} · after resistance {powerText(o.effective)}
-                    </li>
-                  {/each}
-                </ul>
-              {/if}
-              {#if p.recommendation.formula}<p class="text-muted-foreground m-0 text-[11px]">Formula: {p.recommendation.formula}.</p>{/if}
               </div>
             </div>
           {/if}
@@ -228,15 +210,4 @@
     </section>
   {/if}
 
-  <section class="grid gap-1" aria-labelledby="m-lasers">
-    <h3 id="m-lasers" class="eyebrow text-muted-foreground">Mining lasers <span class="font-normal normal-case">· the estimate's inputs</span></h3>
-    {#if lasers.length}
-      {#each lasers as l (l.size)}
-        <p class="m-0 text-[12.5px]">S{l.size}: {l.count} laser{l.count === 1 ? '' : 's'}, power {powerText(l.min)}–{powerText(l.max)} (best: {l.best})</p>
-      {/each}
-      {@render quiet('Prospector: one S1 laser. MOLE: three S2 lasers, crewed. Power is the mining beam figure of each laser record. The ROC and hand tools are named from the rock kind; their power is not compared.')}
-    {:else}
-      {@render quiet(lasersRead ? 'Not known: no S1 or S2 mining laser in the ship weapons data.' : 'Not known yet: the ship weapons of this build are not read. Read game data (above) adds them.')}
-    {/if}
-  </section>
 </article>
