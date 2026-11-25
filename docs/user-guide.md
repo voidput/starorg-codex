@@ -667,12 +667,38 @@ slow down. `STARORG_THREADS=<n>` sets the thread cap for both rows (at least 1),
 `apply --all --if-stale`) a background one. On Windows the app and the CLI keep their own
 priority class (only their workers are lowered); the thread cap applies everywhere.
 
+## Reading game data
+
+**Read game data** (Enhancements' preview, Shops, Commodities, Loot) reads the datasets the
+screens and Where to get need into the dataset cache, `<cache>/mcp/<CHANNEL>/<build>-<id>/`,
+once per game build. Each dataset is extracted from `Data.p4k` on this computer in a short-lived
+worker, and stamped with the code that wrote it. After an app update only the datasets whose
+extraction code changed are read again; the rest stay. The cache keeps the current build and
+the previous one per channel (for Developer mode's Diff), and removes older builds and copies
+written by older app code by itself; Activity says what it removed.
+
+To save that work, while Settings -> Game data -> *Download prebuilt game data from
+voidput/sc-gamedata-dumps when it matches your game build* is on (the default), the app first
+checks whether the public dumps repo has the **exact** build you have installed. If it does,
+the datasets the app can use are downloaded instead of extracted, each checked by checksum and
+shape; anything else (no such build yet, a check that fails, a dataset this app reads
+differently, no network) is extracted from `Data.p4k` as before, so reading always works
+offline. The game text is always read from `Data.p4k`; Where to get lines built from
+downloaded datasets are the same build's data and can be applied. Turn the switch off and
+datasets downloaded before are read from `Data.p4k` again. Activity shows per step what was
+downloaded and what was read locally, for example `LIVE: Where to get data: downloaded
+game-loot, game-item-sources (prebuilt 4.10.201.48085); read from Data.p4k: game-item-tags`.
+Which datasets can come from there: [mcp: prebuilt datasets](mcp.md#prebuilt-datasets). What is
+sent: [privacy](privacy.md#network).
+
 ## Settings worth knowing
 
 - **Appearance:** dark (default) or light theme, accent colour and palette.
 - **Network:** every switch is off by default: *Check for updates* ([updates](updates.md)),
-  *Connect StarOrg Tools*, *Download UEX market data*. With them off the app makes no network
-  request.
+  *Connect StarOrg Tools*, *Download UEX market data*. With them and *Game data -> Download
+  prebuilt game data* off the app makes no network request.
+- **Game data -> Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your
+  game build** (on by default): see [Reading game data](#reading-game-data).
 - **Download UEX market data:** **Fetch now** downloads where items are sold and what
   commodity kiosks pay (UEX Corp, player-reported) from `api.uexcorp.space` into the UEX folder
   (`<cache>/mcp/uex`: `uex-item-prices.json`, `uex-commodity-prices.json`, `uex-terminals.json`),

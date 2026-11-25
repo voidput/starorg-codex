@@ -27,6 +27,12 @@ in this build's DataCore. Ours is the LIVE data.
 
 `tests/live.rs` allows exactly these three record datasets to differ.
 
+Since then the port carries sc-gamedata's starmap fix "follow plain containers at system level"
+(sc-gamedata 350e7053b, its Rust port's `socpak::system_level_placements`): bodies a plain
+container holds (Nyx's glaciem ring segments: Levski, Delamar) are placed at system level, so
+about 16 Nyx locations gain positions. `game-starmap` and `game-mining-spawns` now differ from
+golden dumps made before that fix.
+
 Beyond the port, one domain of this repository's own: `game-npc-loadouts`
 (`domains/npc_loadouts.rs`), what each NPC type can spawn wearing and wielding, from the actor
 loadout records and the loose loadout files (`Data/Scripts/Loadouts/**`). It has no golden

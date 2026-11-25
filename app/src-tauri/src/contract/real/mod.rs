@@ -114,6 +114,14 @@ pub trait SourceFactory: Send + Sync {
     fn obtain_hints(&self) -> bool {
         false
     }
+    /// Where prebuilt datasets come from while Settings -> Game data -> "Download prebuilt
+    /// game data" is on (`starorg_mcp::prebuilt`): GitHub for the real worker, nothing for a
+    /// test source (no test reaches the network).
+    fn prebuilt_transport(
+        &self,
+    ) -> Option<Box<dyn starorg_core::source::dump::DumpTransport + Send + Sync>> {
+        None
+    }
 }
 
 /// The extraction worker: this binary, `extract-worker` subcommand.
@@ -130,6 +138,12 @@ impl SourceFactory for WorkerSource {
 
     fn obtain_hints(&self) -> bool {
         true
+    }
+
+    fn prebuilt_transport(
+        &self,
+    ) -> Option<Box<dyn starorg_core::source::dump::DumpTransport + Send + Sync>> {
+        Some(Box::new(starorg_net::GitHubTransport::new()))
     }
 }
 
@@ -1343,6 +1357,23 @@ impl RealBackend {
             .unwrap_or_default()
     }
 
+    /// Prebuilt datasets for the Sources card's tools ("Read game data" and the screens that
+    /// read the dataset cache; never the MCP server): the source's transport, used only
+    /// while Settings -> Game data -> "Download prebuilt game data" is on (read at every
+    /// fetch, so the switch counts at once). `None` for a test source.
+    fn prebuilt(&self) -> Option<Arc<dyn starorg_mcp::prebuilt::Prebuilt>> {
+        let transport = self.cfg.source.prebuilt_transport()?;
+        let dirs = self.dirs().clone();
+        let on = Arc::new(move || {
+            Config::load(&dirs)
+                .map(|c| config::prebuilt_dumps(&c))
+                .unwrap_or(true)
+        });
+        Some(Arc::new(starorg_mcp::prebuilt::DumpPrebuilt::new(
+            transport, on,
+        )))
+    }
+
     fn save_app_file(&self, a: &AppFile) -> CmdResult<()> {
         fsutil::write_json(&self.dirs().config.join(APP_JSON), a).map_err(io)
     }
@@ -1363,6 +1394,10 @@ impl RealBackend {
                 published_dumps: a.network.as_ref().is_some_and(|n| n.published_dumps),
                 starorg: a.network.as_ref().is_some_and(|n| n.starorg),
                 uex: a.network.as_ref().is_some_and(|n| n.uex),
+            },
+            // config.toml `[data]`: the command-line tool and the MCP server read it too.
+            data: DataSettings {
+                prebuilt_dumps: config::prebuilt_dumps(&self.config()),
             },
             default_channel: self.config().default_channel,
             safe_gpu: a.safe_gpu,
@@ -2544,6 +2579,7 @@ impl Backend for RealBackend {
             // preview of an unsaved "obtain on" has them too. A failure is only a warning.
             let mut job = job.clone();
             self.job_step(&mut job, 2, "Reading Where to get data", None);
+            let mut sources = self.dataset_sources(&f, &ch.name);
             let prof = starorg_core::enhance::profile::Profile {
                 obtain: true,
                 ..Default::default()
@@ -2559,6 +2595,7 @@ impl Backend for RealBackend {
                     &format!("{}: {}", ch.name, w.detail),
                 );
             }
+            sources = self.log_step_sources(&f, &ch.name, "Where to get data", sources);
             // Shops: the ship items item-tags lacks (ship-components), so the Shops screen
             // links ship guns, missiles and components. Same worker and memory limit as the
             // Where to get datasets; a failure is only a warning.
@@ -2571,6 +2608,7 @@ impl Backend for RealBackend {
                     &format!("{}: shop item links: {e}", ch.name),
                 );
             }
+            sources = self.log_step_sources(&f, &ch.name, "Ship item data", sources);
             // Mining: rock physics (game-mining) and mining laser power (game-weapons) for
             // the Commodities screen's Mining tab. A failure is only a warning: the tab then
             // says those numbers are not known.
@@ -2583,6 +2621,7 @@ impl Backend for RealBackend {
                     &format!("{}: mining data: {e}", ch.name),
                 );
             }
+            sources = self.log_step_sources(&f, &ch.name, "Mining data", sources);
             // NPC gear: what each NPC type can spawn wearing (game-npc-loadouts), for the Loot
             // screen's worn-gear rows. A failure is only a warning: the screen then says the
             // worn gear is not read yet.
@@ -2595,6 +2634,7 @@ impl Backend for RealBackend {
                     &format!("{}: NPC gear data: {e}", ch.name),
                 );
             }
+            self.log_step_sources(&f, &ch.name, "NPC gear data", sources);
             Ok::<_, AppError>(())
         })();
         match &r {
@@ -3098,6 +3138,10 @@ impl Backend for RealBackend {
             self.assets.stop();
         }
         let mut cfg = Config::load(self.dirs()).map_err(io)?;
+        if config::prebuilt_dumps(&cfg) != req.data.prebuilt_dumps {
+            config::set_prebuilt_dumps(&mut cfg, req.data.prebuilt_dumps);
+            cfg.save(self.dirs()).map_err(io)?;
+        }
         let prefs = starorg::prefs_of(&req.starorg);
         let old_env = starorg::contract_env(cfg.sync.environment);
         // Tokens are per environment: switching signs the old one out (the UI asks first),

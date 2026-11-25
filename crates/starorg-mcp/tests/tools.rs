@@ -171,6 +171,7 @@ impl Extractor for FakeExtractor {
             peak_rss_bytes: Some(1 << 20),
             bytes: text.len() as u64,
             warnings: 0,
+            sha256: None,
         })
     }
 }
@@ -288,6 +289,8 @@ impl World {
             our_outputs: vec![sha],
             extractor: self.fake.clone(),
             cache_cap: None,
+            prebuilt: None,
+            serve_dumps: true,
         }
     }
 

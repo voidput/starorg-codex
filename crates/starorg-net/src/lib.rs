@@ -1,9 +1,10 @@
 //! HTTPS transport for [`starorg_core::source::dump`] (addendum §1).
 //!
 //! This is the only crate with an HTTP client outside the updater plugin. The CLI never
-//! links it; the app links it for its opt-in network switches. For the dumps (Developer
-//! mode's Diff only, while "Download published LIVE builds for Diff" is on) and the update
-//! check it talks to two hosts, both read only:
+//! links it; the app links it for its network switches. For the dumps (Developer mode's Diff
+//! while "Download published LIVE builds for Diff" is on; prebuilt datasets of the installed
+//! build while Settings -> Game data -> "Download prebuilt game data" is on, the default,
+//! `starorg_mcp::prebuilt`) and the update check it talks to two hosts, both read only:
 //!
 //! - `api.github.com`: the dumps repo's release list and the release for a tag, the commit a
 //!   tag points at, the commit's tree (git blob ids, which the core verifies every file
@@ -58,6 +59,8 @@ impl GitHubTransport {
             .tls_config(tls)
             .https_only(true)
             .timeout_global(Some(Duration::from_secs(60)))
+            // An unreachable GitHub fails fast: callers fall back to local data.
+            .timeout_connect(Some(Duration::from_secs(10)))
             .user_agent(concat!("starorg-codex/", env!("CARGO_PKG_VERSION")))
             .http_status_as_error(false)
             .build()

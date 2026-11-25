@@ -1261,6 +1261,8 @@ export interface NetworkSettings {
 export interface Settings {
   appearance: Appearance;
   network: NetworkSettings;
+  /** Settings -> Game data. */
+  data: DataSettings;
   default_channel: string | null;
   safe_gpu: boolean;
   advanced: AdvancedSettings;
@@ -1278,6 +1280,16 @@ export interface StarOrgSettings {
   pull_fleet: boolean;
   /** Sync by itself after the game exits; off = only when asked. */
   auto_sync: boolean;
+}
+
+/** Settings > Game data. */
+export interface DataSettings {
+  /**
+   * "Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your game build" (on by default).
+   * Only datasets of the exact same build, checked by checksum and shape; anything else, offline included, is read
+   * from Data.p4k. Never the game text.
+   */
+  prebuilt_dumps: boolean;
 }
 
 /** Settings > Advanced (addendum 7.7). */

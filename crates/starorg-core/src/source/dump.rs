@@ -1,10 +1,13 @@
-//! Published LIVE builds from `voidput/sc-gamedata-dumps` for Developer mode's Diff
-//! (addendum §1, rescoped 2026-11-17: dumps are Diff-only, apply reads `Data.p4k` locally).
+//! Published builds from `voidput/sc-gamedata-dumps` (addendum §1, rescoped 2026-11-17).
 //!
-//! - **Diff only.** A dump is never turned into `GameData` and never feeds an apply. The app
-//!   lists the published LIVE builds ([`live_releases`]), downloads one on request
-//!   ([`fetch_verified`]) and shows its `data/*.json` files as a dataset source, so Diff can
-//!   compare an old LIVE build with a new one.
+//! - **Diff.** The app lists the published LIVE builds ([`live_releases`]), downloads one on
+//!   request ([`fetch_verified`]) and shows its `data/*.json` files as a dataset source, so
+//!   Diff can compare an old LIVE build with a new one. Such a dump is never turned into
+//!   `GameData`.
+//! - **Prebuilt datasets.** `starorg_mcp::prebuilt` uses the same [`DumpTransport`] to take a
+//!   dataset of the exact installed build instead of extracting it (Settings -> Game data,
+//!   on by default). The game text always comes from `Data.p4k`, but Where to get lines built
+//!   from such datasets can be applied.
 //! - **Opt-in.** `starorg-core` links no HTTP client: the transport is a trait
 //!   ([`DumpTransport`]) implemented in `starorg-net`, and the caller asks it only while the
 //!   user's switch is on. Cached builds stay readable with the switch off.

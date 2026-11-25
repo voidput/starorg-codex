@@ -2389,7 +2389,8 @@ impl Tools {
             }
             let b = build_hints(&ctx);
             if b.warnings.is_empty() {
-                write_hints(&ctx.dir, &tag, &b);
+                // Tagged as the folder is now: building may have extracted datasets.
+                write_hints(&ctx.dir, &hints_tag(&ctx), &b);
                 Ok(b)
             } else {
                 partial = Some(b);
@@ -2429,9 +2430,15 @@ impl Tools {
 const HINTS_FILE: &str = "obtain-hints.json";
 
 /// What the hints on disk were built from: the code that builds them (`HINTS_CODE`, see
-/// `build.rs`) and the UEX files' stamp. Any difference builds them again.
+/// `build.rs`), the stamps of the build's datasets (a dataset extracted again or taken from
+/// a dump since) and the UEX files' stamp. Any difference builds them again.
 fn hints_tag(ctx: &Ctx<'_>) -> String {
-    format!("{}:{:?}", env!("HINTS_CODE"), ctx.store.uex_stamp())
+    format!(
+        "{}:{}:{:?}",
+        env!("HINTS_CODE"),
+        crate::stamps::digest(&ctx.dir),
+        ctx.store.uex_stamp()
+    )
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

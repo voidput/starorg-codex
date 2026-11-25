@@ -395,7 +395,12 @@ export const api = {
   cancelJob: (job: string) => call('cancel_job', { job }),
   buildPreview: (req: T.PreviewRequest) => call('build_preview', { req }),
   /** Extract the channel's game data (and Where to get datasets) so the preview has examples; a job. */
-  readGameData: (target: T.ChannelRef) => call('read_game_data', { req: { target } }),
+  readGameData: async (target: T.ChannelRef) => {
+    const r = await call('read_game_data', { req: { target } });
+    // Loaded lazily: the notice reads the app store, which imports this module.
+    void import('@/lib/prebuiltNotice').then((m) => m.prebuiltNoticeOnce()).catch(() => {});
+    return r;
+  },
   profileSchema: () => call('profile_schema', none),
   /** The UEX folder and files the WHERE TO GET shop line reads (metadata only). */
   obtainStatus: () => call('obtain_status', none),

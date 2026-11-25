@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * Settings (spec 9.4): Game, Appearance, Network (all off by default, spec 11), StarOrg Tools,
-   * Launch hooks (Linux), Diagnostics, Storage, Advanced (Developer mode, addendum 7.8), Experimental
+   * Launch hooks (Linux), Diagnostics, Game data (prebuilt datasets, on by default), Storage, Advanced (Developer mode, addendum 7.8), Experimental
    * (local MCP server, live telemetry), Command line. A section index on top jumps by anchor.
    */
   import Wand from '@lucide/svelte/icons/wand-sparkles';
@@ -35,6 +35,7 @@
     { id: 'starorg', label: 'StarOrg Tools' },
     { id: 'hooks', label: 'Launch hooks' },
     { id: 'diagnostics', label: 'Diagnostics' },
+    { id: 'game-data', label: 'Game data' },
     { id: 'storage', label: 'Storage' },
     { id: 'advanced', label: 'Advanced' },
     { id: 'experimental', label: 'Experimental' },
@@ -172,7 +173,7 @@
     <Card.Root id="network">
       <Card.Header>
         <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Network</Card.Title>
-        <Card.Description>All off by default. With these off, StarOrg Codex' own code makes no network request.</Card.Description>
+        <Card.Description>All off by default. With these and Game data -> "Download prebuilt game data" off, StarOrg Codex' own code makes no network request.</Card.Description>
       </Card.Header>
       <Card.Content class="grid gap-1">
         <UpdatesSection checked={s.network.check_updates} onchange={(v) => patch((x) => (x.network.check_updates = v))} />
@@ -185,6 +186,21 @@
     <StarOrgCard />
     <HooksCard />
     <DoctorCard />
+    <Card.Root id="game-data">
+      <Card.Header>
+        <Card.Title tabindex={-1} class="focus-visible:ring-ring/60 rounded-sm outline-none focus-visible:ring-2">Game data</Card.Title>
+        <Card.Description>Read game data reads Data.p4k on this computer. This only makes it faster.</Card.Description>
+      </Card.Header>
+      <Card.Content class="grid gap-1">
+        <SwitchRow
+          id="data-prebuilt"
+          label="Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your game build"
+          hint="On by default. When the exact build you have installed is published there, the datasets the app can use are downloaded from github.com instead of being extracted, each checked by checksum and shape. The request names your game build number; it sends nothing about you. No match, a failed check or no network: read from Data.p4k as before. The game text is always read from Data.p4k. Off: data downloaded before is read from Data.p4k again. Activity says per step what was downloaded and what was read locally."
+          checked={s.data?.prebuilt_dumps ?? true}
+          onchange={(v) => patch((x) => (x.data = { ...x.data, prebuilt_dumps: v }))}
+        />
+      </Card.Content>
+    </Card.Root>
     <StorageCard />
     <Card.Root id="advanced">
       <Card.Header>
