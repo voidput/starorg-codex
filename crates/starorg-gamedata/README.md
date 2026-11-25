@@ -27,6 +27,12 @@ in this build's DataCore. Ours is the LIVE data.
 
 `tests/live.rs` allows exactly these three record datasets to differ.
 
+Beyond the port, one domain of this repository's own: `game-npc-loadouts`
+(`domains/npc_loadouts.rs`), what each NPC type can spawn wearing and wielding, from the actor
+loadout records and the loose loadout files (`Data/Scripts/Loadouts/**`). It has no golden
+dump; its extra record filters are `pipeline::NATIVE_EXTRACTION_FILTERS`, which no ported
+domain's filters reach, so the ported datasets stay as they were.
+
 Not ported:
 
 - `uex-item-prices.json` / `uex-terminals.json` (and our `uex-commodity-prices.json`, read by

@@ -365,17 +365,60 @@ typing a few letters jumps to the next row starting with them.
   (classic)` are different slot presets of the same place. Pick an area to see every item that
   can drop there, grouped by where in it the item is (`Lying loose`, `Weapons rack`, `Large
   mining crate`, `Medical crate`, ...), each row with its rarity and `always in it` for a rack.
+- **NPCs (body loot)** is a kind of place in the area list too: what an NPC's body can hold,
+  from the actor loot tables, in groups **Pilots** (`Ace pilot`), **Ground combat** (`Grunt`,
+  `Soldier`, `Sniper`, `CQC fighter`, `Grenadier`, `Juggernaut`, `Techie`, `Large-ammo
+  carrier`), **Prisoners** and **Bosses** (`Art Kelvin`, `Mendo Ren`, `Remy Kettle`,
+  `Juggernaut (elite, SOO)`, `Rock Cracker boss`). A group with one NPC is left out, so that NPC
+  sits right under the kind. The `... (with council scrip)` rows are the game's second table of
+  the same NPC type with a council scrip slot added; the data does not say which NPCs use
+  which, so both are listed. Template tables (`_TEMPLATE`) are no NPC and are left out. Pick an
+  NPC to see every item it can carry, grouped by the slot of its table (**Ammo**, **Medpens**,
+  **Scrip**, **Medals**, **Unique item**, ...). This is body loot, what the NPC carries in its
+  pockets; what it wears is its worn-gear row (below), linked from the top of the list. Which
+  places or missions spawn which NPC is not in the data, so no NPC names one.
+- **NPCs (worn gear)** is a kind of place too: what each NPC type can spawn wearing and
+  wielding, from its loadout records (the outfit, armour, weapons, grenades and medpens its
+  body can be looted for). The rows sit by faction (**Criminals**, **Civilians**, **Nine
+  Tails**, **Private security**, ...) and, where a faction has several kinds, by role (**Pilots**,
+  **Ground combat**, **Guards & security**, **Shopkeepers & staff**, ...); a faction with one
+  row names it (`Grunt 02 (Nine Tails)`), and no level holds a single row. Records with the same
+  name and the same gear (the male and female versions of an NPC) are one row, listing their
+  classes; two rows with the same name are told apart by sex, else by a variant number. Test
+  and template actors are left out, as are body, head and hair parts and items tagged as not
+  lootable. Pick a row to see its gear by slot, in body order (**Undersuit**, **Helmet**,
+  **Torso**, **Arms**, **Legs**, **Backpack**, **Clothing**, **Primary weapon**, **Sidearm**,
+  **Utility**, **Optics**, **Magazines**, **Grenades**, **Medical**, ...), each item with the
+  estimated chance the NPC spawns wearing it, the loadout's wear range as the data gives it
+  (`Condition not known` when the loadout sets none) and, when its body has a loot table, a link
+  to its body-loot row. The chance is an estimate: where a loadout picks one of several options
+  the data gives no weights, so an even pick is assumed (one of two helmets: 50%), compounded
+  through nested picks. Loadout options gated by tags (`AI/NpcClass/Heavy`,
+  `LoadoutIdentifier/LB_Elite`, an `OR` or `NOT` of them) are decided from the NPC record's own
+  tags: an option it does not qualify for is left out. Groups of the same name in one loadout are
+  one pick; of those, the gated options the NPC qualifies for are the pick and the ungated ones
+  only the fallback when it qualifies for none (inferred from how the data pairs them, not stated
+  by it). An NPC whose outfit a mission picks lists each outfit at its full chance with the
+  condition beside it (`if outfit picked by the mission (Outfits/S42/Work)`); a condition this
+  version cannot read says `if condition not read`. An NPC whose body cannot be looted (a
+  Vanduul pilot) has no row. Missions can also change outfits. The worn gear comes from
+  its own dataset, which **Read game data** adds: a build read before it says "not read yet"
+  above the area list and offers **Read game data** again.
 - **By item:** category (FPS weapons, FPS attachments, Armour & clothing, Consumables, Ship
   components, ...) -> what kind of thing (Rifles, Pistols, Magazines, Helmets, Jackets & coats,
   Power plants, ...) -> the items, searchable by name or class. Pick one to see every area it
-  drops in, grouped by kind of place (Caves, Outposts, Stations, ...). With Developer mode on,
+  drops in, grouped by kind of place (Caves, Outposts, Stations, ...); the NPCs that carry it
+  are a group of their own, **NPCs (body loot)**, so searching an item answers which NPC drops
+  it, and the NPCs that can spawn wearing it another, **NPCs (worn gear)** (searching `Ace
+  Interceptor` finds the flight suit the Ace pilot wears). With Developer mode on,
   **Open in Explorer** opens its record. Items that share a name (seven `Standard Container`s)
   show their class name beside it, in the tree and in the drops.
 - **Group by** beside the filter picks how the drops are grouped: for an area **Where in it**
   (the default) or **None** (one list, likeliest first); for an item **Place** (the default, the
   top level of the area tree), **Where in it** or **None**. The app remembers the choice per
   view. Each group is a header with its size and best odds, over all its drops; groups are
-  ordered by best odds, then by name, and the rows inside are likeliest first. Only the first
+  ordered by best odds, then by name (a worn-gear row's slots by body order), and the rows inside
+  are likeliest first. Only the first
   group (or the first few small ones) is open at first; opening another loads its rows. A group
   shows at most its 500 likeliest drops (`N more in ...; filter to narrow`), an ungrouped list
   the 2,000 likeliest.
@@ -388,7 +431,21 @@ typing a few letters jumps to the next row starting with them.
   holds the item, assuming an even pick inside each loot pool (the game data does not say how
   the pick is weighted). The WHERE TO GET line, the Explorer Sources card and the MCP
   `where_found` tool use the same estimate. Loot tables no area places (corpses, events) are not
-  listed; test presets are left out.
+  listed, except the NPC tables above; test presets are left out.
+- A loot entry that names its items by class (`ASD specimen vial`, `MedGel`, `Council scrip`)
+  picks only those items, and they skip the spawn's pool filter and rarity choice, which only
+  narrow the tag-picked entries: the game names the item outright there.
+- **Per body** is the same estimate for an NPC, from one pick of its loot table: a slot's share
+  of the table's weights, times its chance to exist where the table gives one, then an even
+  pick inside the slot's pool. A slot the table always fills (the council scrip, a boss's scrip
+  or keycard, the Ace pilot's scrip) counts as there whatever the weights, at its chance to
+  exist (`Sniper (with council scrip)`: 50%); in a V3 table the other slots then share the
+  picks among themselves (`Rock Cracker boss`: ammo about 91%, medpens 9%). The data gives no
+  roll count for a body, so these odds may be a floor: a body that gets several items (a
+  `Prisoner`, whose slots each hold at most one) can carry more than one slot's worth.
+- **Chance** (worn gear) is the estimated chance an NPC of that type spawns wearing or
+  wielding the item, with even picks between loadout options assumed (see above); the drop rows
+  say `can spawn wearing`.
 - Item names are the game's; an item whose game name is missing or a placeholder shows readable
   words from its class name.
 

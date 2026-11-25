@@ -749,8 +749,8 @@ pub struct UexTokenRequest {
 // The Loot screen (`loot_list`, `loot_detail`): every loot area with what drops there and
 // every item with where, from the channel's cached loot data, typed in `starorg_mcp::loot`.
 pub use starorg_mcp::loot::{
-    LootDataState, LootDetail, LootDrop, LootDropKind, LootGroup, LootGroupBy, LootList,
-    LootSummary, LootView,
+    LootDataState, LootDetail, LootDrop, LootDropKind, LootGroup, LootGroupBy, LootLink, LootList,
+    LootSummary, LootView, NpcInfo, Wear,
 };
 
 /// Every loot area (`view: areas`) or every item that drops in one (`items`), summaries

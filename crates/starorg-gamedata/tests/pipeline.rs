@@ -6,7 +6,9 @@ use starorg_gamedata::domain::NoFiles;
 use starorg_gamedata::domains;
 use starorg_gamedata::fixtures::FixtureSource;
 use starorg_gamedata::localization::parse_global_ini;
-use starorg_gamedata::pipeline::{self, GOLDEN_EXTRACTION_FILTERS, Game};
+use starorg_gamedata::pipeline::{
+    self, GOLDEN_EXTRACTION_FILTERS, Game, NATIVE_EXTRACTION_FILTERS,
+};
 
 fn manufacturer(code: &str, dir: &str, name_key: &str) -> Value {
     json!({
@@ -104,12 +106,53 @@ fn every_registered_domain_is_covered_by_the_golden_extraction() {
     for d in domains::all() {
         for f in d.filters() {
             assert!(
-                GOLDEN_EXTRACTION_FILTERS.contains(f),
-                "{}: filter {f} was not part of the golden extraction; add it to GOLDEN_EXTRACTION_FILTERS only if sc-gamedata extracts it",
+                GOLDEN_EXTRACTION_FILTERS.contains(f) || NATIVE_EXTRACTION_FILTERS.contains(f),
+                "{}: filter {f} was not part of the golden extraction; add it to GOLDEN_EXTRACTION_FILTERS only if sc-gamedata extracts it (NATIVE_EXTRACTION_FILTERS: this repository's own domains)",
                 d.name()
             );
         }
         assert!(d.name().starts_with("game-"), "{}", d.name());
+    }
+}
+
+/// The native filters select paths no other domain's own filters match, so extracting them
+/// leaves every ported dataset as it was.
+#[test]
+fn native_filters_reach_no_ported_domain() {
+    use starorg_gamedata::glob::{Glob, matches_any};
+    let paths = [
+        "libs/foundry/records/actor/actors/pu_human_enemy_groundcombat_npc_x",
+        "libs/foundry/records/actor/actors/pyro/x/y",
+        "libs/foundry/records/loadoutkits/pu_loadoutbundles/criminal_gang/x",
+        "libs/foundry/records/loadoutkits/pu/x",
+        "libs/foundry/records/loadoutkits/orig/300_series/x",
+        "libs/foundry/records/loadoutkits/shoploadouts/x",
+        "libs/foundry/records/actor/actors/npc_archetypes/male/human/civilians/levski/x",
+        "libs/foundry/records/actor/actors/pu_pilots/human/criminal/x",
+        "libs/foundry/records/actor/actors/crusader/x",
+    ];
+    for d in domains::all() {
+        if d.filters()
+            .iter()
+            .any(|f| NATIVE_EXTRACTION_FILTERS.contains(f))
+        {
+            continue;
+        }
+        let own: Vec<Glob> = d.filters().iter().map(|g| Glob::new(g)).collect();
+        for p in paths {
+            assert!(!matches_any(p, &own), "{}: {p}", d.name());
+        }
+    }
+    // And the native globs extract every one of them (case-sensitive, with `.xml`).
+    let native: Vec<Glob> = NATIVE_EXTRACTION_FILTERS
+        .iter()
+        .map(|g| Glob::case_sensitive(g))
+        .collect();
+    for p in paths {
+        assert!(
+            native.iter().any(|g| g.is_match(&format!("{p}.xml"))),
+            "{p}"
+        );
     }
 }
 

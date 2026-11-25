@@ -311,6 +311,11 @@ pub fn estimates() -> Vec<Estimate> {
             "MCP: most datasets (item-tags 1.2 GB, armor 0.9 GB)",
             gb10(15),
         ),
+        e(
+            "mcp-npc-loadouts",
+            "MCP: NPC worn gear (Loot screen, Read game data step 5)",
+            gb10(19),
+        ),
         e("mcp-ship-components", "MCP: ship components", gb10(22)),
         e("mcp-ships", "MCP: ships", gb10(41)),
         e(
@@ -336,6 +341,8 @@ pub fn dataset_estimate(dataset: &str) -> u64 {
         "blueprints" => gb10(14),
         "item-tags" => gb10(12),
         "armor" => gb10(9),
+        // Pruned items and actors plus the archive index (loadout files): 1.9 GB measured.
+        "npc-loadouts" => gb10(19),
         // The string table reads global.ini only (the archive index is the peak).
         "strings-english" => gb10(9),
         // Every other domain: DataCore plus a little (0.85 to 1.3 GB).
@@ -941,6 +948,7 @@ mod tests {
         assert_eq!(dataset_estimate("game-ships"), gb10(41));
         assert_eq!(dataset_estimate("game-item-tags"), gb10(12));
         assert_eq!(dataset_estimate("game-missions"), gb10(13));
+        assert_eq!(dataset_estimate("game-npc-loadouts"), gb10(19));
         assert_eq!(
             model_estimate(true, 1, "EntityClassDefinition.AEGS_Idris_M"),
             gb10(110)

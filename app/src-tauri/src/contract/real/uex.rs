@@ -272,6 +272,19 @@ impl RealBackend {
         let tools = self.origin_tools(f).map_err(|e| e.message)?;
         tools.warm_mining(channel).map_err(|e| e.0)
     }
+
+    /// "Read game data": the Loot screen's NPC worn-gear dataset (`game-npc-loadouts`),
+    /// under the same worker and memory limit as the Where to get datasets.
+    pub(super) fn warm_npc_gear(&self, f: &Found, channel: &str) -> Result<(), String> {
+        if !self.cfg.source.obtain_hints() {
+            return Err(
+                "this game data source extracts no datasets, so the NPC worn gear stays not read"
+                    .into(),
+            );
+        }
+        let tools = self.origin_tools(f).map_err(|e| e.message)?;
+        tools.warm_npc_gear(channel).map_err(|e| e.0)
+    }
 }
 
 /// `24,146`.

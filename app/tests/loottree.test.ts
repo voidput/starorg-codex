@@ -11,7 +11,7 @@ import type { LootMockData } from '../src/lib/contract/mock-loot.ts';
 
 const data = JSON.parse(readFileSync(new URL('../src/lib/contract/mock-loot.gen.json', import.meta.url), 'utf8')) as LootMockData;
 
-const row = (id: string, name: string, path: string[], best = 0.1): LootSummary => ({ id, name, group: path[0] ?? name, path, best, count: 1 });
+const row = (id: string, name: string, path: string[], best = 0.1): LootSummary => ({ id, name, group: path[0] ?? name, path, best, count: 1, npcs: 0 });
 
 const ROWS: LootSummary[] = [
   row('v3slotpreset_battaglia', 'Battaglia', [], 0.2),
@@ -168,4 +168,35 @@ test('same-named sibling rows are marked (their ids then show); the same name el
     }
   };
   walk(buildTree(data.items.rows));
+});
+
+test('NPC rows sit under their own kind, in groups of two or more NPCs', () => {
+  const t = buildTree(data.areas.rows);
+  const npc = t.find((n) => n.kind === 'branch' && n.label === 'NPCs (body loot)');
+  assert.ok(npc && npc.kind === 'branch');
+  if (npc?.kind !== 'branch') return;
+  assert.deepEqual(labels(npc.children), ['[Ground combat]', 'Ace pilot', 'Mendo Ren']);
+  const ground = npc.children[0]!;
+  assert.ok(ground.kind === 'branch' && ground.children.every((c) => c.kind === 'leaf' && c.row.id.startsWith('npc:')));
+});
+
+test('worn-gear rows sit under their own kind by faction, no level with a single row', () => {
+  const t = buildTree(data.areas.rows);
+  const gear = t.find((n) => n.kind === 'branch' && n.label === 'NPCs (worn gear)');
+  assert.ok(gear && gear.kind === 'branch');
+  if (gear?.kind !== 'branch') return;
+  // Two factions of two rows each; the Nine Tails soldier alone names its faction.
+  assert.deepEqual(labels(gear.children), ['[Civilians]', '[Criminals]', 'Grunt 02 (Nine Tails)']);
+  const walk = (nodes: LootNode[]) => {
+    for (const n of nodes) {
+      if (n.kind !== 'branch') continue;
+      assert.ok(n.children.length >= 2, n.label);
+      walk(n.children);
+    }
+  };
+  walk(gear.children);
+  const criminals = gear.children[1]!;
+  assert.ok(criminals.kind === 'branch');
+  if (criminals.kind !== 'branch') return;
+  assert.deepEqual(labels(criminals.children), ['Ace pilot', 'Grunt 01']);
 });

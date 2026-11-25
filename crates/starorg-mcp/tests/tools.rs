@@ -54,6 +54,14 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         ], "fpsWeapons": [], "missiles": []}),
     );
     d.insert(
+        "game-npc-loadouts",
+        json!({"actors": [
+            {"class": "PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_Grunt", "name": "Generic criminal grunt",
+             "faction": "genericcriminal", "lootable": true, "wear": {"min": 0.0, "max": 0.5}, "fixed": [], "groups": [],
+             "items": [{"item": "behr_lmg_ballistic_01", "slot": "Primary weapon", "chance": 0.5}]}
+        ], "groups": [], "byItem": {"behr_lmg_ballistic_01": ["PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_Grunt"]}, "byLootTable": {}}),
+    );
+    d.insert(
         "game-mining",
         json!({"mineableElements": [
             {"name": "Raw_Quantainium", "recordName": "MineableElement.Quantainium_Raw", "id": "e1",
@@ -733,12 +741,34 @@ fn loot_screen_reads_only_cached_data() {
     assert_eq!(fs9.record.as_ref().unwrap().guid, "id-fs9");
     assert_eq!(fs9.rows().next().unwrap().name, "Caves");
     assert_eq!(fs9.groups[0].label, "Caves");
-    // Reading the lists again extracts nothing more.
+    // Reading the lists again extracts nothing more; the worn gear is not read yet.
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    assert_eq!(areas.gear, LootDataState::Missing);
     assert_eq!(
         t.loot_list(Some("NOPE"), LootView::Items).state,
         LootDataState::Missing
     );
+    // "Read game data" adds the NPC gear; the screen is built again with its rows.
+    t.warm_npc_gear("LIVE").unwrap();
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs + 1);
+    let areas = t.loot_list(Some("LIVE"), LootView::Areas);
+    assert_eq!(areas.gear, LootDataState::Ready);
+    let grunt = areas
+        .rows
+        .iter()
+        .find(|r| starorg_mcp::loot::is_gear(&r.id))
+        .unwrap();
+    assert_eq!(grunt.name, "NPCs (worn gear): Grunt");
+    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01", &q);
+    assert!(
+        fs9.group(starorg_mcp::loot::GEAR_KIND).is_some(),
+        "{:?}",
+        fs9.groups
+    );
+    // Cached: no second extraction.
+    t.warm_npc_gear("LIVE").unwrap();
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs + 1);
+    assert!(t.warm_npc_gear("NOPE").is_err());
 }
 
 #[test]

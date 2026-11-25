@@ -167,6 +167,7 @@ Measured on LIVE 4.10.200.58746 (Linux, `VmHWM`):
 | Worker: `game-blueprints` (pruned, was 6.5 GB) | 1.3 GB | 1.7 s |
 | Worker: `game-item-tags` (pruned, was 8.7 GB) | 1.2 GB | 1.9 s |
 | Worker: `game-armor` (pruned, was 3.0 GB) | 0.9 GB | 1.2 s |
+| Worker: `game-npc-loadouts` (pruned; also the archive index, for the loadout files; LIVE 4.10.201, 4.3 MB) | 1.8 GB | 2.8 s |
 | Worker: any other dataset (DataCore alone is most of it) | 0.85 to 1.3 GB | 0.6 to 4.7 s |
 
 `search` needs `game-ships` and `game-ship-components` once per build, so the first search of

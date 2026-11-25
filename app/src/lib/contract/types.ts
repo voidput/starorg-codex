@@ -436,8 +436,8 @@ export type LootDataState = 'ready' | 'missing';
 /** Which Loot list: loot areas, or items that drop in one. */
 export type LootView = 'areas' | 'items';
 
-/** How the item is there: rolled by a loot table, held by a rack, or lying loose. */
-export type LootDropKind = 'loot' | 'fixed' | 'loose';
+/** How the item is there: rolled by a loot table, held by a rack, lying loose, or worn or wielded by an NPC (its loadout). */
+export type LootDropKind = 'loot' | 'fixed' | 'loose' | 'worn';
 
 /** How a detail's drops are grouped: by container ("Where in it"), by the top level of the other list's tree (an area's kind of place, an item's category), or one flat group. */
 export type LootGroupBy = 'container' | 'place' | 'none';
@@ -472,7 +472,11 @@ export interface LootSummary {
   path: string[];
   /** Areas: items that can drop there. Items: areas it drops in. */
   count: number;
-  /** Best rough odds per spawned box, 0 to 1. */
+  /** Items: how many of `count` are NPC bodies ("NPCs (body loot)"); areas: 0. */
+  npcs: number;
+  /** Items: how many of `count` are NPC worn-gear rows ("NPCs (worn gear)"); areas: 0. */
+  worn: number;
+  /** Best rough odds per spawned box (or NPC body), 0 to 1. */
   best: number;
 }
 
@@ -482,6 +486,8 @@ export interface LootList {
   view: LootView;
   /** The build the data is of ("LIVE 4.10.201.48085"). */
   build: string | null;
+  /** Whether the NPC worn-gear data is read: `missing` lists no "NPCs (worn gear)" rows until Read game data adds it. */
+  gear: LootDataState;
   rows: LootSummary[];
 }
 
@@ -497,6 +503,33 @@ export interface LootDrop {
   container: string;
   rarity: string | null;
   kind: LootDropKind;
+  /** What the odds depend on, when they do (worn gear of a gated loadout group: "if AI/NpcClass/Heavy"). */
+  note: string | null;
+}
+
+/** A link to another row of the areas list. */
+export interface LootLink {
+  id: string;
+  name: string;
+}
+
+/** `WearRange`: how worn an NPC's gear spawns, 0 (new) to 1. */
+export interface Wear {
+  min: number;
+  max: number;
+}
+
+/** What an NPC row of the areas list says beyond its drops. */
+export interface NpcInfo {
+  /** Worn gear: the actor classes the row stands for (same name and gear). */
+  classes: string[];
+  /** Worn gear: the faction ("Criminals"). */
+  faction: string | null;
+  wear: Wear | null;
+  /** Worn gear: the body-loot row of its loot table. */
+  body_loot: LootLink | null;
+  /** Body loot: the worn-gear rows of the NPCs whose bodies roll this table. */
+  worn_gear: LootLink[];
 }
 
 /** One group of a detail: its header over every matching drop, its rows when asked for. */
@@ -521,6 +554,8 @@ export interface LootDetail {
   entry: LootSummary | null;
   /** Items: the game record (Explorer link). */
   record: ItemRecord | null;
+  /** NPC rows: classes, faction, condition and the links between body loot and worn gear. */
+  npc: NpcInfo | null;
   group_by: LootGroupBy;
   groups: LootGroup[];
   total: number;
