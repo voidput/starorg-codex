@@ -53,13 +53,13 @@ export function visibleRange(scrollTop: number, viewHeight: number, rowHeight: n
 }
 
 /** The picked row while it is listed, else the first listed one. */
-export function currentId(rows: CommoditySummary[], picked: string | null): string | null {
+export function currentId(rows: { id: string }[], picked: string | null): string | null {
   if (picked && rows.some((r) => r.id === picked)) return picked;
   return rows[0]?.id ?? null;
 }
 
 /** The next or previous listed row (arrow keys), staying on the ends. */
-export function stepId(rows: CommoditySummary[], id: string | null, by: number): string | null {
+export function stepId(rows: { id: string }[], id: string | null, by: number): string | null {
   if (!rows.length) return null;
   const i = rows.findIndex((r) => r.id === id);
   if (i < 0) return rows[0]!.id;

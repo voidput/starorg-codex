@@ -7,7 +7,7 @@
  * Rules: snake_case fields, kebab-case values, `T | null` for Option (never omitted).
  */
 
-import type { MinedReport, OreQuality } from './dev';
+import type { MinedReport, MinedSpot, OreQuality, QualityRange, QualityStep } from './dev';
 
 export const CONTRACT_VERSION = 1;
 export const JOB_EVENT = 'job-progress';
@@ -790,6 +790,175 @@ export interface CommodityDetail {
 export interface CommodityInfo {
   state: CommodityDataState;
   commodity: CommodityDetail | null;
+}
+
+// The Commodities screen's Mining tab (`mining_list`, `mining_detail`), typed in
+// `starorg_mcp::mining`: list rows only, one mineral in full from a second call.
+
+export interface MiningListRequest {
+  target: ChannelRef | null;
+}
+
+export interface MiningDetailRequest {
+  target: ChannelRef | null;
+  /** A `MineralSummary.id`, a commodity id or an ore key. */
+  id: string;
+}
+
+/** Difficulty grade (an estimate). */
+export type MiningGrade = 'easy' | 'medium' | 'hard';
+/** The tool a rock takes, from its mining kind. */
+export type MiningTool = 'hand' | 'roc' | 'ship' | 'unknown';
+/** Where a place's curve comes from; `unknown`: a system override may apply, the place's system is not known. */
+export type MiningCurveSource = 'base' | 'override' | 'unknown';
+
+/** The S1 or S2 mining lasers' power range (first beam mode of each `WeaponMining`). */
+export interface LaserClass {
+  size: number;
+  count: number;
+  min: number;
+  max: number;
+  best: string;
+}
+
+export interface MineralSummary {
+  /** The resource record, else `ore:<key>`. */
+  id: string;
+  name: string;
+  refined: string | null;
+  /** "hand", "vehicle", "ship". */
+  kinds: string[];
+  places: number;
+  spots: number;
+  /** Best place's estimated share of rolls at 700 or more (of the trusted places when there are any). */
+  best_high: number | null;
+  /** best_high comes from a place with a quality scale below 1 or a curve not known: it may be lower. */
+  best_high_uncertain: boolean;
+  difficulty: MiningGrade | null;
+  has_override: boolean;
+}
+
+export interface MiningDirectory {
+  state: CommodityDataState;
+  build: string | null;
+  minerals: MineralSummary[];
+  /** `game-mining` (rock physics) was read. */
+  physics: boolean;
+  /** `game-weapons` (laser power) was read. */
+  lasers_read: boolean;
+  lasers: LaserClass[];
+  /** `game-mining-spawns` was read (else no body or belt is known yet). */
+  spawns_read: boolean;
+  /** `game-item-sources` was read (else no spot is known yet). */
+  spots_read: boolean;
+}
+
+export interface ElementPhysics {
+  ore: string;
+  resistance: number | null;
+  instability: number | null;
+  window_midpoint: number | null;
+  window_randomness: number | null;
+  window_thinness: number | null;
+  explosion_multiplier: number | null;
+  cluster_factor: number | null;
+}
+
+export interface Difficulty {
+  grade: MiningGrade;
+  points: number;
+  max_points: number;
+  resistance: number | null;
+  instability: number | null;
+  window_thinness: number | null;
+  missing: string[];
+}
+
+export interface ShipOption {
+  ship: string;
+  laser_count: number;
+  laser_size: number;
+  best_laser: string | null;
+  power: number | null;
+  /** power × (1 − resistance). */
+  effective: number | null;
+}
+
+export interface Recommendation {
+  tool: MiningTool;
+  label: string;
+  reason: string;
+  /** Only the ship comparison is an estimate; the tool follows from the rock's kind. */
+  estimate: boolean;
+  formula: string | null;
+  options: ShipOption[];
+}
+
+export interface PlaceQuality {
+  range: QualityRange;
+  source: MiningCurveSource;
+  /** The override that applies (`Pyro System`); null: base, or not known (see source). */
+  override_location: string | null;
+  /** Every quality scale of the row is 1: its shares compare with the others'. */
+  full_scale: boolean;
+  /** Estimated share of rolls at 700 or more. */
+  high: number | null;
+  /** Top two shown steps, highest last. */
+  top: QualityStep[];
+  top_share: number | null;
+}
+
+export interface MiningPlace {
+  ore: string;
+  location: string;
+  /** The real star system; null when not known (Lagrange points, clusters). */
+  system: string | null;
+  body: string | null;
+  /** Readable name (`Yela Belt`, `Lagrange A`). */
+  place: string;
+  rock: string;
+  kind: string | null;
+  tier: string | null;
+  signature: number | null;
+  spawn_share: number | null;
+  min_percent: number | null;
+  max_percent: number | null;
+  quality_scales: number[];
+  companions: string[];
+  /** Always null: rolled at spawn, not in the game files. */
+  rock_mass: number | null;
+  quality: PlaceQuality;
+  difficulty: Difficulty | null;
+  recommendation: Recommendation;
+}
+
+export interface OverrideUse {
+  location: string;
+  range: QualityRange;
+  /** Spawn rows it applies to (0: it names a place no row is). */
+  places: number;
+}
+
+export interface MineralDetail {
+  id: string;
+  name: string;
+  commodity: CommodityRef | null;
+  refined: CommodityRef | null;
+  ores: string[];
+  kinds: string[];
+  tier: string | null;
+  base: QualityRange | null;
+  steps: QualityStep[];
+  base_high: number | null;
+  overrides: OverrideUse[];
+  elements: ElementPhysics[];
+  places: MiningPlace[];
+  spots: MinedSpot[];
+}
+
+export interface MiningInfo {
+  state: CommodityDataState;
+  mineral: MineralDetail | null;
 }
 
 export interface LineSchema {

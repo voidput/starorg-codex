@@ -45,6 +45,8 @@ export interface CommandMap extends DevCommandMap, AssetCommandMap, TelemetryCom
   shop_item_search: [{ req: T.ShopItemSearchRequest }, T.ShopItemSearch];
   commodity_list: [{ req: T.CommodityListRequest }, T.CommodityDirectory];
   commodity_detail: [{ req: T.CommodityDetailRequest }, T.CommodityInfo];
+  mining_list: [{ req: T.MiningListRequest }, T.MiningDirectory];
+  mining_detail: [{ req: T.MiningDetailRequest }, T.MiningInfo];
   get_profile: [{ req: T.ChannelRef }, T.Profile];
   preset_profile: [{ preset: T.Preset }, T.Profile];
   save_profile: [{ req: T.SaveProfileRequest }, T.Profile];
@@ -143,6 +145,8 @@ export const COMMANDS = [
   'shop_item_search',
   'commodity_list',
   'commodity_detail',
+  'mining_list',
+  'mining_detail',
   'get_profile',
   'preset_profile',
   'save_profile',
@@ -416,6 +420,10 @@ export const api = {
   commodityList: (target: T.ChannelRef | null) => call('commodity_list', { req: { target } }),
   /** One resource in full: forms, quality, volatility, cargo, where mined, UEX kiosk prices. */
   commodityDetail: (target: T.ChannelRef | null, id: string) => call('commodity_detail', { req: { target, id } }),
+  /** The Commodities screen's Mining tab: every mineable resource, list rows only (same states as the commodity list). */
+  miningList: (target: T.ChannelRef | null) => call('mining_list', { req: { target } }),
+  /** One mineral in full: places with quality, rock profile, difficulty and the laser estimate. */
+  miningDetail: (target: T.ChannelRef | null, id: string) => call('mining_detail', { req: { target, id } }),
   getProfile: (req: T.ChannelRef) => call('get_profile', { req }),
   presetProfile: (preset: T.Preset) => call('preset_profile', { preset }),
   saveProfile: (req: T.SaveProfileRequest) => call('save_profile', { req }),

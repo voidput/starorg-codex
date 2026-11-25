@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # User guide
@@ -234,7 +234,13 @@ or ask the MCP server (`where_to_buy`); `shop_inventory` lists one shop's items 
 
 ## Commodities
 
-**Commodities** (Game group, or Ctrl+K) lists every tradable resource of the channel's build
+**Commodities** and **Mining** (Game group, or Ctrl+K) are one screen with two tabs
+(**Commodities | Mining** at the top of the list); each sidebar entry opens its tab, the search
+box is shared, and both read the same cached game data, once per build.
+
+### Commodities tab
+
+**Commodities** lists every tradable resource of the channel's build
 (ore, refined metal, gas, processed goods, ...), from its game data. Until that data is read
 the screen offers **Read game data** (the same job as in Shops; nothing is written to the
 game). Ship-system placeholders (heat, power, life support) are left out.
@@ -263,6 +269,55 @@ game). Ship-system placeholders (heat, power, life support) are left out.
 
 The list carries names and groups only; a resource's detail loads when you pick it. Both come
 from the build's cached data, built once per build, so switching screens does not rebuild.
+A mineable resource's **Where it is mined** has a **Mining details** link to the Mining tab.
+
+### Mining tab
+
+**Mining** lists every mineable resource of the build: ores, gems and raw minerals, the
+hand-mined and ROC-mined ones, and the harvestables with a quality curve. Chips narrow it by how
+it is mined (**Hand**, **ROC**, **Ship**); **Best quality** sorts by the best place's chance of
+a high roll. Pick one for:
+
+- **Raw to refined:** what it refines into (click it for its Commodities row; the header links
+  the resource's own row too). The refining yield is not in the game files (the server works it
+  out), so it says "not known".
+- **Quality:** the base curve, the values the game shows with estimated shares, and each place
+  override (`Pyro System`). An override applies to a place only when it names that place's body
+  or its system ("Pyro System"); one naming the body wins over one naming the system. An
+  override naming a station or a place no spawn row is says so and is applied nowhere. A place
+  whose system the data does not give (Lagrange points, asteroid clusters) shows "curve not
+  known" where a system override exists, not "same as base".
+- **Rock physics:** resistance, instability and the optimal charge window (where it sits, how far
+  it moves, how thin it is) from the game's mineable element records. Rock mass is not known:
+  the game rolls it when a rock spawns.
+- **Where found:** every body or belt that spawns it, **Most common** first or **Best quality**
+  first. Each row shows its mining kind, its quality range and where the curve comes from
+  (*same as base*, the override, or not known), the estimated share of rolls at 700 or more
+  (*est.*: a normal curve cut to its range), the difficulty and the laser it takes. A row whose
+  ore has a quality scale below 1 in that rock (the records give ×0.49 or ×0.79 for many) is
+  marked `*`: how the game applies the scale is not in the data, so the share is not changed,
+  may be lower, and the row sorts after full-scale rows in **Best quality**. Names come from the
+  body, else the provider key (`Yela Belt`, `Lagrange A`). Open a row for the rock: its record, tier, scan signature, how much of
+  it is this ore, what else it can hold, the top two shown values here with their shares, and the
+  difficulty and laser estimates with their inputs.
+- **Hand-placed spots:** caves, asteroid bases and events whose spawn points place the rock;
+  they roll the base curve (the data does not say which system a spot is in).
+
+**Estimates.** Two numbers are worked out, not read, and say so:
+
+- **Difficulty** (easy, medium, hard) scores resistance (below 0.2, below 0.6, else), instability
+  (below 100, below 500, else) and window thinness (below 0.6, below 1.5, else) 0, 1 or 2 points
+  each: 0-1 of 6 easy, 2-3 medium, 4-6 hard. A missing input is left out and named.
+- **Laser:** a hand-mined rock takes a multitool and a ROC rock a ROC: that follows from the
+  rock's kind in the game data. For a ship rock the Prospector (one S1 laser) and the MOLE (three
+  S2 lasers) are compared: effective power = best laser power of that size × lasers × (1 −
+  resistance), from the mining lasers in the ship weapons data. Breaking a rock also depends on
+  its mass, which the game files do not hold, so no ship is picked: the numbers are shown and
+  the line says "rock mass not known". The Golem is not compared (ship loadouts are not read).
+
+The rock physics and laser power come from two datasets **Read game data** adds (rock physics
+and ship weapons); a build read before them shows "not known yet" and the top line offers
+**Read game data** again.
 
 ## Loot
 
@@ -330,7 +385,10 @@ lists every channel and why one is not offered (an older version, or no build ma
 
 Nothing leaves the computer: the app talks to `127.0.0.1` only, refuses any other address,
 records nothing unless you turn on **Record sessions**, and sends nothing anywhere
-([privacy](privacy.md)).
+([privacy](privacy.md)). The screen and its Settings section say it in one line: "Live data
+comes from your own game on this PC, through the game's local telemetry API new in 5.0. Nothing
+leaves this PC." The Events, People and Sessions panels add the same for Game.log: "Read from
+the game's own log file on this PC. Nothing leaves this PC."
 
 **Each part is its own choice, off by default**, and turning one on never turns on another:
 

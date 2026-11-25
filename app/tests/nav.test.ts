@@ -11,7 +11,7 @@ test('Game reads the game; Backups and Activity sit with Settings', () => {
   assert.deepEqual(layout(false), [
     [null, ['home:1']],
     ['Customize', ['enhancements:2', 'strings:3', 'patches:4', 'blueprints:5', 'ships:6']],
-    ['Game', ['shops:', 'commodities:', 'loot:']],
+    ['Game', ['shops:', 'commodities:', 'mining:', 'loot:']],
     ['App', ['backups:7', 'activity:8', 'settings:9']],
   ]);
 });
@@ -32,9 +32,9 @@ test('Developer mode adds Dev before App and moves only Settings to Alt+0', () =
 test('Live telemetry joins Game only while the feature is on, labelled experimental and without a key', () => {
   assert.ok(!navItems(false).some((i) => i.id === 'telemetry'));
   assert.ok(!navItems(true).some((i) => i.id === 'telemetry'));
-  assert.deepEqual(layout(false, true)[2], ['Game', ['shops:', 'commodities:', 'loot:', 'telemetry:']]);
+  assert.deepEqual(layout(false, true)[2], ['Game', ['shops:', 'commodities:', 'mining:', 'loot:', 'telemetry:']]);
   const withDev = layout(true, true);
-  assert.deepEqual(withDev[2], ['Game', ['shops:', 'commodities:', 'loot:', 'telemetry:']]);
+  assert.deepEqual(withDev[2], ['Game', ['shops:', 'commodities:', 'mining:', 'loot:', 'telemetry:']]);
   assert.deepEqual(withDev.at(-1), ['App', ['backups:7', 'activity:8', 'settings:0']]);
   const item = navItems(false, true).find((i) => i.id === 'telemetry')!;
   assert.equal(item.label, 'Live telemetry');

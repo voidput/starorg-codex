@@ -48,8 +48,18 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         "game-weapons",
         json!({"shipWeapons": [
             {"name": "M5A Cannon", "recordName": "EntityClassDefinition.BEHR_LaserCannon_S3", "id": "id-m5a", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "BEHR", "dps": 683.63, "range": 2404},
-            {"name": "Deadbolt III Cannon", "recordName": "EntityClassDefinition.KRIG_BallisticCannon_S3", "id": "id-deadbolt", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "KRIG", "dps": 512.5, "range": 2200}
+            {"name": "Deadbolt III Cannon", "recordName": "EntityClassDefinition.KRIG_BallisticCannon_S3", "id": "id-deadbolt", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "KRIG", "dps": 512.5, "range": 2200},
+            {"name": "Acme Mining Laser S1", "recordName": "EntityClassDefinition.Mining_Laser_ACME_S1", "id": "id-ml1", "class": "ship", "type": "WeaponMining", "subType": "Gun", "size": 1,
+             "modes": [{"name": "Beam", "kind": "beam", "dps": 2000}, {"name": "Beam", "kind": "beam", "dps": 1500}]}
         ], "fpsWeapons": [], "missiles": []}),
+    );
+    d.insert(
+        "game-mining",
+        json!({"mineableElements": [
+            {"name": "Raw_Quantainium", "recordName": "MineableElement.Quantainium_Raw", "id": "e1",
+             "instability": 1000, "resistance": 0.95, "optimalWindowMidpoint": 0.5, "optimalWindowThinness": 2.3},
+            {"name": "Sadaryx", "recordName": "MineableElement.MinableElement_FPS_Sadaryx", "id": "e2", "instability": 200, "resistance": 0}
+        ], "miningModules": []}),
     );
     // Ship guns and components; item-tags above holds none of them (as on LIVE, where it
     // lists only the few with loot tags).
@@ -1263,6 +1273,67 @@ fn commodities_for_the_app_read_only_cached_data_and_build_once() {
     assert!(!gone.market.loaded && gone.market.sell.is_empty());
     assert!(!gone.cargo.is_empty());
     assert!(!t.commodity_list(Some("LIVE")).market.loaded);
+}
+
+#[test]
+fn mining_tab_reads_cached_data_and_adds_physics_once_read() {
+    use starorg_mcp::mining::{CommodityDataState as S, Grade, Tool};
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing cached: not read, and nothing is extracted for it.
+    assert_eq!(t.mining_list(Some("LIVE")).state, S::NotRead);
+    assert_eq!(t.mining_detail(Some("LIVE"), "Sadaryx").state, S::NotRead);
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    assert_eq!(t.mining_list(None).state, S::NoChannel);
+    assert_eq!(t.mining_detail(Some("NOPE"), "x").state, S::NoChannel);
+    // The Where to get datasets: places and quality, no physics or lasers yet.
+    t.obtain_hints("LIVE").unwrap();
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let d = t.mining_list(Some("LIVE"));
+    assert_eq!(d.state, S::Ready);
+    assert!(d.build.as_deref().unwrap().starts_with("LIVE "));
+    let names: Vec<&str> = d.minerals.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(names, ["Raw_Quantainium", "Sadaryx"]);
+    assert!(!d.physics && !d.lasers_read);
+    assert!(d.spawns_read && d.spots_read);
+    let q = t
+        .mining_detail(Some("LIVE"), "ResourceType.Raw_Quantainium")
+        .mineral
+        .unwrap();
+    let p = &q.places[0];
+    assert_eq!(p.body.as_deref(), Some("Hurston"));
+    assert_eq!(p.quality.override_location, None);
+    assert!(p.difficulty.is_none());
+    assert_eq!(p.recommendation.tool, Tool::Ship);
+    assert!(
+        p.recommendation
+            .reason
+            .contains("resistance and laser power not known")
+    );
+    assert_eq!(q.overrides[0].places, 0, "no Pyro place in the data");
+    let sad = t.mining_detail(Some("LIVE"), "Sadaryx").mineral.unwrap();
+    assert!(sad.places.is_empty() && !sad.spots.is_empty());
+    assert_eq!(
+        w.fake.runs.load(Ordering::SeqCst),
+        runs,
+        "nothing extracted"
+    );
+    // "Read game data" adds the physics and the lasers; the index is built again.
+    t.warm_mining("LIVE").unwrap();
+    let d = t.mining_list(Some("LIVE"));
+    assert!(d.physics && d.lasers_read);
+    assert_eq!(d.lasers[0].max, 2000.0);
+    let q = t
+        .mining_detail(Some("LIVE"), "quantainium_raw")
+        .mineral
+        .unwrap();
+    let p = &q.places[0];
+    assert_eq!(p.difficulty.as_ref().unwrap().grade, Grade::Hard);
+    assert_eq!(p.recommendation.options[0].power, Some(2000.0));
+    assert!((p.recommendation.options[0].effective.unwrap() - 100.0).abs() < 1e-6);
+    assert!(t.warm_mining("NOPE").is_err());
+    let none = t.mining_detail(Some("LIVE"), "Unobtainium");
+    assert!(none.state == S::Ready && none.mineral.is_none());
 }
 
 #[test]

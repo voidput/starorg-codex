@@ -30,7 +30,7 @@
   import { toContractError } from '@/lib/contract/client';
   import type { CvarState, TelemetryCfgLine, TelemetryChannel, TelemetryConfigureResult, TelemetrySettings } from '@/lib/contract/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
-  import { telemetryTarget } from '@/lib/telemetry';
+  import { GAMELOG_LOCAL, TELEMETRY_LOCAL, telemetryTarget } from '@/lib/telemetry';
   import { app } from '@/lib/stores/app.svelte';
   import { toast } from '@/lib/stores/toast.svelte';
 
@@ -142,8 +142,9 @@
         <span class="text-[13px] font-medium">Live telemetry</span>
         <Segmented ariaLabel="Live telemetry" size="sm" options={MODES} value={mode} disabled={telemetry.busy || (mode === 'off' && !target)} onchange={setMode} />
       </div>
+      <p class="text-[12px]" role="note">{TELEMETRY_LOCAL}</p>
       <p class="text-muted-foreground text-[12px]">
-        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0). Nothing leaves the computer.
+        Shows your health, ship, fuel and shields while you play, read from Star Citizen's own local service on this computer (127.0.0.1). For game builds 5.0 and newer only (PTU today, LIVE once it reaches 5.0).
       </p>
       <p class="text-muted-foreground text-[12px]">
         Each part is its own choice and off by default; turning one on never turns on another: <strong class="font-medium">Metrics</strong> or <strong class="font-medium">Metrics + actions</strong> here, then <strong class="font-medium">Record sessions</strong>, <strong class="font-medium">Read Game.log events</strong> (with People and Shard history) and <strong class="font-medium">Notifications</strong> below.
@@ -226,7 +227,7 @@
             id="tele-gamelog"
             size="sm"
             label="Read Game.log events"
-            hint="While the Live telemetry screen is open, follows this channel's Game.log on this computer: where you are, the shard you are on, quantum travel, ships nearby, deaths and respawns. Read only, kept in memory; nothing is written or sent."
+            hint={`While the Live telemetry screen is open, follows this channel's Game.log: where you are, the shard you are on, quantum travel, ships nearby, deaths and respawns. Read only, nothing is written. ${GAMELOG_LOCAL}`}
             checked={st.settings.gamelog}
             disabled={telemetry.busy}
             onchange={(v) => void save({ gamelog: v, people: v ? st.settings.people : false, sessions: v ? st.settings.sessions : false })}
@@ -236,7 +237,7 @@
             size="sm"
             class="pl-6"
             label="People"
-            hint="Also lists the player handles Game.log names (crew, party, players in ship kills near you). Kept in memory only, never written to a file, the Activity log or a diagnostics report, and never looked up online."
+            hint={`Also lists the player handles Game.log names (crew, party, players in ship kills near you). Kept in memory only, never written to a file, the Activity log or a diagnostics report, and never looked up online. ${GAMELOG_LOCAL}`}
             checked={st.settings.gamelog && st.settings.people}
             disabled={telemetry.busy || !st.settings.gamelog}
             onchange={(v) => void save({ people: v })}
@@ -246,7 +247,7 @@
             size="sm"
             class="pl-6"
             label="Shard history"
-            hint="Keeps a list of the shards you join (region, times, why you left; never a server address, session id or player name) in the app's data folder, and reads in the older logs in this channel's logbackups folder (the newest 40). 2000 rows at most; Settings → Storage shows it and Clear empties it."
+            hint={`Keeps a list of the shards you join (region, times, why you left; never a server address, session id or player name) in the app's data folder, and reads in the older logs in this channel's logbackups folder (the newest 40). 2000 rows at most; Settings → Storage shows it and Clear empties it. ${GAMELOG_LOCAL}`}
             checked={st.settings.gamelog && st.settings.sessions}
             disabled={telemetry.busy || !st.settings.gamelog}
             onchange={(v) => void save({ sessions: v })}

@@ -847,6 +847,28 @@ pub struct CommodityDetailRequest {
     pub id: String,
 }
 
+// The Commodities screen's Mining tab (`mining_list`, `mining_detail`): every mineable
+// resource with its places, quality per place, rock physics and the laser estimate, typed in
+// `starorg_mcp::mining`. Same cached data and states as the commodity list.
+pub use starorg_mcp::mining::{
+    CurveSource as MiningCurveSource, Difficulty, ElementPhysics, Grade as MiningGrade, LaserClass,
+    MineralDetail, MineralSummary, MiningDirectory, MiningInfo, MiningPlace, OverrideUse,
+    PlaceQuality, Recommendation, ShipOption, Tool as MiningTool,
+};
+
+/// Every mineral of `target`'s build, from its cached game data. `None`: `no-channel`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MiningListRequest {
+    pub target: Option<ChannelRef>,
+}
+
+/// One mineral; `id` is a [`MineralSummary::id`], a commodity id or an ore key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MiningDetailRequest {
+    pub target: Option<ChannelRef>,
+    pub id: String,
+}
+
 /// Never prints the token.
 impl std::fmt::Debug for UexTokenRequest {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

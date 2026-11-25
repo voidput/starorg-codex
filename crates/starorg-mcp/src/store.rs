@@ -115,6 +115,8 @@ struct Mem {
     typed: HashMap<(PathBuf, &'static str), Typed>,
     /// The UEX stamp each [`Store::typed_uex`] value was built under.
     typed_uex: HashMap<(PathBuf, &'static str), UexStamp>,
+    /// The dataset stamps each [`Store::typed_files`] value was built under.
+    typed_files: HashMap<(PathBuf, &'static str), Vec<FileStamp>>,
     /// Build folders, most recent last.
     recent: Vec<PathBuf>,
     /// Modified time of each UEX file in `json` when it was read.
@@ -440,6 +442,7 @@ impl Store {
             m.json.retain(|(d, _), _| *d != old);
             m.typed.retain(|(d, _), _| *d != old);
             m.typed_uex.retain(|(d, _), _| *d != old);
+            m.typed_files.retain(|(d, _), _| *d != old);
         }
     }
 
@@ -615,6 +618,33 @@ impl Store {
         }
         let v = self.typed(dir, name, build)?;
         lock(&self.mem).typed_uex.insert(key, stamp);
+        Ok(v)
+    }
+
+    /// [`Self::typed`] for a value derived from some of the build's datasets that may be
+    /// extracted (or extracted again) while this store runs: built again once any of
+    /// `datasets` (`game-mining`, ...) appeared, went or changed (modified time and size)
+    /// in `dir` since.
+    pub fn typed_files<T: Any + Send + Sync>(
+        &self,
+        dir: &Path,
+        name: &'static str,
+        datasets: &[&str],
+        build: impl FnOnce() -> ToolResult<T>,
+    ) -> ToolResult<Arc<T>> {
+        let stamp: Vec<FileStamp> = datasets
+            .iter()
+            .map(|d| file_stamp(&dir.join(format!("{d}.json"))))
+            .collect();
+        let key = (dir.to_path_buf(), name);
+        let current = lock(&self.mem).typed_files.get(&key) == Some(&stamp);
+        if !current {
+            let mut m = lock(&self.mem);
+            m.typed.remove(&key);
+            m.typed_files.remove(&key);
+        }
+        let v = self.typed(dir, name, build)?;
+        lock(&self.mem).typed_files.insert(key, stamp);
         Ok(v)
     }
 

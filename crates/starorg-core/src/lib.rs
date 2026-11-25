@@ -60,5 +60,7 @@ pub mod validate;
 /// brings a raw `@key` or a placeholder;
 /// 8 = commodity sell prices: the WHERE TO GET `sell` line (on in Everything);
 /// 9 = missing descriptions: a sibling's stock description (colour paragraph cut) for
-/// description keys stock lacks or holds as a placeholder, with stats and WHERE TO GET on it.
-pub const OUTPUT_VERSION: u32 = 9;
+/// description keys stock lacks or holds as a placeholder, with stats and WHERE TO GET on it;
+/// 10 = ore quality in WHERE TO GET for Aluminum and Stileron ore (the spawn data spells them
+/// `aluminium_ore` and `sileron_ore`, which matched no resource before).
+pub const OUTPUT_VERSION: u32 = 10;
