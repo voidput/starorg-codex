@@ -2915,6 +2915,49 @@ fn blueprint_finder_merges_channels_with_their_own_owners() {
             .filter(|r| r.record.is_some())
             .all(|r| r.owners.is_empty() && r.maybe.len() == 1)
     );
+    // Earn it: rows point into one mission table, each entry with its channels; a sure
+    // pool of several is not "guaranteed" for one blueprint; a name row's missions are not
+    // known.
+    assert_eq!(all.missions.len(), 5);
+    let mk2 = row(&all, "Synthetic Rifle Mk2");
+    let titles: Vec<Option<&str>> = mk2
+        .earn
+        .iter()
+        .map(|e| all.missions[e.mission as usize].title.as_deref())
+        .collect();
+    assert_eq!(
+        titles,
+        vec![
+            Some("Eliminate the Sample Warlord"),
+            Some("Recover the Cargo near [Location]")
+        ]
+    );
+    assert_eq!(
+        (mk2.earn[0].odds.as_str(), mk2.earn[0].award),
+        ("Guaranteed", BlueprintAward::GuaranteedPool)
+    );
+    assert_eq!(
+        (mk2.earn[1].odds.as_str(), mk2.earn[1].award),
+        ("30%", BlueprintAward::Chance)
+    );
+    assert_eq!(mk2.earn[0].channels, vec!["LIVE", "PTU"]);
+    assert_eq!(
+        all.missions[mk2.earn[0].mission as usize].reputation,
+        vec!["Synthetic Security Bureau"]
+    );
+    // LIVE's missions do not award the Mk1; PTU's trial does (a pool of one).
+    let mk1 = row(&all, "Synthetic Rifle Mk1");
+    assert_eq!(mk1.earn_read, vec!["LIVE", "PTU"]);
+    assert_eq!(
+        (
+            mk1.earn.len(),
+            mk1.earn[0].award,
+            mk1.earn[0].channels.clone()
+        ),
+        (1, BlueprintAward::Guaranteed, vec!["PTU".to_string()])
+    );
+    assert!(name_row.earn.is_empty() && name_row.earn_read.is_empty());
+    assert!(row(&all, "Sample Crate").earn.is_empty());
     // The unattributed set shows as its own owner.
     assert_eq!(all.characters.last().unwrap().id, "unattributed");
     assert_eq!(

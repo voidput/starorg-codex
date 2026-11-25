@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # User guide
@@ -167,9 +167,32 @@ type and are written on the next apply.
 
 - **Finder:** every blueprint of the build and who owns it, per character and channel (PTU
   progress is not LIVE progress). Search (`/`), filters (category, type, manufacturer, size,
-  source, character), sort and group; groups and cards can be collapsed. It shows as soon as
-  the build's blueprints are read and does not wait for the character list or StarOrg Tools; it
-  reloads after an import, a pull or a re-scan.
+  source, character, missing for, missions, reputation), sort and group; groups and cards can be
+  collapsed. It shows as soon as the build's blueprints are read and does not wait for the
+  character list or StarOrg Tools; it reloads after an import, a pull or a re-scan.
+- **Owned by one, missing for another:** **Owned** with a character picked lists what that
+  character owns; add yourself under **Missing for** and only what you lack stays. The other
+  character can be an alt, or a guild list pulled into a character through StarOrg Tools.
+  Missing for counts any source (a blueprint you have from an import is not missing), and with
+  several characters picked a blueprint must be missing for each of them. Like every filter it
+  is remembered per channel and goes with **Clear filters**.
+- **Earn it:** a blueprint a mission can award shows **Earn it: N missions** under its name;
+  open it for each mission's in-game title (or its contract record when it has none), the
+  reputation it pays (the faction's in-game name when the game data has one; every faction when
+  the title pays several), the star system when the game data names one, the type (Chain, Once
+  only), the standing it requires, and the odds in the words of the in-game MISSION DETAILS
+  line: *Guaranteed*, *Some variants only* (not every contract with that title awards it) or a
+  chance such as *30%*. That line is about the pool: the badge says what it means for this
+  blueprint. **Guaranteed** is a sure pool that holds only this blueprint; **Guaranteed pool, 1
+  of N** is a sure pool it is one draw of (its share of the draws follows when the pool has
+  weights); **Chance** is everything else. With Developer mode on, **Find in Explorer** searches
+  the Explorer for the contract's record. The **Missions** filter keeps guaranteed, from a
+  guaranteed pool, by chance, not from missions or not known; **Reputation** keeps one faction's.
+  In All channels every build's missions are listed, each with its channel when not every build
+  has it, and the Channel filter narrows them too. Contracts come only from a local read of the
+  game data: until a build has been read that way its blueprints say their missions are *not
+  known* rather than none (after this update every build is read once more, for the star
+  systems). The list is worked out once per build with the finder's catalogue.
 - **Where ownership comes from:**
   - **Game logs.** The game writes `Received Blueprint: ...` to `Game.log`. The app reads new
     lines when you open Blueprints; on Linux the post-exit hook does it after every session;

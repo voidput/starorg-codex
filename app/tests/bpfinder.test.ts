@@ -4,7 +4,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { mockFinder, seedOwned, normalize, type FinderChan } from '../src/lib/contract/mock-finder.ts';
-import { DEFAULT_PREFS, activeFilters, clearFilters, matchScore, parsePrefs, query, toggle, fold, type FinderPrefs } from '../src/lib/bpfinder.ts';
+import { DEFAULT_PREFS, activeFilters, clearFilters, earnFor, earnId, matchScore, missionOf, missionTitle, parsePrefs, query, toggle, fold, type FinderPrefs } from '../src/lib/bpfinder.ts';
 import type { BlueprintFinder } from '../src/lib/contract/types.ts';
 
 const samples = JSON.parse(readFileSync(new URL('../src/lib/contract/samples.gen.json', import.meta.url), 'utf8'));
@@ -177,4 +177,88 @@ test('a pull or import shows up for that channel and character only', () => {
   const retired = f.rows.find((r) => r.key === 'name:retired sample helmet')!;
   assert.deepEqual([retired.kind, retired.channels], ['other', []]);
   assert.ok(names(view(P(), ['LIVE'], f).rows).includes('[H] Retired Sample Helmet'));
+});
+
+test('missing for: owned by one character, missing for another, with counts', () => {
+  const pilot = '1000000000001';
+  const alt = '1000000000002';
+  const altC = '1000000000003';
+  // What Alt_B has that Pilot_A lacks (the rifle both own drops out).
+  const v = view(P({ character: [alt], missing: [pilot] }));
+  assert.deepEqual(names(v.rows), ['Sample Shield S1', 'Sample Undersuit', 'Sample Visor']);
+  assert.deepEqual(v.owned, { all: 34, owned: 3, missing: 31 });
+  // Missing-for numbers: the view with that character added (ANDed).
+  assert.equal(count(v, 'missing', pilot), 3);
+  assert.equal(count(v, 'missing', altC), 3, 'Alt_C has nothing on LIVE');
+  assert.equal(count(v, 'missing', alt), 0);
+  // The other facets count within it.
+  assert.equal(count(v, 'character', alt), 3);
+  assert.equal(count(v, 'kind', 'armor'), 2);
+  const before = view(P({ character: [alt] }));
+  assert.equal(count(before, 'missing', pilot), 3);
+  assert.equal(count(before, 'missing', altC), 4);
+  assert.equal(view(P({ character: [pilot], missing: [pilot] })).rows.length, 0);
+  // Missing means no source at all: the source filter does not narrow it.
+  assert.deepEqual(names(view(P({ character: [alt], missing: [pilot], source: ['smart-citizen'] })).rows), ['Sample Shield S1']);
+  // Two picks: missing for both.
+  assert.equal(view(P({ owned: 'all', missing: [pilot, alt] })).rows.length, 40 - 9);
+  assert.equal(activeFilters(P({ missing: [pilot] })), 1);
+  assert.deepEqual(clearFilters(P({ missing: [pilot], earn: ['chance'], faction: ['x'] })), P());
+});
+
+test('earn it: missions facet, reputation facet, and the shared mission table', () => {
+  const v = view(P({ owned: 'all' }));
+  // A sure pool of several is not "guaranteed" for each blueprint in it.
+  assert.deepEqual(v.facets.earn.map((x) => [x.id, x.label, x.count]), [
+    ['guaranteed', 'Guaranteed', 1],
+    ['pool', 'From a guaranteed pool', 4],
+    ['chance', 'By chance', 5],
+    ['none', 'Not from missions', 29],
+    ['unknown', 'Not known', 1],
+  ]);
+  // The game's faction name when it has one; else the record without its lawful marker.
+  assert.deepEqual(v.facets.faction.map((x) => [x.label, x.count]), [['Synthetic Security Bureau', 4], ['Test CDS', 4], ['No reputation', 3]]);
+  const g = view(P({ owned: 'all', earn: ['pool'], faction: ['factionreputation_unlawful_test_cds'] }));
+  assert.deepEqual(names(g.rows), ['Synthetic Rifle Mk2']);
+  // The reputation numbers follow the missions pick, and the other way round.
+  assert.equal(count(view(P({ owned: 'all', earn: ['chance'] })), 'faction', 'factionreputation_lawful_synthetic_security'), 0);
+  assert.equal(count(view(P({ owned: 'all', faction: ['none'] })), 'earn', 'chance'), 2);
+  // A name row's missions are not known (never "none").
+  const visor = sample.rows.find((r) => r.record === null)!;
+  assert.equal(earnId(earnFor(visor, new Set(['LIVE']))), 'unknown');
+  // Rows point into one table; the odds keep the in-game MISSION DETAILS wording.
+  const mk2 = sample.rows.find((r) => r.name === 'Synthetic Rifle Mk2')!;
+  const ms = mk2.earn.map((e) => [missionTitle(missionOf(sample, e)!), e.award, e.odds, e.pool, e.pick]);
+  assert.deepEqual(ms, [
+    ['Eliminate the Sample Warlord', 'guaranteed-pool', 'Guaranteed', '5', '17%'],
+    ['Recover the Cargo near [Location]', 'chance', '30%', '4', null],
+  ]);
+  const arms = sample.rows.find((r) => r.name === 'Sample Armor Arms')!;
+  assert.equal(arms.earn[0]!.odds, 'Some variants only');
+  const knife = sample.rows.find((r) => r.name === 'Test Knife')!;
+  assert.equal(knife.earn[0]!.award, 'guaranteed', 'a sure pool of one');
+  assert.equal(missionTitle(missionOf(sample, knife.earn[0]!)!), 'SYN_Debug_Reward', 'untitled: its record');
+  assert.equal(missionOf(sample, { ...knife.earn[0]!, mission: 99 }), null);
+});
+
+test('earn it over channels: every build’s missions, narrowed by the channel filter', () => {
+  // LIVE's missions do not award the Mk1; PTU's trial does.
+  const mk1 = (p: Partial<FinderPrefs>) => view(P({ owned: 'all', search: 'Synthetic Rifle Mk1', ...p }), ALL);
+  assert.equal(mk1({}).facets.earn.find((x) => x.count)!.id, 'guaranteed');
+  assert.equal(mk1({ channel: ['LIVE'] }).facets.earn.find((x) => x.count)!.id, 'none');
+  assert.equal(mk1({ channel: ['PTU'] }).facets.earn.find((x) => x.count)!.id, 'guaranteed');
+  assert.equal(view(P({ owned: 'all', search: 'Synthetic Rifle Mk1' })).facets.earn.find((x) => x.count)!.id, 'none', 'LIVE alone');
+  const row = sample.rows.find((r) => r.name === 'Synthetic Rifle Mk1')!;
+  assert.deepEqual(row.earn_read, ['LIVE', 'PTU']);
+  assert.deepEqual(earnFor(row, new Set(['HOTFIX'])), null, 'HOTFIX is not read: not known');
+  assert.deepEqual(earnFor(row, new Set(['LIVE'])), []);
+  assert.deepEqual(earnFor(row, new Set(['PTU']))!.map((e) => e.channels), [['PTU']]);
+});
+
+test('prefs: missing, missions and reputation are validated', () => {
+  const p = parsePrefs(JSON.stringify({ missing: ['1000000000001', 5], earn: ['pool', 'nope'], faction: 'x' }));
+  assert.deepEqual([p.missing, p.earn, p.faction], [['1000000000001'], ['pool'], []]);
+  assert.equal(activeFilters(p), 2);
+  // Prefs stored before these filters existed read with them empty.
+  assert.deepEqual(parsePrefs(JSON.stringify({ owned: 'missing' })), { ...DEFAULT_PREFS, owned: 'missing' });
 });

@@ -46,6 +46,9 @@ pub struct ReputationReward {
     /// Faction reputation record short name.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub faction: Option<String>,
+    /// That record's `displayName` loc reference (schema 6), when it has a real one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub faction_name_key: Option<String>,
     pub amount: f64,
     /// Granted on success (`missionResults[0]`) or on failure (`missionResults[1]`).
     #[serde(default)]
@@ -96,6 +99,10 @@ pub struct Contract {
     /// short name of an `SReputationStandingParams`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub min_standing: Option<String>,
+    /// Star systems of its `ContractPrerequisite_Locality` entries (`Stanton`, `Pyro`),
+    /// sorted (schema 6); empty = no locality prerequisite (offered anywhere, or not known).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub systems: Vec<String>,
 }
 
 impl Contract {
@@ -198,12 +205,14 @@ mod tests {
             reputation: vec![
                 ReputationReward {
                     faction: None,
+                    faction_name_key: None,
                     amount: -1000.0,
                     on_success: false,
                     on_failure: true,
                 },
                 ReputationReward {
                     faction: None,
+                    faction_name_key: None,
                     amount: 150.0,
                     on_success: true,
                     on_failure: false,

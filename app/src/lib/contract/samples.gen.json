@@ -940,6 +940,77 @@
         "name": "Unattributed"
       }
     ],
+    "missions": [
+      {
+        "contracts": 1,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Debug_Reward",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": null
+      },
+      {
+        "contracts": 2,
+        "factions": [
+          "factionreputation_lawful_synthetic_security"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Bounty_Easy (+1 more)",
+        "reputation": [
+          "Synthetic Security Bureau"
+        ],
+        "requires": null,
+        "systems": [
+          "Pyro",
+          "Stanton"
+        ],
+        "title": "Eliminate the Sample Warlord"
+      },
+      {
+        "contracts": 1,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_PTU_Trial",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": "Prototype Trial Run"
+      },
+      {
+        "contracts": 1,
+        "factions": [
+          "factionreputation_unlawful_test_cds"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [
+          "Chain",
+          "Once only"
+        ],
+        "record": "SYN_Salvage",
+        "reputation": [
+          "Test CDS"
+        ],
+        "requires": "Trusted",
+        "systems": [],
+        "title": "Recover the Cargo near [Location]"
+      },
+      {
+        "contracts": 2,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Courier_Long (+1 more)",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": "Synthetic Courier Run"
+      }
+    ],
     "rows": [
       {
         "candidates": [],
@@ -947,6 +1018,22 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000ba",
         "kind": "ship-component",
@@ -977,6 +1064,24 @@
           "PTU"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 4,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ca",
         "kind": "armor",
@@ -996,6 +1101,24 @@
           "PTU"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 4,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cb",
         "kind": "armor",
@@ -1015,6 +1138,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d2",
         "kind": "armor",
@@ -1034,6 +1162,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d4",
         "kind": "fps-ammo",
@@ -1052,6 +1185,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d5",
         "kind": "mission-item",
@@ -1071,6 +1208,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bd",
         "kind": "ship-weapon",
@@ -1090,6 +1245,11 @@
           "PTU"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cc",
         "kind": "armor",
@@ -1130,6 +1290,24 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cd",
         "kind": "armor",
@@ -1149,6 +1327,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bf",
         "kind": "ship-weapon",
@@ -1168,6 +1351,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c6",
         "kind": "fps-weapon",
@@ -1187,6 +1375,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b9",
         "kind": "ship-component",
@@ -1206,6 +1399,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "D",
         "key": "00000000-0000-4000-8000-0000000000b3",
         "kind": "ship-component",
@@ -1225,6 +1423,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b4",
         "kind": "ship-component",
@@ -1244,6 +1447,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b5",
         "kind": "ship-component",
@@ -1274,6 +1495,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b6",
         "kind": "ship-component",
@@ -1293,6 +1519,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c4",
         "kind": "fps-weapon",
@@ -1312,6 +1543,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c3",
         "kind": "fps-weapon",
@@ -1331,6 +1567,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d1",
         "kind": "armor",
@@ -1361,6 +1602,11 @@
           "PTU"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d6",
         "kind": "armor",
@@ -1391,6 +1637,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d7",
         "kind": "armor",
@@ -1424,6 +1675,8 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [],
         "grade": null,
         "key": "name:sample visor",
         "kind": "armor",
@@ -1454,6 +1707,11 @@
           "PTU"
         ],
         "class": "Medium",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c9",
         "kind": "armor",
@@ -1484,6 +1742,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bb",
         "kind": "ship-weapon",
@@ -1514,6 +1790,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b0",
         "kind": "ship-component",
@@ -1533,6 +1814,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b1",
         "kind": "ship-component",
@@ -1563,6 +1849,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "33%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b2",
         "kind": "ship-component",
@@ -1582,6 +1886,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bc",
         "kind": "ship-weapon",
@@ -1612,6 +1921,23 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed",
+            "channels": [
+              "PTU"
+            ],
+            "mission": 2,
+            "odds": "Guaranteed",
+            "pick": "100%",
+            "pool": "1",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c0",
         "kind": "fps-weapon",
@@ -1672,6 +1998,36 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          },
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c1",
         "kind": "fps-weapon",
@@ -1691,6 +2047,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cf",
         "kind": "armor",
@@ -1710,6 +2071,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ce",
         "kind": "armor",
@@ -1729,6 +2095,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 0,
+            "odds": "Guaranteed",
+            "pick": null,
+            "pool": "1",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c8",
         "kind": "fps-weapon",
@@ -1748,6 +2132,11 @@
           "PTU"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d0",
         "kind": "armor",
@@ -1767,6 +2156,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c7",
         "kind": "fps-weapon",
@@ -1786,6 +2180,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c2",
         "kind": "fps-weapon",
@@ -1816,6 +2215,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b7",
         "kind": "ship-component",
@@ -1835,6 +2239,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b8",
         "kind": "ship-component",
@@ -1854,6 +2263,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d3",
         "kind": "fps-ammo",
@@ -1873,6 +2287,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000be",
         "kind": "ship-weapon",
@@ -1903,6 +2322,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c5",
         "kind": "fps-weapon",
@@ -1961,6 +2398,66 @@
         "name": "Unattributed"
       }
     ],
+    "missions": [
+      {
+        "contracts": 1,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Debug_Reward",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": null
+      },
+      {
+        "contracts": 2,
+        "factions": [
+          "factionreputation_lawful_synthetic_security"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Bounty_Easy (+1 more)",
+        "reputation": [
+          "Synthetic Security Bureau"
+        ],
+        "requires": null,
+        "systems": [
+          "Pyro",
+          "Stanton"
+        ],
+        "title": "Eliminate the Sample Warlord"
+      },
+      {
+        "contracts": 1,
+        "factions": [
+          "factionreputation_unlawful_test_cds"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [
+          "Chain",
+          "Once only"
+        ],
+        "record": "SYN_Salvage",
+        "reputation": [
+          "Test CDS"
+        ],
+        "requires": "Trusted",
+        "systems": [],
+        "title": "Recover the Cargo near [Location]"
+      },
+      {
+        "contracts": 2,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Courier_Long (+1 more)",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": "Synthetic Courier Run"
+      }
+    ],
     "rows": [
       {
         "candidates": [],
@@ -1968,6 +2465,22 @@
           "LIVE"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 3,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ca",
         "kind": "armor",
@@ -1986,6 +2499,22 @@
           "LIVE"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 3,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cb",
         "kind": "armor",
@@ -2004,6 +2533,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d2",
         "kind": "armor",
@@ -2022,6 +2555,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d4",
         "kind": "fps-ammo",
@@ -2040,6 +2577,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d5",
         "kind": "mission-item",
@@ -2058,6 +2599,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bd",
         "kind": "ship-weapon",
@@ -2076,6 +2633,10 @@
           "LIVE"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cc",
         "kind": "armor",
@@ -2105,6 +2666,22 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cd",
         "kind": "armor",
@@ -2123,6 +2700,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bf",
         "kind": "ship-weapon",
@@ -2141,6 +2722,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c6",
         "kind": "fps-weapon",
@@ -2159,6 +2744,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b9",
         "kind": "ship-component",
@@ -2177,6 +2766,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "D",
         "key": "00000000-0000-4000-8000-0000000000b3",
         "kind": "ship-component",
@@ -2195,6 +2788,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b4",
         "kind": "ship-component",
@@ -2213,6 +2810,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b5",
         "kind": "ship-component",
@@ -2242,6 +2855,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b6",
         "kind": "ship-component",
@@ -2260,6 +2877,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c4",
         "kind": "fps-weapon",
@@ -2278,6 +2899,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c3",
         "kind": "fps-weapon",
@@ -2296,6 +2921,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d1",
         "kind": "armor",
@@ -2325,6 +2954,10 @@
           "LIVE"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d6",
         "kind": "armor",
@@ -2354,6 +2987,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d7",
         "kind": "armor",
@@ -2386,6 +3023,8 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [],
         "grade": null,
         "key": "name:sample visor",
         "kind": "armor",
@@ -2415,6 +3054,10 @@
           "LIVE"
         ],
         "class": "Medium",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c9",
         "kind": "armor",
@@ -2444,6 +3087,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bb",
         "kind": "ship-weapon",
@@ -2473,6 +3132,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b0",
         "kind": "ship-component",
@@ -2491,6 +3154,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b1",
         "kind": "ship-component",
@@ -2520,6 +3187,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "33%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b2",
         "kind": "ship-component",
@@ -2538,6 +3221,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bc",
         "kind": "ship-weapon",
@@ -2556,6 +3243,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c0",
         "kind": "fps-weapon",
@@ -2595,6 +3286,33 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          },
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c1",
         "kind": "fps-weapon",
@@ -2613,6 +3331,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cf",
         "kind": "armor",
@@ -2631,6 +3353,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ce",
         "kind": "armor",
@@ -2649,6 +3375,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 0,
+            "odds": "Guaranteed",
+            "pick": null,
+            "pool": "1",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c8",
         "kind": "fps-weapon",
@@ -2667,6 +3409,10 @@
           "LIVE"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d0",
         "kind": "armor",
@@ -2685,6 +3431,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c7",
         "kind": "fps-weapon",
@@ -2703,6 +3453,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c2",
         "kind": "fps-weapon",
@@ -2732,6 +3486,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b7",
         "kind": "ship-component",
@@ -2750,6 +3508,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b8",
         "kind": "ship-component",
@@ -2768,6 +3530,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d3",
         "kind": "fps-ammo",
@@ -2786,6 +3552,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000be",
         "kind": "ship-weapon",
@@ -2815,6 +3585,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c5",
         "kind": "fps-weapon",

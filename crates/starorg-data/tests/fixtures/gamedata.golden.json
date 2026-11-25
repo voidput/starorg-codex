@@ -1,5 +1,5 @@
 {
-  "schema": 5,
+  "schema": 6,
   "build": null,
   "datacore": null,
   "components": [
@@ -512,6 +512,7 @@
       "reputation": [
         {
           "faction": "factionreputation_test",
+          "factionNameKey": "@Faction_TEST_Name",
           "amount": 150.0,
           "onSuccess": true,
           "onFailure": false
@@ -541,7 +542,10 @@
       "debugName": "TEST_Contract_Haul",
       "id": "c-haul",
       "titleKey": "@TEST_haul_title",
-      "titleFrom": "contract"
+      "titleFrom": "contract",
+      "systems": [
+        "Pyro"
+      ]
     }
   ],
   "blueprints": [

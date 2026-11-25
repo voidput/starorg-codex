@@ -1191,12 +1191,60 @@ export interface BlueprintRow {
   owners: BlueprintOwner[];
   /** Owners of an ambiguous name that could be this blueprint ("maybe owned"). */
   maybe: BlueprintOwner[];
+  /** Missions that can award it over every channel, sure ones first; each entry names the channels whose builds have it. */
+  earn: BlueprintEarn[];
+  /** Channels whose build's contracts were read for it: elsewhere its missions are not known (name rows: none). */
+  earn_read: string[];
+}
+
+/** A mission (the contracts sharing one title) that can award blueprints. */
+export interface BlueprintMission {
+  /** In-game title (`~mission(Location)` reads `[Location]`); null = no readable title. */
+  title: string | null;
+  /** Contract debug name (`Name (+2 more)` for a shared title). */
+  record: string;
+  /** Contract generator record short name (an Explorer search finds it). */
+  generator: string;
+  /** Faction reputation records its success rewards pay, first seen first. */
+  factions: string[];
+  /** Those factions readable (one per `factions` entry): the game's name, else the record in words. */
+  reputation: string[];
+  /** Star systems of its locality prerequisites; empty = not known. */
+  systems: string[];
+  /** MISSION DETAILS `Type:` words (`Chain`, `Once only`), each when every contract is one. */
+  kinds: string[];
+  /** MISSION DETAILS `Requires:` standing. */
+  requires: string | null;
+  /** Contracts with this title. */
+  contracts: number;
+}
+
+/** How sure one blueprint is from one mission: a sure pool of just it, a sure pool of several, or by chance (some variants only included). */
+export type BlueprintAward = 'guaranteed' | 'guaranteed-pool' | 'chance';
+
+/** How one mission awards one blueprint. */
+export interface BlueprintEarn {
+  /** Index in `BlueprintFinder.missions`. */
+  mission: number;
+  award: BlueprintAward;
+  /** MISSION DETAILS `Blueprint reward:` wording (the pool's odds, as in game): `Guaranteed`, `Some variants only`, `25%`. */
+  odds: string;
+  /** Contracts of the title that can award it (of the mission's `contracts`). */
+  variants: number;
+  /** Blueprints in its pool: `6`, or `4–6`. */
+  pool: string;
+  /** Its share of the pool by weight (`17%`); null when the weights are not known. */
+  pick: string | null;
+  /** Channels whose builds have this entry. */
+  channels: string[];
 }
 
 export interface BlueprintFinder {
   channels: BlueprintFinderChannel[];
   characters: BlueprintFinderCharacter[];
   rows: BlueprintRow[];
+  /** Every mission the rows' `earn` names, each once (rows refer to them by index). */
+  missions: BlueprintMission[];
 }
 
 export interface ImportRequest {

@@ -275,7 +275,7 @@ fn title_case(s: &str) -> String {
 /// How sure a title's blueprint reward is, over its contract group: what MISSION DETAILS says
 /// and what the note under BLUEPRINTS warns about (`[BP?]` titles).
 #[derive(Debug, Clone, PartialEq)]
-enum Odds {
+pub enum Odds {
     /// Every variant awards a pool at 100 %.
     Guaranteed,
     /// Only some contracts with this title award a pool.
@@ -285,7 +285,9 @@ enum Odds {
 }
 
 impl Odds {
-    fn text(&self) -> String {
+    /// The MISSION DETAILS `Blueprint reward:` value: `Guaranteed`, `Some variants only`,
+    /// `25%`, `10–25%`.
+    pub fn text(&self) -> String {
         match self {
             Odds::Guaranteed => "Guaranteed".into(),
             Odds::SomeVariants => "Some variants only".into(),
@@ -312,17 +314,19 @@ impl Odds {
 }
 
 fn reward_odds(group: &[&Contract]) -> Option<Odds> {
-    let with_pool: Vec<&&Contract> = group
-        .iter()
-        .filter(|c| !c.blueprint_rewards.is_empty())
-        .collect();
-    if with_pool.is_empty() {
+    odds_by(group, chance)
+}
+
+/// [`reward_odds`] for one reward: `chance_of` is the chance a contract awards it (`None`:
+/// that contract does not). The blueprint finder asks it per blueprint.
+pub fn odds_by(group: &[&Contract], chance_of: impl Fn(&Contract) -> Option<f64>) -> Option<Odds> {
+    let ch: Vec<f64> = group.iter().filter_map(|c| chance_of(c)).collect();
+    if ch.is_empty() {
         return None;
     }
-    if with_pool.len() < group.len() {
+    if ch.len() < group.len() {
         return Some(Odds::SomeVariants);
     }
-    let ch: Vec<f64> = with_pool.iter().filter_map(|c| chance(c)).collect();
     if ch.iter().all(|x| *x >= 1.0) {
         return Some(Odds::Guaranteed);
     }
@@ -510,12 +514,12 @@ impl Lookup<'_> {
     }
 }
 
-fn usable(c: &Contract) -> bool {
+pub(crate) fn usable(c: &Contract) -> bool {
     !c.not_for_release && !c.work_in_progress
 }
 
 /// Group contracts by folded key, keeping the first spelling seen.
-fn groups<'a>(
+pub(crate) fn groups<'a>(
     contracts: &[&'a Contract],
     key: impl Fn(&Contract) -> Option<&String>,
 ) -> BTreeMap<String, (String, Vec<&'a Contract>)> {
@@ -532,7 +536,7 @@ fn groups<'a>(
     out
 }
 
-fn record_label(group: &[&Contract]) -> String {
+pub(crate) fn record_label(group: &[&Contract]) -> String {
     match group {
         [one] => one.debug_name.clone(),
         many => format!("{} (+{} more)", many[0].debug_name, many.len() - 1),

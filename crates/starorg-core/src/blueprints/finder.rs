@@ -11,13 +11,16 @@
 //! the rows here carry every field they need.
 
 use super::{Characters, OwnedSet, normalize};
+use crate::enhance::format::{int, pct};
+use crate::enhance::missions::{Odds, groups as title_groups, odds_by, record_label, usable};
 use crate::enhance::stock_name;
 use crate::enhance::tags::grade_letter;
 use crate::groups::GroupIndex;
 use crate::ini::{StockIni, fold_key};
-use crate::model::{Blueprint, GameData, ItemIdentity, is_placeholder_name};
+use crate::model::{Blueprint, Contract, GameData, ItemIdentity, is_placeholder_name};
 use serde::Serialize;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::sync::Arc;
 
 /// What a blueprint makes, from its record path and category (stable across builds).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -67,6 +70,69 @@ pub struct CatalogItem {
     pub size: Option<u8>,
     /// `A`..`D` (ship components only).
     pub grade: Option<String>,
+    /// The missions that can award it ("Earn it"); `None` = this build's contracts were
+    /// not read (they come from local extraction only).
+    pub earn: Option<Vec<Earn<Mission>>>,
+}
+
+/// A mission that can award blueprints: the contracts that share one title (the in-game
+/// title tags and MISSION DETAILS are computed over the same group).
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+pub struct Mission {
+    /// In-game title (stock text; `~mission(Location)` reads `[Location]`). `None`: the
+    /// contract has no readable title.
+    pub title: Option<String>,
+    /// Contract debug name (`Name (+2 more)` when several contracts share the title).
+    pub record: String,
+    /// Contract generator record short name of the first contract (an Explorer search).
+    pub generator: String,
+    /// Faction reputation records its contracts' success rewards pay
+    /// (`factionreputation_x`), in first-seen order.
+    pub factions: Vec<String>,
+    /// Those factions readable, one per entry of `factions`: the game's own name when the
+    /// record has one, else the record name in words.
+    pub reputation: Vec<String>,
+    /// Star systems its locality prerequisites name; empty = not known.
+    pub systems: Vec<String>,
+    /// MISSION DETAILS `Type:` words: `Chain`, `Once only`, each only when every contract
+    /// of the title is one.
+    pub kinds: Vec<String>,
+    /// MISSION DETAILS `Requires:` standing name.
+    pub requires: Option<String>,
+    /// Contracts with this title.
+    pub contracts: u32,
+}
+
+/// How sure one blueprint is from one mission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum Award {
+    /// Every contract of the title awards a pool at 100% and the pool holds only it.
+    Guaranteed,
+    /// Every contract awards a pool at 100%, but it is one draw of several.
+    GuaranteedPool,
+    /// Awarded by chance, or only by some contracts of the title.
+    Chance,
+}
+
+/// How one mission awards one blueprint. `M` is the mission itself in a build's catalogue
+/// and its index in [`Finder::missions`] on a finder row.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Earn<M> {
+    pub mission: M,
+    pub award: Award,
+    /// The MISSION DETAILS `Blueprint reward:` value (the pool's odds, as in game):
+    /// `Guaranteed`, `Some variants only` (not every contract with the title awards it) or
+    /// `25%`.
+    pub odds: String,
+    /// Contracts of the title that can award it (of [`Mission::contracts`]).
+    pub variants: u32,
+    /// Blueprints in the pool it is drawn from: `6`, or `4–6` over several pools.
+    pub pool: String,
+    /// Its share of the pool by weight (`17%`, `8–17%`); `None` when weights are missing.
+    pub pick: Option<String>,
+    /// Channels whose build has this (finder rows; empty in a build's catalogue).
+    pub channels: Vec<String>,
 }
 
 /// Rename table for record path folders (`vehiclegear/<x>`, `fpsgear/weapons/<x>`, ...).
@@ -305,6 +371,7 @@ pub fn catalog(gd: &GameData, stock: &StockIni, groups: Option<&GroupIndex>) -> 
             }
         }
     }
+    let earn = earn_index(gd, stock);
     let maker_name = |code: &str| {
         stock
             .value(&format!("manufacturer_Name{code}"))
@@ -366,17 +433,288 @@ pub fn catalog(gd: &GameData, stock: &StockIni, groups: Option<&GroupIndex>) -> 
                 manufacturer,
                 size,
                 grade,
+                earn: earn.as_ref().map(|e| {
+                    e.get(&bp.short_name().to_ascii_lowercase())
+                        .cloned()
+                        .unwrap_or_default()
+                }),
             })
         })
         .collect()
+}
+
+/// `~mission(Location|Address)` as `[Location]`, markup tags (`<EM4>`) dropped.
+pub fn readable_title(s: &str) -> String {
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(i) = rest.find(['~', '<']) {
+        out.push_str(&rest[..i]);
+        let tail = &rest[i..];
+        if let Some(arg) = tail.strip_prefix("~mission(")
+            && let Some(end) = arg.find(')')
+        {
+            let name = arg[..end].split('|').next().unwrap_or_default();
+            out.push_str(&format!("[{name}]"));
+            rest = &arg[end + 1..];
+        } else if tail.starts_with('<')
+            && let Some(end) = tail.find('>')
+        {
+            rest = &tail[end + 1..];
+        } else {
+            out.push_str(&tail[..1]);
+            rest = &tail[1..];
+        }
+    }
+    out.push_str(rest);
+    out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// A faction reputation record in words, for one the game gives no name:
+/// `factionreputation_lawful_ftl` -> `FTL`. The record prefix and the lawful / unlawful
+/// marker go; short words without a vowel are acronyms.
+pub fn faction_label(record: &str) -> String {
+    let lower = record.to_ascii_lowercase();
+    let mut rest = [
+        "factionreputation_",
+        "faction_reputation_",
+        "factionreputation",
+    ]
+    .iter()
+    .find_map(|p| lower.strip_prefix(p))
+    .unwrap_or(&lower);
+    for p in ["lawful_", "unlawful_"] {
+        if let Some(r) = rest.strip_prefix(p).filter(|r| !r.is_empty()) {
+            rest = r;
+        }
+    }
+    rest.split('_')
+        .filter(|w| !w.is_empty())
+        .map(|w| {
+            if w.len() <= 3 && !w.contains(['a', 'e', 'i', 'o', 'u']) {
+                w.to_ascii_uppercase()
+            } else {
+                cap(w)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+/// `N` or `A–B`.
+fn span(lo: u32, hi: u32) -> String {
+    if lo == hi {
+        lo.to_string()
+    } else {
+        format!("{lo}–{hi}")
+    }
+}
+
+/// A blueprint's pools under one title: their sizes and its weight shares.
+fn pool_odds(
+    in_pools: &BTreeSet<&str>,
+    pools: &HashMap<String, Vec<(String, Option<f64>)>>,
+    bp: &str,
+) -> (String, Option<String>) {
+    let mut sizes = Vec::new();
+    let mut shares = Vec::new();
+    let mut weighed = true;
+    for p in in_pools {
+        let Some(list) = pools.get(*p) else { continue };
+        sizes.push(list.len() as u32);
+        let total: Option<f64> = list.iter().map(|(_, w)| *w).sum();
+        let mine = list.iter().find(|(b, _)| b == bp).and_then(|(_, w)| *w);
+        match (mine, total) {
+            (Some(m), Some(t)) if t > 0.0 => shares.push(m / t * 100.0),
+            _ => weighed = false,
+        }
+    }
+    let pick = (weighed && !shares.is_empty()).then(|| {
+        let lo = shares.iter().copied().fold(f64::INFINITY, f64::min);
+        let hi = shares.iter().copied().fold(0.0, f64::max);
+        if int(lo) == int(hi) {
+            pct(hi)
+        } else {
+            format!("{}–{}", int(lo), pct(hi))
+        }
+    });
+    let size = span(
+        sizes.iter().copied().min().unwrap_or(0),
+        sizes.iter().copied().max().unwrap_or(0),
+    );
+    (size, pick)
+}
+
+/// The missions that can award each blueprint, by blueprint record short name (lower case),
+/// guaranteed rewards first. Computed once per build with the catalogue (and cached with
+/// it). `None` when the build's contracts were not read.
+pub fn earn_index(gd: &GameData, stock: &StockIni) -> Option<HashMap<String, Vec<Earn<Mission>>>> {
+    if gd.contracts.is_empty() {
+        return None;
+    }
+    // Pool (lower case) -> its blueprints (lower case) with their weights.
+    let mut pools: HashMap<String, Vec<(String, Option<f64>)>> = HashMap::new();
+    for p in &gd.blueprint_pools {
+        let list = pools.entry(p.name.to_ascii_lowercase()).or_default();
+        for e in &p.blueprints {
+            let b = e.blueprint.to_ascii_lowercase();
+            // A blueprint listed twice in a pool: one entry with both weights.
+            match list.iter_mut().find(|(x, _)| *x == b) {
+                Some((_, w)) => *w = w.zip(e.weight).map(|(a, b)| a + b),
+                None => list.push((b, e.weight)),
+            }
+        }
+    }
+    let contracts: Vec<&Contract> = gd.contracts.iter().filter(|c| usable(c)).collect();
+    let mut groups: Vec<(Option<String>, Vec<&Contract>)> =
+        title_groups(&contracts, |c| c.title_key.as_ref())
+            .into_values()
+            .map(|(key, g)| (stock_name(stock, Some(&key)).map(readable_title), g))
+            .collect();
+    // A contract with no title key is its own mission, known by its record name.
+    for c in &contracts {
+        if c.title_key
+            .as_deref()
+            .and_then(crate::model::loc_key)
+            .is_none()
+            && !c.blueprint_rewards.is_empty()
+        {
+            groups.push((None, vec![c]));
+        }
+    }
+    let standings: HashMap<String, (f64, Option<&str>)> = gd
+        .reputation_standings
+        .iter()
+        .map(|s| {
+            (
+                s.name.to_ascii_lowercase(),
+                (
+                    s.min_reputation.unwrap_or(0.0),
+                    s.display_name_key.as_deref(),
+                ),
+            )
+        })
+        .collect();
+    let mut out: HashMap<String, Vec<Earn<Mission>>> = HashMap::new();
+    for (title, group) in &groups {
+        // Blueprint -> the pools of this title that hold it.
+        let mut held: BTreeMap<&str, BTreeSet<&str>> = BTreeMap::new();
+        for c in group {
+            for r in &c.blueprint_rewards {
+                let Some((name, list)) = pools.get_key_value(&r.pool.to_ascii_lowercase()) else {
+                    continue;
+                };
+                for (b, _) in list {
+                    held.entry(b.as_str()).or_default().insert(name.as_str());
+                }
+            }
+        }
+        if held.is_empty() {
+            continue;
+        }
+        // Every faction the title's success rewards pay, with the game's name when known.
+        let mut factions: Vec<(String, Option<String>)> = Vec::new();
+        for r in group
+            .iter()
+            .flat_map(|c| &c.reputation)
+            .filter(|r| r.on_success && r.amount > 0.0)
+        {
+            let Some(f) = &r.faction else { continue };
+            let name = stock_name(stock, r.faction_name_key.as_deref()).map(str::to_string);
+            match factions.iter_mut().find(|(x, _)| x == f) {
+                Some((_, n)) => {
+                    if n.is_none() {
+                        *n = name;
+                    }
+                }
+                None => factions.push((f.clone(), name)),
+            }
+        }
+        let mut kinds = Vec::new();
+        if group.iter().all(|c| c.chain) {
+            kinds.push("Chain".to_string());
+        }
+        if group.iter().all(|c| c.once_only) {
+            kinds.push("Once only".to_string());
+        }
+        let requires = group
+            .iter()
+            .filter_map(|c| standings.get(&c.min_standing.as_ref()?.to_ascii_lowercase()))
+            .filter_map(|(min, key)| Some((*min, stock_name(stock, *key)?)))
+            .min_by(|a, b| a.0.total_cmp(&b.0))
+            .map(|(_, n)| n.to_string());
+        let systems: BTreeSet<&str> = group
+            .iter()
+            .flat_map(|c| c.systems.iter().map(String::as_str))
+            .collect();
+        let mission = Mission {
+            title: title.clone(),
+            record: record_label(group),
+            generator: group[0].generator.clone(),
+            reputation: factions
+                .iter()
+                .map(|(f, n)| n.clone().unwrap_or_else(|| faction_label(f)))
+                .collect(),
+            factions: factions.into_iter().map(|(f, _)| f).collect(),
+            systems: systems.into_iter().map(str::to_string).collect(),
+            kinds,
+            requires,
+            contracts: group.len() as u32,
+        };
+        for (bp, in_pools) in held {
+            let chance_of = |c: &Contract| {
+                c.blueprint_rewards
+                    .iter()
+                    .filter(|r| in_pools.contains(r.pool.to_ascii_lowercase().as_str()))
+                    .map(|r| r.chance.unwrap_or(1.0))
+                    .reduce(f64::max)
+            };
+            let Some(odds) = odds_by(group, chance_of) else {
+                continue;
+            };
+            let variants = group.iter().filter(|c| chance_of(c).is_some()).count() as u32;
+            let (pool, pick) = pool_odds(&in_pools, &pools, bp);
+            let alone = in_pools
+                .iter()
+                .all(|p| pools.get(*p).is_some_and(|l| l.len() == 1));
+            let award = match odds {
+                Odds::Guaranteed if alone => Award::Guaranteed,
+                Odds::Guaranteed => Award::GuaranteedPool,
+                _ => Award::Chance,
+            };
+            out.entry(bp.to_string()).or_default().push(Earn {
+                mission: mission.clone(),
+                award,
+                odds: odds.text(),
+                variants,
+                pool,
+                pick,
+                channels: Vec::new(),
+            });
+        }
+    }
+    for list in out.values_mut() {
+        list.sort_by(|a, b| earn_order(a.award, &a.mission).cmp(&earn_order(b.award, &b.mission)));
+    }
+    Some(out)
+}
+
+/// Sure rewards first, then titled before untitled, then by title and record.
+fn earn_order(award: Award, m: &Mission) -> (Award, bool, Option<&str>, &str) {
+    (
+        award,
+        m.title.is_none(),
+        m.title.as_deref(),
+        m.record.as_str(),
+    )
 }
 
 /// What one channel adds to the finder.
 #[derive(Debug, Clone, Default)]
 pub struct ChannelInput {
     pub channel: String,
-    /// `None`: this build's game data has not been read yet.
-    pub catalog: Option<Vec<CatalogItem>>,
+    /// `None`: this build's game data has not been read yet. Shared with the per-build
+    /// cache (not copied per read).
+    pub catalog: Option<Arc<Vec<CatalogItem>>>,
     pub characters: Characters,
     /// Owned sets of `characters` (missing ones count as empty).
     pub sets: Vec<OwnedSet>,
@@ -425,6 +763,12 @@ pub struct Row {
     pub owners: Vec<Owner>,
     /// Owners of an ambiguous name that could be this blueprint ("maybe owned").
     pub maybe: Vec<Owner>,
+    /// The missions that can award it, by index in [`Finder::missions`], over every channel
+    /// (each entry says whose builds have it), sure rewards first.
+    pub earn: Vec<Earn<u32>>,
+    /// Channels whose build's contracts were read for this blueprint: on any other channel
+    /// its missions are not known (name rows: none).
+    pub earn_read: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -455,6 +799,8 @@ pub struct Finder {
     pub characters: Vec<FinderCharacter>,
     /// Sorted by name, then key.
     pub rows: Vec<Row>,
+    /// Every mission a row's `earn` names, sorted (title, record, ...).
+    pub missions: Vec<Mission>,
 }
 
 fn row_of(c: &CatalogItem) -> Row {
@@ -473,6 +819,87 @@ fn row_of(c: &CatalogItem) -> Row {
         candidates: Vec::new(),
         owners: Vec::new(),
         maybe: Vec::new(),
+        earn: Vec::new(),
+        earn_read: Vec::new(),
+    }
+}
+
+/// The missions of the finder rows, each once.
+#[derive(Default)]
+struct MissionTable {
+    list: Vec<Mission>,
+    index: HashMap<Mission, u32>,
+}
+
+impl MissionTable {
+    fn intern(&mut self, m: &Mission) -> u32 {
+        if let Some(&i) = self.index.get(m) {
+            return i;
+        }
+        let i = self.list.len() as u32;
+        self.list.push(m.clone());
+        self.index.insert(m.clone(), i);
+        i
+    }
+
+    /// One channel's missions of a blueprint into its row: an entry every channel has the
+    /// same once, with its channels.
+    fn merge(&mut self, row: &mut Row, channel: &str, list: &[Earn<Mission>]) {
+        if !row.earn_read.iter().any(|c| c == channel) {
+            row.earn_read.push(channel.to_string());
+        }
+        for e in list {
+            let i = self.intern(&e.mission);
+            let same = |x: &Earn<u32>| {
+                x.mission == i
+                    && x.award == e.award
+                    && x.odds == e.odds
+                    && x.variants == e.variants
+                    && x.pool == e.pool
+                    && x.pick == e.pick
+            };
+            match row.earn.iter_mut().find(|x| same(x)) {
+                Some(x) => {
+                    if !x.channels.iter().any(|c| c == channel) {
+                        x.channels.push(channel.to_string());
+                    }
+                }
+                None => row.earn.push(Earn {
+                    mission: i,
+                    award: e.award,
+                    odds: e.odds.clone(),
+                    variants: e.variants,
+                    pool: e.pool.clone(),
+                    pick: e.pick.clone(),
+                    channels: vec![channel.to_string()],
+                }),
+            }
+        }
+    }
+
+    /// The table sorted, and the rows' indices moved with it.
+    fn finish(self, rows: &mut [Row]) -> Vec<Mission> {
+        let mut order: Vec<u32> = (0..self.list.len() as u32).collect();
+        order.sort_by(|a, b| self.list[*a as usize].cmp(&self.list[*b as usize]));
+        let mut to = vec![0u32; order.len()];
+        for (new, old) in order.iter().enumerate() {
+            to[*old as usize] = new as u32;
+        }
+        for r in rows {
+            // Channels may add missions in any order: sure ones first again (stable).
+            r.earn.sort_by(|a, b| {
+                earn_order(a.award, &self.list[a.mission as usize])
+                    .cmp(&earn_order(b.award, &self.list[b.mission as usize]))
+            });
+            for e in r.earn.iter_mut() {
+                e.mission = to[e.mission as usize];
+            }
+        }
+        let mut list: Vec<Option<Mission>> = self.list.into_iter().map(Some).collect();
+        order
+            .iter()
+            .filter_map(|i| list[*i as usize].take())
+            .collect()
     }
 }
 
@@ -484,10 +911,11 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
     // Normalised name -> row keys, per channel and over all channels.
     let mut names_in: HashMap<&str, HashMap<String, Vec<String>>> = HashMap::new();
     let mut names_all: HashMap<String, Vec<String>> = HashMap::new();
+    let mut missions = MissionTable::default();
     for inp in inputs {
         let Some(cat) = &inp.catalog else { continue };
         let names = names_in.entry(inp.channel.as_str()).or_default();
-        for c in cat {
+        for c in cat.iter() {
             let key = c.id.to_ascii_lowercase();
             let i = *by_key.entry(key.clone()).or_insert_with(|| {
                 rows.push(row_of(c));
@@ -495,6 +923,9 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
             });
             if !rows[i].channels.contains(&inp.channel) {
                 rows[i].channels.push(inp.channel.clone());
+            }
+            if let Some(e) = &c.earn {
+                missions.merge(&mut rows[i], &inp.channel, e);
             }
             let n = normalize(&c.name);
             for m in [
@@ -633,6 +1064,8 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
                         candidates: Vec::new(),
                         owners: Vec::new(),
                         maybe: Vec::new(),
+                        earn: Vec::new(),
+                        earn_read: Vec::new(),
                     });
                     rows.len() - 1
                 });
@@ -710,10 +1143,12 @@ pub fn build(inputs: &[ChannelInput]) -> Finder {
             &b.id,
         ))
     });
+    let missions = missions.finish(&mut rows);
     Finder {
         channels,
         characters,
         rows,
+        missions,
     }
 }
 

@@ -2482,7 +2482,7 @@ impl Backend for MockBackend {
             }
             inputs.push(finder::ChannelInput {
                 channel: name.clone(),
-                catalog: super::mock_finder::catalog(name),
+                catalog: super::mock_finder::catalog(name).map(std::sync::Arc::new),
                 characters,
                 sets,
                 unattributed: Some(to_set(None, &super::mock_finder::unattributed(name))),

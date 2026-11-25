@@ -18,6 +18,11 @@ pub trait MissionLookup {
     fn reputation_amount(&self, path: &str) -> Option<f64>;
     /// `contractDisplayInfo.displayString` of the `ContractTemplate` at `path`.
     fn template_strings(&self, path: &str) -> Vec<String>;
+    /// `displayName` loc reference of the faction reputation record at `path`, when it has
+    /// a real one.
+    fn faction_name_key(&self, _path: &str) -> Option<String> {
+        None
+    }
 }
 
 /// Index of the title and description in a template's `displayString`.
@@ -172,6 +177,7 @@ pub fn parse_contracts_with_items(
                 difficulty: referenced_name(at(c, "contractResults.difficulty.difficultyProfile"))
                     .map(str::to_string),
                 min_standing,
+                systems: systems.clone(),
                 ..Contract::default()
             };
             if let Some(results) = c.get("contractResults") {
@@ -209,10 +215,11 @@ pub fn parse_contracts_with_items(
                         let reward = amounts.and_then(|a| ref_path(a.get("reward")));
                         if let Some(amount) = reward.and_then(|p| lk.reputation_amount(&p)) {
                             let (on_success, on_failure) = mission_results(node);
+                            let faction = amounts.and_then(|a| a.get("factionReputation"));
                             contract.reputation.push(ReputationReward {
-                                faction: amounts
-                                    .and_then(|a| referenced_name(a.get("factionReputation")))
-                                    .map(str::to_string),
+                                faction: referenced_name(faction).map(str::to_string),
+                                faction_name_key: ref_path(faction)
+                                    .and_then(|p| lk.faction_name_key(&p)),
                                 amount,
                                 on_success,
                                 on_failure,
