@@ -389,6 +389,9 @@ typing a few letters jumps to the next row starting with them.
   the pick is weighted). The WHERE TO GET line, the Explorer Sources card and the MCP
   `where_found` tool use the same estimate. Loot tables no area places (corpses, events) are not
   listed; test presets are left out.
+- A loot entry that names its items by class (`ASD specimen vial`, `MedGel`, `Council scrip`)
+  picks only those items, and they skip the spawn's pool filter and rarity choice, which only
+  narrow the tag-picked entries: the game names the item outright there.
 - Item names are the game's; an item whose game name is missing or a placeholder shows readable
   words from its class name.
 
