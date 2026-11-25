@@ -75,11 +75,17 @@ pub const GOLDEN_EXTRACTION_FILTERS: &[&str] = &[
     "**/vehiclesalvageglobalparams/**",
 ];
 
+/// Filters of the domains this repository adds beyond `sc-gamedata` (no golden dump to
+/// match), extracted on top of [`GOLDEN_EXTRACTION_FILTERS`]. No ported domain's own filters
+/// reach these paths, so they change no ported dataset (a test checks).
+pub const NATIVE_EXTRACTION_FILTERS: &[&str] = &["**/actor/actors/**", "**/loadoutkits/**"];
+
 /// Indices (into `source.metas()`) of the records a domain with `filters` is handed, in
 /// `sc-gamedata` load order.
 pub fn scope(source: &dyn RecordSource, filters: &[&str]) -> Vec<usize> {
     let extracted: Vec<Glob> = GOLDEN_EXTRACTION_FILTERS
         .iter()
+        .chain(NATIVE_EXTRACTION_FILTERS)
         .map(|g| Glob::case_sensitive(g))
         .collect();
     let own: Vec<Glob> = filters.iter().map(|g| Glob::new(g)).collect();

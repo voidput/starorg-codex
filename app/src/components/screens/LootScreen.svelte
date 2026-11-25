@@ -31,7 +31,7 @@
   import FullEmpty from '@/components/common/FullEmpty.svelte';
   import { api, toContractError, type ContractError } from '@/lib/contract/client';
   import type { LootDetail, LootDrop, LootGroupBy, LootList, LootSummary, LootView } from '@/lib/contract/types';
-  import { NPC_KIND, NPC_NOTE, branchPer, dropWhere, groupPer, groupsOf, isNpc, listed, npcBranch, oddsText, placesText, rowPer } from '@/lib/loot';
+  import { GEAR_KIND, GEAR_NOTE, NPC_KIND, NPC_NOTE, branchPer, conditionText, dropWhere, gearBranch, groupPer, groupsOf, isGear, isNpc, listed, npcBranch, oddsText, placesText, rowPer } from '@/lib/loot';
   import { ancestorsOf, leafId, openKey, parseOpen, searching, toggled, visibleTree, whereText, type TreeRow } from '@/lib/loottree';
   import { dropRows, dupNames, groupByOptions, loadGroupBy, loadedRows, missingGroups, saveGroupBy, type DropRow } from '@/lib/lootgroups';
   import { keyAction } from '@/lib/grouptree';
@@ -307,6 +307,14 @@
     pendingReveal = id;
     saveView(other);
   }
+  /** Pick another row of the same view (an NPC's body loot from its worn gear, and back), its branches opened and in view. */
+  function goTo(id: string) {
+    picked = { ...picked, [view]: id };
+    group = '';
+    query = '';
+    resetDropFilter();
+    pendingReveal = id;
+  }
   function openRecord(guid: string) {
     dev.openRecord(guid, () => app.go('explorer'));
   }
@@ -379,10 +387,16 @@
 
   const unit = (n: number, one: string, many: string) => `${int(n)} ${n === 1 ? one : many}`;
   /** A branch's size: areas, NPCs (below the NPC kind) or items. */
-  const branchUnit = (id: string, n: number) => (view === 'items' ? unit(n, 'item', 'items') : npcBranch(id) ? unit(n, 'NPC', 'NPCs') : unit(n, 'area', 'areas'));
+  const branchUnit = (id: string, n: number) => (view === 'items' ? unit(n, 'item', 'items') : npcBranch(id) ? unit(n, 'NPC', 'NPCs') : gearBranch(id) ? unit(n, 'NPC type', 'NPC types') : unit(n, 'area', 'areas'));
   /** A detail group's size: an area's items; an item's areas, or NPCs in the NPC group by place. */
   const groupUnit = (label: string, n: number) =>
-    view === 'areas' ? unit(n, 'item', 'items') : (shownDetail?.group_by ?? 'place') === 'place' && label === NPC_KIND ? unit(n, 'NPC', 'NPCs') : unit(n, 'area', 'areas');
+    view === 'areas'
+      ? unit(n, 'item', 'items')
+      : (shownDetail?.group_by ?? 'place') === 'place' && label === NPC_KIND
+        ? unit(n, 'NPC', 'NPCs')
+        : (shownDetail?.group_by ?? 'place') === 'place' && label === GEAR_KIND
+          ? unit(n, 'NPC type', 'NPC types')
+          : unit(n, 'area', 'areas');
   const gPer = (label: string) => groupPer(view, currentRow, shownDetail?.group_by ?? (view === 'areas' ? 'container' : 'place'), label);
   const LROW = 34;
   const DROW = 40;
@@ -407,9 +421,18 @@
   <div class="grid gap-3">
     <p class="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]" role="note">
       <Info class="size-3.5 shrink-0" aria-hidden="true" />
-      <span>Odds are rough, per spawned box: the chance one crate, rack or loose spot of that kind holds the item, assuming an even pick inside each loot pool. For an NPC, per body, from one pick of its loot table.</span>
+      <span>Odds are rough, per spawned box: the chance one crate, rack or loose spot of that kind holds the item, assuming an even pick inside each loot pool. For an NPC, per body, from one pick of its loot table; for its worn gear, the chance it spawns wearing the item.</span>
       {#if list?.build}<span aria-hidden="true">·</span><span>{list.build}</span>{/if}
     </p>
+    {#if list && list.state === 'ready' && list.gear === 'missing' && view === 'areas'}
+      <p class="text-muted-foreground flex flex-wrap items-center gap-2 text-[12px]" role="note">
+        <span>NPC worn gear (what NPCs can spawn wearing) is not read yet for this build.</span>
+        <Button size="sm" variant="outline" disabled={reading || !app.channel?.set_up} onclick={readGameData}>
+          <DatabaseZap class={cn(reading && 'animate-pulse motion-reduce:animate-none')} aria-hidden="true" />
+          {reading ? 'Reading game data…' : 'Read game data'}
+        </Button>
+      </p>
+    {/if}
 
     <div class="grid items-start gap-3 lg:grid-cols-[minmax(15rem,22rem)_minmax(0,1fr)]">
       <section class="bg-card flex min-h-0 flex-col rounded-lg border" aria-labelledby="loot-list-title">
@@ -523,14 +546,35 @@
               <p class="text-muted-foreground truncate text-[11.5px]">{whereText(currentRow)}</p>
               <h2 id="loot-title" class="text-[16px] font-semibold">{currentRow.name}</h2>
               <p class="text-muted-foreground text-[12px]">
-                {view === 'areas' ? `${unit(currentRow.count, 'item', 'items')} can drop here` : `drops in ${placesText(currentRow)}`} · best {oddsText(currentRow.best)} {rowPer(view, currentRow)}
+                {view === 'areas'
+                  ? isGear(currentRow.id)
+                    ? `can spawn wearing ${unit(currentRow.count, 'item', 'items')}`
+                    : `${unit(currentRow.count, 'item', 'items')} can drop here`
+                  : `found in ${placesText(currentRow)}`} · best {oddsText(currentRow.best)} {rowPer(view, currentRow)}
                 <span class="mono block truncate text-[11px]" title={currentRow.id}>{currentRow.id}</span>
               </p>
-              {#if view === 'areas' && isNpc(currentRow.id)}
+              {#if view === 'areas' && (isNpc(currentRow.id) || isGear(currentRow.id))}
+                {@const npc = shownDetail?.npc ?? null}
                 <p class="text-muted-foreground flex items-start gap-1.5 pt-1 text-[12px]" role="note">
                   <Info class="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-                  <span>{NPC_NOTE}</span>
+                  <span>{isGear(currentRow.id) ? GEAR_NOTE : NPC_NOTE}</span>
                 </p>
+                {#if npc}
+                  <div class="text-muted-foreground flex flex-wrap items-center gap-x-3 gap-y-1 pt-1 text-[12px]">
+                    {#if npc.faction}<span>Faction: {npc.faction}</span>{/if}
+                    <span title="The loadout's WearRange, as the game data gives it">{conditionText(npc.wear)}</span>
+                    {#if npc.body_loot}
+                      {@const b = npc.body_loot}
+                      <button type="button" class="text-primary focus-visible:ring-ring/60 rounded-sm underline-offset-2 outline-none hover:underline focus-visible:ring-2" title="What its body carries (loot table)" onclick={() => goTo(b.id)}>Body loot: {b.name}</button>
+                    {/if}
+                    {#each Array.isArray(npc.worn_gear) ? npc.worn_gear : [] as g (g.id)}
+                      <button type="button" class="text-primary focus-visible:ring-ring/60 rounded-sm underline-offset-2 outline-none hover:underline focus-visible:ring-2" title="What this NPC type can spawn wearing" onclick={() => goTo(g.id)}>Worn gear: {g.name}</button>
+                    {/each}
+                  </div>
+                  {#if Array.isArray(npc.classes) && npc.classes.length > 1}
+                    <p class="text-muted-foreground truncate pt-0.5 text-[11px]" title={npc.classes.join('\n')}>{int(npc.classes.length)} records with this gear: <span class="mono">{npc.classes.join(', ')}</span></p>
+                  {/if}
+                {/if}
               {/if}
             </div>
             {#if view === 'items' && shownDetail?.record}
@@ -570,9 +614,13 @@
             <div role="table" aria-label={view === 'areas' ? `What can drop in ${currentRow.name}` : `Where ${currentRow.name} drops`} class="text-[12.5px]">
               <div role="rowgroup">
                 <div role="row" class={cn(DGRID, 'text-muted-foreground border-b px-1 py-1 text-[11px]')}>
-                  <span role="columnheader">{view === 'areas' ? 'Item' : 'Area'}</span>
-                  <span role="columnheader">Where in it</span>
-                  <span role="columnheader" class="text-right" title="Rough odds one spawned box holds the item">Per box</span>
+                  <span role="columnheader">{view === 'areas' ? 'Item' : 'Place'}</span>
+                  <span role="columnheader">{view === 'areas' && isGear(current) ? 'Slot' : 'Where in it'}</span>
+                  {#if view === 'areas' && isGear(current)}
+                    <span role="columnheader" class="text-right" title="Estimated chance this NPC type spawns wearing the item (even picks assumed)">Chance</span>
+                  {:else}
+                    <span role="columnheader" class="text-right" title="Rough odds one spawned box (or body, or NPC) holds the item">Odds</span>
+                  {/if}
                 </div>
               </div>
               {#if !shownDetail}

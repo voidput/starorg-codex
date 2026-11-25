@@ -2537,7 +2537,7 @@ impl Backend for RealBackend {
     fn read_game_data(&self, req: ReadGameDataRequest) -> CmdResult<ChannelSummary> {
         let f = self.resolve(&req.target)?;
         let ch = f.channel(&req.target.channel)?;
-        let job = self.job_start(JobKind::Extract, Some(&ch.name), 4, "Reading game data");
+        let job = self.job_start(JobKind::Extract, Some(&ch.name), 5, "Reading game data");
         let r = (|| {
             let d = self.loaded(&f, ch, true)?;
             // Where to get: extract its datasets whatever the saved profile says, so the
@@ -2581,6 +2581,18 @@ impl Backend for RealBackend {
                     Some(JobKind::Extract),
                     Some(&ch.name),
                     &format!("{}: mining data: {e}", ch.name),
+                );
+            }
+            // NPC gear: what each NPC type can spawn wearing (game-npc-loadouts), for the Loot
+            // screen's worn-gear rows. A failure is only a warning: the screen then says the
+            // worn gear is not read yet.
+            self.job_step(&mut job, 5, "Reading NPC gear data", None);
+            if let Err(e) = self.warm_npc_gear(&f, &ch.name) {
+                self.log(
+                    LogLevel::Warn,
+                    Some(JobKind::Extract),
+                    Some(&ch.name),
+                    &format!("{}: NPC gear data: {e}", ch.name),
                 );
             }
             Ok::<_, AppError>(())

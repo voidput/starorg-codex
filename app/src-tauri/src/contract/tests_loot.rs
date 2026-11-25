@@ -79,12 +79,99 @@ pub(super) fn loot_samples() -> Vec<(&'static str, Value)> {
     // The view's default grouping and groups (areas by container, items by place).
     let area = ask(&b, LootView::Areas, &areas.rows[0].id, None, None, None);
     let item = ask(&b, LootView::Items, &items.rows[0].id, None, None, None);
+    // An NPC's worn gear (by slot, with its links) and its body loot (linking back).
+    let gear = ask(&b, LootView::Areas, ACE_GEAR, None, None, None);
+    let body = ask(
+        &b,
+        LootView::Areas,
+        "npc:LootTable_Actor_AcePilot",
+        None,
+        None,
+        None,
+    );
     vec![
         ("loot_list_missing", json!(missing)),
         ("loot_list", json!(areas)),
         ("loot_detail", json!(area)),
         ("loot_detail_item", json!(item)),
+        ("loot_detail_gear", json!(gear)),
+        ("loot_detail_body", json!(body)),
     ]
+}
+
+const ACE_GEAR: &str = "gear:PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot";
+
+#[test]
+fn loot_worn_gear_rows_by_faction_with_links() {
+    use starorg_mcp::loot::{GEAR_KIND, is_gear};
+    let b = MockBackend::default();
+    read_live(&b);
+    let areas = list(&b, Some(live()), LootView::Areas);
+    assert_eq!(areas.gear, LootDataState::Ready);
+    let gear: Vec<String> = areas
+        .rows
+        .iter()
+        .filter(|r| is_gear(&r.id))
+        .map(|r| {
+            let mut p = r.path.clone();
+            p.push(r.name.clone());
+            p.join(" > ")
+        })
+        .collect();
+    // By faction (two or more rows), a role level only inside a faction with several; the
+    // two grunts are one row; the Nine Tails soldier alone names its faction; no test actor.
+    assert_eq!(
+        gear,
+        [
+            "NPCs (worn gear) > Grunt 02 (Nine Tails)",
+            "NPCs (worn gear) > Civilians > Levski 01",
+            "NPCs (worn gear) > Civilians > Levski 02",
+            "NPCs (worn gear) > Criminals > Ace pilot",
+            "NPCs (worn gear) > Criminals > Grunt 01",
+        ],
+        "{gear:?}"
+    );
+    let d = ask(&b, LootView::Areas, ACE_GEAR, None, None, None);
+    let labels: Vec<&str> = d.groups.iter().map(|g| g.label.as_str()).collect();
+    assert_eq!(labels, ["Undersuit", "Helmet", "Torso", "Primary weapon"]);
+    assert!(d.rows().all(|r| r.kind == LootDropKind::Worn));
+    let npc = d.npc.as_ref().unwrap();
+    assert_eq!(
+        npc.body_loot.as_ref().unwrap().id,
+        "npc:LootTable_Actor_AcePilot"
+    );
+    assert_eq!(npc.faction.as_deref(), Some("Criminals"));
+    // The grunts: both classes, the gated ration with its note, the grunt table linking back.
+    let grunt = areas
+        .rows
+        .iter()
+        .find(|r| is_gear(&r.id) && r.name == "Grunt 01")
+        .unwrap();
+    let d = detail(&b, LootView::Areas, &grunt.id);
+    assert_eq!(d.npc.as_ref().unwrap().classes.len(), 2);
+    let ration = d.rows().find(|r| r.id == "syn_food_ration_chili").unwrap();
+    assert_eq!(ration.note.as_deref(), Some("if AI/NpcClass/Heavy"));
+    let body = detail(&b, LootView::Areas, "npc:V3LootTable_Actor_Grunt");
+    assert_eq!(body.npc.unwrap().worn_gear[0].id, grunt.id);
+    // By item: the helmet is worn by the grunts, under the worn-gear kind.
+    let it = ask(
+        &b,
+        LootView::Items,
+        "syn_armour_helmet_ash",
+        None,
+        None,
+        None,
+    );
+    assert!(it.group(GEAR_KIND).is_some(), "{:?}", it.groups);
+    // The jacket item-tags lacks: listed by its loadout name, no record.
+    let items = list(&b, Some(live()), LootView::Items);
+    let jacket = items
+        .rows
+        .iter()
+        .find(|r| r.id == "syn_nt_jacket_01")
+        .unwrap();
+    assert_eq!(jacket.name, "Nine Tails Jacket");
+    assert!(detail(&b, LootView::Items, &jacket.id).record.is_none());
 }
 
 #[test]
@@ -332,6 +419,22 @@ fn loot_details_answer_group_headers_and_the_rows_asked_for() {
     );
 }
 
+/// The TS slot order (`GEAR_SLOTS` in loot.ts) is the Rust one (`SLOTS`), which orders a
+/// worn-gear row's groups.
+#[test]
+fn gear_slots_match_loot_ts() {
+    let ts = std::fs::read_to_string(app_src().join("../loot.ts")).unwrap();
+    let start = ts.find("export const GEAR_SLOTS = [").unwrap();
+    let list = &ts[start..];
+    let list = &list[list.find('[').unwrap() + 1..list.find(']').unwrap()];
+    let got: Vec<&str> = list
+        .split(',')
+        .map(|s| s.trim().trim_matches('\''))
+        .filter(|s| !s.is_empty())
+        .collect();
+    assert_eq!(got, starorg_mcp::loot::GEAR_SLOTS);
+}
+
 #[test]
 fn loot_unions_match_types_ts() {
     let ts = std::fs::read_to_string(app_src().join("types.ts")).unwrap();
@@ -343,7 +446,12 @@ fn loot_unions_match_types_ts() {
         ("LootView", names(&[LootView::Areas, LootView::Items])),
         (
             "LootDropKind",
-            names(&[LootDropKind::Loot, LootDropKind::Fixed, LootDropKind::Loose]),
+            names(&[
+                LootDropKind::Loot,
+                LootDropKind::Fixed,
+                LootDropKind::Loose,
+                LootDropKind::Worn,
+            ]),
         ),
         (
             "LootGroupBy",

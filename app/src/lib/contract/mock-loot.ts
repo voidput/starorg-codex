@@ -6,6 +6,7 @@
  */
 import type * as T from './types';
 import { defaultGroupBy, groupDrops } from '../lootgroups.ts';
+import { isGear, slotRank } from '../loot.ts';
 
 export interface LootMockData {
   areas: T.LootList;
@@ -15,13 +16,14 @@ export interface LootMockData {
   item_details: T.LootDetail[];
 }
 
-const missingList = (view: T.LootView): T.LootList => ({ state: 'missing', view, build: null, rows: [] });
+const missingList = (view: T.LootView): T.LootList => ({ state: 'missing', view, build: null, gear: 'missing', rows: [] });
 
 const emptyDetail = (state: T.LootDataState, view: T.LootView, group_by: T.LootGroupBy = defaultGroupBy(view)): T.LootDetail => ({
   state,
   view,
   entry: null,
   record: null,
+  npc: null,
   group_by,
   groups: [],
   total: 0,
@@ -35,7 +37,7 @@ export function mockLootList(data: LootMockData, ready: boolean, view: T.LootVie
 
 /** Whether a drop holds every word (as `LootScreen::detail` matches them). */
 function matches(d: T.LootDrop, words: string[]): boolean {
-  const hay = `${d.name} ${d.group} ${d.container} ${d.rarity ?? ''} ${d.id}`.toLowerCase();
+  const hay = `${d.name} ${d.group} ${d.container} ${d.rarity ?? ''} ${d.note ?? ''} ${d.id}`.toLowerCase();
   return words.every((w) => hay.includes(w));
 }
 
@@ -59,7 +61,7 @@ export function mockLootDetail(
   // The mock's details are never capped, so its one group holds every drop.
   const rows = (out.groups[0]?.rows ?? []).filter((d) => !words.length || matches(d, words));
   out.group_by = by;
-  out.groups = groupDrops(rows, by, groups, words.length > 0);
+  out.groups = groupDrops(rows, by, groups, words.length > 0, view === 'areas' && isGear(hit.entry?.id) ? slotRank : undefined);
   out.total = rows.length;
   return out;
 }

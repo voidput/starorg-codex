@@ -412,6 +412,17 @@ impl<'a> Ctx<'a> {
         self.store.json_in(self.ch, &self.dir, name, self.extract)
     }
 
+    /// The NPC worn-gear dataset, typed; `None` while it is not there (or unreadable). Read
+    /// from its file, not kept as JSON: only the Loot screen's index holds what it needs.
+    fn npc_gear(&self) -> Option<starorg_gamedata::domains::npc_loadouts::NpcLoadouts> {
+        let path = self
+            .store
+            .file_in(self.ch, &self.dir, crate::loot::GEAR_DATASET, self.extract)
+            .ok()?;
+        let bytes = std::fs::read(path).ok()?;
+        serde_json::from_slice(&bytes).ok()
+    }
+
     fn items(&self) -> ToolResult<Arc<Items>> {
         self.store.typed(&self.dir, "items", || {
             let list: Vec<ItemTags> = field(&*self.json("game-item-tags")?, "items")?;
@@ -2198,21 +2209,39 @@ impl Tools {
     fn loot_screen(&self, channel: Option<&str>) -> Option<Arc<crate::loot::LootScreen>> {
         let ctx = self.cached_ctx(channel)?;
         let _one = self.loot.lock().unwrap_or_else(|e| e.into_inner());
+        // Built again once the NPC gear dataset appears ("Read game data" adds it).
         ctx.store
-            .typed(&ctx.dir, "loot-screen", || {
-                let c = ctx.corpus(true, false)?;
-                let label = format!(
-                    "{} {}",
-                    ctx.ch.name,
-                    ctx.ch.build.as_deref().unwrap_or("unknown build")
-                );
-                Ok(crate::loot::LootScreen::build(
-                    &c.d,
-                    c.index.as_ref(),
-                    Some(label),
-                ))
-            })
+            .typed_files(
+                &ctx.dir,
+                "loot-screen",
+                &[crate::loot::GEAR_DATASET],
+                || {
+                    let c = ctx.corpus(true, false)?;
+                    let label = format!(
+                        "{} {}",
+                        ctx.ch.name,
+                        ctx.ch.build.as_deref().unwrap_or("unknown build")
+                    );
+                    let gear = ctx.npc_gear();
+                    Ok(crate::loot::LootScreen::build_with_gear(
+                        &c.d,
+                        c.index.as_ref(),
+                        gear.as_ref(),
+                        Some(label),
+                    ))
+                },
+            )
             .ok()
+    }
+
+    /// Extract the NPC worn-gear dataset (`game-npc-loadouts`) for the channel's current
+    /// build, in the extraction worker under the memory limit; a cached one is not
+    /// extracted again. The app's "Read game data" calls this.
+    pub fn warm_npc_gear(&self, channel: &str) -> ToolResult<()> {
+        let ctx = Ctx::for_channel(&self.store, Some(channel))?;
+        self.store
+            .file_in(ctx.ch, &ctx.dir, crate::loot::GEAR_DATASET, true)?;
+        Ok(())
     }
 
     /// The app's Loot screen list: every loot area or every item that drops in one, as

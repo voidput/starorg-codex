@@ -78,11 +78,14 @@ const PLACE_NOISE: &[(&str, &str)] = &[
 ];
 
 /// Words written in capitals.
-const ACRONYMS: &[&str] = &["tsg", "soo", "asd", "ugf", "lmg", "smg"];
+const ACRONYMS: &[&str] = &[
+    "tsg", "soo", "asd", "ugf", "lmg", "smg", "cqc", "uee", "omc",
+];
 
 /// Proper names that keep their capital inside a name (`Acidic Pyro`).
 const PROPER: &[&str] = &[
-    "stanton", "pyro", "nyx", "aberdeen", "daymar", "hurston", "kareah", "rund", "indy",
+    "stanton", "pyro", "nyx", "aberdeen", "daymar", "hurston", "kareah", "rund", "indy", "levski",
+    "lorville", "orison", "babbage", "olisar", "klescher",
 ];
 
 /// The kind of place of areas no [`AREA_PLACES`] word names.
@@ -690,9 +693,362 @@ pub fn npc_tree(tables: &[&str]) -> Vec<(Vec<String>, String)> {
         .collect()
 }
 
+/// The kind of place NPC worn-gear rows sit under in the areas list.
+pub const GEAR_KIND: &str = "NPCs (worn gear)";
+
+/// Id of a worn-gear row: this prefix and the first actor class it stands for.
+pub const GEAR_PREFIX: &str = "gear:";
+
+/// Whether an areas-list id is a worn-gear row's.
+pub fn is_gear(id: &str) -> bool {
+    id.starts_with(GEAR_PREFIX)
+}
+
+/// Faction records (`primaryOrganization`) by name: the label, and the class-name words that
+/// only repeat it (left out of the NPC's name).
+const FACTIONS: &[(&str, &str, &[&str])] = &[
+    (
+        "genericcivilians",
+        "Civilians",
+        &["generic", "civilian", "civilians"],
+    ),
+    (
+        "npc_archetype_civilians",
+        "Civilians",
+        &["civilian", "civilians"],
+    ),
+    (
+        "genericcriminal",
+        "Criminals",
+        &["generic", "criminal", "criminals"],
+    ),
+    ("genericprivatesecurity", "Private security", &["generic"]),
+    ("crusaderindustries", "Crusader Industries", &["crusader"]),
+    ("hurstondynamics", "Hurston Dynamics", &[]),
+    ("citizensforpyro", "Citizens for Prosperity", &["cfp"]),
+    ("ninetails", "Nine Tails", &["ninetails", "nine", "tails"]),
+    ("xenothreat", "XenoThreat", &["xenothreat"]),
+    ("headhunters", "Headhunters", &["headhunters", "headhunter"]),
+    ("dusters", "Dusters", &["dusters", "duster"]),
+    ("roughandready", "Rough & Ready", &[]),
+    ("temp_faction_pu_uee", "UEE", &[]),
+    ("temp_faction_pu_uee_navy", "UEE Navy", &[]),
+    ("arccorp", "ArcCorp", &[]),
+    ("microtech", "microTech", &[]),
+    ("advocacy", "Advocacy", &["advocacy"]),
+    ("bountyhuntersguild", "Bounty Hunters Guild", &[]),
+    ("klescherprisonguard", "Klescher prison guards", &[]),
+    ("supreme", "Supreme", &["supreme"]),
+];
+
+/// An NPC with no faction record.
+pub const NO_FACTION: &str = "No faction";
+
+/// A faction record's label (`genericcriminal` -> `Criminals`); unknown ones read from their
+/// words.
+pub fn faction_label(faction: Option<&str>) -> String {
+    let Some(f) = faction.map(str::trim).filter(|f| !f.is_empty()) else {
+        return NO_FACTION.to_string();
+    };
+    if let Some((_, l, _)) = FACTIONS.iter().find(|(k, _, _)| k.eq_ignore_ascii_case(f)) {
+        return (*l).to_string();
+    }
+    let words: Vec<String> = f
+        .split('_')
+        .map(spaced)
+        .filter(|w| !w.is_empty())
+        .map(|w| w.to_lowercase())
+        .collect();
+    let s = sentence(&words);
+    if s.is_empty() { f.to_string() } else { s }
+}
+
+/// The NPC roles, from the class name's words.
+pub const ROLE_PILOTS: &str = "Pilots";
+pub const ROLE_CREW: &str = "Ship crew";
+pub const ROLE_COMBAT: &str = "Ground combat";
+pub const ROLE_GUARDS: &str = "Guards & security";
+pub const ROLE_BOSSES: &str = "Bosses";
+pub const ROLE_SHOPS: &str = "Shopkeepers & staff";
+pub const ROLE_CREATURES: &str = "Creatures";
+pub const ROLE_ENGINEERS: &str = "Engineers & workers";
+pub const ROLE_MISSIONS: &str = "Mission givers";
+pub const ROLE_CIVILIANS: &str = "Civilians";
+pub const ROLE_OTHER: &str = "Other";
+
+/// What an NPC does, from the words of its class name (the records say no more):
+/// `..._GroundCombat_..._AcePilot` -> `Pilots`, `...-Guards-...` -> `Guards & security`.
+pub fn npc_role(class: &str) -> &'static str {
+    let lower = class.to_ascii_lowercase();
+    let any = |ws: &[&str]| ws.iter().any(|w| lower.contains(w));
+    if any(&[
+        "vlk_", "yormandi", "kopion", "quasi", "marok", "valakkar", "stormwal",
+    ]) {
+        ROLE_CREATURES
+    } else if any(&["boss"]) {
+        ROLE_BOSSES
+    } else if any(&["aiship_crew", "gunner"]) {
+        ROLE_CREW
+    } else if any(&["pilot"]) {
+        ROLE_PILOTS
+    } else if any(&[
+        "groundcombat",
+        "enemy",
+        "grunt",
+        "juggernaut",
+        "outlaw",
+        "pirate",
+        "slaver",
+        "shipjacker",
+        "scavenger",
+        "fighter",
+        "soldier",
+        "sniper",
+        "_cqc",
+        "_techie",
+    ]) {
+        ROLE_COMBAT
+    } else if any(&["guard", "security", "police", "marshal"]) {
+        ROLE_GUARDS
+    } else if any(&[
+        "shopkeep",
+        "clerk",
+        "salesperson",
+        "bartender",
+        "admin",
+        "receptionist",
+        "tourguide",
+    ]) {
+        ROLE_SHOPS
+    } else if any(&["engineer", "technician", "worker", "mechanic"]) {
+        ROLE_ENGINEERS
+    } else if any(&["missiongiver"]) {
+        ROLE_MISSIONS
+    } else if any(&["civilian", "populace", "citizen", "generic_npc"]) {
+        ROLE_CIVILIANS
+    } else {
+        ROLE_OTHER
+    }
+}
+
+/// Test and template actors: not NPCs a player meets.
+pub fn gear_hidden(class: &str) -> bool {
+    let lower = class.to_ascii_lowercase();
+    lower.contains("featuretest")
+        || lower.contains("template")
+        || lower
+            .split(['_', '-'])
+            .any(|w| w.starts_with("test") || w == "ttk" || w == "debug")
+}
+
+/// Words that say the body's sex, set apart (they tell two rows apart only when needed).
+const SEX: &[&str] = &["male", "female"];
+
+/// An NPC's name in its faction from the dataset's readable class words: without its
+/// faction's words and the words of sex (returned apart, lower case), proper names and
+/// acronyms in capitals (`Generic criminal ace pilot` of `genericcriminal` -> `Ace pilot`).
+pub fn gear_name(words: &str, faction: Option<&str>) -> (String, Option<String>) {
+    let strip: &[&str] = faction
+        .and_then(|f| FACTIONS.iter().find(|(k, _, _)| k.eq_ignore_ascii_case(f)))
+        .map_or(&[], |(_, _, w)| w);
+    let mut sex = None;
+    let kept: Vec<String> = words
+        .split_whitespace()
+        .filter(|w| {
+            let l = w.to_ascii_lowercase();
+            if SEX.contains(&l.as_str()) {
+                sex = Some(l);
+                return false;
+            }
+            !strip.contains(&l.as_str())
+        })
+        .map(|w| {
+            if w.len() > 1
+                && w.bytes()
+                    .all(|b| b.is_ascii_uppercase() || b.is_ascii_digit())
+            {
+                w.to_string()
+            } else {
+                w.to_ascii_lowercase()
+            }
+        })
+        .collect();
+    // Only numbers left (`Generic_NPC_01`): the faction's words stay.
+    let says = |ws: &[String]| {
+        ws.iter()
+            .any(|w| w.bytes().any(|b| b.is_ascii_alphabetic()))
+    };
+    let kept = if says(&kept) {
+        kept
+    } else {
+        words
+            .split_whitespace()
+            .filter(|w| !SEX.contains(&w.to_ascii_lowercase().as_str()))
+            .map(str::to_ascii_lowercase)
+            .collect()
+    };
+    let mut name = sentence(&kept);
+    if name.is_empty() {
+        name = words.to_string();
+    }
+    // Place names of more than one word.
+    for (from, to) in [
+        ("new Babbage", "New Babbage"),
+        ("New babbage", "New Babbage"),
+        ("grim hex", "Grim Hex"),
+        ("Grim hex", "Grim Hex"),
+        ("area 18", "Area 18"),
+    ] {
+        name = name.replace(from, to);
+    }
+    (name, sex)
+}
+
+/// One worn-gear row as the tree places it: its faction label, role and name.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GearPlace {
+    pub faction: String,
+    pub role: &'static str,
+    pub name: String,
+}
+
+/// Each worn-gear row's tree path and name, in the order of `rows`: [`GEAR_KIND`] -> faction
+/// -> role -> the NPC, a level only where it holds two or more rows and not all of its
+/// parent's. A faction with one row puts it right under the kind, the faction in its name
+/// (`Ace pilot (Criminals)`); one row in all is `NPCs (worn gear): <name>`.
+pub fn gear_tree(rows: &[GearPlace]) -> Vec<(Vec<String>, String)> {
+    if let [only] = rows {
+        return vec![(Vec::new(), format!("{GEAR_KIND}: {}", only.name))];
+    }
+    let mut per_faction: HashMap<&str, usize> = HashMap::new();
+    let mut per_role: HashMap<(&str, &str), usize> = HashMap::new();
+    for r in rows {
+        *per_faction.entry(r.faction.as_str()).or_default() += 1;
+        *per_role.entry((r.faction.as_str(), r.role)).or_default() += 1;
+    }
+    rows.iter()
+        .map(|r| {
+            let nf = per_faction[r.faction.as_str()];
+            let nr = per_role[&(r.faction.as_str(), r.role)];
+            let mut path = vec![GEAR_KIND.to_string()];
+            if nf == 1 {
+                return (path, format!("{} ({})", r.name, r.faction));
+            }
+            if nf < rows.len() {
+                path.push(r.faction.clone());
+            }
+            if (2..nf).contains(&nr) {
+                path.push(r.role.to_string());
+            }
+            (path, r.name.clone())
+        })
+        .collect()
+}
+
+/// The readable label of a gear note: the conditions an item's chance holds under, each an
+/// alternative (`if outfit picked by the mission (X), or if Y`).
+pub fn gear_note(requires: &[String]) -> Option<String> {
+    (!requires.is_empty()).then(|| {
+        requires
+            .iter()
+            .map(|r| format!("if {r}"))
+            .collect::<Vec<_>>()
+            .join(", or ")
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn gear_rows_read_and_sit_by_faction_and_role() {
+        assert_eq!(faction_label(Some("genericcriminal")), "Criminals");
+        assert_eq!(faction_label(None), NO_FACTION);
+        assert_eq!(faction_label(Some("new_faction")), "New faction");
+        assert_eq!(
+            gear_name("Generic criminal ace pilot", Some("genericcriminal")),
+            ("Ace pilot".to_string(), None)
+        );
+        assert_eq!(
+            gear_name("Male civilians levski 01", Some("genericcivilians")),
+            ("Levski 01".to_string(), Some("male".to_string()))
+        );
+        assert_eq!(gear_name("ASD grunt", None).0, "ASD grunt");
+        assert_eq!(
+            gear_name("Male generic 01", Some("genericcivilians")).0,
+            "Generic 01"
+        );
+        assert_eq!(
+            gear_name(
+                "Male civilians new babbage bar patron 03",
+                Some("genericcivilians")
+            )
+            .0,
+            "New Babbage bar patron 03"
+        );
+        assert_eq!(
+            npc_role("NPC_Archetypes-Male-Human-Pirate-Kareah_Outlaw_Heavy_02"),
+            ROLE_COMBAT
+        );
+        assert_eq!(npc_role("vlk_juvenile"), ROLE_CREATURES);
+        // Nothing left after the faction's words: the words as they were.
+        assert_eq!(
+            gear_name("Generic criminal", Some("genericcriminal")).0,
+            "Generic criminal"
+        );
+        assert_eq!(
+            npc_role("PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot"),
+            ROLE_PILOTS
+        );
+        assert_eq!(
+            npc_role("PU_Human_Enemy_GroundCombat_NPC_ASD_Grunt"),
+            ROLE_COMBAT
+        );
+        assert_eq!(
+            npc_role("NPC_Archetypes-Male-Human-Guards-Area18-Guard_01"),
+            ROLE_GUARDS
+        );
+        assert_eq!(
+            npc_role("NPC_Archetypes-Male-Human-Civilians-Levski-Civilian_01"),
+            ROLE_CIVILIANS
+        );
+        assert!(gear_hidden("FeatureTest_Human_Male-Alias_01"));
+        assert!(gear_hidden("Male-Human-Mechanic-_TTK_Test"));
+        assert!(!gear_hidden("PU_Human_Enemy_GroundCombat_NPC_ASD_Grunt"));
+        assert_eq!(
+            gear_note(&["A and B".into(), "C".into()]).as_deref(),
+            Some("if A and B, or if C")
+        );
+        assert_eq!(gear_note(&[]), None);
+        let p = |f: &str, role: &'static str, n: &str| GearPlace {
+            faction: f.into(),
+            role,
+            name: n.into(),
+        };
+        let t = gear_tree(&[
+            p("Criminals", ROLE_PILOTS, "Ace pilot"),
+            p("Criminals", ROLE_COMBAT, "Grunt"),
+            p("Criminals", ROLE_COMBAT, "Sniper"),
+            p("Civilians", ROLE_CIVILIANS, "Levski 01"),
+            p("Civilians", ROLE_CIVILIANS, "Levski 02"),
+            p("Nine Tails", ROLE_COMBAT, "Juggernaut"),
+        ]);
+        let k = GEAR_KIND.to_string();
+        // A role with one row sits in its faction; a role with all of them is no level.
+        assert_eq!(
+            t[0],
+            (vec![k.clone(), "Criminals".into()], "Ace pilot".into())
+        );
+        assert_eq!(t[1].0, [GEAR_KIND, "Criminals", ROLE_COMBAT]);
+        assert_eq!(t[3].0, [GEAR_KIND, "Civilians"]);
+        // A faction with one row: under the kind, named with its faction.
+        assert_eq!(t[5], (vec![k], "Juggernaut (Nine Tails)".into()));
+        assert_eq!(
+            gear_tree(&[p("Criminals", ROLE_PILOTS, "Ace pilot")])[0],
+            (Vec::new(), format!("{GEAR_KIND}: Ace pilot"))
+        );
+    }
 
     #[test]
     fn npc_tables_and_names() {

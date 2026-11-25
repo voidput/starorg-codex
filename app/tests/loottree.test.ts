@@ -179,3 +179,24 @@ test('NPC rows sit under their own kind, in groups of two or more NPCs', () => {
   const ground = npc.children[0]!;
   assert.ok(ground.kind === 'branch' && ground.children.every((c) => c.kind === 'leaf' && c.row.id.startsWith('npc:')));
 });
+
+test('worn-gear rows sit under their own kind by faction, no level with a single row', () => {
+  const t = buildTree(data.areas.rows);
+  const gear = t.find((n) => n.kind === 'branch' && n.label === 'NPCs (worn gear)');
+  assert.ok(gear && gear.kind === 'branch');
+  if (gear?.kind !== 'branch') return;
+  // Two factions of two rows each; the Nine Tails soldier alone names its faction.
+  assert.deepEqual(labels(gear.children), ['[Civilians]', '[Criminals]', 'Grunt 02 (Nine Tails)']);
+  const walk = (nodes: LootNode[]) => {
+    for (const n of nodes) {
+      if (n.kind !== 'branch') continue;
+      assert.ok(n.children.length >= 2, n.label);
+      walk(n.children);
+    }
+  };
+  walk(gear.children);
+  const criminals = gear.children[1]!;
+  assert.ok(criminals.kind === 'branch');
+  if (criminals.kind !== 'branch') return;
+  assert.deepEqual(labels(criminals.children), ['Ace pilot', 'Grunt 01']);
+});

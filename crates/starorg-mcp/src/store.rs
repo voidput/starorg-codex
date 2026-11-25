@@ -572,6 +572,31 @@ impl Store {
         Ok(v)
     }
 
+    /// The file of a dataset in a given build folder, filled first when missing and
+    /// `extract` ([`Self::json_in`]), but not parsed or kept in memory: for a big dataset
+    /// read once into a typed value ([`Self::typed`]).
+    pub fn file_in(
+        &self,
+        ch: &ChannelSource,
+        dir: &Path,
+        dataset: &str,
+        extract: bool,
+    ) -> ToolResult<PathBuf> {
+        self.touch(dir);
+        if extract {
+            self.ensure(ch, dir, dataset)?;
+        }
+        let path = dir.join(format!("{dataset}.json"));
+        if !path.is_file() {
+            return tool_err(format!(
+                "{dataset} is not cached for {}",
+                dir.file_name().unwrap_or_default().to_string_lossy()
+            ));
+        }
+        starorg_core::fsutil::touch(&path);
+        Ok(path)
+    }
+
     /// A value derived from datasets, built once per build folder.
     pub fn typed<T: Any + Send + Sync>(
         &self,
