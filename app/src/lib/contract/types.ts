@@ -342,6 +342,7 @@ export interface MissionSettings {
   title_em: boolean;
   blueprints: boolean;
   item_rewards: boolean;
+  spawns: boolean;
   details: boolean;
   bullet_tags: boolean;
   owned_marker: boolean;

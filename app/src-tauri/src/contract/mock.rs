@@ -3736,6 +3736,13 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
             em(m.reward_em, "Sample Scrip")
         ));
     }
+    if p.missions && m.spawns {
+        body.push(format!(
+            "{}\\n{} Sample Wreck (small, light damage)",
+            em(m.header_em, "SPAWNS"),
+            em(m.label_em, "Salvage target:")
+        ));
+    }
     if p.missions && m.details {
         body.push(format!(
             "{}\\n{} 150",

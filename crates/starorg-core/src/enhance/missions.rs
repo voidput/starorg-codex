@@ -43,7 +43,7 @@ const SYSTEMS: [&str; 3] = ["Stanton", "Pyro", "Nyx"];
 
 /// Where a variant label comes from, in order of preference (one kind labels a whole group).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum LabelKind {
+pub(super) enum LabelKind {
     /// A difficulty word in the debug name (`_Hard`, `_E_`, `_VE_`). Not the difficulty
     /// profile: on LIVE its names are activities (`general`, `logistics`), not difficulties.
     Difficulty,
@@ -206,16 +206,16 @@ fn labels(kind: LabelKind, group: &[&Contract], lk: &Lookup) -> Option<Vec<Label
 }
 
 /// Per-variant values of one detail line, and the label kind that separated them.
-struct Variants {
+pub(super) struct Variants {
     kind: LabelKind,
-    values: Vec<(String, Vec<String>)>,
+    pub(super) values: Vec<(String, Vec<String>)>,
 }
 
 /// Per-variant values when the group's contracts differ in `value` and one label kind (not
 /// `skip`) separates them: each distinct value with the labels it holds for, in label order,
 /// equal values merged. `None` when every contract agrees or no label separates them (the
 /// caller keeps its range: a label is never made up).
-fn per_variant(
+pub(super) fn per_variant(
     group: &[&Contract],
     lk: &Lookup,
     skip: Option<LabelKind>,
@@ -264,7 +264,7 @@ fn inline(variants: &[(String, Vec<String>)], max: usize) -> String {
 }
 
 /// `A, B, C` cut at `max` with `and N more`.
-fn list_cut(items: &[String], max: usize) -> String {
+pub(super) fn list_cut(items: &[String], max: usize) -> String {
     let mut s = items
         .iter()
         .take(max)
@@ -373,6 +373,8 @@ pub struct Lookup<'a> {
     pub owned: &'a dyn OwnedBlueprints,
     /// Normalised produced-item names that more than one blueprint shares.
     pub shared_names: std::collections::HashSet<String>,
+    /// Vehicle and entity classes (lower case) -> name reference, for SPAWNS.
+    pub ship_names: HashMap<String, &'a str>,
 }
 
 impl<'a> Lookup<'a> {
@@ -449,6 +451,17 @@ impl<'a> Lookup<'a> {
                 }
             }
         }
+        let mut ship_names: HashMap<String, &str> = HashMap::new();
+        if profile.mission.spawns {
+            for s in &gd.ships {
+                if let Some(k) = s.loc.name.as_deref() {
+                    ship_names.insert(s.short_name().to_ascii_lowercase(), k);
+                }
+            }
+            for n in &gd.item_names {
+                ship_names.entry(n.class.clone()).or_insert(n.name.as_str());
+            }
+        }
         Self {
             stock,
             names,
@@ -457,7 +470,13 @@ impl<'a> Lookup<'a> {
             item_tags,
             owned,
             shared_names,
+            ship_names,
         }
+    }
+
+    /// The display name of a vehicle class a spawn option matched; none for placeholders.
+    pub(super) fn ship_name(&self, class: &str) -> Option<&str> {
+        self.names.name(self.ship_names.get(class).copied())
     }
 
     /// Every blueprint of a pool that has a display name, before de-duplication: name,
@@ -718,6 +737,13 @@ pub fn description_body(
                 lines.push(format!("- and {more} more"));
             }
             sections.push(lines.join("\\n"));
+        }
+    }
+
+    if m.spawns {
+        let lines = super::spawns::lines(group, lk, m);
+        if !lines.is_empty() {
+            sections.push(format!("{}\\n{}", h("SPAWNS"), lines.join("\\n")));
         }
     }
 

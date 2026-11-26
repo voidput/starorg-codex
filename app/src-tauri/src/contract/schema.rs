@@ -53,6 +53,7 @@ pub fn preset_profile(p: Preset) -> Profile {
             title_em: true,
             blueprints: true,
             item_rewards: true,
+            spawns: true,
             details: true,
             bullet_tags: true,
             owned_marker: true,

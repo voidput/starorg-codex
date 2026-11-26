@@ -25,7 +25,8 @@ pub use items::{
 };
 pub use missions::{
     Blueprint, BlueprintPool, BlueprintPoolEntry, BlueprintReward, BlueprintTier, Contract,
-    ItemReward, KeySource, ReputationReward, ReputationStanding,
+    ItemReward, KeySource, ReputationReward, ReputationStanding, SpawnGroup, SpawnOption,
+    SpawnRole, SpawnSlot,
 };
 pub use obtain::{
     ItemObtain, LootHint, MinedHint, ObtainHints, QualityHint, QualityOverride, SellHint, ShopHint,
@@ -48,7 +49,9 @@ use std::collections::BTreeMap;
 ///   (`item_names`), for the missing names (spec missing-names).
 /// - 6: star systems of every contract (`Contract::systems`, from its locality
 ///   prerequisites), for the blueprint finder's "Earn it".
-pub const GAMEDATA_SCHEMA: u32 = 6;
+/// - 7: ship groups every contract spawns (`Contract::spawns`), with the vehicles each
+///   option's tag query matches.
+pub const GAMEDATA_SCHEMA: u32 = 7;
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]

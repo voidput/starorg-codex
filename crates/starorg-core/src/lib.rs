@@ -66,4 +66,6 @@ pub mod validate;
 /// 11 = per-variant MISSION DETAILS: values per difficulty/rank/standing/system when a shared
 /// description's variants differ, the reputation faction, `Systems:` and `Shared text:` (shown
 /// on N contracts, labelled by the kind that split a line).
-pub const OUTPUT_VERSION: u32 = 11;
+/// 12 = SPAWNS in mission descriptions: the ships a contract spawns (salvage targets,
+/// hostiles, ships to protect), from its spawn groups and the vehicles their tags match.
+pub const OUTPUT_VERSION: u32 = 12;

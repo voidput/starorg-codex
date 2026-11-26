@@ -973,6 +973,10 @@ mod variants {
             "var_shared=Filler shared prose.",
             "var_hard=Filler hard prose.",
             "var_none=Filler none prose.",
+            "var_ship_a=Filler Wasp",
+            "var_ship_b=Filler Hornetfly",
+            "var_ship_c=Filler Moth",
+            "var_ship_d=Filler Barge",
         ] {
             bytes.extend_from_slice(format!("{l}\r\n").as_bytes());
         }
@@ -1281,5 +1285,309 @@ mod variants {
             |_| {},
         );
         assert!(!added(&g, &stock, "var_shared").contains("MISSION DETAILS"));
+    }
+
+    mod spawns {
+        use super::*;
+        use starorg_core::model::{Ship, SpawnGroup, SpawnOption, SpawnRole, SpawnSlot};
+
+        const SMALLEST: &str = "Missions/MissionType/Salvage/AvailableToSalvage/Smallest";
+        const LARGE: &str = "Missions/MissionType/Salvage/AvailableToSalvage/Large";
+
+        fn option(selector: &[&str], ships: &[&str], amount: f64) -> SpawnOption {
+            SpawnOption {
+                selector: selector.iter().map(|s| s.to_string()).collect(),
+                applied: vec!["AI/Ship/SpawnFlags/PoweredOff".into()],
+                amount,
+                weight: 1.0,
+                ships: ships.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            }
+        }
+
+        fn group(
+            variable: &str,
+            name: &str,
+            role: SpawnRole,
+            options: Vec<SpawnOption>,
+        ) -> SpawnGroup {
+            SpawnGroup {
+                variable: variable.into(),
+                name: name.into(),
+                role,
+                slots: vec![SpawnSlot { options }],
+            }
+        }
+
+        fn salvage(name: &str, desc: &str, selector: &str, ships: &[&str]) -> Contract {
+            let mut o = option(&[selector], ships, 1.0);
+            o.damage = Some("salvagecontractor_lightdamage".into());
+            o.applied
+                .push("AI/CargoManifest/General/Value/LowValue".into());
+            let mut c = contract(name, desc, 100.0);
+            c.spawns = vec![group(
+                "SalvageSpawnDescription_BP",
+                "SalvageableShip",
+                SpawnRole::Target,
+                vec![o],
+            )];
+            c
+        }
+
+        /// Ships with filler name keys, and an unnamed (placeholder) one.
+        fn ships(gd: &mut GameData) {
+            for (class, key) in [
+                ("FILL_Wasp_Unmanned_Salvage", Some("@var_ship_a")),
+                ("FILL_Hornetfly", Some("@var_ship_b")),
+                ("FILL_Moth", Some("@var_ship_c")),
+                ("FILL_Barge", Some("@var_ship_d")),
+                ("FILL_Template", Some("@LOC_PLACEHOLDER")),
+            ] {
+                let mut s = Ship {
+                    record_name: format!("EntityClassDefinition.{class}"),
+                    ..Default::default()
+                };
+                s.loc.name = key.map(str::to_string);
+                gd.ships.push(s);
+            }
+        }
+
+        fn run(contracts: Vec<Contract>, p: &Profile) -> (Generated, StockIni) {
+            run_full(contracts, p, ships)
+        }
+
+        #[test]
+        fn salvage_target_per_variant() {
+            let (g, stock) = run(
+                vec![
+                    salvage(
+                        "Var_Sv_VeryEasy",
+                        "var_shared",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                    salvage(
+                        "Var_Sv_Easy",
+                        "var_shared",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                    salvage(
+                        "Var_Sv_Hard",
+                        "var_shared",
+                        LARGE,
+                        &["fill_barge", "fill_template"],
+                    ),
+                    // Every variant the same: one line.
+                    salvage(
+                        "Var_T_Easy",
+                        "var_hard",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                    salvage(
+                        "Var_T_Hard",
+                        "var_hard",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                ],
+                &Profile::default(),
+            );
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "\\n\\n<EM3>SPAWNS</EM3>\\n<EM4>Salvage target (Very Easy, Easy):</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n<EM4>Salvage target (Hard):</EM4> Filler Barge (large, light damage, cargo: low value)\\n\\n<EM3>MISSION DETAILS</EM3>"
+                ),
+                "{b}"
+            );
+            let h = added(&g, &stock, "var_hard");
+            assert!(
+                h.contains("<EM3>SPAWNS</EM3>\\n<EM4>Salvage target:</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n\\n"),
+                "{h}"
+            );
+        }
+
+        #[test]
+        fn waves_counts_caps_and_role_order() {
+            let mut c = contract("Var_W_Easy", "var_shared", 100.0);
+            let mut wave = option(
+                &["AI/Faction/Criminal"],
+                &[
+                    "fill_wasp_unmanned_salvage",
+                    "fill_hornetfly",
+                    "fill_moth",
+                    "fill_barge",
+                ],
+                2.0,
+            );
+            wave.applied = vec![
+                "AI/SkillDefinitions/Description/HumanPilot40".into(),
+                "AI/CargoManifest/General/Value/HighValue".into(),
+            ];
+            let mut wave2 = wave.clone();
+            wave2.amount = 3.0;
+            wave2.applied[0] = "AI/SkillDefinitions/Description/HumanPilot60".into();
+            let mut friend = option(&["AI/Faction/Civilians"], &["fill_moth"], 1.0);
+            friend.applied = vec!["AI/CargoManifest/General/PopulationVariation/Full Cargo".into()];
+            c.spawns = vec![
+                group("WaveShips_BP", "Wave1", SpawnRole::Hostile, vec![wave]),
+                group("WaveShips_BP", "Wave2", SpawnRole::Hostile, vec![wave2]),
+                group(
+                    "AttackedShipSpawnDescriptions_BP",
+                    "ShipToDefend",
+                    SpawnRole::Escort,
+                    vec![friend],
+                ),
+            ];
+            let mut p = Profile::default();
+            p.mission.max_list = 3;
+            let (g, stock) = run(vec![c], &p);
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "<EM3>SPAWNS</EM3>\\n<EM4>Friendly:</EM4> Filler Moth (cargo: full cargo)\\n<EM4>Hostiles (Wave 1):</EM4> 2 ships · Filler Barge, Filler Hornetfly, Filler Moth and 1 more (pilot skill 40)\\n<EM4>Hostiles (Wave 2):</EM4> 3 ships · Filler Barge, Filler Hornetfly, Filler Moth and 1 more (pilot skill 60)\\n"
+                ),
+                "{b}"
+            );
+        }
+
+        #[test]
+        fn unresolved_options_say_what_the_game_picks_from() {
+            let (g, stock) = run(
+                vec![
+                    salvage("Var_U_Easy", "var_shared", SMALLEST, &[]),
+                    // Only a placeholder-named hull matched: as good as none.
+                    salvage("Var_U2_Easy", "var_hard", LARGE, &["fill_template"]),
+                ],
+                &Profile::default(),
+            );
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains("<EM4>Salvage target:</EM4> picked by the game from Salvage › Available to salvage › Smallest (smallest, light damage, cargo: low value)\\n"),
+                "{b}"
+            );
+            assert!(
+                added(&g, &stock, "var_hard")
+                    .contains("picked by the game from Salvage › Available to salvage › Large")
+            );
+        }
+
+        #[test]
+        fn spawns_switch() {
+            let mut p = Profile::default();
+            p.mission.spawns = false;
+            let (g, stock) = run(
+                vec![salvage(
+                    "Var_O_Easy",
+                    "var_shared",
+                    SMALLEST,
+                    &["fill_wasp_unmanned_salvage"],
+                )],
+                &p,
+            );
+            assert!(!added(&g, &stock, "var_shared").contains("SPAWNS"));
+        }
+
+        fn hostile(name: &str, ships: &[&str], amount: f64) -> SpawnGroup {
+            group(
+                "WaveShips_BP",
+                name,
+                SpawnRole::Hostile,
+                vec![option(&["AI/Faction/Criminal"], ships, amount)],
+            )
+        }
+
+        #[test]
+        fn variants_with_different_group_sets() {
+            let base = |name: &str| {
+                salvage(
+                    name,
+                    "var_shared",
+                    SMALLEST,
+                    &["fill_wasp_unmanned_salvage"],
+                )
+            };
+            let mut easy = base("Var_G_Easy");
+            easy.spawns.push(hostile("Wave1", &["fill_moth"], 1.0));
+            let mut hard = base("Var_G_Hard");
+            hard.spawns.push(hostile("Wave1", &["fill_moth"], 1.0));
+            hard.spawns.push(hostile("Wave2", &["fill_barge"], 2.0));
+            // Only one variant has hostiles, unnamed: no group name, no "none" for the other.
+            let e2 = base("Var_Q2_Easy");
+            let mut h2 = base("Var_Q2_Hard");
+            h2.spawns
+                .insert(0, hostile("", &["fill_moth", "fill_template"], 1.0));
+            let (g, stock) = run_full(vec![easy, hard], &Profile::default(), ships);
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "<EM4>Salvage target:</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n<EM4>Hostiles (Wave 1):</EM4> Filler Moth\\n<EM4>Hostiles (Wave 2; Hard):</EM4> 2 ships · Filler Barge\\n\\n"
+                ),
+                "{b}"
+            );
+            assert!(!b.contains("none"), "{b}");
+            let mut e2 = e2;
+            e2.description_key = Some("@var_hard".into());
+            h2.description_key = Some("@var_hard".into());
+            let (g, stock) = run_full(vec![e2, h2], &Profile::default(), ships);
+            let h = added(&g, &stock, "var_hard");
+            assert!(
+                h.contains("<EM4>Salvage target:</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n<EM4>Hostiles (Hard):</EM4> Filler Moth\\n"),
+                "{h}"
+            );
+            assert!(
+                !h.contains("none") && !h.contains(")) ") && !h.contains(") ("),
+                "{h}"
+            );
+        }
+
+        #[test]
+        fn counts_weights_any_ship_and_unknown_tags() {
+            let mut c = contract("Var_N_Easy", "var_shared", 100.0);
+            // Two groups under one line in one contract: their ships add up.
+            c.spawns = vec![
+                hostile("Wave1", &["fill_moth"], 2.0),
+                hostile("Wave1", &["fill_moth"], 2.0),
+            ];
+            // One option holds most of the weight.
+            let mut heavy = option(&["AI/Faction/Civilians"], &["fill_moth"], 1.0);
+            heavy.weight = 3.0;
+            let light = option(&["AI/Faction/Civilians"], &["fill_barge"], 1.0);
+            c.spawns.push(group(
+                "AlliedSpawnDescriptions_BP",
+                "Allies",
+                SpawnRole::Escort,
+                vec![light, heavy],
+            ));
+            // The catch-all selector, and a query of unknown tags only.
+            c.spawns.push(group(
+                "CargoShip_BP",
+                "",
+                SpawnRole::Cargo,
+                vec![option(
+                    &["Missions/VehicleType/Ship"],
+                    &["fill_moth", "fill_barge"],
+                    1.0,
+                )],
+            ));
+            let mut unknown = option(&[], &[], 1.0);
+            unknown.unknown = vec!["0000-dead".into()];
+            c.spawns.push(group(
+                "MissionTargets_BP",
+                "Target",
+                SpawnRole::Target,
+                vec![unknown],
+            ));
+            let (g, stock) = run(vec![c], &Profile::default());
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "<EM3>SPAWNS</EM3>\\n<EM4>Target:</EM4> picked by the game\\n<EM4>Cargo ship:</EM4> any ship\\n<EM4>Friendly:</EM4> mostly Filler Moth; or Filler Barge\\n<EM4>Hostiles:</EM4> 4 ships · Filler Moth\\n"
+                ),
+                "{b}"
+            );
+            assert!(!b.contains("dead"), "{b}");
+        }
     }
 }
