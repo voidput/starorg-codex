@@ -44,7 +44,8 @@ const SYSTEMS: [&str; 3] = ["Stanton", "Pyro", "Nyx"];
 /// Where a variant label comes from, in order of preference (one kind labels a whole group).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum LabelKind {
-    /// A difficulty word in the debug name (`_Hard`, `_E_`), else the difficulty profile.
+    /// A difficulty word in the debug name (`_Hard`, `_E_`, `_VE_`). Not the difficulty
+    /// profile: on LIVE its names are activities (`general`, `logistics`), not difficulties.
     Difficulty,
     /// `RankN` in the debug name.
     Rank,
@@ -64,11 +65,16 @@ const KINDS: [LabelKind; 4] = [
 /// A variant label with its sort position.
 type Label = (i64, String);
 
+/// The difficulty a whole debug-name token names: a word (`VeryEasy`, any case) or a
+/// letter code (`VE`, `E`, `M`, `H`, `VH`, `S`).
 fn difficulty_word(w: &str) -> Option<Label> {
     let short = match w {
+        "VE" => Some("Very Easy"),
         "E" => Some("Easy"),
         "M" => Some("Medium"),
         "H" => Some("Hard"),
+        "VH" => Some("Very Hard"),
+        "S" => Some("Super"),
         _ => None,
     };
     DIFFICULTY
@@ -88,16 +94,34 @@ fn one_token(c: &Contract, f: impl Fn(&str) -> Option<Label>) -> Option<Label> {
     }
 }
 
-/// The system a debug-name token names (`Stanton1`, `PyroRegionA`, `Nyx`).
-fn system_token(w: &str) -> Option<Label> {
-    SYSTEMS
-        .iter()
-        .enumerate()
-        .find(|(_, s)| {
-            w.strip_prefix(**s)
-                .is_some_and(|rest| !rest.starts_with(char::is_lowercase))
-        })
-        .map(|(i, s)| (i as i64, (*s).to_string()))
+/// The systems a debug-name token names: `Stanton1`, `PyroRegionA`, `Nyx`, and combined
+/// ones (`PyroNyx`, `Nyx/Stanton`). After a system only another system, digits or a
+/// `Region…`/`Star…`/`DC…` suffix may follow; anything else (`Pyroclast`, `StantonBound`)
+/// is not a system token.
+fn system_tokens(w: &str) -> Option<Vec<Label>> {
+    let mut out = Vec::new();
+    for part in w.split('/') {
+        let mut rest = part;
+        let mut found = false;
+        while let Some((i, s)) = SYSTEMS
+            .iter()
+            .enumerate()
+            .find(|(_, s)| rest.starts_with(**s))
+        {
+            out.push((i as i64, (*s).to_string()));
+            rest = &rest[s.len()..];
+            found = true;
+        }
+        let tail_ok = rest.is_empty()
+            || rest.chars().all(|c| c.is_ascii_digit())
+            || ["Region", "Star", "DC"].iter().any(|p| rest.starts_with(p));
+        if !found || !tail_ok {
+            return None;
+        }
+    }
+    out.sort();
+    out.dedup();
+    (!out.is_empty()).then_some(out)
 }
 
 fn system_order(s: &str) -> Label {
@@ -108,19 +132,24 @@ fn system_order(s: &str) -> Label {
     (i as i64, s.to_string())
 }
 
-/// The systems a contract is offered in: its locality prerequisites, else the one system
-/// its debug name names.
+/// The systems a contract is offered in: its locality prerequisites, else every system its
+/// debug-name tokens name.
 fn contract_systems(c: &Contract) -> Vec<Label> {
     if !c.systems.is_empty() {
         return c.systems.iter().map(|s| system_order(s)).collect();
     }
-    one_token(c, system_token).into_iter().collect()
+    let found: BTreeSet<Label> = c
+        .debug_name
+        .split('_')
+        .filter_map(system_tokens)
+        .flatten()
+        .collect();
+    found.into_iter().collect()
 }
 
 fn label_of(kind: LabelKind, c: &Contract, lk: &Lookup) -> Option<Label> {
     match kind {
-        LabelKind::Difficulty => one_token(c, difficulty_word)
-            .or_else(|| c.difficulty.as_deref().and_then(difficulty_word)),
+        LabelKind::Difficulty => one_token(c, difficulty_word),
         LabelKind::Rank => one_token(c, |w| {
             let n: i64 = w.strip_prefix("Rank")?.parse().ok()?;
             Some((n, format!("Rank {n}")))
@@ -139,9 +168,47 @@ fn label_of(kind: LabelKind, c: &Contract, lk: &Lookup) -> Option<Label> {
     }
 }
 
-/// Every contract's label of `kind`, or none when one has none.
+/// The stock name of the faction a contract's reputation gain goes to.
+fn faction_of<'s>(c: &Contract, lk: &Lookup<'s>) -> Option<&'s str> {
+    let r = c
+        .reputation
+        .iter()
+        .find(|r| r.on_success && r.amount > 0.0)?;
+    stock_name(lk.stock, r.faction_name_key.as_deref())
+}
+
+/// Every contract's label of `kind`, or none when one has none. Two different standings
+/// that read the same (`Junior` of two factions) get their faction added.
 fn labels(kind: LabelKind, group: &[&Contract], lk: &Lookup) -> Option<Vec<Label>> {
-    group.iter().map(|c| label_of(kind, c, lk)).collect()
+    let mut out: Vec<Label> = group
+        .iter()
+        .map(|c| label_of(kind, c, lk))
+        .collect::<Option<_>>()?;
+    if kind == LabelKind::Standing {
+        let record = |c: &Contract| c.min_standing.as_deref().map(str::to_ascii_lowercase);
+        let clashes: Vec<bool> = group
+            .iter()
+            .zip(&out)
+            .map(|(c, l)| {
+                group
+                    .iter()
+                    .zip(&out)
+                    .any(|(o, ol)| ol.1 == l.1 && record(o) != record(c))
+            })
+            .collect();
+        for ((c, l), clash) in group.iter().zip(out.iter_mut()).zip(clashes) {
+            if clash && let Some(f) = faction_of(c, lk) {
+                l.1 = format!("{} ({f})", l.1);
+            }
+        }
+    }
+    Some(out)
+}
+
+/// Per-variant values of one detail line, and the label kind that separated them.
+struct Variants {
+    kind: LabelKind,
+    values: Vec<(String, Vec<String>)>,
 }
 
 /// Per-variant values when the group's contracts differ in `value` and one label kind (not
@@ -153,7 +220,7 @@ fn per_variant(
     lk: &Lookup,
     skip: Option<LabelKind>,
     value: impl Fn(&Contract) -> Option<String>,
-) -> Option<Vec<(String, Vec<String>)>> {
+) -> Option<Variants> {
     let values: Vec<Option<String>> = group.iter().map(|c| value(c)).collect();
     if values.iter().all(|v| *v == values[0]) {
         return None;
@@ -182,16 +249,16 @@ fn per_variant(
                 None => out.push((v, vec![l.1.clone()])),
             }
         }
-        return Some(out);
+        return Some(Variants { kind, values: out });
     }
     None
 }
 
-/// `100 (Very Easy, Easy) · 150 (Medium)`.
-fn inline(variants: &[(String, Vec<String>)]) -> String {
+/// `100 (Very Easy, Easy) · 150 (Medium)`, each label list cut at `max`.
+fn inline(variants: &[(String, Vec<String>)], max: usize) -> String {
     variants
         .iter()
-        .map(|(v, ls)| format!("{v} ({})", ls.join(", ")))
+        .map(|(v, ls)| format!("{v} ({})", list_cut(ls, max)))
         .collect::<Vec<_>>()
         .join(" · ")
 }
@@ -215,13 +282,7 @@ fn gain_faction<'s>(group: &[&Contract], lk: &Lookup<'s>) -> Option<&'s str> {
     let names: BTreeSet<Option<&str>> = group
         .iter()
         .filter(|c| c.reputation_gain().is_some())
-        .map(|c| {
-            let r = c
-                .reputation
-                .iter()
-                .find(|r| r.on_success && r.amount > 0.0)?;
-            stock_name(lk.stock, r.faction_name_key.as_deref())
-        })
+        .map(|c| faction_of(c, lk))
         .collect();
     match names.into_iter().collect::<Vec<_>>().as_slice() {
         [Some(n)] => Some(n),
@@ -662,14 +723,30 @@ pub fn description_body(
 
     if m.details {
         let mut d: Vec<String> = Vec::new();
+        // The kind that split a line into per-variant values, and whether any line kept a
+        // range over values that differ: what the Shared text line may name.
+        let mut split: Option<LabelKind> = None;
+        let mut mixed = false;
+        let mut note = |vs: &Option<Variants>, values: Vec<Option<String>>| match vs {
+            Some(v) => {
+                split.get_or_insert(v.kind);
+            }
+            None => mixed |= values.iter().any(|x| *x != values[0]),
+        };
+        let values_of = |f: &dyn Fn(&Contract) -> Option<String>| -> Vec<Option<String>> {
+            group.iter().map(|c| f(c)).collect()
+        };
         if let Some(odds) = reward_odds(group) {
-            match per_variant(group, lk, None, |c| Some(odds_text(c))) {
+            let odds_of = |c: &Contract| Some(odds_text(c));
+            let vs = per_variant(group, lk, None, odds_of);
+            note(&vs, values_of(&odds_of));
+            match vs {
                 // One line per value: a `%` must end its line (the game reads `%` followed
                 // by text as a format code).
-                Some(vs) => d.extend(vs.iter().map(|(v, ls)| {
+                Some(vs) => d.extend(vs.values.iter().map(|(v, ls)| {
                     format!(
                         "{} {v}",
-                        label(&format!("Blueprint reward ({})", ls.join(", ")))
+                        label(&format!("Blueprint reward ({})", list_cut(ls, m.max_list)))
                     )
                 })),
                 None => d.push(format!("{} {}", label("Blueprint reward"), odds.text())),
@@ -680,14 +757,26 @@ pub fn description_body(
             None => "Reputation".to_string(),
         };
         let gains = |c: &Contract| c.reputation_gain().map(int);
-        if let Some(vs) = per_variant(group, lk, None, gains) {
-            d.push(format!("{} {}", label(&rep_label), inline(&vs)));
+        let vs = per_variant(group, lk, None, gains);
+        note(&vs, values_of(&gains));
+        if let Some(vs) = vs {
+            d.push(format!(
+                "{} {}",
+                label(&rep_label),
+                inline(&vs.values, m.max_list)
+            ));
         } else if let Some(r) = range(group.iter().filter_map(|c| c.reputation_gain())) {
             d.push(format!("{} {r}", label(&rep_label)));
         }
         let fails = |c: &Contract| c.failure_penalty().map(int);
-        if let Some(vs) = per_variant(group, lk, None, fails) {
-            d.push(format!("{} {}", label("Failure"), inline(&vs)));
+        let vs = per_variant(group, lk, None, fails);
+        note(&vs, values_of(&fails));
+        if let Some(vs) = vs {
+            d.push(format!(
+                "{} {}",
+                label("Failure"),
+                inline(&vs.values, m.max_list)
+            ));
         } else if let Some(f) = range(group.iter().filter_map(|c| c.failure_penalty())) {
             d.push(format!("{} {f}", label("Failure")));
         }
@@ -697,17 +786,28 @@ pub fn description_body(
                 .get(&c.min_standing.as_ref()?.to_ascii_lowercase())?;
             Some((min.unwrap_or(0.0), stock_name(lk.stock, *key)?))
         };
-        let req_name = |c: &Contract| standing(c).map(|(_, n)| n.to_string());
-        if group.iter().any(|c| standing(c).is_some())
-            && let Some(vs) = per_variant(group, lk, Some(LabelKind::Standing), req_name)
-        {
-            d.push(format!("{} {}", label("Requires"), inline(&vs)));
-        } else if let Some((_, name)) = group
-            .iter()
-            .filter_map(|c| standing(c))
-            .min_by(|a, b| a.0.total_cmp(&b.0))
-        {
-            d.push(format!("{} {name}", label("Requires")));
+        // A standing the contract requires but whose name does not resolve is "not known",
+        // never "none" (that reads as no requirement).
+        let req_name = |c: &Contract| match standing(c) {
+            Some((_, n)) => Some(n.to_string()),
+            None => c.min_standing.as_ref().map(|_| "not known".to_string()),
+        };
+        if group.iter().any(|c| standing(c).is_some()) {
+            let vs = per_variant(group, lk, Some(LabelKind::Standing), req_name);
+            note(&vs, values_of(&req_name));
+            if let Some(vs) = vs {
+                d.push(format!(
+                    "{} {}",
+                    label("Requires"),
+                    inline(&vs.values, m.max_list)
+                ));
+            } else if let Some((_, name)) = group
+                .iter()
+                .filter_map(|c| standing(c))
+                .min_by(|a, b| a.0.total_cmp(&b.0))
+            {
+                d.push(format!("{} {name}", label("Requires")));
+            }
         }
         let mut kinds = Vec::new();
         if group.iter().all(|c| c.chain) {
@@ -719,29 +819,43 @@ pub fn description_body(
         if !kinds.is_empty() {
             d.push(format!("{} {}", label("Type"), kinds.join(", ")));
         }
+        // Also for one contract offered in two systems (`Refueling_PyroNyx_...`).
         let systems: BTreeSet<Label> = group.iter().flat_map(|c| contract_systems(c)).collect();
         if systems.len() > 1 {
             let names: Vec<String> = systems.into_iter().map(|(_, s)| s).collect();
             d.push(format!("{} {}", label("Systems"), names.join(", ")));
         }
-        // This text is on several offers: say so, and how they are told apart.
-        let variants: BTreeSet<&str> = group.iter().map(|c| c.debug_name.as_str()).collect();
-        if variants.len() > 1 {
+        // This text is on several offers: say so, and how they are told apart. Counted per
+        // contract: two generators can hold contracts with the same debug name.
+        if group.len() > 1 {
             let mut line = format!(
-                "{} shown on {} contract variants",
+                "{} shown on {} contracts",
                 label("Shared text"),
-                variants.len()
+                group.len()
             );
-            let which = KINDS
-                .into_iter()
-                .filter_map(|k| Some((k, labels(k, group, lk)?)))
-                .map(|(k, ls)| (k, ls.into_iter().collect::<BTreeSet<Label>>()))
-                .find(|(_, ls)| ls.len() > 1);
+            // The labels are the kind that split a line above; with no split, only when every
+            // line agrees over the group (a label list next to a range would contradict it).
+            let kind = split.or_else(|| {
+                (!mixed)
+                    .then(|| {
+                        KINDS.into_iter().find(|k| {
+                            labels(*k, group, lk).is_some_and(|ls| {
+                                ls.into_iter().collect::<BTreeSet<Label>>().len() > 1
+                            })
+                        })
+                    })
+                    .flatten()
+            });
             // Systems already have their own line.
-            if let Some((k, ls)) = which
-                && k != LabelKind::System
+            if let Some(k) = kind.filter(|k| *k != LabelKind::System)
+                && let Some(ls) = labels(k, group, lk)
             {
-                let names: Vec<String> = ls.into_iter().map(|(_, s)| s).collect();
+                let names: Vec<String> = ls
+                    .into_iter()
+                    .collect::<BTreeSet<Label>>()
+                    .into_iter()
+                    .map(|(_, s)| s)
+                    .collect();
                 line.push_str(&format!(" ({})", list_cut(&names, m.max_list)));
             }
             d.push(line);

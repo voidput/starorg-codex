@@ -64,5 +64,6 @@ pub mod validate;
 /// 10 = ore quality in WHERE TO GET for Aluminum and Stileron ore (the spawn data spells them
 /// `aluminium_ore` and `sileron_ore`, which matched no resource before);
 /// 11 = per-variant MISSION DETAILS: values per difficulty/rank/standing/system when a shared
-/// description's variants differ, the reputation faction, `Systems:` and `Shared text:`.
+/// description's variants differ, the reputation faction, `Systems:` and `Shared text:` (shown
+/// on N contracts, labelled by the kind that split a line).
 pub const OUTPUT_VERSION: u32 = 11;

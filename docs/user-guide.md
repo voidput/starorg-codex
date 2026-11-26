@@ -77,14 +77,17 @@ writes nothing to the game), no apply needed.
     says which pays what instead of only a range, merging variants that pay the same:
     `Reputation: 100 (Very Easy, Easy) · 150 (Medium)`. Failure, Requires and Blueprint
     reward get the same treatment. The variant name comes from the game data, in this order: a
-    difficulty word in the contract's name (`Hard`, `_E_`/`_M_`/`_H_`), its rank (`Rank 2`),
-    the standing it requires, or the one system it is offered in. When nothing in the data
-    tells the variants apart the range stays. The faction's in-game name follows
-    `Reputation` when the game data has one.
-  - A shared description also gets `Systems: Stanton, Pyro, Nyx` (when the variants span more
-    than one) and `Shared text: shown on 9 contract variants (Very Easy, Easy, Medium)`, so
-    you know the text is not only about the offer in front of you. Title tags keep the short
-    range (`[100–200 Rep]`).
+    difficulty in the contract's name (`Hard`, `VeryHard`, or the codes `VE`/`E`/`M`/`H`/`VH`/`S`),
+    its rank (`Rank 2`), the standing it requires (with the faction when two standings have the
+    same name), or the one system it is offered in. When nothing in the data tells the variants
+    apart the range stays. A required standing whose name the game files lack reads `not known`.
+    The faction's in-game name follows `Reputation` when the game data has one.
+  - `Systems: Stanton, Pyro, Nyx` lists the systems when the contracts with this description are
+    offered in more than one (a single contract offered in two systems gets it too). A shared
+    description also gets `Shared text: shown on 9 contracts (Very Easy, Easy, Medium)`, so you
+    know the text is not only about the offer in front of you; the names in brackets are the
+    ones the lines above are split by, and are left out when a line shows a range. Title tags
+    keep the short range (`[100–200 Rep]`).
 - **Blueprints** (right after Missions): what a contract can reward and whether you own it.
   - The **blueprint list** under a contract's text, optionally with name tags.
   - **[Owned]** marks a blueprint the chosen character owns (blue, EM4, by default; *Colour the
