@@ -434,6 +434,8 @@ pub struct DevState {
     /// The Sources card's dataset store, per install UI id: the MCP server's tools over the
     /// same cache folder, so either one's extraction serves both.
     origin: Mutex<Option<(String, Arc<starorg_mcp::tools::Tools>)>>,
+    /// The prebuilt dump source, one for the process (`RealBackend::prebuilt`).
+    pub(super) prebuilt: Mutex<Option<Arc<dyn starorg_mcp::prebuilt::Prebuilt>>>,
 }
 
 impl Default for DevState {
@@ -452,6 +454,7 @@ impl Default for DevState {
             dumps: Mutex::new(Arc::new(starorg_net::GitHubTransport::new())),
             releases: Mutex::new(None),
             origin: Mutex::new(None),
+            prebuilt: Mutex::new(None),
         }
     }
 }
@@ -956,14 +959,18 @@ impl RealBackend {
         before: BTreeMap<String, String>,
     ) -> BTreeMap<String, String> {
         let now = self.dataset_sources(f, channel);
-        let mut downloaded: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        let mut downloaded: BTreeMap<String, Vec<&str>> = BTreeMap::new();
         let mut local: Vec<&str> = Vec::new();
         for (d, s) in &now {
             if before.get(d) == Some(s) {
                 continue;
             }
-            match s.strip_prefix(starorg_mcp::stamps::DUMP_PREFIX) {
-                Some(tag) => downloaded.entry(tag).or_default().push(d),
+            match starorg_mcp::stamps::dump_parts(s) {
+                // `4.10.201.48085 r3-9a387f3c0d1e`, or a short commit id.
+                Some((tag, rev)) => {
+                    let label = rev.map_or(tag.to_string(), |r| format!("{tag} {r}"));
+                    downloaded.entry(label).or_default().push(d);
+                }
                 None if s == starorg_mcp::stamps::LOCAL => local.push(d),
                 None => {}
             }

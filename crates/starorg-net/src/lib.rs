@@ -51,6 +51,16 @@ impl GitHubTransport {
     }
 
     pub fn for_repo(repo: &str) -> Self {
+        Self::with_timeouts(repo, Duration::from_secs(60), Duration::from_secs(10))
+    }
+
+    /// For the background check whether a cached dump was published again: a few small
+    /// requests, given up after 5 s (the cached copy is served meanwhile).
+    pub fn quick() -> Self {
+        Self::with_timeouts(DUMPS_REPO, Duration::from_secs(5), Duration::from_secs(5))
+    }
+
+    fn with_timeouts(repo: &str, global: Duration, connect: Duration) -> Self {
         let tls = TlsConfig::builder()
             .provider(TlsProvider::NativeTls)
             .root_certs(RootCerts::PlatformVerifier)
@@ -58,9 +68,9 @@ impl GitHubTransport {
         let agent = ureq::Agent::config_builder()
             .tls_config(tls)
             .https_only(true)
-            .timeout_global(Some(Duration::from_secs(60)))
+            .timeout_global(Some(global))
             // An unreachable GitHub fails fast: callers fall back to local data.
-            .timeout_connect(Some(Duration::from_secs(10)))
+            .timeout_connect(Some(connect))
             .user_agent(concat!("starorg-codex/", env!("CARGO_PKG_VERSION")))
             .http_status_as_error(false)
             .build()
@@ -158,6 +168,11 @@ struct ApiCommit {
 }
 
 #[derive(Deserialize)]
+struct ApiRef {
+    object: ApiCommit,
+}
+
+#[derive(Deserialize)]
 struct ApiTree {
     #[serde(default)]
     tree: Vec<ApiTreeEntry>,
@@ -209,6 +224,28 @@ impl DumpTransport for GitHubTransport {
         self.get_json::<ApiCommit>(&url)?
             .map(|c| c.sha)
             .ok_or_else(|| SourceError::Unavailable(format!("tag {tag} not found")))
+    }
+
+    /// `commits/<ref>` answers 422 for a missing ref, so the ref is looked up first (404 when
+    /// there is none), then resolved to its commit (an annotated tag dereferenced).
+    fn find_tag_commit(&self, tag: &str) -> Result<Option<String>, SourceError> {
+        if self.tag_ref(tag)?.is_none() {
+            return Ok(None);
+        }
+        let url = format!(
+            "{API}/repos/{}/commits/refs/tags/{}",
+            self.repo,
+            url_safe(tag)?
+        );
+        self.get_json::<ApiCommit>(&url)?
+            .map(|c| Some(c.sha))
+            .ok_or_else(|| SourceError::Unavailable(format!("tag {tag} vanished")))
+    }
+
+    /// `git/ref/tags/<tag>`: the object the ref names (404: no such tag).
+    fn tag_ref(&self, tag: &str) -> Result<Option<String>, SourceError> {
+        let url = format!("{API}/repos/{}/git/ref/tags/{}", self.repo, url_safe(tag)?);
+        Ok(self.get_json::<ApiRef>(&url)?.map(|r| r.object.sha))
     }
 
     fn tree(&self, commit: &str) -> Result<Vec<TreeEntry>, SourceError> {
@@ -271,6 +308,13 @@ mod tests {
         assert!(r.body.contains("sc-alpha-4.10.0"));
         let c = t.tag_commit("4.10.200.58746").unwrap();
         assert_eq!(c.len(), 40);
+        assert_eq!(
+            t.find_tag_commit("4.10.200.58746").unwrap().as_deref(),
+            Some(c.as_str())
+        );
+        assert!(t.find_tag_commit("4.10.200.58746-r999").unwrap().is_none());
+        assert!(t.tag_ref("4.10.200.58746").unwrap().is_some());
+        assert!(t.tag_ref("4.10.200.58746-r999").unwrap().is_none());
         let tree = t.tree(&c).unwrap();
         assert!(tree.iter().any(|e| e.path == "data/game-ships.json"));
         assert!(t.release("0.0.0.0").unwrap().is_none());

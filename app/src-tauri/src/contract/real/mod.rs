@@ -122,6 +122,13 @@ pub trait SourceFactory: Send + Sync {
     ) -> Option<Box<dyn starorg_core::source::dump::DumpTransport + Send + Sync>> {
         None
     }
+    /// The transport of the background check whether a cached dump was published again
+    /// (short timeouts); [`Self::prebuilt_transport`]'s when `None`.
+    fn prebuilt_check_transport(
+        &self,
+    ) -> Option<Box<dyn starorg_core::source::dump::DumpTransport + Send + Sync>> {
+        None
+    }
 }
 
 /// The extraction worker: this binary, `extract-worker` subcommand.
@@ -144,6 +151,12 @@ impl SourceFactory for WorkerSource {
         &self,
     ) -> Option<Box<dyn starorg_core::source::dump::DumpTransport + Send + Sync>> {
         Some(Box::new(starorg_net::GitHubTransport::new()))
+    }
+
+    fn prebuilt_check_transport(
+        &self,
+    ) -> Option<Box<dyn starorg_core::source::dump::DumpTransport + Send + Sync>> {
+        Some(Box::new(starorg_net::GitHubTransport::quick()))
     }
 }
 
@@ -1360,8 +1373,13 @@ impl RealBackend {
     /// Prebuilt datasets for the Sources card's tools ("Read game data" and the screens that
     /// read the dataset cache; never the MCP server): the source's transport, used only
     /// while Settings -> Game data -> "Download prebuilt game data" is on (read at every
-    /// fetch, so the switch counts at once). `None` for a test source.
+    /// fetch, so the switch counts at once). `None` for a test source. One for the process
+    /// (every install and channel), so each build's tag is asked once.
     fn prebuilt(&self) -> Option<Arc<dyn starorg_mcp::prebuilt::Prebuilt>> {
+        let mut g = dev::lock_or(&self.dev.prebuilt);
+        if let Some(p) = g.as_ref() {
+            return Some(p.clone());
+        }
         let transport = self.cfg.source.prebuilt_transport()?;
         let dirs = self.dirs().clone();
         let on = Arc::new(move || {
@@ -1369,9 +1387,13 @@ impl RealBackend {
                 .map(|c| config::prebuilt_dumps(&c))
                 .unwrap_or(true)
         });
-        Some(Arc::new(starorg_mcp::prebuilt::DumpPrebuilt::new(
-            transport, on,
-        )))
+        let mut p = starorg_mcp::prebuilt::DumpPrebuilt::new(transport, on);
+        if let Some(check) = self.cfg.source.prebuilt_check_transport() {
+            p = p.with_check_transport(check);
+        }
+        let p: Arc<dyn starorg_mcp::prebuilt::Prebuilt> = Arc::new(p);
+        *g = Some(p.clone());
+        Some(p)
     }
 
     fn save_app_file(&self, a: &AppFile) -> CmdResult<()> {

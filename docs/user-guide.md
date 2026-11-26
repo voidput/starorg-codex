@@ -722,8 +722,12 @@ offline. The game text is always read from `Data.p4k`; Where to get lines built 
 downloaded datasets are the same build's data and can be applied. Turn the switch off and
 datasets downloaded before are read from `Data.p4k` again. Activity shows per step what was
 downloaded and what was read locally, for example `LIVE: Where to get data: downloaded
-game-loot, game-item-sources (prebuilt 4.10.201.48085); read from Data.p4k: game-item-tags`.
-Which datasets can come from there: [mcp: prebuilt datasets](mcp.md#prebuilt-datasets). What is
+game-loot, game-item-sources (prebuilt 4.10.201.48085 r3-9a387f3b599e); read from Data.p4k:
+game-item-tags`. Downloaded data is always used at once: once per app start, the app checks in
+the background (one small request) whether the dumps repo published your build again (a fix,
+`r4`), and if so the next read of those datasets downloads them again. Offline, or while that
+download fails, the copies it has are used. Which
+datasets can come from there: [mcp: prebuilt datasets](mcp.md#prebuilt-datasets). What is
 sent: [privacy](privacy.md#network).
 
 ## Settings worth knowing
