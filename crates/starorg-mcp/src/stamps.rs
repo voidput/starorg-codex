@@ -2,15 +2,23 @@
 //!
 //! Beside every `<dataset>.json` of a build folder sits `<dataset>.stamp`, a small JSON file:
 //! the key the dataset was written under ([`expected_code`]), where it came from (`local`:
-//! extracted from this computer's `Data.p4k`; `dump:<tag>`: a verified prebuilt dataset of
-//! the same build from `voidput/sc-gamedata-dumps`, [`crate::prebuilt`]; `derived`: built
-//! from other datasets), and the size and SHA-256 of the file it describes.
+//! extracted from this computer's `Data.p4k`; `dump:<tag>@r<n>-<commit12>`, or
+//! `dump:<tag>@<commit12>` for a dump without a checked revision: a verified prebuilt dataset
+//! of the same build from `voidput/sc-gamedata-dumps`, [`crate::prebuilt`], with `dumpRef`,
+//! the tag ref it was read under; `derived`: built from other datasets), and the size and
+//! SHA-256 of the file it describes. A `dump:<tag>` stamp of an older version names no
+//! revision: it is served until the tag could be asked, then taken again.
 //!
 //! A dataset is served only while its stamp is current ([`current`]): the key is the one this
 //! app expects for it now and the file is the one the stamp describes. Anything else (no
 //! stamp, another key, another file) is extracted again. One file per dataset, written after
 //! the dataset with a temp file and a rename, and only when the file on disk is the one the
 //! writer made ([`write`]'s `expect`), so a stamp never vouches for another process's file.
+//!
+//! A served file is replaced as a pair with its stamp ([`swap`]): the stamp first names the
+//! new file as `next` beside the old one, then the new file is renamed into place, then the
+//! stamp names it alone. A crash in between leaves a stamp that still vouches for whichever
+//! file is there ([`keyed`] picks `next` when the file is that one).
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -29,24 +37,55 @@ pub const EXT: &str = ".stamp";
 pub const LOCAL: &str = "local";
 /// `derived` source: built from other datasets of the folder (the search index).
 pub const DERIVED: &str = "derived";
-/// Prefix of a prebuilt dataset's source: `dump:<tag>`.
+/// Prefix of a prebuilt dataset's source: `dump:<tag>@<revision>`.
 pub const DUMP_PREFIX: &str = "dump:";
+
+/// The source of a dataset taken from revision `revision` (`r3-9a387f3c0d1e`, or a short
+/// commit id; [`crate::prebuilt::Fetched::revision`]) of the dump tagged `tag`:
+/// `dump:<tag>@<revision>`.
+pub fn dump_source(tag: &str, revision: &str) -> String {
+    format!("{DUMP_PREFIX}{tag}@{revision}")
+}
+
+/// The tag and revision of a `dump:` source (`None` revision: a stamp written before
+/// revisions were recorded).
+pub fn dump_parts(source: &str) -> Option<(&str, Option<&str>)> {
+    let rest = source.strip_prefix(DUMP_PREFIX)?;
+    Some(match rest.split_once('@') {
+        Some((tag, rev)) => (tag, Some(rev)),
+        None => (rest, None),
+    })
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Stamp {
     /// [`expected_code`] when it was written.
     pub code: String,
-    /// [`LOCAL`], [`DERIVED`] or `dump:<tag>`.
+    /// [`LOCAL`], [`DERIVED`] or `dump:<tag>@<revision>` ([`dump_source`]).
     pub source: String,
     pub bytes: u64,
     pub sha256: String,
+    /// A prebuilt dataset: the dump tag's ref when it was read
+    /// ([`starorg_core::source::dump::DumpTransport::tag_ref`]); the same ref later means the
+    /// same revision, so checking it takes one request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dump_ref: Option<String>,
+    /// The file replacing this one, while [`swap`] runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub next: Option<Box<Stamp>>,
 }
 
 impl Stamp {
     /// The dump tag of a prebuilt dataset.
     pub fn dump_tag(&self) -> Option<&str> {
-        self.source.strip_prefix(DUMP_PREFIX)
+        dump_parts(&self.source).map(|p| p.0)
+    }
+
+    /// The dump revision of a prebuilt dataset (`r3-<commit12>` or a short commit id), when
+    /// its stamp names one.
+    pub fn dump_revision(&self) -> Option<&str> {
+        dump_parts(&self.source).and_then(|p| p.1)
     }
 }
 
@@ -93,7 +132,7 @@ pub fn expected_code(dir: &Path, dataset: &str, source: &str) -> String {
     }
     if dataset == starorg_gamedata::search_index::NAME {
         for input in ["game-item-tags", "game-ships"] {
-            extra.push_str(&read(dir, input).map(|s| s.sha256).unwrap_or_default());
+            extra.push_str(&keyed(dir, input).map(|s| s.sha256).unwrap_or_default());
             extra.push(';');
         }
     }
@@ -150,8 +189,16 @@ pub fn write(
         source: source.to_string(),
         bytes,
         sha256,
+        dump_ref: None,
+        next: None,
     };
-    let text = serde_json::to_vec_pretty(&s).map_err(std::io::Error::other)?;
+    put(dir, dataset, &s)?;
+    Ok(s)
+}
+
+/// Write a stamp file as given (temp file and rename).
+fn put(dir: &Path, dataset: &str, s: &Stamp) -> std::io::Result<()> {
+    let text = serde_json::to_vec_pretty(s).map_err(std::io::Error::other)?;
     let target = path(dir, dataset);
     let tmp = dir.join(format!("{dataset}{EXT}.tmp-{}", std::process::id()));
     std::fs::write(&tmp, text)?;
@@ -159,12 +206,74 @@ pub fn write(
         let _ = std::fs::remove_file(&tmp);
         return Err(e);
     }
-    Ok(s)
+    Ok(())
 }
 
-/// The stamp when its key is the one expected now (file not checked).
+/// Replace `<dir>/<dataset>.json` with `new_file` (a finished temp file in `dir`) and its
+/// stamp from `source` as one pair: the stamp names the new file as `next` first, the file
+/// is renamed into place, then the stamp names it alone. At every step the stamp vouches for
+/// the file on disk, the old one or the new one ([`keyed`]); a failed rename leaves the old
+/// pair and removes the temp file.
+pub fn swap(
+    dir: &Path,
+    dataset: &str,
+    new_file: &Path,
+    source: &str,
+    dump_ref: Option<&str>,
+) -> std::io::Result<Stamp> {
+    let (sha256, bytes) = file_sum(new_file)?;
+    let new = Stamp {
+        code: expected_code(dir, dataset, source),
+        source: source.to_string(),
+        bytes,
+        sha256,
+        dump_ref: dump_ref.map(str::to_string),
+        next: None,
+    };
+    let file = dir.join(format!("{dataset}.json"));
+    if let Some(mut old) = read(dir, dataset).filter(|_| file.is_file()) {
+        old.next = Some(Box::new(new.clone()));
+        if let Err(e) = put(dir, dataset, &old) {
+            let _ = std::fs::remove_file(new_file);
+            return Err(e);
+        }
+    }
+    if let Err(e) = starorg_core::fsutil::rename_retry(new_file, &file) {
+        let _ = std::fs::remove_file(new_file);
+        return Err(e);
+    }
+    put(dir, dataset, &new)?;
+    Ok(new)
+}
+
+/// Point a prebuilt dataset's stamp at the dump tag's ref now (the same revision, pushed
+/// again), so the next check is one request again. Only while the file is the stamped one.
+pub fn set_dump_ref(dir: &Path, dataset: &str, dump_ref: &str) -> std::io::Result<()> {
+    let Some(mut s) = read(dir, dataset).filter(|s| s.next.is_none()) else {
+        return Ok(());
+    };
+    s.dump_ref = Some(dump_ref.to_string());
+    put(dir, dataset, &s)
+}
+
+/// The stamp when its key is the one expected now (file not checked; while [`swap`] runs,
+/// the stamp of whichever file has the size on disk).
 pub fn keyed(dir: &Path, dataset: &str) -> Option<Stamp> {
-    read(dir, dataset).filter(|s| s.code == expected_code(dir, dataset, &s.source))
+    let s = read(dir, dataset)?;
+    let len = std::fs::metadata(dir.join(format!("{dataset}.json")))
+        .ok()
+        .map(|m| m.len());
+    effective(s, len).filter(|s| s.code == expected_code(dir, dataset, &s.source))
+}
+
+/// Of a stamp and its `next`, the one for a file of `len` bytes (the stamp itself when
+/// neither or both fit).
+fn effective(mut s: Stamp, len: Option<u64>) -> Option<Stamp> {
+    let next = s.next.take();
+    match next {
+        Some(n) if len == Some(n.bytes) && len != Some(s.bytes) => Some(*n),
+        _ => Some(s),
+    }
 }
 
 /// Why `<dir>/<dataset>.json` is not current: missing, no stamp, a stamp of another key, or
@@ -176,11 +285,18 @@ pub fn current(dir: &Path, dataset: &str) -> Result<Stamp, String> {
     if !file.is_file() {
         return Err(format!("{dataset} is not cached"));
     }
-    let s = read(dir, dataset).ok_or_else(|| format!("{dataset} has no stamp"))?;
+    let mut s = read(dir, dataset).ok_or_else(|| format!("{dataset} has no stamp"))?;
+    let (sha, bytes) = file_sum(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+    // While a swap runs: the new file's stamp once it is in place.
+    if let Some(n) = s.next.take()
+        && n.bytes == bytes
+        && n.sha256 == sha
+    {
+        s = *n;
+    }
     if s.code != expected_code(dir, dataset, &s.source) {
         return Err(format!("{dataset} was made by other code"));
     }
-    let (sha, bytes) = file_sum(&file).map_err(|e| format!("{}: {e}", file.display()))?;
     if bytes != s.bytes || sha != s.sha256 {
         return Err(format!("{dataset} is not the file its stamp describes"));
     }
@@ -308,14 +424,73 @@ mod tests {
         assert!(!looks_current(d, "game-loot"));
         assert_ne!(digest(d), before);
         // A dump stamp carries its rule: not the local key.
-        let dump = write(d, "game-loot", "dump:4.10.201.48085", None).unwrap();
+        let dump = write(d, "game-loot", &dump_source("4.10.201.48085", "r3"), None).unwrap();
+        assert_eq!(dump.source, "dump:4.10.201.48085@r3");
         assert_eq!(dump.dump_tag(), Some("4.10.201.48085"));
+        assert_eq!(dump.dump_revision(), Some("r3"));
+        // A stamp of an older version: the tag, no revision.
+        assert_eq!(
+            dump_parts("dump:4.10.201.48085"),
+            Some(("4.10.201.48085", None))
+        );
+        assert_eq!(dump_parts(LOCAL), None);
         assert_ne!(dump.code, code_of("game-loot"));
         assert!(current(d, "game-loot").is_ok());
         // A known-bad dump is never listed.
         std::fs::write(d.join("game-ships.json"), "{}").unwrap();
         write(d, "game-ships", "dump:4.10.200.58746", None).unwrap();
         assert!(!looks_current(d, "game-ships"));
+    }
+
+    #[test]
+    fn a_swap_keeps_a_valid_pair_at_every_step() {
+        let t = tempfile::tempdir().unwrap();
+        let d = t.path();
+        let src = |r: &str| dump_source("4.10.201.48085", r);
+        std::fs::write(d.join("game-loot.json"), "{\"v\":1}").unwrap();
+        let old = write(d, "game-loot", &src("r2-aaaaaaaaaaaa"), None).unwrap();
+        // Swapped in: the new pair, with its ref.
+        std::fs::write(d.join("new.tmp"), "{\"v\":22}").unwrap();
+        let new = swap(
+            d,
+            "game-loot",
+            &d.join("new.tmp"),
+            &src("r3-bbbbbbbbbbbb"),
+            Some("ref3"),
+        )
+        .unwrap();
+        assert!(!d.join("new.tmp").exists());
+        assert_eq!(current(d, "game-loot").unwrap(), new);
+        assert_eq!(
+            keyed(d, "game-loot").unwrap().dump_ref.as_deref(),
+            Some("ref3")
+        );
+        // A crash after the stamp named `next` but before the rename: the old pair holds.
+        let mut pending = old.clone();
+        pending.next = Some(Box::new(new.clone()));
+        std::fs::write(d.join("game-loot.json"), "{\"v\":1}").unwrap();
+        put(d, "game-loot", &pending).unwrap();
+        assert_eq!(current(d, "game-loot").unwrap(), old);
+        assert_eq!(keyed(d, "game-loot").unwrap().source, old.source);
+        // ... and after the rename, before the final stamp: the new pair holds.
+        std::fs::write(d.join("game-loot.json"), "{\"v\":22}").unwrap();
+        assert_eq!(current(d, "game-loot").unwrap(), new);
+        assert_eq!(keyed(d, "game-loot").unwrap().source, new.source);
+        // Neither file: refused.
+        std::fs::write(d.join("game-loot.json"), "{\"v\":333}").unwrap();
+        assert!(current(d, "game-loot").is_err());
+        // A failed swap (no temp file): the old pair is untouched.
+        std::fs::write(d.join("game-loot.json"), "{\"v\":1}").unwrap();
+        put(d, "game-loot", &old).unwrap();
+        assert!(swap(d, "game-loot", &d.join("gone.tmp"), &src("r4-c"), None).is_err());
+        assert_eq!(current(d, "game-loot").unwrap(), old);
+        // The ref moves on its own when the same revision was pushed again.
+        set_dump_ref(d, "game-loot", "ref3b").unwrap();
+        assert_eq!(
+            read(d, "game-loot").unwrap().dump_ref.as_deref(),
+            Some("ref3b")
+        );
+        assert!(current(d, "game-loot").is_ok());
     }
 
     #[test]

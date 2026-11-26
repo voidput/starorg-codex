@@ -24,6 +24,7 @@ use starorg_gamedata::search_index;
 use std::any::Any;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// Bumped when the cached layout or a dataset's meaning changes. 2: per-dataset stamps; the
@@ -154,6 +155,10 @@ struct Mem {
     tidied: HashSet<PathBuf>,
     /// Lines said once per run (no dump published for a build, ...).
     said: HashSet<String>,
+    /// Stamp files read for the dump check, by their size and modified time then.
+    stamps: HashMap<PathBuf, (u64, Option<std::time::SystemTime>, stamps::Stamp)>,
+    /// The prebuilt source's [`crate::prebuilt::Prebuilt::generation`] last looked at.
+    dump_generation: u64,
 }
 
 /// Called with a line worth showing in the app's Activity (extractions).
@@ -164,6 +169,16 @@ pub struct Store {
     mem: Mutex<Mem>,
     extracting: Mutex<()>,
     notify: Option<Notify>,
+}
+
+/// A download filled and written to a temp file, waiting to be swapped in.
+struct Downloaded {
+    tag: String,
+    revision: String,
+    tag_ref: String,
+    /// `dump:<tag>@<revision>`.
+    source: String,
+    tmp: PathBuf,
 }
 
 fn lock<T>(m: &Mutex<T>) -> MutexGuard<'_, T> {
@@ -693,6 +708,78 @@ impl Store {
         }
     }
 
+    /// The stamp beside a dataset as written, parsed once per version of the stamp file (its
+    /// size and modified time).
+    fn stamp_of(&self, dir: &Path, dataset: &str) -> Option<stamps::Stamp> {
+        let path = stamps::path(dir, dataset);
+        let meta = std::fs::metadata(&path).ok()?;
+        let (len, mtime) = (meta.len(), meta.modified().ok());
+        if let Some((l, t, s)) = lock(&self.mem).stamps.get(&path)
+            && *l == len
+            && *t == mtime
+        {
+            return Some(s.clone());
+        }
+        let s = stamps::read(dir, dataset)?;
+        lock(&self.mem).stamps.insert(path, (len, mtime, s.clone()));
+        Some(s)
+    }
+
+    /// A dataset taken from a dump whose tag holds another revision now (a republish):
+    /// `Some("<tag> <old> -> <new>")`. Never waits on the network
+    /// ([`crate::prebuilt::Prebuilt::head`] asks in the background): `None` while that is
+    /// not known (being asked, offline, no prebuilt source, the switch off), so the cached
+    /// copy is served until it is. The same revision under a new ref (the tag pushed again)
+    /// only updates the stamp's ref.
+    fn dump_outdated(&self, dir: &Path, dataset: &str) -> Option<String> {
+        let p = self.cfg.prebuilt.as_ref()?;
+        let s = self.stamp_of(dir, dataset)?;
+        let tag = s.dump_tag()?;
+        let head = p.head(tag, s.dump_ref.as_deref())?;
+        if s.dump_ref.as_deref() == Some(head.tag_ref.as_str()) {
+            return None;
+        }
+        let now = head.revision?;
+        let was = s.dump_revision();
+        if was == Some(now.as_str()) {
+            let _ = stamps::set_dump_ref(dir, dataset, &head.tag_ref);
+            return None;
+        }
+        Some(format!("{tag} {} -> {now}", was.unwrap_or("(no revision)")))
+    }
+
+    /// After a background dump check answered: datasets held in memory that a republish made
+    /// outdated (and the values built from their folder) are dropped, so the next read takes
+    /// them again.
+    fn refresh_dumps(&self) {
+        let Some(p) = &self.cfg.prebuilt else {
+            return;
+        };
+        let generation = p.generation();
+        let keys: Vec<(PathBuf, String)> = {
+            let mut m = lock(&self.mem);
+            if m.dump_generation == generation {
+                return;
+            }
+            m.dump_generation = generation;
+            m.json.keys().cloned().collect()
+        };
+        let stale: Vec<(PathBuf, String)> = keys
+            .into_iter()
+            .filter(|(d, n)| self.dump_outdated(d, n).is_some())
+            .collect();
+        if stale.is_empty() {
+            return;
+        }
+        let mut m = lock(&self.mem);
+        for (d, n) in stale {
+            m.json.remove(&(d.clone(), n));
+            m.typed.retain(|(x, _), _| *x != d);
+            m.typed_uex.retain(|(x, _), _| *x != d);
+            m.typed_files.retain(|(x, _), _| *x != d);
+        }
+    }
+
     /// Mark a served dataset file used (the storage cap's LRU order), keeping its check.
     fn mark_file_used(&self, path: &Path) {
         starorg_core::fsutil::touch(path);
@@ -702,12 +789,21 @@ impl Store {
         }
     }
 
-    /// Where a cached dataset came from (its stamp's `source`: `local`, `dump:<tag>`,
-    /// `derived`), while it is current.
+    /// Where a cached dataset came from (its stamp's `source`: `local`,
+    /// `dump:<tag>@<revision>`, `derived`), while it is current.
     pub fn source_of(&self, dir: &Path, dataset: &str) -> Option<String> {
         self.is_current(dir, dataset)
-            .then(|| stamps::read(dir, dataset).map(|s| s.source))
+            .then(|| stamps::keyed(dir, dataset).map(|s| s.source))
             .flatten()
+    }
+
+    /// Remember a stamp just written as checked in full.
+    fn verified(&self, dir: &Path, dataset: &str, s: &stamps::Stamp) {
+        let file = dir.join(format!("{dataset}.json"));
+        let mtime = std::fs::metadata(&file).and_then(|m| m.modified()).ok();
+        lock(&self.mem)
+            .verified
+            .insert(file, (s.bytes, mtime, s.sha256.clone()));
     }
 
     /// Stamp a dataset just written; `expect`: the SHA-256 of what was written (another
@@ -721,13 +817,7 @@ impl Store {
     ) -> ToolResult<()> {
         let s = stamps::write(dir, dataset, source, expect)
             .map_err(|e| ToolError(format!("{dataset}: writing its stamp: {e}")))?;
-        let mtime = std::fs::metadata(dir.join(format!("{dataset}.json")))
-            .and_then(|m| m.modified())
-            .ok();
-        lock(&self.mem).verified.insert(
-            dir.join(format!("{dataset}.json")),
-            (s.bytes, mtime, s.sha256),
-        );
+        self.verified(dir, dataset, &s);
         Ok(())
     }
 
@@ -747,59 +837,69 @@ impl Store {
         r
     }
 
-    /// A downloaded dataset, filled and checked: the SHA-256 of the file to stamp. Redacted
-    /// prose is filled from the build's own string table (extracted locally, never from a
-    /// dump); without it the download is not used.
+    /// A downloaded dataset, filled, in a temp file of `dir` beside the served one (which is
+    /// not touched). Redacted prose is filled from the build's own string table (extracted
+    /// locally, never from a dump); without it the download is not used.
     fn finish_download(
         &self,
         ch: &ChannelSource,
         dir: &Path,
         dataset: &str,
-        fetched: &crate::prebuilt::Fetched,
-    ) -> Result<String, String> {
-        let file = dir.join(format!("{dataset}.json"));
-        let bytes = std::fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?;
-        if stamps::sha256(&bytes) != fetched.sha256 {
-            return Err("replaced by another process meanwhile".into());
-        }
+        fetched: crate::prebuilt::Fetched,
+    ) -> Result<Downloaded, String> {
+        let crate::prebuilt::Fetched {
+            tag,
+            revision,
+            tag_ref,
+            bytes,
+        } = fetched;
         let mut doc: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
-        drop(bytes);
-        if crate::prebuilt::redacted(&doc).is_none() {
-            return Ok(fetched.sha256.clone());
-        }
-        let strings = self
-            .json_in(ch, dir, starorg_gamedata::strings::NAME, true)
-            .map_err(|e| format!("the string table to fill its descriptions: {e}"))?;
-        let mut loc = starorg_gamedata::localization::Localization::new();
-        for (k, v) in strings
-            .get("strings")
-            .and_then(Value::as_object)
-            .into_iter()
-            .flatten()
-        {
-            if let Some(v) = v.as_str() {
-                loc.set(k, v);
+        let text = if crate::prebuilt::redacted(&doc).is_none() {
+            drop(doc);
+            bytes
+        } else {
+            drop(bytes);
+            let strings = self
+                .json_in(ch, dir, starorg_gamedata::strings::NAME, true)
+                .map_err(|e| format!("the string table to fill its descriptions: {e}"))?;
+            let mut loc = starorg_gamedata::localization::Localization::new();
+            for (k, v) in strings
+                .get("strings")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(v) = v.as_str() {
+                    loc.set(k, v);
+                }
             }
-        }
-        drop(strings);
-        crate::prebuilt::fill_prose(&mut doc, dataset, &loc);
-        let text = starorg_gamedata::output::to_js_json(&doc);
-        let sha = stamps::sha256(text.as_bytes());
-        let tmp = dir.join(format!("{dataset}.json.tmp-fill-{}", std::process::id()));
-        std::fs::write(&tmp, &text).map_err(|e| e.to_string())?;
-        starorg_core::fsutil::rename_retry(&tmp, &file).map_err(|e| {
+            drop(strings);
+            crate::prebuilt::fill_prose(&mut doc, dataset, &loc);
+            starorg_gamedata::output::to_js_json(&doc).into_bytes()
+        };
+        static N: AtomicUsize = AtomicUsize::new(0);
+        let tmp = dir.join(format!(
+            "{dataset}.json.tmp-dump-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::SeqCst)
+        ));
+        std::fs::write(&tmp, &text).map_err(|e| {
             let _ = std::fs::remove_file(&tmp);
-            e.to_string()
+            format!("{}: {e}", tmp.display())
         })?;
-        Ok(sha)
+        Ok(Downloaded {
+            source: stamps::dump_source(&tag, &revision),
+            tag,
+            revision,
+            tag_ref,
+            tmp,
+        })
     }
 
     fn ensure_file(&self, ch: &ChannelSource, dir: &Path, dataset: &str) -> ToolResult<()> {
-        if self.is_current(dir, dataset) {
-            return Ok(());
-        }
-        let file = dir.join(format!("{dataset}.json"));
         if dataset == search_index::NAME {
+            // Its inputs first (each taken again when a republish made it outdated), so it
+            // is never kept over, or built from, older ones.
             self.ensure_file(ch, dir, "game-item-tags")?;
             self.ensure_file(ch, dir, "game-ships")?;
             let _g = lock(&self.extracting);
@@ -810,10 +910,23 @@ impl Store {
             }
             return Ok(());
         }
+        // A dump republished since: taken again from its new revision.
+        let mut outdated = None;
+        if self.is_current(dir, dataset) {
+            outdated = self.dump_outdated(dir, dataset);
+            match &outdated {
+                None => return Ok(()),
+                Some(what) => self.say(format!(
+                    "MCP: the prebuilt dump of {dataset} was republished ({what}); taking it again"
+                )),
+            }
+        }
+        let file = dir.join(format!("{dataset}.json"));
         std::fs::create_dir_all(dir).map_err(|e| ToolError(format!("{}: {e}", dir.display())))?;
         let build = ch.build.as_deref().unwrap_or("unknown build");
         // A prebuilt copy first, outside the extraction lock (a slow download never holds up
-        // another dataset's extraction); its file is renamed into place whole.
+        // another dataset's extraction), into a temp file: the served copy stays until the
+        // new one is accepted and filled.
         let started = std::time::Instant::now();
         let mut dump = None;
         // Never the string table: published with name keys only, and what fills a download.
@@ -822,8 +935,8 @@ impl Store {
             && p.enabled()
         {
             match p
-                .fetch(&ch.name, b, dataset, dir)
-                .and_then(|f| Ok((f.tag.clone(), self.finish_download(ch, dir, dataset, &f)?)))
+                .fetch(&ch.name, b, dataset)
+                .and_then(|f| self.finish_download(ch, dir, dataset, f))
             {
                 Ok(got) => dump = Some(got),
                 Err(why) => self.say_once(
@@ -836,51 +949,76 @@ impl Store {
             }
         }
         let _g = lock(&self.extracting);
-        if self.is_current(dir, dataset) {
+        if let Some(d) = dump {
+            // Taken meanwhile by another thread: done.
+            if self.is_current(dir, dataset)
+                && stamps::keyed(dir, dataset).is_some_and(|s| s.source == d.source)
+            {
+                let _ = std::fs::remove_file(&d.tmp);
+                return Ok(());
+            }
+            // The file and its stamp as one pair: a crash leaves the old pair or the new.
+            let s = stamps::swap(dir, dataset, &d.tmp, &d.source, Some(&d.tag_ref))
+                .map_err(|e| ToolError(format!("{dataset}: putting the download in place: {e}")))?;
+            self.verified(dir, dataset, &s);
+            let m = Measurement {
+                dataset: dataset.to_string(),
+                seconds: (started.elapsed().as_secs_f64() * 100.0).round() / 100.0,
+                peak_rss_bytes: None,
+                bytes: s.bytes,
+                warnings: 0,
+                sha256: Some(s.sha256.clone()),
+            };
+            self.say(format!(
+                "MCP: {dataset} for {} ({build}) downloaded from the prebuilt dump {} ({}) in {:.1} s",
+                ch.name, d.tag, d.revision, m.seconds
+            ));
+            self.recorded(dir, &m);
             return Ok(());
         }
-        let (m, source, sha) = match dump {
-            Some((tag, sha)) => {
-                let m = Measurement {
-                    dataset: dataset.to_string(),
-                    seconds: (started.elapsed().as_secs_f64() * 100.0).round() / 100.0,
-                    peak_rss_bytes: None,
-                    bytes: std::fs::metadata(&file).map_or(0, |m| m.len()),
-                    warnings: 0,
-                    sha256: Some(sha.clone()),
-                };
+        // Current, and not (or no longer known to be) of an older revision: a download that
+        // failed on the network leaves the tag unasked for a while, so the cached copy stays.
+        if self.is_current(dir, dataset) && self.dump_outdated(dir, dataset).is_none() {
+            if outdated.is_some() {
                 self.say(format!(
-                    "MCP: {dataset} for {} ({build}) downloaded from the prebuilt dump {tag} in {:.1} s",
-                    ch.name, m.seconds
+                    "MCP: {dataset}: the new dump revision could not be downloaded; serving the cached dump copy"
                 ));
-                (m, format!("{}{tag}", stamps::DUMP_PREFIX), Some(sha))
             }
-            None => {
+            return Ok(());
+        }
+        self.say(format!(
+            "MCP: extracting {dataset} for {} ({build}), once per build",
+            ch.name
+        ));
+        let m = match self.cfg.extractor.extract(&ch.p4k, dataset, dir) {
+            Ok(m) => m,
+            // The new revision refused and no extraction: the older one still holds.
+            Err(e) if outdated.is_some() && self.is_current(dir, dataset) => {
                 self.say(format!(
-                    "MCP: extracting {dataset} for {} ({build}), once per build",
-                    ch.name
+                    "MCP: {dataset}: {e}; serving the cached copy of the earlier dump revision"
                 ));
-                let m = self
-                    .cfg
-                    .extractor
-                    .extract(&ch.p4k, dataset, dir)
-                    .map_err(|e| ToolError(format!("{dataset}: {e}")))?;
-                self.say(format!(
-                    "MCP: {dataset} ready in {:.1} s{}",
-                    m.seconds,
-                    m.peak_rss_bytes
-                        .map(|b| format!(", worker peak {} MB", b / (1 << 20)))
-                        .unwrap_or_default()
-                ));
-                let sha = m.sha256.clone();
-                (m, stamps::LOCAL.to_string(), sha)
+                return Ok(());
             }
+            Err(e) => return tool_err(format!("{dataset}: {e}")),
         };
+        self.say(format!(
+            "MCP: {dataset} ready in {:.1} s{}",
+            m.seconds,
+            m.peak_rss_bytes
+                .map(|b| format!(", worker peak {} MB", b / (1 << 20)))
+                .unwrap_or_default()
+        ));
         if !file.is_file() {
             return tool_err(format!("{dataset}: the worker wrote no file"));
         }
-        self.stamp(dir, dataset, &source, sha.as_deref())?;
-        Self::record_measurement(dir, &m);
+        self.stamp(dir, dataset, stamps::LOCAL, m.sha256.as_deref())?;
+        self.recorded(dir, &m);
+        Ok(())
+    }
+
+    /// A dataset just put in place: its measurement, then the storage cap.
+    fn recorded(&self, dir: &Path, m: &Measurement) {
+        Self::record_measurement(dir, m);
         if let (Some(cap), Some(app_cache)) = (self.cfg.cache_cap, self.cfg.cache_dir.parent()) {
             let e = starorg_core::storage::enforce(app_cache, cap, &[dir.to_path_buf()]);
             if !e.removed.is_empty() {
@@ -892,7 +1030,6 @@ impl Store {
                 ));
             }
         }
-        Ok(())
     }
 
     fn read_json(path: &Path) -> ToolResult<Arc<Value>> {
@@ -919,6 +1056,7 @@ impl Store {
         extract: bool,
     ) -> ToolResult<Arc<Value>> {
         self.touch(dir);
+        self.refresh_dumps();
         let key = (dir.to_path_buf(), dataset.to_string());
         if let Some(v) = lock(&self.mem).json.get(&key) {
             return Ok(v.clone());
@@ -981,6 +1119,7 @@ impl Store {
         build: impl FnOnce() -> ToolResult<T>,
     ) -> ToolResult<Arc<T>> {
         self.touch(dir);
+        self.refresh_dumps();
         let key = (dir.to_path_buf(), name);
         if let Some(v) = lock(&self.mem).typed.get(&key)
             && let Ok(t) = v.clone().downcast::<T>()
@@ -1210,7 +1349,16 @@ mod tests {
         calls: AtomicUsize,
         answer: Result<(), String>,
         on: std::sync::atomic::AtomicBool,
-        body: &'static str,
+        body: Mutex<&'static str>,
+        /// What the tag holds now; `None`: not known (offline, being asked).
+        revision: Mutex<Option<&'static str>>,
+        /// The tag's ref, when not `ref-<revision>` (the same revision pushed again).
+        tag_ref: Mutex<Option<&'static str>>,
+        /// The ref is known but its revision is still being resolved.
+        resolving: std::sync::atomic::AtomicBool,
+        /// A download fails on the network (and the head is then not known).
+        offline_download: std::sync::atomic::AtomicBool,
+        generation: std::sync::atomic::AtomicU64,
     }
     impl FakeDump {
         fn new(answer: Result<(), String>) -> Self {
@@ -1218,29 +1366,306 @@ mod tests {
                 calls: AtomicUsize::new(0),
                 answer,
                 on: true.into(),
-                body: r#"{"x": 2}"#,
+                body: Mutex::new(r#"{"x": 2}"#),
+                revision: Mutex::new(Some("r1")),
+                tag_ref: Mutex::new(None),
+                resolving: false.into(),
+                offline_download: false.into(),
+                generation: 0.into(),
             }
+        }
+        fn at(revision: Option<&'static str>, body: &'static str) -> Self {
+            let d = Self::new(Ok(()));
+            *d.revision.lock().unwrap() = revision;
+            *d.body.lock().unwrap() = body;
+            d
+        }
+        fn tag_ref(&self) -> Option<String> {
+            let r = (*self.revision.lock().unwrap())?;
+            Some(
+                self.tag_ref
+                    .lock()
+                    .unwrap()
+                    .map_or(format!("ref-{r}"), str::to_string),
+            )
+        }
+        /// A background answer landed: the tag now holds `revision` with `body`.
+        fn republish(&self, revision: &'static str, body: &'static str) {
+            *self.revision.lock().unwrap() = Some(revision);
+            *self.body.lock().unwrap() = body;
+            self.generation.fetch_add(1, Ordering::SeqCst);
         }
     }
     impl crate::prebuilt::Prebuilt for FakeDump {
         fn enabled(&self) -> bool {
             self.on.load(Ordering::SeqCst)
         }
-        fn fetch(
-            &self,
-            _: &str,
-            build: &str,
-            dataset: &str,
-            out: &Path,
-        ) -> Result<crate::prebuilt::Fetched, String> {
+        fn fetch(&self, _: &str, build: &str, _: &str) -> Result<crate::prebuilt::Fetched, String> {
             self.calls.fetch_add(1, Ordering::SeqCst);
             self.answer.clone()?;
-            std::fs::write(out.join(format!("{dataset}.json")), self.body).unwrap();
+            if self.offline_download.load(Ordering::SeqCst) {
+                *self.revision.lock().unwrap() = None;
+                return Err("GitHub: connection reset".into());
+            }
+            let revision = (*self.revision.lock().unwrap()).ok_or("offline")?;
             Ok(crate::prebuilt::Fetched {
                 tag: build.to_string(),
-                sha256: stamps::sha256(self.body.as_bytes()),
+                revision: revision.to_string(),
+                tag_ref: self.tag_ref().unwrap(),
+                bytes: self.body.lock().unwrap().as_bytes().to_vec(),
             })
         }
+        fn head(&self, _: &str, _: Option<&str>) -> Option<crate::prebuilt::DumpHead> {
+            let tag_ref = self.tag_ref()?;
+            let resolving = self.resolving.load(Ordering::SeqCst);
+            Some(crate::prebuilt::DumpHead {
+                tag_ref,
+                revision: (!resolving).then(|| (*self.revision.lock().unwrap()).unwrap().into()),
+            })
+        }
+        fn generation(&self) -> u64 {
+            self.generation.load(Ordering::SeqCst)
+        }
+    }
+
+    /// A store over `dir` with `dump` as its prebuilt source (one run of the app).
+    fn run(dir: &Path, fake: &Arc<Fake>, dump: &Arc<FakeDump>) -> Store {
+        let mut s = store(dir, fake.clone());
+        s.cfg.prebuilt = Some(dump.clone());
+        s
+    }
+
+    fn weapons(s: &Store) -> Value {
+        (*s.json(s.channel(Some("LIVE")).unwrap(), "game-weapons")
+            .unwrap())
+        .clone()
+    }
+
+    fn weapons_source(s: &Store) -> Option<String> {
+        let d = s.build_dir(s.channel(Some("LIVE")).unwrap());
+        s.source_of(&d, "game-weapons")
+    }
+
+    #[test]
+    fn a_republished_dump_is_taken_again_once_its_revision_changes() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Arc::new(Fake(AtomicUsize::new(0)));
+        let (get, source) = (weapons, weapons_source);
+        // r1 taken and stamped with its revision and ref.
+        let r1 = Arc::new(FakeDump::at(Some("r1-aaaaaaaaaaaa"), r#"{"x": 2}"#));
+        let s = run(dir.path(), &fake, &r1);
+        assert_eq!(get(&s)["x"], 2);
+        assert_eq!(
+            source(&s).as_deref(),
+            Some("dump:4.10.200.58746@r1-aaaaaaaaaaaa")
+        );
+        let d = s.build_dir(s.channel(Some("LIVE")).unwrap());
+        assert_eq!(
+            stamps::read(&d, "game-weapons")
+                .unwrap()
+                .dump_ref
+                .as_deref(),
+            Some("ref-r1-aaaaaaaaaaaa")
+        );
+        // The same ref next run: served, not fetched again.
+        let again = Arc::new(FakeDump::at(Some("r1-aaaaaaaaaaaa"), r#"{"x": 99}"#));
+        let s = run(dir.path(), &fake, &again);
+        assert_eq!(get(&s)["x"], 2);
+        assert_eq!(again.calls.load(Ordering::SeqCst), 0);
+        // Another ref, its revision still being resolved: served as it is meanwhile.
+        let pending = Arc::new(FakeDump::at(Some("r2-bbbbbbbbbbbb"), r#"{"x": 3}"#));
+        pending.resolving.store(true, Ordering::SeqCst);
+        let s = run(dir.path(), &fake, &pending);
+        assert_eq!(get(&s)["x"], 2);
+        assert_eq!(pending.calls.load(Ordering::SeqCst), 0);
+        // Resolved as r2 (a background answer): the next read takes it again, verified as
+        // any download, and stamps r2.
+        pending.resolving.store(false, Ordering::SeqCst);
+        pending.generation.fetch_add(1, Ordering::SeqCst);
+        assert_eq!(get(&s)["x"], 3);
+        assert_eq!(pending.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            source(&s).as_deref(),
+            Some("dump:4.10.200.58746@r2-bbbbbbbbbbbb")
+        );
+        // Once per answer, not per read.
+        let _ = get(&s);
+        assert_eq!(pending.calls.load(Ordering::SeqCst), 1);
+        // Offline (the tag not known now): the cached copy is served.
+        let offline = Arc::new(FakeDump::at(None, r#"{"x": 4}"#));
+        let s = run(dir.path(), &fake, &offline);
+        assert_eq!(get(&s)["x"], 3);
+        assert_eq!(offline.calls.load(Ordering::SeqCst), 0);
+        // A dump without a checked revision: its short commit; a new commit is taken again.
+        let a = Arc::new(FakeDump::at(Some("0123456789ab"), r#"{"x": 5}"#));
+        let s = run(dir.path(), &fake, &a);
+        assert_eq!(get(&s)["x"], 5);
+        assert_eq!(
+            source(&s).as_deref(),
+            Some("dump:4.10.200.58746@0123456789ab")
+        );
+        // Republished while the app runs: the answer lands, the next read has it.
+        a.republish("89abcdef0123", r#"{"x": 6}"#);
+        assert_eq!(get(&s)["x"], 6);
+        assert_eq!(a.calls.load(Ordering::SeqCst), 2);
+        // The same revision pushed again (another ref): only the stamp's ref moves.
+        let pushed = Arc::new(FakeDump::at(Some("89abcdef0123"), r#"{"x": 66}"#));
+        *pushed.tag_ref.lock().unwrap() = Some("ref-again");
+        let s = run(dir.path(), &fake, &pushed);
+        assert_eq!(get(&s)["x"], 6);
+        assert_eq!(pushed.calls.load(Ordering::SeqCst), 0);
+        assert_eq!(
+            stamps::read(&d, "game-weapons")
+                .unwrap()
+                .dump_ref
+                .as_deref(),
+            Some("ref-again")
+        );
+        // A new revision with the same file: swapped in, so it is not fetched every run.
+        let r3 = Arc::new(FakeDump::at(Some("r3-cccccccccccc"), r#"{"x": 6}"#));
+        let s = run(dir.path(), &fake, &r3);
+        assert_eq!(get(&s)["x"], 6);
+        assert_eq!(
+            source(&s).as_deref(),
+            Some("dump:4.10.200.58746@r3-cccccccccccc")
+        );
+        let r3b = Arc::new(FakeDump::at(Some("r3-cccccccccccc"), r#"{"x": 6}"#));
+        let s = run(dir.path(), &fake, &r3b);
+        let _ = get(&s);
+        assert_eq!(r3b.calls.load(Ordering::SeqCst), 0);
+        // A stamp of an older version names no revision or ref: taken again once known.
+        stamps::write(&d, "game-weapons", "dump:4.10.200.58746", None).unwrap();
+        let r3c = Arc::new(FakeDump::at(Some("r3-cccccccccccc"), r#"{"x": 7}"#));
+        let s = run(dir.path(), &fake, &r3c);
+        assert_eq!(get(&s)["x"], 7);
+        assert_eq!(
+            source(&s).as_deref(),
+            Some("dump:4.10.200.58746@r3-cccccccccccc")
+        );
+        // The new revision refused: read from Data.p4k, as any refused download.
+        let mut bad = FakeDump::at(Some("r4-dddddddddddd"), r#"{"x": 8}"#);
+        bad.answer = Err("game-weapons: schema game-weapons@2 is not one this app reads".into());
+        let bad = Arc::new(bad);
+        let before = fake.0.load(Ordering::SeqCst);
+        let s = run(dir.path(), &fake, &bad);
+        assert_eq!(get(&s)["x"], 1);
+        assert_eq!(fake.0.load(Ordering::SeqCst), before + 1);
+        assert_eq!(source(&s).as_deref(), Some("local"));
+        assert!(
+            std::fs::read_dir(&d)
+                .unwrap()
+                .flatten()
+                .all(|e| !e.file_name().to_string_lossy().contains(".tmp-")),
+            "no temp file left"
+        );
+    }
+
+    /// An extractor that always fails.
+    struct Broken;
+    impl Extractor for Broken {
+        fn extract(&self, _: &Path, _: &str, _: &Path) -> Result<Measurement, String> {
+            Err("Data.p4k is busy".into())
+        }
+    }
+
+    #[test]
+    fn the_earlier_revision_is_served_when_the_new_one_cannot_be_had() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Arc::new(Fake(AtomicUsize::new(0)));
+        let said = Arc::new(Mutex::new(Vec::<String>::new()));
+        let with_log = |s: Store| {
+            let log = said.clone();
+            s.with_notify(Arc::new(move |m| log.lock().unwrap().push(m)))
+        };
+        let r1 = Arc::new(FakeDump::at(Some("r1-aaaaaaaaaaaa"), r#"{"x": 2}"#));
+        assert_eq!(weapons(&run(dir.path(), &fake, &r1))["x"], 2);
+        // r2 published, but its download fails on the network: the head is not known any
+        // more, so the cached copy is served (and said so), nothing extracted.
+        let r2 = Arc::new(FakeDump::at(Some("r2-bbbbbbbbbbbb"), r#"{"x": 3}"#));
+        r2.offline_download.store(true, Ordering::SeqCst);
+        let s = with_log(run(dir.path(), &fake, &r2));
+        assert_eq!(weapons(&s)["x"], 2);
+        assert_eq!(r2.calls.load(Ordering::SeqCst), 1);
+        assert_eq!(fake.0.load(Ordering::SeqCst), 0);
+        assert!(
+            said.lock()
+                .unwrap()
+                .iter()
+                .any(|m| m.contains("serving the cached dump copy")),
+            "{said:?}"
+        );
+        assert_eq!(
+            weapons_source(&s).as_deref(),
+            Some("dump:4.10.200.58746@r1-aaaaaaaaaaaa")
+        );
+        // r2 refused and the extraction failing too: the earlier copy is still served.
+        let mut bad = FakeDump::at(Some("r2-bbbbbbbbbbbb"), r#"{"x": 3}"#);
+        bad.answer = Err("refused".into());
+        let bad = Arc::new(bad);
+        let mut s = run(dir.path(), &fake, &bad);
+        s.cfg.extractor = Arc::new(Broken);
+        let s = with_log(s);
+        assert_eq!(weapons(&s)["x"], 2);
+        assert!(
+            said.lock()
+                .unwrap()
+                .iter()
+                .any(|m| m.contains("earlier dump revision")),
+            "{said:?}"
+        );
+        // A fill that cannot be done (no string table: the extraction fails) leaves the
+        // served copy as it is.
+        let mut red = FakeDump::at(
+            Some("r2-bbbbbbbbbbbb"),
+            r#"{"_redacted": ["description"], "x": 9}"#,
+        );
+        red.answer = Ok(());
+        let red = Arc::new(red);
+        let mut s = run(dir.path(), &fake, &red);
+        s.cfg.extractor = Arc::new(Broken);
+        assert_eq!(weapons(&s)["x"], 2);
+        assert_eq!(red.calls.load(Ordering::SeqCst), 1);
+        let d = s.build_dir(s.channel(Some("LIVE")).unwrap());
+        assert_eq!(
+            std::fs::read_to_string(d.join("game-weapons.json")).unwrap(),
+            r#"{"x": 2}"#
+        );
+    }
+
+    /// LIVE on a build no dataset of which is known bad.
+    fn on_201(mut s: Store) -> Store {
+        s.cfg.channels[0].build = Some("4.10.201.48085".into());
+        s
+    }
+
+    #[test]
+    fn the_search_index_follows_a_republished_input() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Arc::new(Fake(AtomicUsize::new(0)));
+        // Item tags and ships alike (one fake file serves both).
+        let body = r#"{"_build": "4.10.201.48085", "items": [], "vehicles": [], "summary": {"withAmmo": 0, "tags": 0}}"#;
+        let r1 = Arc::new(FakeDump::at(Some("r1-aaaaaaaaaaaa"), body));
+        let s = on_201(run(dir.path(), &fake, &r1));
+        let live = s.channel(Some("LIVE")).unwrap();
+        let d = s.build_dir(live);
+        s.json(live, search_index::NAME).unwrap();
+        let index = stamps::read(&d, search_index::NAME).unwrap();
+        // item-tags republished: the index is built again from the new file.
+        let body2 = r#"{"_build": "4.10.201.48085", "items": [], "vehicles": [], "summary": {"withAmmo": 1, "tags": 0}}"#;
+        let r2 = Arc::new(FakeDump::at(Some("r2-bbbbbbbbbbbb"), body2));
+        let s = on_201(run(dir.path(), &fake, &r2));
+        let live = s.channel(Some("LIVE")).unwrap();
+        s.json(live, search_index::NAME).unwrap();
+        assert!(
+            s.source_of(&d, "game-item-tags")
+                .unwrap()
+                .ends_with("@r2-bbbbbbbbbbbb")
+        );
+        assert_ne!(
+            stamps::read(&d, search_index::NAME).unwrap().code,
+            index.code
+        );
+        assert!(s.is_current(&d, search_index::NAME));
     }
 
     #[test]
@@ -1259,7 +1684,7 @@ mod tests {
         let d = s.build_dir(live);
         assert_eq!(
             s.source_of(&d, "game-weapons").as_deref(),
-            Some("dump:4.10.200.58746")
+            Some("dump:4.10.200.58746@r1")
         );
         assert!(
             said.lock()
@@ -1321,8 +1746,9 @@ mod tests {
         assert_eq!(s.source_of(&d, "game-ships").as_deref(), Some("local"));
         // A redacted dump is filled from the locally extracted string table and marked.
         let mut s = store(dir.path(), fake.clone());
-        let mut dump = FakeDump::new(Ok(()));
-        dump.body = r#"{"_redacted": ["description"], "missions": [{"descriptionKey": "k"}]}"#;
+        let dump = FakeDump::new(Ok(()));
+        *dump.body.lock().unwrap() =
+            r#"{"_redacted": ["description"], "missions": [{"descriptionKey": "k"}]}"#;
         s.cfg.prebuilt = Some(Arc::new(dump));
         let live = s.channel(Some("LIVE")).unwrap();
         let v = s.json(live, "game-missions").unwrap();

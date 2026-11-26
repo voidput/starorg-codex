@@ -145,9 +145,13 @@ fingerprint covers the archive's size and time and the cache format, so a game p
 folder of its own.
 
 **Stamps.** Beside each `<dataset>.json` is `<dataset>.stamp`: the key it was written under,
-where it came from (`local`: extracted from this computer's `Data.p4k`; `dump:<tag>`: a
-prebuilt dataset of the same build, below; `derived`: the search index) and the size and
-SHA-256 of the file. A dataset is served only while its stamp is current: its key is the one
+where it came from (`local`: extracted from this computer's `Data.p4k`;
+`dump:<tag>@r<n>-<commit12>`, or `dump:<tag>@<commit12>` for a dump without a checked
+revision: a prebuilt dataset of the same build, below, with `dumpRef`, the tag's ref it was read
+under; `derived`: the search index) and the size and SHA-256 of the file. A replaced file is
+swapped in as a pair with its stamp: the stamp first names the new file as `next`, then the
+file is renamed into place, then the stamp names it alone, so a crash at any step leaves a stamp
+that vouches for the file on disk (old or new). A dataset is served only while its stamp is current: its key is the one
 this app expects now, and the file is the one stamped (a worker reports the SHA-256 of what it
 wrote, and only that file is stamped, so two app versions sharing a folder never vouch for each
 other's files). Anything else (no stamp, as in a folder from before stamps; another key; a
@@ -159,7 +163,8 @@ core (`domain`, `pipeline`, `source`, `output` and what they use, starorg-data's
 StarBreaker adapter, the starorg-core modules that path names, the manifests, the StarBreaker
 pin, the worker body `starorg-mcp/src/extract.rs`) and the cache format. Test modules, the
 query layer (`query/`), the golden compare, fixtures and overlays do not count. A prebuilt
-dataset's key adds the rule it was taken under (its `DUMP_USE` row and `RULES_VERSION`); the
+dataset's key adds the rule it was taken under (its `DUMP_USE` row, `RULES_VERSION` for every
+row and `ROW_RULES` for single rows); the
 search index's adds the SHA-256 of the item-tags and ships files it was built from. So an app
 update re-extracts only the datasets whose code changed: a change to `domains/ships.rs`
 re-extracts `game-ships` (and so the search index), a change to `query/obtain.rs` re-extracts
@@ -199,38 +204,68 @@ source of truth and the fallback for every dataset. The CLI and the MCP server n
 (the CLI links no HTTP client); they serve what the app put in the shared cache while the
 setting is on, and extract it again locally while it is off (so does the app).
 
-1. Only the release tagged exactly `B`. None: nothing is downloaded (never another build).
+1. Only the release tagged exactly `B`, a build tag (`^\d+(\.\d+){2,3}$`). None: nothing is
+   downloaded (never another build). A revision tag `B-r<n>` is never taken for a build (nor
+   listed for Diff).
 2. The tag's commit and its tree. When the tree lists `build.json`, it must match its blob id
    and read, or nothing of the tag is used: `build` must be `B`, `channel` (else the
    release's) must be `C` (same channel only), and a dump made by a dirty extractor checkout
    (`extractor.dirty`) is not used. Its `files` (`name` as `data/game-x.json` or
    `game-x.json`, `sha256`, `bytes`, `schema`) check each file; without them the tree's git
    blob id and size do. Unknown keys are ignored.
-3. Only the datasets in the table below, at most 32 MB each. The file must match its checksum,
+3. The revision. `B` moves when the build is published again; `build.json`'s `revision` (1 on
+   the first publish, one more per republish) says which one it holds, and each publish also
+   pushes the immutable tag `B-r<n>`. The revision counts only when that tag exists and points
+   at `B`'s commit: `r<n>-<commit12>` (4.10.201.48085 is `r3-9a387f3b599e` since 2026-11-25).
+   Without a revision, or with a revision tag missing or elsewhere, the short commit id names
+   what was read.
+4. Only the datasets in the table below, at most 32 MB each. The file must match its checksum,
    be a JSON object stamped `_build: B`, not be listed in `KNOWN_BAD` for that tag, not be
-   older than the row's cut-off (`not_before`, the release date), carry a `_schema`
+   older than the row's cut-off (`not_before`, against the file's own `_extracted`, else the
+   release date: a republish of an old extraction does not pass it), carry a `_schema`
    (`<dataset>@<n>`, in the file or `build.json`) the row accepts, or, without one, be a tag
    the row lists as checked by hand (`ACCEPT_UNSCHEMAED`, one switch: off once sc-gamedata
    stamps every file). Every listed path must be present and not null, it must read with this
    app's typed reader where there is one, and `_redacted` may name only the prose the row lets
-   go. Then it is written atomically.
-4. Redacted prose (`description`, refining's `rawDescription` and `refinedDescription`) is
+   go.
+5. Redacted prose (`description`, refining's `rawDescription` and `refinedDescription`) is
    filled from this build's own string table, extracted locally from `Data.p4k`: every record
-   with `descriptionKey` gets the text it names, by the domains' rules (no placeholder, no
-   unresolved key). The file is marked `_filled` (fields, source, count). Then it is stamped
-   `dump:B`.
-5. Anything else (no release, a failed check, an incompatible shape, no network, the setting
-   off): extracted from `Data.p4k` as before. GitHub is asked once per build and run (a missing
+   with `<field>Key` gets the text it names, by the rule its domain writes that field with,
+   in the place the domain writes it (`fill_text` / `fill_at` in `prebuilt.rs`): commodity
+   descriptions and refining's `rawDescription` / `refinedDescription` by the commodities rule
+   (markup stripped, the table's `\n` as line breaks, placeholders and "X description." stubs
+   dropped); a refining process's `description` is the table's text trimmed; a manufacturer's
+   the table's text as it is; the rest drop placeholders and unresolved keys. The file is
+   marked `_filled` (fields, source, count) and written to a temp file beside the served one;
+   then file and stamp (`dump:B@<revision>`, `dumpRef`) are swapped in as a pair. The served
+   copy is not touched before the new one is accepted and filled.
+6. Anything else (no release, a failed check, an incompatible shape, no network, the setting
+   off): extracted from `Data.p4k` as before. A download asks GitHub for the tag once per
+   build per app process (one prebuilt source serves every install and channel; a missing
    release is remembered for an hour; a network failure, the first failed download, or
    downloads over 60 s in all for ten minutes). Connections time out after 10 s; a download
-   never holds up another dataset's extraction. Activity says once per build why a dump was not
-   used, and each Read game data step what it downloaded and what it read locally.
+   never holds up another dataset's extraction, and no lock is held across a request. Activity
+   says once per build why a dump was not used, and each Read game data step what it downloaded
+   (with the revision) and what it read locally.
+7. A republish. Reading a dataset stamped from `B` never waits on the network: the cached copy
+   is served at once. The first such read per build and app process starts a background check:
+   one request for the tag's ref (`git/ref/tags/B`, 5 s timeouts). The stamp's ref: current,
+   nothing more is asked until the app restarts. Another ref: a background resolve (steps 1-3)
+   gives its revision; the same revision (the tag pushed again) only updates the stamp's ref,
+   another one (or a stamp from before revisions) drops the dataset (and the values built from
+   its folder) from memory, so the next read takes it again from the new revision, checked as
+   any download. A new revision refused for the dataset is extracted locally, and should that
+   fail too, the earlier copy is still served; a download that fails on the network leaves the
+   tag unknown for ten minutes and serves the cached copy (Activity says so). Offline, the
+   setting off or the CLI: the cached copy is served as it is. The search index ensures its
+   item-tags and ships first, so it is built again from a republished input.
 
 Where to get lines built from prebuilt datasets can be applied (they are the same build's data);
 the game text itself is always read from `Data.p4k`.
 
 The table (`DUMP_USE` in `crates/starorg-mcp/src/prebuilt.rs`; bump a schema, a path or a
-cut-off there; bump `RULES_VERSION` when the checks themselves change):
+cut-off there; bump `RULES_VERSION` when the checks change for every row, a row's `ROW_RULES`
+entry when they change for that dataset only; refining, manufacturers and starmap are at 2):
 
 | Dataset | `_schema` read | Shape checked by hand | Must carry (and typed reader) | May be redacted | Today |
 |---|---|---|---|---|---|
@@ -258,7 +293,7 @@ cut-off there; bump `RULES_VERSION` when the checks themselves change):
 | `game-ship-components` | 1 | 4.10.200.58746 | `armor`, `missiles`, `mounts`, `quantumDrives`, `shields`, `weapons`, `summary` | | compatible |
 | `game-ships` | 1 | | `vehicles`, `byManufacturer`, `byRole`, `summary` | `description` | not for 4.10.200.58746 (stale records) |
 | `game-shops` | 1 | 4.10.200.58746 | `selling`, `commodities`, `buying`, `summary` | | compatible |
-| `game-starmap` | 1 | | `locations`, `byType`, `summary`; released on or after 2026-11-26 | `description` | needs a dump with sc-gamedata's plain-container fix (350e7053b) |
+| `game-starmap` | 1 | | `locations`, `byType`, `summary`; extracted on or after 2026-11-26 | `description` | needs a dump with sc-gamedata's plain-container fix (350e7053b) |
 | `game-weapons` | 1 | 4.10.200.58746 | `shipWeapons`, `fpsWeapons`, `missiles`, `summary` | | compatible |
 | `game-wikelo-trades` | 1 | 4.10.200.58746 | `trades`, `totalDemand`, `summary` (Wikelo trades) | | compatible |
 | `game-strings-english` | never | | | | published with name keys only |
@@ -267,10 +302,22 @@ cut-off there; bump `RULES_VERSION` when the checks themselves change):
 "Compatible" means: the published 4.10.200.58746 file has the shape this app writes (checked
 against this app's output for 4.10.201.48085), and this repository's port was byte-identical to
 sc-gamedata's output of that build for it (`crates/starorg-gamedata/README.md`). A later tag
-without `_schema` (4.10.201.48085, the next one published, will likely have neither `_schema`
-nor `build.json`) is taken only after someone checks it the same way and adds it to the rows'
-checked tags, or once sc-gamedata stamps `_schema`. The published LIVE build lags the installed
-one, so nothing is downloaded until a matching, accepted tag exists.
+without `_schema` is taken only after someone checks it the same way and adds it to the rows'
+checked tags. The published LIVE build lags the installed one, so nothing is downloaded until a
+matching, accepted tag exists.
+
+LIVE 4.10.201.48085 as republished (commit `18cda1f3`, `build.json` with `files` and `_schema`
+on every file, no `revision`; and again as revision 3, commit `9a387f3b`, with
+`4.10.201.48085-r3` at that commit) was checked on 2026-11-25: every dataset in the table reads
+(the fields it added, such as commodities' `minedAt` / `refinedBy` / `usedByBlueprints` /
+`inManifests` / `qualityOverrideBelts`, the ship, component, weapon and ammo links and the
+search index additions, are ignored by the checks and the typed readers). Filled from that
+build's string table, its refining, manufacturers, ships, missions and starmap files are byte
+for byte the unredacted ones sc-gamedata wrote (refining: all 69 description keys, beside its
+9 name keys, give text); commodities
+differs in one value, a `PH - ` description that sc-gamedata now drops as a placeholder and this
+app's domain keeps (so the filled file is what this app extracts). The new `game-tag-index`
+dataset is not in the table: nothing in this app reads tag indexes.
 
 `<cache>` is `~/.cache/starorg-codex` on Linux and `%LOCALAPPDATA%\StarOrg Tools\Codex\cache`
 on Windows. Nothing is written in the game folder (the worker refuses an output folder inside the

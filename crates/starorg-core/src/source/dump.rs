@@ -63,6 +63,18 @@ pub trait DumpTransport {
     fn release(&self, tag: &str) -> Result<Option<ReleaseInfo>, SourceError>;
     /// Commit SHA the tag points at.
     fn tag_commit(&self, tag: &str) -> Result<String, SourceError>;
+    /// Commit SHA the tag points at, `None` when there is no such tag (a revision tag
+    /// `<build>-r<n>` that was never pushed). The default cannot tell a missing tag from a
+    /// failure and reports both as an error.
+    fn find_tag_commit(&self, tag: &str) -> Result<Option<String>, SourceError> {
+        self.tag_commit(tag).map(Some)
+    }
+    /// What the tag ref points at now (an annotated tag's object id, else the commit), in one
+    /// request: it changes whenever the tag is pushed again. `None` when there is no such tag.
+    /// The default is [`Self::find_tag_commit`].
+    fn tag_ref(&self, tag: &str) -> Result<Option<String>, SourceError> {
+        self.find_tag_commit(tag)
+    }
     /// Files of the commit's tree (recursive).
     fn tree(&self, commit: &str) -> Result<Vec<TreeEntry>, SourceError>;
     /// Bytes of `path` at `commit`, at most `max` bytes.
@@ -126,7 +138,7 @@ pub fn live_releases(transport: &dyn DumpTransport) -> Result<Vec<ReleaseInfo>, 
     let mut v: Vec<(usize, ReleaseInfo)> = transport
         .releases()?
         .into_iter()
-        .filter(|r| valid_component(&r.tag) && is_live(r))
+        .filter(|r| is_build_tag(&r.tag) && is_live(r))
         .enumerate()
         .collect();
     // RFC 3339 in UTC sorts as text; a release without a date keeps its place after dated ones.
@@ -186,6 +198,23 @@ const META_JSON: &str = "meta.json";
 /// Leftover temp dirs older than this are removed when the cache is listed (a crashed or
 /// killed download); younger ones may belong to a download still running.
 const STALE_TMP: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+/// A game build tag (`4.10.201.48085`): `^\d+(\.\d+){2,3}$`, as the dumps' own readers match
+/// it. A revision tag (`4.10.201.48085-r3`, pushed once per publish and never moved) is not
+/// one.
+pub fn is_build_tag(s: &str) -> bool {
+    let parts: Vec<&str> = s.split('.').collect();
+    s.len() <= 64
+        && (3..=4).contains(&parts.len())
+        && parts
+            .iter()
+            .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit()))
+}
+
+/// The immutable tag of revision `n` of a build (`4.10.201.48085-r3`).
+pub fn revision_tag(build: &str, n: u64) -> String {
+    format!("{build}-r{n}")
+}
 
 /// A tag, commit or file name that is safe as one path component.
 pub fn valid_component(s: &str) -> bool {
@@ -795,6 +824,42 @@ mod tests {
     #[test]
     fn only_live_releases_newest_first() {
         let fake = Fake::new(TAG);
+        let tags: Vec<String> = live_releases(&fake)
+            .unwrap()
+            .into_iter()
+            .map(|r| r.tag)
+            .collect();
+        assert_eq!(tags, [TAG, "4.10.197.2878"]);
+    }
+
+    #[test]
+    fn a_revision_tag_is_never_a_build_tag() {
+        for t in ["4.10.201.48085", "5.0.202.35026", "4.10.0", "1.0.191.28374"] {
+            assert!(is_build_tag(t), "{t}");
+        }
+        for t in [
+            "4.10.201.48085-r3",
+            "4.10",
+            "4.10.201.48085.1",
+            "4..1",
+            "v4.10.0",
+            "",
+            "../x",
+        ] {
+            assert!(!is_build_tag(t), "{t}");
+        }
+        assert_eq!(revision_tag("4.10.201.48085", 3), "4.10.201.48085-r3");
+        // Should a revision tag ever get a release of its own, it is still not listed.
+        let mut fake = Fake::new(TAG);
+        fake.releases.insert(
+            0,
+            rel(
+                &revision_tag(TAG, 3),
+                "4.10.0 LIVE (4.10.200.58746)",
+                BODY,
+                Some("2027-01-01T00:00:00Z"),
+            ),
+        );
         let tags: Vec<String> = live_releases(&fake)
             .unwrap()
             .into_iter()
