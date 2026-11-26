@@ -57,6 +57,88 @@ pub struct ReputationReward {
     pub on_failure: bool,
 }
 
+/// What a spawn group is to the player, from its mission variable and group name (and the
+/// `AI/Spawning/Identifier/...` tag its options apply).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum SpawnRole {
+    /// The ship the contract is about: a salvage wreck, a bounty, a ship to board or steal.
+    Target,
+    /// Ships that fight the player: waves, defenders, reinforcements, interdictors.
+    Hostile,
+    /// Ships the player protects, refuels or flies with.
+    Escort,
+    /// A ship that carries the cargo to recover.
+    Cargo,
+    /// Anything the names do not tell.
+    #[default]
+    Other,
+}
+
+/// One ship option of a spawn slot (`SpawnDescription_Ship`).
+///
+/// An option's `tags` are a tag query mixed with state the game applies to the spawned ship.
+/// Filter: the tag, or a tag below it, must be on the ship entity. Applied: spawn flags, cargo and crew
+/// manifests, pilot skill and spawn identifiers, which no ship entity carries (Sept 2026
+/// data: none of 1,101 vehicles carries a `CargoManifest`, `CrewManifest`,
+/// `SkillDefinitions` or `Spawning/Identifier` tag, and the only `Ship/SpawnFlags` tags on an
+/// entity are three on one boarding Cutlass, while `PoweredOff`, which salvage options ask
+/// for, is on none).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnOption {
+    /// Filter tag paths (`Missions/MissionType/Salvage/AvailableToSalvage/Smallest`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub selector: Vec<String>,
+    /// `negativeTags`: ships with any of these (or a tag below one) are left out.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exclude: Vec<String>,
+    /// Tag ids (selector or negative) the tag database does not know: they match nothing
+    /// and are never shown.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unknown: Vec<String>,
+    /// Applied tag paths (`AI/CargoManifest/General/Value/HighValue`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub applied: Vec<String>,
+    /// `concurrentAmount`.
+    pub amount: f64,
+    #[serde(default)]
+    pub weight: f64,
+    /// `initialDamageSettings` record short name (`salvagecontractor_lightdamage`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub damage: Option<String>,
+    /// Vehicle entity classes (lower case) that carry every selector tag (or a tag below
+    /// it) and no excluded one, sorted; only the AI/unmanned/salvage versions when those
+    /// match alongside player hulls; never test or template records. Empty when none does
+    /// (the game picks from data this build lacks).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub ships: Vec<String>,
+}
+
+/// A slot of a spawn group (`SpawnDescription_ShipOptions`): the game spawns one of its
+/// options, picked by weight.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnSlot {
+    #[serde(default)]
+    pub options: Vec<SpawnOption>,
+}
+
+/// A ship group a contract spawns (`SpawnDescription_ShipGroup`, schema 7).
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SpawnGroup {
+    /// `MissionProperty.missionVariableName` (`SalvageSpawnDescription_BP`).
+    pub variable: String,
+    /// The group's `Name` (`SalvageableShip`, `Wave 1`), trimmed; may be empty.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub name: String,
+    #[serde(default)]
+    pub role: SpawnRole,
+    #[serde(default)]
+    pub slots: Vec<SpawnSlot>,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Contract {
@@ -103,6 +185,10 @@ pub struct Contract {
     /// sorted (schema 6); empty = no locality prerequisite (offered anywhere, or not known).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub systems: Vec<String>,
+    /// Ship groups the contract spawns (schema 7): its `propertyOverrides`, else its
+    /// template's `contractProperties`, of type `MissionPropertyValue_ShipSpawnDescriptions`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub spawns: Vec<SpawnGroup>,
 }
 
 impl Contract {

@@ -248,6 +248,7 @@ function presetProfile(p: T.Preset): T.Profile {
       title_em: true,
       blueprints: true,
       item_rewards: true,
+      spawns: true,
       details: true,
       bullet_tags: true,
       owned_marker: true,
@@ -443,6 +444,7 @@ export function preview(p: T.Profile): T.PreviewItem[] {
     body.push(list.join('\\n'));
   }
   if (p.missions && m.item_rewards) body.push(`${em(m.header_em, 'ITEM REWARDS')}\\n- ${em(m.reward_em, 'Sample Scrip')} ×3`);
+  if (p.missions && m.spawns) body.push(`${em(m.header_em, 'SPAWNS')}\\n${em(m.label_em, 'Salvage target:')} Sample Wreck (small, light damage)`);
   if (p.missions && m.details) body.push(`${em(m.header_em, 'MISSION DETAILS')}\\n${em(m.label_em, 'Reputation:')} 150`);
   const out: T.PreviewItem[] = [
     { key: 'vehicle_DescSYN_Fighter', label: 'Ship description', category: 'ships', original: shipProse, result: block(shipProse, lines) },

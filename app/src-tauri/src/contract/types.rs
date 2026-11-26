@@ -626,6 +626,8 @@ pub struct MissionSettings {
     pub title_em: bool,
     pub blueprints: bool,
     pub item_rewards: bool,
+    /// SPAWNS section: ships the contract spawns.
+    pub spawns: bool,
     pub details: bool,
     /// Name tags on blueprint bullets.
     pub bullet_tags: bool,

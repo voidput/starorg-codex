@@ -3670,7 +3670,7 @@
       "key": "mission_DescSYN_Recovery",
       "label": "Contract description",
       "original": "Recover the synthetic cargo.",
-      "result": "Recover the synthetic cargo.\\n\\n<EM3>BLUEPRINTS</EM3>\\n- Sample Rifle [Owned]\\n- Sample Pistol\\n\\n<EM3>ITEM REWARDS</EM3>\\n- Sample Scrip ×3\\n\\n<EM3>MISSION DETAILS</EM3>\\n<EM4>Reputation:</EM4> 150"
+      "result": "Recover the synthetic cargo.\\n\\n<EM3>BLUEPRINTS</EM3>\\n- Sample Rifle [Owned]\\n- Sample Pistol\\n\\n<EM3>ITEM REWARDS</EM3>\\n- Sample Scrip ×3\\n\\n<EM3>SPAWNS</EM3>\\n<EM4>Salvage target:</EM4> Sample Wreck (small, light damage)\\n\\n<EM3>MISSION DETAILS</EM3>\\n<EM4>Reputation:</EM4> 150"
     },
     {
       "category": "quest-hints",
@@ -15767,6 +15767,7 @@
       "owned_line": false,
       "owned_marker": true,
       "reward_em": 0,
+      "spawns": true,
       "title_blueprint": true,
       "title_bp_em": 4,
       "title_em": true,

@@ -71,7 +71,41 @@ writes nothing to the game), no apply needed.
 - **Name tags:** short tags in item names, such as `[IND-S2-A]` (class, size, grade), built in
   the Tag Builder.
 - **Missions:** tags in contract titles (reputation, `[BP]`) and sections in contract
-  descriptions: item rewards, mission details, with colours for headers, labels and rewards.
+  descriptions: item rewards, spawns, mission details, with colours for headers, labels and
+  rewards.
+  - The game often uses one description for several contract variants (every difficulty of a
+    salvage job, each system it runs in). When the variants pay differently, MISSION DETAILS
+    says which pays what instead of only a range, merging variants that pay the same:
+    `Reputation: 100 (Very Easy, Easy) · 150 (Medium)`. Failure, Requires and Blueprint
+    reward get the same treatment. The variant name comes from the game data, in this order: a
+    difficulty in the contract's name (`Hard`, `VeryHard`, or the codes `VE`/`E`/`M`/`H`/`VH`/`S`),
+    its rank (`Rank 2`), the standing it requires (with the faction when two standings have the
+    same name), or the one system it is offered in. When nothing in the data tells the variants
+    apart the range stays. A required standing whose name the game files lack reads `not known`.
+    The faction's in-game name follows `Reputation` when the game data has one.
+  - `Systems: Stanton, Pyro, Nyx` lists the systems when the contracts with this description are
+    offered in more than one (a single contract offered in two systems gets it too). A shared
+    description also gets `Shared text: shown on 9 contracts (Very Easy, Easy, Medium)`, so you
+    know the text is not only about the offer in front of you; the names in brackets are the
+    ones the lines above are split by, and are left out when a line shows a range. Title tags
+    keep the short range (`[100–200 Rep]`).
+  - **SPAWNS** (switch *Spawns*, on by default; turn it off under Enhancements › Mission
+    descriptions, or `spawns = false` under `[enhance.mission]` in `profile.toml`) says which
+    ships the contract spawns, one line per group: `Salvage target: Aegis Gladius (smallest,
+    light damage, cargo: low value)`, `Friendly: MISC Freelancer`, `Hostiles (Wave 1): 2 ships ·
+    Anvil Arrow, Drake Cutlass Black and 9 more (pilot skill 40)`. The game does not name the
+    ships: it asks for "a ship tagged Salvage › Available to salvage › Smallest" (or a tag below
+    it) or "a Criminal ship of combat class Easy", and the app lists the ships in the game files
+    that carry those tags: the game's AI and salvage versions when there are any, never test or
+    template records, a special edition only when its base ship is not listed, up to six names
+    (fewer when the list length setting is lower). When one option holds most of the odds the
+    line says `mostly ...`; a query any ship answers reads `any ship`. The size, damage, cargo
+    and pilot skill in brackets are what the game applies to the ship it spawns. When no ship in
+    the files matches, the line says what the game picks from (`picked by the game from Salvage ›
+    Available to salvage › Smallest`). Variants that spawn different ships get a line each, named
+    as in MISSION DETAILS (`Salvage target (Hard): ...`, `Hostiles (Wave 2; Hard): ...`); a
+    variant without the group is left off its line. The role (target, friendly, hostiles) comes
+    from the names in the game data, so a rare group can land under `Ships`.
 - **Blueprints** (right after Missions): what a contract can reward and whether you own it.
   - The **blueprint list** under a contract's text, optionally with name tags.
   - **[Owned]** marks a blueprint the chosen character owns (blue, EM4, by default; *Colour the

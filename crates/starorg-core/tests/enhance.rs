@@ -509,6 +509,8 @@ fn chances_print_percent_at_line_end() {
     let (mut gd, stock) = fixture();
     for c in gd.contracts.iter_mut() {
         if c.debug_name == "Zeta_Bounty_Free" {
+            // Its name says Hard (the difficulty profile is not a label source).
+            c.debug_name = "Zeta_Bounty_Free_Hard".into();
             c.blueprint_rewards = vec![starorg_core::model::BlueprintReward {
                 pool: "BP_POOL_B".into(),
                 chance: Some(0.5),
@@ -517,7 +519,16 @@ fn chances_print_percent_at_line_end() {
     }
     let g = generate(&gd, &stock, &Profile::default(), &NoneOwned);
     let b = added(&g, &stock, "zeta_bounty_desc");
-    assert!(b.contains("<EM4>Blueprint reward:</EM4> 25–50%\\n"), "{b}");
+    // The variants differ and the difficulty tells them apart: one line each, so every `%`
+    // still ends its line.
+    assert!(
+        b.contains("<EM4>Blueprint reward (Easy):</EM4> 25%\\n"),
+        "{b}"
+    );
+    assert!(
+        b.contains("<EM4>Blueprint reward (Hard):</EM4> 50%\\n"),
+        "{b}"
+    );
     // The note under BLUEPRINTS says the same, with the `%` at the end of its line.
     assert!(
         b.starts_with("\\n\\n<EM3>BLUEPRINTS</EM3>\\nAwarded by chance: 25–50%\\n"),
@@ -913,4 +924,670 @@ fn rewards_use_the_name_chain() {
         value(&g, &stock, "item_NameZETA_Scrip").as_deref(),
         Some("ZETA Scrip")
     );
+}
+
+/// Contracts shaped like the LIVE salvage groups (one description key over several
+/// variants), with filler keys and names.
+mod variants {
+    use super::*;
+    use starorg_core::model::{Contract, ReputationReward};
+
+    fn contract(name: &str, desc: &str, rep: f64) -> Contract {
+        Contract {
+            generator: "Gen_Var".into(),
+            debug_name: name.into(),
+            id: format!("c-{name}"),
+            title_key: Some("@var_title".into()),
+            description_key: Some(format!("@{desc}")),
+            reputation: vec![ReputationReward {
+                faction: Some("f_var".into()),
+                faction_name_key: Some("@var_faction".into()),
+                amount: rep,
+                on_success: true,
+                on_failure: false,
+            }],
+            ..Default::default()
+        }
+    }
+
+    /// The fixture plus `contracts` and stock lines for their keys.
+    fn run_with(contracts: Vec<Contract>) -> (Generated, StockIni) {
+        run_full(contracts, &Profile::default(), |_| {})
+    }
+
+    /// [`run_with`] with a profile and a change to the game data.
+    fn run_full(
+        contracts: Vec<Contract>,
+        p: &Profile,
+        edit: impl FnOnce(&mut GameData),
+    ) -> (Generated, StockIni) {
+        let (mut gd, _) = fixture();
+        gd.contracts.extend(contracts);
+        edit(&mut gd);
+        let d = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/enhance");
+        let mut bytes = std::fs::read(d.join("strings.ini")).unwrap();
+        for l in [
+            "var_title=Filler Salvage",
+            "var_faction=Filler Holdings",
+            "var_faction2=Filler Union",
+            "var_shared=Filler shared prose.",
+            "var_hard=Filler hard prose.",
+            "var_none=Filler none prose.",
+            "var_ship_a=Filler Wasp",
+            "var_ship_b=Filler Hornetfly",
+            "var_ship_c=Filler Moth",
+            "var_ship_d=Filler Barge",
+        ] {
+            bytes.extend_from_slice(format!("{l}\r\n").as_bytes());
+        }
+        let stock = StockIni::parse(bytes);
+        let g = generate(&gd, &stock, p, &NoneOwned);
+        (g, stock)
+    }
+
+    #[test]
+    fn shared_key_lists_reputation_per_difficulty_and_the_systems() {
+        let mut cs = Vec::new();
+        for sys in ["Nyx", "PyroRegionA", "Stanton1"] {
+            for (d, rep) in [("VeryEasy", 100.0), ("Easy", 100.0), ("Medium", 150.0)] {
+                cs.push(contract(
+                    &format!("Var_{sys}_Lawful_Salvage_{d}"),
+                    "var_shared",
+                    rep,
+                ));
+            }
+            cs.push(contract(
+                &format!("Var_{sys}_Lawful_Salvage_Hard"),
+                "var_hard",
+                200.0,
+            ));
+        }
+        let (g, stock) = run_with(cs);
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains(
+                "<EM4>Reputation (Filler Holdings):</EM4> 100 (Very Easy, Easy) · 150 (Medium)\\n"
+            ),
+            "{b}"
+        );
+        assert!(
+            b.contains("<EM4>Systems:</EM4> Stanton, Pyro, Nyx\\n"),
+            "{b}"
+        );
+        assert!(
+            b.ends_with("<EM4>Shared text:</EM4> shown on 9 contracts (Very Easy, Easy, Medium)"),
+            "{b}"
+        );
+        // The Hard split has its own key: one value, no per-variant list.
+        let h = added(&g, &stock, "var_hard");
+        assert!(
+            h.contains("<EM4>Reputation (Filler Holdings):</EM4> 200\\n"),
+            "{h}"
+        );
+        assert!(!h.contains(" · "), "{h}");
+        // The title stays short: the range over every variant.
+        assert_eq!(added(&g, &stock, "var_title"), " <EM4>[100–200 Rep]</EM4>");
+    }
+
+    #[test]
+    fn single_letter_difficulty_and_rank_labels() {
+        let (g, stock) = run_with(vec![
+            contract("Var_Industrial_Levski_E_001", "var_shared", 100.0),
+            contract("Var_Industrial_Levski_M_001", "var_shared", 100.0),
+            contract("Var_Industrial_Levski_H_001", "var_shared", 150.0),
+            contract("Var_ShipSalvage_Nyx_Rank0_RMCSmall", "var_hard", 100.0),
+            contract("Var_ShipSalvage_Nyx_Rank1_RMCMedium", "var_hard", 100.0),
+            contract("Var_ShipSalvage_Nyx_Rank2_RMCLarge", "var_hard", 150.0),
+        ]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains("</EM4> 100 (Easy, Medium) · 150 (Hard)\\n"),
+            "{b}"
+        );
+        let h = added(&g, &stock, "var_hard");
+        assert!(
+            h.contains("</EM4> 100 (Rank 0, Rank 1) · 150 (Rank 2)\\n"),
+            "{h}"
+        );
+    }
+
+    #[test]
+    fn system_only_difference_and_no_separating_label() {
+        let mut a = contract("Var_Nyx_Thing", "var_shared", 100.0);
+        a.systems = vec!["Nyx".into()];
+        let mut b = contract("Var_Pyro_Thing", "var_shared", 150.0);
+        b.systems = vec!["Pyro".into()];
+        let (g, stock) = run_with(vec![
+            a,
+            b,
+            contract("Var_Alpha", "var_none", 100.0),
+            contract("Var_Beta", "var_none", 300.0),
+        ]);
+        let s = added(&g, &stock, "var_shared");
+        assert!(s.contains("</EM4> 150 (Pyro) · 100 (Nyx)\\n"), "{s}");
+        assert!(s.contains("<EM4>Systems:</EM4> Pyro, Nyx\\n"), "{s}");
+        // Told apart by system, which has its own line: no list after the count.
+        assert!(
+            s.ends_with("<EM4>Shared text:</EM4> shown on 2 contracts"),
+            "{s}"
+        );
+        // Nothing tells these apart: keep the range, never a made-up label.
+        let n = added(&g, &stock, "var_none");
+        assert!(
+            n.contains("<EM4>Reputation (Filler Holdings):</EM4> 100–300\\n"),
+            "{n}"
+        );
+        assert!(n.ends_with("shown on 2 contracts"), "{n}");
+    }
+
+    #[test]
+    fn requires_and_failure_per_variant() {
+        let mut e = contract("Var_Bounty_Easy", "var_shared", 100.0);
+        e.min_standing = Some("Standing_Jr".into());
+        let mut h = contract("Var_Bounty_Hard", "var_shared", 300.0);
+        h.min_standing = Some("Standing_Sr".into());
+        h.reputation.push(ReputationReward {
+            faction: Some("f_var".into()),
+            faction_name_key: Some("@var_faction".into()),
+            amount: -500.0,
+            on_success: false,
+            on_failure: true,
+        });
+        let (g, stock) = run_with(vec![e, h]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(b.contains("</EM4> 100 (Easy) · 300 (Hard)\\n"), "{b}");
+        assert!(
+            b.contains("<EM4>Failure:</EM4> none (Easy) · -500 (Hard)\\n"),
+            "{b}"
+        );
+        assert!(
+            b.contains("<EM4>Requires:</EM4> Filler Junior (Easy) · Filler Senior (Hard)\\n"),
+            "{b}"
+        );
+    }
+
+    #[test]
+    fn letter_and_word_difficulties_and_two_tokens() {
+        let (g, stock) = run_with(vec![
+            contract("Var_Q_VE_001", "var_shared", 100.0),
+            contract("Var_Q_VH_001", "var_shared", 200.0),
+            contract("Var_Q_S_001", "var_shared", 300.0),
+            contract("Var_W_VeryHard", "var_hard", 100.0),
+            contract("Var_W_Super", "var_hard", 200.0),
+            // Two difficulty tokens: no label, so the range stays and Shared text names none.
+            contract("Var_Z_Easy_Hard", "var_none", 100.0),
+            contract("Var_Z_Medium", "var_none", 300.0),
+        ]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains("</EM4> 100 (Very Easy) · 200 (Very Hard) · 300 (Super)\\n"),
+            "{b}"
+        );
+        let h = added(&g, &stock, "var_hard");
+        assert!(h.contains("</EM4> 100 (Very Hard) · 200 (Super)\\n"), "{h}");
+        let n = added(&g, &stock, "var_none");
+        assert!(n.contains("</EM4> 100–300\\n"), "{n}");
+        assert!(
+            n.ends_with("<EM4>Shared text:</EM4> shown on 2 contracts"),
+            "{n}"
+        );
+    }
+
+    #[test]
+    fn a_range_never_gets_labels_that_contradict_it() {
+        // Easy and Hard label every contract, but two Hard variants pay differently: the
+        // range stays and Shared text lists no labels.
+        let (g, stock) = run_with(vec![
+            contract("Var_K_Easy", "var_shared", 100.0),
+            contract("Var_K_Hard", "var_shared", 300.0),
+            contract("Var_K2_Hard", "var_shared", 200.0),
+            // Every line agrees: the labels say what the variants are.
+            contract("Var_J_Easy", "var_hard", 100.0),
+            contract("Var_J_Hard", "var_hard", 100.0),
+        ]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(b.contains("</EM4> 100–300\\n"), "{b}");
+        assert!(b.ends_with("shown on 3 contracts"), "{b}");
+        let h = added(&g, &stock, "var_hard");
+        assert!(h.ends_with("shown on 2 contracts (Easy, Hard)"), "{h}");
+    }
+
+    #[test]
+    fn combined_system_tokens() {
+        let (g, stock) = run_with(vec![
+            contract(
+                "Refueling_PyroNyx_Both_CapitalBattle_Rank6",
+                "var_shared",
+                100.0,
+            ),
+            contract(
+                "Refueling_Stanton_Both_CaptialReturnToSystem_Rank6",
+                "var_shared",
+                100.0,
+            ),
+            // One contract in two systems gets the line too.
+            contract("Var_Run_Nyx/Stanton", "var_hard", 100.0),
+            // A word that only starts with a system name is not one.
+            contract("Var_Pyroclast_Stanton", "var_none", 100.0),
+        ]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains("<EM4>Systems:</EM4> Stanton, Pyro, Nyx\\n"),
+            "{b}"
+        );
+        let h = added(&g, &stock, "var_hard");
+        assert!(h.contains("<EM4>Systems:</EM4> Stanton, Nyx"), "{h}");
+        assert!(!added(&g, &stock, "var_none").contains("Systems:"));
+    }
+
+    #[test]
+    fn duplicate_debug_names_count_as_contracts() {
+        let mut twin = contract("Var_Dup_Easy", "var_shared", 100.0);
+        twin.generator = "Gen_Other".into();
+        let (g, stock) = run_with(vec![
+            contract("Var_Dup_Easy", "var_shared", 100.0),
+            twin,
+            contract("Var_Dup_Hard", "var_shared", 200.0),
+        ]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(b.contains("</EM4> 100 (Easy) · 200 (Hard)\\n"), "{b}");
+        assert!(b.ends_with("shown on 3 contracts (Easy, Hard)"), "{b}");
+    }
+
+    #[test]
+    fn inline_labels_are_cut_at_max_list() {
+        let mut p = Profile::default();
+        p.mission.max_list = 2;
+        let (g, stock) = run_full(
+            vec![
+                contract("Var_L_VeryEasy", "var_shared", 100.0),
+                contract("Var_L_Easy", "var_shared", 100.0),
+                contract("Var_L_Medium", "var_shared", 100.0),
+                contract("Var_L_Hard", "var_shared", 200.0),
+            ],
+            &p,
+            |_| {},
+        );
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains("</EM4> 100 (Very Easy, Easy and 1 more) · 200 (Hard)\\n"),
+            "{b}"
+        );
+        assert!(
+            b.ends_with("shown on 4 contracts (Very Easy, Easy and 2 more)"),
+            "{b}"
+        );
+    }
+
+    #[test]
+    fn standing_labels_with_the_faction_when_names_clash() {
+        let mut a = contract("Var_Gig_A", "var_shared", 100.0);
+        a.min_standing = Some("Standing_Jr".into());
+        let mut b = contract("Var_Gig_B", "var_shared", 200.0);
+        b.min_standing = Some("Standing_Jr2".into());
+        b.reputation[0].faction_name_key = Some("@var_faction2".into());
+        let mut c = contract("Var_Job_A", "var_hard", 100.0);
+        c.min_standing = Some("Standing_Jr".into());
+        let mut d = contract("Var_Job_B", "var_hard", 200.0);
+        d.min_standing = Some("Standing_Sr".into());
+        let (g, stock) = run_full(vec![a, b, c, d], &Profile::default(), |gd| {
+            gd.reputation_standings
+                .push(starorg_core::model::ReputationStanding {
+                    name: "Standing_Jr2".into(),
+                    record_name: "SReputationStandingParams.Standing_Jr2".into(),
+                    display_name_key: Some("@rep_standing_jr".into()),
+                    min_reputation: Some(1000.0),
+                    ..Default::default()
+                });
+        });
+        let s = added(&g, &stock, "var_shared");
+        assert!(
+            s.contains(
+                "</EM4> 100 (Filler Junior (Filler Holdings)) · 200 (Filler Junior (Filler Union))\\n"
+            ),
+            "{s}"
+        );
+        let h = added(&g, &stock, "var_hard");
+        assert!(
+            h.contains("</EM4> 100 (Filler Junior) · 200 (Filler Senior)\\n"),
+            "{h}"
+        );
+        assert!(
+            h.ends_with("shown on 2 contracts (Filler Junior, Filler Senior)"),
+            "{h}"
+        );
+    }
+
+    #[test]
+    fn unresolved_standing_is_not_known() {
+        let mut e = contract("Var_R_Easy", "var_shared", 100.0);
+        e.min_standing = Some("Standing_Gone".into());
+        let mut h = contract("Var_R_Hard", "var_shared", 100.0);
+        h.min_standing = Some("Standing_Sr".into());
+        let (g, stock) = run_with(vec![e, h]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains("<EM4>Requires:</EM4> not known (Easy) · Filler Senior (Hard)\\n"),
+            "{b}"
+        );
+    }
+
+    #[test]
+    fn details_off_drops_the_section() {
+        let mut p = Profile::default();
+        p.mission.details = false;
+        let (g, stock) = run_full(
+            vec![
+                contract("Var_D_Easy", "var_shared", 100.0),
+                contract("Var_D_Hard", "var_shared", 200.0),
+            ],
+            &p,
+            |_| {},
+        );
+        assert!(!added(&g, &stock, "var_shared").contains("MISSION DETAILS"));
+    }
+
+    mod spawns {
+        use super::*;
+        use starorg_core::model::{Ship, SpawnGroup, SpawnOption, SpawnRole, SpawnSlot};
+
+        const SMALLEST: &str = "Missions/MissionType/Salvage/AvailableToSalvage/Smallest";
+        const LARGE: &str = "Missions/MissionType/Salvage/AvailableToSalvage/Large";
+
+        fn option(selector: &[&str], ships: &[&str], amount: f64) -> SpawnOption {
+            SpawnOption {
+                selector: selector.iter().map(|s| s.to_string()).collect(),
+                applied: vec!["AI/Ship/SpawnFlags/PoweredOff".into()],
+                amount,
+                weight: 1.0,
+                ships: ships.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            }
+        }
+
+        fn group(
+            variable: &str,
+            name: &str,
+            role: SpawnRole,
+            options: Vec<SpawnOption>,
+        ) -> SpawnGroup {
+            SpawnGroup {
+                variable: variable.into(),
+                name: name.into(),
+                role,
+                slots: vec![SpawnSlot { options }],
+            }
+        }
+
+        fn salvage(name: &str, desc: &str, selector: &str, ships: &[&str]) -> Contract {
+            let mut o = option(&[selector], ships, 1.0);
+            o.damage = Some("salvagecontractor_lightdamage".into());
+            o.applied
+                .push("AI/CargoManifest/General/Value/LowValue".into());
+            let mut c = contract(name, desc, 100.0);
+            c.spawns = vec![group(
+                "SalvageSpawnDescription_BP",
+                "SalvageableShip",
+                SpawnRole::Target,
+                vec![o],
+            )];
+            c
+        }
+
+        /// Ships with filler name keys, and an unnamed (placeholder) one.
+        fn ships(gd: &mut GameData) {
+            for (class, key) in [
+                ("FILL_Wasp_Unmanned_Salvage", Some("@var_ship_a")),
+                ("FILL_Hornetfly", Some("@var_ship_b")),
+                ("FILL_Moth", Some("@var_ship_c")),
+                ("FILL_Barge", Some("@var_ship_d")),
+                ("FILL_Template", Some("@LOC_PLACEHOLDER")),
+            ] {
+                let mut s = Ship {
+                    record_name: format!("EntityClassDefinition.{class}"),
+                    ..Default::default()
+                };
+                s.loc.name = key.map(str::to_string);
+                gd.ships.push(s);
+            }
+        }
+
+        fn run(contracts: Vec<Contract>, p: &Profile) -> (Generated, StockIni) {
+            run_full(contracts, p, ships)
+        }
+
+        #[test]
+        fn salvage_target_per_variant() {
+            let (g, stock) = run(
+                vec![
+                    salvage(
+                        "Var_Sv_VeryEasy",
+                        "var_shared",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                    salvage(
+                        "Var_Sv_Easy",
+                        "var_shared",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                    salvage(
+                        "Var_Sv_Hard",
+                        "var_shared",
+                        LARGE,
+                        &["fill_barge", "fill_template"],
+                    ),
+                    // Every variant the same: one line.
+                    salvage(
+                        "Var_T_Easy",
+                        "var_hard",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                    salvage(
+                        "Var_T_Hard",
+                        "var_hard",
+                        SMALLEST,
+                        &["fill_wasp_unmanned_salvage"],
+                    ),
+                ],
+                &Profile::default(),
+            );
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "\\n\\n<EM3>SPAWNS</EM3>\\n<EM4>Salvage target (Very Easy, Easy):</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n<EM4>Salvage target (Hard):</EM4> Filler Barge (large, light damage, cargo: low value)\\n\\n<EM3>MISSION DETAILS</EM3>"
+                ),
+                "{b}"
+            );
+            let h = added(&g, &stock, "var_hard");
+            assert!(
+                h.contains("<EM3>SPAWNS</EM3>\\n<EM4>Salvage target:</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n\\n"),
+                "{h}"
+            );
+        }
+
+        #[test]
+        fn waves_counts_caps_and_role_order() {
+            let mut c = contract("Var_W_Easy", "var_shared", 100.0);
+            let mut wave = option(
+                &["AI/Faction/Criminal"],
+                &[
+                    "fill_wasp_unmanned_salvage",
+                    "fill_hornetfly",
+                    "fill_moth",
+                    "fill_barge",
+                ],
+                2.0,
+            );
+            wave.applied = vec![
+                "AI/SkillDefinitions/Description/HumanPilot40".into(),
+                "AI/CargoManifest/General/Value/HighValue".into(),
+            ];
+            let mut wave2 = wave.clone();
+            wave2.amount = 3.0;
+            wave2.applied[0] = "AI/SkillDefinitions/Description/HumanPilot60".into();
+            let mut friend = option(&["AI/Faction/Civilians"], &["fill_moth"], 1.0);
+            friend.applied = vec!["AI/CargoManifest/General/PopulationVariation/Full Cargo".into()];
+            c.spawns = vec![
+                group("WaveShips_BP", "Wave1", SpawnRole::Hostile, vec![wave]),
+                group("WaveShips_BP", "Wave2", SpawnRole::Hostile, vec![wave2]),
+                group(
+                    "AttackedShipSpawnDescriptions_BP",
+                    "ShipToDefend",
+                    SpawnRole::Escort,
+                    vec![friend],
+                ),
+            ];
+            let mut p = Profile::default();
+            p.mission.max_list = 3;
+            let (g, stock) = run(vec![c], &p);
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "<EM3>SPAWNS</EM3>\\n<EM4>Friendly:</EM4> Filler Moth (cargo: full cargo)\\n<EM4>Hostiles (Wave 1):</EM4> 2 ships · Filler Barge, Filler Hornetfly, Filler Moth and 1 more (pilot skill 40)\\n<EM4>Hostiles (Wave 2):</EM4> 3 ships · Filler Barge, Filler Hornetfly, Filler Moth and 1 more (pilot skill 60)\\n"
+                ),
+                "{b}"
+            );
+        }
+
+        #[test]
+        fn unresolved_options_say_what_the_game_picks_from() {
+            let (g, stock) = run(
+                vec![
+                    salvage("Var_U_Easy", "var_shared", SMALLEST, &[]),
+                    // Only a placeholder-named hull matched: as good as none.
+                    salvage("Var_U2_Easy", "var_hard", LARGE, &["fill_template"]),
+                ],
+                &Profile::default(),
+            );
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains("<EM4>Salvage target:</EM4> picked by the game from Salvage › Available to salvage › Smallest (smallest, light damage, cargo: low value)\\n"),
+                "{b}"
+            );
+            assert!(
+                added(&g, &stock, "var_hard")
+                    .contains("picked by the game from Salvage › Available to salvage › Large")
+            );
+        }
+
+        #[test]
+        fn spawns_switch() {
+            let mut p = Profile::default();
+            p.mission.spawns = false;
+            let (g, stock) = run(
+                vec![salvage(
+                    "Var_O_Easy",
+                    "var_shared",
+                    SMALLEST,
+                    &["fill_wasp_unmanned_salvage"],
+                )],
+                &p,
+            );
+            assert!(!added(&g, &stock, "var_shared").contains("SPAWNS"));
+        }
+
+        fn hostile(name: &str, ships: &[&str], amount: f64) -> SpawnGroup {
+            group(
+                "WaveShips_BP",
+                name,
+                SpawnRole::Hostile,
+                vec![option(&["AI/Faction/Criminal"], ships, amount)],
+            )
+        }
+
+        #[test]
+        fn variants_with_different_group_sets() {
+            let base = |name: &str| {
+                salvage(
+                    name,
+                    "var_shared",
+                    SMALLEST,
+                    &["fill_wasp_unmanned_salvage"],
+                )
+            };
+            let mut easy = base("Var_G_Easy");
+            easy.spawns.push(hostile("Wave1", &["fill_moth"], 1.0));
+            let mut hard = base("Var_G_Hard");
+            hard.spawns.push(hostile("Wave1", &["fill_moth"], 1.0));
+            hard.spawns.push(hostile("Wave2", &["fill_barge"], 2.0));
+            // Only one variant has hostiles, unnamed: no group name, no "none" for the other.
+            let e2 = base("Var_Q2_Easy");
+            let mut h2 = base("Var_Q2_Hard");
+            h2.spawns
+                .insert(0, hostile("", &["fill_moth", "fill_template"], 1.0));
+            let (g, stock) = run_full(vec![easy, hard], &Profile::default(), ships);
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "<EM4>Salvage target:</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n<EM4>Hostiles (Wave 1):</EM4> Filler Moth\\n<EM4>Hostiles (Wave 2; Hard):</EM4> 2 ships · Filler Barge\\n\\n"
+                ),
+                "{b}"
+            );
+            assert!(!b.contains("none"), "{b}");
+            let mut e2 = e2;
+            e2.description_key = Some("@var_hard".into());
+            h2.description_key = Some("@var_hard".into());
+            let (g, stock) = run_full(vec![e2, h2], &Profile::default(), ships);
+            let h = added(&g, &stock, "var_hard");
+            assert!(
+                h.contains("<EM4>Salvage target:</EM4> Filler Wasp (smallest, light damage, cargo: low value)\\n<EM4>Hostiles (Hard):</EM4> Filler Moth\\n"),
+                "{h}"
+            );
+            assert!(
+                !h.contains("none") && !h.contains(")) ") && !h.contains(") ("),
+                "{h}"
+            );
+        }
+
+        #[test]
+        fn counts_weights_any_ship_and_unknown_tags() {
+            let mut c = contract("Var_N_Easy", "var_shared", 100.0);
+            // Two groups under one line in one contract: their ships add up.
+            c.spawns = vec![
+                hostile("Wave1", &["fill_moth"], 2.0),
+                hostile("Wave1", &["fill_moth"], 2.0),
+            ];
+            // One option holds most of the weight.
+            let mut heavy = option(&["AI/Faction/Civilians"], &["fill_moth"], 1.0);
+            heavy.weight = 3.0;
+            let light = option(&["AI/Faction/Civilians"], &["fill_barge"], 1.0);
+            c.spawns.push(group(
+                "AlliedSpawnDescriptions_BP",
+                "Allies",
+                SpawnRole::Escort,
+                vec![light, heavy],
+            ));
+            // The catch-all selector, and a query of unknown tags only.
+            c.spawns.push(group(
+                "CargoShip_BP",
+                "",
+                SpawnRole::Cargo,
+                vec![option(
+                    &["Missions/VehicleType/Ship"],
+                    &["fill_moth", "fill_barge"],
+                    1.0,
+                )],
+            ));
+            let mut unknown = option(&[], &[], 1.0);
+            unknown.unknown = vec!["0000-dead".into()];
+            c.spawns.push(group(
+                "MissionTargets_BP",
+                "Target",
+                SpawnRole::Target,
+                vec![unknown],
+            ));
+            let (g, stock) = run(vec![c], &Profile::default());
+            let b = added(&g, &stock, "var_shared");
+            assert!(
+                b.contains(
+                    "<EM3>SPAWNS</EM3>\\n<EM4>Target:</EM4> picked by the game\\n<EM4>Cargo ship:</EM4> any ship\\n<EM4>Friendly:</EM4> mostly Filler Moth; or Filler Barge\\n<EM4>Hostiles:</EM4> 4 ships · Filler Moth\\n"
+                ),
+                "{b}"
+            );
+            assert!(!b.contains("dead"), "{b}");
+        }
+    }
 }

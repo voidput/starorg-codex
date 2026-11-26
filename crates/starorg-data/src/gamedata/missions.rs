@@ -1,6 +1,7 @@
 //! Contracts, blueprints, blueprint pools and reputation standings (spec 6.1).
 
 use super::json::{array, at, num, ref_path, referenced_name, text, type_of};
+use super::spawns::{ShipTags, TagDb, contract_spawns};
 use serde_json::Value;
 use starorg_core::model::quest::system_of;
 use starorg_core::model::{
@@ -23,6 +24,18 @@ pub trait MissionLookup {
     fn faction_name_key(&self, _path: &str) -> Option<String> {
         None
     }
+    /// `contractProperties` of the `ContractTemplate` at `path` (its default mission
+    /// properties).
+    fn template_properties(&self, _path: &str) -> Vec<Value> {
+        Vec::new()
+    }
+    /// The tag database and the vehicles by tag, for contract spawns; none without a
+    /// tag database (contracts then carry no spawns).
+    fn spawn_tags(&self) -> Option<(&TagDb, &ShipTags)> {
+        None
+    }
+    /// A data oddity worth a warning (extraction report).
+    fn note(&self, _detail: String) {}
 }
 
 /// Index of the title and description in a template's `displayString`.
@@ -41,6 +54,11 @@ fn bool_param(overrides: Option<&Value>, param: &str) -> Option<bool> {
         .iter()
         .find(|p| text(p.get("param")) == Some(param))
         .and_then(|p| p.get("value")?.as_bool())
+}
+
+/// `propertyOverrides` of a `ContractParamOverrides`.
+fn overrides(params: Option<&Value>) -> &[Value] {
+    array(params.and_then(|o| o.get("propertyOverrides")))
 }
 
 /// Visit every object below `v` (depth first, `v` included).
@@ -127,8 +145,10 @@ pub fn parse_contracts_with_items(
                 continue;
             };
             let params = c.get("paramOverrides");
-            let template = ref_path(c.get("template"))
-                .map(|p| lk.template_strings(&p))
+            let template_path = ref_path(c.get("template"));
+            let template = template_path
+                .as_deref()
+                .map(|p| lk.template_strings(p))
                 .unwrap_or_default();
             let pick_key = |param: &str, slot: usize| match string_param(params, param) {
                 Some(k) => (Some(k.to_string()), Some(KeySource::Contract)),
@@ -180,6 +200,24 @@ pub fn parse_contracts_with_items(
                 systems: systems.clone(),
                 ..Contract::default()
             };
+            if let Some((tags, ships)) = lk.spawn_tags() {
+                let template_props = template_path
+                    .as_deref()
+                    .map(|p| lk.template_properties(p))
+                    .unwrap_or_default();
+                let (spawns, twice) = contract_spawns(
+                    &[overrides(params), overrides(gen_params), &template_props],
+                    tags,
+                    ships,
+                );
+                contract.spawns = spawns;
+                for var in twice {
+                    lk.note(format!(
+                        "{}: spawn variable {var} set twice in one layer; the first is kept",
+                        contract.debug_name
+                    ));
+                }
+            }
             if let Some(results) = c.get("contractResults") {
                 walk(results, &mut |node| match type_of(node) {
                     Some("BlueprintRewards") => {

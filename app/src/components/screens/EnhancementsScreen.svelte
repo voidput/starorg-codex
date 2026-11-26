@@ -655,6 +655,7 @@
               <Card.Content class="grid gap-1">
                 <div class="grid gap-0.5 @min-[560px]:grid-cols-2" role="group" aria-label="Description sections">
                   <SwitchRow id="m-sec-items" size="sm" disabled={off} label="Item rewards" checked={d.mission.item_rewards} onchange={(v) => edit((p) => (p.mission.item_rewards = v))} />
+                  <SwitchRow id="m-sec-spawns" size="sm" disabled={off} label="Spawns" checked={d.mission.spawns} onchange={(v) => edit((p) => (p.mission.spawns = v))} />
                   <SwitchRow id="m-sec-details" size="sm" disabled={off} label="Mission details" checked={d.mission.details} onchange={(v) => edit((p) => (p.mission.details = v))} />
                 </div>
               </Card.Content>
@@ -666,7 +667,7 @@
               </Card.Header>
               <Card.Content class="grid gap-2 @min-[640px]:grid-cols-2">
                 {@render emRow('header_em', 'Section headers', off)}
-                {@render emRow('label_em', 'Detail labels', off || !d.mission.details)}
+                {@render emRow('label_em', 'Detail and spawn labels', off || (!d.mission.details && !d.mission.spawns))}
                 {@render emRow('reward_em', 'Item reward names', off || !d.mission.item_rewards)}
               </Card.Content>
             </Card.Root>

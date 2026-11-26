@@ -130,6 +130,8 @@ pub struct Mission {
     pub title_em: bool,
     pub blueprints: bool,
     pub item_rewards: bool,
+    /// SPAWNS: the ships a contract spawns (targets, hostiles, ships to protect).
+    pub spawns: bool,
     pub details: bool,
     /// Name tags on blueprint bullets.
     pub bullet_tags: bool,
@@ -216,6 +218,7 @@ impl Default for Mission {
             title_em: true,
             blueprints: true,
             item_rewards: true,
+            spawns: true,
             details: true,
             bullet_tags: true,
             owned_marker: true,

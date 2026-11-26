@@ -161,8 +161,8 @@ fn contracts_blueprints_reputation() {
     let (gd, _) = fixture_gamedata();
     assert_eq!(
         gd.contracts.len(),
-        3,
-        "two here, one of the hauling generator"
+        5,
+        "two here, one of the hauling generator, two of the spawn generator"
     );
     let easy = gd
         .contracts
@@ -239,7 +239,11 @@ fn fixture_has_no_drift_but_empty_categories_do() {
         !text.iter().any(|t| t.starts_with("contracts:")),
         "{text:?}"
     );
-    assert_eq!(gd.counts().ships, 1);
+    assert_eq!(
+        gd.counts().ships,
+        3,
+        "the test ship and the two spawn fixtures"
+    );
 }
 
 // ---------------------------------------------------------------------------------------
@@ -531,4 +535,68 @@ fn description_keys_of_entities_and_resources() {
             .any(|w| w.detail.contains("description keys")),
         "{warnings:?}"
     );
+}
+
+#[test]
+fn contract_spawns_resolve_selector_tags_to_vehicles() {
+    use starorg_core::model::SpawnRole;
+    let (gd, _) = fixture_gamedata();
+    let c = gd
+        .contracts
+        .iter()
+        .find(|c| c.debug_name == "TEST_Salvage_VE")
+        .unwrap();
+    assert_eq!(c.spawns.len(), 1);
+    let g = &c.spawns[0];
+    assert_eq!(
+        (g.variable.as_str(), g.name.as_str()),
+        ("SalvageSpawnDescription_BP", "SalvageableShip")
+    );
+    assert_eq!(g.role, SpawnRole::Target);
+    let o = &g.slots[0].options[0];
+    // The size selector filters; the spawn flag and cargo manifest are applied state.
+    assert_eq!(
+        o.selector,
+        ["Missions/MissionType/Salvage/AvailableToSalvage/Smallest"]
+    );
+    assert_eq!(
+        o.applied,
+        [
+            "AI/Ship/SpawnFlags/PoweredOff",
+            "AI/CargoManifest/General/Value/LowValue"
+        ]
+    );
+    assert_eq!(o.ships, ["fill_hulk_unmanned_salvage"]);
+    assert_eq!(o.damage.as_deref(), Some("salvagecontractor_lightdamage"));
+
+    // Template defaults fill what the contract does not set; its empty override switches
+    // the template's reinforcements off; negative tags and unknown tags.
+    let c = gd
+        .contracts
+        .iter()
+        .find(|c| c.debug_name == "TEST_Wave_Easy")
+        .unwrap();
+    let names: Vec<(&str, SpawnRole)> = c
+        .spawns
+        .iter()
+        .map(|g| (g.variable.as_str(), g.role))
+        .collect();
+    assert_eq!(
+        names,
+        [
+            ("TargetSpawnDescriptions_BP", SpawnRole::Target),
+            ("HostileShipSpawnDescriptions_BP", SpawnRole::Hostile),
+        ]
+    );
+    let target = &c.spawns[0].slots[0].options;
+    assert_eq!(
+        target[0].ships,
+        ["fill_hulk_unmanned_salvage"],
+        "the hulk carries only the child of the selector tag; the raider is excluded"
+    );
+    assert!(target[1].ships.is_empty(), "an unknown tag matches nothing");
+    assert!(target[1].selector.is_empty() && target[1].unknown.len() == 1);
+    let wave = &c.spawns[1].slots[0].options[0];
+    assert_eq!(wave.ships, ["fill_raider"]);
+    assert_eq!(wave.amount, 2.0);
 }
