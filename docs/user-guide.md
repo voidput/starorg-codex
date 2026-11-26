@@ -393,7 +393,8 @@ typing a few letters jumps to the next row starting with them.
   (`Condition not known` when the loadout sets none) and, when its body has a loot table, a link
   to its body-loot row. The chance is an estimate: where a loadout picks one of several options
   the data gives no weights, so an even pick is assumed (one of two helmets: 50%), compounded
-  through nested picks. Loadout options gated by tags (`AI/NpcClass/Heavy`,
+  through nested picks. An item an option holds more than once (two magazines beside their
+  rifle) is there as often as the option is, not twice as often. Loadout options gated by tags (`AI/NpcClass/Heavy`,
   `LoadoutIdentifier/LB_Elite`, an `OR` or `NOT` of them) are decided from the NPC record's own
   tags: an option it does not qualify for is left out. Groups of the same name in one loadout are
   one pick; of those, the gated options the NPC qualifies for are the pick and the ungated ones
@@ -786,7 +787,8 @@ For players who want to look things up in the game data. Read only on the game.
   the loot tables that roll the item but that no container uses (enemies, bosses). For an
   ore it lists where the ore is mined:
   - the bodies and belts whose spawn tables roll a rock that holds it, with the mining kind
-    (ship, vehicle or hand), the tier and a spawn weight;
+    (ship, vehicle or hand), the tier and a spawn weight (a rock that lists the ore in two
+    parts of its composition counts once per spawn group, as the record gives it);
   - the spots in caves, asteroid bases and events that place such a rock;
   - the quality it comes in: the range it rolls in and where most rolls land, places with
     their own curve (Pyro System), and the values the game actually shows. A roll snaps to

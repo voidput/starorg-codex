@@ -153,6 +153,24 @@ fn title(core: &str) -> String {
         .unwrap_or_default()
 }
 
+/// How many parts of a rock's composition hold `ore` (at least 1). `oreSpawns` has a row
+/// per part for each spawn group entry, all with the entry's `spawnShare`, so a belt's
+/// summed share is divided by this to count each entry once (a Quantainium rock that
+/// lists it twice must not spawn twice as often).
+pub fn ore_parts(spawns: &MiningSpawns, rock: &str, ore: &str) -> f64 {
+    spawns
+        .rocks
+        .iter()
+        .find(|r| r.rock.eq_ignore_ascii_case(rock))
+        .map_or(0, |r| {
+            r.ores
+                .iter()
+                .filter(|o| o.element.eq_ignore_ascii_case(ore))
+                .count()
+        })
+        .max(1) as f64
+}
+
 /// The ore element keys a query names: by element key, rock name or plain name
 /// ("Sadaryx", "Carryable_..._Mineral_Sadaryx", "ResourceType.Sadaryx" all name Sadaryx).
 fn ores_for(spawns: &MiningSpawns, query: &str) -> Vec<String> {
@@ -178,7 +196,14 @@ fn ores_for(spawns: &MiningSpawns, query: &str) -> Vec<String> {
         .iter()
         .find(|r| r.rock.eq_ignore_ascii_case(short))
     {
-        return r.ores.iter().map(|o| o.element.clone()).collect();
+        // A composition can list one ore in several parts: one report per ore.
+        let mut out: Vec<String> = Vec::new();
+        for o in &r.ores {
+            if !out.contains(&o.element) {
+                out.push(o.element.clone());
+            }
+        }
+        return out;
     }
     let whole = ore_core(q);
     if let Some(e) = known.get(&whole) {
@@ -223,7 +248,8 @@ fn report(spawns: &MiningSpawns, areas: &[LootArea], ore: String) -> MinedReport
         .iter()
         .filter(|r| r.ores.iter().any(|o| o.element == ore))
         .collect();
-    // One row per location and rock: a rock several spawn groups roll adds up.
+    // One row per location and rock: a rock several spawn groups roll adds up, once per
+    // group (see [`ore_parts`]); the percent bounds span the ore's parts.
     let mut belts: Vec<MinedBelt> = Vec::new();
     for s in spawns.ore_spawns.iter().filter(|s| s.ore == ore) {
         if let Some(b) = belts
@@ -232,6 +258,14 @@ fn report(spawns: &MiningSpawns, areas: &[LootArea], ore: String) -> MinedReport
         {
             b.spawn_share = match (b.spawn_share, s.spawn_share) {
                 (Some(x), Some(y)) => Some(x + y),
+                (x, y) => x.or(y),
+            };
+            b.min_percent = match (b.min_percent, s.min_percent) {
+                (Some(x), Some(y)) => Some(x.min(y)),
+                (x, y) => x.or(y),
+            };
+            b.max_percent = match (b.max_percent, s.max_percent) {
+                (Some(x), Some(y)) => Some(x.max(y)),
                 (x, y) => x.or(y),
             };
             continue;
@@ -247,6 +281,9 @@ fn report(spawns: &MiningSpawns, areas: &[LootArea], ore: String) -> MinedReport
             min_percent: s.min_percent,
             max_percent: s.max_percent,
         });
+    }
+    for b in &mut belts {
+        b.spawn_share = b.spawn_share.map(|x| x / ore_parts(spawns, &b.rock, &ore));
     }
     belts.sort_by(|a, b| {
         b.spawn_share
@@ -408,6 +445,41 @@ mod tests {
         assert_eq!(r.spots[0].configs, ["Sadaryx minable"]);
         assert_eq!(r.spots[0].rock, "MineableRock_FPS_Sadaryx");
         assert_eq!(r.spots[0].slot_share, 1.0);
+    }
+
+    #[test]
+    fn an_ore_in_two_parts_of_a_rock_spawns_once_per_group() {
+        // LIVE 4.10 Calliope: the legendary Quantainium rock lists Quantainium twice, so
+        // oreSpawns has two rows for its one spawn entry (0.12012 each).
+        let s: MiningSpawns = serde_json::from_value(serde_json::json!({
+            "rocks": [
+                {"rock": "Rock_Q", "kind": "ship",
+                 "ores": [{"element": "quantainium_raw"}, {"element": "quantainium_raw"},
+                          {"element": "beryl_raw"}]}
+            ],
+            "oreSpawns": [
+                {"ore": "quantainium_raw", "location": "Stanton4a", "rock": "Rock_Q",
+                 "kind": "ship", "spawnShare": 0.12012, "minPercent": 5.7, "maxPercent": 11.7},
+                {"ore": "quantainium_raw", "location": "Stanton4a", "rock": "Rock_Q",
+                 "kind": "ship", "spawnShare": 0.12012, "minPercent": 28.3, "maxPercent": 78.3},
+                {"ore": "quantainium_raw", "location": "Stanton4a", "rock": "Rock_Q",
+                 "kind": "ship", "spawnShare": 0.01, "minPercent": 5.7, "maxPercent": 11.7},
+                {"ore": "quantainium_raw", "location": "Stanton4a", "rock": "Rock_Q",
+                 "kind": "ship", "spawnShare": 0.01, "minPercent": 28.3, "maxPercent": 78.3},
+                {"ore": "beryl_raw", "location": "Stanton4a", "rock": "Rock_Q",
+                 "kind": "ship", "spawnShare": 0.12012}
+            ]
+        }))
+        .unwrap();
+        assert_eq!(ore_parts(&s, "rock_q", "quantainium_raw"), 2.0);
+        assert_eq!(ore_parts(&s, "Rock_Q", "beryl_raw"), 1.0);
+        assert_eq!(ore_parts(&s, "Rock_X", "beryl_raw"), 1.0);
+        let r = where_mined(&s, &[], "Rock_Q");
+        assert_eq!(r.len(), 2, "one report per ore, not per part");
+        let b = &r[0].belts[0];
+        assert!((b.spawn_share.unwrap() - 0.13012).abs() < 1e-12, "{b:?}");
+        assert_eq!((b.min_percent, b.max_percent), (Some(5.7), Some(78.3)));
+        assert_eq!(r[1].belts[0].spawn_share, Some(0.12012));
     }
 
     #[test]
