@@ -1386,6 +1386,9 @@ pub struct NetworkSettings {
 pub struct Settings {
     pub appearance: Appearance,
     pub network: NetworkSettings,
+    /// Settings -> Game data. Missing in older saved settings = the defaults.
+    #[serde(default)]
+    pub data: DataSettings,
     pub default_channel: Option<String>,
     pub safe_gpu: bool,
     /// Missing in older saved settings = all off.
@@ -1423,6 +1426,30 @@ impl Default for StarOrgSettings {
             pull_blueprints: false,
             pull_fleet: false,
             auto_sync: false,
+        }
+    }
+}
+
+/// Settings > Game data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataSettings {
+    /// "Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your game
+    /// build" (on by default): "Read game data" and the screens that read the dataset cache
+    /// may download a dataset of the exact same build instead of extracting it, checked by
+    /// checksum and shape (`starorg_mcp::prebuilt`). Anything not taken from there, offline
+    /// included, is read from `Data.p4k` as before. Never the game text (`global.ini`).
+    #[serde(default = "on")]
+    pub prebuilt_dumps: bool,
+}
+
+fn on() -> bool {
+    true
+}
+
+impl Default for DataSettings {
+    fn default() -> Self {
+        Self {
+            prebuilt_dumps: true,
         }
     }
 }

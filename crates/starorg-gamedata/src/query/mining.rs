@@ -908,7 +908,9 @@ fn mineral(
     let bands: &[super::quality::BandIn] = q.map_or(&[], |q| q.bands.as_slice());
     let element = |ore: &str| by_ore.get(&ore.to_ascii_lowercase()).copied();
 
-    // One row per ore, location and rock: a rock several spawn groups roll adds up.
+    // One row per ore, location and rock: a rock several spawn groups roll adds up, once
+    // per group (a rock listing the ore in two parts has two rows per group; see
+    // [`super::mined::ore_parts`]).
     let mut places: Vec<MiningPlace> = Vec::new();
     for s in spawns
         .ore_spawns
@@ -1023,6 +1025,9 @@ fn mineral(
     }
     for p in &mut places {
         p.quality.full_scale = p.quality_scales.iter().all(|x| *x == 1.0);
+        p.spawn_share = p
+            .spawn_share
+            .map(|x| x / super::mined::ore_parts(spawns, &p.rock, &p.ore));
     }
     let kind_rank = |k: Option<&str>| match k {
         Some("ship") => 0,
@@ -1265,6 +1270,31 @@ mod tests {
         assert_eq!(al.ores, ["aluminium_ore"]);
         assert!(al.elements.is_empty() && !ix.physics && !ix.lasers_read);
         assert!(al.places[0].difficulty.is_none());
+    }
+
+    #[test]
+    fn an_ore_in_two_parts_of_a_rock_spawns_once_per_group() {
+        // LIVE 4.10: the legendary Quantainium rock lists Quantainium twice, so its one
+        // spawn entry at Calliope gives two oreSpawns rows of 0.12012 (the record's share).
+        let s: MiningSpawns = serde_json::from_value(json!({
+            "rocks": [{"rock": "Rock_Q", "kind": "ship", "ores": [
+                {"element": "quantainium_raw", "minPercent": 5.7, "maxPercent": 11.7},
+                {"element": "quantainium_raw", "minPercent": 28.3, "maxPercent": 78.3}]}],
+            "oreSpawns": [
+                {"ore": "quantainium_raw", "location": "Stanton4a", "system": "Stanton", "body": "Calliope",
+                 "rock": "Rock_Q", "kind": "ship", "spawnShare": 0.12012, "minPercent": 5.7, "maxPercent": 11.7, "qualityScale": 1},
+                {"ore": "quantainium_raw", "location": "Stanton4a", "system": "Stanton", "body": "Calliope",
+                 "rock": "Rock_Q", "kind": "ship", "spawnShare": 0.12012, "minPercent": 28.3, "maxPercent": 78.3, "qualityScale": 0.49}
+            ]
+        }))
+        .unwrap();
+        let ix = build_index(&data(), Some(&s), None, None, None);
+        let q = ix.detail("ResourceType.Raw_Quantainium").unwrap();
+        assert_eq!(q.places.len(), 1);
+        let p = &q.places[0];
+        assert_eq!(p.spawn_share, Some(0.12012), "not 0.24024");
+        assert_eq!((p.min_percent, p.max_percent), (Some(5.7), Some(78.3)));
+        assert_eq!(p.quality_scales, [1.0, 0.49]);
     }
 
     #[test]

@@ -62,6 +62,14 @@ fn stdio_server_lists_tools_and_answers_from_the_cache() {
         json!({"language": "english", "strings": {"item_NameA": "Filler Alpha"}}).to_string(),
     )
     .unwrap();
+    // Stamped by this build's code, as an extraction would (a file without one is not served).
+    starorg_mcp::stamps::write(
+        &dir,
+        "game-strings-english",
+        starorg_mcp::stamps::LOCAL,
+        None,
+    )
+    .unwrap();
 
     let answers = session(
         &f,

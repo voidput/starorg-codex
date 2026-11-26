@@ -15837,6 +15837,9 @@
       "reduce_effects": true,
       "theme": "dark"
     },
+    "data": {
+      "prebuilt_dumps": true
+    },
     "default_channel": "LIVE",
     "network": {
       "check_updates": false,

@@ -42,6 +42,12 @@
           what: 'Asks api.github.com for the release list (at most once a day, or when you press Check now). Sends only the app name and version. Installing an update downloads it from github.com.',
         },
     {
+      name: 'Prebuilt game data (Settings -> Game data)',
+      on: app.settings?.data?.prebuilt_dumps ?? true,
+      state: (app.settings?.data?.prebuilt_dumps ?? true) ? 'On, when the build matches' : 'Off',
+      what: 'When you read game data, asks api.github.com whether voidput/sc-gamedata-dumps has the exact build you have installed (the request names the game build number, e.g. 4.10.201.48085; no personal data), and if so downloads the datasets it can use from raw.githubusercontent.com, checked by checksum. Sends only the app name and version: no token, no install id, nothing about you or your game. No match, a failed check or no network: read from Data.p4k on this computer as before. The game text is always read from Data.p4k.',
+    },
+    {
       name: 'Published LIVE builds for Diff',
       on: !!net?.published_dumps,
       state: net?.published_dumps ? 'On (Developer mode)' : 'Off',

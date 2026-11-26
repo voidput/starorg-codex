@@ -351,6 +351,7 @@ impl MockBackend {
                     starorg: false,
                     uex: false,
                 },
+                data: DataSettings::default(),
                 default_channel: None,
                 safe_gpu: false,
                 advanced: AdvancedSettings::default(),
@@ -3178,6 +3179,8 @@ impl Backend for MockBackend {
                     our_outputs: vec![],
                     extractor: std::sync::Arc::new(NoGameData),
                     cache_cap: None,
+                    prebuilt: None,
+                    serve_dumps: true,
                 })
             })
         } else {

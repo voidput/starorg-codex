@@ -498,6 +498,12 @@ fn cache_files(dir: &Path) -> Vec<(String, PathBuf, u64)> {
     json_files(dir)
         .into_iter()
         .filter(|f| starorg_mcp::store::is_dataset_file(&f.0))
+        // Only what this app's code wrote (its stamp, `starorg_mcp::stamps`): a dataset
+        // extracted by other code is not shown or compared.
+        .filter(|f| {
+            f.0.strip_suffix(".json")
+                .is_some_and(|d| starorg_mcp::stamps::looks_current(dir, d))
+        })
         .collect()
 }
 
@@ -581,11 +587,12 @@ impl RealBackend {
             return Ok(t.clone());
         }
         let exe = starorg_core::selfexe::own_exe().map_err(internal)?;
-        let cfg = starorg_mcp::config_for(
+        let mut cfg = starorg_mcp::config_for(
             Some(&f.install),
             self.dirs(),
             Arc::new(starorg_mcp::worker::ProcessExtractor::new(exe).with_limit(self.mcp_limit())),
         );
+        cfg.prebuilt = self.prebuilt();
         let t = Arc::new(starorg_mcp::tools::Tools::new(
             starorg_mcp::store::Store::new(cfg),
         ));
@@ -917,6 +924,66 @@ impl RealBackend {
             .into_iter()
             .find(|c| c.name == channel)?;
         Some((tools, ch))
+    }
+
+    /// Where each current dataset of the channel's build folder came from (`local`,
+    /// `dump:<tag>`, `derived`; `starorg_mcp::stamps`), for "Read game data"'s step lines.
+    pub(super) fn dataset_sources(&self, f: &Found, channel: &str) -> BTreeMap<String, String> {
+        let Some((t, ch)) = self.mcp_channel(f, channel) else {
+            return BTreeMap::new();
+        };
+        let dir = t.store.build_dir(&ch);
+        std::fs::read_dir(&dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| {
+                let n = e.file_name().to_str()?.to_string();
+                let d = n.strip_suffix(starorg_mcp::stamps::EXT)?;
+                Some((d.to_string(), t.store.source_of(&dir, d)?))
+            })
+            .collect()
+    }
+
+    /// One Activity line for a "Read game data" step: which datasets it downloaded (a
+    /// prebuilt dump of this build) and which it read from `Data.p4k`, against `before`
+    /// ([`Self::dataset_sources`] when the step started). Returns the sources now.
+    pub(super) fn log_step_sources(
+        &self,
+        f: &Found,
+        channel: &str,
+        step: &str,
+        before: BTreeMap<String, String>,
+    ) -> BTreeMap<String, String> {
+        let now = self.dataset_sources(f, channel);
+        let mut downloaded: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
+        let mut local: Vec<&str> = Vec::new();
+        for (d, s) in &now {
+            if before.get(d) == Some(s) {
+                continue;
+            }
+            match s.strip_prefix(starorg_mcp::stamps::DUMP_PREFIX) {
+                Some(tag) => downloaded.entry(tag).or_default().push(d),
+                None if s == starorg_mcp::stamps::LOCAL => local.push(d),
+                None => {}
+            }
+        }
+        let mut parts: Vec<String> = downloaded
+            .iter()
+            .map(|(tag, ds)| format!("downloaded {} (prebuilt {tag})", ds.join(", ")))
+            .collect();
+        if !local.is_empty() {
+            parts.push(format!("read from Data.p4k: {}", local.join(", ")));
+        }
+        if !parts.is_empty() {
+            self.log(
+                LogLevel::Info,
+                Some(JobKind::Extract),
+                Some(channel),
+                &format!("{channel}: {step}: {}", parts.join("; ")),
+            );
+        }
+        now
     }
 
     /// The channel's current build folder in the dataset cache, when there is one.

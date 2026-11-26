@@ -1668,6 +1668,40 @@ fn network_switches_are_stored_and_setup_ignores_an_old_data_source() {
     );
 }
 
+#[test]
+fn prebuilt_game_data_is_on_by_default_and_its_switch_is_shared_through_config_toml() {
+    let f = Fake::new();
+    let mut s = f.backend.get_settings().unwrap();
+    assert!(s.data.prebuilt_dumps, "on by default, upgraders included");
+    s.data.prebuilt_dumps = false;
+    assert!(!f.backend.save_settings(s).unwrap().data.prebuilt_dumps);
+    // In config.toml, where the command-line tool and the MCP server read it.
+    let cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    assert!(!starorg_core::config::prebuilt_dumps(&cfg));
+    assert!(
+        !starorg_mcp::config_for(None, &f.dirs, std::sync::Arc::new(NoWorker)).serve_dumps,
+        "datasets taken from a dump are not served with it off"
+    );
+    let mut on = f.backend.get_settings().unwrap();
+    on.data.prebuilt_dumps = true;
+    assert!(f.backend.save_settings(on).unwrap().data.prebuilt_dumps);
+    let cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    assert!(starorg_core::config::prebuilt_dumps(&cfg));
+}
+
+struct NoWorker;
+
+impl starorg_mcp::worker::Extractor for NoWorker {
+    fn extract(
+        &self,
+        _: &std::path::Path,
+        dataset: &str,
+        _: &std::path::Path,
+    ) -> Result<starorg_mcp::worker::Measurement, String> {
+        Err(format!("{dataset}: no worker in this test"))
+    }
+}
+
 /// Every file under `dir`, `age` old: the table cache trusts a stamp only once its files are
 /// older than two seconds, so a test that wants the quick path must not wait for it.
 fn backdate(dir: &std::path::Path, age: std::time::Duration) {
@@ -2785,9 +2819,12 @@ fn a_cached_build_diff_compares_only_the_datasets_both_hold() {
             .collect();
         format!(r#"{{"_source":"syn","shipWeapons":[{}]}}"#, rows.join(","))
     };
+    // Stamped as this build's code would (an unstamped dataset is not served).
     let put = |dir: &std::path::Path, name: &str, body: &str| {
         std::fs::create_dir_all(dir).unwrap();
         std::fs::write(dir.join(name), body).unwrap();
+        let d = name.strip_suffix(".json").unwrap();
+        starorg_mcp::stamps::write(dir, d, starorg_mcp::stamps::LOCAL, None).unwrap();
     };
     let current = mcp.join(format!("4.10.200.58746-{fp}"));
     let older = mcp.join("4.10.197.2878-0a1b2c3d");

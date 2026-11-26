@@ -1,6 +1,8 @@
 //! NPC loadouts: what each NPC type (actor) can spawn wearing and wielding, which is what its
 //! body can be looted for besides the pockets its loot table fills (`game-loot`). This domain
-//! is this repository's own: `sc-gamedata` has no counterpart, so there is no golden dump.
+//! is this repository's own; `sc-gamedata` ports it (`feat/rust-npc-loadouts` f58f7a2ae) and
+//! its output matches this one apart from item names its string table resolves and this
+//! one's does not (keys that exist only with the `,P` suffix).
 //!
 //! An actor is an `EntityClassDefinition` under `libs/foundry/records/actor/actors/`. Its
 //! `SEntityComponentDefaultLoadoutParams.loadout` comes in these shapes, nested freely:
@@ -62,6 +64,10 @@ pub const NAME: &str = "game-npc-loadouts";
 
 /// Items carrying this tag cannot be taken from a body.
 pub const UNLOOTABLE_TAG: &str = "Item/Inventory/Unlootable";
+
+/// The dataset's `_assumptions` note. `chance` keeps the starorg-codex name (the app reads it
+/// as-is) instead of a `chanceEstimate`, so this note is what marks it as an estimate.
+pub const PICK_ASSUMPTIONS: &str = "items[].chance is an estimate: the records give no weights, so each pick among a group's options is assumed even (1/n, a repeated option counting as weight), compounded through nesting; of same-named groups, gated ones whose requirement holds are the pick and ungated ones the fallback (inferred from the data, not stated by it).";
 
 /// Where actor records live.
 const ACTOR_DIR: &str = "/actor/actors/";
@@ -1023,8 +1029,12 @@ impl Resolver<'_> {
         })
     }
 
-    /// An option's gear, each entry with its chance (`scale` times its nested picks) and
-    /// what it depends on (the `when` of the alternatives it came through).
+    /// An option's gear, one entry per item and condition set, each with its chance (`scale`
+    /// times its nested picks) and what it depends on (the `when` of the alternatives it came
+    /// through). An item the option holds more than once (two magazines of one class beside
+    /// their weapon) is there as often as the option is, not twice as often: fixed gear is
+    /// `scale`, within one nested pick the options' chances add up (at most `scale`), and
+    /// separate sources are independent.
     fn flat(&self, o: &Resolved, scale: f64, requires: &[String], unlootable: &mut usize) -> Vec<GearEntry> {
         let mut req: Vec<String> = requires.to_vec();
         for w in &o.when {
@@ -1032,24 +1042,46 @@ impl Resolver<'_> {
                 req.push(w.clone());
             }
         }
-        let mut out: Vec<GearEntry> = o
-            .fixed
-            .iter()
-            .filter_map(|p| self.gear(p, unlootable))
-            .map(|mut e| {
-                e.chance = scale;
-                e.requires = req.clone();
-                e
-            })
-            .collect();
+        let same = |a: &GearEntry, b: &GearEntry| a.item.eq_ignore_ascii_case(&b.item) && a.requires == b.requires;
+        // Per entry: the chances of its sources (an item seen once keeps its chance as is).
+        let mut out: Vec<(GearEntry, Vec<f64>)> = Vec::new();
+        let mut add = |e: GearEntry, p: f64| match out.iter_mut().find(|(x, _)| same(x, &e)) {
+            Some((_, sources)) => sources.push(p),
+            None => out.push((e, vec![p])),
+        };
+        for mut e in o.fixed.iter().filter_map(|p| self.gear(p, unlootable)) {
+            e.requires = req.clone();
+            add(e, scale);
+        }
         for g in &o.groups {
             let n = g.options.len() as f64;
             let each = if g.exclusive { scale } else { scale / n };
+            let mut here: Vec<GearEntry> = Vec::new();
             for opt in &g.options {
-                out.extend(self.flat(opt, each, &req, unlootable));
+                for e in self.flat(opt, each, &req, unlootable) {
+                    match here.iter_mut().find(|x| same(x, &e)) {
+                        Some(h) => h.chance += e.chance,
+                        None => here.push(e),
+                    }
+                }
+            }
+            for e in here {
+                let p = e.chance.min(scale);
+                add(e, p);
             }
         }
-        out
+        out.into_iter()
+            .map(|(mut e, sources)| {
+                e.chance = match sources.as_slice() {
+                    [one] => *one,
+                    _ if scale > 0.0 => {
+                        scale * (1.0 - sources.iter().map(|p| 1.0 - p / scale).product::<f64>())
+                    }
+                    _ => 0.0,
+                };
+                e
+            })
+            .collect()
     }
 }
 
@@ -1418,6 +1450,7 @@ impl Domain for NpcLoadoutsDomain {
             depth_cut: cut,
         };
         let mut body = Map::new();
+        body.insert("_assumptions".into(), serde_json::json!([PICK_ASSUMPTIONS]));
         field(&mut body, "actors", &actors)?;
         field(&mut body, "byLootTable", &by_loot_table)?;
         field(&mut body, "summary", &summary)?;
@@ -1875,6 +1908,48 @@ mod tests {
     }
 
     #[test]
+    fn an_item_twice_in_one_option_is_there_as_often_as_the_option() {
+        // One of two weapons; the rifle comes with two magazines of one class, and a nested
+        // pick that holds that magazine again in both of its options.
+        let set = RecordSet::new(vec![
+            tag_db(),
+            item("rifle", "WeaponPersonal", "Medium", false),
+            item("rifle_mag", "WeaponAttachment", "Magazine", false),
+            item("smg", "WeaponPersonal", "Medium", false),
+            item("frag", "WeaponPersonal", "Grenade", false),
+            kit(
+                "two_mags",
+                json!([group("PrimaryWeapon", &[], json!([
+                    json!({"_Type_": "SItemPortLoadoutManualParams", "InventoryItems": [], "entries": [
+                        entry("wep_stocked_2", "rifle"),
+                        entry("magazine_attach_1", "rifle_mag"),
+                        entry("magazine_attach_2", "rifle_mag"),
+                        {"_Type_": "SItemPortLoadoutEntryParams", "itemPortName": "", "entityClassName": "",
+                         "entityClassReference": null, "loadout": random(&["spare_mags"])}]}),
+                    manual(json!([entry("wep_stocked_2", "smg")])),
+                ]))]),
+            ),
+            kit(
+                "spare_mags",
+                json!([group("Spare", &[], json!([
+                    manual(json!([entry("magazine_attach_3", "rifle_mag")])),
+                    manual(json!([entry("magazine_attach_3", "rifle_mag"), entry("grenade_attach_1", "frag")])),
+                ]))]),
+            ),
+            actor("PU_TwoMags", random(&["two_mags"]), None),
+        ]);
+        let (l, f) = (loc(), files());
+        let body = DOMAIN.parse(&ParseContext::new(&set, &l, &f)).unwrap();
+        let d: NpcLoadouts = serde_json::from_value(Value::Object(body)).unwrap();
+        let a = actor_of(&d, "PU_TwoMags");
+        let by = |c: &str| item_of(a, c).unwrap().chance;
+        assert_eq!(by("rifle"), 0.5);
+        assert_eq!(by("smg"), 0.5);
+        assert_eq!(by("rifle_mag"), 0.5, "never likelier than the weapon it comes with");
+        assert_eq!(by("frag"), 0.25);
+    }
+
+    #[test]
     fn same_named_groups_are_one_pick_over_pooled_options() {
         let d = data();
         let plain = actor_of(&d, "PU_Shotgunner");
@@ -1982,6 +2057,8 @@ mod tests {
         // A lean file: no per-group detail.
         assert!(body.get("groups").is_none() && body.get("byItem").is_none());
         assert!(body["actors"][0].get("fixed").is_none());
+        // `chance` keeps the codex name, so the note is what marks it an estimate.
+        assert_eq!(body["_assumptions"], serde_json::json!([PICK_ASSUMPTIONS]));
         let s = &body["summary"];
         assert_eq!(s["actors"], 6);
         assert_eq!(s["withGear"], 5);

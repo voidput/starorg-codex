@@ -199,6 +199,8 @@ mod tests {
             our_outputs: vec![],
             extractor: Arc::new(NoExtract),
             cache_cap: None,
+            prebuilt: None,
+            serve_dumps: true,
         }
     }
 

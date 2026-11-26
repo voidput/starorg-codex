@@ -2,29 +2,49 @@
 //!
 //! A tool asks for the datasets it needs by name. The first time a build needs one it is
 //! extracted by a worker process ([`crate::worker`]) into
-//! `<cache>/<CHANNEL>/<build>-<fingerprint>/<dataset>.json`; afterwards it is read from
-//! there. The fingerprint covers the archive's size and modification time and a hash of the
-//! code that writes the datasets (`build.rs`, `DATASET_CODE`), so a patched `Data.p4k` or a
-//! change to extraction never reads an old answer, while a release that leaves extraction
-//! alone keeps the cache. Parsed
-//! datasets stay in memory for the two most recently used builds (a diff needs two).
-//! `measurements.json` in each build folder keeps what each extraction cost.
+//! `<cache>/<CHANNEL>/<build>-<fingerprint>/<dataset>.json` (or, in the app with the setting
+//! on, taken from a verified prebuilt dump of the same build, [`crate::prebuilt`]);
+//! afterwards it is read from there. The fingerprint covers the archive's size and
+//! modification time and the cache format, so a patched `Data.p4k` gets a folder of its own.
+//! The code that wrote each dataset is in its stamp ([`crate::stamps`]): a dataset is served
+//! only while its stamp names this app's code for it, so an app update extracts again only
+//! the datasets whose code changed and keeps the rest. Parsed datasets stay in memory for
+//! the two most recently used builds (a diff needs two). `measurements.json` in each build
+//! folder keeps what each extraction cost.
+//!
+//! After a dataset is written the channel's cache is tidied once per run ([`Store::tidy`]):
+//! other folders of the same build (an older archive, or the layout before stamps), datasets
+//! of other code in the current folder, and builds older than the previous one go.
 
+use crate::stamps;
 use crate::worker::{Extractor, Measurement};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use starorg_gamedata::search_index;
 use std::any::Any;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
-/// Bumped when the cached layout or a dataset's meaning changes.
-pub const CACHE_FORMAT: u32 = 1;
+/// Bumped when the cached layout or a dataset's meaning changes. 2: per-dataset stamps; the
+/// folder fingerprint no longer carries the dataset code.
+pub const CACHE_FORMAT: u32 = 2;
 
-/// Builds kept on disk per channel (older ones are removed; the app cache folder's cap,
-/// `starorg_core::storage`, can remove more).
+/// Builds kept on disk per channel: the current one and the previous one (older ones are
+/// removed; the app cache folder's cap, `starorg_core::storage`, can remove more).
 pub const KEEP_BUILDS: usize = 2;
+
+/// A dataset with no stamp is left alone this long before tidying removes it (another
+/// process may have just written it and not stamped it yet).
+const UNSTAMPED_GRACE: std::time::Duration = std::time::Duration::from_secs(60 * 60);
+
+/// A dataset stamped by other code is left alone this long (another version of the app or
+/// the command-line tool may share the folder and still use it).
+const OTHER_CODE_GRACE: std::time::Duration = std::time::Duration::from_secs(24 * 60 * 60);
+
+/// Another folder of the current build (another install of it) stays while used this
+/// recently.
+pub const KEEP_UNUSED: std::time::Duration = std::time::Duration::from_secs(7 * 24 * 60 * 60);
 
 /// Parsed builds kept in memory.
 const MEM_BUILDS: usize = 2;
@@ -105,6 +125,13 @@ pub struct StoreConfig {
     /// The app cache folder's cap (`starorg_core::storage::enforce` on the folder above
     /// `cache_dir`, after each extraction); `None`: no cap (tests).
     pub cache_cap: Option<u64>,
+    /// Prebuilt datasets tried before an extraction (the app, while its setting is on);
+    /// `None`: always extract (the CLI, the MCP server, tests).
+    pub prebuilt: Option<Arc<dyn crate::prebuilt::Prebuilt>>,
+    /// Serve datasets an earlier run took from a dump (the user's setting, `config.toml`
+    /// `[data] prebuilt_dumps`), when `prebuilt` is `None`; with a `prebuilt` its switch
+    /// decides. Off: they are extracted locally.
+    pub serve_dumps: bool,
 }
 
 type Typed = Arc<dyn Any + Send + Sync>;
@@ -121,6 +148,12 @@ struct Mem {
     recent: Vec<PathBuf>,
     /// Modified time of each UEX file in `json` when it was read.
     uex_modified: HashMap<(PathBuf, String), FileStamp>,
+    /// Dataset files whose stamp was checked in full: their size and SHA-256 then.
+    verified: HashMap<PathBuf, (u64, Option<std::time::SystemTime>, String)>,
+    /// Build folders tidied in this run ([`Store::tidy`]).
+    tidied: HashSet<PathBuf>,
+    /// Lines said once per run (no dump published for a build, ...).
+    said: HashSet<String>,
 }
 
 /// Called with a line worth showing in the app's Activity (extractions).
@@ -327,8 +360,8 @@ impl Store {
             .join(segment(&ch.name.to_ascii_uppercase()))
     }
 
-    /// The archive's identity: size, modification time, cache format and the hash of the
-    /// dataset code (not the app version: a release alone does not extract again).
+    /// The archive's identity: size, modification time and cache format. The code that
+    /// writes each dataset is in its stamp, not here ([`crate::stamps`]).
     pub fn fingerprint(p4k: &Path) -> String {
         let meta = std::fs::metadata(p4k).ok();
         let len = meta.as_ref().map_or(0, std::fs::Metadata::len);
@@ -337,10 +370,7 @@ impl Store {
             .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
             .map_or(0, |d| d.as_secs());
         let mut h = Sha256::new();
-        h.update(format!(
-            "{len}:{mtime}:{CACHE_FORMAT}:{}",
-            env!("DATASET_CODE")
-        ));
+        h.update(format!("{len}:{mtime}:{CACHE_FORMAT}"));
         h.finalize()[..4]
             .iter()
             .map(|b| format!("{b:02x}"))
@@ -389,24 +419,159 @@ impl Store {
         v
     }
 
-    fn prune_old_builds(&self, ch: &ChannelSource, current: &Path) {
-        for (_, p) in self.cached_builds(ch).into_iter().skip(KEEP_BUILDS) {
-            if p == current {
+    /// Remove a cached build folder unless a reader holds it (an older build in the app's
+    /// Diff: it stays until the next tidy). `true` when it went.
+    fn remove_build(p: &Path) -> bool {
+        // Held across the removal, so no reader starts meanwhile.
+        let lock = reading_lock(p);
+        let Ok(held) = starorg_core::lock::try_lock(&lock) else {
+            return false;
+        };
+        let removed = std::fs::remove_dir_all(p).is_ok();
+        // Released first: Windows does not delete a file that is still open. A reader that
+        // locks it meanwhile finds the folder gone (`hold_build` checks again).
+        drop(held);
+        if removed {
+            let _ = std::fs::remove_file(&lock);
+        }
+        removed
+    }
+
+    /// When a build folder was last written or read: the newest of the folder and its
+    /// files (reading marks a file used, [`mark_used`]).
+    fn last_used(dir: &Path) -> std::time::SystemTime {
+        let t = |m: std::io::Result<std::fs::Metadata>| {
+            m.and_then(|m| m.modified())
+                .unwrap_or(std::time::UNIX_EPOCH)
+        };
+        std::fs::read_dir(dir)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|e| t(e.metadata()))
+            .fold(t(std::fs::metadata(dir)), std::cmp::max)
+    }
+
+    fn older_than(t: std::time::SystemTime, age: std::time::Duration) -> bool {
+        t.elapsed().is_ok_and(|e| e > age)
+    }
+
+    /// Tidy the channel's dataset cache around `current` (its current build folder), once
+    /// per run, under the extraction lock:
+    ///
+    /// - other folders of the same build go when they hold no stamp (the layout before
+    ///   stamps) or were not used for [`KEEP_UNUSED`] (another install of the same build on
+    ///   this computer keeps its folder while it is in use);
+    /// - of the other builds, the most recently used folder stays (the previous build, for
+    ///   Diff) and the rest go;
+    /// - in `current`, datasets whose stamp names other code go once a day old (another
+    ///   version of the app may share the folder), unstamped ones and leftover temp files
+    ///   after an hour.
+    ///
+    /// Folders being read are skipped. Only `<CHANNEL>/<build>-<fingerprint>` folders of this
+    /// cache are touched: never the UEX folder, other channels or anything else. Says what it
+    /// removed.
+    pub fn tidy(&self, ch: &ChannelSource, current: &Path) {
+        if !lock(&self.mem).tidied.insert(current.to_path_buf()) {
+            return;
+        }
+        let _g = lock(&self.extracting);
+        let label = |n: &str| format!("{} {n}", ch.name);
+        let cur_name = current
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let cur_version = build_version(&cur_name).to_string();
+        let mut gone: Vec<String> = Vec::new();
+        let mut others: Vec<(std::time::SystemTime, String, PathBuf)> = self
+            .older_builds(ch)
+            .into_iter()
+            // Not a `<build>-<fingerprint>` folder: not ours to judge.
+            .filter(|(n, _)| build_version(n) != n)
+            .map(|(n, p)| (Self::last_used(&p), n, p))
+            .collect();
+        others.sort_by_key(|x| std::cmp::Reverse(x.0));
+        let mut kept_previous = false;
+        for (used, n, p) in others {
+            let why = if build_version(&n) == cur_version {
+                let stamped = std::fs::read_dir(&p)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .any(|e| e.file_name().to_string_lossy().ends_with(stamps::EXT));
+                if !stamped {
+                    "an older copy of this build"
+                } else if Self::older_than(used, KEEP_UNUSED) {
+                    "another copy of this build, unused"
+                } else {
+                    continue;
+                }
+            } else if !kept_previous {
+                kept_previous = true;
+                continue;
+            } else {
+                "older than the previous build"
+            };
+            if Self::remove_build(&p) {
+                gone.push(format!("{} ({why})", label(&n)));
+            }
+        }
+        // Datasets of other code in the current folder; stamps without their dataset;
+        // leftover temp files.
+        let mut stale: Vec<String> = Vec::new();
+        let names: Vec<String> = std::fs::read_dir(current)
+            .into_iter()
+            .flatten()
+            .flatten()
+            .filter_map(|e| e.file_name().to_str().map(str::to_string))
+            .collect();
+        let age = |f: &Path| {
+            std::fs::metadata(f)
+                .and_then(|m| m.modified())
+                .unwrap_or_else(|_| std::time::SystemTime::now())
+        };
+        for n in &names {
+            let file = current.join(n);
+            if n.contains(".tmp-") {
+                if Self::older_than(age(&file), UNSTAMPED_GRACE) {
+                    let _ = std::fs::remove_file(&file);
+                }
                 continue;
             }
-            // A folder read right now (an older build in the app's Diff) stays; the next
-            // new build prunes it. Held across the removal, so no reader starts meanwhile.
-            let lock = reading_lock(&p);
-            let Ok(held) = starorg_core::lock::try_lock(&lock) else {
+            let Some(d) = n.strip_suffix(".json").filter(|d| d.starts_with("game-")) else {
                 continue;
             };
-            let removed = std::fs::remove_dir_all(&p).is_ok();
-            // Released first: Windows does not delete a file that is still open. A reader
-            // that locks it meanwhile finds the folder gone (`hold_build` checks again).
-            drop(held);
-            if removed {
-                let _ = std::fs::remove_file(&lock);
+            let grace = match stamps::read(current, d) {
+                Some(s) if s.code == stamps::expected_code(current, d, &s.source) => continue,
+                Some(_) => OTHER_CODE_GRACE,
+                None => UNSTAMPED_GRACE,
+            };
+            if !Self::older_than(age(&file), grace) {
+                continue;
             }
+            if std::fs::remove_file(&file).is_ok() {
+                let _ = std::fs::remove_file(stamps::path(current, d));
+                stale.push(d.to_string());
+            }
+        }
+        for n in &names {
+            if let Some(d) = n.strip_suffix(stamps::EXT)
+                && !current.join(format!("{d}.json")).exists()
+            {
+                let _ = std::fs::remove_file(current.join(n));
+            }
+        }
+        if !stale.is_empty() {
+            Self::forget_measurements(current, &stale);
+            gone.push(format!(
+                "{} from {} (made by other code)",
+                stale.join(", "),
+                label(&cur_name)
+            ));
+        }
+        for g in &gone {
+            self.say(format!("Dataset cache: removed {g}"));
         }
         // Reading locks whose folder is gone (removed by the storage cap, say).
         for e in std::fs::read_dir(self.channel_cache(ch))
@@ -453,55 +618,268 @@ impl Store {
             .unwrap_or_default()
     }
 
-    fn record_measurement(dir: &Path, m: &Measurement) {
-        let mut all = Self::measurements(dir);
-        all.insert(m.dataset.clone(), m.clone());
+    fn write_measurements(dir: &Path, all: &BTreeMap<String, Measurement>) {
         // Temp file and rename: a run stopped half-way never leaves a torn file.
-        if let Ok(text) = serde_json::to_string_pretty(&all) {
+        if let Ok(text) = serde_json::to_string_pretty(all) {
             let tmp = dir.join(format!("measurements.json.tmp-{}", std::process::id()));
             if std::fs::write(&tmp, text).is_err()
-                || std::fs::rename(&tmp, dir.join("measurements.json")).is_err()
+                || starorg_core::fsutil::rename_retry(&tmp, &dir.join("measurements.json")).is_err()
             {
                 let _ = std::fs::remove_file(&tmp);
             }
         }
     }
 
-    /// Make sure `<dir>/<dataset>.json` exists for the channel's current build.
-    fn ensure(&self, ch: &ChannelSource, dir: &Path, dataset: &str) -> ToolResult<()> {
+    fn record_measurement(dir: &Path, m: &Measurement) {
+        let mut all = Self::measurements(dir);
+        all.insert(m.dataset.clone(), m.clone());
+        Self::write_measurements(dir, &all);
+    }
+
+    /// Drop `datasets` from a folder's `measurements.json` (their files were removed).
+    fn forget_measurements(dir: &Path, datasets: &[String]) {
+        let mut all = Self::measurements(dir);
+        let before = all.len();
+        all.retain(|k, _| !datasets.contains(k));
+        if all.len() != before {
+            Self::write_measurements(dir, &all);
+        }
+    }
+
+    /// Whether datasets taken from a dump may be served: the prebuilt source's switch, else
+    /// the configured one ([`StoreConfig::serve_dumps`]).
+    pub fn dumps_allowed(&self) -> bool {
+        match &self.cfg.prebuilt {
+            Some(p) => p.enabled(),
+            None => self.cfg.serve_dumps,
+        }
+    }
+
+    /// `<dir>/<dataset>.json` may be served: its stamp's key is the one expected now and it
+    /// describes this file ([`stamps::current`]); a dataset taken from a dump also needs the
+    /// prebuilt setting on and its tag not [`crate::prebuilt::known_bad`]. A file checked in
+    /// full once in this run is checked by size, modified time and stamp after that.
+    pub fn is_current(&self, dir: &Path, dataset: &str) -> bool {
         let file = dir.join(format!("{dataset}.json"));
-        if file.is_file() {
+        let Some(s) = stamps::keyed(dir, dataset) else {
+            return false;
+        };
+        if let Some(tag) = s.dump_tag()
+            && (!self.dumps_allowed() || crate::prebuilt::known_bad(tag, dataset).is_some())
+        {
+            return false;
+        }
+        let Some(meta) = std::fs::metadata(&file)
+            .ok()
+            .filter(std::fs::Metadata::is_file)
+        else {
+            return false;
+        };
+        if meta.len() != s.bytes {
+            return false;
+        }
+        let mtime = meta.modified().ok();
+        if lock(&self.mem).verified.get(&file) == Some(&(s.bytes, mtime, s.sha256.clone())) {
+            return true;
+        }
+        match stamps::current(dir, dataset) {
+            Ok(s) => {
+                lock(&self.mem)
+                    .verified
+                    .insert(file, (s.bytes, mtime, s.sha256));
+                true
+            }
+            Err(_) => false,
+        }
+    }
+
+    /// Mark a served dataset file used (the storage cap's LRU order), keeping its check.
+    fn mark_file_used(&self, path: &Path) {
+        starorg_core::fsutil::touch(path);
+        let mtime = std::fs::metadata(path).and_then(|m| m.modified()).ok();
+        if let Some(v) = lock(&self.mem).verified.get_mut(path) {
+            v.1 = mtime;
+        }
+    }
+
+    /// Where a cached dataset came from (its stamp's `source`: `local`, `dump:<tag>`,
+    /// `derived`), while it is current.
+    pub fn source_of(&self, dir: &Path, dataset: &str) -> Option<String> {
+        self.is_current(dir, dataset)
+            .then(|| stamps::read(dir, dataset).map(|s| s.source))
+            .flatten()
+    }
+
+    /// Stamp a dataset just written; `expect`: the SHA-256 of what was written (another
+    /// process's file is never stamped).
+    fn stamp(
+        &self,
+        dir: &Path,
+        dataset: &str,
+        source: &str,
+        expect: Option<&str>,
+    ) -> ToolResult<()> {
+        let s = stamps::write(dir, dataset, source, expect)
+            .map_err(|e| ToolError(format!("{dataset}: writing its stamp: {e}")))?;
+        let mtime = std::fs::metadata(dir.join(format!("{dataset}.json")))
+            .and_then(|m| m.modified())
+            .ok();
+        lock(&self.mem).verified.insert(
+            dir.join(format!("{dataset}.json")),
+            (s.bytes, mtime, s.sha256),
+        );
+        Ok(())
+    }
+
+    fn say_once(&self, key: String, msg: String) {
+        if lock(&self.mem).said.insert(key) {
+            self.say(msg);
+        }
+    }
+
+    /// Make sure a current `<dir>/<dataset>.json` exists for the channel's current build:
+    /// taken from a prebuilt dump when one is configured and has it, else extracted.
+    fn ensure(&self, ch: &ChannelSource, dir: &Path, dataset: &str) -> ToolResult<()> {
+        let r = self.ensure_file(ch, dir, dataset);
+        if r.is_ok() {
+            self.tidy(ch, dir);
+        }
+        r
+    }
+
+    /// A downloaded dataset, filled and checked: the SHA-256 of the file to stamp. Redacted
+    /// prose is filled from the build's own string table (extracted locally, never from a
+    /// dump); without it the download is not used.
+    fn finish_download(
+        &self,
+        ch: &ChannelSource,
+        dir: &Path,
+        dataset: &str,
+        fetched: &crate::prebuilt::Fetched,
+    ) -> Result<String, String> {
+        let file = dir.join(format!("{dataset}.json"));
+        let bytes = std::fs::read(&file).map_err(|e| format!("{}: {e}", file.display()))?;
+        if stamps::sha256(&bytes) != fetched.sha256 {
+            return Err("replaced by another process meanwhile".into());
+        }
+        let mut doc: Value = serde_json::from_slice(&bytes).map_err(|e| e.to_string())?;
+        drop(bytes);
+        if crate::prebuilt::redacted(&doc).is_none() {
+            return Ok(fetched.sha256.clone());
+        }
+        let strings = self
+            .json_in(ch, dir, starorg_gamedata::strings::NAME, true)
+            .map_err(|e| format!("the string table to fill its descriptions: {e}"))?;
+        let mut loc = starorg_gamedata::localization::Localization::new();
+        for (k, v) in strings
+            .get("strings")
+            .and_then(Value::as_object)
+            .into_iter()
+            .flatten()
+        {
+            if let Some(v) = v.as_str() {
+                loc.set(k, v);
+            }
+        }
+        drop(strings);
+        crate::prebuilt::fill_prose(&mut doc, dataset, &loc);
+        let text = starorg_gamedata::output::to_js_json(&doc);
+        let sha = stamps::sha256(text.as_bytes());
+        let tmp = dir.join(format!("{dataset}.json.tmp-fill-{}", std::process::id()));
+        std::fs::write(&tmp, &text).map_err(|e| e.to_string())?;
+        starorg_core::fsutil::rename_retry(&tmp, &file).map_err(|e| {
+            let _ = std::fs::remove_file(&tmp);
+            e.to_string()
+        })?;
+        Ok(sha)
+    }
+
+    fn ensure_file(&self, ch: &ChannelSource, dir: &Path, dataset: &str) -> ToolResult<()> {
+        if self.is_current(dir, dataset) {
             return Ok(());
         }
+        let file = dir.join(format!("{dataset}.json"));
         if dataset == search_index::NAME {
-            self.ensure(ch, dir, "game-item-tags")?;
-            self.ensure(ch, dir, "game-ships")?;
+            self.ensure_file(ch, dir, "game-item-tags")?;
+            self.ensure_file(ch, dir, "game-ships")?;
             let _g = lock(&self.extracting);
-            if !file.is_file() {
+            if !self.is_current(dir, dataset) {
                 search_index::write_search_index(dir)
                     .map_err(|e| ToolError(format!("building the search index: {e}")))?;
+                self.stamp(dir, dataset, stamps::DERIVED, None)?;
             }
             return Ok(());
         }
+        std::fs::create_dir_all(dir).map_err(|e| ToolError(format!("{}: {e}", dir.display())))?;
+        let build = ch.build.as_deref().unwrap_or("unknown build");
+        // A prebuilt copy first, outside the extraction lock (a slow download never holds up
+        // another dataset's extraction); its file is renamed into place whole.
+        let started = std::time::Instant::now();
+        let mut dump = None;
+        // Never the string table: published with name keys only, and what fills a download.
+        if let (Some(p), Some(b)) = (&self.cfg.prebuilt, ch.build.as_deref())
+            && dataset != starorg_gamedata::strings::NAME
+            && p.enabled()
+        {
+            match p
+                .fetch(&ch.name, b, dataset, dir)
+                .and_then(|f| Ok((f.tag.clone(), self.finish_download(ch, dir, dataset, &f)?)))
+            {
+                Ok(got) => dump = Some(got),
+                Err(why) => self.say_once(
+                    format!("prebuilt:{}:{build}", ch.name),
+                    format!(
+                        "MCP: prebuilt game data for {} {build} not used ({dataset}: {why}); reading Data.p4k",
+                        ch.name
+                    ),
+                ),
+            }
+        }
         let _g = lock(&self.extracting);
-        if file.is_file() {
+        if self.is_current(dir, dataset) {
             return Ok(());
         }
-        let fresh = !dir.exists();
-        std::fs::create_dir_all(dir).map_err(|e| ToolError(format!("{}: {e}", dir.display())))?;
-        if fresh {
-            self.prune_old_builds(ch, dir);
+        let (m, source, sha) = match dump {
+            Some((tag, sha)) => {
+                let m = Measurement {
+                    dataset: dataset.to_string(),
+                    seconds: (started.elapsed().as_secs_f64() * 100.0).round() / 100.0,
+                    peak_rss_bytes: None,
+                    bytes: std::fs::metadata(&file).map_or(0, |m| m.len()),
+                    warnings: 0,
+                    sha256: Some(sha.clone()),
+                };
+                self.say(format!(
+                    "MCP: {dataset} for {} ({build}) downloaded from the prebuilt dump {tag} in {:.1} s",
+                    ch.name, m.seconds
+                ));
+                (m, format!("{}{tag}", stamps::DUMP_PREFIX), Some(sha))
+            }
+            None => {
+                self.say(format!(
+                    "MCP: extracting {dataset} for {} ({build}), once per build",
+                    ch.name
+                ));
+                let m = self
+                    .cfg
+                    .extractor
+                    .extract(&ch.p4k, dataset, dir)
+                    .map_err(|e| ToolError(format!("{dataset}: {e}")))?;
+                self.say(format!(
+                    "MCP: {dataset} ready in {:.1} s{}",
+                    m.seconds,
+                    m.peak_rss_bytes
+                        .map(|b| format!(", worker peak {} MB", b / (1 << 20)))
+                        .unwrap_or_default()
+                ));
+                let sha = m.sha256.clone();
+                (m, stamps::LOCAL.to_string(), sha)
+            }
+        };
+        if !file.is_file() {
+            return tool_err(format!("{dataset}: the worker wrote no file"));
         }
-        self.say(format!(
-            "MCP: extracting {dataset} for {} ({}), once per build",
-            ch.name,
-            ch.build.as_deref().unwrap_or("unknown build")
-        ));
-        let m = self
-            .cfg
-            .extractor
-            .extract(&ch.p4k, dataset, dir)
-            .map_err(|e| ToolError(format!("{dataset}: {e}")))?;
+        self.stamp(dir, dataset, &source, sha.as_deref())?;
         Self::record_measurement(dir, &m);
         if let (Some(cap), Some(app_cache)) = (self.cfg.cache_cap, self.cfg.cache_dir.parent()) {
             let e = starorg_core::storage::enforce(app_cache, cap, &[dir.to_path_buf()]);
@@ -513,16 +891,6 @@ impl Store {
                     (e.before - e.after) >> 20
                 ));
             }
-        }
-        self.say(format!(
-            "MCP: {dataset} ready in {:.1} s{}",
-            m.seconds,
-            m.peak_rss_bytes
-                .map(|b| format!(", worker peak {} MB", b / (1 << 20)))
-                .unwrap_or_default()
-        ));
-        if !file.is_file() {
-            return tool_err(format!("{dataset}: the worker wrote no file"));
         }
         Ok(())
     }
@@ -555,19 +923,10 @@ impl Store {
         if let Some(v) = lock(&self.mem).json.get(&key) {
             return Ok(v.clone());
         }
-        if extract {
-            self.ensure(ch, dir, dataset)?;
-        }
-        let path = dir.join(format!("{dataset}.json"));
-        if !path.is_file() {
-            return tool_err(format!(
-                "{dataset} is not cached for {}",
-                dir.file_name().unwrap_or_default().to_string_lossy()
-            ));
-        }
+        let path = self.served(ch, dir, dataset, extract)?;
         let v = Self::read_json(&path)?;
         // Last used, for the storage cap's LRU order.
-        starorg_core::fsutil::touch(&path);
+        self.mark_file_used(&path);
         lock(&self.mem).json.insert(key, v.clone());
         Ok(v)
     }
@@ -583,17 +942,34 @@ impl Store {
         extract: bool,
     ) -> ToolResult<PathBuf> {
         self.touch(dir);
+        let path = self.served(ch, dir, dataset, extract)?;
+        self.mark_file_used(&path);
+        Ok(path)
+    }
+
+    /// The path of a dataset that may be served from `dir`: made current first when
+    /// `extract`, else only when its stamp is current already (an older build's folder holds
+    /// what was extracted then, by code that may since have changed).
+    fn served(
+        &self,
+        ch: &ChannelSource,
+        dir: &Path,
+        dataset: &str,
+        extract: bool,
+    ) -> ToolResult<PathBuf> {
         if extract {
             self.ensure(ch, dir, dataset)?;
         }
         let path = dir.join(format!("{dataset}.json"));
+        let folder = dir.file_name().unwrap_or_default().to_string_lossy();
         if !path.is_file() {
+            return tool_err(format!("{dataset} is not cached for {folder}"));
+        }
+        if !self.is_current(dir, dataset) {
             return tool_err(format!(
-                "{dataset} is not cached for {}",
-                dir.file_name().unwrap_or_default().to_string_lossy()
+                "{dataset} of {folder} was extracted by other code than this app's; it is not used"
             ));
         }
-        starorg_core::fsutil::touch(&path);
         Ok(path)
     }
 
@@ -745,6 +1121,7 @@ mod tests {
                 peak_rss_bytes: Some(1 << 20),
                 bytes: 8,
                 warnings: 0,
+                sha256: None,
             })
         }
     }
@@ -780,9 +1157,182 @@ mod tests {
             our_outputs: vec![],
             extractor: fake,
             cache_cap: None,
+            prebuilt: None,
+            serve_dumps: true,
         })
     }
 
+    #[test]
+    fn only_a_dataset_whose_stamp_names_other_code_is_extracted_again() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Arc::new(Fake(AtomicUsize::new(0)));
+        let s = store(dir.path(), fake.clone());
+        let live = s.channel(Some("LIVE")).unwrap();
+        s.json(live, "game-loot").unwrap();
+        s.json(live, "game-mining").unwrap();
+        assert_eq!(fake.0.load(Ordering::SeqCst), 2);
+        let d = s.build_dir(live);
+        assert_eq!(stamps::read(&d, "game-loot").unwrap().source, stamps::LOCAL);
+        assert_eq!(s.source_of(&d, "game-loot").as_deref(), Some("local"));
+        // An app update that changed the loot code only: its stamp names the old code.
+        let mut old = stamps::read(&d, "game-loot").unwrap();
+        old.code = "0123456789abcdef".into();
+        std::fs::write(
+            stamps::path(&d, "game-loot"),
+            serde_json::to_vec(&old).unwrap(),
+        )
+        .unwrap();
+        let s2 = store(dir.path(), fake.clone());
+        let live2 = s2.channel(Some("LIVE")).unwrap();
+        // The old stamp is not served from an older build's read-only path either.
+        assert!(
+            s2.json_in(live2, &d, "game-loot", false)
+                .unwrap_err()
+                .0
+                .contains("other code")
+        );
+        s2.json(live2, "game-mining").unwrap();
+        assert_eq!(fake.0.load(Ordering::SeqCst), 2, "mining kept");
+        s2.json(live2, "game-loot").unwrap();
+        assert_eq!(fake.0.load(Ordering::SeqCst), 3, "loot extracted again");
+        assert_eq!(
+            stamps::read(&d, "game-loot").unwrap().code,
+            stamps::code_of("game-loot")
+        );
+        // A file without a stamp (the layout before stamps) is never served.
+        std::fs::write(d.join("game-law.json"), "{}").unwrap();
+        assert!(s2.json_in(live2, &d, "game-law", false).is_err());
+        s2.json(live2, "game-law").unwrap();
+        assert_eq!(fake.0.load(Ordering::SeqCst), 4);
+    }
+
+    struct FakeDump {
+        calls: AtomicUsize,
+        answer: Result<(), String>,
+        on: std::sync::atomic::AtomicBool,
+        body: &'static str,
+    }
+    impl FakeDump {
+        fn new(answer: Result<(), String>) -> Self {
+            Self {
+                calls: AtomicUsize::new(0),
+                answer,
+                on: true.into(),
+                body: r#"{"x": 2}"#,
+            }
+        }
+    }
+    impl crate::prebuilt::Prebuilt for FakeDump {
+        fn enabled(&self) -> bool {
+            self.on.load(Ordering::SeqCst)
+        }
+        fn fetch(
+            &self,
+            _: &str,
+            build: &str,
+            dataset: &str,
+            out: &Path,
+        ) -> Result<crate::prebuilt::Fetched, String> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            self.answer.clone()?;
+            std::fs::write(out.join(format!("{dataset}.json")), self.body).unwrap();
+            Ok(crate::prebuilt::Fetched {
+                tag: build.to_string(),
+                sha256: stamps::sha256(self.body.as_bytes()),
+            })
+        }
+    }
+
+    #[test]
+    fn a_prebuilt_dataset_is_stamped_as_such_and_a_refused_one_extracted() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Arc::new(Fake(AtomicUsize::new(0)));
+        let mut s = store(dir.path(), fake.clone());
+        let dump = Arc::new(FakeDump::new(Ok(())));
+        s.cfg.prebuilt = Some(dump.clone());
+        let said = Arc::new(Mutex::new(Vec::<String>::new()));
+        let log = said.clone();
+        let s = s.with_notify(Arc::new(move |m| log.lock().unwrap().push(m)));
+        let live = s.channel(Some("LIVE")).unwrap();
+        assert_eq!(s.json(live, "game-weapons").unwrap()["x"], 2);
+        assert_eq!(fake.0.load(Ordering::SeqCst), 0, "not extracted");
+        let d = s.build_dir(live);
+        assert_eq!(
+            s.source_of(&d, "game-weapons").as_deref(),
+            Some("dump:4.10.200.58746")
+        );
+        assert!(
+            said.lock()
+                .unwrap()
+                .iter()
+                .any(|m| m.contains("downloaded"))
+        );
+        // Refused (no dump, a bad checksum, offline): extracted locally, said once per build.
+        let mut s2 = store(dir.path(), fake.clone());
+        s2.cfg.prebuilt = Some(Arc::new(FakeDump::new(Err("no network".into()))));
+        let log = said.clone();
+        let s2 = s2.with_notify(Arc::new(move |m| log.lock().unwrap().push(m)));
+        let live2 = s2.channel(Some("LIVE")).unwrap();
+        assert_eq!(s2.json(live2, "game-loot").unwrap()["x"], 1);
+        assert_eq!(s2.json(live2, "game-mining").unwrap()["x"], 1);
+        assert_eq!(fake.0.load(Ordering::SeqCst), 2);
+        assert_eq!(s2.source_of(&d, "game-loot").as_deref(), Some("local"));
+        let refusals = said
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|m| m.contains("no network") && m.contains("reading Data.p4k"))
+            .count();
+        assert_eq!(refusals, 1, "one line per build, not per dataset");
+        // The downloaded one is still served, not fetched again.
+        s2.json(live2, "game-weapons").unwrap();
+        assert_eq!(dump.calls.load(Ordering::SeqCst), 1);
+        // The switch off: a dataset taken from a dump is not served; it is extracted.
+        dump.on.store(false, Ordering::SeqCst);
+        assert!(
+            s.json_in(live, &d, "game-weapons", false).is_ok(),
+            "in memory"
+        );
+        assert!(!s.is_current(&d, "game-weapons"));
+        let s3 = store(dir.path(), fake.clone());
+        let mut cfg_off = s3;
+        cfg_off.cfg.serve_dumps = false;
+        let live3 = cfg_off.channel(Some("LIVE")).unwrap();
+        assert_eq!(cfg_off.json(live3, "game-weapons").unwrap()["x"], 1);
+        assert_eq!(
+            cfg_off.source_of(&d, "game-weapons").as_deref(),
+            Some("local")
+        );
+    }
+
+    #[test]
+    fn a_dump_marked_bad_later_is_no_longer_served_and_redacted_prose_is_filled() {
+        let dir = tempfile::tempdir().unwrap();
+        let fake = Arc::new(Fake(AtomicUsize::new(0)));
+        let s = store(dir.path(), fake.clone());
+        let live = s.channel(Some("LIVE")).unwrap();
+        let d = s.build_dir(live);
+        std::fs::create_dir_all(&d).unwrap();
+        // Taken before KNOWN_BAD named it (4.10.200.58746 game-ships).
+        std::fs::write(d.join("game-ships.json"), "{}").unwrap();
+        stamps::write(&d, "game-ships", "dump:4.10.200.58746", None).unwrap();
+        assert!(!s.is_current(&d, "game-ships"));
+        s.json(live, "game-ships").unwrap();
+        assert_eq!(s.source_of(&d, "game-ships").as_deref(), Some("local"));
+        // A redacted dump is filled from the locally extracted string table and marked.
+        let mut s = store(dir.path(), fake.clone());
+        let mut dump = FakeDump::new(Ok(()));
+        dump.body = r#"{"_redacted": ["description"], "missions": [{"descriptionKey": "k"}]}"#;
+        s.cfg.prebuilt = Some(Arc::new(dump));
+        let live = s.channel(Some("LIVE")).unwrap();
+        let v = s.json(live, "game-missions").unwrap();
+        assert_eq!(v["_filled"]["fields"][0], "description");
+        assert!(
+            d.join("game-strings-english.json").is_file(),
+            "read locally first"
+        );
+        assert!(s.is_current(&d, "game-missions"));
+    }
     #[test]
     fn extracts_once_then_serves_from_disk_and_memory() {
         let dir = tempfile::tempdir().unwrap();
@@ -895,7 +1445,7 @@ mod tests {
     }
 
     #[test]
-    fn incomplete_says_why_and_pruning_skips_a_folder_being_read() {
+    fn incomplete_says_why_and_tidying_keeps_two_builds_and_skips_one_being_read() {
         let dir = tempfile::tempdir().unwrap();
         let b = dir.path().join("b");
         std::fs::create_dir_all(&b).unwrap();
@@ -910,6 +1460,7 @@ mod tests {
                 peak_rss_bytes: None,
                 bytes: 2,
                 warnings: 0,
+                sha256: None,
             },
         );
         assert!(
@@ -921,20 +1472,86 @@ mod tests {
         assert!(is_dataset_file("game-ships.json"));
         assert!(!is_dataset_file("game-search-index.json"));
         assert!(!is_dataset_file("measurements.json"));
-        // Held: pruning leaves it; released: it goes.
+        // Held: tidying leaves it; released: it goes.
         let fake = Arc::new(Fake(AtomicUsize::new(0)));
-        let s = store(dir.path(), fake);
+        let said = Arc::new(Mutex::new(Vec::<String>::new()));
+        let log = said.clone();
+        let s = store(dir.path(), fake).with_notify(Arc::new(move |m| log.lock().unwrap().push(m)));
         let live = s.channel(Some("LIVE")).unwrap();
         let ch = s.channel_cache(live);
-        let old = ch.join("4.9.0.1-00000000");
+        let current = s.build_dir(live);
+        let again = ch.join("4.10.200.58746-deadbeef");
+        let prev = ch.join("4.9.0.1-00000000");
+        let prev_copy = ch.join("4.9.0.1-11111111");
         let older = ch.join("4.8.0.1-00000000");
-        std::fs::create_dir_all(&older).unwrap();
-        std::fs::create_dir_all(&old).unwrap();
+        let odd = ch.join("notes");
+        let ptu = dir.path().join("cache/PTU/4.0.0.1-00000000");
+        let uex = dir.path().join("cache/uex");
+        // Another install of the same build, in use: stays.
+        let twin = ch.join("4.10.200.58746-0badc0de");
+        for d in [
+            &current, &again, &prev, &prev_copy, &older, &odd, &ptu, &uex, &twin,
+        ] {
+            std::fs::create_dir_all(d).unwrap();
+        }
+        std::fs::write(twin.join("game-ships.json"), "{}").unwrap();
+        stamps::write(&twin, "game-ships", stamps::LOCAL, None).unwrap();
         let ago = |s| std::time::SystemTime::now() - std::time::Duration::from_secs(s);
         set_dir_mtime(&older, ago(7200));
-        set_dir_mtime(&old, ago(3600));
-        // Both older folders held: none goes.
-        let held = [hold_build(&older).unwrap(), hold_build(&old).unwrap()];
+        set_dir_mtime(&prev_copy, ago(5400));
+        set_dir_mtime(&prev, ago(3600));
+        // The current folder: one current dataset, one of other code, one unstamped for
+        // hours, one just written and not stamped yet, a lone stamp, the hints file.
+        let put = |n: &str| std::fs::write(current.join(n), "{}").unwrap();
+        for n in [
+            "game-ships.json",
+            "game-loot.json",
+            "game-mining.json",
+            "game-law.json",
+            "game-ammo.json",
+            "obtain-hints.json",
+            "game-cargo.json.tmp-123",
+            "game-salvage.json.tmp-456",
+        ] {
+            put(n);
+        }
+        stamps::write(&current, "game-ships", stamps::LOCAL, None).unwrap();
+        for d in ["game-loot", "game-mining"] {
+            let mut other = stamps::write(&current, d, stamps::LOCAL, None).unwrap();
+            other.code = "ffffffffffffffff".into();
+            std::fs::write(
+                stamps::path(&current, d),
+                serde_json::to_vec(&other).unwrap(),
+            )
+            .unwrap();
+        }
+        let set_age = |n: &str, secs| {
+            std::fs::File::options()
+                .write(true)
+                .open(current.join(n))
+                .unwrap()
+                .set_modified(ago(secs))
+                .unwrap();
+        };
+        // Other code a day and more old goes; younger (another app version still using the
+        // folder) stays. Unstamped for hours goes. An old temp file goes, a fresh one stays.
+        set_age("game-loot.json", 2 * 24 * 3600);
+        set_age("game-law.json", 2 * 3600);
+        set_age("game-cargo.json.tmp-123", 2 * 3600);
+        std::fs::write(stamps::path(&current, "game-gone"), "{}").unwrap();
+        Store::record_measurement(
+            &current,
+            &Measurement {
+                dataset: "game-loot".into(),
+                seconds: 1.0,
+                peak_rss_bytes: None,
+                bytes: 2,
+                warnings: 0,
+                sha256: None,
+            },
+        );
+        // A reader holds the oldest build.
+        let held = hold_build(&older).unwrap();
         let second = hold_build(&older).expect("readers share the lock");
         assert!(hold_build(&dir.path().join("none")).is_none());
         assert_eq!(
@@ -946,27 +1563,80 @@ mod tests {
             0,
             "the lock is beside the folder, not in it"
         );
-        let current = s.build_dir(live);
-        std::fs::create_dir_all(&current).unwrap();
-        s.prune_old_builds(live, &current);
-        assert!(older.is_dir() && old.is_dir(), "being read");
+        s.tidy(live, &current);
+        assert!(
+            !again.exists(),
+            "an unstamped copy of the current build goes"
+        );
+        assert!(
+            twin.is_dir(),
+            "another install's folder of this build, in use, stays"
+        );
+        assert!(
+            current.join("game-mining.json").is_file(),
+            "other code, but recent"
+        );
+        assert!(!current.join("game-cargo.json.tmp-123").exists());
+        assert!(current.join("game-salvage.json.tmp-456").exists());
+        assert!(prev.is_dir(), "the previous build stays");
+        assert!(
+            !prev_copy.exists(),
+            "one folder of the previous build is kept"
+        );
+        assert!(older.is_dir(), "being read");
+        assert!(
+            odd.is_dir() && ptu.is_dir() && uex.is_dir(),
+            "not ours to remove"
+        );
+        assert!(current.join("game-ships.json").is_file());
+        assert!(
+            current.join("game-ammo.json").is_file(),
+            "young, maybe not stamped yet"
+        );
+        assert!(current.join("obtain-hints.json").is_file());
+        for gone in [
+            "game-loot.json",
+            "game-loot.stamp",
+            "game-law.json",
+            "game-gone.stamp",
+        ] {
+            assert!(!current.join(gone).exists(), "{gone}");
+        }
+        assert!(!Store::measurements(&current).contains_key("game-loot"));
+        {
+            let said = said.lock().unwrap();
+            assert!(
+                said.iter()
+                    .any(|m| m.contains("4.10.200.58746-deadbeef (an older copy of this build)")),
+                "{said:?}"
+            );
+            assert!(said.iter().any(|m| m.contains("game-law, game-loot") || m.contains("game-loot, game-law")), "{said:?}");
+        }
+        // Once per run.
         drop(held);
-        s.prune_old_builds(live, &current);
-        assert!(older.is_dir(), "the second reader still holds it");
-        assert_eq!(s.cached_builds(live).len(), KEEP_BUILDS + 1);
+        s.tidy(live, &current);
+        assert!(
+            older.is_dir(),
+            "the second reader still holds it, and tidied already"
+        );
         drop(second);
         // A child another test starts can share the just-dropped lock for an instant
-        // (between fork and exec): prune again until it is free.
+        // (between fork and exec): tidy again until it is free.
         let until = std::time::Instant::now() + std::time::Duration::from_secs(5);
         loop {
-            s.prune_old_builds(live, &current);
-            if s.cached_builds(live).len() == KEEP_BUILDS || std::time::Instant::now() > until {
+            lock(&s.mem).tidied.clear();
+            s.tidy(live, &current);
+            if !older.exists() || std::time::Instant::now() > until {
                 break;
             }
             std::thread::sleep(std::time::Duration::from_millis(10));
         }
-        assert_eq!(s.cached_builds(live).len(), KEEP_BUILDS);
-        assert!(current.is_dir());
+        assert!(!older.exists());
+        assert_eq!(
+            s.cached_builds(live).len(),
+            KEEP_BUILDS + 2,
+            "current, previous, the twin install's and the folder that is not a build"
+        );
         let left: Vec<String> = std::fs::read_dir(&ch)
             .unwrap()
             .flatten()
@@ -977,7 +1647,7 @@ mod tests {
         assert!(
             left.iter()
                 .all(|n| kept.iter().any(|k| *n == format!("{k}{READING_LOCK}"))),
-            "the pruned folder's lock goes with it: {left:?}"
+            "the removed folder's lock goes with it: {left:?}"
         );
     }
 
