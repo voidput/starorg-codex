@@ -517,7 +517,16 @@ fn chances_print_percent_at_line_end() {
     }
     let g = generate(&gd, &stock, &Profile::default(), &NoneOwned);
     let b = added(&g, &stock, "zeta_bounty_desc");
-    assert!(b.contains("<EM4>Blueprint reward:</EM4> 25–50%\\n"), "{b}");
+    // The variants differ and the difficulty tells them apart: one line each, so every `%`
+    // still ends its line.
+    assert!(
+        b.contains("<EM4>Blueprint reward (Easy):</EM4> 25%\\n"),
+        "{b}"
+    );
+    assert!(
+        b.contains("<EM4>Blueprint reward (Hard):</EM4> 50%\\n"),
+        "{b}"
+    );
     // The note under BLUEPRINTS says the same, with the `%` at the end of its line.
     assert!(
         b.starts_with("\\n\\n<EM3>BLUEPRINTS</EM3>\\nAwarded by chance: 25–50%\\n"),
@@ -913,4 +922,172 @@ fn rewards_use_the_name_chain() {
         value(&g, &stock, "item_NameZETA_Scrip").as_deref(),
         Some("ZETA Scrip")
     );
+}
+
+/// Contracts shaped like the LIVE salvage groups (one description key over several
+/// variants), with filler keys and names.
+mod variants {
+    use super::*;
+    use starorg_core::model::{Contract, ReputationReward};
+
+    fn contract(name: &str, desc: &str, rep: f64) -> Contract {
+        Contract {
+            generator: "Gen_Var".into(),
+            debug_name: name.into(),
+            id: format!("c-{name}"),
+            title_key: Some("@var_title".into()),
+            description_key: Some(format!("@{desc}")),
+            reputation: vec![ReputationReward {
+                faction: Some("f_var".into()),
+                faction_name_key: Some("@var_faction".into()),
+                amount: rep,
+                on_success: true,
+                on_failure: false,
+            }],
+            ..Default::default()
+        }
+    }
+
+    /// The fixture plus `contracts` and stock lines for their keys.
+    fn run_with(contracts: Vec<Contract>) -> (Generated, StockIni) {
+        let (mut gd, _) = fixture();
+        gd.contracts.extend(contracts);
+        let d = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/enhance");
+        let mut bytes = std::fs::read(d.join("strings.ini")).unwrap();
+        for l in [
+            "var_title=Filler Salvage",
+            "var_faction=Filler Holdings",
+            "var_shared=Filler shared prose.",
+            "var_hard=Filler hard prose.",
+            "var_none=Filler none prose.",
+        ] {
+            bytes.extend_from_slice(format!("{l}\r\n").as_bytes());
+        }
+        let stock = StockIni::parse(bytes);
+        let g = generate(&gd, &stock, &Profile::default(), &NoneOwned);
+        (g, stock)
+    }
+
+    #[test]
+    fn shared_key_lists_reputation_per_difficulty_and_the_systems() {
+        let mut cs = Vec::new();
+        for sys in ["Nyx", "PyroRegionA", "Stanton1"] {
+            for (d, rep) in [("VeryEasy", 100.0), ("Easy", 100.0), ("Medium", 150.0)] {
+                cs.push(contract(
+                    &format!("Var_{sys}_Lawful_Salvage_{d}"),
+                    "var_shared",
+                    rep,
+                ));
+            }
+            cs.push(contract(
+                &format!("Var_{sys}_Lawful_Salvage_Hard"),
+                "var_hard",
+                200.0,
+            ));
+        }
+        let (g, stock) = run_with(cs);
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains(
+                "<EM4>Reputation (Filler Holdings):</EM4> 100 (Very Easy, Easy) · 150 (Medium)\\n"
+            ),
+            "{b}"
+        );
+        assert!(
+            b.contains("<EM4>Systems:</EM4> Stanton, Pyro, Nyx\\n"),
+            "{b}"
+        );
+        assert!(
+            b.ends_with(
+                "<EM4>Shared text:</EM4> shown on 9 contract variants (Very Easy, Easy, Medium)"
+            ),
+            "{b}"
+        );
+        // The Hard split has its own key: one value, no per-variant list.
+        let h = added(&g, &stock, "var_hard");
+        assert!(
+            h.contains("<EM4>Reputation (Filler Holdings):</EM4> 200\\n"),
+            "{h}"
+        );
+        assert!(!h.contains(" · "), "{h}");
+        // The title stays short: the range over every variant.
+        assert_eq!(added(&g, &stock, "var_title"), " <EM4>[100–200 Rep]</EM4>");
+    }
+
+    #[test]
+    fn single_letter_difficulty_and_rank_labels() {
+        let (g, stock) = run_with(vec![
+            contract("Var_Industrial_Levski_E_001", "var_shared", 100.0),
+            contract("Var_Industrial_Levski_M_001", "var_shared", 100.0),
+            contract("Var_Industrial_Levski_H_001", "var_shared", 150.0),
+            contract("Var_ShipSalvage_Nyx_Rank0_RMCSmall", "var_hard", 100.0),
+            contract("Var_ShipSalvage_Nyx_Rank1_RMCMedium", "var_hard", 100.0),
+            contract("Var_ShipSalvage_Nyx_Rank2_RMCLarge", "var_hard", 150.0),
+        ]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(
+            b.contains("</EM4> 100 (Easy, Medium) · 150 (Hard)\\n"),
+            "{b}"
+        );
+        let h = added(&g, &stock, "var_hard");
+        assert!(
+            h.contains("</EM4> 100 (Rank 0, Rank 1) · 150 (Rank 2)\\n"),
+            "{h}"
+        );
+    }
+
+    #[test]
+    fn system_only_difference_and_no_separating_label() {
+        let mut a = contract("Var_Nyx_Thing", "var_shared", 100.0);
+        a.systems = vec!["Nyx".into()];
+        let mut b = contract("Var_Pyro_Thing", "var_shared", 150.0);
+        b.systems = vec!["Pyro".into()];
+        let (g, stock) = run_with(vec![
+            a,
+            b,
+            contract("Var_Alpha", "var_none", 100.0),
+            contract("Var_Beta", "var_none", 300.0),
+        ]);
+        let s = added(&g, &stock, "var_shared");
+        assert!(s.contains("</EM4> 150 (Pyro) · 100 (Nyx)\\n"), "{s}");
+        assert!(s.contains("<EM4>Systems:</EM4> Pyro, Nyx\\n"), "{s}");
+        // Told apart by system, which has its own line: no list after the count.
+        assert!(
+            s.ends_with("<EM4>Shared text:</EM4> shown on 2 contract variants"),
+            "{s}"
+        );
+        // Nothing tells these apart: keep the range, never a made-up label.
+        let n = added(&g, &stock, "var_none");
+        assert!(
+            n.contains("<EM4>Reputation (Filler Holdings):</EM4> 100–300\\n"),
+            "{n}"
+        );
+        assert!(n.ends_with("shown on 2 contract variants"), "{n}");
+    }
+
+    #[test]
+    fn requires_and_failure_per_variant() {
+        let mut e = contract("Var_Bounty_Easy", "var_shared", 100.0);
+        e.min_standing = Some("Standing_Jr".into());
+        let mut h = contract("Var_Bounty_Hard", "var_shared", 300.0);
+        h.min_standing = Some("Standing_Sr".into());
+        h.reputation.push(ReputationReward {
+            faction: Some("f_var".into()),
+            faction_name_key: Some("@var_faction".into()),
+            amount: -500.0,
+            on_success: false,
+            on_failure: true,
+        });
+        let (g, stock) = run_with(vec![e, h]);
+        let b = added(&g, &stock, "var_shared");
+        assert!(b.contains("</EM4> 100 (Easy) · 300 (Hard)\\n"), "{b}");
+        assert!(
+            b.contains("<EM4>Failure:</EM4> none (Easy) · -500 (Hard)\\n"),
+            "{b}"
+        );
+        assert!(
+            b.contains("<EM4>Requires:</EM4> Filler Junior (Easy) · Filler Senior (Hard)\\n"),
+            "{b}"
+        );
+    }
 }

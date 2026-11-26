@@ -72,6 +72,19 @@ writes nothing to the game), no apply needed.
   the Tag Builder.
 - **Missions:** tags in contract titles (reputation, `[BP]`) and sections in contract
   descriptions: item rewards, mission details, with colours for headers, labels and rewards.
+  - The game often uses one description for several contract variants (every difficulty of a
+    salvage job, each system it runs in). When the variants pay differently, MISSION DETAILS
+    says which pays what instead of only a range, merging variants that pay the same:
+    `Reputation: 100 (Very Easy, Easy) · 150 (Medium)`. Failure, Requires and Blueprint
+    reward get the same treatment. The variant name comes from the game data, in this order: a
+    difficulty word in the contract's name (`Hard`, `_E_`/`_M_`/`_H_`), its rank (`Rank 2`),
+    the standing it requires, or the one system it is offered in. When nothing in the data
+    tells the variants apart the range stays. The faction's in-game name follows
+    `Reputation` when the game data has one.
+  - A shared description also gets `Systems: Stanton, Pyro, Nyx` (when the variants span more
+    than one) and `Shared text: shown on 9 contract variants (Very Easy, Easy, Medium)`, so
+    you know the text is not only about the offer in front of you. Title tags keep the short
+    range (`[100–200 Rep]`).
 - **Blueprints** (right after Missions): what a contract can reward and whether you own it.
   - The **blueprint list** under a contract's text, optionally with name tags.
   - **[Owned]** marks a blueprint the chosen character owns (blue, EM4, by default; *Colour the
