@@ -10,8 +10,9 @@
 //! 2. ship items under `entities/scitem/ships/` (components, ship weapons, missiles, flight
 //!    controllers), FPS weapons under `entities/scitem/weapons/`,
 //! 3. vehicles under `entities/spaceships/` and `entities/groundvehicles/`, with the
-//!    loadout resolved against pass 2,
-//! 4. reputation standings, blueprint pools, blueprints, contract generators,
+//!    loadout resolved against pass 2, and the tags on each (for contract spawns, [`spawns`]),
+//! 4. reputation standings, blueprint pools, blueprints, contract generators (with the ship
+//!    groups they spawn, matched against the tag database),
 //! 5. quest items: entities `MissionBrokerEntry` spawn descriptions and contract hauling
 //!    orders reference (addendum §13),
 //! 6. description keys of every entity class and resource type, for the obtain hints
@@ -27,6 +28,7 @@ pub mod items;
 pub mod json;
 pub mod missions;
 pub mod ships;
+pub mod spawns;
 pub mod store;
 
 use rayon::prelude::*;
@@ -102,6 +104,7 @@ pub const REQUIRED_TYPES: &[(&str, &str)] = &[
         "ContractGenerator",
         "contract titles, descriptions, rewards",
     ),
+    ("TagDatabase", "ships contracts spawn (SPAWNS)"),
     ("CraftingBlueprintRecord", "blueprint names"),
     ("BlueprintPoolRecord", "blueprint pools of contracts"),
     ("SReputationStandingParams", "required standing names"),
@@ -147,7 +150,12 @@ struct Lookup<'a, 's> {
     index: &'a Index<'s>,
     rep: HashMap<String, f64>,
     name_keys: Mutex<HashMap<String, Option<String>>>,
+    faction_names: Mutex<HashMap<String, Option<String>>>,
     templates: Mutex<HashMap<String, Vec<String>>>,
+    template_props: Mutex<HashMap<String, Vec<Value>>>,
+    tags: spawns::TagDb,
+    ship_tags: spawns::ShipTags,
+    notes: Mutex<Vec<Warning>>,
 }
 
 impl missions::MissionLookup for Lookup<'_, '_> {
@@ -168,6 +176,64 @@ impl missions::MissionLookup for Lookup<'_, '_> {
             .ok()?
             .insert(path.to_string(), key.clone());
         key
+    }
+
+    fn faction_name_key(&self, path: &str) -> Option<String> {
+        if let Some(hit) = self.faction_names.lock().ok()?.get(path) {
+            return hit.clone();
+        }
+        let key = self.index.by_path(path).and_then(|m| {
+            let l = self.store.load(m).ok()?;
+            json::text(l.value.get("displayName"))
+                .filter(|k| k.starts_with('@') && starorg_core::model::loc_key(k).is_some())
+                .map(str::to_string)
+        });
+        self.faction_names
+            .lock()
+            .ok()?
+            .insert(path.to_string(), key.clone());
+        key
+    }
+
+    fn template_properties(&self, path: &str) -> Vec<Value> {
+        if let Some(hit) = self
+            .template_props
+            .lock()
+            .ok()
+            .and_then(|t| t.get(path).cloned())
+        {
+            return hit;
+        }
+        // Only the spawn properties: the rest is not read and can be large.
+        let props: Vec<Value> = self
+            .index
+            .by_path(path)
+            .and_then(|m| self.store.load(m).ok())
+            .map(|l| {
+                json::array(l.value.get("contractProperties"))
+                    .iter()
+                    .filter(|p| {
+                        p.get("value").and_then(json::type_of)
+                            == Some("MissionPropertyValue_ShipSpawnDescriptions")
+                    })
+                    .cloned()
+                    .collect()
+            })
+            .unwrap_or_default();
+        if let Ok(mut t) = self.template_props.lock() {
+            t.insert(path.to_string(), props.clone());
+        }
+        props
+    }
+
+    fn spawn_tags(&self) -> Option<(&spawns::TagDb, &spawns::ShipTags)> {
+        (!self.tags.is_empty()).then_some((&self.tags, &self.ship_tags))
+    }
+
+    fn note(&self, detail: String) {
+        if let Ok(mut n) = self.notes.lock() {
+            n.push(Warning::new("spawn-duplicate-variable", detail));
+        }
     }
 
     fn reputation_amount(&self, path: &str) -> Option<f64> {
@@ -518,7 +584,18 @@ pub fn extract(
             }
         }
 
-        // Pass 3: vehicles.
+        // Pass 3: vehicles, and the tags on each and above them (contract spawns match
+        // against them through the tag database).
+        let tag_db = load_all(
+            store,
+            index.of_type("TagDatabase").collect(),
+            &errors,
+            |_, _, v| Some(spawns::TagDb::from_database(v)),
+        )
+        .into_iter()
+        .next()
+        .unwrap_or_default();
+        let mut ship_tags = spawns::ShipTags::default();
         {
             let cx = ships::ShipContext {
                 items: briefs,
@@ -545,10 +622,17 @@ pub fn extract(
                 .entities_under("entities/spaceships/")
                 .chain(index.entities_under("entities/groundvehicles/"))
                 .collect();
-            let ships = load_all(store, vehicles, &errors, |m, id, v| {
-                ships::parse_ship(&m.name, id, &m.path, v, loc, &cx)
+            let parsed = load_all(store, vehicles, &errors, |m, id, v| {
+                Some((
+                    ships::parse_ship(&m.name, id, &m.path, v, loc, &cx),
+                    m.short_name().to_string(),
+                    spawns::tag_list(v.get("tags")),
+                ))
             });
-            gd.ships = ships;
+            for (ship, class, tags) in parsed {
+                ship_tags.add(&class, &tags, &tag_db);
+                gd.ships.extend(ship);
+            }
         }
 
         // Pass 4: reputation, blueprints, contracts.
@@ -571,7 +655,12 @@ pub fn extract(
             index: &index,
             rep,
             name_keys: Mutex::new(HashMap::new()),
+            faction_names: Mutex::new(HashMap::new()),
             templates: Mutex::new(HashMap::new()),
+            template_props: Mutex::new(HashMap::new()),
+            tags: tag_db,
+            ship_tags,
+            notes: Mutex::new(Vec::new()),
         };
         gd.blueprint_pools = load_all(
             store,
@@ -594,6 +683,10 @@ pub fn extract(
         ) {
             gd.contracts.extend(contracts);
             links.extend(l);
+        }
+
+        if let (Ok(mut w), Ok(mut n)) = (errors.lock(), lk.notes.lock()) {
+            w.append(&mut n);
         }
 
         // Pass 5: quest items.

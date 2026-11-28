@@ -572,6 +572,8 @@ fn cache_build(dir: &Path, tag: &str, measured: &[&str]) {
     use starorg_mcp::worker::Measurement;
     std::fs::create_dir_all(dir).unwrap();
     std::fs::write(dir.join("game-weapons.json"), dump_body(tag)).unwrap();
+    // As an extraction by this build's code stamps it (an unstamped file is not served).
+    starorg_mcp::stamps::write(dir, "game-weapons", starorg_mcp::stamps::LOCAL, None).unwrap();
     let m: BTreeMap<&str, Measurement> = measured
         .iter()
         .map(|d| {
@@ -583,6 +585,7 @@ fn cache_build(dir: &Path, tag: &str, measured: &[&str]) {
                     peak_rss_bytes: None,
                     bytes: 1,
                     warnings: 0,
+                    sha256: None,
                 },
             )
         })
@@ -691,7 +694,11 @@ fn older_cached_builds_are_read_only_sources_next_to_the_current_one() {
         inside.sort();
         assert_eq!(
             inside,
-            ["game-weapons.json", "measurements.json"],
+            [
+                "game-weapons.json",
+                "game-weapons.stamp",
+                "measurements.json"
+            ],
             "{dir:?}"
         );
     }

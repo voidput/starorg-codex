@@ -48,8 +48,26 @@ fn datasets(ptu: bool) -> BTreeMap<&'static str, Value> {
         "game-weapons",
         json!({"shipWeapons": [
             {"name": "M5A Cannon", "recordName": "EntityClassDefinition.BEHR_LaserCannon_S3", "id": "id-m5a", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "BEHR", "dps": 683.63, "range": 2404},
-            {"name": "Deadbolt III Cannon", "recordName": "EntityClassDefinition.KRIG_BallisticCannon_S3", "id": "id-deadbolt", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "KRIG", "dps": 512.5, "range": 2200}
+            {"name": "Deadbolt III Cannon", "recordName": "EntityClassDefinition.KRIG_BallisticCannon_S3", "id": "id-deadbolt", "class": "ship", "type": "WeaponGun", "subType": "Gun", "size": 3, "manufacturer": "KRIG", "dps": 512.5, "range": 2200},
+            {"name": "Acme Mining Laser S1", "recordName": "EntityClassDefinition.Mining_Laser_ACME_S1", "id": "id-ml1", "class": "ship", "type": "WeaponMining", "subType": "Gun", "size": 1,
+             "modes": [{"name": "Beam", "kind": "beam", "dps": 2000}, {"name": "Beam", "kind": "beam", "dps": 1500}]}
         ], "fpsWeapons": [], "missiles": []}),
+    );
+    d.insert(
+        "game-npc-loadouts",
+        json!({"actors": [
+            {"class": "PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_Grunt", "name": "Generic criminal grunt",
+             "faction": "genericcriminal", "lootable": true, "wear": {"min": 0.0, "max": 0.5}, "fixed": [], "groups": [],
+             "items": [{"item": "behr_lmg_ballistic_01", "slot": "Primary weapon", "chance": 0.5}]}
+        ], "groups": [], "byItem": {"behr_lmg_ballistic_01": ["PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_Grunt"]}, "byLootTable": {}}),
+    );
+    d.insert(
+        "game-mining",
+        json!({"mineableElements": [
+            {"name": "Raw_Quantainium", "recordName": "MineableElement.Quantainium_Raw", "id": "e1",
+             "instability": 1000, "resistance": 0.95, "optimalWindowMidpoint": 0.5, "optimalWindowThinness": 2.3},
+            {"name": "Sadaryx", "recordName": "MineableElement.MinableElement_FPS_Sadaryx", "id": "e2", "instability": 200, "resistance": 0}
+        ], "miningModules": []}),
     );
     // Ship guns and components; item-tags above holds none of them (as on LIVE, where it
     // lists only the few with loot tags).
@@ -153,6 +171,7 @@ impl Extractor for FakeExtractor {
             peak_rss_bytes: Some(1 << 20),
             bytes: text.len() as u64,
             warnings: 0,
+            sha256: None,
         })
     }
 }
@@ -270,6 +289,8 @@ impl World {
             our_outputs: vec![sha],
             extractor: self.fake.clone(),
             cache_cap: None,
+            prebuilt: None,
+            serve_dumps: true,
         }
     }
 
@@ -723,12 +744,34 @@ fn loot_screen_reads_only_cached_data() {
     assert_eq!(fs9.record.as_ref().unwrap().guid, "id-fs9");
     assert_eq!(fs9.rows().next().unwrap().name, "Caves");
     assert_eq!(fs9.groups[0].label, "Caves");
-    // Reading the lists again extracts nothing more.
+    // Reading the lists again extracts nothing more; the worn gear is not read yet.
     assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs);
+    assert_eq!(areas.gear, LootDataState::Missing);
     assert_eq!(
         t.loot_list(Some("NOPE"), LootView::Items).state,
         LootDataState::Missing
     );
+    // "Read game data" adds the NPC gear; the screen is built again with its rows.
+    t.warm_npc_gear("LIVE").unwrap();
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs + 1);
+    let areas = t.loot_list(Some("LIVE"), LootView::Areas);
+    assert_eq!(areas.gear, LootDataState::Ready);
+    let grunt = areas
+        .rows
+        .iter()
+        .find(|r| starorg_mcp::loot::is_gear(&r.id))
+        .unwrap();
+    assert_eq!(grunt.name, "NPCs (worn gear): Grunt");
+    let fs9 = t.loot_detail(Some("LIVE"), LootView::Items, "behr_lmg_ballistic_01", &q);
+    assert!(
+        fs9.group(starorg_mcp::loot::GEAR_KIND).is_some(),
+        "{:?}",
+        fs9.groups
+    );
+    // Cached: no second extraction.
+    t.warm_npc_gear("LIVE").unwrap();
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), runs + 1);
+    assert!(t.warm_npc_gear("NOPE").is_err());
 }
 
 #[test]
@@ -1263,6 +1306,67 @@ fn commodities_for_the_app_read_only_cached_data_and_build_once() {
     assert!(!gone.market.loaded && gone.market.sell.is_empty());
     assert!(!gone.cargo.is_empty());
     assert!(!t.commodity_list(Some("LIVE")).market.loaded);
+}
+
+#[test]
+fn mining_tab_reads_cached_data_and_adds_physics_once_read() {
+    use starorg_mcp::mining::{CommodityDataState as S, Grade, Tool};
+    let w = World::new();
+    let t = starorg_mcp::tools::Tools::new(starorg_mcp::store::Store::new(w.config()));
+    // Nothing cached: not read, and nothing is extracted for it.
+    assert_eq!(t.mining_list(Some("LIVE")).state, S::NotRead);
+    assert_eq!(t.mining_detail(Some("LIVE"), "Sadaryx").state, S::NotRead);
+    assert_eq!(w.fake.runs.load(Ordering::SeqCst), 0);
+    assert_eq!(t.mining_list(None).state, S::NoChannel);
+    assert_eq!(t.mining_detail(Some("NOPE"), "x").state, S::NoChannel);
+    // The Where to get datasets: places and quality, no physics or lasers yet.
+    t.obtain_hints("LIVE").unwrap();
+    let runs = w.fake.runs.load(Ordering::SeqCst);
+    let d = t.mining_list(Some("LIVE"));
+    assert_eq!(d.state, S::Ready);
+    assert!(d.build.as_deref().unwrap().starts_with("LIVE "));
+    let names: Vec<&str> = d.minerals.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(names, ["Raw_Quantainium", "Sadaryx"]);
+    assert!(!d.physics && !d.lasers_read);
+    assert!(d.spawns_read && d.spots_read);
+    let q = t
+        .mining_detail(Some("LIVE"), "ResourceType.Raw_Quantainium")
+        .mineral
+        .unwrap();
+    let p = &q.places[0];
+    assert_eq!(p.body.as_deref(), Some("Hurston"));
+    assert_eq!(p.quality.override_location, None);
+    assert!(p.difficulty.is_none());
+    assert_eq!(p.recommendation.tool, Tool::Ship);
+    assert!(
+        p.recommendation
+            .reason
+            .contains("resistance and laser power not known")
+    );
+    assert_eq!(q.overrides[0].places, 0, "no Pyro place in the data");
+    let sad = t.mining_detail(Some("LIVE"), "Sadaryx").mineral.unwrap();
+    assert!(sad.places.is_empty() && !sad.spots.is_empty());
+    assert_eq!(
+        w.fake.runs.load(Ordering::SeqCst),
+        runs,
+        "nothing extracted"
+    );
+    // "Read game data" adds the physics and the lasers; the index is built again.
+    t.warm_mining("LIVE").unwrap();
+    let d = t.mining_list(Some("LIVE"));
+    assert!(d.physics && d.lasers_read);
+    assert_eq!(d.lasers[0].max, 2000.0);
+    let q = t
+        .mining_detail(Some("LIVE"), "quantainium_raw")
+        .mineral
+        .unwrap();
+    let p = &q.places[0];
+    assert_eq!(p.difficulty.as_ref().unwrap().grade, Grade::Hard);
+    assert_eq!(p.recommendation.options[0].power, Some(2000.0));
+    assert!((p.recommendation.options[0].effective.unwrap() - 100.0).abs() < 1e-6);
+    assert!(t.warm_mining("NOPE").is_err());
+    let none = t.mining_detail(Some("LIVE"), "Unobtainium");
+    assert!(none.state == S::Ready && none.mineral.is_none());
 }
 
 #[test]

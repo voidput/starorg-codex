@@ -164,7 +164,7 @@ zeta_haul_desc=Filler haul prose at ~mission(Location|Address).\n\n<EM3>BLUEPRIN
 zeta_bounty_title=Filler Bounty <EM4>[BP?]</EM4> <EM4>[100–300 Rep]</EM4>
 
 [mission-descriptions] zeta_bounty_desc <- Zeta_Bounty_Easy (+2 more)
-zeta_bounty_desc=Filler bounty prose for <EM4>~mission(Contractor)</EM4>.\n\n<EM3>BLUEPRINTS</EM3>\nNot every offer with this title awards one\n<EM4>[Easy]</EM4>\n- Filler pistol\n- Filler rifle <EM4>[Owned]</EM4>\n- [MIL-S1-B] Filler Wall\n<EM4>[Hard]</EM4>\n- Filler lmg\n- [E-S3] Filler Scatter\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Some variants only\n<EM4>Reputation:</EM4> 100–300\n<EM4>Requires:</EM4> Filler Senior
+zeta_bounty_desc=Filler bounty prose for <EM4>~mission(Contractor)</EM4>.\n\n<EM3>BLUEPRINTS</EM3>\nNot every offer with this title awards one\n<EM4>[Easy]</EM4>\n- Filler pistol\n- Filler rifle <EM4>[Owned]</EM4>\n- [MIL-S1-B] Filler Wall\n<EM4>[Hard]</EM4>\n- Filler lmg\n- [E-S3] Filler Scatter\n\n<EM3>MISSION DETAILS</EM3>\n<EM4>Blueprint reward:</EM4> Some variants only\n<EM4>Reputation:</EM4> 100–300\n<EM4>Requires:</EM4> Filler Senior\n<EM4>Shared text:</EM4> shown on 3 contracts
 
 [mission-titles] zeta_patrol_title <- Zeta_Patrol
 zeta_patrol_title=Filler Patrol <EM4>[8,000 Rep]</EM4>

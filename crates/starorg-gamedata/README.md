@@ -27,6 +27,21 @@ in this build's DataCore. Ours is the LIVE data.
 
 `tests/live.rs` allows exactly these three record datasets to differ.
 
+Since then the port carries sc-gamedata's starmap fix "follow plain containers at system level"
+(sc-gamedata 350e7053b, its Rust port's `socpak::system_level_placements`): bodies a plain
+container holds (Nyx's glaciem ring segments: Levski, Delamar) are placed at system level, so
+about 16 Nyx locations gain positions. `game-starmap` and `game-mining-spawns` now differ from
+golden dumps made before that fix.
+
+Beyond the port, one domain of this repository's own: `game-npc-loadouts`
+(`domains/npc_loadouts.rs`), what each NPC type can spawn wearing and wielding, from the actor
+loadout records and the loose loadout files (`Data/Scripts/Loadouts/**`). sc-gamedata ports
+it (`feat/rust-npc-loadouts` f58f7a2ae, with its `_assumptions` note and its fix that an item
+one option holds twice counts once); on LIVE 4.10.201.48085 the two outputs differ only in 60
+item names that sc-gamedata's string table resolves through keys with the `,P` suffix and
+this crate's does not. Its extra record filters are `pipeline::NATIVE_EXTRACTION_FILTERS`, which no ported
+domain's filters reach, so the ported datasets stay as they were.
+
 Not ported:
 
 - `uex-item-prices.json` / `uex-terminals.json` (and our `uex-commodity-prices.json`, read by

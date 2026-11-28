@@ -10,7 +10,7 @@
   import * as Card from '@/components/ui/card';
   import { Button } from '@/components/ui/button';
   import type { GameLogPeople } from '@/lib/contract/telemetry';
-  import { clock, groupPeople } from '@/lib/telemetry';
+  import { clock, GAMELOG_LOCAL, groupPeople } from '@/lib/telemetry';
 
   let { people, onclear }: { people: GameLogPeople | null; onclear: () => void } = $props();
 
@@ -23,7 +23,7 @@
       <Users class="size-4" aria-hidden="true" /> People
       {#if people}<span class="text-muted-foreground text-[13px] font-normal">{people.counts.total}</span>{/if}
     </Card.Title>
-    <Card.Description>Handles named in Game.log this session. Kept in memory on this computer only; nothing is looked up or sent.</Card.Description>
+    <Card.Description>Handles named in Game.log this session. {GAMELOG_LOCAL} Nothing is looked up either.</Card.Description>
     <Card.Action>
       <Button size="xs" variant="ghost" onclick={onclear} disabled={!people || people.counts.total === 0}><Eraser aria-hidden="true" /> Clear</Button>
     </Card.Action>

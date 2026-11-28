@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
    * StarOrg Tools (addendum §5): environment (starorg.tools / dev.starorg.tools), sign-in in the
-   * system browser (loopback PKCE; cancellable while it waits), the org, "What to sync" (one switch
+   * system browser (loopback PKCE; cancellable while it waits), "What to sync" (one switch
    * per kind, stored in config.toml so the CLI and launch hooks follow them), the characters to
    * push (Q22 = b: the union of the ticked ones) and Sync now. Switching environment signs out
    * after a confirm: tokens are per environment.
@@ -18,7 +18,6 @@
   import { Skeleton } from '@/components/ui/skeleton';
   import ToneBadge from '@/components/common/ToneBadge.svelte';
   import Segmented from '@/components/common/Segmented.svelte';
-  import SelectField from '@/components/common/SelectField.svelte';
   import SwitchRow from '@/components/common/SwitchRow.svelte';
   import ActionDialog from '@/components/common/ActionDialog.svelte';
   import { api, toContractError } from '@/lib/contract/client';
@@ -143,14 +142,6 @@
     }
   }
 
-  async function pickGuild(id: string) {
-    try {
-      st = await api.setStarorgGuild({ channel, guild: id });
-    } catch (e) {
-      toast('error', 'Not saved', toContractError(e).message);
-    }
-  }
-
   const anyNetwork = $derived(!!so && (so.push_blueprints || so.pull_blueprints || so.pull_fleet));
   const syncBlocked = $derived(!enabled ? 'Turn on “Connect StarOrg Tools” first.' : !st?.connected ? 'Sign in first.' : !anyNetwork ? 'Turn on what to sync above.' : null);
 </script>
@@ -189,7 +180,7 @@
       <div class="flex flex-wrap items-center gap-2" aria-live="polite">
         {#if st.connected}
           <ToneBadge tone="success" label="Signed in" />
-          <span>{st.user}{#if st.guild}&nbsp;· {st.guild}{/if}</span>
+          <span>{st.user}</span>
           <span class="text-muted-foreground text-[12px]">until {fmtDate(st.expires)} · {st.token_store === 'file' ? 'token in a private file' : 'token in the system keyring'}</span>
           <span class="flex-1"></span>
           <Button variant="outline" size="sm" disabled={busy} onclick={() => run(() => api.starorgLogout(channel), `Signed out of ${st?.host}`)}><LogOut aria-hidden="true" /> Sign out</Button>
@@ -204,13 +195,6 @@
           <Button size="sm" disabled={!enabled || busy} onclick={signIn}><LogIn aria-hidden="true" /> Sign in with Discord</Button>
         {/if}
       </div>
-
-      {#if st.connected && st.guilds.length}
-        <div class="flex flex-wrap items-center gap-3">
-          <Label for="starorg-guild" class="w-24 font-normal">Org</Label>
-          <SelectField id="starorg-guild" ariaLabel="Org to sync with" options={st.guilds.map((g) => ({ id: g.id, label: g.blueprints ? g.name : `${g.name} (no blueprint tracking)` }))} value={st.guild_id} onchange={pickGuild} />
-        </div>
-      {/if}
 
       <fieldset class="grid gap-0.5 rounded-md border p-3">
         <legend class="px-1 font-medium">What to sync</legend>

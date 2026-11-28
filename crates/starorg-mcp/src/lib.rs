@@ -21,14 +21,18 @@
 //! a network connection (the HTTP transport only listens on 127.0.0.1).
 
 pub mod commodities;
+pub mod extract;
 pub mod hints;
 pub mod loot;
 pub mod loot_tree;
+pub mod mining;
 pub mod owned;
+pub mod prebuilt;
 pub mod protocol;
 pub mod rss;
 pub mod shops;
 pub mod sources;
+pub mod stamps;
 pub mod stdio;
 pub mod store;
 pub mod tools;
@@ -82,6 +86,7 @@ pub fn config_for(
     let outputs = Outputs::load(dirs).unwrap_or_default();
     let cache_dir = dirs.cache.join("mcp");
     let cache_cap = Some(starorg_core::storage::configured_cap(&cfg));
+    let serve_dumps = config::prebuilt_dumps(&cfg);
     StoreConfig {
         channels,
         default_channel: cfg.default_channel,
@@ -90,6 +95,8 @@ pub fn config_for(
         our_outputs: outputs.entries.into_iter().map(|e| e.sha256).collect(),
         extractor,
         cache_cap,
+        prebuilt: None,
+        serve_dumps,
     }
 }
 

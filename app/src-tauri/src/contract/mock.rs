@@ -351,6 +351,7 @@ impl MockBackend {
                     starorg: false,
                     uex: false,
                 },
+                data: DataSettings::default(),
                 default_channel: None,
                 safe_gpu: false,
                 advanced: AdvancedSettings::default(),
@@ -2054,6 +2055,20 @@ impl Backend for MockBackend {
         ))
     }
 
+    /// The Mining tab over the same synthetic data, once the game data was read (with the
+    /// mock's rock physics and mining lasers, as after "Read game data").
+    fn mining_list(&self, req: MiningListRequest) -> CmdResult<MiningDirectory> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_mining_list(read))
+    }
+
+    fn mining_detail(&self, req: MiningDetailRequest) -> CmdResult<MiningInfo> {
+        let (_, read) = self.shop_state(req.target.as_ref());
+        let read = req.target.as_ref().map(|_| read);
+        Ok(super::mock_commodities::mock_mining_detail(read, &req.id))
+    }
+
     fn get_profile(&self, req: ChannelRef) -> CmdResult<Profile> {
         self.with_channel(&req, |c, _| Ok(c.profile.clone()))
     }
@@ -2482,7 +2497,7 @@ impl Backend for MockBackend {
             }
             inputs.push(finder::ChannelInput {
                 channel: name.clone(),
-                catalog: super::mock_finder::catalog(name),
+                catalog: super::mock_finder::catalog(name).map(std::sync::Arc::new),
                 characters,
                 sets,
                 unattributed: Some(to_set(None, &super::mock_finder::unattributed(name))),
@@ -3164,6 +3179,8 @@ impl Backend for MockBackend {
                     our_outputs: vec![],
                     extractor: std::sync::Arc::new(NoGameData),
                     cache_cap: None,
+                    prebuilt: None,
+                    serve_dumps: true,
                 })
             })
         } else {
@@ -3717,6 +3734,13 @@ pub fn preview(p: &Profile) -> Vec<PreviewItem> {
             "{}\\n- {} ×3",
             em(m.header_em, "ITEM REWARDS"),
             em(m.reward_em, "Sample Scrip")
+        ));
+    }
+    if p.missions && m.spawns {
+        body.push(format!(
+            "{}\\n{} Sample Wreck (small, light damage)",
+            em(m.header_em, "SPAWNS"),
+            em(m.label_em, "Salvage target:")
         ));
     }
     if p.missions && m.details {

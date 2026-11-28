@@ -45,6 +45,8 @@ import {
   triggerText,
   whereText,
   windowStats,
+  GAMELOG_LOCAL,
+  TELEMETRY_LOCAL,
 } from '../src/lib/telemetry.ts';
 import { createTelemetryMock, mockFrame, stamp, type TelemetryMockData } from '../src/lib/contract/mock-telemetry.ts';
 import type { GameLogView, TelemetryActions, TelemetrySessions, TelemetryEvent, TelemetryHistory, TelemetryRecordings, TelemetryStatus, TelemetryTriggerResult } from '../src/lib/contract/telemetry.ts';
@@ -508,4 +510,14 @@ test('the TS mock lists and clears the session history', async () => {
   assert.equal(c.items.length, 0);
   assert.ok(c.revision > v.revision);
   assert.equal((await h.telemetry_sessions({})).items.length, 0);
+});
+
+test('the privacy lines say where the data comes from, and the docs say the same', () => {
+  assert.equal(TELEMETRY_LOCAL, "Live data comes from your own game on this PC, through the game's local telemetry API new in 5.0. Nothing leaves this PC.");
+  assert.equal(GAMELOG_LOCAL, "Read from the game's own log file on this PC. Nothing leaves this PC.");
+  const flat = (f: string) => readFileSync(new URL(`../../docs/${f}`, import.meta.url), 'utf8').replace(/\s+/g, ' ');
+  for (const doc of ['privacy.md', 'user-guide.md']) {
+    assert.ok(flat(doc).includes(TELEMETRY_LOCAL), doc);
+    assert.ok(flat(doc).includes(GAMELOG_LOCAL), doc);
+  }
 });

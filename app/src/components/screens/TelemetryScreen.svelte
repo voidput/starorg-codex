@@ -40,7 +40,7 @@
   import RecordingsPanel from '@/components/telemetry/RecordingsPanel.svelte';
   import ReplayBar from '@/components/telemetry/ReplayBar.svelte';
   import type { TelemetryChannel } from '@/lib/contract/telemetry';
-  import { annunciators, barWidth, faceLabels, fixed, linkView, pct, systems, telemetryTarget } from '@/lib/telemetry';
+  import { annunciators, barWidth, faceLabels, fixed, linkView, pct, systems, telemetryTarget, GAMELOG_LOCAL, TELEMETRY_LOCAL } from '@/lib/telemetry';
   import { telemetry } from '@/lib/stores/telemetry.svelte';
   import { app } from '@/lib/stores/app.svelte';
   import { cn } from '@/lib/utils';
@@ -147,6 +147,7 @@
         </Button>
       {/if}
     </div>
+    <p class="text-[12px]" role="note">{TELEMETRY_LOCAL}</p>
     {#if replay}
       <ReplayBar {replay} onlive={() => void backToLive()} />
       <p class="text-muted-foreground text-[12px]">Replaying a recording from this computer: the game is not read meanwhile, and actions are off.</p>
@@ -155,7 +156,6 @@
         {#if telemetry.starting && !running}Reading the game's schema (the first start of a build takes a few seconds)…{:else}{view.detail}{/if}
         {#if st.schema}Schema {st.schema.key} ({st.schema.origin === 'cache' ? 'cached' : st.schema.origin === 'extracted' ? 'read from StarCitizen.exe just now' : 'synthetic'}).{/if}
         {#if st.recording}Recording this session.{/if}
-        Reads this computer only; nothing is sent anywhere.
       </p>
     {/if}
 
@@ -267,7 +267,7 @@
         <Card.Header>
           <Card.Title id="tele-gamelog-off" class="flex items-center gap-2"><ScrollText class="size-4" aria-hidden="true" /> Game.log events are off</Card.Title>
           <Card.Description>
-            Turn on Read Game.log events for where you are, the shard you are on, quantum travel, deaths and respawns, and a history of the shards you join. It reads this channel's Game.log on this computer only.
+            Turn on Read Game.log events for where you are, the shard you are on, quantum travel, deaths and respawns, and a history of the shards you join. It reads this channel's Game.log: {GAMELOG_LOCAL}
           </Card.Description>
           <Card.Action><Button size="xs" variant="outline" onclick={openSettings}>Settings</Button></Card.Action>
         </Card.Header>

@@ -184,11 +184,9 @@ pub fn area_place_name(area: &str) -> Option<String> {
         })
         .collect();
     let has = |k: &str| words.iter().any(|w| w.starts_with(k));
-    if words
-        .first()
-        .is_some_and(|w| *w == "special" || w.contains("test"))
-        || has("test")
-    {
+    // A test preset has a word that is (or starts with) "test"; letters inside a word do
+    // not count (`contestedzones` is a place).
+    if words.first() == Some(&"special") || has("test") {
         return None;
     }
     AREA_PLACES
@@ -621,6 +619,22 @@ mod tests {
         assert_eq!(area_place_name("v3slotpreset_loot_generic"), None);
         assert_eq!(area_place_name("cave_full_test"), None);
         assert_eq!(area_place_name("special_holidaybox"), None);
+        // `contestedzones` holds the letters of "test" and is no test preset (LIVE 4.10:
+        // these five areas had no place).
+        for a in [
+            "contestedzones/contestedzone_1a",
+            "contestedzones/contestedzone_1a_rewardroom_001",
+            "contestedzones/contestedzone_1b_rewardroom_002",
+            "contestedzones/ghostarena_01",
+            "v3slotpreset_contestedzones",
+        ] {
+            assert_eq!(
+                area_place_name(a).as_deref(),
+                Some("Contested zones"),
+                "{a}"
+            );
+        }
+        assert_eq!(area_place_name("testarea_loot_caves"), None);
         let t = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
         assert_eq!(
             contents_label(

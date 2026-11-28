@@ -1,7 +1,7 @@
 ---
 title: Local MCP server (experimental)
 tags: [docs, mcp, experimental]
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # Local MCP server (experimental)
@@ -141,11 +141,183 @@ extracts each needed dataset from `Data.p4k` (read only) in a **separate short-l
 process** (`starorg-codex mcp-extract-worker` / `starorg-codex-app mcp-extract-worker`, one
 dataset per process), which writes `<cache>/mcp/<CHANNEL>/<build>-<fingerprint>/<dataset>.json`
 and records its cost in `measurements.json` beside it. Later questions read the JSON. The
-fingerprint covers the archive's size and time and a hash of the code that writes the datasets
-(`starorg-gamedata` and `starorg-data`, StarBreaker pin included), so a game patch or a change
-to extraction never serves old answers, while an app update that leaves extraction alone keeps
-the cache; two builds per channel are kept, and the app cache folder's cap (1 GB by default)
-can remove an older build's folder first ([storage](user-guide.md#storage)).
+fingerprint covers the archive's size and time and the cache format, so a game patch gets a
+folder of its own.
+
+**Stamps.** Beside each `<dataset>.json` is `<dataset>.stamp`: the key it was written under,
+where it came from (`local`: extracted from this computer's `Data.p4k`;
+`dump:<tag>@r<n>-<commit12>`, or `dump:<tag>@<commit12>` for a dump without a checked
+revision: a prebuilt dataset of the same build, below, with `dumpRef`, the tag's ref it was read
+under; `derived`: the search index) and the size and SHA-256 of the file. A replaced file is
+swapped in as a pair with its stamp: the stamp first names the new file as `next`, then the
+file is renamed into place, then the stamp names it alone, so a crash at any step leaves a stamp
+that vouches for the file on disk (old or new). A dataset is served only while its stamp is current: its key is the one
+this app expects now, and the file is the one stamped (a worker reports the SHA-256 of what it
+wrote, and only that file is stamped, so two app versions sharing a folder never vouch for each
+other's files). Anything else (no stamp, as in a folder from before stamps; another key; a
+replaced file) is extracted again, and an older build's folder (Diff) serves only datasets
+stamped for this app. The key of a dataset is a hash of the code that writes it and nothing
+else (`crates/starorg-mcp/build.rs`): its domain module, the modules that module uses (followed
+through `crate::` and `super::` paths, nested `use` groups included), the shared extraction
+core (`domain`, `pipeline`, `source`, `output` and what they use, starorg-data's `extract` and
+StarBreaker adapter, the starorg-core modules that path names, the manifests, the StarBreaker
+pin, the worker body `starorg-mcp/src/extract.rs`) and the cache format. Test modules, the
+query layer (`query/`), the golden compare, fixtures and overlays do not count. A prebuilt
+dataset's key adds the rule it was taken under (its `DUMP_USE` row, `RULES_VERSION` for every
+row and `ROW_RULES` for single rows); the
+search index's adds the SHA-256 of the item-tags and ships files it was built from. So an app
+update re-extracts only the datasets whose code changed: a change to `domains/ships.rs`
+re-extracts `game-ships` (and so the search index), a change to `query/obtain.rs` re-extracts
+nothing (it only rebuilds the obtain hints, which key on `HINTS_CODE` and the folder's
+stamps), and a change to `records.rs` or the StarBreaker pin re-extracts everything. The
+generated `dataset_codes.rs` (in the build's `OUT_DIR`) lists each key with the modules it
+covers.
+
+**Tidying.** After a dataset is read for the current build (once per run, under the
+extraction lock), in the channel's cache:
+
+- other folders of the same build go when they hold no stamp (the layout before stamps) or
+  were not used for 7 days (another install of the same build keeps its folder while used);
+- of the other builds, the most recently used folder stays (the previous build, for Diff) and
+  the rest go;
+- in the current folder, datasets stamped by other code go once a day old (another app version
+  may still use the folder), unstamped datasets and leftover temp files after an hour.
+
+A folder being read (Diff) is skipped until the next run. Only `<CHANNEL>/<build>-<fingerprint>`
+folders are touched: never the UEX folder, another channel, user data or anything outside the
+dataset cache. Activity names what was removed. The app cache folder's cap (1 GB by default) can
+still remove an older build's folder first ([storage](user-guide.md#storage)).
+
+A loose-file dataset is not reused across game builds even when its input files are
+unchanged: `game-npc-loadouts` reads DataCore records as well as the loadout files, and the
+string table carries the build in its `_build` stamp, so reusing either would not be clean.
+The string table is cheap anyway (it reads `global.ini` only).
+
+### Prebuilt datasets
+
+In the app, while Settings -> Game data -> "Download prebuilt game data" is on (the default,
+for people updating too; stored as `[data] prebuilt_dumps` in `config.toml`), a dataset the
+cache lacks for build `B` of channel `C` is first looked for in
+[voidput/sc-gamedata-dumps](https://github.com/voidput/sc-gamedata-dumps), which publishes one
+tag and release per game build. This only saves the extraction: local extraction stays the
+source of truth and the fallback for every dataset. The CLI and the MCP server never download
+(the CLI links no HTTP client); they serve what the app put in the shared cache while the
+setting is on, and extract it again locally while it is off (so does the app).
+
+1. Only the release tagged exactly `B`, a build tag (`^\d+(\.\d+){2,3}$`). None: nothing is
+   downloaded (never another build). A revision tag `B-r<n>` is never taken for a build (nor
+   listed for Diff).
+2. The tag's commit and its tree. When the tree lists `build.json`, it must match its blob id
+   and read, or nothing of the tag is used: `build` must be `B`, `channel` (else the
+   release's) must be `C` (same channel only), and a dump made by a dirty extractor checkout
+   (`extractor.dirty`) is not used. Its `files` (`name` as `data/game-x.json` or
+   `game-x.json`, `sha256`, `bytes`, `schema`) check each file; without them the tree's git
+   blob id and size do. Unknown keys are ignored.
+3. The revision. `B` moves when the build is published again; `build.json`'s `revision` (1 on
+   the first publish, one more per republish) says which one it holds, and each publish also
+   pushes the immutable tag `B-r<n>`. The revision counts only when that tag exists and points
+   at `B`'s commit: `r<n>-<commit12>` (4.10.201.48085 is `r3-9a387f3b599e` since 2026-11-25).
+   Without a revision, or with a revision tag missing or elsewhere, the short commit id names
+   what was read.
+4. Only the datasets in the table below, at most 32 MB each. The file must match its checksum,
+   be a JSON object stamped `_build: B`, not be listed in `KNOWN_BAD` for that tag, not be
+   older than the row's cut-off (`not_before`, against the file's own `_extracted`, else the
+   release date: a republish of an old extraction does not pass it), carry a `_schema`
+   (`<dataset>@<n>`, in the file or `build.json`) the row accepts, or, without one, be a tag
+   the row lists as checked by hand (`ACCEPT_UNSCHEMAED`, one switch: off once sc-gamedata
+   stamps every file). Every listed path must be present and not null, it must read with this
+   app's typed reader where there is one, and `_redacted` may name only the prose the row lets
+   go.
+5. Redacted prose (`description`, refining's `rawDescription` and `refinedDescription`) is
+   filled from this build's own string table, extracted locally from `Data.p4k`: every record
+   with `<field>Key` gets the text it names, by the rule its domain writes that field with,
+   in the place the domain writes it (`fill_text` / `fill_at` in `prebuilt.rs`): commodity
+   descriptions and refining's `rawDescription` / `refinedDescription` by the commodities rule
+   (markup stripped, the table's `\n` as line breaks, placeholders and "X description." stubs
+   dropped); a refining process's `description` is the table's text trimmed; a manufacturer's
+   the table's text as it is; the rest drop placeholders and unresolved keys. The file is
+   marked `_filled` (fields, source, count) and written to a temp file beside the served one;
+   then file and stamp (`dump:B@<revision>`, `dumpRef`) are swapped in as a pair. The served
+   copy is not touched before the new one is accepted and filled.
+6. Anything else (no release, a failed check, an incompatible shape, no network, the setting
+   off): extracted from `Data.p4k` as before. A download asks GitHub for the tag once per
+   build per app process (one prebuilt source serves every install and channel; a missing
+   release is remembered for an hour; a network failure, the first failed download, or
+   downloads over 60 s in all for ten minutes). Connections time out after 10 s; a download
+   never holds up another dataset's extraction, and no lock is held across a request. Activity
+   says once per build why a dump was not used, and each Read game data step what it downloaded
+   (with the revision) and what it read locally.
+7. A republish. Reading a dataset stamped from `B` never waits on the network: the cached copy
+   is served at once. The first such read per build and app process starts a background check:
+   one request for the tag's ref (`git/ref/tags/B`, 5 s timeouts). The stamp's ref: current,
+   nothing more is asked until the app restarts. Another ref: a background resolve (steps 1-3)
+   gives its revision; the same revision (the tag pushed again) only updates the stamp's ref,
+   another one (or a stamp from before revisions) drops the dataset (and the values built from
+   its folder) from memory, so the next read takes it again from the new revision, checked as
+   any download. A new revision refused for the dataset is extracted locally, and should that
+   fail too, the earlier copy is still served; a download that fails on the network leaves the
+   tag unknown for ten minutes and serves the cached copy (Activity says so). Offline, the
+   setting off or the CLI: the cached copy is served as it is. The search index ensures its
+   item-tags and ships first, so it is built again from a republished input.
+
+Where to get lines built from prebuilt datasets can be applied (they are the same build's data);
+the game text itself is always read from `Data.p4k`.
+
+The table (`DUMP_USE` in `crates/starorg-mcp/src/prebuilt.rs`; bump a schema, a path or a
+cut-off there; bump `RULES_VERSION` when the checks change for every row, a row's `ROW_RULES`
+entry when they change for that dataset only; refining, manufacturers and starmap are at 2):
+
+| Dataset | `_schema` read | Shape checked by hand | Must carry (and typed reader) | May be redacted | Today |
+|---|---|---|---|---|---|
+| `game-ammo` | 1 | 4.10.200.58746 | `ammo`, `summary` | | compatible |
+| `game-armor` | 1 | 4.10.200.58746 | `armor`, `clothing`, `bySlot`, `summary` | | compatible |
+| `game-blueprints` | 1 | 4.10.200.58746 | `blueprints`, `rewardPools`, `resourceUse`, `summary` (blueprints) | | compatible |
+| `game-cargo` | 1 | 4.10.200.58746 | `manifests`, `loading`, `summary` | | compatible |
+| `game-commodities` | 1 | 4.10.200.58746 | `resources`, `items`, `damage`, `byGroup`, `summary` (quality) | `description` | compatible; redacted dumps filled |
+| `game-consumables` | 1 | 4.10.200.58746 | `consumables`, `subtypes`, `summary` | | compatible |
+| `game-containers` | 1 | 4.10.200.58746 | `containers`, `summary` | | compatible |
+| `game-fps-weapons` | 1 | | `weapons`, `summary` | | not for 4.10.200.58746 (stale records) |
+| `game-item-sources` | 1 | 4.10.200.58746 | `areas`, `contractAwards`, `summary` (loot areas, awards) | | compatible |
+| `game-item-tags` | 1 | | `items`, `summary.withAmmo`, `summary.tags` (item tags) | | not for 4.10.200.58746: no `ammoItems`, stale records |
+| `game-law` | 1 | 4.10.200.58746 | `crimes`, `jurisdictions`, `summary` | | compatible |
+| `game-loot` | 1 | 4.10.200.58746 | `tables`, `archetypes`, `secondaryChoices`, `filters`, `specialEvents`, `summary` (loot) | | compatible |
+| `game-manufacturers` | 1 | 4.10.200.58746 | `manufacturers`, `byCode`, `summary` | `description` | compatible; redacted dumps filled |
+| `game-mining` | 1 | 4.10.200.58746 | `mineableElements`, `miningModules`, `elementSignatures`, `summary` | | compatible |
+| `game-mining-spawns` | 1 | 4.10.200.58746 | `locations`, `rocks`, `oreSpawns`, `oreLocations`, `summary` (mining spawns) | | compatible |
+| `game-missions` | 1 | 4.10.200.58746 | `missions`, `byGiver`, `summary` | `description` (not long titles: they change `name`) | compatible; redacted dumps filled |
+| `game-npc-loadouts` | 1 | | `actors`, `byLootTable`, `summary` (NPC loadouts) | | not published yet |
+| `game-quantum` | 1 | 4.10.200.58746 | `rules`, `summary` | | compatible |
+| `game-refining` | 1 | 4.10.200.58746 | `processes`, `refinables`, `workloadTiers`, `settings`, `summary` | `description`, `rawDescription`, `refinedDescription` | compatible; redacted dumps filled |
+| `game-reputation` | 1 | 4.10.200.58746 | `standings`, `byOrganisation`, `summary` | | compatible |
+| `game-salvage` | 1 | 4.10.200.58746 | `structural`, `repairBeam`, `summary` | | compatible |
+| `game-ship-components` | 1 | 4.10.200.58746 | `armor`, `missiles`, `mounts`, `quantumDrives`, `shields`, `weapons`, `summary` | | compatible |
+| `game-ships` | 1 | | `vehicles`, `byManufacturer`, `byRole`, `summary` | `description` | not for 4.10.200.58746 (stale records) |
+| `game-shops` | 1 | 4.10.200.58746 | `selling`, `commodities`, `buying`, `summary` | | compatible |
+| `game-starmap` | 1 | | `locations`, `byType`, `summary`; extracted on or after 2026-11-26 | `description` | needs a dump with sc-gamedata's plain-container fix (350e7053b) |
+| `game-weapons` | 1 | 4.10.200.58746 | `shipWeapons`, `fpsWeapons`, `missiles`, `summary` | | compatible |
+| `game-wikelo-trades` | 1 | 4.10.200.58746 | `trades`, `totalDemand`, `summary` (Wikelo trades) | | compatible |
+| `game-strings-english` | never | | | | published with name keys only |
+| `game-search-index` | never | | | | built locally from item-tags and ships |
+
+"Compatible" means: the published 4.10.200.58746 file has the shape this app writes (checked
+against this app's output for 4.10.201.48085), and this repository's port was byte-identical to
+sc-gamedata's output of that build for it (`crates/starorg-gamedata/README.md`). A later tag
+without `_schema` is taken only after someone checks it the same way and adds it to the rows'
+checked tags. The published LIVE build lags the installed one, so nothing is downloaded until a
+matching, accepted tag exists.
+
+LIVE 4.10.201.48085 as republished (commit `18cda1f3`, `build.json` with `files` and `_schema`
+on every file, no `revision`; and again as revision 3, commit `9a387f3b`, with
+`4.10.201.48085-r3` at that commit) was checked on 2026-11-25: every dataset in the table reads
+(the fields it added, such as commodities' `minedAt` / `refinedBy` / `usedByBlueprints` /
+`inManifests` / `qualityOverrideBelts`, the ship, component, weapon and ammo links and the
+search index additions, are ignored by the checks and the typed readers). Filled from that
+build's string table, its refining, manufacturers, ships, missions and starmap files are byte
+for byte the unredacted ones sc-gamedata wrote (refining: all 69 description keys, beside its
+9 name keys, give text); commodities
+differs in one value, a `PH - ` description that sc-gamedata now drops as a placeholder and this
+app's domain keeps (so the filled file is what this app extracts). The new `game-tag-index`
+dataset is not in the table: nothing in this app reads tag indexes.
 
 `<cache>` is `~/.cache/starorg-codex` on Linux and `%LOCALAPPDATA%\StarOrg Tools\Codex\cache`
 on Windows. Nothing is written in the game folder (the worker refuses an output folder inside the
@@ -167,6 +339,7 @@ Measured on LIVE 4.10.200.58746 (Linux, `VmHWM`):
 | Worker: `game-blueprints` (pruned, was 6.5 GB) | 1.3 GB | 1.7 s |
 | Worker: `game-item-tags` (pruned, was 8.7 GB) | 1.2 GB | 1.9 s |
 | Worker: `game-armor` (pruned, was 3.0 GB) | 0.9 GB | 1.2 s |
+| Worker: `game-npc-loadouts` (pruned; also the archive index, for the loadout files; LIVE 4.10.201, 4.3 MB) | 1.8 GB | 2.8 s |
 | Worker: any other dataset (DataCore alone is most of it) | 0.85 to 1.3 GB | 0.6 to 4.7 s |
 
 `search` needs `game-ships` and `game-ship-components` once per build, so the first search of

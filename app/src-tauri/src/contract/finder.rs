@@ -18,6 +18,36 @@ pub fn kind(k: Kind) -> BlueprintKind {
     }
 }
 
+fn earn(e: finder::Earn<u32>) -> BlueprintEarn {
+    BlueprintEarn {
+        mission: e.mission,
+        award: match e.award {
+            finder::Award::Guaranteed => BlueprintAward::Guaranteed,
+            finder::Award::GuaranteedPool => BlueprintAward::GuaranteedPool,
+            finder::Award::Chance => BlueprintAward::Chance,
+        },
+        odds: e.odds,
+        variants: e.variants,
+        pool: e.pool,
+        pick: e.pick,
+        channels: e.channels,
+    }
+}
+
+fn mission(m: finder::Mission) -> BlueprintMission {
+    BlueprintMission {
+        title: m.title,
+        record: m.record,
+        generator: m.generator,
+        factions: m.factions,
+        reputation: m.reputation,
+        systems: m.systems,
+        kinds: m.kinds,
+        requires: m.requires,
+        contracts: m.contracts,
+    }
+}
+
 fn owner(o: finder::Owner) -> BlueprintOwner {
     BlueprintOwner {
         channel: o.channel,
@@ -70,8 +100,11 @@ pub fn contract(f: finder::Finder) -> BlueprintFinder {
                 candidates: r.candidates,
                 owners: r.owners.into_iter().map(owner).collect(),
                 maybe: r.maybe.into_iter().map(owner).collect(),
+                earn: r.earn.into_iter().map(earn).collect(),
+                earn_read: r.earn_read,
             })
             .collect(),
+        missions: f.missions.into_iter().map(mission).collect(),
     }
 }
 

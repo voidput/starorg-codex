@@ -888,6 +888,27 @@ fn ts_unions_list_every_variant() {
             ]),
         ),
         (
+            "MiningGrade",
+            names(&[MiningGrade::Easy, MiningGrade::Medium, MiningGrade::Hard]),
+        ),
+        (
+            "MiningCurveSource",
+            names(&[
+                MiningCurveSource::Base,
+                MiningCurveSource::Override,
+                MiningCurveSource::Unknown,
+            ]),
+        ),
+        (
+            "MiningTool",
+            names(&[
+                MiningTool::Hand,
+                MiningTool::Roc,
+                MiningTool::Ship,
+                MiningTool::Unknown,
+            ]),
+        ),
+        (
             "ShopDataState",
             names(&[ShopDataState::Ready, ShopDataState::Missing]),
         ),
@@ -1953,8 +1974,28 @@ fn commodity_samples() -> Vec<(&'static str, Value)> {
             id: "ResourceType.Raw_Fixtanium".into(),
         })
         .unwrap();
-    use super::mock_commodities::mock_all_details;
+    let mining_not_read = MockBackend::default()
+        .mining_list(MiningListRequest {
+            target: Some(live()),
+        })
+        .unwrap();
+    let mining = b
+        .mining_list(MiningListRequest {
+            target: Some(live()),
+        })
+        .unwrap();
+    let mineral = b
+        .mining_detail(MiningDetailRequest {
+            target: Some(live()),
+            id: "ResourceType.Raw_Fixtanium".into(),
+        })
+        .unwrap();
+    use super::mock_commodities::{mock_all_details, mock_all_minerals};
     vec![
+        ("mining_list_not_read", json!(mining_not_read)),
+        ("mining_list", json!(mining)),
+        ("mining_detail", json!(mineral)),
+        ("mining_details_all", json!(mock_all_minerals())),
         ("commodity_list_not_read", json!(not_read)),
         ("commodity_list", json!(ready)),
         ("commodity_list_priced", json!(priced)),
@@ -1965,6 +2006,95 @@ fn commodity_samples() -> Vec<(&'static str, Value)> {
             json!(mock_all_details(true)),
         ),
     ]
+}
+
+#[test]
+fn mining_on_the_mock_places_quality_physics_and_estimate() {
+    let b = MockBackend::default();
+    let req = || MiningListRequest {
+        target: Some(live()),
+    };
+    assert_eq!(
+        b.mining_list(MiningListRequest { target: None })
+            .unwrap()
+            .state,
+        CommodityDataState::NoChannel
+    );
+    assert_eq!(
+        b.mining_list(req()).unwrap().state,
+        CommodityDataState::NotRead
+    );
+    set_up(&b);
+    b.read_game_data(ReadGameDataRequest { target: live() })
+        .unwrap();
+    let l = b.mining_list(req()).unwrap();
+    assert_eq!(l.state, CommodityDataState::Ready);
+    assert!(l.physics && l.lasers_read);
+    let names: Vec<&str> = l.minerals.iter().map(|m| m.name.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "Fixtanium (Raw)",
+            "Mockite (Ore)",
+            "Stubbite",
+            "Synthium (Ore)"
+        ]
+    );
+    let detail = |id: &str| {
+        b.mining_detail(MiningDetailRequest {
+            target: Some(live()),
+            id: id.into(),
+        })
+        .unwrap()
+        .mineral
+        .unwrap()
+    };
+    let f = detail("ResourceType.Raw_Fixtanium");
+    // The Nyx override applies to the Nyx row only; the others are the base curve.
+    let nyx = f.places.iter().find(|p| p.location == "Nyx1").unwrap();
+    assert_eq!(nyx.quality.override_location.as_deref(), Some("Nyx System"));
+    assert!(
+        f.places
+            .iter()
+            .filter(|p| p.location != "Nyx1")
+            .all(|p| p.quality.override_location.is_none())
+    );
+    // A Lagrange point: system not known, so the curve is not known either; its scale is
+    // below 1.
+    let lag = f
+        .places
+        .iter()
+        .find(|p| p.location == "Lagrange_B")
+        .unwrap();
+    assert_eq!(lag.quality.source, MiningCurveSource::Unknown);
+    assert!(lag.system.is_none() && !lag.quality.full_scale);
+    assert_eq!(lag.place, "Lagrange B");
+    let p = &f.places[0];
+    assert_eq!(p.difficulty.as_ref().unwrap().grade, MiningGrade::Hard);
+    assert_eq!(p.recommendation.tool, MiningTool::Ship);
+    assert!(p.recommendation.estimate);
+    assert_eq!(p.recommendation.options[0].power, Some(3600.0));
+    assert_eq!(p.recommendation.options[1].power, Some(12_600.0));
+    assert_eq!(p.companions, ["Synthium (Ore)"]);
+    assert!(p.rock_mass.is_none());
+    let m = detail("Ore_Mockite");
+    assert_eq!(m.places[0].recommendation.tool, MiningTool::Roc);
+    assert_eq!(
+        m.places[0].difficulty.as_ref().unwrap().grade,
+        MiningGrade::Medium
+    );
+    let s = detail("ResourceType.Stubbite");
+    assert!(s.places.is_empty() && s.spots.len() == 2);
+    assert_eq!(s.kinds, ["hand"]);
+    assert!(
+        b.mining_detail(MiningDetailRequest {
+            target: Some(live()),
+            id: "nope".into(),
+        })
+        .unwrap()
+        .mineral
+        .is_none()
+    );
 }
 
 #[test]
@@ -2011,7 +2141,7 @@ fn commodities_on_the_mock_list_summaries_and_detail_on_request() {
     assert_eq!(raw.refined.as_ref().unwrap().name, "Fixtanium");
     assert!(raw.volatility.is_some() && raw.damage.len() == 1);
     let mined = raw.mined.as_ref().unwrap();
-    assert_eq!(mined[0].belts.len(), 2);
+    assert_eq!(mined[0].belts.len(), 4);
     assert!(!raw.market.loaded);
     let stub = d("Stubbite");
     assert_eq!(stub.mined.as_ref().unwrap()[0].spots.len(), 2);
@@ -2915,6 +3045,49 @@ fn blueprint_finder_merges_channels_with_their_own_owners() {
             .filter(|r| r.record.is_some())
             .all(|r| r.owners.is_empty() && r.maybe.len() == 1)
     );
+    // Earn it: rows point into one mission table, each entry with its channels; a sure
+    // pool of several is not "guaranteed" for one blueprint; a name row's missions are not
+    // known.
+    assert_eq!(all.missions.len(), 5);
+    let mk2 = row(&all, "Synthetic Rifle Mk2");
+    let titles: Vec<Option<&str>> = mk2
+        .earn
+        .iter()
+        .map(|e| all.missions[e.mission as usize].title.as_deref())
+        .collect();
+    assert_eq!(
+        titles,
+        vec![
+            Some("Eliminate the Sample Warlord"),
+            Some("Recover the Cargo near [Location]")
+        ]
+    );
+    assert_eq!(
+        (mk2.earn[0].odds.as_str(), mk2.earn[0].award),
+        ("Guaranteed", BlueprintAward::GuaranteedPool)
+    );
+    assert_eq!(
+        (mk2.earn[1].odds.as_str(), mk2.earn[1].award),
+        ("30%", BlueprintAward::Chance)
+    );
+    assert_eq!(mk2.earn[0].channels, vec!["LIVE", "PTU"]);
+    assert_eq!(
+        all.missions[mk2.earn[0].mission as usize].reputation,
+        vec!["Synthetic Security Bureau"]
+    );
+    // LIVE's missions do not award the Mk1; PTU's trial does (a pool of one).
+    let mk1 = row(&all, "Synthetic Rifle Mk1");
+    assert_eq!(mk1.earn_read, vec!["LIVE", "PTU"]);
+    assert_eq!(
+        (
+            mk1.earn.len(),
+            mk1.earn[0].award,
+            mk1.earn[0].channels.clone()
+        ),
+        (1, BlueprintAward::Guaranteed, vec!["PTU".to_string()])
+    );
+    assert!(name_row.earn.is_empty() && name_row.earn_read.is_empty());
+    assert!(row(&all, "Sample Crate").earn.is_empty());
     // The unattributed set shows as its own owner.
     assert_eq!(all.characters.last().unwrap().id, "unattributed");
     assert_eq!(

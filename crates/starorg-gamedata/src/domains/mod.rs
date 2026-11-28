@@ -66,6 +66,8 @@ registry! {
 
     missions, // missions.ts
 
+    npc_loadouts, // (this repository's own: no sc-gamedata counterpart) -> game-npc-loadouts
+
     quantum, // quantum.ts
 
     refining, // refining.ts

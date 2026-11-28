@@ -19,6 +19,7 @@ pub mod owned;
 pub mod profile;
 pub mod quest;
 pub mod ships;
+mod spawns;
 pub mod tags;
 
 use crate::ini::{Edits, IniError, StockIni, fold_key, strip_flag_suffix};

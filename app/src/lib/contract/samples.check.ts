@@ -32,6 +32,8 @@ interface Samples {
   loot_list: T.LootList;
   loot_detail: T.LootDetail;
   loot_detail_item: T.LootDetail;
+  loot_detail_gear: T.LootDetail;
+  loot_detail_body: T.LootDetail;
   shop_inventory: T.ShopDirectory;
   shop_inventory_missing: T.ShopDirectory;
   shop_inventory_linked: T.ShopDirectory;
@@ -42,6 +44,10 @@ interface Samples {
   shop_item_search_missing: T.ShopItemSearch;
   shop_item_catalogue: { item: T.ShopItemMatch; offers: T.ShopItemOffer[] }[];
   shop_item_catalogue_linked: { item: T.ShopItemMatch; offers: T.ShopItemOffer[] }[];
+  mining_list_not_read: T.MiningDirectory;
+  mining_list: T.MiningDirectory;
+  mining_detail: T.MiningInfo;
+  mining_details_all: T.MineralDetail[];
   commodity_list_not_read: T.CommodityDirectory;
   commodity_list: T.CommodityDirectory;
   commodity_list_priced: T.CommodityDirectory;

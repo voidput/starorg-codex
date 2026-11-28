@@ -5,7 +5,9 @@
 //! `game-blueprints`, `game-wikelo-trades` and, when present, UEX shop rows.
 //!
 //! A container rolls its table: the table picks an archetype by weight, the archetype a
-//! primary entry by weight (a tag selector), then each secondary layer a choice by weight.
+//! primary entry by weight (a tag selector, or a V3 list of entity classes, which picks only
+//! those items and passes the spawn's pool filter and extra layers), then each secondary
+//! layer a choice by weight.
 //! The item is in the pool when it carries every positive tag of each pick (a tag counts
 //! when the item has it or a tag below it), none of the negatives or the archetype's
 //! excluded tags, and passes the slot's pool filter. `share` is the product of those weight
@@ -170,6 +172,10 @@ pub struct Selector {
     pub weight: f64,
     pub positive: Vec<String>,
     pub negative: Vec<String>,
+    /// Lower-case entity classes a V3 entry names (`selector.entityClasses`): the entry then
+    /// picks only those items, not every item its (empty) tag rules let in.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub classes: Vec<String>,
 }
 
 /// One weighted choice, normalised across v1 entries, V3 entries and secondary choices.
@@ -184,11 +190,21 @@ pub fn entry_selector(entry: &Value) -> Selector {
     positive.extend(strings(extra.and_then(|v| v.get("positiveTags"))));
     let mut negative = strings(v3.and_then(|v| v.get("negativeTags")));
     negative.extend(strings(extra.and_then(|v| v.get("negativeTags"))));
+    let classes = strings(
+        entry
+            .get("selector")
+            .and_then(|s| s.get("entityClasses"))
+            .and_then(|c| c.get("entityClasses")),
+    )
+    .into_iter()
+    .map(|c| c.to_lowercase())
+    .collect();
     Selector {
         name: obj_str(entry, "name").map(str::to_string),
         weight: number_or(entry.get("weight"), 1.0),
         positive,
         negative,
+        classes,
     }
 }
 
@@ -197,8 +213,13 @@ pub fn selects(positive: &[String], negative: &[String], tags: &[String]) -> boo
     positive.iter().all(|t| has_tag(tags, t)) && !negative.iter().any(|t| has_tag(tags, t))
 }
 
-fn selects_sel(s: &Selector, tags: &[String]) -> bool {
-    selects(&s.positive, &s.negative, tags)
+/// The selector picks the item: its tag rules, and its entity classes when it names any.
+fn selects_sel(s: &Selector, item: &ItemTags) -> bool {
+    selects(&s.positive, &s.negative, &item.tags)
+        && (s.classes.is_empty()
+            || s.classes
+                .iter()
+                .any(|c| c.eq_ignore_ascii_case(&item.class_name)))
 }
 
 // ---------------------------------------------------------------- loot model
@@ -330,6 +351,25 @@ fn compile_filter(
 pub struct TableSlot {
     pub weight: f64,
     pub archetype: Option<Archetype>,
+    /// The slot's own name (V3: `Ammo`, `Unique item`); `None` in v1 tables.
+    pub label: Option<String>,
+    /// The table always fills the slot: V3 `priorityCount` above 0, v1
+    /// `numberOfResultsConstraints.minResults` above 0.
+    pub guaranteed: bool,
+    /// V3 `chanceToExist`: the odds the slot is there at all.
+    pub chance: Option<f64>,
+    // `guaranteed` and `chance` feed NPC body odds ([`body_hits`]) only; area containers
+    // ([`table_rolls`] through the spawns) still weigh every slot by its weight alone.
+    // Follow-up: apply them to area odds too.
+}
+
+/// The first number `key` holds in a V3 `optionalData` list (`[{"priorityCount": 1}, ...]`).
+fn optional_number(v: &Value, key: &str) -> Option<f64> {
+    v.get("optionalData")?
+        .as_array()?
+        .iter()
+        .find_map(|o| o.get(key).and_then(Value::as_f64))
+        .filter(|x| x.is_finite())
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -404,9 +444,17 @@ pub fn build_loot_index(loot: &LootData) -> LootIndex {
                     (None, Some(r)) => by_name.get(&r.to_lowercase()).cloned(),
                     _ => None,
                 };
+                let min_results = slot
+                    .get("numberOfResultsConstraints")
+                    .and_then(|c| c.get("minResults"))
+                    .and_then(Value::as_f64);
                 TableSlot {
                     weight: number_or(slot.get("weight"), 1.0),
                     archetype,
+                    label: obj_str(slot, "name").map(str::to_string),
+                    guaranteed: optional_number(slot, "priorityCount").is_some_and(|n| n > 0.0)
+                        || min_results.is_some_and(|n| n > 0.0),
+                    chance: optional_number(slot, "chanceToExist").map(|c| c.clamp(0.0, 1.0)),
                 }
             })
             .collect();
@@ -481,7 +529,7 @@ pub fn build_loot_index(loot: &LootData) -> LootIndex {
 }
 
 /// Odds a layer's roll comes up with a choice the item satisfies; 0 when none does.
-fn layer_share(layer: &Layer, tags: &[String]) -> f64 {
+fn layer_share(layer: &Layer, item: &ItemTags) -> f64 {
     let total: f64 = layer.choices.iter().map(|c| c.weight).sum();
     if total <= 0.0 {
         return 1.0;
@@ -489,7 +537,7 @@ fn layer_share(layer: &Layer, tags: &[String]) -> f64 {
     layer
         .choices
         .iter()
-        .filter(|c| selects_sel(c, tags))
+        .filter(|c| selects_sel(c, item))
         .map(|c| c.weight)
         .sum::<f64>()
         / total
@@ -499,6 +547,9 @@ fn layer_share(layer: &Layer, tags: &[String]) -> f64 {
 #[serde(rename_all = "camelCase")]
 pub struct RollPath {
     pub table: String,
+    /// The table slot the path goes through (its index in [`Table::slots`]).
+    #[serde(skip)]
+    pub slot: usize,
     pub archetype: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub entry: Option<String>,
@@ -547,9 +598,10 @@ pub fn table_rolls(
     if loot_eligibility(&item.tags).can_loot != Some(true) {
         return Vec::new();
     }
-    if ctx.filter.is_some_and(|f| !f.test(&item.tags)) {
-        return Vec::new();
-    }
+    // An entry that names its items by class picks exactly those: the spawn's pool filter
+    // and its extra (rarity) layers apply to tag picks only, so a class entry passes them
+    // (a filtered-out item can still come from one).
+    let filter_ok = ctx.filter.is_none_or(|f| f.test(&item.tags));
     let total: f64 = table.slots.iter().map(|s| s.weight).sum();
     if total <= 0.0 {
         return Vec::new();
@@ -567,16 +619,8 @@ pub fn table_rolls(
         if !archetype
             .primary
             .iter()
-            .any(|e| e.weight > 0.0 && selects_sel(e, &item.tags))
+            .any(|e| e.weight > 0.0 && (filter_ok || !e.classes.is_empty()) && selects_sel(e, item))
         {
-            continue;
-        }
-        let layers: Vec<&Layer> = archetype.layers.iter().chain(ctx.extra_layers).collect();
-        let mut secondary = 1.0;
-        for l in &layers {
-            secondary *= layer_share(l, &item.tags);
-        }
-        if secondary == 0.0 {
             continue;
         }
         let primary_total: f64 = archetype.primary.iter().map(|e| e.weight).sum();
@@ -584,19 +628,28 @@ pub fn table_rolls(
             continue;
         }
         for (entry_ix, entry) in archetype.primary.iter().enumerate() {
-            if entry.weight <= 0.0 || !selects_sel(entry, &item.tags) {
+            let by_class = !entry.classes.is_empty();
+            if entry.weight <= 0.0 || !(filter_ok || by_class) || !selects_sel(entry, item) {
+                continue;
+            }
+            let (filter, extra): (Option<&PoolFilter>, &[Layer]) = if by_class {
+                (None, &[])
+            } else {
+                (ctx.filter, ctx.extra_layers)
+            };
+            let layers: Vec<&Layer> = archetype.layers.iter().chain(extra).collect();
+            let mut secondary = 1.0;
+            for l in &layers {
+                secondary *= layer_share(l, item);
+            }
+            if secondary == 0.0 {
                 continue;
             }
             let share = (slot.weight / total) * (entry.weight / primary_total) * secondary;
             let pool_size = ctx.pool.map(|pool| {
                 let item_choices: Vec<Vec<&Selector>> = layers
                     .iter()
-                    .map(|l| {
-                        l.choices
-                            .iter()
-                            .filter(|c| selects_sel(c, &item.tags))
-                            .collect()
-                    })
+                    .map(|l| l.choices.iter().filter(|c| selects_sel(c, item)).collect())
                     .collect();
                 let key: Option<PoolKey> = ctx.memo.map(|_| {
                     let picks = layers
@@ -605,7 +658,7 @@ pub fn table_rolls(
                             l.choices
                                 .iter()
                                 .enumerate()
-                                .filter(|(_, c)| selects_sel(c, &item.tags))
+                                .filter(|(_, c)| selects_sel(c, item))
                                 .map(|(i, _)| i)
                                 .collect()
                         })
@@ -614,8 +667,12 @@ pub fn table_rolls(
                         table.name.to_lowercase(),
                         slot_ix,
                         entry_ix,
-                        ctx.filter.map_or(0, |f| f as *const PoolFilter as usize),
-                        ctx.extra_layers.as_ptr() as usize ^ ctx.extra_layers.len(),
+                        filter.map_or(0, |f| f as *const PoolFilter as usize),
+                        if by_class {
+                            0
+                        } else {
+                            extra.as_ptr() as usize ^ extra.len()
+                        },
                         picks,
                     )
                 });
@@ -626,14 +683,14 @@ pub fn table_rolls(
                 }
                 let picked = |c: &ItemTags| {
                     loot_eligibility(&c.tags).can_loot == Some(true)
-                        && selects_sel(entry, &c.tags)
+                        && selects_sel(entry, c)
                         && !archetype.excluded.iter().any(|t| has_tag(&c.tags, t))
                 };
                 let rest = |c: &ItemTags| {
-                    ctx.filter.is_none_or(|f| f.test(&c.tags))
+                    filter.is_none_or(|f| f.test(&c.tags))
                         && item_choices.iter().enumerate().all(|(i, choices)| {
                             layers[i].choices.is_empty()
-                                || choices.iter().any(|ch| selects_sel(ch, &c.tags))
+                                || choices.iter().any(|ch| selects_sel(ch, c))
                         })
                 };
                 let n = match ctx.entry_pools {
@@ -664,6 +721,7 @@ pub fn table_rolls(
             });
             paths.push(RollPath {
                 table: table.name.clone(),
+                slot: slot_ix,
                 archetype: archetype.name.clone(),
                 entry: entry.name.clone(),
                 share,
@@ -918,6 +976,108 @@ fn other_tables_memo(
     out
 }
 
+// ---------------------------------------------------------------- bodies
+
+/// One way an NPC's body can hold the item: a slot of the actor's loot table.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct BodyHit {
+    /// The slot's index in [`Table::slots`].
+    pub slot: usize,
+    /// The slot's name (`Ammo`, `Unique item`), else its archetype's.
+    pub label: String,
+    /// Rough odds one body holds the item from this slot, 0 to 1.
+    pub odds: f64,
+}
+
+/// Rough odds one body that rolls the actor table `table_name` holds the item, per slot,
+/// likeliest first. The same model as a container ([`table_rolls`]: weights, pool sizes, an
+/// even pick in the pool) with one roll, since no data says how many results a body gets
+/// (an estimate, likely a floor where a body gets more). A slot the table always fills (V3
+/// `priorityCount`, v1 `minResults` above 0) is there whatever the weights; the other V3
+/// slots weigh against each other only; `chanceToExist` scales a slot's odds.
+pub fn body_hits(
+    index: &LootIndex,
+    table_name: &str,
+    item: &ItemTags,
+    ctx: RollContext<'_>,
+) -> Vec<BodyHit> {
+    let Some(table) = index.table(table_name) else {
+        return Vec::new();
+    };
+    let total: f64 = table.slots.iter().map(|s| s.weight).sum();
+    // V3 fills its priority slots first and picks the rest among the others, so those
+    // weigh only against each other. A v1 table's `minResults` slot still takes part in
+    // the weighted picks (its `maxResults` may allow more), so its weight stays in.
+    let v3 = table.version.eq_ignore_ascii_case("v3")
+        || table.name.to_ascii_lowercase().starts_with("v3");
+    let rest: f64 = if v3 {
+        table
+            .slots
+            .iter()
+            .filter(|s| !s.guaranteed)
+            .map(|s| s.weight)
+            .sum()
+    } else {
+        total
+    };
+    let mut per_slot: Vec<(usize, f64)> = Vec::new();
+    for p in table_rolls(index, table_name, item, ctx) {
+        match per_slot.iter_mut().find(|(s, _)| *s == p.slot) {
+            Some(e) => e.1 += p.per_roll,
+            None => per_slot.push((p.slot, p.per_roll)),
+        }
+    }
+    let mut out: Vec<BodyHit> = per_slot
+        .into_iter()
+        .filter_map(|(si, per_roll)| {
+            let slot = &table.slots[si];
+            let share = slot.weight / total;
+            if share <= 0.0 {
+                return None;
+            }
+            // The odds inside the slot: what the archetype picks, over its pool.
+            let inside = (per_roll / share).min(1.0);
+            let chance = slot.chance.unwrap_or(1.0);
+            let there = if slot.guaranteed {
+                chance
+            } else if rest > 0.0 {
+                (slot.weight / rest).min(1.0) * chance
+            } else {
+                0.0
+            };
+            let odds = inside * there;
+            let label = slot
+                .label
+                .clone()
+                .or_else(|| slot.archetype.as_ref().map(|a| a.name.clone()))
+                .unwrap_or_default();
+            (odds > 0.0).then_some(BodyHit {
+                slot: si,
+                label,
+                odds,
+            })
+        })
+        .collect();
+    sort_desc(&mut out, |h| h.odds);
+    out
+}
+
+/// Lower-case entity classes the index's selectors name.
+fn named_classes(index: &LootIndex) -> HashSet<String> {
+    let mut out = HashSet::new();
+    let mut add = |s: &Selector| out.extend(s.classes.iter().cloned());
+    for t in &index.tables {
+        for a in t.slots.iter().filter_map(|s| s.archetype.as_ref()) {
+            a.primary.iter().for_each(&mut add);
+            a.layers.iter().flat_map(|l| &l.choices).for_each(&mut add);
+        }
+    }
+    for layers in index.choices.values() {
+        layers.iter().flat_map(|l| &l.choices).for_each(&mut add);
+    }
+    out
+}
+
 // ---------------------------------------------------------------- bulk
 
 /// Where a slot is: area, config and slot positions (the order [`spawn_hits`] visits).
@@ -953,6 +1113,9 @@ pub struct BulkObtain<'a> {
     entry_pools: EntryPools,
     shops_by_id: HashMap<&'a str, Vec<usize>>,
     shops_by_name: HashMap<String, Vec<usize>>,
+    /// Lower-case entity classes some selector names: items of these classes roll apart
+    /// from others with the same tags.
+    named: HashSet<String>,
 }
 
 impl<'a> BulkObtain<'a> {
@@ -1039,6 +1202,7 @@ impl<'a> BulkObtain<'a> {
             entry_pools: EntryPools::default(),
             shops_by_id,
             shops_by_name,
+            named: index.map(named_classes).unwrap_or_default(),
         }
     }
 
@@ -1056,7 +1220,8 @@ impl<'a> BulkObtain<'a> {
     }
 
     /// How each loot group rolls the item: (group, paths, odds per roll). Depends on the
-    /// item's tags only, so items with the same tags share it.
+    /// item's tags, and on its class when a selector names it ([`Self::roll_key`]), so
+    /// items with the same key share it.
     fn loot_rolls(&self, item: &ItemTags) -> Vec<(usize, Vec<RollPath>, f64)> {
         let Some(index) = self.index else {
             return Vec::new();
@@ -1064,6 +1229,7 @@ impl<'a> BulkObtain<'a> {
         if loot_eligibility(&item.tags).can_loot != Some(true) {
             return Vec::new();
         }
+        let named = self.named.contains(&item.class_name.to_lowercase());
         let mut out = Vec::new();
         for (g, group) in self.loot.iter().enumerate() {
             let Some(first) = group.first() else { continue };
@@ -1072,7 +1238,8 @@ impl<'a> BulkObtain<'a> {
                 .pool_filter
                 .as_deref()
                 .and_then(|f| index.filters.get(&f.to_lowercase()));
-            if filter.is_some_and(|f| !f.test(&item.tags)) {
+            // A class entry passes the pool filter ([`table_rolls`]).
+            if !named && filter.is_some_and(|f| !f.test(&item.tags)) {
                 continue;
             }
             let paths = table_rolls(
@@ -1178,8 +1345,8 @@ impl<'a> BulkObtain<'a> {
     }
 
     /// [`Self::areas`] of every item, in parallel, without the roll paths of each best
-    /// spawn (`best.paths` is `None`); the rolls of items with the same tags are worked out
-    /// once per worker thread.
+    /// spawn (`best.paths` is `None`); the rolls of items with the same roll key (tags,
+    /// and class when a selector names it) are worked out once per worker thread.
     pub fn areas_all(&self, items: &[&ItemTags]) -> Vec<Vec<AreaSummary>> {
         self.areas_all_until(items, None).unwrap_or_default()
     }
@@ -1193,18 +1360,63 @@ impl<'a> BulkObtain<'a> {
     ) -> Option<Vec<Vec<AreaSummary>>> {
         use rayon::prelude::*;
         type Rolls = std::sync::Arc<Vec<(usize, Vec<RollPath>, f64)>>;
+        type RollKey = (Vec<String>, Option<String>);
         let late = || deadline.is_some_and(|d| std::time::Instant::now() >= d);
         items
             .par_iter()
-            .map_init(HashMap::<Vec<String>, Rolls>::new, |seen, item| {
+            .map_init(HashMap::<RollKey, Rolls>::new, |seen, item| {
                 if late() {
                     return None;
                 }
                 let rolls = seen
-                    .entry(item.tags.clone())
+                    .entry(self.roll_key(item))
                     .or_insert_with(|| std::sync::Arc::new(self.loot_rolls(item)))
                     .clone();
                 Some(rank_areas(&self.hits_with(item, &rolls, false)))
+            })
+            .collect()
+    }
+
+    /// What the item's rolls depend on: its tags, and its class when a selector names it.
+    fn roll_key(&self, item: &ItemTags) -> (Vec<String>, Option<String>) {
+        let c = item.class_name.to_lowercase();
+        (item.tags.clone(), self.named.contains(&c).then_some(c))
+    }
+
+    /// [`body_hits`] of one item, with the shared pool sizes.
+    pub fn body_hits(&self, table: &str, item: &ItemTags) -> Vec<BodyHit> {
+        let Some(index) = self.index else {
+            return Vec::new();
+        };
+        body_hits(
+            index,
+            table,
+            item,
+            RollContext {
+                pool: Some(&self.lootable),
+                memo: Some(&self.memo),
+                entry_pools: Some(&self.entry_pools),
+                ..Default::default()
+            },
+        )
+    }
+
+    /// [`Self::body_hits`] of every item against every table in `tables`, in parallel:
+    /// per item, (table position in `tables`, its best slot), best first.
+    pub fn bodies_all(&self, tables: &[&str], items: &[&ItemTags]) -> Vec<Vec<(usize, BodyHit)>> {
+        use rayon::prelude::*;
+        items
+            .par_iter()
+            .map(|item| {
+                let mut out: Vec<(usize, BodyHit)> = tables
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(ti, t)| {
+                        self.body_hits(t, item).into_iter().next().map(|h| (ti, h))
+                    })
+                    .collect();
+                sort_desc(&mut out, |(_, h)| h.odds);
+                out
             })
             .collect()
     }
@@ -2064,6 +2276,144 @@ mod tests {
             )
             .is_empty()
         );
+    }
+
+    /// An entity-class entry picks only its classes; body odds: a priority slot is there at
+    /// its chanceToExist, the others by weight share; a v1 `minResults` slot is always there.
+    #[test]
+    fn entity_class_entries_and_body_hits() {
+        const CAN: &str = "LootGeneration/CanGenerateAsLoot";
+        let loot: LootData = serde_json::from_value(json!({
+            "tables": [
+                {"name": "V3LootTable_Actor_X", "version": "v3", "lootArchetypes": [
+                    {"name": "Ammo", "weight": 3, "archetype": {"entries": [
+                        {"name": "Mags", "weight": 1, "selector": {"tags": {"positiveTags": ["Mag"]}}}]}},
+                    {"name": "Unique item", "weight": 1, "archetype": {"entries": [
+                        {"name": "Scrip", "weight": 1, "selector": {"entityClasses": {"entityClasses": ["Scrip_A"]}}}]},
+                     "optionalData": [{"priorityCount": 1}, {"chanceToExist": 0.25}]}]},
+                {"name": "LootTable_Actor_Y", "lootArchetypes": [
+                    {"archetype": "Arch_Mags", "weight": 1, "numberOfResultsConstraints": {"minResults": 1}}]}
+            ],
+            "archetypes": [{"name": "Arch_Mags", "primaryOrGroup": {"entries": [{"tag": "Mag", "weight": 1}]}}]
+        }))
+        .unwrap();
+        let index = build_loot_index(&loot);
+        let t = index.table("v3loottable_actor_x").unwrap();
+        assert_eq!(t.slots[0].label.as_deref(), Some("Ammo"));
+        assert!(!t.slots[0].guaranteed && t.slots[1].guaranteed);
+        assert_eq!(t.slots[1].chance, Some(0.25));
+        assert!(index.table("LootTable_Actor_Y").unwrap().slots[0].guaranteed);
+        let pool = vec![
+            item("mag_a", &[CAN, "Mag"], None),
+            item("mag_b", &[CAN, "Mag"], None),
+            item("scrip_a", &[CAN, "Scrip"], None),
+            item("scrip_b", &[CAN, "Scrip"], None),
+        ];
+        let ctx = RollContext {
+            pool: Some(&pool),
+            ..Default::default()
+        };
+        let hits = |table: &str, i: usize| body_hits(&index, table, &pool[i], ctx);
+        // The class entry: scrip_a (any case), never scrip_b with the same tags.
+        let a = hits("V3LootTable_Actor_X", 2);
+        assert_eq!(a.len(), 1);
+        assert_eq!((a[0].slot, a[0].label.as_str()), (1, "Unique item"));
+        assert!(close(a[0].odds, 0.25));
+        assert!(hits("V3LootTable_Actor_X", 3).is_empty());
+        // Ammo: the only non-priority slot (the priority one is not in its weights), then
+        // one of two mags.
+        let m = hits("V3LootTable_Actor_X", 0);
+        assert!(close(m[0].odds, 0.5));
+        // v1 always-filled slot, labelled by its archetype.
+        let y = hits("LootTable_Actor_Y", 1);
+        assert_eq!(y[0].label, "Arch_Mags");
+        assert!(close(y[0].odds, 0.5));
+        // The bulk answer is the same, the class kept apart from same-tag items.
+        let d = Datasets {
+            items: pool.clone(),
+            loot: Some(loot.clone()),
+            ..Default::default()
+        };
+        let bulk = BulkObtain::new(&d, Some(&index));
+        let refs: Vec<&ItemTags> = d.items.iter().collect();
+        let all = bulk.bodies_all(&["V3LootTable_Actor_X", "LootTable_Actor_Y"], &refs);
+        assert_eq!(all[2].len(), 1);
+        assert!(all[3].is_empty());
+        assert_eq!(all[0].len(), 2);
+    }
+
+    /// An entity-class entry in an area's table: it picks its class only (not a same-tag
+    /// twin), passes the spawn's pool filter and extra (rarity) layers, and its pool is its
+    /// classes; the bulk answer keys the rolls by class, so the twin gets no area.
+    #[test]
+    fn entity_class_entries_pick_their_items_in_areas() {
+        const CAN: &str = "LootGeneration/CanGenerateAsLoot";
+        let loot: LootData = serde_json::from_value(json!({
+            "tables": [{"name": "V3_Lab", "version": "v3", "lootArchetypes": [
+                {"name": "Junk", "weight": 3, "archetype": {"entries": [
+                    {"name": "Junk", "weight": 1, "selector": {"tags": {"positiveTags": ["Junk"]}}}]}},
+                {"name": "Sample", "weight": 1, "archetype": {"entries": [
+                    {"name": "Vial", "weight": 1, "selector": {"entityClasses": {"entityClasses": ["Vial_A"]}}}]}}]}],
+            "archetypes": [],
+            "filters": [{"name": "F_NoEvent", "filter": {"tagFilter": {"negativeTags": ["Event"]}}}],
+            "secondaryChoices": [{"name": "Rarity", "choices": [{"tag": "Rarity/Common", "weight": 1}]}]
+        }))
+        .unwrap();
+        let index = build_loot_index(&loot);
+        let items = vec![
+            item("vial_a", &[CAN, "Event", "Vial"], None),
+            item("vial_b", &[CAN, "Event", "Vial"], None),
+            item("junk_a", &[CAN, "Junk", "Rarity/Common"], None),
+            item("junk_event", &[CAN, "Junk", "Rarity/Common", "Event"], None),
+        ];
+        let d = Datasets {
+            items: items.clone(),
+            loot: Some(loot),
+            areas: Some(vec![LootArea {
+                name: "lab".into(),
+                configs: vec![SpawnConfig {
+                    name: Some("Lab".into()),
+                    spawn_tags: vec![],
+                    fill_chance: None,
+                    slots: vec![SpawnSlot {
+                        entity: "crate_lab".into(),
+                        weight: 1.0,
+                        loot: Some(SpawnLoot {
+                            table: "V3_Lab".into(),
+                            version: "v3".into(),
+                            pool_filter: Some("F_NoEvent".into()),
+                            secondary_choices: Some("Rarity".into()),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }],
+                }],
+            }]),
+            ..Default::default()
+        };
+        let hits = spawn_hits(&d, Some(&index), &items[0]);
+        assert_eq!(hits.len(), 1);
+        let p = &hits[0].paths.as_ref().unwrap()[0];
+        assert_eq!(p.pool_size, Some(1));
+        assert!(close(hits[0].score, 0.25));
+        assert!(spawn_hits(&d, Some(&index), &items[1]).is_empty());
+        // Tag picks still take the filter and the rarity layer.
+        assert!(close(
+            spawn_hits(&d, Some(&index), &items[2])[0].score,
+            0.75
+        ));
+        assert!(spawn_hits(&d, Some(&index), &items[3]).is_empty());
+        // Bulk: same answers; the twin with the same tags is not given the vial's rolls.
+        let bulk = BulkObtain::new(&d, Some(&index));
+        let refs: Vec<&ItemTags> = items.iter().collect();
+        let all = bulk.areas_all(&refs);
+        assert_eq!(all[0].len(), 1);
+        assert!(close(all[0][0].best.score, 0.25));
+        assert!(all[1].is_empty());
+        // In the other order too (the per-thread roll cache sees the twin first).
+        let all = bulk.areas_all(&[refs[1], refs[0]]);
+        assert!(all[0].is_empty());
+        assert_eq!(all[1].len(), 1);
     }
 
     #[test]

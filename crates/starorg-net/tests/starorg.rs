@@ -1,6 +1,6 @@
 //! The StarOrg Tools client against the local mock server (no real network).
 
-use starorg_net::starorg::mock::{LoginMode, MockServer, fake_browser};
+use starorg_net::starorg::mock::{LoginMode, MockServer, MockState, fake_browser};
 use starorg_net::starorg::{Client, StarOrgError};
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -111,7 +111,7 @@ fn a_malformed_acquired_at_is_left_out_not_sent() {
         (2, "exported last Tuesday".to_string()),
     ]);
     let r = c
-        .add_blueprints("100000000000000001", &[1, 2], &at)
+        .add_blueprints(Some("100000000000000001"), &[1, 2], &at)
         .unwrap();
     assert_eq!(r.added, [1, 2]);
     let add = m
@@ -129,13 +129,13 @@ fn blueprint_routes_pull_push_and_lookup() {
     let t = m.issue_token();
     let c = client(&m).with_token(t);
     let guild = "100000000000000001";
-    let mine = c.my_blueprints(guild).unwrap();
+    let mine = c.my_blueprints(Some(guild)).unwrap();
     assert_eq!(mine.len(), 1);
     assert_eq!(mine[0].name, "Sample Medical Gun");
     let lookup = c.blueprint_lookup().unwrap();
     assert_eq!(lookup.blueprints.len(), 5);
     let at = BTreeMap::from([(1, "2026-03-01T10:05:00.000Z".to_string())]);
-    let r = c.add_blueprints(guild, &[1, 3], &at).unwrap();
+    let r = c.add_blueprints(Some(guild), &[1, 3], &at).unwrap();
     assert_eq!(r.added, [1]);
     assert_eq!(r.already_owned, [3]);
     let reqs = m.requests();
@@ -153,10 +153,44 @@ fn blueprint_routes_pull_push_and_lookup() {
     assert!(add.body.contains("\"acquired_at\":{\"1\":"), "{}", add.body);
     // An org without blueprint tracking is a 404.
     assert!(matches!(
-        c.my_blueprints("100000000000000002"),
+        c.my_blueprints(Some("100000000000000002")),
         Err(StarOrgError::NotFound(_))
     ));
-    assert!(c.my_blueprints("../../auth/me").is_err());
+    assert!(c.my_blueprints(Some("../../auth/me")).is_err());
+}
+
+#[test]
+fn the_account_level_route_needs_no_org_and_older_servers_fall_back() {
+    // A server with the account-level route: no org id is needed, none is sent.
+    let mut st = MockState::default();
+    st.me_routes = true;
+    let m = MockServer::with(st);
+    let c = client(&m).with_token(m.issue_token());
+    assert_eq!(c.my_blueprints(None).unwrap().len(), 1);
+    let r = c.add_blueprints(None, &[1, 3], &BTreeMap::new()).unwrap();
+    assert_eq!((r.added, r.already_owned), (vec![1], vec![3]));
+    c.my_blueprints(Some("100000000000000001")).unwrap();
+    assert!(
+        m.requests().iter().all(|r| !r.path.contains("/guilds/")),
+        "{:?}",
+        m.requests().iter().map(|r| &r.path).collect::<Vec<_>>()
+    );
+
+    // A server without it: the account-level path is tried once per call, then the org's.
+    let m = MockServer::start();
+    let c = client(&m).with_token(m.issue_token());
+    assert_eq!(
+        c.my_blueprints(Some("100000000000000001")).unwrap().len(),
+        1
+    );
+    c.add_blueprints(Some("100000000000000001"), &[1], &BTreeMap::new())
+        .unwrap();
+    let paths: Vec<String> = m.requests().into_iter().map(|r| r.path).collect();
+    let me = "/api/industrial/crafting/me/blueprints";
+    let org = "/api/industrial/crafting/guilds/100000000000000001/my-blueprints";
+    assert_eq!(paths, [me, org, me, org]);
+    // No org to fall back to: the server's refusal is the answer.
+    assert!(c.my_blueprints(None).is_err());
 }
 
 #[test]

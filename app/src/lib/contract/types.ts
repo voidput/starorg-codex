@@ -7,7 +7,7 @@
  * Rules: snake_case fields, kebab-case values, `T | null` for Option (never omitted).
  */
 
-import type { MinedReport, OreQuality } from './dev';
+import type { MinedReport, MinedSpot, OreQuality, QualityRange, QualityStep } from './dev';
 
 export const CONTRACT_VERSION = 1;
 export const JOB_EVENT = 'job-progress';
@@ -342,6 +342,7 @@ export interface MissionSettings {
   title_em: boolean;
   blueprints: boolean;
   item_rewards: boolean;
+  spawns: boolean;
   details: boolean;
   bullet_tags: boolean;
   owned_marker: boolean;
@@ -436,8 +437,8 @@ export type LootDataState = 'ready' | 'missing';
 /** Which Loot list: loot areas, or items that drop in one. */
 export type LootView = 'areas' | 'items';
 
-/** How the item is there: rolled by a loot table, held by a rack, or lying loose. */
-export type LootDropKind = 'loot' | 'fixed' | 'loose';
+/** How the item is there: rolled by a loot table, held by a rack, lying loose, or worn or wielded by an NPC (its loadout). */
+export type LootDropKind = 'loot' | 'fixed' | 'loose' | 'worn';
 
 /** How a detail's drops are grouped: by container ("Where in it"), by the top level of the other list's tree (an area's kind of place, an item's category), or one flat group. */
 export type LootGroupBy = 'container' | 'place' | 'none';
@@ -472,7 +473,11 @@ export interface LootSummary {
   path: string[];
   /** Areas: items that can drop there. Items: areas it drops in. */
   count: number;
-  /** Best rough odds per spawned box, 0 to 1. */
+  /** Items: how many of `count` are NPC bodies ("NPCs (body loot)"); areas: 0. */
+  npcs: number;
+  /** Items: how many of `count` are NPC worn-gear rows ("NPCs (worn gear)"); areas: 0. */
+  worn: number;
+  /** Best rough odds per spawned box (or NPC body), 0 to 1. */
   best: number;
 }
 
@@ -482,6 +487,8 @@ export interface LootList {
   view: LootView;
   /** The build the data is of ("LIVE 4.10.201.48085"). */
   build: string | null;
+  /** Whether the NPC worn-gear data is read: `missing` lists no "NPCs (worn gear)" rows until Read game data adds it. */
+  gear: LootDataState;
   rows: LootSummary[];
 }
 
@@ -497,6 +504,33 @@ export interface LootDrop {
   container: string;
   rarity: string | null;
   kind: LootDropKind;
+  /** What the odds depend on, when they do (worn gear of a gated loadout group: "if AI/NpcClass/Heavy"). */
+  note: string | null;
+}
+
+/** A link to another row of the areas list. */
+export interface LootLink {
+  id: string;
+  name: string;
+}
+
+/** `WearRange`: how worn an NPC's gear spawns, 0 (new) to 1. */
+export interface Wear {
+  min: number;
+  max: number;
+}
+
+/** What an NPC row of the areas list says beyond its drops. */
+export interface NpcInfo {
+  /** Worn gear: the actor classes the row stands for (same name and gear). */
+  classes: string[];
+  /** Worn gear: the faction ("Criminals"). */
+  faction: string | null;
+  wear: Wear | null;
+  /** Worn gear: the body-loot row of its loot table. */
+  body_loot: LootLink | null;
+  /** Body loot: the worn-gear rows of the NPCs whose bodies roll this table. */
+  worn_gear: LootLink[];
 }
 
 /** One group of a detail: its header over every matching drop, its rows when asked for. */
@@ -521,6 +555,8 @@ export interface LootDetail {
   entry: LootSummary | null;
   /** Items: the game record (Explorer link). */
   record: ItemRecord | null;
+  /** NPC rows: classes, faction, condition and the links between body loot and worn gear. */
+  npc: NpcInfo | null;
   group_by: LootGroupBy;
   groups: LootGroup[];
   total: number;
@@ -792,6 +828,175 @@ export interface CommodityInfo {
   commodity: CommodityDetail | null;
 }
 
+// The Commodities screen's Mining tab (`mining_list`, `mining_detail`), typed in
+// `starorg_mcp::mining`: list rows only, one mineral in full from a second call.
+
+export interface MiningListRequest {
+  target: ChannelRef | null;
+}
+
+export interface MiningDetailRequest {
+  target: ChannelRef | null;
+  /** A `MineralSummary.id`, a commodity id or an ore key. */
+  id: string;
+}
+
+/** Difficulty grade (an estimate). */
+export type MiningGrade = 'easy' | 'medium' | 'hard';
+/** The tool a rock takes, from its mining kind. */
+export type MiningTool = 'hand' | 'roc' | 'ship' | 'unknown';
+/** Where a place's curve comes from; `unknown`: a system override may apply, the place's system is not known. */
+export type MiningCurveSource = 'base' | 'override' | 'unknown';
+
+/** The S1 or S2 mining lasers' power range (first beam mode of each `WeaponMining`). */
+export interface LaserClass {
+  size: number;
+  count: number;
+  min: number;
+  max: number;
+  best: string;
+}
+
+export interface MineralSummary {
+  /** The resource record, else `ore:<key>`. */
+  id: string;
+  name: string;
+  refined: string | null;
+  /** "hand", "vehicle", "ship". */
+  kinds: string[];
+  places: number;
+  spots: number;
+  /** Best place's estimated share of rolls at 700 or more (of the trusted places when there are any). */
+  best_high: number | null;
+  /** best_high comes from a place with a quality scale below 1 or a curve not known: it may be lower. */
+  best_high_uncertain: boolean;
+  difficulty: MiningGrade | null;
+  has_override: boolean;
+}
+
+export interface MiningDirectory {
+  state: CommodityDataState;
+  build: string | null;
+  minerals: MineralSummary[];
+  /** `game-mining` (rock physics) was read. */
+  physics: boolean;
+  /** `game-weapons` (laser power) was read. */
+  lasers_read: boolean;
+  lasers: LaserClass[];
+  /** `game-mining-spawns` was read (else no body or belt is known yet). */
+  spawns_read: boolean;
+  /** `game-item-sources` was read (else no spot is known yet). */
+  spots_read: boolean;
+}
+
+export interface ElementPhysics {
+  ore: string;
+  resistance: number | null;
+  instability: number | null;
+  window_midpoint: number | null;
+  window_randomness: number | null;
+  window_thinness: number | null;
+  explosion_multiplier: number | null;
+  cluster_factor: number | null;
+}
+
+export interface Difficulty {
+  grade: MiningGrade;
+  points: number;
+  max_points: number;
+  resistance: number | null;
+  instability: number | null;
+  window_thinness: number | null;
+  missing: string[];
+}
+
+export interface ShipOption {
+  ship: string;
+  laser_count: number;
+  laser_size: number;
+  best_laser: string | null;
+  power: number | null;
+  /** power × (1 − resistance). */
+  effective: number | null;
+}
+
+export interface Recommendation {
+  tool: MiningTool;
+  label: string;
+  reason: string;
+  /** Only the ship comparison is an estimate; the tool follows from the rock's kind. */
+  estimate: boolean;
+  formula: string | null;
+  options: ShipOption[];
+}
+
+export interface PlaceQuality {
+  range: QualityRange;
+  source: MiningCurveSource;
+  /** The override that applies (`Pyro System`); null: base, or not known (see source). */
+  override_location: string | null;
+  /** Every quality scale of the row is 1: its shares compare with the others'. */
+  full_scale: boolean;
+  /** Estimated share of rolls at 700 or more. */
+  high: number | null;
+  /** Top two shown steps, highest last. */
+  top: QualityStep[];
+  top_share: number | null;
+}
+
+export interface MiningPlace {
+  ore: string;
+  location: string;
+  /** The real star system; null when not known (Lagrange points, clusters). */
+  system: string | null;
+  body: string | null;
+  /** Readable name (`Yela Belt`, `Lagrange A`). */
+  place: string;
+  rock: string;
+  kind: string | null;
+  tier: string | null;
+  signature: number | null;
+  spawn_share: number | null;
+  min_percent: number | null;
+  max_percent: number | null;
+  quality_scales: number[];
+  companions: string[];
+  /** Always null: rolled at spawn, not in the game files. */
+  rock_mass: number | null;
+  quality: PlaceQuality;
+  difficulty: Difficulty | null;
+  recommendation: Recommendation;
+}
+
+export interface OverrideUse {
+  location: string;
+  range: QualityRange;
+  /** Spawn rows it applies to (0: it names a place no row is). */
+  places: number;
+}
+
+export interface MineralDetail {
+  id: string;
+  name: string;
+  commodity: CommodityRef | null;
+  refined: CommodityRef | null;
+  ores: string[];
+  kinds: string[];
+  tier: string | null;
+  base: QualityRange | null;
+  steps: QualityStep[];
+  base_high: number | null;
+  overrides: OverrideUse[];
+  elements: ElementPhysics[];
+  places: MiningPlace[];
+  spots: MinedSpot[];
+}
+
+export interface MiningInfo {
+  state: CommodityDataState;
+  mineral: MineralDetail | null;
+}
+
 export interface LineSchema {
   key: string;
   label: string;
@@ -1057,6 +1262,8 @@ export interface NetworkSettings {
 export interface Settings {
   appearance: Appearance;
   network: NetworkSettings;
+  /** Settings -> Game data. */
+  data: DataSettings;
   default_channel: string | null;
   safe_gpu: boolean;
   advanced: AdvancedSettings;
@@ -1074,6 +1281,16 @@ export interface StarOrgSettings {
   pull_fleet: boolean;
   /** Sync by itself after the game exits; off = only when asked. */
   auto_sync: boolean;
+}
+
+/** Settings > Game data. */
+export interface DataSettings {
+  /**
+   * "Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your game build" (on by default).
+   * Only datasets of the exact same build, checked by checksum and shape; anything else, offline included, is read
+   * from Data.p4k. Never the game text.
+   */
+  prebuilt_dumps: boolean;
 }
 
 /** Settings > Advanced (addendum 7.7). */
@@ -1191,12 +1408,60 @@ export interface BlueprintRow {
   owners: BlueprintOwner[];
   /** Owners of an ambiguous name that could be this blueprint ("maybe owned"). */
   maybe: BlueprintOwner[];
+  /** Missions that can award it over every channel, sure ones first; each entry names the channels whose builds have it. */
+  earn: BlueprintEarn[];
+  /** Channels whose build's contracts were read for it: elsewhere its missions are not known (name rows: none). */
+  earn_read: string[];
+}
+
+/** A mission (the contracts sharing one title) that can award blueprints. */
+export interface BlueprintMission {
+  /** In-game title (`~mission(Location)` reads `[Location]`); null = no readable title. */
+  title: string | null;
+  /** Contract debug name (`Name (+2 more)` for a shared title). */
+  record: string;
+  /** Contract generator record short name (an Explorer search finds it). */
+  generator: string;
+  /** Faction reputation records its success rewards pay, first seen first. */
+  factions: string[];
+  /** Those factions readable (one per `factions` entry): the game's name, else the record in words. */
+  reputation: string[];
+  /** Star systems of its locality prerequisites; empty = not known. */
+  systems: string[];
+  /** MISSION DETAILS `Type:` words (`Chain`, `Once only`), each when every contract is one. */
+  kinds: string[];
+  /** MISSION DETAILS `Requires:` standing. */
+  requires: string | null;
+  /** Contracts with this title. */
+  contracts: number;
+}
+
+/** How sure one blueprint is from one mission: a sure pool of just it, a sure pool of several, or by chance (some variants only included). */
+export type BlueprintAward = 'guaranteed' | 'guaranteed-pool' | 'chance';
+
+/** How one mission awards one blueprint. */
+export interface BlueprintEarn {
+  /** Index in `BlueprintFinder.missions`. */
+  mission: number;
+  award: BlueprintAward;
+  /** MISSION DETAILS `Blueprint reward:` wording (the pool's odds, as in game): `Guaranteed`, `Some variants only`, `25%`. */
+  odds: string;
+  /** Contracts of the title that can award it (of the mission's `contracts`). */
+  variants: number;
+  /** Blueprints in its pool: `6`, or `4–6`. */
+  pool: string;
+  /** Its share of the pool by weight (`17%`); null when the weights are not known. */
+  pick: string | null;
+  /** Channels whose builds have this entry. */
+  channels: string[];
 }
 
 export interface BlueprintFinder {
   channels: BlueprintFinderChannel[];
   characters: BlueprintFinderCharacter[];
   rows: BlueprintRow[];
+  /** Every mission the rows' `earn` names, each once (rows refer to them by index). */
+  missions: BlueprintMission[];
 }
 
 export interface ImportRequest {

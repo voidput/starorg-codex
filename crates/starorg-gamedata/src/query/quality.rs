@@ -124,8 +124,20 @@ pub struct OreQuality {
     pub steps: Vec<QualityStep>,
 }
 
+/// Spawn data spellings that differ from the resource's: `aluminium_ore` is `Ore_Aluminum`,
+/// `sileron_ore` is `Ore_Stileron`.
+const ORE_ALIASES: [(&str, &str); 2] = [("aluminium", "aluminum"), ("sileron", "stileron")];
+
+/// An ore core ([`ore_core`]) in the resource's spelling.
+pub(crate) fn ore_alias(core: String) -> String {
+    ORE_ALIASES
+        .iter()
+        .find(|(a, _)| *a == core)
+        .map_or(core, |(_, b)| (*b).to_string())
+}
+
 /// "Raw_Quantainium", "Ore_Gold", "RawOuratite" -> the ore core [`ore_core`] gives mined ores.
-fn resource_core(name: &str) -> String {
+pub(crate) fn resource_core(name: &str) -> String {
     let lower = name.to_lowercase();
     let s = ["raw_", "ore_", "raw"]
         .iter()
@@ -149,8 +161,28 @@ fn phi(x: f64, mean: f64, sd: f64) -> f64 {
     0.5 * (1.0 + erf((x - mean) / (sd * std::f64::consts::SQRT_2)))
 }
 
+/// Estimated share (0..1) of rolls at or above `at` on curve `r`: integer rolls on a normal
+/// curve cut to min..max, as [`steps`]. Certain answers (all of the range above or below
+/// `at`) need no spread; otherwise `None` without a mean and a spread.
+pub fn share_at_least(r: &QualityRange, at: f64) -> Option<f64> {
+    let (lo, hi) = (r.min.unwrap_or(0.0), r.max.unwrap_or(1000.0));
+    if at > hi {
+        return Some(0.0);
+    }
+    if at <= lo {
+        return Some(1.0);
+    }
+    let (m, sd) = (r.mean?, r.stddev?);
+    if sd <= 0.0 {
+        return None;
+    }
+    let top = phi(hi + 0.5, m, sd);
+    let total = top - phi(lo - 0.5, m, sd);
+    (total > 0.0).then(|| ((top - phi(at - 0.5, m, sd)) / total).clamp(0.0, 1.0))
+}
+
 /// Shown values a roll in `min..=max` reaches, with estimated shares.
-fn steps(bands: &[BandIn], r: &QualityRange) -> Vec<QualityStep> {
+pub fn steps(bands: &[BandIn], r: &QualityRange) -> Vec<QualityStep> {
     let (lo, hi) = (r.min.unwrap_or(0.0), r.max.unwrap_or(1000.0));
     // Integer rolls: a band covers start-0.5 .. end+0.5.
     let mass = |a: f64, b: f64| match (r.mean, r.stddev) {
@@ -212,7 +244,7 @@ pub fn quality_for(c: &Commodities, record: &str, ores: &[String]) -> Vec<OreQua
     }
     let mut out: Vec<OreQuality> = Vec::new();
     for ore in ores {
-        let core = ore_core(ore);
+        let core = ore_alias(ore_core(ore));
         if let Some((r, q)) = with.iter().find(|(r, _)| resource_core(&r.name) == core)
             && !out.iter().any(|o| o.resource == r.record_name)
         {
@@ -299,6 +331,26 @@ mod tests {
             &["minableelement_fps_aphorite".into(), "aphorite_ore".into()],
         );
         assert_eq!(fps.len(), 1);
+        // The spawn data spells two ores unlike their resources.
+        let mut c = data();
+        for n in ["Ore_Aluminum", "Ore_Stileron"] {
+            c.resources.push(
+                serde_json::from_value(
+                    serde_json::json!({"name": n, "recordName": format!("ResourceType.{n}"),
+                    "quality": {"distribution": {"min": 0, "max": 1000}}}),
+                )
+                .unwrap(),
+            );
+        }
+        let names: Vec<String> =
+            quality_for(&c, "x", &["aluminium_ore".into(), "sileron_ore".into()])
+                .into_iter()
+                .map(|q| q.resource)
+                .collect();
+        assert_eq!(
+            names,
+            ["ResourceType.Ore_Aluminum", "ResourceType.Ore_Stileron"]
+        );
         assert!(quality_for(&data(), "ResourceType.Gold", &[]).is_empty());
     }
 }

@@ -626,6 +626,8 @@ pub struct MissionSettings {
     pub title_em: bool,
     pub blueprints: bool,
     pub item_rewards: bool,
+    /// SPAWNS section: ships the contract spawns.
+    pub spawns: bool,
     pub details: bool,
     /// Name tags on blueprint bullets.
     pub bullet_tags: bool,
@@ -749,8 +751,8 @@ pub struct UexTokenRequest {
 // The Loot screen (`loot_list`, `loot_detail`): every loot area with what drops there and
 // every item with where, from the channel's cached loot data, typed in `starorg_mcp::loot`.
 pub use starorg_mcp::loot::{
-    LootDataState, LootDetail, LootDrop, LootDropKind, LootGroup, LootGroupBy, LootList,
-    LootSummary, LootView,
+    LootDataState, LootDetail, LootDrop, LootDropKind, LootGroup, LootGroupBy, LootLink, LootList,
+    LootSummary, LootView, NpcInfo, Wear,
 };
 
 /// Every loot area (`view: areas`) or every item that drops in one (`items`), summaries
@@ -843,6 +845,28 @@ pub struct CommodityListRequest {
 /// One resource; `id` is a [`CommoditySummary::id`] (`ResourceType.Gold`).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CommodityDetailRequest {
+    pub target: Option<ChannelRef>,
+    pub id: String,
+}
+
+// The Commodities screen's Mining tab (`mining_list`, `mining_detail`): every mineable
+// resource with its places, quality per place, rock physics and the laser estimate, typed in
+// `starorg_mcp::mining`. Same cached data and states as the commodity list.
+pub use starorg_mcp::mining::{
+    CurveSource as MiningCurveSource, Difficulty, ElementPhysics, Grade as MiningGrade, LaserClass,
+    MineralDetail, MineralSummary, MiningDirectory, MiningInfo, MiningPlace, OverrideUse,
+    PlaceQuality, Recommendation, ShipOption, Tool as MiningTool,
+};
+
+/// Every mineral of `target`'s build, from its cached game data. `None`: `no-channel`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MiningListRequest {
+    pub target: Option<ChannelRef>,
+}
+
+/// One mineral; `id` is a [`MineralSummary::id`], a commodity id or an ore key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MiningDetailRequest {
     pub target: Option<ChannelRef>,
     pub id: String,
 }
@@ -1364,6 +1388,9 @@ pub struct NetworkSettings {
 pub struct Settings {
     pub appearance: Appearance,
     pub network: NetworkSettings,
+    /// Settings -> Game data. Missing in older saved settings = the defaults.
+    #[serde(default)]
+    pub data: DataSettings,
     pub default_channel: Option<String>,
     pub safe_gpu: bool,
     /// Missing in older saved settings = all off.
@@ -1401,6 +1428,30 @@ impl Default for StarOrgSettings {
             pull_blueprints: false,
             pull_fleet: false,
             auto_sync: false,
+        }
+    }
+}
+
+/// Settings > Game data.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DataSettings {
+    /// "Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your game
+    /// build" (on by default): "Read game data" and the screens that read the dataset cache
+    /// may download a dataset of the exact same build instead of extracting it, checked by
+    /// checksum and shape (`starorg_mcp::prebuilt`). Anything not taken from there, offline
+    /// included, is read from `Data.p4k` as before. Never the game text (`global.ini`).
+    #[serde(default = "on")]
+    pub prebuilt_dumps: bool,
+}
+
+fn on() -> bool {
+    true
+}
+
+impl Default for DataSettings {
+    fn default() -> Self {
+        Self {
+            prebuilt_dumps: true,
         }
     }
 }
@@ -1579,6 +1630,67 @@ pub struct BlueprintRow {
     pub owners: Vec<BlueprintOwner>,
     /// Owners of an ambiguous name that could be this blueprint ("maybe owned").
     pub maybe: Vec<BlueprintOwner>,
+    /// Missions that can award it ("Earn it") over every channel, sure ones first; each
+    /// entry names the channels whose builds have it.
+    pub earn: Vec<BlueprintEarn>,
+    /// Channels whose build's contracts were read for it: elsewhere its missions are not
+    /// known (name rows: none).
+    pub earn_read: Vec<String>,
+}
+
+/// A mission (the contracts sharing one title) that can award blueprints.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintMission {
+    /// In-game title (`~mission(Location)` reads `[Location]`); `None` = no readable title.
+    pub title: Option<String>,
+    /// Contract debug name (`Name (+2 more)` for a shared title).
+    pub record: String,
+    /// Contract generator record short name (an Explorer search finds it).
+    pub generator: String,
+    /// Faction reputation records its success rewards pay, first seen first.
+    pub factions: Vec<String>,
+    /// Those factions readable (one per `factions` entry): the game's name, else the record
+    /// in words.
+    pub reputation: Vec<String>,
+    /// Star systems of its locality prerequisites; empty = not known.
+    pub systems: Vec<String>,
+    /// MISSION DETAILS `Type:` words (`Chain`, `Once only`), each when every contract is one.
+    pub kinds: Vec<String>,
+    /// MISSION DETAILS `Requires:` standing.
+    pub requires: Option<String>,
+    /// Contracts with this title.
+    pub contracts: u32,
+}
+
+/// How sure one blueprint is from one mission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum BlueprintAward {
+    /// A sure pool that holds only this blueprint.
+    Guaranteed,
+    /// A sure pool, this blueprint one draw of several.
+    GuaranteedPool,
+    /// By chance, or only some contracts of the title.
+    Chance,
+}
+
+/// How one mission awards one blueprint.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BlueprintEarn {
+    /// Index in [`BlueprintFinder::missions`].
+    pub mission: u32,
+    pub award: BlueprintAward,
+    /// MISSION DETAILS `Blueprint reward:` wording (the pool's odds, as in game):
+    /// `Guaranteed`, `Some variants only`, `25%`.
+    pub odds: String,
+    /// Contracts of the title that can award it (of the mission's `contracts`).
+    pub variants: u32,
+    /// Blueprints in its pool: `6`, or `4–6` over several pools.
+    pub pool: String,
+    /// Its share of the pool by weight (`17%`); `None` when the weights are not known.
+    pub pick: Option<String>,
+    /// Channels whose builds have this entry.
+    pub channels: Vec<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -1587,6 +1699,8 @@ pub struct BlueprintFinder {
     pub characters: Vec<BlueprintFinderCharacter>,
     /// Sorted by name; the app sorts, filters and counts facets.
     pub rows: Vec<BlueprintRow>,
+    /// Every mission the rows' `earn` names, each once (rows refer to them by index).
+    pub missions: Vec<BlueprintMission>,
 }
 
 // ---------------------------------------------------------------------------------------

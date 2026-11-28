@@ -188,9 +188,11 @@ all means no block.
 
 - A complete answer of `Tools::obtain_hints` is kept as `obtain-hints.json` in the build
   folder, tagged with `HINTS_CODE` (`starorg-mcp/build.rs`: a hash of the gamedata, data, mcp
-  and core sources) and the UEX stamp; a restart reads it instead of building again. A
+  and core sources), the digest of the folder's dataset stamps and the UEX stamp; a restart
+  reads it instead of building again. A
   partial answer (a dataset group failed) is never written.
-- The dataset cache keys on `DATASET_CODE` (gamedata and data sources), not the app version.
+- The dataset cache keys each dataset on its own code key (stamps, [mcp](../../mcp.md)), not
+  the app version (it keyed the whole folder on `DATASET_CODE` before 2026-11-25).
 - Debug builds optimise dependencies and the extraction and hints crates (`opt-level = 2`).
 - A stock description with CIG's own stray control character (PTU 5.0: bare CR mid-line in
   93 descriptions) no longer drops its stats and WHERE TO GET: `check_value` fails only on a

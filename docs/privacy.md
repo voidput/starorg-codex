@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 tags: [docs]
-updated: 2026-11-23
+updated: 2026-11-28
 ---
 
 # Privacy policy
@@ -44,12 +44,15 @@ no crash upload and no account of its own.**
 
 ## Network
 
-With the default settings the app's own code makes **no network request**. Each item below is
-off until you turn it on in Settings -> Network (the setup wizard's Preferences step asks about
-Check for updates and Connect StarOrg Tools, with both off unless you switch them on):
+With the default settings the app's own code makes one kind of network request: **prebuilt game
+data** (Settings -> Game data, on by default, first row below), and only while it reads game data.
+Turn that off and the app's own code makes **no network request**. Each other item below is off
+until you turn it on in Settings -> Network (the setup wizard's Preferences step asks about Check
+for updates and Connect StarOrg Tools, with both off unless you switch them on):
 
 | Setting | What is sent, to whom |
 |---|---|
+| Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your game build (Settings -> Game data, **on** by default) | Only when the app reads game data it has not cached yet (**Read game data**, or a screen that needs a dataset), or, once per app start and in the background, game data it downloaded from there before (one request for the build's tag, `git/ref/tags/<build>`, to see whether that build was published again; only when it was do the requests below follow): `api.github.com` is asked whether the public repo `voidput/sc-gamedata-dumps` has a release for the exact game build you have installed (the request names the game build number, e.g. `4.10.201.48085`, and nothing else about you), then for that tag's commit, its revision tag (e.g. `4.10.201.48085-r3`) and file list, and `raw.githubusercontent.com` for the data files the app can use. These are public files; the requests send only the app name and version as the user agent: no account, token, install id, file path or anything about you or your game. Each file is checked by checksum and shape before it is used; no match, a failed check or no network and the data is read from `Data.p4k` on this computer as before. The game text (`global.ini`) is always read from `Data.p4k`. Turn the switch off (stored as `[data] prebuilt_dumps = false` in `config.toml`) to never make these requests; datasets downloaded before are then read from `Data.p4k` again. The command-line tool and the MCP server never make these requests. The app shows a one-time notice about this after the first Read game data. |
 | Check for updates (not in the Microsoft Store version) | One request to `api.github.com` for the list of releases, at most once a day plus when you press Check now. It sends only the app name and version as its user agent: no account, token or install id. Installing an update downloads the release files from `github.com`. |
 | Connect StarOrg Tools | Nothing until you sign in, and then only to the environment chosen in Settings -> StarOrg Tools: `starorg.tools` (Production, the default) or `dev.starorg.tools` (Dev, the test server). Details below. |
 | Download UEX market data | Nothing until you press **Fetch now** (Settings -> Network, or Enhancements -> Where to get -> Shops and sell prices). Then three requests to `api.uexcorp.space` (`terminals`, `items_prices_all`, `commodities_prices_all`: where items are sold and what commodity kiosks pay, player-reported), written to the UEX folder in the app's cache. They send the app name and version as the user agent and, only if you saved one, your UEX token (`Authorization: Bearer`); nothing else: no install id, no game data, no character. The token is kept in the system keyring (or, when there is none, a file only your user can read in the app's config folder), never in settings, logs or diagnostics, never shown again, and sent only to `api.uexcorp.space`. **Remove** deletes it. |
@@ -82,13 +85,15 @@ Tools.
 | Switch (default) | What is sent, to the chosen host |
 |---|---|
 | Import blueprints from Game.log (on) | Nothing: it reads the game's logs on this computer. Off, the app, the command-line tool and the post-exit hook do not read the logs at all. |
-| Push owned blueprints (off) | The ids of the blueprints owned by the characters you tick, and when each was received when Game.log or StarOrg Tools says so (`POST …/my-blueprints`). First, the public blueprint list is downloaded without your token. Never character names, ids or log text; never removals. Names StarOrg Tools has no single blueprint for are not sent. |
-| Pull owned blueprints (off) | Only the request with your token (`GET …/my-blueprints`); the list is added to one character here. |
+| Push owned blueprints (off) | The ids of the blueprints owned by the characters you tick, and when each was received when Game.log or StarOrg Tools says so (`POST …/me/blueprints`). First, the public blueprint list is downloaded without your token. Never character names, ids or log text; never removals. Names StarOrg Tools has no single blueprint for are not sent. |
+| Pull owned blueprints (off) | Only the request with your token (`GET …/me/blueprints`); the list is added to one character here. |
 | Pull fleet/hangar (off) | Only the request with your token (`GET /api/fleet/hangar`); ship names, counts and your ship names go into Ships. |
 | Sync automatically after game exit (off) | Runs the switches above when the game closes, instead of only when you press Sync now. |
 
-Requests go to the org you pick (the blueprint routes carry its Discord id). The account and
-org names shown in the app are kept in `app.json`.
+The owned list belongs to your account, so there is no org to pick: the blueprint routes are
+`…/crafting/me/blueprints`. Only a server older than 2.3.0 lacks them; there the app uses the
+org route (`…/guilds/{id}/my-blueprints`, which carries the Discord id of one of your orgs with
+blueprint tracking). The account and org names from sign-in are kept in `app.json`.
 
 The Microsoft Store version never checks GitHub: the Store installs its updates.
 
@@ -117,7 +122,12 @@ assistant on your computer ask read-only questions about your game data ([detail
 
 Settings -> Experimental -> Live telemetry reads Star Citizen's own live data (vitals, ship,
 fuel, shields) from the game's local service while you play, for 5.0 builds and newer
-([details](user-guide.md#live-telemetry)). The app still collects nothing.
+([details](user-guide.md#live-telemetry)). The app still collects nothing. The screen and its
+Settings section say so in one line: "Live data comes from your own game on this PC, through
+the game's local telemetry API new in 5.0. Nothing leaves this PC." (Metrics + actions also
+sends your button presses to the game, over the same loopback service on this PC.) The Game.log
+panels (Events, People, Sessions) each say theirs: "Read from the game's own log file on this
+PC. Nothing leaves this PC."
 
 - It talks only to `127.0.0.1` on this computer (any other address is refused) and only while
   the switch is on and the Live telemetry screen is open. It makes no network request.

@@ -1336,17 +1336,17 @@ fn starorg_sign_in_pull_push_hangar_and_sign_out_against_a_local_server() {
     let st = f.backend.starorg_status("LIVE".into()).unwrap();
     assert!(st.last_sync.is_some());
 
-    // Another org; one without blueprint tracking is a 404 from the server.
-    f.backend
+    // The owned list is one per account, so nobody has to pick an org: choosing one
+    // without blueprint tracking still goes through the org that has it.
+    let st = f
+        .backend
         .set_starorg_guild(StarOrgGuildRequest {
             channel: "LIVE".into(),
             guild: "100000000000000002".into(),
         })
         .unwrap();
-    assert_eq!(
-        f.backend.starorg_push("LIVE".into()).unwrap_err().code,
-        ErrorCode::NotFound
-    );
+    assert_eq!(st.guild_id.as_deref(), Some("100000000000000001"));
+    f.backend.starorg_push("LIVE".into()).unwrap();
 
     // Diagnostics name neither the StarOrg user nor the orgs from the sync log lines.
     let d = f.backend.export_diagnostics().unwrap();
@@ -1666,6 +1666,40 @@ fn network_switches_are_stored_and_setup_ignores_an_old_data_source() {
             .network
             .published_dumps
     );
+}
+
+#[test]
+fn prebuilt_game_data_is_on_by_default_and_its_switch_is_shared_through_config_toml() {
+    let f = Fake::new();
+    let mut s = f.backend.get_settings().unwrap();
+    assert!(s.data.prebuilt_dumps, "on by default, upgraders included");
+    s.data.prebuilt_dumps = false;
+    assert!(!f.backend.save_settings(s).unwrap().data.prebuilt_dumps);
+    // In config.toml, where the command-line tool and the MCP server read it.
+    let cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    assert!(!starorg_core::config::prebuilt_dumps(&cfg));
+    assert!(
+        !starorg_mcp::config_for(None, &f.dirs, std::sync::Arc::new(NoWorker)).serve_dumps,
+        "datasets taken from a dump are not served with it off"
+    );
+    let mut on = f.backend.get_settings().unwrap();
+    on.data.prebuilt_dumps = true;
+    assert!(f.backend.save_settings(on).unwrap().data.prebuilt_dumps);
+    let cfg = starorg_core::config::Config::load(&f.dirs).unwrap();
+    assert!(starorg_core::config::prebuilt_dumps(&cfg));
+}
+
+struct NoWorker;
+
+impl starorg_mcp::worker::Extractor for NoWorker {
+    fn extract(
+        &self,
+        _: &std::path::Path,
+        dataset: &str,
+        _: &std::path::Path,
+    ) -> Result<starorg_mcp::worker::Measurement, String> {
+        Err(format!("{dataset}: no worker in this test"))
+    }
 }
 
 /// Every file under `dir`, `age` old: the table cache trusts a stamp only once its files are
@@ -2785,9 +2819,12 @@ fn a_cached_build_diff_compares_only_the_datasets_both_hold() {
             .collect();
         format!(r#"{{"_source":"syn","shipWeapons":[{}]}}"#, rows.join(","))
     };
+    // Stamped as this build's code would (an unstamped dataset is not served).
     let put = |dir: &std::path::Path, name: &str, body: &str| {
         std::fs::create_dir_all(dir).unwrap();
         std::fs::write(dir.join(name), body).unwrap();
+        let d = name.strip_suffix(".json").unwrap();
+        starorg_mcp::stamps::write(dir, d, starorg_mcp::stamps::LOCAL, None).unwrap();
     };
     let current = mcp.join(format!("4.10.200.58746-{fp}"));
     let older = mcp.join("4.10.197.2878-0a1b2c3d");

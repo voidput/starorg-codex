@@ -1,7 +1,7 @@
 ---
 title: User guide
 tags: [docs]
-updated: 2026-11-23
+updated: 2026-11-25
 ---
 
 # User guide
@@ -71,7 +71,41 @@ writes nothing to the game), no apply needed.
 - **Name tags:** short tags in item names, such as `[IND-S2-A]` (class, size, grade), built in
   the Tag Builder.
 - **Missions:** tags in contract titles (reputation, `[BP]`) and sections in contract
-  descriptions: item rewards, mission details, with colours for headers, labels and rewards.
+  descriptions: item rewards, spawns, mission details, with colours for headers, labels and
+  rewards.
+  - The game often uses one description for several contract variants (every difficulty of a
+    salvage job, each system it runs in). When the variants pay differently, MISSION DETAILS
+    says which pays what instead of only a range, merging variants that pay the same:
+    `Reputation: 100 (Very Easy, Easy) · 150 (Medium)`. Failure, Requires and Blueprint
+    reward get the same treatment. The variant name comes from the game data, in this order: a
+    difficulty in the contract's name (`Hard`, `VeryHard`, or the codes `VE`/`E`/`M`/`H`/`VH`/`S`),
+    its rank (`Rank 2`), the standing it requires (with the faction when two standings have the
+    same name), or the one system it is offered in. When nothing in the data tells the variants
+    apart the range stays. A required standing whose name the game files lack reads `not known`.
+    The faction's in-game name follows `Reputation` when the game data has one.
+  - `Systems: Stanton, Pyro, Nyx` lists the systems when the contracts with this description are
+    offered in more than one (a single contract offered in two systems gets it too). A shared
+    description also gets `Shared text: shown on 9 contracts (Very Easy, Easy, Medium)`, so you
+    know the text is not only about the offer in front of you; the names in brackets are the
+    ones the lines above are split by, and are left out when a line shows a range. Title tags
+    keep the short range (`[100–200 Rep]`).
+  - **SPAWNS** (switch *Spawns*, on by default; turn it off under Enhancements › Mission
+    descriptions, or `spawns = false` under `[enhance.mission]` in `profile.toml`) says which
+    ships the contract spawns, one line per group: `Salvage target: Aegis Gladius (smallest,
+    light damage, cargo: low value)`, `Friendly: MISC Freelancer`, `Hostiles (Wave 1): 2 ships ·
+    Anvil Arrow, Drake Cutlass Black and 9 more (pilot skill 40)`. The game does not name the
+    ships: it asks for "a ship tagged Salvage › Available to salvage › Smallest" (or a tag below
+    it) or "a Criminal ship of combat class Easy", and the app lists the ships in the game files
+    that carry those tags: the game's AI and salvage versions when there are any, never test or
+    template records, a special edition only when its base ship is not listed, up to six names
+    (fewer when the list length setting is lower). When one option holds most of the odds the
+    line says `mostly ...`; a query any ship answers reads `any ship`. The size, damage, cargo
+    and pilot skill in brackets are what the game applies to the ship it spawns. When no ship in
+    the files matches, the line says what the game picks from (`picked by the game from Salvage ›
+    Available to salvage › Smallest`). Variants that spawn different ships get a line each, named
+    as in MISSION DETAILS (`Salvage target (Hard): ...`, `Hostiles (Wave 2; Hard): ...`); a
+    variant without the group is left off its line. The role (target, friendly, hostiles) comes
+    from the names in the game data, so a rare group can land under `Ships`.
 - **Blueprints** (right after Missions): what a contract can reward and whether you own it.
   - The **blueprint list** under a contract's text, optionally with name tags.
   - **[Owned]** marks a blueprint the chosen character owns (blue, EM4, by default; *Colour the
@@ -167,9 +201,32 @@ type and are written on the next apply.
 
 - **Finder:** every blueprint of the build and who owns it, per character and channel (PTU
   progress is not LIVE progress). Search (`/`), filters (category, type, manufacturer, size,
-  source, character), sort and group; groups and cards can be collapsed. It shows as soon as
-  the build's blueprints are read and does not wait for the character list or StarOrg Tools; it
-  reloads after an import, a pull or a re-scan.
+  source, character, missing for, missions, reputation), sort and group; groups and cards can be
+  collapsed. It shows as soon as the build's blueprints are read and does not wait for the
+  character list or StarOrg Tools; it reloads after an import, a pull or a re-scan.
+- **Owned by one, missing for another:** **Owned** with a character picked lists what that
+  character owns; add yourself under **Missing for** and only what you lack stays. The other
+  character can be an alt, or a guild list pulled into a character through StarOrg Tools.
+  Missing for counts any source (a blueprint you have from an import is not missing), and with
+  several characters picked a blueprint must be missing for each of them. Like every filter it
+  is remembered per channel and goes with **Clear filters**.
+- **Earn it:** a blueprint a mission can award shows **Earn it: N missions** under its name;
+  open it for each mission's in-game title (or its contract record when it has none), the
+  reputation it pays (the faction's in-game name when the game data has one; every faction when
+  the title pays several), the star system when the game data names one, the type (Chain, Once
+  only), the standing it requires, and the odds in the words of the in-game MISSION DETAILS
+  line: *Guaranteed*, *Some variants only* (not every contract with that title awards it) or a
+  chance such as *30%*. That line is about the pool: the badge says what it means for this
+  blueprint. **Guaranteed** is a sure pool that holds only this blueprint; **Guaranteed pool, 1
+  of N** is a sure pool it is one draw of (its share of the draws follows when the pool has
+  weights); **Chance** is everything else. With Developer mode on, **Find in Explorer** searches
+  the Explorer for the contract's record. The **Missions** filter keeps guaranteed, from a
+  guaranteed pool, by chance, not from missions or not known; **Reputation** keeps one faction's.
+  In All channels every build's missions are listed, each with its channel when not every build
+  has it, and the Channel filter narrows them too. Contracts come only from a local read of the
+  game data: until a build has been read that way its blueprints say their missions are *not
+  known* rather than none (after this update every build is read once more, for the star
+  systems). The list is worked out once per build with the finder's catalogue.
 - **Where ownership comes from:**
   - **Game logs.** The game writes `Received Blueprint: ...` to `Game.log`. The app reads new
     lines when you open Blueprints; on Linux the post-exit hook does it after every session;
@@ -234,7 +291,13 @@ or ask the MCP server (`where_to_buy`); `shop_inventory` lists one shop's items 
 
 ## Commodities
 
-**Commodities** (Game group, or Ctrl+K) lists every tradable resource of the channel's build
+**Commodities** and **Mining** (Game group, or Ctrl+K) are one screen with two tabs
+(**Commodities | Mining** at the top of the list); each sidebar entry opens its tab, the search
+box is shared, and both read the same cached game data, once per build.
+
+### Commodities tab
+
+**Commodities** lists every tradable resource of the channel's build
 (ore, refined metal, gas, processed goods, ...), from its game data. Until that data is read
 the screen offers **Read game data** (the same job as in Shops; nothing is written to the
 game). Ship-system placeholders (heat, power, life support) are left out.
@@ -263,6 +326,53 @@ game). Ship-system placeholders (heat, power, life support) are left out.
 
 The list carries names and groups only; a resource's detail loads when you pick it. Both come
 from the build's cached data, built once per build, so switching screens does not rebuild.
+A mineable resource's **Where it is mined** has a **Mining details** link to the Mining tab.
+
+### Mining tab
+
+**Mining** lists every mineable resource of the build: ores, gems and raw minerals, the
+hand-mined and ROC-mined ones, and the harvestables with a quality curve. Chips narrow it by how
+it is mined (**Hand**, **ROC**, **Ship**); **Best quality** sorts by the best place's chance of
+a high roll. Pick one for:
+
+- **Raw to refined:** what it refines into (click it for its Commodities row; the header links
+  the resource's own row too). The refining yield is not in the game files (the server works it
+  out), so it says "not known".
+- **Quality:** the base curve, the values the game shows with estimated shares, and each place
+  override (`Pyro System`). An override applies to a place only when it names that place's body
+  or its system ("Pyro System"); one naming the body wins over one naming the system. An
+  override naming a station or a place no spawn row is says so and is applied nowhere. A place
+  whose system the data does not give (Lagrange points, asteroid clusters) shows "curve not
+  known" where a system override exists, not "same as base".
+- **Rock physics** (folded, open it to see): resistance, instability and the optimal charge window (where it sits, how far
+  it moves, how thin it is) from the game's mineable element records. Rock mass is not known:
+  the game rolls it when a rock spawns.
+- **Where found:** every body or belt that spawns it, **Most common** first or **Best quality**
+  first. Each row shows its mining kind, its quality range and where the curve comes from
+  (*same as base*, the override, or not known), the estimated share of rolls at 700 or more
+  (*est.*: a normal curve cut to its range), the best shown rolls with their shares, and the
+  difficulty. A row whose
+  ore has a quality scale below 1 in that rock (the records give ×0.49 or ×0.79 for many) is
+  marked `*`: how the game applies the scale is not in the data, so the share is not changed,
+  may be lower, and the row sorts after full-scale rows in **Best quality**. Names come from the
+  body, else the provider key (`Yela Belt`, `Lagrange A`). Open a row for its quality first (range, share at 700 or
+  more, best rolls with their shares, the scale note), then one rock line (tier, kind, how much
+  of it is this ore, what else it can hold, scan signature) and the difficulty with its inputs.
+- **Hand-placed spots:** caves, asteroid bases and events whose spawn points place the rock;
+  they roll the base curve (the data does not say which system a spot is in).
+
+**Estimates.** The quality shares and the difficulty are worked out, not read, and say so:
+
+- **Difficulty** (easy, medium, hard) scores resistance (below 0.2, below 0.6, else), instability
+  (below 100, below 500, else) and window thinness (below 0.6, below 1.5, else) 0, 1 or 2 points
+  each: 0-1 of 6 easy, 2-3 medium, 4-6 hard. A missing input is left out and named.
+- **No ship or laser pick.** The kind column says whether a rock is hand, ROC or ship mined
+  (from the game data). Which laser head suits a ship rock depends on more than beam power
+  (resistance and instability modifiers, window size, module slots), and the game files read
+  here hold only power and range, so no head or ship is recommended.
+
+The rock physics come from a dataset **Read game data** adds; a build read before it shows "not
+known yet" and the top line offers **Read game data** again.
 
 ## Loot
 
@@ -289,17 +399,61 @@ typing a few letters jumps to the next row starting with them.
   (classic)` are different slot presets of the same place. Pick an area to see every item that
   can drop there, grouped by where in it the item is (`Lying loose`, `Weapons rack`, `Large
   mining crate`, `Medical crate`, ...), each row with its rarity and `always in it` for a rack.
+- **NPCs (body loot)** is a kind of place in the area list too: what an NPC's body can hold,
+  from the actor loot tables, in groups **Pilots** (`Ace pilot`), **Ground combat** (`Grunt`,
+  `Soldier`, `Sniper`, `CQC fighter`, `Grenadier`, `Juggernaut`, `Techie`, `Large-ammo
+  carrier`), **Prisoners** and **Bosses** (`Art Kelvin`, `Mendo Ren`, `Remy Kettle`,
+  `Juggernaut (elite, SOO)`, `Rock Cracker boss`). A group with one NPC is left out, so that NPC
+  sits right under the kind. The `... (with council scrip)` rows are the game's second table of
+  the same NPC type with a council scrip slot added; the data does not say which NPCs use
+  which, so both are listed. Template tables (`_TEMPLATE`) are no NPC and are left out. Pick an
+  NPC to see every item it can carry, grouped by the slot of its table (**Ammo**, **Medpens**,
+  **Scrip**, **Medals**, **Unique item**, ...). This is body loot, what the NPC carries in its
+  pockets; what it wears is its worn-gear row (below), linked from the top of the list. Which
+  places or missions spawn which NPC is not in the data, so no NPC names one.
+- **NPCs (worn gear)** is a kind of place too: what each NPC type can spawn wearing and
+  wielding, from its loadout records (the outfit, armour, weapons, grenades and medpens its
+  body can be looted for). The rows sit by faction (**Criminals**, **Civilians**, **Nine
+  Tails**, **Private security**, ...) and, where a faction has several kinds, by role (**Pilots**,
+  **Ground combat**, **Guards & security**, **Shopkeepers & staff**, ...); a faction with one
+  row names it (`Grunt 02 (Nine Tails)`), and no level holds a single row. Records with the same
+  name and the same gear (the male and female versions of an NPC) are one row, listing their
+  classes; two rows with the same name are told apart by sex, else by a variant number. Test
+  and template actors are left out, as are body, head and hair parts and items tagged as not
+  lootable. Pick a row to see its gear by slot, in body order (**Undersuit**, **Helmet**,
+  **Torso**, **Arms**, **Legs**, **Backpack**, **Clothing**, **Primary weapon**, **Sidearm**,
+  **Utility**, **Optics**, **Magazines**, **Grenades**, **Medical**, ...), each item with the
+  estimated chance the NPC spawns wearing it, the loadout's wear range as the data gives it
+  (`Condition not known` when the loadout sets none) and, when its body has a loot table, a link
+  to its body-loot row. The chance is an estimate: where a loadout picks one of several options
+  the data gives no weights, so an even pick is assumed (one of two helmets: 50%), compounded
+  through nested picks. An item an option holds more than once (two magazines beside their
+  rifle) is there as often as the option is, not twice as often. Loadout options gated by tags (`AI/NpcClass/Heavy`,
+  `LoadoutIdentifier/LB_Elite`, an `OR` or `NOT` of them) are decided from the NPC record's own
+  tags: an option it does not qualify for is left out. Groups of the same name in one loadout are
+  one pick; of those, the gated options the NPC qualifies for are the pick and the ungated ones
+  only the fallback when it qualifies for none (inferred from how the data pairs them, not stated
+  by it). An NPC whose outfit a mission picks lists each outfit at its full chance with the
+  condition beside it (`if outfit picked by the mission (Outfits/S42/Work)`); a condition this
+  version cannot read says `if condition not read`. An NPC whose body cannot be looted (a
+  Vanduul pilot) has no row. Missions can also change outfits. The worn gear comes from
+  its own dataset, which **Read game data** adds: a build read before it says "not read yet"
+  above the area list and offers **Read game data** again.
 - **By item:** category (FPS weapons, FPS attachments, Armour & clothing, Consumables, Ship
   components, ...) -> what kind of thing (Rifles, Pistols, Magazines, Helmets, Jackets & coats,
   Power plants, ...) -> the items, searchable by name or class. Pick one to see every area it
-  drops in, grouped by kind of place (Caves, Outposts, Stations, ...). With Developer mode on,
+  drops in, grouped by kind of place (Caves, Outposts, Stations, ...); the NPCs that carry it
+  are a group of their own, **NPCs (body loot)**, so searching an item answers which NPC drops
+  it, and the NPCs that can spawn wearing it another, **NPCs (worn gear)** (searching `Ace
+  Interceptor` finds the flight suit the Ace pilot wears). With Developer mode on,
   **Open in Explorer** opens its record. Items that share a name (seven `Standard Container`s)
   show their class name beside it, in the tree and in the drops.
 - **Group by** beside the filter picks how the drops are grouped: for an area **Where in it**
   (the default) or **None** (one list, likeliest first); for an item **Place** (the default, the
   top level of the area tree), **Where in it** or **None**. The app remembers the choice per
   view. Each group is a header with its size and best odds, over all its drops; groups are
-  ordered by best odds, then by name, and the rows inside are likeliest first. Only the first
+  ordered by best odds, then by name (a worn-gear row's slots by body order), and the rows inside
+  are likeliest first. Only the first
   group (or the first few small ones) is open at first; opening another loads its rows. A group
   shows at most its 500 likeliest drops (`N more in ...; filter to narrow`), an ungrouped list
   the 2,000 likeliest.
@@ -312,7 +466,21 @@ typing a few letters jumps to the next row starting with them.
   holds the item, assuming an even pick inside each loot pool (the game data does not say how
   the pick is weighted). The WHERE TO GET line, the Explorer Sources card and the MCP
   `where_found` tool use the same estimate. Loot tables no area places (corpses, events) are not
-  listed; test presets are left out.
+  listed, except the NPC tables above; test presets are left out.
+- A loot entry that names its items by class (`ASD specimen vial`, `MedGel`, `Council scrip`)
+  picks only those items, and they skip the spawn's pool filter and rarity choice, which only
+  narrow the tag-picked entries: the game names the item outright there.
+- **Per body** is the same estimate for an NPC, from one pick of its loot table: a slot's share
+  of the table's weights, times its chance to exist where the table gives one, then an even
+  pick inside the slot's pool. A slot the table always fills (the council scrip, a boss's scrip
+  or keycard, the Ace pilot's scrip) counts as there whatever the weights, at its chance to
+  exist (`Sniper (with council scrip)`: 50%); in a V3 table the other slots then share the
+  picks among themselves (`Rock Cracker boss`: ammo about 91%, medpens 9%). The data gives no
+  roll count for a body, so these odds may be a floor: a body that gets several items (a
+  `Prisoner`, whose slots each hold at most one) can carry more than one slot's worth.
+- **Chance** (worn gear) is the estimated chance an NPC of that type spawns wearing or
+  wielding the item, with even picks between loadout options assumed (see above); the drop rows
+  say `can spawn wearing`.
 - Item names are the game's; an item whose game name is missing or a placeholder shows readable
   words from its class name.
 
@@ -330,7 +498,10 @@ lists every channel and why one is not offered (an older version, or no build ma
 
 Nothing leaves the computer: the app talks to `127.0.0.1` only, refuses any other address,
 records nothing unless you turn on **Record sessions**, and sends nothing anywhere
-([privacy](privacy.md)).
+([privacy](privacy.md)). The screen and its Settings section say it in one line: "Live data
+comes from your own game on this PC, through the game's local telemetry API new in 5.0. Nothing
+leaves this PC." The Events, People and Sessions panels add the same for Game.log: "Read from
+the game's own log file on this PC. Nothing leaves this PC."
 
 **Each part is its own choice, off by default**, and turning one on never turns on another:
 
@@ -531,12 +702,42 @@ slow down. `STARORG_THREADS=<n>` sets the thread cap for both rows (at least 1),
 `apply --all --if-stale`) a background one. On Windows the app and the CLI keep their own
 priority class (only their workers are lowered); the thread cap applies everywhere.
 
+## Reading game data
+
+**Read game data** (Enhancements' preview, Shops, Commodities, Loot) reads the datasets the
+screens and Where to get need into the dataset cache, `<cache>/mcp/<CHANNEL>/<build>-<id>/`,
+once per game build. Each dataset is extracted from `Data.p4k` on this computer in a short-lived
+worker, and stamped with the code that wrote it. After an app update only the datasets whose
+extraction code changed are read again; the rest stay. The cache keeps the current build and
+the previous one per channel (for Developer mode's Diff), and removes older builds and copies
+written by older app code by itself; Activity says what it removed.
+
+To save that work, while Settings -> Game data -> *Download prebuilt game data from
+voidput/sc-gamedata-dumps when it matches your game build* is on (the default), the app first
+checks whether the public dumps repo has the **exact** build you have installed. If it does,
+the datasets the app can use are downloaded instead of extracted, each checked by checksum and
+shape; anything else (no such build yet, a check that fails, a dataset this app reads
+differently, no network) is extracted from `Data.p4k` as before, so reading always works
+offline. The game text is always read from `Data.p4k`; Where to get lines built from
+downloaded datasets are the same build's data and can be applied. Turn the switch off and
+datasets downloaded before are read from `Data.p4k` again. Activity shows per step what was
+downloaded and what was read locally, for example `LIVE: Where to get data: downloaded
+game-loot, game-item-sources (prebuilt 4.10.201.48085 r3-9a387f3b599e); read from Data.p4k:
+game-item-tags`. Downloaded data is always used at once: once per app start, the app checks in
+the background (one small request) whether the dumps repo published your build again (a fix,
+`r4`), and if so the next read of those datasets downloads them again. Offline, or while that
+download fails, the copies it has are used. Which
+datasets can come from there: [mcp: prebuilt datasets](mcp.md#prebuilt-datasets). What is
+sent: [privacy](privacy.md#network).
+
 ## Settings worth knowing
 
 - **Appearance:** dark (default) or light theme, accent colour and palette.
 - **Network:** every switch is off by default: *Check for updates* ([updates](updates.md)),
-  *Connect StarOrg Tools*, *Download UEX market data*. With them off the app makes no network
-  request.
+  *Connect StarOrg Tools*, *Download UEX market data*. With them and *Game data -> Download
+  prebuilt game data* off the app makes no network request.
+- **Game data -> Download prebuilt game data from voidput/sc-gamedata-dumps when it matches your
+  game build** (on by default): see [Reading game data](#reading-game-data).
 - **Download UEX market data:** **Fetch now** downloads where items are sold and what
   commodity kiosks pay (UEX Corp, player-reported) from `api.uexcorp.space` into the UEX folder
   (`<cache>/mcp/uex`: `uex-item-prices.json`, `uex-commodity-prices.json`, `uex-terminals.json`),
@@ -624,7 +825,8 @@ For players who want to look things up in the game data. Read only on the game.
   the loot tables that roll the item but that no container uses (enemies, bosses). For an
   ore it lists where the ore is mined:
   - the bodies and belts whose spawn tables roll a rock that holds it, with the mining kind
-    (ship, vehicle or hand), the tier and a spawn weight;
+    (ship, vehicle or hand), the tier and a spawn weight (a rock that lists the ore in two
+    parts of its composition counts once per spawn group, as the record gives it);
   - the spots in caves, asteroid bases and events that place such a rock;
   - the quality it comes in: the range it rolls in and where most rolls land, places with
     their own curve (Pyro System), and the values the game actually shows. A roll snaps to

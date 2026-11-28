@@ -940,6 +940,77 @@
         "name": "Unattributed"
       }
     ],
+    "missions": [
+      {
+        "contracts": 1,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Debug_Reward",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": null
+      },
+      {
+        "contracts": 2,
+        "factions": [
+          "factionreputation_lawful_synthetic_security"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Bounty_Easy (+1 more)",
+        "reputation": [
+          "Synthetic Security Bureau"
+        ],
+        "requires": null,
+        "systems": [
+          "Pyro",
+          "Stanton"
+        ],
+        "title": "Eliminate the Sample Warlord"
+      },
+      {
+        "contracts": 1,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_PTU_Trial",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": "Prototype Trial Run"
+      },
+      {
+        "contracts": 1,
+        "factions": [
+          "factionreputation_unlawful_test_cds"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [
+          "Chain",
+          "Once only"
+        ],
+        "record": "SYN_Salvage",
+        "reputation": [
+          "Test CDS"
+        ],
+        "requires": "Trusted",
+        "systems": [],
+        "title": "Recover the Cargo near [Location]"
+      },
+      {
+        "contracts": 2,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Courier_Long (+1 more)",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": "Synthetic Courier Run"
+      }
+    ],
     "rows": [
       {
         "candidates": [],
@@ -947,6 +1018,22 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000ba",
         "kind": "ship-component",
@@ -977,6 +1064,24 @@
           "PTU"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 4,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ca",
         "kind": "armor",
@@ -996,6 +1101,24 @@
           "PTU"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 4,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cb",
         "kind": "armor",
@@ -1015,6 +1138,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d2",
         "kind": "armor",
@@ -1034,6 +1162,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d4",
         "kind": "fps-ammo",
@@ -1052,6 +1185,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d5",
         "kind": "mission-item",
@@ -1071,6 +1208,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bd",
         "kind": "ship-weapon",
@@ -1090,6 +1245,11 @@
           "PTU"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cc",
         "kind": "armor",
@@ -1130,6 +1290,24 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cd",
         "kind": "armor",
@@ -1149,6 +1327,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bf",
         "kind": "ship-weapon",
@@ -1168,6 +1351,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c6",
         "kind": "fps-weapon",
@@ -1187,6 +1375,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b9",
         "kind": "ship-component",
@@ -1206,6 +1399,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "D",
         "key": "00000000-0000-4000-8000-0000000000b3",
         "kind": "ship-component",
@@ -1225,6 +1423,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b4",
         "kind": "ship-component",
@@ -1244,6 +1447,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b5",
         "kind": "ship-component",
@@ -1274,6 +1495,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b6",
         "kind": "ship-component",
@@ -1293,6 +1519,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c4",
         "kind": "fps-weapon",
@@ -1312,6 +1543,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c3",
         "kind": "fps-weapon",
@@ -1331,6 +1567,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d1",
         "kind": "armor",
@@ -1361,6 +1602,11 @@
           "PTU"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d6",
         "kind": "armor",
@@ -1391,6 +1637,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d7",
         "kind": "armor",
@@ -1424,6 +1675,8 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [],
         "grade": null,
         "key": "name:sample visor",
         "kind": "armor",
@@ -1454,6 +1707,11 @@
           "PTU"
         ],
         "class": "Medium",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c9",
         "kind": "armor",
@@ -1484,6 +1742,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bb",
         "kind": "ship-weapon",
@@ -1514,6 +1790,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b0",
         "kind": "ship-component",
@@ -1533,6 +1814,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b1",
         "kind": "ship-component",
@@ -1563,6 +1849,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "33%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b2",
         "kind": "ship-component",
@@ -1582,6 +1886,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bc",
         "kind": "ship-weapon",
@@ -1612,6 +1921,23 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed",
+            "channels": [
+              "PTU"
+            ],
+            "mission": 2,
+            "odds": "Guaranteed",
+            "pick": "100%",
+            "pool": "1",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c0",
         "kind": "fps-weapon",
@@ -1672,6 +1998,36 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          },
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c1",
         "kind": "fps-weapon",
@@ -1691,6 +2047,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cf",
         "kind": "armor",
@@ -1710,6 +2071,11 @@
           "PTU"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ce",
         "kind": "armor",
@@ -1729,6 +2095,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 0,
+            "odds": "Guaranteed",
+            "pick": null,
+            "pool": "1",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c8",
         "kind": "fps-weapon",
@@ -1748,6 +2132,11 @@
           "PTU"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d0",
         "kind": "armor",
@@ -1767,6 +2156,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c7",
         "kind": "fps-weapon",
@@ -1786,6 +2180,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c2",
         "kind": "fps-weapon",
@@ -1816,6 +2215,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b7",
         "kind": "ship-component",
@@ -1835,6 +2239,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b8",
         "kind": "ship-component",
@@ -1854,6 +2263,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d3",
         "kind": "fps-ammo",
@@ -1873,6 +2287,11 @@
           "PTU"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000be",
         "kind": "ship-weapon",
@@ -1903,6 +2322,24 @@
           "PTU"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE",
+              "PTU"
+            ],
+            "mission": 3,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE",
+          "PTU"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c5",
         "kind": "fps-weapon",
@@ -1961,6 +2398,66 @@
         "name": "Unattributed"
       }
     ],
+    "missions": [
+      {
+        "contracts": 1,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Debug_Reward",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": null
+      },
+      {
+        "contracts": 2,
+        "factions": [
+          "factionreputation_lawful_synthetic_security"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Bounty_Easy (+1 more)",
+        "reputation": [
+          "Synthetic Security Bureau"
+        ],
+        "requires": null,
+        "systems": [
+          "Pyro",
+          "Stanton"
+        ],
+        "title": "Eliminate the Sample Warlord"
+      },
+      {
+        "contracts": 1,
+        "factions": [
+          "factionreputation_unlawful_test_cds"
+        ],
+        "generator": "SYN_MockGenerator",
+        "kinds": [
+          "Chain",
+          "Once only"
+        ],
+        "record": "SYN_Salvage",
+        "reputation": [
+          "Test CDS"
+        ],
+        "requires": "Trusted",
+        "systems": [],
+        "title": "Recover the Cargo near [Location]"
+      },
+      {
+        "contracts": 2,
+        "factions": [],
+        "generator": "SYN_MockGenerator",
+        "kinds": [],
+        "record": "SYN_Courier_Long (+1 more)",
+        "reputation": [],
+        "requires": null,
+        "systems": [],
+        "title": "Synthetic Courier Run"
+      }
+    ],
     "rows": [
       {
         "candidates": [],
@@ -1968,6 +2465,22 @@
           "LIVE"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 3,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ca",
         "kind": "armor",
@@ -1986,6 +2499,22 @@
           "LIVE"
         ],
         "class": "Medium",
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 3,
+            "odds": "Some variants only",
+            "pick": "50%",
+            "pool": "2",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cb",
         "kind": "armor",
@@ -2004,6 +2533,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d2",
         "kind": "armor",
@@ -2022,6 +2555,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d4",
         "kind": "fps-ammo",
@@ -2040,6 +2577,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d5",
         "kind": "mission-item",
@@ -2058,6 +2599,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bd",
         "kind": "ship-weapon",
@@ -2076,6 +2633,10 @@
           "LIVE"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cc",
         "kind": "armor",
@@ -2105,6 +2666,22 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cd",
         "kind": "armor",
@@ -2123,6 +2700,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bf",
         "kind": "ship-weapon",
@@ -2141,6 +2722,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c6",
         "kind": "fps-weapon",
@@ -2159,6 +2744,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b9",
         "kind": "ship-component",
@@ -2177,6 +2766,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "D",
         "key": "00000000-0000-4000-8000-0000000000b3",
         "kind": "ship-component",
@@ -2195,6 +2788,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b4",
         "kind": "ship-component",
@@ -2213,6 +2810,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b5",
         "kind": "ship-component",
@@ -2242,6 +2855,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b6",
         "kind": "ship-component",
@@ -2260,6 +2877,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c4",
         "kind": "fps-weapon",
@@ -2278,6 +2899,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c3",
         "kind": "fps-weapon",
@@ -2296,6 +2921,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d1",
         "kind": "armor",
@@ -2325,6 +2954,10 @@
           "LIVE"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d6",
         "kind": "armor",
@@ -2354,6 +2987,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d7",
         "kind": "armor",
@@ -2386,6 +3023,8 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [],
         "grade": null,
         "key": "name:sample visor",
         "kind": "armor",
@@ -2415,6 +3054,10 @@
           "LIVE"
         ],
         "class": "Medium",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c9",
         "kind": "armor",
@@ -2444,6 +3087,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bb",
         "kind": "ship-weapon",
@@ -2473,6 +3132,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b0",
         "kind": "ship-component",
@@ -2491,6 +3154,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b1",
         "kind": "ship-component",
@@ -2520,6 +3187,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "33%",
+            "pool": "5",
+            "variants": 2
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "C",
         "key": "00000000-0000-4000-8000-0000000000b2",
         "kind": "ship-component",
@@ -2538,6 +3221,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000bc",
         "kind": "ship-weapon",
@@ -2556,6 +3243,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c0",
         "kind": "fps-weapon",
@@ -2595,6 +3286,33 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed-pool",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 1,
+            "odds": "Guaranteed",
+            "pick": "17%",
+            "pool": "5",
+            "variants": 2
+          },
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c1",
         "kind": "fps-weapon",
@@ -2613,6 +3331,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000cf",
         "kind": "armor",
@@ -2631,6 +3353,10 @@
           "LIVE"
         ],
         "class": "Heavy",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000ce",
         "kind": "armor",
@@ -2649,6 +3375,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "guaranteed",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 0,
+            "odds": "Guaranteed",
+            "pick": null,
+            "pool": "1",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c8",
         "kind": "fps-weapon",
@@ -2667,6 +3409,10 @@
           "LIVE"
         ],
         "class": "Light",
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d0",
         "kind": "armor",
@@ -2685,6 +3431,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c7",
         "kind": "fps-weapon",
@@ -2703,6 +3453,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c2",
         "kind": "fps-weapon",
@@ -2732,6 +3486,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "A",
         "key": "00000000-0000-4000-8000-0000000000b7",
         "kind": "ship-component",
@@ -2750,6 +3508,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": "B",
         "key": "00000000-0000-4000-8000-0000000000b8",
         "kind": "ship-component",
@@ -2768,6 +3530,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000d3",
         "kind": "fps-ammo",
@@ -2786,6 +3552,10 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000be",
         "kind": "ship-weapon",
@@ -2815,6 +3585,22 @@
           "LIVE"
         ],
         "class": null,
+        "earn": [
+          {
+            "award": "chance",
+            "channels": [
+              "LIVE"
+            ],
+            "mission": 2,
+            "odds": "30%",
+            "pick": null,
+            "pool": "4",
+            "variants": 1
+          }
+        ],
+        "earn_read": [
+          "LIVE"
+        ],
         "grade": null,
         "key": "00000000-0000-4000-8000-0000000000c5",
         "kind": "fps-weapon",
@@ -2884,7 +3670,7 @@
       "key": "mission_DescSYN_Recovery",
       "label": "Contract description",
       "original": "Recover the synthetic cargo.",
-      "result": "Recover the synthetic cargo.\\n\\n<EM3>BLUEPRINTS</EM3>\\n- Sample Rifle [Owned]\\n- Sample Pistol\\n\\n<EM3>ITEM REWARDS</EM3>\\n- Sample Scrip ×3\\n\\n<EM3>MISSION DETAILS</EM3>\\n<EM4>Reputation:</EM4> 150"
+      "result": "Recover the synthetic cargo.\\n\\n<EM3>BLUEPRINTS</EM3>\\n- Sample Rifle [Owned]\\n- Sample Pistol\\n\\n<EM3>ITEM REWARDS</EM3>\\n- Sample Scrip ×3\\n\\n<EM3>SPAWNS</EM3>\\n<EM4>Salvage target:</EM4> Sample Wreck (small, light damage)\\n\\n<EM3>MISSION DETAILS</EM3>\\n<EM4>Reputation:</EM4> 150"
     },
     {
       "category": "quest-hints",
@@ -3079,7 +3865,7 @@
               "rock": "MineableRock_Asteroid_Fixtanium",
               "spawn_share": 0.08,
               "system": "Stanton",
-              "tier": null
+              "tier": "Legendary"
             },
             {
               "body": "Pyro I",
@@ -3090,7 +3876,29 @@
               "rock": "MineableRock_Asteroid_Fixtanium",
               "spawn_share": 0.05,
               "system": "Pyro",
-              "tier": null
+              "tier": "Legendary"
+            },
+            {
+              "body": "Nyx I",
+              "kind": "ship",
+              "location": "Nyx1",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.03,
+              "system": "Nyx",
+              "tier": "Legendary"
+            },
+            {
+              "body": null,
+              "kind": "ship",
+              "location": "Lagrange_B",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.02,
+              "system": "Lagrange",
+              "tier": "Legendary"
             }
           ],
           "name": "Fixtanium",
@@ -3316,8 +4124,8 @@
               "body": "Lyria",
               "kind": "vehicle",
               "location": "Stanton3a",
-              "max_percent": null,
-              "min_percent": null,
+              "max_percent": 100.0,
+              "min_percent": 50.0,
               "rock": "MineableRock_GroundVehicle_Mockite",
               "spawn_share": 0.3,
               "system": "Stanton",
@@ -3327,6 +4135,7 @@
           "name": "Mockite",
           "ore": "mockite_ore",
           "rocks": [
+            "MineableRock_Synthium",
             "MineableRock_GroundVehicle_Mockite"
           ],
           "spots": []
@@ -3414,7 +4223,7 @@
               "rock": "MineableRock_Synthium",
               "spawn_share": 0.4,
               "system": "Stanton",
-              "tier": null
+              "tier": "Common"
             },
             {
               "body": "Yela",
@@ -3425,13 +4234,14 @@
               "rock": "MineableRock_Synthium",
               "spawn_share": 0.25,
               "system": "Stanton",
-              "tier": null
+              "tier": "Common"
             }
           ],
           "name": "Synthium",
           "ore": "synthium_ore",
           "rocks": [
-            "MineableRock_Synthium"
+            "MineableRock_Synthium",
+            "MineableRock_Asteroid_Fixtanium"
           ],
           "spots": []
         }
@@ -3559,7 +4369,7 @@
               "rock": "MineableRock_Asteroid_Fixtanium",
               "spawn_share": 0.08,
               "system": "Stanton",
-              "tier": null
+              "tier": "Legendary"
             },
             {
               "body": "Pyro I",
@@ -3570,7 +4380,29 @@
               "rock": "MineableRock_Asteroid_Fixtanium",
               "spawn_share": 0.05,
               "system": "Pyro",
-              "tier": null
+              "tier": "Legendary"
+            },
+            {
+              "body": "Nyx I",
+              "kind": "ship",
+              "location": "Nyx1",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.03,
+              "system": "Nyx",
+              "tier": "Legendary"
+            },
+            {
+              "body": null,
+              "kind": "ship",
+              "location": "Lagrange_B",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.02,
+              "system": "Lagrange",
+              "tier": "Legendary"
             }
           ],
           "name": "Fixtanium",
@@ -4694,8 +5526,8 @@
               "body": "Lyria",
               "kind": "vehicle",
               "location": "Stanton3a",
-              "max_percent": null,
-              "min_percent": null,
+              "max_percent": 100.0,
+              "min_percent": 50.0,
               "rock": "MineableRock_GroundVehicle_Mockite",
               "spawn_share": 0.3,
               "system": "Stanton",
@@ -4705,6 +5537,7 @@
           "name": "Mockite",
           "ore": "mockite_ore",
           "rocks": [
+            "MineableRock_Synthium",
             "MineableRock_GroundVehicle_Mockite"
           ],
           "spots": []
@@ -4802,7 +5635,7 @@
               "rock": "MineableRock_Synthium",
               "spawn_share": 0.4,
               "system": "Stanton",
-              "tier": null
+              "tier": "Common"
             },
             {
               "body": "Yela",
@@ -4813,13 +5646,14 @@
               "rock": "MineableRock_Synthium",
               "spawn_share": 0.25,
               "system": "Stanton",
-              "tier": null
+              "tier": "Common"
             }
           ],
           "name": "Synthium",
           "ore": "synthium_ore",
           "rocks": [
-            "MineableRock_Synthium"
+            "MineableRock_Synthium",
+            "MineableRock_Asteroid_Fixtanium"
           ],
           "spots": []
         }
@@ -4976,7 +5810,7 @@
               "rock": "MineableRock_Asteroid_Fixtanium",
               "spawn_share": 0.08,
               "system": "Stanton",
-              "tier": null
+              "tier": "Legendary"
             },
             {
               "body": "Pyro I",
@@ -4987,7 +5821,29 @@
               "rock": "MineableRock_Asteroid_Fixtanium",
               "spawn_share": 0.05,
               "system": "Pyro",
-              "tier": null
+              "tier": "Legendary"
+            },
+            {
+              "body": "Nyx I",
+              "kind": "ship",
+              "location": "Nyx1",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.03,
+              "system": "Nyx",
+              "tier": "Legendary"
+            },
+            {
+              "body": null,
+              "kind": "ship",
+              "location": "Lagrange_B",
+              "max_percent": 30.0,
+              "min_percent": 10.0,
+              "rock": "MineableRock_Asteroid_Fixtanium",
+              "spawn_share": 0.02,
+              "system": "Lagrange",
+              "tier": "Legendary"
             }
           ],
           "name": "Fixtanium",
@@ -14911,6 +15767,7 @@
       "owned_line": false,
       "owned_marker": true,
       "reward_em": 0,
+      "spawns": true,
       "title_blueprint": true,
       "title_bp_em": 4,
       "title_em": true,
@@ -14980,6 +15837,9 @@
       "palette": "void",
       "reduce_effects": true,
       "theme": "dark"
+    },
+    "data": {
+      "prebuilt_dumps": true
     },
     "default_channel": "LIVE",
     "network": {
@@ -15219,7 +16079,9 @@
       "group": "Asteroid bases",
       "id": "v3slotpreset_asteroidbase",
       "name": "Asteroid bases",
-      "path": []
+      "npcs": 0,
+      "path": [],
+      "worn": 0
     },
     "group_by": "container",
     "groups": [
@@ -15235,6 +16097,7 @@
             "id": "SYN_Fizz_Can",
             "kind": "loot",
             "name": "Fizz Can",
+            "note": null,
             "odds": 0.22131200000000018,
             "rarity": null
           },
@@ -15244,6 +16107,7 @@
             "id": "SYN_Hornet_Pistol",
             "kind": "loot",
             "name": "Hornet Pistol",
+            "note": null,
             "odds": 0.22131200000000018,
             "rarity": null
           },
@@ -15253,6 +16117,7 @@
             "id": "SYN_Viper_Rifle",
             "kind": "loot",
             "name": "Viper Rifle",
+            "note": null,
             "odds": 0.22131200000000018,
             "rarity": null
           },
@@ -15262,6 +16127,7 @@
             "id": "SYN_Mend_Pen",
             "kind": "loot",
             "name": "Mend Pen",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15271,6 +16137,7 @@
             "id": "SYN_Ration_Bar",
             "kind": "loot",
             "name": "Ration Bar",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15280,6 +16147,7 @@
             "id": "syn_food_ration_berry",
             "kind": "loot",
             "name": "Ration Bar (Berry)",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15289,6 +16157,7 @@
             "id": "syn_food_ration_chili",
             "kind": "loot",
             "name": "Ration Bar (Chili)",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15298,6 +16167,7 @@
             "id": "syn_food_ration_citrus",
             "kind": "loot",
             "name": "Ration Bar (Citrus)",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15307,6 +16177,7 @@
             "id": "syn_food_ration_mint",
             "kind": "loot",
             "name": "Ration Bar (Mint)",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15316,6 +16187,7 @@
             "id": "syn_food_ration_smoked",
             "kind": "loot",
             "name": "Ration Bar (Smoked)",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15325,6 +16197,7 @@
             "id": "syn_food_ration_vanilla",
             "kind": "loot",
             "name": "Ration Bar (Vanilla)",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15334,6 +16207,7 @@
             "id": "SYN_Thumper_Launcher",
             "kind": "loot",
             "name": "Thumper Launcher",
+            "note": null,
             "odds": 0.11526400000000014,
             "rarity": null
           },
@@ -15343,6 +16217,7 @@
             "id": "syn_armour_arms_night",
             "kind": "loot",
             "name": "Pathfinder Arms (Night)",
+            "note": null,
             "odds": 0.03946903703703697,
             "rarity": null
           },
@@ -15352,6 +16227,7 @@
             "id": "syn_armour_backpack_night",
             "kind": "loot",
             "name": "Pathfinder Backpack (Night)",
+            "note": null,
             "odds": 0.03946903703703697,
             "rarity": null
           },
@@ -15361,6 +16237,7 @@
             "id": "syn_armour_core_night",
             "kind": "loot",
             "name": "Pathfinder Core (Night)",
+            "note": null,
             "odds": 0.03946903703703697,
             "rarity": null
           },
@@ -15370,6 +16247,7 @@
             "id": "syn_armour_helmet_night",
             "kind": "loot",
             "name": "Pathfinder Helmet (Night)",
+            "note": null,
             "odds": 0.03946903703703697,
             "rarity": null
           },
@@ -15379,6 +16257,7 @@
             "id": "syn_armour_legs_night",
             "kind": "loot",
             "name": "Pathfinder Legs (Night)",
+            "note": null,
             "odds": 0.03946903703703697,
             "rarity": null
           },
@@ -15388,6 +16267,7 @@
             "id": "syn_armour_undersuit_night",
             "kind": "loot",
             "name": "Pathfinder Undersuit (Night)",
+            "note": null,
             "odds": 0.03946903703703697,
             "rarity": null
           },
@@ -15397,6 +16277,7 @@
             "id": "syn_armour_arms_ash",
             "kind": "loot",
             "name": "Pathfinder Arms (Ash)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15406,6 +16287,7 @@
             "id": "syn_armour_arms_crimson",
             "kind": "loot",
             "name": "Pathfinder Arms (Crimson)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15415,6 +16297,7 @@
             "id": "syn_armour_arms_desert",
             "kind": "loot",
             "name": "Pathfinder Arms (Desert)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15424,6 +16307,7 @@
             "id": "syn_armour_arms_forest",
             "kind": "loot",
             "name": "Pathfinder Arms (Forest)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15433,6 +16317,7 @@
             "id": "syn_armour_arms_storm",
             "kind": "loot",
             "name": "Pathfinder Arms (Storm)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15442,6 +16327,7 @@
             "id": "syn_armour_backpack_ash",
             "kind": "loot",
             "name": "Pathfinder Backpack (Ash)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15451,6 +16337,7 @@
             "id": "syn_armour_backpack_crimson",
             "kind": "loot",
             "name": "Pathfinder Backpack (Crimson)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15460,6 +16347,7 @@
             "id": "syn_armour_backpack_desert",
             "kind": "loot",
             "name": "Pathfinder Backpack (Desert)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15469,6 +16357,7 @@
             "id": "syn_armour_backpack_forest",
             "kind": "loot",
             "name": "Pathfinder Backpack (Forest)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15478,6 +16367,7 @@
             "id": "syn_armour_backpack_storm",
             "kind": "loot",
             "name": "Pathfinder Backpack (Storm)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15487,6 +16377,7 @@
             "id": "syn_armour_core_ash",
             "kind": "loot",
             "name": "Pathfinder Core (Ash)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15496,6 +16387,7 @@
             "id": "syn_armour_core_crimson",
             "kind": "loot",
             "name": "Pathfinder Core (Crimson)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15505,6 +16397,7 @@
             "id": "syn_armour_core_desert",
             "kind": "loot",
             "name": "Pathfinder Core (Desert)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15514,6 +16407,7 @@
             "id": "syn_armour_core_forest",
             "kind": "loot",
             "name": "Pathfinder Core (Forest)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15523,6 +16417,7 @@
             "id": "syn_armour_core_storm",
             "kind": "loot",
             "name": "Pathfinder Core (Storm)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15532,6 +16427,7 @@
             "id": "syn_armour_helmet_ash",
             "kind": "loot",
             "name": "Pathfinder Helmet (Ash)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15541,6 +16437,7 @@
             "id": "syn_armour_helmet_crimson",
             "kind": "loot",
             "name": "Pathfinder Helmet (Crimson)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15550,6 +16447,7 @@
             "id": "syn_armour_helmet_desert",
             "kind": "loot",
             "name": "Pathfinder Helmet (Desert)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15559,6 +16457,7 @@
             "id": "syn_armour_helmet_forest",
             "kind": "loot",
             "name": "Pathfinder Helmet (Forest)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15568,6 +16467,7 @@
             "id": "syn_armour_helmet_storm",
             "kind": "loot",
             "name": "Pathfinder Helmet (Storm)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15577,6 +16477,7 @@
             "id": "syn_armour_legs_ash",
             "kind": "loot",
             "name": "Pathfinder Legs (Ash)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15586,6 +16487,7 @@
             "id": "syn_armour_legs_crimson",
             "kind": "loot",
             "name": "Pathfinder Legs (Crimson)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15595,6 +16497,7 @@
             "id": "syn_armour_legs_desert",
             "kind": "loot",
             "name": "Pathfinder Legs (Desert)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15604,6 +16507,7 @@
             "id": "syn_armour_legs_forest",
             "kind": "loot",
             "name": "Pathfinder Legs (Forest)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15613,6 +16517,7 @@
             "id": "syn_armour_undersuit_ash",
             "kind": "loot",
             "name": "Pathfinder Undersuit (Ash)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15622,6 +16527,7 @@
             "id": "syn_armour_undersuit_crimson",
             "kind": "loot",
             "name": "Pathfinder Undersuit (Crimson)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15631,6 +16537,7 @@
             "id": "syn_armour_undersuit_desert",
             "kind": "loot",
             "name": "Pathfinder Undersuit (Desert)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15640,6 +16547,7 @@
             "id": "syn_armour_undersuit_forest",
             "kind": "loot",
             "name": "Pathfinder Undersuit (Forest)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15649,6 +16557,7 @@
             "id": "syn_armour_undersuit_storm",
             "kind": "loot",
             "name": "Pathfinder Undersuit (Storm)",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           },
@@ -15658,6 +16567,7 @@
             "id": "syn_armour_legs_storm",
             "kind": "loot",
             "name": "SYN Armour Legs Storm",
+            "note": null,
             "odds": 0.031659880296296405,
             "rarity": null
           }
@@ -15671,9 +16581,320 @@
         "rows": null
       }
     ],
+    "npc": null,
     "record": null,
     "state": "ready",
     "total": 61,
+    "view": "areas"
+  },
+  "loot_detail_body": {
+    "all": 15,
+    "entry": {
+      "best": 0.2,
+      "count": 15,
+      "group": "NPCs (body loot)",
+      "id": "npc:LootTable_Actor_AcePilot",
+      "name": "Ace pilot",
+      "npcs": 0,
+      "path": [
+        "NPCs (body loot)"
+      ],
+      "worn": 0
+    },
+    "group_by": "container",
+    "groups": [
+      {
+        "best": 0.2,
+        "count": 9,
+        "key": "Rations",
+        "label": "Rations",
+        "rows": [
+          {
+            "container": "Rations",
+            "group": "Consumables",
+            "id": "SYN_Fizz_Can",
+            "kind": "loot",
+            "name": "Fizz Can",
+            "note": null,
+            "odds": 0.2,
+            "rarity": "Rare"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables",
+            "id": "SYN_Mend_Pen",
+            "kind": "loot",
+            "name": "Mend Pen",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables › Food",
+            "id": "SYN_Ration_Bar",
+            "kind": "loot",
+            "name": "Ration Bar",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_berry",
+            "kind": "loot",
+            "name": "Ration Bar (Berry)",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_chili",
+            "kind": "loot",
+            "name": "Ration Bar (Chili)",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_citrus",
+            "kind": "loot",
+            "name": "Ration Bar (Citrus)",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_mint",
+            "kind": "loot",
+            "name": "Ration Bar (Mint)",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_smoked",
+            "kind": "loot",
+            "name": "Ration Bar (Smoked)",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Rations",
+            "group": "Consumables › Food",
+            "id": "syn_food_ration_vanilla",
+            "kind": "loot",
+            "name": "Ration Bar (Vanilla)",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          }
+        ]
+      },
+      {
+        "best": 0.1,
+        "count": 6,
+        "key": "Mock arch weapons",
+        "label": "Mock arch weapons",
+        "rows": [
+          {
+            "container": "Mock arch weapons",
+            "group": "FPS weapons",
+            "id": "SYN_Hornet_Pistol",
+            "kind": "loot",
+            "name": "Hornet Pistol",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Mock arch weapons",
+            "group": "FPS weapons",
+            "id": "SYN_Viper_Rifle",
+            "kind": "loot",
+            "name": "Viper Rifle",
+            "note": null,
+            "odds": 0.1,
+            "rarity": "Common"
+          },
+          {
+            "container": "Mock arch weapons",
+            "group": "FPS weapons",
+            "id": "SYN_Thumper_Launcher",
+            "kind": "loot",
+            "name": "Thumper Launcher",
+            "note": null,
+            "odds": 0.05,
+            "rarity": "Rare"
+          },
+          {
+            "container": "Mock arch weapons",
+            "group": "FPS attachments",
+            "id": "SYN_Hush_Suppressor",
+            "kind": "loot",
+            "name": "Hush Suppressor",
+            "note": null,
+            "odds": 0.03333333333333333,
+            "rarity": "Common"
+          },
+          {
+            "container": "Mock arch weapons",
+            "group": "FPS attachments",
+            "id": "SYN_Viper_Magazine",
+            "kind": "loot",
+            "name": "Viper Magazine",
+            "note": null,
+            "odds": 0.03333333333333333,
+            "rarity": "Common"
+          },
+          {
+            "container": "Mock arch weapons",
+            "group": "FPS attachments",
+            "id": "SYN_Clear_Scope_4x",
+            "kind": "loot",
+            "name": "Clear Scope 4x",
+            "note": null,
+            "odds": 0.016666666666666666,
+            "rarity": "Rare"
+          }
+        ]
+      }
+    ],
+    "npc": {
+      "body_loot": null,
+      "classes": [],
+      "faction": null,
+      "wear": null,
+      "worn_gear": [
+        {
+          "id": "gear:PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot",
+          "name": "Ace pilot"
+        }
+      ]
+    },
+    "record": null,
+    "state": "ready",
+    "total": 15,
+    "view": "areas"
+  },
+  "loot_detail_gear": {
+    "all": 4,
+    "entry": {
+      "best": 1.0,
+      "count": 4,
+      "group": "NPCs (worn gear)",
+      "id": "gear:PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot",
+      "name": "Ace pilot",
+      "npcs": 0,
+      "path": [
+        "NPCs (worn gear)",
+        "Criminals"
+      ],
+      "worn": 0
+    },
+    "group_by": "container",
+    "groups": [
+      {
+        "best": 1.0,
+        "count": 1,
+        "key": "Undersuit",
+        "label": "Undersuit",
+        "rows": [
+          {
+            "container": "Undersuit",
+            "group": "Armour & clothing › Undersuits",
+            "id": "syn_armour_undersuit_night",
+            "kind": "worn",
+            "name": "Pathfinder Undersuit (Night)",
+            "note": null,
+            "odds": 1.0,
+            "rarity": null
+          }
+        ]
+      },
+      {
+        "best": 1.0,
+        "count": 1,
+        "key": "Helmet",
+        "label": "Helmet",
+        "rows": [
+          {
+            "container": "Helmet",
+            "group": "Armour & clothing › Helmets",
+            "id": "syn_armour_helmet_night",
+            "kind": "worn",
+            "name": "Pathfinder Helmet (Night)",
+            "note": null,
+            "odds": 1.0,
+            "rarity": null
+          }
+        ]
+      },
+      {
+        "best": 1.0,
+        "count": 1,
+        "key": "Torso",
+        "label": "Torso",
+        "rows": [
+          {
+            "container": "Torso",
+            "group": "Armour & clothing › Torso armour",
+            "id": "syn_armour_core_night",
+            "kind": "worn",
+            "name": "Pathfinder Core (Night)",
+            "note": null,
+            "odds": 1.0,
+            "rarity": null
+          }
+        ]
+      },
+      {
+        "best": 1.0,
+        "count": 1,
+        "key": "Primary weapon",
+        "label": "Primary weapon",
+        "rows": [
+          {
+            "container": "Primary weapon",
+            "group": "FPS weapons",
+            "id": "SYN_Viper_Rifle",
+            "kind": "worn",
+            "name": "Viper Rifle",
+            "note": null,
+            "odds": 1.0,
+            "rarity": null
+          }
+        ]
+      }
+    ],
+    "npc": {
+      "body_loot": {
+        "id": "npc:LootTable_Actor_AcePilot",
+        "name": "Ace pilot"
+      },
+      "classes": [
+        "PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot"
+      ],
+      "faction": "Criminals",
+      "wear": {
+        "max": 0.5,
+        "min": 0.0
+      },
+      "worn_gear": []
+    },
+    "record": null,
+    "state": "ready",
+    "total": 4,
     "view": "areas"
   },
   "loot_detail_item": {
@@ -15684,10 +16905,12 @@
       "group": "Ship components",
       "id": "SYN_Aegis_Shell_Shield",
       "name": "Aegis Shell Shield",
+      "npcs": 0,
       "path": [
         "Ship components",
         "Shields"
-      ]
+      ],
+      "worn": 0
     },
     "group_by": "place",
     "groups": [
@@ -15703,6 +16926,7 @@
             "id": "v3slotpreset_asteroidbase",
             "kind": "loot",
             "name": "Asteroid bases",
+            "note": null,
             "odds": 0.0888888888888889,
             "rarity": null
           }
@@ -15720,12 +16944,14 @@
             "id": "v3slotpreset_spacederelict_large",
             "kind": "loot",
             "name": "Derelicts: Space large",
+            "note": null,
             "odds": 0.0888888888888889,
             "rarity": null
           }
         ]
       }
     ],
+    "npc": null,
     "record": {
       "class_name": "SYN_Aegis_Shell_Shield",
       "guid": "54000000-0000-4000-8000-000000000011"
@@ -15736,6 +16962,7 @@
   },
   "loot_list": {
     "build": "LIVE 4.10.200.58746",
+    "gear": "ready",
     "rows": [
       {
         "best": 0.22131200000000018,
@@ -15743,7 +16970,9 @@
         "group": "Asteroid bases",
         "id": "v3slotpreset_asteroidbase",
         "name": "Asteroid bases",
-        "path": []
+        "npcs": 0,
+        "path": [],
+        "worn": 0
       },
       {
         "best": 0.1327872000000001,
@@ -15751,9 +16980,11 @@
         "group": "Caves",
         "id": "caves/loot_caves_unoccupied",
         "name": "Unoccupied",
+        "npcs": 0,
         "path": [
           "Caves"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.51,
@@ -15761,10 +16992,12 @@
         "group": "Caves",
         "id": "caves/loot_caves_occupied_rock",
         "name": "Rock",
+        "npcs": 0,
         "path": [
           "Caves",
           "Occupied"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.357,
@@ -15772,10 +17005,12 @@
         "group": "Caves",
         "id": "caves/loot_caves_occupied_sand_pyro",
         "name": "Sand Pyro",
+        "npcs": 0,
         "path": [
           "Caves",
           "Occupied"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.51,
@@ -15783,7 +17018,9 @@
         "group": "Contested zones",
         "id": "contestedzone_vault_executive",
         "name": "Contested zones: Vault executive",
-        "path": []
+        "npcs": 0,
+        "path": [],
+        "worn": 0
       },
       {
         "best": 0.3333333333333333,
@@ -15791,7 +17028,9 @@
         "group": "Derelict outposts",
         "id": "lootgeneration_slotpreset_derelictoutpost",
         "name": "Derelict outposts",
-        "path": []
+        "npcs": 0,
+        "path": [],
+        "worn": 0
       },
       {
         "best": 0.0888888888888889,
@@ -15799,7 +17038,9 @@
         "group": "Derelicts",
         "id": "v3slotpreset_spacederelict_large",
         "name": "Derelicts: Space large",
-        "path": []
+        "npcs": 0,
+        "path": [],
+        "worn": 0
       },
       {
         "best": 0.51,
@@ -15807,9 +17048,11 @@
         "group": "Distribution centres",
         "id": "v3slotpreset_distributioncentres_highsecurity",
         "name": "High security",
+        "npcs": 0,
         "path": [
           "Distribution centres"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.22131200000000018,
@@ -15817,9 +17060,11 @@
         "group": "Distribution centres",
         "id": "v3slotpreset_distributioncentres_lowsecurity",
         "name": "Low security",
+        "npcs": 0,
         "path": [
           "Distribution centres"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.22131200000000018,
@@ -15827,10 +17072,12 @@
         "group": "Distribution centres",
         "id": "distributioncentre_multiconfig_cargowing",
         "name": "General",
+        "npcs": 0,
         "path": [
           "Distribution centres",
           "Cargo wing"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.51,
@@ -15838,10 +17085,12 @@
         "group": "Distribution centres",
         "id": "distributioncentre_multiconfig_cargowing_high",
         "name": "High security",
+        "npcs": 0,
         "path": [
           "Distribution centres",
           "Cargo wing"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.11065600000000009,
@@ -15849,7 +17098,136 @@
         "group": "Junk sites",
         "id": "lootgeneration_slotpreset_junksites",
         "name": "Junk sites",
-        "path": []
+        "npcs": 0,
+        "path": [],
+        "worn": 0
+      },
+      {
+        "best": 0.2,
+        "count": 15,
+        "group": "NPCs (body loot)",
+        "id": "npc:LootTable_Actor_AcePilot",
+        "name": "Ace pilot",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 0.30303030303030304,
+        "count": 39,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_SOO_MendoRen",
+        "name": "Mendo Ren",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 0.30303030303030304,
+        "count": 12,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_Grunt",
+        "name": "Grunt",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)",
+          "Ground combat"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 0.2777777777777778,
+        "count": 6,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_Soldier",
+        "name": "Soldier",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)",
+          "Ground combat"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 0.5,
+        "count": 7,
+        "group": "NPCs (body loot)",
+        "id": "npc:V3LootTable_Actor_Soldier_CouncilScrip",
+        "name": "Soldier (with council scrip)",
+        "npcs": 0,
+        "path": [
+          "NPCs (body loot)",
+          "Ground combat"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 1.0,
+        "count": 3,
+        "group": "NPCs (worn gear)",
+        "id": "gear:PU_Human-NineTails-Grunt-Male-Grunt_02",
+        "name": "Grunt 02 (Nine Tails)",
+        "npcs": 0,
+        "path": [
+          "NPCs (worn gear)"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 1.0,
+        "count": 1,
+        "group": "NPCs (worn gear)",
+        "id": "gear:NPC_Archetypes-Male-Human-Civilians-Levski-Civilian_Levski_01",
+        "name": "Levski 01",
+        "npcs": 0,
+        "path": [
+          "NPCs (worn gear)",
+          "Civilians"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 1.0,
+        "count": 1,
+        "group": "NPCs (worn gear)",
+        "id": "gear:NPC_Archetypes-Male-Human-Civilians-Levski-Civilian_Levski_02",
+        "name": "Levski 02",
+        "npcs": 0,
+        "path": [
+          "NPCs (worn gear)",
+          "Civilians"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 1.0,
+        "count": 4,
+        "group": "NPCs (worn gear)",
+        "id": "gear:PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot",
+        "name": "Ace pilot",
+        "npcs": 0,
+        "path": [
+          "NPCs (worn gear)",
+          "Criminals"
+        ],
+        "worn": 0
+      },
+      {
+        "best": 1.0,
+        "count": 6,
+        "group": "NPCs (worn gear)",
+        "id": "gear:PU_Human-Criminal-Grunt-Female-Grunt_01",
+        "name": "Grunt 01",
+        "npcs": 0,
+        "path": [
+          "NPCs (worn gear)",
+          "Criminals"
+        ],
+        "worn": 0
       },
       {
         "best": 0.75,
@@ -15857,9 +17235,11 @@
         "group": "Security Post Kareah",
         "id": "lootgeneration_slotpreset_kareah",
         "name": "General (classic)",
+        "npcs": 0,
         "path": [
           "Security Post Kareah"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.22131200000000018,
@@ -15867,9 +17247,11 @@
         "group": "Security Post Kareah",
         "id": "lootgeneration_multislotpreset_kareah",
         "name": "General (multi)",
+        "npcs": 0,
         "path": [
           "Security Post Kareah"
-        ]
+        ],
+        "worn": 0
       },
       {
         "best": 0.40800000000000003,
@@ -15877,7 +17259,9 @@
         "group": "Underground facilities",
         "id": "lootgeneration_slotpreset_ugfs",
         "name": "Underground facilities",
-        "path": []
+        "npcs": 0,
+        "path": [],
+        "worn": 0
       },
       {
         "best": 0.22131200000000018,
@@ -15885,7 +17269,9 @@
         "group": "Other",
         "id": "v3slotpreset_loot_generic",
         "name": "Other: Generic",
-        "path": []
+        "npcs": 0,
+        "path": [],
+        "worn": 0
       }
     ],
     "state": "ready",
@@ -15893,6 +17279,7 @@
   },
   "loot_list_missing": {
     "build": null,
+    "gear": "missing",
     "rows": [],
     "state": "missing",
     "view": "areas"
@@ -15939,6 +17326,12 @@
         "label": "MCP: most datasets (item-tags 1.2 GB, armor 0.9 GB)"
       },
       {
+        "bytes": 2040109465,
+        "fits": true,
+        "id": "mcp-npc-loadouts",
+        "label": "MCP: NPC worn gear (Loot screen, Read game data step 5)"
+      },
+      {
         "bytes": 2362232012,
         "fits": true,
         "id": "mcp-ship-components",
@@ -15971,6 +17364,1343 @@
     "step_gb": 0.5,
     "stop_percent": 90,
     "total_bytes": 34359738368
+  },
+  "mining_detail": {
+    "mineral": {
+      "base": {
+        "max": 1000.0,
+        "mean": 500.0,
+        "min": 501.0,
+        "stddev": 203.0
+      },
+      "base_high": 0.317004800528123,
+      "commodity": {
+        "id": "ResourceType.Raw_Fixtanium",
+        "name": "Fixtanium (Raw)"
+      },
+      "elements": [
+        {
+          "cluster_factor": 0.1,
+          "explosion_multiplier": 240.0,
+          "instability": 900.0,
+          "ore": "fixtanium_raw",
+          "resistance": 0.9,
+          "window_midpoint": 0.5,
+          "window_randomness": 0.2,
+          "window_thinness": 2.0
+        }
+      ],
+      "id": "ResourceType.Raw_Fixtanium",
+      "kinds": [
+        "ship"
+      ],
+      "name": "Fixtanium (Raw)",
+      "ores": [
+        "fixtanium_raw"
+      ],
+      "overrides": [
+        {
+          "location": "Nyx System",
+          "places": 1,
+          "range": {
+            "max": 1000.0,
+            "mean": 500.0,
+            "min": 501.0,
+            "stddev": 225.0
+          }
+        }
+      ],
+      "places": [
+        {
+          "body": "Aaron Halo",
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "StantonBelt_Aaron",
+          "max_percent": 30.0,
+          "min_percent": 10.0,
+          "ore": "fixtanium_raw",
+          "place": "Aaron Halo",
+          "quality": {
+            "full_scale": true,
+            "high": 0.317004800528123,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 203.0
+            },
+            "source": "base",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5840984509581552,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.03595111298405574,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6200495639422109
+          },
+          "quality_scales": [
+            1.0
+          ],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.08,
+          "system": "Stanton",
+          "tier": "Legendary"
+        },
+        {
+          "body": "Pyro I",
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "Pyro1",
+          "max_percent": null,
+          "min_percent": null,
+          "ore": "fixtanium_raw",
+          "place": "Pyro I",
+          "quality": {
+            "full_scale": true,
+            "high": 0.317004800528123,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 203.0
+            },
+            "source": "base",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5840984509581552,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.03595111298405574,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6200495639422109
+          },
+          "quality_scales": [],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.05,
+          "system": "Pyro",
+          "tier": "Legendary"
+        },
+        {
+          "body": "Nyx I",
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "Nyx1",
+          "max_percent": 30.0,
+          "min_percent": 10.0,
+          "ore": "fixtanium_raw",
+          "place": "Nyx I",
+          "quality": {
+            "full_scale": true,
+            "high": 0.359157308691607,
+            "override_location": "Nyx System",
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 225.0
+            },
+            "source": "override",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5992359840148916,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.05111326544741797,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6503492494623097
+          },
+          "quality_scales": [
+            1.0
+          ],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.03,
+          "system": "Nyx",
+          "tier": "Legendary"
+        },
+        {
+          "body": null,
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "Lagrange_B",
+          "max_percent": 30.0,
+          "min_percent": 10.0,
+          "ore": "fixtanium_raw",
+          "place": "Lagrange B",
+          "quality": {
+            "full_scale": false,
+            "high": 0.317004800528123,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 203.0
+            },
+            "source": "unknown",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5840984509581552,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.03595111298405574,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6200495639422109
+          },
+          "quality_scales": [
+            0.79
+          ],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.02,
+          "system": null,
+          "tier": "Legendary"
+        }
+      ],
+      "refined": {
+        "id": "ResourceType.Fixtanium",
+        "name": "Fixtanium"
+      },
+      "spots": [],
+      "steps": [
+        {
+          "end": 599.0,
+          "share": 0.3799504360577891,
+          "shown": 514.0,
+          "start": 0.0
+        },
+        {
+          "end": 899.0,
+          "share": 0.5840984509581552,
+          "shown": 762.0,
+          "start": 600.0
+        },
+        {
+          "end": 1000.0,
+          "share": 0.03595111298405574,
+          "shown": 974.0,
+          "start": 900.0
+        }
+      ],
+      "tier": "Legendary"
+    },
+    "state": "ready"
+  },
+  "mining_details_all": [
+    {
+      "base": {
+        "max": 1000.0,
+        "mean": 500.0,
+        "min": 501.0,
+        "stddev": 203.0
+      },
+      "base_high": 0.317004800528123,
+      "commodity": {
+        "id": "ResourceType.Raw_Fixtanium",
+        "name": "Fixtanium (Raw)"
+      },
+      "elements": [
+        {
+          "cluster_factor": 0.1,
+          "explosion_multiplier": 240.0,
+          "instability": 900.0,
+          "ore": "fixtanium_raw",
+          "resistance": 0.9,
+          "window_midpoint": 0.5,
+          "window_randomness": 0.2,
+          "window_thinness": 2.0
+        }
+      ],
+      "id": "ResourceType.Raw_Fixtanium",
+      "kinds": [
+        "ship"
+      ],
+      "name": "Fixtanium (Raw)",
+      "ores": [
+        "fixtanium_raw"
+      ],
+      "overrides": [
+        {
+          "location": "Nyx System",
+          "places": 1,
+          "range": {
+            "max": 1000.0,
+            "mean": 500.0,
+            "min": 501.0,
+            "stddev": 225.0
+          }
+        }
+      ],
+      "places": [
+        {
+          "body": "Aaron Halo",
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "StantonBelt_Aaron",
+          "max_percent": 30.0,
+          "min_percent": 10.0,
+          "ore": "fixtanium_raw",
+          "place": "Aaron Halo",
+          "quality": {
+            "full_scale": true,
+            "high": 0.317004800528123,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 203.0
+            },
+            "source": "base",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5840984509581552,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.03595111298405574,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6200495639422109
+          },
+          "quality_scales": [
+            1.0
+          ],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.08,
+          "system": "Stanton",
+          "tier": "Legendary"
+        },
+        {
+          "body": "Pyro I",
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "Pyro1",
+          "max_percent": null,
+          "min_percent": null,
+          "ore": "fixtanium_raw",
+          "place": "Pyro I",
+          "quality": {
+            "full_scale": true,
+            "high": 0.317004800528123,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 203.0
+            },
+            "source": "base",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5840984509581552,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.03595111298405574,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6200495639422109
+          },
+          "quality_scales": [],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.05,
+          "system": "Pyro",
+          "tier": "Legendary"
+        },
+        {
+          "body": "Nyx I",
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "Nyx1",
+          "max_percent": 30.0,
+          "min_percent": 10.0,
+          "ore": "fixtanium_raw",
+          "place": "Nyx I",
+          "quality": {
+            "full_scale": true,
+            "high": 0.359157308691607,
+            "override_location": "Nyx System",
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 225.0
+            },
+            "source": "override",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5992359840148916,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.05111326544741797,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6503492494623097
+          },
+          "quality_scales": [
+            1.0
+          ],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.03,
+          "system": "Nyx",
+          "tier": "Legendary"
+        },
+        {
+          "body": null,
+          "companions": [
+            "Synthium (Ore)"
+          ],
+          "difficulty": {
+            "grade": "hard",
+            "instability": 900.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 6,
+            "resistance": 0.9,
+            "window_thinness": 2.0
+          },
+          "kind": "ship",
+          "location": "Lagrange_B",
+          "max_percent": 30.0,
+          "min_percent": 10.0,
+          "ore": "fixtanium_raw",
+          "place": "Lagrange B",
+          "quality": {
+            "full_scale": false,
+            "high": 0.317004800528123,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 501.0,
+              "stddev": 203.0
+            },
+            "source": "unknown",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.5840984509581552,
+                "shown": 762.0,
+                "start": 600.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.03595111298405574,
+                "shown": 974.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.6200495639422109
+          },
+          "quality_scales": [
+            0.79
+          ],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 359.99999999999994,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 1259.9999999999998,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance 0.9 leaves 10 % of laser power (Prospector ~360, MOLE ~1,260).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Asteroid_Fixtanium",
+          "rock_mass": null,
+          "signature": 3900.0,
+          "spawn_share": 0.02,
+          "system": null,
+          "tier": "Legendary"
+        }
+      ],
+      "refined": {
+        "id": "ResourceType.Fixtanium",
+        "name": "Fixtanium"
+      },
+      "spots": [],
+      "steps": [
+        {
+          "end": 599.0,
+          "share": 0.3799504360577891,
+          "shown": 514.0,
+          "start": 0.0
+        },
+        {
+          "end": 899.0,
+          "share": 0.5840984509581552,
+          "shown": 762.0,
+          "start": 600.0
+        },
+        {
+          "end": 1000.0,
+          "share": 0.03595111298405574,
+          "shown": 974.0,
+          "start": 900.0
+        }
+      ],
+      "tier": "Legendary"
+    },
+    {
+      "base": {
+        "max": 1000.0,
+        "mean": 500.0,
+        "min": 200.0,
+        "stddev": 200.0
+      },
+      "base_high": 0.16508864591031183,
+      "commodity": {
+        "id": "ResourceType.Ore_Mockite",
+        "name": "Mockite (Ore)"
+      },
+      "elements": [
+        {
+          "cluster_factor": null,
+          "explosion_multiplier": null,
+          "instability": 200.0,
+          "ore": "mockite_ore",
+          "resistance": 0.3,
+          "window_midpoint": 0.4,
+          "window_randomness": 0.1,
+          "window_thinness": 0.8
+        }
+      ],
+      "id": "ResourceType.Ore_Mockite",
+      "kinds": [
+        "vehicle"
+      ],
+      "name": "Mockite (Ore)",
+      "ores": [
+        "mockite_ore"
+      ],
+      "overrides": [],
+      "places": [
+        {
+          "body": "Lyria",
+          "companions": [],
+          "difficulty": {
+            "grade": "medium",
+            "instability": 200.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 3,
+            "resistance": 0.3,
+            "window_thinness": 0.8
+          },
+          "kind": "vehicle",
+          "location": "Stanton3a",
+          "max_percent": 100.0,
+          "min_percent": 50.0,
+          "ore": "mockite_ore",
+          "place": "Lyria",
+          "quality": {
+            "full_scale": true,
+            "high": 0.16508864591031183,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 500.0,
+              "min": 200.0,
+              "stddev": 200.0
+            },
+            "source": "base",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.14705944198454643,
+                "shown": 800.0,
+                "start": 700.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.018029203925765402,
+                "shown": 950.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.16508864591031183
+          },
+          "quality_scales": [],
+          "recommendation": {
+            "estimate": false,
+            "formula": null,
+            "label": "ROC",
+            "options": [],
+            "reason": "A ground vehicle rock: a ROC or ROC-DS mines it.",
+            "tool": "roc"
+          },
+          "rock": "MineableRock_GroundVehicle_Mockite",
+          "rock_mass": null,
+          "signature": 1700.0,
+          "spawn_share": 0.3,
+          "system": "Stanton",
+          "tier": null
+        }
+      ],
+      "refined": {
+        "id": "ResourceType.Mockite",
+        "name": "Mockite"
+      },
+      "spots": [],
+      "steps": [
+        {
+          "end": 399.0,
+          "share": 0.2600678176816384,
+          "shown": 300.0,
+          "start": 0.0
+        },
+        {
+          "end": 699.0,
+          "share": 0.5748435364080496,
+          "shown": 560.0,
+          "start": 400.0
+        },
+        {
+          "end": 899.0,
+          "share": 0.14705944198454643,
+          "shown": 800.0,
+          "start": 700.0
+        },
+        {
+          "end": 1000.0,
+          "share": 0.018029203925765402,
+          "shown": 950.0,
+          "start": 900.0
+        }
+      ],
+      "tier": "Rare"
+    },
+    {
+      "base": {
+        "max": 1000.0,
+        "mean": 201.0,
+        "min": 201.0,
+        "stddev": 298.0
+      },
+      "base_high": 0.08758588940883325,
+      "commodity": {
+        "id": "ResourceType.Stubbite",
+        "name": "Stubbite"
+      },
+      "elements": [
+        {
+          "cluster_factor": null,
+          "explosion_multiplier": null,
+          "instability": 100.0,
+          "ore": "minableelement_fps_stubbite",
+          "resistance": 0.0,
+          "window_midpoint": 0.7,
+          "window_randomness": null,
+          "window_thinness": null
+        }
+      ],
+      "id": "ResourceType.Stubbite",
+      "kinds": [
+        "hand"
+      ],
+      "name": "Stubbite",
+      "ores": [
+        "minableelement_fps_stubbite"
+      ],
+      "overrides": [],
+      "places": [],
+      "refined": null,
+      "spots": [
+        {
+          "area": "events: rockcracker mineables",
+          "configs": [
+            "Event rocks"
+          ],
+          "place": "Rock Cracker, Nyx",
+          "rock": "MineableRock_FPS_Stubbite",
+          "slot_share": 1.0
+        },
+        {
+          "area": "caves: loot caves occupied",
+          "configs": [
+            "FPS mineables"
+          ],
+          "place": null,
+          "rock": "MineableRock_FPS_Stubbite",
+          "slot_share": 0.75
+        }
+      ],
+      "steps": [
+        {
+          "end": 399.0,
+          "share": 0.49897043997272045,
+          "shown": 300.0,
+          "start": 0.0
+        },
+        {
+          "end": 699.0,
+          "share": 0.4134436706184463,
+          "shown": 560.0,
+          "start": 400.0
+        },
+        {
+          "end": 899.0,
+          "share": 0.07573413855234679,
+          "shown": 800.0,
+          "start": 700.0
+        },
+        {
+          "end": 1000.0,
+          "share": 0.011851750856486466,
+          "shown": 950.0,
+          "start": 900.0
+        }
+      ],
+      "tier": "FPSMineable"
+    },
+    {
+      "base": {
+        "max": 1000.0,
+        "mean": 400.0,
+        "min": 0.0,
+        "stddev": 180.0
+      },
+      "base_high": 0.04829272871472412,
+      "commodity": {
+        "id": "ResourceType.Ore_Synthium",
+        "name": "Synthium (Ore)"
+      },
+      "elements": [
+        {
+          "cluster_factor": 0.6,
+          "explosion_multiplier": 20.0,
+          "instability": 50.0,
+          "ore": "synthium_ore",
+          "resistance": -0.2,
+          "window_midpoint": 0.6,
+          "window_randomness": 0.15,
+          "window_thinness": 0.4
+        }
+      ],
+      "id": "ResourceType.Ore_Synthium",
+      "kinds": [
+        "ship"
+      ],
+      "name": "Synthium (Ore)",
+      "ores": [
+        "synthium_ore"
+      ],
+      "overrides": [],
+      "places": [
+        {
+          "body": "Hurston",
+          "companions": [
+            "Mockite (Ore)"
+          ],
+          "difficulty": {
+            "grade": "easy",
+            "instability": 50.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 0,
+            "resistance": -0.2,
+            "window_thinness": 0.4
+          },
+          "kind": "ship",
+          "location": "Stanton1",
+          "max_percent": 45.0,
+          "min_percent": 20.0,
+          "ore": "synthium_ore",
+          "place": "Hurston",
+          "quality": {
+            "full_scale": true,
+            "high": 0.04829272871472412,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 400.0,
+              "min": 0.0,
+              "stddev": 180.0
+            },
+            "source": "base",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.04592556235972366,
+                "shown": 800.0,
+                "start": 700.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.002367166355000461,
+                "shown": 950.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.04829272871472412
+          },
+          "quality_scales": [
+            1.0
+          ],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 4320.0,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 15120.0,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance -0.2 leaves 120 % of laser power (Prospector ~4,320, MOLE ~15,120).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Synthium",
+          "rock_mass": null,
+          "signature": 4200.0,
+          "spawn_share": 0.4,
+          "system": "Stanton",
+          "tier": "Common"
+        },
+        {
+          "body": "Yela",
+          "companions": [
+            "Mockite (Ore)"
+          ],
+          "difficulty": {
+            "grade": "easy",
+            "instability": 50.0,
+            "max_points": 6,
+            "missing": [],
+            "points": 0,
+            "resistance": -0.2,
+            "window_thinness": 0.4
+          },
+          "kind": "ship",
+          "location": "Stanton2c",
+          "max_percent": null,
+          "min_percent": null,
+          "ore": "synthium_ore",
+          "place": "Yela",
+          "quality": {
+            "full_scale": true,
+            "high": 0.04829272871472412,
+            "override_location": null,
+            "range": {
+              "max": 1000.0,
+              "mean": 400.0,
+              "min": 0.0,
+              "stddev": 180.0
+            },
+            "source": "base",
+            "top": [
+              {
+                "end": 899.0,
+                "share": 0.04592556235972366,
+                "shown": 800.0,
+                "start": 700.0
+              },
+              {
+                "end": 1000.0,
+                "share": 0.002367166355000461,
+                "shown": 950.0,
+                "start": 900.0
+              }
+            ],
+            "top_share": 0.04829272871472412
+          },
+          "quality_scales": [],
+          "recommendation": {
+            "estimate": true,
+            "formula": "effective power = best laser power × lasers × (1 − resistance); breaking also needs the rock's mass, which is rolled at spawn and not in the game files",
+            "label": "Ship: Prospector or MOLE",
+            "options": [
+              {
+                "best_laser": "Mock Lancer I Mining Laser",
+                "effective": 4320.0,
+                "laser_count": 1,
+                "laser_size": 1,
+                "power": 3600.0,
+                "ship": "Prospector"
+              },
+              {
+                "best_laser": "Mock MH2 Mining Laser",
+                "effective": 15120.0,
+                "laser_count": 3,
+                "laser_size": 2,
+                "power": 12600.0,
+                "ship": "MOLE"
+              }
+            ],
+            "reason": "Rock mass not known, so whether one S1 laser is enough is not known; resistance -0.2 leaves 120 % of laser power (Prospector ~4,320, MOLE ~15,120).",
+            "tool": "ship"
+          },
+          "rock": "MineableRock_Synthium",
+          "rock_mass": null,
+          "signature": 4200.0,
+          "spawn_share": 0.25,
+          "system": "Stanton",
+          "tier": "Common"
+        }
+      ],
+      "refined": {
+        "id": "ResourceType.Synthium",
+        "name": "Synthium"
+      },
+      "spots": [],
+      "steps": [
+        {
+          "end": 399.0,
+          "share": 0.49248273617269167,
+          "shown": 300.0,
+          "start": 0.0
+        },
+        {
+          "end": 699.0,
+          "share": 0.45922453511258426,
+          "shown": 560.0,
+          "start": 400.0
+        },
+        {
+          "end": 899.0,
+          "share": 0.04592556235972366,
+          "shown": 800.0,
+          "start": 700.0
+        },
+        {
+          "end": 1000.0,
+          "share": 0.002367166355000461,
+          "shown": 950.0,
+          "start": 900.0
+        }
+      ],
+      "tier": "Common"
+    }
+  ],
+  "mining_list": {
+    "build": "LIVE 4.10.201.48085",
+    "lasers": [
+      {
+        "best": "Mock Lancer I Mining Laser",
+        "count": 2,
+        "max": 3600.0,
+        "min": 2400.0,
+        "size": 1
+      },
+      {
+        "best": "Mock MH2 Mining Laser",
+        "count": 1,
+        "max": 4200.0,
+        "min": 4200.0,
+        "size": 2
+      }
+    ],
+    "lasers_read": true,
+    "minerals": [
+      {
+        "best_high": 0.359157308691607,
+        "best_high_uncertain": false,
+        "difficulty": "hard",
+        "has_override": true,
+        "id": "ResourceType.Raw_Fixtanium",
+        "kinds": [
+          "ship"
+        ],
+        "name": "Fixtanium (Raw)",
+        "places": 4,
+        "refined": "Fixtanium",
+        "spots": 0
+      },
+      {
+        "best_high": 0.16508864591031183,
+        "best_high_uncertain": false,
+        "difficulty": "medium",
+        "has_override": false,
+        "id": "ResourceType.Ore_Mockite",
+        "kinds": [
+          "vehicle"
+        ],
+        "name": "Mockite (Ore)",
+        "places": 1,
+        "refined": "Mockite",
+        "spots": 0
+      },
+      {
+        "best_high": 0.08758588940883325,
+        "best_high_uncertain": false,
+        "difficulty": null,
+        "has_override": false,
+        "id": "ResourceType.Stubbite",
+        "kinds": [
+          "hand"
+        ],
+        "name": "Stubbite",
+        "places": 0,
+        "refined": null,
+        "spots": 2
+      },
+      {
+        "best_high": 0.04829272871472412,
+        "best_high_uncertain": false,
+        "difficulty": "easy",
+        "has_override": false,
+        "id": "ResourceType.Ore_Synthium",
+        "kinds": [
+          "ship"
+        ],
+        "name": "Synthium (Ore)",
+        "places": 2,
+        "refined": "Synthium",
+        "spots": 0
+      }
+    ],
+    "physics": true,
+    "spawns_read": true,
+    "spots_read": true,
+    "state": "ready"
+  },
+  "mining_list_not_read": {
+    "build": null,
+    "lasers": [],
+    "lasers_read": false,
+    "minerals": [],
+    "physics": false,
+    "spawns_read": false,
+    "spots_read": false,
+    "state": "not-read"
   },
   "obtain_status": {
     "files": [
@@ -18890,6 +21620,12 @@
         "fits": true,
         "id": "mcp-dataset",
         "label": "MCP: most datasets (item-tags 1.2 GB, armor 0.9 GB)"
+      },
+      {
+        "bytes": 2040109465,
+        "fits": true,
+        "id": "mcp-npc-loadouts",
+        "label": "MCP: NPC worn gear (Loot screen, Read game data step 5)"
       },
       {
         "bytes": 2362232012,

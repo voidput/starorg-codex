@@ -53,8 +53,10 @@ desktop app for Windows and Linux, plus the `starorg-codex` command-line tool.
 ![Explorer item finder](docs/assets/screenshots/explorer-item-finder.png)
 
 **Privacy**
-- No account, no telemetry. With the default settings the app makes no network request; the
-  update check and StarOrg Tools are opt-in ([what each sends](docs/privacy.md))
+- No account, no telemetry. With the default settings the app's only network request is for
+  prebuilt game data of your exact build from the public `voidput/sc-gamedata-dumps` (Settings ->
+  Game data, a speed-up; off: everything is read from `Data.p4k`); the update check and StarOrg
+  Tools are opt-in ([what each sends](docs/privacy.md))
 - Never writes while the game or a launcher update is running
 
 ## System requirements

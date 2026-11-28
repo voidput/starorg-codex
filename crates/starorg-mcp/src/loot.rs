@@ -7,7 +7,16 @@
 //! area. Odds are the rough per-box estimates of [`starorg_gamedata::query::obtain`]: the
 //! chance one spawned container (or rack, or loose spot) holds the item, which assumes an
 //! even pick inside each tag pool. Loot tables no area places (corpses, events) are not
-//! listed.
+//! listed, except NPC bodies: each actor loot table ([`crate::loot_tree::is_actor_table`])
+//! is a row of the areas list under [`NPC_KIND`] (id [`NPC_PREFIX`] and the table), its
+//! drops by the table's slot (`Ammo`, `Scrip`) with the odds of [`BulkObtain::bodies_all`].
+//! That is what the NPC carries in its pockets. What it wears and wields is a second kind,
+//! [`GEAR_KIND`] (id [`GEAR_PREFIX`] and an actor class), from `game-npc-loadouts`: one row
+//! per NPC type (actors with the same name and gear collapse into one), by faction and role
+//! ([`crate::loot_tree::gear_tree`]), its items grouped by slot with the chance it spawns
+//! wearing each (even picks assumed: the data gives no weights). Body-loot and worn-gear
+//! rows of the same NPC link to each other ([`NpcInfo`]). Which places spawn which NPC is
+//! not in the data, so no NPC row names one.
 //!
 //! The list answers ([`LootList`]) carry summaries only, each with its place in the screen's
 //! trees ([`crate::loot_tree`]: kind of place or category, a middle level, the row);
@@ -18,19 +27,28 @@
 //! load when it is opened.
 
 use crate::hints::loot_hint;
+pub use crate::loot_tree::{GEAR_KIND, GEAR_PREFIX, NPC_KIND, NPC_PREFIX, is_gear, is_npc};
 use crate::shops::{ItemRecord, by_game_type};
 use serde::{Deserialize, Serialize};
-use starorg_gamedata::query::obtain::{AreaSummary, BulkObtain, Datasets, LootIndex, SpawnKind};
+use starorg_gamedata::domains::npc_loadouts::{GearItem, NpcLoadouts, slot_rank};
+pub use starorg_gamedata::domains::npc_loadouts::{SLOTS as GEAR_SLOTS, Wear};
+use starorg_gamedata::query::obtain::{
+    AreaSummary, BodyHit, BulkObtain, Datasets, LootIndex, SpawnKind, loot_eligibility,
+};
 use starorg_gamedata::query::types::ItemTags;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// What a caller without `starorg-gamedata` needs to build a [`LootScreen`] (the app's mock).
 pub mod input {
+    pub use starorg_gamedata::domains::npc_loadouts::{GearItem, NpcActor, NpcLoadouts, Wear};
     pub use starorg_gamedata::query::obtain::{Datasets, LootData, build_loot_index};
     pub use starorg_gamedata::query::types::{
         ItemTags, LootArea, SpawnConfig, SpawnLoot, SpawnSlot,
     };
 }
+
+/// The dataset the worn-gear rows come from.
+pub const GEAR_DATASET: &str = starorg_gamedata::domains::npc_loadouts::NAME;
 
 /// Drops kept in an ungrouped detail ([`LootGroupBy::None`]; the rest are counted in
 /// [`LootGroup::count`]; a filter reaches them).
@@ -65,13 +83,15 @@ pub enum LootView {
     Items,
 }
 
-/// How the item is there: rolled by a loot table, held by a rack's loadout, or lying loose.
+/// How the item is there: rolled by a loot table, held by a rack's loadout, lying loose, or
+/// worn or wielded by an NPC (its loadout).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum LootDropKind {
     Loot,
     Fixed,
     Loose,
+    Worn,
 }
 
 impl From<SpawnKind> for LootDropKind {
@@ -120,6 +140,12 @@ pub struct LootSummary {
     pub path: Vec<String>,
     /// Areas: items that can drop there. Items: areas it can drop in.
     pub count: usize,
+    /// Items: how many of `count` are NPC bodies ([`NPC_KIND`]); areas: 0.
+    #[serde(default)]
+    pub npcs: usize,
+    /// Items: how many of `count` are NPC worn-gear rows ([`GEAR_KIND`]); areas: 0.
+    #[serde(default)]
+    pub worn: usize,
     /// The best rough odds per spawned box, 0 to 1.
     pub best: f64,
 }
@@ -131,6 +157,9 @@ pub struct LootList {
     pub view: LootView,
     /// The build the data is of (`LIVE 4.10.201.48085`).
     pub build: Option<String>,
+    /// Whether the NPC worn-gear data (`game-npc-loadouts`) is read: `missing` lists no
+    /// [`GEAR_KIND`] rows until "Read game data" adds it.
+    pub gear: LootDataState,
     /// Areas by group (`Other` last), path then name; items by name.
     pub rows: Vec<LootSummary>,
 }
@@ -149,6 +178,31 @@ pub struct LootDrop {
     pub container: String,
     pub rarity: Option<String>,
     pub kind: LootDropKind,
+    /// What the odds depend on, when they do (worn gear of gated loadout groups: `if
+    /// AI/NpcClass/Heavy`).
+    pub note: Option<String>,
+}
+
+/// A link to another row of the areas list.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct LootLink {
+    pub id: String,
+    pub name: String,
+}
+
+/// What an NPC row of the areas list says beyond its drops.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct NpcInfo {
+    /// Worn gear: the actor classes the row stands for (same name and gear).
+    pub classes: Vec<String>,
+    /// Worn gear: the faction (`Criminals`).
+    pub faction: Option<String>,
+    /// Worn gear: how worn the gear spawns, 0 (new) to 1 (`WearRange`).
+    pub wear: Option<Wear>,
+    /// Worn gear: the body-loot row of its loot table, when it has one.
+    pub body_loot: Option<LootLink>,
+    /// Body loot: the worn-gear rows of the NPCs whose bodies roll this table.
+    pub worn_gear: Vec<LootLink>,
 }
 
 /// One group of a detail's drops: its header over every matching drop, and its rows when
@@ -177,6 +231,8 @@ pub struct LootDetail {
     pub entry: Option<LootSummary>,
     /// Items: the game record (what the Explorer opens).
     pub record: Option<ItemRecord>,
+    /// NPC rows: classes, faction, condition and the links between body loot and worn gear.
+    pub npc: Option<NpcInfo>,
     pub group_by: LootGroupBy,
     /// Every group with a drop matching the filter, best odds first, then by name.
     pub groups: Vec<LootGroup>,
@@ -229,12 +285,123 @@ struct Pair {
     container: u32,
     rarity: Option<u32>,
     kind: LootDropKind,
+    note: Option<u32>,
+}
+
+/// One worn-gear row: the actors of one NPC type with the same name and gear.
+#[derive(Debug, Clone)]
+struct GearRow {
+    id: String,
+    classes: Vec<String>,
+    place: crate::loot_tree::GearPlace,
+    items: Vec<GearItem>,
+    wear: Option<Wear>,
+    /// Lower-case loot table names of its actors.
+    tables: BTreeSet<String>,
+}
+
+/// The worn-gear rows of a build: test actors left out, actors with the same faction, role,
+/// name and gear collapsed into one row, names made unique within a faction (the body's
+/// sex where that tells rows apart, else a variant number).
+fn gear_rows(gear: &NpcLoadouts) -> Vec<GearRow> {
+    use crate::loot_tree::{GearPlace, faction_label, gear_hidden, gear_name, npc_role};
+    let mut rows: Vec<GearRow> = Vec::new();
+    let mut sexes: Vec<BTreeSet<String>> = Vec::new();
+    let mut at: HashMap<(String, &'static str, String, String), usize> = HashMap::new();
+    // A body that cannot be looted gives nothing it wears.
+    for a in gear
+        .actors
+        .iter()
+        .filter(|a| a.lootable && !gear_hidden(&a.class))
+    {
+        let faction = faction_label(a.faction.as_deref());
+        let role = npc_role(&a.class);
+        let (name, sex) = gear_name(&a.name, a.faction.as_deref());
+        let sig: Vec<String> = a
+            .items
+            .iter()
+            .map(|i| {
+                format!(
+                    "{}|{}|{:.6}|{}",
+                    i.item.to_ascii_lowercase(),
+                    i.slot,
+                    i.chance,
+                    i.requires.join(",")
+                )
+            })
+            .collect();
+        let key = (faction.clone(), role, name.clone(), sig.join(";"));
+        let ri = *at.entry(key).or_insert_with(|| {
+            rows.push(GearRow {
+                id: format!("{GEAR_PREFIX}{}", a.class),
+                classes: Vec::new(),
+                place: GearPlace {
+                    faction,
+                    role,
+                    name,
+                },
+                items: a.items.clone(),
+                wear: None,
+                tables: BTreeSet::new(),
+            });
+            sexes.push(BTreeSet::new());
+            rows.len() - 1
+        });
+        let r = &mut rows[ri];
+        r.classes.push(a.class.clone());
+        if let Some(w) = a.wear {
+            r.wear = Some(match r.wear {
+                Some(o) => Wear {
+                    min: o.min.min(w.min),
+                    max: o.max.max(w.max),
+                },
+                None => w,
+            });
+        }
+        if let Some(t) = &a.loot_table {
+            r.tables.insert(t.to_ascii_lowercase());
+        }
+        if let Some(s) = sex {
+            sexes[ri].insert(s);
+        }
+    }
+    // Same name in a faction: the sex when each says one and they differ, then a number.
+    let mut same: HashMap<(String, String), Vec<usize>> = HashMap::new();
+    for (i, r) in rows.iter().enumerate() {
+        same.entry((r.place.faction.clone(), r.place.name.clone()))
+            .or_default()
+            .push(i);
+    }
+    let mut clashes: Vec<Vec<usize>> = same.into_values().filter(|v| v.len() > 1).collect();
+    clashes.sort();
+    for group in clashes {
+        let one = |i: usize| {
+            (sexes[i].len() == 1)
+                .then(|| sexes[i].iter().next().cloned())
+                .flatten()
+        };
+        let labels: Vec<Option<String>> = group.iter().map(|&i| one(i)).collect();
+        let distinct: BTreeSet<&Option<String>> = labels.iter().collect();
+        let by_sex = labels.iter().all(Option::is_some) && distinct.len() == labels.len();
+        for (n, (&i, sex)) in group.iter().zip(&labels).enumerate() {
+            let extra = match sex {
+                Some(s) if by_sex => s.clone(),
+                _ => format!("variant {}", n + 1),
+            };
+            rows[i].place.name = format!("{} ({extra})", rows[i].place.name);
+        }
+    }
+    rows
 }
 
 /// The Loot screen of one build: both lists and every pair, built once.
 #[derive(Debug, Default)]
 pub struct LootScreen {
     pub build: Option<String>,
+    /// Whether the worn-gear rows were built (`game-npc-loadouts` was there).
+    gear_ready: bool,
+    /// Per area: what an NPC row says beyond its drops.
+    area_npc: Vec<Option<NpcInfo>>,
     areas: Vec<LootSummary>,
     items: Vec<LootSummary>,
     records: Vec<ItemRecord>,
@@ -332,13 +499,32 @@ fn cmp_name(a: &str, b: &str) -> std::cmp::Ordering {
 }
 
 impl LootScreen {
-    /// Every area spawn of every non-template item ([`BulkObtain::areas_all`], parallel),
-    /// inverted per area. `build`: the label the lists carry.
+    /// Every area spawn of every non-template item ([`BulkObtain::areas_all`], parallel)
+    /// and what every NPC body can hold ([`BulkObtain::bodies_all`] over the actor tables),
+    /// inverted per area or NPC. `build`: the label the lists carry.
     pub fn build(d: &Datasets, index: Option<&LootIndex>, build: Option<String>) -> Self {
+        Self::build_with_gear(d, index, None, build)
+    }
+
+    /// [`Self::build`] plus the NPC worn-gear rows of `gear` (`game-npc-loadouts`; `None`:
+    /// not read, [`LootList::gear`] says so).
+    pub fn build_with_gear(
+        d: &Datasets,
+        index: Option<&LootIndex>,
+        gear: Option<&NpcLoadouts>,
+        build: Option<String>,
+    ) -> Self {
         let bulk = BulkObtain::new(d, index);
         let list: Vec<&ItemTags> = d.items.iter().filter(|i| !i.template()).collect();
         let all = bulk.areas_all(&list);
-        Self::from_areas(&list, &all, build)
+        let npcs = index.map(npc_tables).unwrap_or_default();
+        let tables: Vec<&str> = npcs.iter().map(String::as_str).collect();
+        let bodies = if tables.is_empty() {
+            Vec::new()
+        } else {
+            bulk.bodies_all(&tables, &list)
+        };
+        Self::from_sources(&list, &all, &tables, &bodies, gear, build)
     }
 
     /// [`Self::build`] from the ranked areas of each item.
@@ -347,10 +533,61 @@ impl LootScreen {
         all: &[Vec<AreaSummary>],
         build: Option<String>,
     ) -> Self {
+        Self::from_sources(items, all, &[], &[], None, build)
+    }
+
+    /// [`Self::build`] from the ranked areas of each item, the NPC bodies that can hold it
+    /// (`bodies`, per item: a position in `npcs`, the actor tables, and its best slot;
+    /// empty: none) and the NPC loadouts (`gear`; `None`: not read). A worn item item-tags
+    /// lacks is listed by the name the loadouts give it.
+    pub fn from_sources(
+        items: &[&ItemTags],
+        all: &[Vec<AreaSummary>],
+        npcs: &[&str],
+        bodies: &[Vec<(usize, BodyHit)>],
+        gear: Option<&NpcLoadouts>,
+        build: Option<String>,
+    ) -> Self {
         let mut s = Self {
             build,
+            gear_ready: gear.is_some(),
             ..Default::default()
         };
+        let gear_rows = gear.map(gear_rows).unwrap_or_default();
+        // Per lower-case item class: (row, chance, slot, note) of every row wearing it.
+        type Worn = (usize, f64, String, Option<String>);
+        let mut worn: HashMap<String, Vec<Worn>> = HashMap::new();
+        for (ri, r) in gear_rows.iter().enumerate() {
+            for it in &r.items {
+                worn.entry(it.item.to_ascii_lowercase()).or_default().push((
+                    ri,
+                    it.chance,
+                    it.slot.clone(),
+                    crate::loot_tree::gear_note(&it.requires),
+                ));
+            }
+        }
+        // Worn items item-tags does not list: named from the loadouts.
+        let listed: HashSet<String> = items
+            .iter()
+            .map(|i| i.class_name.to_ascii_lowercase())
+            .collect();
+        let mut extra: Vec<ItemTags> = Vec::new();
+        let mut extra_seen: HashSet<String> = HashSet::new();
+        for r in &gear_rows {
+            for it in &r.items {
+                let k = it.item.to_ascii_lowercase();
+                if !listed.contains(&k) && extra_seen.insert(k) {
+                    extra.push(ItemTags {
+                        name: it.name.clone().unwrap_or_else(|| it.item.clone()),
+                        class_name: it.item.clone(),
+                        ..Default::default()
+                    });
+                }
+            }
+        }
+        let no_areas: Vec<AreaSummary> = Vec::new();
+        let all_items: Vec<&ItemTags> = items.iter().copied().chain(extra.iter()).collect();
         let mut label_ix: HashMap<String, u32> = HashMap::new();
         // Areas in first-seen order; sorted (and renumbered) below.
         let mut area_names: Vec<String> = Vec::new();
@@ -358,7 +595,9 @@ impl LootScreen {
         let makers = maker_codes(items);
         // (item, its name, its pairs)
         let mut kept_items: Vec<(&ItemTags, String, Vec<Pair>)> = Vec::new();
-        for (item, areas) in items.iter().zip(all) {
+        let areas_of = |ii: usize| all.get(ii).unwrap_or(&no_areas);
+        for (ii, item) in all_items.iter().enumerate() {
+            let areas = areas_of(ii);
             let mut pairs = Vec::new();
             for a in areas {
                 if a.best.score <= 0.0 || hidden_area(&a.area) {
@@ -380,6 +619,54 @@ impl LootScreen {
                     container: intern(&mut s.labels, &mut label_ix, container),
                     rarity: h.rarity.map(|r| intern(&mut s.labels, &mut label_ix, r)),
                     kind: a.best.kind.into(),
+                    note: None,
+                });
+            }
+            for (ti, h) in bodies.get(ii).into_iter().flatten() {
+                if h.odds <= 0.0 {
+                    continue;
+                }
+                let id = format!("{NPC_PREFIX}{}", npcs[*ti]);
+                let ai = *area_seen.entry(id.clone()).or_insert_with(|| {
+                    area_names.push(id);
+                    (area_names.len() - 1) as u32
+                });
+                let label = crate::loot_tree::npc_slot_label(npcs[*ti], &h.label);
+                pairs.push(Pair {
+                    item: 0,
+                    area: ai,
+                    odds: h.odds,
+                    container: intern(&mut s.labels, &mut label_ix, label),
+                    rarity: loot_eligibility(&item.tags)
+                        .rarity
+                        .map(|r| intern(&mut s.labels, &mut label_ix, r)),
+                    kind: LootDropKind::Loot,
+                    note: None,
+                });
+            }
+            for (ri, chance, slot, note) in worn
+                .get(&item.class_name.to_ascii_lowercase())
+                .into_iter()
+                .flatten()
+            {
+                if *chance <= 0.0 {
+                    continue;
+                }
+                let id = &gear_rows[*ri].id;
+                let ai = *area_seen.entry(id.clone()).or_insert_with(|| {
+                    area_names.push(id.clone());
+                    (area_names.len() - 1) as u32
+                });
+                pairs.push(Pair {
+                    item: 0,
+                    area: ai,
+                    odds: *chance,
+                    container: intern(&mut s.labels, &mut label_ix, slot.clone()),
+                    rarity: None,
+                    kind: LootDropKind::Worn,
+                    note: note
+                        .clone()
+                        .map(|n| intern(&mut s.labels, &mut label_ix, n)),
                 });
             }
             if !pairs.is_empty() {
@@ -390,12 +677,43 @@ impl LootScreen {
         kept_items.sort_by(|(a, an, _), (b, bn, _)| {
             cmp_name(an, bn).then_with(|| a.class_name.cmp(&b.class_name))
         });
-        let ids: Vec<&str> = area_names.iter().map(String::as_str).collect();
-        let tree = crate::loot_tree::area_tree(&ids);
+        // Places, NPC bodies and NPC gear have trees of their own.
+        let (gear_ix, rest): (Vec<usize>, Vec<usize>) =
+            (0..area_names.len()).partition(|&i| is_gear(&area_names[i]));
+        let (npc_ix, place_ix): (Vec<usize>, Vec<usize>) =
+            rest.into_iter().partition(|&i| is_npc(&area_names[i]));
+        let ids: Vec<&str> = place_ix.iter().map(|&i| area_names[i].as_str()).collect();
+        let npc_ids: Vec<&str> = npc_ix
+            .iter()
+            .map(|&i| &area_names[i][NPC_PREFIX.len()..])
+            .collect();
+        let mut tree = vec![(String::new(), Vec::new(), String::new()); area_names.len()];
+        for (&i, (path, name)) in place_ix.iter().zip(crate::loot_tree::area_tree(&ids)) {
+            tree[i] = (area_group(&area_names[i]), path, name);
+        }
+        for (&i, (path, name)) in npc_ix.iter().zip(crate::loot_tree::npc_tree(&npc_ids)) {
+            tree[i] = (NPC_KIND.to_string(), path, name);
+        }
+        // Gear rows that wear something listed, in row order.
+        let row_of: HashMap<&str, usize> = gear_rows
+            .iter()
+            .enumerate()
+            .map(|(ri, r)| (r.id.as_str(), ri))
+            .collect();
+        let gear_places: Vec<crate::loot_tree::GearPlace> = gear_ix
+            .iter()
+            .map(|&i| gear_rows[row_of[area_names[i].as_str()]].place.clone())
+            .collect();
+        for (&i, (path, name)) in gear_ix
+            .iter()
+            .zip(crate::loot_tree::gear_tree(&gear_places))
+        {
+            tree[i] = (GEAR_KIND.to_string(), path, name);
+        }
         let mut area_order: Vec<(String, Vec<String>, String, u32)> = tree
             .into_iter()
             .enumerate()
-            .map(|(i, (path, name))| (area_group(&area_names[i]), path, name, i as u32))
+            .map(|(i, (group, path, name))| (group, path, name, i as u32))
             .collect();
         area_order.sort_by(|a, b| {
             let other = |g: &str| g == crate::loot_tree::OTHER;
@@ -417,6 +735,8 @@ impl LootScreen {
                 group,
                 path,
                 count: 0,
+                npcs: 0,
+                worn: 0,
                 best: 0.0,
             });
         }
@@ -444,12 +764,21 @@ impl LootScreen {
                 s.pairs.push(p);
             }
             by_odds(&s.pairs, &mut mine);
+            let npcs = mine
+                .iter()
+                .filter(|&&pi| is_npc(&s.areas[s.pairs[pi as usize].area as usize].id))
+                .count();
             s.items.push(LootSummary {
                 id: item.class_name.clone(),
                 name,
                 group,
                 path,
                 count: mine.len(),
+                npcs,
+                worn: mine
+                    .iter()
+                    .filter(|&&pi| is_gear(&s.areas[s.pairs[pi as usize].area as usize].id))
+                    .count(),
                 best,
             });
             s.records.push(ItemRecord {
@@ -464,6 +793,43 @@ impl LootScreen {
             a.count = list.len();
             a.best = list.first().map_or(0.0, |&p| s.pairs[p as usize].odds);
         }
+        // What NPC rows say beyond their drops: a gear row's classes, faction, condition and
+        // body-loot row; a body-loot row's gear rows (in list order).
+        let link = |i: usize| LootLink {
+            id: s.areas[i].id.clone(),
+            name: s.areas[i].name.clone(),
+        };
+        let table_row: HashMap<String, usize> = (0..s.areas.len())
+            .filter(|&i| is_npc(&s.areas[i].id))
+            .map(|i| (s.areas[i].id[NPC_PREFIX.len()..].to_ascii_lowercase(), i))
+            .collect();
+        let mut infos: Vec<Option<NpcInfo>> = (0..s.areas.len())
+            .map(|i| is_npc(&s.areas[i].id).then(NpcInfo::default))
+            .collect();
+        let mut worn_by: HashMap<usize, Vec<usize>> = HashMap::new();
+        for r in &gear_rows {
+            let Some(&ai) = s.area_ix.get(&r.id.to_ascii_lowercase()) else {
+                continue;
+            };
+            let body = r.tables.iter().find_map(|t| table_row.get(t).copied());
+            if let Some(b) = body {
+                worn_by.entry(b).or_default().push(ai);
+            }
+            infos[ai] = Some(NpcInfo {
+                classes: r.classes.clone(),
+                faction: Some(r.place.faction.clone()),
+                wear: r.wear,
+                body_loot: body.map(link),
+                worn_gear: Vec::new(),
+            });
+        }
+        for (b, mut list) in worn_by {
+            list.sort_unstable();
+            if let Some(info) = infos[b].as_mut() {
+                info.worn_gear = list.into_iter().map(link).collect();
+            }
+        }
+        s.area_npc = infos;
         let place = |r: &LootSummary| r.path.first().unwrap_or(&r.group).clone();
         let hay =
             |r: &LootSummary| format!("{} {} {}", r.name, where_label(r), r.id).to_lowercase();
@@ -491,9 +857,10 @@ impl LootScreen {
         };
         let container = &self.labels_lc[p.container as usize];
         let rarity = p.rarity.map_or("", |r| self.labels_lc[r as usize].as_str());
+        let note = p.note.map_or("", |r| self.labels_lc[r as usize].as_str());
         words.iter().all(|w| {
             let w = w.as_str();
-            other.contains(w) || container.contains(w) || rarity.contains(w)
+            other.contains(w) || container.contains(w) || rarity.contains(w) || note.contains(w)
         })
     }
 
@@ -511,6 +878,7 @@ impl LootScreen {
             container: self.labels[p.container as usize].clone(),
             rarity: p.rarity.map(|r| self.labels[r as usize].clone()),
             kind: p.kind,
+            note: p.note.map(|r| self.labels[r as usize].clone()),
         }
     }
 
@@ -519,6 +887,11 @@ impl LootScreen {
             state: LootDataState::Ready,
             view,
             build: self.build.clone(),
+            gear: if self.gear_ready {
+                LootDataState::Ready
+            } else {
+                LootDataState::Missing
+            },
             rows: match view {
                 LootView::Areas => self.areas.clone(),
                 LootView::Items => self.items.clone(),
@@ -551,10 +924,18 @@ impl LootScreen {
             LootView::Areas => (self.areas[i].clone(), None, &self.by_area[i]),
             LootView::Items => (
                 self.items[i].clone(),
-                Some(self.records[i].clone()),
+                // A worn item item-tags lacks has no record to open.
+                Some(self.records[i].clone()).filter(|r| !r.guid.is_empty()),
                 &self.by_item[i],
             ),
         };
+        let npc = match view {
+            LootView::Areas => self.area_npc.get(i).cloned().flatten(),
+            LootView::Items => None,
+        };
+        // A gear row's slots in body order (Undersuit, Helmet, ...), not by odds.
+        let by_slot =
+            view == LootView::Areas && group_by == LootGroupBy::Container && is_gear(&entry.id);
         let words: Vec<String> = q
             .filter
             .unwrap_or("")
@@ -592,8 +973,13 @@ impl LootScreen {
         let key_of = |g: u32| if flat { ALL_GROUP } else { label(g) };
         let best = |pis: &[u32]| pis.first().map_or(0.0, |&p| self.pairs[p as usize].odds);
         acc.sort_by(|a, b| {
-            best(&b.1)
-                .total_cmp(&best(&a.1))
+            let slots = if by_slot {
+                slot_rank(label(a.0)).cmp(&slot_rank(label(b.0)))
+            } else {
+                std::cmp::Ordering::Equal
+            };
+            slots
+                .then_with(|| best(&b.1).total_cmp(&best(&a.1)))
                 .then_with(|| cmp_name(label(a.0), label(b.0)))
         });
         let cap = if flat { MAX_DROPS } else { MAX_GROUP_ROWS };
@@ -626,6 +1012,7 @@ impl LootScreen {
             view,
             entry: Some(entry),
             record,
+            npc,
             group_by,
             groups,
             total: counts.iter().sum(),
@@ -656,6 +1043,16 @@ fn default_open(counts: &[usize], cap: usize, filtered: bool) -> Vec<bool> {
         .collect()
 }
 
+/// The actor loot tables of NPC bodies, in index order ([`crate::loot_tree::is_actor_table`]).
+pub fn npc_tables(index: &LootIndex) -> Vec<String> {
+    index
+        .tables
+        .iter()
+        .filter(|t| crate::loot_tree::is_actor_table(&t.name))
+        .map(|t| t.name.clone())
+        .collect()
+}
+
 /// Where a row sits: its tree path (`Caves › Occupied`), or its group when it is a kind of
 /// place or category of its own.
 fn where_label(r: &LootSummary) -> String {
@@ -682,6 +1079,7 @@ pub fn missing_list(view: LootView) -> LootList {
         state: LootDataState::Missing,
         view,
         build: None,
+        gear: LootDataState::Missing,
         rows: Vec::new(),
     }
 }
@@ -692,6 +1090,7 @@ pub fn missing_detail(view: LootView) -> LootDetail {
         view,
         entry: None,
         record: None,
+        npc: None,
         group_by: LootGroupBy::default_for(view),
         groups: Vec::new(),
         total: 0,
@@ -1163,6 +1562,412 @@ mod tests {
         let f = s.detail(LootView::Areas, area, &DetailQuery::filter(Some("loose")));
         assert_eq!(f.groups.len(), 1);
         assert_eq!(f.total, loose);
+    }
+
+    /// The test build plus NPC bodies: a v1 pilot whose scrip slot is always filled, a V3
+    /// soldier and its council-scrip variant (a priority slot that exists half the time,
+    /// naming its item by class), and a template that is no NPC.
+    fn npc_screen_with(gear: Option<&NpcLoadouts>) -> LootScreen {
+        let mut d = datasets();
+        let scrip = "LootGeneration/LootType/Scrip";
+        d.items.push(item(
+            "scrip_council",
+            "Council Scrip",
+            "Misc",
+            &[CAN, COMMON, scrip],
+        ));
+        // Same tags as the council scrip, another class: an entity-class entry leaves it out.
+        d.items.push(item(
+            "scrip_merc",
+            "Merc Scrip",
+            "Misc",
+            &[CAN, COMMON, scrip],
+        ));
+        let loot: LootData = serde_json::from_value(json!({
+            "tables": [
+                {"name": "Crate_Weapons", "lootArchetypes": [{"archetype": "Arch_Guns", "weight": 1}]},
+                {"name": "LootTable_Actor_AcePilot", "version": "v1", "lootArchetypes": [
+                    {"archetype": "lootarchetype_actor_acepilot_scrip", "weight": 1,
+                     "numberOfResultsConstraints": {"minResults": 1, "maxResults": 1}},
+                    {"archetype": "Arch_Guns", "weight": 0.5,
+                     "numberOfResultsConstraints": {"minResults": 0, "maxResults": 1}}]},
+                {"name": "V3LootTable_Actor_Soldier", "version": "v3", "lootArchetypes": [
+                    {"name": "Ammo", "weight": 3, "archetype": {"entries": [
+                        {"name": "Guns", "weight": 1, "selector": {"tags": {"positiveTags": ["Weapon/FPS/Stocked/LMG"]}}}]}},
+                    {"name": "Sidearm", "weight": 1, "archetype": {"entries": [
+                        {"name": "Pistol", "weight": 1, "selector": {"tags": {"positiveTags": ["Weapon/FPS/Pistol"]}}}]}}]},
+                {"name": "V3LootTable_Actor_Soldier_CouncilScrip", "version": "v3", "lootArchetypes": [
+                    {"name": "Ammo", "weight": 3, "archetype": {"entries": [
+                        {"name": "Guns", "weight": 1, "selector": {"tags": {"positiveTags": ["Weapon/FPS/Stocked/LMG"]}}}]}},
+                    {"name": "Unique item", "weight": 1, "archetype": {"entries": [
+                        {"name": "Council scrip", "weight": 1, "selector": {"entityClasses": {"entityClasses": ["Scrip_Council"]}}}]},
+                     "optionalData": [{"priorityCount": 1}, {"choiceLimit": 1}, {"chanceToExist": 0.4}]}]},
+                {"name": "V3LootTable_Actor_TEMPLATE", "version": "v3", "lootArchetypes": [
+                    {"name": "Ammo", "weight": 1, "archetype": {"entries": [
+                        {"name": "Guns", "weight": 1, "selector": {"tags": {"positiveTags": ["Weapon/FPS/Pistol"]}}}]}}]}
+            ],
+            "archetypes": [
+                {"name": "Arch_Guns", "primaryOrGroup": {"entries": [
+                    {"name": "LMG", "tag": "Weapon/FPS/Stocked/LMG", "weight": 3},
+                    {"name": "Pistol", "tag": "Weapon/FPS/Pistol", "weight": 1}]}},
+                {"name": "LootArchetype_Actor_AcePilot_Scrip", "primaryOrGroup": {"entries": [
+                    {"name": "Scrip", "tag": scrip, "weight": 1}]}}
+            ]
+        }))
+        .unwrap();
+        d.loot = Some(loot);
+        let index = build_loot_index(d.loot.as_ref().unwrap());
+        LootScreen::build_with_gear(&d, Some(&index), gear, None)
+    }
+
+    fn npc_screen() -> LootScreen {
+        npc_screen_with(None)
+    }
+
+    fn gear_item(item: &str, slot: &str, chance: f64, requires: &[&str]) -> GearItem {
+        GearItem {
+            item: item.into(),
+            name: None,
+            slot: slot.into(),
+            chance,
+            requires: requires.iter().map(|r| r.to_string()).collect(),
+        }
+    }
+
+    /// NPC loadouts: the ace pilot (its body-loot table, a gated sidearm, a suit item-tags
+    /// lacks), two grunts with the same gear (male and female: one row), a third grunt
+    /// with other gear (the same name: a variant), and a test actor.
+    fn gear() -> NpcLoadouts {
+        use starorg_gamedata::domains::npc_loadouts::NpcActor;
+        let actor = |class: &str, name: &str, table: Option<&str>, items: Vec<GearItem>| NpcActor {
+            class: class.into(),
+            name: name.into(),
+            faction: Some("genericcriminal".into()),
+            loot_table: table.map(str::to_string),
+            lootable: true,
+            wear: Some(Wear { min: 0.0, max: 0.5 }),
+            items,
+        };
+        let mut suit = gear_item("syn_suit_01", "Undersuit", 1.0, &[]);
+        suit.name = Some("Synthetic Suit".into());
+        let grunt = || {
+            vec![
+                gear_item("rsi_helmet_01", "Helmet", 1.0, &[]),
+                gear_item("ksar_pistol_01", "Sidearm", 0.5, &[]),
+            ]
+        };
+        NpcLoadouts {
+            actors: vec![
+                actor(
+                    "PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot",
+                    "Generic criminal ace pilot",
+                    Some("loottable_actor_acepilot"),
+                    vec![
+                        suit,
+                        gear_item("rsi_helmet_01", "Helmet", 1.0, &[]),
+                        gear_item("behr_lmg_01", "Primary weapon", 0.5, &[]),
+                        gear_item("ksar_pistol_01", "Sidearm", 1.0, &["AI/NpcClass/Heavy"]),
+                    ],
+                ),
+                actor(
+                    "PU_Human-Criminal-Grunt-Female-Grunt_01",
+                    "Criminal grunt female 01",
+                    None,
+                    grunt(),
+                ),
+                actor(
+                    "PU_Human-Criminal-Grunt-Male-Grunt_01",
+                    "Criminal grunt male 01",
+                    None,
+                    grunt(),
+                ),
+                actor(
+                    "PU_Human-Criminal-Grunt-Male-Stanton-Grunt_01",
+                    "Criminal grunt male 01",
+                    None,
+                    vec![gear_item("behr_lmg_01", "Primary weapon", 1.0, &[])],
+                ),
+                actor(
+                    "FeatureTest_Human_Male-Grunt",
+                    "Feature test grunt",
+                    None,
+                    grunt(),
+                ),
+                // A body that cannot be looted: no row.
+                NpcActor {
+                    lootable: false,
+                    ..actor(
+                        "PU_Pilots-Vanduul-Pilot_Light",
+                        "Pilots vanduul pilot light",
+                        None,
+                        grunt(),
+                    )
+                },
+            ],
+            ..Default::default()
+        }
+    }
+
+    fn gear_screen() -> LootScreen {
+        npc_screen_with(Some(&gear()))
+    }
+
+    const ACE: &str = "gear:PU_Human_Enemy_GroundCombat_NPC_GenericCriminal_AcePilot";
+
+    #[test]
+    fn worn_gear_rows_sit_by_faction_and_collapse() {
+        assert_eq!(
+            npc_screen().list(LootView::Areas).gear,
+            LootDataState::Missing
+        );
+        let s = gear_screen();
+        let list = s.list(LootView::Areas);
+        assert_eq!(list.gear, LootDataState::Ready);
+        let rows: Vec<&LootSummary> = list.rows.iter().filter(|r| is_gear(&r.id)).collect();
+        let shown: Vec<(&str, Vec<String>)> = rows
+            .iter()
+            .map(|r| (r.name.as_str(), r.path.clone()))
+            .collect();
+        // One faction (all rows): no faction level; the grunts' role holds two of three.
+        let k = GEAR_KIND.to_string();
+        let ground = crate::loot_tree::ROLE_COMBAT.to_string();
+        assert_eq!(
+            shown,
+            [
+                ("Ace pilot", vec![k.clone()]),
+                ("Grunt 01 (variant 1)", vec![k.clone(), ground.clone()]),
+                ("Grunt 01 (variant 2)", vec![k, ground]),
+            ],
+            "{shown:?}"
+        );
+        assert!(rows.iter().all(|r| r.group == GEAR_KIND));
+        // Male and female with the same gear: one row listing both classes.
+        let twins = rows
+            .iter()
+            .map(|r| {
+                s.detail(LootView::Areas, &r.id, &DetailQuery::default())
+                    .npc
+                    .unwrap()
+                    .classes
+            })
+            .find(|c| c.len() == 2)
+            .unwrap();
+        assert_eq!(
+            twins,
+            [
+                "PU_Human-Criminal-Grunt-Female-Grunt_01",
+                "PU_Human-Criminal-Grunt-Male-Grunt_01"
+            ]
+        );
+        // The test actor is no row.
+        assert!(
+            list.rows
+                .iter()
+                .all(|r| !r.id.contains("FeatureTest") && !r.id.contains("Vanduul"))
+        );
+    }
+
+    #[test]
+    fn worn_gear_detail_is_by_slot_with_links() {
+        let s = gear_screen();
+        let d = s.detail(LootView::Areas, ACE, &DetailQuery::default());
+        let labels: Vec<&str> = d.groups.iter().map(|g| g.label.as_str()).collect();
+        // Body order, not odds order.
+        assert_eq!(labels, ["Undersuit", "Helmet", "Primary weapon", "Sidearm"]);
+        let r: Vec<&LootDrop> = d.rows().collect();
+        assert!(r.iter().all(|r| r.kind == LootDropKind::Worn));
+        let pistol = r.iter().find(|r| r.id == "ksar_pistol_01").unwrap();
+        assert_eq!(pistol.note.as_deref(), Some("if AI/NpcClass/Heavy"));
+        assert!(close(pistol.odds, 1.0));
+        let suit = r.iter().find(|r| r.id == "syn_suit_01").unwrap();
+        assert_eq!(suit.name, "Synthetic Suit");
+        let npc = d.npc.as_ref().unwrap();
+        assert_eq!(npc.faction.as_deref(), Some("Criminals"));
+        assert_eq!(npc.wear, Some(Wear { min: 0.0, max: 0.5 }));
+        assert_eq!(
+            npc.body_loot,
+            Some(LootLink {
+                id: "npc:LootTable_Actor_AcePilot".into(),
+                name: "Ace pilot".into()
+            })
+        );
+        // The body-loot row links back.
+        let b = s.detail(
+            LootView::Areas,
+            "npc:LootTable_Actor_AcePilot",
+            &DetailQuery::default(),
+        );
+        let back = b.npc.unwrap().worn_gear;
+        assert_eq!(back.len(), 1);
+        assert_eq!(back[0].id, ACE);
+        // Grouped by place, the order is by odds again.
+        let p = s.detail(
+            LootView::Areas,
+            ACE,
+            &DetailQuery {
+                group_by: Some(LootGroupBy::None),
+                ..DetailQuery::default()
+            },
+        );
+        assert_eq!(p.total, 4);
+        // A filter word of the note finds the gated row.
+        let f = s.detail(LootView::Areas, ACE, &DetailQuery::filter(Some("npcclass")));
+        assert_eq!(f.total, 1);
+    }
+
+    #[test]
+    fn items_list_the_npcs_that_wear_them() {
+        let s = gear_screen();
+        let d = s.detail(LootView::Items, "rsi_helmet_01", &DetailQuery::default());
+        let g = d.group(GEAR_KIND).unwrap();
+        assert_eq!(g.count, 2, "the ace pilot and the two grunts of one row");
+        let names: Vec<&str> = g
+            .rows
+            .as_ref()
+            .unwrap()
+            .iter()
+            .map(|r| r.name.as_str())
+            .collect();
+        assert!(names.contains(&"Ace pilot"), "{names:?}");
+        assert!(
+            g.rows
+                .as_ref()
+                .unwrap()
+                .iter()
+                .all(|r| r.container == "Helmet")
+        );
+        // The suit item-tags lacks is listed by its loadout name, with no record to open.
+        let items = s.list(LootView::Items).rows;
+        let suit = items.iter().find(|r| r.id == "syn_suit_01").unwrap();
+        assert_eq!(suit.name, "Synthetic Suit");
+        let d = s.detail(LootView::Items, "syn_suit_01", &DetailQuery::default());
+        assert!(d.record.is_none());
+        assert_eq!(d.rows().next().unwrap().id, ACE);
+        // A filter on the NPC's name finds its row.
+        let f = s.detail(
+            LootView::Items,
+            "rsi_helmet_01",
+            &DetailQuery::filter(Some("ace")),
+        );
+        assert_eq!(f.total, 1);
+    }
+
+    fn close(a: f64, b: f64) -> bool {
+        (a - b).abs() < 1e-9
+    }
+
+    #[test]
+    fn npc_bodies_are_rows_under_their_own_kind() {
+        let s = npc_screen();
+        let areas = s.list(LootView::Areas).rows;
+        let npcs: Vec<&LootSummary> = areas.iter().filter(|r| is_npc(&r.id)).collect();
+        let names: Vec<(&str, Vec<String>)> = npcs
+            .iter()
+            .map(|r| (r.name.as_str(), r.path.clone()))
+            .collect();
+        // No template; the pilot alone in its group sits right under the kind.
+        assert_eq!(
+            names,
+            [
+                ("Ace pilot", vec![NPC_KIND.to_string()]),
+                (
+                    "Soldier",
+                    vec![NPC_KIND.to_string(), "Ground combat".to_string()]
+                ),
+                (
+                    "Soldier (with council scrip)",
+                    vec![NPC_KIND.to_string(), "Ground combat".to_string()]
+                ),
+            ]
+        );
+        assert!(npcs.iter().all(|r| r.group == NPC_KIND));
+        assert_eq!(npcs[0].id, "npc:LootTable_Actor_AcePilot");
+        // Places keep their rows.
+        assert!(areas.iter().any(|r| r.id == "caves/loot_caves_occupied"));
+    }
+
+    #[test]
+    fn npc_odds_follow_the_table_slots() {
+        let s = npc_screen();
+        // Pilot: the scrip slot is always filled; two scrips by tag share it evenly.
+        let d = s.detail(
+            LootView::Areas,
+            "npc:LootTable_Actor_AcePilot",
+            &DetailQuery::default(),
+        );
+        assert_eq!(d.group_by, LootGroupBy::Container);
+        let scrip = d.group("Scrip").unwrap();
+        assert_eq!(scrip.count, 2);
+        assert!(close(scrip.best, 0.5));
+        // The guns slot: weight 0.5 of 1.5, then the LMG entry 3 of 4.
+        let guns = d.group("Arch guns").unwrap();
+        let lmg = guns
+            .rows
+            .as_ref()
+            .unwrap()
+            .iter()
+            .find(|r| r.id == "behr_lmg_01")
+            .unwrap();
+        assert!(close(lmg.odds, 1.0 / 3.0 * 0.75));
+        // Soldier variant: the council scrip by class only, there 40% of the time whatever
+        // the weights; ammo the only other slot (the priority one is not in its weights).
+        let d = flat(
+            &s,
+            LootView::Areas,
+            "npc:V3LootTable_Actor_Soldier_CouncilScrip",
+            None,
+        );
+        let r = rows(&d);
+        let sc = r.iter().find(|r| r.id == "scrip_council").unwrap();
+        assert_eq!(sc.container, "Unique item");
+        assert!(close(sc.odds, 0.4));
+        assert!(r.iter().all(|r| r.id != "scrip_merc"));
+        let lmg = r.iter().find(|r| r.id == "behr_lmg_01").unwrap();
+        assert!(close(lmg.odds, 1.0));
+        assert_eq!(lmg.container, "Ammo");
+        // Base soldier: grouped by slot.
+        let d = s.detail(
+            LootView::Areas,
+            "npc:V3LootTable_Actor_Soldier",
+            &DetailQuery::default(),
+        );
+        let labels: Vec<&str> = d.groups.iter().map(|g| g.label.as_str()).collect();
+        assert_eq!(labels, ["Ammo", "Sidearm"]);
+        assert!(close(d.groups[1].best, 0.25));
+    }
+
+    #[test]
+    fn items_list_the_npcs_that_carry_them() {
+        let s = npc_screen();
+        // The council scrip is in no area: it is listed for its NPC alone.
+        let items = s.list(LootView::Items).rows;
+        let scrip = items.iter().find(|r| r.id == "scrip_council").unwrap();
+        assert_eq!((scrip.count, scrip.npcs), (2, 2));
+        let lmg = items.iter().find(|r| r.id == "behr_lmg_01").unwrap();
+        assert_eq!((lmg.count, lmg.npcs), (5, 3));
+        let d = s.detail(LootView::Items, "scrip_council", &DetailQuery::default());
+        let labels: Vec<&str> = d.groups.iter().map(|g| g.label.as_str()).collect();
+        assert_eq!(labels, [NPC_KIND]);
+        let names: Vec<&str> = d.rows().map(|r| r.name.as_str()).collect();
+        assert_eq!(names, ["Ace pilot", "Soldier (with council scrip)"]);
+        let r: Vec<&LootDrop> = d.rows().collect();
+        assert_eq!(r[0].group, NPC_KIND);
+        assert_eq!(r[1].group, format!("{NPC_KIND}{PATH_SEP}Ground combat"));
+        assert_eq!(r[1].container, "Unique item");
+        // The LMG: places and NPCs side by side, by place.
+        let d = s.detail(LootView::Items, "behr_lmg_01", &DetailQuery::default());
+        let labels: Vec<&str> = d.groups.iter().map(|g| g.label.as_str()).collect();
+        assert!(
+            labels.contains(&NPC_KIND) && labels.contains(&"Caves"),
+            "{labels:?}"
+        );
+        // A filter word of the kind finds the NPC rows.
+        let f = s.detail(
+            LootView::Items,
+            "behr_lmg_01",
+            &DetailQuery::filter(Some("npcs")),
+        );
+        assert_eq!(f.total, 3);
     }
 
     #[test]

@@ -21,8 +21,10 @@
     onpick: (id: string) => void;
     onfetch: () => void;
     onnetwork: () => void;
+    /** The same resource on the Mining tab (places, quality by place, difficulty, laser). */
+    onmining?: (id: string) => void;
   }
-  let { c, uexOn, fetching, onpick, onfetch, onnetwork }: Props = $props();
+  let { c, uexOn, fetching, onpick, onfetch, onnetwork, onmining }: Props = $props();
 
   const KIOSK_GRID = 'grid grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)_7.5rem_5.5rem] gap-x-2';
   const BELT_GRID = 'grid grid-cols-[minmax(0,1.3fr)_3.5rem_4rem_minmax(0,1fr)_minmax(4rem,6rem)] gap-x-2';
@@ -32,6 +34,8 @@
   const mined = $derived(Array.isArray(c.mined) ? c.mined : null);
   const when = $derived(fetchedText(c.market.fetched));
   const topShare = $derived(Math.max(0, ...(c.quality?.steps ?? []).map((s) => s.share ?? 0)));
+  /** A mineable resource: a quality curve or a place in the mining data. */
+  const mineable = $derived(!!c.quality || (Array.isArray(c.mined) && c.mined.length > 0));
 </script>
 
 {#snippet quiet(text: string)}
@@ -170,7 +174,16 @@
   </section>
 
   <section class="grid gap-2" aria-labelledby="c-mined">
-    <h3 id="c-mined" class="eyebrow text-muted-foreground">Where it is mined</h3>
+    <div class="flex flex-wrap items-baseline gap-2">
+      <h3 id="c-mined" class="eyebrow text-muted-foreground">Where it is mined</h3>
+      {#if onmining && mineable}
+        <button
+          type="button"
+          class="text-primary focus-visible:ring-ring/60 ml-auto rounded-sm text-[12px] underline-offset-2 outline-none hover:underline focus-visible:ring-2"
+          onclick={() => onmining(c.id)}>Mining details: quality by place, rock, difficulty, laser</button
+        >
+      {/if}
+    </div>
     {#if mined === null}
       {#if c.raw_sources.length}
         <p class="text-muted-foreground m-0 text-[12px]">

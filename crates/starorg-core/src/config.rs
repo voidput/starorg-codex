@@ -222,9 +222,56 @@ impl Outputs {
     }
 }
 
+/// `[data] prebuilt_dumps` in `config.toml`: Settings -> Game data -> "Download prebuilt
+/// game data" (on unless set to false). The app downloads with it; the command-line tool and
+/// the MCP server read it only to know whether a dataset the app downloaded may be served.
+pub fn prebuilt_dumps(cfg: &Config) -> bool {
+    cfg.extra
+        .get("data")
+        .and_then(|t| t.as_table())
+        .and_then(|t| t.get("prebuilt_dumps"))
+        .and_then(toml::Value::as_bool)
+        .unwrap_or(true)
+}
+
+/// Set `[data] prebuilt_dumps` (the default, on, is stored as no key).
+pub fn set_prebuilt_dumps(cfg: &mut Config, on: bool) {
+    let t = cfg
+        .extra
+        .entry("data")
+        .or_insert_with(|| toml::Value::Table(toml::Table::new()));
+    if !t.is_table() {
+        *t = toml::Value::Table(toml::Table::new());
+    }
+    let t = t.as_table_mut().expect("table");
+    if on {
+        t.remove("prebuilt_dumps");
+    } else {
+        t.insert("prebuilt_dumps".into(), toml::Value::Boolean(false));
+    }
+    if t.is_empty() {
+        cfg.extra.remove("data");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn prebuilt_dumps_is_on_unless_turned_off() {
+        let mut c = Config::default();
+        assert!(prebuilt_dumps(&c));
+        set_prebuilt_dumps(&mut c, false);
+        assert!(!prebuilt_dumps(&c));
+        let text = toml::to_string(&c).unwrap();
+        assert!(
+            text.contains("[data]") && text.contains("prebuilt_dumps = false"),
+            "{text}"
+        );
+        set_prebuilt_dumps(&mut c, true);
+        assert!(prebuilt_dumps(&c) && c.extra.is_empty());
+    }
 
     #[test]
     fn config_keeps_unknown_keys() {

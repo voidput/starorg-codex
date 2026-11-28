@@ -143,9 +143,10 @@ export function groupKeyOf(d: Pick<LootDrop, 'container' | 'group'>, by: LootGro
 
 /**
  * Likeliest-first drops in groups as `LootScreen::detail` makes them: best odds first, then by
- * name; rows for the `groups` asked for, else the default ones; each capped.
+ * name (with `slotRank`, a worn-gear row's slots: in body order first); rows for the `groups`
+ * asked for, else the default ones; each capped.
  */
-export function groupDrops(rows: readonly LootDrop[], by: LootGroupBy, groups: readonly string[] | null, filtered: boolean): LootGroup[] {
+export function groupDrops(rows: readonly LootDrop[], by: LootGroupBy, groups: readonly string[] | null, filtered: boolean, slotRank?: (label: string) => number): LootGroup[] {
   const flat = by === 'none';
   const at = new Map<string, LootDrop[]>();
   for (const d of rows) {
@@ -155,7 +156,8 @@ export function groupDrops(rows: readonly LootDrop[], by: LootGroupBy, groups: r
     else at.set(k, [d]);
   }
   const acc = [...at.entries()].map(([key, list]) => ({ key, list, best: list[0]?.odds ?? 0 }));
-  acc.sort((a, b) => b.best - a.best || cmpName(a.key, b.key));
+  const rank = by === 'container' && slotRank ? slotRank : () => 0;
+  acc.sort((a, b) => rank(a.key) - rank(b.key) || b.best - a.best || cmpName(a.key, b.key));
   const cap = flat ? MAX_DROPS : MAX_GROUP_ROWS;
   const open = groups ? acc.map((g) => groups.includes(g.key)) : defaultOpen(acc.map((g) => g.list.length), cap, filtered);
   return acc.map((g, i) => ({

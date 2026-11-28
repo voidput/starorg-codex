@@ -14,6 +14,7 @@
 //! | [`shops`] | `query/shops.ts` (UEX rows placed, dated, filtered by place; shop inventory) |
 //! | [`obtain`] | `query/obtain.ts` (loot model, spawns, blueprints, awards, shops) |
 //! | [`mined`] | (ours) where an ore is mined: belts and bodies, and spots in loot areas |
+//! | [`mining`] | (ours) the Mining tab: minerals, quality per place, rock physics, laser estimate |
 //! | [`quality`] | (ours) the quality curve, place overrides and shown steps of a resource |
 //! | [`sells`] | (ours) where a commodity sells best: UEX kiosk prices matched to resources |
 //! | [`where_`] | `query/where.ts` (one row per source, easiest first) |
@@ -25,6 +26,7 @@
 pub mod commodities;
 pub mod fuzzy;
 pub mod mined;
+pub mod mining;
 pub mod obtain;
 pub mod quality;
 pub mod sells;
