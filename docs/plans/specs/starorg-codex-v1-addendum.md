@@ -2,7 +2,7 @@
 title: StarOrg Codex v1 — addendum (user requests 2026-11-14)
 tags: [docs, plans, specs]
 status: draft
-updated: 2026-11-23
+updated: 2026-11-28
 ---
 
 # StarOrg Codex v1 — addendum (user requests 2026-11-14)
@@ -328,8 +328,8 @@ in prod until the owner enables it). The client follows its real routes; nothing
   `/callback?code=&state=` (other paths 404; a foreign `state` ends the attempt; `error=` =
   cancelled) -> `POST /api/auth/strings/exchange {code, code_verifier, redirect_uri}` ->
   `{access_token, expires_in, token_type, aud: "strings", user}`. Then `GET /api/auth/me` for
-  the orgs (`guilds[]`: Discord id, name, features); the first org with `industrial` is picked,
-  changeable. Cancel while waiting (`starorg_cancel_login`); 5-minute timeout.
+  the orgs (`guilds[]`: Discord id, name, features); no org is picked by the user (the
+  Settings picker is gone, see Push). Cancel while waiting (`starorg_cancel_login`); 5-minute timeout.
 - **Token**: OS keyring (`keyring` 3, service `starorg-codex`, user `starorg-tools-<env>`), else
   `<config>/starorg-tokens/<env>.token` (0600 in a 0700 folder on Unix). No refresh token exists
   on the server: the 90-day token is dropped at expiry or on a 401, and the status asks to sign
@@ -342,12 +342,16 @@ in prod until the owner enables it). The client follows its real routes; nothing
 - **Push**: union of ticked characters -> public `GET /api/industrial/blueprint-lookup` (no
   token) -> each local entry to one server id by record key (`canonical_internal_key`), else by a
   single normalised name or alias; ambiguous/unknown reported as `unmatched`, not sent -> `POST
-  /api/industrial/crafting/guilds/{guild}/my-blueprints {blueprint_ids, source:
-  "starorg_strings", acquired_at}` in chunks of 2000. Never removals (`…/remove` is not called).
+  /api/industrial/crafting/me/blueprints {blueprint_ids, source:
+  "starorg_strings", acquired_at}` in chunks of 2000. The account-level route (SC-ORG-BOT#1737,
+  server 2.3.0) needs no org; when the server has no such route (404, 405, or a 403 that is not
+  "sign-in is disabled") the client falls back to `…/guilds/{guild}/my-blueprints` with the
+  first of the account's orgs that has blueprint tracking, and reposts the chunk. Never removals (`…/remove` is not called).
   `acquired_at` carries receipt times only (log line, or the server's own from a pull; never a
   Smart Citizen export time) and only well-formed ISO datetimes, since one bad value makes the
   server refuse the whole chunk. A grant without `aud: "strings"` is refused.
-- **Pull**: `GET …/my-blueprints` -> union into one character with source `starorg:<org>`; names
+- **Pull**: `GET …/me/blueprints` (same fallback) -> union into one character with source
+  `starorg:<org>`, or `starorg:<host>` for an account in no org; names
   not in this build's game data (when read) are `unmatched` and skipped.
 - **Hangar**: `GET /api/fleet/hangar` -> HangarXPLOR-shaped rows -> the fleet importer
   (`FleetSource::StarOrg`; dry run in the dialog, merge in Sync now).

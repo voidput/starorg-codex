@@ -12,7 +12,9 @@
 //!
 //! The token (90 days, no refresh token) may call only the server's `STRINGS_ROUTES`:
 //! `GET /api/auth/me`, `POST /api/auth/logout`, `GET|POST
-//! /api/industrial/crafting/guilds/{guild_id}/my-blueprints`, `POST …/my-blueprints/remove`,
+//! /api/industrial/crafting/me/blueprints` (the account's owned list; SC-ORG-BOT #1737), its
+//! older form `…/crafting/guilds/{guild_id}/my-blueprints` for servers without it (see
+//! [`Client::my_blueprints`]), `POST …/my-blueprints/remove`,
 //! `GET …/blueprint-library` and `GET /api/fleet/hangar`. The public
 //! `GET /api/industrial/blueprint-lookup` (id, record key and names of every blueprint) is
 //! read without the token. While the server's `STRINGS_AUTH_ENABLED` is off the sign-in
@@ -49,7 +51,8 @@ pub enum StarOrgError {
     Disabled,
     /// The token is missing, expired or revoked: sign in again.
     Unauthorized(String),
-    /// 404 on a data route (the org has no blueprint tracking, or no such guild).
+    /// 404 on a data route (no account-level blueprint route and no org with blueprint
+    /// tracking, or no such guild).
     NotFound(String),
     RateLimited,
     /// Any other refusal, with the server's `detail`.
@@ -519,29 +522,29 @@ impl Client {
         .map(|_| ())
     }
 
-    pub fn my_blueprints(&self, guild: &str) -> Result<Vec<OwnedRow>, StarOrgError> {
-        let path = format!(
-            "/api/industrial/crafting/guilds/{}/my-blueprints",
-            path_id(guild)?
-        );
-        Self::json(&Self::ok(
-            self.get(&path, true)?,
-            "this org's blueprint tracking",
-        )?)
+    /// The account's owned blueprints. The list is one per account: the account-level
+    /// route is asked first, and a server that does not have it yet (404, 405, or the 403
+    /// of a token not allowed on that path) is asked through `guild`, the id of an org
+    /// with blueprint tracking, when there is one.
+    pub fn my_blueprints(&self, guild: Option<&str>) -> Result<Vec<OwnedRow>, StarOrgError> {
+        let mut a = self.get(ME_BLUEPRINTS, true)?;
+        if let Some(g) = guild.filter(|_| no_such_route(&a)) {
+            a = self.get(&guild_blueprints(g)?, true)?;
+        }
+        Self::json(&Self::ok(a, BLUEPRINTS_WHAT)?)
     }
 
     /// Add ids in requests of at most [`MAX_BULK_IDS`], with `source: starorg_strings` and
-    /// the earliest local receipt time per id when known.
+    /// the earliest local receipt time per id when known. Routes as in
+    /// [`Self::my_blueprints`]; once the account-level route is refused, the rest of the
+    /// call goes through `guild`.
     pub fn add_blueprints(
         &self,
-        guild: &str,
+        guild: Option<&str>,
         ids: &[i64],
         acquired_at: &BTreeMap<i64, String>,
     ) -> Result<AddResult, StarOrgError> {
-        let path = format!(
-            "/api/industrial/crafting/guilds/{}/my-blueprints",
-            path_id(guild)?
-        );
+        let mut path = ME_BLUEPRINTS.to_string();
         let mut out = AddResult::default();
         for chunk in ids.chunks(MAX_BULK_IDS) {
             let times: BTreeMap<String, &String> = chunk
@@ -555,10 +558,14 @@ impl Client {
             if !times.is_empty() {
                 body["acquired_at"] = serde_json::json!(times);
             }
-            let r: AddResult = Self::json(&Self::ok(
-                self.post(&path, &body, true)?,
-                "this org's blueprint tracking",
-            )?)?;
+            let mut a = self.post(&path, &body, true)?;
+            if path == ME_BLUEPRINTS
+                && let Some(g) = guild.filter(|_| no_such_route(&a))
+            {
+                path = guild_blueprints(g)?;
+                a = self.post(&path, &body, true)?;
+            }
+            let r: AddResult = Self::json(&Self::ok(a, BLUEPRINTS_WHAT)?)?;
             out.added.extend(r.added);
             out.already_owned.extend(r.already_owned);
         }
@@ -575,6 +582,28 @@ impl Client {
 
     pub fn hangar(&self) -> Result<Vec<HangarVehicle>, StarOrgError> {
         Self::json(&Self::ok(self.get("/api/fleet/hangar", true)?, "hangar")?)
+    }
+}
+
+/// The account-level owned-blueprints route (no org in the path).
+const ME_BLUEPRINTS: &str = "/api/industrial/crafting/me/blueprints";
+const BLUEPRINTS_WHAT: &str = "owned blueprint list";
+
+/// The same list through an org's route, for servers without [`ME_BLUEPRINTS`].
+fn guild_blueprints(guild: &str) -> Result<String, StarOrgError> {
+    Ok(format!(
+        "/api/industrial/crafting/guilds/{}/my-blueprints",
+        path_id(guild)?
+    ))
+}
+
+/// The answer of a server that does not serve this path to the app: no such route (404,
+/// 405), or a path its token scope does not list (403, other than sign-in switched off).
+fn no_such_route(a: &Answer) -> bool {
+    match a.status {
+        404 | 405 => true,
+        403 => !Client::detail(&a.body).contains("sign-in is disabled"),
+        _ => false,
     }
 }
 

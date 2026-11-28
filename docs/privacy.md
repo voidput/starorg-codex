@@ -1,7 +1,7 @@
 ---
 title: Privacy policy
 tags: [docs]
-updated: 2026-11-25
+updated: 2026-11-28
 ---
 
 # Privacy policy
@@ -85,13 +85,15 @@ Tools.
 | Switch (default) | What is sent, to the chosen host |
 |---|---|
 | Import blueprints from Game.log (on) | Nothing: it reads the game's logs on this computer. Off, the app, the command-line tool and the post-exit hook do not read the logs at all. |
-| Push owned blueprints (off) | The ids of the blueprints owned by the characters you tick, and when each was received when Game.log or StarOrg Tools says so (`POST …/my-blueprints`). First, the public blueprint list is downloaded without your token. Never character names, ids or log text; never removals. Names StarOrg Tools has no single blueprint for are not sent. |
-| Pull owned blueprints (off) | Only the request with your token (`GET …/my-blueprints`); the list is added to one character here. |
+| Push owned blueprints (off) | The ids of the blueprints owned by the characters you tick, and when each was received when Game.log or StarOrg Tools says so (`POST …/me/blueprints`). First, the public blueprint list is downloaded without your token. Never character names, ids or log text; never removals. Names StarOrg Tools has no single blueprint for are not sent. |
+| Pull owned blueprints (off) | Only the request with your token (`GET …/me/blueprints`); the list is added to one character here. |
 | Pull fleet/hangar (off) | Only the request with your token (`GET /api/fleet/hangar`); ship names, counts and your ship names go into Ships. |
 | Sync automatically after game exit (off) | Runs the switches above when the game closes, instead of only when you press Sync now. |
 
-Requests go to the org you pick (the blueprint routes carry its Discord id). The account and
-org names shown in the app are kept in `app.json`.
+The owned list belongs to your account, so there is no org to pick: the blueprint routes are
+`…/crafting/me/blueprints`. Only a server older than 2.3.0 lacks them; there the app uses the
+org route (`…/guilds/{id}/my-blueprints`, which carries the Discord id of one of your orgs with
+blueprint tracking). The account and org names from sign-in are kept in `app.json`.
 
 The Microsoft Store version never checks GitHub: the Store installs its updates.
 

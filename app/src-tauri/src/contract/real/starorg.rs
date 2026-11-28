@@ -299,7 +299,7 @@ impl RealBackend {
             StarOrgError::NotFound(what) => (
                 ErrorCode::NotFound,
                 format!(
-                    "{host} has no {what} for this org (its blueprint tracking may be off). Pick another org."
+                    "{host} has no {what} for this account: none of your orgs has blueprint tracking on. Sign in again after one turns it on."
                 ),
             ),
             StarOrgError::RateLimited => (
@@ -383,10 +383,7 @@ impl RealBackend {
         if acc.signed_in && acc.expires_at.is_some_and(|t| t <= fsutil::unix_now()) {
             self.drop_token(env, &mut acc);
         }
-        let guild = acc
-            .guild
-            .as_ref()
-            .and_then(|id| acc.guilds.iter().find(|g| &g.id == id));
+        let guild = route_guild(&acc);
         Ok(StarOrgStatus {
             enabled: s.network.starorg,
             connected: acc.signed_in,
@@ -450,18 +447,9 @@ impl RealBackend {
         };
         if let Ok(me) = me {
             acc.guilds = guilds_of(&me);
-            // Keep the earlier choice when it is still one of the orgs; else the first org
-            // with blueprint tracking.
-            acc.guild = old
-                .guild
-                .filter(|g| acc.guilds.iter().any(|x| &x.id == g))
-                .or_else(|| {
-                    acc.guilds
-                        .iter()
-                        .find(|g| g.blueprints)
-                        .map(|g| g.id.clone())
-                })
-                .or_else(|| acc.guilds.first().map(|g| g.id.clone()));
+            // Keep an earlier choice while it is still one of the orgs; which org the
+            // routes go through is worked out per call (`route_guild`).
+            acc.guild = old.guild.filter(|g| acc.guilds.iter().any(|x| &x.id == g));
         }
         self.save_account(env, acc)?;
         self.log(
@@ -557,19 +545,6 @@ impl RealBackend {
         self.starorg_view(&req.channel)
     }
 
-    fn guild_of(&self, acc: &Account) -> CmdResult<(String, String)> {
-        acc.guild
-            .as_ref()
-            .and_then(|id| acc.guilds.iter().find(|g| &g.id == id))
-            .map(|g| (g.id.clone(), g.name.clone()))
-            .ok_or_else(|| {
-                err(
-                    ErrorCode::NeedsDecision,
-                    "Pick the org to sync with under Settings -> StarOrg Tools.",
-                )
-            })
-    }
-
     fn mark_synced(&self, env: StarOrgEnv) -> String {
         let t = now();
         let mut acc = self.account(env);
@@ -584,7 +559,12 @@ impl RealBackend {
             return Err(off("Pull owned blueprints"));
         }
         let (c, acc, env) = self.authed()?;
-        let (gid, gname) = self.guild_of(&acc)?;
+        let guild = route_guild(&acc);
+        let (gid, gname) = (guild.map(|g| g.id.as_str()), guild.map(|g| g.name.clone()));
+        // Named in log lines and source labels: the org, or the server for an account in none.
+        let from = gname
+            .clone()
+            .unwrap_or_else(|| core_env(env).host().to_string());
         let (f, data) = self.sync_target(&req.channel)?;
         let ch = f.channel(&req.channel)?;
         let chars = blueprints::load_characters(&data).map_err(io)?;
@@ -594,7 +574,7 @@ impl RealBackend {
                 "Pick one of the characters found in the logs.",
             ));
         }
-        let rows = c.my_blueprints(&gid).map_err(|e| self.so_err(env, e))?;
+        let rows = c.my_blueprints(gid).map_err(|e| self.so_err(env, e))?;
         // Names this build's game data knows, when it has been read (else everything goes in).
         let known = self.loaded(&f, ch, false).ok().map(|d| {
             starorg_core::blueprints::catalog::index(&GameDataCatalog::new(&d.game_data, &d.stock))
@@ -613,7 +593,7 @@ impl RealBackend {
                 continue;
             }
             let src = blueprints::Source {
-                kind: format!("starorg:{gname}"),
+                kind: format!("starorg:{from}"),
                 time: r.acquired_at.clone(),
                 file: None,
             };
@@ -632,14 +612,14 @@ impl RealBackend {
             Some(JobKind::Sync),
             Some(&req.channel),
             &format!(
-                "Pulled from StarOrg ({gname}): {} added, {already} already known",
+                "Pulled from StarOrg ({from}): {} added, {already} already known",
                 added.len()
             ),
         );
         Ok(SyncReport {
             direction: SyncDirection::Pull,
             channel: req.channel.clone(),
-            guild: Some(gname),
+            guild: gname,
             character: Some(req.character.clone()),
             added,
             already,
@@ -655,7 +635,12 @@ impl RealBackend {
             return Err(off("Push owned blueprints"));
         }
         let (c, acc, env) = self.authed()?;
-        let (gid, gname) = self.guild_of(&acc)?;
+        let guild = route_guild(&acc);
+        let (gid, gname) = (guild.map(|g| g.id.as_str()), guild.map(|g| g.name.clone()));
+        // Named in log lines and source labels: the org, or the server for an account in none.
+        let from = gname
+            .clone()
+            .unwrap_or_else(|| core_env(env).host().to_string());
         let (_f, data) = self.sync_target(channel)?;
         let ticked = self.app_file().sync.get(channel).cloned();
         // Q22: the union of the ticked characters' sets, earliest time per name.
@@ -718,7 +703,7 @@ impl RealBackend {
         let r = if ids.is_empty() {
             net::AddResult::default()
         } else {
-            c.add_blueprints(&gid, &ids, &times)
+            c.add_blueprints(gid, &ids, &times)
                 .map_err(|e| self.so_err(env, e))?
         };
         let time = self.mark_synced(env);
@@ -732,7 +717,7 @@ impl RealBackend {
             Some(JobKind::Sync),
             Some(channel),
             &format!(
-                "Pushed {} blueprints to StarOrg ({gname}): {} new there",
+                "Pushed {} blueprints to StarOrg ({from}): {} new there",
                 ids.len(),
                 added.len()
             ),
@@ -740,7 +725,7 @@ impl RealBackend {
         Ok(SyncReport {
             direction: SyncDirection::Push,
             channel: channel.to_string(),
-            guild: Some(gname),
+            guild: gname,
             character: None,
             added,
             already: r.already_owned.len() as u32,
@@ -791,11 +776,8 @@ impl RealBackend {
                 "Nothing to sync: turn on a StarOrg switch under Settings -> StarOrg Tools -> What to sync.",
             ));
         }
-        // Signed in and an org picked, or nothing runs.
-        let (_, acc, _) = self.authed()?;
-        if p.pull_blueprints || p.push_blueprints {
-            self.guild_of(&acc)?;
-        }
+        // Signed in, or nothing runs.
+        self.authed()?;
         let (f, data) = self.sync_target(channel)?;
         let mut reports = Vec::new();
         let mut skipped = Vec::new();
@@ -918,6 +900,23 @@ impl RealBackend {
         }
         out
     }
+}
+
+/// The org whose id goes in the older blueprint routes, for a server without the
+/// account-level one (`starorg_net::starorg::Client::my_blueprints`). The owned list is one
+/// per account, so the org only opens the route and nobody has to pick it: an earlier choice
+/// (`set_starorg_guild`) while that org has blueprint tracking, else the first org that
+/// has it, else the earlier choice or the first org (the server then answers 404).
+fn route_guild(acc: &Account) -> Option<&StarOrgGuild> {
+    let chosen = acc
+        .guild
+        .as_ref()
+        .and_then(|id| acc.guilds.iter().find(|g| &g.id == id));
+    chosen
+        .filter(|g| g.blueprints)
+        .or_else(|| acc.guilds.iter().find(|g| g.blueprints))
+        .or(chosen)
+        .or_else(|| acc.guilds.first())
 }
 
 fn guilds_of(me: &net::Me) -> Vec<StarOrgGuild> {

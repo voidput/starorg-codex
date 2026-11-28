@@ -47,6 +47,9 @@ pub struct MockState {
     pub guilds: Vec<(String, String, Vec<String>)>,
     /// Guilds whose `industry_v2` is on (others 404 on the blueprint routes).
     pub industry: BTreeSet<String>,
+    /// Serve the account-level `/api/industrial/crafting/me/blueprints` (SC-ORG-BOT #1737).
+    /// Off, as on servers before it: the path is outside the token's scope (403).
+    pub me_routes: bool,
     /// The public lookup rows.
     pub lookup: Vec<Value>,
     /// Owned ids -> (source, acquired_at)
@@ -77,6 +80,7 @@ impl Default for MockState {
                 ("100000000000000002".into(), "Other Test Org".into(), vec![]),
             ],
             industry: ["100000000000000001".to_string()].into(),
+            me_routes: false,
             lookup: vec![
                 json!({"id": 1, "k": "fake_rifle_kestrel", "n": "Fake Rifle 'Kestrel'", "c": "WeaponPersonal"}),
                 json!({"id": 2, "k": "test_armor_arms", "n": "Test Armor Arms", "a": ["Test Arms"]}),
@@ -273,28 +277,14 @@ fn route(g: &mut MockState, req: &Request, bearer: Option<&str>) -> Reply {
             (200, json!({ "status": "ok" }), None)
         }
         ("GET", "/api/fleet/hangar", _) => (200, json!(g.hangar), None),
+        ("GET", "/api/industrial/crafting/me/blueprints", _) if g.me_routes => owned(g),
+        ("POST", "/api/industrial/crafting/me/blueprints", _) if g.me_routes => add(g, req),
         (_, _, Some((guild, rest))) => {
             if !g.industry.contains(guild) {
                 return (404, detail("Not Found"), None);
             }
             match (m, rest) {
-                ("GET", "my-blueprints") => {
-                    let rows: Vec<Value> = g
-                        .owned
-                        .iter()
-                        .map(|(id, (src, at))| {
-                            let row = g.lookup.iter().find(|r| r["id"] == *id);
-                            json!({
-                                "blueprint_id": id,
-                                "slug": row.and_then(|r| r["k"].as_str()).unwrap_or_default(),
-                                "name": row.and_then(|r| r["n"].as_str()).unwrap_or("Unknown"),
-                                "category": row.and_then(|r| r["c"].as_str()),
-                                "source": src, "acquired_at": at, "is_active": true,
-                            })
-                        })
-                        .collect();
-                    (200, json!(rows), None)
-                }
+                ("GET", "my-blueprints") => owned(g),
                 ("POST", "my-blueprints") => add(g, req),
                 _ => (
                     403,
@@ -311,6 +301,25 @@ fn route(g: &mut MockState, req: &Request, bearer: Option<&str>) -> Reply {
             None,
         ),
     }
+}
+
+/// The owned list, the same rows on the account-level and the org route.
+fn owned(g: &MockState) -> Reply {
+    let rows: Vec<Value> = g
+        .owned
+        .iter()
+        .map(|(id, (src, at))| {
+            let row = g.lookup.iter().find(|r| r["id"] == *id);
+            json!({
+                "blueprint_id": id,
+                "slug": row.and_then(|r| r["k"].as_str()).unwrap_or_default(),
+                "name": row.and_then(|r| r["n"].as_str()).unwrap_or("Unknown"),
+                "category": row.and_then(|r| r["c"].as_str()),
+                "source": src, "acquired_at": at, "is_active": true,
+            })
+        })
+        .collect();
+    (200, json!(rows), None)
 }
 
 fn login(g: &mut MockState, req: &Request) -> Reply {

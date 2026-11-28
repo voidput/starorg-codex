@@ -1336,17 +1336,17 @@ fn starorg_sign_in_pull_push_hangar_and_sign_out_against_a_local_server() {
     let st = f.backend.starorg_status("LIVE".into()).unwrap();
     assert!(st.last_sync.is_some());
 
-    // Another org; one without blueprint tracking is a 404 from the server.
-    f.backend
+    // The owned list is one per account, so nobody has to pick an org: choosing one
+    // without blueprint tracking still goes through the org that has it.
+    let st = f
+        .backend
         .set_starorg_guild(StarOrgGuildRequest {
             channel: "LIVE".into(),
             guild: "100000000000000002".into(),
         })
         .unwrap();
-    assert_eq!(
-        f.backend.starorg_push("LIVE".into()).unwrap_err().code,
-        ErrorCode::NotFound
-    );
+    assert_eq!(st.guild_id.as_deref(), Some("100000000000000001"));
+    f.backend.starorg_push("LIVE".into()).unwrap();
 
     // Diagnostics name neither the StarOrg user nor the orgs from the sync log lines.
     let d = f.backend.export_diagnostics().unwrap();
